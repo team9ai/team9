@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:18.0-alpine3.22
+    container_name: team9_pg_server
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?err_postgres_user_is_required_in_env_file}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?err_postgres_password_is_required_in_env_file}
+      POSTGRES_DB: ${POSTGRES_DB:?err_postgres_db_is_required_in_env_file}
+    ports:
+      - '${DB_PORT:-5432}:5432'
+    volumes:
+      # Persist PostgreSQL data to prevent data loss on container restart
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # When connecting to the database specified by `POSTGRES_DB`, the `vector` extension will be automatically created.
+    # If you need to enable the extension for multiple databases, you need to use a custom initialization script.
+  redis:
+    # Use official Redis image, alpine version is smaller
+    image: redis:7-alpine
+    container_name: team9_redis_server
+    restart: always
+    # Set Redis password via startup command
+    command: redis-server --requirepass ${REDIS_PASSWORD:?err_redis_password_is_required_in_env_file}
+    ports:
+      # Map Redis default port
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      # Persist Redis data
+      - redis_data:/data
+    healthcheck:
+      # Use redis-cli ping command to check service health
+      test: ['CMD-SHELL', 'redis-cli -a ${REDIS_PASSWORD} ping | grep PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    # Use RabbitMQ image with management plugin for Web UI
+    image: rabbitmq:4.0.5-management-alpine
+    container_name: team9_rabbitmq_server
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?err_rabbitmq_password_is_required_in_env_file}
+    ports:
+      # AMQP protocol port
+      - '${RABBITMQ_PORT:-5672}:5672'
+      # Web UI management port
+      - '${RABBITMQ_MANAGEMENT_PORT:-15672}:15672'
+    volumes:
+      # Persist RabbitMQ data
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    # MinIO - High performance object storage compatible with S3 API
+    image: minio/minio:latest
+    container_name: team9_minio_server
+    restart: always
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?err_minio_root_password_is_required_in_env_file}
+    ports:
+      # S3 API port
+      - '${MINIO_API_PORT:-9000}:9000'
+      # Web Console port
+      - '${MINIO_CONSOLE_PORT:-9001}:9001'
+    volumes:
+      # Persist MinIO data
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+  minio_data:
+    driver: local

@@ -1,0 +1,43 @@
+{
+  "name": "team9",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Team9 Monorepo - Client (Tauri) + Server (NestJS)",
+  "scripts": {
+    "dev:client": "pnpm -C apps/client dev:web",
+    "dev:desktop": "pnpm -C apps/client dev:desktop",
+    "dev:server": "pnpm -C apps/server dev",
+    "dev": "concurrently \"pnpm dev:server\" \"pnpm dev:client\"",
+    "build:client": "pnpm -C apps/client build",
+    "build:client:mac": "pnpm -C apps/client build:mac",
+    "build:client:windows": "pnpm -C apps/client build:windows",
+    "build:server": "pnpm -C apps/server build",
+    "build": "pnpm build:server && pnpm build:client",
+    "start:prod": "pnpm -C apps/server start:prod",
+    "db:generate": "pnpm -C apps/server db:generate",
+    "db:migrate": "pnpm -C apps/server db:migrate",
+    "db:push": "pnpm -C apps/server db:push",
+    "db:studio": "pnpm -C apps/server db:studio",
+    "install:all": "pnpm install && pnpm -C apps/client install && pnpm -C apps/server install",
+    "clean": "rm -rf node_modules && pnpm -C apps/client clean && pnpm -C apps/server clean",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.4.2"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "prettier --write"
+    ],
+    "*.{json,md,yaml,yml}": [
+      "prettier --write"
+    ]
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}

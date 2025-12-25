@@ -1,0 +1,3 @@
+# Root workspace - manages shared development tooling
+# Each app (client, server) has its own workspace for independent builds
+packages: []

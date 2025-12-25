@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package ai;
+
+service AIService {
+  // Standard request-response
+  rpc Completion (CompletionRequest) returns (CompletionResponse);
+  rpc Health (HealthRequest) returns (HealthResponse);
+
+  // Server streaming RPC (replaces SSE)
+  rpc CompletionStream (CompletionRequest) returns (stream StreamChunk);
+}
+
+message CompletionRequest {
+  string provider = 1;
+  string model = 2;
+  repeated Message messages = 3;
+  optional float temperature = 4;
+  optional int32 max_tokens = 5;
+}
+
+message Message {
+  string role = 1;
+  string content = 2;
+}
+
+message CompletionResponse {
+  string provider = 1;
+  string model = 2;
+  string content = 3;
+  Usage usage = 4;
+  optional string finish_reason = 5;
+}
+
+message Usage {
+  int32 prompt_tokens = 1;
+  int32 completion_tokens = 2;
+  int32 total_tokens = 3;
+}
+
+message StreamChunk {
+  string content = 1;
+  bool done = 2;
+  optional string error = 3;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;
+  string timestamp = 2;
+}
