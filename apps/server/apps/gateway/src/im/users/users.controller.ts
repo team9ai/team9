@@ -9,8 +9,8 @@ import {
 } from '@nestjs/common';
 import { UsersService, UserResponse } from './users.service';
 import { UpdateUserDto, UpdateUserStatusDto } from './dto';
-import { AuthGuard } from '../auth/auth.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AuthGuard } from '../../auth/auth.guard';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 
 @Controller('api/im/users')
 @UseGuards(AuthGuard)

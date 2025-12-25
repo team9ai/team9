@@ -9,7 +9,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
-import { AuthService } from '../auth/auth.service';
+import { AuthService } from '../../auth/auth.service';
 import { UsersService } from '../users/users.service';
 import { ChannelsService } from '../channels/channels.service';
 import { MessagesService } from '../messages/messages.service';

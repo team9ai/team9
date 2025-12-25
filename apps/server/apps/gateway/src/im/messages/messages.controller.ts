@@ -12,8 +12,8 @@ import {
 } from '@nestjs/common';
 import { MessagesService, MessageResponse } from './messages.service';
 import { CreateMessageDto, UpdateMessageDto, AddReactionDto } from './dto';
-import { AuthGuard } from '../auth/auth.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AuthGuard } from '../../auth/auth.guard';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { ChannelsService } from '../channels/channels.service';
 
 @Controller('api/im')

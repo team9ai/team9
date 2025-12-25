@@ -21,8 +21,8 @@ import {
   AddMemberDto,
   UpdateMemberDto,
 } from './dto';
-import { AuthGuard } from '../auth/auth.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AuthGuard } from '../../auth/auth.guard';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 
 @Controller('api/im/channels')
 @UseGuards(AuthGuard)
