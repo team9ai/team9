@@ -24,7 +24,10 @@ import {
 import { AuthGuard } from '../../auth/auth.guard';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 
-@Controller('api/im/channels')
+@Controller({
+  path: 'im/channels',
+  version: '1',
+})
 @UseGuards(AuthGuard)
 export class ChannelsController {
   constructor(private readonly channelsService: ChannelsService) {}

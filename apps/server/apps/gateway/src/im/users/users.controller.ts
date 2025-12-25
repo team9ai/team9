@@ -12,7 +12,10 @@ import { UpdateUserDto, UpdateUserStatusDto } from './dto';
 import { AuthGuard } from '../../auth/auth.guard';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 
-@Controller('api/im/users')
+@Controller({
+  path: 'im/users',
+  version: '1',
+})
 @UseGuards(AuthGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}

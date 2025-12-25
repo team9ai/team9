@@ -16,7 +16,10 @@ import { AuthGuard } from '../../auth/auth.guard';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { ChannelsService } from '../channels/channels.service';
 
-@Controller('api/im')
+@Controller({
+  path: 'im',
+  version: '1',
+})
 @UseGuards(AuthGuard)
 export class MessagesController {
   constructor(
