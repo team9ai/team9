@@ -4,7 +4,51 @@ import { REDIS_CLIENT } from './redis.constants';
 
 @Injectable()
 export class RedisService {
+  private readonly NULL_MARKER = '__CACHE_NULL__';
+
   constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
+
+  async getOrSet<T>(
+    key: string,
+    fn: () => Promise<T | null>,
+    ttlSeconds: number = 300,
+  ): Promise<T | null> {
+    try {
+      const cached = await this.redis.get(key);
+      if (cached !== null) {
+        if (cached === this.NULL_MARKER) {
+          return null;
+        }
+        return JSON.parse(cached) as T;
+      }
+    } catch {
+      return fn();
+    }
+
+    const result = await fn();
+
+    try {
+      if (result === null || result === undefined) {
+        await this.redis.set(
+          key,
+          this.NULL_MARKER,
+          'EX',
+          Math.min(ttlSeconds, 60),
+        );
+      } else {
+        await this.redis.set(key, JSON.stringify(result), 'EX', ttlSeconds);
+      }
+    } catch {}
+
+    return result;
+  }
+
+  async invalidate(...keys: string[]): Promise<number> {
+    if (keys.length === 0) {
+      return 0;
+    }
+    return this.redis.del(...keys);
+  }
 
   async get(key: string): Promise<string | null> {
     return this.redis.get(key);
