@@ -12,6 +12,8 @@ import { AiClientModule } from '@team9/ai-client';
 // RabbitmqModule temporarily disabled due to NestJS 11 compatibility issue
 // import { RabbitmqModule } from '@team9/rabbitmq';
 import { ImModule } from './im/im.module';
+import { EditionModule } from './edition';
+import { TenantModule } from './tenant';
 
 @Module({
   imports: [
@@ -22,10 +24,13 @@ import { ImModule } from './im/im.module';
         join(process.cwd(), '.env'),
       ],
     }),
+    // Edition module - handles community/enterprise feature loading
+    EditionModule.forRootAsync(),
     DatabaseModule,
     RedisModule,
     AiClientModule,
     // RabbitmqModule,
+    TenantModule,
     ImModule,
   ],
   controllers: [AppController],

@@ -15,6 +15,13 @@
       "when": 1766650250307,
       "tag": "0001_tidy_thor_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1766726938320,
+      "tag": "0002_odd_kitty_pryde",
+      "breakpoints": true
     }
   ]
 }

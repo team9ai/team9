@@ -9,7 +9,14 @@
       "@team9/redis": ["../../libs/redis/src"],
       "@team9/ai-client": ["../../libs/ai-client/src"],
       "@team9/rabbitmq": ["../../libs/rabbitmq/src"],
-      "@team9/storage": ["../../libs/storage/src"]
+      "@team9/storage": ["../../libs/storage/src"],
+      "@team9/enterprise-tenant": ["../../../../enterprise/libs/tenant/src"],
+      "@team9/enterprise-sso": ["../../../../enterprise/libs/sso/src"],
+      "@team9/enterprise-audit": ["../../../../enterprise/libs/audit/src"],
+      "@team9/enterprise-analytics": [
+        "../../../../enterprise/libs/analytics/src"
+      ],
+      "@team9/enterprise-license": ["../../../../enterprise/libs/license/src"]
     }
   },
   "include": ["src/**/*"],

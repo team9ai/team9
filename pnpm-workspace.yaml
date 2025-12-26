@@ -1,3 +1,8 @@
 # Root workspace - manages shared development tooling
 # Each app (client, server) has its own workspace for independent builds
-packages: []
+packages:
+  - "apps/*"
+  - "apps/server/apps/*"
+  - "apps/server/libs/*"
+  # Enterprise modules (optional - loaded via git submodule)
+  - "enterprise/libs/*"
