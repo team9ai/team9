@@ -1,20 +1,4 @@
-# Git Submodule Configuration for Enterprise Modules
-#
-# To use this configuration:
-# 1. Create a private repository for enterprise modules (e.g., github.com/your-org/team9-enterprise)
-# 2. Push the enterprise/ directory contents to that repository
-# 3. Remove the local enterprise/ directory
-# 4. Rename this file to .gitmodules
-# 5. Run: git submodule add git@github.com:your-org/team9-enterprise.git enterprise
-#
-# For internal developers:
-#   git clone --recurse-submodules git@github.com:your-org/team9.git
-#
-# For open source contributors (no access to enterprise repo):
-#   git clone https://github.com/your-org/team9.git
-#   # Enterprise modules will not be available, app runs in community mode
-
 [submodule "enterprise"]
 	path = enterprise
 	url = git@github.com:weightwave/team9-enterprise.git
-    branch = jt
+	branch = main
