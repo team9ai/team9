@@ -3,9 +3,10 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from './schemas';
 import { config } from './schemas/config';
+import { env } from '@team9/shared';
 
 async function seed() {
-  const connectionString = `postgresql://${process.env.POSTGRES_USER || 'postgres'}:${process.env.POSTGRES_PASSWORD || 'postgres'}@localhost:${process.env.DB_PORT || '5432'}/${process.env.POSTGRES_DB || 'team9'}`;
+  const connectionString = `postgresql://${env.POSTGRES_USER}:${env.POSTGRES_PASSWORD}@${env.DB_HOST}:${env.DB_PORT}/${env.POSTGRES_DB}`;
 
   console.log('🌱 Seeding database...');
 
@@ -17,13 +18,13 @@ async function seed() {
     const defaultConfigs = [
       {
         key: 'AI_SERVICE_HOST',
-        value: process.env.AI_SERVICE_HOST || 'localhost',
+        value: String(env.AI_SERVICE_HOST),
         description: 'AI microservice host address',
         isSecret: false,
       },
       {
         key: 'AI_SERVICE_PORT',
-        value: process.env.AI_SERVICE_PORT || '3001',
+        value: String(env.AI_SERVICE_PORT),
         description: 'AI microservice port',
         isSecret: false,
       },

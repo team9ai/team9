@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { WsException } from '@nestjs/websockets';
 import { Socket } from 'socket.io';
 import { JwtPayload } from './decorators/current-user.decorator';
+import { env } from '@team9/shared';
 
 @Injectable()
 export class WsAuthGuard implements CanActivate {
@@ -21,8 +22,7 @@ export class WsAuthGuard implements CanActivate {
 
     try {
       const payload = this.jwtService.verify<JwtPayload>(token, {
-        secret:
-          process.env.JWT_SECRET || 'your-secret-key-change-in-production',
+        secret: env.JWT_SECRET,
       });
 
       (client as Socket & { user: JwtPayload }).user = payload;

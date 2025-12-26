@@ -14,6 +14,7 @@ import { UsersService } from '../users/users.service';
 import { ChannelsService } from '../channels/channels.service';
 import { MessagesService } from '../messages/messages.service';
 import { RedisService } from '@team9/redis';
+import { env } from '@team9/shared';
 import { WS_EVENTS } from './events/events.constants';
 import { REDIS_KEYS } from '../shared/constants/redis-keys';
 import { SocketWithUser } from '../shared/interfaces/socket-with-user.interface';
@@ -40,7 +41,7 @@ interface ReactionData {
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.CORS_ORIGIN || '*',
+    origin: env.CORS_ORIGIN,
     credentials: true,
   },
   namespace: '/im',

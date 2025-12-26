@@ -16,6 +16,7 @@ import {
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
+import { env } from '@team9/shared';
 import { CreateMessageDto, UpdateMessageDto, AttachmentDto } from './dto';
 import {
   parseMentions,
@@ -126,7 +127,7 @@ export class MessagesService {
       messageId,
       fileKey: att.fileKey,
       fileName: att.fileName,
-      fileUrl: `${process.env.S3_ENDPOINT || 'http://localhost:9000'}/im-attachments/${att.fileKey}`,
+      fileUrl: `${env.S3_ENDPOINT}/im-attachments/${att.fileKey}`,
       mimeType: att.mimeType,
       fileSize: att.fileSize,
     }));

@@ -4,6 +4,7 @@ import postgres from 'postgres';
 import * as schema from './schemas';
 import { ConfigService } from './config.service';
 import { DATABASE_CONNECTION } from './database.constants';
+import { env } from '@team9/shared';
 
 @Global()
 @Module({
@@ -13,11 +14,11 @@ import { DATABASE_CONNECTION } from './database.constants';
       useFactory: () => {
         const logger = new Logger('DatabaseModule');
 
-        const user = process.env.POSTGRES_USER || 'postgres';
-        const password = process.env.POSTGRES_PASSWORD || 'postgres';
-        const host = process.env.DB_HOST || 'localhost';
-        const port = process.env.DB_PORT || '5432';
-        const database = process.env.POSTGRES_DB || 'team9';
+        const user = env.POSTGRES_USER;
+        const password = env.POSTGRES_PASSWORD;
+        const host = env.DB_HOST;
+        const port = env.DB_PORT;
+        const database = env.POSTGRES_DB;
 
         logger.log(
           `Connecting to PostgreSQL at ${host}:${port}/${database} as ${user}`,
@@ -26,7 +27,7 @@ import { DATABASE_CONNECTION } from './database.constants';
         // Use connection options instead of connection string to avoid encoding issues
         const client = postgres({
           host,
-          port: parseInt(port, 10),
+          port,
           database,
           username: user,
           password, // Password is passed directly, no encoding needed

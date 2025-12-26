@@ -8,6 +8,7 @@ import {
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
+import { env } from '@team9/shared';
 import type { JwtPayload } from './decorators/current-user.decorator';
 import { RegisterDto, LoginDto } from './dto';
 
@@ -130,9 +131,7 @@ export class AuthService {
   async refreshToken(refreshToken: string): Promise<TokenPair> {
     try {
       const payload = this.jwtService.verify<JwtPayload>(refreshToken, {
-        secret:
-          process.env.JWT_REFRESH_SECRET ||
-          'refresh-secret-key-change-in-production',
+        secret: env.JWT_REFRESH_SECRET,
       });
 
       // Verify refresh token is stored in Redis
@@ -181,14 +180,12 @@ export class AuthService {
     };
 
     const accessToken = this.jwtService.sign(payload, {
-      secret: process.env.JWT_SECRET || 'your-secret-key-change-in-production',
+      secret: env.JWT_SECRET,
       expiresIn: '7d',
     });
 
     const refreshToken = this.jwtService.sign(payload, {
-      secret:
-        process.env.JWT_REFRESH_SECRET ||
-        'refresh-secret-key-change-in-production',
+      secret: env.JWT_REFRESH_SECRET,
       expiresIn: '30d',
     });
 
@@ -204,7 +201,7 @@ export class AuthService {
 
   verifyToken(token: string): JwtPayload {
     return this.jwtService.verify<JwtPayload>(token, {
-      secret: process.env.JWT_SECRET || 'your-secret-key-change-in-production',
+      secret: env.JWT_SECRET,
     });
   }
 }

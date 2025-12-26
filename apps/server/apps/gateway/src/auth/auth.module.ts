@@ -6,12 +6,13 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { AuthGuard } from './auth.guard';
 import { WsAuthGuard } from './ws-auth.guard';
+import { env } from '@team9/shared';
 
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'your-secret-key-change-in-production',
+      secret: env.JWT_SECRET,
       signOptions: {
         expiresIn: '7d',
       },

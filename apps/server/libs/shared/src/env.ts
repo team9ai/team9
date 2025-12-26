@@ -1,0 +1,105 @@
+/**
+ * Environment variable configuration
+ * All required environment variables must be defined, no fallback values allowed
+ */
+
+function getRequiredEnv(key: string): string {
+  const value = process.env[key];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${key}`);
+  }
+  return value;
+}
+
+function getRequiredEnvAsInt(key: string): number {
+  const value = getRequiredEnv(key);
+  const parsed = parseInt(value, 10);
+  if (isNaN(parsed)) {
+    throw new Error(
+      `Environment variable ${key} must be a valid integer, got: ${value}`,
+    );
+  }
+  return parsed;
+}
+
+export const env = {
+  // JWT
+  get JWT_SECRET() {
+    return getRequiredEnv('JWT_SECRET');
+  },
+  get JWT_REFRESH_SECRET() {
+    return getRequiredEnv('JWT_REFRESH_SECRET');
+  },
+
+  // Database
+  get POSTGRES_USER() {
+    return getRequiredEnv('POSTGRES_USER');
+  },
+  get POSTGRES_PASSWORD() {
+    return getRequiredEnv('POSTGRES_PASSWORD');
+  },
+  get DB_HOST() {
+    return getRequiredEnv('DB_HOST');
+  },
+  get DB_PORT() {
+    return getRequiredEnvAsInt('DB_PORT');
+  },
+  get POSTGRES_DB() {
+    return getRequiredEnv('POSTGRES_DB');
+  },
+
+  // Redis
+  get REDIS_HOST() {
+    return getRequiredEnv('REDIS_HOST');
+  },
+  get REDIS_PORT() {
+    return getRequiredEnvAsInt('REDIS_PORT');
+  },
+  get REDIS_PASSWORD() {
+    return process.env.REDIS_PASSWORD; // Optional
+  },
+
+  // RabbitMQ
+  get RABBITMQ_HOST() {
+    return getRequiredEnv('RABBITMQ_HOST');
+  },
+  get RABBITMQ_PORT() {
+    return getRequiredEnvAsInt('RABBITMQ_PORT');
+  },
+  get RABBITMQ_USER() {
+    return getRequiredEnv('RABBITMQ_USER');
+  },
+  get RABBITMQ_PASSWORD() {
+    return getRequiredEnv('RABBITMQ_PASSWORD');
+  },
+  get RABBITMQ_VHOST() {
+    return getRequiredEnv('RABBITMQ_VHOST');
+  },
+
+  // S3/MinIO Storage
+  get S3_ENDPOINT() {
+    return getRequiredEnv('S3_ENDPOINT');
+  },
+  get S3_REGION() {
+    return getRequiredEnv('S3_REGION');
+  },
+  get S3_ACCESS_KEY() {
+    return process.env.S3_ACCESS_KEY || getRequiredEnv('MINIO_ROOT_USER');
+  },
+  get S3_SECRET_KEY() {
+    return process.env.S3_SECRET_KEY || getRequiredEnv('MINIO_ROOT_PASSWORD');
+  },
+
+  // AI Service
+  get AI_SERVICE_HOST() {
+    return getRequiredEnv('AI_SERVICE_HOST');
+  },
+  get AI_SERVICE_PORT() {
+    return getRequiredEnvAsInt('AI_SERVICE_PORT');
+  },
+
+  // CORS
+  get CORS_ORIGIN() {
+    return getRequiredEnv('CORS_ORIGIN');
+  },
+};

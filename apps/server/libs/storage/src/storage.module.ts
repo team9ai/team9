@@ -2,6 +2,7 @@ import { Module, Global, Logger, OnModuleDestroy } from '@nestjs/common';
 import { S3Client } from '@aws-sdk/client-s3';
 import { S3_CLIENT } from './storage.constants.js';
 import { StorageService } from './storage.service.js';
+import { env } from '@team9/shared';
 
 @Global()
 @Module({
@@ -11,12 +12,10 @@ import { StorageService } from './storage.service.js';
       useFactory: () => {
         const logger = new Logger('StorageModule');
 
-        const endpoint = process.env.S3_ENDPOINT || 'http://localhost:9000';
-        const region = process.env.S3_REGION || 'us-east-1';
-        const accessKeyId =
-          process.env.S3_ACCESS_KEY || process.env.MINIO_ROOT_USER || 'admin';
-        const secretAccessKey =
-          process.env.S3_SECRET_KEY || process.env.MINIO_ROOT_PASSWORD || '';
+        const endpoint = env.S3_ENDPOINT;
+        const region = env.S3_REGION;
+        const accessKeyId = env.S3_ACCESS_KEY;
+        const secretAccessKey = env.S3_SECRET_KEY;
 
         logger.log(`Connecting to S3-compatible storage at ${endpoint}`);
 

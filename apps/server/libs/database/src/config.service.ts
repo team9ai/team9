@@ -5,6 +5,7 @@ import { DATABASE_CONNECTION } from './database.constants';
 import * as schema from './schemas';
 import { Config } from './schemas/config';
 import { ConfigKey } from './config-keys';
+import { env } from '@team9/shared';
 
 @Injectable()
 export class ConfigService {
@@ -123,15 +124,9 @@ export class ConfigService {
    */
   getMicroserviceConfig() {
     return {
-      host: this.get(
-        ConfigKey.AI_SERVICE_HOST,
-        process.env.AI_SERVICE_HOST || 'localhost',
-      ),
+      host: this.get(ConfigKey.AI_SERVICE_HOST) || env.AI_SERVICE_HOST,
       port: parseInt(
-        this.get(
-          ConfigKey.AI_SERVICE_PORT,
-          process.env.AI_SERVICE_PORT || '3001',
-        ) || '3001',
+        this.get(ConfigKey.AI_SERVICE_PORT) || String(env.AI_SERVICE_PORT),
         10,
       ),
     };

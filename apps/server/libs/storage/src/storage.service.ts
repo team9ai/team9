@@ -12,6 +12,7 @@ import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import { randomUUID } from 'crypto';
 import { extname } from 'path';
 import { S3_CLIENT } from './storage.constants.js';
+import { env } from '@team9/shared';
 
 export interface ListOptions {
   prefix?: string;
@@ -101,7 +102,7 @@ export class StorageService {
   private readonly endpoint: string;
 
   constructor(@Inject(S3_CLIENT) private readonly s3Client: S3Client) {
-    this.endpoint = process.env.S3_ENDPOINT || 'http://localhost:9000';
+    this.endpoint = env.S3_ENDPOINT;
   }
 
   // ==================== Frontend Direct Upload ====================

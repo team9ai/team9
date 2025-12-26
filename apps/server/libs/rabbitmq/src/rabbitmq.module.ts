@@ -1,16 +1,17 @@
 import { Module, Global } from '@nestjs/common';
 import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
+import { env } from '@team9/shared';
 
 @Global()
 @Module({
   imports: [
     RabbitMQModule.forRootAsync({
       useFactory: () => {
-        const host = process.env.RABBITMQ_HOST || 'localhost';
-        const port = parseInt(process.env.RABBITMQ_PORT || '5672');
-        const username = process.env.RABBITMQ_USER || 'guest';
-        const password = process.env.RABBITMQ_PASSWORD || 'guest';
-        const vhost = process.env.RABBITMQ_VHOST || '/';
+        const host = env.RABBITMQ_HOST;
+        const port = env.RABBITMQ_PORT;
+        const username = env.RABBITMQ_USER;
+        const password = env.RABBITMQ_PASSWORD;
+        const vhost = env.RABBITMQ_VHOST;
 
         return {
           uri: `amqp://${username}:${password}@${host}:${port}${vhost}`,
