@@ -38,3 +38,11 @@ apps/client/src-tauri/target/
 
 # Misc
 *.tsbuildinfo
+
+# Enterprise (when using submodule, this is handled by git automatically)
+# Only ignore if developing locally without submodule setup
+# enterprise/
+
+# License files (keep these private)
+*.license
+license.key
