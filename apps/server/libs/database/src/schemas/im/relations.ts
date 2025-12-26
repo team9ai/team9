@@ -7,6 +7,8 @@ import { messageAttachments } from './message-attachments';
 import { messageReactions } from './message-reactions';
 import { userChannelReadStatus } from './user-channel-read-status';
 import { mentions } from './mentions';
+import { tenants } from '../tenant/tenants';
+import { tenantMembers } from '../tenant/tenant-members';
 
 export const usersRelations = relations(users, ({ many }) => ({
   channelMemberships: many(channelMembers),
@@ -15,9 +17,14 @@ export const usersRelations = relations(users, ({ many }) => ({
   readStatuses: many(userChannelReadStatus),
   mentions: many(mentions),
   createdChannels: many(channels),
+  tenantMemberships: many(tenantMembers),
 }));
 
 export const channelsRelations = relations(channels, ({ one, many }) => ({
+  tenant: one(tenants, {
+    fields: [channels.tenantId],
+    references: [tenants.id],
+  }),
   creator: one(users, {
     fields: [channels.createdBy],
     references: [users.id],

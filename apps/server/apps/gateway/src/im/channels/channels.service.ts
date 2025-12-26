@@ -18,6 +18,7 @@ import { CreateChannelDto, UpdateChannelDto, UpdateMemberDto } from './dto';
 
 export interface ChannelResponse {
   id: string;
+  tenantId: string | null;
   name: string | null;
   description: string | null;
   type: 'direct' | 'public' | 'private';
@@ -58,10 +59,12 @@ export class ChannelsService {
   async create(
     dto: CreateChannelDto,
     creatorId: string,
+    tenantId?: string,
   ): Promise<ChannelResponse> {
     const [channel] = await this.db
       .insert(schema.channels)
       .values({
+        tenantId,
         name: dto.name,
         description: dto.description,
         type: dto.type,
@@ -79,6 +82,7 @@ export class ChannelsService {
   async createDirectChannel(
     userId1: string,
     userId2: string,
+    tenantId?: string,
   ): Promise<ChannelResponse> {
     // Check if direct channel already exists
     const existingChannels = await this.db
@@ -93,6 +97,7 @@ export class ChannelsService {
           eq(schema.channels.type, 'direct'),
           sql`${schema.channelMembers.userId} IN (${userId1}, ${userId2})`,
           isNull(schema.channelMembers.leftAt),
+          tenantId ? eq(schema.channels.tenantId, tenantId) : undefined,
         ),
       )
       .groupBy(schema.channelMembers.channelId)
@@ -111,6 +116,7 @@ export class ChannelsService {
     const [channel] = await this.db
       .insert(schema.channels)
       .values({
+        tenantId,
         type: 'direct',
         createdBy: userId1,
       })
@@ -168,10 +174,14 @@ export class ChannelsService {
     return channel;
   }
 
-  async getUserChannels(userId: string): Promise<ChannelWithUnread[]> {
+  async getUserChannels(
+    userId: string,
+    tenantId?: string,
+  ): Promise<ChannelWithUnread[]> {
     const result = await this.db
       .select({
         id: schema.channels.id,
+        tenantId: schema.channels.tenantId,
         name: schema.channels.name,
         description: schema.channels.description,
         type: schema.channels.type,
@@ -204,6 +214,7 @@ export class ChannelsService {
         and(
           eq(schema.channelMembers.userId, userId),
           isNull(schema.channelMembers.leftAt),
+          tenantId ? eq(schema.channels.tenantId, tenantId) : undefined,
         ),
       );
 

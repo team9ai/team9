@@ -23,6 +23,7 @@ import {
 } from './dto';
 import { AuthGuard } from '../../auth/auth.guard';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { CurrentTenantId } from '../../tenant/decorators/current-tenant.decorator';
 
 @Controller({
   path: 'im/channels',
@@ -35,24 +36,31 @@ export class ChannelsController {
   @Get()
   async getMyChannels(
     @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string | undefined,
   ): Promise<ChannelWithUnread[]> {
-    return this.channelsService.getUserChannels(userId);
+    return this.channelsService.getUserChannels(userId, tenantId);
   }
 
   @Post()
   async createChannel(
     @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string | undefined,
     @Body() dto: CreateChannelDto,
   ): Promise<ChannelResponse> {
-    return this.channelsService.create(dto, userId);
+    return this.channelsService.create(dto, userId, tenantId);
   }
 
   @Post('direct/:targetUserId')
   async createDirectChannel(
     @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string | undefined,
     @Param('targetUserId') targetUserId: string,
   ): Promise<ChannelResponse> {
-    return this.channelsService.createDirectChannel(userId, targetUserId);
+    return this.channelsService.createDirectChannel(
+      userId,
+      targetUserId,
+      tenantId,
+    );
   }
 
   @Get(':id')

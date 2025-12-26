@@ -13,6 +13,7 @@ import { AiClientModule } from '@team9/ai-client';
 // import { RabbitmqModule } from '@team9/rabbitmq';
 import { ImModule } from './im/im.module';
 import { EditionModule } from './edition';
+import { TenantModule } from './tenant';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { EditionModule } from './edition';
     RedisModule,
     AiClientModule,
     // RabbitmqModule,
+    TenantModule,
     ImModule,
   ],
   controllers: [AppController],
