@@ -1,16 +1,13 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
-import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { JwtStrategy } from './strategies/jwt.strategy';
-import { AuthGuard } from './auth.guard';
-import { WsAuthGuard } from './ws-auth.guard';
+import { AuthModule as SharedAuthModule } from '@team9/auth';
 import { env } from '@team9/shared';
 
 @Module({
   imports: [
-    PassportModule.register({ defaultStrategy: 'jwt' }),
+    SharedAuthModule,
     JwtModule.register({
       secret: env.JWT_SECRET,
       signOptions: {
@@ -19,7 +16,7 @@ import { env } from '@team9/shared';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, AuthGuard, WsAuthGuard],
-  exports: [AuthService, JwtModule, AuthGuard, WsAuthGuard],
+  providers: [AuthService],
+  exports: [AuthService, SharedAuthModule],
 })
 export class AuthModule {}

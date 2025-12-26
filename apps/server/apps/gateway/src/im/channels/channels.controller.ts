@@ -21,9 +21,8 @@ import {
   AddMemberDto,
   UpdateMemberDto,
 } from './dto';
-import { AuthGuard } from '../../auth/auth.guard';
-import { CurrentUser } from '../../auth/decorators/current-user.decorator';
-import { CurrentTenantId } from '../../tenant/decorators/current-tenant.decorator';
+import { AuthGuard, CurrentUser } from '@team9/auth';
+import { CurrentTenantId } from '../../common/decorators/current-tenant.decorator';
 
 @Controller({
   path: 'im/channels',

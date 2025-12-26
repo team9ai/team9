@@ -206,6 +206,9 @@ importers:
       '@team9/ai-client':
         specifier: workspace:*
         version: link:../../libs/ai-client
+      '@team9/auth':
+        specifier: workspace:*
+        version: link:../../libs/auth
       '@team9/database':
         specifier: workspace:*
         version: link:../../libs/database
@@ -216,11 +219,35 @@ importers:
         specifier: workspace:*
         version: link:../../libs/shared
 
+  libs/agent-runtime:
+    dependencies:
+      '@paralleldrive/cuid2':
+        specifier: ^3.0.4
+        version: 3.0.4
+      js-tiktoken:
+        specifier: ^1.0.21
+        version: 1.0.21
+
   libs/ai-client:
     dependencies:
       '@team9/database':
         specifier: workspace:*
         version: link:../database
+
+  libs/auth:
+    dependencies:
+      '@nestjs/common':
+        specifier: ^11.0.0
+        version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/core':
+        specifier: ^11.0.0
+        version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/jwt':
+        specifier: ^10.2.0
+        version: 10.2.0(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))
+      '@nestjs/passport':
+        specifier: ^11.0.5
+        version: 11.0.5(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(passport@0.7.0)
 
   libs/database:
     dependencies:
@@ -2262,6 +2289,14 @@ packages:
       '@nestjs/websockets':
         optional: true
 
+  '@nestjs/jwt@10.2.0':
+    resolution:
+      {
+        integrity: sha512-x8cG90SURkEiLOehNaN2aRlotxT0KZESUliOPKKnjWiyJOcWurkF3w345WOX0P4MgFzUjGoZ1Sy0aZnxeihT0g==,
+      }
+    peerDependencies:
+      '@nestjs/common': ^8.0.0 || ^9.0.0 || ^10.0.0
+
   '@nestjs/jwt@11.0.2':
     resolution:
       {
@@ -2344,6 +2379,13 @@ packages:
       }
     engines: { node: ^14.21.3 || >=16 }
 
+  '@noble/hashes@2.0.1':
+    resolution:
+      {
+        integrity: sha512-XlOlEbQcE9fmuXxrVTXCTlG2nlRXa9Rj3rr5Ue/+tX+nmkgbX720YHh0VR3hBF9xDvwnb8D2shVGOwNx+ulArw==,
+      }
+    engines: { node: '>= 20.19.0' }
+
   '@nuxt/opencollective@0.4.1':
     resolution:
       {
@@ -2357,6 +2399,13 @@ packages:
       {
         integrity: sha512-XO7cAxhnTZl0Yggq6jOgjiOHhbgcO4NqFqwSmQpjK3b6TEE6Uj/jfSk6wzYyemh3+I0sHirKSetjQwn5cZktFw==,
       }
+
+  '@paralleldrive/cuid2@3.0.4':
+    resolution:
+      {
+        integrity: sha512-sM6M2PWrByOEpN2QYAdulhEbSZmChwj0e52u4hpwB7u4PznFiNAavtE6m7O8tWUlzX+jT2eKKtc5/ZgX+IHrtg==,
+      }
+    hasBin: true
 
   '@pkgjs/parseargs@0.11.0':
     resolution:
@@ -2941,6 +2990,12 @@ packages:
     resolution:
       {
         integrity: sha512-asx5hIG9Qmf/1oStypjanR7iKTv0gXQ1Ov/jfrX6kS/EO0OFni8orbmGCn0672NHR3kXHwpAwR+B368ZGN/2rA==,
+      }
+
+  '@types/jsonwebtoken@9.0.5':
+    resolution:
+      {
+        integrity: sha512-VRLSGzik+Unrup6BsouBeHsf4d1hOEgYWTm/7Nmw1sXoN1+tRly/Gy/po3yeahnP4jfnQWWAhQAqcNfH7ngOkA==,
       }
 
   '@types/methods@1.1.4':
@@ -3702,6 +3757,12 @@ packages:
       }
     engines: { node: '>= 18' }
 
+  bignumber.js@9.3.1:
+    resolution:
+      {
+        integrity: sha512-Ko0uX15oIUS7wJ3Rb30Fs6SkVbLmPBAKdlm7q9+ak9bbIeFf0MwuBsQV6z7+X768/cHsfg+WlysDWJcmthjsjQ==,
+      }
+
   binary-extensions@2.3.0:
     resolution:
       {
@@ -4420,6 +4481,12 @@ packages:
         integrity: sha512-LgQMM4WXU3QI+SYgEc2liRgznaD5ojbmY3sb8LxyguVkIg5FxdpTkvk72te2R38/TGKxH634oLxXRGY6d7AP+Q==,
       }
     engines: { node: '>=10.13.0' }
+
+  error-causes@3.0.2:
+    resolution:
+      {
+        integrity: sha512-i0B8zq1dHL6mM85FGoxaJnVtx6LD5nL2v0hlpGdntg5FOSyzQ46c9lmz5qx0xRS2+PWHGOHcYxGIBC5Le2dRMw==,
+      }
 
   error-ex@1.3.4:
     resolution:
@@ -5479,6 +5546,12 @@ packages:
       node-notifier:
         optional: true
 
+  js-tiktoken@1.0.21:
+    resolution:
+      {
+        integrity: sha512-biOj/6M5qdgx5TKjDnFT1ymSpM5tbd3ylwDtrQvFQSu0Z7bBYko2dF+W/aUkXUPuk6IVpRxk/3Q2sHOzGlS36g==,
+      }
+
   js-tokens@4.0.0:
     resolution:
       {
@@ -5564,6 +5637,13 @@ packages:
         integrity: sha512-FGuPw30AdOIUTRMC2OMRtQV+jkVj2cfPqSeWXv1NEAJ1qZ5zb1X6z1mFhbfOB/iy3ssJCD+3KuZ8r8C3uVFlAg==,
       }
 
+  jsonwebtoken@9.0.2:
+    resolution:
+      {
+        integrity: sha512-PRp66vJ865SSqOlgqS8hujT5U4AOgMfhrwYIuIhfKaoSCZcirrmASQr8CX7cUg+RMih+hgznrjp99o+W4pJLHQ==,
+      }
+    engines: { node: '>=12', npm: '>=6' }
+
   jsonwebtoken@9.0.3:
     resolution:
       {
@@ -5571,10 +5651,22 @@ packages:
       }
     engines: { node: '>=12', npm: '>=6' }
 
+  jwa@1.4.2:
+    resolution:
+      {
+        integrity: sha512-eeH5JO+21J78qMvTIDdBXidBd6nG2kZjg5Ohz/1fpa28Z4CcsWUzJ1ZZyFq/3z3N17aZy+ZuBoHljASbL1WfOw==,
+      }
+
   jwa@2.0.1:
     resolution:
       {
         integrity: sha512-hRF04fqJIP8Abbkq5NKGN0Bbr3JxlQ+qhZufXVr0DvujKy93ZCbXZMHDL4EOtodSbCWxOqR8MS1tXA5hwqCXDg==,
+      }
+
+  jws@3.2.3:
+    resolution:
+      {
+        integrity: sha512-byiJ0FLRdLdSVSReO/U4E7RoEyOCKnEnEPMjq3HxWtvzLsV08/i5RQKsFVNkCldrCaPr2vDNAOMsfs8T/Hze7g==,
       }
 
   jws@4.0.1:
@@ -9021,6 +9113,12 @@ snapshots:
       '@nestjs/platform-express': 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)
       '@nestjs/websockets': 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)(@nestjs/platform-socket.io@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
 
+  '@nestjs/jwt@10.2.0(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))':
+    dependencies:
+      '@nestjs/common': 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@types/jsonwebtoken': 9.0.5
+      jsonwebtoken: 9.0.2
+
   '@nestjs/jwt@11.0.2(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))':
     dependencies:
       '@nestjs/common': 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -9089,6 +9187,8 @@ snapshots:
 
   '@noble/hashes@1.8.0': {}
 
+  '@noble/hashes@2.0.1': {}
+
   '@nuxt/opencollective@0.4.1':
     dependencies:
       consola: 3.4.2
@@ -9096,6 +9196,12 @@ snapshots:
   '@paralleldrive/cuid2@2.3.1':
     dependencies:
       '@noble/hashes': 1.8.0
+
+  '@paralleldrive/cuid2@3.0.4':
+    dependencies:
+      '@noble/hashes': 2.0.1
+      bignumber.js: 9.3.1
+      error-causes: 3.0.2
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
@@ -9561,6 +9667,10 @@ snapshots:
   '@types/jsonwebtoken@9.0.10':
     dependencies:
       '@types/ms': 2.1.0
+      '@types/node': 22.19.3
+
+  '@types/jsonwebtoken@9.0.5':
+    dependencies:
       '@types/node': 22.19.3
 
   '@types/methods@1.1.4': {}
@@ -10041,6 +10151,8 @@ snapshots:
       node-addon-api: 8.5.0
       node-gyp-build: 4.8.4
 
+  bignumber.js@9.3.1: {}
+
   binary-extensions@2.3.0: {}
 
   bl@4.1.0:
@@ -10370,6 +10482,8 @@ snapshots:
     dependencies:
       graceful-fs: 4.2.11
       tapable: 2.3.0
+
+  error-causes@3.0.2: {}
 
   error-ex@1.3.4:
     dependencies:
@@ -11313,6 +11427,10 @@ snapshots:
       - supports-color
       - ts-node
 
+  js-tiktoken@1.0.21:
+    dependencies:
+      base64-js: 1.5.1
+
   js-tokens@4.0.0: {}
 
   js-yaml@3.14.2:
@@ -11351,6 +11469,19 @@ snapshots:
     optionalDependencies:
       graceful-fs: 4.2.11
 
+  jsonwebtoken@9.0.2:
+    dependencies:
+      jws: 3.2.3
+      lodash.includes: 4.3.0
+      lodash.isboolean: 3.0.3
+      lodash.isinteger: 4.0.4
+      lodash.isnumber: 3.0.3
+      lodash.isplainobject: 4.0.6
+      lodash.isstring: 4.0.1
+      lodash.once: 4.1.1
+      ms: 2.1.3
+      semver: 7.7.3
+
   jsonwebtoken@9.0.3:
     dependencies:
       jws: 4.0.1
@@ -11364,10 +11495,21 @@ snapshots:
       ms: 2.1.3
       semver: 7.7.3
 
+  jwa@1.4.2:
+    dependencies:
+      buffer-equal-constant-time: 1.0.1
+      ecdsa-sig-formatter: 1.0.11
+      safe-buffer: 5.2.1
+
   jwa@2.0.1:
     dependencies:
       buffer-equal-constant-time: 1.0.1
       ecdsa-sig-formatter: 1.0.11
+      safe-buffer: 5.2.1
+
+  jws@3.2.3:
+    dependencies:
+      jwa: 1.4.2
       safe-buffer: 5.2.1
 
   jws@4.0.1:

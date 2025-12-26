@@ -10,9 +10,8 @@ import {
 import { AuthService } from './auth.service';
 import type { AuthResponse, TokenPair } from './auth.service';
 import { RegisterDto, LoginDto, RefreshTokenDto } from './dto';
-import { AuthGuard } from './auth.guard';
-import { CurrentUser } from './decorators/current-user.decorator';
-import type { JwtPayload } from './decorators/current-user.decorator';
+import { AuthGuard, CurrentUser } from '@team9/auth';
+import type { JwtPayload } from '@team9/auth';
 
 @Controller({
   path: 'auth',

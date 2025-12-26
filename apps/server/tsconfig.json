@@ -22,6 +22,8 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
+      "@team9/auth": ["libs/auth/src"],
+      "@team9/auth/*": ["libs/auth/src/*"],
       "@team9/database": ["libs/database/src"],
       "@team9/database/*": ["libs/database/src/*"],
       "@team9/shared": ["libs/shared/src"],
