@@ -1,4 +1,4 @@
-import { Operation } from './operation.types';
+import { Operation } from './operation.types.js';
 
 /**
  * Chunk retention strategy

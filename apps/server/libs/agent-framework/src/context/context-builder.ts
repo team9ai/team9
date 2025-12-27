@@ -1,6 +1,6 @@
-import { MemoryChunk, ChunkType } from '../types/chunk.types';
-import { MemoryState } from '../types/state.types';
-import { ITokenizer } from '../tokenizer/tokenizer.types';
+import { MemoryChunk, ChunkType } from '../types/chunk.types.js';
+import { MemoryState } from '../types/state.types.js';
+import { ITokenizer } from '../tokenizer/tokenizer.types.js';
 import {
   IContextBuilder,
   IChunkRenderer,
@@ -8,8 +8,8 @@ import {
   ContextBuildResult,
   ContextMessage,
   ContextMessageRole,
-} from './context.types';
-import { getDefaultRenderers } from './chunk-renderers';
+} from './context.types.js';
+import { getDefaultRenderers } from './chunk-renderers.js';
 
 /**
  * Default context builder implementation

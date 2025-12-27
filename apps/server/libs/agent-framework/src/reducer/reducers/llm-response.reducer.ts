@@ -1,9 +1,9 @@
-import { MemoryState } from '../../types/state.types';
+import { MemoryState } from '../../types/state.types.js';
 import {
   ChunkType,
   ChunkRetentionStrategy,
   ChunkContentType,
-} from '../../types/chunk.types';
+} from '../../types/chunk.types.js';
 import {
   AgentEvent,
   EventType,
@@ -13,10 +13,10 @@ import {
   LLMSubAgentSpawnEvent,
   LLMSubAgentMessageEvent,
   LLMClarificationEvent,
-} from '../../types/event.types';
-import { EventReducer, ReducerResult } from '../reducer.types';
-import { createChunk } from '../../factories/chunk.factory';
-import { createAddOperation } from '../../factories/operation.factory';
+} from '../../types/event.types.js';
+import { EventReducer, ReducerResult } from '../reducer.types.js';
+import { createChunk } from '../../factories/chunk.factory.js';
+import { createAddOperation } from '../../factories/operation.factory.js';
 
 /**
  * Reducer for LLM_TEXT_RESPONSE events

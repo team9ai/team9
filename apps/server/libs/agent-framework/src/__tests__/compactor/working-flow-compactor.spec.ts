@@ -1,19 +1,19 @@
 /**
  * Unit tests for WorkingFlowCompactor
  */
-import { WorkingFlowCompactor } from '../../compactor/working-flow.compactor';
-import { createChunk, createState } from '../../factories';
+import { WorkingFlowCompactor } from '../../compactor/working-flow.compactor.js';
+import { createChunk, createState } from '../../factories/index.js';
 import {
   ChunkType,
   ChunkContentType,
   ChunkRetentionStrategy,
   WorkingFlowSubType,
-} from '../../types';
+} from '../../types/index.js';
 import {
   ILLMAdapter,
   LLMConfig,
   LLMCompletionResponse,
-} from '../../llm/llm.types';
+} from '../../llm/llm.types.js';
 
 // Mock LLM Adapter
 class MockLLMAdapter implements ILLMAdapter {

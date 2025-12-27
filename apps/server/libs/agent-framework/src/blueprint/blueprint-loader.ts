@@ -4,20 +4,23 @@ import {
   BlueprintLoadOptions,
   BlueprintLoadResult,
   BlueprintValidationResult,
-} from './blueprint.types';
+} from './blueprint.types.js';
 import {
   ChunkType,
   ChunkRetentionStrategy,
   WorkingFlowSubType,
   CreateChunkInput,
   ChunkContentType,
-} from '../types/chunk.types';
-import { MemoryManager, MemoryManagerConfig } from '../manager/memory.manager';
+} from '../types/chunk.types.js';
+import {
+  MemoryManager,
+  MemoryManagerConfig,
+} from '../manager/memory.manager.js';
 import {
   CreateThreadOptions,
   CreateThreadResult,
-} from '../manager/thread.manager';
-import { createChunk } from '../factories/chunk.factory';
+} from '../manager/thread.manager.js';
+import { createChunk } from '../factories/chunk.factory.js';
 
 /**
  * BlueprintLoader creates agent threads from blueprint definitions

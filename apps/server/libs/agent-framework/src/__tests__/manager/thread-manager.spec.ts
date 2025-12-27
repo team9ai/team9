@@ -1,10 +1,10 @@
 /**
  * Unit tests for ThreadManager
  */
-import { ThreadManager } from '../../manager/thread.manager';
-import { InMemoryStorageProvider } from '../../storage';
-import { createChunk, createAddOperation } from '../../factories';
-import { ChunkType, ChunkContentType } from '../../types';
+import { ThreadManager } from '../../manager/thread.manager.js';
+import { InMemoryStorageProvider } from '../../storage/index.js';
+import { createChunk, createAddOperation } from '../../factories/index.js';
+import { ChunkType, ChunkContentType } from '../../types/index.js';
 
 describe('ThreadManager', () => {
   let storage: InMemoryStorageProvider;

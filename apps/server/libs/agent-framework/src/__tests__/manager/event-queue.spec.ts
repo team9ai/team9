@@ -1,8 +1,8 @@
 /**
  * Unit tests for EventQueue
  */
-import { EventQueue, BlockingReason } from '../../manager/event-queue';
-import { EventType, AgentEvent } from '../../types';
+import { EventQueue, BlockingReason } from '../../manager/event-queue.js';
+import { EventType, AgentEvent } from '../../types/index.js';
 
 describe('EventQueue', () => {
   let queue: EventQueue<string>;

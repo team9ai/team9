@@ -6,7 +6,7 @@ import {
   TiktokenTokenizer,
   SimpleTokenizer,
   getEncodingForModel,
-} from '../../tokenizer';
+} from '../../tokenizer/index.js';
 
 describe('Tokenizer Module', () => {
   describe('SimpleTokenizer', () => {

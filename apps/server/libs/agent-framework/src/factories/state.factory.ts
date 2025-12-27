@@ -3,9 +3,9 @@ import {
   CreateStateInput,
   StateMetadata,
   SerializableMemoryState,
-} from '../types/state.types';
-import { MemoryChunk } from '../types/chunk.types';
-import { generateStateId } from '../utils/id.utils';
+} from '../types/state.types.js';
+import { MemoryChunk } from '../types/chunk.types.js';
+import { generateStateId } from '../utils/id.utils.js';
 
 /**
  * Deep freeze an object to make it immutable

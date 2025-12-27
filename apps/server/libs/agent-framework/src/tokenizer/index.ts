@@ -1,2 +1,2 @@
-export * from './tokenizer.types';
-export * from './tiktoken.tokenizer';
+export * from './tokenizer.types.js';
+export * from './tiktoken.tokenizer.js';

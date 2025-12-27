@@ -1,5 +1,5 @@
-import { ChunkContent } from '../types/chunk.types';
-import { LLMConfig } from '../llm/llm.types';
+import { ChunkContent } from '../types/chunk.types.js';
+import { LLMConfig } from '../llm/llm.types.js';
 
 /**
  * Blueprint definition for creating agents

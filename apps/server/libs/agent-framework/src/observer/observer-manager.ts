@@ -9,7 +9,7 @@ import type {
   CompactionStartInfo,
   CompactionEndInfo,
   ErrorInfo,
-} from './observer.types';
+} from './observer.types.js';
 
 /**
  * Default implementation of ObserverManager

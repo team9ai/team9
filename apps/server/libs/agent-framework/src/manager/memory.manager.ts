@@ -1,28 +1,28 @@
-import { MemoryThread } from '../types/thread.types';
-import { MemoryState } from '../types/state.types';
+import { MemoryThread } from '../types/thread.types.js';
+import { MemoryState } from '../types/state.types.js';
 import {
   MemoryChunk,
   ChunkType,
   ChunkRetentionStrategy,
-} from '../types/chunk.types';
-import { AgentEvent } from '../types/event.types';
-import { ReducerRegistry } from '../reducer/reducer.types';
-import { StorageProvider } from '../storage/storage.types';
-import { ILLMAdapter, LLMConfig } from '../llm/llm.types';
-import { ICompactor, CompactionContext } from '../compactor/compactor.types';
-import { WorkingFlowCompactor } from '../compactor/working-flow.compactor';
+} from '../types/chunk.types.js';
+import { AgentEvent } from '../types/event.types.js';
+import { ReducerRegistry } from '../reducer/reducer.types.js';
+import { StorageProvider } from '../storage/storage.types.js';
+import { ILLMAdapter, LLMConfig } from '../llm/llm.types.js';
+import { ICompactor, CompactionContext } from '../compactor/compactor.types.js';
+import { WorkingFlowCompactor } from '../compactor/working-flow.compactor.js';
 import {
   ThreadManager,
   CreateThreadOptions,
   CreateThreadResult,
-} from './thread.manager';
-import { EventQueue, BlockingReason } from './event-queue';
-import { createBatchReplaceOperation } from '../factories/operation.factory';
+} from './thread.manager.js';
+import { EventQueue, BlockingReason } from './event-queue.js';
+import { createBatchReplaceOperation } from '../factories/operation.factory.js';
 import type {
   MemoryObserver,
   ObserverManager,
-} from '../observer/observer.types';
-import { DefaultObserverManager } from '../observer/observer-manager';
+} from '../observer/observer.types.js';
+import { DefaultObserverManager } from '../observer/observer-manager.js';
 
 /**
  * Result of dispatching an event

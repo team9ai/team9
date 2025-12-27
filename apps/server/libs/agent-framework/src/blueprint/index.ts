@@ -1,2 +1,2 @@
-export * from './blueprint.types';
-export * from './blueprint-loader';
+export * from './blueprint.types.js';
+export * from './blueprint-loader.js';

@@ -1,10 +1,10 @@
-import { MemoryState } from '../../types/state.types';
+import { MemoryState } from '../../types/state.types.js';
 import {
   ChunkType,
   ChunkRetentionStrategy,
   ChunkContentType,
-} from '../../types/chunk.types';
-import { Operation } from '../../types/operation.types';
+} from '../../types/chunk.types.js';
+import { Operation } from '../../types/operation.types.js';
 import {
   AgentEvent,
   EventType,
@@ -18,14 +18,14 @@ import {
   TodoDeletedEvent,
   MemoryMarkCriticalEvent,
   MemoryForgetEvent,
-} from '../../types/event.types';
-import { EventReducer, ReducerResult } from '../reducer.types';
-import { createChunk, deriveChunk } from '../../factories/chunk.factory';
+} from '../../types/event.types.js';
+import { EventReducer, ReducerResult } from '../reducer.types.js';
+import { createChunk, deriveChunk } from '../../factories/chunk.factory.js';
 import {
   createAddOperation,
   createUpdateOperation,
   createDeleteOperation,
-} from '../../factories/operation.factory';
+} from '../../factories/operation.factory.js';
 
 // ============ Task Lifecycle Reducers ============
 

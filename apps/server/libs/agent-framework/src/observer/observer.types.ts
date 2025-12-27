@@ -1,8 +1,8 @@
-import type { MemoryState } from '../types/state.types';
-import type { MemoryChunk } from '../types/chunk.types';
-import type { Operation } from '../types/operation.types';
-import type { AgentEvent } from '../types/event.types';
-import type { ReducerResult } from '../reducer/reducer.types';
+import type { MemoryState } from '../types/state.types.js';
+import type { MemoryChunk } from '../types/chunk.types.js';
+import type { Operation } from '../types/operation.types.js';
+import type { AgentEvent } from '../types/event.types.js';
+import type { ReducerResult } from '../reducer/reducer.types.js';
 
 /**
  * Observer interface for monitoring memory manager events

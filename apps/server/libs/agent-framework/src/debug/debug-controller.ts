@@ -1,17 +1,20 @@
-import type { ChunkContent } from '../types/chunk.types';
-import type { AgentEvent } from '../types/event.types';
-import type { MemoryManager, DispatchResult } from '../manager/memory.manager';
-import type { ThreadManager } from '../manager/thread.manager';
-import type { StorageProvider } from '../storage/storage.types';
+import type { ChunkContent } from '../types/chunk.types.js';
+import type { AgentEvent } from '../types/event.types.js';
+import type {
+  MemoryManager,
+  DispatchResult,
+} from '../manager/memory.manager.js';
+import type { ThreadManager } from '../manager/thread.manager.js';
+import type { StorageProvider } from '../storage/storage.types.js';
 import type {
   DebugController,
   ForkResult,
   EditResult,
   Snapshot,
-} from './debug.types';
-import { createChunk } from '../factories/chunk.factory';
-import { createUpdateOperation } from '../factories/operation.factory';
-import { generateId, IdPrefix } from '../utils/id.utils';
+} from './debug.types.js';
+import { createChunk } from '../factories/chunk.factory.js';
+import { createUpdateOperation } from '../factories/operation.factory.js';
+import { generateId, IdPrefix } from '../utils/id.utils.js';
 
 /**
  * Default implementation of DebugController

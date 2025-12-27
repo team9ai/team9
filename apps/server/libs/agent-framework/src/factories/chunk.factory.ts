@@ -4,8 +4,8 @@ import {
   ChunkRetentionStrategy,
   ChunkType,
   ChunkMetadata,
-} from '../types/chunk.types';
-import { generateChunkId } from '../utils/id.utils';
+} from '../types/chunk.types.js';
+import { generateChunkId } from '../utils/id.utils.js';
 
 /**
  * Default priority values for different chunk types

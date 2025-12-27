@@ -1,6 +1,10 @@
-import { MemoryState } from '../types/state.types';
-import { AgentEvent, EventType } from '../types/event.types';
-import { EventReducer, ReducerRegistry, ReducerResult } from './reducer.types';
+import { MemoryState } from '../types/state.types.js';
+import { AgentEvent, EventType } from '../types/event.types.js';
+import {
+  EventReducer,
+  ReducerRegistry,
+  ReducerResult,
+} from './reducer.types.js';
 import {
   // Input reducers
   UserMessageReducer,
@@ -32,7 +36,7 @@ import {
   TodoDeletedReducer,
   MemoryMarkCriticalReducer,
   MemoryForgetReducer,
-} from './reducers';
+} from './reducers/index.js';
 
 /**
  * Default implementation of ReducerRegistry

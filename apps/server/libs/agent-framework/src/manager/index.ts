@@ -1,3 +1,3 @@
-export * from './thread.manager';
-export * from './memory.manager';
-export * from './event-queue';
+export * from './thread.manager.js';
+export * from './memory.manager.js';
+export * from './event-queue.js';

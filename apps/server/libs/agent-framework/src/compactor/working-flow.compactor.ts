@@ -4,14 +4,14 @@ import {
   ChunkRetentionStrategy,
   ChunkContentType,
   WorkingFlowSubType,
-} from '../types/chunk.types';
-import { createChunk } from '../factories/chunk.factory';
-import { ILLMAdapter, LLMConfig } from '../llm/llm.types';
+} from '../types/chunk.types.js';
+import { createChunk } from '../factories/chunk.factory.js';
+import { ILLMAdapter, LLMConfig } from '../llm/llm.types.js';
 import {
   ICompactor,
   CompactionResult,
   CompactionContext,
-} from './compactor.types';
+} from './compactor.types.js';
 
 /**
  * Prompt template for working flow compaction

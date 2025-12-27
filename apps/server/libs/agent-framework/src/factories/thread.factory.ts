@@ -2,8 +2,8 @@ import {
   MemoryThread,
   CreateThreadInput,
   ThreadMetadata,
-} from '../types/thread.types';
-import { generateThreadId } from '../utils/id.utils';
+} from '../types/thread.types.js';
+import { generateThreadId } from '../utils/id.utils.js';
 
 /**
  * Deep freeze an object to make it immutable

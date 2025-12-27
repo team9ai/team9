@@ -1,6 +1,6 @@
-import { MemoryChunk, ChunkType } from '../types/chunk.types';
-import { MemoryState } from '../types/state.types';
-import { ITokenizer } from '../tokenizer/tokenizer.types';
+import { MemoryChunk, ChunkType } from '../types/chunk.types.js';
+import { MemoryState } from '../types/state.types.js';
+import { ITokenizer } from '../tokenizer/tokenizer.types.js';
 
 /**
  * Message role for LLM context

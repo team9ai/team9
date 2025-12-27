@@ -1,5 +1,5 @@
-import { MemoryChunk } from './chunk.types';
-import { Operation } from './operation.types';
+import { MemoryChunk } from './chunk.types.js';
+import { Operation } from './operation.types.js';
 
 /**
  * Memory State metadata

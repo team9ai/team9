@@ -1,4 +1,4 @@
-import { AgentEvent } from '../types/event.types';
+import { AgentEvent } from '../types/event.types.js';
 
 /**
  * Queued event with resolution callback

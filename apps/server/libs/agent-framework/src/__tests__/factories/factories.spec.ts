@@ -11,13 +11,13 @@ import {
   createDeleteOperation,
   createUpdateOperation,
   createBatchOperation,
-} from '../../factories';
+} from '../../factories/index.js';
 import {
   ChunkType,
   ChunkContentType,
   ChunkRetentionStrategy,
   OperationType,
-} from '../../types';
+} from '../../types/index.js';
 
 describe('Factories Module', () => {
   describe('createChunk', () => {

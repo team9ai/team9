@@ -1,2 +1,2 @@
-export * from './compactor.types';
-export * from './working-flow.compactor';
+export * from './compactor.types.js';
+export * from './working-flow.compactor.js';

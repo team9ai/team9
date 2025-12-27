@@ -1,7 +1,7 @@
-import { MemoryState } from '../types/state.types';
-import { MemoryChunk } from '../types/chunk.types';
-import { Operation } from '../types/operation.types';
-import { AgentEvent, EventType } from '../types/event.types';
+import { MemoryState } from '../types/state.types.js';
+import { MemoryChunk } from '../types/chunk.types.js';
+import { Operation } from '../types/operation.types.js';
+import { AgentEvent, EventType } from '../types/event.types.js';
 
 /**
  * Result of a reducer processing

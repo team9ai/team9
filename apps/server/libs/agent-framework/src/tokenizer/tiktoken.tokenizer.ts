@@ -8,7 +8,7 @@ import {
   ITokenizer,
   TokenizerEncoding,
   getEncodingForModel,
-} from './tokenizer.types';
+} from './tokenizer.types.js';
 
 /**
  * Tiktoken-based tokenizer implementation

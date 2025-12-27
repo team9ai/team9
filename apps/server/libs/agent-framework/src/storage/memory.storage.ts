@@ -1,7 +1,7 @@
-import { MemoryChunk } from '../types/chunk.types';
-import { MemoryState } from '../types/state.types';
-import { MemoryThread } from '../types/thread.types';
-import { StorageProvider, ListStatesOptions } from './storage.types';
+import { MemoryChunk } from '../types/chunk.types.js';
+import { MemoryState } from '../types/state.types.js';
+import { MemoryThread } from '../types/thread.types.js';
+import { StorageProvider, ListStatesOptions } from './storage.types.js';
 
 /**
  * In-memory implementation of StorageProvider

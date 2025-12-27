@@ -8,8 +8,8 @@ import {
   BatchReplaceOperation,
   BatchOperation,
   Operation,
-} from '../types/operation.types';
-import { generateOperationId } from '../utils/id.utils';
+} from '../types/operation.types.js';
+import { generateOperationId } from '../utils/id.utils.js';
 
 /**
  * Create an ADD operation

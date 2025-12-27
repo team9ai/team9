@@ -3,9 +3,9 @@ export type {
   ForkResult,
   EditResult,
   Snapshot,
-} from './debug.types';
+} from './debug.types.js';
 
 export {
   DefaultDebugController,
   createDebugController,
-} from './debug-controller';
+} from './debug-controller.js';

@@ -8,7 +8,7 @@ import {
   generateThreadId,
   extractIdPrefix,
   IdPrefix,
-} from '../../utils';
+} from '../../utils/index.js';
 
 describe('Utils Module', () => {
   describe('generateId', () => {

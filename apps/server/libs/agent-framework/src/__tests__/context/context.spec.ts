@@ -1,10 +1,13 @@
 /**
  * Unit tests for context module
  */
-import { ChunkType, ChunkContentType, MemoryChunk } from '../../types';
-import { createChunk, createState } from '../../factories';
-import { createContextBuilder, getDefaultRenderers } from '../../context';
-import { createTokenizer } from '../../tokenizer';
+import { ChunkType, ChunkContentType, MemoryChunk } from '../../types/index.js';
+import { createChunk, createState } from '../../factories/index.js';
+import {
+  createContextBuilder,
+  getDefaultRenderers,
+} from '../../context/index.js';
+import { createTokenizer } from '../../tokenizer/index.js';
 
 describe('Context Module', () => {
   describe('ContextBuilder', () => {

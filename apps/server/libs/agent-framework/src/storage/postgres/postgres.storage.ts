@@ -1,10 +1,10 @@
 import { eq, and, gte, lte, asc, desc, inArray } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { MemoryChunk } from '../../types/chunk.types';
-import { MemoryState } from '../../types/state.types';
-import { MemoryThread } from '../../types/thread.types';
-import { StorageProvider, ListStatesOptions } from '../storage.types';
-import { memoryThreads, memoryChunks, memoryStates } from './schema';
+import { MemoryChunk } from '../../types/chunk.types.js';
+import { MemoryState } from '../../types/state.types.js';
+import { MemoryThread } from '../../types/thread.types.js';
+import { StorageProvider, ListStatesOptions } from '../storage.types.js';
+import { memoryThreads, memoryChunks, memoryStates } from './schema.js';
 
 /**
  * Serializable state data stored in JSONB

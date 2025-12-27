@@ -3,8 +3,8 @@ import {
   ChunkType,
   ChunkContentType,
   WorkingFlowSubType,
-} from '../types/chunk.types';
-import { IChunkRenderer, ContextMessageRole } from './context.types';
+} from '../types/chunk.types.js';
+import { IChunkRenderer, ContextMessageRole } from './context.types.js';
 
 /**
  * Extract text content from a chunk

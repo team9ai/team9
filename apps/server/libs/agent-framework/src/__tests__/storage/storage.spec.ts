@@ -1,9 +1,13 @@
 /**
  * Unit tests for storage module
  */
-import { ChunkType, ChunkContentType } from '../../types';
-import { createChunk, createState, createThread } from '../../factories';
-import { InMemoryStorageProvider } from '../../storage';
+import { ChunkType, ChunkContentType } from '../../types/index.js';
+import {
+  createChunk,
+  createState,
+  createThread,
+} from '../../factories/index.js';
+import { InMemoryStorageProvider } from '../../storage/index.js';
 
 describe('Storage Module', () => {
   describe('Thread Operations', () => {

@@ -15,8 +15,8 @@ import {
   MemoryForgetEvent,
   ChunkRetentionStrategy,
   ChunkContentType,
-} from '../../types';
-import { createState, createChunk } from '../../factories';
+} from '../../types/index.js';
+import { createState, createChunk } from '../../factories/index.js';
 import {
   createDefaultReducerRegistry,
   DefaultReducerRegistry,
@@ -29,7 +29,7 @@ import {
   TaskCompletedReducer,
   MemoryMarkCriticalReducer,
   MemoryForgetReducer,
-} from '../../reducer';
+} from '../../reducer/index.js';
 
 describe('Reducer Module', () => {
   describe('ReducerRegistry', () => {

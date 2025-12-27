@@ -6,10 +6,20 @@ module.exports = {
   testMatch: ['**/__tests__/**/*.spec.ts'],
   moduleFileExtensions: ['ts', 'js', 'json'],
   transform: {
-    '^.+\\.ts$': 'ts-jest',
+    '^.+\\.ts$': [
+      'ts-jest',
+      {
+        useESM: false,
+        tsconfig: {
+          module: 'CommonJS',
+          moduleResolution: 'node',
+        },
+      },
+    ],
   },
   moduleNameMapper: {
     '^@paralleldrive/cuid2$': '<rootDir>/__mocks__/cuid2.ts',
+    '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   modulePathIgnorePatterns: ['<rootDir>/storage/postgres/'],
   collectCoverageFrom: [

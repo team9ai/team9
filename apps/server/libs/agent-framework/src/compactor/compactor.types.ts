@@ -1,5 +1,5 @@
-import { MemoryChunk } from '../types/chunk.types';
-import { MemoryState } from '../types/state.types';
+import { MemoryChunk } from '../types/chunk.types.js';
+import { MemoryState } from '../types/state.types.js';
 
 /**
  * Result of a compaction operation

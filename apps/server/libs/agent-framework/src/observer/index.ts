@@ -9,9 +9,9 @@ export type {
   CompactionStartInfo,
   CompactionEndInfo,
   ErrorInfo,
-} from './observer.types';
+} from './observer.types.js';
 
 export {
   DefaultObserverManager,
   createObserverManager,
-} from './observer-manager';
+} from './observer-manager.js';

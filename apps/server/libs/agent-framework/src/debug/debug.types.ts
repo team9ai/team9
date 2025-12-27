@@ -1,8 +1,8 @@
-import type { MemoryThread } from '../types/thread.types';
-import type { MemoryState } from '../types/state.types';
-import type { MemoryChunk, ChunkContent } from '../types/chunk.types';
-import type { AgentEvent } from '../types/event.types';
-import type { DispatchResult } from '../manager/memory.manager';
+import type { MemoryThread } from '../types/thread.types.js';
+import type { MemoryState } from '../types/state.types.js';
+import type { MemoryChunk, ChunkContent } from '../types/chunk.types.js';
+import type { AgentEvent } from '../types/event.types.js';
+import type { DispatchResult } from '../manager/memory.manager.js';
 
 /**
  * Result of forking from a state

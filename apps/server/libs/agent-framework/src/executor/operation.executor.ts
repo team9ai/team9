@@ -1,5 +1,5 @@
-import { MemoryState } from '../types/state.types';
-import { MemoryChunk } from '../types/chunk.types';
+import { MemoryState } from '../types/state.types.js';
+import { MemoryChunk } from '../types/chunk.types.js';
 import {
   Operation,
   OperationType,
@@ -10,9 +10,9 @@ import {
   ReplaceOperation,
   BatchReplaceOperation,
   BatchOperation,
-} from '../types/operation.types';
-import { deriveState } from '../factories/state.factory';
-import { StorageProvider } from '../storage/storage.types';
+} from '../types/operation.types.js';
+import { deriveState } from '../factories/state.factory.js';
+import { StorageProvider } from '../storage/storage.types.js';
 
 /**
  * Result of applying an operation

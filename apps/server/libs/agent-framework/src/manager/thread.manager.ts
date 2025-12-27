@@ -1,16 +1,16 @@
-import { MemoryThread } from '../types/thread.types';
-import { MemoryState } from '../types/state.types';
-import { MemoryChunk } from '../types/chunk.types';
-import { Operation } from '../types/operation.types';
-import { ReducerResult } from '../reducer/reducer.types';
-import { StorageProvider } from '../storage/storage.types';
-import { createThread, updateThread } from '../factories/thread.factory';
-import { createState } from '../factories/state.factory';
+import { MemoryThread } from '../types/thread.types.js';
+import { MemoryState } from '../types/state.types.js';
+import { MemoryChunk } from '../types/chunk.types.js';
+import { Operation } from '../types/operation.types.js';
+import { ReducerResult } from '../reducer/reducer.types.js';
+import { StorageProvider } from '../storage/storage.types.js';
+import { createThread, updateThread } from '../factories/thread.factory.js';
+import { createState } from '../factories/state.factory.js';
 import {
   applyOperations,
   createExecutionContext,
   ApplyResult,
-} from '../executor/operation.executor';
+} from '../executor/operation.executor.js';
 
 /**
  * Options for creating a new thread

@@ -5,7 +5,7 @@ import {
   ChunkType,
   ChunkContentType,
   ChunkRetentionStrategy,
-} from '../../types';
+} from '../../types/index.js';
 import {
   createChunk,
   createState,
@@ -16,13 +16,13 @@ import {
   createReorderOperation,
   createBatchReplaceOperation,
   createBatchOperation,
-} from '../../factories';
+} from '../../factories/index.js';
 import {
   applyOperation,
   applyOperations,
   createExecutionContext,
-} from '../../executor';
-import { InMemoryStorageProvider } from '../../storage';
+} from '../../executor/index.js';
+import { InMemoryStorageProvider } from '../../storage/index.js';
 
 describe('Executor Module', () => {
   let storage: InMemoryStorageProvider;

@@ -1,6 +1,6 @@
-import { MemoryChunk } from '../types/chunk.types';
-import { MemoryState } from '../types/state.types';
-import { MemoryThread } from '../types/thread.types';
+import { MemoryChunk } from '../types/chunk.types.js';
+import { MemoryState } from '../types/state.types.js';
+import { MemoryThread } from '../types/thread.types.js';
 
 /**
  * Query options for listing states
