@@ -12,12 +12,15 @@ import type {
   AgentEvent,
   DispatchResult,
   ILLMAdapter,
+  ExecutionMode,
+  StepResult,
 } from '@team9/agent-framework';
 import type {
   AgentInstance,
   AgentStatus,
   SSEMessage,
   SSEEventType,
+  ExecutionModeStatus,
 } from '../types/index.js';
 import { AgentExecutor, ExecutionResult } from '../executor/agent-executor.js';
 import { agents } from '../db/index.js';
@@ -170,13 +173,21 @@ export class AgentService {
       this.executors.set(id, executor);
     }
 
+    // Determine initial execution mode
+    const executionMode: ExecutionMode = blueprint.executionMode ?? 'auto';
+
+    // Initialize execution mode in memory manager
+    memoryManager.initializeExecutionMode(thread.id, executionMode);
+
     // Create agent instance
+    // Initial status is awaiting_input (waiting for first user message)
     const agent: AgentInstance = {
       id,
       blueprintId: blueprint.id,
       name: blueprint.name,
       threadId: thread.id,
-      status: 'running',
+      status: 'awaiting_input',
+      executionMode,
       llmConfig: blueprint.llmConfig,
       modelOverride,
       createdAt: Date.now(),
@@ -351,52 +362,14 @@ export class AgentService {
   }
 
   /**
-   * Pause an agent
+   * Check if agent is in stepping mode
    */
-  async pause(agentId: string): Promise<boolean> {
+  isSteppingMode(agentId: string): boolean {
     const controller = this.debugControllers.get(agentId);
     const agent = this.agentsCache.get(agentId);
     if (!controller || !agent) return false;
 
-    controller.pause(agent.threadId);
-    agent.status = 'paused';
-    agent.updatedAt = Date.now();
-
-    // Persist status change
-    await this.saveAgent(agent);
-
-    this.broadcast(agentId, 'agent:paused', { reason: 'user_paused' });
-    return true;
-  }
-
-  /**
-   * Resume an agent
-   */
-  async resume(agentId: string): Promise<boolean> {
-    const controller = this.debugControllers.get(agentId);
-    const agent = this.agentsCache.get(agentId);
-    if (!controller || !agent) return false;
-
-    controller.resume(agent.threadId);
-    agent.status = 'running';
-    agent.updatedAt = Date.now();
-
-    // Persist status change
-    await this.saveAgent(agent);
-
-    this.broadcast(agentId, 'agent:resumed', {});
-    return true;
-  }
-
-  /**
-   * Check if agent is paused
-   */
-  isPaused(agentId: string): boolean {
-    const controller = this.debugControllers.get(agentId);
-    const agent = this.agentsCache.get(agentId);
-    if (!controller || !agent) return false;
-
-    return controller.isPaused(agent.threadId);
+    return controller.getExecutionMode(agent.threadId) === 'stepping';
   }
 
   /**
@@ -418,8 +391,8 @@ export class AgentService {
     // First, inject the event into memory
     const dispatchResult = await controller.injectEvent(agent.threadId, event);
 
-    // If autoRun is enabled and we have an executor, run the LLM loop
-    if (autoRun && !this.isPaused(agentId)) {
+    // If autoRun is enabled, not in stepping mode, and we have an executor, run the LLM loop
+    if (autoRun && !this.isSteppingMode(agentId)) {
       const executor = this.executors.get(agentId);
       if (executor) {
         this.broadcast(agentId, 'agent:thinking', { event });
@@ -470,7 +443,8 @@ export class AgentService {
       blueprintId: agent.blueprintId,
       name: `${agent.name} (forked)`,
       threadId: result.newThreadId,
-      status: 'running',
+      status: 'awaiting_input',
+      executionMode: agent.executionMode,
       llmConfig: agent.llmConfig,
       modelOverride: agent.modelOverride,
       createdAt: Date.now(),
@@ -541,5 +515,70 @@ export class AgentService {
     await this.saveAgent(agent);
 
     return true;
+  }
+
+  // ============ Execution Mode Control ============
+
+  /**
+   * Get execution mode status for an agent
+   */
+  getExecutionModeStatus(agentId: string): ExecutionModeStatus | null {
+    const controller = this.debugControllers.get(agentId);
+    const agent = this.agentsCache.get(agentId);
+    if (!controller || !agent) return null;
+
+    return {
+      mode: controller.getExecutionMode(agent.threadId),
+      queuedEventCount: controller.getQueuedEventCount(agent.threadId),
+      hasPendingCompaction: controller.hasPendingCompaction(agent.threadId),
+      nextEvent: controller.peekNextEvent(agent.threadId) ?? undefined,
+    };
+  }
+
+  /**
+   * Set execution mode for an agent
+   */
+  async setExecutionMode(
+    agentId: string,
+    mode: ExecutionMode,
+  ): Promise<boolean> {
+    const controller = this.debugControllers.get(agentId);
+    const agent = this.agentsCache.get(agentId);
+    if (!controller || !agent) return false;
+
+    const previousMode = agent.executionMode;
+    await controller.setExecutionMode(agent.threadId, mode);
+
+    agent.executionMode = mode;
+    agent.updatedAt = Date.now();
+
+    // Persist mode change
+    await this.saveAgent(agent);
+
+    this.broadcast(agentId, 'agent:mode_changed', {
+      previousMode,
+      newMode: mode,
+    });
+
+    return true;
+  }
+
+  /**
+   * Execute a single step in stepping mode
+   */
+  async step(agentId: string): Promise<StepResult | null> {
+    const controller = this.debugControllers.get(agentId);
+    const agent = this.agentsCache.get(agentId);
+    if (!controller || !agent) return null;
+
+    const result = await controller.step(agent.threadId);
+
+    this.broadcast(agentId, 'agent:stepped', {
+      compactionPerformed: result.compactionPerformed,
+      remainingEvents: result.remainingEvents,
+      hasResult: result.dispatchResult !== null,
+    });
+
+    return result;
   }
 }

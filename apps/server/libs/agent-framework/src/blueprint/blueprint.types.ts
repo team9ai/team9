@@ -2,6 +2,17 @@ import { ChunkContent } from '../types/chunk.types.js';
 import { LLMConfig } from '../llm/llm.types.js';
 
 /**
+ * Execution mode for agent event processing
+ * - 'auto': Events are processed immediately when dispatched
+ * - 'stepping': Events are queued until explicitly triggered via step()
+ *
+ * Use 'stepping' mode for:
+ * - Debugging: observe state changes step by step
+ * - Batch generation: prevent runaway execution, maintain control
+ */
+export type ExecutionMode = 'auto' | 'stepping';
+
+/**
  * Blueprint definition for creating agents
  * Blueprints define the initial configuration and structure of an agent
  */
@@ -20,6 +31,12 @@ export interface Blueprint {
   tools?: string[];
   /** Auto-compaction threshold (number of compressible chunks) */
   autoCompactThreshold?: number;
+  /**
+   * Execution mode for event processing (default: 'auto')
+   * - 'auto': Events are processed immediately
+   * - 'stepping': Events are queued until step() is called
+   */
+  executionMode?: ExecutionMode;
   /** Nested sub-agent blueprints */
   subAgents?: Record<string, Blueprint>;
 }

@@ -101,9 +101,11 @@ function AgentCard({
   agent: AgentInstance;
   onDelete: () => void;
 }) {
-  const statusColors = {
-    running: "bg-green-500",
-    paused: "bg-yellow-500",
+  const statusColors: Record<string, string> = {
+    processing: "bg-green-500",
+    waiting_internal: "bg-blue-400",
+    awaiting_input: "bg-yellow-500",
+    paused: "bg-orange-500",
     completed: "bg-blue-500",
     error: "bg-red-500",
   };

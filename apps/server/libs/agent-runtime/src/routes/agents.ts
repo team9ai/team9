@@ -5,6 +5,7 @@ import type {
   InjectEventRequest,
   ForkStateRequest,
   EditChunkRequest,
+  SetExecutionModeRequest,
 } from '../types/index.js';
 import { getContext } from '../context.js';
 import type { MemoryState, LLMConfig } from '@team9/agent-framework';
@@ -160,6 +161,7 @@ agentsRouter.get('/:id/current-state', async (c) => {
   // Get state history to determine version
   const states = await agentService.getStateHistory(id);
   const state = await agentService.getCurrentState(id);
+
   if (!state) {
     return c.json({ error: 'State not found' }, 404);
   }
@@ -171,36 +173,6 @@ agentsRouter.get('/:id/current-state', async (c) => {
   return c.json({
     state: serializeState(state, version),
   });
-});
-
-/**
- * Pause agent
- */
-agentsRouter.post('/:id/pause', async (c) => {
-  const id = c.req.param('id');
-  const { agentService } = getContext();
-
-  const paused = agentService.pause(id);
-  if (!paused) {
-    return c.json({ error: 'Agent not found' }, 404);
-  }
-
-  return c.json({ success: true, status: 'paused' });
-});
-
-/**
- * Resume agent
- */
-agentsRouter.post('/:id/resume', async (c) => {
-  const id = c.req.param('id');
-  const { agentService } = getContext();
-
-  const resumed = agentService.resume(id);
-  if (!resumed) {
-    return c.json({ error: 'Agent not found' }, 404);
-  }
-
-  return c.json({ success: true, status: 'running' });
 });
 
 /**
@@ -401,4 +373,103 @@ agentsRouter.get('/:id/events', async (c) => {
     // Keep stream open
     await new Promise(() => {});
   });
+});
+
+// ============ Execution Mode Control ============
+
+/**
+ * Get execution mode status
+ */
+agentsRouter.get('/:id/execution-mode', async (c) => {
+  const id = c.req.param('id');
+  const { agentService } = getContext();
+
+  const agent = agentService.getAgent(id);
+  if (!agent) {
+    return c.json({ error: 'Agent not found' }, 404);
+  }
+
+  const status = agentService.getExecutionModeStatus(id);
+  if (!status) {
+    return c.json({ error: 'Failed to get execution mode status' }, 500);
+  }
+
+  return c.json({ status });
+});
+
+/**
+ * Set execution mode
+ */
+agentsRouter.put('/:id/execution-mode', async (c) => {
+  const id = c.req.param('id');
+  const { agentService } = getContext();
+
+  const agent = agentService.getAgent(id);
+  if (!agent) {
+    return c.json({ error: 'Agent not found' }, 404);
+  }
+
+  try {
+    const body = await c.req.json<SetExecutionModeRequest>();
+
+    if (body.mode !== 'auto' && body.mode !== 'stepping') {
+      return c.json(
+        { error: 'Invalid mode. Must be "auto" or "stepping"' },
+        400,
+      );
+    }
+
+    const success = await agentService.setExecutionMode(id, body.mode);
+    if (!success) {
+      return c.json({ error: 'Failed to set execution mode' }, 500);
+    }
+
+    const status = agentService.getExecutionModeStatus(id);
+    return c.json({ success: true, status });
+  } catch (error) {
+    console.error('Error setting execution mode:', error);
+    return c.json(
+      { error: (error as Error).message || 'Failed to set execution mode' },
+      500,
+    );
+  }
+});
+
+/**
+ * Execute a single step in stepping mode
+ */
+agentsRouter.post('/:id/step', async (c) => {
+  const id = c.req.param('id');
+  const { agentService } = getContext();
+
+  const agent = agentService.getAgent(id);
+  if (!agent) {
+    return c.json({ error: 'Agent not found' }, 404);
+  }
+
+  try {
+    const result = await agentService.step(id);
+    if (!result) {
+      return c.json({ error: 'Failed to step' }, 500);
+    }
+
+    return c.json({
+      success: true,
+      result: {
+        compactionPerformed: result.compactionPerformed,
+        remainingEvents: result.remainingEvents,
+        hasDispatchResult: result.dispatchResult !== null,
+        dispatchResult: result.dispatchResult
+          ? {
+              stateId: result.dispatchResult.state.id,
+              addedChunks: result.dispatchResult.addedChunks.length,
+              removedChunkIds: result.dispatchResult.removedChunkIds,
+            }
+          : null,
+      },
+    });
+  } catch (error) {
+    console.error('Error stepping:', error);
+    return c.json({ error: (error as Error).message || 'Failed to step' }, 500);
+  }
 });

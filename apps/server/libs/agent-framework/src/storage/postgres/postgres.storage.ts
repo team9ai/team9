@@ -165,8 +165,9 @@ export class PostgresStorageProvider implements StorageProvider {
 
     await this.db.insert(memoryStates).values({
       id: state.id,
+      threadId: state.threadId,
       data,
-    });
+    } as any);
   }
 
   async getState(stateId: string): Promise<MemoryState | null> {

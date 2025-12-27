@@ -2,9 +2,12 @@ import { api } from "./client";
 import type {
   AgentInstance,
   Blueprint,
+  ExecutionMode,
+  ExecutionModeStatus,
   LLMConfig,
   MemoryState,
   StateSummary,
+  StepResult,
 } from "@/types";
 
 export interface CreateAgentRequest {
@@ -94,20 +97,6 @@ export const agentApi = {
   },
 
   /**
-   * Pause agent
-   */
-  async pause(id: string): Promise<void> {
-    await api.post(`/agents/${id}/pause`);
-  },
-
-  /**
-   * Resume agent
-   */
-  async resume(id: string): Promise<void> {
-    await api.post(`/agents/${id}/resume`);
-  },
-
-  /**
    * Inject event into agent
    */
   async injectEvent(id: string, request: InjectEventRequest): Promise<void> {
@@ -148,5 +137,41 @@ export const agentApi = {
       config,
     );
     return response.agent;
+  },
+
+  // ============ Execution Mode Control ============
+
+  /**
+   * Get execution mode status
+   */
+  async getExecutionModeStatus(id: string): Promise<ExecutionModeStatus> {
+    const response = await api.get<{ status: ExecutionModeStatus }>(
+      `/agents/${id}/execution-mode`,
+    );
+    return response.status;
+  },
+
+  /**
+   * Set execution mode
+   */
+  async setExecutionMode(
+    id: string,
+    mode: ExecutionMode,
+  ): Promise<ExecutionModeStatus> {
+    const response = await api.put<{ status: ExecutionModeStatus }>(
+      `/agents/${id}/execution-mode`,
+      { mode },
+    );
+    return response.status;
+  },
+
+  /**
+   * Execute a single step in stepping mode
+   */
+  async step(id: string): Promise<StepResult> {
+    const response = await api.post<{ result: StepResult }>(
+      `/agents/${id}/step`,
+    );
+    return response.result;
   },
 };

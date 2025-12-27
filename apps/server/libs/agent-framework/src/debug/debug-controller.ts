@@ -3,6 +3,7 @@ import type { AgentEvent } from '../types/event.types.js';
 import type {
   MemoryManager,
   DispatchResult,
+  StepResult,
 } from '../manager/memory.manager.js';
 import type { ThreadManager } from '../manager/thread.manager.js';
 import type { StorageProvider } from '../storage/storage.types.js';
@@ -12,6 +13,7 @@ import type {
   EditResult,
   Snapshot,
 } from './debug.types.js';
+import type { ExecutionMode } from '../blueprint/blueprint.types.js';
 import { createChunk } from '../factories/chunk.factory.js';
 import { createUpdateOperation } from '../factories/operation.factory.js';
 import { generateId, IdPrefix } from '../utils/id.utils.js';
@@ -249,6 +251,50 @@ export class DefaultDebugController implements DebugController {
    */
   deleteSnapshot(snapshotId: string): void {
     this.snapshots.delete(snapshotId);
+  }
+
+  // ============ Execution Mode Control ============
+
+  /**
+   * Get the current execution mode for a thread
+   */
+  getExecutionMode(threadId: string): ExecutionMode {
+    return this.memoryManager.getExecutionMode(threadId);
+  }
+
+  /**
+   * Set the execution mode for a thread
+   */
+  async setExecutionMode(threadId: string, mode: ExecutionMode): Promise<void> {
+    return this.memoryManager.setExecutionMode(threadId, mode);
+  }
+
+  /**
+   * Execute a single step in stepping mode
+   */
+  async step(threadId: string): Promise<StepResult> {
+    return this.memoryManager.step(threadId);
+  }
+
+  /**
+   * Check if there's a pending compaction for a thread
+   */
+  hasPendingCompaction(threadId: string): boolean {
+    return this.memoryManager.hasPendingCompaction(threadId);
+  }
+
+  /**
+   * Get the number of queued events for a thread
+   */
+  getQueuedEventCount(threadId: string): number {
+    return this.memoryManager.getQueuedEventCount(threadId);
+  }
+
+  /**
+   * Peek at the next event without processing it
+   */
+  peekNextEvent(threadId: string): AgentEvent | null {
+    return this.memoryManager.peekNextEvent(threadId);
   }
 }
 

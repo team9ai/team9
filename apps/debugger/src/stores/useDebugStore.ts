@@ -5,7 +5,9 @@ import type {
   StateSummary,
   ExecutionNode,
   SSEEventType,
-  StateChangeEvent,
+  ExecutionMode,
+  ExecutionModeStatus,
+  StepResult,
 } from "@/types";
 import { agentApi } from "@/services/api";
 import { agentEventManager } from "@/services/sse/agent-events";
@@ -24,6 +26,11 @@ interface DebugStore {
   // Execution tree
   executionTree: ExecutionNode[];
 
+  // Execution mode
+  executionModeStatus: ExecutionModeStatus | null;
+  isStepping: boolean;
+  lastStepResult: StepResult | null;
+
   // Loading states
   isLoading: boolean;
   error: string | null;
@@ -36,10 +43,13 @@ interface DebugStore {
   selectState: (stateId: string) => Promise<void>;
 
   // Agent control
-  pauseAgent: () => Promise<void>;
-  resumeAgent: () => Promise<void>;
   injectEvent: (eventType: string, payload?: unknown) => Promise<void>;
   forkFromState: (stateId: string) => Promise<AgentInstance>;
+
+  // Execution mode control
+  refreshExecutionModeStatus: () => Promise<void>;
+  setExecutionMode: (mode: ExecutionMode) => Promise<void>;
+  step: () => Promise<StepResult | null>;
 
   // SSE events
   handleSSEEvent: (type: SSEEventType, data: unknown) => void;
@@ -54,6 +64,9 @@ export const useDebugStore = create<DebugStore>((set, get) => ({
   selectedStateId: null,
   selectedState: null,
   executionTree: [],
+  executionModeStatus: null,
+  isStepping: false,
+  lastStepResult: null,
   isLoading: false,
   error: null,
 
@@ -80,6 +93,10 @@ export const useDebugStore = create<DebugStore>((set, get) => ({
       // Build execution tree from state history
       const executionTree = buildExecutionTree(stateHistory);
 
+      // Fetch execution mode status
+      const executionModeStatus =
+        await agentApi.getExecutionModeStatus(agentId);
+
       set({
         currentAgentId: agentId,
         currentAgent: agent,
@@ -88,6 +105,7 @@ export const useDebugStore = create<DebugStore>((set, get) => ({
         selectedStateId: currentState.id,
         selectedState: currentState,
         executionTree,
+        executionModeStatus,
         isLoading: false,
       });
 
@@ -118,6 +136,9 @@ export const useDebugStore = create<DebugStore>((set, get) => ({
       selectedStateId: null,
       selectedState: null,
       executionTree: [],
+      executionModeStatus: null,
+      isStepping: false,
+      lastStepResult: null,
       error: null,
     });
   },
@@ -171,32 +192,6 @@ export const useDebugStore = create<DebugStore>((set, get) => ({
     }
   },
 
-  // Pause agent
-  pauseAgent: async () => {
-    const agentId = get().currentAgentId;
-    if (!agentId) return;
-
-    try {
-      await agentApi.pause(agentId);
-      await get().refreshAgent();
-    } catch (error) {
-      set({ error: (error as Error).message });
-    }
-  },
-
-  // Resume agent
-  resumeAgent: async () => {
-    const agentId = get().currentAgentId;
-    if (!agentId) return;
-
-    try {
-      await agentApi.resume(agentId);
-      await get().refreshAgent();
-    } catch (error) {
-      set({ error: (error as Error).message });
-    }
-  },
-
   // Inject event
   injectEvent: async (eventType: string, payload?: unknown) => {
     const agentId = get().currentAgentId;
@@ -220,18 +215,74 @@ export const useDebugStore = create<DebugStore>((set, get) => ({
     return forkedAgent;
   },
 
+  // Refresh execution mode status
+  refreshExecutionModeStatus: async () => {
+    const agentId = get().currentAgentId;
+    if (!agentId) return;
+
+    try {
+      const status = await agentApi.getExecutionModeStatus(agentId);
+      set({ executionModeStatus: status });
+    } catch (error) {
+      set({ error: (error as Error).message });
+    }
+  },
+
+  // Set execution mode
+  setExecutionMode: async (mode: ExecutionMode) => {
+    const agentId = get().currentAgentId;
+    if (!agentId) return;
+
+    try {
+      const status = await agentApi.setExecutionMode(agentId, mode);
+      set({ executionModeStatus: status });
+      await get().refreshAgent();
+    } catch (error) {
+      set({ error: (error as Error).message });
+    }
+  },
+
+  // Execute a single step
+  step: async () => {
+    const agentId = get().currentAgentId;
+    if (!agentId) return null;
+
+    try {
+      set({ isStepping: true });
+      const result = await agentApi.step(agentId);
+      set({ lastStepResult: result, isStepping: false });
+
+      // Refresh state history and execution mode status after step
+      await get().refreshStateHistory();
+      await get().refreshExecutionModeStatus();
+
+      return result;
+    } catch (error) {
+      set({ error: (error as Error).message, isStepping: false });
+      return null;
+    }
+  },
+
   // Handle SSE events
   handleSSEEvent: (type: SSEEventType, data: unknown) => {
     switch (type) {
-      case "state:change": {
-        const event = data as StateChangeEvent;
+      case "state:change":
         // Refresh state history when state changes
         get().refreshStateHistory();
         break;
-      }
-      case "agent:paused":
-      case "agent:resumed":
+      case "agent:status_changed":
+        // Refresh agent when status changes
         get().refreshAgent();
+        break;
+      case "agent:mode_changed":
+        // Refresh execution mode status and agent when mode changes
+        get().refreshExecutionModeStatus();
+        get().refreshAgent();
+        break;
+      case "agent:stepped":
+        // Refresh state history and execution mode status after a step
+        get().refreshStateHistory();
+        get().refreshExecutionModeStatus();
         break;
       case "subagent:spawn":
       case "subagent:result":

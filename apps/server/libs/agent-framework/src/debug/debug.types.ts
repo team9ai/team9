@@ -2,7 +2,8 @@ import type { MemoryThread } from '../types/thread.types.js';
 import type { MemoryState } from '../types/state.types.js';
 import type { MemoryChunk, ChunkContent } from '../types/chunk.types.js';
 import type { AgentEvent } from '../types/event.types.js';
-import type { DispatchResult } from '../manager/memory.manager.js';
+import type { DispatchResult, StepResult } from '../manager/memory.manager.js';
+import type { ExecutionMode } from '../blueprint/blueprint.types.js';
 
 /**
  * Result of forking from a state
@@ -125,4 +126,57 @@ export interface DebugController {
    * @param snapshotId - Snapshot ID to delete
    */
   deleteSnapshot(snapshotId: string): void;
+
+  // ============ Execution Mode Control ============
+
+  /**
+   * Get the current execution mode for a thread
+   * @param threadId - Thread ID
+   * @returns The current execution mode ('auto' or 'stepping')
+   */
+  getExecutionMode(threadId: string): ExecutionMode;
+
+  /**
+   * Set the execution mode for a thread
+   * - 'auto': Events are processed immediately
+   * - 'stepping': Events are queued until step() is called
+   *
+   * When switching from 'stepping' to 'auto', all queued events are processed.
+   *
+   * @param threadId - Thread ID
+   * @param mode - The execution mode to set
+   */
+  setExecutionMode(threadId: string, mode: ExecutionMode): Promise<void>;
+
+  /**
+   * Execute a single step in stepping mode
+   * If there's a pending compaction, it will be executed first.
+   * Otherwise, processes the next queued event.
+   *
+   * @param threadId - Thread ID
+   * @returns The result of the step operation
+   * @throws Error if not in stepping mode
+   */
+  step(threadId: string): Promise<StepResult>;
+
+  /**
+   * Check if there's a pending compaction for a thread
+   * @param threadId - Thread ID
+   * @returns true if compaction is pending
+   */
+  hasPendingCompaction(threadId: string): boolean;
+
+  /**
+   * Get the number of queued events for a thread
+   * @param threadId - Thread ID
+   * @returns Number of events in the queue
+   */
+  getQueuedEventCount(threadId: string): number;
+
+  /**
+   * Peek at the next event without processing it
+   * @param threadId - Thread ID
+   * @returns The next event or null if queue is empty
+   */
+  peekNextEvent(threadId: string): AgentEvent | null;
 }

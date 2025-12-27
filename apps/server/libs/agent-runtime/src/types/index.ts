@@ -4,7 +4,14 @@ import type {
   MemoryChunk,
   ChunkContent,
   LLMConfig,
+  ExecutionMode,
+  StepResult,
+  AgentStatus,
+  EventDispatchStrategy,
 } from '@team9/agent-framework';
+
+// Re-export for convenience
+export type { ExecutionMode, StepResult, AgentStatus, EventDispatchStrategy };
 
 /**
  * Blueprint definition for creating agents
@@ -17,6 +24,7 @@ export interface Blueprint {
   llmConfig: LLMConfig;
   tools?: string[];
   autoCompactThreshold?: number;
+  executionMode?: ExecutionMode;
   subAgents?: Record<string, Blueprint>;
 }
 
@@ -41,6 +49,7 @@ export interface AgentInstance {
   name: string;
   threadId: string;
   status: AgentStatus;
+  executionMode: ExecutionMode;
   llmConfig: LLMConfig;
   modelOverride?: LLMConfig;
   createdAt: number;
@@ -49,7 +58,22 @@ export interface AgentInstance {
   subAgentIds: string[];
 }
 
-export type AgentStatus = 'running' | 'paused' | 'completed' | 'error';
+/**
+ * Execution mode status for API response
+ */
+export interface ExecutionModeStatus {
+  mode: ExecutionMode;
+  queuedEventCount: number;
+  hasPendingCompaction: boolean;
+  nextEvent?: unknown;
+}
+
+/**
+ * Set execution mode request
+ */
+export interface SetExecutionModeRequest {
+  mode: ExecutionMode;
+}
 
 /**
  * Create agent request
@@ -131,11 +155,11 @@ export type SSEEventType =
   | 'state:change'
   | 'event:dispatch'
   | 'reducer:execute'
-  | 'agent:paused'
-  | 'agent:resumed'
   | 'agent:thinking'
   | 'agent:response'
   | 'agent:error'
+  | 'agent:mode_changed'
+  | 'agent:stepped'
   | 'subagent:spawn'
   | 'subagent:result'
   | 'compaction:start'

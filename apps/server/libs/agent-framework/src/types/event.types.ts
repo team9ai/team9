@@ -2,6 +2,42 @@
  * Event types that trigger state changes in Agent memory
  */
 
+// ============ Event Dispatch Strategy ============
+
+/**
+ * Strategy for handling event dispatch when agent is processing
+ *
+ * - queue: (default) Queue the event, process after current operation completes
+ * - interrupt: Cancel current generation, immediately process new event
+ * - terminate: End the agent's event loop, transition to completed/error state
+ * - silent: Store only, do not trigger any processing flow (reserved for future use)
+ */
+export type EventDispatchStrategy =
+  | 'queue'
+  | 'interrupt'
+  | 'terminate'
+  | 'silent';
+
+/**
+ * Get the default dispatch strategy for an event type
+ * Most events default to 'queue', with specific overrides below
+ */
+export function getDefaultDispatchStrategy(
+  eventType: EventType,
+): EventDispatchStrategy {
+  switch (eventType) {
+    // Terminate events - end the agent's event loop
+    case EventType.TASK_COMPLETED:
+    case EventType.TASK_ABANDONED:
+    case EventType.TASK_TERMINATED:
+      return 'terminate';
+
+    // All other events queue by default
+    default:
+      return 'queue';
+  }
+}
+
 // ============ Event Type Enum ============
 
 export enum EventType {
@@ -68,6 +104,11 @@ export interface BaseEvent {
   timestamp: number;
   /** Optional metadata */
   metadata?: Record<string, unknown>;
+  /**
+   * Override the default dispatch strategy for this specific event
+   * If not specified, uses the default strategy for the event type
+   */
+  dispatchStrategy?: EventDispatchStrategy;
 }
 
 // ============ Error Events ============

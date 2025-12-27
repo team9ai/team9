@@ -15,8 +15,10 @@ interface QueuedEvent<T> {
 export enum BlockingReason {
   /** Compaction in progress */
   COMPACTING = 'COMPACTING',
-  /** Manual pause */
+  /** Manual pause (for debugging) */
   PAUSED = 'PAUSED',
+  /** Stepping mode - events queued until step() is called */
+  STEPPING = 'STEPPING',
 }
 
 /**
@@ -127,6 +129,38 @@ export class EventQueue<T> {
         }
       }
     }
+  }
+
+  /**
+   * Process a single queued event (for stepping mode)
+   * @param processor - Function to process the event
+   * @returns The result of processing, or null if queue is empty
+   */
+  async processOne(
+    processor: (event: AgentEvent) => Promise<T>,
+  ): Promise<T | null> {
+    const item = this.queue.shift();
+    if (!item) {
+      return null;
+    }
+
+    try {
+      const result = await processor(item.event);
+      item.resolve(result);
+      return result;
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      item.reject(err);
+      throw err;
+    }
+  }
+
+  /**
+   * Peek at the next event without removing it
+   * @returns The next event or null if queue is empty
+   */
+  peek(): AgentEvent | null {
+    return this.queue[0]?.event ?? null;
   }
 
   /**

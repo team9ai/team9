@@ -1,95 +1,96 @@
 import { useState } from "react";
 import { useDebugStore } from "@/stores/useDebugStore";
-import {
-  Play,
-  Pause,
-  Syringe,
-  Circle,
-  AlertCircle,
-  CheckCircle2,
-} from "lucide-react";
+import { Play, Syringe, StepForward, RotateCcw, Zap } from "lucide-react";
 
 export function AgentControls() {
-  const { currentAgent, pauseAgent, resumeAgent, injectEvent } =
-    useDebugStore();
+  const {
+    currentAgent,
+    injectEvent,
+    executionModeStatus,
+    setExecutionMode,
+    step,
+    isStepping,
+    lastStepResult,
+  } = useDebugStore();
   const [showInjectModal, setShowInjectModal] = useState(false);
 
   if (!currentAgent) return null;
 
-  const status = currentAgent.status;
+  const executionMode = executionModeStatus?.mode ?? "auto";
+  const isCompleted = currentAgent.status === "completed";
+  const isError = currentAgent.status === "error";
+  const isStepMode = executionMode === "stepping";
 
-  // Status indicator styles
-  const statusConfig = {
-    running: {
-      icon: Circle,
-      color: "text-green-500",
-      bgColor: "bg-green-500",
-      label: "Running",
-      animate: true,
-    },
-    paused: {
-      icon: Pause,
-      color: "text-yellow-500",
-      bgColor: "bg-yellow-500",
-      label: "Paused",
-      animate: false,
-    },
-    completed: {
-      icon: CheckCircle2,
-      color: "text-blue-500",
-      bgColor: "bg-blue-500",
-      label: "Completed",
-      animate: false,
-    },
-    error: {
-      icon: AlertCircle,
-      color: "text-red-500",
-      bgColor: "bg-red-500",
-      label: "Error",
-      animate: false,
-    },
-  };
-
-  const currentStatus = statusConfig[status] || statusConfig.running;
-  const StatusIcon = currentStatus.icon;
+  const hasPendingWork =
+    (executionModeStatus?.queuedEventCount ?? 0) > 0 ||
+    executionModeStatus?.hasPendingCompaction;
 
   return (
     <div className="flex items-center gap-3">
-      {/* Status indicator */}
-      <div className="flex items-center gap-2 rounded-full border px-3 py-1">
-        <div className="relative">
-          {currentStatus.animate && (
-            <span
-              className={`absolute inset-0 animate-ping rounded-full ${currentStatus.bgColor} opacity-75`}
-            />
-          )}
-          <span
-            className={`relative block h-2.5 w-2.5 rounded-full ${currentStatus.bgColor}`}
-          />
+      {/* Execution mode toggle: Auto | Step */}
+      {!isCompleted && !isError && (
+        <div className="flex items-center gap-1 rounded-md border p-0.5">
+          <button
+            onClick={() => setExecutionMode("auto")}
+            className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+              !isStepMode ? "bg-green-600 text-white" : "hover:bg-muted"
+            }`}
+            title="Auto: events are processed automatically"
+          >
+            <Play className="h-3 w-3" />
+            Auto
+          </button>
+          <button
+            onClick={() => setExecutionMode("stepping")}
+            className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+              isStepMode ? "bg-blue-600 text-white" : "hover:bg-muted"
+            }`}
+            title="Step: manually step through events one at a time"
+          >
+            <StepForward className="h-3 w-3" />
+            Step
+          </button>
         </div>
-        <span className={`text-sm font-medium ${currentStatus.color}`}>
-          {currentStatus.label}
-        </span>
-      </div>
+      )}
 
-      {/* Control buttons */}
-      {status === "paused" ? (
+      {/* Step execution button (only in stepping mode) */}
+      {isStepMode && (
         <button
-          onClick={resumeAgent}
-          className="flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+          onClick={step}
+          disabled={isStepping || !hasPendingWork}
+          className="flex items-center gap-1.5 rounded-md border border-blue-600 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50 dark:bg-blue-950 dark:text-blue-300 dark:hover:bg-blue-900"
+          title={
+            hasPendingWork
+              ? `${executionModeStatus?.queuedEventCount ?? 0} events queued${executionModeStatus?.hasPendingCompaction ? ", compaction pending" : ""}`
+              : "No pending events"
+          }
         >
-          <Play className="h-4 w-4" />
-          Resume
+          <Zap className="h-4 w-4" />
+          {isStepping ? "Stepping..." : "Next"}
+          {hasPendingWork && (
+            <span className="ml-1 rounded-full bg-blue-600 px-1.5 text-xs text-white">
+              {executionModeStatus?.queuedEventCount ?? 0}
+              {executionModeStatus?.hasPendingCompaction ? "+" : ""}
+            </span>
+          )}
         </button>
-      ) : status === "running" ? (
-        <button
-          onClick={pauseAgent}
-          className="flex items-center gap-1.5 rounded-md bg-yellow-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-yellow-700"
-        >
-          <Pause className="h-4 w-4" />
-          Pause
-        </button>
-      ) : null}
+      )}
+
+      {/* Show last step result */}
+      {isStepMode && lastStepResult && (
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          {lastStepResult.compactionPerformed ? (
+            <span className="flex items-center gap-1">
+              <RotateCcw className="h-3 w-3" />
+              Compacted
+            </span>
+          ) : lastStepResult.hasDispatchResult ? (
+            <span>Event processed</span>
+          ) : (
+            <span>No action</span>
+          )}
+        </div>
+      )}
 
       <button
         onClick={() => setShowInjectModal(true)}

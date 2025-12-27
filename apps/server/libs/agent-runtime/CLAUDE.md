@@ -49,11 +49,24 @@ agent-runtime/
 
 ### Debug Control
 
-- `POST /api/agents/:id/pause` - Pause agent
-- `POST /api/agents/:id/resume` - Resume agent
 - `POST /api/agents/:id/inject` - Inject event
 - `POST /api/agents/:id/fork` - Fork from state
 - `PUT /api/agents/:id/chunks/:cid` - Edit chunk
+
+### Execution Mode Control
+
+- `GET /api/agents/:id/execution-mode` - Get execution mode status
+- `PUT /api/agents/:id/execution-mode` - Set execution mode (auto/stepping)
+- `POST /api/agents/:id/step` - Execute single step in stepping mode
+
+## Types
+
+Re-exports from `@team9/agent-framework`:
+
+- `ExecutionMode` - `'auto' | 'stepping'`
+- `StepResult` - Result of step operation
+- `AgentStatus` - `'processing' | 'waiting_internal' | 'awaiting_input' | 'paused' | 'completed' | 'error'`
+- `EventDispatchStrategy` - `'queue' | 'interrupt' | 'terminate' | 'silent'`
 
 ### Real-time Events (SSE)
 
