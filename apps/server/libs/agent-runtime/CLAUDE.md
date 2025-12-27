@@ -1,17 +1,19 @@
 # @team9/agent-runtime
 
-Agent Runtime library providing memory management and context building for AI agents.
+Agent Runtime - Debug server for AI agents. Provides REST API and SSE endpoints for the Agent Debugger frontend.
 
 ## Package Info
 
 - **Name**: `@team9/agent-runtime`
 - **Version**: 0.0.1
 - **Entry**: `./src/index.ts`
+- **Framework**: Hono (lightweight web framework)
 
 ## Dependencies
 
-- `@paralleldrive/cuid2` - ID generation
-- `js-tiktoken` - Token counting
+- `@team9/agent-framework` - Core agent framework
+- `hono` - Web framework
+- `@hono/node-server` - Node.js adapter for Hono
 
 ## Directory Structure
 
@@ -19,94 +21,55 @@ Agent Runtime library providing memory management and context building for AI ag
 agent-runtime/
 ├── src/
 │   ├── index.ts           # Main export
-│   └── memory/            # Memory system (see memory/CLAUDE.md)
-│       ├── types/         # Core type definitions
-│       ├── utils/         # Utility functions
-│       ├── factories/     # Factory functions
-│       ├── executor/      # Operation executor
-│       ├── reducer/       # Event reducers
-│       ├── storage/       # Storage providers
-│       ├── manager/       # Core orchestrators
-│       ├── llm/           # LLM adapter interface
-│       ├── compactor/     # Memory compaction
-│       ├── context/       # Context builder
-│       └── tokenizer/     # Token counting
-└── docs/                  # Documentation
-    ├── plan.md            # Original design plan
-    ├── control-tools.md   # Control tools spec
-    ├── events-and-reducers.md
-    ├── memory-manager.md
-    └── context-builder.md
+│   ├── server.ts          # Server entry point
+│   ├── routes/            # API routes
+│   │   ├── agents.ts      # Agent management endpoints
+│   │   ├── blueprints.ts  # Blueprint management endpoints
+│   │   ├── debug.ts       # Debug control endpoints
+│   │   └── batch-test.ts  # Batch testing endpoints
+│   ├── services/          # Business logic
+│   │   ├── agent.service.ts
+│   │   ├── blueprint.service.ts
+│   │   └── batch-test.service.ts
+│   ├── sse/               # Server-Sent Events
+│   │   └── agent-events.ts
+│   └── types/             # Type definitions
+│       └── index.ts
+└── package.json
 ```
 
-## Quick Start
+## API Endpoints
 
-```typescript
-import {
-  // Types
-  MemoryChunk,
-  MemoryState,
-  ChunkType,
-  EventType,
-  AgentEvent,
+### Agent Management
 
-  // Factories
-  createChunk,
-  createInitialState,
-  createAddOperation,
+- `POST /api/agents` - Create agent from blueprint
+- `GET /api/agents` - List all agents
+- `GET /api/agents/:id` - Get agent details
+- `DELETE /api/agents/:id` - Delete agent
 
-  // Core
-  createMemoryManager,
-  createContextBuilder,
-  createTokenizer,
-  createDefaultReducerRegistry,
+### Debug Control
 
-  // Storage
-  MemoryStorageProvider,
-  PostgresStorageProvider,
-} from '@team9/agent-runtime';
+- `POST /api/agents/:id/pause` - Pause agent
+- `POST /api/agents/:id/resume` - Resume agent
+- `POST /api/agents/:id/inject` - Inject event
+- `POST /api/agents/:id/fork` - Fork from state
+- `PUT /api/agents/:id/chunks/:cid` - Edit chunk
+
+### Real-time Events (SSE)
+
+- `GET /api/agents/:id/events` - Subscribe to agent events
+
+### Batch Testing
+
+- `POST /api/batch-test` - Run batch test
+- `GET /api/batch-test/:id` - Get test result
+
+## Running
+
+```bash
+# Development
+pnpm dev
+
+# Production
+pnpm start
 ```
-
-## Core Concepts
-
-### Event-Driven Architecture
-
-```
-Event → Reducer → Operations + Chunks → Executor → New State
-```
-
-### Memory Chunk Types
-
-| Type         | Description             | Retention    |
-| ------------ | ----------------------- | ------------ |
-| SYSTEM       | System context          | CRITICAL     |
-| AGENT        | User/Assistant messages | CRITICAL     |
-| WORKFLOW     | Tool/Skill calls        | COMPRESSIBLE |
-| ENVIRONMENT  | Tool results            | COMPRESSIBLE |
-| WORKING_FLOW | Progress/Thinking       | DISPOSABLE   |
-| DELEGATION   | Sub-agent communication | COMPRESSIBLE |
-| OUTPUT       | Task completion         | CRITICAL     |
-
-### Immutability
-
-All state objects are immutable (frozen). Operations return new state objects.
-
-## Documentation
-
-Detailed documentation available in `docs/`:
-
-- [plan.md](docs/plan.md) - Original architecture plan
-- [events-and-reducers.md](docs/events-and-reducers.md) - Event system design
-- [memory-manager.md](docs/memory-manager.md) - Manager architecture
-- [context-builder.md](docs/context-builder.md) - Context building
-
-## Modification Notice
-
-**IMPORTANT**: When modifying any file in this project, please update the corresponding CLAUDE.md file in that directory:
-
-- `src/memory/` changes → update [src/memory/CLAUDE.md](src/memory/CLAUDE.md)
-- `src/memory/types/` changes → update [src/memory/types/CLAUDE.md](src/memory/types/CLAUDE.md)
-- `src/memory/reducer/` changes → update [src/memory/reducer/CLAUDE.md](src/memory/reducer/CLAUDE.md)
-- ... and so on for each subdirectory
-
-Each subdirectory has its own CLAUDE.md with detailed documentation specific to that module.
