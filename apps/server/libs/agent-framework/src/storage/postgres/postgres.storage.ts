@@ -58,12 +58,9 @@ export class PostgresStorageProvider implements StorageProvider {
   // ============ Thread Operations ============
 
   async saveThread(thread: MemoryThread): Promise<void> {
-    const now = Date.now();
     await this.db.insert(memoryThreads).values({
       id: thread.id,
       data: thread,
-      createdAt: new Date(thread.metadata?.createdAt ?? now),
-      updatedAt: new Date(thread.metadata?.updatedAt ?? now),
     });
   }
 
@@ -86,7 +83,6 @@ export class PostgresStorageProvider implements StorageProvider {
       .update(memoryThreads)
       .set({
         data: thread,
-        updatedAt: new Date(thread.metadata?.updatedAt ?? Date.now()),
       })
       .where(eq(memoryThreads.id, thread.id));
   }
@@ -100,9 +96,7 @@ export class PostgresStorageProvider implements StorageProvider {
   async saveChunk(chunk: MemoryChunk): Promise<void> {
     await this.db.insert(memoryChunks).values({
       id: chunk.id,
-      threadId: null,
       data: chunk,
-      createdAt: new Date(chunk.metadata?.createdAt ?? Date.now()),
     });
   }
 
@@ -112,9 +106,7 @@ export class PostgresStorageProvider implements StorageProvider {
     await this.db.insert(memoryChunks).values(
       chunks.map((chunk) => ({
         id: chunk.id,
-        threadId: null,
         data: chunk,
-        createdAt: new Date(chunk.metadata?.createdAt ?? Date.now()),
       })),
     );
   }
@@ -173,18 +165,8 @@ export class PostgresStorageProvider implements StorageProvider {
 
     await this.db.insert(memoryStates).values({
       id: state.id,
-      threadId: state.threadId ?? null,
       data,
-      createdAt: new Date(state.metadata?.createdAt ?? Date.now()),
     });
-
-    // Update chunk threadId associations
-    if (state.threadId && state.chunkIds.length > 0) {
-      await this.db
-        .update(memoryChunks)
-        .set({ threadId: state.threadId })
-        .where(inArray(memoryChunks.id, state.chunkIds));
-    }
   }
 
   async getState(stateId: string): Promise<MemoryState | null> {

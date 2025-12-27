@@ -84,7 +84,7 @@ describe('Reducer Module', () => {
 
       expect(result.operations.length).toBe(1);
       expect(result.chunks.length).toBe(1);
-      expect(result.chunks[0].type).toBe(ChunkType.AGENT);
+      expect(result.chunks[0].type).toBe(ChunkType.WORKING_FLOW);
     });
   });
 

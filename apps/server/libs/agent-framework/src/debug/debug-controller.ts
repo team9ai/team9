@@ -1,5 +1,5 @@
 import type { ChunkContent } from '../types/chunk.types';
-import type { AgentEvent, EventType } from '../types/event.types';
+import type { AgentEvent } from '../types/event.types';
 import type { MemoryManager, DispatchResult } from '../manager/memory.manager';
 import type { ThreadManager } from '../manager/thread.manager';
 import type { StorageProvider } from '../storage/storage.types';
@@ -9,10 +9,9 @@ import type {
   EditResult,
   Snapshot,
 } from './debug.types';
-import { BlockingReason } from '../manager/event-queue';
 import { createChunk } from '../factories/chunk.factory';
 import { createUpdateOperation } from '../factories/operation.factory';
-import { generateId } from '../utils/id.utils';
+import { generateId, IdPrefix } from '../utils/id.utils';
 
 /**
  * Default implementation of DebugController
@@ -186,7 +185,7 @@ export class DefaultDebugController implements DebugController {
     const chunks = Array.from(chunksMap.values());
 
     const snapshot: Snapshot = {
-      id: generateId('snapshot'),
+      id: generateId(IdPrefix.SNAPSHOT),
       threadId,
       stateId: currentState.id,
       states: states as any[], // Cast to mutable for storage

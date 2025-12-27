@@ -9,8 +9,10 @@ export const memoryThreads = pgTable(
   {
     id: varchar('id', { length: 64 }).primaryKey(),
     data: jsonb('data').notNull(),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at')
+      .defaultNow()
+      .$onUpdate(() => new Date()),
   },
   (table) => [index('memory_threads_created_at_idx').on(table.createdAt)],
 );
@@ -25,7 +27,7 @@ export const memoryChunks = pgTable(
     id: varchar('id', { length: 64 }).primaryKey(),
     threadId: varchar('thread_id', { length: 64 }),
     data: jsonb('data').notNull(),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
+    createdAt: timestamp('created_at').defaultNow(),
   },
   (table) => [
     index('memory_chunks_thread_id_idx').on(table.threadId),
@@ -43,7 +45,7 @@ export const memoryStates = pgTable(
     id: varchar('id', { length: 64 }).primaryKey(),
     threadId: varchar('thread_id', { length: 64 }),
     data: jsonb('data').notNull(),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
+    createdAt: timestamp('created_at').defaultNow(),
   },
   (table) => [
     index('memory_states_thread_id_idx').on(table.threadId),

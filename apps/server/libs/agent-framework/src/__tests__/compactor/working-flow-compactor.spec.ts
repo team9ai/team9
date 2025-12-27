@@ -144,7 +144,7 @@ describe('WorkingFlowCompactor', () => {
         }),
         createChunk({
           type: ChunkType.WORKING_FLOW,
-          subType: WorkingFlowSubType.PLANNING,
+          subType: WorkingFlowSubType.THINKING,
           content: {
             type: ChunkContentType.TEXT,
             text: 'Planning solution...',

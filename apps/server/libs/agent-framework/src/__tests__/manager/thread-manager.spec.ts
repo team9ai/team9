@@ -3,8 +3,8 @@
  */
 import { ThreadManager } from '../../manager/thread.manager';
 import { InMemoryStorageProvider } from '../../storage';
-import { createChunk } from '../../factories';
-import { ChunkType, ChunkContentType, OperationType } from '../../types';
+import { createChunk, createAddOperation } from '../../factories';
+import { ChunkType, ChunkContentType } from '../../types';
 
 describe('ThreadManager', () => {
   let storage: InMemoryStorageProvider;
@@ -116,7 +116,7 @@ describe('ThreadManager', () => {
 
       await manager.applyOperations(
         thread.id,
-        [{ type: OperationType.ADD, chunkId: chunk.id }],
+        [createAddOperation(chunk.id)],
         [chunk],
       );
 
@@ -136,7 +136,7 @@ describe('ThreadManager', () => {
       });
 
       const result = await manager.applyReducerResult(thread.id, {
-        operations: [{ type: OperationType.ADD, chunkId: chunk.id }],
+        operations: [createAddOperation(chunk.id)],
         chunks: [chunk],
       });
 
@@ -153,7 +153,7 @@ describe('ThreadManager', () => {
 
       await expect(
         manager.applyReducerResult('non_existent', {
-          operations: [{ type: OperationType.ADD, chunkId: chunk.id }],
+          operations: [createAddOperation(chunk.id)],
           chunks: [chunk],
         }),
       ).rejects.toThrow('Thread not found');
@@ -171,7 +171,7 @@ describe('ThreadManager', () => {
 
       const result = await manager.applyOperations(
         thread.id,
-        [{ type: OperationType.ADD, chunkId: chunk.id }],
+        [createAddOperation(chunk.id)],
         [chunk],
       );
 

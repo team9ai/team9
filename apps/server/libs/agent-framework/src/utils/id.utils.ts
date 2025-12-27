@@ -8,6 +8,7 @@ export enum IdPrefix {
   STATE = 'state',
   THREAD = 'thread',
   OPERATION = 'op',
+  SNAPSHOT = 'snapshot',
 }
 
 /**

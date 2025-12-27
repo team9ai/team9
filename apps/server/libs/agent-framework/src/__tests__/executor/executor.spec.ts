@@ -5,9 +5,18 @@ import {
   ChunkType,
   ChunkContentType,
   ChunkRetentionStrategy,
-  OperationType,
 } from '../../types';
-import { createChunk, createState, deriveChunk } from '../../factories';
+import {
+  createChunk,
+  createState,
+  deriveChunk,
+  createAddOperation,
+  createDeleteOperation,
+  createUpdateOperation,
+  createReorderOperation,
+  createBatchReplaceOperation,
+  createBatchOperation,
+} from '../../factories';
 import {
   applyOperation,
   applyOperations,
@@ -34,10 +43,7 @@ describe('Executor Module', () => {
         const context = createExecutionContext(storage, [chunk]);
         const result = await applyOperation(
           state,
-          {
-            type: OperationType.ADD,
-            chunkId: chunk.id,
-          },
+          createAddOperation(chunk.id),
           context,
         );
 
@@ -62,10 +68,7 @@ describe('Executor Module', () => {
         const context = createExecutionContext(storage);
         const result = await applyOperation(
           state,
-          {
-            type: OperationType.DELETE,
-            chunkId: chunk.id,
-          },
+          createDeleteOperation(chunk.id),
           context,
         );
 
@@ -94,11 +97,7 @@ describe('Executor Module', () => {
         const context = createExecutionContext(storage, [newChunk]);
         const result = await applyOperation(
           state,
-          {
-            type: OperationType.UPDATE,
-            targetChunkId: chunk.id,
-            newChunkId: newChunk.id,
-          },
+          createUpdateOperation(chunk.id, newChunk.id),
           context,
         );
 
@@ -127,11 +126,7 @@ describe('Executor Module', () => {
         const context = createExecutionContext(storage);
         const result = await applyOperation(
           state,
-          {
-            type: OperationType.REORDER,
-            chunkId: chunk2.id,
-            newPosition: 0,
-          },
+          createReorderOperation(chunk2.id, 0),
           context,
         );
 
@@ -162,11 +157,10 @@ describe('Executor Module', () => {
         const context = createExecutionContext(storage, [newChunk]);
         const result = await applyOperation(
           state,
-          {
-            type: OperationType.BATCH_REPLACE,
-            targetChunkIds: [oldChunk1.id, oldChunk2.id],
-            newChunkId: newChunk.id,
-          },
+          createBatchReplaceOperation(
+            [oldChunk1.id, oldChunk2.id],
+            newChunk.id,
+          ),
           context,
         );
 
@@ -203,13 +197,10 @@ describe('Executor Module', () => {
         const context = createExecutionContext(storage, [chunk3]);
         const result = await applyOperation(
           state,
-          {
-            type: OperationType.BATCH,
-            operations: [
-              { type: OperationType.DELETE, chunkId: chunk2.id },
-              { type: OperationType.ADD, chunkId: chunk3.id },
-            ],
-          },
+          createBatchOperation([
+            createDeleteOperation(chunk2.id),
+            createAddOperation(chunk3.id),
+          ]),
           context,
         );
 
@@ -236,10 +227,7 @@ describe('Executor Module', () => {
       const context = createExecutionContext(storage, [chunk1, chunk2]);
       const result = await applyOperations(
         state,
-        [
-          { type: OperationType.ADD, chunkId: chunk1.id },
-          { type: OperationType.ADD, chunkId: chunk2.id },
-        ],
+        [createAddOperation(chunk1.id), createAddOperation(chunk2.id)],
         context,
       );
 

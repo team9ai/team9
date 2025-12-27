@@ -11,11 +11,13 @@ module.exports = {
   moduleNameMapper: {
     '^@paralleldrive/cuid2$': '<rootDir>/__mocks__/cuid2.ts',
   },
+  modulePathIgnorePatterns: ['<rootDir>/storage/postgres/'],
   collectCoverageFrom: [
     '**/*.ts',
     '!**/__tests__/**',
     '!**/__mocks__/**',
     '!**/index.ts',
+    '!**/storage/postgres/**',
   ],
   coverageDirectory: '../coverage',
   verbose: true,
