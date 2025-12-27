@@ -16,13 +16,13 @@ import {
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
-import { CreateMessageDto, UpdateMessageDto, AttachmentDto } from './dto';
+import { CreateMessageDto, UpdateMessageDto, AttachmentDto } from './dto.js';
 import {
   parseMentions,
   extractMentionedUserIds,
   hasBroadcastMention,
-} from '../shared/utils/mention-parser';
-import { REDIS_KEYS } from '../shared/constants/redis-keys';
+} from '../shared/utils/mention-parser.js';
+import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
 
 export interface MessageSender {
   id: string;

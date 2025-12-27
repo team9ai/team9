@@ -7,10 +7,10 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { UsersService, UserResponse } from './users.service';
-import { UpdateUserDto, UpdateUserStatusDto } from './dto';
-import { AuthGuard } from '../../auth/auth.guard';
-import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { UsersService, UserResponse } from './users.service.js';
+import { UpdateUserDto, UpdateUserStatusDto } from './dto.js';
+import { AuthGuard } from '../../auth/auth.guard.js';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator.js';
 
 @Controller({
   path: 'im/users',

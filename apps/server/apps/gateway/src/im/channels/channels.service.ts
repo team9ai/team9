@@ -14,7 +14,7 @@ import {
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
-import { CreateChannelDto, UpdateChannelDto, UpdateMemberDto } from './dto';
+import { CreateChannelDto, UpdateChannelDto, UpdateMemberDto } from './dto.js';
 
 export interface ChannelResponse {
   id: string;

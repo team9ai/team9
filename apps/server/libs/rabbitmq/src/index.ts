@@ -1,4 +1,4 @@
-export * from './rabbitmq.module';
+export * from './rabbitmq.module.js';
 export {
   RabbitSubscribe,
   RabbitRPC,

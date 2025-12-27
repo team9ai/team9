@@ -1,10 +1,10 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
-import { TenantService } from './tenant.service';
-import { TenantController } from './tenant.controller';
-import { TenantContextMiddleware } from './middleware/tenant-context.middleware';
-import { TenantGuard } from './guards/tenant.guard';
-import { TenantRoleGuard } from './guards/tenant-role.guard';
-import { AuthModule } from '../auth/auth.module';
+import { TenantService } from './tenant.service.js';
+import { TenantController } from './tenant.controller.js';
+import { TenantContextMiddleware } from './middleware/tenant-context.middleware.js';
+import { TenantGuard } from './guards/tenant.guard.js';
+import { TenantRoleGuard } from './guards/tenant-role.guard.js';
+import { AuthModule } from '../auth/auth.module.js';
 
 @Module({
   imports: [AuthModule],

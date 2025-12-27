@@ -7,12 +7,12 @@ import {
   HttpStatus,
   Get,
 } from '@nestjs/common';
-import { AuthService } from './auth.service';
-import type { AuthResponse, TokenPair } from './auth.service';
-import { RegisterDto, LoginDto, RefreshTokenDto } from './dto';
-import { AuthGuard } from './auth.guard';
-import { CurrentUser } from './decorators/current-user.decorator';
-import type { JwtPayload } from './decorators/current-user.decorator';
+import { AuthService } from './auth.service.js';
+import type { AuthResponse, TokenPair } from './auth.service.js';
+import { RegisterDto, LoginDto, RefreshTokenDto } from './dto.js';
+import { AuthGuard } from './auth.guard.js';
+import { CurrentUser } from './decorators/current-user.decorator.js';
+import type { JwtPayload } from './decorators/current-user.decorator.js';
 
 @Controller({
   path: 'auth',

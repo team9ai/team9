@@ -6,8 +6,8 @@ import {
   boolean,
   unique,
 } from 'drizzle-orm/pg-core';
-import { users } from './users';
-import { channels } from './channels';
+import { users } from './users.js';
+import { channels } from './channels.js';
 
 export const memberRoleEnum = pgEnum('member_role', [
   'owner',

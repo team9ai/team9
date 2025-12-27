@@ -9,17 +9,17 @@ import {
   UseGuards,
   Logger,
 } from '@nestjs/common';
-import { TenantService } from './tenant.service';
+import { TenantService } from './tenant.service.js';
 import {
   CreateTenantDto,
   UpdateTenantDto,
   AddMemberDto,
   UpdateMemberRoleDto,
-} from './dto';
-import { AuthGuard } from '../auth/auth.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { TenantGuard } from './guards/tenant.guard';
-import { TenantRoleGuard, TenantRoles } from './guards/tenant-role.guard';
+} from './dto.js';
+import { AuthGuard } from '../auth/auth.guard.js';
+import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
+import { TenantGuard } from './guards/tenant.guard.js';
+import { TenantRoleGuard, TenantRoles } from './guards/tenant-role.guard.js';
 
 @Controller({
   path: 'tenants',

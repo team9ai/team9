@@ -1,10 +1,10 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { DATABASE_CONNECTION } from './database.constants';
-import * as schema from './schemas';
-import { Config } from './schemas/config';
-import { ConfigKey } from './config-keys';
+import { DATABASE_CONNECTION } from './database.constants.js';
+import * as schema from './schemas.js';
+import { Config } from './schemas/config.js';
+import { ConfigKey } from './config-keys.js';
 
 @Injectable()
 export class ConfigService {

@@ -1,3 +1,3 @@
-export * from './create-tenant.dto';
-export * from './update-tenant.dto';
-export * from './add-member.dto';
+export * from './create-tenant.dto.js';
+export * from './update-tenant.dto.js';
+export * from './add-member.dto.js';

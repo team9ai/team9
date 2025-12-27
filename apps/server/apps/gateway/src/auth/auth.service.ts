@@ -8,8 +8,8 @@ import {
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
-import type { JwtPayload } from './decorators/current-user.decorator';
-import { RegisterDto, LoginDto } from './dto';
+import type { JwtPayload } from './decorators/current-user.decorator.js';
+import { RegisterDto, LoginDto } from './dto.js';
 
 export interface TokenPair {
   accessToken: string;

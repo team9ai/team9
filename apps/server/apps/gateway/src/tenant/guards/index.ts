@@ -1,2 +1,2 @@
-export * from './tenant.guard';
-export * from './tenant-role.guard';
+export * from './tenant.guard.js';
+export * from './tenant-role.guard.js';

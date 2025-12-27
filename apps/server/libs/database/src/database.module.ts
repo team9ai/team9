@@ -1,9 +1,9 @@
 import { Module, Global, Logger } from '@nestjs/common';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import * as schema from './schemas';
-import { ConfigService } from './config.service';
-import { DATABASE_CONNECTION } from './database.constants';
+import * as schema from './schemas.js';
+import { ConfigService } from './config.service.js';
+import { DATABASE_CONNECTION } from './database.constants.js';
 
 @Global()
 @Module({

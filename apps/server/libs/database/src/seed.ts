@@ -1,8 +1,8 @@
 import 'dotenv/config';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import * as schema from './schemas';
-import { config } from './schemas/config';
+import * as schema from './schemas.js';
+import { config } from './schemas/config.js';
 
 async function seed() {
   const connectionString = `postgresql://${process.env.POSTGRES_USER || 'postgres'}:${process.env.POSTGRES_PASSWORD || 'postgres'}@localhost:${process.env.DB_PORT || '5432'}/${process.env.POSTGRES_DB || 'team9'}`;

@@ -1,7 +1,7 @@
 import { Module, Global, Logger, OnModuleDestroy } from '@nestjs/common';
 import { Redis } from 'ioredis';
-import { REDIS_CLIENT } from './redis.constants';
-import { RedisService } from './redis.service';
+import { REDIS_CLIENT } from './redis.constants.js';
+import { RedisService } from './redis.service.js';
 
 @Global()
 @Module({

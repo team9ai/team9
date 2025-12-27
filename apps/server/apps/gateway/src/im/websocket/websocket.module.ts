@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { WebsocketGateway } from './websocket.gateway';
-import { AuthModule } from '../../auth/auth.module';
-import { UsersModule } from '../users/users.module';
-import { ChannelsModule } from '../channels/channels.module';
-import { MessagesModule } from '../messages/messages.module';
+import { WebsocketGateway } from './websocket.gateway.js';
+import { AuthModule } from '../../auth/auth.module.js';
+import { UsersModule } from '../users/users.module.js';
+import { ChannelsModule } from '../channels/channels.module.js';
+import { MessagesModule } from '../messages/messages.module.js';
 
 @Module({
   imports: [AuthModule, UsersModule, ChannelsModule, MessagesModule],

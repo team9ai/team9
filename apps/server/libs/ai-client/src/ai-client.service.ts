@@ -4,11 +4,11 @@ import {
   AICompletionRequest,
   AIProvider,
   AIChatResponse,
-} from './interfaces/ai-provider.interface';
-import { OpenAIProvider } from './providers/openai.provider';
-import { ClaudeProvider } from './providers/claude.provider';
-import { GeminiProvider } from './providers/gemini.provider';
-import { OpenRouterProvider } from './providers/openrouter.provider';
+} from './interfaces/ai-provider.interface.js';
+import { OpenAIProvider } from './providers/openai.provider.js';
+import { ClaudeProvider } from './providers/claude.provider.js';
+import { GeminiProvider } from './providers/gemini.provider.js';
+import { OpenRouterProvider } from './providers/openrouter.provider.js';
 
 @Injectable()
 export class AiClientService {

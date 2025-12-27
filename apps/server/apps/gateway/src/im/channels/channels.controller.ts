@@ -14,16 +14,16 @@ import {
   ChannelResponse,
   ChannelWithUnread,
   ChannelMemberResponse,
-} from './channels.service';
+} from './channels.service.js';
 import {
   CreateChannelDto,
   UpdateChannelDto,
   AddMemberDto,
   UpdateMemberDto,
-} from './dto';
-import { AuthGuard } from '../../auth/auth.guard';
-import { CurrentUser } from '../../auth/decorators/current-user.decorator';
-import { CurrentTenantId } from '../../tenant/decorators/current-tenant.decorator';
+} from './dto.js';
+import { AuthGuard } from '../../auth/auth.guard.js';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator.js';
+import { CurrentTenantId } from '../../tenant/decorators/current-tenant.decorator.js';
 
 @Controller({
   path: 'im/channels',

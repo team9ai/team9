@@ -1,8 +1,8 @@
 import { Module, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { join } from 'path';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { AppController } from './app.controller.js';
+import { AppService } from './app.service.js';
 import {
   DatabaseModule,
   ConfigService as DbConfigService,
@@ -11,9 +11,9 @@ import { RedisModule } from '@team9/redis';
 import { AiClientModule } from '@team9/ai-client';
 // RabbitmqModule temporarily disabled due to NestJS 11 compatibility issue
 // import { RabbitmqModule } from '@team9/rabbitmq';
-import { ImModule } from './im/im.module';
-import { EditionModule } from './edition';
-import { TenantModule } from './tenant';
+import { ImModule } from './im/im.module.js';
+import { EditionModule } from './edition.js';
+import { TenantModule } from './tenant.js';
 
 @Module({
   imports: [
