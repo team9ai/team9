@@ -2,6 +2,7 @@ import type {
   ILLMAdapter,
   LLMCompletionRequest,
   LLMCompletionResponse,
+  LLMToolCall,
 } from '@team9/agent-framework';
 
 export interface OpenRouterConfig {
@@ -38,15 +39,36 @@ export class OpenRouterAdapter implements ILLMAdapter {
       headers['X-Title'] = this.config.title;
     }
 
-    const body = {
+    const body: Record<string, unknown> = {
       model: this.config.model,
-      messages: request.messages.map((msg) => ({
-        role: msg.role,
-        content: msg.content,
-      })),
+      messages: request.messages.map((msg) => {
+        if (msg.role === 'tool') {
+          return {
+            role: 'tool',
+            content: msg.content,
+            tool_call_id: msg.toolCallId,
+          };
+        }
+        return {
+          role: msg.role,
+          content: msg.content,
+        };
+      }),
       temperature: request.temperature ?? 0.7,
       max_tokens: request.maxTokens ?? 4096,
     };
+
+    // Add tools if provided
+    if (request.tools && request.tools.length > 0) {
+      body.tools = request.tools.map((tool) => ({
+        type: 'function',
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.parameters,
+        },
+      }));
+    }
 
     try {
       const response = await fetch(this.baseUrl, {
@@ -63,9 +85,39 @@ export class OpenRouterAdapter implements ILLMAdapter {
       }
 
       const data = (await response.json()) as OpenRouterResponse;
+      const choice = data.choices[0];
+
+      // Parse tool calls if present
+      let toolCalls: LLMToolCall[] | undefined;
+      if (choice?.message?.tool_calls && choice.message.tool_calls.length > 0) {
+        toolCalls = choice.message.tool_calls.map((tc) => ({
+          id: tc.id,
+          name: tc.function.name,
+          arguments: JSON.parse(tc.function.arguments || '{}'),
+        }));
+      }
+
+      // Map finish reason
+      let finishReason: LLMCompletionResponse['finishReason'];
+      switch (choice?.finish_reason) {
+        case 'stop':
+          finishReason = 'stop';
+          break;
+        case 'tool_calls':
+          finishReason = 'tool_calls';
+          break;
+        case 'length':
+          finishReason = 'length';
+          break;
+        case 'content_filter':
+          finishReason = 'content_filter';
+          break;
+      }
 
       return {
-        content: data.choices[0]?.message?.content || '',
+        content: choice?.message?.content || '',
+        toolCalls,
+        finishReason,
         usage: data.usage
           ? {
               promptTokens: data.usage.prompt_tokens,
@@ -83,6 +135,15 @@ export class OpenRouterAdapter implements ILLMAdapter {
   }
 }
 
+interface OpenRouterToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
 interface OpenRouterResponse {
   id: string;
   model: string;
@@ -90,7 +151,8 @@ interface OpenRouterResponse {
     index: number;
     message: {
       role: string;
-      content: string;
+      content: string | null;
+      tool_calls?: OpenRouterToolCall[];
     };
     finish_reason: string;
   }>;

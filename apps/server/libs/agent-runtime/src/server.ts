@@ -6,6 +6,7 @@ import { logger } from 'hono/logger';
 import { agentsRouter } from './routes/agents.js';
 import { blueprintsRouter } from './routes/blueprints.js';
 import { batchTestRouter } from './routes/batch-test.js';
+import { toolsRouter } from './routes/tools.js';
 import { setContext } from './context.js';
 import { AgentService } from './services/agent.service.js';
 import { BlueprintService } from './services/blueprint.service.js';
@@ -109,6 +110,7 @@ app.get('/health', (c) =>
 app.route('/api/agents', agentsRouter);
 app.route('/api/blueprints', blueprintsRouter);
 app.route('/api/batch-test', batchTestRouter);
+app.route('/api/tools', toolsRouter);
 
 // Start server
 async function start() {

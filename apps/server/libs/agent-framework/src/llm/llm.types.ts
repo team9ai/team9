@@ -7,8 +7,32 @@
  * Message for LLM completion
  */
 export interface LLMMessage {
-  role: 'system' | 'user' | 'assistant';
+  role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
+  /** Tool call ID (for tool role messages) */
+  toolCallId?: string;
+}
+
+/**
+ * Tool definition for LLM
+ */
+export interface LLMToolDefinition {
+  name: string;
+  description: string;
+  parameters: {
+    type: 'object';
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
+}
+
+/**
+ * Tool call from LLM response
+ */
+export interface LLMToolCall {
+  id: string;
+  name: string;
+  arguments: Record<string, unknown>;
 }
 
 /**
@@ -18,13 +42,20 @@ export interface LLMCompletionRequest {
   messages: LLMMessage[];
   temperature?: number;
   maxTokens?: number;
+  /** Available tools for the LLM to call */
+  tools?: LLMToolDefinition[];
 }
 
 /**
  * Response from LLM completion
  */
 export interface LLMCompletionResponse {
+  /** Text content (may be empty if tool calls are present) */
   content: string;
+  /** Tool calls requested by the LLM */
+  toolCalls?: LLMToolCall[];
+  /** Stop reason */
+  finishReason?: 'stop' | 'tool_calls' | 'length' | 'content_filter';
   usage?: {
     promptTokens: number;
     completionTokens: number;

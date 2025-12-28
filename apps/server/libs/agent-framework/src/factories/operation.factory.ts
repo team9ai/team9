@@ -7,12 +7,13 @@ import {
   ReplaceOperation,
   BatchReplaceOperation,
   BatchOperation,
+  ChildData,
   Operation,
 } from '../types/operation.types.js';
 import { generateOperationId } from '../utils/id.utils.js';
 
 /**
- * Create an ADD operation
+ * Create an ADD operation for adding a top-level chunk
  */
 export function createAddOperation(
   chunkId: string,
@@ -24,6 +25,22 @@ export function createAddOperation(
     timestamp: Date.now(),
     chunkId,
     position,
+  };
+}
+
+/**
+ * Create an ADD operation for adding a child to an existing chunk
+ */
+export function createAddChildOperation(
+  parentChunkId: string,
+  child: ChildData,
+): AddOperation {
+  return {
+    id: generateOperationId(),
+    type: OperationType.ADD,
+    timestamp: Date.now(),
+    parentChunkId,
+    child,
   };
 }
 

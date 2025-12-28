@@ -18,8 +18,11 @@ export interface CreateAgentRequest {
 export interface InjectEventRequest {
   event: {
     type: string;
-    payload?: unknown;
+    timestamp: number;
+    [key: string]: unknown; // Other event-specific fields (content, toolName, etc.)
   };
+  /** Whether to automatically run LLM after injection (default: false) */
+  autoRun?: boolean;
 }
 
 export interface ForkStateRequest {

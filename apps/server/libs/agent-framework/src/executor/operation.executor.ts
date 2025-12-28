@@ -1,5 +1,5 @@
 import { MemoryState } from '../types/state.types.js';
-import { MemoryChunk } from '../types/chunk.types.js';
+import { MemoryChunk, WorkingFlowSubType } from '../types/chunk.types.js';
 import {
   Operation,
   OperationType,
@@ -52,17 +52,50 @@ function applySingleOperationInternal(
   switch (operation.type) {
     case OperationType.ADD: {
       const addOp = operation as AddOperation;
-      const chunk = pendingChunks.get(addOp.chunkId);
-      if (!chunk) {
-        throw new Error(`Chunk not found in context: ${addOp.chunkId}`);
-      }
-      chunks.set(addOp.chunkId, chunk);
-      if (addOp.position !== undefined && addOp.position >= 0) {
-        chunkIds.splice(addOp.position, 0, addOp.chunkId);
+
+      // Check if this is adding a child to an existing chunk
+      if (addOp.parentChunkId && addOp.child) {
+        const targetChunk = chunks.get(addOp.parentChunkId);
+        if (!targetChunk) {
+          throw new Error(
+            `Parent chunk not found in state: ${addOp.parentChunkId}`,
+          );
+        }
+        // Create updated chunk with new child
+        const updatedChunk: MemoryChunk = {
+          ...targetChunk,
+          children: [
+            ...(targetChunk.children ?? []),
+            {
+              id: addOp.child.id,
+              subType: addOp.child.subType as WorkingFlowSubType,
+              content: addOp.child.content as MemoryChunk['content'],
+              createdAt: addOp.child.createdAt,
+              custom: addOp.child.custom,
+            },
+          ],
+        };
+        chunks.set(addOp.parentChunkId, updatedChunk);
+        // The updated chunk needs to be persisted
+        addedChunks.push(updatedChunk);
+      } else if (addOp.chunkId) {
+        // Adding a top-level chunk
+        const chunk = pendingChunks.get(addOp.chunkId);
+        if (!chunk) {
+          throw new Error(`Chunk not found in context: ${addOp.chunkId}`);
+        }
+        chunks.set(addOp.chunkId, chunk);
+        if (addOp.position !== undefined && addOp.position >= 0) {
+          chunkIds.splice(addOp.position, 0, addOp.chunkId);
+        } else {
+          chunkIds.push(addOp.chunkId);
+        }
+        addedChunks.push(chunk);
       } else {
-        chunkIds.push(addOp.chunkId);
+        throw new Error(
+          'ADD operation must have either chunkId or parentChunkId with child',
+        );
       }
-      addedChunks.push(chunk);
       break;
     }
 

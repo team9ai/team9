@@ -142,6 +142,17 @@ export interface StepResult {
 }
 
 /**
+ * Working flow child item
+ */
+export interface WorkingFlowChild {
+  id: string;
+  subType: string;
+  content: ChunkContent;
+  createdAt: number;
+  custom?: Record<string, unknown>;
+}
+
+/**
  * Memory chunk
  */
 export interface MemoryChunk {
@@ -149,6 +160,7 @@ export interface MemoryChunk {
   type: string;
   subType?: string;
   content: ChunkContent;
+  children?: WorkingFlowChild[];
   retentionStrategy: string;
   mutable: boolean;
   priority: number;
@@ -191,6 +203,11 @@ export type SSEEventType =
   | "state:change"
   | "event:dispatch"
   | "reducer:execute"
+  | "agent:paused"
+  | "agent:resumed"
+  | "agent:thinking"
+  | "agent:response"
+  | "agent:error"
   | "agent:status_changed"
   | "agent:mode_changed"
   | "agent:stepped"

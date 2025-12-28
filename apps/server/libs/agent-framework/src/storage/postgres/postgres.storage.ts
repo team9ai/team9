@@ -94,21 +94,34 @@ export class PostgresStorageProvider implements StorageProvider {
   // ============ Chunk Operations ============
 
   async saveChunk(chunk: MemoryChunk): Promise<void> {
-    await this.db.insert(memoryChunks).values({
-      id: chunk.id,
-      data: chunk,
-    });
+    await this.db
+      .insert(memoryChunks)
+      .values({
+        id: chunk.id,
+        data: chunk,
+      })
+      .onConflictDoUpdate({
+        target: memoryChunks.id,
+        set: { data: chunk },
+      });
   }
 
   async saveChunks(chunks: MemoryChunk[]): Promise<void> {
     if (chunks.length === 0) return;
 
-    await this.db.insert(memoryChunks).values(
-      chunks.map((chunk) => ({
-        id: chunk.id,
-        data: chunk,
-      })),
-    );
+    // Use upsert to handle both new chunks and updates to existing chunks
+    for (const chunk of chunks) {
+      await this.db
+        .insert(memoryChunks)
+        .values({
+          id: chunk.id,
+          data: chunk,
+        })
+        .onConflictDoUpdate({
+          target: memoryChunks.id,
+          set: { data: chunk },
+        });
+    }
   }
 
   async getChunk(chunkId: string): Promise<MemoryChunk | null> {

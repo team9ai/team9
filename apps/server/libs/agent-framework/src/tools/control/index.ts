@@ -3,14 +3,14 @@
  * Tools that control agent execution flow (all await external response)
  */
 
-export { askUserTool } from './ask-user.tool.js';
+export { waitUserResponseTool } from './ask-user.tool.js';
 export { outputTool } from './output.tool.js';
 export { taskCompleteTool } from './task-complete.tool.js';
 export { taskAbandonTool } from './task-abandon.tool.js';
 export { waitParentTool } from './wait-parent.tool.js';
 
 import type { ToolDefinition } from '../tool.types.js';
-import { askUserTool } from './ask-user.tool.js';
+import { waitUserResponseTool } from './ask-user.tool.js';
 import { outputTool } from './output.tool.js';
 import { taskCompleteTool } from './task-complete.tool.js';
 import { taskAbandonTool } from './task-abandon.tool.js';
@@ -20,7 +20,7 @@ import { waitParentTool } from './wait-parent.tool.js';
  * All control tools
  */
 export const controlTools: ToolDefinition[] = [
-  askUserTool,
+  waitUserResponseTool,
   outputTool,
   taskCompleteTool,
   taskAbandonTool,

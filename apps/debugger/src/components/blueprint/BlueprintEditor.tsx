@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Blueprint, BlueprintChunk, LLMConfig } from "@/types";
 import { ChunkEditor } from "./ChunkEditor";
 import { LLMConfigEditor } from "./LLMConfigEditor";
 import { SubAgentEditor } from "./SubAgentEditor";
+import { toolsApi, type ToolInfo } from "@/services/api";
 import {
   Plus,
   Trash2,
@@ -10,6 +11,8 @@ import {
   FileJson,
   ChevronDown,
   ChevronRight,
+  Check,
+  Loader2,
 } from "lucide-react";
 
 interface BlueprintEditorProps {
@@ -208,18 +211,42 @@ function BasicInfoTab({
   blueprint: Blueprint;
   onChange: (updates: Partial<Blueprint>) => void;
 }) {
-  const [toolInput, setToolInput] = useState("");
+  const [availableTools, setAvailableTools] = useState<ToolInfo[]>([]);
+  const [loadingTools, setLoadingTools] = useState(true);
+  const [toolsError, setToolsError] = useState<string | null>(null);
 
-  const addTool = () => {
-    if (!toolInput.trim()) return;
-    onChange({ tools: [...(blueprint.tools || []), toolInput.trim()] });
-    setToolInput("");
+  useEffect(() => {
+    const loadTools = async () => {
+      try {
+        setLoadingTools(true);
+        setToolsError(null);
+        const tools = await toolsApi.list();
+        setAvailableTools(tools);
+      } catch (err) {
+        setToolsError((err as Error).message);
+      } finally {
+        setLoadingTools(false);
+      }
+    };
+    loadTools();
+  }, []);
+
+  const toggleTool = (toolName: string) => {
+    const currentTools = blueprint.tools || [];
+    const isSelected = currentTools.includes(toolName);
+    if (isSelected) {
+      onChange({ tools: currentTools.filter((t) => t !== toolName) });
+    } else {
+      onChange({ tools: [...currentTools, toolName] });
+    }
   };
 
-  const removeTool = (index: number) => {
-    onChange({
-      tools: (blueprint.tools || []).filter((_, i) => i !== index),
-    });
+  const selectAllTools = () => {
+    onChange({ tools: availableTools.map((t) => t.name) });
+  };
+
+  const deselectAllTools = () => {
+    onChange({ tools: [] });
   };
 
   return (
@@ -262,39 +289,81 @@ function BasicInfoTab({
 
       {/* Tools */}
       <div>
-        <label className="block text-sm font-medium">Tools</label>
-        <div className="mt-1 flex gap-2">
-          <input
-            type="text"
-            value={toolInput}
-            onChange={(e) => setToolInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addTool()}
-            className="flex-1 rounded-md border bg-background p-2 text-sm"
-            placeholder="Tool name (e.g., read_file)"
-          />
-          <button
-            onClick={addTool}
-            className="rounded-md border px-3 py-2 text-sm hover:bg-muted"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-sm font-medium">
+            Tools ({(blueprint.tools || []).length} selected)
+          </label>
+          <div className="flex gap-2">
+            <button
+              onClick={selectAllTools}
+              disabled={loadingTools}
+              className="text-xs text-primary hover:underline disabled:opacity-50"
+            >
+              Select All
+            </button>
+            <span className="text-muted-foreground">|</span>
+            <button
+              onClick={deselectAllTools}
+              disabled={loadingTools}
+              className="text-xs text-primary hover:underline disabled:opacity-50"
+            >
+              Deselect All
+            </button>
+          </div>
         </div>
-        {blueprint.tools && blueprint.tools.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-2">
-            {blueprint.tools.map((tool, index) => (
-              <span
-                key={index}
-                className="flex items-center gap-1 rounded-full bg-secondary px-2 py-1 text-xs"
-              >
-                {tool}
-                <button
-                  onClick={() => removeTool(index)}
-                  className="ml-1 text-muted-foreground hover:text-destructive"
+
+        {loadingTools ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading available tools...
+          </div>
+        ) : toolsError ? (
+          <div className="text-sm text-destructive">
+            Failed to load tools: {toolsError}
+          </div>
+        ) : availableTools.length === 0 ? (
+          <div className="text-sm text-muted-foreground">
+            No tools available
+          </div>
+        ) : (
+          <div className="mt-1 space-y-1 max-h-60 overflow-y-auto rounded-md border p-2">
+            {availableTools.map((tool) => {
+              const isSelected = (blueprint.tools || []).includes(tool.name);
+              return (
+                <label
+                  key={tool.name}
+                  className={`flex items-start gap-3 p-2 rounded-md cursor-pointer transition-colors ${
+                    isSelected
+                      ? "bg-primary/10 border border-primary/20"
+                      : "hover:bg-muted"
+                  }`}
                 >
-                  ×
-                </button>
-              </span>
-            ))}
+                  <div
+                    className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                      isSelected
+                        ? "bg-primary border-primary text-primary-foreground"
+                        : "border-muted-foreground"
+                    }`}
+                    onClick={() => toggleTool(tool.name)}
+                  >
+                    {isSelected && <Check className="h-3 w-3" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm">{tool.name}</span>
+                      {tool.awaitsExternalResponse && (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                          async
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                      {tool.description}
+                    </p>
+                  </div>
+                </label>
+              );
+            })}
           </div>
         )}
       </div>

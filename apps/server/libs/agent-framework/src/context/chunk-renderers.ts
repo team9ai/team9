@@ -302,6 +302,16 @@ export class WorkingFlowChunkRenderer implements IChunkRenderer {
   }
 
   getRole(chunk: MemoryChunk): ContextMessageRole {
+    // For container chunks, determine role from children
+    if (chunk.children && chunk.children.length > 0) {
+      // Return role based on the last child for proper conversation flow
+      const lastChild = chunk.children[chunk.children.length - 1];
+      if (lastChild.subType === WorkingFlowSubType.USER) {
+        return 'user';
+      }
+      return 'assistant';
+    }
+
     const subType = chunk.subType;
     if (subType === WorkingFlowSubType.USER) {
       return 'user';
@@ -310,6 +320,11 @@ export class WorkingFlowChunkRenderer implements IChunkRenderer {
   }
 
   render(chunk: MemoryChunk): string {
+    // Handle container chunk with children
+    if (chunk.children && chunk.children.length > 0) {
+      return this.renderContainerWithChildren(chunk);
+    }
+
     const subType = chunk.subType;
     const textContent = extractTextContent(chunk);
     const custom = chunk.metadata.custom;
@@ -345,14 +360,64 @@ export class WorkingFlowChunkRenderer implements IChunkRenderer {
     return `<${subTypeTag}${attrs}>\n${textContent}\n</${subTypeTag}>`;
   }
 
-  private getSubTypeTag(subType?: WorkingFlowSubType): string {
+  /**
+   * Render a container chunk with its children
+   */
+  private renderContainerWithChildren(chunk: MemoryChunk): string {
+    if (!chunk.children || chunk.children.length === 0) {
+      return '';
+    }
+
+    const parts: string[] = [];
+
+    for (const child of chunk.children) {
+      const childTag = this.getSubTypeTag(child.subType);
+      const childContent = this.extractChildTextContent(child.content);
+      const attrs = buildAttributes({
+        id: child.id,
+        subtype: child.subType,
+      });
+      parts.push(`<${childTag}${attrs}>\n${childContent}\n</${childTag}>`);
+    }
+
+    return parts.join('\n');
+  }
+
+  /**
+   * Extract text content from a child's content
+   */
+  private extractChildTextContent(content: unknown): string {
+    if (!content || typeof content !== 'object') {
+      return String(content ?? '');
+    }
+
+    const contentObj = content as Record<string, unknown>;
+
+    if (contentObj.type === ChunkContentType.TEXT) {
+      if ('text' in contentObj && typeof contentObj.text === 'string') {
+        return contentObj.text;
+      }
+      const { type, ...rest } = contentObj;
+      return JSON.stringify(rest, null, 2);
+    }
+
+    // Fallback: serialize as JSON
+    try {
+      const { type, ...rest } = contentObj;
+      return JSON.stringify(rest, null, 2);
+    } catch {
+      return '[Non-serializable content]';
+    }
+  }
+
+  private getSubTypeTag(subType?: WorkingFlowSubType | string): string {
     switch (subType) {
       case WorkingFlowSubType.USER:
-        return 'user_intervention';
+        return 'user_message';
       case WorkingFlowSubType.THINKING:
         return 'thinking';
       case WorkingFlowSubType.RESPONSE:
-        return 'intermediate_response';
+        return 'assistant_response';
       case WorkingFlowSubType.AGENT_ACTION:
         return 'agent_action';
       case WorkingFlowSubType.ACTION_RESPONSE:

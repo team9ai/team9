@@ -166,9 +166,12 @@ export const useDebugStore = create<DebugStore>((set, get) => ({
       const currentState = await agentApi.getCurrentState(agentId);
       const executionTree = buildExecutionTree(stateHistory);
 
+      // Always select the latest state (currentState) after refresh
       set({
         stateHistory,
         currentState,
+        selectedStateId: currentState.id,
+        selectedState: currentState,
         executionTree,
       });
     } catch (error) {
@@ -198,9 +201,19 @@ export const useDebugStore = create<DebugStore>((set, get) => ({
     if (!agentId) return;
 
     try {
-      await agentApi.injectEvent(agentId, {
-        event: { type: eventType, payload },
-      });
+      // Build the event by spreading payload fields at the event level
+      // This matches the AgentEvent structure expected by the server
+      const event = {
+        type: eventType,
+        timestamp: Date.now(),
+        ...(typeof payload === "object" && payload !== null ? payload : {}),
+      };
+
+      await agentApi.injectEvent(agentId, { event });
+
+      // Refresh state history after injection
+      // This ensures we see the new state even if SSE is delayed
+      await get().refreshStateHistory();
     } catch (error) {
       set({ error: (error as Error).message });
     }
@@ -265,9 +278,13 @@ export const useDebugStore = create<DebugStore>((set, get) => ({
 
   // Handle SSE events
   handleSSEEvent: (type: SSEEventType, data: unknown) => {
+    console.log("[DebugStore] SSE event received:", type, data);
     switch (type) {
       case "state:change":
         // Refresh state history when state changes
+        console.log(
+          "[DebugStore] Refreshing state history due to state:change",
+        );
         get().refreshStateHistory();
         break;
       case "agent:status_changed":
@@ -283,6 +300,17 @@ export const useDebugStore = create<DebugStore>((set, get) => ({
         // Refresh state history and execution mode status after a step
         get().refreshStateHistory();
         get().refreshExecutionModeStatus();
+        break;
+      case "agent:response":
+        // LLM has responded - refresh state history to see the response
+        console.log(
+          "[DebugStore] LLM response received, refreshing state history",
+        );
+        get().refreshStateHistory();
+        break;
+      case "agent:thinking":
+        // LLM is thinking - could show loading indicator
+        console.log("[DebugStore] Agent is thinking...");
         break;
       case "subagent:spawn":
       case "subagent:result":

@@ -52,6 +52,8 @@ export interface AgentInstance {
   executionMode: ExecutionMode;
   llmConfig: LLMConfig;
   modelOverride?: LLMConfig;
+  /** Tool names available to this agent */
+  tools?: string[];
   createdAt: number;
   updatedAt: number;
   parentAgentId?: string;

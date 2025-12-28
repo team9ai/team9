@@ -5,6 +5,7 @@ import { createId } from '@paralleldrive/cuid2';
  */
 export enum IdPrefix {
   CHUNK = 'chunk',
+  CHILD = 'child',
   STATE = 'state',
   THREAD = 'thread',
   OPERATION = 'op',
@@ -27,6 +28,14 @@ export function generateId(prefix: IdPrefix): string {
  */
 export function generateChunkId(): string {
   return generateId(IdPrefix.CHUNK);
+}
+
+/**
+ * Generate a Child ID
+ * @returns A unique Child ID (format: child_xxx)
+ */
+export function generateChildId(): string {
+  return generateId(IdPrefix.CHILD);
 }
 
 /**

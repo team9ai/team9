@@ -4,6 +4,7 @@ import {
   ChunkRetentionStrategy,
   ChunkContentType,
   WorkingFlowSubType,
+  MemoryChunk,
 } from '../../types/chunk.types.js';
 import {
   AgentEvent,
@@ -13,7 +14,27 @@ import {
 } from '../../types/event.types.js';
 import { EventReducer, ReducerResult } from '../reducer.types.js';
 import { createChunk } from '../../factories/chunk.factory.js';
-import { createAddOperation } from '../../factories/operation.factory.js';
+import {
+  createAddOperation,
+  createAddChildOperation,
+} from '../../factories/operation.factory.js';
+import { generateChildId } from '../../utils/id.utils.js';
+
+/**
+ * Find the current WORKING_FLOW container chunk in state
+ */
+function findWorkingFlowChunk(state: MemoryState): MemoryChunk | undefined {
+  for (const chunkId of state.chunkIds) {
+    const chunk = state.chunks.get(chunkId);
+    if (
+      chunk?.type === ChunkType.WORKING_FLOW &&
+      chunk.children !== undefined
+    ) {
+      return chunk;
+    }
+  }
+  return undefined;
+}
 
 /**
  * Reducer for USER_MESSAGE events
@@ -25,28 +46,68 @@ export class UserMessageReducer implements EventReducer<UserMessageEvent> {
     return event.type === EventType.USER_MESSAGE;
   }
 
-  reduce(_state: MemoryState, event: UserMessageEvent): ReducerResult {
-    const chunk = createChunk({
-      type: ChunkType.WORKING_FLOW,
-      subType: WorkingFlowSubType.USER,
-      content: {
-        type: ChunkContentType.TEXT,
-        text: event.content,
-        attachments: event.attachments,
-      },
-      retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
-      custom: {
-        eventType: event.type,
-        timestamp: event.timestamp,
-      },
-    });
-
-    const addOperation = createAddOperation(chunk.id);
-
-    return {
-      operations: [addOperation],
-      chunks: [chunk],
+  reduce(state: MemoryState, event: UserMessageEvent): ReducerResult {
+    const childContent = {
+      type: ChunkContentType.TEXT,
+      text: event.content,
+      attachments: event.attachments,
     };
+
+    const existingWorkingFlow = findWorkingFlowChunk(state);
+
+    if (existingWorkingFlow) {
+      // Add as a child to existing WORKING_FLOW chunk
+      const addChildOp = createAddChildOperation(existingWorkingFlow.id, {
+        id: generateChildId(),
+        subType: WorkingFlowSubType.USER,
+        content: childContent,
+        createdAt: Date.now(),
+        custom: {
+          eventType: event.type,
+          timestamp: event.timestamp,
+        },
+      });
+
+      return {
+        operations: [addChildOp],
+        chunks: [],
+      };
+    } else {
+      // Create a new WORKING_FLOW container chunk with this message as first child
+      const chunk = createChunk({
+        type: ChunkType.WORKING_FLOW,
+        content: {
+          type: ChunkContentType.TEXT,
+          text: '', // Container has empty content, children hold actual content
+        },
+        retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
+        custom: {},
+      });
+
+      // Add the chunk with the first child already included
+      const chunkWithChild: MemoryChunk = {
+        ...chunk,
+        children: [
+          {
+            id: generateChildId(),
+            subType: WorkingFlowSubType.USER,
+            content: childContent,
+            createdAt: Date.now(),
+            custom: {
+              eventType: event.type,
+              timestamp: event.timestamp,
+            },
+          },
+        ],
+      };
+
+      const addOperation = createAddOperation(chunkWithChild.id);
+
+      return {
+        operations: [addOperation],
+        chunks: [chunkWithChild],
+      };
+    }
   }
 }
 

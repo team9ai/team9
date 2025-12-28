@@ -3,6 +3,8 @@ import type {
   MemoryState,
   ILLMAdapter,
   LLMMessage,
+  LLMToolDefinition,
+  LLMCompletionResponse,
   AgentEvent,
   ContextBuilder,
 } from '@team9/agent-framework';
@@ -17,6 +19,8 @@ export interface AgentExecutorConfig {
   timeout?: number;
   /** Whether to auto-run after inject */
   autoRun?: boolean;
+  /** Available tool names for this agent */
+  tools?: string[];
 }
 
 /**
@@ -38,18 +42,30 @@ export interface ExecutionResult {
 }
 
 /**
+ * Internal config type with resolved defaults
+ */
+interface ResolvedConfig {
+  maxTurns: number;
+  timeout: number;
+  autoRun: boolean;
+  tools: string[];
+}
+
+/**
  * AgentExecutor handles the LLM response generation loop
  *
  * Flow:
  * 1. User message is injected into Memory
  * 2. Executor builds context from Memory state
- * 3. Calls LLM to generate a response
- * 4. Dispatches LLM response as event to Memory
- * 5. (Future) If LLM calls tools, execute tools and loop back to step 2
+ * 3. Calls LLM to generate a response (with tools)
+ * 4. If LLM calls a tool, dispatch tool call event and stop
+ * 5. If LLM returns text only, dispatch text response and continue loop
+ * 6. Loop stops when: tool call, max turns reached, or task ended
  */
 export class AgentExecutor {
-  private config: Required<AgentExecutorConfig>;
+  private config: ResolvedConfig;
   private contextBuilder: ContextBuilder;
+  private toolDefinitions: LLMToolDefinition[];
 
   constructor(
     private memoryManager: MemoryManager,
@@ -60,12 +76,23 @@ export class AgentExecutor {
       maxTurns: config.maxTurns ?? 10,
       timeout: config.timeout ?? 60000,
       autoRun: config.autoRun ?? true,
+      tools: config.tools ?? [],
     };
 
     // Create context builder
-    const { createContextBuilder } =
+    const { createContextBuilder, getToolsByNames } =
       require('@team9/agent-framework') as typeof import('@team9/agent-framework');
     this.contextBuilder = createContextBuilder();
+
+    // Get tool definitions for LLM
+    const tools = getToolsByNames(this.config.tools);
+    this.toolDefinitions = tools.map((t) => ({
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters,
+    }));
+
+    console.log('[AgentExecutor] Initialized with tools:', this.config.tools);
   }
 
   /**
@@ -88,10 +115,12 @@ export class AgentExecutor {
     let turnsExecuted = 0;
     let lastResponse: string | undefined;
 
-    const { EventType } =
-      require('@team9/agent-framework') as typeof import('@team9/agent-framework');
-
     try {
+      console.log(
+        '[AgentExecutor.run] Starting execution loop, maxTurns:',
+        this.config.maxTurns,
+      );
+
       while (turnsExecuted < this.config.maxTurns) {
         const currentState = await this.memoryManager.getCurrentState(threadId);
         if (!currentState) {
@@ -105,28 +134,59 @@ export class AgentExecutor {
           content: msg.content,
         }));
 
-        // Call LLM
+        console.log(
+          '[AgentExecutor.run] Calling LLM with',
+          messages.length,
+          'messages and',
+          this.toolDefinitions.length,
+          'tools',
+        );
+
+        // Call LLM with tools
         const llmResponse = await this.callLLMWithTimeout(messages);
-        lastResponse = llmResponse;
+        console.log('[AgentExecutor.run] LLM response received:', {
+          content: llmResponse.content?.substring(0, 100),
+          toolCalls: llmResponse.toolCalls?.length ?? 0,
+          finishReason: llmResponse.finishReason,
+        });
+        lastResponse = llmResponse.content;
 
         // Parse LLM response to determine event type
         const responseEvent = this.parseResponseToEvent(llmResponse);
         events.push(responseEvent);
 
         // Dispatch the response event
-        await this.memoryManager.dispatch(threadId, responseEvent);
+        console.log(
+          '[AgentExecutor.run] Dispatching response event:',
+          responseEvent.type,
+        );
+        const dispatchResult = await this.memoryManager.dispatch(
+          threadId,
+          responseEvent,
+        );
+        console.log(
+          '[AgentExecutor.run] Dispatch result - state id:',
+          dispatchResult?.state?.id,
+          'chunks:',
+          dispatchResult?.state?.chunkIds?.length,
+        );
         turnsExecuted++;
 
         // Check if we should stop - waiting for external response
         if (this.shouldWaitForExternalResponse(responseEvent.type)) {
+          console.log(
+            '[AgentExecutor.run] Stopping - waiting for external response:',
+            responseEvent.type,
+          );
           break;
         }
 
-        // LLM_TEXT_RESPONSE without tool calls - agent is done for now
-        // (In a real implementation, we'd check if the response contains more actions)
-        if (responseEvent.type === EventType.LLM_TEXT_RESPONSE) {
-          break;
-        }
+        // For LLM_TEXT_RESPONSE, continue the loop - agent should call a tool to stop
+        // The agent is expected to call ask_user, task_complete, or similar tools
+        // to indicate it needs user input or has finished
+        console.log(
+          '[AgentExecutor.run] Continuing loop - LLM returned text response, waiting for tool call',
+        );
       }
 
       const finalState = await this.memoryManager.getCurrentState(threadId);
@@ -142,6 +202,7 @@ export class AgentExecutor {
         events,
       };
     } catch (error) {
+      console.error('[AgentExecutor.run] Error during execution:', error);
       const finalState = await this.memoryManager.getCurrentState(threadId);
       return {
         success: false,
@@ -184,13 +245,19 @@ export class AgentExecutor {
   /**
    * Call LLM with timeout
    */
-  private async callLLMWithTimeout(messages: LLMMessage[]): Promise<string> {
+  private async callLLMWithTimeout(
+    messages: LLMMessage[],
+  ): Promise<LLMCompletionResponse> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
 
     try {
-      const response = await this.llmAdapter.complete({ messages });
-      return response.content;
+      const response = await this.llmAdapter.complete({
+        messages,
+        tools:
+          this.toolDefinitions.length > 0 ? this.toolDefinitions : undefined,
+      });
+      return response;
     } finally {
       clearTimeout(timeoutId);
     }
@@ -198,18 +265,34 @@ export class AgentExecutor {
 
   /**
    * Parse LLM response to determine the appropriate event type
-   * For now, we treat all responses as text responses
-   * TODO: Parse for tool calls, clarifications, etc.
+   * Handles tool calls and text responses
    */
-  private parseResponseToEvent(response: string): AgentEvent {
+  private parseResponseToEvent(response: LLMCompletionResponse): AgentEvent {
     const { EventType } =
       require('@team9/agent-framework') as typeof import('@team9/agent-framework');
 
-    // TODO: Parse response for tool calls, etc.
-    // For now, treat everything as text response
+    // Check for tool calls
+    if (response.toolCalls && response.toolCalls.length > 0) {
+      const toolCall = response.toolCalls[0]; // Handle first tool call
+      console.log(
+        '[AgentExecutor] Tool call detected:',
+        toolCall.name,
+        toolCall.arguments,
+      );
+
+      return {
+        type: EventType.LLM_TOOL_CALL,
+        toolName: toolCall.name,
+        callId: toolCall.id,
+        arguments: toolCall.arguments,
+        timestamp: Date.now(),
+      };
+    }
+
+    // Plain text response
     return {
       type: EventType.LLM_TEXT_RESPONSE,
-      content: response,
+      content: response.content,
       timestamp: Date.now(),
     };
   }

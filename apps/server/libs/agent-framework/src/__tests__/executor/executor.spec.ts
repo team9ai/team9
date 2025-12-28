@@ -5,6 +5,7 @@ import {
   ChunkType,
   ChunkContentType,
   ChunkRetentionStrategy,
+  WorkingFlowSubType,
 } from '../../types/index.js';
 import {
   createChunk,
@@ -16,6 +17,7 @@ import {
   createReorderOperation,
   createBatchReplaceOperation,
   createBatchOperation,
+  createAddChildOperation,
 } from '../../factories/index.js';
 import {
   applyOperation,
@@ -50,6 +52,105 @@ describe('Executor Module', () => {
         expect(result.state.chunks.size).toBe(1);
         expect(result.state.chunks.get(chunk.id)).toBeDefined();
         expect(result.addedChunks.length).toBe(1);
+      });
+
+      it('should add a child to an existing WORKING_FLOW chunk and preserve content', async () => {
+        // Create a WORKING_FLOW container chunk
+        const container = createChunk({
+          type: ChunkType.WORKING_FLOW,
+          content: { type: ChunkContentType.TEXT, text: '' },
+        });
+        // Initialize with empty children array
+        const containerWithChildren = { ...container, children: [] };
+
+        const state = createState({
+          threadId: 'thread_1',
+          chunks: [containerWithChildren],
+        });
+
+        // Create the child content with all fields
+        const childContent = {
+          type: ChunkContentType.TEXT,
+          text: 'Hello, this is a user message!',
+          attachments: ['file1.txt'],
+        };
+
+        const context = createExecutionContext(storage);
+        const addChildOp = createAddChildOperation(container.id, {
+          id: 'child_001',
+          subType: WorkingFlowSubType.USER,
+          content: childContent,
+          createdAt: Date.now(),
+          custom: { eventType: 'USER_MESSAGE' },
+        });
+
+        const result = await applyOperation(state, addChildOp, context);
+
+        // Verify the chunk has children
+        const updatedChunk = result.state.chunks.get(container.id);
+        expect(updatedChunk).toBeDefined();
+        expect(updatedChunk!.children).toBeDefined();
+        expect(updatedChunk!.children!.length).toBe(1);
+
+        // Verify child content is preserved completely
+        const child = updatedChunk!.children![0];
+        expect(child.id).toBe('child_001');
+        expect(child.subType).toBe(WorkingFlowSubType.USER);
+        expect(child.content).toEqual(childContent);
+
+        // Explicitly check all content fields
+        const content = child.content as {
+          type: string;
+          text: string;
+          attachments: string[];
+        };
+        expect(content.type).toBe(ChunkContentType.TEXT);
+        expect(content.text).toBe('Hello, this is a user message!');
+        expect(content.attachments).toEqual(['file1.txt']);
+      });
+
+      it('should preserve children content through JSON serialization (simulating API)', async () => {
+        // Create a WORKING_FLOW container chunk with a child
+        const container = createChunk({
+          type: ChunkType.WORKING_FLOW,
+          content: { type: ChunkContentType.TEXT, text: '' },
+        });
+
+        const childContent = {
+          type: ChunkContentType.TEXT,
+          text: 'Test message content',
+          role: 'user',
+        };
+
+        const containerWithChildren = {
+          ...container,
+          children: [
+            {
+              id: 'child_001',
+              subType: WorkingFlowSubType.USER,
+              content: childContent,
+              createdAt: Date.now(),
+            },
+          ],
+        };
+
+        const state = createState({
+          threadId: 'thread_1',
+          chunks: [containerWithChildren],
+        });
+
+        // Simulate API serialization like in routes/agents.ts
+        const chunks = Array.from(state.chunks.values());
+        const serialized = JSON.stringify(chunks);
+        const deserialized = JSON.parse(serialized);
+
+        // Verify the child content is preserved
+        expect(deserialized[0].children).toBeDefined();
+        expect(deserialized[0].children.length).toBe(1);
+        expect(deserialized[0].children[0].content).toEqual(childContent);
+        expect(deserialized[0].children[0].content.text).toBe(
+          'Test message content',
+        );
       });
     });
 

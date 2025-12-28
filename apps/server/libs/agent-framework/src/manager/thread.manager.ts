@@ -51,6 +51,13 @@ export interface ApplyReducerResultOutput {
  * It coordinates between threads, states, and storage
  */
 export class ThreadManager {
+  /**
+   * In-memory cache for current state per thread
+   * This ensures that consecutive dispatches see the latest state
+   * even before the database query returns the updated state
+   */
+  private currentStateCache: Map<string, Readonly<MemoryState>> = new Map();
+
   constructor(private storage: StorageProvider) {}
 
   /**
@@ -88,6 +95,9 @@ export class ThreadManager {
       await tx.saveState(initialState);
     });
 
+    // Initialize cache with initial state
+    this.currentStateCache.set(updatedThread.id, initialState);
+
     return {
       thread: updatedThread,
       initialState,
@@ -105,13 +115,24 @@ export class ThreadManager {
 
   /**
    * Get the current state of a thread
+   * First checks the in-memory cache, then falls back to storage
    * @param threadId - The thread ID
    * @returns The current state or null if not found
    */
   async getCurrentState(
     threadId: string,
   ): Promise<Readonly<MemoryState> | null> {
-    return this.storage.getLatestState(threadId);
+    // Check cache first for the most up-to-date state
+    const cachedState = this.currentStateCache.get(threadId);
+    if (cachedState) {
+      return cachedState;
+    }
+    // Fall back to storage and populate cache
+    const state = await this.storage.getLatestState(threadId);
+    if (state) {
+      this.currentStateCache.set(threadId, state);
+    }
+    return state;
   }
 
   /**
@@ -173,6 +194,9 @@ export class ThreadManager {
     // Persist updated thread
     await this.storage.updateThread(updatedThread);
 
+    // Update cache with new state so subsequent calls see the latest state
+    this.currentStateCache.set(threadId, result.state);
+
     return {
       thread: updatedThread,
       state: result.state,
@@ -201,6 +225,9 @@ export class ThreadManager {
    * @param threadId - The thread ID
    */
   async deleteThread(threadId: string): Promise<void> {
+    // Clear cache first
+    this.currentStateCache.delete(threadId);
+
     await this.storage.transaction(async (tx) => {
       // Get all states for the thread
       const states = await tx.getStatesByThread(threadId);
@@ -226,5 +253,14 @@ export class ThreadManager {
       // Delete thread
       await tx.deleteThread(threadId);
     });
+  }
+
+  /**
+   * Clear the state cache for a thread
+   * Useful when the state needs to be re-read from storage
+   * @param threadId - The thread ID
+   */
+  clearStateCache(threadId: string): void {
+    this.currentStateCache.delete(threadId);
   }
 }

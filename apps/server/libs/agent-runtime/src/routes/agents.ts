@@ -188,8 +188,9 @@ agentsRouter.post('/:id/inject', async (c) => {
   }
 
   try {
-    const body = await c.req.json<InjectEventRequest & { autoRun?: boolean }>();
-    const autoRun = body.autoRun !== false; // Default to true
+    const body = await c.req.json<InjectEventRequest>();
+    // Auto-run LLM based on agent's execution mode (auto mode runs automatically)
+    const autoRun = agent.executionMode === 'auto';
     const result = await agentService.injectEvent(id, body.event, autoRun);
 
     if (!result) {

@@ -121,10 +121,12 @@ export class AgentService {
         // Set up observer
         this.setupObserver(agent.id, memoryManager);
 
-        // Restore executor
+        // Restore executor with tools from saved agent data
         if (this.getLLMAdapter) {
           const llmAdapter = this.getLLMAdapter();
-          const executor = new AgentExecutor(memoryManager, llmAdapter);
+          const executor = new AgentExecutor(memoryManager, llmAdapter, {
+            tools: agent.tools ?? [],
+          });
           this.executors.set(agent.id, executor);
         }
 
@@ -169,7 +171,9 @@ export class AgentService {
     // Create agent executor for LLM response generation
     if (this.getLLMAdapter) {
       const llmAdapter = this.getLLMAdapter();
-      const executor = new AgentExecutor(memoryManager, llmAdapter);
+      const executor = new AgentExecutor(memoryManager, llmAdapter, {
+        tools: blueprint.tools ?? [],
+      });
       this.executors.set(id, executor);
     }
 
@@ -190,6 +194,7 @@ export class AgentService {
       executionMode,
       llmConfig: blueprint.llmConfig,
       modelOverride,
+      tools: blueprint.tools ?? [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
       subAgentIds: [],
@@ -391,14 +396,38 @@ export class AgentService {
     // First, inject the event into memory
     const dispatchResult = await controller.injectEvent(agent.threadId, event);
 
+    // Debug logging
+    const isStepMode = this.isSteppingMode(agentId);
+    const executor = this.executors.get(agentId);
+    console.log(
+      '[injectEvent] autoRun:',
+      autoRun,
+      'isStepMode:',
+      isStepMode,
+      'hasExecutor:',
+      !!executor,
+    );
+
     // If autoRun is enabled, not in stepping mode, and we have an executor, run the LLM loop
-    if (autoRun && !this.isSteppingMode(agentId)) {
-      const executor = this.executors.get(agentId);
+    if (autoRun && !isStepMode) {
       if (executor) {
+        console.log('[injectEvent] Starting LLM execution loop');
         this.broadcast(agentId, 'agent:thinking', { event });
 
         try {
           const executionResult = await executor.run(agent.threadId);
+          console.log(
+            '[injectEvent] Execution complete - success:',
+            executionResult.success,
+            'turns:',
+            executionResult.turnsExecuted,
+          );
+          console.log(
+            '[injectEvent] Final state id:',
+            executionResult.finalState?.id,
+            'chunks:',
+            executionResult.finalState?.chunkIds?.length,
+          );
 
           if (executionResult.success) {
             this.broadcast(agentId, 'agent:response', {
@@ -447,6 +476,7 @@ export class AgentService {
       executionMode: agent.executionMode,
       llmConfig: agent.llmConfig,
       modelOverride: agent.modelOverride,
+      tools: agent.tools ?? [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
       parentAgentId: agentId,
@@ -459,10 +489,12 @@ export class AgentService {
     this.debugControllers.set(forkedAgent.id, controller);
     this.setupObserver(forkedAgent.id, memoryManager);
 
-    // Create executor for forked agent
+    // Create executor for forked agent with inherited tools
     if (this.getLLMAdapter) {
       const llmAdapter = this.getLLMAdapter();
-      const executor = new AgentExecutor(memoryManager, llmAdapter);
+      const executor = new AgentExecutor(memoryManager, llmAdapter, {
+        tools: agent.tools ?? [],
+      });
       this.executors.set(forkedAgent.id, executor);
     }
 

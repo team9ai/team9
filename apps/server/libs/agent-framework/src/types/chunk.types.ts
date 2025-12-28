@@ -148,6 +148,23 @@ export interface ChunkMetadata {
 }
 
 /**
+ * Working Flow child item
+ * Represents a single message (user or agent) within a WORKING_FLOW chunk
+ */
+export interface WorkingFlowChild {
+  /** Child unique identifier */
+  id: string;
+  /** Child subtype */
+  subType: WorkingFlowSubType;
+  /** Content */
+  content: ChunkContent;
+  /** Creation timestamp */
+  createdAt: number;
+  /** Custom metadata */
+  custom?: Record<string, unknown>;
+}
+
+/**
  * Memory Chunk interface
  * Represents an independent logical block of contextual information
  * Once used, a Chunk becomes immutable; new information generates a new Chunk
@@ -157,10 +174,12 @@ export interface MemoryChunk {
   id: string;
   /** Chunk type */
   type: ChunkType;
-  /** Working Flow subtype (only valid when type is WORKING_FLOW) */
+  /** Working Flow subtype (only valid when type is WORKING_FLOW and no children) */
   subType?: WorkingFlowSubType;
   /** Chunk content */
   content: ChunkContent;
+  /** Child items (for WORKING_FLOW container chunks) */
+  children?: WorkingFlowChild[];
   /** Retention strategy */
   retentionStrategy: ChunkRetentionStrategy;
   /** Whether this Chunk can be modified by Agent in current Thread */

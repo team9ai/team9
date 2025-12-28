@@ -85,6 +85,13 @@ describe('Reducer Module', () => {
       expect(result.operations.length).toBe(1);
       expect(result.chunks.length).toBe(1);
       expect(result.chunks[0].type).toBe(ChunkType.WORKING_FLOW);
+      // User messages go into a WORKING_FLOW container as children
+      expect(result.chunks[0].children).toBeDefined();
+      expect(result.chunks[0].children!.length).toBe(1);
+      const childContent = result.chunks[0].children![0].content as {
+        text?: string;
+      };
+      expect(childContent.text).toBe('Hello, world!');
     });
   });
 
@@ -103,9 +110,14 @@ describe('Reducer Module', () => {
 
       const result = await reducer.reduce(state, event);
 
-      expect(result.chunks[0].type).toBe(ChunkType.AGENT);
-      const content = result.chunks[0].content as { role?: string };
-      expect(content.role).toBe('assistant');
+      // LLM responses now go into a WORKING_FLOW container as a child
+      expect(result.chunks[0].type).toBe(ChunkType.WORKING_FLOW);
+      expect(result.chunks[0].children).toBeDefined();
+      expect(result.chunks[0].children!.length).toBe(1);
+      const childContent = result.chunks[0].children![0].content as {
+        role?: string;
+      };
+      expect(childContent.role).toBe('assistant');
     });
   });
 
@@ -126,13 +138,16 @@ describe('Reducer Module', () => {
 
       const result = await reducer.reduce(state, event);
 
-      expect(result.chunks[0].type).toBe(ChunkType.WORKFLOW);
-      const content = result.chunks[0].content as {
+      // Tool calls now go into a WORKING_FLOW container as a child with AGENT_ACTION subType
+      expect(result.chunks[0].type).toBe(ChunkType.WORKING_FLOW);
+      expect(result.chunks[0].children).toBeDefined();
+      expect(result.chunks[0].children!.length).toBe(1);
+      const childContent = result.chunks[0].children![0].content as {
         toolName?: string;
         callId?: string;
       };
-      expect(content.toolName).toBe('read_file');
-      expect(content.callId).toBe('call_123');
+      expect(childContent.toolName).toBe('read_file');
+      expect(childContent.callId).toBe('call_123');
     });
   });
 
@@ -281,32 +296,38 @@ describe('Reducer Module', () => {
   describe('Integration', () => {
     it('should process full reduce cycle through registry', async () => {
       const registry = createDefaultReducerRegistry();
-      const state = createState({ threadId: 'thread_1' });
+      let state = createState({ threadId: 'thread_1' });
 
-      const events = [
-        {
-          type: EventType.USER_MESSAGE,
-          timestamp: Date.now(),
-          content: 'Hello',
-        } as UserMessageEvent,
-        {
-          type: EventType.LLM_TEXT_RESPONSE,
-          timestamp: Date.now(),
-          content: 'Hi there',
-        } as LLMTextResponseEvent,
-      ];
+      // First user message creates a new WORKING_FLOW container
+      const userEvent: UserMessageEvent = {
+        type: EventType.USER_MESSAGE,
+        timestamp: Date.now(),
+        content: 'Hello',
+      };
 
-      let totalOps = 0;
-      let totalChunks = 0;
+      const userResult = await registry.reduce(state, userEvent);
+      expect(userResult.operations.length).toBe(1);
+      expect(userResult.chunks.length).toBe(1);
+      expect(userResult.chunks[0].type).toBe(ChunkType.WORKING_FLOW);
+      expect(userResult.chunks[0].children?.length).toBe(1);
 
-      for (const event of events) {
-        const result = await registry.reduce(state, event);
-        totalOps += result.operations.length;
-        totalChunks += result.chunks.length;
-      }
+      // Simulate state update with the new chunk
+      state = createState({
+        threadId: 'thread_1',
+        chunks: userResult.chunks,
+      });
 
-      expect(totalOps).toBe(2);
-      expect(totalChunks).toBe(2);
+      // Second LLM response should add to existing WORKING_FLOW
+      const llmEvent: LLMTextResponseEvent = {
+        type: EventType.LLM_TEXT_RESPONSE,
+        timestamp: Date.now(),
+        content: 'Hi there',
+      };
+
+      const llmResult = await registry.reduce(state, llmEvent);
+      expect(llmResult.operations.length).toBe(1);
+      // No new chunks - only adding child to existing chunk
+      expect(llmResult.chunks.length).toBe(0);
     });
   });
 });

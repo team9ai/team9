@@ -1,23 +1,18 @@
 /**
- * Ask User Tool
- * Pauses agent execution to ask user for input/clarification
+ * Wait User Response Tool
+ * Pauses agent execution and waits for user to provide input
+ * This is a signal to stop the agent loop and wait for the next user message
  */
 
 import type { ToolDefinition } from '../tool.types.js';
 
-export const askUserTool: ToolDefinition = {
-  name: 'ask_user',
+export const waitUserResponseTool: ToolDefinition = {
+  name: 'wait_user_response',
   description:
-    'Ask the user a question or request clarification. Use this when you need more information from the user to proceed with the task.',
+    'Stop execution and wait for the user to respond. IMPORTANT: You MUST first provide a text response to the user (greeting, answer, question, or prompt) BEFORE calling this tool. Never call this tool without first outputting something for the user to read. After your text response, call this tool to pause and wait for user input.',
   parameters: {
     type: 'object',
-    properties: {
-      question: {
-        type: 'string',
-        description: 'The question to ask the user',
-      },
-    },
-    required: ['question'],
+    properties: {},
   },
   awaitsExternalResponse: true,
 };

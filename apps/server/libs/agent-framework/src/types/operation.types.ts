@@ -3,7 +3,7 @@
  * Defines the types of operations that can be performed on Memory State
  */
 export enum OperationType {
-  /** Add a new Chunk */
+  /** Add a new Chunk (or add a child to an existing chunk) */
   ADD = 'ADD',
   /** Update an existing Chunk (creates new Chunk with parent reference) */
   UPDATE = 'UPDATE',
@@ -32,14 +32,34 @@ export interface BaseOperation {
 }
 
 /**
- * Add operation - adds a new Chunk to the state
+ * Child data for adding to a parent chunk
+ */
+export interface ChildData {
+  /** Child unique identifier */
+  id: string;
+  /** Child subtype (USER, RESPONSE, AGENT_ACTION, etc.) */
+  subType: string;
+  /** Content (any ChunkContent type) */
+  content: unknown;
+  /** Creation timestamp */
+  createdAt: number;
+  /** Custom metadata */
+  custom?: Record<string, unknown>;
+}
+
+/**
+ * Add operation - adds a new Chunk to the state, or a child to an existing chunk
  */
 export interface AddOperation extends BaseOperation {
   type: OperationType.ADD;
-  /** The Chunk ID to add */
-  chunkId: string;
-  /** Optional position to insert at (defaults to end) */
+  /** The Chunk ID to add (when adding a top-level chunk) */
+  chunkId?: string;
+  /** Optional position to insert at (defaults to end, only for top-level chunks) */
   position?: number;
+  /** Parent chunk ID (when adding as a child) */
+  parentChunkId?: string;
+  /** Child data (when adding as a child) */
+  child?: ChildData;
 }
 
 /**
