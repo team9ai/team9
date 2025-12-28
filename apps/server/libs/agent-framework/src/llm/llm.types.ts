@@ -44,6 +44,12 @@ export interface LLMCompletionRequest {
   maxTokens?: number;
   /** Available tools for the LLM to call */
   tools?: LLMToolDefinition[];
+  /**
+   * Abort signal for cancelling the request
+   * When aborted, the LLM adapter should cancel the underlying API call
+   * and throw an AbortError or similar error
+   */
+  signal?: AbortSignal;
 }
 
 /**

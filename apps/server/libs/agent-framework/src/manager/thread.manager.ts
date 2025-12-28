@@ -1,6 +1,12 @@
-import { MemoryThread } from '../types/thread.types.js';
-import { MemoryState } from '../types/state.types.js';
+import {
+  MemoryThread,
+  QueuedEvent,
+  Step,
+  LLMInteraction,
+} from '../types/thread.types.js';
+import { MemoryState, StateProvenance } from '../types/state.types.js';
 import { MemoryChunk } from '../types/chunk.types.js';
+import { AgentEvent } from '../types/event.types.js';
 import { Operation } from '../types/operation.types.js';
 import { ReducerResult } from '../reducer/reducer.types.js';
 import { StorageProvider } from '../storage/storage.types.js';
@@ -8,9 +14,11 @@ import { createThread, updateThread } from '../factories/thread.factory.js';
 import { createState } from '../factories/state.factory.js';
 import {
   applyOperations,
+  applyOperationsWithProvenance,
   createExecutionContext,
   ApplyResult,
 } from '../executor/operation.executor.js';
+import { generateQueuedEventId, generateStepId } from '../utils/id.utils.js';
 
 /**
  * Options for creating a new thread
@@ -206,6 +214,59 @@ export class ThreadManager {
   }
 
   /**
+   * Apply a reducer result to a thread with provenance tracking
+   * Records the event, step, and operation that caused the state transition
+   * @param threadId - The thread ID
+   * @param reducerResult - The result from a reducer
+   * @param provenance - Provenance information for traceability
+   * @returns The updated thread and new state
+   */
+  async applyReducerResultWithProvenance(
+    threadId: string,
+    reducerResult: ReducerResult,
+    provenance: StateProvenance,
+  ): Promise<ApplyReducerResultOutput> {
+    const thread = await this.storage.getThread(threadId);
+    if (!thread) {
+      throw new Error(`Thread not found: ${threadId}`);
+    }
+
+    const currentState = await this.getCurrentState(threadId);
+    if (!currentState) {
+      throw new Error(`Current state not found for thread: ${threadId}`);
+    }
+
+    // Create execution context with pending chunks
+    const context = createExecutionContext(this.storage, reducerResult.chunks);
+
+    // Apply all operations with provenance
+    const result = await applyOperationsWithProvenance(
+      currentState,
+      reducerResult.operations,
+      context,
+      provenance,
+    );
+
+    // Update thread with new current state
+    const updatedThread = updateThread(thread, {
+      currentStateId: result.state.id,
+    });
+
+    // Persist updated thread
+    await this.storage.updateThread(updatedThread);
+
+    // Update cache with new state so subsequent calls see the latest state
+    this.currentStateCache.set(threadId, result.state);
+
+    return {
+      thread: updatedThread,
+      state: result.state,
+      addedChunks: result.addedChunks,
+      removedChunkIds: result.removedChunkIds,
+    };
+  }
+
+  /**
    * Apply operations directly to a thread
    * @param threadId - The thread ID
    * @param operations - Operations to apply
@@ -262,5 +323,333 @@ export class ThreadManager {
    */
   clearStateCache(threadId: string): void {
     this.currentStateCache.delete(threadId);
+  }
+
+  // ============ Event Queue Operations ============
+
+  /**
+   * Get the event queue for a thread
+   * @param threadId - The thread ID
+   * @returns The event queue or empty array if not found
+   */
+  async getEventQueue(threadId: string): Promise<QueuedEvent[]> {
+    const thread = await this.storage.getThread(threadId);
+    return thread?.eventQueue ?? [];
+  }
+
+  /**
+   * Push an event to the thread's event queue
+   * @param threadId - The thread ID
+   * @param event - The event to push
+   * @returns The queued event with generated ID
+   */
+  async pushEvent(threadId: string, event: AgentEvent): Promise<QueuedEvent> {
+    const thread = await this.storage.getThread(threadId);
+    if (!thread) {
+      throw new Error(`Thread not found: ${threadId}`);
+    }
+
+    const queuedEvent: QueuedEvent = {
+      id: generateQueuedEventId(),
+      event,
+      queuedAt: Date.now(),
+    };
+
+    const currentQueue = thread.eventQueue ?? [];
+    const updatedThread = updateThread(thread, {
+      eventQueue: [...currentQueue, queuedEvent],
+    });
+
+    await this.storage.updateThread(updatedThread);
+    return queuedEvent;
+  }
+
+  /**
+   * Pop the first event from the thread's event queue
+   * @param threadId - The thread ID
+   * @returns The popped event or null if queue is empty
+   */
+  async popEvent(threadId: string): Promise<QueuedEvent | null> {
+    const thread = await this.storage.getThread(threadId);
+    if (!thread) {
+      throw new Error(`Thread not found: ${threadId}`);
+    }
+
+    const currentQueue = thread.eventQueue ?? [];
+    if (currentQueue.length === 0) {
+      return null;
+    }
+
+    const [poppedEvent, ...remainingQueue] = currentQueue;
+    const updatedThread = updateThread(thread, {
+      eventQueue: remainingQueue,
+    });
+
+    await this.storage.updateThread(updatedThread);
+    return poppedEvent;
+  }
+
+  /**
+   * Peek at the first event in the queue without removing it
+   * @param threadId - The thread ID
+   * @returns The first event or null if queue is empty
+   */
+  async peekEvent(threadId: string): Promise<QueuedEvent | null> {
+    const thread = await this.storage.getThread(threadId);
+    if (!thread) {
+      return null;
+    }
+
+    const currentQueue = thread.eventQueue ?? [];
+    return currentQueue[0] ?? null;
+  }
+
+  /**
+   * Get the number of events in the queue
+   * @param threadId - The thread ID
+   * @returns The queue length
+   */
+  async getEventQueueLength(threadId: string): Promise<number> {
+    const thread = await this.storage.getThread(threadId);
+    return thread?.eventQueue?.length ?? 0;
+  }
+
+  /**
+   * Clear all events from the queue
+   * @param threadId - The thread ID
+   */
+  async clearEventQueue(threadId: string): Promise<void> {
+    const thread = await this.storage.getThread(threadId);
+    if (!thread) {
+      throw new Error(`Thread not found: ${threadId}`);
+    }
+
+    const updatedThread = updateThread(thread, {
+      eventQueue: [],
+    });
+
+    await this.storage.updateThread(updatedThread);
+  }
+
+  // ============ Step Lock Operations ============
+
+  /**
+   * Acquire a step lock for processing
+   * If the thread is already locked, throws an error
+   * @param threadId - The thread ID
+   * @returns The generated step ID
+   */
+  async acquireStepLock(threadId: string): Promise<string> {
+    const thread = await this.storage.getThread(threadId);
+    if (!thread) {
+      throw new Error(`Thread not found: ${threadId}`);
+    }
+
+    if (thread.currentStepId) {
+      throw new Error(
+        `Thread ${threadId} is already processing step ${thread.currentStepId}`,
+      );
+    }
+
+    const stepId = generateStepId();
+    const updatedThread = updateThread(thread, {
+      currentStepId: stepId,
+    });
+
+    await this.storage.updateThread(updatedThread);
+    return stepId;
+  }
+
+  /**
+   * Release the step lock after processing completes
+   * @param threadId - The thread ID
+   * @param stepId - The step ID to release (must match current lock)
+   */
+  async releaseStepLock(threadId: string, stepId: string): Promise<void> {
+    const thread = await this.storage.getThread(threadId);
+    if (!thread) {
+      throw new Error(`Thread not found: ${threadId}`);
+    }
+
+    if (thread.currentStepId !== stepId) {
+      throw new Error(
+        `Step lock mismatch: expected ${thread.currentStepId}, got ${stepId}`,
+      );
+    }
+
+    const updatedThread = updateThread(thread, {
+      currentStepId: undefined,
+    });
+
+    await this.storage.updateThread(updatedThread);
+  }
+
+  /**
+   * Check if the thread is currently locked for processing
+   * @param threadId - The thread ID
+   * @returns True if locked, false otherwise
+   */
+  async isStepLocked(threadId: string): Promise<boolean> {
+    const thread = await this.storage.getThread(threadId);
+    return thread?.currentStepId !== undefined;
+  }
+
+  /**
+   * Get the current step ID if locked
+   * @param threadId - The thread ID
+   * @returns The current step ID or null if not locked
+   */
+  async getCurrentStepId(threadId: string): Promise<string | null> {
+    const thread = await this.storage.getThread(threadId);
+    return thread?.currentStepId ?? null;
+  }
+
+  // ============ Needs Response Flag Operations ============
+
+  /**
+   * Check if the thread needs a response from the LLM
+   * @param threadId - The thread ID
+   * @returns True if response is needed, false otherwise
+   */
+  async needsResponse(threadId: string): Promise<boolean> {
+    const thread = await this.storage.getThread(threadId);
+    return thread?.needsResponse ?? false;
+  }
+
+  /**
+   * Set the needsResponse flag for a thread
+   * @param threadId - The thread ID
+   * @param value - Whether response is needed
+   */
+  async setNeedsResponse(threadId: string, value: boolean): Promise<void> {
+    const thread = await this.storage.getThread(threadId);
+    if (!thread) {
+      throw new Error(`Thread not found: ${threadId}`);
+    }
+
+    const updatedThread = updateThread(thread, {
+      needsResponse: value,
+    });
+
+    await this.storage.updateThread(updatedThread);
+  }
+
+  // ============ Step Lifecycle Operations ============
+
+  /**
+   * Create and save a new step record
+   * @param threadId - The thread ID
+   * @param stepId - The step ID
+   * @param triggerEvent - The event that triggered this step
+   * @param previousStateId - The state ID before this step
+   * @param eventPayload - The full event payload for debugging
+   * @returns The created step
+   */
+  async createStep(
+    threadId: string,
+    stepId: string,
+    triggerEvent: { eventId?: string; type: string; timestamp: number },
+    previousStateId?: string,
+    eventPayload?: AgentEvent,
+  ): Promise<Step> {
+    const step: Step = {
+      id: stepId,
+      threadId,
+      triggerEvent,
+      eventPayload,
+      status: 'running',
+      startedAt: Date.now(),
+      previousStateId,
+    };
+
+    await this.storage.saveStep(step);
+    return step;
+  }
+
+  /**
+   * Complete a step successfully
+   * @param stepId - The step ID
+   * @param resultStateId - The resulting state ID
+   */
+  async completeStep(stepId: string, resultStateId: string): Promise<void> {
+    const step = await this.storage.getStep(stepId);
+    if (!step) {
+      throw new Error(`Step not found: ${stepId}`);
+    }
+
+    const completedAt = Date.now();
+    const updatedStep: Step = {
+      ...step,
+      status: 'completed',
+      completedAt,
+      duration: completedAt - step.startedAt,
+      resultStateId,
+    };
+
+    await this.storage.updateStep(updatedStep);
+  }
+
+  /**
+   * Mark a step as failed
+   * @param stepId - The step ID
+   * @param error - The error message
+   */
+  async failStep(stepId: string, error: string): Promise<void> {
+    const step = await this.storage.getStep(stepId);
+    if (!step) {
+      throw new Error(`Step not found: ${stepId}`);
+    }
+
+    const completedAt = Date.now();
+    const updatedStep: Step = {
+      ...step,
+      status: 'failed',
+      completedAt,
+      duration: completedAt - step.startedAt,
+      error,
+    };
+
+    await this.storage.updateStep(updatedStep);
+  }
+
+  /**
+   * Get a step by ID
+   * @param stepId - The step ID
+   * @returns The step or null if not found
+   */
+  async getStep(stepId: string): Promise<Step | null> {
+    return this.storage.getStep(stepId);
+  }
+
+  /**
+   * Get all steps for a thread
+   * @param threadId - The thread ID
+   * @returns Array of steps ordered by start time
+   */
+  async getStepsByThread(threadId: string): Promise<Step[]> {
+    return this.storage.getStepsByThread(threadId);
+  }
+
+  /**
+   * Update a step with LLM interaction data
+   * Records what was sent to the LLM and what was received
+   * @param stepId - The step ID
+   * @param llmInteraction - The LLM interaction data
+   */
+  async updateStepLLMInteraction(
+    stepId: string,
+    llmInteraction: LLMInteraction,
+  ): Promise<void> {
+    const step = await this.storage.getStep(stepId);
+    if (!step) {
+      throw new Error(`Step not found: ${stepId}`);
+    }
+
+    const updatedStep: Step = {
+      ...step,
+      llmInteraction,
+    };
+
+    await this.storage.updateStep(updatedStep);
   }
 }

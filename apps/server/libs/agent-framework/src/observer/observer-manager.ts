@@ -9,6 +9,8 @@ import type {
   CompactionStartInfo,
   CompactionEndInfo,
   ErrorInfo,
+  EventQueuedInfo,
+  EventDequeuedInfo,
 } from './observer.types.js';
 
 /**
@@ -140,6 +142,32 @@ export class DefaultObserverManager implements ObserverManager {
         observer.onError?.(info);
       } catch (error) {
         console.error('Observer error in onError:', error);
+      }
+    }
+  }
+
+  /**
+   * Notify all observers of an event being queued
+   */
+  notifyEventQueued(info: EventQueuedInfo): void {
+    for (const observer of this.observers) {
+      try {
+        observer.onEventQueued?.(info);
+      } catch (error) {
+        console.error('Observer error in onEventQueued:', error);
+      }
+    }
+  }
+
+  /**
+   * Notify all observers of an event being dequeued
+   */
+  notifyEventDequeued(info: EventDequeuedInfo): void {
+    for (const observer of this.observers) {
+      try {
+        observer.onEventDequeued?.(info);
+      } catch (error) {
+        console.error('Observer error in onEventDequeued:', error);
       }
     }
   }

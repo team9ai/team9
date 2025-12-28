@@ -142,6 +142,123 @@ export interface StepResult {
 }
 
 /**
+ * Step status
+ */
+export type StepStatus = "running" | "completed" | "failed";
+
+/**
+ * Agent event payload (for debugging)
+ */
+export interface AgentEventPayload {
+  type: string;
+  timestamp: number;
+  content?: unknown;
+  toolName?: string;
+  toolCallId?: string;
+  result?: unknown;
+  dispatchStrategy?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * LLM message for request context
+ */
+export interface LLMMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+/**
+ * LLM tool call
+ */
+export interface LLMToolCall {
+  id: string;
+  name: string;
+  arguments: Record<string, unknown>;
+}
+
+/**
+ * LLM tool definition
+ */
+export interface LLMToolDefinition {
+  name: string;
+  description: string;
+  parameters?: Record<string, unknown>;
+}
+
+/**
+ * LLM interaction record for debugging
+ * Records what was sent to the LLM and what was received
+ */
+export interface LLMInteraction {
+  /** Timestamp when LLM call started */
+  startedAt: number;
+  /** Timestamp when LLM call completed */
+  completedAt?: number;
+  /** Duration in milliseconds */
+  duration?: number;
+  /** Messages sent to LLM (the full context) */
+  request: {
+    messages: LLMMessage[];
+    tools?: LLMToolDefinition[];
+    temperature?: number;
+    maxTokens?: number;
+  };
+  /** Response from LLM */
+  response?: {
+    content: string;
+    toolCalls?: LLMToolCall[];
+    finishReason?: "stop" | "tool_calls" | "length" | "content_filter";
+    usage?: {
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+    };
+  };
+  /** Error if LLM call failed */
+  error?: string;
+}
+
+/**
+ * Step record - tracks the lifecycle of a single event processing step
+ */
+export interface Step {
+  /** Unique identifier, format: step_xxx */
+  id: string;
+  /** Thread ID this step belongs to */
+  threadId: string;
+  /** The event that triggered this step (metadata only) */
+  triggerEvent: {
+    /** Event ID (from queued event) */
+    eventId?: string;
+    /** Event type */
+    type: string;
+    /** Event timestamp */
+    timestamp: number;
+  };
+  /** Full event payload for debugging - contains the complete event data */
+  eventPayload?: AgentEventPayload;
+  /** LLM interaction record - captures what was sent to and received from LLM */
+  llmInteraction?: LLMInteraction;
+  /** Step status */
+  status: StepStatus;
+  /** Timestamp when the step started */
+  startedAt: number;
+  /** Timestamp when the step completed (undefined if still running) */
+  completedAt?: number;
+  /** Duration in milliseconds (undefined if still running) */
+  duration?: number;
+  /** State ID before this step */
+  previousStateId?: string;
+  /** State ID after this step (undefined if still running or failed) */
+  resultStateId?: string;
+  /** Error message if step failed */
+  error?: string;
+  /** Additional context */
+  context?: Record<string, unknown>;
+}
+
+/**
  * Working flow child item
  */
 export interface WorkingFlowChild {
@@ -172,6 +289,30 @@ export interface MemoryChunk {
 }
 
 /**
+ * State provenance - records what caused a state transition
+ */
+export interface StateProvenance {
+  /** The event ID that triggered this state transition */
+  eventId?: string;
+  /** The event type that triggered this transition */
+  eventType?: string;
+  /** The step ID during which this transition occurred (in stepping mode) */
+  stepId?: string;
+  /** Source of the transition */
+  source?:
+    | "event_dispatch"
+    | "compaction"
+    | "truncation"
+    | "manual"
+    | "fork"
+    | "initial";
+  /** Timestamp when the transition occurred */
+  timestamp?: number;
+  /** Additional context about the transition */
+  context?: Record<string, unknown>;
+}
+
+/**
  * Memory state
  */
 export interface MemoryState {
@@ -181,6 +322,10 @@ export interface MemoryState {
   createdAt: number;
   chunks: MemoryChunk[];
   operationIds: string[];
+  /** Provenance information for state transition traceability */
+  provenance?: StateProvenance;
+  /** Previous state ID for state chain tracking */
+  previousStateId?: string;
 }
 
 /**
@@ -192,6 +337,13 @@ export interface StateSummary {
   version: number;
   createdAt: number;
   chunkCount: number;
+  /** Provenance summary */
+  provenance?: {
+    eventType?: string;
+    source?: string;
+  };
+  /** Previous state ID */
+  previousStateId?: string;
 }
 
 /**

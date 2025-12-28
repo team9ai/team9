@@ -16,7 +16,10 @@ export const agentsRouter = new Hono();
  * Helper function to serialize MemoryState for API response
  */
 function serializeState(state: MemoryState, version: number) {
-  const chunks = Array.from(state.chunks.values());
+  // Use chunkIds to preserve the correct ordering of chunks
+  const chunks = state.chunkIds
+    .map((id) => state.chunks.get(id))
+    .filter((chunk): chunk is NonNullable<typeof chunk> => chunk != null);
   return {
     id: state.id,
     threadId: state.threadId,
@@ -24,6 +27,9 @@ function serializeState(state: MemoryState, version: number) {
     createdAt: state.metadata?.createdAt || Date.now(),
     chunks,
     operationIds: [], // Framework doesn't track this directly
+    // Include provenance for state transition traceability
+    provenance: state.metadata?.provenance,
+    previousStateId: state.metadata?.previousStateId,
   };
 }
 
@@ -37,6 +43,14 @@ function serializeStateSummary(state: MemoryState, version: number) {
     version,
     createdAt: state.metadata?.createdAt || Date.now(),
     chunkCount: state.chunks.size,
+    // Include provenance summary for state transition traceability
+    provenance: state.metadata?.provenance
+      ? {
+          eventType: state.metadata.provenance.eventType,
+          source: state.metadata.provenance.source,
+        }
+      : undefined,
+    previousStateId: state.metadata?.previousStateId,
   };
 }
 
@@ -457,9 +471,11 @@ agentsRouter.post('/:id/step', async (c) => {
     return c.json({
       success: true,
       result: {
+        eventProcessed: result.eventProcessed,
         compactionPerformed: result.compactionPerformed,
         truncationPerformed: result.truncationPerformed,
         hasPendingOperations: result.hasPendingOperations,
+        queuedEventCount: result.queuedEventCount,
         hasDispatchResult: result.dispatchResult !== null,
         dispatchResult: result.dispatchResult
           ? {
@@ -473,5 +489,87 @@ agentsRouter.post('/:id/step', async (c) => {
   } catch (error) {
     console.error('Error stepping:', error);
     return c.json({ error: (error as Error).message || 'Failed to step' }, 500);
+  }
+});
+
+/**
+ * Get the persistent event queue for an agent
+ * This queue contains events waiting to be processed
+ */
+agentsRouter.get('/:id/event-queue', async (c) => {
+  const id = c.req.param('id');
+  const { agentService } = getContext();
+
+  const agent = agentService.getAgent(id);
+  if (!agent) {
+    return c.json({ error: 'Agent not found' }, 404);
+  }
+
+  try {
+    const queue = await agentService.getEventQueue(id);
+    return c.json({
+      queue,
+      count: queue.length,
+    });
+  } catch (error) {
+    console.error('Error getting event queue:', error);
+    return c.json(
+      { error: (error as Error).message || 'Failed to get event queue' },
+      500,
+    );
+  }
+});
+
+// ============ Step Operations ============
+
+/**
+ * Get all steps for an agent
+ */
+agentsRouter.get('/:id/steps', async (c) => {
+  const id = c.req.param('id');
+  const { agentService } = getContext();
+
+  const agent = agentService.getAgent(id);
+  if (!agent) {
+    return c.json({ error: 'Agent not found' }, 404);
+  }
+
+  try {
+    const steps = await agentService.getSteps(id);
+    return c.json({ steps });
+  } catch (error) {
+    console.error('Error getting steps:', error);
+    return c.json(
+      { error: (error as Error).message || 'Failed to get steps' },
+      500,
+    );
+  }
+});
+
+/**
+ * Get a specific step by ID
+ */
+agentsRouter.get('/:id/steps/:stepId', async (c) => {
+  const id = c.req.param('id');
+  const stepId = c.req.param('stepId');
+  const { agentService } = getContext();
+
+  const agent = agentService.getAgent(id);
+  if (!agent) {
+    return c.json({ error: 'Agent not found' }, 404);
+  }
+
+  try {
+    const step = await agentService.getStepById(id, stepId);
+    if (!step) {
+      return c.json({ error: 'Step not found' }, 404);
+    }
+    return c.json({ step });
+  } catch (error) {
+    console.error('Error getting step:', error);
+    return c.json(
+      { error: (error as Error).message || 'Failed to get step' },
+      500,
+    );
   }
 });

@@ -57,9 +57,14 @@ export class DefaultDebugController implements DebugController {
    * Check if agent is paused
    */
   isPaused(threadId: string): boolean {
-    return (
-      this.pausedThreads.has(threadId) || this.memoryManager.isBlocked(threadId)
-    );
+    return this.pausedThreads.has(threadId);
+  }
+
+  /**
+   * Check if a step is currently locked (being processed)
+   */
+  async isStepLocked(threadId: string): Promise<boolean> {
+    return this.memoryManager.isStepLocked(threadId);
   }
 
   /**
@@ -284,17 +289,25 @@ export class DefaultDebugController implements DebugController {
   }
 
   /**
+   * Check if there's a pending truncation for a thread
+   */
+  hasPendingTruncation(threadId: string): boolean {
+    return this.memoryManager.hasPendingTruncation(threadId);
+  }
+
+  /**
    * Get the number of queued events for a thread
    */
-  getQueuedEventCount(threadId: string): number {
-    return this.memoryManager.getQueuedEventCount(threadId);
+  async getQueuedEventCount(threadId: string): Promise<number> {
+    return this.memoryManager.getPersistentQueueLength(threadId);
   }
 
   /**
    * Peek at the next event without processing it
    */
-  peekNextEvent(threadId: string): AgentEvent | null {
-    return this.memoryManager.peekNextEvent(threadId);
+  async peekNextEvent(threadId: string): Promise<AgentEvent | null> {
+    const queuedEvent = await this.memoryManager.peekPersistentEvent(threadId);
+    return queuedEvent?.event ?? null;
   }
 }
 

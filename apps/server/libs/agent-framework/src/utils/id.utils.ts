@@ -10,6 +10,8 @@ export enum IdPrefix {
   THREAD = 'thread',
   OPERATION = 'op',
   SNAPSHOT = 'snapshot',
+  QUEUED_EVENT = 'qevt',
+  STEP = 'step',
 }
 
 /**
@@ -60,6 +62,22 @@ export function generateThreadId(): string {
  */
 export function generateOperationId(): string {
   return generateId(IdPrefix.OPERATION);
+}
+
+/**
+ * Generate a Queued Event ID
+ * @returns A unique Queued Event ID (format: qevt_xxx)
+ */
+export function generateQueuedEventId(): string {
+  return generateId(IdPrefix.QUEUED_EVENT);
+}
+
+/**
+ * Generate a Step ID
+ * @returns A unique Step ID (format: step_xxx)
+ */
+export function generateStepId(): string {
+  return generateId(IdPrefix.STEP);
 }
 
 /**

@@ -1,4 +1,8 @@
-import { MemoryThread } from '../types/thread.types.js';
+import {
+  MemoryThread,
+  QueuedEvent,
+  LLMInteraction,
+} from '../types/thread.types.js';
 import { MemoryState } from '../types/state.types.js';
 import { MemoryChunk } from '../types/chunk.types.js';
 import {
@@ -14,7 +18,6 @@ import {
   CreateThreadOptions,
   CreateThreadResult,
 } from './thread.manager.js';
-import { EventQueue, BlockingReason } from './event-queue.js';
 import type {
   MemoryObserver,
   ObserverManager,
@@ -27,24 +30,10 @@ import {
   ExecutionModeController,
   StepResult,
 } from './execution-mode.controller.js';
-import { EventProcessor } from './event-processor.js';
+import { EventProcessor, DispatchResult } from './event-processor.js';
 
-// Re-export StepResult for backward compatibility
-export type { StepResult };
-
-/**
- * Result of dispatching an event
- */
-export interface DispatchResult {
-  /** The updated thread */
-  thread: Readonly<MemoryThread>;
-  /** The new state after processing the event */
-  state: Readonly<MemoryState>;
-  /** Chunks that were added */
-  addedChunks: MemoryChunk[];
-  /** Chunk IDs that were removed */
-  removedChunkIds: string[];
-}
+// Re-export types for backward compatibility
+export type { StepResult, DispatchResult };
 
 /**
  * Configuration for MemoryManager
@@ -68,13 +57,13 @@ export interface MemoryManagerConfig {
  * MemoryManager is the main orchestrator for agent memory
  * It coordinates between events, reducers, storage, and compaction
  *
- * Flow: Event → Queue → ReducerRegistry → Operations + Chunks → ThreadManager → New State
+ * Flow: Event → Persistent Queue → Process one at a time → New State
  *
- * Blocking operations (like compaction) pause event processing until complete
+ * Key constraint: Only one event can be processed at a time (serial processing)
+ * This eliminates the need for complex blocking mechanisms
  */
 export class MemoryManager {
   private threadManager: ThreadManager;
-  private eventQueues: Map<string, EventQueue<DispatchResult>> = new Map();
   private observerManager: ObserverManager;
   private compactionManager: CompactionManager;
   private executionModeController: ExecutionModeController;
@@ -115,20 +104,6 @@ export class MemoryManager {
     );
   }
 
-  // ============ Queue Management ============
-
-  /**
-   * Get or create event queue for a thread
-   */
-  private getQueue(threadId: string): EventQueue<DispatchResult> {
-    let queue = this.eventQueues.get(threadId);
-    if (!queue) {
-      queue = new EventQueue<DispatchResult>();
-      this.eventQueues.set(threadId, queue);
-    }
-    return queue;
-  }
-
   // ============ Thread Operations (delegated to ThreadManager) ============
 
   /**
@@ -167,61 +142,23 @@ export class MemoryManager {
    * Delete a thread and all its associated data
    */
   async deleteThread(threadId: string): Promise<void> {
-    // Clear the queue
-    const queue = this.eventQueues.get(threadId);
-    if (queue) {
-      queue.clear(new Error('Thread deleted'));
-      this.eventQueues.delete(threadId);
-    }
-
     // Clean up execution mode controller state
     this.executionModeController.cleanup(threadId);
-
     return this.threadManager.deleteThread(threadId);
-  }
-
-  // ============ Queue Status ============
-
-  /**
-   * Check if a thread is currently blocked
-   */
-  isBlocked(threadId: string): boolean {
-    const queue = this.eventQueues.get(threadId);
-    return queue?.isBlocked() ?? false;
-  }
-
-  /**
-   * Get the blocking reason for a thread
-   */
-  getBlockingReason(threadId: string): BlockingReason | null {
-    const queue = this.eventQueues.get(threadId);
-    return queue?.getBlockingReason() ?? null;
-  }
-
-  /**
-   * Get the number of queued events for a thread
-   */
-  getQueuedEventCount(threadId: string): number {
-    const queue = this.eventQueues.get(threadId);
-    return queue?.getQueueLength() ?? 0;
-  }
-
-  /**
-   * Peek at the next event in the queue without processing it
-   */
-  peekNextEvent(threadId: string): AgentEvent | null {
-    const queue = this.eventQueues.get(threadId);
-    return queue?.peek() ?? null;
   }
 
   // ============ Event Dispatch ============
 
   /**
-   * Dispatch an event to update memory state
-   * Behavior depends on the event's dispatch strategy and current execution mode
+   * Dispatch an event to the persistent queue
+   * Events are always queued first, then processed based on execution mode
+   *
+   * Flow:
+   * 1. Event is pushed to persistent queue
+   * 2. In 'auto' mode: immediately process all queued events (one at a time)
+   * 3. In 'stepping' mode: wait for step() to be called
    */
   async dispatch(threadId: string, event: AgentEvent): Promise<DispatchResult> {
-    const queue = this.getQueue(threadId);
     const strategy =
       event.dispatchStrategy ?? getDefaultDispatchStrategy(event.type);
     const mode = this.executionModeController.getExecutionMode(threadId);
@@ -229,23 +166,11 @@ export class MemoryManager {
     // Handle different strategies
     switch (strategy) {
       case 'terminate':
-        // Process the event, then mark thread as terminated
-        // For now, process like queue but the reducer should handle termination
-        return this.enqueueAndMaybeProcess(threadId, event, queue, mode);
-
       case 'interrupt':
-        // TODO: Cancel current processing and immediately handle this event
-        // For now, treat as queue (interrupt requires async cancellation support)
-        return this.enqueueAndMaybeProcess(threadId, event, queue, mode);
-
       case 'silent':
-        // Reserved for future: store only, no processing
-        // For now, treat as queue
-        return this.enqueueAndMaybeProcess(threadId, event, queue, mode);
-
       case 'queue':
       default:
-        return this.enqueueAndMaybeProcess(threadId, event, queue, mode);
+        return this.enqueueAndMaybeProcess(threadId, event, mode);
     }
   }
 
@@ -280,42 +205,82 @@ export class MemoryManager {
   }
 
   /**
-   * Enqueue event and process based on execution mode
+   * Enqueue event to persistent queue and process based on execution mode
    */
   private async enqueueAndMaybeProcess(
     threadId: string,
     event: AgentEvent,
-    queue: EventQueue<DispatchResult>,
     mode: ExecutionMode,
   ): Promise<DispatchResult> {
-    // If blocked for non-stepping reason (e.g., compacting), wait for enqueue
-    if (
-      queue.isBlocked() &&
-      queue.getBlockingReason() !== BlockingReason.STEPPING
-    ) {
-      return queue.enqueue(event);
-    }
+    // Push event to persistent queue
+    await this.pushEventToQueue(threadId, event);
 
-    // In auto mode: process immediately with auto-compaction/truncation
-    // In stepping mode: process immediately but queue compaction/truncation for next step
+    // In auto mode: process all queued events immediately (serially)
     if (mode === 'auto') {
-      return this.processEvent(threadId, event);
+      return this.processAllQueuedEvents(threadId);
     } else {
-      // Stepping mode: ensure queue is blocked, then process event immediately
-      // This creates a new state but queues compaction/truncation for step()
-      if (!queue.isBlocked()) {
-        queue.block(BlockingReason.STEPPING);
+      // Stepping mode: just return current state, wait for step()
+      const thread = await this.threadManager.getThread(threadId);
+      const state = await this.threadManager.getCurrentState(threadId);
+      if (!thread || !state) {
+        throw new Error(`Thread or state not found: ${threadId}`);
       }
-
-      // Process the event immediately to create new state
-      // (compaction/truncation will be queued, not executed)
-      return this.processEventForStepping(threadId, event);
+      return {
+        thread,
+        state,
+        addedChunks: [],
+        removedChunkIds: [],
+      };
     }
   }
 
   /**
-   * Process an event (internal, no queue check)
-   * In auto mode, triggers background compaction and truncation if needed
+   * Process all events in the persistent queue (serially, one at a time)
+   * Used in auto mode to immediately process all queued events
+   *
+   * Handles dispatch strategies:
+   * - terminate: Stop processing after this event (end event loop)
+   * - interrupt: Continue processing (interrupt flag is for LLM cancellation)
+   * - queue/silent: Continue processing normally
+   */
+  private async processAllQueuedEvents(
+    threadId: string,
+  ): Promise<DispatchResult> {
+    let lastResult: DispatchResult | null = null;
+
+    // Process events until queue is empty (one at a time)
+    let queuedEvent = await this.popEventFromQueue(threadId);
+    while (queuedEvent) {
+      lastResult = await this.processEvent(threadId, queuedEvent.event);
+
+      // If this is a terminate-type event, stop processing further events
+      if (lastResult.shouldTerminate) {
+        break;
+      }
+
+      queuedEvent = await this.popEventFromQueue(threadId);
+    }
+
+    if (!lastResult) {
+      const thread = await this.threadManager.getThread(threadId);
+      const state = await this.threadManager.getCurrentState(threadId);
+      if (!thread || !state) {
+        throw new Error(`Thread or state not found: ${threadId}`);
+      }
+      return {
+        thread,
+        state,
+        addedChunks: [],
+        removedChunkIds: [],
+      };
+    }
+
+    return lastResult;
+  }
+
+  /**
+   * Process a single event
+   * In auto mode, triggers compaction and truncation after processing
    */
   private async processEvent(
     threadId: string,
@@ -329,71 +294,42 @@ export class MemoryManager {
     const chunksToTruncate =
       this.eventProcessor.consumePendingTruncation(threadId);
     if (chunksToTruncate) {
-      this.executeTruncation(threadId, chunksToTruncate).catch((error) => {
-        console.error('Auto-truncation failed:', error);
-      });
+      await this.executeTruncation(threadId, chunksToTruncate);
     }
 
-    // In auto mode, check for pending compaction and trigger it
+    // In auto mode, check for pending compaction and execute it
     const chunksToCompact =
       this.eventProcessor.consumePendingCompaction(threadId);
     if (chunksToCompact) {
-      this.triggerCompaction(threadId, chunksToCompact).catch((error) => {
-        console.error('Auto-compaction failed:', error);
-      });
+      await this.triggerCompaction(threadId, chunksToCompact);
     }
 
     return result;
-  }
-
-  /**
-   * Process an event in stepping mode (doesn't trigger auto-compaction immediately)
-   */
-  private async processEventForStepping(
-    threadId: string,
-    event: AgentEvent,
-  ): Promise<DispatchResult> {
-    return this.eventProcessor.processEvent(threadId, event, {
-      steppingMode: true,
-    });
   }
 
   // ============ Compaction ============
 
   /**
    * Trigger compaction for specific chunks
-   * This blocks the event queue during compaction
+   * Since processing is serial, no blocking is needed
    */
   async triggerCompaction(
     threadId: string,
     chunks?: MemoryChunk[],
   ): Promise<DispatchResult> {
-    const queue = this.getQueue(threadId);
-
-    // Block the queue
-    const unblock = queue.block(BlockingReason.COMPACTING);
-
-    try {
-      // Get chunks to compact if not provided
-      const chunksToCompact =
-        chunks ??
-        this.compactionManager.getCompressibleChunks(
-          (await this.threadManager.getCurrentState(threadId))!,
-        );
-
-      return await this.compactionManager.executeCompaction(
-        threadId,
-        chunksToCompact,
-        this.threadManager,
-        this.observerManager,
+    // Get chunks to compact if not provided
+    const chunksToCompact =
+      chunks ??
+      this.compactionManager.getCompressibleChunks(
+        (await this.threadManager.getCurrentState(threadId))!,
       );
-    } finally {
-      // Unblock the queue
-      unblock();
 
-      // Process any queued events
-      await queue.processQueue((event) => this.processEvent(threadId, event));
-    }
+    return this.compactionManager.executeCompaction(
+      threadId,
+      chunksToCompact,
+      this.threadManager,
+      this.observerManager,
+    );
   }
 
   /**
@@ -472,23 +408,24 @@ export class MemoryManager {
 
   /**
    * Set the execution mode for a thread
+   * When switching from stepping to auto, processes all queued events
    */
   async setExecutionMode(threadId: string, mode: ExecutionMode): Promise<void> {
-    const queue = this.getQueue(threadId);
-    await this.executionModeController.setExecutionMode(
-      threadId,
-      mode,
-      queue,
-      (tid, event) => this.processEvent(tid, event),
-    );
+    const currentMode = this.executionModeController.getExecutionMode(threadId);
+
+    this.executionModeController.setExecutionMode(threadId, mode);
+
+    // When switching to auto mode, process all queued events
+    if (currentMode === 'stepping' && mode === 'auto') {
+      await this.processAllQueuedEvents(threadId);
+    }
   }
 
   /**
    * Initialize execution mode for a new thread
    */
   initializeExecutionMode(threadId: string, mode?: ExecutionMode): void {
-    const queue = this.getQueue(threadId);
-    this.executionModeController.initializeExecutionMode(threadId, mode, queue);
+    this.executionModeController.initializeExecutionMode(threadId, mode);
   }
 
   /**
@@ -500,23 +437,145 @@ export class MemoryManager {
 
   /**
    * Execute a single step in stepping mode
-   * In stepping mode, events are processed immediately on dispatch.
-   * step() only executes pending compaction or truncation operations.
+   * Uses a step lock to ensure only one step can be processed at a time
+   *
+   * Flow (based on flow diagram - CORRECT PRIORITY ORDER):
+   * 1. Acquire step lock (throws if already locked)
+   * 2. Check for pending truncation (HIGHEST PRIORITY - forced pre-event)
+   * 3. Check for pending compaction (SECOND PRIORITY - forced pre-event)
+   * 4. Check if there are events in the persistent queue
+   * 5. If no events and no pending ops, check needsResponse flag
+   * 6. Release step lock
+   * 7. Return step result with queue status
+   *
+   * Priority Order:
+   * 1. Pending truncation (must execute before events)
+   * 2. Pending compaction (must execute before events)
+   * 3. Events in queue
+   * 4. LLM response generation (only if needsResponse is true)
    */
   async step(threadId: string): Promise<StepResult> {
-    const queue = this.getQueue(threadId);
-    return this.executionModeController.step(
-      threadId,
-      queue,
-      (tid, chunks) =>
-        this.compactionManager.executeCompaction(
-          tid,
-          chunks,
+    const mode = this.executionModeController.getExecutionMode(threadId);
+    if (mode !== 'stepping') {
+      throw new Error(
+        `Cannot step in '${mode}' mode. Set execution mode to 'stepping' first.`,
+      );
+    }
+
+    // Acquire step lock
+    const stepId = await this.threadManager.acquireStepLock(threadId);
+
+    try {
+      const queueLength = await this.getPersistentQueueLength(threadId);
+      const responseNeeded = await this.threadManager.needsResponse(threadId);
+
+      // Step 1: Check for pending truncation FIRST (highest priority - forced pre-event)
+      const pendingTruncation =
+        this.executionModeController.consumePendingTruncation(threadId);
+      if (pendingTruncation) {
+        const result = await this.executeTruncation(
+          threadId,
+          pendingTruncation,
+        );
+        return {
+          dispatchResult: result,
+          eventProcessed: false,
+          compactionPerformed: false,
+          truncationPerformed: true,
+          hasPendingOperations:
+            queueLength > 0 ||
+            this.executionModeController.hasPendingCompaction(threadId) ||
+            this.executionModeController.hasPendingTruncation(threadId),
+          queuedEventCount: queueLength,
+          needsResponse: responseNeeded,
+        };
+      }
+
+      // Step 2: Check for pending compaction SECOND (forced pre-event)
+      const pendingCompaction =
+        this.executionModeController.consumePendingCompaction(threadId);
+      if (pendingCompaction) {
+        const result = await this.compactionManager.executeCompaction(
+          threadId,
+          pendingCompaction,
           this.threadManager,
           this.observerManager,
-        ),
-      (tid, chunkIds) => this.executeTruncation(tid, chunkIds),
-    );
+        );
+        return {
+          dispatchResult: result,
+          eventProcessed: false,
+          compactionPerformed: true,
+          truncationPerformed: false,
+          hasPendingOperations:
+            queueLength > 0 ||
+            this.executionModeController.hasPendingCompaction(threadId) ||
+            this.executionModeController.hasPendingTruncation(threadId),
+          queuedEventCount: queueLength,
+          needsResponse: responseNeeded,
+        };
+      }
+
+      // Step 3: Check persistent queue for events
+      const queuedEvent = await this.popEventFromQueue(threadId);
+
+      if (queuedEvent) {
+        // Process the event
+        const result = await this.eventProcessor.processEvent(
+          threadId,
+          queuedEvent.event,
+          { steppingMode: true },
+        );
+
+        const remainingCount = await this.getPersistentQueueLength(threadId);
+        const updatedResponseNeeded =
+          await this.threadManager.needsResponse(threadId);
+
+        return {
+          dispatchResult: result,
+          eventProcessed: true,
+          compactionPerformed: false,
+          truncationPerformed: false,
+          hasPendingOperations:
+            remainingCount > 0 ||
+            this.executionModeController.hasPendingCompaction(threadId) ||
+            this.executionModeController.hasPendingTruncation(threadId),
+          queuedEventCount: remainingCount,
+          needsResponse: updatedResponseNeeded,
+          // Pass through terminate/interrupt flags from the processed event
+          shouldTerminate: result.shouldTerminate,
+          shouldInterrupt: result.shouldInterrupt,
+        };
+      }
+
+      // Step 4: No pending operations and no events in queue
+      // Return empty step result (LLM response is handled by the caller based on needsResponse)
+      return {
+        dispatchResult: null,
+        eventProcessed: false,
+        compactionPerformed: false,
+        truncationPerformed: false,
+        hasPendingOperations: false,
+        queuedEventCount: queueLength,
+        needsResponse: responseNeeded,
+      };
+    } finally {
+      // Always release the step lock
+      await this.threadManager.releaseStepLock(threadId, stepId);
+    }
+  }
+
+  /**
+   * Check if the thread is currently processing a step
+   */
+  async isStepLocked(threadId: string): Promise<boolean> {
+    return this.threadManager.isStepLocked(threadId);
+  }
+
+  /**
+   * Get the current step ID if one is being processed
+   */
+  async getCurrentStepId(threadId: string): Promise<string | null> {
+    return this.threadManager.getCurrentStepId(threadId);
   }
 
   // ============ Accessors ============
@@ -563,5 +622,132 @@ export class MemoryManager {
    */
   getObserverManager(): ObserverManager {
     return this.observerManager;
+  }
+
+  // ============ Persistent Event Queue ============
+
+  /**
+   * Get the persistent event queue for a thread
+   * This queue is persisted to storage and survives restarts
+   */
+  async getPersistentEventQueue(threadId: string): Promise<QueuedEvent[]> {
+    return this.threadManager.getEventQueue(threadId);
+  }
+
+  /**
+   * Push an event to the persistent queue
+   * Notifies observers of the queue change
+   */
+  async pushEventToQueue(
+    threadId: string,
+    event: AgentEvent,
+  ): Promise<QueuedEvent> {
+    const queuedEvent = await this.threadManager.pushEvent(threadId, event);
+    const queueLength = await this.threadManager.getEventQueueLength(threadId);
+
+    // Notify observers
+    this.observerManager.notifyEventQueued({
+      threadId,
+      queuedEvent,
+      queueLength,
+      timestamp: Date.now(),
+    });
+
+    return queuedEvent;
+  }
+
+  /**
+   * Pop the first event from the persistent queue
+   * Notifies observers of the queue change
+   */
+  async popEventFromQueue(threadId: string): Promise<QueuedEvent | null> {
+    const queuedEvent = await this.threadManager.popEvent(threadId);
+    if (!queuedEvent) {
+      return null;
+    }
+
+    const queueLength = await this.threadManager.getEventQueueLength(threadId);
+
+    // Notify observers
+    this.observerManager.notifyEventDequeued({
+      threadId,
+      queuedEvent,
+      queueLength,
+      timestamp: Date.now(),
+    });
+
+    return queuedEvent;
+  }
+
+  /**
+   * Peek at the first event in the persistent queue without removing it
+   */
+  async peekPersistentEvent(threadId: string): Promise<QueuedEvent | null> {
+    return this.threadManager.peekEvent(threadId);
+  }
+
+  /**
+   * Get the number of events in the persistent queue
+   */
+  async getPersistentQueueLength(threadId: string): Promise<number> {
+    return this.threadManager.getEventQueueLength(threadId);
+  }
+
+  /**
+   * Clear all events from the persistent queue
+   */
+  async clearPersistentQueue(threadId: string): Promise<void> {
+    return this.threadManager.clearEventQueue(threadId);
+  }
+
+  // ============ Needs Response Flag ============
+
+  /**
+   * Check if the thread needs a response from the LLM
+   * This is set to true after user input and false after LLM response
+   */
+  async needsResponse(threadId: string): Promise<boolean> {
+    return this.threadManager.needsResponse(threadId);
+  }
+
+  /**
+   * Set the needsResponse flag for a thread
+   * Used by executor to clear the flag after generating a response
+   */
+  async setNeedsResponse(threadId: string, value: boolean): Promise<void> {
+    return this.threadManager.setNeedsResponse(threadId, value);
+  }
+
+  // ============ Step Operations ============
+
+  /**
+   * Get a step by ID
+   * @param stepId - The step ID
+   * @returns The step or null if not found
+   */
+  async getStep(stepId: string) {
+    return this.threadManager.getStep(stepId);
+  }
+
+  /**
+   * Get all steps for a thread
+   * @param threadId - The thread ID
+   * @returns Array of steps ordered by start time
+   */
+  async getStepsByThread(threadId: string) {
+    return this.threadManager.getStepsByThread(threadId);
+  }
+
+  /**
+   * Update a step with LLM interaction data
+   * Records what was sent to the LLM and what was received
+   * @param stepId - The step ID
+   * @param llmInteraction - The LLM interaction data
+   */
+  async updateStepLLMInteraction(
+    stepId: string,
+    llmInteraction: LLMInteraction,
+  ): Promise<void> {
+    return this.threadManager.updateStepLLMInteraction(stepId, llmInteraction);
   }
 }

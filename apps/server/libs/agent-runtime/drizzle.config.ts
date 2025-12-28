@@ -2,7 +2,7 @@ import { defineConfig } from 'drizzle-kit';
 
 export default defineConfig({
   schema: [
-    '../agent-framework/src/memory/storage/postgres/schema.ts',
+    '../agent-framework/src/storage/postgres/schema.ts',
     './src/db/schema.ts',
   ],
   out: './drizzle',

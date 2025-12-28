@@ -2,6 +2,7 @@ import {
   MemoryState,
   CreateStateInput,
   StateMetadata,
+  StateProvenance,
   SerializableMemoryState,
 } from '../types/state.types.js';
 import { MemoryChunk } from '../types/chunk.types.js';
@@ -58,6 +59,7 @@ export function createState(input: CreateStateInput): Readonly<MemoryState> {
     createdAt: Date.now(),
     previousStateId: input.previousStateId,
     sourceOperation: input.sourceOperation,
+    provenance: input.provenance,
     custom: input.custom,
   };
 
@@ -84,6 +86,7 @@ export function deriveState(
     chunks?: MemoryChunk[];
     chunkIds?: string[];
     sourceOperation?: StateMetadata['sourceOperation'];
+    provenance?: StateProvenance;
     custom?: Record<string, unknown>;
   },
 ): Readonly<MemoryState> {
@@ -102,6 +105,7 @@ export function deriveState(
     createdAt: Date.now(),
     previousStateId: original.id,
     sourceOperation: updates.sourceOperation,
+    provenance: updates.provenance,
     custom: updates.custom ?? original.metadata.custom,
   };
 

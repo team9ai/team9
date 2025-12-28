@@ -77,7 +77,6 @@ const createMemoryManager = (config: LLMConfig) => {
   return new MemoryManager(storage, reducerRegistry, llmAdapter, {
     llm: config,
     autoCompactEnabled: true,
-    autoCompactThreshold: 20,
   });
 };
 

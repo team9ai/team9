@@ -7,6 +7,7 @@ import type {
   LLMConfig,
   MemoryState,
   StateSummary,
+  Step,
   StepResult,
 } from "@/types";
 
@@ -176,5 +177,25 @@ export const agentApi = {
       `/agents/${id}/step`,
     );
     return response.result;
+  },
+
+  // ============ Step Operations ============
+
+  /**
+   * Get all steps for an agent
+   */
+  async getSteps(id: string): Promise<Step[]> {
+    const response = await api.get<{ steps: Step[] }>(`/agents/${id}/steps`);
+    return response.steps;
+  },
+
+  /**
+   * Get a specific step by ID
+   */
+  async getStepById(agentId: string, stepId: string): Promise<Step> {
+    const response = await api.get<{ step: Step }>(
+      `/agents/${agentId}/steps/${stepId}`,
+    );
+    return response.step;
   },
 };

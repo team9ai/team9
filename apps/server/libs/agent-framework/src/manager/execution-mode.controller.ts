@@ -1,8 +1,9 @@
 import { MemoryChunk } from '../types/chunk.types.js';
-import { AgentEvent } from '../types/event.types.js';
 import type { ExecutionMode } from '../blueprint/blueprint.types.js';
-import { EventQueue, BlockingReason } from './event-queue.js';
-import type { DispatchResult } from './memory.manager.js';
+
+// DispatchResult is imported by memory.manager.ts - we use a forward reference here to avoid circular deps
+// The actual DispatchResult type is defined in event-processor.ts and re-exported from memory.manager.ts
+import type { DispatchResult } from './event-processor.js';
 
 /**
  * Result of a step operation
@@ -10,12 +11,29 @@ import type { DispatchResult } from './memory.manager.js';
 export interface StepResult {
   /** The dispatch result, or null if nothing was done */
   dispatchResult: DispatchResult | null;
+  /** Whether an event from the queue was processed */
+  eventProcessed: boolean;
   /** Whether a compaction was performed */
   compactionPerformed: boolean;
   /** Whether a truncation was performed */
   truncationPerformed: boolean;
-  /** Whether there are more pending operations (compaction or truncation) */
+  /** Whether there are more pending operations (events in queue, compaction, or truncation) */
   hasPendingOperations: boolean;
+  /** Number of events remaining in the persistent queue */
+  queuedEventCount: number;
+  /** Whether the agent needs to generate a response (set after user input) */
+  needsResponse?: boolean;
+  /**
+   * Whether the agent should terminate (end event loop)
+   * Set to true when a terminate-type event (TASK_COMPLETED, TASK_ABANDONED, TASK_TERMINATED) is processed
+   */
+  shouldTerminate?: boolean;
+  /**
+   * Whether to interrupt current LLM generation (if any)
+   * Set to true when an interrupt-type event is processed
+   * Note: Actual LLM cancellation is handled by the executor layer
+   */
+  shouldInterrupt?: boolean;
 }
 
 /**
@@ -27,32 +45,12 @@ export interface ExecutionModeControllerConfig {
 }
 
 /**
- * Callback for processing events
- */
-export type EventProcessor = (
-  threadId: string,
-  event: AgentEvent,
-) => Promise<DispatchResult>;
-
-/**
- * Callback for executing compaction
- */
-export type CompactionExecutor = (
-  threadId: string,
-  chunks: MemoryChunk[],
-) => Promise<DispatchResult>;
-
-/**
- * Callback for executing truncation
- */
-export type TruncationExecutor = (
-  threadId: string,
-  chunkIds: string[],
-) => Promise<DispatchResult>;
-
-/**
  * ExecutionModeController manages execution mode and stepping logic
- * Extracted from MemoryManager for better separation of concerns
+ *
+ * Simplified design: Since processing is serial (one event at a time),
+ * no blocking mechanism is needed. This controller just tracks:
+ * - Execution mode per thread (auto vs stepping)
+ * - Pending compaction/truncation for stepping mode
  */
 export class ExecutionModeController {
   /** Tracks execution mode per thread */
@@ -84,53 +82,17 @@ export class ExecutionModeController {
 
   /**
    * Set the execution mode for a thread
-   * When switching to 'auto', processes all queued events
-   * When switching to 'stepping', blocks the queue
    */
-  async setExecutionMode(
-    threadId: string,
-    mode: ExecutionMode,
-    queue: EventQueue<DispatchResult>,
-    processEvent: EventProcessor,
-  ): Promise<void> {
-    const currentMode = this.getExecutionMode(threadId);
-    if (currentMode === mode) {
-      return;
-    }
-
+  setExecutionMode(threadId: string, mode: ExecutionMode): void {
     this.executionModes.set(threadId, mode);
-
-    if (mode === 'stepping') {
-      // Enter stepping mode: block the queue
-      if (!queue.isBlocked()) {
-        queue.block(BlockingReason.STEPPING);
-      }
-    } else {
-      // Enter auto mode: unblock and process queued events
-      if (queue.getBlockingReason() === BlockingReason.STEPPING) {
-        this.forceUnblockStepping(queue);
-        // Process any queued events
-        await queue.processQueue((event) => processEvent(threadId, event));
-      }
-    }
   }
 
   /**
    * Initialize execution mode for a new thread
    */
-  initializeExecutionMode(
-    threadId: string,
-    mode: ExecutionMode | undefined,
-    queue: EventQueue<DispatchResult>,
-  ): void {
+  initializeExecutionMode(threadId: string, mode?: ExecutionMode): void {
     const effectiveMode = mode ?? this.config.defaultExecutionMode ?? 'auto';
     this.executionModes.set(threadId, effectiveMode);
-
-    if (effectiveMode === 'stepping') {
-      if (!queue.isBlocked()) {
-        queue.block(BlockingReason.STEPPING);
-      }
-    }
   }
 
   /**
@@ -183,97 +145,6 @@ export class ExecutionModeController {
       return chunkIds;
     }
     return null;
-  }
-
-  /**
-   * Execute a single step in stepping mode
-   * In the new design, events are processed immediately on dispatch.
-   * step() only executes pending compaction or truncation operations.
-   */
-  async step(
-    threadId: string,
-    queue: EventQueue<DispatchResult>,
-    executeCompaction: CompactionExecutor,
-    executeTruncation: TruncationExecutor,
-  ): Promise<StepResult> {
-    const mode = this.getExecutionMode(threadId);
-    if (mode !== 'stepping') {
-      throw new Error(
-        `Cannot step in '${mode}' mode. Set execution mode to 'stepping' first.`,
-      );
-    }
-
-    // Check for pending truncation first (truncation takes priority over compaction)
-    const pendingTruncation = this.consumePendingTruncation(threadId);
-    if (pendingTruncation) {
-      // Temporarily unblock for truncation
-      this.forceUnblockStepping(queue);
-
-      try {
-        const result = await executeTruncation(threadId, pendingTruncation);
-        return {
-          dispatchResult: result,
-          compactionPerformed: false,
-          truncationPerformed: true,
-          hasPendingOperations:
-            this.hasPendingCompaction(threadId) ||
-            this.hasPendingTruncation(threadId),
-        };
-      } finally {
-        // Re-block for stepping mode
-        if (!queue.isBlocked()) {
-          queue.block(BlockingReason.STEPPING);
-        }
-      }
-    }
-
-    // Check for pending compaction
-    const pendingChunks = this.consumePendingCompaction(threadId);
-    if (pendingChunks) {
-      // Temporarily unblock for compaction
-      this.forceUnblockStepping(queue);
-
-      try {
-        const result = await executeCompaction(threadId, pendingChunks);
-        return {
-          dispatchResult: result,
-          compactionPerformed: true,
-          truncationPerformed: false,
-          hasPendingOperations:
-            this.hasPendingCompaction(threadId) ||
-            this.hasPendingTruncation(threadId),
-        };
-      } finally {
-        // Re-block for stepping mode
-        if (!queue.isBlocked()) {
-          queue.block(BlockingReason.STEPPING);
-        }
-      }
-    }
-
-    // No pending operations
-    return {
-      dispatchResult: null,
-      compactionPerformed: false,
-      truncationPerformed: false,
-      hasPendingOperations: false,
-    };
-  }
-
-  /**
-   * Force unblock a queue that's in STEPPING mode
-   */
-  forceUnblockStepping(queue: EventQueue<DispatchResult>): void {
-    if (queue.getBlockingReason() === BlockingReason.STEPPING) {
-      // Access private members to force unblock
-      // TODO: Consider adding a proper unblock method to EventQueue
-      (queue as any).blockingReason = null;
-      if ((queue as any).unblockResolve) {
-        (queue as any).unblockResolve();
-        (queue as any).unblockResolve = null;
-      }
-      (queue as any).blockingPromise = null;
-    }
   }
 
   /**

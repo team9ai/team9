@@ -1,4 +1,4 @@
-import { MemoryState } from '../types/state.types.js';
+import { MemoryState, StateProvenance } from '../types/state.types.js';
 import { MemoryChunk, WorkingFlowSubType } from '../types/chunk.types.js';
 import {
   Operation,
@@ -13,6 +13,7 @@ import {
 } from '../types/operation.types.js';
 import { deriveState } from '../factories/state.factory.js';
 import { StorageProvider } from '../storage/storage.types.js';
+import { generateChunkId } from '../utils/id.utils.js';
 
 /**
  * Result of applying an operation
@@ -61,9 +62,13 @@ function applySingleOperationInternal(
             `Parent chunk not found in state: ${addOp.parentChunkId}`,
           );
         }
-        // Create updated chunk with new child
+        // Create a NEW chunk with a NEW ID containing the updated children
+        // This ensures each state has its own immutable snapshot of the chunk
+        // and prevents upsert operations from overwriting historical data
+        const newChunkId = generateChunkId();
         const updatedChunk: MemoryChunk = {
           ...targetChunk,
+          id: newChunkId,
           children: [
             ...(targetChunk.children ?? []),
             {
@@ -74,9 +79,22 @@ function applySingleOperationInternal(
               custom: addOp.child.custom,
             },
           ],
+          metadata: {
+            ...targetChunk.metadata,
+            custom: {
+              ...targetChunk.metadata.custom,
+              derivedFrom: addOp.parentChunkId,
+            },
+          },
         };
-        chunks.set(addOp.parentChunkId, updatedChunk);
-        // The updated chunk needs to be persisted
+        // Remove the old chunk and add the new one at the same position
+        const oldIndex = chunkIds.indexOf(addOp.parentChunkId);
+        chunks.delete(addOp.parentChunkId);
+        chunks.set(newChunkId, updatedChunk);
+        if (oldIndex !== -1) {
+          chunkIds[oldIndex] = newChunkId;
+        }
+        // The new chunk needs to be persisted (old chunk remains in DB for historical states)
         addedChunks.push(updatedChunk);
       } else if (addOp.chunkId) {
         // Adding a top-level chunk
@@ -321,6 +339,61 @@ export async function applyOperations(
 
   return {
     state: currentState,
+    addedChunks: allAddedChunks,
+    removedChunkIds: allRemovedChunkIds,
+  };
+}
+
+/**
+ * Apply multiple operations with provenance tracking
+ * Records the event, step, and operation that caused the state transition
+ * @param state - The current state
+ * @param operations - The operations to apply
+ * @param context - Execution context containing pending chunks and storage
+ * @param provenance - Provenance information for traceability
+ * @returns The final result after applying all operations
+ */
+export async function applyOperationsWithProvenance(
+  state: MemoryState,
+  operations: Operation[],
+  context: ExecutionContext,
+  provenance: StateProvenance,
+): Promise<ApplyResult> {
+  let currentState = state;
+  const allAddedChunks: MemoryChunk[] = [];
+  const allRemovedChunkIds: string[] = [];
+
+  for (const operation of operations) {
+    const result = computeOperationResult(
+      currentState,
+      operation,
+      context.pendingChunks,
+    );
+    currentState = result.state;
+    allAddedChunks.push(...result.addedChunks);
+    allRemovedChunkIds.push(...result.removedChunkIds);
+  }
+
+  // Create final state with provenance information
+  const finalState = deriveState(currentState, {
+    chunks: Array.from(currentState.chunks.values()),
+    chunkIds: [...currentState.chunkIds],
+    provenance: {
+      ...provenance,
+      timestamp: Date.now(),
+    },
+  });
+
+  // Persist in a transaction
+  await context.storage.transaction(async (tx) => {
+    if (allAddedChunks.length > 0) {
+      await tx.saveChunks(allAddedChunks);
+    }
+    await tx.saveState(finalState);
+  });
+
+  return {
+    state: finalState,
     addedChunks: allAddedChunks,
     removedChunkIds: allRemovedChunkIds,
   };

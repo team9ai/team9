@@ -1,6 +1,6 @@
 import { MemoryChunk } from '../types/chunk.types.js';
 import { MemoryState } from '../types/state.types.js';
-import { MemoryThread } from '../types/thread.types.js';
+import { MemoryThread, Step } from '../types/thread.types.js';
 
 /**
  * Query options for listing states
@@ -153,6 +153,40 @@ export interface StorageProvider {
    * @param stateId - The state ID
    */
   deleteState(stateId: string): Promise<void>;
+
+  // ============ Step Operations ============
+
+  /**
+   * Save a step to storage
+   * @param step - The step to save
+   */
+  saveStep(step: Step): Promise<void>;
+
+  /**
+   * Get a step by ID
+   * @param stepId - The step ID
+   * @returns The step or null if not found
+   */
+  getStep(stepId: string): Promise<Step | null>;
+
+  /**
+   * Update a step (e.g., when completing)
+   * @param step - The step to update
+   */
+  updateStep(step: Step): Promise<void>;
+
+  /**
+   * Get all steps for a thread
+   * @param threadId - The thread ID
+   * @returns Array of steps belonging to the thread (ordered by start time)
+   */
+  getStepsByThread(threadId: string): Promise<Step[]>;
+
+  /**
+   * Delete a step by ID
+   * @param stepId - The step ID
+   */
+  deleteStep(stepId: string): Promise<void>;
 
   // ============ Transaction Support ============
 

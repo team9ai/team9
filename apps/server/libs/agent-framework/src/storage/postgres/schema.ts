@@ -54,6 +54,28 @@ export const memoryStates = pgTable(
 );
 
 /**
+ * Memory steps table
+ * Stores step lifecycle data with JSONB
+ */
+export const memorySteps = pgTable(
+  'memory_steps',
+  {
+    id: varchar('id', { length: 64 }).primaryKey(),
+    threadId: varchar('thread_id', { length: 64 }).notNull(),
+    status: varchar('status', { length: 32 }).notNull(),
+    data: jsonb('data').notNull(),
+    startedAt: timestamp('started_at').notNull(),
+    completedAt: timestamp('completed_at'),
+    createdAt: timestamp('created_at').defaultNow(),
+  },
+  (table) => [
+    index('memory_steps_thread_id_idx').on(table.threadId),
+    index('memory_steps_status_idx').on(table.status),
+    index('memory_steps_started_at_idx').on(table.startedAt),
+  ],
+);
+
+/**
  * Blueprints table
  * Stores agent blueprint configurations
  */
@@ -84,3 +106,6 @@ export type NewMemoryStateRow = typeof memoryStates.$inferInsert;
 
 export type BlueprintRow = typeof blueprints.$inferSelect;
 export type NewBlueprintRow = typeof blueprints.$inferInsert;
+
+export type MemoryStepRow = typeof memorySteps.$inferSelect;
+export type NewMemoryStepRow = typeof memorySteps.$inferInsert;

@@ -2,6 +2,7 @@ import {
   MemoryThread,
   CreateThreadInput,
   ThreadMetadata,
+  QueuedEvent,
 } from '../types/thread.types.js';
 import { generateThreadId } from '../utils/id.utils.js';
 
@@ -42,6 +43,7 @@ export function createThread(
     currentStateId: undefined,
     initialStateId: undefined,
     metadata,
+    eventQueue: [],
   };
 
   return deepFreeze(thread);
@@ -59,6 +61,11 @@ export function updateThread(
     currentStateId?: string;
     initialStateId?: string;
     custom?: Record<string, unknown>;
+    eventQueue?: QueuedEvent[];
+    /** Current step ID for locking (use undefined to clear) */
+    currentStepId?: string | undefined;
+    /** Whether agent needs to generate a response */
+    needsResponse?: boolean;
   },
 ): Readonly<MemoryThread> {
   const metadata: ThreadMetadata = {
@@ -72,6 +79,17 @@ export function updateThread(
     currentStateId: updates.currentStateId ?? original.currentStateId,
     initialStateId: updates.initialStateId ?? original.initialStateId,
     metadata,
+    eventQueue: updates.eventQueue ?? original.eventQueue ?? [],
+    // Handle currentStepId: explicit undefined clears it, otherwise keep/update
+    currentStepId:
+      'currentStepId' in updates
+        ? updates.currentStepId
+        : original.currentStepId,
+    // Handle needsResponse flag
+    needsResponse:
+      'needsResponse' in updates
+        ? updates.needsResponse
+        : original.needsResponse,
   };
 
   return deepFreeze(thread);

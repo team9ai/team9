@@ -3,6 +3,7 @@ import type { MemoryChunk } from '../types/chunk.types.js';
 import type { Operation } from '../types/operation.types.js';
 import type { AgentEvent } from '../types/event.types.js';
 import type { ReducerResult } from '../reducer/reducer.types.js';
+import type { QueuedEvent } from '../types/thread.types.js';
 
 /**
  * Observer interface for monitoring memory manager events
@@ -47,6 +48,16 @@ export interface MemoryObserver {
    * Called when an error occurs
    */
   onError?: (event: ErrorInfo) => void;
+
+  /**
+   * Called when an event is pushed to the queue
+   */
+  onEventQueued?: (event: EventQueuedInfo) => void;
+
+  /**
+   * Called when an event is popped from the queue
+   */
+  onEventDequeued?: (event: EventDequeuedInfo) => void;
 }
 
 /**
@@ -141,6 +152,26 @@ export interface ErrorInfo {
 }
 
 /**
+ * Information about an event being queued
+ */
+export interface EventQueuedInfo {
+  threadId: string;
+  queuedEvent: QueuedEvent;
+  queueLength: number;
+  timestamp: number;
+}
+
+/**
+ * Information about an event being dequeued
+ */
+export interface EventDequeuedInfo {
+  threadId: string;
+  queuedEvent: QueuedEvent;
+  queueLength: number;
+  timestamp: number;
+}
+
+/**
  * Observer manager for handling multiple observers
  */
 export interface ObserverManager {
@@ -194,4 +225,14 @@ export interface ObserverManager {
    * Notify all observers of an error
    */
   notifyError(info: ErrorInfo): void;
+
+  /**
+   * Notify all observers of an event being queued
+   */
+  notifyEventQueued(info: EventQueuedInfo): void;
+
+  /**
+   * Notify all observers of an event being dequeued
+   */
+  notifyEventDequeued(info: EventDequeuedInfo): void;
 }

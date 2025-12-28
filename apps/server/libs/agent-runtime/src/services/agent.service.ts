@@ -14,6 +14,8 @@ import type {
   ILLMAdapter,
   ExecutionMode,
   StepResult,
+  QueuedEvent,
+  Step,
 } from '@team9/agent-framework';
 import type {
   AgentInstance,
@@ -21,6 +23,7 @@ import type {
   SSEMessage,
   SSEEventType,
   ExecutionModeStatus,
+  StepHistoryEntry,
 } from '../types/index.js';
 import { AgentExecutor, ExecutionResult } from '../executor/agent-executor.js';
 import { agents } from '../db/index.js';
@@ -40,6 +43,10 @@ export class AgentService {
   private executors = new Map<string, AgentExecutor>();
   private sseSubscribers = new Map<string, Set<SSESubscriber>>();
   private observers = new Map<string, () => void>(); // Cleanup functions
+  /** Step history per agent - tracks all step operations */
+  private stepHistory = new Map<string, StepHistoryEntry[]>();
+  /** Step counter per agent */
+  private stepCounters = new Map<string, number>();
 
   constructor(
     private createMemoryManager: (config: LLMConfig) => MemoryManager,
@@ -557,13 +564,13 @@ export class AgentService {
   getExecutionModeStatus(agentId: string): ExecutionModeStatus | null {
     const controller = this.debugControllers.get(agentId);
     const agent = this.agentsCache.get(agentId);
-    if (!controller || !agent) return null;
+    const memoryManager = this.memoryManagers.get(agentId);
+    if (!controller || !agent || !memoryManager) return null;
 
     return {
       mode: controller.getExecutionMode(agent.threadId),
-      queuedEventCount: controller.getQueuedEventCount(agent.threadId),
-      hasPendingCompaction: controller.hasPendingCompaction(agent.threadId),
-      nextEvent: controller.peekNextEvent(agent.threadId) ?? undefined,
+      hasPendingCompaction: memoryManager.hasPendingCompaction(agent.threadId),
+      hasPendingTruncation: memoryManager.hasPendingTruncation(agent.threadId),
     };
   }
 
@@ -596,11 +603,76 @@ export class AgentService {
   }
 
   /**
+   * Get the persistent event queue for an agent
+   * This queue is persisted to storage and survives restarts
+   */
+  async getEventQueue(agentId: string): Promise<QueuedEvent[]> {
+    const agent = this.agentsCache.get(agentId);
+    const memoryManager = this.memoryManagers.get(agentId);
+    if (!agent || !memoryManager) return [];
+
+    return memoryManager.getPersistentEventQueue(agent.threadId);
+  }
+
+  // ============ Step History ============
+
+  /**
+   * Get step history for an agent
+   */
+  getStepHistory(agentId: string): StepHistoryEntry[] {
+    return this.stepHistory.get(agentId) ?? [];
+  }
+
+  /**
+   * Clear step history for an agent
+   */
+  clearStepHistory(agentId: string): void {
+    this.stepHistory.delete(agentId);
+    this.stepCounters.delete(agentId);
+  }
+
+  /**
+   * Record a step in history
+   */
+  private recordStep(
+    agentId: string,
+    entry: Omit<StepHistoryEntry, 'id' | 'stepNumber'>,
+  ): StepHistoryEntry {
+    // Get or initialize step counter
+    const stepNumber = (this.stepCounters.get(agentId) ?? 0) + 1;
+    this.stepCounters.set(agentId, stepNumber);
+
+    // Create full entry
+    const fullEntry: StepHistoryEntry = {
+      id: `step_${createId()}`,
+      stepNumber,
+      ...entry,
+    };
+
+    // Get or initialize history
+    if (!this.stepHistory.has(agentId)) {
+      this.stepHistory.set(agentId, []);
+    }
+    this.stepHistory.get(agentId)!.push(fullEntry);
+
+    return fullEntry;
+  }
+
+  /**
    * Execute a single step in stepping mode
+   *
+   * Flow (based on flow diagram):
+   * 1. Check for pending compaction/truncation (forced pre-event)
+   * 2. Check for queued events in persistent queue
+   * 3. If no events and no pending ops, check needsResponse flag
+   * 4. Only generate LLM response if needsResponse is true
+   * 5. After LLM response, clear needsResponse flag
+   *
    * Priority:
-   * 1. Pending truncation (delete old chunks)
-   * 2. Pending compaction (LLM compresses chunks)
-   * 3. LLM response (if agent needs to respond)
+   * 1. Events in queue (processed by MemoryManager.step)
+   * 2. Pending truncation (processed by MemoryManager.step)
+   * 3. Pending compaction (processed by MemoryManager.step)
+   * 4. LLM response generation (only if needsResponse is true)
    */
   async step(agentId: string): Promise<StepResult | null> {
     const controller = this.debugControllers.get(agentId);
@@ -608,52 +680,173 @@ export class AgentService {
     const memoryManager = this.memoryManagers.get(agentId);
     if (!controller || !agent || !memoryManager) return null;
 
-    // 1. Check for pending memory operations (truncation/compaction)
+    // Get state before step for history tracking
+    const stateBefore = await memoryManager.getCurrentState(agent.threadId);
+    const stateIdBefore = stateBefore?.id ?? 'unknown';
+
+    // Step 1: Call MemoryManager.step() which handles:
+    // - Events in persistent queue (priority 1)
+    // - Pending truncation (priority 2)
+    // - Pending compaction (priority 3)
     const memoryResult = await controller.step(agent.threadId);
 
-    if (memoryResult.truncationPerformed || memoryResult.compactionPerformed) {
-      this.broadcast(agentId, 'agent:stepped', {
-        truncationPerformed: memoryResult.truncationPerformed,
-        compactionPerformed: memoryResult.compactionPerformed,
-        hasPendingOperations: memoryResult.hasPendingOperations,
+    // If an event was processed or truncation/compaction was done, return that result
+    if (
+      memoryResult.eventProcessed ||
+      memoryResult.truncationPerformed ||
+      memoryResult.compactionPerformed
+    ) {
+      // Check if this was an interrupt-type event (cancel current LLM generation)
+      if (memoryResult.shouldInterrupt) {
+        const executor = this.executors.get(agentId);
+        if (executor) {
+          const cancelled = executor.cancel(agent.threadId);
+          console.log(
+            '[step] Interrupt event processed, LLM cancelled:',
+            cancelled,
+          );
+        }
+      }
+
+      // Get state after for history
+      const stateAfter = await memoryManager.getCurrentState(agent.threadId);
+      const stateIdAfter = stateAfter?.id ?? 'unknown';
+
+      // Determine operation type
+      let operationType: 'event' | 'compaction' | 'truncation' = 'event';
+      if (memoryResult.compactionPerformed) {
+        operationType = 'compaction';
+      } else if (memoryResult.truncationPerformed) {
+        operationType = 'truncation';
+      }
+
+      // Record step in history
+      this.recordStep(agentId, {
+        timestamp: Date.now(),
+        operationType,
+        processedEvent: memoryResult.eventProcessed
+          ? ((memoryResult.dispatchResult as { event?: AgentEvent })?.event as
+              | { type: string; [key: string]: unknown }
+              | undefined)
+          : undefined,
         llmResponseGenerated: false,
+        stateIdBefore,
+        stateIdAfter,
+        shouldTerminate: memoryResult.shouldTerminate,
+        shouldInterrupt: memoryResult.shouldInterrupt,
       });
+
+      // Check if this was a terminate-type event (end event loop)
+      if (memoryResult.shouldTerminate) {
+        this.broadcast(agentId, 'agent:terminated', {
+          eventProcessed: memoryResult.eventProcessed,
+          reason: 'terminate_event',
+        });
+      } else {
+        this.broadcast(agentId, 'agent:stepped', {
+          eventProcessed: memoryResult.eventProcessed,
+          truncationPerformed: memoryResult.truncationPerformed,
+          compactionPerformed: memoryResult.compactionPerformed,
+          hasPendingOperations: memoryResult.hasPendingOperations,
+          queuedEventCount: memoryResult.queuedEventCount,
+          needsResponse: memoryResult.needsResponse,
+          llmResponseGenerated: false,
+          shouldTerminate: memoryResult.shouldTerminate,
+          shouldInterrupt: memoryResult.shouldInterrupt,
+        });
+      }
       return memoryResult;
     }
 
-    // 2. No pending memory ops - try to generate LLM response
+    // Step 2: No events in queue, no pending operations
+    // Check if we should generate LLM response based on needsResponse flag
+    // According to flow diagram: only generate LLM response if needsResponse is true
+
     const executor = this.executors.get(agentId);
-    if (!executor) {
+    const needsResponse = memoryResult.needsResponse ?? false;
+
+    // If no executor or needsResponse is false, don't generate LLM response
+    if (!executor || !needsResponse) {
+      // Record noop step in history
+      this.recordStep(agentId, {
+        timestamp: Date.now(),
+        operationType: 'noop',
+        llmResponseGenerated: false,
+        stateIdBefore,
+        stateIdAfter: stateIdBefore, // No state change
+      });
+
       this.broadcast(agentId, 'agent:stepped', {
+        eventProcessed: false,
         truncationPerformed: false,
         compactionPerformed: false,
-        hasPendingOperations: false,
+        hasPendingOperations: memoryResult.hasPendingOperations,
+        queuedEventCount: memoryResult.queuedEventCount,
+        needsResponse,
         llmResponseGenerated: false,
+        shouldTerminate: memoryResult.shouldTerminate,
+        shouldInterrupt: memoryResult.shouldInterrupt,
       });
       return memoryResult;
     }
 
-    // Run one turn of LLM execution
+    // Step 3: needsResponse is true, run LLM
     this.broadcast(agentId, 'agent:thinking', {});
 
     try {
       const executionResult = await executor.run(agent.threadId);
 
+      // After LLM response, clear the needsResponse flag
+      if (executionResult.success && executionResult.turnsExecuted > 0) {
+        await memoryManager.setNeedsResponse(agent.threadId, false);
+      }
+
+      const queueLength = await memoryManager.getPersistentQueueLength(
+        agent.threadId,
+      );
+      const updatedNeedsResponse = await memoryManager.needsResponse(
+        agent.threadId,
+      );
+
+      // Get state after LLM response for history
+      const stateAfterLLM = await memoryManager.getCurrentState(agent.threadId);
+      const stateIdAfterLLM = stateAfterLLM?.id ?? 'unknown';
+
+      // Record LLM response step in history
+      this.recordStep(agentId, {
+        timestamp: Date.now(),
+        operationType: 'llm_response',
+        llmResponseGenerated:
+          executionResult.success && executionResult.turnsExecuted > 0,
+        llmResponse: executionResult.lastResponse,
+        cancelled: executionResult.cancelled,
+        stateIdBefore,
+        stateIdAfter: stateIdAfterLLM,
+        error: executionResult.error,
+      });
+
       if (executionResult.success && executionResult.turnsExecuted > 0) {
         this.broadcast(agentId, 'agent:stepped', {
+          eventProcessed: false,
           truncationPerformed: false,
           compactionPerformed: false,
           hasPendingOperations:
+            queueLength > 0 ||
             memoryManager.hasPendingCompaction(agent.threadId) ||
             memoryManager.hasPendingTruncation(agent.threadId),
+          queuedEventCount: queueLength,
+          needsResponse: updatedNeedsResponse,
           llmResponseGenerated: true,
           lastResponse: executionResult.lastResponse,
         });
       } else {
         this.broadcast(agentId, 'agent:stepped', {
+          eventProcessed: false,
           truncationPerformed: false,
           compactionPerformed: false,
-          hasPendingOperations: false,
+          hasPendingOperations: queueLength > 0,
+          queuedEventCount: queueLength,
+          needsResponse: updatedNeedsResponse,
           llmResponseGenerated: false,
         });
       }
@@ -672,18 +865,61 @@ export class AgentService {
                 removedChunkIds: [],
               }
             : null,
+        eventProcessed: false,
         compactionPerformed: false,
         truncationPerformed: false,
         hasPendingOperations:
+          queueLength > 0 ||
           memoryManager.hasPendingCompaction(agent.threadId) ||
           memoryManager.hasPendingTruncation(agent.threadId),
+        queuedEventCount: queueLength,
+        needsResponse: updatedNeedsResponse,
       };
     } catch (error) {
       console.error('Error in step LLM execution:', error);
+
+      // Record error step in history
+      this.recordStep(agentId, {
+        timestamp: Date.now(),
+        operationType: 'llm_response',
+        llmResponseGenerated: false,
+        stateIdBefore,
+        stateIdAfter: stateIdBefore, // No state change on error
+        error: error instanceof Error ? error.message : String(error),
+      });
+
       this.broadcast(agentId, 'agent:error', {
         error: error instanceof Error ? error.message : String(error),
       });
       return memoryResult;
     }
+  }
+
+  // ============ Step Operations ============
+
+  /**
+   * Get a step by ID
+   * @param agentId - The agent ID
+   * @param stepId - The step ID
+   * @returns The step or null if not found
+   */
+  async getStepById(agentId: string, stepId: string): Promise<Step | null> {
+    const memoryManager = this.memoryManagers.get(agentId);
+    if (!memoryManager) return null;
+
+    return memoryManager.getStep(stepId);
+  }
+
+  /**
+   * Get all steps for an agent's thread
+   * @param agentId - The agent ID
+   * @returns Array of steps ordered by start time
+   */
+  async getSteps(agentId: string): Promise<Step[]> {
+    const agent = this.agentsCache.get(agentId);
+    const memoryManager = this.memoryManagers.get(agentId);
+    if (!agent || !memoryManager) return [];
+
+    return memoryManager.getStepsByThread(agent.threadId);
   }
 }

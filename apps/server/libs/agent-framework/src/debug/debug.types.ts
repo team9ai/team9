@@ -167,16 +167,30 @@ export interface DebugController {
   hasPendingCompaction(threadId: string): boolean;
 
   /**
+   * Check if there's a pending truncation for a thread
+   * @param threadId - Thread ID
+   * @returns true if truncation is pending
+   */
+  hasPendingTruncation(threadId: string): boolean;
+
+  /**
+   * Check if a step is currently locked (being processed)
+   * @param threadId - Thread ID
+   * @returns true if step is locked
+   */
+  isStepLocked(threadId: string): Promise<boolean>;
+
+  /**
    * Get the number of queued events for a thread
    * @param threadId - Thread ID
    * @returns Number of events in the queue
    */
-  getQueuedEventCount(threadId: string): number;
+  getQueuedEventCount(threadId: string): Promise<number>;
 
   /**
    * Peek at the next event without processing it
    * @param threadId - Thread ID
    * @returns The next event or null if queue is empty
    */
-  peekNextEvent(threadId: string): AgentEvent | null;
+  peekNextEvent(threadId: string): Promise<AgentEvent | null>;
 }

@@ -2,9 +2,14 @@ import { eq, and, gte, lte, asc, desc, inArray } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { MemoryChunk } from '../../types/chunk.types.js';
 import { MemoryState } from '../../types/state.types.js';
-import { MemoryThread } from '../../types/thread.types.js';
+import { MemoryThread, Step } from '../../types/thread.types.js';
 import { StorageProvider, ListStatesOptions } from '../storage.types.js';
-import { memoryThreads, memoryChunks, memoryStates } from './schema.js';
+import {
+  memoryThreads,
+  memoryChunks,
+  memoryStates,
+  memorySteps,
+} from './schema.js';
 
 /**
  * Serializable state data stored in JSONB
@@ -294,6 +299,59 @@ export class PostgresStorageProvider implements StorageProvider {
 
   async deleteState(stateId: string): Promise<void> {
     await this.db.delete(memoryStates).where(eq(memoryStates.id, stateId));
+  }
+
+  // ============ Step Operations ============
+
+  async saveStep(step: Step): Promise<void> {
+    const values: typeof memorySteps.$inferInsert = {
+      id: step.id,
+      threadId: step.threadId,
+      status: step.status,
+      data: step,
+      startedAt: new Date(step.startedAt),
+    };
+    await this.db.insert(memorySteps).values(values);
+  }
+
+  async getStep(stepId: string): Promise<Step | null> {
+    const rows = await this.db
+      .select()
+      .from(memorySteps)
+      .where(eq(memorySteps.id, stepId))
+      .limit(1);
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    return rows[0].data as Step;
+  }
+
+  async updateStep(step: Step): Promise<void> {
+    // Note: completedAt in the table is for query optimization
+    // The full step data is stored in the 'data' JSONB column
+    await this.db
+      .update(memorySteps)
+      .set({
+        status: step.status,
+        data: step,
+      })
+      .where(eq(memorySteps.id, step.id));
+  }
+
+  async getStepsByThread(threadId: string): Promise<Step[]> {
+    const rows = await this.db
+      .select()
+      .from(memorySteps)
+      .where(eq(memorySteps.threadId, threadId))
+      .orderBy(asc(memorySteps.startedAt));
+
+    return rows.map((row) => row.data as Step);
+  }
+
+  async deleteStep(stepId: string): Promise<void> {
+    await this.db.delete(memorySteps).where(eq(memorySteps.id, stepId));
   }
 
   // ============ Transaction Support ============

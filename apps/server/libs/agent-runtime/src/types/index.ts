@@ -65,9 +65,8 @@ export interface AgentInstance {
  */
 export interface ExecutionModeStatus {
   mode: ExecutionMode;
-  queuedEventCount: number;
   hasPendingCompaction: boolean;
-  nextEvent?: unknown;
+  hasPendingTruncation: boolean;
 }
 
 /**
@@ -151,6 +150,46 @@ export interface BatchTestResult {
 }
 
 /**
+ * Step history entry - records each step operation
+ */
+export interface StepHistoryEntry {
+  /** Unique ID for this step */
+  id: string;
+  /** Step number (sequential) */
+  stepNumber: number;
+  /** Timestamp when step was executed */
+  timestamp: number;
+  /** Type of operation performed */
+  operationType:
+    | 'event'
+    | 'compaction'
+    | 'truncation'
+    | 'llm_response'
+    | 'noop';
+  /** Event that was processed (if operationType is 'event') */
+  processedEvent?: {
+    type: string;
+    [key: string]: unknown;
+  };
+  /** Whether LLM response was generated */
+  llmResponseGenerated: boolean;
+  /** LLM response content (if any) */
+  llmResponse?: string;
+  /** Whether execution was cancelled */
+  cancelled?: boolean;
+  /** State ID before step */
+  stateIdBefore: string;
+  /** State ID after step */
+  stateIdAfter: string;
+  /** Whether step resulted in termination */
+  shouldTerminate?: boolean;
+  /** Whether step triggered an interrupt */
+  shouldInterrupt?: boolean;
+  /** Error if step failed */
+  error?: string;
+}
+
+/**
  * SSE event types
  */
 export type SSEEventType =
@@ -162,6 +201,7 @@ export type SSEEventType =
   | 'agent:error'
   | 'agent:mode_changed'
   | 'agent:stepped'
+  | 'agent:terminated'
   | 'subagent:spawn'
   | 'subagent:result'
   | 'compaction:start'

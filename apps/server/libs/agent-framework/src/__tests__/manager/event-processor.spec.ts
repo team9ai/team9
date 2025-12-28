@@ -50,6 +50,8 @@ const createMockObserverManager = (): ObserverManager => ({
   notifyError: jest.fn(),
   notifySubAgentSpawn: jest.fn(),
   notifySubAgentResult: jest.fn(),
+  notifyEventQueued: jest.fn(),
+  notifyEventDequeued: jest.fn(),
 });
 
 // Mock reducer registry
@@ -402,6 +404,140 @@ describe('EventProcessor', () => {
 
       expect(result).toEqual(chunkIds);
       expect(eventProcessor.consumePendingTruncation(thread.id)).toBeNull();
+    });
+  });
+
+  describe('dispatch strategy flags', () => {
+    it('should set shouldTerminate for terminate-type events', async () => {
+      const { thread } = await threadManager.createThread();
+      const newChunk = createMockChunk('chunk-1');
+      const addOperation = createAddOperation(newChunk.id);
+
+      (reducerRegistry.reduce as jest.Mock).mockResolvedValue({
+        operations: [addOperation],
+        chunks: [newChunk],
+      });
+
+      // TASK_COMPLETED is a terminate-type event by default
+      const event: AgentEvent = {
+        type: EventType.TASK_COMPLETED,
+        timestamp: Date.now(),
+        result: 'Task completed successfully',
+      };
+
+      const result = await eventProcessor.processEvent(thread.id, event);
+
+      expect(result.shouldTerminate).toBe(true);
+      expect(result.shouldInterrupt).toBe(false);
+      expect(result.dispatchStrategy).toBe('terminate');
+    });
+
+    it('should set shouldTerminate for TASK_ABANDONED events', async () => {
+      const { thread } = await threadManager.createThread();
+
+      (reducerRegistry.reduce as jest.Mock).mockResolvedValue({
+        operations: [],
+        chunks: [],
+      });
+
+      const event: AgentEvent = {
+        type: EventType.TASK_ABANDONED,
+        timestamp: Date.now(),
+        reason: 'User cancelled',
+      };
+
+      const result = await eventProcessor.processEvent(thread.id, event);
+
+      expect(result.shouldTerminate).toBe(true);
+      expect(result.dispatchStrategy).toBe('terminate');
+    });
+
+    it('should set shouldTerminate for TASK_TERMINATED events', async () => {
+      const { thread } = await threadManager.createThread();
+
+      (reducerRegistry.reduce as jest.Mock).mockResolvedValue({
+        operations: [],
+        chunks: [],
+      });
+
+      const event: AgentEvent = {
+        type: EventType.TASK_TERMINATED,
+        timestamp: Date.now(),
+        terminatedBy: 'user',
+        reason: 'Force stop',
+      };
+
+      const result = await eventProcessor.processEvent(thread.id, event);
+
+      expect(result.shouldTerminate).toBe(true);
+      expect(result.dispatchStrategy).toBe('terminate');
+    });
+
+    it('should not set shouldTerminate for queue-type events', async () => {
+      const { thread } = await threadManager.createThread();
+
+      (reducerRegistry.reduce as jest.Mock).mockResolvedValue({
+        operations: [],
+        chunks: [],
+      });
+
+      const event: AgentEvent = {
+        type: EventType.USER_MESSAGE,
+        timestamp: Date.now(),
+        content: 'Hello',
+      };
+
+      const result = await eventProcessor.processEvent(thread.id, event);
+
+      expect(result.shouldTerminate).toBe(false);
+      expect(result.shouldInterrupt).toBe(false);
+      expect(result.dispatchStrategy).toBe('queue');
+    });
+
+    it('should respect explicit dispatchStrategy override', async () => {
+      const { thread } = await threadManager.createThread();
+
+      (reducerRegistry.reduce as jest.Mock).mockResolvedValue({
+        operations: [],
+        chunks: [],
+      });
+
+      // USER_MESSAGE normally has 'queue' strategy, but we override to 'interrupt'
+      const event: AgentEvent = {
+        type: EventType.USER_MESSAGE,
+        timestamp: Date.now(),
+        content: 'Urgent message',
+        dispatchStrategy: 'interrupt',
+      };
+
+      const result = await eventProcessor.processEvent(thread.id, event);
+
+      expect(result.shouldInterrupt).toBe(true);
+      expect(result.shouldTerminate).toBe(false);
+      expect(result.dispatchStrategy).toBe('interrupt');
+    });
+
+    it('should allow overriding terminate event to queue', async () => {
+      const { thread } = await threadManager.createThread();
+
+      (reducerRegistry.reduce as jest.Mock).mockResolvedValue({
+        operations: [],
+        chunks: [],
+      });
+
+      // TASK_COMPLETED normally terminates, but we override to 'queue'
+      const event: AgentEvent = {
+        type: EventType.TASK_COMPLETED,
+        timestamp: Date.now(),
+        result: 'Partial result',
+        dispatchStrategy: 'queue',
+      };
+
+      const result = await eventProcessor.processEvent(thread.id, event);
+
+      expect(result.shouldTerminate).toBe(false);
+      expect(result.shouldInterrupt).toBe(false);
+      expect(result.dispatchStrategy).toBe('queue');
     });
   });
 

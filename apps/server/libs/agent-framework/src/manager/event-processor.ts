@@ -1,12 +1,27 @@
 import { MemoryThread } from '../types/thread.types.js';
-import { MemoryState } from '../types/state.types.js';
+import { MemoryState, StateProvenance } from '../types/state.types.js';
 import { MemoryChunk } from '../types/chunk.types.js';
-import { AgentEvent } from '../types/event.types.js';
+import {
+  AgentEvent,
+  EventType,
+  EventDispatchStrategy,
+  getDefaultDispatchStrategy,
+} from '../types/event.types.js';
 import { ReducerRegistry, ReducerResult } from '../reducer/reducer.types.js';
 import { ThreadManager } from './thread.manager.js';
 import type { ObserverManager } from '../observer/observer.types.js';
 import type { CompactionManager } from './compaction.manager.js';
 import type { ExecutionModeController } from './execution-mode.controller.js';
+import { generateId, IdPrefix, generateStepId } from '../utils/id.utils.js';
+
+/**
+ * Event types that trigger the needsResponse flag
+ * These are events that expect the agent to generate a response
+ */
+const RESPONSE_TRIGGERING_EVENTS: EventType[] = [
+  EventType.USER_MESSAGE,
+  EventType.PARENT_AGENT_MESSAGE,
+];
 
 /**
  * Result of dispatching an event
@@ -20,6 +35,20 @@ export interface DispatchResult {
   addedChunks: MemoryChunk[];
   /** Chunk IDs that were removed */
   removedChunkIds: string[];
+  /**
+   * Whether this event should terminate the agent's event loop
+   * Set to true for terminate-type events (TASK_COMPLETED, TASK_ABANDONED, TASK_TERMINATED)
+   */
+  shouldTerminate?: boolean;
+  /**
+   * Whether this event should interrupt the current LLM generation
+   * Set to true for interrupt-type events
+   */
+  shouldInterrupt?: boolean;
+  /**
+   * The dispatch strategy that was used for this event
+   */
+  dispatchStrategy?: EventDispatchStrategy;
 }
 
 /**
@@ -46,10 +75,17 @@ export class EventProcessor {
   /**
    * Process an event and update memory state
    *
+   * Flow (based on flow diagram - Event Processor Details):
+   * 1. Start -> Fetch latest state
+   * 2. Is interrupt type? -> Set shouldInterrupt flag (to cancel current LLM generation)
+   * 3. Trigger corresponding reducer -> Execute reducer -> Generate operations
+   * 4. Execute operations, get new state -> Store new state
+   * 5. Is terminate type? -> Set shouldTerminate flag (to end event loop)
+   *
    * @param threadId - The thread ID
    * @param event - The event to process
    * @param options - Processing options
-   * @returns The dispatch result
+   * @returns The dispatch result with shouldTerminate/shouldInterrupt flags
    */
   async processEvent(
     threadId: string,
@@ -59,52 +95,137 @@ export class EventProcessor {
     const { steppingMode = false } = options;
     const startTime = Date.now();
 
-    // Notify observers of event dispatch
-    this.observerManager.notifyEventDispatch({
-      threadId,
-      event,
-      timestamp: startTime,
-    });
+    // Generate a unique event ID for provenance tracking
+    const eventId = generateId(IdPrefix.QUEUED_EVENT);
 
-    // Get current state
+    // Get step ID for provenance tracking
+    // In stepping mode, use the current step lock ID
+    // In auto mode, generate a new step ID for each event processing
+    const existingStepId = await this.threadManager.getCurrentStepId(threadId);
+    const stepId = existingStepId ?? generateStepId();
+
+    // Step 1: Get current state (fetch latest state)
     const currentState = await this.threadManager.getCurrentState(threadId);
     if (!currentState) {
       throw new Error(`Current state not found for thread: ${threadId}`);
     }
 
-    // Run event through reducer registry
-    const reducerResult = await this.executeReducer(
+    // Create and save the step record at the start (includes full event payload for debugging)
+    await this.threadManager.createStep(
       threadId,
-      event,
-      currentState,
+      stepId,
+      {
+        eventId,
+        type: event.type,
+        timestamp: startTime,
+      },
+      currentState.id,
+      event, // Full event payload for debugging
     );
 
-    // If no operations, return current state unchanged
-    if (reducerResult.operations.length === 0) {
-      return this.createNoOpResult(threadId, currentState);
+    try {
+      // Determine dispatch strategy for this event
+      const dispatchStrategy =
+        event.dispatchStrategy ?? getDefaultDispatchStrategy(event.type);
+
+      // Check if this is an interrupt-type event (should cancel current LLM generation)
+      const shouldInterrupt = dispatchStrategy === 'interrupt';
+
+      // Check if this is a terminate-type event (should end event loop)
+      const shouldTerminate = dispatchStrategy === 'terminate';
+
+      // Notify observers of event dispatch
+      this.observerManager.notifyEventDispatch({
+        threadId,
+        event,
+        timestamp: startTime,
+      });
+
+      // Step 2-3: Run event through reducer registry (execute reducer -> generate operations)
+      const reducerResult = await this.executeReducer(
+        threadId,
+        event,
+        currentState,
+      );
+
+      // If no operations, return current state unchanged (with strategy flags)
+      if (reducerResult.operations.length === 0) {
+        // Complete step with current state (no change)
+        await this.threadManager.completeStep(stepId, currentState.id);
+
+        const noOpResult = await this.createNoOpResult(threadId, currentState);
+        return {
+          ...noOpResult,
+          shouldTerminate,
+          shouldInterrupt,
+          dispatchStrategy,
+        };
+      }
+
+      // Build provenance information for state traceability
+      const provenance: StateProvenance = {
+        eventId,
+        eventType: event.type,
+        stepId: stepId ?? undefined,
+        source: 'event_dispatch',
+        timestamp: startTime,
+        context: {
+          dispatchStrategy,
+          steppingMode,
+        },
+      };
+
+      // Step 4: Apply reducer result through thread manager with provenance (execute operations -> store new state)
+      const result = await this.threadManager.applyReducerResultWithProvenance(
+        threadId,
+        reducerResult,
+        provenance,
+      );
+
+      // Complete step with the new state
+      await this.threadManager.completeStep(stepId, result.state.id);
+
+      // Set needsResponse flag if this is a response-triggering event (user input, etc.)
+      if (this.isResponseTriggeringEvent(event)) {
+        await this.threadManager.setNeedsResponse(threadId, true);
+      }
+
+      // Notify observers of state change
+      this.notifyStateChange(
+        threadId,
+        currentState,
+        result.state,
+        event,
+        reducerResult,
+        result.addedChunks,
+        result.removedChunkIds,
+      );
+
+      // Handle auto-compaction based on mode
+      this.handleAutoCompaction(threadId, result.state, steppingMode);
+
+      // Step 5: Return result with terminate/interrupt flags (is terminate type?)
+      return {
+        ...result,
+        shouldTerminate,
+        shouldInterrupt,
+        dispatchStrategy,
+      };
+    } catch (error) {
+      // Mark step as failed if an error occurs
+      await this.threadManager.failStep(
+        stepId,
+        error instanceof Error ? error.message : String(error),
+      );
+      throw error;
     }
+  }
 
-    // Apply reducer result through thread manager
-    const result = await this.threadManager.applyReducerResult(
-      threadId,
-      reducerResult,
-    );
-
-    // Notify observers of state change
-    this.notifyStateChange(
-      threadId,
-      currentState,
-      result.state,
-      event,
-      reducerResult,
-      result.addedChunks,
-      result.removedChunkIds,
-    );
-
-    // Handle auto-compaction based on mode
-    this.handleAutoCompaction(threadId, result.state, steppingMode);
-
-    return result;
+  /**
+   * Check if the event should trigger the needsResponse flag
+   */
+  private isResponseTriggeringEvent(event: AgentEvent): boolean {
+    return RESPONSE_TRIGGERING_EVENTS.includes(event.type);
   }
 
   /**

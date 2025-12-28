@@ -85,7 +85,7 @@ function AgentDebugPage() {
               : "Select a State"}
           </h2>
           {selectedState ? (
-            <StateViewer state={selectedState} />
+            <StateViewer state={selectedState} agentId={agentId} />
           ) : (
             <p className="text-muted-foreground">
               Click on a node in the execution tree to view its state.

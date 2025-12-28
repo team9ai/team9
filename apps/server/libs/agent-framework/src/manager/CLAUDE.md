@@ -4,14 +4,13 @@ This directory contains the core orchestrators for the Memory system.
 
 ## File Structure
 
-| File                           | Description                                                                |
-| ------------------------------ | -------------------------------------------------------------------------- |
-| `memory.manager.ts`            | MemoryManager: main orchestrator integrating all components                |
-| `thread.manager.ts`            | ThreadManager: manages thread lifecycle and state persistence              |
-| `event-processor.ts`           | EventProcessor: core event processing logic (reducer, state update)        |
-| `compaction.manager.ts`        | CompactionManager: handles memory compaction logic                         |
-| `execution-mode.controller.ts` | ExecutionModeController: manages auto/stepping execution modes             |
-| `event-queue.ts`               | EventQueue: blocking queue for event processing during compaction/stepping |
+| File                           | Description                                                                      |
+| ------------------------------ | -------------------------------------------------------------------------------- |
+| `memory.manager.ts`            | MemoryManager: main orchestrator integrating all components                      |
+| `thread.manager.ts`            | ThreadManager: manages thread lifecycle, state persistence, and persistent queue |
+| `event-processor.ts`           | EventProcessor: core event processing logic (reducer, state update)              |
+| `compaction.manager.ts`        | CompactionManager: handles memory compaction logic                               |
+| `execution-mode.controller.ts` | ExecutionModeController: manages auto/stepping execution modes                   |
 
 ## Architecture
 
@@ -23,8 +22,8 @@ This directory contains the core orchestrators for the Memory system.
   Event ──────────► │  │    Manager    │  │  Controller           │ │
                     │  └───────────────┘  └───────────────────────┘ │
                     │  ┌───────────────┐  ┌───────────────────────┐ │
-                    │  │    Event      │  │     EventQueue        │ │
-                    │  │   Processor   │  │                       │ │
+                    │  │    Event      │  │   Persistent Queue    │ │
+                    │  │   Processor   │  │   (in Thread)         │ │
                     │  └───────────────┘  └───────────────────────┘ │
                     │  ┌───────────────┐  ┌───────────────────────┐ │
                     │  │  Compaction   │  │    Observer           │ │
@@ -35,6 +34,15 @@ This directory contains the core orchestrators for the Memory system.
                                          ▼
                                   New MemoryState
 ```
+
+## Key Design Principle: Serial Processing
+
+**All event processing is serial (one at a time).** This eliminates the need for complex blocking mechanisms:
+
+1. Events are always pushed to the persistent queue first
+2. Events are processed one at a time from the queue
+3. Step locking (`currentStepId` in Thread) prevents concurrent step execution
+4. No in-memory blocking queues needed
 
 ## MemoryManager
 
@@ -54,7 +62,7 @@ const manager = new MemoryManager(storage, reducerRegistry, llmAdapter, {
   defaultExecutionMode: 'auto', // or 'stepping'
 });
 
-// Dispatch event
+// Dispatch event (queued first, then processed based on mode)
 const newState = await manager.dispatch(threadId, event);
 
 // Trigger compaction manually
@@ -82,9 +90,9 @@ await manager.setExecutionMode(threadId, 'stepping');
 // Check mode
 const mode = manager.getExecutionMode(threadId); // 'auto' | 'stepping'
 
-// Single step execution (in stepping mode) - executes pending compaction/truncation
+// Single step execution (in stepping mode)
 const result = await manager.step(threadId);
-// result: { dispatchResult, compactionPerformed, truncationPerformed, hasPendingOperations }
+// result: { dispatchResult, eventProcessed, compactionPerformed, truncationPerformed, hasPendingOperations, queuedEventCount }
 
 // Check queue status
 const hasPendingCompact = manager.hasPendingCompaction(threadId);
@@ -96,24 +104,74 @@ await manager.setExecutionMode(threadId, 'auto');
 
 ### Stepping Mode Behavior
 
-1. Events dispatched via `dispatch()` are **processed immediately** (creates new state)
-2. Compaction/truncation are **queued** (not executed immediately) after event processing
-3. `step()` executes pending operations one at a time:
-   - **Priority**: Truncation is executed first (if pending)
-   - Then compaction is executed (if pending)
-4. Returns `StepResult`:
+1. Events dispatched via `dispatch()` are **pushed to persistent queue** (stored in Thread)
+2. `step()` acquires a step lock, then processes with the following priority:
+   - **First**: Pop and process one event from persistent queue
+   - **Second**: Execute pending truncation (if no events in queue)
+   - **Third**: Execute pending compaction (if no events and no truncation)
+3. Returns `StepResult`:
    ```typescript
    {
      dispatchResult: DispatchResult | null,
+     eventProcessed: boolean,      // Whether an event was processed
      compactionPerformed: boolean,
      truncationPerformed: boolean,
      hasPendingOperations: boolean,
+     queuedEventCount: number,     // Remaining events in persistent queue
    }
    ```
 
+### Step Locking
+
+The `step()` method uses a step lock to ensure only one step can be processed at a time:
+
+```typescript
+// Check if a step is currently running
+const isLocked = await manager.isStepLocked(threadId);
+
+// Get the current step ID if locked
+const stepId = await manager.getCurrentStepId(threadId);
+```
+
+The lock is stored as `currentStepId` in the Thread and is automatically released after each step completes.
+
+## Persistent Event Queue
+
+Events are stored in `Thread.eventQueue` and persist to database:
+
+```typescript
+// Push event to persistent queue
+await manager.pushEventToQueue(threadId, event);
+
+// Pop event from queue
+const queuedEvent = await manager.popEventFromQueue(threadId);
+
+// Get queue contents
+const queue = await manager.getPersistentEventQueue(threadId);
+
+// Get queue length
+const length = await manager.getPersistentQueueLength(threadId);
+```
+
+This enables:
+
+- **Recovery after restart**: Unprocessed events are preserved
+- **Debugger visibility**: Queue can be observed via API
+- **Step-by-step execution**: Events processed one at a time in stepping mode
+
+### QueuedEvent Type
+
+```typescript
+interface QueuedEvent {
+  id: string; // Generated ID with 'qevt_' prefix
+  event: AgentEvent; // The actual event
+  queuedAt: number; // Timestamp when queued
+}
+```
+
 ## ThreadManager
 
-Manages thread lifecycle.
+Manages thread lifecycle, state persistence, persistent event queue, and step locking.
 
 ```typescript
 const threadManager = new ThreadManager(storageProvider);
@@ -121,11 +179,57 @@ const threadManager = new ThreadManager(storageProvider);
 // Get or create thread
 const thread = await threadManager.getOrCreateThread(agentId, threadId);
 
-// Get current state
+// Get current state (uses in-memory cache first)
 const state = await threadManager.getCurrentState(threadId);
 
 // Save state
 await threadManager.saveState(threadId, newState);
+
+// Clear state cache (forces re-read from storage)
+threadManager.clearStateCache(threadId);
+```
+
+### Persistent Event Queue Operations
+
+Events are stored in `Thread.eventQueue` and persisted to database:
+
+```typescript
+// Push event to queue (returns QueuedEvent with generated ID)
+const queuedEvent = await threadManager.pushEvent(threadId, event);
+// queuedEvent: { id: 'qevt_xxx', event: AgentEvent, queuedAt: number }
+
+// Pop first event from queue
+const poppedEvent = await threadManager.popEvent(threadId);
+
+// Peek at first event without removing
+const nextEvent = await threadManager.peekEvent(threadId);
+
+// Get full queue
+const queue = await threadManager.getEventQueue(threadId);
+
+// Get queue length
+const length = await threadManager.getEventQueueLength(threadId);
+
+// Clear all events
+await threadManager.clearEventQueue(threadId);
+```
+
+### Step Lock Operations
+
+Step locking ensures only one step can be processed at a time:
+
+```typescript
+// Acquire step lock (throws if already locked)
+const stepId = await threadManager.acquireStepLock(threadId);
+
+// Release step lock (stepId must match)
+await threadManager.releaseStepLock(threadId, stepId);
+
+// Check if thread is locked
+const isLocked = await threadManager.isStepLocked(threadId);
+
+// Get current step ID
+const currentStepId = await threadManager.getCurrentStepId(threadId);
 ```
 
 ## EventProcessor
@@ -248,7 +352,7 @@ When truncation threshold is exceeded:
 
 ## ExecutionModeController
 
-Extracted execution mode and stepping logic from MemoryManager.
+Manages execution mode and stepping logic. Simplified design since processing is serial.
 
 ```typescript
 const controller = new ExecutionModeController({
@@ -257,19 +361,19 @@ const controller = new ExecutionModeController({
 
 // Get/set execution mode
 const mode = controller.getExecutionMode(threadId);
-await controller.setExecutionMode(threadId, 'stepping', queue, processEvent);
+controller.setExecutionMode(threadId, 'stepping');
 
 // Initialize for new thread
-controller.initializeExecutionMode(threadId, 'stepping', queue);
+controller.initializeExecutionMode(threadId, 'stepping');
 
-// Step execution (processes one event or pending compaction)
-const result = await controller.step(
+// Execute maintenance step (compaction/truncation only, events handled by MemoryManager)
+const result = await controller.executeMaintenanceStep(
   threadId,
-  queue,
-  processEvent,
   executeCompaction,
+  executeTruncation,
+  queuedEventCount,
 );
-// result: { dispatchResult, compactionPerformed, remainingEvents }
+// result: { dispatchResult, eventProcessed, compactionPerformed, truncationPerformed, hasPendingOperations, queuedEventCount }
 
 // Check/set pending compaction
 controller.hasPendingCompaction(threadId);
@@ -286,60 +390,25 @@ controller.cleanup(threadId);
 ### Callback Types
 
 ```typescript
-// Event processor callback
-type EventProcessor = (
-  threadId: string,
-  event: AgentEvent,
-) => Promise<DispatchResult>;
-
 // Compaction executor callback
 type CompactionExecutor = (
   threadId: string,
   chunks: MemoryChunk[],
+) => Promise<DispatchResult>;
+
+// Truncation executor callback
+type TruncationExecutor = (
+  threadId: string,
+  chunkIds: string[],
 ) => Promise<DispatchResult>;
 ```
 
 ### Responsibilities
 
 - Manages per-thread execution mode state
-- Controls stepping mode queue blocking
 - Tracks pending compaction for stepping mode
 - Tracks pending truncation for stepping mode
-- Processes queued events when switching to auto mode
-
-## EventQueue
-
-Blocking queue for pausing event processing.
-
-```typescript
-const queue = new EventQueue<AgentEvent>();
-
-// Block queue (various reasons)
-queue.block(BlockingReason.COMPACTING); // During compaction
-queue.block(BlockingReason.PAUSED); // Manual pause
-queue.block(BlockingReason.STEPPING); // Stepping mode
-
-// Events are queued while blocked
-queue.enqueue(event);
-
-// Process single event (for stepping)
-const result = await queue.processOne(handler);
-
-// Peek without processing
-const nextEvent = queue.peek();
-
-// Unblock and process all
-queue.unblock();
-await queue.processQueue(handler);
-```
-
-### BlockingReason Enum
-
-| Reason       | Description              |
-| ------------ | ------------------------ |
-| `COMPACTING` | Compaction in progress   |
-| `PAUSED`     | Manual pause (debugging) |
-| `STEPPING`   | Stepping mode active     |
+- Executes maintenance operations during step()
 
 ## Memory Management Flow
 
@@ -351,23 +420,22 @@ After each event dispatch, the system checks token usage:
 2. **Hard threshold** (80K): Sets `forceCompaction: true` - triggers immediate compaction
 3. **Truncation threshold** (100K): Sets `needsTruncation: true` - triggers oldest chunk removal
 
-### Compaction Flow
+### Auto Mode Compaction Flow
 
 1. Token usage check after each dispatch
 2. If hard threshold reached:
-   - Block event queue
    - Run compactor (LLM summarization)
    - Apply BATCH_REPLACE operation
-   - Unblock queue and process pending events
+3. Truncation and compaction happen synchronously in sequence
 
-### Truncation Flow
+### Stepping Mode Flow
 
-1. If truncation threshold reached:
-   - Calculate excess tokens
-   - Select oldest WORKING_FLOW chunks by creation time
-   - Delete chunks until under hard threshold
-
-**In stepping mode**: Both compaction and truncation are queued and executed on next `step()` call.
+1. Events dispatched → added to persistent queue
+2. `step()` acquires step lock
+3. Pop one event from queue and process
+4. Or execute pending truncation/compaction
+5. Release step lock
+6. Return result with queue status
 
 ## Modification Notice
 
@@ -377,3 +445,4 @@ When modifying files in this directory, please update this CLAUDE.md accordingly
 - Compaction flow
 - Event processing order
 - Execution mode control
+- Step locking behavior

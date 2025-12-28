@@ -1,7 +1,49 @@
 import { MemoryChunk } from '../types/chunk.types.js';
 import { MemoryState } from '../types/state.types.js';
-import { MemoryThread } from '../types/thread.types.js';
+import { MemoryThread, Step } from '../types/thread.types.js';
 import { StorageProvider, ListStatesOptions } from './storage.types.js';
+
+/**
+ * Deep clone a MemoryChunk to ensure immutability
+ */
+function cloneChunk(chunk: MemoryChunk): MemoryChunk {
+  return {
+    ...chunk,
+    content: { ...chunk.content },
+    children: chunk.children?.map((child) => ({
+      ...child,
+      content: { ...child.content },
+      custom: child.custom ? { ...child.custom } : undefined,
+    })),
+    metadata: {
+      ...chunk.metadata,
+      custom: chunk.metadata.custom ? { ...chunk.metadata.custom } : undefined,
+    },
+  };
+}
+
+/**
+ * Deep clone a MemoryState to ensure immutability
+ * This prevents mutations from affecting stored states
+ */
+function cloneState(state: MemoryState): MemoryState {
+  // Clone the chunks Map with deep-copied chunks
+  const clonedChunks = new Map<string, MemoryChunk>();
+  for (const [id, chunk] of state.chunks) {
+    clonedChunks.set(id, cloneChunk(chunk));
+  }
+
+  return {
+    id: state.id,
+    threadId: state.threadId,
+    chunkIds: [...state.chunkIds],
+    chunks: clonedChunks,
+    metadata: {
+      ...state.metadata,
+      custom: state.metadata.custom ? { ...state.metadata.custom } : undefined,
+    },
+  };
+}
 
 /**
  * In-memory implementation of StorageProvider
@@ -11,11 +53,14 @@ export class InMemoryStorageProvider implements StorageProvider {
   private threads = new Map<string, MemoryThread>();
   private chunks = new Map<string, MemoryChunk>();
   private states = new Map<string, MemoryState>();
+  private steps = new Map<string, Step>();
 
   // Track chunk-to-thread relationships (derived from states)
   private chunkThreadIndex = new Map<string, string>();
   // Track state-to-thread relationships
   private stateThreadIndex = new Map<string, string[]>();
+  // Track step-to-thread relationships
+  private stepThreadIndex = new Map<string, string[]>();
 
   // ============ Thread Operations ============
 
@@ -83,7 +128,9 @@ export class InMemoryStorageProvider implements StorageProvider {
   // ============ State Operations ============
 
   async saveState(state: MemoryState): Promise<void> {
-    this.states.set(state.id, state);
+    // Clone state before saving to ensure immutability
+    // This prevents external mutations from affecting stored states
+    this.states.set(state.id, cloneState(state));
 
     // Update thread index
     if (state.threadId) {
@@ -101,7 +148,9 @@ export class InMemoryStorageProvider implements StorageProvider {
   }
 
   async getState(stateId: string): Promise<MemoryState | null> {
-    return this.states.get(stateId) ?? null;
+    const state = this.states.get(stateId);
+    // Clone on read to prevent mutations from affecting stored states
+    return state ? cloneState(state) : null;
   }
 
   async getInitialState(threadId: string): Promise<MemoryState | null> {
@@ -122,7 +171,8 @@ export class InMemoryStorageProvider implements StorageProvider {
       }
     }
 
-    return earliestState;
+    // Clone on read to prevent mutations from affecting stored states
+    return earliestState ? cloneState(earliestState) : null;
   }
 
   async getLatestState(threadId: string): Promise<MemoryState | null> {
@@ -143,7 +193,8 @@ export class InMemoryStorageProvider implements StorageProvider {
       }
     }
 
-    return latestState;
+    // Clone on read to prevent mutations from affecting stored states
+    return latestState ? cloneState(latestState) : null;
   }
 
   async getStatesByThread(threadId: string): Promise<MemoryState[]> {
@@ -156,7 +207,8 @@ export class InMemoryStorageProvider implements StorageProvider {
     for (const stateId of stateIds) {
       const state = this.states.get(stateId);
       if (state) {
-        states.push(state);
+        // Clone each state to prevent mutations
+        states.push(cloneState(state));
       }
     }
 
@@ -188,7 +240,9 @@ export class InMemoryStorageProvider implements StorageProvider {
     // Apply pagination
     const offset = options?.offset ?? 0;
     const limit = options?.limit ?? states.length;
-    return states.slice(offset, offset + limit);
+
+    // Clone each state to prevent mutations
+    return states.slice(offset, offset + limit).map(cloneState);
   }
 
   async deleteState(stateId: string): Promise<void> {
@@ -203,6 +257,60 @@ export class InMemoryStorageProvider implements StorageProvider {
       }
     }
     this.states.delete(stateId);
+  }
+
+  // ============ Step Operations ============
+
+  async saveStep(step: Step): Promise<void> {
+    this.steps.set(step.id, { ...step });
+
+    // Update thread index
+    const threadSteps = this.stepThreadIndex.get(step.threadId) ?? [];
+    if (!threadSteps.includes(step.id)) {
+      threadSteps.push(step.id);
+      this.stepThreadIndex.set(step.threadId, threadSteps);
+    }
+  }
+
+  async getStep(stepId: string): Promise<Step | null> {
+    const step = this.steps.get(stepId);
+    return step ? { ...step } : null;
+  }
+
+  async updateStep(step: Step): Promise<void> {
+    this.steps.set(step.id, { ...step });
+  }
+
+  async getStepsByThread(threadId: string): Promise<Step[]> {
+    const stepIds = this.stepThreadIndex.get(threadId);
+    if (!stepIds) {
+      return [];
+    }
+
+    const steps: Step[] = [];
+    for (const stepId of stepIds) {
+      const step = this.steps.get(stepId);
+      if (step) {
+        steps.push({ ...step });
+      }
+    }
+
+    // Sort by start time
+    return steps.sort((a, b) => a.startedAt - b.startedAt);
+  }
+
+  async deleteStep(stepId: string): Promise<void> {
+    const step = this.steps.get(stepId);
+    if (step) {
+      const threadSteps = this.stepThreadIndex.get(step.threadId);
+      if (threadSteps) {
+        const index = threadSteps.indexOf(stepId);
+        if (index !== -1) {
+          threadSteps.splice(index, 1);
+        }
+      }
+    }
+    this.steps.delete(stepId);
   }
 
   // ============ Transaction Support ============
@@ -234,7 +342,9 @@ export class InMemoryStorageProvider implements StorageProvider {
     this.threads.clear();
     this.chunks.clear();
     this.states.clear();
+    this.steps.clear();
     this.chunkThreadIndex.clear();
     this.stateThreadIndex.clear();
+    this.stepThreadIndex.clear();
   }
 }

@@ -86,14 +86,19 @@ describe('Executor Module', () => {
 
         const result = await applyOperation(state, addChildOp, context);
 
-        // Verify the chunk has children
-        const updatedChunk = result.state.chunks.get(container.id);
+        // ADD child creates a NEW chunk with a NEW ID (for immutability)
+        // The new chunk should have derivedFrom pointing to the original
+        expect(result.state.chunks.size).toBe(1);
+        const chunks = Array.from(result.state.chunks.values());
+        const updatedChunk = chunks[0];
         expect(updatedChunk).toBeDefined();
-        expect(updatedChunk!.children).toBeDefined();
-        expect(updatedChunk!.children!.length).toBe(1);
+        expect(updatedChunk.id).not.toBe(container.id); // New ID
+        expect(updatedChunk.metadata.custom?.derivedFrom).toBe(container.id);
+        expect(updatedChunk.children).toBeDefined();
+        expect(updatedChunk.children!.length).toBe(1);
 
         // Verify child content is preserved completely
-        const child = updatedChunk!.children![0];
+        const child = updatedChunk.children![0];
         expect(child.id).toBe('child_001');
         expect(child.subType).toBe(WorkingFlowSubType.USER);
         expect(child.content).toEqual(childContent);
