@@ -4,9 +4,7 @@ import type {
   ILLMAdapter,
   LLMMessage,
   AgentEvent,
-  DispatchResult,
   ContextBuilder,
-  MemoryChunk,
 } from '@team9/agent-framework';
 
 /**
@@ -71,28 +69,33 @@ export class AgentExecutor {
   }
 
   /**
-   * Run the agent loop after an event is injected
-   * Returns when the agent completes or reaches max turns
+   * Run agent loop until it needs to wait for external response or reaches max turns
+   *
+   * Continues running when:
+   * - LLM_TEXT_RESPONSE: just output, can continue
+   * - After receiving TOOL_RESULT/SKILL_RESULT/SUBAGENT_RESULT
+   *
+   * Stops running when:
+   * - LLM_TOOL_CALL: wait for tool execution
+   * - LLM_SKILL_CALL: wait for skill execution
+   * - LLM_SUBAGENT_SPAWN: wait for subagent
+   * - LLM_CLARIFICATION: wait for user clarification
+   * - TASK_COMPLETED/TASK_ABANDONED/TASK_TERMINATED: task ended
+   * - Max turns reached
    */
   async run(threadId: string): Promise<ExecutionResult> {
     const events: AgentEvent[] = [];
     let turnsExecuted = 0;
     let lastResponse: string | undefined;
 
+    const { EventType } =
+      require('@team9/agent-framework') as typeof import('@team9/agent-framework');
+
     try {
       while (turnsExecuted < this.config.maxTurns) {
-        // Get current state
         const currentState = await this.memoryManager.getCurrentState(threadId);
         if (!currentState) {
           throw new Error(`Thread not found: ${threadId}`);
-        }
-
-        // Check if we need to generate a response
-        // We should respond if the last chunk is from user/input
-        const needsResponse = this.needsLLMResponse(currentState);
-        if (!needsResponse) {
-          // Agent has completed its response
-          break;
         }
 
         // Build context for LLM
@@ -112,16 +115,18 @@ export class AgentExecutor {
 
         // Dispatch the response event
         await this.memoryManager.dispatch(threadId, responseEvent);
-
         turnsExecuted++;
 
-        // If it's a text response (not tool call), we're done
-        if (responseEvent.type === 'LLM_TEXT_RESPONSE') {
+        // Check if we should stop - waiting for external response
+        if (this.shouldWaitForExternalResponse(responseEvent.type)) {
           break;
         }
 
-        // TODO: Handle tool calls - for now, just break
-        break;
+        // LLM_TEXT_RESPONSE without tool calls - agent is done for now
+        // (In a real implementation, we'd check if the response contains more actions)
+        if (responseEvent.type === EventType.LLM_TEXT_RESPONSE) {
+          break;
+        }
       }
 
       const finalState = await this.memoryManager.getCurrentState(threadId);
@@ -150,40 +155,30 @@ export class AgentExecutor {
   }
 
   /**
-   * Check if LLM needs to respond based on current state
+   * Check if the event type requires waiting for external response
    */
-  private needsLLMResponse(state: MemoryState): boolean {
-    // Get the last chunk
-    const chunkIds = state.chunkIds;
-    if (chunkIds.length === 0) return false;
-
-    const lastChunkId = chunkIds[chunkIds.length - 1];
-    const lastChunk = state.chunks.get(lastChunkId);
-    if (!lastChunk) return false;
-
-    // Check chunk type - need response if it's user input or tool result
-    const { ChunkType, WorkingFlowSubType } =
+  private shouldWaitForExternalResponse(eventType: string): boolean {
+    const { EventType } =
       require('@team9/agent-framework') as typeof import('@team9/agent-framework');
 
-    // WORKING_FLOW chunks - check subType
-    if (lastChunk.type === ChunkType.WORKING_FLOW) {
-      const subType = lastChunk.subType;
-      // USER subType needs LLM response
-      if (subType === WorkingFlowSubType.USER) {
+    switch (eventType) {
+      // Tool/Skill/SubAgent calls - wait for execution result
+      case EventType.LLM_TOOL_CALL:
+      case EventType.LLM_SKILL_CALL:
+      case EventType.LLM_SUBAGENT_SPAWN:
+      case EventType.LLM_SUBAGENT_MESSAGE:
+      case EventType.LLM_CLARIFICATION:
         return true;
-      }
-      // ACTION_RESPONSE (tool results) needs LLM response
-      if (subType === WorkingFlowSubType.ACTION_RESPONSE) {
+
+      // Task ended
+      case EventType.TASK_COMPLETED:
+      case EventType.TASK_ABANDONED:
+      case EventType.TASK_TERMINATED:
         return true;
-      }
-    }
 
-    // DELEGATION chunks from parent agent need response
-    if (lastChunk.type === ChunkType.DELEGATION) {
-      return true;
+      default:
+        return false;
     }
-
-    return false;
   }
 
   /**

@@ -457,7 +457,8 @@ agentsRouter.post('/:id/step', async (c) => {
       success: true,
       result: {
         compactionPerformed: result.compactionPerformed,
-        remainingEvents: result.remainingEvents,
+        truncationPerformed: result.truncationPerformed,
+        hasPendingOperations: result.hasPendingOperations,
         hasDispatchResult: result.dispatchResult !== null,
         dispatchResult: result.dispatchResult
           ? {

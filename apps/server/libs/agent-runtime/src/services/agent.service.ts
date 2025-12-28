@@ -565,20 +565,93 @@ export class AgentService {
 
   /**
    * Execute a single step in stepping mode
+   * Priority:
+   * 1. Pending truncation (delete old chunks)
+   * 2. Pending compaction (LLM compresses chunks)
+   * 3. LLM response (if agent needs to respond)
    */
   async step(agentId: string): Promise<StepResult | null> {
     const controller = this.debugControllers.get(agentId);
     const agent = this.agentsCache.get(agentId);
-    if (!controller || !agent) return null;
+    const memoryManager = this.memoryManagers.get(agentId);
+    if (!controller || !agent || !memoryManager) return null;
 
-    const result = await controller.step(agent.threadId);
+    // 1. Check for pending memory operations (truncation/compaction)
+    const memoryResult = await controller.step(agent.threadId);
 
-    this.broadcast(agentId, 'agent:stepped', {
-      compactionPerformed: result.compactionPerformed,
-      remainingEvents: result.remainingEvents,
-      hasResult: result.dispatchResult !== null,
-    });
+    if (memoryResult.truncationPerformed || memoryResult.compactionPerformed) {
+      this.broadcast(agentId, 'agent:stepped', {
+        truncationPerformed: memoryResult.truncationPerformed,
+        compactionPerformed: memoryResult.compactionPerformed,
+        hasPendingOperations: memoryResult.hasPendingOperations,
+        llmResponseGenerated: false,
+      });
+      return memoryResult;
+    }
 
-    return result;
+    // 2. No pending memory ops - try to generate LLM response
+    const executor = this.executors.get(agentId);
+    if (!executor) {
+      this.broadcast(agentId, 'agent:stepped', {
+        truncationPerformed: false,
+        compactionPerformed: false,
+        hasPendingOperations: false,
+        llmResponseGenerated: false,
+      });
+      return memoryResult;
+    }
+
+    // Run one turn of LLM execution
+    this.broadcast(agentId, 'agent:thinking', {});
+
+    try {
+      const executionResult = await executor.run(agent.threadId);
+
+      if (executionResult.success && executionResult.turnsExecuted > 0) {
+        this.broadcast(agentId, 'agent:stepped', {
+          truncationPerformed: false,
+          compactionPerformed: false,
+          hasPendingOperations:
+            memoryManager.hasPendingCompaction(agent.threadId) ||
+            memoryManager.hasPendingTruncation(agent.threadId),
+          llmResponseGenerated: true,
+          lastResponse: executionResult.lastResponse,
+        });
+      } else {
+        this.broadcast(agentId, 'agent:stepped', {
+          truncationPerformed: false,
+          compactionPerformed: false,
+          hasPendingOperations: false,
+          llmResponseGenerated: false,
+        });
+      }
+
+      // Build result
+      const finalState = await memoryManager.getCurrentState(agent.threadId);
+      const thread = await memoryManager.getThread(agent.threadId);
+
+      return {
+        dispatchResult:
+          thread && finalState
+            ? {
+                thread,
+                state: finalState,
+                addedChunks: [],
+                removedChunkIds: [],
+              }
+            : null,
+        compactionPerformed: false,
+        truncationPerformed: false,
+        hasPendingOperations:
+          memoryManager.hasPendingCompaction(agent.threadId) ||
+          memoryManager.hasPendingTruncation(agent.threadId),
+      };
+    } catch (error) {
+      console.error('Error in step LLM execution:', error);
+      this.broadcast(agentId, 'agent:error', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return memoryResult;
+    }
   }
 }

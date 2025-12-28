@@ -12,3 +12,4 @@ export * from './tokenizer/index.js';
 export * from './observer/index.js';
 export * from './debug/index.js';
 export * from './blueprint/index.js';
+export * from './tools/index.js';

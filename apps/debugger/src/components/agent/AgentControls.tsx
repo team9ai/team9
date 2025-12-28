@@ -21,6 +21,8 @@ export function AgentControls() {
   const isError = currentAgent.status === "error";
   const isStepMode = executionMode === "stepping";
 
+  // In stepping mode, Next is always clickable (unless currently stepping)
+  // hasPendingWork is just for showing indicator badge
   const hasPendingWork =
     (executionModeStatus?.queuedEventCount ?? 0) > 0 ||
     executionModeStatus?.hasPendingCompaction;
@@ -57,20 +59,15 @@ export function AgentControls() {
       {isStepMode && (
         <button
           onClick={step}
-          disabled={isStepping || !hasPendingWork}
+          disabled={isStepping}
           className="flex items-center gap-1.5 rounded-md border border-blue-600 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50 dark:bg-blue-950 dark:text-blue-300 dark:hover:bg-blue-900"
-          title={
-            hasPendingWork
-              ? `${executionModeStatus?.queuedEventCount ?? 0} events queued${executionModeStatus?.hasPendingCompaction ? ", compaction pending" : ""}`
-              : "No pending events"
-          }
+          title="Execute next step (LLM response, compaction, or truncation)"
         >
           <Zap className="h-4 w-4" />
           {isStepping ? "Stepping..." : "Next"}
           {hasPendingWork && (
             <span className="ml-1 rounded-full bg-blue-600 px-1.5 text-xs text-white">
-              {executionModeStatus?.queuedEventCount ?? 0}
-              {executionModeStatus?.hasPendingCompaction ? "+" : ""}
+              {executionModeStatus?.hasPendingCompaction ? "C" : ""}
             </span>
           )}
         </button>

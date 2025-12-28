@@ -78,7 +78,8 @@ export interface StateChangeInfo {
   threadId: string;
   previousState: MemoryState;
   newState: MemoryState;
-  triggerEvent: AgentEvent;
+  /** The event that triggered this state change, or null for system operations like truncation */
+  triggerEvent: AgentEvent | null;
   reducerName: string;
   operations: Operation[];
   addedChunks: MemoryChunk[];
