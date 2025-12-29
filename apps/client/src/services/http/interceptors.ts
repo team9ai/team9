@@ -48,7 +48,9 @@ export const authInterceptor = (
 
 export const handleUnauthorized = async (error: HttpError): Promise<never> => {
   if (error.status === 401) {
+    // Clear all auth tokens on 401
     localStorage.removeItem("auth_token");
+    localStorage.removeItem("refresh_token");
     window.location.href = "/login";
   }
   throw error;

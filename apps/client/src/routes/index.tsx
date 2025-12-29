@@ -24,9 +24,9 @@ function Index() {
   return (
     <main className="p-8">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-4xl font-bold mb-6">Team 9 Client</h1>
+        <h1 className="text-4xl font-bold mb-6">Team9</h1>
         <p className="mb-8 text-gray-600">
-          Welcome to the Team 9 Matrix Client powered by Tuwunel!
+          Welcome to Team9 - Your collaborative workspace!
         </p>
 
         <div className="space-y-6">
@@ -40,8 +40,13 @@ function Index() {
               <div className="space-y-4">
                 <div>
                   <p className="text-sm text-gray-600">Logged in as:</p>
-                  <p className="font-medium">{currentUser.name}</p>
-                  <p className="text-sm text-gray-500">{currentUser.id}</p>
+                  <p className="font-medium text-lg">
+                    {currentUser.displayName || currentUser.username}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    @{currentUser.username}
+                  </p>
+                  <p className="text-sm text-gray-500">{currentUser.email}</p>
                 </div>
                 <Button
                   onClick={handleLogout}

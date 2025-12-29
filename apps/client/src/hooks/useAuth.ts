@@ -7,7 +7,7 @@ export const useLogin = () => {
   return useMutation({
     mutationFn: (data: LoginRequest) => api.auth.login(data),
     onSuccess: (data) => {
-      localStorage.setItem("auth_token", data.token);
+      // Tokens are already stored in api.auth.login
       queryClient.setQueryData(["currentUser"], data.user);
     },
   });
@@ -19,10 +19,8 @@ export const useRegister = () => {
   return useMutation({
     mutationFn: (data: RegisterRequest) => api.auth.register(data),
     onSuccess: (data) => {
-      if (data.token) {
-        localStorage.setItem("auth_token", data.token);
-        queryClient.setQueryData(["currentUser"], data.user);
-      }
+      // Tokens are already stored in api.auth.register
+      queryClient.setQueryData(["currentUser"], data.user);
     },
   });
 };
@@ -33,8 +31,8 @@ export const useLogout = () => {
   return useMutation({
     mutationFn: () => api.auth.logout(),
     onSuccess: () => {
+      // Tokens are already removed in api.auth.logout
       queryClient.clear();
-      localStorage.removeItem("auth_token");
     },
   });
 };
