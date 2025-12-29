@@ -1,11 +1,56 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useLogin, useCurrentUser } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+
+type LoginSearch = {
+  redirect?: string;
+};
+
+function LoginPending() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="w-full max-w-100 px-4">
+        {/* Logo/Brand */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">Team9</h1>
+          <p className="text-gray-600 text-lg">Sign in to your workspace</p>
+        </div>
+
+        {/* Loading Skeleton */}
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-8">
+          <div className="space-y-5">
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-11 w-full" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-11 w-full" />
+            </div>
+            <Skeleton className="h-11 w-full" />
+          </div>
+        </div>
+
+        {/* Sign Up Link */}
+        <div className="text-center mt-6">
+          <Skeleton className="h-4 w-48 mx-auto" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export const Route = createFileRoute("/login")({
   component: Login,
+  pendingComponent: LoginPending,
+  validateSearch: (search: Record<string, unknown>): LoginSearch => {
+    return {
+      redirect: (search.redirect as string) || "/",
+    };
+  },
 });
 
 function Login() {
@@ -14,8 +59,16 @@ function Login() {
   const [error, setError] = useState("");
 
   const navigate = useNavigate();
+  const { redirect } = Route.useSearch();
   const login = useLogin();
   const { data: currentUser, isLoading } = useCurrentUser();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (currentUser && !isLoading) {
+      navigate({ to: redirect || "/" });
+    }
+  }, [currentUser, isLoading, navigate, redirect]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,8 +79,8 @@ function Login() {
         email,
         password,
       });
-      // Redirect to home page after successful login
-      navigate({ to: "/" });
+      // Redirect to the original page or home page after successful login
+      navigate({ to: redirect || "/" });
     } catch (err: any) {
       const errorMessage =
         err?.response?.data?.message ||
@@ -36,20 +89,6 @@ function Login() {
       setError(errorMessage);
     }
   };
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-gray-600">Loading...</div>
-      </div>
-    );
-  }
-
-  // Redirect if already logged in
-  if (currentUser) {
-    navigate({ to: "/" });
-    return null;
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-white">
@@ -77,7 +116,7 @@ function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@work-email.com"
-                className="w-full h-11 px-3 border-gray-300 focus:border-purple-600 focus:ring-purple-600"
+                className="w-full h-11 px-3"
                 required
                 autoFocus
               />
@@ -97,7 +136,7 @@ function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
-                className="w-full h-11 px-3 border-gray-300 focus:border-purple-600 focus:ring-purple-600"
+                className="w-full h-11 px-3"
                 required
               />
             </div>
@@ -112,7 +151,7 @@ function Login() {
             {/* Submit Button */}
             <Button
               type="submit"
-              className="w-full h-11 bg-purple-600 hover:bg-purple-700 text-white font-semibold text-base"
+              className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-base"
               disabled={login.isPending}
             >
               {login.isPending ? "Signing in..." : "Sign In with Email"}
@@ -126,7 +165,7 @@ function Login() {
             Don't have an account?{" "}
             <Link
               to="/register"
-              className="text-purple-600 hover:underline font-medium"
+              className="text-indigo-600 hover:underline font-medium"
             >
               Create an account
             </Link>
@@ -137,11 +176,11 @@ function Login() {
         <div className="text-center mt-8 text-xs text-gray-500">
           <p>
             By continuing, you're agreeing to our{" "}
-            <a href="#" className="text-purple-600 hover:underline">
+            <a href="#" className="text-indigo-600 hover:underline">
               Terms of Service
             </a>{" "}
             and{" "}
-            <a href="#" className="text-purple-600 hover:underline">
+            <a href="#" className="text-indigo-600 hover:underline">
               Privacy Policy
             </a>
           </p>

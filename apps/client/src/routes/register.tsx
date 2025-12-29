@@ -1,11 +1,59 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useRegister, useCurrentUser } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+
+function RegisterPending() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-white py-12">
+      <div className="w-full max-w-100 px-4">
+        {/* Logo/Brand */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">Team9</h1>
+          <p className="text-gray-600 text-lg">Create your account</p>
+        </div>
+
+        {/* Loading Skeleton */}
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-8">
+          <div className="space-y-5">
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-11 w-full" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-11 w-full" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-11 w-full" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-11 w-full" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-11 w-full" />
+            </div>
+            <Skeleton className="h-11 w-full" />
+          </div>
+        </div>
+
+        {/* Sign In Link */}
+        <div className="text-center mt-6">
+          <Skeleton className="h-4 w-48 mx-auto" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export const Route = createFileRoute("/register")({
   component: Register,
+  pendingComponent: RegisterPending,
 });
 
 function Register() {
@@ -19,6 +67,13 @@ function Register() {
   const navigate = useNavigate();
   const register = useRegister();
   const { data: currentUser, isLoading } = useCurrentUser();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (currentUser && !isLoading) {
+      navigate({ to: "/" });
+    }
+  }, [currentUser, isLoading, navigate]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,20 +113,6 @@ function Register() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-gray-600">Loading...</div>
-      </div>
-    );
-  }
-
-  // Redirect if already logged in
-  if (currentUser) {
-    navigate({ to: "/" });
-    return null;
-  }
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-white py-12">
       <div className="w-full max-w-100 px-4">
@@ -98,7 +139,7 @@ function Register() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@work-email.com"
-                className="w-full h-11 px-3 border-gray-300 focus:border-purple-600 focus:ring-purple-600"
+                className="w-full h-11 px-3"
                 required
                 autoFocus
               />
@@ -121,7 +162,7 @@ function Register() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Choose a username"
-                className="w-full h-11 px-3 border-gray-300 focus:border-purple-600 focus:ring-purple-600"
+                className="w-full h-11 px-3"
                 required
                 minLength={3}
                 maxLength={100}
@@ -146,7 +187,7 @@ function Register() {
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Enter your full name"
-                className="w-full h-11 px-3 border-gray-300 focus:border-purple-600 focus:ring-purple-600"
+                className="w-full h-11 px-3"
                 maxLength={255}
               />
               <p className="text-xs text-gray-500">
@@ -168,7 +209,7 @@ function Register() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Create a password"
-                className="w-full h-11 px-3 border-gray-300 focus:border-purple-600 focus:ring-purple-600"
+                className="w-full h-11 px-3"
                 required
                 minLength={6}
                 maxLength={100}
@@ -192,7 +233,7 @@ function Register() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Confirm your password"
-                className="w-full h-11 px-3 border-gray-300 focus:border-purple-600 focus:ring-purple-600"
+                className="w-full h-11 px-3"
                 required
                 minLength={6}
               />
@@ -208,7 +249,7 @@ function Register() {
             {/* Submit Button */}
             <Button
               type="submit"
-              className="w-full h-11 bg-purple-600 hover:bg-purple-700 text-white font-semibold text-base"
+              className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-base"
               disabled={register.isPending}
             >
               {register.isPending ? "Creating account..." : "Create Account"}
@@ -222,7 +263,7 @@ function Register() {
             Already have an account?{" "}
             <Link
               to="/login"
-              className="text-purple-600 hover:underline font-medium"
+              className="text-indigo-600 hover:underline font-medium"
             >
               Sign in
             </Link>

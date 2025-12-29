@@ -13,6 +13,7 @@ import { AiClientModule } from '@team9/ai-client';
 // import { RabbitmqModule } from '@team9/rabbitmq';
 import { ImModule } from './im/im.module.js';
 import { EditionModule } from './edition/index.js';
+import { AuthModule } from './auth/auth.module.js';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { EditionModule } from './edition/index.js';
     RedisModule,
     AiClientModule,
     // RabbitmqModule,
+    AuthModule,
     ImModule,
   ],
   controllers: [AppController],

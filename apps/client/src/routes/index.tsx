@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 import { MainSidebar } from "@/components/layout/MainSidebar";
 import { SubSidebar } from "@/components/layout/SubSidebar";
@@ -6,8 +6,18 @@ import { MainContent } from "@/components/layout/MainContent";
 
 export const Route = createFileRoute("/")({
   component: Index,
-  loader: async () => {
-    /* You can add data loading logic here if needed */
+  beforeLoad: async () => {
+    // Check if user is authenticated
+    const token = localStorage.getItem("auth_token");
+
+    if (!token) {
+      throw redirect({
+        to: "/login",
+        search: {
+          redirect: "/",
+        },
+      });
+    }
   },
 });
 

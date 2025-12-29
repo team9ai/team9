@@ -93,7 +93,7 @@ export function SubSidebar({ activeSection }: SubSidebarProps) {
           <Input
             type="text"
             placeholder="Search..."
-            className="pl-8 h-9 bg-white text-slate-900 placeholder-slate-400 border-slate-200"
+            className="pl-8 h-9 bg-white"
           />
         </div>
       </div>
