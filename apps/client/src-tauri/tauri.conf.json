@@ -13,8 +13,16 @@
     "windows": [
       {
         "title": "team9-client",
-        "width": 800,
-        "height": 600
+        "width": 1280,
+        "height": 800,
+        "minWidth": 375,
+        "minHeight": 667,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "alwaysOnTop": false,
+        "contentProtected": false,
+        "skipTaskbar": false
       }
     ],
     "security": {

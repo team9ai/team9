@@ -18,13 +18,59 @@
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
   --radius: 0.625rem;
+
+  /* Clamp-based spacing system*/
+  --spacing-xs: clamp(4px, 0.5vw, 8px);
+  --spacing-sm: clamp(8px, 1vw, 12px);
+  --spacing-md: clamp(12px, 1.5vw, 16px);
+  --spacing-lg: clamp(16px, 2vw, 24px);
+  --spacing-xl: clamp(24px, 3vw, 32px);
+  --spacing-2xl: clamp(32px, 4vw, 48px);
+  --spacing-3xl: clamp(48px, 6vw, 64px);
+  --spacing-4xl: clamp(64px, 8vw, 96px);
+
+  /* Clamp-based font sizes*/
+  --text-xs: clamp(0.75rem, 0.8vw + 0.5rem, 0.875rem);      /* 12px - 14px */
+  --text-sm: clamp(0.875rem, 0.5vw + 0.75rem, 1rem);        /* 14px - 16px */
+  --text-base: clamp(1rem, 0.5vw + 0.875rem, 1.125rem);     /* 16px - 18px */
+  --text-lg: clamp(1.125rem, 0.5vw + 1rem, 1.25rem);        /* 18px - 20px */
+  --text-xl: clamp(1.25rem, 1vw + 1rem, 1.5rem);            /* 20px - 24px */
+  --text-2xl: clamp(1.5rem, 2vw + 1rem, 2rem);              /* 24px - 32px */
+  --text-3xl: clamp(1.875rem, 2vw + 1.25rem, 2.5rem);       /* 30px - 40px */
+  --text-4xl: clamp(2.25rem, 3vw + 1.5rem, 3rem);           /* 36px - 48px */
+
+  /* Clamp-based widths */
+  --container-sm: clamp(320px, 90vw, 576px);
+  --container-md: clamp(448px, 90vw, 768px);
+  --container-lg: clamp(640px, 90vw, 1024px);
+  --container-xl: clamp(896px, 90vw, 1280px);
+  --container-2xl: clamp(1024px, 90vw, 1536px);
+
+  /* Clamp-based gaps */
+  --gap-xs: clamp(4px, 0.5vw, 8px);
+  --gap-sm: clamp(8px, 1vw, 12px);
+  --gap-md: clamp(12px, 1.5vw, 16px);
+  --gap-lg: clamp(16px, 2vw, 24px);
+  --gap-xl: clamp(24px, 3vw, 32px);
+
+  /* Mobile touch target sizes (iOS: 44px min, Android: 48px min) */
+  --touch-target-sm: clamp(44px, 10vw, 48px);
+  --touch-target-md: clamp(48px, 12vw, 56px);
+  --touch-target-lg: clamp(56px, 14vw, 64px);
+
+  /* Mobile-specific spacing */
+  --mobile-padding: clamp(16px, 4vw, 24px);
+  --mobile-margin: clamp(12px, 3vw, 20px);
+  --mobile-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --mobile-safe-area-top: env(safe-area-inset-top, 0px);
+
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --primary: oklch(0.517 0.145 264.376);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -35,7 +81,7 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --ring: oklch(0.517 0.145 264.376);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -43,12 +89,12 @@
   --chart-5: oklch(0.769 0.188 70.08);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary: oklch(0.517 0.145 264.376);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-ring: oklch(0.517 0.145 264.376);
 }
 
 .dark {
@@ -58,8 +104,8 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  --primary: oklch(0.607 0.165 264.376);
+  --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -69,7 +115,7 @@
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: oklch(0.607 0.165 264.376);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
@@ -82,7 +128,7 @@
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-ring: oklch(0.607 0.165 264.376);
 }
 
 @theme inline {

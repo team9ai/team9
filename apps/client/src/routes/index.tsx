@@ -1,81 +1,63 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCurrentUser, useLogout } from "@/hooks/useAuth";
-import { Button } from "@/components/ui/button";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { useState } from "react";
+import { MainSidebar } from "@/components/layout/MainSidebar";
+import { SubSidebar } from "@/components/layout/SubSidebar";
+import { MainContent } from "@/components/layout/MainContent";
+import { MobileTabBar } from "@/components/layout/MobileTabBar";
+import { Sheet } from "@/components/ui/sheet";
+import { useIsDesktop } from "@/hooks";
 
 export const Route = createFileRoute("/")({
   component: Index,
-  loader: async () => {
-    /* You can add data loading logic here if needed */
+  beforeLoad: async () => {
+    // Check if user is authenticated
+    const token = localStorage.getItem("auth_token");
+
+    if (!token) {
+      throw redirect({
+        to: "/login",
+        search: {
+          redirect: "/",
+        },
+      });
+    }
   },
 });
 
 function Index() {
-  const { data: currentUser, isLoading } = useCurrentUser();
-  const logout = useLogout();
-
-  const handleLogout = async () => {
-    try {
-      await logout.mutateAsync();
-    } catch (error) {
-      console.error("Logout failed:", error);
-    }
-  };
+  const [activeSection, setActiveSection] = useState("home");
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const isDesktop = useIsDesktop();
 
   return (
-    <main className="p-8">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-4xl font-bold mb-6">Team 9 Client</h1>
-        <p className="mb-8 text-gray-600">
-          Welcome to the Team 9 Matrix Client powered by Tuwunel!
-        </p>
+    <div className="flex h-screen overflow-hidden bg-slate-100">
+      {/* Desktop: Show MainSidebar */}
+      {isDesktop && (
+        <MainSidebar
+          activeSection={activeSection}
+          onSectionChange={setActiveSection}
+        />
+      )}
 
-        <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">
-              Authentication Status
-            </h2>
-            {isLoading ? (
-              <p>Loading...</p>
-            ) : currentUser ? (
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm text-gray-600">Logged in as:</p>
-                  <p className="font-medium">{currentUser.name}</p>
-                  <p className="text-sm text-gray-500">{currentUser.id}</p>
-                </div>
-                <Button
-                  onClick={handleLogout}
-                  variant="destructive"
-                  disabled={logout.isPending}
-                >
-                  {logout.isPending ? "Logging out..." : "Logout"}
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <p className="text-gray-600">You are not logged in.</p>
-                <div className="flex gap-4">
-                  <Link to="/login">
-                    <Button>Login</Button>
-                  </Link>
-                  <Link to="/register">
-                    <Button variant="outline">Register</Button>
-                  </Link>
-                </div>
-              </div>
-            )}
-          </div>
+      {/* Desktop: Show SubSidebar inline, Mobile: Show in Sheet drawer */}
+      {isDesktop ? (
+        <SubSidebar activeSection={activeSection} />
+      ) : (
+        <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen} side="left">
+          <SubSidebar activeSection={activeSection} />
+        </Sheet>
+      )}
 
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">Quick Links</h2>
-            <div className="flex gap-4">
-              <Link to="/about">
-                <Button variant="outline">About</Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    </main>
+      {/* Main Content Area - Always visible */}
+      <MainContent activeSection={activeSection} />
+
+      {/* Mobile: Bottom Tab Bar */}
+      {!isDesktop && (
+        <MobileTabBar
+          activeSection={activeSection}
+          onSectionChange={setActiveSection}
+        />
+      )}
+    </div>
   );
 }

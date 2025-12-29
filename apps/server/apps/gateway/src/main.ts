@@ -1,15 +1,11 @@
-import * as dotenv from 'dotenv';
-import { join } from 'path';
-
-// Load .env file from project root (two levels up from apps/gateway)
-dotenv.config({ path: join(process.cwd(), '..', '..', '.env') });
-
+import './load-env.js'; // Load environment variables first
 import { NestFactory } from '@nestjs/core';
 import { VersioningType } from '@nestjs/common';
 import { AppModule } from './app.module.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.enableCors();
   app.setGlobalPrefix('api');
   app.enableVersioning({
     type: VersioningType.URI,

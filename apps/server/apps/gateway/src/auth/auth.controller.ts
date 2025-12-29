@@ -49,7 +49,7 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(AuthGuard)
-  me(@CurrentUser() user: JwtPayload): JwtPayload {
-    return user;
+  async me(@CurrentUser() user: JwtPayload) {
+    return this.authService.getUserById(user.sub);
   }
 }

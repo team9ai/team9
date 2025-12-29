@@ -1,13 +1,14 @@
 {
   "name": "@team9/gateway",
   "version": "0.0.1",
+  "type": "module",
   "private": true,
   "scripts": {
     "build": "tsc",
-    "start": "node dist/main",
-    "start:dev": "ts-node-dev --respawn --transpile-only src/main.ts",
-    "start:debug": "ts-node-dev --inspect --respawn --transpile-only src/main.ts",
-    "start:prod": "node dist/main",
+    "start": "node dist/main.js",
+    "start:dev": "node --loader @swc-node/register/esm --watch src/main.ts",
+    "start:debug": "node --inspect --loader @swc-node/register/esm src/main.ts",
+    "start:prod": "node dist/main.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
