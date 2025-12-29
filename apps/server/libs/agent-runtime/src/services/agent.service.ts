@@ -16,6 +16,7 @@ import type {
   StepResult,
   QueuedEvent,
   Step,
+  IToolRegistry,
 } from '@team9/agent-framework';
 import type {
   AgentInstance,
@@ -921,5 +922,124 @@ export class AgentService {
     if (!agent || !memoryManager) return [];
 
     return memoryManager.getStepsByThread(agent.threadId);
+  }
+
+  // ============ Tool Registry Access ============
+
+  /**
+   * Get the tool registry for an agent
+   * @param agentId - The agent ID
+   * @returns The tool registry or undefined if not found
+   */
+  getToolRegistry(agentId: string): IToolRegistry | undefined {
+    const executor = this.executors.get(agentId);
+    return executor?.toolRegistry;
+  }
+
+  /**
+   * Handle invoke_tool calls from LLM
+   * This method is called when the LLM calls the invoke_tool control tool
+   * It executes the specified external tool and injects the result back
+   *
+   * @param agentId - The agent ID
+   * @param callId - The tool call ID (for matching result)
+   * @param toolName - Name of the external tool to invoke
+   * @param toolArgs - Arguments to pass to the tool
+   * @param autoRun - Whether to auto-run LLM after injecting result
+   * @returns The injection result or null if failed
+   */
+  async handleInvokeTool(
+    agentId: string,
+    callId: string,
+    toolName: string,
+    toolArgs: Record<string, unknown> = {},
+    autoRun: boolean = true,
+  ): Promise<{
+    dispatchResult: DispatchResult;
+    executionResult?: ExecutionResult;
+  } | null> {
+    const agent = this.agentsCache.get(agentId);
+    const registry = this.getToolRegistry(agentId);
+
+    if (!agent || !registry) {
+      console.error('[handleInvokeTool] Agent or registry not found:', agentId);
+      return null;
+    }
+
+    console.log(
+      '[handleInvokeTool] Executing tool:',
+      toolName,
+      'with args:',
+      toolArgs,
+    );
+
+    // Execute the tool
+    const { EventType } = await import('@team9/agent-framework');
+    const result = await registry.execute(toolName, toolArgs, {
+      threadId: agent.threadId,
+      agentId,
+      callId,
+    });
+
+    console.log(
+      '[handleInvokeTool] Tool result:',
+      result.success,
+      result.content,
+    );
+
+    // Inject TOOL_RESULT event
+    // If there's an error, include it in the result content
+    const resultContent = result.success
+      ? result.content
+      : { error: result.error, content: result.content };
+
+    const toolResultEvent: AgentEvent = {
+      type: EventType.TOOL_RESULT,
+      toolName,
+      callId,
+      success: result.success,
+      result: resultContent,
+      timestamp: Date.now(),
+    };
+
+    return this.injectEvent(agentId, toolResultEvent, autoRun);
+  }
+
+  /**
+   * Check if a tool call event is an invoke_tool call
+   */
+  isInvokeToolCall(event: AgentEvent): boolean {
+    return (
+      event.type === 'LLM_TOOL_CALL' &&
+      (event as { toolName?: string }).toolName === 'invoke_tool'
+    );
+  }
+
+  /**
+   * Parse invoke_tool arguments from tool call event
+   */
+  parseInvokeToolArgs(event: AgentEvent): {
+    callId: string;
+    toolName: string;
+    arguments: Record<string, unknown>;
+  } | null {
+    if (!this.isInvokeToolCall(event)) return null;
+
+    const toolCallEvent = event as {
+      callId: string;
+      arguments: {
+        tool_name?: string;
+        arguments?: Record<string, unknown>;
+      };
+    };
+
+    const toolName = toolCallEvent.arguments?.tool_name;
+    if (!toolName) return null;
+
+    return {
+      callId: toolCallEvent.callId,
+      toolName,
+      arguments: toolCallEvent.arguments?.arguments ?? {},
+    };
   }
 }

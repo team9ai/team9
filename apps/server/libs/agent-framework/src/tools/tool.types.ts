@@ -81,4 +81,35 @@ export interface ToolExecutionContext {
   agentId?: string;
   /** Call ID for this execution */
   callId: string;
+  /** Abort signal for cancellation support */
+  signal?: AbortSignal;
+}
+
+/**
+ * Tool category for organization and context presentation
+ */
+export type ToolCategory = 'control' | 'common' | 'agent' | 'workflow';
+
+/**
+ * Complete tool configuration with definition, executor, and category
+ */
+export interface Tool {
+  /** Tool definition (passed to LLM) */
+  definition: ToolDefinition;
+  /** Tool executor function */
+  executor: ToolExecutor;
+  /** Tool category for grouping */
+  category: ToolCategory;
+}
+
+/**
+ * User-defined custom tool configuration
+ */
+export interface CustomToolConfig {
+  /** Tool definition */
+  definition: ToolDefinition;
+  /** Tool executor function */
+  executor: ToolExecutor;
+  /** Tool category (defaults to 'common') */
+  category?: ToolCategory;
 }

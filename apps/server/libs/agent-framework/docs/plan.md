@@ -85,11 +85,11 @@ Each Memory State processes operations through a Reducer, which determines the n
 
 - **Agent Chunk**: Contextual information related to the agent itself, such as identity, role, goals, etc., generally CRITICAL type, cannot be modified.
 
+- **Environment Chunk**: Contextual information related to the current company and communication partners (company's main business, current projects, supervisor preferences), generally high-priority COMPRESSIBLE type, cannot be modified.
+
 - **Workflow Chunk**: Contextual information related to agent workflows, such as task lists, progress, etc., generally CRITICAL type, cannot be modified.
 
 - **Delegation Chunk**: Contextual information related to agent delegation, current task state, core objectives, etc., generally high-priority COMPRESSIBLE type, can be modified.
-
-- **Environment Chunk**: Contextual information related to the current company and communication partners (company's main business, current projects, supervisor preferences), generally high-priority COMPRESSIBLE type, cannot be modified.
 
 - **Working Flow Chunk**: Contextual information related to the agent's current workflow, such as current steps, temporary data, etc., generally low-priority COMPRESSIBLE type, can be modified. Has the following subtypes internally, with internal blocks defaulting to BATCH_COMPRESSIBLE type:
   - **Compacted Chunk**: Summarized previously compressed contextual information

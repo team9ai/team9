@@ -8,6 +8,7 @@ export { outputTool } from './output.tool.js';
 export { taskCompleteTool } from './task-complete.tool.js';
 export { taskAbandonTool } from './task-abandon.tool.js';
 export { waitParentTool } from './wait-parent.tool.js';
+export { invokeToolTool } from './invoke-tool.tool.js';
 
 import type { ToolDefinition } from '../tool.types.js';
 import { waitUserResponseTool } from './ask-user.tool.js';
@@ -15,6 +16,7 @@ import { outputTool } from './output.tool.js';
 import { taskCompleteTool } from './task-complete.tool.js';
 import { taskAbandonTool } from './task-abandon.tool.js';
 import { waitParentTool } from './wait-parent.tool.js';
+import { invokeToolTool } from './invoke-tool.tool.js';
 
 /**
  * All control tools
@@ -25,6 +27,7 @@ export const controlTools: ToolDefinition[] = [
   taskCompleteTool,
   taskAbandonTool,
   waitParentTool,
+  invokeToolTool,
 ];
 
 /**

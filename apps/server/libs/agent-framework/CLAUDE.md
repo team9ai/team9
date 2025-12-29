@@ -19,6 +19,18 @@ Agent Framework - Core library providing memory management, context building, an
 agent-framework/
 ├── src/
 │   ├── index.ts           # Main export
+│   ├── tools/             # Tool system (see tools/CLAUDE.md)
+│   │   ├── tool.types.ts  # Tool type definitions
+│   │   ├── tool.registry.ts # Tool registration & execution
+│   │   ├── index.ts       # Tool exports
+│   │   └── control/       # Control tools (framework built-in)
+│   │       ├── ask-user.tool.ts
+│   │       ├── output.tool.ts
+│   │       ├── task-complete.tool.ts
+│   │       ├── task-abandon.tool.ts
+│   │       ├── wait-parent.tool.ts
+│   │       ├── invoke-tool.tool.ts
+│   │       └── index.ts
 │   └── memory/            # Memory system (see memory/CLAUDE.md)
 │       ├── types/         # Core type definitions
 │       ├── utils/         # Utility functions
@@ -64,6 +76,12 @@ import {
   // Storage
   MemoryStorageProvider,
   PostgresStorageProvider,
+
+  // Tools
+  ToolRegistry,
+  createDefaultToolRegistry,
+  controlTools,
+  invokeToolTool,
 } from '@team9/agent-framework';
 ```
 
@@ -156,6 +174,7 @@ When making code changes, update the relevant CLAUDE.md with:
 
 | Directory        | CLAUDE.md Location                                 |
 | ---------------- | -------------------------------------------------- |
+| `src/tools/`     | [src/tools/CLAUDE.md](src/tools/CLAUDE.md)         |
 | `src/types/`     | [src/types/CLAUDE.md](src/types/CLAUDE.md)         |
 | `src/manager/`   | [src/manager/CLAUDE.md](src/manager/CLAUDE.md)     |
 | `src/reducer/`   | [src/reducer/CLAUDE.md](src/reducer/CLAUDE.md)     |

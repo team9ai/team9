@@ -1,11 +1,13 @@
 export * from './tool.types.js';
 export * from './control/index.js';
+export * from './tool.registry.js';
 
 import type { ToolDefinition } from './tool.types.js';
 import { controlTools } from './control/index.js';
 
 /**
- * All available tools in the framework
+ * All available tools in the framework (control tools only)
+ * Custom tools should be registered via ToolRegistry
  */
 export const allTools: ToolDefinition[] = [...controlTools];
 

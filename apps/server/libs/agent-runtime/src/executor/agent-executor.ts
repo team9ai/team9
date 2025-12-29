@@ -8,6 +8,8 @@ import type {
   AgentEvent,
   ContextBuilder,
   LLMInteraction,
+  CustomToolConfig,
+  IToolRegistry,
 } from '@team9/agent-framework';
 
 /**
@@ -20,8 +22,12 @@ export interface AgentExecutorConfig {
   timeout?: number;
   /** Whether to auto-run after inject */
   autoRun?: boolean;
-  /** Available tool names for this agent */
+  /** Available control tool names for this agent */
   tools?: string[];
+  /** Custom external tools (registered as common tools by default) */
+  customTools?: CustomToolConfig[];
+  /** Complete tool registry instance (overrides tools and customTools) */
+  toolRegistry?: IToolRegistry;
 }
 
 /**
@@ -132,6 +138,7 @@ export class AgentExecutor {
   private config: ResolvedConfig;
   private contextBuilder: ContextBuilder;
   private toolDefinitions: LLMToolDefinition[];
+  private _toolRegistry: IToolRegistry;
   /** Current cancellation token source for the running execution */
   private currentCancellation: CancellationTokenSource | null = null;
   /** Thread ID of current execution */
@@ -150,19 +157,74 @@ export class AgentExecutor {
     };
 
     // Create context builder
-    const { createContextBuilder, getToolsByNames } =
+    const { createContextBuilder, getToolsByNames, createDefaultToolRegistry } =
       require('@team9/agent-framework') as typeof import('@team9/agent-framework');
     this.contextBuilder = createContextBuilder();
 
-    // Get tool definitions for LLM
-    const tools = getToolsByNames(this.config.tools);
-    this.toolDefinitions = tools.map((t) => ({
+    // Initialize tool registry
+    this._toolRegistry = this.initializeToolRegistry(
+      config,
+      createDefaultToolRegistry,
+    );
+
+    // Get control tool definitions for LLM (only control tools are directly callable)
+    const controlTools = getToolsByNames(this.config.tools);
+    this.toolDefinitions = controlTools.map((t) => ({
       name: t.name,
       description: t.description,
       parameters: t.parameters,
     }));
 
-    console.log('[AgentExecutor] Initialized with tools:', this.config.tools);
+    console.log(
+      '[AgentExecutor] Initialized with control tools:',
+      this.config.tools,
+    );
+    console.log(
+      '[AgentExecutor] Tool registry has',
+      this._toolRegistry.getAllToolNames().length,
+      'tools',
+    );
+  }
+
+  /**
+   * Initialize tool registry with control tools and custom tools
+   */
+  private initializeToolRegistry(
+    config: AgentExecutorConfig,
+    createDefaultToolRegistry: () => IToolRegistry,
+  ): IToolRegistry {
+    // If a complete registry is provided, use it directly
+    if (config.toolRegistry) {
+      return config.toolRegistry;
+    }
+
+    // Create default registry with control tools
+    const registry = createDefaultToolRegistry();
+
+    // Register custom tools
+    if (config.customTools && config.customTools.length > 0) {
+      for (const custom of config.customTools) {
+        registry.register({
+          definition: custom.definition,
+          executor: custom.executor,
+          category: custom.category ?? 'common',
+        });
+      }
+      console.log(
+        '[AgentExecutor] Registered',
+        config.customTools.length,
+        'custom tools',
+      );
+    }
+
+    return registry;
+  }
+
+  /**
+   * Get the tool registry for external access (e.g., for invoke_tool handling)
+   */
+  get toolRegistry(): IToolRegistry {
+    return this._toolRegistry;
   }
 
   /**
