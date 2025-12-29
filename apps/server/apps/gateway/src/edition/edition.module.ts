@@ -1,6 +1,6 @@
 import { DynamicModule, Module, Logger, Type } from '@nestjs/common';
-import { Edition } from './edition.enum';
-import { EditionService } from './edition.service';
+import { Edition } from './edition.enum.js';
+import { EditionService } from './edition.service.js';
 
 interface EnterpriseModuleConfig {
   name: string;

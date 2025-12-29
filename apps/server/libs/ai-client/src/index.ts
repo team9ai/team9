@@ -1,3 +1,3 @@
-export * from './ai-client.module';
-export * from './ai-client.service';
-export * from './interfaces/ai-provider.interface';
+export * from './ai-client.module.js';
+export * from './ai-client.service.js';
+export * from './interfaces/ai-provider.interface.js';

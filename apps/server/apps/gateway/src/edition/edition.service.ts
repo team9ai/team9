@@ -4,7 +4,7 @@ import {
   EditionConfig,
   FeatureFlag,
   EDITION_CONFIGS,
-} from './edition.enum';
+} from './edition.enum.js';
 
 @Injectable()
 export class EditionService {

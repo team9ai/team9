@@ -5,9 +5,9 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { FeatureFlag } from '../edition.enum';
-import { EditionService } from '../edition.service';
-import { REQUIRED_FEATURES_KEY } from '../decorators/require-feature.decorator';
+import { FeatureFlag } from '../edition.enum.js';
+import { EditionService } from '../edition.service.js';
+import { REQUIRED_FEATURES_KEY } from '../decorators/require-feature.decorator.js';
 
 @Injectable()
 export class FeatureGuard implements CanActivate {

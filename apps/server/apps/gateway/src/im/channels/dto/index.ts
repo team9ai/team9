@@ -1,3 +1,3 @@
-export * from './create-channel.dto';
-export * from './update-channel.dto';
-export * from './member.dto';
+export * from './create-channel.dto.js';
+export * from './update-channel.dto.js';
+export * from './member.dto.js';

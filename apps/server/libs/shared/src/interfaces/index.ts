@@ -1,2 +1,2 @@
-export * from './microservice-messages.interface';
-export * from './ai.interface';
+export * from './microservice-messages.interface.js';
+export * from './ai.interface.js';

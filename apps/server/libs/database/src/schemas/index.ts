@@ -1,3 +1,3 @@
-export * from './config';
-export * from './im';
-export * from './tenant';
+export * from './config.js';
+export * from './im.js';
+export * from './tenant.js';

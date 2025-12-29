@@ -1,5 +1,5 @@
 import { SetMetadata } from '@nestjs/common';
-import { FeatureFlag } from '../edition.enum';
+import { FeatureFlag } from '../edition.enum.js';
 
 export const REQUIRED_FEATURES_KEY = 'required_features';
 

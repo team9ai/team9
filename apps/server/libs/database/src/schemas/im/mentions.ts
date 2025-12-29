@@ -6,9 +6,9 @@ import {
   pgEnum,
   index,
 } from 'drizzle-orm/pg-core';
-import { messages } from './messages';
-import { users } from './users';
-import { channels } from './channels';
+import { messages } from './messages.js';
+import { users } from './users.js';
+import { channels } from './channels.js';
 
 export const mentionTypeEnum = pgEnum('mention_type', [
   'user',
