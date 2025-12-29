@@ -6,7 +6,7 @@ import {
   AICompletionResponse,
   AIProvider,
   AIChatResponse,
-} from '../interfaces/ai-provider.interface';
+} from '../interfaces/ai-provider.interface.js';
 import { ConfigService as DbConfigService } from '@team9/database';
 
 @Injectable()

@@ -1,8 +1,8 @@
 import { relations } from 'drizzle-orm';
-import { tenants } from './tenants';
-import { tenantMembers } from './tenant-members';
-import { users } from '../im/users';
-import { channels } from '../im/channels';
+import { tenants } from './tenants.js';
+import { tenantMembers } from './tenant-members.js';
+import { users } from '../im/users.js';
+import { channels } from '../im/channels.js';
 
 export const tenantsRelations = relations(tenants, ({ many }) => ({
   members: many(tenantMembers),

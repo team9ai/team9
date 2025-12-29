@@ -14,15 +14,15 @@ import {
   ChannelResponse,
   ChannelWithUnread,
   ChannelMemberResponse,
-} from './channels.service';
+} from './channels.service.js';
 import {
   CreateChannelDto,
   UpdateChannelDto,
   AddMemberDto,
   UpdateMemberDto,
-} from './dto';
+} from './dto/index.js';
 import { AuthGuard, CurrentUser } from '@team9/auth';
-import { CurrentTenantId } from '../../common/decorators/current-tenant.decorator';
+import { CurrentTenantId } from '../../common/decorators/current-tenant.decorator.js';
 
 @Controller({
   path: 'im/channels',

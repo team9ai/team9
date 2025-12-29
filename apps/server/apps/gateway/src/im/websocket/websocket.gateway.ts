@@ -9,15 +9,15 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
-import { AuthService } from '../../auth/auth.service';
-import { UsersService } from '../users/users.service';
-import { ChannelsService } from '../channels/channels.service';
-import { MessagesService } from '../messages/messages.service';
+import { AuthService } from '../../auth/auth.service.js';
+import { UsersService } from '../users/users.service.js';
+import { ChannelsService } from '../channels/channels.service.js';
+import { MessagesService } from '../messages/messages.service.js';
 import { RedisService } from '@team9/redis';
 import { env } from '@team9/shared';
-import { WS_EVENTS } from './events/events.constants';
-import { REDIS_KEYS } from '../shared/constants/redis-keys';
-import { SocketWithUser } from '../shared/interfaces/socket-with-user.interface';
+import { WS_EVENTS } from './events/events.constants.js';
+import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
+import { SocketWithUser } from '../shared/interfaces/socket-with-user.interface.js';
 
 interface SendMessageData {
   channelId: string;

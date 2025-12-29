@@ -10,10 +10,14 @@ import {
   UseGuards,
   ForbiddenException,
 } from '@nestjs/common';
-import { MessagesService, MessageResponse } from './messages.service';
-import { CreateMessageDto, UpdateMessageDto, AddReactionDto } from './dto';
+import { MessagesService, MessageResponse } from './messages.service.js';
+import {
+  CreateMessageDto,
+  UpdateMessageDto,
+  AddReactionDto,
+} from './dto/index.js';
 import { AuthGuard, CurrentUser } from '@team9/auth';
-import { ChannelsService } from '../channels/channels.service';
+import { ChannelsService } from '../channels/channels.service.js';
 
 @Controller({
   path: 'im',

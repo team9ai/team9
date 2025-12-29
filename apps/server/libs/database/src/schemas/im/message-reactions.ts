@@ -1,6 +1,6 @@
 import { pgTable, uuid, varchar, timestamp, unique } from 'drizzle-orm/pg-core';
-import { messages } from './messages';
-import { users } from './users';
+import { messages } from './messages.js';
+import { users } from './users.js';
 
 export const messageReactions = pgTable(
   'im_message_reactions',

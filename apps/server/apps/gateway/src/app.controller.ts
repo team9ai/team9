@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { Observable, from, catchError, of, switchMap } from 'rxjs';
 import { randomUUID } from 'crypto';
-import { AppService } from './app.service';
+import { AppService } from './app.service.js';
 import { RedisService } from '@team9/redis';
 import { AiClientService } from '@team9/ai-client';
 import type {

@@ -1,1 +1,1 @@
-export * from './current-tenant.decorator';
+export * from './current-tenant.decorator.js';

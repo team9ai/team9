@@ -1,14 +1,14 @@
 import { relations } from 'drizzle-orm';
-import { users } from './users';
-import { channels } from './channels';
-import { channelMembers } from './channel-members';
-import { messages } from './messages';
-import { messageAttachments } from './message-attachments';
-import { messageReactions } from './message-reactions';
-import { userChannelReadStatus } from './user-channel-read-status';
-import { mentions } from './mentions';
-import { tenants } from '../tenant/tenants';
-import { tenantMembers } from '../tenant/tenant-members';
+import { users } from './users.js';
+import { channels } from './channels.js';
+import { channelMembers } from './channel-members.js';
+import { messages } from './messages.js';
+import { messageAttachments } from './message-attachments.js';
+import { messageReactions } from './message-reactions.js';
+import { userChannelReadStatus } from './user-channel-read-status.js';
+import { mentions } from './mentions.js';
+import { tenants } from '../tenant/tenants.js';
+import { tenantMembers } from '../tenant/tenant-members.js';
 
 export const usersRelations = relations(users, ({ many }) => ({
   channelMemberships: many(channelMembers),

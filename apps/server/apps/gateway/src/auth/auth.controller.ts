@@ -7,9 +7,9 @@ import {
   HttpStatus,
   Get,
 } from '@nestjs/common';
-import { AuthService } from './auth.service';
-import type { AuthResponse, TokenPair } from './auth.service';
-import { RegisterDto, LoginDto, RefreshTokenDto } from './dto';
+import { AuthService } from './auth.service.js';
+import type { AuthResponse, TokenPair } from './auth.service.js';
+import { RegisterDto, LoginDto, RefreshTokenDto } from './dto/index.js';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import type { JwtPayload } from '@team9/auth';
 

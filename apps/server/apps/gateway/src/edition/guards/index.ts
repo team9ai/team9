@@ -1,1 +1,1 @@
-export * from './feature.guard';
+export * from './feature.guard.js';

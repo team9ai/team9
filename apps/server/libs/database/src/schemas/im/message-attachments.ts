@@ -6,7 +6,7 @@ import {
   integer,
   timestamp,
 } from 'drizzle-orm/pg-core';
-import { messages } from './messages';
+import { messages } from './messages.js';
 
 export const messageAttachments = pgTable('im_message_attachments', {
   id: uuid('id').primaryKey().defaultRandom(),

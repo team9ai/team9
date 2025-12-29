@@ -1,6 +1,6 @@
 // Export all public API
-export * from './database.module';
-export * from './config.service';
-export * from './database.constants';
-export * from './schemas';
-export * from './drizzle';
+export * from './database.module.js';
+export * from './config.service.js';
+export * from './database.constants.js';
+export * from './schemas.js';
+export * from './drizzle.js';
