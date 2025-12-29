@@ -3,6 +3,9 @@ import { useState } from "react";
 import { MainSidebar } from "@/components/layout/MainSidebar";
 import { SubSidebar } from "@/components/layout/SubSidebar";
 import { MainContent } from "@/components/layout/MainContent";
+import { MobileTabBar } from "@/components/layout/MobileTabBar";
+import { Sheet } from "@/components/ui/sheet";
+import { useIsDesktop } from "@/hooks";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -23,20 +26,38 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const [activeSection, setActiveSection] = useState("home");
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const isDesktop = useIsDesktop();
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-100">
-      {/* Left Sidebar - Main Navigation */}
-      <MainSidebar
-        activeSection={activeSection}
-        onSectionChange={setActiveSection}
-      />
+      {/* Desktop: Show MainSidebar */}
+      {isDesktop && (
+        <MainSidebar
+          activeSection={activeSection}
+          onSectionChange={setActiveSection}
+        />
+      )}
 
-      {/* Middle Sidebar - Sub Navigation */}
-      <SubSidebar activeSection={activeSection} />
+      {/* Desktop: Show SubSidebar inline, Mobile: Show in Sheet drawer */}
+      {isDesktop ? (
+        <SubSidebar activeSection={activeSection} />
+      ) : (
+        <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen} side="left">
+          <SubSidebar activeSection={activeSection} />
+        </Sheet>
+      )}
 
-      {/* Right Content Area */}
+      {/* Main Content Area - Always visible */}
       <MainContent activeSection={activeSection} />
+
+      {/* Mobile: Bottom Tab Bar */}
+      {!isDesktop && (
+        <MobileTabBar
+          activeSection={activeSection}
+          onSectionChange={setActiveSection}
+        />
+      )}
     </div>
   );
 }
