@@ -7,8 +7,8 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { UsersService, UserResponse } from './users.service';
-import { UpdateUserDto, UpdateUserStatusDto } from './dto';
+import { UsersService, UserResponse } from './users.service.js';
+import { UpdateUserDto, UpdateUserStatusDto } from './dto/index.js';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 
 @Controller({

@@ -8,8 +8,8 @@ import {
   pgEnum,
   index,
 } from 'drizzle-orm/pg-core';
-import { users } from './users';
-import { tenants } from '../tenant/tenants';
+import { users } from './users.js';
+import { tenants } from '../tenant/tenants.js';
 
 export const channelTypeEnum = pgEnum('channel_type', [
   'direct',

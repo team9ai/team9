@@ -1,7 +1,7 @@
 import { pgTable, uuid, timestamp, integer, unique } from 'drizzle-orm/pg-core';
-import { users } from './users';
-import { channels } from './channels';
-import { messages } from './messages';
+import { users } from './users.js';
+import { channels } from './channels.js';
+import { messages } from './messages.js';
 
 export const userChannelReadStatus = pgTable(
   'im_user_channel_read_status',

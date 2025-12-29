@@ -1,4 +1,4 @@
-import { AICompletionRequest, AICompletionResponse } from './ai.interface';
+import { AICompletionRequest, AICompletionResponse } from './ai.interface.js';
 
 /**
  * Microservice message pattern enum

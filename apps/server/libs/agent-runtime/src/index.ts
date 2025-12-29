@@ -1,1 +1,1 @@
-export * from './memory';
+export * from './types/index.js';

@@ -10,7 +10,7 @@ import * as schema from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
 import { env } from '@team9/shared';
 import type { JwtPayload } from '@team9/auth';
-import { RegisterDto, LoginDto } from './dto';
+import { RegisterDto, LoginDto } from './dto/index.js';
 
 export interface TokenPair {
   accessToken: string;

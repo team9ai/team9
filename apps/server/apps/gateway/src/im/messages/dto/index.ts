@@ -1,3 +1,3 @@
-export * from './create-message.dto';
-export * from './update-message.dto';
-export * from './reaction.dto';
+export * from './create-message.dto.js';
+export * from './update-message.dto.js';
+export * from './reaction.dto.js';

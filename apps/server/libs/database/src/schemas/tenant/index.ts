@@ -1,3 +1,3 @@
-export * from './tenants';
-export * from './tenant-members';
-export * from './relations';
+export * from './tenants.js';
+export * from './tenant-members.js';
+export * from './relations.js';

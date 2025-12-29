@@ -9,7 +9,7 @@ import {
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
-import { UpdateUserDto } from './dto';
+import { UpdateUserDto } from './dto.js';
 
 export interface UserResponse {
   id: string;
