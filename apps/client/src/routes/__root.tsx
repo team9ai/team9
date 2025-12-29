@@ -6,8 +6,8 @@ export const Route = createRootRoute({
   component: () => (
     <>
       <Outlet />
-      <ReactQueryDevtools />
-      <TanStackRouterDevtools position="bottom-right" />
+      {/* <ReactQueryDevtools />
+      <TanStackRouterDevtools position="bottom-right" /> */}
     </>
   ),
 });
