@@ -23,6 +23,8 @@
     "prepare": "husky"
   },
   "devDependencies": {
+    "@swc-node/register": "^1.11.1",
+    "@swc/core": "^1.15.7",
     "concurrently": "^9.2.1",
     "husky": "^9.1.7",
     "lint-staged": "^15.2.0",
