@@ -75,6 +75,26 @@ export class AuthService {
       })
       .returning();
 
+    // Create a personal workspace for the user
+    const workspaceName = `${dto.displayName || dto.username}'s Workspace`;
+    const workspaceSlug = await this.generateUniqueSlug(dto.username);
+
+    const [workspace] = await this.db
+      .insert(schema.tenants)
+      .values({
+        name: workspaceName,
+        slug: workspaceSlug,
+        plan: 'free',
+      })
+      .returning();
+
+    // Add user as owner of the workspace
+    await this.db.insert(schema.tenantMembers).values({
+      tenantId: workspace.id,
+      userId: user.id,
+      role: 'owner',
+    });
+
     // Generate tokens
     const tokens = await this.generateTokenPair(user);
 
@@ -88,6 +108,31 @@ export class AuthService {
         avatarUrl: user.avatarUrl,
       },
     };
+  }
+
+  private async generateUniqueSlug(baseSlug: string): Promise<string> {
+    // Sanitize base slug
+    let slug = baseSlug.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    let counter = 0;
+    let uniqueSlug = slug;
+
+    // Check if slug exists and append number if needed
+    while (true) {
+      const existing = await this.db
+        .select()
+        .from(schema.tenants)
+        .where(eq(schema.tenants.slug, uniqueSlug))
+        .limit(1);
+
+      if (existing.length === 0) {
+        break;
+      }
+
+      counter++;
+      uniqueSlug = `${slug}-${counter}`;
+    }
+
+    return uniqueSlug;
   }
 
   async login(dto: LoginDto): Promise<AuthResponse> {

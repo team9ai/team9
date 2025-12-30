@@ -11,9 +11,18 @@ import { WorkspaceService } from './workspace.service.js';
 import { CreateInvitationDto } from './dto/index.js';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 
-@Controller('v1/workspaces')
+@Controller({
+  path: 'workspaces',
+  version: '1',
+})
 export class WorkspaceController {
   constructor(private readonly workspaceService: WorkspaceService) {}
+
+  @Get()
+  @UseGuards(AuthGuard)
+  async getUserWorkspaces(@CurrentUser('sub') userId: string) {
+    return this.workspaceService.getUserWorkspaces(userId);
+  }
 
   @Post(':workspaceId/invitations')
   @UseGuards(AuthGuard)
@@ -42,7 +51,10 @@ export class WorkspaceController {
   }
 }
 
-@Controller('v1/invitations')
+@Controller({
+  path: 'invitations',
+  version: '1',
+})
 export class InvitationsController {
   constructor(private readonly workspaceService: WorkspaceService) {}
 

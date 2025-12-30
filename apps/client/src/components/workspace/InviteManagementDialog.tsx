@@ -50,8 +50,8 @@ export function InviteManagementDialog({
   // Form state
   const [formData, setFormData] = useState({
     role: "member" as "member" | "admin" | "guest",
-    maxUses: "",
-    expiresInDays: "",
+    maxUses: "1",
+    expiresInDays: "1",
   });
 
   const handleCreate = async () => {
@@ -69,7 +69,7 @@ export function InviteManagementDialog({
     await createInvitation.mutateAsync(data);
 
     // Reset form
-    setFormData({ role: "member", maxUses: "", expiresInDays: "" });
+    setFormData({ role: "member", maxUses: "1", expiresInDays: "1" });
     setShowCreateForm(false);
   };
 
@@ -143,14 +143,12 @@ export function InviteManagementDialog({
                 </div>
 
                 <div>
-                  <Label htmlFor="maxUses">
-                    Max Uses (leave empty for unlimited)
-                  </Label>
+                  <Label htmlFor="maxUses">Max Uses (default: 1)</Label>
                   <Input
                     id="maxUses"
                     type="number"
                     min="1"
-                    placeholder="Unlimited"
+                    placeholder="1"
                     value={formData.maxUses}
                     onChange={(e) =>
                       setFormData({ ...formData, maxUses: e.target.value })
@@ -160,13 +158,13 @@ export function InviteManagementDialog({
 
                 <div>
                   <Label htmlFor="expires">
-                    Expires In (days, leave empty for no expiration)
+                    Expires In (days, default: 1 day / 24 hours)
                   </Label>
                   <Input
                     id="expires"
                     type="number"
                     min="1"
-                    placeholder="Never expires"
+                    placeholder="1"
                     value={formData.expiresInDays}
                     onChange={(e) =>
                       setFormData({

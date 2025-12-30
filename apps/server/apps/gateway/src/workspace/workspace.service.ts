@@ -56,6 +56,14 @@ export interface AcceptInvitationResponse {
   };
 }
 
+export interface UserWorkspace {
+  id: string;
+  name: string;
+  slug: string;
+  role: string;
+  joinedAt: Date;
+}
+
 @Injectable()
 export class WorkspaceService {
   constructor(
@@ -65,6 +73,39 @@ export class WorkspaceService {
 
   private generateInviteCode(): string {
     return randomBytes(16).toString('hex');
+  }
+
+  async getUserWorkspaces(userId: string): Promise<UserWorkspace[]> {
+    const memberships = await this.db
+      .select({
+        workspace: {
+          id: schema.tenants.id,
+          name: schema.tenants.name,
+          slug: schema.tenants.slug,
+        },
+        role: schema.tenantMembers.role,
+        joinedAt: schema.tenantMembers.joinedAt,
+      })
+      .from(schema.tenantMembers)
+      .innerJoin(
+        schema.tenants,
+        eq(schema.tenantMembers.tenantId, schema.tenants.id),
+      )
+      .where(
+        and(
+          eq(schema.tenantMembers.userId, userId),
+          isNull(schema.tenantMembers.leftAt),
+        ),
+      )
+      .orderBy(schema.tenantMembers.joinedAt);
+
+    return memberships.map((m) => ({
+      id: m.workspace.id,
+      name: m.workspace.name,
+      slug: m.workspace.slug,
+      role: m.role,
+      joinedAt: m.joinedAt,
+    }));
   }
 
   async createInvitation(

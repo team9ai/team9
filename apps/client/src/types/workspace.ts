@@ -1,5 +1,13 @@
 // Workspace invitation types
 
+export interface UserWorkspace {
+  id: string;
+  name: string;
+  slug: string;
+  role: "owner" | "admin" | "member" | "guest";
+  joinedAt: string;
+}
+
 export interface WorkspaceInvitation {
   id: string;
   code: string;

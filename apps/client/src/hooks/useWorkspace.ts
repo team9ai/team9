@@ -3,6 +3,16 @@ import workspaceApi from "@/services/api/workspace";
 import type { CreateInvitationDto } from "@/types/workspace";
 
 /**
+ * Hook to fetch user's workspaces
+ */
+export function useUserWorkspaces() {
+  return useQuery({
+    queryKey: ["user-workspaces"],
+    queryFn: () => workspaceApi.getUserWorkspaces(),
+  });
+}
+
+/**
  * Hook to fetch workspace invitations
  */
 export function useWorkspaceInvitations(workspaceId: string | undefined) {

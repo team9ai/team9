@@ -1,5 +1,6 @@
 import http from "../http";
 import type {
+  UserWorkspace,
   WorkspaceInvitation,
   CreateInvitationDto,
   InvitationInfo,
@@ -7,6 +8,12 @@ import type {
 } from "@/types/workspace";
 
 export const workspaceApi = {
+  // Get user's workspaces
+  getUserWorkspaces: async (): Promise<UserWorkspace[]> => {
+    const response = await http.get<UserWorkspace[]>("/v1/workspaces");
+    return response.data;
+  },
+
   // Create invitation link
   createInvitation: async (
     workspaceId: string,

@@ -16,6 +16,7 @@ import { Separator } from "@/components/ui/separator";
 import { Card } from "@/components/ui/card";
 import { useState } from "react";
 import { InviteManagementDialog } from "@/components/workspace/InviteManagementDialog";
+import { useUserWorkspaces } from "@/hooks/useWorkspace";
 
 const settingsGroups = [
   {
@@ -46,8 +47,9 @@ const settingsGroups = [
 export function MoreMainContent() {
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
 
-  // TODO: Get actual workspace ID from context/auth
-  const workspaceId = "default-workspace-id";
+  // Get user's workspaces
+  const { data: workspaces } = useUserWorkspaces();
+  const workspaceId = workspaces?.[0]?.id; // Use first workspace
 
   const handleSettingClick = (id: string) => {
     if (id === "invitations") {
@@ -125,11 +127,13 @@ export function MoreMainContent() {
       </ScrollArea>
 
       {/* Invite Management Dialog */}
-      <InviteManagementDialog
-        isOpen={isInviteDialogOpen}
-        onClose={() => setIsInviteDialogOpen(false)}
-        workspaceId={workspaceId}
-      />
+      {workspaceId && (
+        <InviteManagementDialog
+          isOpen={isInviteDialogOpen}
+          onClose={() => setIsInviteDialogOpen(false)}
+          workspaceId={workspaceId}
+        />
+      )}
     </main>
   );
 }
