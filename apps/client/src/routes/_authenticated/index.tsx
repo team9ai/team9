@@ -15,7 +15,7 @@ function HomePage() {
 
   return (
     <>
-      {/* 桌面端：固定显示 SubSidebar */}
+      {/* Desktop: Show SubSidebar inline */}
       {isDesktop ? (
         <>
           <HomeSubSidebar />
@@ -23,7 +23,7 @@ function HomePage() {
         </>
       ) : (
         <>
-          {/* 移动端：通过 Sheet 显示 SubSidebar */}
+          {/* Mobile: Show SubSidebar in Sheet drawer */}
           <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen} side="left">
             <HomeSubSidebar />
           </Sheet>

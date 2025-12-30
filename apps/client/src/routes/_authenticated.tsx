@@ -23,13 +23,13 @@ function AuthenticatedLayout() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* 主功能导航区 - 最左侧 */}
+      {/* Main navigation sidebar - leftmost */}
       {isDesktop && <MainSidebar />}
 
-      {/* 子路由内容（包含 SubSidebar 和 MainContent）*/}
+      {/* Child route content (includes SubSidebar and MainContent) */}
       <Outlet />
 
-      {/* 移动端底部导航栏 */}
+      {/* Mobile bottom navigation bar */}
       {!isDesktop && <MobileTabBar />}
     </div>
   );
