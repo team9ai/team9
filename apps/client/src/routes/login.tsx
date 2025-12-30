@@ -151,7 +151,7 @@ function Login() {
             {/* Submit Button */}
             <Button
               type="submit"
-              className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-base"
+              className="w-full h-11 bg-purple-600 hover:bg-purple-700 text-white font-semibold text-base"
               disabled={login.isPending}
             >
               {login.isPending ? "Signing in..." : "Sign In with Email"}
@@ -165,7 +165,7 @@ function Login() {
             Don't have an account?{" "}
             <Link
               to="/register"
-              className="text-indigo-600 hover:underline font-medium"
+              className="text-purple-600 hover:underline font-medium"
             >
               Create an account
             </Link>
@@ -176,11 +176,11 @@ function Login() {
         <div className="text-center mt-8 text-xs text-gray-500">
           <p>
             By continuing, you're agreeing to our{" "}
-            <a href="#" className="text-indigo-600 hover:underline">
+            <a href="#" className="text-purple-600 hover:underline">
               Terms of Service
             </a>{" "}
             and{" "}
-            <a href="#" className="text-indigo-600 hover:underline">
+            <a href="#" className="text-purple-600 hover:underline">
               Privacy Policy
             </a>
           </p>

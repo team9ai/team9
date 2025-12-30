@@ -249,7 +249,7 @@ function Register() {
             {/* Submit Button */}
             <Button
               type="submit"
-              className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-base"
+              className="w-full h-11 bg-purple-600 hover:bg-purple-700 text-white font-semibold text-base"
               disabled={register.isPending}
             >
               {register.isPending ? "Creating account..." : "Create Account"}
@@ -263,7 +263,7 @@ function Register() {
             Already have an account?{" "}
             <Link
               to="/login"
-              className="text-indigo-600 hover:underline font-medium"
+              className="text-purple-600 hover:underline font-medium"
             >
               Sign in
             </Link>

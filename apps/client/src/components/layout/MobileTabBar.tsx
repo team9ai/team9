@@ -13,11 +13,11 @@ interface MobileTabBarProps {
 }
 
 const tabItems = [
-  { id: "home", label: "Home", icon: Home },
-  { id: "messages", label: "DMs", icon: MessageSquare },
-  { id: "activity", label: "Activity", icon: Activity },
-  { id: "files", label: "Files", icon: FileText },
-  { id: "more", label: "More", icon: MoreHorizontal },
+  { id: "home", label: "主页", icon: Home },
+  { id: "messages", label: "私信", icon: MessageSquare },
+  { id: "activity", label: "活动", icon: Activity },
+  { id: "files", label: "文件", icon: FileText },
+  { id: "more", label: "更多", icon: MoreHorizontal },
 ];
 
 export function MobileTabBar({

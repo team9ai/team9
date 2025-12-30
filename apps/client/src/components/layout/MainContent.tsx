@@ -16,7 +16,7 @@ export function MainContent({ activeSection }: MainContentProps) {
       {/* Content Header */}
       <header className="h-14 bg-white flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
-          <Hash size={18} className="text-indigo-600" />
+          <Hash size={18} className="text-purple-600" />
           <h2 className="font-semibold text-lg text-slate-900">general</h2>
           <Button variant="ghost" size="icon-sm" className="hover:bg-slate-100">
             <Star size={16} className="text-slate-400 hover:text-amber-500" />
@@ -24,20 +24,20 @@ export function MainContent({ activeSection }: MainContentProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon-sm" className="hover:bg-indigo-50">
-            <Phone size={18} className="text-slate-600 hover:text-indigo-600" />
+          <Button variant="ghost" size="icon-sm" className="hover:bg-purple-50">
+            <Phone size={18} className="text-slate-600 hover:text-purple-600" />
           </Button>
-          <Button variant="ghost" size="icon-sm" className="hover:bg-indigo-50">
-            <Users size={18} className="text-slate-600 hover:text-indigo-600" />
+          <Button variant="ghost" size="icon-sm" className="hover:bg-purple-50">
+            <Users size={18} className="text-slate-600 hover:text-purple-600" />
           </Button>
-          <Button variant="ghost" size="icon-sm" className="hover:bg-indigo-50">
+          <Button variant="ghost" size="icon-sm" className="hover:bg-purple-50">
             <Search
               size={18}
-              className="text-slate-600 hover:text-indigo-600"
+              className="text-slate-600 hover:text-purple-600"
             />
           </Button>
-          <Button variant="ghost" size="icon-sm" className="hover:bg-indigo-50">
-            <Info size={18} className="text-slate-600 hover:text-indigo-600" />
+          <Button variant="ghost" size="icon-sm" className="hover:bg-purple-50">
+            <Info size={18} className="text-slate-600 hover:text-purple-600" />
           </Button>
         </div>
       </header>
@@ -51,7 +51,7 @@ export function MainContent({ activeSection }: MainContentProps) {
             {/* Welcome Message */}
             <Card className="mb-8 p-6 border-0 shadow-none bg-transparent">
               <Avatar className="w-16 h-16 mb-4">
-                <AvatarFallback className="bg-linear-to-br from-indigo-600 to-blue-600 text-white shadow-lg">
+                <AvatarFallback className="bg-linear-to-br from-purple-600 to-purple-700 text-white shadow-lg">
                   <Hash size={32} />
                 </AvatarFallback>
               </Avatar>
@@ -94,7 +94,7 @@ export function MainContent({ activeSection }: MainContentProps) {
       {/* Message Input */}
       <div className="p-4 bg-white">
         <div className="max-w-4xl">
-          <Card className="p-3 focus-within:border-indigo-600 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
+          <Card className="p-3 focus-within:border-purple-600 focus-within:ring-2 focus-within:ring-purple-100 transition-all">
             <Textarea
               placeholder="Message #general"
               className="min-h-0 resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm p-0"
@@ -112,7 +112,7 @@ export function MainContent({ activeSection }: MainContentProps) {
                   <span className="text-sm">≡</span>
                 </Button>
               </div>
-              <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700">
+              <Button size="sm" className="bg-purple-600 hover:bg-purple-700">
                 Send
               </Button>
             </div>
@@ -135,7 +135,7 @@ function MessageItem({ author, timestamp, avatar, message }: MessageItemProps) {
   return (
     <div className="flex gap-3 hover:bg-white -mx-2 px-2 py-1.5 rounded transition-colors">
       <Avatar className="w-9 h-9 shrink-0">
-        <AvatarFallback className="bg-linear-to-br from-indigo-600 to-blue-600 text-white font-medium text-sm shadow-sm">
+        <AvatarFallback className="bg-linear-to-br from-purple-600 to-purple-700 text-white font-medium text-sm shadow-sm">
           {avatar}
         </AvatarFallback>
       </Avatar>
