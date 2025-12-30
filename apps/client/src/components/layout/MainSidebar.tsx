@@ -8,24 +8,19 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-
-interface MainSidebarProps {
-  activeSection: string;
-  onSectionChange: (section: string) => void;
-}
+import { useNavigate, useLocation } from "@tanstack/react-router";
 
 const navigationItems = [
-  { id: "home", label: "主页", icon: Home },
-  { id: "messages", label: "私信", icon: MessageSquare },
-  { id: "activity", label: "活动", icon: Activity },
-  { id: "files", label: "文件", icon: FileText },
-  { id: "more", label: "更多", icon: MoreHorizontal },
+  { id: "home", label: "主页", icon: Home, path: "/" },
+  { id: "messages", label: "私信", icon: MessageSquare, path: "/messages" },
+  { id: "activity", label: "活动", icon: Activity, path: "/activity" },
+  { id: "files", label: "文件", icon: FileText, path: "/files" },
+  { id: "more", label: "更多", icon: MoreHorizontal, path: "/more" },
 ];
 
-export function MainSidebar({
-  activeSection,
-  onSectionChange,
-}: MainSidebarProps) {
+export function MainSidebar() {
+  const navigate = useNavigate();
+  const location = useLocation();
   return (
     <aside className="w-16 bg-[#3f1651] text-white flex flex-col items-center py-4 space-y-2">
       {/* Workspace Avatar */}
@@ -39,14 +34,14 @@ export function MainSidebar({
       <nav className="flex-1 w-full flex flex-col items-center space-y-1">
         {navigationItems.map((item) => {
           const Icon = item.icon;
-          const isActive = activeSection === item.id;
+          const isActive = location.pathname === item.path;
 
           return (
             <Button
               key={item.id}
               variant="ghost"
               size="icon"
-              onClick={() => onSectionChange(item.id)}
+              onClick={() => navigate({ to: item.path })}
               className={cn(
                 "w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-white/10 text-white/70 hover:text-white",
                 isActive && "bg-white/10 text-white",
