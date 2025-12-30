@@ -142,11 +142,13 @@ export const userApi = {
 };
 
 import imApi from "./im";
+import workspaceApi from "./workspace";
 
 export const api = {
   auth: authApi,
   user: userApi,
   im: imApi,
+  workspace: workspaceApi,
 };
 
 export default api;

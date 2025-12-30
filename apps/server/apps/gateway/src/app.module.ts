@@ -14,6 +14,7 @@ import { AiClientModule } from '@team9/ai-client';
 import { ImModule } from './im/im.module.js';
 import { EditionModule } from './edition/index.js';
 import { AuthModule } from './auth/auth.module.js';
+import { WorkspaceModule } from './workspace/workspace.module.js';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { AuthModule } from './auth/auth.module.js';
     // RabbitmqModule,
     AuthModule,
     ImModule,
+    WorkspaceModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -7,13 +7,24 @@ import {
   Palette,
   Globe,
   ChevronRight,
+  Users,
+  Link2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Card } from "@/components/ui/card";
+import { useState } from "react";
+import { InviteManagementDialog } from "@/components/workspace/InviteManagementDialog";
 
 const settingsGroups = [
+  {
+    title: "Workspace",
+    items: [
+      { id: "invitations", label: "Invitations", icon: Link2 },
+      { id: "members", label: "Members", icon: Users },
+    ],
+  },
   {
     title: "Preferences",
     items: [
@@ -33,6 +44,17 @@ const settingsGroups = [
 ];
 
 export function MoreMainContent() {
+  const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
+
+  // TODO: Get actual workspace ID from context/auth
+  const workspaceId = "default-workspace-id";
+
+  const handleSettingClick = (id: string) => {
+    if (id === "invitations") {
+      setIsInviteDialogOpen(true);
+    }
+    // Handle other settings...
+  };
   return (
     <main className="flex-1 flex flex-col bg-white">
       {/* Content Header */}
@@ -63,6 +85,7 @@ export function MoreMainContent() {
                       <div key={item.id}>
                         <Button
                           variant="ghost"
+                          onClick={() => handleSettingClick(item.id)}
                           className="w-full justify-between h-auto py-3 px-3 hover:bg-purple-50"
                         >
                           <div className="flex items-center gap-3">
@@ -100,6 +123,13 @@ export function MoreMainContent() {
           </div>
         </div>
       </ScrollArea>
+
+      {/* Invite Management Dialog */}
+      <InviteManagementDialog
+        isOpen={isInviteDialogOpen}
+        onClose={() => setIsInviteDialogOpen(false)}
+        workspaceId={workspaceId}
+      />
     </main>
   );
 }
