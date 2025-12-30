@@ -52,3 +52,16 @@ export interface AcceptInvitationResponse {
     joinedAt: string;
   };
 }
+
+export interface WorkspaceMember {
+  id: string;
+  userId: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  role: "owner" | "admin" | "member" | "guest";
+  status: "online" | "offline" | "away" | "busy";
+  joinedAt: string;
+  invitedBy?: string;
+  lastSeenAt: string | null;
+}

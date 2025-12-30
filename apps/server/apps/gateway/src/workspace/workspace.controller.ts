@@ -24,6 +24,24 @@ export class WorkspaceController {
     return this.workspaceService.getUserWorkspaces(userId);
   }
 
+  @Get(':workspaceId/members')
+  @UseGuards(AuthGuard)
+  async getWorkspaceMembers(
+    @Param('workspaceId') workspaceId: string,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.workspaceService.getWorkspaceMembers(workspaceId, userId);
+  }
+
+  @Get(':workspaceId/debug/online-status')
+  @UseGuards(AuthGuard)
+  async debugOnlineStatus(
+    @Param('workspaceId') workspaceId: string,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.workspaceService.getOnlineOfflineMemberIds(workspaceId);
+  }
+
   @Post(':workspaceId/invitations')
   @UseGuards(AuthGuard)
   async createInvitation(

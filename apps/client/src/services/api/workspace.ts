@@ -5,12 +5,21 @@ import type {
   CreateInvitationDto,
   InvitationInfo,
   AcceptInvitationResponse,
+  WorkspaceMember,
 } from "@/types/workspace";
 
 export const workspaceApi = {
   // Get user's workspaces
   getUserWorkspaces: async (): Promise<UserWorkspace[]> => {
     const response = await http.get<UserWorkspace[]>("/v1/workspaces");
+    return response.data;
+  },
+
+  // Get workspace members
+  getMembers: async (workspaceId: string): Promise<WorkspaceMember[]> => {
+    const response = await http.get<WorkspaceMember[]>(
+      `/v1/workspaces/${workspaceId}/members`,
+    );
     return response.data;
   },
 

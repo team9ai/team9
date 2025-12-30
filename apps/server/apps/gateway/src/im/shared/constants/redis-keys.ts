@@ -18,4 +18,9 @@ export const REDIS_KEYS = {
   // Session related
   REFRESH_TOKEN: (userId: string) => `im:refresh_token:${userId}`,
   USER_SESSIONS: (userId: string) => `im:sessions:${userId}`,
+
+  // Workspace related
+  WORKSPACE_MEMBERS: (workspaceId: string) =>
+    `im:workspace_members:${workspaceId}`,
+  USER_WORKSPACES: (userId: string) => `im:user_workspaces:${userId}`,
 };

@@ -67,3 +67,14 @@ export function useInvitationInfo(code: string | undefined) {
     enabled: !!code,
   });
 }
+
+/**
+ * Hook to fetch workspace members
+ */
+export function useWorkspaceMembers(workspaceId: string | undefined) {
+  return useQuery({
+    queryKey: ["workspace-members", workspaceId],
+    queryFn: () => workspaceApi.getMembers(workspaceId!),
+    enabled: !!workspaceId,
+  });
+}

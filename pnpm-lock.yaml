@@ -367,6 +367,9 @@ importers:
       "@team9/database":
         specifier: workspace:*
         version: link:../../libs/database
+      "@team9/rabbitmq":
+        specifier: workspace:*
+        version: link:../../libs/rabbitmq
       "@team9/redis":
         specifier: workspace:*
         version: link:../../libs/redis

@@ -3,6 +3,8 @@ import {
   NotFoundException,
   BadRequestException,
   Inject,
+  Logger,
+  Optional,
 } from '@nestjs/common';
 import {
   DATABASE_CONNECTION,
@@ -16,6 +18,13 @@ import * as schema from '@team9/database/schemas';
 import { randomBytes } from 'crypto';
 import { env } from '@team9/shared';
 import type { CreateInvitationDto } from './dto/index.js';
+import { RedisService } from '@team9/redis';
+import { WS_EVENTS } from '../im/websocket/events/events.constants.js';
+import { REDIS_KEYS } from '../im/shared/constants/redis-keys.js';
+import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
+
+// Import RabbitMQ types (will be optional)
+type RabbitMQEventService = any;
 
 export interface InvitationResponse {
   id: string;
@@ -64,11 +73,30 @@ export interface UserWorkspace {
   joinedAt: Date;
 }
 
+export interface WorkspaceMemberResponse {
+  id: string;
+  userId: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  role: 'owner' | 'admin' | 'member' | 'guest';
+  status: 'online' | 'offline' | 'away' | 'busy';
+  joinedAt: Date;
+  invitedBy?: string;
+  lastSeenAt: Date | null;
+}
+
 @Injectable()
 export class WorkspaceService {
+  private readonly logger = new Logger(WorkspaceService.name);
+
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
+    @Inject(WEBSOCKET_GATEWAY)
+    private readonly websocketGateway: any,
+    private readonly redisService: RedisService,
+    @Optional() private readonly rabbitMQEventService?: RabbitMQEventService,
   ) {}
 
   private generateInviteCode(): string {
@@ -377,6 +405,73 @@ export class WorkspaceService {
       .where(eq(schema.tenants.id, invitation.tenantId))
       .limit(1);
 
+    // Get user info for broadcasting
+    const [user] = await this.db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+
+    // Broadcast new member joined event to workspace
+    const memberJoinedPayload = {
+      workspaceId: invitation.tenantId,
+      member: {
+        id: member.id,
+        userId: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        avatarUrl: user.avatarUrl,
+        role: member.role,
+        status: user.status,
+        joinedAt: member.joinedAt,
+      },
+    };
+
+    // Get online and offline member IDs for hybrid push strategy
+    const { onlineIds, offlineIds } = await this.getOnlineOfflineMemberIds(
+      invitation.tenantId,
+    );
+
+    // 1. Send to online users via WebSocket (low latency)
+    if (onlineIds.length > 0) {
+      try {
+        await this.websocketGateway.broadcastToWorkspace(
+          invitation.tenantId,
+          WS_EVENTS.WORKSPACE_MEMBER_JOINED,
+          memberJoinedPayload,
+        );
+        this.logger.log(
+          `Sent WORKSPACE_MEMBER_JOINED to ${onlineIds.length} online users via WebSocket`,
+        );
+      } catch (error) {
+        this.logger.warn(`Failed to broadcast via WebSocket: ${error.message}`);
+      }
+    }
+
+    // 2. Queue for offline users via RabbitMQ (reliability)
+    if (offlineIds.length > 0 && this.rabbitMQEventService) {
+      try {
+        await this.rabbitMQEventService.sendToOfflineUsers(
+          invitation.tenantId,
+          offlineIds,
+          WS_EVENTS.WORKSPACE_MEMBER_JOINED,
+          memberJoinedPayload,
+        );
+        this.logger.log(
+          `Queued WORKSPACE_MEMBER_JOINED to ${offlineIds.length} offline users via RabbitMQ`,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Failed to queue message via RabbitMQ: ${error.message}`,
+        );
+        // Don't fail the request if RabbitMQ fails
+      }
+    } else if (offlineIds.length > 0) {
+      this.logger.debug(
+        `${offlineIds.length} offline users will miss WORKSPACE_MEMBER_JOINED event (RabbitMQ disabled)`,
+      );
+    }
+
     return {
       workspace: {
         id: workspace.id,
@@ -389,5 +484,131 @@ export class WorkspaceService {
         joinedAt: member.joinedAt,
       },
     };
+  }
+
+  async getWorkspaceMembers(
+    tenantId: string,
+    requesterId: string,
+  ): Promise<WorkspaceMemberResponse[]> {
+    // Verify requester is a member
+    const isMember = await this.isWorkspaceMember(tenantId, requesterId);
+    if (!isMember) {
+      throw new BadRequestException('Not a member of this workspace');
+    }
+
+    const members = await this.db
+      .select({
+        id: schema.tenantMembers.id,
+        userId: schema.tenantMembers.userId,
+        username: schema.users.username,
+        displayName: schema.users.displayName,
+        avatarUrl: schema.users.avatarUrl,
+        role: schema.tenantMembers.role,
+        joinedAt: schema.tenantMembers.joinedAt,
+        invitedBy: schema.tenantMembers.invitedBy,
+        lastSeenAt: schema.users.lastSeenAt,
+      })
+      .from(schema.tenantMembers)
+      .innerJoin(schema.users, eq(schema.tenantMembers.userId, schema.users.id))
+      .where(
+        and(
+          eq(schema.tenantMembers.tenantId, tenantId),
+          isNull(schema.tenantMembers.leftAt),
+        ),
+      )
+      .orderBy(schema.tenantMembers.joinedAt);
+
+    // Get real-time online status from Redis (single source of truth)
+    const onlineUsersHash = await this.redisService.hgetall(
+      REDIS_KEYS.ONLINE_USERS,
+    );
+
+    return members.map((m) => ({
+      ...m,
+      // Status is ONLY from Redis, defaults to 'offline' if not found
+      status:
+        (onlineUsersHash[m.userId] as 'online' | 'offline' | 'away' | 'busy') ||
+        'offline',
+      invitedBy: m.invitedBy ?? undefined,
+    }));
+  }
+
+  async isWorkspaceMember(tenantId: string, userId: string): Promise<boolean> {
+    const [member] = await this.db
+      .select()
+      .from(schema.tenantMembers)
+      .where(
+        and(
+          eq(schema.tenantMembers.tenantId, tenantId),
+          eq(schema.tenantMembers.userId, userId),
+          isNull(schema.tenantMembers.leftAt),
+        ),
+      )
+      .limit(1);
+
+    return !!member;
+  }
+
+  async getWorkspaceIdsByUserId(userId: string): Promise<string[]> {
+    const memberships = await this.db
+      .select({ tenantId: schema.tenantMembers.tenantId })
+      .from(schema.tenantMembers)
+      .where(
+        and(
+          eq(schema.tenantMembers.userId, userId),
+          isNull(schema.tenantMembers.leftAt),
+        ),
+      );
+
+    return memberships.map((m) => m.tenantId);
+  }
+
+  /**
+   * Get online and offline member IDs for a workspace
+   * Used to implement hybrid push strategy (WebSocket + RabbitMQ)
+   */
+  async getOnlineOfflineMemberIds(tenantId: string): Promise<{
+    onlineIds: string[];
+    offlineIds: string[];
+  }> {
+    // Get all workspace members
+    const members = await this.db
+      .select({ userId: schema.tenantMembers.userId })
+      .from(schema.tenantMembers)
+      .where(
+        and(
+          eq(schema.tenantMembers.tenantId, tenantId),
+          isNull(schema.tenantMembers.leftAt),
+        ),
+      );
+
+    const allMemberIds = members.map((m) => m.userId);
+
+    // Get online users from Redis
+    const onlineUsersHash = await this.redisService.hgetall(
+      REDIS_KEYS.ONLINE_USERS,
+    );
+    const onlineSet = new Set(Object.keys(onlineUsersHash));
+
+    // Debug logging
+    this.logger.debug(
+      `[Online Status Debug] Workspace ${tenantId}:
+      - Total members: ${allMemberIds.length} (${allMemberIds.join(', ')})
+      - Redis key: ${REDIS_KEYS.ONLINE_USERS}
+      - Online users in Redis: ${Object.keys(onlineUsersHash).length} (${Object.keys(onlineUsersHash).join(', ')})
+      - Redis hash data: ${JSON.stringify(onlineUsersHash)}`,
+    );
+
+    // Distinguish between online and offline
+    const onlineIds = allMemberIds.filter((id) => onlineSet.has(id));
+    const offlineIds = allMemberIds.filter((id) => !onlineSet.has(id));
+
+    this.logger.debug(
+      `[Online Status Debug] Results:
+      - Online: ${onlineIds.length} (${onlineIds.join(', ')})
+      - Offline: ${offlineIds.length} (${offlineIds.join(', ')})`,
+    );
+
+    return { onlineIds, offlineIds };
   }
 }

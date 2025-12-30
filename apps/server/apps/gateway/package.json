@@ -18,6 +18,7 @@
     "@team9/ai-client": "workspace:*",
     "@team9/auth": "workspace:*",
     "@team9/database": "workspace:*",
+    "@team9/rabbitmq": "workspace:*",
     "@team9/redis": "workspace:*",
     "@team9/shared": "workspace:*"
   }

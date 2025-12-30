@@ -47,8 +47,9 @@ class WebSocketService {
 
     this.isConnecting = true;
 
-    const baseURL =
-      import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+    // Remove /api suffix from baseURL for WebSocket connection
+    let baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+    baseURL = baseURL.replace(/\/api\/?$/, "");
 
     console.log("[WS] Connecting to:", `${baseURL}/im`);
 

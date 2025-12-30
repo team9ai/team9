@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Connection Test</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>WebSocket Connection Test</h1>
+    <div>
+        <label>JWT Token:</label><br>
+        <input type="text" id="token" size="100" placeholder="Paste your JWT token here">
+        <button onclick="connect()">Connect</button>
+        <button onclick="disconnect()">Disconnect</button>
+    </div>
+    <div style="margin-top: 20px;">
+        <h3>Connection Status: <span id="status">Disconnected</span></h3>
+        <h3>User ID: <span id="userId">-</span></h3>
+    </div>
+    <div style="margin-top: 20px;">
+        <h3>Events Log:</h3>
+        <pre id="log" style="background: #f0f0f0; padding: 10px; max-height: 400px; overflow-y: auto;"></pre>
+    </div>
+
+    <script>
+        let socket = null;
+
+        function log(message) {
+            const logElement = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        function connect() {
+            const token = document.getElementById('token').value.trim();
+
+            if (!token) {
+                alert('Please enter a JWT token first!');
+                return;
+            }
+
+            if (socket) {
+                socket.disconnect();
+            }
+
+            log('Connecting to WebSocket...');
+            document.getElementById('status').textContent = 'Connecting...';
+
+            socket = io('http://localhost:3000/im', {
+                auth: {
+                    token: token
+                },
+                transports: ['websocket', 'polling']
+            });
+
+            // Connection events
+            socket.on('connect', () => {
+                log('✅ Connected! Socket ID: ' + socket.id);
+                document.getElementById('status').textContent = 'Connected';
+            });
+
+            socket.on('disconnect', (reason) => {
+                log('❌ Disconnected: ' + reason);
+                document.getElementById('status').textContent = 'Disconnected';
+                document.getElementById('userId').textContent = '-';
+            });
+
+            socket.on('connect_error', (error) => {
+                log('❌ Connection error: ' + error.message);
+                document.getElementById('status').textContent = 'Error';
+            });
+
+            // Auth events
+            socket.on('authenticated', (data) => {
+                log('✅ Authenticated! User ID: ' + data.userId);
+                document.getElementById('userId').textContent = data.userId;
+            });
+
+            socket.on('auth_error', (data) => {
+                log('❌ Auth error: ' + data.message);
+            });
+
+            // Workspace events
+            socket.on('workspace_member_joined', (data) => {
+                log('👤 New member joined workspace: ' + JSON.stringify(data, null, 2));
+            });
+
+            socket.on('user_online', (data) => {
+                log('🟢 User online: ' + JSON.stringify(data, null, 2));
+            });
+
+            socket.on('user_offline', (data) => {
+                log('⚫ User offline: ' + JSON.stringify(data, null, 2));
+            });
+
+            socket.on('workspace_members_list', (data) => {
+                log('📋 Workspace members: ' + JSON.stringify(data, null, 2));
+            });
+
+            // Message events
+            socket.on('message', (data) => {
+                log('💬 Message: ' + JSON.stringify(data, null, 2));
+            });
+
+            // Catch all events
+            socket.onAny((event, ...args) => {
+                if (!['connect', 'disconnect', 'authenticated', 'auth_error', 'workspace_member_joined', 'user_online', 'user_offline', 'workspace_members_list', 'message'].includes(event)) {
+                    log(`📨 Event "${event}": ${JSON.stringify(args, null, 2)}`);
+                }
+            });
+        }
+
+        function disconnect() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+                log('Manually disconnected');
+            }
+        }
+
+        // Auto-populate token from localStorage if available
+        window.onload = () => {
+            const savedToken = localStorage.getItem('jwt_token');
+            if (savedToken) {
+                document.getElementById('token').value = savedToken;
+                log('Token loaded from localStorage');
+            }
+        };
+
+        // Save token to localStorage when connecting
+        document.getElementById('token').addEventListener('input', (e) => {
+            localStorage.setItem('jwt_token', e.target.value);
+        });
+    </script>
+</body>
+</html>

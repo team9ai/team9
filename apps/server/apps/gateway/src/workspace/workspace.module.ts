@@ -1,13 +1,15 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import {
   WorkspaceController,
   InvitationsController,
 } from './workspace.controller.js';
 import { WorkspaceService } from './workspace.service.js';
 import { DatabaseModule } from '@team9/database';
+import { RedisModule } from '@team9/redis';
+import { WebsocketModule } from '../im/websocket/websocket.module.js';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, RedisModule, forwardRef(() => WebsocketModule)],
   controllers: [WorkspaceController, InvitationsController],
   providers: [WorkspaceService],
   exports: [WorkspaceService],

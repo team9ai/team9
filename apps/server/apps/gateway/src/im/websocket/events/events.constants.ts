@@ -43,6 +43,13 @@ export const WS_EVENTS = {
 
   // Mentions
   MENTION_RECEIVED: 'mention_received',
+
+  // Workspace member events
+  WORKSPACE_MEMBER_JOINED: 'workspace_member_joined',
+  WORKSPACE_MEMBER_LEFT: 'workspace_member_left',
+  WORKSPACE_MEMBER_REMOVED: 'workspace_member_removed',
+  JOIN_WORKSPACE: 'join_workspace',
+  WORKSPACE_MEMBERS_LIST: 'workspace_members_list',
 } as const;
 
 export type WsEvent = (typeof WS_EVENTS)[keyof typeof WS_EVENTS];

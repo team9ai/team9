@@ -1,6 +1,7 @@
-import { Module, Global } from '@nestjs/common';
+import { Module, Global, OnModuleInit } from '@nestjs/common';
 import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
 import { env } from '@team9/shared';
+import { RabbitMQEventService } from './rabbitmq-event.service.js';
 
 @Global()
 @Module({
@@ -21,6 +22,14 @@ import { env } from '@team9/shared';
       },
     }),
   ],
-  exports: [RabbitMQModule],
+  providers: [RabbitMQEventService],
+  exports: [RabbitMQModule, RabbitMQEventService],
 })
-export class RabbitmqModule {}
+export class RabbitmqModule implements OnModuleInit {
+  constructor(private readonly rabbitMQEventService: RabbitMQEventService) {}
+
+  async onModuleInit() {
+    // Setup queues and exchanges on module initialization
+    await this.rabbitMQEventService.setupQueuesAndExchanges();
+  }
+}

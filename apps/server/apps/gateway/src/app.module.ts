@@ -9,8 +9,7 @@ import {
 } from '@team9/database';
 import { RedisModule } from '@team9/redis';
 import { AiClientModule } from '@team9/ai-client';
-// RabbitmqModule temporarily disabled due to NestJS 11 compatibility issue
-// import { RabbitmqModule } from '@team9/rabbitmq';
+import { RabbitmqModule } from '@team9/rabbitmq';
 import { ImModule } from './im/im.module.js';
 import { EditionModule } from './edition/index.js';
 import { AuthModule } from './auth/auth.module.js';
@@ -31,7 +30,7 @@ import { WorkspaceModule } from './workspace/workspace.module.js';
     DatabaseModule,
     RedisModule,
     AiClientModule,
-    // RabbitmqModule,
+    RabbitmqModule,
     AuthModule,
     ImModule,
     WorkspaceModule,
