@@ -13,7 +13,7 @@ const activities = [
     avatar: "A",
     channel: "#general",
     message: "@You Great work on the presentation!",
-    time: "10分钟前",
+    time: "10m ago",
   },
   {
     id: 2,
@@ -22,7 +22,7 @@ const activities = [
     avatar: "B",
     channel: "#dev-team",
     message: "Replied to your thread about the API changes",
-    time: "1小时前",
+    time: "1h ago",
   },
   {
     id: 3,
@@ -31,7 +31,7 @@ const activities = [
     avatar: "C",
     channel: "#design",
     message: "@You Can you review the new mockups?",
-    time: "2小时前",
+    time: "2h ago",
   },
   {
     id: 4,
@@ -40,7 +40,7 @@ const activities = [
     avatar: "D",
     channel: "#general",
     message: "Reacted to your message with 👍",
-    time: "昨天",
+    time: "Yesterday",
   },
 ];
 

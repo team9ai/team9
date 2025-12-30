@@ -149,7 +149,7 @@ describe('Tokenizer Module', () => {
 
     it('should handle special characters', () => {
       const tokenizer = createTokenizer('gpt-4o');
-      const specialText = '你好世界 🌍 <script>alert("test")</script>';
+      const specialText = 'Hello world 🌍 <script>alert("test")</script>';
 
       const count = tokenizer.countTokens(specialText);
 

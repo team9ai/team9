@@ -9,11 +9,11 @@ import { cn } from "@/lib/utils";
 import { useNavigate, useLocation } from "@tanstack/react-router";
 
 const tabItems = [
-  { id: "home", label: "主页", icon: Home, path: "/" },
-  { id: "messages", label: "私信", icon: MessageSquare, path: "/messages" },
-  { id: "activity", label: "活动", icon: Activity, path: "/activity" },
-  { id: "files", label: "文件", icon: FileText, path: "/files" },
-  { id: "more", label: "更多", icon: MoreHorizontal, path: "/more" },
+  { id: "home", label: "Home", icon: Home, path: "/" },
+  { id: "messages", label: "DMs", icon: MessageSquare, path: "/messages" },
+  { id: "activity", label: "Activity", icon: Activity, path: "/activity" },
+  { id: "files", label: "Files", icon: FileText, path: "/files" },
+  { id: "more", label: "More", icon: MoreHorizontal, path: "/more" },
 ];
 
 export function MobileTabBar() {

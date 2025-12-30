@@ -15,19 +15,19 @@ import { Card } from "@/components/ui/card";
 
 const settingsGroups = [
   {
-    title: "偏好设置",
+    title: "Preferences",
     items: [
-      { id: "notifications", label: "通知", icon: Bell },
-      { id: "privacy", label: "隐私", icon: Lock },
-      { id: "appearance", label: "外观", icon: Palette },
-      { id: "language", label: "语言", icon: Globe },
+      { id: "notifications", label: "Notifications", icon: Bell },
+      { id: "privacy", label: "Privacy", icon: Lock },
+      { id: "appearance", label: "Appearance", icon: Palette },
+      { id: "language", label: "Language", icon: Globe },
     ],
   },
   {
-    title: "支持",
+    title: "Support",
     items: [
-      { id: "help", label: "帮助中心", icon: HelpCircle },
-      { id: "about", label: "关于", icon: Info },
+      { id: "help", label: "Help Center", icon: HelpCircle },
+      { id: "about", label: "About", icon: Info },
     ],
   },
 ];
@@ -39,7 +39,9 @@ export function MoreMainContent() {
       <header className="h-14 bg-white flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
           <Settings size={18} className="text-purple-600" />
-          <h2 className="font-semibold text-lg text-slate-900">设置与更多</h2>
+          <h2 className="font-semibold text-lg text-slate-900">
+            Settings & More
+          </h2>
         </div>
       </header>
 

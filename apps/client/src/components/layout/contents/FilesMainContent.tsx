@@ -19,7 +19,7 @@ const files = [
     type: "PDF",
     size: "2.4 MB",
     uploadedBy: "Alice Johnson",
-    uploadedAt: "2小时前",
+    uploadedAt: "2h ago",
     icon: FileText,
   },
   {
@@ -28,7 +28,7 @@ const files = [
     type: "Figma",
     size: "5.1 MB",
     uploadedBy: "Carol White",
-    uploadedAt: "昨天",
+    uploadedAt: "Yesterday",
     icon: ImageIcon,
   },
   {
@@ -37,7 +37,7 @@ const files = [
     type: "Word",
     size: "234 KB",
     uploadedBy: "Bob Smith",
-    uploadedAt: "2天前",
+    uploadedAt: "2d ago",
     icon: File,
   },
   {
@@ -46,7 +46,7 @@ const files = [
     type: "Image",
     size: "1.8 MB",
     uploadedBy: "David Brown",
-    uploadedAt: "3天前",
+    uploadedAt: "3d ago",
     icon: ImageIcon,
   },
 ];
@@ -103,7 +103,7 @@ export function FilesMainContent() {
                         </span>
                         <span className="text-xs text-slate-400">•</span>
                         <span className="text-xs text-slate-500">
-                          上传者: {file.uploadedBy}
+                          Uploaded by: {file.uploadedBy}
                         </span>
                         <span className="text-xs text-slate-400">•</span>
                         <span className="text-xs text-slate-500">

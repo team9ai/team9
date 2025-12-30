@@ -2,6 +2,7 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { MainSidebar } from "@/components/layout/MainSidebar";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
 import { useIsDesktop } from "@/hooks/useMediaQuery";
+import { useWebSocket } from "@/hooks/useWebSocket";
 
 export const Route = createFileRoute("/_authenticated")({
   beforeLoad: ({ location }) => {
@@ -20,6 +21,9 @@ export const Route = createFileRoute("/_authenticated")({
 
 function AuthenticatedLayout() {
   const isDesktop = useIsDesktop();
+
+  // Initialize WebSocket connection
+  useWebSocket();
 
   return (
     <div className="flex h-screen overflow-hidden">

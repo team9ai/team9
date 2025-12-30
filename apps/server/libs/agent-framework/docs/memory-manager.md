@@ -1,8 +1,8 @@
 # Memory Manager
 
-Memory Manager 是 Agent 内存系统的核心调度器，负责协调事件处理、状态管理和内存压缩。
+Memory Manager is the core orchestrator of the Agent memory system, responsible for coordinating event processing, state management, and memory compaction.
 
-## 架构概览
+## Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -20,9 +20,9 @@ Memory Manager 是 Agent 内存系统的核心调度器，负责协调事件处�
                           └─────────────────┘
 ```
 
-## 事件处理流程
+## Event Processing Flow
 
-### 正常流程
+### Normal Flow
 
 ```
 Event → dispatch()
@@ -58,13 +58,13 @@ checkAutoCompaction()
 [if threshold reached] → triggerCompaction() (background)
 ```
 
-### 压缩流程
+### Compaction Flow
 
 ```
 triggerCompaction(threadId, chunks?)
            │
            ▼
-    block(COMPACTING)  ← 新事件进入队列等待
+    block(COMPACTING)  ← New events are queued for waiting
            │
            ▼
     Find suitable compactor
@@ -90,120 +90,120 @@ triggerCompaction(threadId, chunks?)
     unblock()
            │
            ▼
-    processQueue()  ← 处理等待中的事件
+    processQueue()  ← Process waiting events
 ```
 
-## 阻塞机制
+## Blocking Mechanism
 
 ### BlockingReason
 
-| Reason       | Description      |
-| ------------ | ---------------- |
-| `COMPACTING` | 压缩操作进行中   |
-| `PAUSED`     | 手动暂停（预留） |
+| Reason       | Description                      |
+| ------------ | -------------------------------- |
+| `COMPACTING` | Compaction operation in progress |
+| `PAUSED`     | Manually paused (reserved)       |
 
-### EventQueue 行为
+### EventQueue Behavior
 
-- **未阻塞时**: 事件立即处理
-- **阻塞时**: 事件入队，返回 Promise，等待阻塞解除后处理
-- **解除阻塞后**: 自动处理队列中的所有事件
+- **When not blocked**: Events are processed immediately
+- **When blocked**: Events are queued, returns Promise, waits for unblock before processing
+- **After unblock**: Automatically processes all events in queue
 
 ```typescript
-// 检查是否阻塞
+// Check if blocked
 manager.isBlocked(threadId);
 
-// 获取阻塞原因
+// Get blocking reason
 manager.getBlockingReason(threadId);
 ```
 
-## Compaction (压缩)
+## Compaction
 
-### 压缩策略
+### Compaction Strategy
 
-根据 `ChunkRetentionStrategy` 决定哪些 chunks 可以压缩：
+Determines which chunks can be compacted based on `ChunkRetentionStrategy`:
 
-| Strategy             | Compactable | Description      |
-| -------------------- | ----------- | ---------------- |
-| `CRITICAL`           | No          | 必须保留，不压缩 |
-| `COMPRESSIBLE`       | Yes         | 可单独压缩       |
-| `BATCH_COMPRESSIBLE` | Yes         | 可批量压缩       |
-| `DISPOSABLE`         | Yes         | 可丢弃，优先压缩 |
-| `EPHEMERAL`          | N/A         | 会话结束后丢弃   |
+| Strategy             | Compactable | Description                               |
+| -------------------- | ----------- | ----------------------------------------- |
+| `CRITICAL`           | No          | Must be retained, not compacted           |
+| `COMPRESSIBLE`       | Yes         | Can be compacted individually             |
+| `BATCH_COMPRESSIBLE` | Yes         | Can be batch compacted                    |
+| `DISPOSABLE`         | Yes         | Can be discarded, priority for compaction |
+| `EPHEMERAL`          | N/A         | Discarded after session ends              |
 
-### 自动压缩
+### Auto-Compaction
 
-当可压缩的 WORKING_FLOW chunks 数量达到阈值时自动触发：
+Automatically triggered when the number of compactable WORKING_FLOW chunks reaches threshold:
 
 ```typescript
 const manager = new MemoryManager(storage, registry, llmAdapter, {
   llm: { compactModel: 'gpt-4o-mini' },
-  autoCompactEnabled: true, // 默认 true
-  autoCompactThreshold: 20, // 默认 20 个 chunks
+  autoCompactEnabled: true, // default true
+  autoCompactThreshold: 20, // default 20 chunks
 });
 ```
 
-### 手动压缩
+### Manual Compaction
 
 ```typescript
-// 压缩所有可压缩的 chunks
+// Compact all compactable chunks
 await manager.triggerCompaction(threadId);
 
-// 压缩指定 chunks
+// Compact specific chunks
 await manager.triggerCompaction(threadId, specificChunks);
 ```
 
 ### WorkingFlowCompactor
 
-专门用于压缩 WORKING_FLOW 类型的 chunks：
+Specifically designed for compacting WORKING_FLOW type chunks:
 
-**输入格式 (XML)**:
+**Input Format (XML)**:
 
 ```xml
 <context>
-  <task_goal>用户的任务目标</task_goal>
-  <progress_summary>之前的进度摘要</progress_summary>
-  <system_context>系统上下文</system_context>
+  <task_goal>User's task goal</task_goal>
+  <progress_summary>Previous progress summary</progress_summary>
+  <system_context>System context</system_context>
 </context>
 
 <working_flow_to_compact>
   <entry index="1" subtype="THINKING" timestamp="...">
-    思考内容...
+    Thinking content...
   </entry>
   <entry index="2" subtype="AGENT_ACTION" timestamp="...">
-    动作内容...
+    Action content...
   </entry>
 </working_flow_to_compact>
 ```
 
-**输出格式**:
+**Output Format**:
 
 ```markdown
 ## Progress Summary
 
 ### Completed Actions
 
-- 已完成的操作列表
+- List of completed operations
 
 ### Attempted Approaches
 
-- 尝试过的方法（成功/失败）
+- Methods attempted (success/failure)
 
 ### Current State
 
-当前状态描述
+Current state description
 
 ### Key Information
 
-- 重要信息、文件路径、决策
+- Important information, file paths, decisions
 
 ### Next Steps
 
-- 下一步要做的事情
+- Things to do next
 ```
 
-## 使用示例
+## Usage Examples
 
-### 初始化
+### Initialization
 
 ```typescript
 import {
@@ -212,10 +212,10 @@ import {
   InMemoryStorageProvider,
 } from '@team9/agent-framework';
 
-// 创建 LLM 适配器（实现 ILLMAdapter 接口）
+// Create LLM adapter (implementing ILLMAdapter interface)
 const llmAdapter: ILLMAdapter = {
   async complete(request) {
-    // 调用 ai-client 或其他 LLM 服务
+    // Call ai-client or other LLM service
     const response = await aiClient.chat({
       provider: 'openai',
       model: 'gpt-4o-mini',
@@ -230,7 +230,7 @@ const llmAdapter: ILLMAdapter = {
   },
 };
 
-// 创建 MemoryManager
+// Create MemoryManager
 const manager = new MemoryManager(
   new InMemoryStorageProvider(),
   new DefaultReducerRegistry(),
@@ -247,24 +247,24 @@ const manager = new MemoryManager(
 );
 ```
 
-### 处理事件
+### Event Processing
 
 ```typescript
-// 创建线程
+// Create thread
 const { thread, initialState } = await manager.createThread();
 
-// 派发事件
+// Dispatch event
 const result = await manager.dispatch(thread.id, {
   type: EventType.USER_MESSAGE,
   timestamp: Date.now(),
   content: 'Hello, agent!',
 });
 
-// 批量派发
+// Batch dispatch
 await manager.dispatchAll(thread.id, [event1, event2, event3]);
 ```
 
-### 自定义 Compactor
+### Custom Compactor
 
 ```typescript
 import {
@@ -275,7 +275,7 @@ import {
 
 class CustomCompactor implements ICompactor {
   canCompact(chunks: MemoryChunk[]): boolean {
-    // 判断是否可以处理这些 chunks
+    // Determine if these chunks can be handled
     return chunks.every((c) => c.type === ChunkType.ENVIRONMENT);
   }
 
@@ -283,7 +283,7 @@ class CustomCompactor implements ICompactor {
     chunks: MemoryChunk[],
     context: CompactionContext,
   ): Promise<CompactionResult> {
-    // 自定义压缩逻辑
+    // Custom compaction logic
     // ...
   }
 }
@@ -291,20 +291,20 @@ class CustomCompactor implements ICompactor {
 manager.registerCompactor(new CustomCompactor());
 ```
 
-## 配置参考
+## Configuration Reference
 
 ### MemoryManagerConfig
 
-| Field                  | Type        | Default  | Description                   |
-| ---------------------- | ----------- | -------- | ----------------------------- |
-| `llm`                  | `LLMConfig` | required | LLM 配置                      |
-| `autoCompactEnabled`   | `boolean`   | `true`   | 是否启用自动压缩              |
-| `autoCompactThreshold` | `number`    | `20`     | 触发自动压缩的 chunk 数量阈值 |
+| Field                  | Type        | Default  | Description                                      |
+| ---------------------- | ----------- | -------- | ------------------------------------------------ |
+| `llm`                  | `LLMConfig` | required | LLM configuration                                |
+| `autoCompactEnabled`   | `boolean`   | `true`   | Whether to enable auto-compaction                |
+| `autoCompactThreshold` | `number`    | `20`     | Chunk count threshold to trigger auto-compaction |
 
 ### LLMConfig
 
-| Field                | Type     | Default  | Description       |
-| -------------------- | -------- | -------- | ----------------- |
-| `compactModel`       | `string` | required | 压缩使用的模型    |
-| `compactTemperature` | `number` | `0.3`    | 温度参数          |
-| `compactMaxTokens`   | `number` | `2000`   | 最大输出 token 数 |
+| Field                | Type     | Default  | Description                 |
+| -------------------- | -------- | -------- | --------------------------- |
+| `compactModel`       | `string` | required | Model to use for compaction |
+| `compactTemperature` | `number` | `0.3`    | Temperature parameter       |
+| `compactMaxTokens`   | `number` | `2000`   | Maximum output token count  |

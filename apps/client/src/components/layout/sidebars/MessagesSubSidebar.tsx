@@ -4,16 +4,28 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-
-const directMessages = [
-  { id: "dm-1", name: "Alice Johnson", avatar: "A", status: "online" },
-  { id: "dm-2", name: "Bob Smith", avatar: "B", status: "online" },
-  { id: "dm-3", name: "Carol White", avatar: "C", status: "offline" },
-  { id: "dm-4", name: "David Brown", avatar: "D", status: "online" },
-  { id: "dm-5", name: "Eve Davis", avatar: "E", status: "offline" },
-];
+import { useChannelsByType } from "@/hooks/useChannels";
+import { useOnlineUsers } from "@/hooks/useIMUsers";
+import { Link } from "@tanstack/react-router";
+import { useState } from "react";
+import { NewMessageDialog } from "@/components/dialog/NewMessageDialog";
 
 export function MessagesSubSidebar() {
+  const { directChannels = [], isLoading } = useChannelsByType();
+  const { data: onlineUsers = {} } = useOnlineUsers();
+  const [isNewMessageOpen, setIsNewMessageOpen] = useState(false);
+
+  // Extract users from direct channels
+  const directMessageUsers = directChannels.map((channel) => {
+    return {
+      id: channel.id,
+      channelId: channel.id,
+      name: channel.name || "Direct Message",
+      avatar: channel.name?.[0]?.toUpperCase() || "D",
+      unreadCount: channel.unreadCount || 0,
+    };
+  });
+
   return (
     <aside className="w-64 bg-[#5b2c6f] text-white flex flex-col">
       {/* Header */}
@@ -47,25 +59,44 @@ export function MessagesSubSidebar() {
       {/* Messages List */}
       <ScrollArea className="flex-1 px-3">
         <nav className="space-y-0.5 pb-3 pt-2">
-          {directMessages.map((dm) => (
-            <Button
-              key={dm.id}
-              variant="ghost"
-              className="w-full justify-start gap-2 px-2 h-auto py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white"
-            >
-              <div className="relative">
-                <Avatar className="w-8 h-8">
-                  <AvatarFallback className="bg-purple-400 text-white text-sm">
-                    {dm.avatar}
-                  </AvatarFallback>
-                </Avatar>
-                {dm.status === "online" && (
-                  <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-[#5b2c6f]" />
-                )}
-              </div>
-              <span className="truncate">{dm.name}</span>
-            </Button>
-          ))}
+          {isLoading ? (
+            <p className="text-xs text-white/50 px-2 py-2">Loading...</p>
+          ) : directMessageUsers.length === 0 ? (
+            <p className="text-xs text-white/50 px-2 py-2">No messages</p>
+          ) : (
+            directMessageUsers.map((dm) => {
+              const isOnline = dm.channelId in onlineUsers;
+              return (
+                <Link
+                  key={dm.id}
+                  to="/channels/$channelId"
+                  params={{ channelId: dm.channelId }}
+                >
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start gap-2 px-2 h-auto py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white"
+                  >
+                    <div className="relative">
+                      <Avatar className="w-8 h-8">
+                        <AvatarFallback className="bg-purple-400 text-white text-sm">
+                          {dm.avatar}
+                        </AvatarFallback>
+                      </Avatar>
+                      {isOnline && (
+                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-[#5b2c6f]" />
+                      )}
+                    </div>
+                    <span className="truncate flex-1 text-left">{dm.name}</span>
+                    {dm.unreadCount > 0 && (
+                      <span className="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-5 text-center">
+                        {dm.unreadCount}
+                      </span>
+                    )}
+                  </Button>
+                </Link>
+              );
+            })
+          )}
         </nav>
       </ScrollArea>
 
@@ -73,12 +104,19 @@ export function MessagesSubSidebar() {
       <div className="p-3 border-t border-white/10">
         <Button
           variant="ghost"
+          onClick={() => setIsNewMessageOpen(true)}
           className="w-full justify-center gap-2 px-2 h-10 text-sm text-white/90 hover:bg-white/10 hover:text-white rounded-full border border-white/20"
         >
           <Plus size={18} />
-          <span>新消息</span>
+          <span>New Message</span>
         </Button>
       </div>
+
+      {/* New Message Dialog */}
+      <NewMessageDialog
+        isOpen={isNewMessageOpen}
+        onClose={() => setIsNewMessageOpen(false)}
+      />
     </aside>
   );
 }

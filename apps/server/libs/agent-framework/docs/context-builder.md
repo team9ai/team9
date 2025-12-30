@@ -1,8 +1,8 @@
 # Context Builder
 
-Context Builder 负责将 MemoryState 转换为 LLM 可用的消息格式，每个 Chunk 都被包装在对应的 XML 标签内。
+Context Builder is responsible for converting MemoryState into LLM-ready message format, with each Chunk wrapped in corresponding XML tags.
 
-## 架构
+## Architecture
 
 ```
 MemoryState
@@ -28,34 +28,34 @@ MemoryState
 ContextMessage[] (role + content)
 ```
 
-## XML 标签映射
+## XML Tag Mapping
 
 ### ChunkType.SYSTEM
 
 ```xml
 <system_context id="chunk_xxx" priority="1000">
-  系统上下文内容
+  System context content
 </system_context>
 ```
 
 ### ChunkType.AGENT
 
-根据 role 区分：
+Distinguished by role:
 
 ```xml
 <!-- role: user -->
 <user_message id="chunk_xxx" role="user">
-  用户消息内容
+  User message content
 </user_message>
 
 <!-- role: assistant -->
 <assistant_response id="chunk_xxx" role="assistant">
-  助手回复内容
+  Assistant response content
 </assistant_response>
 
 <!-- role: assistant, action: clarification -->
 <assistant_clarification id="chunk_xxx" role="assistant" action="clarification">
-  澄清问题
+  Clarification question
 </assistant_clarification>
 ```
 
@@ -83,17 +83,17 @@ ContextMessage[] (role + content)
 
 <!-- Message to SubAgent -->
 <message_to_subagent id="chunk_xxx" subagent_id="agent_123">
-  请继续调研...
+  Please continue research...
 </message_to_subagent>
 
 <!-- SubAgent Result -->
 <subagent_result id="chunk_xxx" subagent_id="agent_123" success="true">
-  调研结果...
+  Research results...
 </subagent_result>
 
 <!-- Parent Agent Message -->
 <parent_agent_message id="chunk_xxx" parent_agent_id="agent_000">
-  父级任务指令
+  Parent task instruction
 </parent_agent_message>
 ```
 
@@ -102,7 +102,7 @@ ContextMessage[] (role + content)
 ```xml
 <!-- Tool Result -->
 <tool_result id="chunk_xxx" tool="read_file" call_id="call_123" success="true">
-  文件内容...
+  File content...
 </tool_result>
 
 <!-- Tool Error -->
@@ -112,7 +112,7 @@ ContextMessage[] (role + content)
 
 <!-- Skill Result -->
 <skill_result id="chunk_xxx" skill="code_review" call_id="call_456" success="true">
-  Review 结果...
+  Review results...
 </skill_result>
 ```
 
@@ -134,12 +134,12 @@ ContextMessage[] (role + content)
 
 <!-- Thinking -->
 <thinking id="chunk_xxx" subtype="THINKING">
-  思考过程...
+  Thinking process...
 </thinking>
 
 <!-- User Intervention -->
 <user_intervention id="chunk_xxx" subtype="USER">
-  用户中途的干预
+  User intervention during process
 </user_intervention>
 ```
 
@@ -152,89 +152,89 @@ ContextMessage[] (role + content)
 </task_completed>
 
 <!-- Task Abandoned -->
-<task_abandoned id="chunk_xxx" reason="无法完成">
+<task_abandoned id="chunk_xxx" reason="Unable to complete">
   {"partialResult": "..."}
 </task_abandoned>
 
 <!-- Task Terminated -->
 <task_terminated id="chunk_xxx" terminated_by="user">
-  任务被终止
+  Task was terminated
 </task_terminated>
 ```
 
-## 使用示例
+## Usage Examples
 
-### 基本使用
+### Basic Usage
 
 ```typescript
 import { ContextBuilder, createContextBuilder } from '@team9/agent-framework';
 
 const builder = createContextBuilder();
 
-// 获取当前 state
+// Get current state
 const state = await memoryManager.getCurrentState(threadId);
 
-// 构建上下文
+// Build context
 const result = builder.build(state, {
   maxTokens: 8000,
   systemPrompt: 'You are a helpful assistant.',
 });
 
-// result.messages 可直接用于 LLM 调用
+// result.messages can be used directly for LLM calls
 const response = await llm.chat({
   messages: result.messages,
 });
 ```
 
-### 使用 Tokenizer 进行精确 Token 计数
+### Using Tokenizer for Precise Token Counting
 
 ```typescript
 import { createContextBuilder, createTokenizer } from '@team9/agent-framework';
 
-// 创建针对特定模型的 tokenizer
+// Create tokenizer for specific model
 const tokenizer = createTokenizer('gpt-4o');
 
-// 方式 1: 在构造时传入默认 tokenizer
+// Method 1: Pass default tokenizer at construction
 const builder = createContextBuilder(tokenizer);
 
-// 方式 2: 在 build 时传入
+// Method 2: Pass at build time
 const result = builder.build(state, {
   maxTokens: 8000,
   tokenizer: tokenizer,
 });
 
-// 检查 token 计数是否精确
+// Check if token count is exact
 console.log('Token count:', result.tokenCount);
 console.log('Is exact:', result.tokenCountExact); // true if tokenizer was used
 ```
 
-### 带选项的使用
+### Usage with Options
 
 ```typescript
 const result = builder.build(state, {
-  // Token 限制
+  // Token limit
   maxTokens: 4000,
 
-  // 使用 tokenizer 进行精确计数
+  // Use tokenizer for precise counting
   tokenizer: createTokenizer('gpt-4o'),
 
-  // 自定义系统提示
+  // Custom system prompt
   systemPrompt: `You are an expert developer.
 
 <task>
 ${currentTask}
 </task>`,
 
-  // 是否包含系统块
+  // Whether to include system blocks
   includeSystem: true,
 
-  // 是否包含环境块（工具结果等）
+  // Whether to include environment blocks (tool results, etc.)
   includeEnvironment: true,
 
-  // 排除特定类型
+  // Exclude specific types
   excludeTypes: [ChunkType.OUTPUT],
 
-  // 只包含特定 chunks
+  // Only include specific chunks
   includeOnlyChunkIds: ['chunk_1', 'chunk_2'],
 });
 
@@ -243,7 +243,7 @@ console.log('Included chunks:', result.includedChunkIds);
 console.log('Excluded chunks:', result.excludedChunkIds);
 ```
 
-### 自定义 Renderer
+### Custom Renderer
 
 ```typescript
 import {
@@ -254,7 +254,7 @@ import {
 
 class CustomChunkRenderer implements IChunkRenderer {
   canRender(chunk: MemoryChunk): boolean {
-    // 只处理特定的自定义 chunk
+    // Only handle specific custom chunks
     return chunk.metadata.custom?.myCustomType === true;
   }
 
@@ -270,7 +270,7 @@ ${JSON.stringify(content)}
   }
 }
 
-// 注册自定义 renderer（优先于默认 renderers）
+// Register custom renderer (takes priority over default renderers)
 builder.registerRenderer(new CustomChunkRenderer());
 ```
 
@@ -278,26 +278,26 @@ builder.registerRenderer(new CustomChunkRenderer());
 
 ```typescript
 interface ContextBuildResult {
-  /** 发送给 LLM 的消息列表 */
+  /** List of messages to send to LLM */
   messages: ContextMessage[];
 
-  /** Token 数量 (精确或估算) */
+  /** Token count (exact or estimated) */
   tokenCount: number;
 
-  /** 是否为精确计数 (true=使用了tokenizer, false=估算) */
+  /** Whether count is exact (true=used tokenizer, false=estimated) */
   tokenCountExact: boolean;
 
-  /** 被包含的 chunk IDs */
+  /** Included chunk IDs */
   includedChunkIds: string[];
 
-  /** 被排除的 chunk IDs（如超出 token 限制） */
+  /** Excluded chunk IDs (e.g., exceeded token limit) */
   excludedChunkIds: string[];
 }
 ```
 
-## 消息分组
+## Message Grouping
 
-Context Builder 会将连续相同角色的 chunks 合并到同一个消息中：
+Context Builder merges consecutive chunks with the same role into a single message:
 
 ```
 Chunk 1 (user)   ──┐
@@ -307,35 +307,35 @@ Chunk 4 (user)   ──► Message 3: role=user
 Chunk 5 (user)   ──┘
 ```
 
-这样可以减少消息数量，同时保持正确的对话结构。
+This reduces message count while maintaining correct conversation structure.
 
-## Token 计数
+## Token Counting
 
-### 精确计数 (使用 Tokenizer)
+### Exact Counting (Using Tokenizer)
 
-使用 `js-tiktoken` 提供精确的 token 计数：
+Uses `js-tiktoken` to provide exact token counting:
 
 ```typescript
 import { createTokenizer } from '@team9/agent-framework';
 
-// 支持的模型
+// Supported models
 const tokenizer = createTokenizer('gpt-4o'); // o200k_base encoding
 const tokenizer = createTokenizer('gpt-4'); // cl100k_base encoding
 const tokenizer = createTokenizer('gpt-3.5-turbo'); // cl100k_base encoding
 
-// Claude 模型使用 cl100k_base 作为近似值
+// Claude models use cl100k_base as approximation
 const tokenizer = createTokenizer('claude-3-5-sonnet-20241022');
 ```
 
-### 估算计数 (无 Tokenizer)
+### Estimated Counting (Without Tokenizer)
 
-如果不提供 tokenizer，使用简单的字符数/4 算法进行估算。
+If no tokenizer is provided, uses simple character count/4 algorithm for estimation.
 
-### Token 限制处理
+### Token Limit Handling
 
-当设置 `maxTokens` 时：
+When `maxTokens` is set:
 
-1. 按顺序处理 chunks
-2. 累加每个 chunk 的 token 数
-3. 超出限制的 chunks 被放入 `excludedChunkIds`
-4. 返回结果中可以看到哪些被排除了
+1. Process chunks in order
+2. Accumulate token count for each chunk
+3. Chunks exceeding limit are placed in `excludedChunkIds`
+4. Result shows which chunks were excluded

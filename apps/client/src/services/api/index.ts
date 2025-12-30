@@ -141,9 +141,12 @@ export const userApi = {
   },
 };
 
+import imApi from "./im";
+
 export const api = {
   auth: authApi,
   user: userApi,
+  im: imApi,
 };
 
 export default api;

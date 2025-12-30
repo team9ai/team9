@@ -108,15 +108,15 @@ export interface AICompletionResponse {
   finishReason?: string;
 }
 
-// 流式响应类型
+// Streaming response type
 export type AIStreamResponse = AsyncGenerator<string>;
 
-// 统一的聊天返回类型
+// Unified chat response type
 export type AIChatResponse<T extends boolean | undefined> = T extends true
   ? AIStreamResponse
   : Promise<AICompletionResponse>;
 
-// 统一接口 - 根据 stream 参数决定返回类型
+// Unified interface - return type determined by stream parameter
 export interface IAIProviderAdapter {
   chat<T extends boolean | undefined = undefined>(
     request: AICompletionRequest & { stream?: T },

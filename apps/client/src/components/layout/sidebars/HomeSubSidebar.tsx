@@ -16,36 +16,19 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useState } from "react";
-
-const channels = [
-  { id: "revenues", label: "revenues", icon: Hash },
-  { id: "sentry", label: "sentry", icon: Lock },
-  { id: "featupvote", label: "featupvote", icon: Plus, isAdd: true },
-  { id: "incidents", label: "incidents", icon: Plus, isAdd: true },
-];
-
-const dms = [
-  { id: "hh-huang", name: "hh huang", avatar: "H", status: "online" },
-  { id: "jing", name: "Jing", avatar: "J", status: "online" },
-  { id: "tsukina", name: "tsukina", avatar: "T", status: "online" },
-  { id: "jerry-l", name: "Jerry L", avatar: "J", status: "online" },
-  { id: "yingmeng-wang", name: "Yingmeng Wang", avatar: "Y", status: "online" },
-  { id: "wangbaochuan", name: "wangbaochuan", avatar: "W", status: "offline" },
-  { id: "sutong", name: "sutong", avatar: "S", status: "offline" },
-  { id: "chenyikai", name: "chenyikai", avatar: "C", status: "offline" },
-  { id: "xiexuecheng", name: "xiexuecheng", avatar: "X", status: "offline" },
-  { id: "liujiawei", name: "liujiawei", avatar: "L", status: "offline" },
-  { id: "jt", name: "JT 你", avatar: "J", status: "online" },
-];
+import { useChannelsByType } from "@/hooks/useChannels";
+import { useOnlineUsers } from "@/hooks/useIMUsers";
+import { Link } from "@tanstack/react-router";
+import { NewMessageDialog } from "@/components/dialog/NewMessageDialog";
 
 const topItems = [
-  { id: "huddle", label: "抱团", icon: Headphones },
-  { id: "directory", label: "目录", icon: BookOpen },
+  { id: "huddle", label: "Huddle", icon: Headphones },
+  { id: "directory", label: "Directory", icon: BookOpen },
   {
     id: "starred",
-    label: "已加星标",
+    label: "Starred",
     icon: Star,
-    description: "将重要的内容拖放到此处",
+    description: "Drag important items here",
   },
 ];
 
@@ -53,6 +36,31 @@ export function HomeSubSidebar() {
   const [channelsExpanded, setChannelsExpanded] = useState(true);
   const [dmsExpanded, setDmsExpanded] = useState(true);
   const [appsExpanded, setAppsExpanded] = useState(true);
+  const [isNewMessageOpen, setIsNewMessageOpen] = useState(false);
+
+  const {
+    publicChannels = [],
+    privateChannels = [],
+    directChannels = [],
+    isLoading,
+  } = useChannelsByType();
+  const { data: onlineUsers = {} } = useOnlineUsers();
+
+  const allChannels = [...publicChannels, ...privateChannels];
+
+  // Extract users from direct channels
+  const directMessageUsers = directChannels.map((channel) => {
+    // For direct channels, we need to find the other user
+    // This is a simplified version - you might want to fetch member details
+    return {
+      id: channel.id,
+      channelId: channel.id,
+      name: channel.name || "Direct Message",
+      avatar: channel.name?.[0] || "D",
+      status: "offline" as const,
+      unreadCount: channel.unreadCount || 0,
+    };
+  });
 
   return (
     <aside className="w-64 bg-[#5b2c6f] text-white flex flex-col">
@@ -120,26 +128,44 @@ export function HomeSubSidebar() {
               ) : (
                 <ChevronRight size={14} />
               )}
-              <span>频道</span>
+              <span>Channels</span>
             </Button>
             {channelsExpanded && (
               <div className="ml-4 mt-1 space-y-0.5">
-                {channels.map((channel) => {
-                  const ChannelIcon = channel.icon;
-                  return (
-                    <Button
-                      key={channel.id}
-                      variant="ghost"
-                      className={cn(
-                        "w-full justify-start gap-2 px-2 h-auto py-1.5 text-sm text-white/80 hover:bg-white/10 hover:text-white",
-                        channel.isAdd && "text-white/50",
-                      )}
-                    >
-                      <ChannelIcon size={16} />
-                      <span className="truncate">{channel.label}</span>
-                    </Button>
-                  );
-                })}
+                {isLoading ? (
+                  <p className="text-xs text-white/50 px-2 py-1">Loading...</p>
+                ) : allChannels.length === 0 ? (
+                  <p className="text-xs text-white/50 px-2 py-1">No channels</p>
+                ) : (
+                  allChannels.map((channel) => {
+                    const ChannelIcon =
+                      channel.type === "private" ? Lock : Hash;
+                    return (
+                      <Link
+                        key={channel.id}
+                        to="/channels/$channelId"
+                        params={{ channelId: channel.id }}
+                      >
+                        <Button
+                          variant="ghost"
+                          className={cn(
+                            "w-full justify-start gap-2 px-2 h-auto py-1.5 text-sm text-white/80 hover:bg-white/10 hover:text-white",
+                          )}
+                        >
+                          <ChannelIcon size={16} />
+                          <span className="truncate flex-1 text-left">
+                            {channel.name}
+                          </span>
+                          {channel.unreadCount > 0 && (
+                            <span className="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-5 text-center">
+                              {channel.unreadCount}
+                            </span>
+                          )}
+                        </Button>
+                      </Link>
+                    );
+                  })
+                )}
               </div>
             )}
           </div>
@@ -156,29 +182,50 @@ export function HomeSubSidebar() {
               ) : (
                 <ChevronRight size={14} />
               )}
-              <span>私信</span>
+              <span>Direct Messages</span>
             </Button>
             {dmsExpanded && (
               <div className="ml-2 mt-1 space-y-0.5">
-                {dms.map((dm) => (
-                  <Button
-                    key={dm.id}
-                    variant="ghost"
-                    className="w-full justify-start gap-2 px-2 h-auto py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white"
-                  >
-                    <div className="relative">
-                      <Avatar className="w-6 h-6">
-                        <AvatarFallback className="bg-purple-400 text-white text-xs">
-                          {dm.avatar}
-                        </AvatarFallback>
-                      </Avatar>
-                      {dm.status === "online" && (
-                        <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#5b2c6f]" />
-                      )}
-                    </div>
-                    <span className="truncate">{dm.name}</span>
-                  </Button>
-                ))}
+                {isLoading ? (
+                  <p className="text-xs text-white/50 px-2 py-1">Loading...</p>
+                ) : directMessageUsers.length === 0 ? (
+                  <p className="text-xs text-white/50 px-2 py-1">No messages</p>
+                ) : (
+                  directMessageUsers.map((dm) => {
+                    const isOnline = dm.channelId in onlineUsers;
+                    return (
+                      <Link
+                        key={dm.id}
+                        to="/channels/$channelId"
+                        params={{ channelId: dm.channelId }}
+                      >
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-start gap-2 px-2 h-auto py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white"
+                        >
+                          <div className="relative">
+                            <Avatar className="w-6 h-6">
+                              <AvatarFallback className="bg-purple-400 text-white text-xs">
+                                {dm.avatar}
+                              </AvatarFallback>
+                            </Avatar>
+                            {isOnline && (
+                              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#5b2c6f]" />
+                            )}
+                          </div>
+                          <span className="truncate flex-1 text-left">
+                            {dm.name}
+                          </span>
+                          {dm.unreadCount > 0 && (
+                            <span className="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-5 text-center">
+                              {dm.unreadCount}
+                            </span>
+                          )}
+                        </Button>
+                      </Link>
+                    );
+                  })
+                )}
               </div>
             )}
           </div>
@@ -195,7 +242,7 @@ export function HomeSubSidebar() {
               ) : (
                 <ChevronRight size={14} />
               )}
-              <span>应用</span>
+              <span>Apps</span>
             </Button>
           </div>
         </nav>
@@ -205,11 +252,19 @@ export function HomeSubSidebar() {
       <div className="p-3 border-t border-white/10">
         <Button
           variant="ghost"
+          onClick={() => setIsNewMessageOpen(true)}
           className="w-full justify-center gap-2 px-2 h-10 text-sm text-white/90 hover:bg-white/10 hover:text-white rounded-full border border-white/20"
+          title="New Message"
         >
           <Plus size={18} />
         </Button>
       </div>
+
+      {/* New Message Dialog */}
+      <NewMessageDialog
+        isOpen={isNewMessageOpen}
+        onClose={() => setIsNewMessageOpen(false)}
+      />
     </aside>
   );
 }
