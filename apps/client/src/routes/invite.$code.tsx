@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Users, Calendar, AlertCircle, CheckCircle2, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -13,6 +13,7 @@ export const Route = createFileRoute("/invite/$code")({
 function InvitePage() {
   const { code } = Route.useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [alreadyMember, setAlreadyMember] = useState(false);
 
   const { data: inviteInfo, isLoading } = useQuery({
@@ -22,7 +23,11 @@ function InvitePage() {
 
   const acceptMutation = useMutation({
     mutationFn: () => workspaceApi.acceptInvitation(code),
-    onSuccess: (data) => {
+    onSuccess: async () => {
+      // Invalidate and refetch user workspaces query
+      await queryClient.invalidateQueries({ queryKey: ["user-workspaces"] });
+      // Wait a bit for the query to refetch
+      await new Promise((resolve) => setTimeout(resolve, 100));
       navigate({ to: "/" });
     },
     onError: (error: any) => {
