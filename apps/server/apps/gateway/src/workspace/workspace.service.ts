@@ -2,12 +2,20 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Inject,
 } from '@nestjs/common';
-import { DatabaseService } from '@team9/database';
+import {
+  DATABASE_CONNECTION,
+  eq,
+  and,
+  sql,
+  isNull,
+  type PostgresJsDatabase,
+} from '@team9/database';
 import * as schema from '@team9/database/schemas';
-import { eq, and, sql, isNull } from 'drizzle-orm';
 import { randomBytes } from 'crypto';
-import type { CreateInvitationDto } from './dto';
+import { env } from '@team9/shared';
+import type { CreateInvitationDto } from './dto/index.js';
 
 export interface InvitationResponse {
   id: string;
@@ -50,7 +58,10 @@ export interface AcceptInvitationResponse {
 
 @Injectable()
 export class WorkspaceService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    @Inject(DATABASE_CONNECTION)
+    private readonly db: PostgresJsDatabase<typeof schema>,
+  ) {}
 
   private generateInviteCode(): string {
     return randomBytes(16).toString('hex');
@@ -66,7 +77,7 @@ export class WorkspaceService {
       ? new Date(Date.now() + dto.expiresInDays * 24 * 60 * 60 * 1000)
       : null;
 
-    const [invitation] = await this.db.db
+    const [invitation] = await this.db
       .insert(schema.workspaceInvitations)
       .values({
         tenantId,
@@ -79,7 +90,7 @@ export class WorkspaceService {
       .returning();
 
     // Get creator info
-    const [creator] = await this.db.db
+    const [creator] = await this.db
       .select({
         id: schema.users.id,
         username: schema.users.username,
@@ -89,7 +100,7 @@ export class WorkspaceService {
       .where(eq(schema.users.id, createdBy))
       .limit(1);
 
-    const baseUrl = process.env.APP_URL || 'http://localhost:5173';
+    const baseUrl = env.APP_URL;
     const url = `${baseUrl}/invite/${code}`;
 
     return {
@@ -97,23 +108,23 @@ export class WorkspaceService {
       code: invitation.code,
       url,
       role: invitation.role,
-      maxUses: invitation.maxUses,
+      maxUses: invitation.maxUses ?? undefined,
       usedCount: invitation.usedCount,
-      expiresAt: invitation.expiresAt,
+      expiresAt: invitation.expiresAt ?? undefined,
       isActive: invitation.isActive,
       createdAt: invitation.createdAt,
       createdBy: creator
         ? {
             id: creator.id,
             username: creator.username,
-            displayName: creator.displayName,
+            displayName: creator.displayName ?? undefined,
           }
         : undefined,
     };
   }
 
   async getInvitations(tenantId: string): Promise<InvitationResponse[]> {
-    const invitations = await this.db.db
+    const invitations = await this.db
       .select({
         invitation: schema.workspaceInvitations,
         creator: {
@@ -130,30 +141,30 @@ export class WorkspaceService {
       .where(eq(schema.workspaceInvitations.tenantId, tenantId))
       .orderBy(sql`${schema.workspaceInvitations.createdAt} DESC`);
 
-    const baseUrl = process.env.APP_URL || 'http://localhost:5173';
+    const baseUrl = env.APP_URL;
 
     return invitations.map(({ invitation, creator }) => ({
       id: invitation.id,
       code: invitation.code,
       url: `${baseUrl}/invite/${invitation.code}`,
       role: invitation.role,
-      maxUses: invitation.maxUses,
+      maxUses: invitation.maxUses ?? undefined,
       usedCount: invitation.usedCount,
-      expiresAt: invitation.expiresAt,
+      expiresAt: invitation.expiresAt ?? undefined,
       isActive: invitation.isActive,
       createdAt: invitation.createdAt,
       createdBy: creator
         ? {
             id: creator.id,
             username: creator.username,
-            displayName: creator.displayName,
+            displayName: creator.displayName ?? undefined,
           }
         : undefined,
     }));
   }
 
   async revokeInvitation(tenantId: string, code: string): Promise<void> {
-    const result = await this.db.db
+    const result = await this.db
       .update(schema.workspaceInvitations)
       .set({ isActive: false, updatedAt: new Date() })
       .where(
@@ -170,7 +181,7 @@ export class WorkspaceService {
   }
 
   async getInvitationInfo(code: string): Promise<InvitationInfoResponse> {
-    const [result] = await this.db.db
+    const [result] = await this.db
       .select({
         invitation: schema.workspaceInvitations,
         workspace: {
@@ -219,7 +230,7 @@ export class WorkspaceService {
       return {
         workspaceName: workspace.name,
         workspaceSlug: workspace.slug,
-        expiresAt: invitation.expiresAt,
+        expiresAt: invitation.expiresAt ?? undefined,
         isValid: false,
         reason: 'Invitation has expired',
       };
@@ -237,8 +248,10 @@ export class WorkspaceService {
     return {
       workspaceName: workspace.name,
       workspaceSlug: workspace.slug,
-      invitedBy: creator ? creator.displayName || creator.username : undefined,
-      expiresAt: invitation.expiresAt,
+      invitedBy: creator
+        ? (creator.displayName ?? creator.username)
+        : undefined,
+      expiresAt: invitation.expiresAt ?? undefined,
       isValid: true,
     };
   }
@@ -248,7 +261,7 @@ export class WorkspaceService {
     userId: string,
   ): Promise<AcceptInvitationResponse> {
     // Get invitation
-    const [invitation] = await this.db.db
+    const [invitation] = await this.db
       .select()
       .from(schema.workspaceInvitations)
       .where(eq(schema.workspaceInvitations.code, code))
@@ -272,7 +285,7 @@ export class WorkspaceService {
     }
 
     // Check if user is already a member
-    const [existingMember] = await this.db.db
+    const [existingMember] = await this.db
       .select()
       .from(schema.tenantMembers)
       .where(
@@ -291,7 +304,7 @@ export class WorkspaceService {
     }
 
     // Add user to workspace
-    const [member] = await this.db.db
+    const [member] = await this.db
       .insert(schema.tenantMembers)
       .values({
         tenantId: invitation.tenantId,
@@ -302,13 +315,13 @@ export class WorkspaceService {
       .returning();
 
     // Record usage
-    await this.db.db.insert(schema.invitationUsage).values({
+    await this.db.insert(schema.invitationUsage).values({
       invitationId: invitation.id,
       userId,
     });
 
     // Update usage count
-    await this.db.db
+    await this.db
       .update(schema.workspaceInvitations)
       .set({
         usedCount: sql`${schema.workspaceInvitations.usedCount} + 1`,
@@ -317,7 +330,7 @@ export class WorkspaceService {
       .where(eq(schema.workspaceInvitations.id, invitation.id));
 
     // Get workspace info
-    const [workspace] = await this.db.db
+    const [workspace] = await this.db
       .select()
       .from(schema.tenants)
       .where(eq(schema.tenants.id, invitation.tenantId))

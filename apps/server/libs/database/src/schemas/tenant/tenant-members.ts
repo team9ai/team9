@@ -21,6 +21,7 @@ export const tenantMembers = pgTable(
       .notNull(),
     role: tenantRoleEnum('role').default('member').notNull(),
     joinedAt: timestamp('joined_at').defaultNow().notNull(),
+    leftAt: timestamp('left_at'),
     invitedBy: uuid('invited_by').references(() => users.id),
   },
   (table) => [unique('unique_tenant_user').on(table.tenantId, table.userId)],

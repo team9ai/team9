@@ -1,1 +1,1 @@
-export * from './create-invitation.dto';
+export * from './create-invitation.dto.js';

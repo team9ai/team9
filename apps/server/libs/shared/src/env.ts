@@ -102,4 +102,9 @@ export const env = {
   get CORS_ORIGIN() {
     return getRequiredEnv('CORS_ORIGIN');
   },
+
+  // Application URL
+  get APP_URL() {
+    return getRequiredEnv('APP_URL');
+  },
 };

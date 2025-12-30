@@ -2,8 +2,8 @@ import { Module } from '@nestjs/common';
 import {
   WorkspaceController,
   InvitationsController,
-} from './workspace.controller';
-import { WorkspaceService } from './workspace.service';
+} from './workspace.controller.js';
+import { WorkspaceService } from './workspace.service.js';
 import { DatabaseModule } from '@team9/database';
 
 @Module({
