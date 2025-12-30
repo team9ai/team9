@@ -1,9 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Users, Calendar, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Users, Calendar, AlertCircle, CheckCircle2, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import workspaceApi from "@/services/api/workspace";
+import { useState } from "react";
 
 export const Route = createFileRoute("/invite/$code")({
   component: InvitePage,
@@ -12,6 +13,7 @@ export const Route = createFileRoute("/invite/$code")({
 function InvitePage() {
   const { code } = Route.useParams();
   const navigate = useNavigate();
+  const [alreadyMember, setAlreadyMember] = useState(false);
 
   const { data: inviteInfo, isLoading } = useQuery({
     queryKey: ["invitation", code],
@@ -25,6 +27,13 @@ function InvitePage() {
     },
     onError: (error: any) => {
       console.error("Failed to accept invitation:", error);
+      // Check if user is already a member
+      if (
+        error?.response?.data?.message?.includes("already a member") ||
+        error?.response?.status === 400
+      ) {
+        setAlreadyMember(true);
+      }
     },
   });
 
@@ -78,6 +87,37 @@ function InvitePage() {
   }
 
   const token = localStorage.getItem("auth_token");
+
+  // Show "Already a Member" state
+  if (alreadyMember) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-purple-100 p-4">
+        <Card className="p-8 max-w-md w-full text-center">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle2 className="w-8 h-8 text-green-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">
+            You're Already a Member!
+          </h1>
+          <p className="text-slate-600 mb-6">
+            You're already part of the{" "}
+            <span className="font-semibold text-purple-600">
+              {inviteInfo?.workspaceName}
+            </span>{" "}
+            workspace.
+          </p>
+          <Button
+            onClick={() => navigate({ to: "/" })}
+            className="w-full bg-purple-600 hover:bg-purple-700"
+            size="lg"
+          >
+            <Home size={18} className="mr-2" />
+            Go to Workspace
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-purple-100 p-4">
@@ -169,11 +209,11 @@ function InvitePage() {
           )}
         </div>
 
-        {acceptMutation.isError && (
+        {acceptMutation.isError && !alreadyMember && (
           <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
             <p className="text-sm text-red-600 text-center">
-              {acceptMutation.error?.message ||
-                "Failed to accept invitation. Please try again."}
+              Failed to accept invitation. Please try again or contact the
+              workspace administrator.
             </p>
           </div>
         )}

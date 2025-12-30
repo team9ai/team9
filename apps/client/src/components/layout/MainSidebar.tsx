@@ -28,12 +28,8 @@ const navigationItems = [
 export function MainSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { data: workspaces, isLoading, error } = useUserWorkspaces();
+  const { data: workspaces, isLoading } = useUserWorkspaces();
   const currentWorkspace = workspaces?.[0];
-
-  // Debug: log workspace data
-  console.log("Workspaces query state:", { workspaces, isLoading, error });
-  console.log("Current workspace:", currentWorkspace);
 
   return (
     <TooltipProvider>
