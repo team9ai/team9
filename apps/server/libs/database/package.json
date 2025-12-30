@@ -11,10 +11,12 @@
     "./config": "./src/config.service.ts"
   },
   "scripts": {
-    "db:generate": "dotenv -e ../../.env -- drizzle-kit generate",
-    "db:migrate": "dotenv -e ../../.env -- drizzle-kit migrate",
-    "db:push": "dotenv -e ../../.env -- drizzle-kit push",
-    "db:studio": "dotenv -e ../../.env -- drizzle-kit studio"
+    "build": "tsc",
+    "build:schemas": "tsc -p tsconfig.schemas.json",
+    "db:generate": "pnpm build:schemas && dotenv -e ../../.env -- drizzle-kit generate --config=drizzle.config.mjs",
+    "db:migrate": "dotenv -e ../../.env -- drizzle-kit migrate --config=drizzle.config.mjs",
+    "db:push": "pnpm build:schemas && dotenv -e ../../.env -- drizzle-kit push --config=drizzle.config.mjs",
+    "db:studio": "dotenv -e ../../.env -- drizzle-kit studio --config=drizzle.config.mjs"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.1",
@@ -22,6 +24,7 @@
   },
   "devDependencies": {
     "dotenv-cli": "^8.0.0",
-    "drizzle-kit": "^0.31.8"
+    "drizzle-kit": "^0.31.8",
+    "typescript": "^5.7.3"
   }
 }
