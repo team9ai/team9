@@ -47,7 +47,7 @@ export function ChannelView({ channelId }: ChannelViewProps) {
   }
 
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="h-full flex flex-col">
       <ChannelHeader channel={channel} />
 
       <MessageList

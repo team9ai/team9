@@ -48,7 +48,7 @@ export function MessageList({
   }
 
   return (
-    <ScrollArea className="flex-1 px-4" ref={scrollRef}>
+    <ScrollArea className="flex-1 min-h-0 px-4" ref={scrollRef}>
       {hasMore && (
         <div className="py-4 text-center">
           <button
