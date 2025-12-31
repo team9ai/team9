@@ -19,9 +19,7 @@ import { WS_EVENTS } from './events/events.constants.js';
 import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
 import { SocketWithUser } from '../shared/interfaces/socket-with-user.interface.js';
 import { WorkspaceService } from '../../workspace/workspace.service.js';
-
-// Import RabbitMQ types (will be optional)
-type RabbitMQEventService = any;
+import { RabbitMQEventService } from '@team9/rabbitmq';
 
 interface SendMessageData {
   channelId: string;

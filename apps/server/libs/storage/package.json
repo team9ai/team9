@@ -11,6 +11,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.958.0",
     "@aws-sdk/s3-presigned-post": "^3.958.0",
-    "@aws-sdk/s3-request-presigner": "^3.958.0"
+    "@aws-sdk/s3-request-presigner": "^3.958.0",
+    "@team9/shared": "workspace:*"
   }
 }

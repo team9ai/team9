@@ -20,7 +20,8 @@
   },
   "dependencies": {
     "drizzle-orm": "^0.45.1",
-    "postgres": "^3.4.7"
+    "postgres": "^3.4.7",
+    "@team9/shared": "workspace:*"
   },
   "devDependencies": {
     "dotenv-cli": "^8.0.0",

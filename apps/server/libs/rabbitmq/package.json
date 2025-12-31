@@ -9,6 +9,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@golevelup/nestjs-rabbitmq": "^7.1.1"
+    "@golevelup/nestjs-rabbitmq": "^7.1.1",
+    "@team9/shared": "workspace:*"
   }
 }

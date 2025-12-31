@@ -212,6 +212,9 @@ importers:
       '@team9/database':
         specifier: workspace:*
         version: link:../../libs/database
+      '@team9/rabbitmq':
+        specifier: workspace:*
+        version: link:../../libs/rabbitmq
       '@team9/redis':
         specifier: workspace:*
         version: link:../../libs/redis
@@ -313,6 +316,9 @@ importers:
 
   libs/database:
     dependencies:
+      '@team9/shared':
+        specifier: workspace:*
+        version: link:../shared
       drizzle-orm:
         specifier: ^0.45.1
         version: 0.45.1(@types/pg@8.16.0)(gel@2.2.0)(postgres@3.4.7)
@@ -326,15 +332,24 @@ importers:
       drizzle-kit:
         specifier: ^0.31.8
         version: 0.31.8
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
 
   libs/rabbitmq:
     dependencies:
       '@golevelup/nestjs-rabbitmq':
         specifier: ^7.1.1
         version: 7.1.1(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@team9/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   libs/redis:
     dependencies:
+      '@team9/shared':
+        specifier: workspace:*
+        version: link:../shared
       ioredis:
         specifier: ^5.4.1
         version: 5.8.2
@@ -352,6 +367,9 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.958.0
         version: 3.958.0
+      '@team9/shared':
+        specifier: workspace:*
+        version: link:../shared
 
 packages:
   '@angular-devkit/core@19.2.17':

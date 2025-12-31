@@ -9,6 +9,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "ioredis": "^5.4.1"
+    "ioredis": "^5.4.1",
+    "@team9/shared": "workspace:*"
   }
 }
