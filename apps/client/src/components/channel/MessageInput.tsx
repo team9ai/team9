@@ -4,19 +4,23 @@ import { Textarea } from "@/components/ui/textarea";
 import { Bold, Italic, List } from "lucide-react";
 
 interface MessageInputProps {
-  onSend: (content: string) => void;
+  onSend: (content: string) => Promise<void>;
   disabled?: boolean;
 }
 
 export function MessageInput({ onSend, disabled }: MessageInputProps) {
   const [content, setContent] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim() || disabled) return;
 
-    onSend(content);
-    setContent("");
+    try {
+      await onSend(content);
+      setContent("");
+    } catch (error) {
+      console.error("Failed to send message:", error);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
