@@ -1,11 +1,14 @@
 import { Module, Global, OnModuleInit } from '@nestjs/common';
 import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { env } from '@team9/shared';
 import { RabbitMQEventService } from './rabbitmq-event.service.js';
+import { GatewayMQService } from './gateway/gateway-mq.service.js';
 
 @Global()
 @Module({
   imports: [
+    EventEmitterModule.forRoot(),
     RabbitMQModule.forRootAsync({
       useFactory: () => {
         const host = env.RABBITMQ_HOST;
@@ -16,14 +19,14 @@ import { RabbitMQEventService } from './rabbitmq-event.service.js';
 
         return {
           uri: `amqp://${username}:${password}@${host}:${port}${vhost}`,
-          connectionInitOptions: { wait: false },
+          connectionInitOptions: { wait: true },
           enableControllerDiscovery: false,
         };
       },
     }),
   ],
-  providers: [RabbitMQEventService],
-  exports: [RabbitMQModule, RabbitMQEventService],
+  providers: [RabbitMQEventService, GatewayMQService],
+  exports: [RabbitMQModule, RabbitMQEventService, GatewayMQService],
 })
 export class RabbitmqModule implements OnModuleInit {
   constructor(private readonly rabbitMQEventService: RabbitMQEventService) {}

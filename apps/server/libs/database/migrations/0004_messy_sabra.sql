@@ -1,1 +1,0 @@
-ALTER TABLE "tenant_members" ADD COLUMN "left_at" timestamp;

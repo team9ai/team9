@@ -1,0 +1,175 @@
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { AmqpConnection } from '@team9/rabbitmq';
+import {
+  MQ_EXCHANGES,
+  MQ_QUEUES,
+  MQ_ROUTING_KEYS,
+  UpstreamMessage,
+} from '@team9/shared';
+import { MessageService } from '../message/message.service.js';
+import { AckService } from '../ack/ack.service.js';
+
+/**
+ * Upstream Consumer - consumes messages from Gateway nodes
+ *
+ * Listens to:
+ * - im.queue.logic.upstream - all upstream messages
+ */
+@Injectable()
+export class UpstreamConsumer implements OnModuleInit {
+  private readonly logger = new Logger(UpstreamConsumer.name);
+  private consumerTag: string | null = null;
+
+  constructor(
+    private readonly amqpConnection: AmqpConnection,
+    private readonly messageService: MessageService,
+    private readonly ackService: AckService,
+  ) {}
+
+  async onModuleInit(): Promise<void> {
+    await this.setupQueue();
+    await this.startConsuming();
+    this.logger.log('Upstream consumer started');
+  }
+
+  /**
+   * Setup the upstream queue
+   */
+  private async setupQueue(): Promise<void> {
+    const channel = this.amqpConnection.channel;
+
+    // Ensure exchange exists
+    await channel.assertExchange(MQ_EXCHANGES.IM_UPSTREAM, 'direct', {
+      durable: true,
+    });
+
+    // Create upstream queue
+    await channel.assertQueue(MQ_QUEUES.LOGIC_UPSTREAM, {
+      durable: true,
+      autoDelete: false,
+    });
+
+    // Bind to all upstream routing keys
+    const routingKeys = Object.values(MQ_ROUTING_KEYS.UPSTREAM);
+    for (const key of routingKeys) {
+      await channel.bindQueue(
+        MQ_QUEUES.LOGIC_UPSTREAM,
+        MQ_EXCHANGES.IM_UPSTREAM,
+        key,
+      );
+    }
+
+    this.logger.log('Upstream queue setup complete');
+  }
+
+  /**
+   * Start consuming upstream messages
+   */
+  private async startConsuming(): Promise<void> {
+    const channel = this.amqpConnection.channel;
+
+    const { consumerTag } = await channel.consume(
+      MQ_QUEUES.LOGIC_UPSTREAM,
+      async (msg) => {
+        if (!msg) return;
+
+        try {
+          const upstream: UpstreamMessage = JSON.parse(msg.content.toString());
+
+          await this.handleUpstreamMessage(upstream);
+
+          channel.ack(msg);
+        } catch (error) {
+          this.logger.error(`Failed to process upstream message: ${error}`);
+
+          // Determine if we should retry
+          const retryCount =
+            (msg.properties.headers?.['x-retry-count'] || 0) + 1;
+
+          if (retryCount < 3) {
+            channel.nack(msg, false, true);
+          } else {
+            channel.nack(msg, false, false);
+            this.logger.error('Message moved to DLQ after 3 retries');
+          }
+        }
+      },
+      { noAck: false },
+    );
+
+    this.consumerTag = consumerTag;
+  }
+
+  /**
+   * Handle upstream message based on type
+   */
+  private async handleUpstreamMessage(
+    upstream: UpstreamMessage,
+  ): Promise<void> {
+    const { message } = upstream;
+
+    switch (message.type) {
+      case 'text':
+      case 'file':
+      case 'image':
+        await this.handleContentMessage(upstream);
+        break;
+
+      case 'ack':
+        await this.handleAckMessage(upstream);
+        break;
+
+      case 'typing':
+        await this.handleTypingMessage(upstream);
+        break;
+
+      case 'read':
+        await this.handleReadMessage(upstream);
+        break;
+
+      default:
+        this.logger.warn(`Unknown message type: ${message.type}`);
+    }
+  }
+
+  /**
+   * Handle content message (text, file, image)
+   */
+  private async handleContentMessage(upstream: UpstreamMessage): Promise<void> {
+    const response = await this.messageService.processUpstreamMessage(upstream);
+
+    // Send ACK response back to sender via their gateway
+    // This would be done through the router service
+    this.logger.debug(
+      `Processed content message: ${response.msgId}, status: ${response.status}`,
+    );
+  }
+
+  /**
+   * Handle ACK message from client
+   */
+  private async handleAckMessage(upstream: UpstreamMessage): Promise<void> {
+    await this.ackService.handleClientAck(upstream);
+  }
+
+  /**
+   * Handle typing indicator
+   */
+  private async handleTypingMessage(upstream: UpstreamMessage): Promise<void> {
+    // Typing messages are forwarded immediately to channel members
+    // without database storage
+    this.logger.debug(
+      `Typing indicator from ${upstream.userId} in ${upstream.message.targetId}`,
+    );
+
+    // Route typing indicator to other channel members
+    // This is handled similarly to regular messages but without storage
+  }
+
+  /**
+   * Handle read status update
+   */
+  private async handleReadMessage(upstream: UpstreamMessage): Promise<void> {
+    await this.ackService.handleReadStatus(upstream);
+  }
+}

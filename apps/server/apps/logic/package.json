@@ -1,0 +1,19 @@
+{
+  "name": "@team9/logic",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "start:dev": "node --loader @swc-node/register/esm --watch src/main.ts",
+    "start:debug": "node --inspect --loader @swc-node/register/esm src/main.ts",
+    "start:prod": "node dist/main.js"
+  },
+  "dependencies": {
+    "@team9/database": "workspace:*",
+    "@team9/rabbitmq": "workspace:*",
+    "@team9/redis": "workspace:*",
+    "@team9/shared": "workspace:*"
+  }
+}

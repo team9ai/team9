@@ -7,6 +7,8 @@ import {
   pgEnum,
   jsonb,
   index,
+  bigint,
+  varchar,
 } from 'drizzle-orm/pg-core';
 import { users } from './users.js';
 import { channels } from './channels.js';
@@ -38,12 +40,26 @@ export const messages = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
     deletedAt: timestamp('deleted_at'),
+
+    // ============ Distributed IM Architecture Fields ============
+
+    // Message sequence ID (unique within channel, for ordering)
+    seqId: bigint('seq_id', { mode: 'bigint' }),
+
+    // Client message ID (for deduplication)
+    clientMsgId: varchar('client_msg_id', { length: 64 }),
+
+    // Gateway node ID that received this message
+    gatewayId: varchar('gateway_id', { length: 64 }),
   },
   (table) => [
     index('idx_messages_channel_id').on(table.channelId),
     index('idx_messages_sender_id').on(table.senderId),
     index('idx_messages_parent_id').on(table.parentId),
     index('idx_messages_created_at').on(table.createdAt),
+    // New indexes for distributed architecture
+    index('idx_messages_seq_id').on(table.channelId, table.seqId),
+    index('idx_messages_client_msg_id').on(table.clientMsgId),
   ],
 );
 

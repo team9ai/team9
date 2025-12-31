@@ -50,6 +50,29 @@ export const WS_EVENTS = {
   WORKSPACE_MEMBER_REMOVED: 'workspace_member_removed',
   JOIN_WORKSPACE: 'join_workspace',
   WORKSPACE_MEMBERS_LIST: 'workspace_members_list',
+
+  // ============ Distributed IM Architecture Events ============
+
+  // Heartbeat
+  PING: 'ping',
+  PONG: 'pong',
+
+  // Message ACK
+  MESSAGE_ACK: 'message_ack', // Client sends ACK
+  MESSAGE_ACK_RESPONSE: 'message_ack_response', // Server confirms ACK
+  MESSAGE_SENT: 'message_sent', // Server confirms message received (with seqId)
+
+  // Session management
+  SESSION_EXPIRED: 'session_expired', // Session no longer valid
+  SESSION_TIMEOUT: 'session_timeout', // Heartbeat timeout
+  SESSION_KICKED: 'session_kicked', // Kicked by another device
+
+  // Message sync
+  SYNC_MESSAGES: 'sync_messages', // Request to sync messages
+  SYNC_MESSAGES_RESPONSE: 'sync_messages_response', // Sync response
+
+  // Message retry
+  MESSAGE_RETRY: 'message_retry', // Retry delivery
 } as const;
 
 export type WsEvent = (typeof WS_EVENTS)[keyof typeof WS_EVENTS];

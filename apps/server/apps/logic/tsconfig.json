@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "baseUrl": ".",
+    "paths": {
+      "@team9/database": ["../../libs/database/src"],
+      "@team9/shared": ["../../libs/shared/src"],
+      "@team9/redis": ["../../libs/redis/src"],
+      "@team9/rabbitmq": ["../../libs/rabbitmq/src"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "test", "**/*spec.ts"]
+}

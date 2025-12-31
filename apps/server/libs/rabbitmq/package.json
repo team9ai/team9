@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@golevelup/nestjs-rabbitmq": "^7.1.1",
+    "@nestjs/event-emitter": "^3.0.1",
     "@team9/shared": "workspace:*"
   }
 }

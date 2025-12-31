@@ -4,6 +4,7 @@ import {
   SubscribeMessage,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
   ConnectedSocket,
   MessageBody,
 } from '@nestjs/websockets';
@@ -14,12 +15,17 @@ import { UsersService } from '../users/users.service.js';
 import { ChannelsService } from '../channels/channels.service.js';
 import { MessagesService } from '../messages/messages.service.js';
 import { RedisService } from '@team9/redis';
-import { env } from '@team9/shared';
+import { env, PingMessage, PongMessage } from '@team9/shared';
 import { WS_EVENTS } from './events/events.constants.js';
 import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
 import { SocketWithUser } from '../shared/interfaces/socket-with-user.interface.js';
 import { WorkspaceService } from '../../workspace/workspace.service.js';
-import { RabbitMQEventService } from '@team9/rabbitmq';
+import { RabbitMQEventService, GatewayMQService } from '@team9/rabbitmq';
+import { GatewayNodeService } from '../../gateway/gateway-node.service.js';
+import { SessionService } from '../../gateway/session/session.service.js';
+import { HeartbeatService } from '../../gateway/heartbeat/heartbeat.service.js';
+import { ZombieCleanerService } from '../../gateway/heartbeat/zombie-cleaner.service.js';
+import { ConnectionService } from '../../gateway/connection/connection.service.js';
 
 interface SendMessageData {
   channelId: string;
@@ -41,6 +47,10 @@ interface ReactionData {
   emoji: string;
 }
 
+interface PingData {
+  timestamp: number;
+}
+
 @WebSocketGateway({
   cors: {
     origin: env.CORS_ORIGIN,
@@ -49,7 +59,7 @@ interface ReactionData {
   namespace: '/im',
 })
 export class WebsocketGateway
-  implements OnGatewayConnection, OnGatewayDisconnect
+  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
 {
   private readonly logger = new Logger(WebsocketGateway.name);
 
@@ -65,7 +75,37 @@ export class WebsocketGateway
     @Inject(forwardRef(() => WorkspaceService))
     private readonly workspaceService: WorkspaceService,
     @Optional() private readonly rabbitMQEventService?: RabbitMQEventService,
+    // Distributed IM Architecture services
+    @Optional() private readonly gatewayNodeService?: GatewayNodeService,
+    @Optional() private readonly sessionService?: SessionService,
+    @Optional() private readonly heartbeatService?: HeartbeatService,
+    @Optional() private readonly zombieCleanerService?: ZombieCleanerService,
+    @Optional() private readonly connectionService?: ConnectionService,
+    @Optional() private readonly gatewayMQService?: GatewayMQService,
   ) {}
+
+  /**
+   * Called after the WebSocket server is initialized
+   */
+  afterInit(server: Server): void {
+    this.logger.log('WebSocket Gateway initialized');
+
+    // Set server reference for distributed services
+    if (this.zombieCleanerService) {
+      this.zombieCleanerService.setServer(server);
+    }
+    if (this.connectionService) {
+      this.connectionService.setServer(server);
+    }
+
+    // Initialize Gateway MQ with node ID
+    if (this.gatewayMQService && this.gatewayNodeService) {
+      const nodeId = this.gatewayNodeService.getNodeId();
+      this.gatewayMQService.initializeForNode(nodeId).catch((err) => {
+        this.logger.error(`Failed to initialize Gateway MQ: ${err}`);
+      });
+    }
+  }
 
   // ==================== Connection Lifecycle ====================
 
@@ -99,7 +139,7 @@ export class WebsocketGateway
       (client as SocketWithUser).userId = payload.sub;
       (client as SocketWithUser).username = payload.username;
 
-      // Store socket mapping
+      // Store socket mapping (legacy)
       this.logger.debug(`[WS] Storing socket mapping in Redis...`);
       await this.redisService.set(
         REDIS_KEYS.SOCKET_USER(client.id),
@@ -109,6 +149,23 @@ export class WebsocketGateway
         REDIS_KEYS.USER_SOCKETS(payload.sub),
         client.id,
       );
+
+      // Register with distributed services (new architecture)
+      if (this.sessionService && this.gatewayNodeService) {
+        const nodeId = this.gatewayNodeService.getNodeId();
+        await this.sessionService.setUserSession(payload.sub, {
+          gatewayId: nodeId,
+          socketId: client.id,
+          loginTime: Date.now(),
+          lastActiveTime: Date.now(),
+        });
+        this.gatewayNodeService.incrementConnections();
+      }
+
+      // Register with connection service
+      if (this.connectionService) {
+        this.connectionService.registerConnection(client.id, payload.sub);
+      }
 
       // Set user online
       this.logger.log(`[WS] Setting user ${payload.sub} online in Redis...`);
@@ -189,12 +246,26 @@ export class WebsocketGateway
     const socketClient = client as SocketWithUser;
 
     if (socketClient.userId) {
-      // Remove socket mapping
+      // Remove socket mapping (legacy)
       await this.redisService.del(REDIS_KEYS.SOCKET_USER(client.id));
       await this.redisService.srem(
         REDIS_KEYS.USER_SOCKETS(socketClient.userId),
         client.id,
       );
+
+      // Cleanup distributed services (new architecture)
+      if (this.sessionService) {
+        await this.sessionService.removeUserSession(
+          socketClient.userId,
+          client.id,
+        );
+      }
+      if (this.connectionService) {
+        this.connectionService.unregisterConnection(client.id);
+      }
+      if (this.gatewayNodeService) {
+        this.gatewayNodeService.decrementConnections();
+      }
 
       // Check if user has other active connections
       const remainingSockets = await this.redisService.smembers(
@@ -382,6 +453,44 @@ export class WebsocketGateway
     });
 
     return { success: true };
+  }
+
+  // ==================== Heartbeat (Ping/Pong) ====================
+
+  @SubscribeMessage(WS_EVENTS.PING)
+  async handlePing(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: PingData,
+  ): Promise<PongMessage> {
+    const socketClient = client as SocketWithUser;
+    const pingMessage: PingMessage = {
+      type: 'ping',
+      timestamp: data.timestamp,
+    };
+
+    if (!socketClient.userId) {
+      return {
+        type: 'pong',
+        timestamp: data.timestamp,
+        serverTime: Date.now(),
+      };
+    }
+
+    // Use heartbeat service if available
+    if (this.heartbeatService) {
+      return this.heartbeatService.handlePing(
+        client,
+        socketClient.userId,
+        pingMessage,
+      );
+    }
+
+    // Fallback: simple pong response
+    return {
+      type: 'pong',
+      timestamp: data.timestamp,
+      serverTime: Date.now(),
+    };
   }
 
   // ==================== Reactions ====================

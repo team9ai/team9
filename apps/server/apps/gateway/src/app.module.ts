@@ -14,6 +14,7 @@ import { ImModule } from './im/im.module.js';
 import { EditionModule } from './edition/index.js';
 import { AuthModule } from './auth/auth.module.js';
 import { WorkspaceModule } from './workspace/workspace.module.js';
+import { GatewayModule } from './gateway/gateway.module.js';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { WorkspaceModule } from './workspace/workspace.module.js';
     AiClientModule,
     RabbitmqModule,
     AuthModule,
+    GatewayModule,
     ImModule,
     WorkspaceModule,
   ],

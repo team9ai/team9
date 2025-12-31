@@ -5,36 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1766477792519,
-      "tag": "0000_confused_doctor_spectrum",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1766650250307,
-      "tag": "0001_tidy_thor_girl",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1766726938320,
-      "tag": "0002_odd_kitty_pryde",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1767080520686,
-      "tag": "0003_lying_piledriver",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1767082156456,
-      "tag": "0004_messy_sabra",
+      "when": 1767168274980,
+      "tag": "0000_cold_dexter_bennett",
       "breakpoints": true
     }
   ]
