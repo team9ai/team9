@@ -11,8 +11,8 @@ import { WEBSOCKET_GATEWAY } from '../../shared/constants/injection-tokens.js';
   imports: [
     AuthModule,
     UsersModule,
-    ChannelsModule,
-    MessagesModule,
+    forwardRef(() => ChannelsModule),
+    forwardRef(() => MessagesModule),
     forwardRef(() => WorkspaceModule),
   ],
   providers: [

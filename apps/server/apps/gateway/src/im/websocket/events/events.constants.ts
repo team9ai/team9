@@ -14,6 +14,7 @@ export const WS_EVENTS = {
   LEAVE_CHANNEL: 'leave_channel',
   CHANNEL_JOINED: 'channel_joined',
   CHANNEL_LEFT: 'channel_left',
+  CHANNEL_CREATED: 'channel_created',
 
   // Message
   SEND_MESSAGE: 'send_message',

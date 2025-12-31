@@ -26,12 +26,18 @@ export function useChannels() {
       queryClient.invalidateQueries({ queryKey: ["channels"] });
     };
 
+    const handleChannelCreated = () => {
+      queryClient.invalidateQueries({ queryKey: ["channels"] });
+    };
+
     wsService.on("channel_joined", handleChannelJoined);
     wsService.on("channel_left", handleChannelLeft);
+    wsService.on("channel_created", handleChannelCreated);
 
     return () => {
       wsService.off("channel_joined", handleChannelJoined);
       wsService.off("channel_left", handleChannelLeft);
+      wsService.off("channel_created", handleChannelCreated);
     };
   }, [queryClient]);
 

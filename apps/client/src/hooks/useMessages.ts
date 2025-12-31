@@ -34,11 +34,20 @@ export function useMessages(channelId: string | undefined) {
   useEffect(() => {
     if (!channelId) return;
 
+    // Join the channel room to receive real-time messages
+    wsService.joinChannel(channelId);
+
     const handleNewMessage = (message: Message) => {
       if (message.channelId !== channelId) return;
 
       queryClient.setQueryData(["messages", channelId], (old: any) => {
         if (!old) return { pages: [[message]], pageParams: [undefined] };
+
+        // Check if message already exists (might have been added via onSuccess)
+        const exists = old.pages.some((page: Message[]) =>
+          page.some((msg) => msg.id === message.id),
+        );
+        if (exists) return old;
 
         return {
           ...old,
@@ -100,9 +109,23 @@ export function useSendMessage(channelId: string | undefined) {
   return useMutation({
     mutationFn: (data: CreateMessageDto) =>
       imApi.messages.sendMessage(channelId!, data),
-    onSuccess: () => {
-      // Messages will be added via WebSocket event
-      // Just invalidate channels to update unread counts
+    onSuccess: (newMessage) => {
+      // Immediately add the message to the cache for instant display
+      queryClient.setQueryData(["messages", channelId], (old: any) => {
+        if (!old) return { pages: [[newMessage]], pageParams: [undefined] };
+
+        // Check if message already exists (might have been added via WebSocket)
+        const exists = old.pages.some((page: Message[]) =>
+          page.some((msg) => msg.id === newMessage.id),
+        );
+        if (exists) return old;
+
+        return {
+          ...old,
+          pages: [[newMessage, ...old.pages[0]], ...old.pages.slice(1)],
+        };
+      });
+      // Invalidate channels to update unread counts
       queryClient.invalidateQueries({ queryKey: ["channels"] });
     },
   });

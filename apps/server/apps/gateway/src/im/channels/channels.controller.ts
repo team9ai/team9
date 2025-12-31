@@ -8,6 +8,8 @@ import {
   Param,
   UseGuards,
   ForbiddenException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import {
   ChannelsService,
@@ -23,6 +25,8 @@ import {
 } from './dto/index.js';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import { CurrentTenantId } from '../../common/decorators/current-tenant.decorator.js';
+import { WebsocketGateway } from '../websocket/websocket.gateway.js';
+import { WS_EVENTS } from '../websocket/events/events.constants.js';
 
 @Controller({
   path: 'im/channels',
@@ -30,7 +34,11 @@ import { CurrentTenantId } from '../../common/decorators/current-tenant.decorato
 })
 @UseGuards(AuthGuard)
 export class ChannelsController {
-  constructor(private readonly channelsService: ChannelsService) {}
+  constructor(
+    private readonly channelsService: ChannelsService,
+    @Inject(forwardRef(() => WebsocketGateway))
+    private readonly websocketGateway: WebsocketGateway,
+  ) {}
 
   @Get()
   async getMyChannels(
@@ -55,11 +63,25 @@ export class ChannelsController {
     @CurrentTenantId() tenantId: string | undefined,
     @Param('targetUserId') targetUserId: string,
   ): Promise<ChannelResponse> {
-    return this.channelsService.createDirectChannel(
+    const channel = await this.channelsService.createDirectChannel(
       userId,
       targetUserId,
       tenantId,
     );
+
+    // Notify both users about the new DM channel so they can join the room
+    await this.websocketGateway.sendToUser(
+      targetUserId,
+      WS_EVENTS.CHANNEL_CREATED,
+      channel,
+    );
+    await this.websocketGateway.sendToUser(
+      userId,
+      WS_EVENTS.CHANNEL_CREATED,
+      channel,
+    );
+
+    return channel;
   }
 
   @Get(':id')

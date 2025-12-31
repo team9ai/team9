@@ -17,6 +17,11 @@ class WebSocketService {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
+  // Queue for channels to join when connection is established
+  private pendingChannelJoins: Set<string> = new Set();
+  // Queue for event listeners to register when connection is established
+  private pendingListeners: Array<{ event: string; callback: EventCallback }> =
+    [];
 
   constructor() {
     // Auto-connect if token exists
@@ -71,6 +76,10 @@ class WebSocketService {
       console.log("[WS] Connected successfully");
       this.isConnecting = false;
       this.reconnectAttempts = 0;
+      // Process pending channel joins
+      this.processPendingJoins();
+      // Process pending event listeners
+      this.processPendingListeners();
     });
 
     this.socket.on("disconnect", (reason) => {
@@ -86,6 +95,12 @@ class WebSocketService {
 
     this.socket.on("authenticated", () => {
       console.log("[WS] Authenticated successfully");
+    });
+
+    // Auto-join new channels when they are created (e.g., DM channels)
+    this.socket.on("channel_created", (channel: { id: string }) => {
+      console.log("[WS] New channel created, joining:", channel.id);
+      this.joinChannel(channel.id);
     });
 
     this.socket.on("auth_error", (error) => {
@@ -116,10 +131,29 @@ class WebSocketService {
     return this.socket?.connected ?? false;
   }
 
+  private processPendingJoins(): void {
+    if (!this.socket?.connected) return;
+    for (const channelId of this.pendingChannelJoins) {
+      console.log("[WS] Processing pending join for channel:", channelId);
+      this.socket.emit("join_channel", { channelId });
+    }
+    this.pendingChannelJoins.clear();
+  }
+
+  private processPendingListeners(): void {
+    if (!this.socket) return;
+    for (const { event, callback } of this.pendingListeners) {
+      console.log("[WS] Processing pending listener for event:", event);
+      this.socket.on(event, callback);
+    }
+    this.pendingListeners = [];
+  }
+
   // Channel operations
   joinChannel(channelId: string): void {
-    if (!this.socket) {
-      console.warn("[WS] Cannot join channel: not connected");
+    if (!this.socket?.connected) {
+      console.log("[WS] Queuing channel join for:", channelId);
+      this.pendingChannelJoins.add(channelId);
       return;
     }
     console.log("[WS] Joining channel:", channelId);
@@ -127,6 +161,8 @@ class WebSocketService {
   }
 
   leaveChannel(channelId: string): void {
+    // Remove from pending joins if not yet connected
+    this.pendingChannelJoins.delete(channelId);
     if (!this.socket) return;
     console.log("[WS] Leaving channel:", channelId);
     this.socket.emit("leave_channel", { channelId });
@@ -170,14 +206,25 @@ class WebSocketService {
 
   // Event listeners
   on(event: string, callback: EventCallback): void {
-    if (!this.socket) {
-      console.warn(`[WS] Cannot listen to ${event}: not connected`);
+    if (!this.socket?.connected) {
+      console.log(`[WS] Queuing listener for event: ${event}`);
+      this.pendingListeners.push({ event, callback });
       return;
     }
     this.socket.on(event, callback);
   }
 
   off(event: string, callback?: EventCallback): void {
+    // Remove from pending listeners if not yet connected
+    if (callback) {
+      this.pendingListeners = this.pendingListeners.filter(
+        (l) => !(l.event === event && l.callback === callback),
+      );
+    } else {
+      this.pendingListeners = this.pendingListeners.filter(
+        (l) => l.event !== event,
+      );
+    }
     if (!this.socket) return;
     this.socket.off(event, callback);
   }
@@ -216,6 +263,10 @@ class WebSocketService {
 
   onChannelLeft(callback: (data: WSChannelEvent) => void): void {
     this.on("channel_left", callback);
+  }
+
+  onChannelCreated(callback: (data: any) => void): void {
+    this.on("channel_created", callback);
   }
 
   onUserOnline(

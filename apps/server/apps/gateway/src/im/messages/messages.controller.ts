@@ -9,6 +9,8 @@ import {
   Query,
   UseGuards,
   ForbiddenException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { MessagesService, MessageResponse } from './messages.service.js';
 import {
@@ -18,6 +20,8 @@ import {
 } from './dto/index.js';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import { ChannelsService } from '../channels/channels.service.js';
+import { WebsocketGateway } from '../websocket/websocket.gateway.js';
+import { WS_EVENTS } from '../websocket/events/events.constants.js';
 
 @Controller({
   path: 'im',
@@ -28,6 +32,8 @@ export class MessagesController {
   constructor(
     private readonly messagesService: MessagesService,
     private readonly channelsService: ChannelsService,
+    @Inject(forwardRef(() => WebsocketGateway))
+    private readonly websocketGateway: WebsocketGateway,
   ) {}
 
   @Get('channels/:channelId/messages')
@@ -58,7 +64,16 @@ export class MessagesController {
     if (!isMember) {
       throw new ForbiddenException('Access denied');
     }
-    return this.messagesService.create(channelId, userId, dto);
+    const message = await this.messagesService.create(channelId, userId, dto);
+
+    // Broadcast new message to all channel members via WebSocket
+    this.websocketGateway.sendToChannel(
+      channelId,
+      WS_EVENTS.NEW_MESSAGE,
+      message,
+    );
+
+    return message;
   }
 
   @Get('channels/:channelId/pinned')
@@ -105,7 +120,16 @@ export class MessagesController {
     @Param('id') messageId: string,
     @Body() dto: UpdateMessageDto,
   ): Promise<MessageResponse> {
-    return this.messagesService.update(messageId, userId, dto);
+    const message = await this.messagesService.update(messageId, userId, dto);
+
+    // Broadcast message update to all channel members via WebSocket
+    this.websocketGateway.sendToChannel(
+      message.channelId,
+      WS_EVENTS.MESSAGE_UPDATED,
+      message,
+    );
+
+    return message;
   }
 
   @Delete('messages/:id')
@@ -113,7 +137,14 @@ export class MessagesController {
     @CurrentUser('sub') userId: string,
     @Param('id') messageId: string,
   ): Promise<{ success: boolean }> {
+    const channelId = await this.messagesService.getMessageChannelId(messageId);
     await this.messagesService.delete(messageId, userId);
+
+    // Broadcast message deletion to all channel members via WebSocket
+    this.websocketGateway.sendToChannel(channelId, WS_EVENTS.MESSAGE_DELETED, {
+      messageId,
+    });
+
     return { success: true };
   }
 
