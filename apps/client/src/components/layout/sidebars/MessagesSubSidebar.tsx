@@ -11,13 +11,19 @@ import { useCreateDirectChannel } from "@/hooks/useChannels";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
 import wsService from "@/services/websocket";
+import { useWorkspaceStore } from "@/stores";
 
 export function MessagesSubSidebar() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: currentUser } = useCurrentUser();
   const { data: workspaces } = useUserWorkspaces();
-  const currentWorkspace = workspaces?.[0];
+  const { selectedWorkspaceId } = useWorkspaceStore();
+
+  // Use selected workspace or fallback to first workspace
+  const currentWorkspace =
+    workspaces?.find((w) => w.id === selectedWorkspaceId) || workspaces?.[0];
+
   const { data: members = [], isLoading } = useWorkspaceMembers(
     currentWorkspace?.id,
   );

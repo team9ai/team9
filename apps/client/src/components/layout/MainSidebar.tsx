@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useNavigate, useLocation } from "@tanstack/react-router";
 import { useUserWorkspaces } from "@/hooks/useWorkspace";
-import { useState } from "react";
+import { useWorkspaceStore } from "@/stores";
 
 const navigationItems = [
   { id: "home", label: "Home", icon: Home, path: "/" },
@@ -45,9 +45,7 @@ export function MainSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { data: workspaces, isLoading } = useUserWorkspaces();
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<
-    string | undefined
-  >(undefined);
+  const { selectedWorkspaceId, setSelectedWorkspaceId } = useWorkspaceStore();
 
   // Get first 5 workspaces and remaining ones
   const visibleWorkspaces = workspaces?.slice(0, 5) || [];
