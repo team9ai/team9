@@ -35,6 +35,13 @@ export interface ChannelResponse {
 
 export interface ChannelWithUnread extends ChannelResponse {
   unreadCount: number;
+  otherUser?: {
+    id: string;
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+    status: 'online' | 'offline' | 'away' | 'busy';
+  };
 }
 
 export interface ChannelMemberResponse {
@@ -222,7 +229,51 @@ export class ChannelsService {
         ),
       );
 
-    return result;
+    // For direct channels, fetch the other user's information
+    const channelsWithUsers = await Promise.all(
+      result.map(async (channel) => {
+        if (channel.type === 'direct') {
+          // Find the other user in this direct channel
+          const members = await this.db
+            .select({
+              userId: schema.channelMembers.userId,
+              username: schema.users.username,
+              displayName: schema.users.displayName,
+              avatarUrl: schema.users.avatarUrl,
+              status: schema.users.status,
+            })
+            .from(schema.channelMembers)
+            .innerJoin(
+              schema.users,
+              eq(schema.users.id, schema.channelMembers.userId),
+            )
+            .where(
+              and(
+                eq(schema.channelMembers.channelId, channel.id),
+                isNull(schema.channelMembers.leftAt),
+              ),
+            );
+
+          const otherUser = members.find((m) => m.userId !== userId);
+
+          return {
+            ...channel,
+            otherUser: otherUser
+              ? {
+                  id: otherUser.userId,
+                  username: otherUser.username,
+                  displayName: otherUser.displayName,
+                  avatarUrl: otherUser.avatarUrl,
+                  status: otherUser.status,
+                }
+              : undefined,
+          };
+        }
+        return channel;
+      }),
+    );
+
+    return channelsWithUsers;
   }
 
   async addMember(

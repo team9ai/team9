@@ -35,6 +35,13 @@ export interface ChannelWithUnread extends Channel {
   unreadCount: number;
   lastReadMessageId?: string;
   lastReadAt?: string;
+  otherUser?: {
+    id: string;
+    username: string;
+    displayName?: string;
+    avatarUrl?: string;
+    status: UserStatus;
+  };
 }
 
 export interface ChannelMember {

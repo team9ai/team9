@@ -14,12 +14,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useState } from "react";
 import { useChannelsByType } from "@/hooks/useChannels";
 import { useOnlineUsers } from "@/hooks/useIMUsers";
 import { Link } from "@tanstack/react-router";
 import { NewMessageDialog } from "@/components/dialog/NewMessageDialog";
+import { useHomeStore } from "@/stores";
 
 const topItems = [
   { id: "huddle", label: "Huddle", icon: Headphones },
@@ -45,19 +46,27 @@ export function HomeSubSidebar() {
     isLoading,
   } = useChannelsByType();
   const { data: onlineUsers = {} } = useOnlineUsers();
+  const { selectedChannelId, setSelectedChannelId } = useHomeStore();
 
   const allChannels = [...publicChannels, ...privateChannels];
 
   // Extract users from direct channels
   const directMessageUsers = directChannels.map((channel) => {
-    // For direct channels, we need to find the other user
-    // This is a simplified version - you might want to fetch member details
+    // Use the otherUser info from the channel if available
+    const otherUser = channel.otherUser;
+    const displayName =
+      otherUser?.displayName || otherUser?.username || "Direct Message";
+    const avatarText =
+      otherUser?.displayName?.[0] || otherUser?.username?.[0] || "D";
+
     return {
       id: channel.id,
       channelId: channel.id,
-      name: channel.name || "Direct Message",
-      avatar: channel.name?.[0] || "D",
-      status: "offline" as const,
+      userId: otherUser?.id,
+      name: displayName,
+      avatar: avatarText,
+      avatarUrl: otherUser?.avatarUrl,
+      status: otherUser?.status || ("offline" as const),
       unreadCount: channel.unreadCount || 0,
     };
   });
@@ -192,37 +201,42 @@ export function HomeSubSidebar() {
                   <p className="text-xs text-white/50 px-2 py-1">No messages</p>
                 ) : (
                   directMessageUsers.map((dm) => {
-                    const isOnline = dm.channelId in onlineUsers;
+                    const isOnline = dm.userId
+                      ? dm.userId in onlineUsers
+                      : false;
+                    const isSelected = selectedChannelId === dm.channelId;
                     return (
-                      <Link
+                      <Button
                         key={dm.id}
-                        to="/channels/$channelId"
-                        params={{ channelId: dm.channelId }}
+                        variant="ghost"
+                        onClick={() => setSelectedChannelId(dm.channelId)}
+                        className={cn(
+                          "w-full justify-start gap-2 px-2 h-auto py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white",
+                          isSelected && "bg-white/10 text-white",
+                        )}
                       >
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start gap-2 px-2 h-auto py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white"
-                        >
-                          <div className="relative">
-                            <Avatar className="w-6 h-6">
-                              <AvatarFallback className="bg-purple-400 text-white text-xs">
-                                {dm.avatar}
-                              </AvatarFallback>
-                            </Avatar>
-                            {isOnline && (
-                              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#5b2c6f]" />
+                        <div className="relative">
+                          <Avatar className="w-6 h-6">
+                            {dm.avatarUrl && (
+                              <AvatarImage src={dm.avatarUrl} alt={dm.name} />
                             )}
-                          </div>
-                          <span className="truncate flex-1 text-left">
-                            {dm.name}
-                          </span>
-                          {dm.unreadCount > 0 && (
-                            <span className="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-5 text-center">
-                              {dm.unreadCount}
-                            </span>
+                            <AvatarFallback className="bg-purple-400 text-white text-xs">
+                              {dm.avatar}
+                            </AvatarFallback>
+                          </Avatar>
+                          {isOnline && (
+                            <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#5b2c6f]" />
                           )}
-                        </Button>
-                      </Link>
+                        </div>
+                        <span className="truncate flex-1 text-left">
+                          {dm.name}
+                        </span>
+                        {dm.unreadCount > 0 && (
+                          <span className="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-5 text-center">
+                            {dm.unreadCount}
+                          </span>
+                        )}
+                      </Button>
                     );
                   })
                 )}
