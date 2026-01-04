@@ -88,12 +88,12 @@ export class ChannelsController {
   async getChannel(
     @CurrentUser('sub') userId: string,
     @Param('id') channelId: string,
-  ): Promise<ChannelResponse> {
+  ): Promise<ChannelWithUnread> {
     const isMember = await this.channelsService.isMember(channelId, userId);
     if (!isMember) {
       throw new ForbiddenException('Access denied');
     }
-    return this.channelsService.findByIdOrThrow(channelId);
+    return this.channelsService.findByIdOrThrow(channelId, userId);
   }
 
   @Patch(':id')

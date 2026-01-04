@@ -150,12 +150,58 @@ export class ChannelsService {
     return channel || null;
   }
 
-  async findByIdOrThrow(id: string): Promise<ChannelResponse> {
+  async findByIdOrThrow(
+    id: string,
+    userId?: string,
+  ): Promise<ChannelWithUnread> {
     const channel = await this.findById(id);
     if (!channel) {
       throw new NotFoundException('Channel not found');
     }
-    return channel;
+
+    // For direct channels, fetch the other user's information
+    if (channel.type === 'direct' && userId) {
+      const members = await this.db
+        .select({
+          userId: schema.channelMembers.userId,
+          username: schema.users.username,
+          displayName: schema.users.displayName,
+          avatarUrl: schema.users.avatarUrl,
+          status: schema.users.status,
+        })
+        .from(schema.channelMembers)
+        .innerJoin(
+          schema.users,
+          eq(schema.users.id, schema.channelMembers.userId),
+        )
+        .where(
+          and(
+            eq(schema.channelMembers.channelId, id),
+            isNull(schema.channelMembers.leftAt),
+          ),
+        );
+
+      const otherUser = members.find((m) => m.userId !== userId);
+
+      return {
+        ...channel,
+        unreadCount: 0, // Not calculated for single channel view
+        otherUser: otherUser
+          ? {
+              id: otherUser.userId,
+              username: otherUser.username,
+              displayName: otherUser.displayName,
+              avatarUrl: otherUser.avatarUrl,
+              status: otherUser.status,
+            }
+          : undefined,
+      };
+    }
+
+    return {
+      ...channel,
+      unreadCount: 0,
+    };
   }
 
   async update(
