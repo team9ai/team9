@@ -2,32 +2,35 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import imApi from "@/services/api/im";
 import wsService from "@/services/websocket";
-import type { ChannelWithUnread, CreateChannelDto, Channel } from "@/types/im";
+import type { CreateChannelDto } from "@/types/im";
+import { useSelectedWorkspaceId } from "@/stores";
 
 /**
  * Hook to fetch all user's channels
  */
 export function useChannels() {
   const queryClient = useQueryClient();
+  const workspaceId = useSelectedWorkspaceId();
 
   const query = useQuery({
-    queryKey: ["channels"],
+    queryKey: ["channels", workspaceId],
     queryFn: () => imApi.channels.getChannels(),
     staleTime: 30000,
+    enabled: !!workspaceId,
   });
 
   // Listen for real-time channel updates
   useEffect(() => {
     const handleChannelJoined = () => {
-      queryClient.invalidateQueries({ queryKey: ["channels"] });
+      queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
     };
 
     const handleChannelLeft = () => {
-      queryClient.invalidateQueries({ queryKey: ["channels"] });
+      queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
     };
 
     const handleChannelCreated = () => {
-      queryClient.invalidateQueries({ queryKey: ["channels"] });
+      queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
     };
 
     wsService.on("channel_joined", handleChannelJoined);
@@ -39,7 +42,7 @@ export function useChannels() {
       wsService.off("channel_left", handleChannelLeft);
       wsService.off("channel_created", handleChannelCreated);
     };
-  }, [queryClient]);
+  }, [queryClient, workspaceId]);
 
   return query;
 }
@@ -60,11 +63,12 @@ export function useChannel(channelId: string | undefined) {
  */
 export function useCreateChannel() {
   const queryClient = useQueryClient();
+  const workspaceId = useSelectedWorkspaceId();
 
   return useMutation({
     mutationFn: (data: CreateChannelDto) => imApi.channels.createChannel(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["channels"] });
+      queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
     },
   });
 }
@@ -74,12 +78,13 @@ export function useCreateChannel() {
  */
 export function useCreateDirectChannel() {
   const queryClient = useQueryClient();
+  const workspaceId = useSelectedWorkspaceId();
 
   return useMutation({
     mutationFn: (targetUserId: string) =>
       imApi.channels.createDirectChannel(targetUserId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["channels"] });
+      queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
     },
   });
 }
@@ -89,6 +94,7 @@ export function useCreateDirectChannel() {
  */
 export function useMarkAsRead() {
   const queryClient = useQueryClient();
+  const workspaceId = useSelectedWorkspaceId();
 
   return useMutation({
     mutationFn: ({
@@ -99,7 +105,7 @@ export function useMarkAsRead() {
       messageId: string;
     }) => imApi.channels.markAsRead(channelId, { messageId }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["channels"] });
+      queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
     },
   });
 }

@@ -1,4 +1,10 @@
-import { Module, OnModuleInit, Logger } from '@nestjs/common';
+import {
+  Module,
+  OnModuleInit,
+  NestModule,
+  MiddlewareConsumer,
+  Logger,
+} from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { join } from 'path';
 import { AppController } from './app.controller.js';
@@ -15,6 +21,7 @@ import { EditionModule } from './edition/index.js';
 import { AuthModule } from './auth/auth.module.js';
 import { WorkspaceModule } from './workspace/workspace.module.js';
 import { GatewayModule } from './gateway/gateway.module.js';
+import { TenantMiddleware } from './common/middleware/tenant.middleware.js';
 
 @Module({
   imports: [
@@ -40,10 +47,15 @@ import { GatewayModule } from './gateway/gateway.module.js';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule implements OnModuleInit {
+export class AppModule implements OnModuleInit, NestModule {
   private readonly logger = new Logger(AppModule.name);
 
   constructor(private readonly configService: DbConfigService) {}
+
+  configure(consumer: MiddlewareConsumer) {
+    // Apply TenantMiddleware to all routes
+    consumer.apply(TenantMiddleware).forRoutes('*');
+  }
 
   async onModuleInit() {
     // Load configurations from database on startup

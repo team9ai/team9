@@ -1,4 +1,5 @@
 import type { HttpRequestConfig, HttpResponse, HttpError } from "./types";
+import { useWorkspaceStore } from "../../stores";
 
 export const requestLogger = (config: HttpRequestConfig): HttpRequestConfig => {
   if (import.meta.env.DEV) {
@@ -41,6 +42,28 @@ export const authInterceptor = (
       ...config.headers,
       Authorization: `Bearer ${token}`,
     };
+  }
+
+  return config;
+};
+
+export const workspaceInterceptor = (
+  config: HttpRequestConfig,
+): HttpRequestConfig => {
+  const workspaceId = useWorkspaceStore.getState().selectedWorkspaceId;
+
+  if (workspaceId) {
+    config.headers = {
+      ...config.headers,
+      "X-Tenant-Id": workspaceId,
+    };
+    if (import.meta.env.DEV) {
+      console.log(`[HTTP Interceptor] Adding X-Tenant-Id: ${workspaceId}`);
+    }
+  } else {
+    if (import.meta.env.DEV) {
+      console.warn(`[HTTP Interceptor] No workspace selected for request`);
+    }
   }
 
   return config;

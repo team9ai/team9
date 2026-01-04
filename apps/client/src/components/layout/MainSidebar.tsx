@@ -18,6 +18,8 @@ import {
 import { useNavigate, useLocation } from "@tanstack/react-router";
 import { useUserWorkspaces } from "@/hooks/useWorkspace";
 import { useWorkspaceStore } from "@/stores";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 
 const navigationItems = [
   { id: "home", label: "Home", icon: Home, path: "/" },
@@ -44,8 +46,10 @@ const WORKSPACE_COLORS = [
 export function MainSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
   const { data: workspaces, isLoading } = useUserWorkspaces();
   const { selectedWorkspaceId, setSelectedWorkspaceId } = useWorkspaceStore();
+  const prevWorkspaceIdRef = useRef<string | null>(null);
 
   // Get first 5 workspaces and remaining ones
   const visibleWorkspaces = workspaces?.slice(0, 5) || [];
@@ -55,6 +59,47 @@ export function MainSidebar() {
   // Set first workspace as selected by default
   const currentWorkspace =
     workspaces?.find((w) => w.id === selectedWorkspaceId) || workspaces?.[0];
+
+  // Initialize selectedWorkspaceId with the first workspace if not set
+  useEffect(() => {
+    if (workspaces && workspaces.length > 0 && !selectedWorkspaceId) {
+      if (import.meta.env.DEV) {
+        console.log("[MainSidebar] Initializing workspace:", workspaces[0].id);
+      }
+      setSelectedWorkspaceId(workspaces[0].id);
+    }
+  }, [workspaces, selectedWorkspaceId, setSelectedWorkspaceId]);
+
+  // Clear workspace-specific cache when workspace changes
+  useEffect(() => {
+    if (
+      selectedWorkspaceId &&
+      prevWorkspaceIdRef.current !== null &&
+      prevWorkspaceIdRef.current !== selectedWorkspaceId
+    ) {
+      if (import.meta.env.DEV) {
+        console.log(
+          "[MainSidebar] Workspace changed from",
+          prevWorkspaceIdRef.current,
+          "to",
+          selectedWorkspaceId,
+        );
+      }
+
+      // Remove old workspace queries to free memory and ensure fresh data
+      queryClient.removeQueries({
+        queryKey: ["channels", prevWorkspaceIdRef.current],
+      });
+      queryClient.removeQueries({
+        queryKey: ["workspace-members", prevWorkspaceIdRef.current],
+      });
+      // Note: Don't remove messages as they might be needed if user navigates back
+
+      // Navigate to home when switching workspace
+      navigate({ to: "/" });
+    }
+    prevWorkspaceIdRef.current = selectedWorkspaceId;
+  }, [selectedWorkspaceId, queryClient, navigate]);
 
   const getInitials = (name: string) => {
     const words = name.trim().split(/\s+/);

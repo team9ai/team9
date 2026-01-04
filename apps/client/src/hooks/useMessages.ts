@@ -1,5 +1,4 @@
 import {
-  useQuery,
   useMutation,
   useQueryClient,
   useInfiniteQuery,
@@ -8,6 +7,7 @@ import { useEffect } from "react";
 import imApi from "@/services/api/im";
 import wsService from "@/services/websocket";
 import type { CreateMessageDto, UpdateMessageDto, Message } from "@/types/im";
+import { useSelectedWorkspaceId } from "@/stores";
 
 /**
  * Hook to fetch messages for a channel with infinite scroll
@@ -105,6 +105,7 @@ export function useMessages(channelId: string | undefined) {
  */
 export function useSendMessage(channelId: string | undefined) {
   const queryClient = useQueryClient();
+  const workspaceId = useSelectedWorkspaceId();
 
   return useMutation({
     mutationFn: (data: CreateMessageDto) =>
@@ -126,7 +127,7 @@ export function useSendMessage(channelId: string | undefined) {
         };
       });
       // Invalidate channels to update unread counts
-      queryClient.invalidateQueries({ queryKey: ["channels"] });
+      queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
     },
   });
 }
