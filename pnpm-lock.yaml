@@ -28,6 +28,27 @@ importers:
 
   apps/client:
     dependencies:
+      "@emoji-mart/data":
+        specifier: ^1.2.1
+        version: 1.2.1
+      "@emoji-mart/react":
+        specifier: ^1.1.1
+        version: 1.1.1(emoji-mart@5.6.0)(react@19.2.3)
+      "@lexical/list":
+        specifier: ^0.39.0
+        version: 0.39.0
+      "@lexical/react":
+        specifier: ^0.39.0
+        version: 0.39.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(yjs@13.6.29)
+      "@lexical/rich-text":
+        specifier: ^0.39.0
+        version: 0.39.0
+      "@lexical/selection":
+        specifier: ^0.39.0
+        version: 0.39.0
+      "@lexical/utils":
+        specifier: ^0.39.0
+        version: 0.39.0
       "@radix-ui/react-avatar":
         specifier: ^1.1.11
         version: 1.1.11(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -37,6 +58,9 @@ importers:
       "@radix-ui/react-label":
         specifier: ^2.1.8
         version: 2.1.8(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      "@radix-ui/react-popover":
+        specifier: ^1.1.15
+        version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       "@radix-ui/react-scroll-area":
         specifier: ^1.2.10
         version: 1.2.10(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -79,6 +103,9 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      lexical:
+        specifier: ^0.39.0
+        version: 0.39.0
       lucide-react:
         specifier: ^0.562.0
         version: 0.562.0(react@19.2.3)
@@ -222,6 +249,9 @@ importers:
       "@nestjs/core":
         specifier: ^11.0.1
         version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      "@nestjs/event-emitter":
+        specifier: ^3.0.1
+        version: 3.0.1(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)
       "@nestjs/jwt":
         specifier: ^11.0.2
         version: 11.0.2(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))
@@ -237,6 +267,9 @@ importers:
       "@nestjs/websockets":
         specifier: ^11.1.10
         version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)(@nestjs/platform-socket.io@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      "@types/uuid":
+        specifier: ^11.0.0
+        version: 11.0.0
       axios:
         specifier: ^1.13.2
         version: 1.13.2
@@ -270,6 +303,9 @@ importers:
       socket.io:
         specifier: ^4.8.3
         version: 4.8.3
+      uuid:
+        specifier: ^13.0.0
+        version: 13.0.0
     devDependencies:
       "@eslint/eslintrc":
         specifier: ^3.2.0
@@ -307,6 +343,9 @@ importers:
       "@types/supertest":
         specifier: ^6.0.2
         version: 6.0.3
+      concurrently:
+        specifier: ^9.1.2
+        version: 9.2.1
       eslint:
         specifier: ^9.18.0
         version: 9.39.2(jiti@2.6.1)
@@ -364,6 +403,21 @@ importers:
       "@team9/auth":
         specifier: workspace:*
         version: link:../../libs/auth
+      "@team9/database":
+        specifier: workspace:*
+        version: link:../../libs/database
+      "@team9/rabbitmq":
+        specifier: workspace:*
+        version: link:../../libs/rabbitmq
+      "@team9/redis":
+        specifier: workspace:*
+        version: link:../../libs/redis
+      "@team9/shared":
+        specifier: workspace:*
+        version: link:../../libs/shared
+
+  apps/server/apps/logic:
+    dependencies:
       "@team9/database":
         specifier: workspace:*
         version: link:../../libs/database
@@ -471,6 +525,9 @@ importers:
 
   apps/server/libs/database:
     dependencies:
+      "@team9/shared":
+        specifier: workspace:*
+        version: link:../shared
       drizzle-orm:
         specifier: ^0.45.1
         version: 0.45.1(@types/pg@8.16.0)(gel@2.2.0)(postgres@3.4.7)
@@ -493,9 +550,18 @@ importers:
       "@golevelup/nestjs-rabbitmq":
         specifier: ^7.1.1
         version: 7.1.1(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      "@nestjs/event-emitter":
+        specifier: ^3.0.1
+        version: 3.0.1(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)
+      "@team9/shared":
+        specifier: workspace:*
+        version: link:../shared
 
   apps/server/libs/redis:
     dependencies:
+      "@team9/shared":
+        specifier: workspace:*
+        version: link:../shared
       ioredis:
         specifier: ^5.4.1
         version: 5.8.2
@@ -513,6 +579,9 @@ importers:
       "@aws-sdk/s3-request-presigner":
         specifier: ^3.958.0
         version: 3.958.0
+      "@team9/shared":
+        specifier: workspace:*
+        version: link:../shared
 
   enterprise/libs/analytics:
     dependencies:
@@ -1295,6 +1364,21 @@ packages:
       {
         integrity: sha512-WI0DdZ8xFSbgMjR1sFsKABJ/C5OnRrjT06JXbZKexJGrDuPTzZdDYfFlsgcCXCyf+suG5QU2e/y1Wo2V/OapLQ==,
       }
+
+  "@emoji-mart/data@1.2.1":
+    resolution:
+      {
+        integrity: sha512-no2pQMWiBy6gpBEiqGeU77/bFejDqUTRY7KX+0+iur13op3bqUsXdnwoZs6Xb1zbv0gAj5VvS1PWoUUckSr5Dw==,
+      }
+
+  "@emoji-mart/react@1.1.1":
+    resolution:
+      {
+        integrity: sha512-NMlFNeWgv1//uPsvLxvGQoIerPuVdXwK/EUek8OOkJ6wVOWPUizRBJU0hDqWZCOROVpfBgCemaC3m6jDOXi03g==,
+      }
+    peerDependencies:
+      emoji-mart: ^5.2
+      react: ^16.8 || ^17 || ^18
 
   "@esbuild-kit/core-utils@3.3.2":
     resolution:
@@ -2269,6 +2353,15 @@ packages:
       react: ">=16.8.0"
       react-dom: ">=16.8.0"
 
+  "@floating-ui/react@0.27.16":
+    resolution:
+      {
+        integrity: sha512-9O8N4SeG2z++TSM8QA/KTeKFBVCNEz/AGS7gWPJf6KFRzmRWixFRnCnkPHRDwSVZW6QPDO6uT0P2SpWNKCc9/g==,
+      }
+    peerDependencies:
+      react: ">=17.0.0"
+      react-dom: ">=17.0.0"
+
   "@floating-ui/utils@0.2.10":
     resolution:
       {
@@ -2861,6 +2954,146 @@ packages:
         integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==,
       }
 
+  "@lexical/clipboard@0.39.0":
+    resolution:
+      {
+        integrity: sha512-ylrHy8M+I5EH4utwqivslugqQhvgLTz9VEJdrb2RjbhKQEXwMcqKCRWh6cRfkYx64onE2YQE0nRIdzHhExEpLQ==,
+      }
+
+  "@lexical/code@0.39.0":
+    resolution:
+      {
+        integrity: sha512-3tqFOOzP5Z9nRkZPHZYmIyLXd28gMMrlAD3k2zxiH5vGnAqiYTezR24CpRDw1BaF2c8vCgY/9CNobZzjXivpIA==,
+      }
+
+  "@lexical/devtools-core@0.39.0":
+    resolution:
+      {
+        integrity: sha512-2ET2nFeRhcc2YMrn184wxoEOTLl3UOlugi8ozuZFa6F4UDMXPq7nZRhiQNgYzhE6Z7NLMFrcmghvx652JbEowg==,
+      }
+    peerDependencies:
+      react: ">=17.x"
+      react-dom: ">=17.x"
+
+  "@lexical/dragon@0.39.0":
+    resolution:
+      {
+        integrity: sha512-JkcBAYPZGzfs29gtkePeJG9US1uwKW6PkUt8G4QZkMTt4QMDnadqXauFE+30rbpvRdeNcR7s+/jOuRHd5SurDQ==,
+      }
+
+  "@lexical/extension@0.39.0":
+    resolution:
+      {
+        integrity: sha512-mp/WcF8E53FWPiUHgHQz382J7u7C4+cELYNkC00dKaymf8NhS6M65Y8tyDikNGNUcLXSzaluwK0HkiKjTYGhVQ==,
+      }
+
+  "@lexical/hashtag@0.39.0":
+    resolution:
+      {
+        integrity: sha512-CFLNB74a607nC2GGcjKNPbo/ZnehnR3zz9+S5bfUg5dblSGKdCfxHiyr2cDwHY3dfOTu+qtimfh2Zqxz4dfghA==,
+      }
+
+  "@lexical/history@0.39.0":
+    resolution:
+      {
+        integrity: sha512-kuctleDime0tRDxQNDW8i5d6D/ys5Npp2yoCBmdKS8HfS/jz7uPumfZcX7wvUvNAEVExh+bY9IxqIexyGkNUtA==,
+      }
+
+  "@lexical/html@0.39.0":
+    resolution:
+      {
+        integrity: sha512-7VLWP5DpzBg3kKctpNK6PbhymKAtU6NAnKieopCfCIWlMW+EqpldteiIXGqSqrMRK0JWTmF1gKgr9nnQyOOsXw==,
+      }
+
+  "@lexical/link@0.39.0":
+    resolution:
+      {
+        integrity: sha512-L1jSF2BVRHDqIQbKYFcQt3CqtVIphRA3QAW2VooYPNlKeaAb/yfFS+C60GX1cj96b0rMlHKrNC17ik2aEBZKLQ==,
+      }
+
+  "@lexical/list@0.39.0":
+    resolution:
+      {
+        integrity: sha512-mxgSxUrakTCHtC+gF30BChQBJTsCMiMgfC2H5VvhcFwXMgsKE/aK9+a+C/sSvvzCmPXqzYsuAcGkJcrY3e5xlw==,
+      }
+
+  "@lexical/mark@0.39.0":
+    resolution:
+      {
+        integrity: sha512-wVs5498dWYOQ07FAHaFW6oYgNG3moBargf6es7+gHPzjlaoZ6Hd8sbvJtlT8F2RRlw+U+kUh4s8SjFuMSEJp0w==,
+      }
+
+  "@lexical/markdown@0.39.0":
+    resolution:
+      {
+        integrity: sha512-mPaKH2FSwRwU2bDbMiMtdOridaEvSLU3Q5l7bqYE+TW799C/1EEtiv4xSkI01SjV9YOxNf24VNOipAMymPueKA==,
+      }
+
+  "@lexical/offset@0.39.0":
+    resolution:
+      {
+        integrity: sha512-8p+16AgFsG8ecZVQlFO6TQ+zHHHg7LKPNdm9BkklkJux41Y1+9rlPO12Mgbi4x2Hy2pRA8Gd/Su3hySGqEEVlA==,
+      }
+
+  "@lexical/overflow@0.39.0":
+    resolution:
+      {
+        integrity: sha512-BLtF4MNDrTNQFgryw6MPWh2Fj4GMjqC/6p9bbnZ9fdwMWKGSbsSNcK9PLlBwg3IzEK3XiibFDHUbsETwUd/bfw==,
+      }
+
+  "@lexical/plain-text@0.39.0":
+    resolution:
+      {
+        integrity: sha512-Ep0PGF7GlBNgiJJh/DBEPLt1WXyHUb7bCYZ4MUbD31AiJdG0p5a/g9dVTUr4QtNlCIXBCZjuatHyp6e2mzMacg==,
+      }
+
+  "@lexical/react@0.39.0":
+    resolution:
+      {
+        integrity: sha512-6ySVb5xv99GIkVzio4qqOBxkPgOSSeFAB4o9bVqtg72JbCoEKZPnWq5VVurGe1uiRJM8jvqTseM9mo2zTvUfXQ==,
+      }
+    peerDependencies:
+      react: ">=17.x"
+      react-dom: ">=17.x"
+
+  "@lexical/rich-text@0.39.0":
+    resolution:
+      {
+        integrity: sha512-UoSgRi09nLP/mmD3ijdZycr9icnqlb761rzHC1gicuPDdTu0ruxAFbGanSE2h36ihSu0IUHwkpf4gBpgPPqWBw==,
+      }
+
+  "@lexical/selection@0.39.0":
+    resolution:
+      {
+        integrity: sha512-j0cgNuTKDCdf/4MzRnAUwEqG6C/WQp18k2WKmX5KIVZJlhnGIJmlgSBrxjo8AuZ16DIHxTm2XNB4cUDCgZNuPA==,
+      }
+
+  "@lexical/table@0.39.0":
+    resolution:
+      {
+        integrity: sha512-1eH11kV4bJ0fufCYl8DpE19kHwqUI8Ev5CZwivfAtC3ntwyNkeEpjCc0pqeYYIWN/4rTZ5jgB3IJV4FntyfCzw==,
+      }
+
+  "@lexical/text@0.39.0":
+    resolution:
+      {
+        integrity: sha512-fcIgejtIgfMAkxio6BO1eLA2eb4oRIFoUVA2jAXdCaLVHrG/cizitbygPrgWnWd8nt1WlMuS4lxa0PJl7h7Lqg==,
+      }
+
+  "@lexical/utils@0.39.0":
+    resolution:
+      {
+        integrity: sha512-8YChidpMJpwQc4nex29FKUeuZzC++QCS/Jt46lPuy1GS/BZQoPHFKQ5hyVvM9QVhc5CEs4WGNoaCZvZIVN8bQw==,
+      }
+
+  "@lexical/yjs@0.39.0":
+    resolution:
+      {
+        integrity: sha512-peBrzIDoRWeyX9XTilKVdeJua6A+RZ24CG7lgGLEhmNSGCqpj9FqlC1Wtrul4wTSh85KlDeI1Nq30gnyeNKWYA==,
+      }
+    peerDependencies:
+      yjs: ">=13.5.22"
+
   "@lukeed/csprng@1.1.0":
     resolution:
       {
@@ -2941,6 +3174,15 @@ packages:
         optional: true
       "@nestjs/websockets":
         optional: true
+
+  "@nestjs/event-emitter@3.0.1":
+    resolution:
+      {
+        integrity: sha512-0Ln/x+7xkU6AJFOcQI9tIhUMXVF7D5itiaQGOyJbXtlAfAIt8gzDdJm+Im7cFzKoWkiW5nCXCPh6GSvdQd/3Dw==,
+      }
+    peerDependencies:
+      "@nestjs/common": ^10.0.0 || ^11.0.0
+      "@nestjs/core": ^10.0.0 || ^11.0.0
 
   "@nestjs/jwt@11.0.2":
     resolution:
@@ -3253,6 +3495,12 @@ packages:
       }
     engines: { node: ^12.20.0 || ^14.18.0 || >=16.0.0 }
 
+  "@preact/signals-core@1.12.1":
+    resolution:
+      {
+        integrity: sha512-BwbTXpj+9QutoZLQvbttRg5x3l5468qaV2kufh+51yha1c53ep5dY4kTuZR35+3pAZxpfQerGJiQqg34ZNZ6uA==,
+      }
+
   "@radix-ui/number@1.1.1":
     resolution:
       {
@@ -3437,6 +3685,22 @@ packages:
     resolution:
       {
         integrity: sha512-FmXs37I6hSBVDlO4y764TNz1rLgKwjJMQ0EGte6F3Cb3f4bIuHB/iLa/8I9VKkmOy+gNHq8rql3j686ACVV21A==,
+      }
+    peerDependencies:
+      "@types/react": "*"
+      "@types/react-dom": "*"
+      react: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+      react-dom: ^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc
+    peerDependenciesMeta:
+      "@types/react":
+        optional: true
+      "@types/react-dom":
+        optional: true
+
+  "@radix-ui/react-popover@1.1.15":
+    resolution:
+      {
+        integrity: sha512-kr0X2+6Yy/vJzLYJUPCZEc8SfQcf+1COFoAqauJm74umQhta9M7lNJHP7QQS3vkvcGLQUbWpMzwrXYwrYztHKA==,
       }
     peerDependencies:
       "@types/react": "*"
@@ -5210,6 +5474,13 @@ packages:
         integrity: sha512-8WzXq62EXFhJ7QsH3Ocb/iKQ/Ty9ZVWnVzoTKc9tyyFRRF3a74Tk2+TLFgaFFw364Ere+npzHKEJ6ga2LzIL7w==,
       }
 
+  "@types/uuid@11.0.0":
+    resolution:
+      {
+        integrity: sha512-HVyk8nj2m+jcFRNazzqyVKiZezyhDKrGUA3jlEcg/nZ6Ms+qHwocba1Y/AaVaznJTAM9xpdFSh+ptbNrhOGvZA==,
+      }
+    deprecated: This is a stub types definition. uuid provides its own type definitions, so you do not need this installed.
+
   "@types/validator@13.15.10":
     resolution:
       {
@@ -6906,6 +7177,12 @@ packages:
       }
     engines: { node: ">=12" }
 
+  emoji-mart@5.6.0:
+    resolution:
+      {
+        integrity: sha512-eJp3QRe79pjwa+duv+n7+5YsNhRcMl812EcFVwrnRvYKoNPoQb5qxU8DG6Bgwji0akHdp6D4Ln6tYLG58MFSow==,
+      }
+
   emoji-regex@10.6.0:
     resolution:
       {
@@ -7225,6 +7502,12 @@ packages:
         integrity: sha512-aIL5Fx7mawVa300al2BnEE4iNvo1qETxLrPI/o05L7z6go7fCw1J6EQmbK4FmJ2AS7kgVF/KEZWufBfdClMcPg==,
       }
     engines: { node: ">= 0.6" }
+
+  eventemitter2@6.4.9:
+    resolution:
+      {
+        integrity: sha512-JEPTiaOt9f04oa6NOkc4aH+nVp5I3wEjpHbIPqfgCdD5v5bUzy7xQqwcVO2aDQgOWhI28da57HksMrzK9HlRxg==,
+      }
 
   eventemitter3@5.0.1:
     resolution:
@@ -7950,6 +8233,12 @@ packages:
       }
     engines: { node: ">=16" }
 
+  isomorphic.js@0.2.5:
+    resolution:
+      {
+        integrity: sha512-PIeMbHqMt4DnUP3MA/Flc0HElYjMXArsw1qwJZcm9sqR8mq3l8NYizFMty0pWwE/tzIGH3EKK5+jes5mAr85yw==,
+      }
+
   istanbul-lib-coverage@3.2.2:
     resolution:
       {
@@ -8567,6 +8856,20 @@ packages:
         integrity: sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ==,
       }
     engines: { node: ">= 0.8.0" }
+
+  lexical@0.39.0:
+    resolution:
+      {
+        integrity: sha512-lpLv7MEJH5QDujEDlYqettL3ATVtNYjqyimzqgrm0RvCm3AO9WXSdsgTxuN7IAZRu88xkxCDeYubeUf4mNZVdg==,
+      }
+
+  lib0@0.2.117:
+    resolution:
+      {
+        integrity: sha512-DeXj9X5xDCjgKLU/7RR+/HQEVzuuEUiwldwOGsHK/sfAfELGWEyTcf0x+uOvCvK3O2zPmZePXWL85vtia6GyZw==,
+      }
+    engines: { node: ">=16" }
+    hasBin: true
 
   libphonenumber-js@1.12.33:
     resolution:
@@ -9656,6 +9959,13 @@ packages:
       }
     engines: { node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0 }
 
+  prismjs@1.30.0:
+    resolution:
+      {
+        integrity: sha512-DEvV2ZF2r2/63V+tK8hQvrR2ZGn10srHbXviTlcv7Kpzw8jWiNTqbVgjO3IY8RxrrOUF8VPMQQFysYYYv0YZxw==,
+      }
+    engines: { node: ">=6" }
+
   promise-breaker@6.0.0:
     resolution:
       {
@@ -9755,6 +10065,15 @@ packages:
       }
     peerDependencies:
       react: ^19.2.3
+
+  react-error-boundary@6.0.1:
+    resolution:
+      {
+        integrity: sha512-zArgQpjJUN1ZLMEKWtifxQweW3yfvwL5j2nh3Pesze1qG6r5oCDMy/TA97bUF01wy4xCeeL4/pd8GHmvEsP3Bg==,
+      }
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
+      react-dom: ^18.0.0 || ^19.0.0
 
   react-is@18.3.1:
     resolution:
@@ -10486,6 +10805,12 @@ packages:
       }
     engines: { node: ^14.18.0 || >=16.0.0 }
 
+  tabbable@6.4.0:
+    resolution:
+      {
+        integrity: sha512-05PUHKSNE8ou2dwIxTngl4EzcnsCDZGJ/iCLtDflR/SHB/ny14rXc+qU5P4mG9JkusiV7EivzY9Mhm55AzAvCg==,
+      }
+
   tailwind-merge@2.6.0:
     resolution:
       {
@@ -10962,6 +11287,13 @@ packages:
       }
     engines: { node: ">= 0.4.0" }
 
+  uuid@13.0.0:
+    resolution:
+      {
+        integrity: sha512-XQegIaBTVUjSHliKqcnFqYypAd4S+WCYt5NIeRs6w/UAry7z8Y9j5ZwRRL4kzq9U3sD6v+85er9FvkEaBpji2w==,
+      }
+    hasBin: true
+
   v8-compile-cache-lib@3.0.1:
     resolution:
       {
@@ -11267,6 +11599,13 @@ packages:
         integrity: sha512-7dSzzRQ++CKnNI/krKnYRV7JKKPUXMEh61soaHKg9mrWEhzFWhFnxPxGl+69cD1Ou63C13NUPCnmIcrvqCuM6w==,
       }
     engines: { node: ">=12" }
+
+  yjs@13.6.29:
+    resolution:
+      {
+        integrity: sha512-kHqDPdltoXH+X4w1lVmMtddE3Oeqq48nM40FD5ojTd8xYhQpzIDcfE2keMSU5bAgRPJBe225WTUdyUgj1DtbiQ==,
+      }
+    engines: { node: ">=16.0.0", npm: ">=8.0.0" }
 
   yn@3.1.1:
     resolution:
@@ -12124,6 +12463,13 @@ snapshots:
       tslib: 2.8.1
     optional: true
 
+  "@emoji-mart/data@1.2.1": {}
+
+  "@emoji-mart/react@1.1.1(emoji-mart@5.6.0)(react@19.2.3)":
+    dependencies:
+      emoji-mart: 5.6.0
+      react: 19.2.3
+
   "@esbuild-kit/core-utils@3.3.2":
     dependencies:
       esbuild: 0.18.20
@@ -12490,6 +12836,14 @@ snapshots:
       "@floating-ui/dom": 1.7.4
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
+
+  "@floating-ui/react@0.27.16(react-dom@19.2.3(react@19.2.3))(react@19.2.3)":
+    dependencies:
+      "@floating-ui/react-dom": 2.1.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      "@floating-ui/utils": 0.2.10
+      react: 19.2.3
+      react-dom: 19.2.3(react@19.2.3)
+      tabbable: 6.4.0
 
   "@floating-ui/utils@0.2.10": {}
 
@@ -13099,6 +13453,167 @@ snapshots:
       "@jridgewell/resolve-uri": 3.1.2
       "@jridgewell/sourcemap-codec": 1.5.5
 
+  "@lexical/clipboard@0.39.0":
+    dependencies:
+      "@lexical/html": 0.39.0
+      "@lexical/list": 0.39.0
+      "@lexical/selection": 0.39.0
+      "@lexical/utils": 0.39.0
+      lexical: 0.39.0
+
+  "@lexical/code@0.39.0":
+    dependencies:
+      "@lexical/utils": 0.39.0
+      lexical: 0.39.0
+      prismjs: 1.30.0
+
+  "@lexical/devtools-core@0.39.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)":
+    dependencies:
+      "@lexical/html": 0.39.0
+      "@lexical/link": 0.39.0
+      "@lexical/mark": 0.39.0
+      "@lexical/table": 0.39.0
+      "@lexical/utils": 0.39.0
+      lexical: 0.39.0
+      react: 19.2.3
+      react-dom: 19.2.3(react@19.2.3)
+
+  "@lexical/dragon@0.39.0":
+    dependencies:
+      "@lexical/extension": 0.39.0
+      lexical: 0.39.0
+
+  "@lexical/extension@0.39.0":
+    dependencies:
+      "@lexical/utils": 0.39.0
+      "@preact/signals-core": 1.12.1
+      lexical: 0.39.0
+
+  "@lexical/hashtag@0.39.0":
+    dependencies:
+      "@lexical/text": 0.39.0
+      "@lexical/utils": 0.39.0
+      lexical: 0.39.0
+
+  "@lexical/history@0.39.0":
+    dependencies:
+      "@lexical/extension": 0.39.0
+      "@lexical/utils": 0.39.0
+      lexical: 0.39.0
+
+  "@lexical/html@0.39.0":
+    dependencies:
+      "@lexical/selection": 0.39.0
+      "@lexical/utils": 0.39.0
+      lexical: 0.39.0
+
+  "@lexical/link@0.39.0":
+    dependencies:
+      "@lexical/extension": 0.39.0
+      "@lexical/utils": 0.39.0
+      lexical: 0.39.0
+
+  "@lexical/list@0.39.0":
+    dependencies:
+      "@lexical/extension": 0.39.0
+      "@lexical/selection": 0.39.0
+      "@lexical/utils": 0.39.0
+      lexical: 0.39.0
+
+  "@lexical/mark@0.39.0":
+    dependencies:
+      "@lexical/utils": 0.39.0
+      lexical: 0.39.0
+
+  "@lexical/markdown@0.39.0":
+    dependencies:
+      "@lexical/code": 0.39.0
+      "@lexical/link": 0.39.0
+      "@lexical/list": 0.39.0
+      "@lexical/rich-text": 0.39.0
+      "@lexical/text": 0.39.0
+      "@lexical/utils": 0.39.0
+      lexical: 0.39.0
+
+  "@lexical/offset@0.39.0":
+    dependencies:
+      lexical: 0.39.0
+
+  "@lexical/overflow@0.39.0":
+    dependencies:
+      lexical: 0.39.0
+
+  "@lexical/plain-text@0.39.0":
+    dependencies:
+      "@lexical/clipboard": 0.39.0
+      "@lexical/dragon": 0.39.0
+      "@lexical/selection": 0.39.0
+      "@lexical/utils": 0.39.0
+      lexical: 0.39.0
+
+  "@lexical/react@0.39.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(yjs@13.6.29)":
+    dependencies:
+      "@floating-ui/react": 0.27.16(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      "@lexical/devtools-core": 0.39.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      "@lexical/dragon": 0.39.0
+      "@lexical/extension": 0.39.0
+      "@lexical/hashtag": 0.39.0
+      "@lexical/history": 0.39.0
+      "@lexical/link": 0.39.0
+      "@lexical/list": 0.39.0
+      "@lexical/mark": 0.39.0
+      "@lexical/markdown": 0.39.0
+      "@lexical/overflow": 0.39.0
+      "@lexical/plain-text": 0.39.0
+      "@lexical/rich-text": 0.39.0
+      "@lexical/table": 0.39.0
+      "@lexical/text": 0.39.0
+      "@lexical/utils": 0.39.0
+      "@lexical/yjs": 0.39.0(yjs@13.6.29)
+      lexical: 0.39.0
+      react: 19.2.3
+      react-dom: 19.2.3(react@19.2.3)
+      react-error-boundary: 6.0.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+    transitivePeerDependencies:
+      - yjs
+
+  "@lexical/rich-text@0.39.0":
+    dependencies:
+      "@lexical/clipboard": 0.39.0
+      "@lexical/dragon": 0.39.0
+      "@lexical/selection": 0.39.0
+      "@lexical/utils": 0.39.0
+      lexical: 0.39.0
+
+  "@lexical/selection@0.39.0":
+    dependencies:
+      lexical: 0.39.0
+
+  "@lexical/table@0.39.0":
+    dependencies:
+      "@lexical/clipboard": 0.39.0
+      "@lexical/extension": 0.39.0
+      "@lexical/utils": 0.39.0
+      lexical: 0.39.0
+
+  "@lexical/text@0.39.0":
+    dependencies:
+      lexical: 0.39.0
+
+  "@lexical/utils@0.39.0":
+    dependencies:
+      "@lexical/list": 0.39.0
+      "@lexical/selection": 0.39.0
+      "@lexical/table": 0.39.0
+      lexical: 0.39.0
+
+  "@lexical/yjs@0.39.0(yjs@13.6.29)":
+    dependencies:
+      "@lexical/offset": 0.39.0
+      "@lexical/selection": 0.39.0
+      lexical: 0.39.0
+      yjs: 13.6.29
+
   "@lukeed/csprng@1.1.0": {}
 
   "@napi-rs/wasm-runtime@0.2.12":
@@ -13180,6 +13695,12 @@ snapshots:
     optionalDependencies:
       "@nestjs/platform-express": 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)
       "@nestjs/websockets": 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)(@nestjs/platform-socket.io@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+
+  "@nestjs/event-emitter@3.0.1(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)":
+    dependencies:
+      "@nestjs/common": 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      "@nestjs/core": 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      eventemitter2: 6.4.9
 
   "@nestjs/jwt@11.0.2(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))":
     dependencies:
@@ -13357,6 +13878,8 @@ snapshots:
 
   "@pkgr/core@0.2.9": {}
 
+  "@preact/signals-core@1.12.1": {}
+
   "@radix-ui/number@1.1.1": {}
 
   "@radix-ui/primitive@1.1.3": {}
@@ -13483,6 +14006,29 @@ snapshots:
       "@radix-ui/react-primitive": 2.1.4(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
+    optionalDependencies:
+      "@types/react": 19.2.7
+      "@types/react-dom": 19.2.3(@types/react@19.2.7)
+
+  "@radix-ui/react-popover@1.1.15(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)":
+    dependencies:
+      "@radix-ui/primitive": 1.1.3
+      "@radix-ui/react-compose-refs": 1.1.2(@types/react@19.2.7)(react@19.2.3)
+      "@radix-ui/react-context": 1.1.2(@types/react@19.2.7)(react@19.2.3)
+      "@radix-ui/react-dismissable-layer": 1.1.11(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      "@radix-ui/react-focus-guards": 1.1.3(@types/react@19.2.7)(react@19.2.3)
+      "@radix-ui/react-focus-scope": 1.1.7(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      "@radix-ui/react-id": 1.1.1(@types/react@19.2.7)(react@19.2.3)
+      "@radix-ui/react-popper": 1.2.8(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      "@radix-ui/react-portal": 1.1.9(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      "@radix-ui/react-presence": 1.1.5(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      "@radix-ui/react-primitive": 2.1.3(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      "@radix-ui/react-slot": 1.2.3(@types/react@19.2.7)(react@19.2.3)
+      "@radix-ui/react-use-controllable-state": 1.2.2(@types/react@19.2.7)(react@19.2.3)
+      aria-hidden: 1.2.6
+      react: 19.2.3
+      react-dom: 19.2.3(react@19.2.3)
+      react-remove-scroll: 2.7.2(@types/react@19.2.7)(react@19.2.3)
     optionalDependencies:
       "@types/react": 19.2.7
       "@types/react-dom": 19.2.3(@types/react@19.2.7)
@@ -14728,6 +15274,10 @@ snapshots:
       "@types/methods": 1.1.4
       "@types/superagent": 8.1.9
 
+  "@types/uuid@11.0.0":
+    dependencies:
+      uuid: 13.0.0
+
   "@types/validator@13.15.10": {}
 
   "@types/yargs-parser@21.0.3": {}
@@ -15734,6 +16284,8 @@ snapshots:
 
   emittery@0.13.1: {}
 
+  emoji-mart@5.6.0: {}
+
   emoji-regex@10.6.0: {}
 
   emoji-regex@8.0.0: {}
@@ -16084,6 +16636,8 @@ snapshots:
   esutils@2.0.3: {}
 
   etag@1.8.1: {}
+
+  eventemitter2@6.4.9: {}
 
   eventemitter3@5.0.1: {}
 
@@ -16529,6 +17083,8 @@ snapshots:
   isexe@2.0.0: {}
 
   isexe@3.1.1: {}
+
+  isomorphic.js@0.2.5: {}
 
   istanbul-lib-coverage@3.2.2: {}
 
@@ -17360,6 +17916,12 @@ snapshots:
       prelude-ls: 1.2.1
       type-check: 0.4.0
 
+  lexical@0.39.0: {}
+
+  lib0@0.2.117:
+    dependencies:
+      isomorphic.js: 0.2.5
+
   libphonenumber-js@1.12.33: {}
 
   lightningcss-android-arm64@1.30.2:
@@ -17899,6 +18461,8 @@ snapshots:
       ansi-styles: 5.2.0
       react-is: 18.3.1
 
+  prismjs@1.30.0: {}
+
   promise-breaker@6.0.0: {}
 
   prompts@2.4.2:
@@ -17950,6 +18514,11 @@ snapshots:
     dependencies:
       react: 19.2.3
       scheduler: 0.27.0
+
+  react-error-boundary@6.0.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
+    dependencies:
+      react: 19.2.3
+      react-dom: 19.2.3(react@19.2.3)
 
   react-is@18.3.1: {}
 
@@ -18429,6 +18998,8 @@ snapshots:
     dependencies:
       "@pkgr/core": 0.2.9
 
+  tabbable@6.4.0: {}
+
   tailwind-merge@2.6.0: {}
 
   tailwind-merge@3.4.0: {}
@@ -18850,6 +19421,8 @@ snapshots:
 
   utils-merge@1.0.1: {}
 
+  uuid@13.0.0: {}
+
   v8-compile-cache-lib@3.0.1: {}
 
   v8-to-istanbul@9.3.0:
@@ -19051,6 +19624,10 @@ snapshots:
       string-width: 4.2.3
       y18n: 5.0.8
       yargs-parser: 21.1.1
+
+  yjs@13.6.29:
+    dependencies:
+      lib0: 0.2.117
 
   yn@3.1.1: {}
 

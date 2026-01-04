@@ -1,0 +1,282 @@
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import {
+  $getSelection,
+  $isRangeSelection,
+  $isTextNode,
+  COMMAND_PRIORITY_LOW,
+  KEY_ARROW_DOWN_COMMAND,
+  KEY_ARROW_UP_COMMAND,
+  KEY_ENTER_COMMAND,
+  KEY_ESCAPE_COMMAND,
+  KEY_TAB_COMMAND,
+  TextNode,
+} from "lexical";
+import { mergeRegister } from "@lexical/utils";
+import { useSearchUsers } from "@/hooks/useIMUsers";
+import { $createMentionNode } from "../nodes/MentionNode";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
+import type { IMUser } from "@/types/im";
+
+const PUNCTUATION =
+  "\\.,\\+\\*\\?\\$\\@\\|#{}\\(\\)\\^\\-\\[\\]\\\\!%'\"~=<>_:;";
+const TRIGGERS = ["@"].join("");
+const VALID_CHARS = `[^${TRIGGERS}${PUNCTUATION}\\s]`;
+const LENGTH_LIMIT = 75;
+
+const MentionRegex = new RegExp(
+  `(^|\\s|\\()([${TRIGGERS}]((?:${VALID_CHARS}){0,${LENGTH_LIMIT}}))$`,
+);
+
+function useMentionLookupService(mentionString: string | null) {
+  const { data: users = [], isLoading } = useSearchUsers(
+    mentionString ?? "",
+    mentionString !== null && mentionString.length > 0,
+  );
+
+  return { users, isLoading };
+}
+
+interface MentionSuggestionsProps {
+  suggestions: IMUser[];
+  selectedIndex: number;
+  onSelect: (user: IMUser) => void;
+  onHover: (index: number) => void;
+}
+
+function MentionSuggestions({
+  suggestions,
+  selectedIndex,
+  onSelect,
+  onHover,
+}: MentionSuggestionsProps) {
+  return (
+    <div className="absolute bottom-full left-0 mb-1 w-64 max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg z-50">
+      {suggestions.length === 0 ? (
+        <div className="px-3 py-2 text-sm text-slate-500">No users found</div>
+      ) : (
+        <ul className="py-1">
+          {suggestions.map((user, index) => (
+            <li
+              key={user.id}
+              className={cn(
+                "flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors",
+                selectedIndex === index
+                  ? "bg-purple-50 text-purple-900"
+                  : "hover:bg-slate-50",
+              )}
+              onClick={() => onSelect(user)}
+              onMouseEnter={() => onHover(index)}
+            >
+              <Avatar className="w-6 h-6">
+                {user.avatarUrl && <AvatarImage src={user.avatarUrl} />}
+                <AvatarFallback className="bg-purple-500 text-white text-xs">
+                  {(user.displayName || user.username)[0].toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">
+                  {user.displayName || user.username}
+                </p>
+                <p className="text-xs text-slate-500 truncate">
+                  @{user.username}
+                </p>
+              </div>
+              {user.status === "online" && (
+                <div className="w-2 h-2 bg-green-500 rounded-full" />
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+export function MentionsPlugin() {
+  const [editor] = useLexicalComposerContext();
+  const [queryString, setQueryString] = useState<string | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const { users } = useMentionLookupService(queryString);
+
+  const suggestions = useMemo(() => {
+    return users.slice(0, 10);
+  }, [users]);
+
+  const checkForMentionMatch = useCallback(() => {
+    const selection = $getSelection();
+    if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
+      setQueryString(null);
+      return null;
+    }
+
+    const anchor = selection.anchor;
+    const anchorNode = anchor.getNode();
+
+    if (!$isTextNode(anchorNode)) {
+      setQueryString(null);
+      return null;
+    }
+
+    const text = anchorNode.getTextContent().slice(0, anchor.offset);
+    const match = MentionRegex.exec(text);
+
+    if (match) {
+      const mentionString = match[3] || "";
+      setQueryString(mentionString);
+      return {
+        leadOffset: match.index + match[1].length,
+        matchingString: mentionString,
+        replaceableString: match[2],
+      };
+    }
+
+    setQueryString(null);
+    return null;
+  }, []);
+
+  const insertMention = useCallback(
+    (user: IMUser) => {
+      editor.update(() => {
+        const selection = $getSelection();
+        if (!$isRangeSelection(selection)) return;
+
+        const anchor = selection.anchor;
+        const anchorNode = anchor.getNode();
+
+        if (!$isTextNode(anchorNode)) return;
+
+        const text = anchorNode.getTextContent().slice(0, anchor.offset);
+        const match = MentionRegex.exec(text);
+
+        if (!match) return;
+
+        const mentionNode = $createMentionNode(
+          user.id,
+          user.displayName || user.username,
+        );
+
+        const startOffset = match.index + match[1].length;
+        const endOffset = anchor.offset;
+
+        // Split the text node and insert mention
+        const [, afterNode] = anchorNode.splitText(startOffset, endOffset);
+
+        if (afterNode) {
+          afterNode.remove();
+        }
+
+        const targetNode = anchorNode.getNextSibling() || anchorNode;
+
+        if (targetNode === anchorNode) {
+          // Insert at the end of the current node
+          anchorNode.setTextContent(text.slice(0, startOffset));
+          anchorNode.insertAfter(mentionNode);
+        } else {
+          targetNode.insertBefore(mentionNode);
+        }
+
+        // Insert a space after the mention
+        const spaceNode = new TextNode(" ");
+        mentionNode.insertAfter(spaceNode);
+        spaceNode.select();
+      });
+
+      setQueryString(null);
+      setSelectedIndex(0);
+    },
+    [editor],
+  );
+
+  useEffect(() => {
+    return editor.registerUpdateListener(({ editorState }) => {
+      editorState.read(() => {
+        checkForMentionMatch();
+      });
+    });
+  }, [editor, checkForMentionMatch]);
+
+  useEffect(() => {
+    if (queryString === null || suggestions.length === 0) return;
+
+    return mergeRegister(
+      editor.registerCommand(
+        KEY_ARROW_DOWN_COMMAND,
+        (event) => {
+          event?.preventDefault();
+          setSelectedIndex((prev) =>
+            prev < suggestions.length - 1 ? prev + 1 : 0,
+          );
+          return true;
+        },
+        COMMAND_PRIORITY_LOW,
+      ),
+      editor.registerCommand(
+        KEY_ARROW_UP_COMMAND,
+        (event) => {
+          event?.preventDefault();
+          setSelectedIndex((prev) =>
+            prev > 0 ? prev - 1 : suggestions.length - 1,
+          );
+          return true;
+        },
+        COMMAND_PRIORITY_LOW,
+      ),
+      editor.registerCommand(
+        KEY_ENTER_COMMAND,
+        (event) => {
+          if (suggestions.length > 0) {
+            event?.preventDefault();
+            insertMention(suggestions[selectedIndex]);
+            return true;
+          }
+          return false;
+        },
+        COMMAND_PRIORITY_LOW,
+      ),
+      editor.registerCommand(
+        KEY_TAB_COMMAND,
+        (event) => {
+          if (suggestions.length > 0) {
+            event?.preventDefault();
+            insertMention(suggestions[selectedIndex]);
+            return true;
+          }
+          return false;
+        },
+        COMMAND_PRIORITY_LOW,
+      ),
+      editor.registerCommand(
+        KEY_ESCAPE_COMMAND,
+        () => {
+          setQueryString(null);
+          return true;
+        },
+        COMMAND_PRIORITY_LOW,
+      ),
+    );
+  }, [editor, queryString, suggestions, selectedIndex, insertMention]);
+
+  // Reset selected index when suggestions change
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [suggestions]);
+
+  if (queryString === null || suggestions.length === 0) {
+    return null;
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      <MentionSuggestions
+        suggestions={suggestions}
+        selectedIndex={selectedIndex}
+        onSelect={insertMention}
+        onHover={setSelectedIndex}
+      />
+    </div>
+  );
+}
