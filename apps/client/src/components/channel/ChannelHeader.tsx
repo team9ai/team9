@@ -1,10 +1,10 @@
 import { Hash, Lock, Phone, Video, Search, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import type { ChannelWithUnread } from "@/types/im";
+import type { Channel, ChannelWithUnread } from "@/types/im";
 
 interface ChannelHeaderProps {
-  channel: ChannelWithUnread;
+  channel: Channel | ChannelWithUnread;
 }
 
 export function ChannelHeader({ channel }: ChannelHeaderProps) {
@@ -12,23 +12,25 @@ export function ChannelHeader({ channel }: ChannelHeaderProps) {
 
   // For direct messages, show the other user's info
   const isDirect = channel.type === "direct";
+  const channelWithUnread = channel as ChannelWithUnread;
+  const otherUser =
+    "otherUser" in channelWithUnread ? channelWithUnread.otherUser : undefined;
+
   const displayName = isDirect
-    ? channel.otherUser?.displayName ||
-      channel.otherUser?.username ||
-      "Unknown User"
+    ? otherUser?.displayName || otherUser?.username || "Unknown User"
     : channel.name;
 
   const getInitials = (name: string) => {
     return name[0]?.toUpperCase() || "U";
   };
 
-  const isOnline = channel.otherUser?.status === "online";
+  const isOnline = otherUser?.status === "online";
 
   return (
     <>
       <div className="h-14 px-4 flex items-center justify-between border-b">
         <div className="flex items-center gap-3">
-          {isDirect && channel.otherUser ? (
+          {isDirect && otherUser ? (
             <div className="relative">
               <Avatar className="w-8 h-8">
                 <AvatarFallback className="bg-purple-400 text-white text-sm">
@@ -44,13 +46,11 @@ export function ChannelHeader({ channel }: ChannelHeaderProps) {
           )}
           <div className="flex flex-col">
             <h2 className="font-semibold">{displayName}</h2>
-            {isDirect &&
-              channel.otherUser?.username &&
-              channel.otherUser.displayName && (
-                <p className="text-xs text-muted-foreground">
-                  @{channel.otherUser.username}
-                </p>
-              )}
+            {isDirect && otherUser?.username && otherUser.displayName && (
+              <p className="text-xs text-muted-foreground">
+                @{otherUser.username}
+              </p>
+            )}
             {!isDirect && channel.description && (
               <p className="text-xs text-muted-foreground">
                 {channel.description}
