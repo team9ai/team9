@@ -5,6 +5,11 @@ import {
   FileText,
   MoreHorizontal,
   MoreVertical,
+  Smile,
+  ChevronRight,
+  User,
+  Settings,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -15,6 +20,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
 import { useNavigate, useLocation } from "@tanstack/react-router";
 import { useUserWorkspaces } from "@/hooks/useWorkspace";
 import {
@@ -24,7 +35,10 @@ import {
   type SidebarSection,
 } from "@/stores";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useCurrentUser, useLogout } from "@/hooks/useAuth";
+import { useUpdateStatus, useOnlineUsers } from "@/hooks/useIMUsers";
+import type { UserStatus } from "@/types/im";
 
 const navigationItems = [
   { id: "home", label: "Home", icon: Home, path: "/" },
@@ -55,6 +69,58 @@ export function MainSidebar() {
   const { data: workspaces, isLoading } = useUserWorkspaces();
   const { selectedWorkspaceId, setSelectedWorkspaceId } = useWorkspaceStore();
   const prevWorkspaceIdRef = useRef<string | null>(null);
+
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const { data: currentUser } = useCurrentUser();
+  const { mutate: logout } = useLogout();
+  const { mutate: updateStatus } = useUpdateStatus();
+  const { data: onlineUsers = {} } = useOnlineUsers();
+
+  const currentWorkspaceName =
+    workspaces?.find((w) => w.id === selectedWorkspaceId)?.name || "Workspace";
+
+  const userStatus: UserStatus =
+    currentUser?.id && onlineUsers[currentUser.id]
+      ? (onlineUsers[currentUser.id] as UserStatus)
+      : "online";
+  const isOnline = userStatus === "online";
+
+  const handleStatusToggle = () => {
+    const newStatus: UserStatus = isOnline ? "offline" : "online";
+    updateStatus({ status: newStatus });
+  };
+
+  const handleLogout = () => {
+    setUserMenuOpen(false);
+    logout();
+    navigate({ to: "/login" });
+  };
+
+  const getStatusColor = (status: UserStatus) => {
+    switch (status) {
+      case "online":
+        return "bg-green-500";
+      case "away":
+        return "bg-yellow-500";
+      case "busy":
+        return "bg-red-500";
+      default:
+        return "bg-gray-400";
+    }
+  };
+
+  const getStatusLabel = (status: UserStatus) => {
+    switch (status) {
+      case "online":
+        return "在线";
+      case "away":
+        return "离开";
+      case "busy":
+        return "忙碌";
+      default:
+        return "离线";
+    }
+  };
 
   // Get first 5 workspaces and remaining ones
   const visibleWorkspaces = workspaces?.slice(0, 5) || [];
@@ -245,12 +311,115 @@ export function MainSidebar() {
         </nav>
 
         {/* User Avatar at Bottom */}
-        <Avatar className="w-10 h-10 cursor-pointer relative">
-          <AvatarFallback className="bg-pink-600 hover:bg-pink-700 transition-colors text-white text-sm font-medium">
-            U
-          </AvatarFallback>
-          <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-[#3f1651]" />
-        </Avatar>
+        <Popover open={userMenuOpen} onOpenChange={setUserMenuOpen}>
+          <PopoverTrigger asChild>
+            <Avatar className="w-10 h-10 cursor-pointer relative">
+              <AvatarFallback className="bg-pink-600 hover:bg-pink-700 transition-colors text-white text-sm font-medium">
+                {currentUser?.displayName?.[0] ||
+                  currentUser?.username?.[0]?.toUpperCase() ||
+                  "U"}
+              </AvatarFallback>
+              <div
+                className={cn(
+                  "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#3f1651]",
+                  getStatusColor(userStatus),
+                )}
+              />
+            </Avatar>
+          </PopoverTrigger>
+          <PopoverContent
+            side="right"
+            align="end"
+            className="w-72 p-0"
+            sideOffset={8}
+          >
+            {/* User Info Header */}
+            <div className="p-4">
+              <div className="flex items-center gap-3">
+                <Avatar className="w-12 h-12">
+                  <AvatarFallback className="bg-pink-600 text-white text-lg font-medium">
+                    {currentUser?.displayName?.[0] ||
+                      currentUser?.username?.[0]?.toUpperCase() ||
+                      "U"}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="font-semibold text-sm">
+                    {currentUser?.displayName ||
+                      currentUser?.username ||
+                      "User"}
+                  </p>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <div
+                      className={cn(
+                        "w-2 h-2 rounded-full",
+                        getStatusColor(userStatus),
+                      )}
+                    />
+                    <span>{getStatusLabel(userStatus)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Input */}
+              <div className="mt-3">
+                <div className="flex items-center gap-2 px-3 py-2 border rounded-md text-sm text-muted-foreground hover:bg-accent cursor-pointer">
+                  <Smile size={16} />
+                  <span>更新你的状态</span>
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Status Toggle */}
+            <div className="py-1">
+              <button
+                onClick={handleStatusToggle}
+                className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent"
+              >
+                <span>设置为 {isOnline ? "离线" : "在线"}</span>
+              </button>
+              <button className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent">
+                <span>暂停通知</span>
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <span>开</span>
+                  <ChevronRight size={14} />
+                </div>
+              </button>
+            </div>
+
+            <Separator />
+
+            {/* Profile & Settings */}
+            <div className="py-1">
+              <button className="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-accent">
+                <User size={16} />
+                <span>个人档案</span>
+              </button>
+              <button className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent">
+                <div className="flex items-center gap-3">
+                  <Settings size={16} />
+                  <span>首选项</span>
+                </div>
+                <span className="text-xs text-muted-foreground">⌘,</span>
+              </button>
+            </div>
+
+            <Separator />
+
+            {/* Logout */}
+            <div className="py-1">
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-accent text-red-600"
+              >
+                <LogOut size={16} />
+                <span>登出 {currentWorkspaceName}</span>
+              </button>
+            </div>
+          </PopoverContent>
+        </Popover>
       </aside>
     </TooltipProvider>
   );
