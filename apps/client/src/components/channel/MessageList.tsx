@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import type { Message } from "@/types/im";
 import { formatDistanceToNow } from "@/lib/date-utils";
 import { useCurrentUser } from "@/hooks/useAuth";
+import { MessageContent } from "./MessageContent";
 
 interface MessageListProps {
   messages: Message[];
@@ -185,10 +186,11 @@ function MessageItem({
               {formatDistanceToNow(new Date(message.createdAt))}
             </span>
           </div>
-          <div className="bg-purple-600 text-white rounded-lg px-4 py-2 w-fit max-w-sm">
-            <p className="text-sm whitespace-pre-wrap wrap-break-word">
-              {message.content}
-            </p>
+          <div className="bg-purple-600 text-white rounded-lg px-4 py-2 w-fit max-w-sm message-content-own">
+            <MessageContent
+              content={message.content}
+              className="text-sm whitespace-pre-wrap wrap-break-word"
+            />
           </div>
         </div>
         <Avatar className="w-9 h-9 shrink-0">
@@ -223,10 +225,11 @@ function MessageItem({
             <span className="text-xs text-muted-foreground">(edited)</span>
           )}
         </div>
-        <div className="bg-slate-100 rounded-lg px-4 py-2 w-fit max-w-sm">
-          <p className="text-sm whitespace-pre-wrap wrap-break-word">
-            {message.content}
-          </p>
+        <div className="bg-slate-100 rounded-lg px-4 py-2 w-fit max-w-sm message-content-other">
+          <MessageContent
+            content={message.content}
+            className="text-sm whitespace-pre-wrap wrap-break-word"
+          />
         </div>
       </div>
     </div>

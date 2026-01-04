@@ -180,3 +180,102 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Message content HTML styles */
+.message-content-other {
+  /* Styles for messages from others */
+  p {
+    margin: 0;
+  }
+  p + p {
+    margin-top: 0.25rem;
+  }
+  strong {
+    font-weight: 600;
+  }
+  em {
+    font-style: italic;
+  }
+  u {
+    text-decoration: underline;
+  }
+  s {
+    text-decoration: line-through;
+  }
+  code {
+    background-color: rgba(0, 0, 0, 0.1);
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-family: monospace;
+    font-size: 0.875em;
+  }
+  ul, ol {
+    margin: 0.25rem 0;
+    padding-left: 1.25rem;
+  }
+  ul {
+    list-style-type: disc;
+  }
+  ol {
+    list-style-type: decimal;
+  }
+  li {
+    margin: 0.125rem 0;
+  }
+  .mention-tag {
+    background-color: rgb(243 232 255);
+    color: rgb(126 34 206);
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-weight: 500;
+  }
+}
+
+.message-content-own {
+  /* Styles for own messages (white text on purple background) */
+  p {
+    margin: 0;
+  }
+  p + p {
+    margin-top: 0.25rem;
+  }
+  strong {
+    font-weight: 600;
+  }
+  em {
+    font-style: italic;
+  }
+  u {
+    text-decoration: underline;
+  }
+  s {
+    text-decoration: line-through;
+  }
+  code {
+    background-color: rgba(255, 255, 255, 0.2);
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-family: monospace;
+    font-size: 0.875em;
+  }
+  ul, ol {
+    margin: 0.25rem 0;
+    padding-left: 1.25rem;
+  }
+  ul {
+    list-style-type: disc;
+  }
+  ol {
+    list-style-type: decimal;
+  }
+  li {
+    margin: 0.125rem 0;
+  }
+  .mention-tag {
+    background-color: rgba(255, 255, 255, 0.25);
+    color: white;
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-weight: 500;
+  }
+}

@@ -20,6 +20,7 @@
   "dependencies": {
     "@emoji-mart/data": "^1.2.1",
     "@emoji-mart/react": "^1.1.1",
+    "@lexical/html": "^0.39.0",
     "@lexical/list": "^0.39.0",
     "@lexical/react": "^0.39.0",
     "@lexical/rich-text": "^0.39.0",

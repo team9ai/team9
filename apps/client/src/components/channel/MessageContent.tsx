@@ -1,0 +1,62 @@
+import { useMemo } from "react";
+
+interface MessageContentProps {
+  content: string;
+  className?: string;
+}
+
+/**
+ * Renders message content with HTML formatting support.
+ * Handles both plain text (legacy) and HTML formatted messages.
+ * Converts <mention> tags to styled mention spans.
+ */
+export function MessageContent({ content, className }: MessageContentProps) {
+  const processedContent = useMemo(() => {
+    // Check if content contains HTML tags
+    const isHtml = /<[^>]+>/.test(content);
+
+    if (!isHtml) {
+      // Plain text - just escape and convert newlines
+      return escapeHtml(content).replace(/\n/g, "<br>");
+    }
+
+    // Process HTML content
+    let html = content;
+
+    // Convert <mention> tags to styled spans
+    html = html.replace(
+      /<mention data-user-id="([^"]*)" data-display-name="([^"]*)">@&lt;[^&]*&gt;<\/mention>/g,
+      '<span class="mention-tag">@$2</span>',
+    );
+
+    // Also handle @<userId> in plain text for backward compatibility
+    html = html.replace(
+      /@&lt;([a-f0-9-]+)&gt;/gi,
+      '<span class="mention-tag">@User</span>',
+    );
+
+    return html;
+  }, [content]);
+
+  return (
+    <div
+      className={className}
+      dangerouslySetInnerHTML={{ __html: processedContent }}
+      style={
+        {
+          "--mention-bg": "rgb(243 232 255)", // purple-100
+          "--mention-color": "rgb(126 34 206)", // purple-700
+        } as React.CSSProperties
+      }
+    />
+  );
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}

@@ -6,7 +6,7 @@ import {
   $getRoot,
   $createParagraphNode,
 } from "lexical";
-import { exportToPlainText } from "../utils/exportContent";
+import { exportToHtml } from "../utils/exportContent";
 
 interface KeyboardShortcutsPluginProps {
   onSubmit: (content: string) => Promise<void>;
@@ -22,7 +22,7 @@ export function KeyboardShortcutsPlugin({
   const handleSubmit = useCallback(async () => {
     if (disabled) return false;
 
-    const content = exportToPlainText(editor);
+    const content = exportToHtml(editor);
 
     if (!content.trim()) return false;
 
