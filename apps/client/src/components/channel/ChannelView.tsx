@@ -15,6 +15,7 @@ export function ChannelView({ channelId }: ChannelViewProps) {
   const {
     data: messagesData,
     isLoading: messagesLoading,
+    isFetchingNextPage,
     fetchNextPage,
     hasNextPage,
   } = useMessages(channelId);
@@ -66,7 +67,7 @@ export function ChannelView({ channelId }: ChannelViewProps) {
 
       <MessageList
         messages={messages}
-        isLoading={messagesLoading}
+        isLoading={isFetchingNextPage}
         onLoadMore={() => {
           if (hasNextPage) fetchNextPage();
         }}

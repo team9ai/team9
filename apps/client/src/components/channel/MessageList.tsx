@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Loader2 } from "lucide-react";
 import type { Message } from "@/types/im";
 import { formatDistanceToNow } from "@/lib/date-utils";
 import { useCurrentUser } from "@/hooks/useAuth";
@@ -19,16 +20,87 @@ export function MessageList({
   hasMore,
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const prevMessagesLength = useRef(messages.length);
+  const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const prevMessagesLength = useRef(0);
+  const prevScrollHeight = useRef(0);
+  const isInitialLoad = useRef(true);
   const { data: currentUser } = useCurrentUser();
 
-  // Auto-scroll to bottom on new messages
+  // Scroll to bottom on initial load
   useEffect(() => {
-    if (messages.length > prevMessagesLength.current) {
+    if (isInitialLoad.current && messages.length > 0) {
+      // Use setTimeout to ensure DOM is rendered
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+      }, 0);
+      isInitialLoad.current = false;
+      prevMessagesLength.current = messages.length;
+    }
+  }, [messages.length]);
+
+  // Auto-scroll to bottom on new messages (not on load more)
+  useEffect(() => {
+    if (
+      !isInitialLoad.current &&
+      messages.length > prevMessagesLength.current &&
+      prevScrollHeight.current === 0
+    ) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
     prevMessagesLength.current = messages.length;
   }, [messages.length]);
+
+  // Intersection Observer for infinite scroll
+  const handleObserver = useCallback(
+    (entries: IntersectionObserverEntry[]) => {
+      const [target] = entries;
+      if (target.isIntersecting && hasMore && !isLoading) {
+        // Store current scroll height before loading more
+        const viewport = scrollAreaRef.current?.querySelector(
+          "[data-radix-scroll-area-viewport]",
+        );
+        if (viewport) {
+          prevScrollHeight.current = viewport.scrollHeight;
+        }
+        onLoadMore();
+      }
+    },
+    [hasMore, isLoading, onLoadMore],
+  );
+
+  useEffect(() => {
+    const element = loadMoreTriggerRef.current;
+    if (!element) return;
+
+    const option = {
+      root: scrollAreaRef.current?.querySelector(
+        "[data-radix-scroll-area-viewport]",
+      ),
+      rootMargin: "100px",
+      threshold: 0,
+    };
+
+    const observer = new IntersectionObserver(handleObserver, option);
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, [handleObserver]);
+
+  // Maintain scroll position after loading more messages
+  useEffect(() => {
+    if (prevScrollHeight.current > 0) {
+      const viewport = scrollAreaRef.current?.querySelector(
+        "[data-radix-scroll-area-viewport]",
+      );
+      if (viewport) {
+        const newScrollHeight = viewport.scrollHeight;
+        const heightDiff = newScrollHeight - prevScrollHeight.current;
+        viewport.scrollTop = heightDiff;
+        prevScrollHeight.current = 0;
+      }
+    }
+  }, [messages]);
 
   if (isLoading && messages.length === 0) {
     return (
@@ -47,15 +119,17 @@ export function MessageList({
   }
 
   return (
-    <ScrollArea className="flex-1 min-h-0 px-4">
+    <ScrollArea ref={scrollAreaRef} className="flex-1 min-h-0 px-4">
       {hasMore && (
-        <div className="py-4 text-center">
-          <button
-            onClick={onLoadMore}
-            className="text-sm text-purple-600 hover:underline"
-          >
-            Load more messages
-          </button>
+        <div ref={loadMoreTriggerRef} className="py-4 flex justify-center">
+          {isLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Loading more messages...</span>
+            </div>
+          ) : (
+            <div className="h-4" />
+          )}
         </div>
       )}
 
