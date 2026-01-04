@@ -11,7 +11,12 @@ import { useIsDesktop } from "@/hooks/useMediaQuery";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { Sheet } from "@/components/ui/sheet";
 import { useState, useEffect } from "react";
-import { appActions } from "@/stores";
+import {
+  appActions,
+  useActiveSidebar,
+  DEFAULT_SECTION_PATHS,
+  type SidebarSection,
+} from "@/stores";
 
 export const Route = createFileRoute("/_authenticated")({
   beforeLoad: ({ location }) => {
@@ -32,17 +37,30 @@ export const Route = createFileRoute("/_authenticated")({
         sessionStorage.setItem("app_initialized", "true");
         const appStorage = localStorage.getItem("app-storage");
         if (appStorage) {
-          let lastVisitedPath: string | null = null;
           try {
             const parsed = JSON.parse(appStorage);
-            lastVisitedPath = parsed?.state?.lastVisitedPath;
-          } catch {
+            const activeSidebar = parsed?.state?.activeSidebar || "home";
+            const lastVisitedPaths = parsed?.state?.lastVisitedPaths;
+            const lastVisitedPath =
+              lastVisitedPaths?.[activeSidebar] ??
+              DEFAULT_SECTION_PATHS[
+                activeSidebar as keyof typeof DEFAULT_SECTION_PATHS
+              ];
+
+            if (lastVisitedPath && lastVisitedPath !== "/") {
+              throw redirect({
+                to: lastVisitedPath,
+              });
+            }
+          } catch (e) {
+            // If it's a redirect, rethrow it
+            if (
+              e instanceof Response ||
+              (e && typeof e === "object" && "to" in e)
+            ) {
+              throw e;
+            }
             // Ignore JSON parse errors
-          }
-          if (lastVisitedPath && lastVisitedPath !== "/") {
-            throw redirect({
-              to: lastVisitedPath,
-            });
           }
         }
       }
@@ -51,20 +69,44 @@ export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
 });
 
+// Helper to determine which section a path belongs to
+function getSectionFromPath(pathname: string): SidebarSection {
+  if (pathname.startsWith("/messages") || pathname.startsWith("/channels")) {
+    // Check if we're in a channel view - use the active sidebar
+    if (pathname.startsWith("/channels")) {
+      // Will be handled by activeSidebar in the effect
+      return "home"; // Default, will be overridden
+    }
+    return "messages";
+  }
+  if (pathname.startsWith("/activity")) return "activity";
+  if (pathname.startsWith("/files")) return "files";
+  if (pathname.startsWith("/more")) return "more";
+  return "home";
+}
+
 function AuthenticatedLayout() {
   const isDesktop = useIsDesktop();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const location = useLocation();
+  const activeSidebar = useActiveSidebar();
 
   // Initialize WebSocket connection
   useWebSocket();
 
-  // Save current path as last visited (skip root path)
+  // Save current path as last visited for the active section
   useEffect(() => {
-    if (location.pathname !== "/") {
-      appActions.setLastVisitedPath(location.pathname);
-    }
-  }, [location.pathname]);
+    const pathname = location.pathname;
+    if (pathname === "/") return;
+
+    // For channel routes, save to the active sidebar section
+    // For other routes, determine section from path
+    const section = pathname.startsWith("/channels")
+      ? activeSidebar
+      : getSectionFromPath(pathname);
+
+    appActions.setLastVisitedPath(section, pathname);
+  }, [location.pathname, activeSidebar]);
 
   return (
     <div className="flex h-screen overflow-hidden">

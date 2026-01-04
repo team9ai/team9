@@ -15,12 +15,23 @@ export type SidebarSection =
   | "files"
   | "more";
 
+// Default paths for each sidebar section
+export const DEFAULT_SECTION_PATHS: Record<SidebarSection, string> = {
+  home: "/",
+  messages: "/messages",
+  activity: "/activity",
+  files: "/files",
+  more: "/more",
+};
+
+type SectionPaths = Record<SidebarSection, string | null>;
+
 interface AppState {
   // State
   user: User | null;
   theme: "light" | "dark";
   isLoading: boolean;
-  lastVisitedPath: string | null;
+  lastVisitedPaths: SectionPaths;
   activeSidebar: SidebarSection;
 
   // Actions
@@ -28,7 +39,7 @@ interface AppState {
   setTheme: (theme: "light" | "dark") => void;
   toggleTheme: () => void;
   setLoading: (loading: boolean) => void;
-  setLastVisitedPath: (path: string | null) => void;
+  setLastVisitedPath: (section: SidebarSection, path: string | null) => void;
   setActiveSidebar: (sidebar: SidebarSection) => void;
   reset: () => void;
 }
@@ -38,7 +49,13 @@ const initialState = {
   user: null,
   theme: "light" as const,
   isLoading: false,
-  lastVisitedPath: null as string | null,
+  lastVisitedPaths: {
+    home: null,
+    messages: null,
+    activity: null,
+    files: null,
+    more: null,
+  } as SectionPaths,
   activeSidebar: "home" as SidebarSection,
 };
 
@@ -62,8 +79,17 @@ export const useAppStore = create<AppState>()(
 
         setLoading: (isLoading) => set({ isLoading }, false, "setLoading"),
 
-        setLastVisitedPath: (lastVisitedPath) =>
-          set({ lastVisitedPath }, false, "setLastVisitedPath"),
+        setLastVisitedPath: (section, path) =>
+          set(
+            (state) => ({
+              lastVisitedPaths: {
+                ...state.lastVisitedPaths,
+                [section]: path,
+              },
+            }),
+            false,
+            "setLastVisitedPath",
+          ),
 
         setActiveSidebar: (activeSidebar) =>
           set({ activeSidebar }, false, "setActiveSidebar"),
@@ -74,7 +100,7 @@ export const useAppStore = create<AppState>()(
         name: "app-storage",
         partialize: (state) => ({
           theme: state.theme,
-          lastVisitedPath: state.lastVisitedPath,
+          lastVisitedPaths: state.lastVisitedPaths,
           activeSidebar: state.activeSidebar,
         }),
       },
@@ -87,10 +113,16 @@ export const useAppStore = create<AppState>()(
 export const useUser = () => useAppStore((state) => state.user);
 export const useTheme = () => useAppStore((state) => state.theme);
 export const useIsLoading = () => useAppStore((state) => state.isLoading);
-export const useLastVisitedPath = () =>
-  useAppStore((state) => state.lastVisitedPath);
+export const useLastVisitedPaths = () =>
+  useAppStore((state) => state.lastVisitedPaths);
 export const useActiveSidebar = () =>
   useAppStore((state) => state.activeSidebar);
+
+// Get last visited path for a specific section
+export const getLastVisitedPath = (section: SidebarSection): string => {
+  const paths = useAppStore.getState().lastVisitedPaths;
+  return paths[section] ?? DEFAULT_SECTION_PATHS[section];
+};
 
 // Actions (can be used outside React components)
 export const appActions = {
@@ -98,8 +130,8 @@ export const appActions = {
   setTheme: (theme: "light" | "dark") => useAppStore.getState().setTheme(theme),
   toggleTheme: () => useAppStore.getState().toggleTheme(),
   setLoading: (loading: boolean) => useAppStore.getState().setLoading(loading),
-  setLastVisitedPath: (path: string | null) =>
-    useAppStore.getState().setLastVisitedPath(path),
+  setLastVisitedPath: (section: SidebarSection, path: string | null) =>
+    useAppStore.getState().setLastVisitedPath(section, path),
   setActiveSidebar: (sidebar: SidebarSection) =>
     useAppStore.getState().setActiveSidebar(sidebar),
   reset: () => useAppStore.getState().reset(),

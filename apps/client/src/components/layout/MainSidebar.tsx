@@ -17,7 +17,12 @@ import {
 } from "@/components/ui/tooltip";
 import { useNavigate, useLocation } from "@tanstack/react-router";
 import { useUserWorkspaces } from "@/hooks/useWorkspace";
-import { useWorkspaceStore, appActions, type SidebarSection } from "@/stores";
+import {
+  useWorkspaceStore,
+  appActions,
+  getLastVisitedPath,
+  type SidebarSection,
+} from "@/stores";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
@@ -220,8 +225,11 @@ export function MainSidebar() {
                 variant="ghost"
                 size="icon"
                 onClick={() => {
-                  appActions.setActiveSidebar(item.id as SidebarSection);
-                  navigate({ to: item.path });
+                  const section = item.id as SidebarSection;
+                  appActions.setActiveSidebar(section);
+                  // Navigate to the last visited path for this section
+                  const targetPath = getLastVisitedPath(section);
+                  navigate({ to: targetPath });
                 }}
                 className={cn(
                   "w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-white/10 text-white/70 hover:text-white",
