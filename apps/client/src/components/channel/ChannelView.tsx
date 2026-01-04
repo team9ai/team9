@@ -1,6 +1,7 @@
+import { useEffect } from "react";
 import { useChannel as useChannelWS } from "@/hooks/useWebSocket";
 import { useMessages, useSendMessage } from "@/hooks/useMessages";
-import { useChannel } from "@/hooks/useChannels";
+import { useChannel, useMarkAsRead } from "@/hooks/useChannels";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import { ChannelHeader } from "./ChannelHeader";
@@ -18,11 +19,24 @@ export function ChannelView({ channelId }: ChannelViewProps) {
     hasNextPage,
   } = useMessages(channelId);
   const sendMessage = useSendMessage(channelId);
+  const markAsRead = useMarkAsRead();
 
   // Auto-join channel via WebSocket
   useChannelWS(channelId);
 
   const messages = messagesData?.pages.flat() ?? [];
+  const latestMessageId =
+    messages.length > 0 ? messages[messages.length - 1]?.id : null;
+
+  // Auto-mark messages as read when viewing the channel or when new messages arrive
+  useEffect(() => {
+    if (latestMessageId && !messagesLoading) {
+      markAsRead.mutate({
+        channelId,
+        messageId: latestMessageId,
+      });
+    }
+  }, [channelId, latestMessageId, messagesLoading]);
 
   const handleSendMessage = async (content: string) => {
     if (!content.trim()) return;
