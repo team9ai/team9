@@ -5,18 +5,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Card } from "@/components/ui/card";
-import { useHomeStore } from "@/stores";
-import { ChannelView } from "@/components/channel/ChannelView";
 
 export function HomeMainContent() {
-  const { selectedChannelId } = useHomeStore();
-
-  // If a channel is selected, show the channel view
-  if (selectedChannelId) {
-    return <ChannelView channelId={selectedChannelId} />;
-  }
-
-  // Otherwise, show the default welcome content
   return (
     <main className="flex-1 flex flex-col bg-white">
       {/* Content Header */}

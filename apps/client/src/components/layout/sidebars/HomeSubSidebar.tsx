@@ -18,9 +18,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useState } from "react";
 import { useChannelsByType } from "@/hooks/useChannels";
 import { useOnlineUsers } from "@/hooks/useIMUsers";
-import { Link } from "@tanstack/react-router";
+import { Link, useParams } from "@tanstack/react-router";
 import { NewMessageDialog } from "@/components/dialog/NewMessageDialog";
-import { useHomeStore } from "@/stores";
 
 const topItems = [
   { id: "huddle", label: "Huddle", icon: Headphones },
@@ -46,7 +45,8 @@ export function HomeSubSidebar() {
     isLoading,
   } = useChannelsByType();
   const { data: onlineUsers = {} } = useOnlineUsers();
-  const { selectedChannelId, setSelectedChannelId } = useHomeStore();
+  const params = useParams({ strict: false });
+  const selectedChannelId = (params as { channelId?: string }).channelId;
 
   const allChannels = [...publicChannels, ...privateChannels];
 
@@ -206,37 +206,41 @@ export function HomeSubSidebar() {
                       : false;
                     const isSelected = selectedChannelId === dm.channelId;
                     return (
-                      <Button
+                      <Link
                         key={dm.id}
-                        variant="ghost"
-                        onClick={() => setSelectedChannelId(dm.channelId)}
-                        className={cn(
-                          "w-full justify-start gap-2 px-2 h-auto py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white",
-                          isSelected && "bg-white/10 text-white",
-                        )}
+                        to="/channels/$channelId"
+                        params={{ channelId: dm.channelId }}
                       >
-                        <div className="relative">
-                          <Avatar className="w-6 h-6">
-                            {dm.avatarUrl && (
-                              <AvatarImage src={dm.avatarUrl} alt={dm.name} />
-                            )}
-                            <AvatarFallback className="bg-purple-400 text-white text-xs">
-                              {dm.avatar}
-                            </AvatarFallback>
-                          </Avatar>
-                          {isOnline && (
-                            <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#5b2c6f]" />
+                        <Button
+                          variant="ghost"
+                          className={cn(
+                            "w-full justify-start gap-2 px-2 h-auto py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white",
+                            isSelected && "bg-white/10 text-white",
                           )}
-                        </div>
-                        <span className="truncate flex-1 text-left">
-                          {dm.name}
-                        </span>
-                        {dm.unreadCount > 0 && (
-                          <span className="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-5 text-center">
-                            {dm.unreadCount}
+                        >
+                          <div className="relative">
+                            <Avatar className="w-6 h-6">
+                              {dm.avatarUrl && (
+                                <AvatarImage src={dm.avatarUrl} alt={dm.name} />
+                              )}
+                              <AvatarFallback className="bg-purple-400 text-white text-xs">
+                                {dm.avatar}
+                              </AvatarFallback>
+                            </Avatar>
+                            {isOnline && (
+                              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#5b2c6f]" />
+                            )}
+                          </div>
+                          <span className="truncate flex-1 text-left">
+                            {dm.name}
                           </span>
-                        )}
-                      </Button>
+                          {dm.unreadCount > 0 && (
+                            <span className="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-5 text-center">
+                              {dm.unreadCount}
+                            </span>
+                          )}
+                        </Button>
+                      </Link>
                     );
                   })
                 )}

@@ -4,15 +4,24 @@ import { MessagesSubSidebar } from "./sidebars/MessagesSubSidebar";
 import { ActivitySubSidebar } from "./sidebars/ActivitySubSidebar";
 import { FilesSubSidebar } from "./sidebars/FilesSubSidebar";
 import { MoreSubSidebar } from "./sidebars/MoreSubSidebar";
+import { useActiveSidebar, type SidebarSection } from "@/stores";
 
-type SidebarType = "home" | "messages" | "activity" | "files" | "more" | null;
+type SidebarType = SidebarSection | null;
 
-function getSidebarType(pathname: string): SidebarType {
+function getSidebarType(
+  pathname: string,
+  activeSidebar: SidebarSection,
+): SidebarType {
+  // For channel routes, use the stored activeSidebar to maintain context
+  if (pathname.startsWith("/channels")) {
+    return activeSidebar;
+  }
+
   // Match routes to sidebar types
   if (pathname === "/" || pathname.startsWith("/home")) {
     return "home";
   }
-  if (pathname.startsWith("/messages") || pathname.startsWith("/channels")) {
+  if (pathname.startsWith("/messages")) {
     return "messages";
   }
   if (pathname.startsWith("/activity")) {
@@ -29,7 +38,8 @@ function getSidebarType(pathname: string): SidebarType {
 
 export function DynamicSubSidebar() {
   const location = useLocation();
-  const sidebarType = getSidebarType(location.pathname);
+  const activeSidebar = useActiveSidebar();
+  const sidebarType = getSidebarType(location.pathname, activeSidebar);
 
   switch (sidebarType) {
     case "home":

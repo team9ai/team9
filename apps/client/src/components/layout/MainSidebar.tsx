@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useNavigate, useLocation } from "@tanstack/react-router";
 import { useUserWorkspaces } from "@/hooks/useWorkspace";
-import { useWorkspaceStore } from "@/stores";
+import { useWorkspaceStore, appActions, type SidebarSection } from "@/stores";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
@@ -219,7 +219,10 @@ export function MainSidebar() {
                 key={item.id}
                 variant="ghost"
                 size="icon"
-                onClick={() => navigate({ to: item.path })}
+                onClick={() => {
+                  appActions.setActiveSidebar(item.id as SidebarSection);
+                  navigate({ to: item.path });
+                }}
                 className={cn(
                   "w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-white/10 text-white/70 hover:text-white",
                   isActive && "bg-white/10 text-white",
