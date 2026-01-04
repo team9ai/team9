@@ -313,19 +313,21 @@ export function MainSidebar() {
         {/* User Avatar at Bottom */}
         <Popover open={userMenuOpen} onOpenChange={setUserMenuOpen}>
           <PopoverTrigger asChild>
-            <Avatar className="w-10 h-10 cursor-pointer relative">
-              <AvatarFallback className="bg-pink-600 hover:bg-pink-700 transition-colors text-white text-sm font-medium">
-                {currentUser?.displayName?.[0] ||
-                  currentUser?.username?.[0]?.toUpperCase() ||
-                  "U"}
-              </AvatarFallback>
+            <div className="relative cursor-pointer">
+              <Avatar className="w-10 h-10">
+                <AvatarFallback className="bg-pink-600 hover:bg-pink-700 transition-colors text-white text-sm font-medium">
+                  {currentUser?.displayName?.[0] ||
+                    currentUser?.username?.[0]?.toUpperCase() ||
+                    "U"}
+                </AvatarFallback>
+              </Avatar>
               <div
                 className={cn(
                   "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#3f1651]",
                   getStatusColor(userStatus),
                 )}
               />
-            </Avatar>
+            </div>
           </PopoverTrigger>
           <PopoverContent
             side="right"
