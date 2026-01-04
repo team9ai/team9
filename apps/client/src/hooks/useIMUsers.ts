@@ -6,12 +6,13 @@ import type { UpdateUserStatusDto } from "@/types/im";
 
 /**
  * Hook to search users
+ * When query is empty, returns all users (for @mention autocomplete)
  */
 export function useSearchUsers(query: string, enabled = true) {
   return useQuery({
     queryKey: ["im-users", "search", query],
     queryFn: () => imApi.users.searchUsers({ q: query, limit: 20 }),
-    enabled: enabled && query.length > 0,
+    enabled,
   });
 }
 

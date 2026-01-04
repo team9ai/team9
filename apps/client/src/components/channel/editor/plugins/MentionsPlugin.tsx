@@ -30,9 +30,10 @@ const MentionRegex = new RegExp(
 );
 
 function useMentionLookupService(mentionString: string | null) {
+  // Enable query when mentionString is not null (including empty string for showing all users)
   const { data: users = [], isLoading } = useSearchUsers(
     mentionString ?? "",
-    mentionString !== null && mentionString.length > 0,
+    mentionString !== null,
   );
 
   return { users, isLoading };
@@ -43,6 +44,7 @@ interface MentionSuggestionsProps {
   selectedIndex: number;
   onSelect: (user: IMUser) => void;
   onHover: (index: number) => void;
+  isLoading?: boolean;
 }
 
 function MentionSuggestions({
@@ -50,10 +52,13 @@ function MentionSuggestions({
   selectedIndex,
   onSelect,
   onHover,
+  isLoading,
 }: MentionSuggestionsProps) {
   return (
     <div className="absolute bottom-full left-0 mb-1 w-64 max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg z-50">
-      {suggestions.length === 0 ? (
+      {isLoading ? (
+        <div className="px-3 py-2 text-sm text-slate-500">Loading...</div>
+      ) : suggestions.length === 0 ? (
         <div className="px-3 py-2 text-sm text-slate-500">No users found</div>
       ) : (
         <ul className="py-1">
@@ -100,11 +105,13 @@ export function MentionsPlugin() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { users } = useMentionLookupService(queryString);
+  const { users, isLoading } = useMentionLookupService(queryString);
 
   const suggestions = useMemo(() => {
     return users.slice(0, 10);
   }, [users]);
+
+  const showDropdown = queryString !== null;
 
   const checkForMentionMatch = useCallback(() => {
     const selection = $getSelection();
@@ -200,12 +207,13 @@ export function MentionsPlugin() {
   }, [editor, checkForMentionMatch]);
 
   useEffect(() => {
-    if (queryString === null || suggestions.length === 0) return;
+    if (!showDropdown) return;
 
     return mergeRegister(
       editor.registerCommand(
         KEY_ARROW_DOWN_COMMAND,
         (event) => {
+          if (suggestions.length === 0) return false;
           event?.preventDefault();
           setSelectedIndex((prev) =>
             prev < suggestions.length - 1 ? prev + 1 : 0,
@@ -217,6 +225,7 @@ export function MentionsPlugin() {
       editor.registerCommand(
         KEY_ARROW_UP_COMMAND,
         (event) => {
+          if (suggestions.length === 0) return false;
           event?.preventDefault();
           setSelectedIndex((prev) =>
             prev > 0 ? prev - 1 : suggestions.length - 1,
@@ -258,14 +267,14 @@ export function MentionsPlugin() {
         COMMAND_PRIORITY_LOW,
       ),
     );
-  }, [editor, queryString, suggestions, selectedIndex, insertMention]);
+  }, [editor, showDropdown, suggestions, selectedIndex, insertMention]);
 
   // Reset selected index when suggestions change
   useEffect(() => {
     setSelectedIndex(0);
   }, [suggestions]);
 
-  if (queryString === null || suggestions.length === 0) {
+  if (!showDropdown) {
     return null;
   }
 
@@ -276,6 +285,7 @@ export function MentionsPlugin() {
         selectedIndex={selectedIndex}
         onSelect={insertMention}
         onHover={setSelectedIndex}
+        isLoading={isLoading}
       />
     </div>
   );
