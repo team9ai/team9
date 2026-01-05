@@ -10,22 +10,30 @@ import {
   ChunkRetentionStrategy,
   WorkingFlowSubType,
   CreateChunkInput,
-  ChunkContentType,
 } from '../types/chunk.types.js';
-import {
-  MemoryManager,
-  MemoryManagerConfig,
-} from '../manager/memory.manager.js';
+import { MemoryManager } from '../manager/memory.manager.js';
 import {
   CreateThreadOptions,
   CreateThreadResult,
 } from '../manager/thread.manager.js';
 import { createChunk } from '../factories/chunk.factory.js';
+import { createComponentRenderer } from '../components/component-renderer.js';
+import type { Tool } from '../tools/tool.types.js';
+
+/**
+ * Extended thread creation result with tools
+ */
+export interface CreateThreadFromBlueprintResult extends CreateThreadResult {
+  /** Tools extracted from components */
+  tools: Tool[];
+}
 
 /**
  * BlueprintLoader creates agent threads from blueprint definitions
  */
 export class BlueprintLoader {
+  private componentRenderer = createComponentRenderer();
+
   constructor(private memoryManager: MemoryManager) {}
 
   /**
@@ -48,10 +56,22 @@ export class BlueprintLoader {
       }
     }
 
-    // Validate initial chunks
-    if (!blueprint.initialChunks || !Array.isArray(blueprint.initialChunks)) {
-      errors.push('initialChunks must be an array');
-    } else {
+    // Check for components or initialChunks
+    const hasComponents =
+      blueprint.components && blueprint.components.length > 0;
+    const hasInitialChunks =
+      blueprint.initialChunks && blueprint.initialChunks.length > 0;
+
+    // Validate components if present
+    if (blueprint.components && Array.isArray(blueprint.components)) {
+      blueprint.components.forEach((component, index) => {
+        const componentErrors = this.validateComponent(component, index);
+        errors.push(...componentErrors);
+      });
+    }
+
+    // Validate initial chunks if present (for backward compatibility)
+    if (blueprint.initialChunks && Array.isArray(blueprint.initialChunks)) {
       blueprint.initialChunks.forEach((chunk, index) => {
         const chunkErrors = this.validateChunk(chunk, index);
         errors.push(...chunkErrors);
@@ -72,12 +92,18 @@ export class BlueprintLoader {
     }
 
     // Warnings
-    if (!blueprint.initialChunks || blueprint.initialChunks.length === 0) {
-      warnings.push('No initial chunks defined');
+    if (!hasComponents && !hasInitialChunks) {
+      warnings.push('No components or initial chunks defined');
+    }
+
+    if (hasInitialChunks && !hasComponents) {
+      warnings.push(
+        'Using deprecated initialChunks, consider migrating to components',
+      );
     }
 
     if (!blueprint.tools || blueprint.tools.length === 0) {
-      warnings.push('No tools defined');
+      warnings.push('No control tools defined');
     }
 
     return {
@@ -85,6 +111,30 @@ export class BlueprintLoader {
       errors,
       warnings,
     };
+  }
+
+  /**
+   * Validate a single component definition
+   */
+  private validateComponent(
+    component: { type?: string; instructions?: string },
+    index: number,
+  ): string[] {
+    const errors: string[] = [];
+    const prefix = `components[${index}]`;
+
+    if (!component.type) {
+      errors.push(`${prefix}: type is required`);
+    } else if (!['system', 'agent', 'workflow'].includes(component.type)) {
+      errors.push(`${prefix}: invalid type '${component.type}'`);
+    }
+
+    // System component requires instructions
+    if (component.type === 'system' && !component.instructions) {
+      errors.push(`${prefix}: system component requires instructions`);
+    }
+
+    return errors;
   }
 
   /**
@@ -170,31 +220,56 @@ export class BlueprintLoader {
 
   /**
    * Create a thread from a blueprint
+   * Returns the thread, initial state, and tools extracted from components
    */
   async createThreadFromBlueprint(
     blueprint: Blueprint,
     options?: BlueprintLoadOptions,
-  ): Promise<CreateThreadResult> {
+  ): Promise<CreateThreadFromBlueprintResult> {
     // Load and validate blueprint
     const { blueprint: loadedBlueprint } = this.load(blueprint, options);
 
-    // Convert blueprint chunks to MemoryChunk (with id generated)
-    const initialChunks = loadedBlueprint.initialChunks.map((blueprintChunk) =>
-      createChunk(this.convertBlueprintChunk(blueprintChunk)),
+    // Render components to chunks and tools
+    let componentChunks: ReturnType<typeof createChunk>[] = [];
+    let componentTools: Tool[] = [];
+
+    if (loadedBlueprint.components && loadedBlueprint.components.length > 0) {
+      const renderResult = this.componentRenderer.render(
+        loadedBlueprint.components,
+      );
+      componentChunks = renderResult.chunks;
+      componentTools = renderResult.tools;
+    }
+
+    // Convert legacy blueprint chunks to MemoryChunk (backward compatibility)
+    // eslint-disable-next-line deprecation/deprecation
+    const legacyChunks = (loadedBlueprint.initialChunks || []).map(
+      (blueprintChunk) =>
+        createChunk(this.convertBlueprintChunk(blueprintChunk)),
     );
+
+    // Combine component chunks and legacy chunks
+    // Component chunks come first, then legacy chunks
+    const allChunks = [...componentChunks, ...legacyChunks];
 
     // Create thread with initial chunks
     const threadOptions: CreateThreadOptions = {
-      initialChunks,
+      initialChunks: allChunks,
       custom: {
         blueprintId: loadedBlueprint.id,
         blueprintName: loadedBlueprint.name,
         tools: loadedBlueprint.tools,
         llmConfig: loadedBlueprint.llmConfig,
+        hasComponents: (loadedBlueprint.components?.length ?? 0) > 0,
       },
     };
 
-    return this.memoryManager.createThread(threadOptions);
+    const threadResult = await this.memoryManager.createThread(threadOptions);
+
+    return {
+      ...threadResult,
+      tools: componentTools,
+    };
   }
 
   /**

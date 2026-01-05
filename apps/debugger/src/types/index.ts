@@ -26,6 +26,7 @@ export type ChunkContent =
 
 /**
  * Blueprint chunk definition
+ * @deprecated Use ComponentConfig instead
  */
 export interface BlueprintChunk {
   type: string;
@@ -35,6 +36,75 @@ export interface BlueprintChunk {
   mutable?: boolean;
   priority?: number;
 }
+
+/**
+ * Tool definition for components
+ */
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  parameters: {
+    type: "object";
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
+  awaitsExternalResponse?: boolean;
+}
+
+/**
+ * Custom tool configuration (definition only, executor is server-side)
+ */
+export interface CustomToolConfig {
+  definition: ToolDefinition;
+  category?: "common" | "agent" | "workflow";
+}
+
+/**
+ * Component type
+ */
+export type ComponentType = "system" | "agent" | "workflow";
+
+/**
+ * Base component interface
+ */
+export interface BaseComponent {
+  type: ComponentType;
+  instructions?: string;
+  tools?: CustomToolConfig[];
+  /** Sub-agent keys available in this component's scope (references to blueprint.subAgents) */
+  subAgents?: string[];
+  customData?: Record<string, unknown>;
+}
+
+/**
+ * System component - system-level instructions and common tools
+ */
+export interface SystemComponent extends BaseComponent {
+  type: "system";
+  instructions: string; // Required for system
+}
+
+/**
+ * Agent component - agent-specific instructions and tools
+ */
+export interface AgentComponent extends BaseComponent {
+  type: "agent";
+}
+
+/**
+ * Workflow component - workflow-specific instructions and tools
+ */
+export interface WorkflowComponent extends BaseComponent {
+  type: "workflow";
+}
+
+/**
+ * Union type for all components
+ */
+export type ComponentConfig =
+  | SystemComponent
+  | AgentComponent
+  | WorkflowComponent;
 
 /**
  * LLM configuration
@@ -74,8 +144,18 @@ export interface Blueprint {
   id?: string;
   name: string;
   description?: string;
-  initialChunks: BlueprintChunk[];
+  /**
+   * Components that define the agent's structure
+   * Each component can include instructions and tools
+   */
+  components?: ComponentConfig[];
+  /**
+   * Initial chunks to populate the agent's memory
+   * @deprecated Use components instead for better organization
+   */
+  initialChunks?: BlueprintChunk[];
   llmConfig: LLMConfig;
+  /** Available control tools (names only) */
   tools?: string[];
   autoCompactThreshold?: number;
   executionMode?: ExecutionMode;

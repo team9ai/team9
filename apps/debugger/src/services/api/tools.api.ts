@@ -17,15 +17,31 @@ export interface ToolInfo {
     >;
     required?: string[];
   };
+  category?: string;
+}
+
+export interface ToolsResponse {
+  /** Control tools from agent-framework */
+  tools: ToolInfo[];
+  /** External tools registered at runtime (e.g., Semrush API) */
+  externalTools: ToolInfo[];
 }
 
 export const toolsApi = {
   /**
-   * Get all available tools
+   * Get all available tools (control + external)
    */
-  async list(): Promise<ToolInfo[]> {
-    const response = await api.get<{ tools: ToolInfo[] }>("/tools");
-    return response.tools;
+  async list(): Promise<ToolsResponse> {
+    const response = await api.get<ToolsResponse>("/tools");
+    return response;
+  },
+
+  /**
+   * Get only external tools (for component configuration)
+   */
+  async listExternalTools(): Promise<ToolInfo[]> {
+    const response = await api.get<ToolsResponse>("/tools");
+    return response.externalTools ?? [];
   },
 
   /**

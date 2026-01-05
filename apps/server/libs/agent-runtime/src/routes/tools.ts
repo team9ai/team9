@@ -1,22 +1,32 @@
 import { Hono } from 'hono';
+import { getContext } from '../context.js';
 
 export const toolsRouter = new Hono();
 
 /**
- * Get all available tools
+ * Get all available tools (control tools + external tools)
  */
 toolsRouter.get('/', async (c) => {
   const { allTools } =
     require('@team9/agent-framework') as typeof import('@team9/agent-framework');
 
-  const tools = allTools.map((tool) => ({
+  // Get control tools from framework
+  const controlTools = allTools.map((tool) => ({
     name: tool.name,
     description: tool.description,
     awaitsExternalResponse: tool.awaitsExternalResponse,
     parameters: tool.parameters,
+    category: 'control',
   }));
 
-  return c.json({ tools });
+  // Get external tools from AgentService
+  const { agentService } = getContext();
+  const externalTools = agentService.getExternalToolDefinitions();
+
+  return c.json({
+    tools: controlTools,
+    externalTools,
+  });
 });
 
 /**

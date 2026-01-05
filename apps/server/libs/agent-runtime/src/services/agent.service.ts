@@ -17,6 +17,7 @@ import type {
   QueuedEvent,
   Step,
   IToolRegistry,
+  CustomToolConfig,
 } from '@team9/agent-framework';
 import type {
   AgentInstance,
@@ -28,6 +29,10 @@ import type {
 } from '../types/index.js';
 import { AgentExecutor, ExecutionResult } from '../executor/agent-executor.js';
 import { agents } from '../db/index.js';
+import {
+  createExternalTools,
+  type ExternalToolsConfig,
+} from '../tools/index.js';
 
 /**
  * Subscriber callback for SSE events
@@ -48,6 +53,8 @@ export class AgentService {
   private stepHistory = new Map<string, StepHistoryEntry[]>();
   /** Step counter per agent */
   private stepCounters = new Map<string, number>();
+  /** Cached external tools */
+  private externalTools: CustomToolConfig[];
 
   constructor(
     private createMemoryManager: (config: LLMConfig) => MemoryManager,
@@ -56,7 +63,21 @@ export class AgentService {
     ) => DebugController,
     private getLLMAdapter?: () => ILLMAdapter,
     private db?: PostgresJsDatabase<Record<string, never>> | null,
-  ) {}
+    externalToolsConfig?: ExternalToolsConfig,
+  ) {
+    // Initialize external tools
+    // If config provided, use it; otherwise use default config (reads from env vars)
+    this.externalTools = externalToolsConfig
+      ? createExternalTools(externalToolsConfig)
+      : createExternalTools();
+
+    if (this.externalTools.length > 0) {
+      console.log(
+        '[AgentService] Registered external tools:',
+        this.externalTools.map((t) => t.definition.name).join(', '),
+      );
+    }
+  }
 
   /**
    * Save agent to database
@@ -134,6 +155,7 @@ export class AgentService {
           const llmAdapter = this.getLLMAdapter();
           const executor = new AgentExecutor(memoryManager, llmAdapter, {
             tools: agent.tools ?? [],
+            customTools: this.externalTools,
           });
           this.executors.set(agent.id, executor);
         }
@@ -181,6 +203,7 @@ export class AgentService {
       const llmAdapter = this.getLLMAdapter();
       const executor = new AgentExecutor(memoryManager, llmAdapter, {
         tools: blueprint.tools ?? [],
+        customTools: this.externalTools,
       });
       this.executors.set(id, executor);
     }
@@ -417,48 +440,59 @@ export class AgentService {
     );
 
     // If autoRun is enabled, not in stepping mode, and we have an executor, run the LLM loop
+    // Run in background to avoid blocking the HTTP request
     if (autoRun && !isStepMode) {
       if (executor) {
-        console.log('[injectEvent] Starting LLM execution loop');
+        console.log('[injectEvent] Starting LLM execution loop (async)');
         this.broadcast(agentId, 'agent:thinking', { event });
 
-        try {
-          const executionResult = await executor.run(agent.threadId);
-          console.log(
-            '[injectEvent] Execution complete - success:',
-            executionResult.success,
-            'turns:',
-            executionResult.turnsExecuted,
-          );
-          console.log(
-            '[injectEvent] Final state id:',
-            executionResult.finalState?.id,
-            'chunks:',
-            executionResult.finalState?.chunkIds?.length,
-          );
-
-          if (executionResult.success) {
-            this.broadcast(agentId, 'agent:response', {
-              content: executionResult.lastResponse,
-              turnsExecuted: executionResult.turnsExecuted,
-            });
-          } else {
-            this.broadcast(agentId, 'agent:error', {
-              error: executionResult.error,
-            });
-          }
-
-          return { dispatchResult, executionResult };
-        } catch (error) {
-          console.error('Error running agent executor:', error);
-          this.broadcast(agentId, 'agent:error', {
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
+        // Run asynchronously - don't await
+        this.runExecutorAsync(agentId, executor, agent.threadId);
       }
     }
 
     return { dispatchResult };
+  }
+
+  /**
+   * Run executor asynchronously (non-blocking)
+   */
+  private async runExecutorAsync(
+    agentId: string,
+    executor: AgentExecutor,
+    threadId: string,
+  ): Promise<void> {
+    try {
+      const executionResult = await executor.run(threadId);
+      console.log(
+        '[runExecutorAsync] Execution complete - success:',
+        executionResult.success,
+        'turns:',
+        executionResult.turnsExecuted,
+      );
+      console.log(
+        '[runExecutorAsync] Final state id:',
+        executionResult.finalState?.id,
+        'chunks:',
+        executionResult.finalState?.chunkIds?.length,
+      );
+
+      if (executionResult.success) {
+        this.broadcast(agentId, 'agent:response', {
+          content: executionResult.lastResponse,
+          turnsExecuted: executionResult.turnsExecuted,
+        });
+      } else {
+        this.broadcast(agentId, 'agent:error', {
+          error: executionResult.error,
+        });
+      }
+    } catch (error) {
+      console.error('Error running agent executor:', error);
+      this.broadcast(agentId, 'agent:error', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   /**
@@ -502,6 +536,7 @@ export class AgentService {
       const llmAdapter = this.getLLMAdapter();
       const executor = new AgentExecutor(memoryManager, llmAdapter, {
         tools: agent.tools ?? [],
+        customTools: this.externalTools,
       });
       this.executors.set(forkedAgent.id, executor);
     }
@@ -1041,5 +1076,28 @@ export class AgentService {
       toolName,
       arguments: toolCallEvent.arguments?.arguments ?? {},
     };
+  }
+
+  // ============ External Tools Access ============
+
+  /**
+   * Get all registered external tools
+   * These are tools registered at runtime (e.g., Semrush API)
+   */
+  getExternalTools(): CustomToolConfig[] {
+    return this.externalTools;
+  }
+
+  /**
+   * Get external tool definitions only (for API responses)
+   */
+  getExternalToolDefinitions() {
+    return this.externalTools.map((tool) => ({
+      name: tool.definition.name,
+      description: tool.definition.description,
+      awaitsExternalResponse: tool.definition.awaitsExternalResponse ?? false,
+      parameters: tool.definition.parameters,
+      category: tool.category ?? 'common',
+    }));
   }
 }

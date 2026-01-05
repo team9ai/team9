@@ -1,9 +1,15 @@
 import { useState, useEffect } from "react";
-import type { Blueprint, BlueprintChunk, LLMConfig } from "@/types";
+import type {
+  Blueprint,
+  BlueprintChunk,
+  LLMConfig,
+  ComponentConfig,
+} from "@/types";
 import { ChunkEditor } from "./ChunkEditor";
+import { ComponentEditor } from "./ComponentEditor";
 import { LLMConfigEditor } from "./LLMConfigEditor";
 import { SubAgentEditor } from "./SubAgentEditor";
-import { toolsApi, type ToolInfo } from "@/services/api";
+import { toolsApi, blueprintApi, type ToolInfo } from "@/services/api";
 import {
   Plus,
   Trash2,
@@ -30,7 +36,7 @@ const defaultLLMConfig: LLMConfig = {
 const defaultBlueprint: Blueprint = {
   name: "",
   description: "",
-  initialChunks: [],
+  components: [],
   llmConfig: defaultLLMConfig,
   tools: [],
   autoCompactThreshold: 20,
@@ -45,7 +51,7 @@ export function BlueprintEditor({
     initialBlueprint || defaultBlueprint,
   );
   const [activeTab, setActiveTab] = useState<
-    "basic" | "chunks" | "subagents" | "json"
+    "basic" | "components" | "chunks" | "subagents" | "json"
   >("basic");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +83,43 @@ export function BlueprintEditor({
     setBlueprint((prev) => ({ ...prev, ...updates }));
   };
 
+  // Component management
+  const addComponent = () => {
+    const newComponent: ComponentConfig = {
+      type: "system",
+      instructions: "",
+    };
+    updateBlueprint({
+      components: [...(blueprint.components || []), newComponent],
+    });
+  };
+
+  const updateComponent = (index: number, component: ComponentConfig) => {
+    const newComponents = [...(blueprint.components || [])];
+    newComponents[index] = component;
+    updateBlueprint({ components: newComponents });
+  };
+
+  const removeComponent = (index: number) => {
+    updateBlueprint({
+      components: (blueprint.components || []).filter((_, i) => i !== index),
+    });
+  };
+
+  const moveComponent = (index: number, direction: "up" | "down") => {
+    const components = blueprint.components || [];
+    const newIndex = direction === "up" ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= components.length) return;
+
+    const newComponents = [...components];
+    [newComponents[index], newComponents[newIndex]] = [
+      newComponents[newIndex],
+      newComponents[index],
+    ];
+    updateBlueprint({ components: newComponents });
+  };
+
+  // Legacy chunk management (for backward compatibility)
   const addChunk = () => {
     const newChunk: BlueprintChunk = {
       type: "SYSTEM",
@@ -86,27 +129,30 @@ export function BlueprintEditor({
       priority: 0,
     };
     updateBlueprint({
-      initialChunks: [...blueprint.initialChunks, newChunk],
+      initialChunks: [...(blueprint.initialChunks || []), newChunk],
     });
   };
 
   const updateChunk = (index: number, chunk: BlueprintChunk) => {
-    const newChunks = [...blueprint.initialChunks];
+    const newChunks = [...(blueprint.initialChunks || [])];
     newChunks[index] = chunk;
     updateBlueprint({ initialChunks: newChunks });
   };
 
   const removeChunk = (index: number) => {
     updateBlueprint({
-      initialChunks: blueprint.initialChunks.filter((_, i) => i !== index),
+      initialChunks: (blueprint.initialChunks || []).filter(
+        (_, i) => i !== index,
+      ),
     });
   };
 
   const moveChunk = (index: number, direction: "up" | "down") => {
+    const chunks = blueprint.initialChunks || [];
     const newIndex = direction === "up" ? index - 1 : index + 1;
-    if (newIndex < 0 || newIndex >= blueprint.initialChunks.length) return;
+    if (newIndex < 0 || newIndex >= chunks.length) return;
 
-    const newChunks = [...blueprint.initialChunks];
+    const newChunks = [...chunks];
     [newChunks[index], newChunks[newIndex]] = [
       newChunks[newIndex],
       newChunks[index],
@@ -151,8 +197,13 @@ export function BlueprintEditor({
         {[
           { key: "basic", label: "Basic Info" },
           {
+            key: "components",
+            label: `Components (${(blueprint.components || []).length})`,
+          },
+          {
             key: "chunks",
-            label: `Chunks (${blueprint.initialChunks.length})`,
+            label: `Chunks (${(blueprint.initialChunks || []).length})`,
+            deprecated: true,
           },
           {
             key: "subagents",
@@ -170,6 +221,9 @@ export function BlueprintEditor({
             }`}
           >
             {tab.label}
+            {"deprecated" in tab && tab.deprecated && (
+              <span className="ml-1 text-xs text-amber-500">(deprecated)</span>
+            )}
           </button>
         ))}
       </div>
@@ -180,9 +234,20 @@ export function BlueprintEditor({
           <BasicInfoTab blueprint={blueprint} onChange={updateBlueprint} />
         )}
 
+        {activeTab === "components" && (
+          <ComponentsTab
+            components={blueprint.components || []}
+            onAdd={addComponent}
+            onUpdate={updateComponent}
+            onRemove={removeComponent}
+            onMove={moveComponent}
+            availableSubAgents={Object.keys(blueprint.subAgents || {})}
+          />
+        )}
+
         {activeTab === "chunks" && (
           <ChunksTab
-            chunks={blueprint.initialChunks}
+            chunks={blueprint.initialChunks || []}
             onAdd={addChunk}
             onUpdate={updateChunk}
             onRemove={removeChunk}
@@ -220,8 +285,10 @@ function BasicInfoTab({
       try {
         setLoadingTools(true);
         setToolsError(null);
-        const tools = await toolsApi.list();
-        setAvailableTools(tools);
+        const response = await toolsApi.list();
+        // Only show control tools here (not external tools)
+        // External tools are configured per-component, not at blueprint level
+        setAvailableTools(response.tools ?? []);
       } catch (err) {
         setToolsError((err as Error).message);
       } finally {
@@ -390,7 +457,162 @@ function BasicInfoTab({
   );
 }
 
-// Chunks Tab
+// Components Tab
+function ComponentsTab({
+  components,
+  onAdd,
+  onUpdate,
+  onRemove,
+  onMove,
+  availableSubAgents,
+}: {
+  components: ComponentConfig[];
+  onAdd: () => void;
+  onUpdate: (index: number, component: ComponentConfig) => void;
+  onRemove: (index: number) => void;
+  onMove: (index: number, direction: "up" | "down") => void;
+  availableSubAgents: string[];
+}) {
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+
+  const getComponentLabel = (type: string) => {
+    switch (type) {
+      case "system":
+        return "System";
+      case "agent":
+        return "Agent";
+      case "workflow":
+        return "Workflow";
+      default:
+        return type;
+    }
+  };
+
+  const getComponentPreview = (component: ComponentConfig) => {
+    if (component.instructions) {
+      const preview = component.instructions.slice(0, 50);
+      return preview + (component.instructions.length > 50 ? "..." : "");
+    }
+    return "(no instructions)";
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          Define components that make up this agent's configuration
+        </p>
+        <button
+          onClick={onAdd}
+          className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          <Plus className="h-4 w-4" />
+          Add Component
+        </button>
+      </div>
+
+      {components.length === 0 ? (
+        <div className="rounded-lg border border-dashed p-8 text-center">
+          <p className="text-muted-foreground">No components defined yet.</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Components combine instructions and tools into modular building
+            blocks.
+          </p>
+          <button
+            onClick={onAdd}
+            className="mt-2 text-sm text-primary hover:underline"
+          >
+            Add your first component
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {components.map((component, index) => (
+            <div key={index} className="rounded-lg border">
+              {/* Component header */}
+              <div
+                className="flex cursor-pointer items-center gap-2 p-3 hover:bg-muted/50"
+                onClick={() =>
+                  setExpandedIndex(expandedIndex === index ? null : index)
+                }
+              >
+                {expandedIndex === index ? (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                )}
+
+                <span
+                  className={`rounded px-1.5 py-0.5 text-xs font-medium ${
+                    component.type === "system"
+                      ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                      : component.type === "agent"
+                        ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                        : "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300"
+                  }`}
+                >
+                  {getComponentLabel(component.type)}
+                </span>
+
+                {component.tools && component.tools.length > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    ({component.tools.length} tools)
+                  </span>
+                )}
+
+                <span className="flex-1 truncate text-sm text-muted-foreground">
+                  {getComponentPreview(component)}
+                </span>
+
+                <div
+                  className="flex items-center gap-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    onClick={() => onMove(index, "up")}
+                    disabled={index === 0}
+                    className="rounded p-1 hover:bg-muted disabled:opacity-30"
+                    title="Move up"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    onClick={() => onMove(index, "down")}
+                    disabled={index === components.length - 1}
+                    className="rounded p-1 hover:bg-muted disabled:opacity-30"
+                    title="Move down"
+                  >
+                    ↓
+                  </button>
+                  <button
+                    onClick={() => onRemove(index)}
+                    className="rounded p-1 text-destructive hover:bg-destructive/10"
+                    title="Remove"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Component editor (expanded) */}
+              {expandedIndex === index && (
+                <div className="border-t p-3">
+                  <ComponentEditor
+                    component={component}
+                    onChange={(updated) => onUpdate(index, updated)}
+                    availableSubAgents={availableSubAgents}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Chunks Tab (deprecated - kept for backward compatibility)
 function ChunksTab({
   chunks,
   onAdd,
@@ -518,19 +740,57 @@ function SubAgentsTab({
   onChange: (subAgents: Record<string, Blueprint>) => void;
 }) {
   const [newKey, setNewKey] = useState("");
+  const [selectedBlueprintId, setSelectedBlueprintId] = useState("");
+  const [availableBlueprints, setAvailableBlueprints] = useState<Blueprint[]>(
+    [],
+  );
+  const [loadingBlueprints, setLoadingBlueprints] = useState(true);
+
+  useEffect(() => {
+    const loadBlueprints = async () => {
+      try {
+        setLoadingBlueprints(true);
+        const blueprints = await blueprintApi.list();
+        setAvailableBlueprints(blueprints);
+      } catch (err) {
+        console.error("Failed to load blueprints:", err);
+      } finally {
+        setLoadingBlueprints(false);
+      }
+    };
+    loadBlueprints();
+  }, []);
 
   const addSubAgent = () => {
     if (!newKey.trim() || subAgents[newKey]) return;
 
-    onChange({
-      ...subAgents,
-      [newKey]: {
-        name: newKey,
-        initialChunks: [],
-        llmConfig: { model: "claude-3-haiku" },
-      },
-    });
+    // Find selected blueprint or create empty one
+    const selectedBlueprint = availableBlueprints.find(
+      (b) => b.id === selectedBlueprintId,
+    );
+
+    if (selectedBlueprint) {
+      // Use the selected blueprint (copy it)
+      onChange({
+        ...subAgents,
+        [newKey]: {
+          ...selectedBlueprint,
+          id: undefined, // Remove ID to avoid conflicts
+        },
+      });
+    } else {
+      // Create empty blueprint
+      onChange({
+        ...subAgents,
+        [newKey]: {
+          name: newKey,
+          components: [],
+          llmConfig: { model: "claude-3-haiku" },
+        },
+      });
+    }
     setNewKey("");
+    setSelectedBlueprintId("");
   };
 
   const updateSubAgent = (key: string, blueprint: Blueprint) => {
@@ -548,29 +808,71 @@ function SubAgentsTab({
         <p className="text-sm text-muted-foreground">
           Define sub-agents that can be delegated tasks
         </p>
-        <div className="flex gap-2">
+      </div>
+
+      {/* Add sub-agent form */}
+      <div className="flex items-end gap-2 rounded-lg border bg-muted/30 p-3">
+        <div className="flex-1">
+          <label className="block text-xs font-medium text-muted-foreground mb-1">
+            Sub-agent Key
+          </label>
           <input
             type="text"
             value={newKey}
             onChange={(e) => setNewKey(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addSubAgent()}
-            className="w-40 rounded-md border bg-background p-2 text-sm"
-            placeholder="Sub-agent key"
+            className="w-full rounded-md border bg-background p-2 text-sm"
+            placeholder="e.g., researcher, coder"
           />
-          <button
-            onClick={addSubAgent}
-            disabled={!newKey.trim()}
-            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
-            <Plus className="h-4 w-4" />
-            Add
-          </button>
         </div>
+        <div className="flex-1">
+          <label className="block text-xs font-medium text-muted-foreground mb-1">
+            Blueprint Template
+          </label>
+          {loadingBlueprints ? (
+            <div className="flex items-center gap-2 h-[38px] px-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading...
+            </div>
+          ) : (
+            <select
+              value={selectedBlueprintId}
+              onChange={(e) => setSelectedBlueprintId(e.target.value)}
+              className="w-full rounded-md border bg-background p-2 text-sm"
+            >
+              <option value="">-- Create empty --</option>
+              {availableBlueprints.map((bp) => (
+                <option key={bp.id} value={bp.id}>
+                  {bp.name}{" "}
+                  {bp.description ? `(${bp.description.slice(0, 30)}...)` : ""}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+        <button
+          onClick={addSubAgent}
+          disabled={!newKey.trim() || subAgents[newKey] !== undefined}
+          className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        >
+          <Plus className="h-4 w-4" />
+          Add
+        </button>
       </div>
+
+      {newKey && subAgents[newKey] !== undefined && (
+        <p className="text-xs text-destructive">
+          A sub-agent with key "{newKey}" already exists
+        </p>
+      )}
 
       {Object.keys(subAgents).length === 0 ? (
         <div className="rounded-lg border border-dashed p-8 text-center">
           <p className="text-muted-foreground">No sub-agents defined yet.</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Select an existing blueprint or create an empty sub-agent to get
+            started.
+          </p>
         </div>
       ) : (
         <div className="space-y-3">

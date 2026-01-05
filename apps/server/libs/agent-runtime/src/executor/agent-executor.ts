@@ -324,6 +324,16 @@ export class AgentExecutor {
           content: msg.content,
         }));
 
+        // Inject available external tools list into context if there are any
+        const toolsList = this._toolRegistry.formatToolListForContext();
+        if (toolsList) {
+          // Add tools list as a system message at the end
+          messages.push({
+            role: 'system',
+            content: toolsList,
+          });
+        }
+
         console.log(
           '[AgentExecutor.run] Calling LLM with',
           messages.length,
@@ -363,6 +373,9 @@ export class AgentExecutor {
         const responseEvents = this.parseResponseToEvents(llmResponse);
         events.push(...responseEvents);
 
+        const { EventType } =
+          require('@team9/agent-framework') as typeof import('@team9/agent-framework');
+
         // Dispatch all response events sequentially
         let shouldStop = false;
         let lastEventType = '';
@@ -382,6 +395,69 @@ export class AgentExecutor {
             dispatchResult?.state?.chunkIds?.length,
           );
           lastEventType = responseEvent.type;
+
+          // Check if this is an invoke_tool call - auto-execute it
+          if (
+            responseEvent.type === EventType.LLM_TOOL_CALL &&
+            (responseEvent as { toolName?: string }).toolName === 'invoke_tool'
+          ) {
+            const toolCallEvent = responseEvent as {
+              callId: string;
+              toolName: string;
+              arguments: {
+                tool_name?: string;
+                arguments?: Record<string, unknown>;
+              };
+            };
+
+            const externalToolName = toolCallEvent.arguments?.tool_name;
+            const externalToolArgs = toolCallEvent.arguments?.arguments ?? {};
+
+            if (externalToolName) {
+              console.log(
+                '[AgentExecutor.run] Auto-executing invoke_tool:',
+                externalToolName,
+                externalToolArgs,
+              );
+
+              // Execute the external tool
+              const toolResult = await this._toolRegistry.execute(
+                externalToolName,
+                externalToolArgs,
+                {
+                  threadId,
+                  callId: toolCallEvent.callId,
+                },
+              );
+
+              console.log(
+                '[AgentExecutor.run] Tool result:',
+                toolResult.success,
+                toolResult.content,
+              );
+
+              // Inject TOOL_RESULT event
+              const resultContent = toolResult.success
+                ? toolResult.content
+                : { error: toolResult.error, content: toolResult.content };
+
+              const toolResultEvent: AgentEvent = {
+                type: EventType.TOOL_RESULT,
+                toolName: externalToolName,
+                callId: toolCallEvent.callId,
+                success: toolResult.success,
+                result: resultContent,
+                timestamp: Date.now(),
+              };
+
+              // Dispatch the result
+              await this.memoryManager.dispatch(threadId, toolResultEvent);
+              events.push(toolResultEvent);
+
+              // Don't stop - continue the loop after tool execution
+              continue;
+            }
+          }
 
           // Check if this event type requires stopping
           if (this.shouldWaitForExternalResponse(responseEvent.type)) {

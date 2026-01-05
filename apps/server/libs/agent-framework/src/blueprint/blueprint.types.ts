@@ -1,5 +1,6 @@
 import { ChunkContent } from '../types/chunk.types.js';
 import { LLMConfig } from '../llm/llm.types.js';
+import type { ComponentConfig } from '../components/component.types.js';
 
 /**
  * Execution mode for agent event processing
@@ -23,11 +24,23 @@ export interface Blueprint {
   name: string;
   /** Agent description */
   description?: string;
-  /** Initial chunks to populate the agent's memory */
-  initialChunks: BlueprintChunk[];
+  /**
+   * Components that define the agent's structure
+   * Each component can include instructions and tools
+   * Components are rendered to chunks and tools at runtime
+   */
+  components?: ComponentConfig[];
+  /**
+   * Initial chunks to populate the agent's memory
+   * @deprecated Use components instead for better organization
+   */
+  initialChunks?: BlueprintChunk[];
   /** LLM configuration */
   llmConfig: LLMConfig;
-  /** Available tools */
+  /**
+   * Available control tools (names only)
+   * For custom tools, define them in components
+   */
   tools?: string[];
   /** Auto-compaction threshold (number of compressible chunks) */
   autoCompactThreshold?: number;

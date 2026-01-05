@@ -153,6 +153,31 @@ export class ToolRegistry implements IToolRegistry {
   }
 
   /**
+   * Format a single tool for display in context
+   */
+  private formatToolForContext(tool: Tool): string {
+    const def = tool.definition;
+    const params = def.parameters;
+
+    // Build parameter list
+    const paramList: string[] = [];
+    if (params.properties) {
+      for (const [name, prop] of Object.entries(params.properties)) {
+        const required = params.required?.includes(name) ? ' (required)' : '';
+        const enumVals = prop.enum ? ` [${prop.enum.join('|')}]` : '';
+        paramList.push(
+          `    - ${name}: ${prop.type}${enumVals}${required} - ${prop.description || ''}`,
+        );
+      }
+    }
+
+    const paramsStr =
+      paramList.length > 0 ? `\n  Parameters:\n${paramList.join('\n')}` : '';
+
+    return `- ${def.name}: ${def.description}${paramsStr}`;
+  }
+
+  /**
    * Format tool list for LLM context, grouped by category
    * Only includes non-control tools (common, agent, workflow)
    */
@@ -163,9 +188,7 @@ export class ToolRegistry implements IToolRegistry {
     if (common.length > 0) {
       sections.push(
         'Common Tools:\n' +
-          common
-            .map((t) => `- ${t.definition.name}: ${t.definition.description}`)
-            .join('\n'),
+          common.map((t) => this.formatToolForContext(t)).join('\n\n'),
       );
     }
 
@@ -173,9 +196,7 @@ export class ToolRegistry implements IToolRegistry {
     if (agent.length > 0) {
       sections.push(
         'Agent Tools:\n' +
-          agent
-            .map((t) => `- ${t.definition.name}: ${t.definition.description}`)
-            .join('\n'),
+          agent.map((t) => this.formatToolForContext(t)).join('\n\n'),
       );
     }
 
@@ -183,9 +204,7 @@ export class ToolRegistry implements IToolRegistry {
     if (workflow.length > 0) {
       sections.push(
         'Workflow Tools:\n' +
-          workflow
-            .map((t) => `- ${t.definition.name}: ${t.definition.description}`)
-            .join('\n'),
+          workflow.map((t) => this.formatToolForContext(t)).join('\n\n'),
       );
     }
 

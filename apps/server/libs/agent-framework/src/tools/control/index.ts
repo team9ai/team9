@@ -9,6 +9,7 @@ export { taskCompleteTool } from './task-complete.tool.js';
 export { taskAbandonTool } from './task-abandon.tool.js';
 export { waitParentTool } from './wait-parent.tool.js';
 export { invokeToolTool } from './invoke-tool.tool.js';
+export { spawnSubagentTool } from './spawn-subagent.tool.js';
 
 import type { ToolDefinition } from '../tool.types.js';
 import { waitUserResponseTool } from './ask-user.tool.js';
@@ -17,6 +18,7 @@ import { taskCompleteTool } from './task-complete.tool.js';
 import { taskAbandonTool } from './task-abandon.tool.js';
 import { waitParentTool } from './wait-parent.tool.js';
 import { invokeToolTool } from './invoke-tool.tool.js';
+import { spawnSubagentTool } from './spawn-subagent.tool.js';
 
 /**
  * All control tools
@@ -28,6 +30,7 @@ export const controlTools: ToolDefinition[] = [
   taskAbandonTool,
   waitParentTool,
   invokeToolTool,
+  spawnSubagentTool,
 ];
 
 /**

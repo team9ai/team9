@@ -200,9 +200,16 @@ function BlueprintCard({
         <span className="rounded bg-secondary px-2 py-0.5">
           {blueprint.llmConfig.model}
         </span>
-        <span className="rounded bg-secondary px-2 py-0.5">
-          {blueprint.initialChunks.length} chunks
-        </span>
+        {(blueprint.components || []).length > 0 && (
+          <span className="rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 px-2 py-0.5">
+            {blueprint.components!.length} components
+          </span>
+        )}
+        {(blueprint.initialChunks || []).length > 0 && (
+          <span className="rounded bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 px-2 py-0.5">
+            {blueprint.initialChunks!.length} chunks (deprecated)
+          </span>
+        )}
         {blueprint.tools && blueprint.tools.length > 0 && (
           <span className="rounded bg-secondary px-2 py-0.5">
             {blueprint.tools.length} tools
@@ -284,7 +291,7 @@ function ImportBlueprintModal({
           value={json}
           onChange={(e) => setJson(e.target.value)}
           className="mt-4 h-64 w-full rounded-md border bg-background p-3 font-mono text-sm"
-          placeholder='{"name": "My Agent", "llmConfig": {"model": "claude-3-opus"}, "initialChunks": [...]}'
+          placeholder='{"name": "My Agent", "llmConfig": {"model": "claude-3-opus"}, "components": [{"type": "system", "instructions": "..."}]}'
         />
 
         <div className="mt-4 flex justify-end gap-2">

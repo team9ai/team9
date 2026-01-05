@@ -31,6 +31,10 @@ agent-framework/
 │   │       ├── wait-parent.tool.ts
 │   │       ├── invoke-tool.tool.ts
 │   │       └── index.ts
+│   ├── components/        # Component system (see components/CLAUDE.md)
+│   │   ├── component.types.ts    # Component type definitions
+│   │   ├── component-renderer.ts # Converts components to chunks + tools
+│   │   └── index.ts              # Component exports
 │   └── memory/            # Memory system (see memory/CLAUDE.md)
 │       ├── types/         # Core type definitions
 │       ├── utils/         # Utility functions
@@ -82,6 +86,13 @@ import {
   createDefaultToolRegistry,
   controlTools,
   invokeToolTool,
+
+  // Components
+  ComponentRenderer,
+  createComponentRenderer,
+  createSystemComponent,
+  createAgentComponent,
+  createWorkflowComponent,
 } from '@team9/agent-framework';
 ```
 
@@ -172,21 +183,22 @@ When making code changes, update the relevant CLAUDE.md with:
 
 ### Directory Mapping
 
-| Directory        | CLAUDE.md Location                                 |
-| ---------------- | -------------------------------------------------- |
-| `src/tools/`     | [src/tools/CLAUDE.md](src/tools/CLAUDE.md)         |
-| `src/types/`     | [src/types/CLAUDE.md](src/types/CLAUDE.md)         |
-| `src/manager/`   | [src/manager/CLAUDE.md](src/manager/CLAUDE.md)     |
-| `src/reducer/`   | [src/reducer/CLAUDE.md](src/reducer/CLAUDE.md)     |
-| `src/debug/`     | [src/debug/CLAUDE.md](src/debug/CLAUDE.md)         |
-| `src/blueprint/` | [src/blueprint/CLAUDE.md](src/blueprint/CLAUDE.md) |
-| `src/compactor/` | [src/compactor/CLAUDE.md](src/compactor/CLAUDE.md) |
-| `src/context/`   | [src/context/CLAUDE.md](src/context/CLAUDE.md)     |
-| `src/storage/`   | [src/storage/CLAUDE.md](src/storage/CLAUDE.md)     |
-| `src/llm/`       | [src/llm/CLAUDE.md](src/llm/CLAUDE.md)             |
-| `src/factories/` | [src/factories/CLAUDE.md](src/factories/CLAUDE.md) |
-| `src/executor/`  | [src/executor/CLAUDE.md](src/executor/CLAUDE.md)   |
-| `src/tokenizer/` | [src/tokenizer/CLAUDE.md](src/tokenizer/CLAUDE.md) |
-| `src/utils/`     | [src/utils/CLAUDE.md](src/utils/CLAUDE.md)         |
+| Directory         | CLAUDE.md Location                                   |
+| ----------------- | ---------------------------------------------------- |
+| `src/tools/`      | [src/tools/CLAUDE.md](src/tools/CLAUDE.md)           |
+| `src/components/` | [src/components/CLAUDE.md](src/components/CLAUDE.md) |
+| `src/types/`      | [src/types/CLAUDE.md](src/types/CLAUDE.md)           |
+| `src/manager/`    | [src/manager/CLAUDE.md](src/manager/CLAUDE.md)       |
+| `src/reducer/`    | [src/reducer/CLAUDE.md](src/reducer/CLAUDE.md)       |
+| `src/debug/`      | [src/debug/CLAUDE.md](src/debug/CLAUDE.md)           |
+| `src/blueprint/`  | [src/blueprint/CLAUDE.md](src/blueprint/CLAUDE.md)   |
+| `src/compactor/`  | [src/compactor/CLAUDE.md](src/compactor/CLAUDE.md)   |
+| `src/context/`    | [src/context/CLAUDE.md](src/context/CLAUDE.md)       |
+| `src/storage/`    | [src/storage/CLAUDE.md](src/storage/CLAUDE.md)       |
+| `src/llm/`        | [src/llm/CLAUDE.md](src/llm/CLAUDE.md)               |
+| `src/factories/`  | [src/factories/CLAUDE.md](src/factories/CLAUDE.md)   |
+| `src/executor/`   | [src/executor/CLAUDE.md](src/executor/CLAUDE.md)     |
+| `src/tokenizer/`  | [src/tokenizer/CLAUDE.md](src/tokenizer/CLAUDE.md)   |
+| `src/utils/`      | [src/utils/CLAUDE.md](src/utils/CLAUDE.md)           |
 
 Each subdirectory has its own CLAUDE.md with detailed documentation specific to that module. **If a CLAUDE.md doesn't exist for a directory you're modifying, create one first.**

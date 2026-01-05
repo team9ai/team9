@@ -1,6 +1,7 @@
 import { useState } from "react";
-import type { Blueprint, BlueprintChunk } from "@/types";
+import type { Blueprint, BlueprintChunk, ComponentConfig } from "@/types";
 import { ChunkEditor } from "./ChunkEditor";
+import { ComponentEditor } from "./ComponentEditor";
 import { LLMConfigEditor } from "./LLMConfigEditor";
 import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 
@@ -18,14 +19,38 @@ export function SubAgentEditor({
   onRemove,
 }: SubAgentEditorProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [activeSection, setActiveSection] = useState<"info" | "chunks" | "llm">(
-    "info",
-  );
+  const [activeSection, setActiveSection] = useState<
+    "info" | "components" | "chunks" | "llm"
+  >("info");
 
   const updateBlueprint = (updates: Partial<Blueprint>) => {
     onChange({ ...blueprint, ...updates });
   };
 
+  // Component management
+  const addComponent = () => {
+    const newComponent: ComponentConfig = {
+      type: "system",
+      instructions: "",
+    };
+    updateBlueprint({
+      components: [...(blueprint.components || []), newComponent],
+    });
+  };
+
+  const updateComponent = (index: number, component: ComponentConfig) => {
+    const newComponents = [...(blueprint.components || [])];
+    newComponents[index] = component;
+    updateBlueprint({ components: newComponents });
+  };
+
+  const removeComponent = (index: number) => {
+    updateBlueprint({
+      components: (blueprint.components || []).filter((_, i) => i !== index),
+    });
+  };
+
+  // Legacy chunk management (deprecated)
   const addChunk = () => {
     const newChunk: BlueprintChunk = {
       type: "SYSTEM",
@@ -33,19 +58,21 @@ export function SubAgentEditor({
       retentionStrategy: "CRITICAL",
     };
     updateBlueprint({
-      initialChunks: [...blueprint.initialChunks, newChunk],
+      initialChunks: [...(blueprint.initialChunks || []), newChunk],
     });
   };
 
   const updateChunk = (index: number, chunk: BlueprintChunk) => {
-    const newChunks = [...blueprint.initialChunks];
+    const newChunks = [...(blueprint.initialChunks || [])];
     newChunks[index] = chunk;
     updateBlueprint({ initialChunks: newChunks });
   };
 
   const removeChunk = (index: number) => {
     updateBlueprint({
-      initialChunks: blueprint.initialChunks.filter((_, i) => i !== index),
+      initialChunks: (blueprint.initialChunks || []).filter(
+        (_, i) => i !== index,
+      ),
     });
   };
 
@@ -69,7 +96,8 @@ export function SubAgentEditor({
         <span className="flex-1 text-sm font-medium">{blueprint.name}</span>
 
         <span className="text-xs text-muted-foreground">
-          {blueprint.llmConfig.model} • {blueprint.initialChunks.length} chunks
+          {blueprint.llmConfig.model} • {(blueprint.components || []).length}{" "}
+          components
         </span>
 
         <button
@@ -91,8 +119,13 @@ export function SubAgentEditor({
             {[
               { key: "info", label: "Info" },
               {
+                key: "components",
+                label: `Components (${(blueprint.components || []).length})`,
+              },
+              {
                 key: "chunks",
-                label: `Chunks (${blueprint.initialChunks.length})`,
+                label: `Chunks (${(blueprint.initialChunks || []).length})`,
+                deprecated: true,
               },
               { key: "llm", label: "LLM Config" },
             ].map((tab) => (
@@ -108,6 +141,11 @@ export function SubAgentEditor({
                 }`}
               >
                 {tab.label}
+                {"deprecated" in tab && tab.deprecated && (
+                  <span className="ml-1 text-[10px] text-amber-500">
+                    (deprecated)
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -153,8 +191,41 @@ export function SubAgentEditor({
               </div>
             )}
 
+            {activeSection === "components" && (
+              <div className="space-y-3">
+                <button
+                  onClick={addComponent}
+                  className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs hover:bg-muted"
+                >
+                  <Plus className="h-3 w-3" />
+                  Add Component
+                </button>
+
+                {(blueprint.components || []).length === 0 ? (
+                  <p className="py-4 text-center text-sm text-muted-foreground">
+                    No components defined yet.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {(blueprint.components || []).map((component, index) => (
+                      <ComponentItem
+                        key={index}
+                        index={index}
+                        component={component}
+                        onUpdate={(c) => updateComponent(index, c)}
+                        onRemove={() => removeComponent(index)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {activeSection === "chunks" && (
               <div className="space-y-3">
+                <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 p-2 text-xs text-amber-800 dark:text-amber-300">
+                  Chunks are deprecated. Please use Components instead.
+                </div>
                 <button
                   onClick={addChunk}
                   className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs hover:bg-muted"
@@ -163,13 +234,13 @@ export function SubAgentEditor({
                   Add Chunk
                 </button>
 
-                {blueprint.initialChunks.length === 0 ? (
+                {(blueprint.initialChunks || []).length === 0 ? (
                   <p className="py-4 text-center text-sm text-muted-foreground">
                     No chunks defined yet.
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {blueprint.initialChunks.map((chunk, index) => (
+                    {(blueprint.initialChunks || []).map((chunk, index) => (
                       <ChunkItem
                         key={index}
                         index={index}
@@ -190,6 +261,94 @@ export function SubAgentEditor({
               />
             )}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ComponentItem({
+  index,
+  component,
+  onUpdate,
+  onRemove,
+}: {
+  index: number;
+  component: ComponentConfig;
+  onUpdate: (component: ComponentConfig) => void;
+  onRemove: () => void;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const getComponentLabel = (type: string) => {
+    switch (type) {
+      case "system":
+        return "System";
+      case "agent":
+        return "Agent";
+      case "workflow":
+        return "Workflow";
+      default:
+        return type;
+    }
+  };
+
+  const getComponentPreview = (comp: ComponentConfig) => {
+    if (comp.instructions) {
+      const preview = comp.instructions.slice(0, 40);
+      return preview + (comp.instructions.length > 40 ? "..." : "");
+    }
+    return "(no instructions)";
+  };
+
+  return (
+    <div className="rounded border">
+      <div
+        className="flex cursor-pointer items-center gap-2 p-2 hover:bg-muted/50"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        {isExpanded ? (
+          <ChevronDown className="h-3 w-3 text-muted-foreground" />
+        ) : (
+          <ChevronRight className="h-3 w-3 text-muted-foreground" />
+        )}
+
+        <span
+          className={`rounded px-1 py-0.5 text-[10px] font-medium ${
+            component.type === "system"
+              ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+              : component.type === "agent"
+                ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                : "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300"
+          }`}
+        >
+          {getComponentLabel(component.type)}
+        </span>
+
+        {component.tools && component.tools.length > 0 && (
+          <span className="text-[10px] text-muted-foreground">
+            ({component.tools.length} tools)
+          </span>
+        )}
+
+        <span className="flex-1 truncate text-xs text-muted-foreground">
+          {getComponentPreview(component)}
+        </span>
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="rounded p-0.5 text-destructive hover:bg-destructive/10"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </div>
+
+      {isExpanded && (
+        <div className="border-t p-2">
+          <ComponentEditor component={component} onChange={onUpdate} />
         </div>
       )}
     </div>

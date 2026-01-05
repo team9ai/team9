@@ -502,13 +502,13 @@ export function StateViewer({ state, agentId }: StateViewerProps) {
               </div>
             )}
             {state.provenance.stepId && (
-              <div>
+              <div className="col-span-2">
                 <span className="text-muted-foreground">Step ID:</span>
                 <button
                   onClick={() => handleStepClick(state.provenance!.stepId!)}
                   className="ml-1 inline-flex items-center gap-1 font-mono text-[10px] text-primary hover:underline"
                 >
-                  {state.provenance.stepId.slice(0, 8)}...
+                  {state.provenance.stepId}
                   <ExternalLink className="h-2.5 w-2.5" />
                 </button>
               </div>
@@ -699,6 +699,36 @@ interface ChildCardProps {
 }
 
 /**
+ * Extract text content from various content formats
+ */
+function extractTextContent(content: unknown): string | null {
+  if (!content) return null;
+
+  if (typeof content === "string") return content;
+
+  if (typeof content === "object" && content !== null) {
+    const obj = content as Record<string, unknown>;
+
+    // Handle TEXT content type
+    if (obj.type === "TEXT" && typeof obj.text === "string") {
+      return obj.text;
+    }
+
+    // Handle direct text field
+    if (typeof obj.text === "string") {
+      return obj.text;
+    }
+
+    // Handle content field
+    if (typeof obj.content === "string") {
+      return obj.content;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Card component for displaying a WORKING_FLOW child
  */
 function ChildCard({ child }: ChildCardProps) {
@@ -719,6 +749,8 @@ function ChildCard({ child }: ChildCardProps) {
   };
 
   const contentPreview = getContentPreview(child.content);
+  const textContent = extractTextContent(child.content);
+  const isTextType = child.subType === "USER" || child.subType === "RESPONSE";
 
   return (
     <div className="rounded border bg-muted/30">
@@ -753,9 +785,34 @@ function ChildCard({ child }: ChildCardProps) {
             <span className="text-muted-foreground">ID:</span>
             <span className="ml-1 font-mono">{child.id}</span>
           </div>
-          <pre className="max-h-32 overflow-auto rounded bg-muted p-2 text-[10px]">
-            {JSON.stringify(child.content, null, 2)}
-          </pre>
+
+          {/* Show formatted text for USER and RESPONSE types */}
+          {isTextType && textContent && (
+            <div className="mb-2">
+              <div className="mb-1 text-[9px] font-medium text-muted-foreground">
+                Text Content:
+              </div>
+              <div
+                className={`rounded p-2 text-sm whitespace-pre-wrap break-words ${
+                  child.subType === "USER"
+                    ? "bg-blue-50 dark:bg-blue-900/30"
+                    : "bg-green-50 dark:bg-green-900/30"
+                }`}
+              >
+                {textContent}
+              </div>
+            </div>
+          )}
+
+          {/* Raw JSON content */}
+          <div>
+            <div className="mb-1 text-[9px] font-medium text-muted-foreground">
+              Raw JSON:
+            </div>
+            <pre className="max-h-32 overflow-auto rounded bg-muted p-2 text-[10px]">
+              {JSON.stringify(child.content, null, 2)}
+            </pre>
+          </div>
         </div>
       )}
     </div>
