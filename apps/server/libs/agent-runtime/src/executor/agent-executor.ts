@@ -15,7 +15,10 @@ import type {
   IToolRegistry,
   LLMLoopExecutionResult,
 } from '@team9/agent-framework';
-import { LLMLoopExecutor } from '@team9/agent-framework';
+import {
+  LLMLoopExecutor,
+  createDefaultToolRegistry,
+} from '@team9/agent-framework';
 import { InvokeToolHandler } from './invoke-tool.handler.js';
 
 /**
@@ -42,11 +45,9 @@ export interface AgentExecutorConfig {
  */
 export type ExecutionResult = LLMLoopExecutionResult;
 
-// Re-export CancellationToken and CancellationTokenSource for backward compatibility
-export {
-  CancellationToken,
-  CancellationTokenSource,
-} from '@team9/agent-framework';
+// Re-export CancellationToken (type) and CancellationTokenSource (class) for backward compatibility
+export type { CancellationToken } from '@team9/agent-framework';
+export { CancellationTokenSource } from '@team9/agent-framework';
 
 /**
  * Internal config type with resolved defaults
@@ -93,13 +94,7 @@ export class AgentExecutor {
     };
 
     // Initialize tool registry
-    const { createDefaultToolRegistry } =
-      require('@team9/agent-framework') as typeof import('@team9/agent-framework');
-
-    this._toolRegistry = this.initializeToolRegistry(
-      config,
-      createDefaultToolRegistry,
-    );
+    this._toolRegistry = this.initializeToolRegistry(config);
 
     // Create the invoke_tool handler
     this.invokeToolHandler = new InvokeToolHandler(this._toolRegistry);
@@ -126,10 +121,7 @@ export class AgentExecutor {
   /**
    * Initialize tool registry with control tools and custom tools
    */
-  private initializeToolRegistry(
-    config: AgentExecutorConfig,
-    createDefaultToolRegistry: () => IToolRegistry,
-  ): IToolRegistry {
+  private initializeToolRegistry(config: AgentExecutorConfig): IToolRegistry {
     // If a complete registry is provided, use it directly
     if (config.toolRegistry) {
       return config.toolRegistry;

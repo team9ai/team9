@@ -17,6 +17,13 @@ import {
   type PostgresJsDatabase,
 } from './db/index.js';
 import type { LLMConfig, StorageProvider } from '@team9/agent-framework';
+import {
+  MemoryManager,
+  createDefaultReducerRegistry,
+  DefaultDebugController,
+  InMemoryStorageProvider,
+  PostgresStorageProvider,
+} from '@team9/agent-framework';
 
 // Get OpenRouter API key from environment
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
@@ -44,9 +51,6 @@ function getStorageProvider(): StorageProvider {
     return sharedStorageProvider;
   }
 
-  const { InMemoryStorageProvider, PostgresStorageProvider } =
-    require('@team9/agent-framework') as typeof import('@team9/agent-framework');
-
   if (STORAGE_MODE === 'postgres' && dbInstance) {
     console.log('Creating PostgreSQL storage provider');
     sharedStorageProvider = new PostgresStorageProvider(dbInstance);
@@ -60,10 +64,6 @@ function getStorageProvider(): StorageProvider {
 
 // Factory functions for creating framework instances
 const createMemoryManager = (config: LLMConfig) => {
-  // Import dynamically to avoid issues with ESM
-  const { MemoryManager, createDefaultReducerRegistry } =
-    require('@team9/agent-framework') as typeof import('@team9/agent-framework');
-
   // Use shared storage provider
   const storage = getStorageProvider();
   const reducerRegistry = createDefaultReducerRegistry();
@@ -81,9 +81,6 @@ const createMemoryManager = (config: LLMConfig) => {
 };
 
 const createDebugController = (memoryManager: unknown) => {
-  const { DefaultDebugController } =
-    require('@team9/agent-framework') as typeof import('@team9/agent-framework');
-
   // Use the same shared storage provider
   const storage = getStorageProvider();
   return new DefaultDebugController(memoryManager as any, storage);
