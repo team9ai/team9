@@ -135,7 +135,7 @@ async function start() {
   const getLLMAdapter = () => {
     // Default model for agent executor
     return createLLMAdapter(
-      process.env.DEFAULT_MODEL || 'anthropic/claude-sonnet-4',
+      process.env.DEFAULT_MODEL || 'anthropic/claude-sonnet-4.5',
       OPENROUTER_API_KEY,
     );
   };
