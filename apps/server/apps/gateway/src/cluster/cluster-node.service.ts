@@ -22,8 +22,8 @@ const REDIS_KEYS = {
 };
 
 @Injectable()
-export class GatewayNodeService implements OnModuleInit, OnModuleDestroy {
-  private readonly logger = new Logger(GatewayNodeService.name);
+export class ClusterNodeService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(ClusterNodeService.name);
 
   private nodeId: string;
   private heartbeatInterval: NodeJS.Timeout | null = null;

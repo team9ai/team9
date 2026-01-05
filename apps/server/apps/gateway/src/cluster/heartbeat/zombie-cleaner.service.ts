@@ -7,7 +7,7 @@ import {
 import { Server } from 'socket.io';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SessionService } from '../session/session.service.js';
-import { GatewayNodeService } from '../gateway-node.service.js';
+import { ClusterNodeService } from '../cluster-node.service.js';
 import { HEARTBEAT_CONFIG } from './heartbeat.constants.js';
 
 /**
@@ -28,7 +28,7 @@ export class ZombieCleanerService implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     private readonly sessionService: SessionService,
-    private readonly nodeService: GatewayNodeService,
+    private readonly nodeService: ClusterNodeService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 

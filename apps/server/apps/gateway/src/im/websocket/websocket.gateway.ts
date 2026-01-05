@@ -21,11 +21,11 @@ import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
 import { SocketWithUser } from '../shared/interfaces/socket-with-user.interface.js';
 import { WorkspaceService } from '../../workspace/workspace.service.js';
 import { RabbitMQEventService, GatewayMQService } from '@team9/rabbitmq';
-import { GatewayNodeService } from '../../gateway/gateway-node.service.js';
-import { SessionService } from '../../gateway/session/session.service.js';
-import { HeartbeatService } from '../../gateway/heartbeat/heartbeat.service.js';
-import { ZombieCleanerService } from '../../gateway/heartbeat/zombie-cleaner.service.js';
-import { ConnectionService } from '../../gateway/connection/connection.service.js';
+import { ClusterNodeService } from '../../cluster/cluster-node.service.js';
+import { SessionService } from '../../cluster/session/session.service.js';
+import { HeartbeatService } from '../../cluster/heartbeat/heartbeat.service.js';
+import { ZombieCleanerService } from '../../cluster/heartbeat/zombie-cleaner.service.js';
+import { ConnectionService } from '../../cluster/connection/connection.service.js';
 
 interface SendMessageData {
   channelId: string;
@@ -76,7 +76,7 @@ export class WebsocketGateway
     private readonly workspaceService: WorkspaceService,
     @Optional() private readonly rabbitMQEventService?: RabbitMQEventService,
     // Distributed IM Architecture services
-    @Optional() private readonly gatewayNodeService?: GatewayNodeService,
+    @Optional() private readonly clusterNodeService?: ClusterNodeService,
     @Optional() private readonly sessionService?: SessionService,
     @Optional() private readonly heartbeatService?: HeartbeatService,
     @Optional() private readonly zombieCleanerService?: ZombieCleanerService,
@@ -99,8 +99,8 @@ export class WebsocketGateway
     }
 
     // Initialize Gateway MQ with node ID
-    if (this.gatewayMQService && this.gatewayNodeService) {
-      const nodeId = this.gatewayNodeService.getNodeId();
+    if (this.gatewayMQService && this.clusterNodeService) {
+      const nodeId = this.clusterNodeService.getNodeId();
       this.gatewayMQService.initializeForNode(nodeId).catch((err) => {
         this.logger.error(`Failed to initialize Gateway MQ: ${err}`);
       });
@@ -151,15 +151,15 @@ export class WebsocketGateway
       );
 
       // Register with distributed services (new architecture)
-      if (this.sessionService && this.gatewayNodeService) {
-        const nodeId = this.gatewayNodeService.getNodeId();
+      if (this.sessionService && this.clusterNodeService) {
+        const nodeId = this.clusterNodeService.getNodeId();
         await this.sessionService.setUserSession(payload.sub, {
           gatewayId: nodeId,
           socketId: client.id,
           loginTime: Date.now(),
           lastActiveTime: Date.now(),
         });
-        this.gatewayNodeService.incrementConnections();
+        this.clusterNodeService.incrementConnections();
       }
 
       // Register with connection service
@@ -263,8 +263,8 @@ export class WebsocketGateway
       if (this.connectionService) {
         this.connectionService.unregisterConnection(client.id);
       }
-      if (this.gatewayNodeService) {
-        this.gatewayNodeService.decrementConnections();
+      if (this.clusterNodeService) {
+        this.clusterNodeService.decrementConnections();
       }
 
       // Check if user has other active connections

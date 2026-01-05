@@ -20,7 +20,7 @@ import { ImModule } from './im/im.module.js';
 import { EditionModule } from './edition/index.js';
 import { AuthModule } from './auth/auth.module.js';
 import { WorkspaceModule } from './workspace/workspace.module.js';
-import { GatewayModule } from './gateway/gateway.module.js';
+import { ClusterModule } from './cluster/cluster.module.js';
 import { TenantMiddleware } from './common/middleware/tenant.middleware.js';
 
 @Module({
@@ -40,7 +40,7 @@ import { TenantMiddleware } from './common/middleware/tenant.middleware.js';
     AiClientModule,
     RabbitmqModule,
     AuthModule,
-    GatewayModule,
+    ClusterModule,
     ImModule,
     WorkspaceModule,
   ],

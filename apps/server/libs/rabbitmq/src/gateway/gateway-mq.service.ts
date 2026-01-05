@@ -53,7 +53,7 @@ export class GatewayMQService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Initialize the Gateway queue with the node ID
-   * This should be called after GatewayNodeService is initialized
+   * This should be called after ClusterNodeService is initialized
    */
   async initializeForNode(nodeId: string): Promise<void> {
     if (this.isInitialized) {
