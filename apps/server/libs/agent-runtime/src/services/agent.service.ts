@@ -826,11 +826,12 @@ export class AgentService {
       return memoryResult;
     }
 
-    // Step 3: needsResponse is true, run LLM
+    // Step 3: needsResponse is true, run single LLM turn
     this.broadcast(agentId, 'agent:thinking', {});
 
     try {
-      const executionResult = await executor.run(agent.threadId);
+      // Use runSingleTurn for true step-by-step execution
+      const executionResult = await executor.runSingleTurn(agent.threadId);
 
       // After LLM response, clear the needsResponse flag
       if (executionResult.success && executionResult.turnsExecuted > 0) {

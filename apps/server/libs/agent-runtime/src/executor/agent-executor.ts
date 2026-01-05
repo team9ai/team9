@@ -200,6 +200,19 @@ export class AgentExecutor {
   async run(threadId: string): Promise<ExecutionResult> {
     return this.loopExecutor.run(threadId);
   }
+
+  /**
+   * Run a single LLM turn (for stepping mode)
+   *
+   * This method executes exactly one LLM call and returns.
+   * Used when manual step-by-step execution is needed.
+   *
+   * @param threadId - The thread ID to run for
+   * @returns Execution result for the single turn
+   */
+  async runSingleTurn(threadId: string): Promise<ExecutionResult> {
+    return this.loopExecutor.runSingleTurn(threadId);
+  }
 }
 
 /**
