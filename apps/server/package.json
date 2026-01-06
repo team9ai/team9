@@ -14,6 +14,7 @@
     "dev": "EDITION=community pnpm --filter @team9/gateway start:dev",
     "dev:logic": "pnpm --filter @team9/logic start:dev",
     "dev:all": "EDITION=community concurrently \"pnpm --filter @team9/gateway start:dev\" \"pnpm --filter @team9/logic start:dev\"",
+    "dev:tracker": "pnpm --filter @team9/task-tracker start:dev",
     "dev:enterprise": "EDITION=enterprise pnpm --filter @team9/gateway start:dev",
     "start:prod": "pnpm --filter @team9/gateway start:prod",
     "start:community": "EDITION=community pnpm start:prod",

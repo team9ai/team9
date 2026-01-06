@@ -1,53 +1,31 @@
 /**
  * LLM Loop Executor
  *
- * Core LLM response generation loop that is agnostic to specific tool implementations.
+ * Core LLM response generation loop that orchestrates turn execution.
  * Tool execution is delegated to IToolCallHandler implementations.
+ *
+ * Cancellation:
+ * - External code can call cancel() to request cancellation
+ * - If cancelled during LLM call, the response is discarded (no state change)
+ * - The result will have cancelled=true
  */
 
 import type { MemoryManager } from '../manager/memory.manager.js';
-import type { MemoryState } from '../types/state.types.js';
 import type { AgentEvent } from '../types/event.types.js';
+import type { ILLMAdapter, LLMToolDefinition } from '../llm/llm.types.js';
 import type {
-  ILLMAdapter,
-  LLMMessage,
-  LLMToolDefinition,
-  LLMCompletionResponse,
-} from '../llm/llm.types.js';
-import type { LLMInteraction } from '../types/thread.types.js';
-import type { ContextBuilder } from '../context/context-builder.js';
-import {
-  CancellationTokenSource,
-  type LLMLoopExecutorConfig,
-  type ResolvedLLMLoopConfig,
-  type LLMLoopExecutionResult,
-  type IToolCallHandler,
-  type ToolCallHandlerContext,
+  LLMLoopExecutorConfig,
+  ResolvedLLMLoopConfig,
+  LLMLoopExecutionResult,
 } from './executor.types.js';
-import { EventType } from '../types/event.types.js';
+import { CancellationTokenSource } from './executor.types.js';
 import { createContextBuilder } from '../context/context-builder.js';
 import { getToolsByNames } from '../tools/index.js';
+import { LLMCaller } from './llm-caller.js';
+import { TurnExecutor } from './turn-executor.js';
 
 /**
- * Result of a single turn execution
- */
-interface SingleTurnResult {
-  /** Whether the turn executed successfully */
-  success: boolean;
-  /** Whether the loop should stop after this turn */
-  shouldStop: boolean;
-  /** Last event type processed */
-  lastEventType: string;
-  /** LLM response content */
-  responseContent?: string;
-  /** Events generated during this turn */
-  events: AgentEvent[];
-  /** Error message if failed */
-  error?: string;
-}
-
-/**
- * LLMLoopExecutor handles the pure LLM response generation loop
+ * LLMLoopExecutor handles the LLM response generation loop
  *
  * Flow:
  * 1. Build context from Memory state
@@ -55,27 +33,19 @@ interface SingleTurnResult {
  * 3. Parse response to events and dispatch them
  * 4. For tool calls, delegate to registered IToolCallHandler
  * 5. Loop continues until: stop event, max turns, or cancelled
- *
- * Cancellation:
- * - External code can call cancel() to request cancellation
- * - If cancelled during LLM call, the response is discarded (no state change)
- * - The result will have cancelled=true
  */
 export class LLMLoopExecutor {
   private config: ResolvedLLMLoopConfig;
-  private contextBuilder: ContextBuilder;
-  private toolDefinitions: LLMToolDefinition[];
+  private turnExecutor: TurnExecutor;
 
   /** Current cancellation token source for the running execution */
   private currentCancellation: CancellationTokenSource | null = null;
   /** Thread ID of current execution */
   private currentThreadId: string | null = null;
-  /** Result of LLM call including interaction data for debugging */
-  private lastLLMInteraction: LLMInteraction | null = null;
 
   constructor(
     private memoryManager: MemoryManager,
-    private llmAdapter: ILLMAdapter,
+    llmAdapter: ILLMAdapter,
     config: LLMLoopExecutorConfig = {},
   ) {
     this.config = {
@@ -86,15 +56,30 @@ export class LLMLoopExecutor {
     };
 
     // Create context builder
-    this.contextBuilder = createContextBuilder();
+    const contextBuilder = createContextBuilder();
 
     // Get control tool definitions for LLM (only control tools are directly callable)
     const controlTools = getToolsByNames(this.config.tools);
-    this.toolDefinitions = controlTools.map((t) => ({
+    const toolDefinitions: LLMToolDefinition[] = controlTools.map((t) => ({
       name: t.name,
       description: t.description,
       parameters: t.parameters,
     }));
+
+    // Create LLM caller
+    const llmCaller = new LLMCaller(
+      llmAdapter,
+      toolDefinitions,
+      this.config.timeout,
+    );
+
+    // Create turn executor
+    this.turnExecutor = new TurnExecutor(
+      memoryManager,
+      contextBuilder,
+      llmCaller,
+      this.config.toolCallHandlers,
+    );
 
     console.log(
       '[LLMLoopExecutor] Initialized with control tools:',
@@ -175,7 +160,10 @@ export class LLMLoopExecutor {
       }
 
       // Execute single turn
-      const turnResult = await this.executeSingleTurn(threadId);
+      const turnResult = await this.turnExecutor.execute(
+        threadId,
+        this.currentCancellation,
+      );
 
       const finalState = await this.memoryManager.getCurrentState(threadId);
       if (!finalState) {
@@ -267,7 +255,10 @@ export class LLMLoopExecutor {
         }
 
         // Execute single turn
-        const turnResult = await this.executeSingleTurn(threadId);
+        const turnResult = await this.turnExecutor.execute(
+          threadId,
+          this.currentCancellation,
+        );
         events.push(...turnResult.events);
 
         if (!turnResult.success) {
@@ -331,359 +322,6 @@ export class LLMLoopExecutor {
       this.currentCancellation = null;
       this.currentThreadId = null;
     }
-  }
-
-  /**
-   * Execute a single LLM turn (core logic shared by run() and runSingleTurn())
-   *
-   * @param threadId - The thread ID
-   * @returns Result of the single turn execution
-   */
-  private async executeSingleTurn(threadId: string): Promise<SingleTurnResult> {
-    const events: AgentEvent[] = [];
-
-    const currentState = await this.memoryManager.getCurrentState(threadId);
-    if (!currentState) {
-      return {
-        success: false,
-        shouldStop: true,
-        lastEventType: '',
-        events,
-        error: `Thread not found: ${threadId}`,
-      };
-    }
-
-    // Build context for LLM
-    const context = this.contextBuilder.build(currentState);
-    const messages: LLMMessage[] = context.messages.map((msg) => ({
-      role: msg.role,
-      content: msg.content,
-    }));
-
-    console.log(
-      '[LLMLoopExecutor.executeSingleTurn] Calling LLM with',
-      messages.length,
-      'messages and',
-      this.toolDefinitions.length,
-      'tools',
-    );
-
-    // Call LLM with tools
-    const llmResponse = await this.callLLMWithTimeout(messages);
-
-    // Check for cancellation after LLM returns
-    // If cancelled, discard the response and don't update state
-    if (this.currentCancellation?.isCancellationRequested) {
-      console.log(
-        '[LLMLoopExecutor.executeSingleTurn] Execution cancelled after LLM response - discarding response',
-      );
-      return {
-        success: false,
-        shouldStop: true,
-        lastEventType: '',
-        events,
-        error: 'Cancelled',
-      };
-    }
-
-    console.log('[LLMLoopExecutor.executeSingleTurn] LLM response received:', {
-      content: llmResponse.content?.substring(0, 100),
-      toolCalls: llmResponse.toolCalls?.length ?? 0,
-      finishReason: llmResponse.finishReason,
-    });
-
-    // Parse LLM response to determine event types (can be multiple)
-    const responseEvents = this.parseResponseToEvents(llmResponse);
-    events.push(...responseEvents);
-
-    // Dispatch all response events sequentially
-    let shouldStop = false;
-    let lastEventType = '';
-    for (const responseEvent of responseEvents) {
-      console.log(
-        '[LLMLoopExecutor.executeSingleTurn] Dispatching response event:',
-        responseEvent.type,
-      );
-      const dispatchResult = await this.memoryManager.dispatch(
-        threadId,
-        responseEvent,
-      );
-      console.log(
-        '[LLMLoopExecutor.executeSingleTurn] Dispatch result - state id:',
-        dispatchResult?.state?.id,
-        'chunks:',
-        dispatchResult?.state?.chunkIds?.length,
-      );
-      lastEventType = responseEvent.type;
-
-      // Check if this is a tool call that can be handled
-      if (responseEvent.type === EventType.LLM_TOOL_CALL) {
-        const toolCallEvent = responseEvent as {
-          callId: string;
-          toolName: string;
-          arguments: Record<string, unknown>;
-        };
-
-        // Find a handler for this tool call
-        const handler = this.findHandler(toolCallEvent.toolName);
-        if (handler) {
-          console.log(
-            '[LLMLoopExecutor.executeSingleTurn] Found handler for tool:',
-            toolCallEvent.toolName,
-          );
-
-          const handlerContext: ToolCallHandlerContext = {
-            threadId,
-            callId: toolCallEvent.callId,
-            memoryManager: this.memoryManager,
-          };
-
-          const handlerResult = await handler.handle(
-            toolCallEvent.toolName,
-            toolCallEvent.arguments,
-            handlerContext,
-          );
-
-          // Dispatch any result events from the handler
-          if (handlerResult.resultEvents) {
-            for (const resultEvent of handlerResult.resultEvents) {
-              await this.memoryManager.dispatch(threadId, resultEvent);
-              events.push(resultEvent);
-            }
-          }
-
-          if (handlerResult.shouldContinue) {
-            // Handler processed the tool call and wants to continue
-            continue;
-          } else {
-            // Handler wants to stop the loop
-            shouldStop = true;
-          }
-        } else {
-          // No handler found, stop and wait for external handling
-          shouldStop = true;
-        }
-      } else if (this.shouldWaitForExternalResponse(responseEvent.type)) {
-        // Check if this event type requires stopping
-        shouldStop = true;
-      }
-    }
-
-    // Update the step with LLM interaction data for debugging
-    if (this.lastLLMInteraction) {
-      await this.updateStepWithLLMInteraction(threadId);
-      this.lastLLMInteraction = null;
-    }
-
-    return {
-      success: true,
-      shouldStop,
-      lastEventType,
-      responseContent: llmResponse.content,
-      events,
-    };
-  }
-
-  /**
-   * Find a handler that can process the given tool name
-   */
-  private findHandler(toolName: string): IToolCallHandler | undefined {
-    return this.config.toolCallHandlers.find((h) => h.canHandle(toolName));
-  }
-
-  /**
-   * Check if the event type requires waiting for external response
-   */
-  private shouldWaitForExternalResponse(eventType: string): boolean {
-    switch (eventType) {
-      // Tool/Skill/SubAgent calls - wait for execution result
-      case EventType.LLM_TOOL_CALL:
-      case EventType.LLM_SKILL_CALL:
-      case EventType.LLM_SUBAGENT_SPAWN:
-      case EventType.LLM_SUBAGENT_MESSAGE:
-      case EventType.LLM_CLARIFICATION:
-        return true;
-
-      // Task ended
-      case EventType.TASK_COMPLETED:
-      case EventType.TASK_ABANDONED:
-      case EventType.TASK_TERMINATED:
-        return true;
-
-      default:
-        return false;
-    }
-  }
-
-  /**
-   * Update the most recent step with LLM interaction data for debugging
-   */
-  private async updateStepWithLLMInteraction(threadId: string): Promise<void> {
-    if (!this.lastLLMInteraction) return;
-
-    try {
-      // Get the most recent step for this thread (created during dispatch)
-      const steps = await this.memoryManager.getStepsByThread(threadId);
-      if (steps.length > 0) {
-        // Sort by startedAt descending to get the most recent step
-        const sortedSteps = [...steps].sort(
-          (a, b) => b.startedAt - a.startedAt,
-        );
-        const latestStep = sortedSteps[0];
-        await this.memoryManager.updateStepLLMInteraction(
-          latestStep.id,
-          this.lastLLMInteraction,
-        );
-        console.log(
-          '[LLMLoopExecutor] Updated step with LLM interaction:',
-          latestStep.id,
-        );
-      }
-    } catch (error) {
-      // Don't fail the execution if we can't update the step
-      console.warn(
-        '[LLMLoopExecutor] Failed to update step with LLM interaction:',
-        error,
-      );
-    }
-  }
-
-  /**
-   * Call LLM with timeout and cancellation support
-   * Combines timeout abort with cancellation abort using AbortSignal.any()
-   * Also captures the LLM interaction data for debugging
-   */
-  private async callLLMWithTimeout(
-    messages: LLMMessage[],
-  ): Promise<LLMCompletionResponse> {
-    // Create timeout abort controller
-    const timeoutController = new AbortController();
-    const timeoutId = setTimeout(
-      () => timeoutController.abort(new Error('LLM call timeout')),
-      this.config.timeout,
-    );
-
-    // Combine timeout signal with cancellation signal
-    // If either aborts, the combined signal will abort
-    // Use a combined controller since AbortSignal.any() may not be available
-    const combinedController = new AbortController();
-    const abortHandler = () => combinedController.abort();
-
-    timeoutController.signal.addEventListener('abort', abortHandler);
-    if (this.currentCancellation) {
-      this.currentCancellation.signal.addEventListener('abort', abortHandler);
-    }
-    const combinedSignal = combinedController.signal;
-
-    // Capture LLM interaction start
-    const startedAt = Date.now();
-    const llmInteraction: LLMInteraction = {
-      startedAt,
-      request: {
-        messages,
-        tools:
-          this.toolDefinitions.length > 0 ? this.toolDefinitions : undefined,
-      },
-    };
-
-    try {
-      const response = await this.llmAdapter.complete({
-        messages,
-        tools:
-          this.toolDefinitions.length > 0 ? this.toolDefinitions : undefined,
-        signal: combinedSignal,
-      });
-
-      // Capture LLM interaction completion
-      const completedAt = Date.now();
-      llmInteraction.completedAt = completedAt;
-      llmInteraction.duration = completedAt - startedAt;
-      llmInteraction.response = {
-        content: response.content,
-        toolCalls: response.toolCalls,
-        finishReason: response.finishReason as
-          | 'stop'
-          | 'tool_calls'
-          | 'length'
-          | 'content_filter'
-          | undefined,
-        usage: response.usage,
-      };
-
-      this.lastLLMInteraction = llmInteraction;
-      return response;
-    } catch (error) {
-      // Capture error in LLM interaction
-      const completedAt = Date.now();
-      llmInteraction.completedAt = completedAt;
-      llmInteraction.duration = completedAt - startedAt;
-      llmInteraction.error =
-        error instanceof Error ? error.message : String(error);
-      this.lastLLMInteraction = llmInteraction;
-
-      // Check if this was a cancellation (not timeout)
-      if (this.currentCancellation?.isCancellationRequested) {
-        throw new Error('LLM call cancelled');
-      }
-      throw error;
-    } finally {
-      clearTimeout(timeoutId);
-      // Clean up event listeners
-      timeoutController.signal.removeEventListener('abort', abortHandler);
-      if (this.currentCancellation) {
-        this.currentCancellation.signal.removeEventListener(
-          'abort',
-          abortHandler,
-        );
-      }
-    }
-  }
-
-  /**
-   * Parse LLM response to determine the appropriate event types
-   * Returns an array of events since LLM can return both text and tool calls simultaneously
-   */
-  private parseResponseToEvents(response: LLMCompletionResponse): AgentEvent[] {
-    const events: AgentEvent[] = [];
-    const timestamp = Date.now();
-
-    // First, add text response event if there's content
-    if (response.content && response.content.trim()) {
-      events.push({
-        type: EventType.LLM_TEXT_RESPONSE,
-        content: response.content,
-        timestamp,
-      });
-    }
-
-    // Then, add tool call events for each tool call
-    if (response.toolCalls && response.toolCalls.length > 0) {
-      for (const toolCall of response.toolCalls) {
-        console.log(
-          '[LLMLoopExecutor] Tool call detected:',
-          toolCall.name,
-          toolCall.arguments,
-        );
-        events.push({
-          type: EventType.LLM_TOOL_CALL,
-          toolName: toolCall.name,
-          callId: toolCall.id,
-          arguments: toolCall.arguments,
-          timestamp,
-        });
-      }
-    }
-
-    // If no events were created (empty response), create an empty text response
-    if (events.length === 0) {
-      events.push({
-        type: EventType.LLM_TEXT_RESPONSE,
-        content: '',
-        timestamp,
-      });
-    }
-
-    return events;
   }
 }
 

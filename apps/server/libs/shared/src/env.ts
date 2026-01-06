@@ -107,4 +107,9 @@ export const env = {
   get APP_URL() {
     return getRequiredEnv('APP_URL');
   },
+
+  // Task Tracker Service
+  get TASK_TRACKER_PORT() {
+    return parseInt(process.env.TASK_TRACKER_PORT ?? '3002', 10);
+  },
 };

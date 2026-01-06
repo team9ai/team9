@@ -8,10 +8,28 @@ import type {
   StepResult,
   AgentStatus,
   EventDispatchStrategy,
+  MemoryManager,
+  DebugController,
 } from '@team9/agent-framework';
+import type { AgentExecutor } from '../executor/agent-executor.js';
 
 // Re-export for convenience
 export type { ExecutionMode, StepResult, AgentStatus, EventDispatchStrategy };
+
+/**
+ * Shared runtime state container for agent services
+ * All services share this state to access agent runtime components
+ */
+export interface AgentRuntimeState {
+  /** Cached agent instances by ID */
+  agentsCache: Map<string, AgentInstance>;
+  /** Memory managers by agent ID */
+  memoryManagers: Map<string, MemoryManager>;
+  /** Debug controllers by agent ID */
+  debugControllers: Map<string, DebugController>;
+  /** Executors by agent ID */
+  executors: Map<string, AgentExecutor>;
+}
 
 /**
  * Blueprint definition for creating agents

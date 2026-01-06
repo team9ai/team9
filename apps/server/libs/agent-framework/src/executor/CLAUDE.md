@@ -1,9 +1,6 @@
 # Executor Module
 
-This directory contains two types of executors:
-
-1. **Operation Executor** - Applies Operations to MemoryState (state transitions)
-2. **LLM Loop Executor** - Manages the LLM response generation loop
+This directory contains executors for applying operations to state and managing the LLM response generation loop.
 
 ## File Structure
 
@@ -11,7 +8,24 @@ This directory contains two types of executors:
 | ----------------------- | -------------------------------------------------------------------- |
 | `operation.executor.ts` | Operation executor: `applyOperation()`, `applyOperations()`          |
 | `executor.types.ts`     | Type definitions: `IToolCallHandler`, `CancellationTokenSource`, etc |
-| `llm-loop.executor.ts`  | LLM loop executor: `LLMLoopExecutor` class                           |
+| `llm-loop.executor.ts`  | LLM loop executor: orchestrates turns and manages cancellation       |
+| `turn-executor.ts`      | Turn executor: executes a single LLM turn                            |
+| `llm-caller.ts`         | LLM caller: handles LLM API calls with timeout/cancellation          |
+| `response-parser.ts`    | Response parser: parses LLM responses into AgentEvents               |
+
+## Architecture
+
+```
+LLMLoopExecutor
+    │
+    ├── TurnExecutor (single turn execution)
+    │       │
+    │       ├── LLMCaller (API call with timeout/cancellation)
+    │       │
+    │       └── parseResponseToEvents() (response parsing)
+    │
+    └── CancellationTokenSource (cancellation management)
+```
 
 ## Operation Executor
 
@@ -45,7 +59,7 @@ const newState = applyOperations(state, operations, chunks);
 
 ## LLM Loop Executor
 
-The `LLMLoopExecutor` handles the core LLM response generation loop. It is designed to be runtime-agnostic by delegating tool execution to `IToolCallHandler` implementations.
+The `LLMLoopExecutor` orchestrates the LLM response generation loop. It delegates single turn execution to `TurnExecutor`.
 
 ### Usage
 
@@ -85,7 +99,55 @@ const executor = new LLMLoopExecutor(memoryManager, llmAdapter, {
 const result = await executor.run(threadId);
 ```
 
-### Cancellation
+## Turn Executor
+
+The `TurnExecutor` handles a single LLM turn including:
+
+- Building context from memory state
+- Calling LLM via `LLMCaller`
+- Parsing response via `parseResponseToEvents()`
+- Dispatching events
+- Handling tool calls
+
+```typescript
+import { TurnExecutor, LLMCaller } from '@team9/agent-framework';
+
+const turnExecutor = new TurnExecutor(
+  memoryManager,
+  contextBuilder,
+  llmCaller,
+  toolCallHandlers,
+);
+
+const result = await turnExecutor.execute(threadId, cancellation);
+```
+
+## LLM Caller
+
+The `LLMCaller` handles LLM API calls with timeout and cancellation support.
+
+```typescript
+import { LLMCaller } from '@team9/agent-framework';
+
+const caller = new LLMCaller(llmAdapter, toolDefinitions, timeout);
+const { response, interaction } = await caller.callWithTimeout(
+  messages,
+  cancellation,
+);
+```
+
+## Response Parser
+
+Parses LLM responses into AgentEvents.
+
+```typescript
+import { parseResponseToEvents } from '@team9/agent-framework';
+
+const events = parseResponseToEvents(llmResponse);
+// Returns: AgentEvent[] (LLM_TEXT_RESPONSE, LLM_TOOL_CALL, etc.)
+```
+
+## Cancellation
 
 ```typescript
 import { CancellationTokenSource } from '@team9/agent-framework';
@@ -105,7 +167,7 @@ if (cts.isCancellationRequested) {
 const signal = cts.signal;
 ```
 
-### IToolCallHandler Interface
+## IToolCallHandler Interface
 
 Tool call handlers allow runtime-specific tool execution without coupling the framework to specific implementations.
 
@@ -133,7 +195,7 @@ interface ToolCallHandlerResult {
 ## Design Principles
 
 1. **Immutability** - All state operations return new frozen objects
-2. **Separation of Concerns** - LLM loop logic is framework-level, tool execution is runtime-level
+2. **Separation of Concerns** - Loop orchestration, turn execution, LLM calling, and response parsing are separate
 3. **Extensibility** - Custom tool handlers can be injected without modifying core code
 4. **Cancellation Support** - Native AbortSignal support for cancelling LLM calls
 
