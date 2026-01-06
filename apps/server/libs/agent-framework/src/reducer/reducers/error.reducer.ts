@@ -3,6 +3,8 @@ import {
   ChunkType,
   ChunkRetentionStrategy,
   ChunkContentType,
+  WorkingFlowSubType,
+  MemoryChunk,
 } from '../../types/chunk.types.js';
 import {
   AgentEvent,
@@ -14,7 +16,27 @@ import {
 } from '../../types/event.types.js';
 import { EventReducer, ReducerResult } from '../reducer.types.js';
 import { createChunk } from '../../factories/chunk.factory.js';
-import { createAddOperation } from '../../factories/operation.factory.js';
+import {
+  createAddOperation,
+  createAddChildOperation,
+} from '../../factories/operation.factory.js';
+import { generateChildId } from '../../utils/id.utils.js';
+
+/**
+ * Find the current WORKING_FLOW container chunk in state
+ */
+function findWorkingFlowChunk(state: MemoryState): MemoryChunk | undefined {
+  for (const chunkId of state.chunkIds) {
+    const chunk = state.chunks.get(chunkId);
+    if (
+      chunk?.type === ChunkType.WORKING_FLOW &&
+      chunk.children !== undefined
+    ) {
+      return chunk;
+    }
+  }
+  return undefined;
+}
 
 /**
  * Reducer for TOOL_ERROR events
@@ -55,6 +77,7 @@ export class ToolErrorReducer implements EventReducer<ToolErrorEvent> {
 
 /**
  * Reducer for SUBAGENT_ERROR events
+ * Creates a child entry in WORKING_FLOW for subagent errors
  */
 export class SubAgentErrorReducer implements EventReducer<SubAgentErrorEvent> {
   readonly eventTypes = [EventType.SUBAGENT_ERROR];
@@ -63,29 +86,68 @@ export class SubAgentErrorReducer implements EventReducer<SubAgentErrorEvent> {
     return event.type === EventType.SUBAGENT_ERROR;
   }
 
-  reduce(_state: MemoryState, event: SubAgentErrorEvent): ReducerResult {
-    const chunk = createChunk({
-      type: ChunkType.DELEGATION,
-      content: {
-        type: ChunkContentType.TEXT,
-        action: 'subagent_error',
-        subAgentId: event.subAgentId,
-        error: event.error,
-        errorDetails: event.errorDetails,
-      },
-      retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
-      custom: {
-        eventType: event.type,
-        timestamp: event.timestamp,
-      },
-    });
-
-    const addOperation = createAddOperation(chunk.id);
-
-    return {
-      operations: [addOperation],
-      chunks: [chunk],
+  reduce(state: MemoryState, event: SubAgentErrorEvent): ReducerResult {
+    const childContent = {
+      type: ChunkContentType.TEXT,
+      text: `Subagent error: ${event.error}`,
+      action: 'subagent_error',
+      subAgentId: event.subAgentId,
+      error: event.error,
+      errorDetails: event.errorDetails,
     };
+
+    const existingWorkingFlow = findWorkingFlowChunk(state);
+
+    if (existingWorkingFlow) {
+      const addChildOp = createAddChildOperation(existingWorkingFlow.id, {
+        id: generateChildId(),
+        subType: WorkingFlowSubType.SUBAGENT_RESULT,
+        content: childContent,
+        createdAt: Date.now(),
+        custom: {
+          eventType: event.type,
+          timestamp: event.timestamp,
+        },
+      });
+
+      return {
+        operations: [addChildOp],
+        chunks: [],
+      };
+    } else {
+      const chunk = createChunk({
+        type: ChunkType.WORKING_FLOW,
+        content: {
+          type: ChunkContentType.TEXT,
+          text: '',
+        },
+        retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
+        custom: {},
+      });
+
+      const chunkWithChild: MemoryChunk = {
+        ...chunk,
+        children: [
+          {
+            id: generateChildId(),
+            subType: WorkingFlowSubType.SUBAGENT_RESULT,
+            content: childContent,
+            createdAt: Date.now(),
+            custom: {
+              eventType: event.type,
+              timestamp: event.timestamp,
+            },
+          },
+        ],
+      };
+
+      const addOperation = createAddOperation(chunkWithChild.id);
+
+      return {
+        operations: [addOperation],
+        chunks: [chunkWithChild],
+      };
+    }
   }
 }
 

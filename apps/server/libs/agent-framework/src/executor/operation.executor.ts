@@ -314,6 +314,7 @@ export async function applyOperations(
   operations: Operation[],
   context: ExecutionContext,
 ): Promise<ApplyResult> {
+  const originalStateId = state.id;
   let currentState = state;
   const allAddedChunks: MemoryChunk[] = [];
   const allRemovedChunkIds: string[] = [];
@@ -329,16 +330,35 @@ export async function applyOperations(
     allRemovedChunkIds.push(...result.removedChunkIds);
   }
 
+  // Create final state with correct previousStateId pointing to the original input state
+  // This ensures the state chain is properly linked even when multiple operations are applied
+  const finalState = deriveState(currentState, {
+    chunks: Array.from(currentState.chunks.values()),
+    chunkIds: [...currentState.chunkIds],
+    sourceOperation: currentState.metadata.sourceOperation,
+    custom: currentState.metadata.custom,
+  });
+
+  // Manually set the previousStateId to point to the original input state
+  // We need to create the state with the correct previousStateId
+  const correctedState = {
+    ...finalState,
+    metadata: {
+      ...finalState.metadata,
+      previousStateId: originalStateId,
+    },
+  } as Readonly<MemoryState>;
+
   // Persist in a transaction
   await context.storage.transaction(async (tx) => {
     if (allAddedChunks.length > 0) {
       await tx.saveChunks(allAddedChunks);
     }
-    await tx.saveState(currentState);
+    await tx.saveState(correctedState);
   });
 
   return {
-    state: currentState,
+    state: correctedState,
     addedChunks: allAddedChunks,
     removedChunkIds: allRemovedChunkIds,
   };
@@ -359,6 +379,7 @@ export async function applyOperationsWithProvenance(
   context: ExecutionContext,
   provenance: StateProvenance,
 ): Promise<ApplyResult> {
+  const originalStateId = state.id;
   let currentState = state;
   const allAddedChunks: MemoryChunk[] = [];
   const allRemovedChunkIds: string[] = [];
@@ -384,16 +405,26 @@ export async function applyOperationsWithProvenance(
     },
   });
 
+  // Correct the previousStateId to point to the original input state
+  // This ensures the state chain is properly linked even when multiple operations are applied
+  const correctedState = {
+    ...finalState,
+    metadata: {
+      ...finalState.metadata,
+      previousStateId: originalStateId,
+    },
+  } as Readonly<MemoryState>;
+
   // Persist in a transaction
   await context.storage.transaction(async (tx) => {
     if (allAddedChunks.length > 0) {
       await tx.saveChunks(allAddedChunks);
     }
-    await tx.saveState(finalState);
+    await tx.saveState(correctedState);
   });
 
   return {
-    state: finalState,
+    state: correctedState,
     addedChunks: allAddedChunks,
     removedChunkIds: allRemovedChunkIds,
   };

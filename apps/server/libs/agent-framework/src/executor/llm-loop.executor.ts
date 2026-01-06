@@ -67,17 +67,14 @@ export class LLMLoopExecutor {
     }));
 
     // Create LLM caller
-    const llmCaller = new LLMCaller(
-      llmAdapter,
-      toolDefinitions,
-      this.config.timeout,
-    );
+    const llmCaller = new LLMCaller(llmAdapter, this.config.timeout);
 
     // Create turn executor
     this.turnExecutor = new TurnExecutor(
       memoryManager,
       contextBuilder,
       llmCaller,
+      toolDefinitions,
       this.config.toolCallHandlers,
     );
 

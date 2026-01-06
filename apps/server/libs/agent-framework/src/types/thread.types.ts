@@ -134,6 +134,21 @@ export interface MemoryThread {
    * Used in stepping mode to determine if LLM should run
    */
   needsResponse?: boolean;
+  /**
+   * Parent thread ID (if this is a subagent thread)
+   * Links child threads to their parent for context inheritance and result propagation
+   */
+  parentThreadId?: string;
+  /**
+   * Child thread IDs (subagent threads spawned by this thread)
+   * Used for tracking and monitoring subagent progress
+   */
+  childThreadIds?: string[];
+  /**
+   * Blueprint key for subagent threads
+   * Identifies which subagent blueprint was used to create this thread
+   */
+  blueprintKey?: string;
 }
 
 /**
@@ -141,4 +156,8 @@ export interface MemoryThread {
  */
 export interface CreateThreadInput {
   custom?: Record<string, unknown>;
+  /** Parent thread ID for subagent threads */
+  parentThreadId?: string;
+  /** Blueprint key for subagent threads */
+  blueprintKey?: string;
 }

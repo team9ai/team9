@@ -67,6 +67,9 @@ export class AgentService {
   /** Cached external tools */
   private externalTools: CustomToolConfig[];
 
+  /** Temporary storage for parentStateId from spawn events, keyed by subAgentId */
+  private pendingSpawnParentStates = new Map<string, string>();
+
   constructor(
     createMemoryManager: (config: LLMConfig) => MemoryManager,
     createDebugController: (memoryManager: MemoryManager) => DebugController,
@@ -98,7 +101,14 @@ export class AgentService {
     this.sseBroadcaster = new SSEBroadcaster();
     this.stepHistoryService = new StepHistoryService();
 
-    // Initialize lifecycle service
+    // Initialize execution service first (needed for subagent callbacks)
+    this.executionService = new AgentExecutionService(this.state, {
+      sseBroadcaster: this.sseBroadcaster,
+      isSteppingMode: (agentId) =>
+        this.debugService?.isSteppingMode(agentId) ?? false,
+    });
+
+    // Initialize lifecycle service with subagent support
     const lifecycleConfig: AgentLifecycleServiceConfig = {
       createMemoryManager,
       createDebugController,
@@ -107,6 +117,76 @@ export class AgentService {
       externalTools: this.externalTools,
       onAgentInitialized: (agentId, memoryManager) => {
         this.setupObserver(agentId, memoryManager);
+      },
+      // Configure subagent callbacks
+      onSubagentComplete: async (
+        parentThreadId,
+        childThreadId,
+        subagentKey,
+        result,
+        success,
+      ) => {
+        // Find parent agent by threadId
+        const parentAgent = this.findAgentByThreadId(parentThreadId);
+        if (parentAgent) {
+          await this.executionService.onSubagentComplete(
+            parentAgent.id,
+            childThreadId,
+            subagentKey,
+            result,
+            success,
+          );
+        }
+      },
+      onSubagentStep: (parentThreadId, childThreadId, subagentKey, event) => {
+        const parentAgent = this.findAgentByThreadId(parentThreadId);
+        if (parentAgent) {
+          this.executionService.onSubagentStep(
+            parentAgent.id,
+            childThreadId,
+            subagentKey,
+            event,
+          );
+        }
+      },
+      // Set up observers for subagent when created (for debugger SSE)
+      onSubagentCreated: (
+        parentAgentId,
+        childThreadId,
+        subagentKey,
+        memoryManager,
+      ) => {
+        console.log(
+          '[AgentService] Subagent created:',
+          childThreadId,
+          'for parent:',
+          parentAgentId,
+        );
+        // Create a pseudo agent ID for the subagent to track in SSE
+        const subagentId = `${parentAgentId}:subagent:${subagentKey}:${childThreadId}`;
+        // Set up SSE observer for the subagent's memory manager
+        this.sseBroadcaster.setupObserver(subagentId, memoryManager);
+        this.stepHistoryService.setupObserver(subagentId, memoryManager);
+
+        // Get parentStateId from pending spawn events (saved by onSubAgentSpawn observer)
+        // The key format matches the subAgentId from the spawn event
+        let parentStateId: string | undefined;
+        for (const [key, stateId] of this.pendingSpawnParentStates.entries()) {
+          if (key.includes(subagentKey)) {
+            parentStateId = stateId;
+            this.pendingSpawnParentStates.delete(key);
+            break;
+          }
+        }
+
+        // Also broadcast to parent agent's subscribers
+        this.sseBroadcaster.broadcast(parentAgentId, 'subagent:spawn', {
+          parentAgentId,
+          childThreadId,
+          subagentKey,
+          subagentId,
+          parentStateId,
+        });
       },
     };
     this.lifecycleService = new AgentLifecycleService(
@@ -127,12 +207,18 @@ export class AgentService {
         await this.lifecycleService.updateConfig(agent.id, {});
       },
     });
+  }
 
-    // Initialize execution service
-    this.executionService = new AgentExecutionService(this.state, {
-      sseBroadcaster: this.sseBroadcaster,
-      isSteppingMode: (agentId) => this.debugService.isSteppingMode(agentId),
-    });
+  /**
+   * Find an agent by its thread ID
+   */
+  private findAgentByThreadId(threadId: string): AgentInstance | undefined {
+    for (const agent of this.state.agentsCache.values()) {
+      if (agent.threadId === threadId) {
+        return agent;
+      }
+    }
+    return undefined;
   }
 
   /**
@@ -141,6 +227,61 @@ export class AgentService {
   private setupObserver(agentId: string, memoryManager: MemoryManager): void {
     this.sseBroadcaster.setupObserver(agentId, memoryManager);
     this.stepHistoryService.setupObserver(agentId, memoryManager);
+
+    // Set up subagent spawn observer to trigger execution when LLM_SUBAGENT_SPAWN event is processed
+    memoryManager.addObserver({
+      onSubAgentSpawn: async (info) => {
+        console.log(
+          '[AgentService] SubAgentSpawn event received:',
+          info.subAgentId,
+          'for parent thread:',
+          info.parentThreadId,
+          'parentStateId:',
+          info.parentStateId,
+        );
+
+        // Save parentStateId for later use in onSubagentCreated callback
+        // This is needed because onSubagentCreated doesn't have access to parentStateId
+        if (info.parentStateId) {
+          this.pendingSpawnParentStates.set(
+            info.subAgentId,
+            info.parentStateId,
+          );
+        }
+
+        // Find the executor for this agent
+        const executor = this.state.executors.get(agentId);
+        if (!executor) {
+          console.error('[AgentService] No executor found for agent:', agentId);
+          return;
+        }
+
+        // Get the spawn handler and trigger execution
+        const spawnHandler = executor.getSpawnSubagentHandler();
+        if (!spawnHandler) {
+          console.error(
+            '[AgentService] No spawn handler found for agent:',
+            agentId,
+          );
+          return;
+        }
+
+        // Trigger the actual subagent creation and execution
+        const childThreadId = await spawnHandler.onSpawnEvent(info.subAgentId);
+        if (childThreadId) {
+          console.log(
+            '[AgentService] Subagent started with thread:',
+            childThreadId,
+          );
+
+          // Update the agent instance's subAgentIds list
+          const agent = this.state.agentsCache.get(agentId);
+          if (agent && !agent.subAgentIds.includes(childThreadId)) {
+            agent.subAgentIds.push(childThreadId);
+          }
+        }
+      },
+    });
   }
 
   // ============ Lifecycle Operations (delegated to AgentLifecycleService) ============

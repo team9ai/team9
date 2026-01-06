@@ -8,6 +8,7 @@
 import type { MemoryState } from '../types/state.types.js';
 import type { AgentEvent } from '../types/event.types.js';
 import type { MemoryManager } from '../manager/memory.manager.js';
+import type { LLMToolDefinition } from '../llm/llm.types.js';
 
 // ============================================================================
 // Cancellation Token System
@@ -142,6 +143,8 @@ export interface LLMLoopExecutorConfig {
   tools?: string[];
   /** Tool call handlers for processing specific tool calls */
   toolCallHandlers?: IToolCallHandler[];
+  /** Custom tool definitions to add to LLM tools */
+  customToolDefinitions?: LLMToolDefinition[];
 }
 
 /**

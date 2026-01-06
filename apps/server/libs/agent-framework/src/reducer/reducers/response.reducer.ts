@@ -205,28 +205,68 @@ export class SubAgentResultReducer implements EventReducer<SubAgentResultEvent> 
     return event.type === EventType.SUBAGENT_RESULT;
   }
 
-  reduce(_state: MemoryState, event: SubAgentResultEvent): ReducerResult {
-    const chunk = createChunk({
-      type: ChunkType.DELEGATION,
-      content: {
-        type: ChunkContentType.TEXT,
-        action: 'subagent_result',
-        subAgentId: event.subAgentId,
-        result: event.result,
-        success: event.success,
-      },
-      retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
-      custom: {
-        eventType: event.type,
-        timestamp: event.timestamp,
-      },
-    });
-
-    const addOperation = createAddOperation(chunk.id);
-
-    return {
-      operations: [addOperation],
-      chunks: [chunk],
+  reduce(state: MemoryState, event: SubAgentResultEvent): ReducerResult {
+    const childContent = {
+      type: ChunkContentType.TEXT,
+      text: `Subagent result (${event.success ? 'success' : 'failed'}): ${JSON.stringify(event.result)}`,
+      subAgentId: event.subAgentId,
+      result: event.result,
+      success: event.success,
     };
+
+    const existingWorkingFlow = findWorkingFlowChunk(state);
+
+    if (existingWorkingFlow) {
+      // Add as a child to existing WORKING_FLOW chunk
+      const addChildOp = createAddChildOperation(existingWorkingFlow.id, {
+        id: generateChildId(),
+        subType: WorkingFlowSubType.SUBAGENT_RESULT,
+        content: childContent,
+        createdAt: Date.now(),
+        custom: {
+          eventType: event.type,
+          timestamp: event.timestamp,
+        },
+      });
+
+      return {
+        operations: [addChildOp],
+        chunks: [],
+      };
+    } else {
+      // Create a new WORKING_FLOW container chunk with this result as first child
+      const chunk = createChunk({
+        type: ChunkType.WORKING_FLOW,
+        content: {
+          type: ChunkContentType.TEXT,
+          text: '',
+        },
+        retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
+        custom: {},
+      });
+
+      const chunkWithChild: MemoryChunk = {
+        ...chunk,
+        children: [
+          {
+            id: generateChildId(),
+            subType: WorkingFlowSubType.SUBAGENT_RESULT,
+            content: childContent,
+            createdAt: Date.now(),
+            custom: {
+              eventType: event.type,
+              timestamp: event.timestamp,
+            },
+          },
+        ],
+      };
+
+      const addOperation = createAddOperation(chunkWithChild.id);
+
+      return {
+        operations: [addOperation],
+        chunks: [chunkWithChild],
+      };
+    }
   }
 }

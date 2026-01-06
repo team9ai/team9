@@ -221,6 +221,7 @@ export type SSEEventType =
   | 'agent:stepped'
   | 'agent:terminated'
   | 'subagent:spawn'
+  | 'subagent:step'
   | 'subagent:result'
   | 'compaction:start'
   | 'compaction:end'

@@ -3,6 +3,7 @@
  *
  * Handles agent execution: event injection, stepping, and LLM response generation.
  * Manages the execution flow and broadcasting of results.
+ * Also handles subagent lifecycle and result propagation.
  */
 
 import type {
@@ -10,6 +11,7 @@ import type {
   DispatchResult,
   StepResult,
 } from '@team9/agent-framework';
+import { EventType } from '@team9/agent-framework';
 import type { AgentRuntimeState, SSEEventType } from '../types/index.js';
 import type { ExecutionResult } from '../executor/agent-executor.js';
 import type { SSEBroadcaster } from './sse-broadcaster.service.js';
@@ -274,6 +276,90 @@ export class AgentExecutionService {
         shouldInterrupt: result.shouldInterrupt,
       });
     }
+  }
+
+  // ============ Subagent Operations ============
+
+  /**
+   * Handle subagent completion - inject result into parent agent and trigger execution
+   * This is called by SpawnSubagentHandler when a subagent finishes
+   */
+  async onSubagentComplete(
+    parentAgentId: string,
+    childThreadId: string,
+    subagentKey: string,
+    result: unknown,
+    success: boolean,
+  ): Promise<void> {
+    const parentAgent = this.state.agentsCache.get(parentAgentId);
+    const memoryManager = this.state.memoryManagers.get(parentAgentId);
+    const controller = this.state.debugControllers.get(parentAgentId);
+
+    if (!parentAgent || !memoryManager || !controller) {
+      console.error(
+        '[onSubagentComplete] Parent agent not found:',
+        parentAgentId,
+      );
+      return;
+    }
+
+    console.log(
+      '[onSubagentComplete] Subagent completed:',
+      subagentKey,
+      'success:',
+      success,
+    );
+
+    // Create SUBAGENT_RESULT event
+    const resultEvent: AgentEvent = {
+      type: EventType.SUBAGENT_RESULT,
+      subAgentId: subagentKey,
+      childThreadId,
+      result,
+      success,
+      timestamp: Date.now(),
+    };
+
+    // Broadcast the result to SSE subscribers
+    this.broadcast(parentAgentId, 'subagent:result', {
+      subagentKey,
+      childThreadId,
+      result,
+      success,
+    });
+
+    // Inject the result event into parent thread
+    await controller.injectEvent(parentAgent.threadId, resultEvent);
+
+    // Trigger parent agent to continue execution
+    const isStepMode = this.config.isSteppingMode(parentAgentId);
+    const executor = this.state.executors.get(parentAgentId);
+
+    if (!isStepMode && executor) {
+      console.log(
+        '[onSubagentComplete] Triggering parent agent execution:',
+        parentAgentId,
+      );
+      this.broadcast(parentAgentId, 'agent:thinking', { event: resultEvent });
+      this.runExecutorAsync(parentAgentId, executor, parentAgent.threadId);
+    }
+  }
+
+  /**
+   * Handle subagent step - broadcast step event to parent agent's SSE subscribers
+   * This allows real-time monitoring of subagent progress
+   */
+  onSubagentStep(
+    parentAgentId: string,
+    childThreadId: string,
+    subagentKey: string,
+    event: AgentEvent,
+  ): void {
+    this.broadcast(parentAgentId, 'subagent:step', {
+      subagentKey,
+      childThreadId,
+      event,
+    });
   }
 }
 

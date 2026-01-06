@@ -267,8 +267,7 @@ function StepDetailModal({
                         </div>
                         <pre className="whitespace-pre-wrap break-words">
                           {typeof msg.content === "string"
-                            ? msg.content.slice(0, 500) +
-                              (msg.content.length > 500 ? "..." : "")
+                            ? msg.content
                             : JSON.stringify(msg.content, null, 2)}
                         </pre>
                       </div>

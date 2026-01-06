@@ -172,6 +172,16 @@ export class EventProcessor {
         context: {
           dispatchStrategy,
           steppingMode,
+          // Include subAgentId for LLM_SUBAGENT_SPAWN events
+          ...(event.type === EventType.LLM_SUBAGENT_SPAWN && {
+            subAgentId: (event as { subAgentId?: string }).subAgentId,
+            agentType: (event as { agentType?: string }).agentType,
+          }),
+          // Include childThreadId for SUBAGENT_RESULT events
+          ...(event.type === EventType.SUBAGENT_RESULT && {
+            subAgentId: (event as { subAgentId?: string }).subAgentId,
+            childThreadId: (event as { childThreadId?: string }).childThreadId,
+          }),
         },
       };
 
@@ -200,6 +210,26 @@ export class EventProcessor {
         result.addedChunks,
         result.removedChunkIds,
       );
+
+      // Notify observers of sub-agent spawn if this is a spawn event
+      if (event.type === EventType.LLM_SUBAGENT_SPAWN) {
+        const spawnEvent = event as {
+          subAgentId: string;
+          agentType: string;
+          task: string;
+          timestamp: number;
+        };
+        this.observerManager.notifySubAgentSpawn({
+          parentThreadId: threadId,
+          subAgentId: spawnEvent.subAgentId,
+          agentType: spawnEvent.agentType,
+          task: spawnEvent.task,
+          timestamp: spawnEvent.timestamp,
+          // Use the NEW state ID (result.state.id) as the parent for visualization
+          // The spawn arrow should connect from this new state (which contains the spawn chunk)
+          parentStateId: result.state.id,
+        });
+      }
 
       // Handle auto-compaction based on mode
       this.handleAutoCompaction(threadId, result.state, steppingMode);

@@ -1,4 +1,4 @@
-import {
+import type {
   MemoryThread,
   QueuedEvent,
   LLMInteraction,
@@ -749,5 +749,54 @@ export class MemoryManager {
     llmInteraction: LLMInteraction,
   ): Promise<void> {
     return this.threadManager.updateStepLLMInteraction(stepId, llmInteraction);
+  }
+
+  // ============ Parent-Child Thread Operations ============
+
+  /**
+   * Add a child thread ID to a parent thread
+   * Used when spawning subagents to track parent-child relationships
+   * @param parentThreadId - The parent thread ID
+   * @param childThreadId - The child thread ID to add
+   */
+  async addChildThread(
+    parentThreadId: string,
+    childThreadId: string,
+  ): Promise<void> {
+    return this.threadManager.addChildThread(parentThreadId, childThreadId);
+  }
+
+  /**
+   * Get all child threads for a parent thread
+   * @param parentThreadId - The parent thread ID
+   * @returns Array of child threads
+   */
+  async getChildThreads(
+    parentThreadId: string,
+  ): Promise<Readonly<MemoryThread>[]> {
+    return this.threadManager.getChildThreads(parentThreadId);
+  }
+
+  /**
+   * Get the parent thread for a child thread
+   * @param childThreadId - The child thread ID
+   * @returns The parent thread or null if not found or no parent
+   */
+  async getParentThread(
+    childThreadId: string,
+  ): Promise<Readonly<MemoryThread> | null> {
+    return this.threadManager.getParentThread(childThreadId);
+  }
+
+  /**
+   * Remove a child thread ID from a parent thread
+   * @param parentThreadId - The parent thread ID
+   * @param childThreadId - The child thread ID to remove
+   */
+  async removeChildThread(
+    parentThreadId: string,
+    childThreadId: string,
+  ): Promise<void> {
+    return this.threadManager.removeChildThread(parentThreadId, childThreadId);
   }
 }

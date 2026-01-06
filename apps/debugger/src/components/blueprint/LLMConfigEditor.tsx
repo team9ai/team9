@@ -16,6 +16,7 @@ const MODEL_GROUPS: ModelGroup[] = [
     label: "Anthropic (Claude)",
     models: [
       { value: "anthropic/claude-opus-4.5", label: "Claude Opus 4.5" },
+      { value: "anthropic/claude-sonnet-4.5", label: "Claude Sonnet 4.5" },
       { value: "anthropic/claude-sonnet-4", label: "Claude Sonnet 4" },
       { value: "anthropic/claude-haiku-4.5", label: "Claude Haiku 4.5" },
       { value: "anthropic/claude-3.7-sonnet", label: "Claude 3.7 Sonnet" },

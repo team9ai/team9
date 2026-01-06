@@ -421,6 +421,8 @@ export interface StateSummary {
   provenance?: {
     eventType?: string;
     source?: string;
+    /** Additional context like subAgentId */
+    context?: Record<string, unknown>;
   };
   /** Previous state ID */
   previousStateId?: string;
@@ -479,6 +481,8 @@ export interface SubAgentSpawnEvent {
   subAgentId: string;
   agentType: string;
   task: string;
+  /** The state ID that triggered the spawn (for visualization) */
+  parentStateId?: string;
 }
 
 /**

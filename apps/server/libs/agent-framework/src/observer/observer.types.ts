@@ -106,6 +106,8 @@ export interface SubAgentSpawnInfo {
   agentType: string;
   task: string;
   timestamp: number;
+  /** The state ID that triggered the spawn (for visualization) */
+  parentStateId?: string;
 }
 
 /**

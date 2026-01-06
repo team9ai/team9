@@ -38,9 +38,11 @@ export class SSEBroadcaster {
       onStateChange: (event) => {
         this.broadcast(agentId, 'state:change', event);
       },
-      onSubAgentSpawn: (event) => {
-        this.broadcast(agentId, 'subagent:spawn', event);
-      },
+      // Note: subagent:spawn is broadcast from agent.service.ts onSubagentCreated callback
+      // to include both parentStateId and childThreadId. Don't duplicate here.
+      // onSubAgentSpawn: (event) => {
+      //   this.broadcast(agentId, 'subagent:spawn', event);
+      // },
       onSubAgentResult: (event) => {
         this.broadcast(agentId, 'subagent:result', event);
       },

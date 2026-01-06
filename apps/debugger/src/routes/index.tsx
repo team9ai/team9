@@ -138,7 +138,8 @@ function AgentCard({
 
       <div className="mt-4 flex gap-2">
         <Link
-          to={`/agent/${agent.id}`}
+          to="/agent/$agentId"
+          params={{ agentId: agent.id }}
           className="flex-1 rounded-md bg-primary px-3 py-1.5 text-center text-sm font-medium text-primary-foreground hover:bg-primary/90"
         >
           Debug

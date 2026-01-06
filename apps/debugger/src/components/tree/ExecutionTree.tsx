@@ -1,13 +1,137 @@
+import { useCallback, useEffect, useMemo } from "react";
+import {
+  ReactFlow,
+  Background,
+  Controls,
+  MiniMap,
+  useNodesState,
+  useEdgesState,
+  useReactFlow,
+  ReactFlowProvider,
+  type Node,
+  type Edge,
+  type NodeMouseHandler,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+
 import { useDebugStore } from "@/stores/useDebugStore";
 import type { StateSummary } from "@/types";
-import { GitBranch, Circle, ArrowRight } from "lucide-react";
+import { nodeTypes } from "./nodes";
+import { buildTreeLayout, type SubAgentInfo } from "./utils/layout";
+import { Circle, ArrowRight, Bot, GitBranch } from "lucide-react";
+import type { StateNodeData } from "./nodes/StateNode";
+import type { SubAgentNodeData } from "./nodes/SubAgentNode";
+
+// Stable empty array reference to prevent unnecessary re-renders
+const EMPTY_SUBAGENTS: SubAgentInfo[] = [];
 
 interface ExecutionTreeProps {
   states: StateSummary[];
 }
 
-export function ExecutionTree({ states }: ExecutionTreeProps) {
+/**
+ * ExecutionTree - Visualizes agent execution states using React Flow
+ *
+ * Features:
+ * - Tree/branch visualization for fork operations
+ * - SubAgent visualization (displayed below main agent)
+ * - Interactive node selection
+ * - Pan/zoom navigation
+ * - Fork action on hover
+ */
+function ExecutionTreeInner({ states }: ExecutionTreeProps) {
   const { selectedStateId, selectState, forkFromState } = useDebugStore();
+  const { fitView } = useReactFlow();
+
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+
+  // Handle node click via React Flow's onNodeClick
+  const onNodeClick: NodeMouseHandler = useCallback(
+    (_event, node) => {
+      // Both StateNodeData and SubAgentNodeData have state.id
+      const data = node.data as StateNodeData | SubAgentNodeData;
+      if (data.state?.id) {
+        // For SubAgentNode, pass the subAgentId for proper API call
+        const subAgentId =
+          node.type === "subAgentNode"
+            ? (data as SubAgentNodeData).subAgentId
+            : undefined;
+        selectState(data.state.id, subAgentId);
+      }
+    },
+    [selectState],
+  );
+
+  // Callbacks for node interactions (used in node data)
+  const handleSelect = useCallback(
+    (stateId: string, subAgentId?: string) => {
+      selectState(stateId, subAgentId);
+    },
+    [selectState],
+  );
+
+  const handleFork = useCallback(
+    (stateId: string) => {
+      forkFromState(stateId);
+    },
+    [forkFromState],
+  );
+
+  // Get SubAgent info from store
+  // Subscribe to a serialized version of subAgents to detect meaningful changes
+  const subAgentsKey = useDebugStore((state) => {
+    if (state.subAgents.size === 0) return "";
+    // Create a key that changes when subagent content changes
+    const entries = Array.from(state.subAgents.values()).map(
+      (info) =>
+        `${info.id}:${info.states.length}:${info.isCompleted}:${info.resultStateId ?? ""}`,
+    );
+    return entries.join("|");
+  });
+
+  // Memoize subAgents array based on the serialized key
+  const subAgents: SubAgentInfo[] = useMemo(() => {
+    if (subAgentsKey === "") return EMPTY_SUBAGENTS;
+    return Array.from(useDebugStore.getState().subAgents.values());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subAgentsKey]);
+
+  // Build layout when states change
+  // Note: We use refs for callbacks to avoid unnecessary re-renders
+  useEffect(() => {
+    const { nodes: newNodes, edges: newEdges } = buildTreeLayout(
+      states,
+      subAgents,
+      selectedStateId,
+      {
+        onSelect: handleSelect,
+        onFork: handleFork,
+      },
+    );
+
+    setNodes(newNodes);
+    setEdges(newEdges);
+  }, [
+    states,
+    subAgents,
+    selectedStateId,
+    handleSelect,
+    handleFork,
+    setNodes,
+    setEdges,
+  ]);
+
+  // Fit view when nodes change
+  useEffect(() => {
+    if (nodes.length > 0) {
+      // Small delay to ensure nodes are rendered
+      const timer = setTimeout(() => {
+        fitView({ padding: 0.2, duration: 300 });
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [nodes.length, fitView]);
 
   if (states.length === 0) {
     return (
@@ -18,105 +142,77 @@ export function ExecutionTree({ states }: ExecutionTreeProps) {
   }
 
   return (
-    <div className="relative">
-      {/* Horizontal scrollable tree container */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-4">
-        {states.map((state, index) => (
-          <div key={state.id} className="flex items-center">
-            {/* State node */}
-            <StateNode
-              state={state}
-              isSelected={state.id === selectedStateId}
-              onClick={() => selectState(state.id)}
-              onFork={() => forkFromState(state.id)}
-            />
-
-            {/* Connector to next node */}
-            {index < states.length - 1 && (
-              <div className="flex items-center px-1">
-                <div className="h-0.5 w-8 bg-border" />
-                <ArrowRight className="h-3 w-3 text-muted-foreground" />
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+    <div className="relative h-full min-h-[300px]">
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onNodeClick={onNodeClick}
+        nodeTypes={nodeTypes}
+        fitView
+        fitViewOptions={{ padding: 0.2 }}
+        minZoom={0.1}
+        maxZoom={2}
+        defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+        nodesDraggable={false}
+        nodesConnectable={false}
+        elementsSelectable={false}
+        proOptions={{ hideAttribution: true }}
+      >
+        <Background color="hsl(var(--muted-foreground))" gap={20} size={1} />
+        <Controls showInteractive={false} />
+        <MiniMap
+          nodeColor={(node) => {
+            if (node.type === "subAgentNode") {
+              return "hsl(var(--blue-400, 96 165 250))";
+            }
+            if (node.data?.isSelected) {
+              return "hsl(var(--primary))";
+            }
+            return "hsl(var(--muted-foreground))";
+          }}
+          maskColor="hsl(var(--background) / 0.8)"
+          className="!bg-background"
+          pannable
+          zoomable
+        />
+      </ReactFlow>
 
       {/* Legend */}
-      <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground">
+      <div className="absolute bottom-4 left-4 flex items-center gap-4 text-xs text-muted-foreground bg-background/80 backdrop-blur-sm px-3 py-2 rounded-md border">
         <div className="flex items-center gap-1">
           <Circle className="h-3 w-3 fill-primary stroke-primary" />
-          <span>Current</span>
+          <span>Selected</span>
         </div>
         <div className="flex items-center gap-1">
           <Circle className="h-3 w-3 stroke-muted-foreground" />
-          <span>History</span>
+          <span>State</span>
         </div>
         <div className="flex items-center gap-1">
           <ArrowRight className="h-3 w-3" />
-          <span>Event Trigger</span>
+          <span>Transition</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <GitBranch className="h-3 w-3" />
+          <span>Fork</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Bot className="h-3 w-3 text-blue-500" />
+          <span>SubAgent</span>
         </div>
       </div>
     </div>
   );
 }
 
-interface StateNodeProps {
-  state: StateSummary;
-  isSelected: boolean;
-  onClick: () => void;
-  onFork: () => void;
-}
-
-function StateNode({ state, isSelected, onClick, onFork }: StateNodeProps) {
+/**
+ * ExecutionTree with ReactFlowProvider wrapper
+ */
+export function ExecutionTree(props: ExecutionTreeProps) {
   return (
-    <div className="group relative">
-      {/* Node */}
-      <button
-        onClick={onClick}
-        className={`
-          flex flex-col items-center justify-center
-          h-16 w-24 rounded-lg border-2 transition-colors
-          ${
-            isSelected
-              ? "border-primary bg-primary/10"
-              : "border-border bg-card hover:border-primary/50"
-          }
-        `}
-      >
-        <span className="text-xs font-medium">v{state.version}</span>
-        <span className="text-[10px] text-muted-foreground">
-          {state.chunkCount} chunks
-        </span>
-      </button>
-
-      {/* Fork button (shown on hover) */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onFork();
-        }}
-        className="
-          absolute -right-1 -top-1 hidden group-hover:flex
-          h-5 w-5 items-center justify-center
-          rounded-full border bg-background shadow-sm
-          hover:bg-primary hover:text-primary-foreground
-        "
-        title="Fork from this state"
-      >
-        <GitBranch className="h-3 w-3" />
-      </button>
-
-      {/* Timestamp tooltip */}
-      <div
-        className="
-        absolute left-1/2 top-full z-10 mt-1 hidden -translate-x-1/2
-        whitespace-nowrap rounded bg-popover px-2 py-1 text-[10px]
-        shadow-md group-hover:block
-      "
-      >
-        {new Date(state.createdAt).toLocaleString()}
-      </div>
-    </div>
+    <ReactFlowProvider>
+      <ExecutionTreeInner {...props} />
+    </ReactFlowProvider>
   );
 }

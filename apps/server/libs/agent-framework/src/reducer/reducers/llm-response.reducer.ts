@@ -237,6 +237,7 @@ export class LLMSkillCallReducer implements EventReducer<LLMSkillCallEvent> {
 
 /**
  * Reducer for LLM_SUBAGENT_SPAWN events
+ * Creates a child entry in WORKING_FLOW to indicate subagent has been spawned
  */
 export class LLMSubAgentSpawnReducer implements EventReducer<LLMSubAgentSpawnEvent> {
   readonly eventTypes = [EventType.LLM_SUBAGENT_SPAWN];
@@ -245,36 +246,77 @@ export class LLMSubAgentSpawnReducer implements EventReducer<LLMSubAgentSpawnEve
     return event.type === EventType.LLM_SUBAGENT_SPAWN;
   }
 
-  reduce(_state: MemoryState, event: LLMSubAgentSpawnEvent): ReducerResult {
-    const chunk = createChunk({
-      type: ChunkType.DELEGATION,
-      content: {
-        type: ChunkContentType.TEXT,
-        action: 'spawn_subagent',
-        subAgentId: event.subAgentId,
-        agentType: event.agentType,
-        task: event.task,
-        config: event.config,
-        status: 'pending',
-      },
-      retentionStrategy: ChunkRetentionStrategy.CRITICAL,
-      custom: {
-        eventType: event.type,
-        timestamp: event.timestamp,
-      },
-    });
-
-    const addOperation = createAddOperation(chunk.id);
-
-    return {
-      operations: [addOperation],
-      chunks: [chunk],
+  reduce(state: MemoryState, event: LLMSubAgentSpawnEvent): ReducerResult {
+    const childContent = {
+      type: ChunkContentType.TEXT,
+      text: `Spawned subagent "${event.agentType}" with task: ${event.task}`,
+      subAgentId: event.subAgentId,
+      agentType: event.agentType,
+      task: event.task,
+      config: event.config,
+      status: 'running',
     };
+
+    const existingWorkingFlow = findWorkingFlowChunk(state);
+
+    if (existingWorkingFlow) {
+      // Add as a child to existing WORKING_FLOW chunk
+      const addChildOp = createAddChildOperation(existingWorkingFlow.id, {
+        id: generateChildId(),
+        subType: WorkingFlowSubType.SUBAGENT_SPAWN,
+        content: childContent,
+        createdAt: Date.now(),
+        custom: {
+          eventType: event.type,
+          timestamp: event.timestamp,
+        },
+      });
+
+      return {
+        operations: [addChildOp],
+        chunks: [],
+      };
+    } else {
+      // Create a new WORKING_FLOW container chunk with this spawn as first child
+      const chunk = createChunk({
+        type: ChunkType.WORKING_FLOW,
+        content: {
+          type: ChunkContentType.TEXT,
+          text: '',
+        },
+        retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
+        custom: {},
+      });
+
+      const chunkWithChild: MemoryChunk = {
+        ...chunk,
+        children: [
+          {
+            id: generateChildId(),
+            subType: WorkingFlowSubType.SUBAGENT_SPAWN,
+            content: childContent,
+            createdAt: Date.now(),
+            custom: {
+              eventType: event.type,
+              timestamp: event.timestamp,
+            },
+          },
+        ],
+      };
+
+      const addOperation = createAddOperation(chunkWithChild.id);
+
+      return {
+        operations: [addOperation],
+        chunks: [chunkWithChild],
+      };
+    }
   }
 }
 
 /**
  * Reducer for LLM_SUBAGENT_MESSAGE events
+ * Creates a child entry in WORKING_FLOW for messages to subagent
  */
 export class LLMSubAgentMessageReducer implements EventReducer<LLMSubAgentMessageEvent> {
   readonly eventTypes = [EventType.LLM_SUBAGENT_MESSAGE];
@@ -283,28 +325,66 @@ export class LLMSubAgentMessageReducer implements EventReducer<LLMSubAgentMessag
     return event.type === EventType.LLM_SUBAGENT_MESSAGE;
   }
 
-  reduce(_state: MemoryState, event: LLMSubAgentMessageEvent): ReducerResult {
-    const chunk = createChunk({
-      type: ChunkType.DELEGATION,
-      content: {
-        type: ChunkContentType.TEXT,
-        action: 'message_subagent',
-        subAgentId: event.subAgentId,
-        text: event.content,
-      },
-      retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
-      custom: {
-        eventType: event.type,
-        timestamp: event.timestamp,
-      },
-    });
-
-    const addOperation = createAddOperation(chunk.id);
-
-    return {
-      operations: [addOperation],
-      chunks: [chunk],
+  reduce(state: MemoryState, event: LLMSubAgentMessageEvent): ReducerResult {
+    const childContent = {
+      type: ChunkContentType.TEXT,
+      text: `Message to subagent: ${event.content}`,
+      action: 'message_subagent',
+      subAgentId: event.subAgentId,
     };
+
+    const existingWorkingFlow = findWorkingFlowChunk(state);
+
+    if (existingWorkingFlow) {
+      const addChildOp = createAddChildOperation(existingWorkingFlow.id, {
+        id: generateChildId(),
+        subType: WorkingFlowSubType.AGENT_ACTION,
+        content: childContent,
+        createdAt: Date.now(),
+        custom: {
+          eventType: event.type,
+          timestamp: event.timestamp,
+        },
+      });
+
+      return {
+        operations: [addChildOp],
+        chunks: [],
+      };
+    } else {
+      const chunk = createChunk({
+        type: ChunkType.WORKING_FLOW,
+        content: {
+          type: ChunkContentType.TEXT,
+          text: '',
+        },
+        retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
+        custom: {},
+      });
+
+      const chunkWithChild: MemoryChunk = {
+        ...chunk,
+        children: [
+          {
+            id: generateChildId(),
+            subType: WorkingFlowSubType.AGENT_ACTION,
+            content: childContent,
+            createdAt: Date.now(),
+            custom: {
+              eventType: event.type,
+              timestamp: event.timestamp,
+            },
+          },
+        ],
+      };
+
+      const addOperation = createAddOperation(chunkWithChild.id);
+
+      return {
+        operations: [addOperation],
+        chunks: [chunkWithChild],
+      };
+    }
   }
 }
 

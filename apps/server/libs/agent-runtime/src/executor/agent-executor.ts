@@ -14,12 +14,18 @@ import type {
   CustomToolConfig,
   IToolRegistry,
   LLMLoopExecutionResult,
+  IToolCallHandler,
+  LLMToolDefinition,
 } from '@team9/agent-framework';
 import {
   LLMLoopExecutor,
   createDefaultToolRegistry,
 } from '@team9/agent-framework';
 import { InvokeToolHandler } from './invoke-tool.handler.js';
+import {
+  SpawnSubagentHandler,
+  type SpawnSubagentHandlerConfig,
+} from './spawn-subagent.handler.js';
 
 /**
  * Agent Executor Configuration
@@ -37,6 +43,8 @@ export interface AgentExecutorConfig {
   customTools?: CustomToolConfig[];
   /** Complete tool registry instance (overrides tools and customTools) */
   toolRegistry?: IToolRegistry;
+  /** Configuration for spawn_subagent handler (enables subagent support) */
+  spawnSubagentConfig?: SpawnSubagentHandlerConfig;
 }
 
 /**
@@ -80,6 +88,7 @@ export class AgentExecutor {
   private loopExecutor: LLMLoopExecutor;
   private _toolRegistry: IToolRegistry;
   private invokeToolHandler: InvokeToolHandler;
+  private spawnSubagentHandler?: SpawnSubagentHandler;
 
   constructor(
     memoryManager: MemoryManager,
@@ -99,12 +108,34 @@ export class AgentExecutor {
     // Create the invoke_tool handler
     this.invokeToolHandler = new InvokeToolHandler(this._toolRegistry);
 
-    // Create the LLM loop executor with our handler
+    // Build tool call handlers list
+    const toolCallHandlers: IToolCallHandler[] = [this.invokeToolHandler];
+
+    // Create spawn_subagent handler if config is provided
+    if (config.spawnSubagentConfig) {
+      this.spawnSubagentHandler = new SpawnSubagentHandler(
+        config.spawnSubagentConfig,
+      );
+      toolCallHandlers.push(this.spawnSubagentHandler);
+      console.log('[AgentExecutor] SpawnSubagentHandler enabled');
+    }
+
+    // Build custom tool definitions for LLM
+    const customToolDefinitions: LLMToolDefinition[] = (
+      config.customTools ?? []
+    ).map((t) => ({
+      name: t.definition.name,
+      description: t.definition.description,
+      parameters: t.definition.parameters,
+    }));
+
+    // Create the LLM loop executor with our handlers
     this.loopExecutor = new LLMLoopExecutor(memoryManager, llmAdapter, {
       maxTurns: this.config.maxTurns,
       timeout: this.config.timeout,
       tools: this.config.tools,
-      toolCallHandlers: [this.invokeToolHandler],
+      toolCallHandlers,
+      customToolDefinitions,
     });
 
     console.log(
@@ -154,6 +185,14 @@ export class AgentExecutor {
    */
   get toolRegistry(): IToolRegistry {
     return this._toolRegistry;
+  }
+
+  /**
+   * Get the spawn subagent handler for triggering subagent execution
+   * Returns undefined if subagent support is not configured
+   */
+  getSpawnSubagentHandler(): SpawnSubagentHandler | undefined {
+    return this.spawnSubagentHandler;
   }
 
   /**

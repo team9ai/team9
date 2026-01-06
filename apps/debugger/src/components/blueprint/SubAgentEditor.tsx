@@ -268,7 +268,6 @@ export function SubAgentEditor({
 }
 
 function ComponentItem({
-  index,
   component,
   onUpdate,
   onRemove,
@@ -356,7 +355,6 @@ function ComponentItem({
 }
 
 function ChunkItem({
-  index,
   chunk,
   onUpdate,
   onRemove,

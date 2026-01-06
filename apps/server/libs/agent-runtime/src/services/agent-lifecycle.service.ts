@@ -20,6 +20,11 @@ import type {
 } from '@team9/agent-framework';
 import type { AgentInstance, AgentRuntimeState } from '../types/index.js';
 import { AgentExecutor } from '../executor/agent-executor.js';
+import type {
+  SubagentCompleteCallback,
+  SubagentStepCallback,
+  SubagentCreatedCallback,
+} from '../executor/spawn-subagent.handler.js';
 import { agents } from '../db/index.js';
 
 /**
@@ -40,6 +45,12 @@ export interface AgentLifecycleServiceConfig {
   db?: PostgresJsDatabase<Record<string, never>> | null;
   externalTools?: CustomToolConfig[];
   onAgentInitialized?: OnAgentInitialized;
+  /** Callback when a subagent completes */
+  onSubagentComplete?: SubagentCompleteCallback;
+  /** Callback for subagent step events */
+  onSubagentStep?: SubagentStepCallback;
+  /** Callback when a subagent is created (for setting up observers) */
+  onSubagentCreated?: SubagentCreatedCallback;
 }
 
 /**
@@ -164,6 +175,14 @@ export class AgentLifecycleService {
       ? { ...blueprint.llmConfig, ...modelOverride }
       : blueprint.llmConfig;
 
+    // Check if blueprint has subAgents - if so, automatically include spawn_subagent tool
+    const hasSubAgents =
+      blueprint.subAgents && Object.keys(blueprint.subAgents).length > 0;
+    let agentTools = blueprint.tools ?? [];
+    if (hasSubAgents && !agentTools.includes('spawn_subagent')) {
+      agentTools = [...agentTools, 'spawn_subagent'];
+    }
+
     // Create memory manager for this agent
     const memoryManager = this.config.createMemoryManager(llmConfig);
     this.state.memoryManagers.set(id, memoryManager);
@@ -174,17 +193,45 @@ export class AgentLifecycleService {
 
     // Create blueprint loader and create thread
     const loader = new (await this.getBlueprintLoader())(memoryManager);
-    const { thread } = await loader.createThreadFromBlueprint(blueprint);
+    const { thread, tools: componentTools } =
+      await loader.createThreadFromBlueprint(blueprint);
 
     // Notify for observer setup
     this.config.onAgentInitialized?.(id, memoryManager);
 
+    // Merge external tools with component tools
+    const allCustomTools: CustomToolConfig[] = [
+      ...(this.config.externalTools ?? []),
+      ...componentTools.map((t) => ({
+        definition: t.definition,
+        executor: t.executor,
+        category: t.category,
+      })),
+    ];
+
     // Create agent executor for LLM response generation
     if (this.config.getLLMAdapter) {
       const llmAdapter = this.config.getLLMAdapter();
+
       const executor = new AgentExecutor(memoryManager, llmAdapter, {
-        tools: blueprint.tools ?? [],
-        customTools: this.config.externalTools ?? [],
+        tools: agentTools,
+        customTools: allCustomTools,
+        // Configure subagent support if blueprint has subAgents
+        spawnSubagentConfig: hasSubAgents
+          ? {
+              parentBlueprint: blueprint,
+              parentAgentId: id,
+              createMemoryManager: async (subBlueprint) => {
+                return this.config.createMemoryManager(subBlueprint.llmConfig);
+              },
+              createLLMAdapter: () => {
+                return this.config.getLLMAdapter!();
+              },
+              onSubagentComplete: this.config.onSubagentComplete,
+              onSubagentStep: this.config.onSubagentStep,
+              onSubagentCreated: this.config.onSubagentCreated,
+            }
+          : undefined,
       });
       this.state.executors.set(id, executor);
     }
@@ -206,7 +253,7 @@ export class AgentLifecycleService {
       executionMode,
       llmConfig: blueprint.llmConfig,
       modelOverride,
-      tools: blueprint.tools ?? [],
+      tools: agentTools,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       subAgentIds: [],

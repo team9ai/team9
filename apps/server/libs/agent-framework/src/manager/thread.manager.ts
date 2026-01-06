@@ -28,6 +28,10 @@ export interface CreateThreadOptions {
   initialChunks?: MemoryChunk[];
   /** Custom metadata for the thread */
   custom?: Record<string, unknown>;
+  /** Parent thread ID for subagent threads */
+  parentThreadId?: string;
+  /** Blueprint key for subagent threads */
+  blueprintKey?: string;
 }
 
 /**
@@ -79,6 +83,8 @@ export class ThreadManager {
     // Create the thread
     const thread = createThread({
       custom: options?.custom,
+      parentThreadId: options?.parentThreadId,
+      blueprintKey: options?.blueprintKey,
     });
 
     // Create initial state with optional chunks
@@ -651,5 +657,105 @@ export class ThreadManager {
     };
 
     await this.storage.updateStep(updatedStep);
+  }
+
+  // ============ Parent-Child Thread Operations ============
+
+  /**
+   * Add a child thread ID to a parent thread
+   * @param parentThreadId - The parent thread ID
+   * @param childThreadId - The child thread ID to add
+   */
+  async addChildThread(
+    parentThreadId: string,
+    childThreadId: string,
+  ): Promise<void> {
+    const thread = await this.storage.getThread(parentThreadId);
+    if (!thread) {
+      throw new Error(`Parent thread not found: ${parentThreadId}`);
+    }
+
+    const currentChildren = thread.childThreadIds ?? [];
+    if (currentChildren.includes(childThreadId)) {
+      return; // Already added
+    }
+
+    const updatedThread = updateThread(thread, {
+      childThreadIds: [...currentChildren, childThreadId],
+    });
+
+    await this.storage.updateThread(updatedThread);
+  }
+
+  /**
+   * Get all child threads for a parent thread
+   * @param parentThreadId - The parent thread ID
+   * @returns Array of child threads
+   */
+  async getChildThreads(
+    parentThreadId: string,
+  ): Promise<Readonly<MemoryThread>[]> {
+    const thread = await this.storage.getThread(parentThreadId);
+    if (!thread) {
+      return [];
+    }
+
+    const childIds = thread.childThreadIds ?? [];
+    const children: Readonly<MemoryThread>[] = [];
+
+    for (const childId of childIds) {
+      const child = await this.storage.getThread(childId);
+      if (child) {
+        children.push(child);
+      }
+    }
+
+    return children;
+  }
+
+  /**
+   * Get the parent thread for a child thread
+   * @param childThreadId - The child thread ID
+   * @returns The parent thread or null if not found or no parent
+   */
+  async getParentThread(
+    childThreadId: string,
+  ): Promise<Readonly<MemoryThread> | null> {
+    const thread = await this.storage.getThread(childThreadId);
+    if (!thread || !thread.parentThreadId) {
+      return null;
+    }
+
+    return this.storage.getThread(thread.parentThreadId);
+  }
+
+  /**
+   * Remove a child thread ID from a parent thread
+   * @param parentThreadId - The parent thread ID
+   * @param childThreadId - The child thread ID to remove
+   */
+  async removeChildThread(
+    parentThreadId: string,
+    childThreadId: string,
+  ): Promise<void> {
+    const thread = await this.storage.getThread(parentThreadId);
+    if (!thread) {
+      return;
+    }
+
+    const currentChildren = thread.childThreadIds ?? [];
+    const updatedChildren = currentChildren.filter(
+      (id) => id !== childThreadId,
+    );
+
+    if (updatedChildren.length === currentChildren.length) {
+      return; // Child not found
+    }
+
+    const updatedThread = updateThread(thread, {
+      childThreadIds: updatedChildren,
+    });
+
+    await this.storage.updateThread(updatedThread);
   }
 }

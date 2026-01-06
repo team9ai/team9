@@ -44,6 +44,9 @@ export function createThread(
     initialStateId: undefined,
     metadata,
     eventQueue: [],
+    parentThreadId: input?.parentThreadId,
+    childThreadIds: [],
+    blueprintKey: input?.blueprintKey,
   };
 
   return deepFreeze(thread);
@@ -66,6 +69,8 @@ export function updateThread(
     currentStepId?: string | undefined;
     /** Whether agent needs to generate a response */
     needsResponse?: boolean;
+    /** Child thread IDs for subagent tracking */
+    childThreadIds?: string[];
   },
 ): Readonly<MemoryThread> {
   const metadata: ThreadMetadata = {
@@ -90,6 +95,10 @@ export function updateThread(
       'needsResponse' in updates
         ? updates.needsResponse
         : original.needsResponse,
+    // Preserve parent-child relationships
+    parentThreadId: original.parentThreadId,
+    childThreadIds: updates.childThreadIds ?? original.childThreadIds ?? [],
+    blueprintKey: original.blueprintKey,
   };
 
   return deepFreeze(thread);

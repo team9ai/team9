@@ -57,3 +57,20 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* React Flow theme overrides */
+.react-flow__controls {
+  @apply bg-card border border-border shadow-md;
+}
+
+.react-flow__controls-button {
+  @apply bg-card border-border fill-foreground hover:bg-muted;
+}
+
+.react-flow__minimap {
+  @apply bg-card border border-border;
+}
+
+.react-flow__background {
+  @apply bg-background;
+}

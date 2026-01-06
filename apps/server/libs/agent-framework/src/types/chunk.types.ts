@@ -54,6 +54,12 @@ export enum WorkingFlowSubType {
   AGENT_ACTION = 'AGENT_ACTION',
   /** Response to Agent Action */
   ACTION_RESPONSE = 'ACTION_RESPONSE',
+  /** Subagent spawn notification */
+  SUBAGENT_SPAWN = 'SUBAGENT_SPAWN',
+  /** Subagent result */
+  SUBAGENT_RESULT = 'SUBAGENT_RESULT',
+  /** Message from parent/manager agent */
+  PARENT_MESSAGE = 'PARENT_MESSAGE',
 }
 
 /**

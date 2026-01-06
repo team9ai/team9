@@ -268,8 +268,10 @@ export interface SkillResultEvent extends BaseEvent {
 
 export interface SubAgentResultEvent extends BaseEvent {
   type: EventType.SUBAGENT_RESULT;
-  /** SubAgent ID */
+  /** SubAgent ID (the subagent key, not the thread ID) */
   subAgentId: string;
+  /** Child thread ID (the actual thread ID of the subagent) */
+  childThreadId?: string;
   /** Result content */
   result: unknown;
   /** Whether task was successful */

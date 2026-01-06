@@ -48,6 +48,8 @@ function serializeStateSummary(state: MemoryState, version: number) {
       ? {
           eventType: state.metadata.provenance.eventType,
           source: state.metadata.provenance.source,
+          // Include context for additional info like subAgentId
+          context: state.metadata.provenance.context,
         }
       : undefined,
     previousStateId: state.metadata?.previousStateId,

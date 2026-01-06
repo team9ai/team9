@@ -6,7 +6,7 @@
  */
 
 import type { MemoryManager } from '../manager/memory.manager.js';
-import type { LLMMessage } from '../llm/llm.types.js';
+import type { LLMMessage, LLMToolDefinition } from '../llm/llm.types.js';
 import type { ContextBuilder } from '../context/context-builder.js';
 import type { AgentEvent } from '../types/event.types.js';
 import type { LLMInteraction } from '../types/thread.types.js';
@@ -47,6 +47,7 @@ export class TurnExecutor {
     private memoryManager: MemoryManager,
     private contextBuilder: ContextBuilder,
     private llmCaller: LLMCaller,
+    private toolDefinitions: LLMToolDefinition[],
     private toolCallHandlers: IToolCallHandler[],
   ) {}
 
@@ -89,7 +90,10 @@ export class TurnExecutor {
 
     // Call LLM with tools
     const { response: llmResponse, interaction } =
-      await this.llmCaller.callWithTimeout(messages, cancellation);
+      await this.llmCaller.callWithTimeout(
+        { messages, toolDefinitions: this.toolDefinitions },
+        { cancellation },
+      );
 
     // Check for cancellation after LLM returns
     // If cancelled, discard the response and don't update state

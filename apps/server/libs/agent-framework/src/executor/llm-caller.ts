@@ -25,12 +25,29 @@ export interface LLMCallResult {
 }
 
 /**
+ * Request parameters for LLM call
+ */
+export interface LLMCallRequest {
+  /** Messages to send to the LLM */
+  messages: LLMMessage[];
+  /** Tool definitions available for this request */
+  toolDefinitions?: LLMToolDefinition[];
+}
+
+/**
+ * Options for LLM call
+ */
+export interface LLMCallOptions {
+  /** Cancellation token for aborting the request */
+  cancellation?: CancellationTokenSource | null;
+}
+
+/**
  * LLMCaller handles LLM API calls with timeout and cancellation support
  */
 export class LLMCaller {
   constructor(
     private llmAdapter: ILLMAdapter,
-    private toolDefinitions: LLMToolDefinition[],
     private timeout: number,
   ) {}
 
@@ -40,9 +57,12 @@ export class LLMCaller {
    * Also captures the LLM interaction data for debugging
    */
   async callWithTimeout(
-    messages: LLMMessage[],
-    cancellation: CancellationTokenSource | null,
+    request: LLMCallRequest,
+    options: LLMCallOptions = {},
   ): Promise<LLMCallResult> {
+    const { messages, toolDefinitions } = request;
+    const { cancellation } = options;
+
     // Create timeout abort controller
     const timeoutController = new AbortController();
     const timeoutId = setTimeout(
@@ -61,22 +81,26 @@ export class LLMCaller {
     }
     const combinedSignal = combinedController.signal;
 
+    // Prepare tools for the request
+    const tools =
+      toolDefinitions && toolDefinitions.length > 0
+        ? toolDefinitions
+        : undefined;
+
     // Capture LLM interaction start
     const startedAt = Date.now();
     const interaction: LLMInteraction = {
       startedAt,
       request: {
         messages,
-        tools:
-          this.toolDefinitions.length > 0 ? this.toolDefinitions : undefined,
+        tools,
       },
     };
 
     try {
       const response = await this.llmAdapter.complete({
         messages,
-        tools:
-          this.toolDefinitions.length > 0 ? this.toolDefinitions : undefined,
+        tools,
         signal: combinedSignal,
       });
 
@@ -126,8 +150,7 @@ export class LLMCaller {
  */
 export function createLLMCaller(
   llmAdapter: ILLMAdapter,
-  toolDefinitions: LLMToolDefinition[],
   timeout: number,
 ): LLMCaller {
-  return new LLMCaller(llmAdapter, toolDefinitions, timeout);
+  return new LLMCaller(llmAdapter, timeout);
 }
