@@ -1,10 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  OnModuleInit,
-  OnModuleDestroy,
-  Inject,
-} from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import {
   DATABASE_CONNECTION,
   eq,
@@ -12,122 +6,119 @@ import {
   sql,
   inArray,
   isNull,
+  lt,
 } from '@team9/database';
 import type { PostgresJsDatabase } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
 import { RabbitMQEventService } from '@team9/rabbitmq';
 import type { OutboxEventPayload, DeviceSession } from '@team9/shared';
-// MessageRouterService no longer needed in hybrid mode
-// Gateway handles real-time broadcast via Socket.io Redis Adapter
 
 const REDIS_KEYS = {
   USER_MULTI_SESSION: (userId: string) => `im:session:user:${userId}`,
 };
 
 /**
- * Outbox Processor Service - FALLBACK ONLY
+ * Outbox Processor Service - AUDIT & MANUAL RECOVERY ONLY
  *
- * This is a LOW-FREQUENCY fallback processor for guaranteed delivery.
- * Primary path is event-driven via PostBroadcastService (RabbitMQ).
+ * NO POLLING - Fully event-driven architecture via RabbitMQ.
  *
- * This processor only handles:
- * - Events that failed to be processed by PostBroadcastService
- * - Events where RabbitMQ message was lost
- * - Retry of failed operations
+ * The Outbox table now serves as:
+ * 1. Audit log for all message sends
+ * 2. Manual recovery tool for debugging/operations
+ * 3. Historical record for troubleshooting
  *
- * HYBRID MODE Architecture:
- * 1. Gateway broadcasts to online users immediately (~10ms)
+ * EVENT-DRIVEN Architecture:
+ * 1. Gateway broadcasts to online users immediately via Socket.io Redis Adapter (~10ms)
  * 2. Gateway sends post_broadcast event to RabbitMQ
  * 3. PostBroadcastService processes offline messages + unread counts (~50ms)
- * 4. OutboxProcessor polls every 30s as fallback for missed events
+ * 4. PostBroadcastService marks Outbox as completed
+ *
+ * If RabbitMQ message is lost (rare), use manual recovery methods:
+ * - processStaleEvents() - manually trigger processing of stuck events
+ * - getStaleEvents() - query events that haven't been processed
  */
 @Injectable()
-export class OutboxProcessorService implements OnModuleInit, OnModuleDestroy {
+export class OutboxProcessorService {
   private readonly logger = new Logger(OutboxProcessorService.name);
-  private processingInterval: NodeJS.Timeout | null = null;
   private isProcessing = false;
 
-  // Processing configuration - LOW FREQUENCY fallback
-  private readonly POLL_INTERVAL_MS = 30000; // 30 seconds (fallback only)
+  // Configuration for manual recovery
   private readonly BATCH_SIZE = 100;
   private readonly MAX_RETRY_COUNT = 3;
+  private readonly STALE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly redisService: RedisService,
     private readonly rabbitMQEventService: RabbitMQEventService,
-  ) {}
-
-  onModuleInit(): void {
-    this.startProcessing();
+  ) {
     this.logger.log(
-      `Outbox fallback processor started (polling every ${this.POLL_INTERVAL_MS / 1000}s)`,
-    );
-  }
-
-  onModuleDestroy(): void {
-    this.stopProcessing();
-    this.logger.log('Outbox processor stopped');
-  }
-
-  /**
-   * Start the processing loop
-   */
-  private startProcessing(): void {
-    this.processingInterval = setInterval(
-      () => this.processOutbox(),
-      this.POLL_INTERVAL_MS,
+      'OutboxProcessorService initialized (event-driven mode, no polling)',
     );
   }
 
   /**
-   * Stop the processing loop
+   * Get stale events for monitoring/debugging
+   * Events older than STALE_THRESHOLD_MS that are still pending
    */
-  private stopProcessing(): void {
-    if (this.processingInterval) {
-      clearInterval(this.processingInterval);
-      this.processingInterval = null;
-    }
+  async getStaleEvents(): Promise<schema.MessageOutbox[]> {
+    const staleThreshold = new Date(Date.now() - this.STALE_THRESHOLD_MS);
+
+    return this.db
+      .select()
+      .from(schema.messageOutbox)
+      .where(
+        and(
+          inArray(schema.messageOutbox.status, ['pending', 'processing']),
+          lt(schema.messageOutbox.createdAt, staleThreshold),
+        ),
+      )
+      .orderBy(schema.messageOutbox.createdAt)
+      .limit(this.BATCH_SIZE);
   }
 
   /**
-   * Main processing loop - scans and processes pending outbox events
+   * Manual recovery: Process stale events
+   * Call this from admin API or CLI when investigating issues
    */
-  async processOutbox(): Promise<void> {
-    // Prevent concurrent processing
+  async processStaleEvents(): Promise<{ processed: number; failed: number }> {
     if (this.isProcessing) {
-      return;
+      this.logger.warn('Manual processing already in progress');
+      return { processed: 0, failed: 0 };
     }
 
     this.isProcessing = true;
+    let processed = 0;
+    let failed = 0;
 
     try {
-      // Get pending events
-      const pendingEvents = await this.db
-        .select()
-        .from(schema.messageOutbox)
-        .where(
-          and(
-            inArray(schema.messageOutbox.status, ['pending', 'processing']),
-            sql`${schema.messageOutbox.retryCount} < ${this.MAX_RETRY_COUNT}`,
-          ),
-        )
-        .orderBy(schema.messageOutbox.createdAt)
-        .limit(this.BATCH_SIZE);
+      const staleEvents = await this.getStaleEvents();
 
-      if (pendingEvents.length === 0) {
-        return;
+      if (staleEvents.length === 0) {
+        this.logger.log('No stale events to process');
+        return { processed: 0, failed: 0 };
       }
 
-      this.logger.debug(`Processing ${pendingEvents.length} outbox events`);
+      this.logger.log(`Processing ${staleEvents.length} stale outbox events`);
 
-      for (const event of pendingEvents) {
-        await this.processEvent(event);
+      for (const event of staleEvents) {
+        try {
+          await this.processEvent(event);
+          processed++;
+        } catch {
+          failed++;
+        }
       }
+
+      this.logger.log(
+        `Manual recovery completed: ${processed} processed, ${failed} failed`,
+      );
+      return { processed, failed };
     } catch (error) {
-      this.logger.error(`Outbox processing error: ${error}`);
+      this.logger.error(`Manual recovery error: ${error}`);
+      throw error;
     } finally {
       this.isProcessing = false;
     }
