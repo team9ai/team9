@@ -17,11 +17,7 @@ import type { PostgresJsDatabase } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
 import { RabbitMQEventService } from '@team9/rabbitmq';
-import type {
-  IMMessageEnvelope,
-  OutboxEventPayload,
-  DeviceSession,
-} from '@team9/shared';
+import type { OutboxEventPayload, DeviceSession } from '@team9/shared';
 // MessageRouterService no longer needed in hybrid mode
 // Gateway handles real-time broadcast via Socket.io Redis Adapter
 
@@ -180,12 +176,13 @@ export class OutboxProcessorService implements OnModuleInit, OnModuleDestroy {
 
       // Store offline messages for users who weren't online during broadcast
       if (offlineUsers.length > 0 && payload.workspaceId) {
-        const message: IMMessageEnvelope = {
+        // Use string for seqId to ensure JSON serialization works
+        const message = {
           msgId: payload.msgId,
-          seqId: BigInt(payload.seqId),
+          seqId: payload.seqId, // Already a string from OutboxEventPayload
           type: payload.type,
           senderId: payload.senderId,
-          targetType: 'channel',
+          targetType: 'channel' as const,
           targetId: payload.channelId,
           payload: {
             content: payload.content,

@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { AmqpConnection } from '@team9/rabbitmq';
 import { RedisService } from '@team9/redis';
 import { MQ_EXCHANGES, MQ_ROUTING_KEYS } from '@team9/shared';
-import type { DownstreamMessage, IMMessageEnvelope } from '@team9/shared';
+import type { IMMessageEnvelope } from '@team9/shared';
 
 const REDIS_KEYS = {
   USER_ROUTE: (userId: string) => `im:route:user:${userId}`,
@@ -76,8 +76,10 @@ export class MessageRouterService {
     message: IMMessageEnvelope,
     targetUserIds: string[],
   ): Promise<void> {
-    const downstreamMessage: DownstreamMessage = {
+    // Convert BigInt seqId to string for JSON serialization
+    const downstreamMessage = {
       ...message,
+      seqId: message.seqId?.toString(),
       targetUserIds,
       targetGatewayIds: [gatewayId],
     };
@@ -104,8 +106,10 @@ export class MessageRouterService {
     message: IMMessageEnvelope,
     targetUserIds: string[],
   ): Promise<void> {
-    const downstreamMessage: DownstreamMessage = {
+    // Convert BigInt seqId to string for JSON serialization
+    const downstreamMessage = {
       ...message,
+      seqId: message.seqId?.toString(),
       targetUserIds,
       targetGatewayIds: [], // Empty means broadcast
     };

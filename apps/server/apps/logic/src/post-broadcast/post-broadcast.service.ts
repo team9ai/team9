@@ -140,6 +140,7 @@ export class PostBroadcastService {
 
   /**
    * Get message envelope from database
+   * Returns a JSON-serializable object (seqId as string, not bigint)
    */
   private async getMessageEnvelope(
     msgId: string,
@@ -154,9 +155,10 @@ export class PostBroadcastService {
       return null;
     }
 
+    // Convert bigint seqId to string for JSON serialization
     return {
       msgId: msg.id,
-      seqId: msg.seqId ?? undefined,
+      seqId: msg.seqId?.toString() as unknown as bigint,
       clientMsgId: msg.clientMsgId ?? undefined,
       type: msg.type as 'text' | 'file' | 'image' | 'system',
       senderId: msg.senderId!,

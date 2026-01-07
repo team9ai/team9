@@ -216,7 +216,13 @@ export class MessageService {
     const key = REDIS_KEYS.RECENT_MESSAGES(channelId);
     const client = this.redisService.getClient();
 
-    await client.lpush(key, JSON.stringify(message));
+    // Convert BigInt seqId to string for JSON serialization
+    const serializableMessage = {
+      ...message,
+      seqId: message.seqId?.toString(),
+    };
+
+    await client.lpush(key, JSON.stringify(serializableMessage));
     await client.ltrim(key, 0, 49); // Keep last 50
     await this.redisService.expire(key, 3600); // 1 hour TTL
   }
@@ -380,7 +386,7 @@ export class MessageService {
       seqId: msg.seqId ?? undefined,
       clientMsgId: msg.clientMsgId ?? undefined,
       type: msg.type as 'text' | 'file' | 'image' | 'system',
-      senderId: msg.senderId,
+      senderId: msg.senderId!,
       targetType: 'channel',
       targetId: msg.channelId,
       payload: {
