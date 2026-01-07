@@ -20,7 +20,7 @@ export const ackStatusEnum = pgEnum('ack_status', [
 export const messageAcks = pgTable(
   'im_message_acks',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
+    id: uuid('id').primaryKey().notNull(),
 
     // Message ID
     messageId: uuid('message_id')

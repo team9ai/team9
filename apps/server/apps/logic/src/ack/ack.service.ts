@@ -1,4 +1,5 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
+import { v7 as uuidv7 } from 'uuid';
 import { DATABASE_CONNECTION, eq, and } from '@team9/database';
 import type { PostgresJsDatabase } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -69,6 +70,7 @@ export class AckService {
       await this.db
         .insert(schema.userChannelReadStatus)
         .values({
+          id: uuidv7(),
           userId,
           channelId,
           lastReadMessageId: lastReadMsgId,
@@ -102,6 +104,7 @@ export class AckService {
     await this.db
       .insert(schema.messageAcks)
       .values({
+        id: uuidv7(),
         messageId: msgId,
         userId,
         status: 'delivered',
@@ -123,6 +126,7 @@ export class AckService {
     await this.db
       .insert(schema.messageAcks)
       .values({
+        id: uuidv7(),
         messageId: msgId,
         userId,
         status: 'read',

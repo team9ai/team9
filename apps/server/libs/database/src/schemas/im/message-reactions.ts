@@ -5,7 +5,7 @@ import { users } from './users.js';
 export const messageReactions = pgTable(
   'im_message_reactions',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
+    id: uuid('id').primaryKey().notNull(),
     messageId: uuid('message_id')
       .references(() => messages.id, { onDelete: 'cascade' })
       .notNull(),

@@ -11,7 +11,7 @@ import {
 import type { PostgresJsDatabase } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
-import { v4 as uuidv4 } from 'uuid';
+import { v7 as uuidv7 } from 'uuid';
 import type {
   UpstreamMessage,
   IMMessageEnvelope,
@@ -78,7 +78,7 @@ export class MessageService {
       }
 
       // Generate message ID and sequence
-      const msgId = uuidv4();
+      const msgId = uuidv7();
       const seqId = await this.sequenceService.generateChannelSeq(
         message.targetId,
       );
@@ -256,6 +256,7 @@ export class MessageService {
       await this.db
         .insert(schema.userChannelReadStatus)
         .values({
+          id: uuidv7(),
           userId,
           channelId,
           unreadCount: 1,
@@ -431,7 +432,7 @@ export class MessageService {
       }
 
       // 2. Generate IDs
-      const msgId = uuidv4();
+      const msgId = uuidv7();
       const seqId = await this.sequenceService.generateChannelSeq(
         dto.channelId,
       );
@@ -467,6 +468,7 @@ export class MessageService {
 
         // Insert outbox event
         await tx.insert(schema.messageOutbox).values({
+          id: uuidv7(),
           messageId: msgId,
           eventType: 'message_created',
           payload: outboxPayload,

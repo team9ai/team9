@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
+import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
   eq,
@@ -96,6 +97,7 @@ export class MessagesService {
     const [message] = await this.db
       .insert(schema.messages)
       .values({
+        id: uuidv7(),
         channelId,
         senderId,
         content,
@@ -128,6 +130,7 @@ export class MessagesService {
     attachments: AttachmentDto[],
   ): Promise<void> {
     const attachmentValues = attachments.map((att) => ({
+      id: uuidv7(),
       messageId,
       fileKey: att.fileKey,
       fileName: att.fileName,
@@ -155,6 +158,7 @@ export class MessagesService {
     // Add user mentions
     for (const userId of userIds) {
       mentionRecords.push({
+        id: uuidv7(),
         messageId,
         mentionedUserId: userId,
         type: 'user',
@@ -164,6 +168,7 @@ export class MessagesService {
     // Add broadcast mentions
     if (broadcast.everyone) {
       mentionRecords.push({
+        id: uuidv7(),
         messageId,
         type: 'everyone',
       });
@@ -171,6 +176,7 @@ export class MessagesService {
 
     if (broadcast.here) {
       mentionRecords.push({
+        id: uuidv7(),
         messageId,
         type: 'here',
       });
@@ -201,6 +207,7 @@ export class MessagesService {
       await this.db
         .insert(schema.userChannelReadStatus)
         .values({
+          id: uuidv7(),
           userId: member.userId,
           channelId,
           unreadCount: 1,
@@ -463,7 +470,7 @@ export class MessagesService {
   ): Promise<void> {
     await this.db
       .insert(schema.messageReactions)
-      .values({ messageId, userId, emoji })
+      .values({ id: uuidv7(), messageId, userId, emoji })
       .onConflictDoNothing();
   }
 
@@ -491,6 +498,7 @@ export class MessagesService {
     await this.db
       .insert(schema.userChannelReadStatus)
       .values({
+        id: uuidv7(),
         userId,
         channelId,
         lastReadMessageId: messageId,

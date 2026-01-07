@@ -10,7 +10,7 @@ import {
   MessageEvent,
 } from '@nestjs/common';
 import { Observable, from, catchError, of, switchMap } from 'rxjs';
-import { randomUUID } from 'crypto';
+import { v7 as uuidv7 } from 'uuid';
 import { AppService } from './app.service.js';
 import { RedisService } from '@team9/redis';
 import { AiClientService } from '@team9/ai-client';
@@ -58,7 +58,7 @@ export class AppController {
   async createStreamSession(
     @Body() body: AICompletionRequest,
   ): Promise<{ sessionId: string }> {
-    const sessionId = randomUUID();
+    const sessionId = uuidv7();
     const sessionKey = `chat-stream:${sessionId}`;
 
     await this.redisService.set(sessionKey, JSON.stringify(body), 60);

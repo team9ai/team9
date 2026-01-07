@@ -20,7 +20,7 @@ export const mentionTypeEnum = pgEnum('mention_type', [
 export const mentions = pgTable(
   'im_mentions',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
+    id: uuid('id').primaryKey().notNull(),
     messageId: uuid('message_id')
       .references(() => messages.id, { onDelete: 'cascade' })
       .notNull(),

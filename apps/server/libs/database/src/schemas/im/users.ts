@@ -16,7 +16,7 @@ export const userStatusEnum = pgEnum('user_status', [
 ]);
 
 export const users = pgTable('im_users', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id').primaryKey().notNull(),
   email: varchar('email', { length: 255 }).unique().notNull(),
   username: varchar('username', { length: 100 }).unique().notNull(),
   displayName: varchar('display_name', { length: 255 }),

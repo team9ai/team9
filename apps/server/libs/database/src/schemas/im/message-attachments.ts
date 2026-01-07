@@ -9,7 +9,7 @@ import {
 import { messages } from './messages.js';
 
 export const messageAttachments = pgTable('im_message_attachments', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id').primaryKey().notNull(),
   messageId: uuid('message_id')
     .references(() => messages.id, { onDelete: 'cascade' })
     .notNull(),

@@ -23,7 +23,7 @@ export const messageTypeEnum = pgEnum('message_type', [
 export const messages = pgTable(
   'im_messages',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
+    id: uuid('id').primaryKey().notNull(),
     channelId: uuid('channel_id')
       .references(() => channels.id, { onDelete: 'cascade' })
       .notNull(),

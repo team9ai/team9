@@ -6,6 +6,7 @@ import {
   Logger,
   Optional,
 } from '@nestjs/common';
+import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
   eq,
@@ -149,6 +150,7 @@ export class WorkspaceService {
     const [invitation] = await this.db
       .insert(schema.workspaceInvitations)
       .values({
+        id: uuidv7(),
         tenantId,
         code,
         createdBy,
@@ -376,6 +378,7 @@ export class WorkspaceService {
     const [member] = await this.db
       .insert(schema.tenantMembers)
       .values({
+        id: uuidv7(),
         tenantId: invitation.tenantId,
         userId,
         role: invitation.role,
@@ -385,6 +388,7 @@ export class WorkspaceService {
 
     // Record usage
     await this.db.insert(schema.invitationUsage).values({
+      id: uuidv7(),
       invitationId: invitation.id,
       userId,
     });

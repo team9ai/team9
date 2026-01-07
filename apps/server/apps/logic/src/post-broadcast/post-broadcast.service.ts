@@ -1,4 +1,5 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
+import { v7 as uuidv7 } from 'uuid';
 import { DATABASE_CONNECTION, eq, and, isNull, sql } from '@team9/database';
 import type { PostgresJsDatabase } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -183,6 +184,7 @@ export class PostBroadcastService {
       await this.db
         .insert(schema.userChannelReadStatus)
         .values({
+          id: uuidv7(),
           userId,
           channelId,
           unreadCount: 1,

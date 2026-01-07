@@ -30,7 +30,7 @@ export const outboxStatusEnum = pgEnum('outbox_status', [
 export const messageOutbox = pgTable(
   'im_message_outbox',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
+    id: uuid('id').primaryKey().notNull(),
 
     // Reference to the message being delivered
     messageId: uuid('message_id')

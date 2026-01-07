@@ -1,4 +1,5 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
+import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
   eq,
@@ -261,6 +262,7 @@ export class OutboxProcessorService {
       await this.db
         .insert(schema.userChannelReadStatus)
         .values({
+          id: uuidv7(),
           userId,
           channelId,
           unreadCount: 1,

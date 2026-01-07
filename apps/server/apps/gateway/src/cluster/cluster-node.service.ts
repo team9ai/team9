@@ -5,7 +5,7 @@ import {
   OnModuleDestroy,
 } from '@nestjs/common';
 import { RedisService } from '@team9/redis';
-import { v4 as uuidv4 } from 'uuid';
+import { v7 as uuidv7 } from 'uuid';
 
 export interface GatewayNodeInfo {
   nodeId: string;
@@ -38,7 +38,7 @@ export class ClusterNodeService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly redisService: RedisService) {
     // Generate unique node ID using hostname + uuid
     const hostname = process.env.HOSTNAME || 'local';
-    this.nodeId = `gateway-${hostname}-${uuidv4().slice(0, 8)}`;
+    this.nodeId = `gateway-${hostname}-${uuidv7().slice(0, 8)}`;
   }
 
   async onModuleInit(): Promise<void> {

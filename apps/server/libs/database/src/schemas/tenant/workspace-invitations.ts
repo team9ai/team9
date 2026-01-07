@@ -11,7 +11,7 @@ import { users } from '../im/users.js';
 import { tenantRoleEnum } from './tenant-members.js';
 
 export const workspaceInvitations = pgTable('workspace_invitations', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id').primaryKey().notNull(),
   tenantId: uuid('tenant_id')
     .references(() => tenants.id, { onDelete: 'cascade' })
     .notNull(),
@@ -29,7 +29,7 @@ export const workspaceInvitations = pgTable('workspace_invitations', {
 });
 
 export const invitationUsage = pgTable('invitation_usage', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id').primaryKey().notNull(),
   invitationId: uuid('invitation_id')
     .references(() => workspaceInvitations.id, { onDelete: 'cascade' })
     .notNull(),

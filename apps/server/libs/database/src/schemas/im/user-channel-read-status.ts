@@ -6,7 +6,7 @@ import { messages } from './messages.js';
 export const userChannelReadStatus = pgTable(
   'im_user_channel_read_status',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
+    id: uuid('id').primaryKey().notNull(),
     userId: uuid('user_id')
       .references(() => users.id, { onDelete: 'cascade' })
       .notNull(),

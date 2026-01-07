@@ -14,7 +14,7 @@ import {
   Optional,
   Logger,
 } from '@nestjs/common';
-import { v4 as uuidv4 } from 'uuid';
+import { v7 as uuidv7 } from 'uuid';
 import { MessagesService, MessageResponse } from './messages.service.js';
 import {
   CreateMessageDto,
@@ -77,7 +77,7 @@ export class MessagesController {
 
     // Use Logic Service HTTP API if available (new architecture with hybrid mode)
     if (this.logicClientService) {
-      const clientMsgId = uuidv4();
+      const clientMsgId = uuidv7();
 
       // Get workspaceId (tenantId) from channel for offline message routing
       const channel = await this.channelsService.findById(channelId);

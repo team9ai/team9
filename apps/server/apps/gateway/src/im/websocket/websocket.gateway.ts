@@ -10,7 +10,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger, Inject, forwardRef, Optional } from '@nestjs/common';
-import { v4 as uuidv4 } from 'uuid';
+import { v7 as uuidv7 } from 'uuid';
 import { AuthService } from '../../auth/auth.service.js';
 import { UsersService } from '../users/users.service.js';
 import { ChannelsService } from '../channels/channels.service.js';
@@ -248,7 +248,7 @@ export class WebsocketGateway
             userId: payload.sub,
             socketId: client.id,
             message: {
-              msgId: uuidv4(),
+              msgId: uuidv7(),
               senderId: payload.sub,
               type: 'presence',
               targetType: 'user',
@@ -374,7 +374,7 @@ export class WebsocketGateway
               userId: socketClient.userId,
               socketId: client.id,
               message: {
-                msgId: uuidv4(),
+                msgId: uuidv7(),
                 senderId: socketClient.userId,
                 type: 'presence',
                 targetType: 'user',
@@ -466,7 +466,7 @@ export class WebsocketGateway
     }
 
     // Generate clientMsgId if not provided
-    const clientMsgId = data.clientMsgId || uuidv4();
+    const clientMsgId = data.clientMsgId || uuidv7();
 
     try {
       // Use Logic Service HTTP API if available (new architecture)

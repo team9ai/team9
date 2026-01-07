@@ -9,7 +9,7 @@ import {
   HeadBucketCommand,
 } from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
-import { randomUUID } from 'crypto';
+import { v7 as uuidv7 } from 'uuid';
 import { extname } from 'path';
 import { S3_CLIENT } from './storage.constants.js';
 import { env } from '@team9/shared';
@@ -111,7 +111,7 @@ export class StorageService {
    * Generate a unique file key
    */
   generateFileKey(options?: { filename?: string; prefix?: string }): string {
-    const uuid = randomUUID();
+    const uuid = uuidv7();
     const ext = options?.filename ? extname(options.filename) : '';
     const prefix = options?.prefix
       ? options.prefix.replace(/\/$/, '') + '/'

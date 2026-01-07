@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
+import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
   eq,
@@ -75,6 +76,7 @@ export class ChannelsService {
     const [channel] = await this.db
       .insert(schema.channels)
       .values({
+        id: uuidv7(),
         tenantId,
         name: dto.name,
         description: dto.description,
@@ -127,6 +129,7 @@ export class ChannelsService {
     const [channel] = await this.db
       .insert(schema.channels)
       .values({
+        id: uuidv7(),
         tenantId,
         type: 'direct',
         createdBy: userId1,
@@ -345,6 +348,7 @@ export class ChannelsService {
     }
 
     await this.db.insert(schema.channelMembers).values({
+      id: uuidv7(),
       channelId,
       userId,
       role,

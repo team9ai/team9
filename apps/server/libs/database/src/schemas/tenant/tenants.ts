@@ -27,7 +27,7 @@ export interface TenantSettings {
 }
 
 export const tenants = pgTable('tenants', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id').primaryKey().notNull(),
   name: varchar('name', { length: 100 }).notNull(),
   slug: varchar('slug', { length: 50 }).unique().notNull(),
   domain: varchar('domain', { length: 255 }).unique(),

@@ -20,7 +20,7 @@ export const channelTypeEnum = pgEnum('channel_type', [
 export const channels = pgTable(
   'im_channels',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
+    id: uuid('id').primaryKey().notNull(),
     tenantId: uuid('tenant_id').references(() => tenants.id, {
       onDelete: 'cascade',
     }),

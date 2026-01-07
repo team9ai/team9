@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException, Inject } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
   eq,
@@ -68,6 +69,7 @@ export class AuthService {
     const [user] = await this.db
       .insert(schema.users)
       .values({
+        id: uuidv7(),
         email: dto.email,
         username: dto.username,
         displayName: dto.displayName || dto.username,
@@ -82,6 +84,7 @@ export class AuthService {
     const [workspace] = await this.db
       .insert(schema.tenants)
       .values({
+        id: uuidv7(),
         name: workspaceName,
         slug: workspaceSlug,
         plan: 'free',
@@ -90,6 +93,7 @@ export class AuthService {
 
     // Add user as owner of the workspace
     await this.db.insert(schema.tenantMembers).values({
+      id: uuidv7(),
       tenantId: workspace.id,
       userId: user.id,
       role: 'owner',
