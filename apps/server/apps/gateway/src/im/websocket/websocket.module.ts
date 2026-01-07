@@ -6,6 +6,7 @@ import { ChannelsModule } from '../channels/channels.module.js';
 import { MessagesModule } from '../messages/messages.module.js';
 import { WorkspaceModule } from '../../workspace/workspace.module.js';
 import { WEBSOCKET_GATEWAY } from '../../shared/constants/injection-tokens.js';
+import { LogicClientService } from '../services/logic-client.service.js';
 
 @Module({
   imports: [
@@ -17,11 +18,12 @@ import { WEBSOCKET_GATEWAY } from '../../shared/constants/injection-tokens.js';
   ],
   providers: [
     WebsocketGateway,
+    LogicClientService,
     {
       provide: WEBSOCKET_GATEWAY,
       useExisting: WebsocketGateway,
     },
   ],
-  exports: [WebsocketGateway, WEBSOCKET_GATEWAY],
+  exports: [WebsocketGateway, WEBSOCKET_GATEWAY, LogicClientService],
 })
 export class WebsocketModule {}

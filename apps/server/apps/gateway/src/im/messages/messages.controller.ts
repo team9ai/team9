@@ -11,7 +11,10 @@ import {
   ForbiddenException,
   Inject,
   forwardRef,
+  Optional,
+  Logger,
 } from '@nestjs/common';
+import { v4 as uuidv4 } from 'uuid';
 import { MessagesService, MessageResponse } from './messages.service.js';
 import {
   CreateMessageDto,
@@ -22,6 +25,7 @@ import { AuthGuard, CurrentUser } from '@team9/auth';
 import { ChannelsService } from '../channels/channels.service.js';
 import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
+import { LogicClientService } from '../services/logic-client.service.js';
 
 @Controller({
   path: 'im',
@@ -29,11 +33,14 @@ import { WS_EVENTS } from '../websocket/events/events.constants.js';
 })
 @UseGuards(AuthGuard)
 export class MessagesController {
+  private readonly logger = new Logger(MessagesController.name);
+
   constructor(
     private readonly messagesService: MessagesService,
     private readonly channelsService: ChannelsService,
     @Inject(forwardRef(() => WebsocketGateway))
     private readonly websocketGateway: WebsocketGateway,
+    @Optional() private readonly logicClientService?: LogicClientService,
   ) {}
 
   @Get('channels/:channelId/messages')
@@ -64,9 +71,40 @@ export class MessagesController {
     if (!isMember) {
       throw new ForbiddenException('Access denied');
     }
+
+    // Use Logic Service HTTP API if available (new architecture)
+    if (this.logicClientService) {
+      const clientMsgId = uuidv4();
+
+      try {
+        const result = await this.logicClientService.createMessage({
+          clientMsgId,
+          channelId,
+          senderId: userId,
+          content: dto.content,
+          parentId: dto.parentId,
+          type: 'text',
+        });
+
+        // Fetch the full message details for response
+        // Note: Message broadcast to channel is handled by OutboxProcessor
+        const message = await this.messagesService.getMessageWithDetails(
+          result.msgId,
+        );
+
+        return message;
+      } catch (error) {
+        this.logger.error(
+          `Failed to create message via Logic service: ${error}`,
+        );
+        // Fall through to legacy path on error
+      }
+    }
+
+    // Fallback to legacy direct DB write
     const message = await this.messagesService.create(channelId, userId, dto);
 
-    // Broadcast new message to all channel members via WebSocket
+    // Broadcast new message to all channel members via WebSocket (legacy path only)
     this.websocketGateway.sendToChannel(
       channelId,
       WS_EVENTS.NEW_MESSAGE,

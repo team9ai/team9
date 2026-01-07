@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { RedisService } from '@team9/redis';
 import { REDIS_KEYS } from '../../im/shared/constants/redis-keys.js';
-import { UserSession, GatewayNodeInfo } from '@team9/shared';
+import { UserSession, GatewayNodeInfo, DeviceSession } from '@team9/shared';
 
 /**
  * Session Service - manages user sessions and routing information
@@ -369,5 +369,177 @@ export class SessionService {
     await this.redisService
       .getClient()
       .zrem(REDIS_KEYS.HEARTBEAT_CHECK, `${userId}:${socketId}`);
+  }
+
+  // ============ Multi-Device Session Management ============
+
+  /**
+   * Add a device session (supports multiple devices per user)
+   */
+  async addDeviceSession(
+    userId: string,
+    session: DeviceSession,
+  ): Promise<void> {
+    const key = REDIS_KEYS.USER_MULTI_SESSION(userId);
+    const client = this.redisService.getClient();
+
+    const pipeline = client.pipeline();
+
+    // Add to multi-session hash (socketId -> session JSON)
+    pipeline.hset(key, session.socketId, JSON.stringify(session));
+    pipeline.expire(key, this.SESSION_TTL);
+
+    // Update primary route (most recent device)
+    pipeline.hset(REDIS_KEYS.USER_ROUTE(userId), {
+      gatewayId: session.gatewayId,
+      socketId: session.socketId,
+      lastActiveTime: session.lastActiveTime.toString(),
+    });
+    pipeline.expire(REDIS_KEYS.USER_ROUTE(userId), this.SESSION_TTL);
+
+    // Add to heartbeat check
+    pipeline.zadd(
+      REDIS_KEYS.HEARTBEAT_CHECK,
+      session.lastActiveTime,
+      `${userId}:${session.socketId}`,
+    );
+
+    await pipeline.exec();
+
+    this.logger.debug(
+      `Device session added for user ${userId} on gateway ${session.gatewayId} (socket: ${session.socketId})`,
+    );
+  }
+
+  /**
+   * Get all device sessions for a user
+   */
+  async getAllDeviceSessions(userId: string): Promise<DeviceSession[]> {
+    const key = REDIS_KEYS.USER_MULTI_SESSION(userId);
+    const data = await this.redisService.hgetall(key);
+
+    if (!data || Object.keys(data).length === 0) {
+      return [];
+    }
+
+    return Object.values(data).map((v) => JSON.parse(v) as DeviceSession);
+  }
+
+  /**
+   * Get all device sessions for multiple users (batch query)
+   */
+  async getAllDeviceSessionsBatch(
+    userIds: string[],
+  ): Promise<Map<string, DeviceSession[]>> {
+    if (userIds.length === 0) {
+      return new Map();
+    }
+
+    const client = this.redisService.getClient();
+    const pipeline = client.pipeline();
+
+    for (const userId of userIds) {
+      pipeline.hgetall(REDIS_KEYS.USER_MULTI_SESSION(userId));
+    }
+
+    const results = await pipeline.exec();
+    const sessionMap = new Map<string, DeviceSession[]>();
+
+    results?.forEach((result, index) => {
+      const [err, data] = result;
+      if (!err && data && Object.keys(data as object).length > 0) {
+        const sessions = Object.values(data as Record<string, string>).map(
+          (v) => JSON.parse(v) as DeviceSession,
+        );
+        sessionMap.set(userIds[index], sessions);
+      }
+    });
+
+    return sessionMap;
+  }
+
+  /**
+   * Remove a device session
+   */
+  async removeDeviceSession(userId: string, socketId: string): Promise<void> {
+    const key = REDIS_KEYS.USER_MULTI_SESSION(userId);
+    const client = this.redisService.getClient();
+
+    // Remove from multi-session hash
+    await client.hdel(key, socketId);
+
+    // Remove from heartbeat check
+    await client.zrem(REDIS_KEYS.HEARTBEAT_CHECK, `${userId}:${socketId}`);
+
+    // Check if there are remaining sessions
+    const remaining = await this.getAllDeviceSessions(userId);
+
+    if (remaining.length === 0) {
+      // No more devices, clear route
+      await client.del(REDIS_KEYS.USER_ROUTE(userId));
+      this.logger.debug(`User ${userId} has no more active sessions`);
+    } else {
+      // Update route to most recent active device
+      const mostRecent = remaining.sort(
+        (a, b) => b.lastActiveTime - a.lastActiveTime,
+      )[0];
+      await client.hset(REDIS_KEYS.USER_ROUTE(userId), {
+        gatewayId: mostRecent.gatewayId,
+        socketId: mostRecent.socketId,
+        lastActiveTime: mostRecent.lastActiveTime.toString(),
+      });
+      this.logger.debug(
+        `User ${userId} route updated to device ${mostRecent.socketId}`,
+      );
+    }
+  }
+
+  /**
+   * Update heartbeat for a specific device session
+   */
+  async updateDeviceHeartbeat(
+    userId: string,
+    socketId: string,
+  ): Promise<boolean> {
+    const key = REDIS_KEYS.USER_MULTI_SESSION(userId);
+    const now = Date.now();
+
+    // Get existing session
+    const sessionStr = await this.redisService.hget(key, socketId);
+    if (!sessionStr) {
+      return false;
+    }
+
+    try {
+      const session = JSON.parse(sessionStr) as DeviceSession;
+      session.lastActiveTime = now;
+
+      const client = this.redisService.getClient();
+      const pipeline = client.pipeline();
+
+      // Update session
+      pipeline.hset(key, socketId, JSON.stringify(session));
+      pipeline.expire(key, this.SESSION_TTL);
+
+      // Update heartbeat check
+      pipeline.zadd(REDIS_KEYS.HEARTBEAT_CHECK, now, `${userId}:${socketId}`);
+
+      // Update route TTL
+      pipeline.expire(REDIS_KEYS.USER_ROUTE(userId), this.SESSION_TTL);
+
+      await pipeline.exec();
+
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Check if user has any active device sessions
+   */
+  async hasActiveDeviceSessions(userId: string): Promise<boolean> {
+    const sessions = await this.getAllDeviceSessions(userId);
+    return sessions.length > 0;
   }
 }

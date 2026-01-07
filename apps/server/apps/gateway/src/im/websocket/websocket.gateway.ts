@@ -10,6 +10,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger, Inject, forwardRef, Optional } from '@nestjs/common';
+import { v4 as uuidv4 } from 'uuid';
 import { AuthService } from '../../auth/auth.service.js';
 import { UsersService } from '../users/users.service.js';
 import { ChannelsService } from '../channels/channels.service.js';
@@ -27,11 +28,14 @@ import { HeartbeatService } from '../../cluster/heartbeat/heartbeat.service.js';
 import { ZombieCleanerService } from '../../cluster/heartbeat/zombie-cleaner.service.js';
 import { ConnectionService } from '../../cluster/connection/connection.service.js';
 import { SocketRedisAdapterService } from '../../cluster/adapter/socket-redis-adapter.service.js';
+import { LogicClientService } from '../services/logic-client.service.js';
 
 interface SendMessageData {
   channelId: string;
   content: string;
   parentId?: string;
+  clientMsgId?: string;
+  workspaceId?: string;
 }
 
 interface ChannelData {
@@ -90,6 +94,7 @@ export class WebsocketGateway
     @Optional() private readonly gatewayMQService?: GatewayMQService,
     @Optional()
     private readonly socketRedisAdapterService?: SocketRedisAdapterService,
+    @Optional() private readonly logicClientService?: LogicClientService,
   ) {}
 
   /**
@@ -170,14 +175,20 @@ export class WebsocketGateway
         client.id,
       );
 
-      // Register with distributed services (new architecture)
+      // Register with distributed services (new architecture - multi-device support)
       if (this.sessionService && this.clusterNodeService) {
         const nodeId = this.clusterNodeService.getNodeId();
-        await this.sessionService.setUserSession(payload.sub, {
-          gatewayId: nodeId,
+        // Use addDeviceSession for multi-device support
+        await this.sessionService.addDeviceSession(payload.sub, {
           socketId: client.id,
+          gatewayId: nodeId,
           loginTime: Date.now(),
           lastActiveTime: Date.now(),
+          deviceInfo: {
+            platform: client.handshake.auth?.platform || 'unknown',
+            version: client.handshake.auth?.version || 'unknown',
+            deviceId: client.handshake.auth?.deviceId,
+          },
         });
         this.clusterNodeService.incrementConnections();
       }
@@ -232,6 +243,8 @@ export class WebsocketGateway
             userId: payload.sub,
             socketId: client.id,
             message: {
+              msgId: uuidv4(),
+              senderId: payload.sub,
               type: 'presence',
               targetType: 'user',
               targetId: payload.sub,
@@ -299,9 +312,10 @@ export class WebsocketGateway
         client.id,
       );
 
-      // Cleanup distributed services (new architecture)
+      // Cleanup distributed services (new architecture - multi-device support)
       if (this.sessionService) {
-        await this.sessionService.removeUserSession(
+        // Use removeDeviceSession for multi-device support
+        await this.sessionService.removeDeviceSession(
           socketClient.userId,
           client.id,
         );
@@ -313,13 +327,22 @@ export class WebsocketGateway
         this.clusterNodeService.decrementConnections();
       }
 
-      // Check if user has other active connections
-      const remainingSockets = await this.redisService.smembers(
-        REDIS_KEYS.USER_SOCKETS(socketClient.userId),
-      );
+      // Check if user has other active device sessions (new architecture)
+      let hasActiveSessions = false;
+      if (this.sessionService) {
+        hasActiveSessions = await this.sessionService.hasActiveDeviceSessions(
+          socketClient.userId,
+        );
+      } else {
+        // Fallback to legacy check
+        const remainingSockets = await this.redisService.smembers(
+          REDIS_KEYS.USER_SOCKETS(socketClient.userId),
+        );
+        hasActiveSessions = remainingSockets.length > 0;
+      }
 
-      if (remainingSockets.length === 0) {
-        // User has no more connections, set offline
+      if (!hasActiveSessions) {
+        // User has no more connections on any device, set offline
         await this.usersService.setOffline(socketClient.userId);
 
         // Get user's workspaces
@@ -336,6 +359,34 @@ export class WebsocketGateway
               userId: socketClient.userId,
               workspaceId,
             });
+        }
+
+        // Notify Logic service that user is offline
+        if (this.gatewayMQService && this.clusterNodeService) {
+          try {
+            await this.gatewayMQService.publishUpstream({
+              gatewayId: this.clusterNodeService.getNodeId(),
+              userId: socketClient.userId,
+              socketId: client.id,
+              message: {
+                msgId: uuidv4(),
+                senderId: socketClient.userId,
+                type: 'presence',
+                targetType: 'user',
+                targetId: socketClient.userId,
+                payload: { event: 'offline' },
+                timestamp: Date.now(),
+              },
+              receivedAt: Date.now(),
+            });
+            this.logger.debug(
+              `[WS] Notified Logic service of user ${socketClient.userId} offline`,
+            );
+          } catch (error) {
+            this.logger.warn(
+              `[WS] Failed to notify Logic service of user offline: ${error}`,
+            );
+          }
         }
       }
     }
@@ -398,8 +449,9 @@ export class WebsocketGateway
     @MessageBody() data: SendMessageData,
   ) {
     const socketClient = client as SocketWithUser;
-    const { channelId, content, parentId } = data;
+    const { channelId, content, parentId, workspaceId } = data;
 
+    // Quick validation (use cached check if available)
     const isMember = await this.channelsService.isMember(
       channelId,
       socketClient.userId,
@@ -408,7 +460,37 @@ export class WebsocketGateway
       return { error: 'Not a member of this channel' };
     }
 
+    // Generate clientMsgId if not provided
+    const clientMsgId = data.clientMsgId || uuidv4();
+
     try {
+      // Use Logic Service HTTP API if available (new architecture)
+      if (this.logicClientService) {
+        const result = await this.logicClientService.createMessage({
+          clientMsgId,
+          channelId,
+          senderId: socketClient.userId,
+          content,
+          parentId,
+          type: 'text',
+          workspaceId,
+        });
+
+        // Stop typing indicator
+        await this.handleTypingStop(client, { channelId });
+
+        // Return the persisted message info to sender
+        // Note: Message broadcast to channel is handled by OutboxProcessor
+        return {
+          success: true,
+          msgId: result.msgId,
+          seqId: result.seqId,
+          clientMsgId: result.clientMsgId,
+          status: result.status,
+        };
+      }
+
+      // Fallback to legacy direct DB write (for backwards compatibility)
       const message = await this.messagesService.create(
         channelId,
         socketClient.userId,
@@ -418,7 +500,7 @@ export class WebsocketGateway
         },
       );
 
-      // Broadcast to channel
+      // Broadcast to channel (legacy path)
       this.server
         .to(`channel:${channelId}`)
         .emit(WS_EVENTS.NEW_MESSAGE, message);
@@ -428,6 +510,7 @@ export class WebsocketGateway
 
       return { success: true, message };
     } catch (error) {
+      this.logger.error(`Failed to send message: ${error}`);
       return { error: (error as Error).message };
     }
   }

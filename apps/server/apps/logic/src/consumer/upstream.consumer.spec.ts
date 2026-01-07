@@ -12,7 +12,7 @@ import { MessageService } from '../message/message.service.js';
 import { MessageRouterService } from '../message/message-router.service.js';
 import { AckService } from '../ack/ack.service.js';
 import { AmqpConnection } from '@team9/rabbitmq';
-import { UpstreamMessage, IMMessageEnvelope } from '@team9/shared';
+import type { UpstreamMessage, IMMessageEnvelope } from '@team9/shared';
 
 describe('UpstreamConsumer', () => {
   let consumer: UpstreamConsumer;

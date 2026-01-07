@@ -1,12 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AmqpConnection } from '@team9/rabbitmq';
 import { RedisService } from '@team9/redis';
-import {
-  MQ_EXCHANGES,
-  MQ_ROUTING_KEYS,
-  DownstreamMessage,
-  IMMessageEnvelope,
-} from '@team9/shared';
+import { MQ_EXCHANGES, MQ_ROUTING_KEYS } from '@team9/shared';
+import type { DownstreamMessage, IMMessageEnvelope } from '@team9/shared';
 
 const REDIS_KEYS = {
   USER_ROUTE: (userId: string) => `im:route:user:${userId}`,

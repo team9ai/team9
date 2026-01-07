@@ -1,14 +1,10 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
 import { DATABASE_CONNECTION, eq, and } from '@team9/database';
 import type { PostgresJsDatabase } from '@team9/database';
-import * as schema from '@team9/database/schemas/im';
+import * as schema from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
-import {
-  UpstreamMessage,
-  AckPayload,
-  ReadPayload,
-  MQ_CONFIG,
-} from '@team9/shared';
+import { MQ_CONFIG } from '@team9/shared';
+import type { UpstreamMessage, AckPayload, ReadPayload } from '@team9/shared';
 
 const REDIS_KEYS = {
   MESSAGE_ACK: (msgId: string) => `im:ack:${msgId}`,

@@ -8,6 +8,7 @@ import { MessageModule } from './message/message.module.js';
 import { ConsumerModule } from './consumer/consumer.module.js';
 import { AckModule } from './ack/ack.module.js';
 import { SequenceModule } from './sequence/sequence.module.js';
+import { OutboxModule } from './outbox/outbox.module.js';
 
 @Module({
   imports: [
@@ -16,6 +17,9 @@ import { SequenceModule } from './sequence/sequence.module.js';
       envFilePath: [
         join(process.cwd(), '.env.local'),
         join(process.cwd(), '.env'),
+        // When running from apps/logic directory, look for .env in apps/server
+        join(process.cwd(), '../../.env.local'),
+        join(process.cwd(), '../../.env'),
       ],
     }),
     DatabaseModule,
@@ -25,6 +29,7 @@ import { SequenceModule } from './sequence/sequence.module.js';
     ConsumerModule,
     AckModule,
     SequenceModule,
+    OutboxModule,
   ],
 })
 export class AppModule implements OnModuleInit {

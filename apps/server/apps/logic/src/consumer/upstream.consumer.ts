@@ -1,12 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { AmqpConnection } from '@team9/rabbitmq';
-import {
-  MQ_EXCHANGES,
-  MQ_QUEUES,
-  MQ_ROUTING_KEYS,
-  UpstreamMessage,
-  PresencePayload,
-} from '@team9/shared';
+import { MQ_EXCHANGES, MQ_QUEUES, MQ_ROUTING_KEYS } from '@team9/shared';
+import type { UpstreamMessage, PresencePayload } from '@team9/shared';
 import { MessageService } from '../message/message.service.js';
 import { AckService } from '../ack/ack.service.js';
 import { MessageRouterService } from '../message/message-router.service.js';

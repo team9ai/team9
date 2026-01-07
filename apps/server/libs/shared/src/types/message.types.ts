@@ -210,3 +210,107 @@ export interface PongMessage {
   timestamp: number;
   serverTime: number;
 }
+
+// ============ HTTP API Types ============
+
+/**
+ * DTO for creating a message via HTTP API
+ * Used by Gateway to call Logic Service
+ */
+export interface CreateMessageDto {
+  // Client-generated message ID (for deduplication)
+  clientMsgId: string;
+
+  // Target channel ID
+  channelId: string;
+
+  // Sender user ID
+  senderId: string;
+
+  // Message content
+  content: string;
+
+  // Parent message ID (for threads)
+  parentId?: string;
+
+  // Message type
+  type: 'text' | 'file' | 'image';
+
+  // Additional metadata
+  metadata?: Record<string, unknown>;
+
+  // Workspace ID (for offline message routing)
+  workspaceId?: string;
+}
+
+/**
+ * Response from Logic Service after creating a message
+ */
+export interface CreateMessageResponse {
+  // Server-generated message ID
+  msgId: string;
+
+  // Sequence ID (for ordering within channel)
+  seqId: string;
+
+  // Echo back the client message ID
+  clientMsgId: string;
+
+  // Status of the operation
+  status: 'persisted' | 'duplicate';
+
+  // Server timestamp
+  timestamp: number;
+
+  // Error message if status is not successful
+  error?: string;
+}
+
+// ============ Multi-Device Session Types ============
+
+/**
+ * Device session info for multi-device support
+ * Extends UserSession with device-specific information
+ */
+export interface DeviceSession {
+  // Socket ID for this device
+  socketId: string;
+
+  // Gateway node ID where this device is connected
+  gatewayId: string;
+
+  // When this device logged in
+  loginTime: number;
+
+  // Last activity timestamp
+  lastActiveTime: number;
+
+  // Device information
+  deviceInfo?: {
+    platform: string;
+    version: string;
+    deviceId?: string;
+    userAgent?: string;
+  };
+}
+
+/**
+ * Outbox event payload for message delivery
+ */
+export interface OutboxEventPayload {
+  // Message details
+  msgId: string;
+  channelId: string;
+  senderId: string;
+  content: string;
+  parentId?: string;
+  type: MessageType;
+  seqId: string;
+  timestamp: number;
+
+  // Workspace for routing
+  workspaceId?: string;
+
+  // Metadata
+  metadata?: Record<string, unknown>;
+}

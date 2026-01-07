@@ -8,6 +8,13 @@
       "when": 1767168274980,
       "tag": "0000_cold_dexter_bennett",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1767766920363,
+      "tag": "0001_wonderful_thor",
+      "breakpoints": true
     }
   ]
 }

@@ -9,14 +9,17 @@ import {
   desc,
 } from '@team9/database';
 import type { PostgresJsDatabase } from '@team9/database';
-import * as schema from '@team9/database/schemas/im';
+import * as schema from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
 import { v4 as uuidv4 } from 'uuid';
-import {
+import type {
   UpstreamMessage,
   IMMessageEnvelope,
   TextMessagePayload,
   ServerAckResponse,
+  CreateMessageDto,
+  CreateMessageResponse,
+  OutboxEventPayload,
 } from '@team9/shared';
 import { SequenceService } from '../sequence/sequence.service.js';
 import { MessageRouterService } from './message-router.service.js';
@@ -386,5 +389,128 @@ export class MessageService {
       },
       timestamp: msg.createdAt.getTime(),
     };
+  }
+
+  // ============ HTTP API Methods (with Outbox Pattern) ============
+
+  /**
+   * Create and persist a message with Outbox pattern
+   * Used by Gateway via HTTP API for synchronous message creation
+   *
+   * This method:
+   * 1. Checks for duplicates
+   * 2. Generates msgId and seqId
+   * 3. Writes message + outbox event in a single transaction
+   * 4. Returns immediately (outbox processor handles delivery)
+   */
+  async createAndPersist(
+    dto: CreateMessageDto,
+  ): Promise<CreateMessageResponse> {
+    const timestamp = Date.now();
+
+    try {
+      // 1. Check for duplicate
+      if (dto.clientMsgId) {
+        const existing = await this.checkDuplicate(dto.clientMsgId);
+        if (existing) {
+          this.logger.debug(`Duplicate message via HTTP: ${dto.clientMsgId}`);
+          return {
+            msgId: existing.msgId,
+            seqId: existing.seqId.toString(),
+            clientMsgId: dto.clientMsgId,
+            status: 'duplicate',
+            timestamp,
+          };
+        }
+      }
+
+      // 2. Generate IDs
+      const msgId = uuidv4();
+      const seqId = await this.sequenceService.generateChannelSeq(
+        dto.channelId,
+      );
+
+      // 3. Build outbox payload
+      const outboxPayload: OutboxEventPayload = {
+        msgId,
+        channelId: dto.channelId,
+        senderId: dto.senderId,
+        content: dto.content,
+        parentId: dto.parentId,
+        type: dto.type,
+        seqId: seqId.toString(),
+        timestamp,
+        workspaceId: dto.workspaceId,
+        metadata: dto.metadata,
+      };
+
+      // 4. Write message + outbox in transaction
+      await this.db.transaction(async (tx) => {
+        // Insert message
+        await tx.insert(schema.messages).values({
+          id: msgId,
+          channelId: dto.channelId,
+          senderId: dto.senderId,
+          content: dto.content,
+          parentId: dto.parentId,
+          type: dto.type,
+          seqId,
+          clientMsgId: dto.clientMsgId,
+          metadata: dto.metadata,
+        });
+
+        // Insert outbox event
+        await tx.insert(schema.messageOutbox).values({
+          messageId: msgId,
+          eventType: 'message_created',
+          payload: outboxPayload,
+          status: 'pending',
+        });
+      });
+
+      // 5. Mark as processed for dedup
+      if (dto.clientMsgId) {
+        await this.markAsProcessed(dto.clientMsgId, msgId, seqId);
+      }
+
+      // 6. Cache recent message
+      const envelope: IMMessageEnvelope = {
+        msgId,
+        seqId,
+        clientMsgId: dto.clientMsgId,
+        type: dto.type,
+        senderId: dto.senderId,
+        targetType: 'channel',
+        targetId: dto.channelId,
+        payload: {
+          content: dto.content,
+          parentId: dto.parentId,
+        },
+        timestamp,
+      };
+      await this.cacheRecentMessage(dto.channelId, envelope);
+
+      this.logger.debug(
+        `Created message ${msgId} (seq: ${seqId}) via HTTP API for channel ${dto.channelId}`,
+      );
+
+      return {
+        msgId,
+        seqId: seqId.toString(),
+        clientMsgId: dto.clientMsgId,
+        status: 'persisted',
+        timestamp,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to create message via HTTP: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get channel member IDs (public for Outbox processor)
+   */
+  async getChannelMemberIdsPublic(channelId: string): Promise<string[]> {
+    return this.getChannelMemberIds(channelId);
   }
 }
