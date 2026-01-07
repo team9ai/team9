@@ -79,6 +79,10 @@ export class MessagesController {
     if (this.logicClientService) {
       const clientMsgId = uuidv4();
 
+      // Get workspaceId (tenantId) from channel for offline message routing
+      const channel = await this.channelsService.findById(channelId);
+      const workspaceId = channel?.tenantId ?? undefined;
+
       try {
         const result = await this.logicClientService.createMessage({
           clientMsgId,
@@ -87,6 +91,7 @@ export class MessagesController {
           content: dto.content,
           parentId: dto.parentId,
           type: 'text',
+          workspaceId,
         });
 
         // Fetch the full message details for response
@@ -111,7 +116,7 @@ export class MessagesController {
             msgId: result.msgId,
             channelId,
             senderId: userId,
-            workspaceId: undefined, // TODO: get from channel or request context
+            workspaceId,
             broadcastAt,
           };
 

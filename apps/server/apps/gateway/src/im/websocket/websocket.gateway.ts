@@ -16,7 +16,12 @@ import { UsersService } from '../users/users.service.js';
 import { ChannelsService } from '../channels/channels.service.js';
 import { MessagesService } from '../messages/messages.service.js';
 import { RedisService } from '@team9/redis';
-import { env, PingMessage, PongMessage } from '@team9/shared';
+import {
+  env,
+  PingMessage,
+  PongMessage,
+  PostBroadcastTask,
+} from '@team9/shared';
 import { WS_EVENTS } from './events/events.constants.js';
 import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
 import { SocketWithUser } from '../shared/interfaces/socket-with-user.interface.js';
@@ -449,7 +454,7 @@ export class WebsocketGateway
     @MessageBody() data: SendMessageData,
   ) {
     const socketClient = client as SocketWithUser;
-    const { channelId, content, parentId, workspaceId } = data;
+    const { channelId, content, parentId } = data;
 
     // Quick validation (use cached check if available)
     const isMember = await this.channelsService.isMember(
@@ -466,6 +471,10 @@ export class WebsocketGateway
     try {
       // Use Logic Service HTTP API if available (new architecture)
       if (this.logicClientService) {
+        // Get workspaceId (tenantId) from channel for offline message routing
+        const channel = await this.channelsService.findById(channelId);
+        const workspaceId = channel?.tenantId ?? undefined;
+
         const result = await this.logicClientService.createMessage({
           clientMsgId,
           channelId,
@@ -476,11 +485,42 @@ export class WebsocketGateway
           workspaceId,
         });
 
+        // Fetch the full message details for broadcast
+        const message = await this.messagesService.getMessageWithDetails(
+          result.msgId,
+        );
+
+        // Hybrid Mode: Immediately broadcast to online users via Socket.io Redis Adapter
+        // This provides low-latency delivery (~10ms) for online users
+        this.server
+          .to(`channel:${channelId}`)
+          .emit(WS_EVENTS.NEW_MESSAGE, message);
+
+        const broadcastAt = Date.now();
+
+        // Send post-broadcast task to Logic Service via RabbitMQ (event-driven)
+        // This handles: offline messages, unread counts, outbox completion
+        if (this.gatewayMQService?.isReady()) {
+          const postBroadcastTask: PostBroadcastTask = {
+            msgId: result.msgId,
+            channelId,
+            senderId: socketClient.userId,
+            workspaceId,
+            broadcastAt,
+          };
+
+          // Fire-and-forget: don't block response for post-broadcast processing
+          this.gatewayMQService
+            .publishPostBroadcast(postBroadcastTask)
+            .catch((err) => {
+              this.logger.warn(`Failed to publish post-broadcast task: ${err}`);
+            });
+        }
+
         // Stop typing indicator
         await this.handleTypingStop(client, { channelId });
 
         // Return the persisted message info to sender
-        // Note: Message broadcast to channel is handled by OutboxProcessor
         return {
           success: true,
           msgId: result.msgId,
@@ -696,9 +736,11 @@ export class WebsocketGateway
           userId: socketClient.userId,
           socketId: client.id,
           message: {
+            msgId,
+            senderId: socketClient.userId,
             type: 'ack',
-            targetType: 'message',
-            targetId: msgId,
+            targetType: 'user',
+            targetId: socketClient.userId,
             payload: { msgId, ackType },
             timestamp: Date.now(),
           },

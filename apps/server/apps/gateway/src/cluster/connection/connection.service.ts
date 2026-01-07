@@ -1,9 +1,15 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { Server } from 'socket.io';
 import { OnEvent } from '@nestjs/event-emitter';
 import { RedisService } from '@team9/redis';
-import type { DownstreamMessage } from '@team9/shared';
 import { WS_EVENTS } from '../../im/websocket/events/events.constants.js';
+import { MessagesService } from '../../im/messages/messages.service.js';
 
 // Local interface for OnEvent decorator compatibility
 interface DownstreamMessagePayload {
@@ -39,7 +45,11 @@ export class ConnectionService implements OnModuleInit {
   // Socket.io server reference
   private server: Server | null = null;
 
-  constructor(private readonly redisService: RedisService) {}
+  constructor(
+    private readonly redisService: RedisService,
+    @Inject(forwardRef(() => MessagesService))
+    private readonly messagesService: MessagesService,
+  ) {}
 
   onModuleInit(): void {
     this.logger.log('Connection service initialized');
@@ -124,6 +134,7 @@ export class ConnectionService implements OnModuleInit {
 
   /**
    * Handle downstream message from RabbitMQ
+   * Fetches full message details to ensure consistent MessageResponse format
    */
   @OnEvent('im.downstream.message')
   async handleDownstreamMessage(
@@ -132,6 +143,29 @@ export class ConnectionService implements OnModuleInit {
     if (!this.server) {
       this.logger.warn('Server not set, cannot deliver message');
       return;
+    }
+
+    // Fetch full message details to ensure consistent format with HTTP path
+    let fullMessage: unknown;
+    try {
+      fullMessage = await this.messagesService.getMessageWithDetails(
+        message.msgId,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Failed to fetch message details for ${message.msgId}, using envelope format: ${error}`,
+      );
+      // Fallback to envelope format if fetch fails
+      fullMessage = {
+        msgId: message.msgId,
+        seqId: message.seqId?.toString(),
+        senderId: message.senderId,
+        targetType: message.targetType,
+        targetId: message.targetId,
+        type: message.type,
+        payload: message.payload,
+        timestamp: message.timestamp,
+      };
     }
 
     for (const userId of message.targetUserIds) {
@@ -146,16 +180,7 @@ export class ConnectionService implements OnModuleInit {
 
       for (const socketId of socketIds) {
         try {
-          this.server.to(socketId).emit(WS_EVENTS.NEW_MESSAGE, {
-            msgId: message.msgId,
-            seqId: message.seqId?.toString(),
-            senderId: message.senderId,
-            targetType: message.targetType,
-            targetId: message.targetId,
-            type: message.type,
-            payload: message.payload,
-            timestamp: message.timestamp,
-          });
+          this.server.to(socketId).emit(WS_EVENTS.NEW_MESSAGE, fullMessage);
 
           this.logger.debug(
             `Delivered message ${message.msgId} to socket ${socketId}`,
