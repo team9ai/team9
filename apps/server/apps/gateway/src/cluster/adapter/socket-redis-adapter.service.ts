@@ -4,9 +4,8 @@ import {
   OnModuleDestroy,
   Logger,
 } from '@nestjs/common';
-import { RedisService } from '@team9/redis';
+import { RedisService, type RedisType as Redis } from '@team9/redis';
 import { createAdapter } from '@socket.io/redis-adapter';
-import type { Redis } from 'ioredis';
 
 const SOCKET_REDIS_KEY_PREFIX =
   process.env.SOCKET_REDIS_KEY_PREFIX || 'im:socket:';
