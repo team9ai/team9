@@ -1,16 +1,24 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { AmqpConnection } from '@team9/rabbitmq';
 import { MQ_EXCHANGES, MQ_QUEUES, MQ_ROUTING_KEYS } from '@team9/shared';
-import type { UpstreamMessage, PresencePayload } from '@team9/shared';
+import type {
+  UpstreamMessage,
+  PresencePayload,
+  PostBroadcastTask,
+} from '@team9/shared';
 import { MessageService } from '../message/message.service.js';
 import { AckService } from '../ack/ack.service.js';
 import { MessageRouterService } from '../message/message-router.service.js';
+import { PostBroadcastService } from '../post-broadcast/post-broadcast.service.js';
 
 /**
  * Upstream Consumer - consumes messages from Gateway nodes
  *
  * Listens to:
- * - im.queue.logic.upstream - all upstream messages
+ * - im.queue.logic.upstream - all upstream messages including:
+ *   - Regular messages (text, file, image)
+ *   - ACK, typing, read, presence events
+ *   - Post-broadcast tasks (offline message handling)
  */
 @Injectable()
 export class UpstreamConsumer implements OnModuleInit {
@@ -22,6 +30,7 @@ export class UpstreamConsumer implements OnModuleInit {
     private readonly messageService: MessageService,
     private readonly ackService: AckService,
     private readonly routerService: MessageRouterService,
+    @Optional() private readonly postBroadcastService?: PostBroadcastService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -72,9 +81,18 @@ export class UpstreamConsumer implements OnModuleInit {
         if (!msg) return;
 
         try {
-          const upstream: UpstreamMessage = JSON.parse(msg.content.toString());
+          const routingKey = msg.fields.routingKey;
 
-          await this.handleUpstreamMessage(upstream);
+          // Handle post-broadcast tasks separately
+          if (routingKey === MQ_ROUTING_KEYS.UPSTREAM.POST_BROADCAST) {
+            const task: PostBroadcastTask = JSON.parse(msg.content.toString());
+            await this.handlePostBroadcastTask(task);
+          } else {
+            const upstream: UpstreamMessage = JSON.parse(
+              msg.content.toString(),
+            );
+            await this.handleUpstreamMessage(upstream);
+          }
 
           channel.ack(msg);
         } catch (error) {
@@ -96,6 +114,21 @@ export class UpstreamConsumer implements OnModuleInit {
     );
 
     this.consumerTag = consumerTag;
+  }
+
+  /**
+   * Handle post-broadcast task (event-driven, replaces polling)
+   * Processes offline messages and unread counts after Gateway broadcast
+   */
+  private async handlePostBroadcastTask(
+    task: PostBroadcastTask,
+  ): Promise<void> {
+    if (!this.postBroadcastService) {
+      this.logger.warn('PostBroadcastService not available, skipping task');
+      return;
+    }
+
+    await this.postBroadcastService.processTask(task);
   }
 
   /**

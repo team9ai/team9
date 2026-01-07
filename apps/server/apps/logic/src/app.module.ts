@@ -9,6 +9,7 @@ import { ConsumerModule } from './consumer/consumer.module.js';
 import { AckModule } from './ack/ack.module.js';
 import { SequenceModule } from './sequence/sequence.module.js';
 import { OutboxModule } from './outbox/outbox.module.js';
+import { PostBroadcastModule } from './post-broadcast/post-broadcast.module.js';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { OutboxModule } from './outbox/outbox.module.js';
     AckModule,
     SequenceModule,
     OutboxModule,
+    PostBroadcastModule,
   ],
 })
 export class AppModule implements OnModuleInit {

@@ -314,3 +314,29 @@ export interface OutboxEventPayload {
   // Metadata
   metadata?: Record<string, unknown>;
 }
+
+// ============ Post-Broadcast Task Types ============
+
+/**
+ * Post-broadcast task sent from Gateway to Logic Service
+ * After Gateway broadcasts to online users, this task handles:
+ * - Offline message storage
+ * - Unread count updates
+ * - Mark Outbox event as completed
+ */
+export interface PostBroadcastTask {
+  // Message ID
+  msgId: string;
+
+  // Channel ID
+  channelId: string;
+
+  // Sender ID (to exclude from recipients)
+  senderId: string;
+
+  // Workspace ID (for offline message routing)
+  workspaceId?: string;
+
+  // Timestamp when broadcast was sent
+  broadcastAt: number;
+}

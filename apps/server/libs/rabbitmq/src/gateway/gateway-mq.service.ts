@@ -13,6 +13,7 @@ import {
   MQ_CONFIG,
   DownstreamMessage,
   UpstreamMessage,
+  PostBroadcastTask,
 } from '@team9/shared';
 
 /**
@@ -238,6 +239,34 @@ export class GatewayMQService implements OnModuleInit, OnModuleDestroy {
 
     this.logger.debug(
       `Published upstream message: ${message.message.type} from user ${message.userId}`,
+    );
+  }
+
+  /**
+   * Publish post-broadcast task to Logic Service
+   * Called after Gateway broadcasts to online users
+   * Handles: offline messages, unread counts, outbox completion
+   */
+  async publishPostBroadcast(task: PostBroadcastTask): Promise<void> {
+    if (!this.nodeId) {
+      throw new Error('Node ID not set');
+    }
+
+    await this.amqpConnection.publish(
+      MQ_EXCHANGES.IM_UPSTREAM,
+      MQ_ROUTING_KEYS.UPSTREAM.POST_BROADCAST,
+      task,
+      {
+        persistent: true,
+        timestamp: Date.now(),
+        headers: {
+          'x-gateway-id': this.nodeId,
+        },
+      },
+    );
+
+    this.logger.debug(
+      `Published post-broadcast task for message: ${task.msgId}`,
     );
   }
 

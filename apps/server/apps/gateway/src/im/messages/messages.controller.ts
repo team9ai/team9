@@ -22,6 +22,8 @@ import {
   AddReactionDto,
 } from './dto/index.js';
 import { AuthGuard, CurrentUser } from '@team9/auth';
+import { GatewayMQService } from '@team9/rabbitmq';
+import type { PostBroadcastTask } from '@team9/shared';
 import { ChannelsService } from '../channels/channels.service.js';
 import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
@@ -41,6 +43,7 @@ export class MessagesController {
     @Inject(forwardRef(() => WebsocketGateway))
     private readonly websocketGateway: WebsocketGateway,
     @Optional() private readonly logicClientService?: LogicClientService,
+    @Optional() private readonly gatewayMQService?: GatewayMQService,
   ) {}
 
   @Get('channels/:channelId/messages')
@@ -72,7 +75,7 @@ export class MessagesController {
       throw new ForbiddenException('Access denied');
     }
 
-    // Use Logic Service HTTP API if available (new architecture)
+    // Use Logic Service HTTP API if available (new architecture with hybrid mode)
     if (this.logicClientService) {
       const clientMsgId = uuidv4();
 
@@ -87,9 +90,42 @@ export class MessagesController {
         });
 
         // Fetch the full message details for response
-        // Note: Message broadcast to channel is handled by OutboxProcessor
         const message = await this.messagesService.getMessageWithDetails(
           result.msgId,
+        );
+
+        // Hybrid Mode: Immediately broadcast to online users via Socket.io Redis Adapter
+        // This provides low-latency delivery (~10ms) for online users
+        this.websocketGateway.sendToChannel(
+          channelId,
+          WS_EVENTS.NEW_MESSAGE,
+          message,
+        );
+
+        const broadcastAt = Date.now();
+
+        // Send post-broadcast task to Logic Service via RabbitMQ (event-driven)
+        // This handles: offline messages, unread counts, outbox completion
+        if (this.gatewayMQService?.isReady()) {
+          const postBroadcastTask: PostBroadcastTask = {
+            msgId: result.msgId,
+            channelId,
+            senderId: userId,
+            workspaceId: undefined, // TODO: get from channel or request context
+            broadcastAt,
+          };
+
+          // Fire-and-forget: don't block response for post-broadcast processing
+          this.gatewayMQService
+            .publishPostBroadcast(postBroadcastTask)
+            .catch((err) => {
+              this.logger.warn(`Failed to publish post-broadcast task: ${err}`);
+              // Outbox processor will handle it as fallback
+            });
+        }
+
+        this.logger.debug(
+          `Message ${result.msgId} persisted and broadcast immediately`,
         );
 
         return message;

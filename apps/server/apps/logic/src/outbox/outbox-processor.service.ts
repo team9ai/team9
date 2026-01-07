@@ -22,23 +22,29 @@ import type {
   OutboxEventPayload,
   DeviceSession,
 } from '@team9/shared';
-import { MessageRouterService } from '../message/message-router.service.js';
+// MessageRouterService no longer needed in hybrid mode
+// Gateway handles real-time broadcast via Socket.io Redis Adapter
 
 const REDIS_KEYS = {
   USER_MULTI_SESSION: (userId: string) => `im:session:user:${userId}`,
 };
 
 /**
- * Outbox Processor Service
+ * Outbox Processor Service - FALLBACK ONLY
  *
- * Scans the message_outbox table and delivers messages to recipients.
- * Implements the Outbox Pattern for guaranteed message delivery.
+ * This is a LOW-FREQUENCY fallback processor for guaranteed delivery.
+ * Primary path is event-driven via PostBroadcastService (RabbitMQ).
  *
- * Features:
- * - Periodic polling of pending events
- * - Multi-device delivery (all devices receive messages)
- * - Offline message storage for disconnected users
- * - Retry mechanism for failed deliveries
+ * This processor only handles:
+ * - Events that failed to be processed by PostBroadcastService
+ * - Events where RabbitMQ message was lost
+ * - Retry of failed operations
+ *
+ * HYBRID MODE Architecture:
+ * 1. Gateway broadcasts to online users immediately (~10ms)
+ * 2. Gateway sends post_broadcast event to RabbitMQ
+ * 3. PostBroadcastService processes offline messages + unread counts (~50ms)
+ * 4. OutboxProcessor polls every 30s as fallback for missed events
  */
 @Injectable()
 export class OutboxProcessorService implements OnModuleInit, OnModuleDestroy {
@@ -46,8 +52,8 @@ export class OutboxProcessorService implements OnModuleInit, OnModuleDestroy {
   private processingInterval: NodeJS.Timeout | null = null;
   private isProcessing = false;
 
-  // Processing configuration
-  private readonly POLL_INTERVAL_MS = 1000; // 1 second
+  // Processing configuration - LOW FREQUENCY fallback
+  private readonly POLL_INTERVAL_MS = 30000; // 30 seconds (fallback only)
   private readonly BATCH_SIZE = 100;
   private readonly MAX_RETRY_COUNT = 3;
 
@@ -55,13 +61,14 @@ export class OutboxProcessorService implements OnModuleInit, OnModuleDestroy {
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly redisService: RedisService,
-    private readonly routerService: MessageRouterService,
     private readonly rabbitMQEventService: RabbitMQEventService,
   ) {}
 
   onModuleInit(): void {
     this.startProcessing();
-    this.logger.log('Outbox processor started');
+    this.logger.log(
+      `Outbox fallback processor started (polling every ${this.POLL_INTERVAL_MS / 1000}s)`,
+    );
   }
 
   onModuleDestroy(): void {
@@ -132,6 +139,11 @@ export class OutboxProcessorService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Process a single outbox event
+   *
+   * HYBRID MODE: Gateway already broadcast to online users via Socket.io Redis Adapter.
+   * This processor only handles:
+   * 1. Offline message storage
+   * 2. Unread count updates
    */
   private async processEvent(event: schema.MessageOutbox): Promise<void> {
     try {
@@ -154,52 +166,34 @@ export class OutboxProcessorService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      // Get all device sessions for recipients (multi-device support)
+      // Get all device sessions for recipients to identify offline users
       const userSessions = await this.getAllDeviceSessionsBatch(recipientIds);
 
-      // Separate online and offline users
-      const onlineUsers: string[] = [];
+      // Identify offline users (no active sessions)
       const offlineUsers: string[] = [];
-
       for (const userId of recipientIds) {
         const sessions = userSessions.get(userId);
-        if (sessions && sessions.length > 0) {
-          onlineUsers.push(userId);
-        } else {
+        if (!sessions || sessions.length === 0) {
           offlineUsers.push(userId);
         }
       }
 
-      // Build message envelope
-      const message: IMMessageEnvelope = {
-        msgId: payload.msgId,
-        seqId: BigInt(payload.seqId),
-        type: payload.type,
-        senderId: payload.senderId,
-        targetType: 'channel',
-        targetId: payload.channelId,
-        payload: {
-          content: payload.content,
-          parentId: payload.parentId,
-        },
-        timestamp: payload.timestamp,
-      };
-
-      // Route to online users (by gateway)
-      if (onlineUsers.length > 0) {
-        // Group by gateway
-        const gatewayBatches = this.groupUsersByGateway(
-          onlineUsers,
-          userSessions,
-        );
-
-        for (const [gatewayId, userIds] of gatewayBatches) {
-          await this.routerService.sendToGateway(gatewayId, message, userIds);
-        }
-      }
-
-      // Store offline messages
+      // Store offline messages for users who weren't online during broadcast
       if (offlineUsers.length > 0 && payload.workspaceId) {
+        const message: IMMessageEnvelope = {
+          msgId: payload.msgId,
+          seqId: BigInt(payload.seqId),
+          type: payload.type,
+          senderId: payload.senderId,
+          targetType: 'channel',
+          targetId: payload.channelId,
+          payload: {
+            content: payload.content,
+            parentId: payload.parentId,
+          },
+          timestamp: payload.timestamp,
+        };
+
         await this.rabbitMQEventService.sendToOfflineUsers(
           payload.workspaceId,
           offlineUsers,
@@ -208,14 +202,14 @@ export class OutboxProcessorService implements OnModuleInit, OnModuleDestroy {
         );
       }
 
-      // Update unread counts
+      // Update unread counts for ALL recipients (online users also get unread count)
       await this.updateUnreadCounts(payload.channelId, recipientIds);
 
       // Mark as completed
       await this.markCompleted(event.id);
 
       this.logger.debug(
-        `Processed outbox event ${event.id}: online=${onlineUsers.length}, offline=${offlineUsers.length}`,
+        `Processed outbox event ${event.id}: offline=${offlineUsers.length}, total_recipients=${recipientIds.length}`,
       );
     } catch (error) {
       await this.handleRetry(event, error as Error);
@@ -266,33 +260,6 @@ export class OutboxProcessorService implements OnModuleInit, OnModuleDestroy {
     });
 
     return sessionMap;
-  }
-
-  /**
-   * Group users by their gateway nodes
-   */
-  private groupUsersByGateway(
-    userIds: string[],
-    userSessions: Map<string, DeviceSession[]>,
-  ): Map<string, string[]> {
-    const gatewayUsers = new Map<string, string[]>();
-
-    for (const userId of userIds) {
-      const sessions = userSessions.get(userId) || [];
-
-      // Get unique gateways for this user (multi-device: user may be on multiple gateways)
-      const userGateways = new Set(sessions.map((s) => s.gatewayId));
-
-      for (const gatewayId of userGateways) {
-        const users = gatewayUsers.get(gatewayId) || [];
-        if (!users.includes(userId)) {
-          users.push(userId);
-        }
-        gatewayUsers.set(gatewayId, users);
-      }
-    }
-
-    return gatewayUsers;
   }
 
   /**
