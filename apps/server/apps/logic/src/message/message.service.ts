@@ -1,5 +1,13 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
-import { DATABASE_CONNECTION, eq, and, sql, isNull } from '@team9/database';
+import {
+  DATABASE_CONNECTION,
+  eq,
+  and,
+  sql,
+  isNull,
+  gt,
+  desc,
+} from '@team9/database';
 import type { PostgresJsDatabase } from '@team9/database';
 import * as schema from '@team9/database/schemas/im';
 import { RedisService } from '@team9/redis';
@@ -275,5 +283,108 @@ export class MessageService {
       )
       .orderBy(schema.messages.seqId)
       .limit(limit);
+  }
+
+  /**
+   * Get undelivered messages for a user (for offline message delivery)
+   * Returns messages that the user hasn't read yet across all their channels
+   */
+  async getUndeliveredMessages(
+    userId: string,
+    limit = 50,
+  ): Promise<IMMessageEnvelope[]> {
+    // Get user's channel read status
+    const readStatuses = await this.db
+      .select({
+        channelId: schema.userChannelReadStatus.channelId,
+        lastReadMessageId: schema.userChannelReadStatus.lastReadMessageId,
+        unreadCount: schema.userChannelReadStatus.unreadCount,
+      })
+      .from(schema.userChannelReadStatus)
+      .where(
+        and(
+          eq(schema.userChannelReadStatus.userId, userId),
+          gt(schema.userChannelReadStatus.unreadCount, 0),
+        ),
+      );
+
+    if (readStatuses.length === 0) {
+      return [];
+    }
+
+    const messages: IMMessageEnvelope[] = [];
+
+    for (const status of readStatuses) {
+      // Get unread messages for this channel
+      let query = this.db
+        .select()
+        .from(schema.messages)
+        .where(
+          and(
+            eq(schema.messages.channelId, status.channelId),
+            eq(schema.messages.isDeleted, false),
+          ),
+        )
+        .orderBy(desc(schema.messages.createdAt))
+        .limit(Math.min(status.unreadCount, limit));
+
+      // If we have a last read message, filter to newer messages
+      if (status.lastReadMessageId) {
+        const lastReadMsg = await this.db
+          .select({ seqId: schema.messages.seqId })
+          .from(schema.messages)
+          .where(eq(schema.messages.id, status.lastReadMessageId))
+          .limit(1);
+
+        if (lastReadMsg.length > 0 && lastReadMsg[0].seqId) {
+          query = this.db
+            .select()
+            .from(schema.messages)
+            .where(
+              and(
+                eq(schema.messages.channelId, status.channelId),
+                eq(schema.messages.isDeleted, false),
+                gt(schema.messages.seqId, lastReadMsg[0].seqId),
+              ),
+            )
+            .orderBy(schema.messages.seqId)
+            .limit(Math.min(status.unreadCount, limit));
+        }
+      }
+
+      const channelMessages = await query;
+
+      // Convert to IMMessageEnvelope format
+      for (const msg of channelMessages) {
+        messages.push(this.toMessageEnvelope(msg));
+      }
+
+      // Limit total messages
+      if (messages.length >= limit) {
+        break;
+      }
+    }
+
+    return messages.slice(0, limit);
+  }
+
+  /**
+   * Convert database message to IMMessageEnvelope
+   */
+  private toMessageEnvelope(msg: schema.Message): IMMessageEnvelope {
+    return {
+      msgId: msg.id,
+      seqId: msg.seqId ?? undefined,
+      clientMsgId: msg.clientMsgId ?? undefined,
+      type: msg.type as 'text' | 'file' | 'image' | 'system',
+      senderId: msg.senderId,
+      targetType: 'channel',
+      targetId: msg.channelId,
+      payload: {
+        content: msg.content ?? '',
+        parentId: msg.parentId ?? undefined,
+      },
+      timestamp: msg.createdAt.getTime(),
+    };
   }
 }

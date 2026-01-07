@@ -26,6 +26,7 @@ import { SessionService } from '../../cluster/session/session.service.js';
 import { HeartbeatService } from '../../cluster/heartbeat/heartbeat.service.js';
 import { ZombieCleanerService } from '../../cluster/heartbeat/zombie-cleaner.service.js';
 import { ConnectionService } from '../../cluster/connection/connection.service.js';
+import { SocketRedisAdapterService } from '../../cluster/adapter/socket-redis-adapter.service.js';
 
 interface SendMessageData {
   channelId: string;
@@ -49,6 +50,11 @@ interface ReactionData {
 
 interface PingData {
   timestamp: number;
+}
+
+interface MessageAckData {
+  msgId: string;
+  ackType: 'delivered' | 'read';
 }
 
 @WebSocketGateway({
@@ -82,6 +88,8 @@ export class WebsocketGateway
     @Optional() private readonly zombieCleanerService?: ZombieCleanerService,
     @Optional() private readonly connectionService?: ConnectionService,
     @Optional() private readonly gatewayMQService?: GatewayMQService,
+    @Optional()
+    private readonly socketRedisAdapterService?: SocketRedisAdapterService,
   ) {}
 
   /**
@@ -89,6 +97,18 @@ export class WebsocketGateway
    */
   afterInit(server: Server): void {
     this.logger.log('WebSocket Gateway initialized');
+
+    // Configure Socket.io Redis Adapter for multi-node deployment
+    if (this.socketRedisAdapterService?.isInitialized()) {
+      try {
+        server.adapter(this.socketRedisAdapterService.getAdapter());
+        this.logger.log(
+          'Socket.io Redis Adapter configured for cross-node broadcasting',
+        );
+      } catch (error) {
+        this.logger.error('Failed to configure Socket.io Redis Adapter', error);
+      }
+    }
 
     // Set server reference for distributed services
     if (this.zombieCleanerService) {
@@ -202,6 +222,32 @@ export class WebsocketGateway
           username: payload.username,
           workspaceId,
         });
+      }
+
+      // Notify Logic service that user is online (for offline message delivery)
+      if (this.gatewayMQService && this.clusterNodeService) {
+        try {
+          await this.gatewayMQService.publishUpstream({
+            gatewayId: this.clusterNodeService.getNodeId(),
+            userId: payload.sub,
+            socketId: client.id,
+            message: {
+              type: 'presence',
+              targetType: 'user',
+              targetId: payload.sub,
+              payload: { event: 'online' },
+              timestamp: Date.now(),
+            },
+            receivedAt: Date.now(),
+          });
+          this.logger.debug(
+            `[WS] Notified Logic service of user ${payload.sub} online`,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `[WS] Failed to notify Logic service of user online: ${error}`,
+          );
+        }
       }
 
       // Pull and deliver offline messages from RabbitMQ (if enabled)
@@ -542,6 +588,54 @@ export class WebsocketGateway
       emoji,
     });
 
+    return { success: true };
+  }
+
+  // ==================== Message ACK (via RabbitMQ to Logic Service) ====================
+
+  @SubscribeMessage(WS_EVENTS.MESSAGE_ACK)
+  async handleMessageAck(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: MessageAckData,
+  ) {
+    const socketClient = client as SocketWithUser;
+    const { msgId, ackType } = data;
+
+    if (!socketClient.userId) {
+      return { error: 'Not authenticated' };
+    }
+
+    // Send ACK to Logic service via RabbitMQ for reliable processing
+    if (this.gatewayMQService && this.clusterNodeService) {
+      try {
+        await this.gatewayMQService.publishUpstream({
+          gatewayId: this.clusterNodeService.getNodeId(),
+          userId: socketClient.userId,
+          socketId: client.id,
+          message: {
+            type: 'ack',
+            targetType: 'message',
+            targetId: msgId,
+            payload: { msgId, ackType },
+            timestamp: Date.now(),
+          },
+          receivedAt: Date.now(),
+        });
+
+        client.emit(WS_EVENTS.MESSAGE_ACK_RESPONSE, {
+          msgId,
+          status: 'received',
+        });
+
+        return { success: true };
+      } catch (error) {
+        this.logger.error(`Failed to send ACK to Logic service: ${error}`);
+        return { error: 'Failed to process ACK' };
+      }
+    }
+
+    // Fallback: just acknowledge receipt
+    client.emit(WS_EVENTS.MESSAGE_ACK_RESPONSE, { msgId, status: 'received' });
     return { success: true };
   }
 

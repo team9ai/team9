@@ -40,6 +40,9 @@ importers:
       '@nestjs/websockets':
         specifier: ^11.1.10
         version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)(@nestjs/platform-socket.io@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@socket.io/redis-adapter':
+        specifier: ^8.3.0
+        version: 8.3.0(socket.io-adapter@2.5.6)
       '@types/uuid':
         specifier: ^11.0.0
         version: 11.0.0
@@ -3278,6 +3281,15 @@ packages:
       {
         integrity: sha512-9BCxFwvbGg/RsZK9tjXd8s4UcwR0MWeFQ1XEKIQVVvAGJyINdrqKMcTRyLoK8Rse1GjzLV9cwjWV1olXRWEXVA==,
       }
+
+  '@socket.io/redis-adapter@8.3.0':
+    resolution:
+      {
+        integrity: sha512-ly0cra+48hDmChxmIpnESKrc94LjRL80TEmZVscuQ/WWkRP81nNj8W8cCGMqbI4L6NCuAaPRSzZF1a9GlAxxnA==,
+      }
+    engines: { node: '>=10.0.0' }
+    peerDependencies:
+      socket.io-adapter: ^2.5.4
 
   '@tokenizer/inflate@0.4.1':
     resolution:
@@ -7010,6 +7022,12 @@ packages:
       }
     engines: { node: '>=0.10.0' }
 
+  notepack.io@3.0.1:
+    resolution:
+      {
+        integrity: sha512-TKC/8zH5pXIAMVQio2TvVDTtPRX+DJPHDqjRbxogtFiByHyzKmy96RA0JtCQJ+WouyyL4A10xomQzgbUT+1jCg==,
+      }
+
   npm-run-path@4.0.1:
     resolution:
       {
@@ -8237,6 +8255,13 @@ packages:
       }
     engines: { node: '>=0.8.0' }
     hasBin: true
+
+  uid2@1.0.0:
+    resolution:
+      {
+        integrity: sha512-+I6aJUv63YAcY9n4mQreLUt0d4lvwkkopDNmpomkAUz0fAkEMV9pRWxN0EjhW1YfRhcuyHg2v3mwddCDW1+LFQ==,
+      }
+    engines: { node: '>= 4.0.0' }
 
   uid@2.0.2:
     resolution:
@@ -10769,6 +10794,15 @@ snapshots:
       tslib: 2.8.1
 
   '@socket.io/component-emitter@3.1.2': {}
+
+  '@socket.io/redis-adapter@8.3.0(socket.io-adapter@2.5.6)':
+    dependencies:
+      debug: 4.3.7
+      notepack.io: 3.0.1
+      socket.io-adapter: 2.5.6
+      uid2: 1.0.0
+    transitivePeerDependencies:
+      - supports-color
 
   '@tokenizer/inflate@0.4.1':
     dependencies:
@@ -13373,6 +13407,8 @@ snapshots:
 
   normalize-path@3.0.0: {}
 
+  notepack.io@3.0.1: {}
+
   npm-run-path@4.0.1:
     dependencies:
       path-key: 3.1.1
@@ -14141,6 +14177,8 @@ snapshots:
 
   uglify-js@3.19.3:
     optional: true
+
+  uid2@1.0.0: {}
 
   uid@2.0.2:
     dependencies:

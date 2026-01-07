@@ -5,9 +5,11 @@ import {
   MQ_QUEUES,
   MQ_ROUTING_KEYS,
   UpstreamMessage,
+  PresencePayload,
 } from '@team9/shared';
 import { MessageService } from '../message/message.service.js';
 import { AckService } from '../ack/ack.service.js';
+import { MessageRouterService } from '../message/message-router.service.js';
 
 /**
  * Upstream Consumer - consumes messages from Gateway nodes
@@ -24,6 +26,7 @@ export class UpstreamConsumer implements OnModuleInit {
     private readonly amqpConnection: AmqpConnection,
     private readonly messageService: MessageService,
     private readonly ackService: AckService,
+    private readonly routerService: MessageRouterService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -127,6 +130,10 @@ export class UpstreamConsumer implements OnModuleInit {
         await this.handleReadMessage(upstream);
         break;
 
+      case 'presence':
+        await this.handlePresenceMessage(upstream);
+        break;
+
       default:
         this.logger.warn(`Unknown message type: ${message.type}`);
     }
@@ -171,5 +178,44 @@ export class UpstreamConsumer implements OnModuleInit {
    */
   private async handleReadMessage(upstream: UpstreamMessage): Promise<void> {
     await this.ackService.handleReadStatus(upstream);
+  }
+
+  /**
+   * Handle user presence (online/offline) events
+   * When a user comes online, deliver any unread messages
+   */
+  private async handlePresenceMessage(
+    upstream: UpstreamMessage,
+  ): Promise<void> {
+    const { userId, gatewayId } = upstream;
+    const payload = upstream.message.payload as PresencePayload;
+
+    if (payload.event === 'online') {
+      this.logger.log(`User ${userId} came online on gateway ${gatewayId}`);
+
+      try {
+        // Get unread messages for this user
+        const unreadMessages =
+          await this.messageService.getUndeliveredMessages(userId);
+
+        if (unreadMessages.length > 0) {
+          this.logger.log(
+            `Delivering ${unreadMessages.length} unread messages to user ${userId}`,
+          );
+
+          // Send unread messages to the user via their gateway
+          for (const msg of unreadMessages) {
+            await this.routerService.sendToGateway(gatewayId, msg, [userId]);
+          }
+        }
+      } catch (error) {
+        this.logger.error(
+          `Failed to deliver offline messages to user ${userId}: ${error}`,
+        );
+      }
+    } else if (payload.event === 'offline') {
+      this.logger.debug(`User ${userId} went offline`);
+      // Additional offline handling can be added here if needed
+    }
   }
 }

@@ -6,6 +6,7 @@ import { SessionService } from './session/session.service.js';
 import { HeartbeatService } from './heartbeat/heartbeat.service.js';
 import { ZombieCleanerService } from './heartbeat/zombie-cleaner.service.js';
 import { ConnectionService } from './connection/connection.service.js';
+import { SocketRedisAdapterService } from './adapter/socket-redis-adapter.service.js';
 
 @Global()
 @Module({
@@ -16,6 +17,7 @@ import { ConnectionService } from './connection/connection.service.js';
     HeartbeatService,
     ZombieCleanerService,
     ConnectionService,
+    SocketRedisAdapterService,
   ],
   exports: [
     ClusterNodeService,
@@ -23,6 +25,7 @@ import { ConnectionService } from './connection/connection.service.js';
     HeartbeatService,
     ZombieCleanerService,
     ConnectionService,
+    SocketRedisAdapterService,
   ],
 })
 export class ClusterModule {}

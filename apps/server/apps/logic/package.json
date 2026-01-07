@@ -8,7 +8,10 @@
     "start": "node dist/main.js",
     "start:dev": "node --loader @swc-node/register/esm --watch src/main.ts",
     "start:debug": "node --inspect --loader @swc-node/register/esm src/main.ts",
-    "start:prod": "node dist/main.js"
+    "start:prod": "node dist/main.js",
+    "test": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.config.cjs",
+    "test:watch": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.config.cjs --watch",
+    "test:cov": "NODE_OPTIONS='--experimental-vm-modules' jest --config jest.config.cjs --coverage"
   },
   "dependencies": {
     "@team9/database": "workspace:*",

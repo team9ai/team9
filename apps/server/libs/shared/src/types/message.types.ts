@@ -44,7 +44,8 @@ export type MessageType =
   | 'system'
   | 'ack'
   | 'typing'
-  | 'read';
+  | 'read'
+  | 'presence';
 
 /**
  * Message payload types
@@ -88,6 +89,11 @@ export interface ReadPayload {
   lastReadMsgId: string;
 }
 
+export interface PresencePayload {
+  event: 'online' | 'offline';
+  timestamp?: number;
+}
+
 export type MessagePayload =
   | TextMessagePayload
   | FileMessagePayload
@@ -96,6 +102,7 @@ export type MessagePayload =
   | AckPayload
   | TypingPayload
   | ReadPayload
+  | PresencePayload
   | Record<string, unknown>;
 
 /**

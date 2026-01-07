@@ -75,7 +75,7 @@ export class MessageRouterService {
   /**
    * Send message to a specific gateway
    */
-  private async sendToGateway(
+  async sendToGateway(
     gatewayId: string,
     message: IMMessageEnvelope,
     targetUserIds: string[],
