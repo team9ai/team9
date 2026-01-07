@@ -103,7 +103,7 @@ export function useMessages(channelId: string | undefined) {
 /**
  * Hook to send a message
  */
-export function useSendMessage(channelId: string | undefined) {
+export function useSendMessage(channelId: string) {
   const queryClient = useQueryClient();
   const workspaceId = useSelectedWorkspaceId();
 
