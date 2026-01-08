@@ -129,6 +129,7 @@ class HttpClient {
       let requestConfig = await this.applyRequestInterceptors({
         ...config,
         baseURL: this.baseURL,
+        url, // Save the URL for potential retry
       });
 
       const fullURL = this.buildURL(url, requestConfig.params);

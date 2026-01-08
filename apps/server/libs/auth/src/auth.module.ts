@@ -11,9 +11,9 @@ import { env } from '@team9/shared';
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       useFactory: () => ({
-        secret: env.JWT_SECRET,
-        signOptions: {
-          expiresIn: '7d',
+        publicKey: env.JWT_PUBLIC_KEY,
+        verifyOptions: {
+          algorithms: ['ES256'],
         },
       }),
     }),

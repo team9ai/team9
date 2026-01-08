@@ -9,9 +9,14 @@ import { env } from '@team9/shared';
   imports: [
     SharedAuthModule,
     JwtModule.register({
-      secret: env.JWT_SECRET,
+      privateKey: env.JWT_PRIVATE_KEY,
+      publicKey: env.JWT_PUBLIC_KEY,
       signOptions: {
-        expiresIn: '7d',
+        algorithm: 'ES256',
+        expiresIn: env.JWT_EXPIRES_IN as any,
+      },
+      verifyOptions: {
+        algorithms: ['ES256'],
       },
     }),
   ],

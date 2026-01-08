@@ -5,6 +5,7 @@ import {
   IsArray,
   ValidateNested,
   MaxLength,
+  IsNumber,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -19,6 +20,7 @@ export class AttachmentDto {
   @IsString()
   mimeType: string;
 
+  @IsNumber() // in bytes
   fileSize: number;
 }
 

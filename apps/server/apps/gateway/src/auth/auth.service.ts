@@ -31,8 +31,7 @@ export interface AuthResponse extends TokenPair {
 
 @Injectable()
 export class AuthService {
-  private readonly REFRESH_TOKEN_PREFIX = 'im:refresh_token:';
-  private readonly REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60; // 30 days
+  private readonly TOKEN_BLACKLIST_PREFIX = 'im:token_blacklist:';
 
   constructor(
     @Inject(DATABASE_CONNECTION)
@@ -88,7 +87,6 @@ export class AuthService {
         id: uuidv7(),
         name: workspaceName,
         slug: workspaceSlug,
-        plan: 'free',
       })
       .returning();
 
@@ -101,7 +99,7 @@ export class AuthService {
     });
 
     // Generate tokens
-    const tokens = await this.generateTokenPair(user);
+    const tokens = this.generateTokenPair(user);
 
     return {
       ...tokens,
@@ -181,7 +179,7 @@ export class AuthService {
     }
 
     // Generate tokens
-    const tokens = await this.generateTokenPair(user);
+    const tokens = this.generateTokenPair(user);
 
     return {
       ...tokens,
@@ -198,16 +196,17 @@ export class AuthService {
   async refreshToken(refreshToken: string): Promise<TokenPair> {
     try {
       const payload = this.jwtService.verify<JwtPayload>(refreshToken, {
-        secret: env.JWT_REFRESH_SECRET,
+        publicKey: env.JWT_REFRESH_PUBLIC_KEY,
+        algorithms: ['ES256'],
       });
 
-      // Verify refresh token is stored in Redis
-      const storedToken = await this.redisService.get(
-        `${this.REFRESH_TOKEN_PREFIX}${payload.sub}`,
+      // Check if token is blacklisted
+      const isBlacklisted = await this.redisService.get(
+        `${this.TOKEN_BLACKLIST_PREFIX}${payload.jti}`,
       );
 
-      if (storedToken !== refreshToken) {
-        throw new UnauthorizedException('Invalid refresh token');
+      if (isBlacklisted) {
+        throw new UnauthorizedException('Token has been revoked');
       }
 
       // Get user
@@ -221,8 +220,15 @@ export class AuthService {
         throw new UnauthorizedException('User not found');
       }
 
-      // Delete old refresh token
-      await this.redisService.del(`${this.REFRESH_TOKEN_PREFIX}${payload.sub}`);
+      // Blacklist old refresh token (TTL = remaining time until expiry)
+      const ttl = payload.exp! - Math.floor(Date.now() / 1000) + 1;
+      if (ttl > 0) {
+        await this.redisService.set(
+          `${this.TOKEN_BLACKLIST_PREFIX}${payload.jti}`,
+          '1',
+          ttl,
+        );
+      }
 
       // Generate new tokens
       return this.generateTokenPair(user);
@@ -231,36 +237,54 @@ export class AuthService {
     }
   }
 
-  async logout(userId: string): Promise<void> {
-    await this.redisService.del(`${this.REFRESH_TOKEN_PREFIX}${userId}`);
+  async logout(_userId: string, refreshToken?: string): Promise<void> {
+    if (refreshToken) {
+      try {
+        const payload = this.jwtService.verify<JwtPayload>(refreshToken, {
+          publicKey: env.JWT_REFRESH_PUBLIC_KEY,
+          algorithms: ['ES256'],
+        });
+        const ttl = payload.exp! - Math.floor(Date.now() / 1000);
+        if (ttl > 0) {
+          await this.redisService.set(
+            `${this.TOKEN_BLACKLIST_PREFIX}${payload.jti}`,
+            '1',
+            ttl,
+          );
+        }
+      } catch {
+        // Token already invalid, ignore
+      }
+    }
   }
 
-  private async generateTokenPair(user: {
+  private generateTokenPair(user: {
     id: string;
     email: string;
     username: string;
-  }): Promise<TokenPair> {
-    const payload = {
+  }): TokenPair {
+    const basePayload = {
       sub: user.id,
       email: user.email,
       username: user.username,
     };
 
-    const accessToken = this.jwtService.sign(payload, {
-      secret: env.JWT_SECRET,
-      expiresIn: '7d',
-    });
+    const accessToken = this.jwtService.sign(
+      { ...basePayload, jti: uuidv7() },
+      {
+        privateKey: env.JWT_PRIVATE_KEY,
+        algorithm: 'ES256',
+        expiresIn: env.JWT_EXPIRES_IN as any,
+      },
+    );
 
-    const refreshToken = this.jwtService.sign(payload, {
-      secret: env.JWT_REFRESH_SECRET,
-      expiresIn: '30d',
-    });
-
-    // Store refresh token in Redis
-    await this.redisService.set(
-      `${this.REFRESH_TOKEN_PREFIX}${user.id}`,
-      refreshToken,
-      this.REFRESH_TOKEN_TTL,
+    const refreshToken = this.jwtService.sign(
+      { ...basePayload, jti: uuidv7() },
+      {
+        privateKey: env.JWT_REFRESH_PRIVATE_KEY,
+        algorithm: 'ES256',
+        expiresIn: env.JWT_REFRESH_EXPIRES_IN as any,
+      },
     );
 
     return { accessToken, refreshToken };
@@ -268,7 +292,8 @@ export class AuthService {
 
   verifyToken(token: string): JwtPayload {
     return this.jwtService.verify<JwtPayload>(token, {
-      secret: env.JWT_SECRET,
+      publicKey: env.JWT_PUBLIC_KEY,
+      algorithms: ['ES256'],
     });
   }
 

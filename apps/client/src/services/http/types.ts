@@ -1,5 +1,6 @@
 export interface HttpRequestConfig extends RequestInit {
   baseURL?: string;
+  url?: string;
   timeout?: number;
   params?: Record<string, any>;
   data?: any;

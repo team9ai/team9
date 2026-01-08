@@ -22,13 +22,30 @@ function getRequiredEnvAsInt(key: string): number {
   return parsed;
 }
 
+function getRequiredPemKey(key: string): string {
+  const value = getRequiredEnv(key);
+  return value.replace(/\\n/g, '\n');
+}
+
 export const env = {
-  // JWT
-  get JWT_SECRET() {
-    return getRequiredEnv('JWT_SECRET');
+  // JWT (ES256 - ECDSA P-256)
+  get JWT_PRIVATE_KEY() {
+    return getRequiredPemKey('JWT_PRIVATE_KEY');
   },
-  get JWT_REFRESH_SECRET() {
-    return getRequiredEnv('JWT_REFRESH_SECRET');
+  get JWT_PUBLIC_KEY() {
+    return getRequiredPemKey('JWT_PUBLIC_KEY');
+  },
+  get JWT_REFRESH_PRIVATE_KEY() {
+    return getRequiredPemKey('JWT_REFRESH_PRIVATE_KEY');
+  },
+  get JWT_REFRESH_PUBLIC_KEY() {
+    return getRequiredPemKey('JWT_REFRESH_PUBLIC_KEY');
+  },
+  get JWT_EXPIRES_IN() {
+    return process.env.JWT_EXPIRES_IN || '7d';
+  },
+  get JWT_REFRESH_EXPIRES_IN() {
+    return process.env.JWT_REFRESH_EXPIRES_IN || '30d';
   },
 
   // Database
