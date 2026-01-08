@@ -8,6 +8,7 @@ import type {
   WSUserTyping,
   WSChannelEvent,
 } from "@/types/im";
+import { queryClient } from "@/lib/query-client";
 
 type EventCallback = (...args: any[]) => void;
 
@@ -27,6 +28,13 @@ class WebSocketService {
     // Auto-connect if token exists
     if (this.hasAuthToken()) {
       this.connect();
+    }
+
+    // Listen for browser online event to refresh data after network recovery
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", () => {
+        this.refreshQueriesAfterReconnect();
+      });
     }
   }
 
@@ -95,6 +103,7 @@ class WebSocketService {
 
     this.socket.on("authenticated", () => {
       console.log("[WS] Authenticated successfully");
+      this.refreshQueriesAfterReconnect();
     });
 
     // Auto-join new channels when they are created (e.g., DM channels)
@@ -109,8 +118,9 @@ class WebSocketService {
     });
 
     this.socket.on("reconnect", (attemptNumber) => {
-      console.log("[WS] Reconnected after", attemptNumber, "attempts");
       this.reconnectAttempts = 0;
+      // Also refresh on reconnect in case authenticated event doesn't fire
+      this.refreshQueriesAfterReconnect();
     });
 
     this.socket.on("reconnect_failed", () => {
@@ -129,6 +139,12 @@ class WebSocketService {
 
   isConnected(): boolean {
     return this.socket?.connected ?? false;
+  }
+
+  private refreshQueriesAfterReconnect(): void {
+    // Force refetch active queries to get latest data including offline messages
+    queryClient.refetchQueries({ queryKey: ["channels"], type: "active" });
+    queryClient.refetchQueries({ queryKey: ["messages"], type: "active" });
   }
 
   private processPendingJoins(): void {
