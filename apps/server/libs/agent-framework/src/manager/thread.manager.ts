@@ -26,12 +26,28 @@ import { generateQueuedEventId, generateStepId } from '../utils/id.utils.js';
 export interface CreateThreadOptions {
   /** Initial chunks to include in the thread */
   initialChunks?: MemoryChunk[];
-  /** Custom metadata for the thread */
+  /** Custom user-defined metadata for the thread */
   custom?: Record<string, unknown>;
   /** Parent thread ID for subagent threads */
   parentThreadId?: string;
+
+  // ============ Blueprint Configuration ============
+
+  /** Blueprint ID that created this thread */
+  blueprintId?: string;
+  /** Blueprint name for identification */
+  blueprintName?: string;
   /** Blueprint key for subagent threads */
   blueprintKey?: string;
+  /** LLM configuration for this thread */
+  llmConfig?: import('../llm/llm.types.js').LLMConfig;
+  /** Available control tools */
+  tools?: string[];
+  /** SubAgent blueprints for spawning */
+  subAgents?: Record<
+    string,
+    import('../blueprint/blueprint.types.js').Blueprint
+  >;
 }
 
 /**
@@ -84,7 +100,12 @@ export class ThreadManager {
     const thread = createThread({
       custom: options?.custom,
       parentThreadId: options?.parentThreadId,
+      blueprintId: options?.blueprintId,
+      blueprintName: options?.blueprintName,
       blueprintKey: options?.blueprintKey,
+      llmConfig: options?.llmConfig,
+      tools: options?.tools,
+      subAgents: options?.subAgents,
     });
 
     // Create initial state with optional chunks

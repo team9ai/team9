@@ -280,12 +280,14 @@ export function createTurnExecutor(
   memoryManager: MemoryManager,
   contextBuilder: ContextBuilder,
   llmCaller: LLMCaller,
+  toolDefinitions: LLMToolDefinition[],
   toolCallHandlers: IToolCallHandler[],
 ): TurnExecutor {
   return new TurnExecutor(
     memoryManager,
     contextBuilder,
     llmCaller,
+    toolDefinitions,
     toolCallHandlers,
   );
 }

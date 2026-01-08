@@ -55,7 +55,7 @@ const createMockChunk = (
   },
 ): MemoryChunk => ({
   id,
-  type: options?.type ?? ChunkType.WORKING_FLOW,
+  type: options?.type ?? ChunkType.THINKING,
   content: options?.content ?? {
     type: ChunkContentType.TEXT,
     text: 'test content',
@@ -147,11 +147,11 @@ describe('CompactionManager', () => {
 
     it('should return WORKING_FLOW chunks with COMPRESSIBLE retention', () => {
       const compressibleChunk = createMockChunk('c1', {
-        type: ChunkType.WORKING_FLOW,
+        type: ChunkType.THINKING,
         retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
       });
       const criticalChunk = createMockChunk('c2', {
-        type: ChunkType.WORKING_FLOW,
+        type: ChunkType.THINKING,
         retentionStrategy: ChunkRetentionStrategy.CRITICAL,
       });
       const state = createMockState([compressibleChunk, criticalChunk]);
@@ -164,7 +164,7 @@ describe('CompactionManager', () => {
 
     it('should return BATCH_COMPRESSIBLE chunks', () => {
       const chunk = createMockChunk('c1', {
-        type: ChunkType.WORKING_FLOW,
+        type: ChunkType.THINKING,
         retentionStrategy: ChunkRetentionStrategy.BATCH_COMPRESSIBLE,
       });
       const state = createMockState([chunk]);
@@ -176,7 +176,7 @@ describe('CompactionManager', () => {
 
     it('should return DISPOSABLE chunks', () => {
       const chunk = createMockChunk('c1', {
-        type: ChunkType.WORKING_FLOW,
+        type: ChunkType.THINKING,
         retentionStrategy: ChunkRetentionStrategy.DISPOSABLE,
       });
       const state = createMockState([chunk]);
@@ -321,7 +321,7 @@ describe('CompactionManager', () => {
         content: { type: ChunkContentType.TEXT, text: 'System content' },
       });
       const workingChunk = createMockChunk('work-1', {
-        type: ChunkType.WORKING_FLOW,
+        type: ChunkType.THINKING,
         content: { type: ChunkContentType.TEXT, text: 'Working content' },
       });
       const state = createMockState([systemChunk, workingChunk]);
@@ -335,12 +335,12 @@ describe('CompactionManager', () => {
 
     it('should not include CRITICAL retention chunks in compressible', () => {
       const criticalChunk = createMockChunk('critical-1', {
-        type: ChunkType.WORKING_FLOW,
+        type: ChunkType.THINKING,
         retentionStrategy: ChunkRetentionStrategy.CRITICAL,
         content: { type: ChunkContentType.TEXT, text: 'Critical content' },
       });
       const compressibleChunk = createMockChunk('compressible-1', {
-        type: ChunkType.WORKING_FLOW,
+        type: ChunkType.THINKING,
         retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
         content: { type: ChunkContentType.TEXT, text: 'Compressible content' },
       });
@@ -622,12 +622,11 @@ describe('CompactionManager', () => {
   describe('extractProgressSummary (via executeCompaction context)', () => {
     it('should extract progress from COMPACTED chunk', async () => {
       const compactedChunk = createMockChunk('compacted-old', {
-        type: ChunkType.WORKING_FLOW,
+        type: ChunkType.COMPACTED,
         content: {
           type: ChunkContentType.TEXT,
           text: 'Previous progress summary',
         },
-        custom: { subType: 'COMPACTED' },
       });
       const workingChunk = createMockChunk('c1');
       const state = createMockState([compactedChunk, workingChunk]);

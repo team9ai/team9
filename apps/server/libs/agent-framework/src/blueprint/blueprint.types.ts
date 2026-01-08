@@ -1,4 +1,3 @@
-import { ChunkContent } from '../types/chunk.types.js';
 import { LLMConfig } from '../llm/llm.types.js';
 import type { ComponentConfig } from '../components/component.types.js';
 
@@ -25,16 +24,11 @@ export interface Blueprint {
   /** Agent description */
   description?: string;
   /**
-   * Components that define the agent's structure
-   * Each component can include instructions and tools
+   * Components that define the agent's structure (new component-centric format)
+   * Each component entry contains a component class/instance and its configuration
    * Components are rendered to chunks and tools at runtime
    */
-  components?: ComponentConfig[];
-  /**
-   * Initial chunks to populate the agent's memory
-   * @deprecated Use components instead for better organization
-   */
-  initialChunks?: BlueprintChunk[];
+  components?: BlueprintComponentEntry[];
   /** LLM configuration */
   llmConfig: LLMConfig;
   /**
@@ -42,8 +36,6 @@ export interface Blueprint {
    * For custom tools, define them in components
    */
   tools?: string[];
-  /** Auto-compaction threshold (number of compressible chunks) */
-  autoCompactThreshold?: number;
   /**
    * Execution mode for event processing (default: 'auto')
    * - 'auto': Events are processed immediately
@@ -55,31 +47,11 @@ export interface Blueprint {
 }
 
 /**
- * Chunk definition in blueprint (simplified for JSON serialization)
- */
-export interface BlueprintChunk {
-  /** Chunk type (SYSTEM, AGENT, WORKFLOW, etc.) */
-  type: string;
-  /** Working flow subtype (only for WORKING_FLOW type) */
-  subType?: string;
-  /** Chunk content */
-  content: ChunkContent;
-  /** Retention strategy (CRITICAL, COMPRESSIBLE, etc.) */
-  retentionStrategy?: string;
-  /** Whether this chunk can be modified */
-  mutable?: boolean;
-  /** Priority (higher = more important) */
-  priority?: number;
-}
-
-/**
  * Options for loading a blueprint
  */
 export interface BlueprintLoadOptions {
   /** Override LLM configuration */
   llmConfigOverride?: Partial<LLMConfig>;
-  /** Override auto-compaction threshold */
-  autoCompactThresholdOverride?: number;
 }
 
 /**
@@ -103,3 +75,110 @@ export interface BlueprintValidationResult {
   /** Validation warnings */
   warnings: string[];
 }
+
+// ============ New Component-Centric Configuration ============
+
+/**
+ * New component configuration entry for Blueprint
+ * Uses component key (string) to reference registered components
+ */
+export interface BlueprintComponentEntry<TConfig = Record<string, unknown>> {
+  /** Component key to look up in ComponentManager */
+  componentKey: string;
+  /** Configuration to pass to component constructor */
+  config?: TConfig;
+  /** Whether to enable this component initially (default: true) */
+  enabled?: boolean;
+}
+
+/**
+ * Union type for component configuration - supports both legacy and new formats
+ * - Legacy: ComponentConfig from component.types.ts (system/agent/workflow)
+ * - New: BlueprintComponentEntry with IComponent
+ */
+export type AnyComponentConfig = ComponentConfig | BlueprintComponentEntry;
+
+/**
+ * Type guard to check if config is new-style BlueprintComponentEntry
+ */
+export function isBlueprintComponentEntry(
+  config: AnyComponentConfig,
+): config is BlueprintComponentEntry {
+  return 'componentKey' in config;
+}
+
+/**
+ * Type guard to check if config is legacy ComponentConfig
+ */
+export function isLegacyComponentConfig(
+  config: AnyComponentConfig,
+): config is ComponentConfig {
+  return 'type' in config && !('componentKey' in config);
+}
+
+// ============ Zod Schemas for Validation ============
+
+import { z } from 'zod';
+
+/**
+ * Zod schema for LLMConfig
+ */
+export const LLMConfigSchema = z.object({
+  model: z.string().min(1, 'LLM model is required'),
+  temperature: z.number().min(0).max(2).optional(),
+  maxTokens: z.number().positive().optional(),
+  topP: z.number().min(0).max(1).optional(),
+  frequencyPenalty: z.number().min(-2).max(2).optional(),
+  presencePenalty: z.number().min(-2).max(2).optional(),
+});
+
+/**
+ * Zod schema for ExecutionMode
+ */
+export const ExecutionModeSchema = z.enum(['auto', 'stepping']);
+
+/**
+ * Zod schema for ComponentConfig (legacy format)
+ * Note: This validates the basic structure, component-specific validation
+ * (e.g., system component requires instructions) is handled separately
+ */
+export const ComponentConfigSchema = z.object({
+  type: z.enum(['system', 'agent', 'workflow']),
+  instructions: z.string().optional(),
+  tools: z.array(z.any()).optional(), // CustomToolConfig is complex, validate at runtime
+  subAgents: z.array(z.string()).optional(),
+  customData: z.record(z.string(), z.unknown()).optional(),
+}) as z.ZodType<ComponentConfig>;
+
+/**
+ * Zod schema for BlueprintComponentEntry (new component-centric format)
+ * Uses componentKey (string) to reference registered components
+ */
+export const BlueprintComponentEntrySchema = z.object({
+  componentKey: z.string().min(1, 'Component key is required'),
+  config: z.record(z.string(), z.unknown()).optional(),
+  enabled: z.boolean().optional(),
+});
+
+/**
+ * Zod schema for Blueprint (recursive)
+ */
+export const BlueprintSchema: z.ZodType<Blueprint> = z.lazy(() =>
+  z.object({
+    id: z.string().optional(),
+    name: z.string().min(1, 'Blueprint name is required'),
+    description: z.string().optional(),
+    components: z.array(BlueprintComponentEntrySchema).optional(),
+    llmConfig: LLMConfigSchema,
+    tools: z.array(z.string()).optional(),
+    executionMode: ExecutionModeSchema.optional(),
+    subAgents: z.record(z.string(), BlueprintSchema).optional(),
+  }),
+) as z.ZodType<Blueprint>;
+
+/**
+ * Zod schema for BlueprintLoadOptions
+ */
+export const BlueprintLoadOptionsSchema = z.object({
+  llmConfigOverride: LLMConfigSchema.partial().optional(),
+});

@@ -152,9 +152,9 @@ await manager.triggerCompaction(threadId);
 await manager.triggerCompaction(threadId, specificChunks);
 ```
 
-### WorkingFlowCompactor
+### WorkingHistoryCompactor
 
-Specifically designed for compacting WORKING_FLOW type chunks:
+Specifically designed for compacting conversation history chunks:
 
 **Input Format (XML)**:
 
@@ -165,14 +165,14 @@ Specifically designed for compacting WORKING_FLOW type chunks:
   <system_context>System context</system_context>
 </context>
 
-<working_flow_to_compact>
-  <entry index="1" subtype="THINKING" timestamp="...">
+<working_history_to_compact>
+  <entry index="1" type="THINKING" timestamp="...">
     Thinking content...
   </entry>
-  <entry index="2" subtype="AGENT_ACTION" timestamp="...">
+  <entry index="2" type="AGENT_ACTION" timestamp="...">
     Action content...
   </entry>
-</working_flow_to_compact>
+</working_history_to_compact>
 ```
 
 **Output Format**:

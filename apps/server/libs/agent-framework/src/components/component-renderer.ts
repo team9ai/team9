@@ -55,6 +55,7 @@ export class ComponentRenderer {
     components: ComponentConfig[],
     options: ComponentRenderOptions = {},
   ): ComponentRenderResult {
+    // TODO: 其实还需要提取subagents
     const chunks: MemoryChunk[] = [];
     const tools: Tool[] = [];
 

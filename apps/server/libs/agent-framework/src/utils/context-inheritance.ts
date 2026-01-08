@@ -6,49 +6,84 @@
  */
 
 import type { MemoryState } from '../types/state.types.js';
-import type { MemoryChunk, WorkingFlowChild } from '../types/chunk.types.js';
+import type { MemoryChunk } from '../types/chunk.types.js';
 import { ChunkType, ChunkContentType } from '../types/chunk.types.js';
 
 /**
- * Options for extracting working flow chunks
+ * Conversation chunk types that belong to working history
  */
-export interface ExtractWorkingFlowOptions {
+const CONVERSATION_CHUNK_TYPES = [
+  ChunkType.USER_MESSAGE,
+  ChunkType.AGENT_RESPONSE,
+  ChunkType.THINKING,
+  ChunkType.AGENT_ACTION,
+  ChunkType.ACTION_RESPONSE,
+  ChunkType.SUBAGENT_SPAWN,
+  ChunkType.SUBAGENT_RESULT,
+  ChunkType.PARENT_MESSAGE,
+  ChunkType.COMPACTED,
+];
+
+/**
+ * Options for extracting working history chunks
+ */
+export interface ExtractWorkingHistoryOptions {
   /** Maximum number of chunks to extract (default: all) */
   maxChunks?: number;
-  /** Whether to include children in the extraction (default: true) */
+  /** Whether to include child chunks in the extraction (default: true) */
   includeChildren?: boolean;
 }
 
 /**
- * Extract WORKING_FLOW type chunks from a memory state
+ * Extract WORKING_HISTORY type chunks and conversation chunks from a memory state
  * These chunks contain the conversation history and working context
  *
  * @param state - The memory state to extract from
  * @param chunks - Map of chunk IDs to chunks
  * @param options - Extraction options
- * @returns Array of WORKING_FLOW chunks
+ * @returns Array of conversation chunks
  */
 export function extractWorkingFlowChunks(
   state: MemoryState,
   chunks: Map<string, MemoryChunk>,
-  options?: ExtractWorkingFlowOptions,
+  options?: ExtractWorkingHistoryOptions,
 ): MemoryChunk[] {
-  const workingFlowChunks: MemoryChunk[] = [];
+  const conversationChunks: MemoryChunk[] = [];
 
   for (const chunkId of state.chunkIds) {
     const chunk = chunks.get(chunkId);
-    if (chunk && chunk.type === ChunkType.WORKING_FLOW) {
-      workingFlowChunks.push(chunk);
+    if (!chunk) continue;
+
+    // If it's a WORKING_HISTORY container, get its children
+    if (
+      chunk.type === ChunkType.WORKING_HISTORY &&
+      options?.includeChildren !== false
+    ) {
+      if (chunk.childIds && chunk.childIds.length > 0) {
+        for (const childId of chunk.childIds) {
+          const childChunk = chunks.get(childId);
+          if (
+            childChunk &&
+            CONVERSATION_CHUNK_TYPES.includes(childChunk.type)
+          ) {
+            conversationChunks.push(childChunk);
+          }
+        }
+      }
+    }
+    // If it's a direct conversation chunk (flat structure)
+    else if (CONVERSATION_CHUNK_TYPES.includes(chunk.type)) {
+      conversationChunks.push(chunk);
     }
   }
 
   // Apply max limit if specified
-  if (options?.maxChunks && workingFlowChunks.length > options.maxChunks) {
+  if (options?.maxChunks && conversationChunks.length > options.maxChunks) {
     // Keep the most recent chunks
-    return workingFlowChunks.slice(-options.maxChunks);
+    return conversationChunks.slice(-options.maxChunks);
   }
 
-  return workingFlowChunks;
+  return conversationChunks;
 }
 
 /**
@@ -75,10 +110,10 @@ export interface InheritedContextResult {
 export function buildInheritedContext(
   parentState: MemoryState,
   parentChunks: Map<string, MemoryChunk>,
-  options?: ExtractWorkingFlowOptions,
+  options?: ExtractWorkingHistoryOptions,
 ): InheritedContextResult {
-  // Extract WORKING_FLOW chunks from parent
-  const workingFlowChunks = extractWorkingFlowChunks(
+  // Extract conversation chunks from parent
+  const conversationChunks = extractWorkingFlowChunks(
     parentState,
     parentChunks,
     options,
@@ -87,27 +122,15 @@ export function buildInheritedContext(
   // Build a summary of the context
   const contextParts: string[] = [];
 
-  for (const chunk of workingFlowChunks) {
-    // Handle container chunks with children
-    if (chunk.children && chunk.children.length > 0) {
-      for (const child of chunk.children) {
-        const text = extractTextFromContent(child.content);
-        if (text) {
-          contextParts.push(`[${child.subType}] ${text}`);
-        }
-      }
-    } else {
-      // Handle leaf chunks
-      const text = extractTextFromContent(chunk.content);
-      if (text) {
-        const prefix = chunk.subType ? `[${chunk.subType}] ` : '';
-        contextParts.push(`${prefix}${text}`);
-      }
+  for (const chunk of conversationChunks) {
+    const text = extractTextFromContent(chunk.content);
+    if (text) {
+      contextParts.push(`[${chunk.type}] ${text}`);
     }
   }
 
   return {
-    chunks: workingFlowChunks,
+    chunks: conversationChunks,
     contextSummary: contextParts.join('\n'),
   };
 }

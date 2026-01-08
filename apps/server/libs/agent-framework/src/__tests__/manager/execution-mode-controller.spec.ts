@@ -17,7 +17,7 @@ import {
 // Mock MemoryChunk for testing
 const createMockChunk = (id: string): MemoryChunk => ({
   id,
-  type: ChunkType.WORKING_FLOW,
+  type: ChunkType.THINKING,
   content: { type: ChunkContentType.TEXT, text: 'test' },
   retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
   mutable: false,

@@ -46,7 +46,13 @@ export function createThread(
     eventQueue: [],
     parentThreadId: input?.parentThreadId,
     childThreadIds: [],
+    // Blueprint configuration
+    blueprintId: input?.blueprintId,
+    blueprintName: input?.blueprintName,
     blueprintKey: input?.blueprintKey,
+    llmConfig: input?.llmConfig,
+    tools: input?.tools,
+    subAgents: input?.subAgents,
   };
 
   return deepFreeze(thread);
@@ -98,7 +104,13 @@ export function updateThread(
     // Preserve parent-child relationships
     parentThreadId: original.parentThreadId,
     childThreadIds: updates.childThreadIds ?? original.childThreadIds ?? [],
+    // Preserve blueprint configuration (immutable after creation)
+    blueprintId: original.blueprintId,
+    blueprintName: original.blueprintName,
     blueprintKey: original.blueprintKey,
+    llmConfig: original.llmConfig,
+    tools: original.tools,
+    subAgents: original.subAgents,
   };
 
   return deepFreeze(thread);

@@ -3,6 +3,7 @@ import {
   ChunkType,
   ChunkRetentionStrategy,
   ChunkContentType,
+  MemoryChunk,
 } from '../../types/chunk.types.js';
 import { Operation } from '../../types/operation.types.js';
 import {
@@ -26,6 +27,87 @@ import {
   createUpdateOperation,
   createDeleteOperation,
 } from '../../factories/operation.factory.js';
+
+/**
+ * Find the current WORKING_HISTORY container chunk in state
+ */
+function findWorkingHistoryChunk(state: MemoryState): MemoryChunk | undefined {
+  for (const chunkId of state.chunkIds) {
+    const chunk = state.chunks.get(chunkId);
+    if (chunk?.type === ChunkType.WORKING_HISTORY) {
+      return chunk;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Create a conversation chunk and add it to working history
+ */
+function createConversationResult(
+  state: MemoryState,
+  chunkType: ChunkType,
+  content: Record<string, unknown>,
+  eventMeta: { eventType: string; timestamp: number; [key: string]: unknown },
+  retentionStrategy?: ChunkRetentionStrategy,
+): ReducerResult {
+  // Create the conversation chunk
+  const conversationChunk = createChunk({
+    type: chunkType,
+    content: {
+      type: ChunkContentType.TEXT,
+      ...content,
+    },
+    retentionStrategy,
+    custom: eventMeta,
+  });
+
+  const existingHistory = findWorkingHistoryChunk(state);
+
+  if (existingHistory) {
+    // Update existing WORKING_HISTORY to add the new child ID
+    const updatedHistory = deriveChunk(existingHistory, {
+      parentIds: [existingHistory.id],
+    });
+
+    // Create updated history with new childIds
+    const historyWithNewChild: MemoryChunk = {
+      ...updatedHistory,
+      childIds: [...(existingHistory.childIds || []), conversationChunk.id],
+    };
+
+    return {
+      operations: [
+        createAddOperation(conversationChunk.id),
+        createUpdateOperation(existingHistory.id, historyWithNewChild.id),
+      ],
+      chunks: [conversationChunk, historyWithNewChild],
+    };
+  } else {
+    // Create new WORKING_HISTORY container with this chunk as first child
+    const historyChunk = createChunk({
+      type: ChunkType.WORKING_HISTORY,
+      content: {
+        type: ChunkContentType.TEXT,
+        text: '',
+      },
+    });
+
+    // Add childIds to the history chunk
+    const historyWithChild: MemoryChunk = {
+      ...historyChunk,
+      childIds: [conversationChunk.id],
+    };
+
+    return {
+      operations: [
+        createAddOperation(conversationChunk.id),
+        createAddOperation(historyWithChild.id),
+      ],
+      chunks: [conversationChunk, historyWithChild],
+    };
+  }
+}
 
 // ============ Task Lifecycle Reducers ============
 
@@ -146,28 +228,21 @@ export class TodoSetReducer implements EventReducer<TodoSetEvent> {
     return event.type === EventType.TODO_SET;
   }
 
-  reduce(_state: MemoryState, event: TodoSetEvent): ReducerResult {
-    const chunk = createChunk({
-      type: ChunkType.WORKING_FLOW,
-      content: {
-        type: ChunkContentType.TEXT,
+  reduce(state: MemoryState, event: TodoSetEvent): ReducerResult {
+    return createConversationResult(
+      state,
+      ChunkType.THINKING,
+      {
         action: 'todo_set',
         todos: event.todos,
       },
-      retentionStrategy: ChunkRetentionStrategy.CRITICAL,
-      custom: {
+      {
         eventType: event.type,
         timestamp: event.timestamp,
-        subType: 'todo',
+        category: 'todo',
       },
-    });
-
-    const addOperation = createAddOperation(chunk.id);
-
-    return {
-      operations: [addOperation],
-      chunks: [chunk],
-    };
+      ChunkRetentionStrategy.CRITICAL,
+    );
   }
 }
 
@@ -181,29 +256,22 @@ export class TodoCompletedReducer implements EventReducer<TodoCompletedEvent> {
     return event.type === EventType.TODO_COMPLETED;
   }
 
-  reduce(_state: MemoryState, event: TodoCompletedEvent): ReducerResult {
-    const chunk = createChunk({
-      type: ChunkType.WORKING_FLOW,
-      content: {
-        type: ChunkContentType.TEXT,
+  reduce(state: MemoryState, event: TodoCompletedEvent): ReducerResult {
+    return createConversationResult(
+      state,
+      ChunkType.THINKING,
+      {
         action: 'todo_completed',
         todoId: event.todoId,
         result: event.result,
       },
-      retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
-      custom: {
+      {
         eventType: event.type,
         timestamp: event.timestamp,
-        subType: 'todo',
+        category: 'todo',
       },
-    });
-
-    const addOperation = createAddOperation(chunk.id);
-
-    return {
-      operations: [addOperation],
-      chunks: [chunk],
-    };
+      ChunkRetentionStrategy.COMPRESSIBLE,
+    );
   }
 }
 
@@ -217,29 +285,22 @@ export class TodoExpandedReducer implements EventReducer<TodoExpandedEvent> {
     return event.type === EventType.TODO_EXPANDED;
   }
 
-  reduce(_state: MemoryState, event: TodoExpandedEvent): ReducerResult {
-    const chunk = createChunk({
-      type: ChunkType.WORKING_FLOW,
-      content: {
-        type: ChunkContentType.TEXT,
+  reduce(state: MemoryState, event: TodoExpandedEvent): ReducerResult {
+    return createConversationResult(
+      state,
+      ChunkType.THINKING,
+      {
         action: 'todo_expanded',
         todoId: event.todoId,
         subItems: event.subItems,
       },
-      retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
-      custom: {
+      {
         eventType: event.type,
         timestamp: event.timestamp,
-        subType: 'todo',
+        category: 'todo',
       },
-    });
-
-    const addOperation = createAddOperation(chunk.id);
-
-    return {
-      operations: [addOperation],
-      chunks: [chunk],
-    };
+      ChunkRetentionStrategy.COMPRESSIBLE,
+    );
   }
 }
 
@@ -253,30 +314,23 @@ export class TodoUpdatedReducer implements EventReducer<TodoUpdatedEvent> {
     return event.type === EventType.TODO_UPDATED;
   }
 
-  reduce(_state: MemoryState, event: TodoUpdatedEvent): ReducerResult {
-    const chunk = createChunk({
-      type: ChunkType.WORKING_FLOW,
-      content: {
-        type: ChunkContentType.TEXT,
+  reduce(state: MemoryState, event: TodoUpdatedEvent): ReducerResult {
+    return createConversationResult(
+      state,
+      ChunkType.THINKING,
+      {
         action: 'todo_updated',
         todoId: event.todoId,
         content: event.content,
         status: event.status,
       },
-      retentionStrategy: ChunkRetentionStrategy.DISPOSABLE,
-      custom: {
+      {
         eventType: event.type,
         timestamp: event.timestamp,
-        subType: 'todo',
+        category: 'todo',
       },
-    });
-
-    const addOperation = createAddOperation(chunk.id);
-
-    return {
-      operations: [addOperation],
-      chunks: [chunk],
-    };
+      ChunkRetentionStrategy.DISPOSABLE,
+    );
   }
 }
 
@@ -290,28 +344,21 @@ export class TodoDeletedReducer implements EventReducer<TodoDeletedEvent> {
     return event.type === EventType.TODO_DELETED;
   }
 
-  reduce(_state: MemoryState, event: TodoDeletedEvent): ReducerResult {
-    const chunk = createChunk({
-      type: ChunkType.WORKING_FLOW,
-      content: {
-        type: ChunkContentType.TEXT,
+  reduce(state: MemoryState, event: TodoDeletedEvent): ReducerResult {
+    return createConversationResult(
+      state,
+      ChunkType.THINKING,
+      {
         action: 'todo_deleted',
         todoId: event.todoId,
       },
-      retentionStrategy: ChunkRetentionStrategy.DISPOSABLE,
-      custom: {
+      {
         eventType: event.type,
         timestamp: event.timestamp,
-        subType: 'todo',
+        category: 'todo',
       },
-    });
-
-    const addOperation = createAddOperation(chunk.id);
-
-    return {
-      operations: [addOperation],
-      chunks: [chunk],
-    };
+      ChunkRetentionStrategy.DISPOSABLE,
+    );
   }
 }
 

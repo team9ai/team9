@@ -3,7 +3,9 @@ import type {
   LLMMessage,
   LLMToolCall,
   LLMToolDefinition,
+  LLMConfig,
 } from '../llm/llm.types.js';
+import type { Blueprint } from '../blueprint/blueprint.types.js';
 
 /**
  * Step status
@@ -144,20 +146,68 @@ export interface MemoryThread {
    * Used for tracking and monitoring subagent progress
    */
   childThreadIds?: string[];
+
+  // ============ Blueprint Configuration ============
+
+  /**
+   * Blueprint ID that created this thread
+   * Used for tracking which blueprint configuration was used
+   */
+  blueprintId?: string;
+
+  /**
+   * Blueprint name for identification and debugging
+   */
+  blueprintName?: string;
+
   /**
    * Blueprint key for subagent threads
-   * Identifies which subagent blueprint was used to create this thread
+   * Identifies which subagent blueprint type was used to create this thread
+   * (e.g., 'researcher', 'writer', 'analyst')
    */
   blueprintKey?: string;
+
+  /**
+   * LLM configuration for this thread
+   * Defines model, temperature, and other parameters for LLM calls
+   */
+  llmConfig?: LLMConfig;
+
+  /**
+   * Available control tools for this thread
+   * Array of tool names that can be invoked (e.g., ['grep', 'read', 'write'])
+   */
+  tools?: string[];
+
+  /**
+   * SubAgent blueprints available for spawning child threads
+   * Key is the subagent name, value is the blueprint definition
+   * These blueprints can be used to create subagent threads on-demand
+   */
+  subAgents?: Record<string, Blueprint>;
 }
 
 /**
  * Input parameters for creating a Memory Thread
  */
 export interface CreateThreadInput {
+  /** Custom user-defined metadata */
   custom?: Record<string, unknown>;
   /** Parent thread ID for subagent threads */
   parentThreadId?: string;
+
+  // ============ Blueprint Configuration ============
+
+  /** Blueprint ID that created this thread */
+  blueprintId?: string;
+  /** Blueprint name for identification */
+  blueprintName?: string;
   /** Blueprint key for subagent threads */
   blueprintKey?: string;
+  /** LLM configuration for this thread */
+  llmConfig?: LLMConfig;
+  /** Available control tools */
+  tools?: string[];
+  /** SubAgent blueprints for spawning */
+  subAgents?: Record<string, Blueprint>;
 }

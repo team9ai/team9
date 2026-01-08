@@ -3,7 +3,6 @@ import {
   ChunkType,
   ChunkRetentionStrategy,
   ChunkContentType,
-  WorkingFlowSubType,
 } from '../types/chunk.types.js';
 import { createChunk } from '../factories/chunk.factory.js';
 import { ILLMAdapter, LLMConfig } from '../llm/llm.types.js';
@@ -14,20 +13,21 @@ import {
 } from './compactor.types.js';
 
 /**
- * Prompt template for working flow compaction
+ * Prompt template for working history compaction
  */
-const COMPACTION_PROMPT = `You are a context compression assistant. Your task is to condense a working flow log into a concise summary that preserves all critical knowledge for continuing the task.
+const COMPACTION_PROMPT = `
+You are a context compression assistant. Your task is to condense a working history log into a concise summary that preserves all critical knowledge for continuing the task.
 
 <context>
 {{CONTEXT}}
 </context>
 
-<working_flow_to_compact>
-{{WORKING_FLOW}}
-</working_flow_to_compact>
+<working_history_to_compact>
+{{WORKING_HISTORY}}
+</working_history_to_compact>
 
 <instructions>
-Analyze the working flow above and create a comprehensive summary following these guidelines:
+Analyze the working history above and create a comprehensive summary following these guidelines:
 
 1. **What has been done**: List all significant actions taken
 2. **What has been tried**: Note methods or approaches that were attempted
@@ -71,10 +71,25 @@ Provide your summary in the following format:
 </output_format>`;
 
 /**
- * WorkingFlowCompactor compresses WORKING_FLOW chunks
+ * Conversation chunk types that can be compacted
+ */
+const CONVERSATION_CHUNK_TYPES = [
+  ChunkType.USER_MESSAGE,
+  ChunkType.AGENT_RESPONSE,
+  ChunkType.THINKING,
+  ChunkType.AGENT_ACTION,
+  ChunkType.ACTION_RESPONSE,
+  ChunkType.SUBAGENT_SPAWN,
+  ChunkType.SUBAGENT_RESULT,
+  ChunkType.PARENT_MESSAGE,
+  ChunkType.COMPACTED,
+];
+
+/**
+ * WorkingHistoryCompactor compresses conversation history chunks
  * Uses LLM to generate intelligent summaries
  */
-export class WorkingFlowCompactor implements ICompactor {
+export class WorkingHistoryCompactor implements ICompactor {
   constructor(
     private llmAdapter: ILLMAdapter,
     private config: LLMConfig,
@@ -82,14 +97,15 @@ export class WorkingFlowCompactor implements ICompactor {
 
   /**
    * Check if chunks can be compacted by this compactor
-   * Only handles WORKING_FLOW chunks that are COMPRESSIBLE or BATCH_COMPRESSIBLE
+   * Handles conversation-type chunks that are COMPRESSIBLE or BATCH_COMPRESSIBLE
    */
+  // TODO: CanCompact条件太严格了。CRITICAL的虽然不会被压缩，但也不应该阻止压缩。我们应该在workflow中加标记，并告知LLM压缩的特性
   canCompact(chunks: MemoryChunk[]): boolean {
     if (chunks.length === 0) return false;
 
     return chunks.every(
       (chunk) =>
-        chunk.type === ChunkType.WORKING_FLOW &&
+        CONVERSATION_CHUNK_TYPES.includes(chunk.type) &&
         (chunk.retentionStrategy === ChunkRetentionStrategy.COMPRESSIBLE ||
           chunk.retentionStrategy ===
             ChunkRetentionStrategy.BATCH_COMPRESSIBLE ||
@@ -98,27 +114,27 @@ export class WorkingFlowCompactor implements ICompactor {
   }
 
   /**
-   * Compact working flow chunks into a summary
+   * Compact working history chunks into a summary
    */
   async compact(
     chunks: MemoryChunk[],
     context: CompactionContext,
   ): Promise<CompactionResult> {
     if (!this.canCompact(chunks)) {
-      throw new Error('WorkingFlowCompactor cannot compact these chunks');
+      throw new Error('WorkingHistoryCompactor cannot compact these chunks');
     }
 
     // Build context section
     const contextSection = this.buildContextSection(context);
 
-    // Build working flow section
-    const workingFlowSection = this.buildWorkingFlowSection(chunks);
+    // Build working history section
+    const workingHistorySection = this.buildWorkingHistorySection(chunks);
 
     // Generate prompt
     const prompt = COMPACTION_PROMPT.replace(
       '{{CONTEXT}}',
       contextSection,
-    ).replace('{{WORKING_FLOW}}', workingFlowSection);
+    ).replace('{{WORKING_HISTORY}}', workingHistorySection);
 
     // Call LLM
     const response = await this.llmAdapter.complete({
@@ -134,8 +150,7 @@ export class WorkingFlowCompactor implements ICompactor {
 
     // Create compacted chunk
     const compactedChunk = createChunk({
-      type: ChunkType.WORKING_FLOW,
-      subType: WorkingFlowSubType.COMPACTED,
+      type: ChunkType.COMPACTED,
       content: {
         type: ChunkContentType.TEXT,
         text: response.content,
@@ -152,7 +167,7 @@ export class WorkingFlowCompactor implements ICompactor {
     return {
       compactedChunk,
       originalChunkIds: chunks.map((c) => c.id),
-      tokensBefore: this.estimateTokens(workingFlowSection),
+      tokensBefore: this.estimateTokens(workingHistorySection),
       tokensAfter: this.estimateTokens(response.content),
     };
   }
@@ -193,17 +208,17 @@ export class WorkingFlowCompactor implements ICompactor {
   }
 
   /**
-   * Build working flow section from chunks
+   * Build working history section from chunks
    */
-  private buildWorkingFlowSection(chunks: MemoryChunk[]): string {
+  private buildWorkingHistorySection(chunks: MemoryChunk[]): string {
     return chunks
       .map((chunk, index) => {
-        const subType = chunk.subType || 'UNKNOWN';
+        const chunkType = chunk.type;
         const timestamp = chunk.metadata.createdAt;
         const content = this.extractChunkText(chunk);
         const custom = chunk.metadata.custom;
 
-        let entry = `<entry index="${index + 1}" subtype="${subType}" timestamp="${timestamp}">`;
+        let entry = `<entry index="${index + 1}" type="${chunkType}" timestamp="${timestamp}">`;
 
         // Add custom metadata if present
         if (custom) {
@@ -212,7 +227,7 @@ export class WorkingFlowCompactor implements ICompactor {
             .map(([key, value]) => `${key}="${value}"`)
             .join(' ');
           if (relevantMeta) {
-            entry = `<entry index="${index + 1}" subtype="${subType}" timestamp="${timestamp}" ${relevantMeta}>`;
+            entry = `<entry index="${index + 1}" type="${chunkType}" timestamp="${timestamp}" ${relevantMeta}>`;
           }
         }
 

@@ -71,7 +71,7 @@ const createMockChunk = (
   overrides?: Partial<MemoryChunk>,
 ): MemoryChunk => ({
   id,
-  type: ChunkType.WORKING_FLOW,
+  type: ChunkType.THINKING,
   content: { type: ChunkContentType.TEXT, text: 'test content' },
   retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
   mutable: false,

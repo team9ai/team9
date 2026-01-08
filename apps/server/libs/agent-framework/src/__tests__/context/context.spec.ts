@@ -131,7 +131,7 @@ describe('Context Module', () => {
         },
       });
       const chunk2 = createChunk({
-        type: ChunkType.WORKING_FLOW,
+        type: ChunkType.THINKING,
         content: {
           type: ChunkContentType.TEXT,
           text: 'Thinking...',
@@ -145,7 +145,7 @@ describe('Context Module', () => {
       });
 
       const result = builder.build(state, {
-        excludeTypes: [ChunkType.WORKING_FLOW],
+        excludeTypes: [ChunkType.THINKING],
       });
 
       expect(result.includedChunkIds).not.toContain(chunk2.id);
@@ -267,10 +267,10 @@ describe('Context Module', () => {
           },
         }),
         createChunk({
-          type: ChunkType.WORKING_FLOW,
+          type: ChunkType.THINKING,
           content: {
             type: ChunkContentType.TEXT,
-            text: 'WorkingFlow',
+            text: 'Thinking content',
             action: 'thinking',
           },
         }),

@@ -343,7 +343,7 @@ When truncation threshold is exceeded:
 
 ### Responsibilities
 
-- Manages compactor registry (default: WorkingFlowCompactor)
+- Manages compactor registry (default: WorkingHistoryCompactor)
 - Token counting using model-appropriate tokenizer (tiktoken)
 - Determines which chunks are compressible
 - Token-based threshold checking (soft/hard/truncation)

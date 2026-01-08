@@ -93,6 +93,11 @@ export enum EventType {
   EXECUTION_RETRY = 'EXECUTION_RETRY',
   EXECUTION_RESUME = 'EXECUTION_RESUME',
   EXECUTION_PAUSE = 'EXECUTION_PAUSE',
+
+  // Component Events (hot-plug)
+  COMPONENT_ENABLE = 'COMPONENT_ENABLE',
+  COMPONENT_DISABLE = 'COMPONENT_DISABLE',
+  COMPONENT_DATA_UPDATE = 'COMPONENT_DATA_UPDATE',
 }
 
 // ============ Base Event Interface ============
@@ -433,6 +438,34 @@ export interface ExecutionPauseEvent extends BaseEvent {
   reason?: string;
 }
 
+// ============ Component Events ============
+
+export interface ComponentEnableEvent extends BaseEvent {
+  type: EventType.COMPONENT_ENABLE;
+  /** Component ID to enable */
+  componentId: string;
+  /** Optional configuration to pass to component */
+  config?: Record<string, unknown>;
+}
+
+export interface ComponentDisableEvent extends BaseEvent {
+  type: EventType.COMPONENT_DISABLE;
+  /** Component ID to disable */
+  componentId: string;
+  /** Whether to preserve component data for re-enabling later */
+  preserveData?: boolean;
+}
+
+export interface ComponentDataUpdateEvent extends BaseEvent {
+  type: EventType.COMPONENT_DATA_UPDATE;
+  /** Component ID */
+  componentId: string;
+  /** Data key to update */
+  key: string;
+  /** New value */
+  value: unknown;
+}
+
 // ============ Union Type ============
 
 export type AgentEvent =
@@ -478,4 +511,8 @@ export type AgentEvent =
   // Lifecycle Events
   | ExecutionRetryEvent
   | ExecutionResumeEvent
-  | ExecutionPauseEvent;
+  | ExecutionPauseEvent
+  // Component Events
+  | ComponentEnableEvent
+  | ComponentDisableEvent
+  | ComponentDataUpdateEvent;

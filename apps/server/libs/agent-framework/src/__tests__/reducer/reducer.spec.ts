@@ -82,16 +82,24 @@ describe('Reducer Module', () => {
 
       const result = await reducer.reduce(state, event);
 
-      expect(result.operations.length).toBe(1);
-      expect(result.chunks.length).toBe(1);
-      expect(result.chunks[0].type).toBe(ChunkType.WORKING_FLOW);
-      // User messages go into a WORKING_FLOW container as children
-      expect(result.chunks[0].children).toBeDefined();
-      expect(result.chunks[0].children!.length).toBe(1);
-      const childContent = result.chunks[0].children![0].content as {
-        text?: string;
-      };
-      expect(childContent.text).toBe('Hello, world!');
+      // New structure: creates both a USER_MESSAGE chunk and a WORKING_HISTORY container
+      expect(result.operations.length).toBeGreaterThan(0);
+      expect(result.chunks.length).toBe(2); // USER_MESSAGE chunk + WORKING_HISTORY container
+
+      // Find the user message chunk
+      const userMessageChunk = result.chunks.find(
+        (c) => c.type === ChunkType.USER_MESSAGE,
+      );
+      expect(userMessageChunk).toBeDefined();
+      const content = userMessageChunk!.content as { text?: string };
+      expect(content.text).toBe('Hello, world!');
+
+      // Find the WORKING_HISTORY container
+      const historyChunk = result.chunks.find(
+        (c) => c.type === ChunkType.WORKING_HISTORY,
+      );
+      expect(historyChunk).toBeDefined();
+      expect(historyChunk!.childIds).toContain(userMessageChunk!.id);
     });
   });
 
@@ -110,14 +118,13 @@ describe('Reducer Module', () => {
 
       const result = await reducer.reduce(state, event);
 
-      // LLM responses now go into a WORKING_FLOW container as a child
-      expect(result.chunks[0].type).toBe(ChunkType.WORKING_FLOW);
-      expect(result.chunks[0].children).toBeDefined();
-      expect(result.chunks[0].children!.length).toBe(1);
-      const childContent = result.chunks[0].children![0].content as {
-        role?: string;
-      };
-      expect(childContent.role).toBe('assistant');
+      // New structure: creates AGENT_RESPONSE chunk + WORKING_HISTORY container
+      expect(result.chunks.length).toBe(2);
+
+      const agentResponse = result.chunks.find(
+        (c) => c.type === ChunkType.AGENT_RESPONSE,
+      );
+      expect(agentResponse).toBeDefined();
     });
   });
 
@@ -138,16 +145,19 @@ describe('Reducer Module', () => {
 
       const result = await reducer.reduce(state, event);
 
-      // Tool calls now go into a WORKING_FLOW container as a child with AGENT_ACTION subType
-      expect(result.chunks[0].type).toBe(ChunkType.WORKING_FLOW);
-      expect(result.chunks[0].children).toBeDefined();
-      expect(result.chunks[0].children!.length).toBe(1);
-      const childContent = result.chunks[0].children![0].content as {
+      // New structure: creates AGENT_ACTION chunk + WORKING_HISTORY container
+      expect(result.chunks.length).toBe(2);
+
+      const actionChunk = result.chunks.find(
+        (c) => c.type === ChunkType.AGENT_ACTION,
+      );
+      expect(actionChunk).toBeDefined();
+      const content = actionChunk!.content as {
         toolName?: string;
         callId?: string;
       };
-      expect(childContent.toolName).toBe('read_file');
-      expect(childContent.callId).toBe('call_123');
+      expect(content.toolName).toBe('read_file');
+      expect(content.callId).toBe('call_123');
     });
   });
 
@@ -169,7 +179,11 @@ describe('Reducer Module', () => {
 
       const result = await reducer.reduce(state, event);
 
-      expect(result.chunks[0].type).toBe(ChunkType.ENVIRONMENT);
+      // Tool results create ACTION_RESPONSE chunks
+      const actionResponse = result.chunks.find(
+        (c) => c.type === ChunkType.ACTION_RESPONSE,
+      );
+      expect(actionResponse).toBeDefined();
     });
   });
 
@@ -190,7 +204,11 @@ describe('Reducer Module', () => {
 
       const result = await reducer.reduce(state, event);
 
-      expect(result.chunks[0].type).toBe(ChunkType.ENVIRONMENT);
+      // Tool errors create ACTION_RESPONSE chunks
+      const actionResponse = result.chunks.find(
+        (c) => c.type === ChunkType.ACTION_RESPONSE,
+      );
+      expect(actionResponse).toBeDefined();
     });
   });
 
@@ -212,7 +230,11 @@ describe('Reducer Module', () => {
 
       const result = await reducer.reduce(state, event);
 
-      expect(result.chunks[0].type).toBe(ChunkType.WORKING_FLOW);
+      // Todo creates THINKING chunks
+      const thinkingChunk = result.chunks.find(
+        (c) => c.type === ChunkType.THINKING,
+      );
+      expect(thinkingChunk).toBeDefined();
     });
   });
 
@@ -244,7 +266,7 @@ describe('Reducer Module', () => {
       const reducer = new MemoryMarkCriticalReducer();
 
       const chunk = createChunk({
-        type: ChunkType.WORKING_FLOW,
+        type: ChunkType.THINKING,
         content: { type: ChunkContentType.TEXT, text: 'Important info' },
         retentionStrategy: ChunkRetentionStrategy.DISPOSABLE,
       });
@@ -273,7 +295,7 @@ describe('Reducer Module', () => {
       const reducer = new MemoryForgetReducer();
 
       const chunk = createChunk({
-        type: ChunkType.WORKING_FLOW,
+        type: ChunkType.THINKING,
         content: { type: ChunkContentType.TEXT, text: 'To be forgotten' },
       });
 
@@ -298,7 +320,7 @@ describe('Reducer Module', () => {
       const registry = createDefaultReducerRegistry();
       let state = createState({ threadId: 'thread_1' });
 
-      // First user message creates a new WORKING_FLOW container
+      // First user message creates USER_MESSAGE chunk + WORKING_HISTORY container
       const userEvent: UserMessageEvent = {
         type: EventType.USER_MESSAGE,
         timestamp: Date.now(),
@@ -306,18 +328,23 @@ describe('Reducer Module', () => {
       };
 
       const userResult = await registry.reduce(state, userEvent);
-      expect(userResult.operations.length).toBe(1);
-      expect(userResult.chunks.length).toBe(1);
-      expect(userResult.chunks[0].type).toBe(ChunkType.WORKING_FLOW);
-      expect(userResult.chunks[0].children?.length).toBe(1);
+      expect(userResult.operations.length).toBeGreaterThan(0);
+      expect(userResult.chunks.length).toBe(2); // USER_MESSAGE + WORKING_HISTORY
 
-      // Simulate state update with the new chunk
+      // Find the WORKING_HISTORY container
+      const historyChunk = userResult.chunks.find(
+        (c) => c.type === ChunkType.WORKING_HISTORY,
+      );
+      expect(historyChunk).toBeDefined();
+      expect(historyChunk!.childIds?.length).toBe(1);
+
+      // Simulate state update with the new chunks
       state = createState({
         threadId: 'thread_1',
         chunks: userResult.chunks,
       });
 
-      // Second LLM response should add to existing WORKING_FLOW
+      // Second LLM response should add AGENT_RESPONSE chunk and update WORKING_HISTORY
       const llmEvent: LLMTextResponseEvent = {
         type: EventType.LLM_TEXT_RESPONSE,
         timestamp: Date.now(),
@@ -325,9 +352,21 @@ describe('Reducer Module', () => {
       };
 
       const llmResult = await registry.reduce(state, llmEvent);
-      expect(llmResult.operations.length).toBe(1);
-      // No new chunks - only adding child to existing chunk
-      expect(llmResult.chunks.length).toBe(0);
+      expect(llmResult.operations.length).toBeGreaterThan(0);
+      // Creates new AGENT_RESPONSE chunk + updated WORKING_HISTORY
+      expect(llmResult.chunks.length).toBe(2);
+
+      const agentResponseChunk = llmResult.chunks.find(
+        (c) => c.type === ChunkType.AGENT_RESPONSE,
+      );
+      expect(agentResponseChunk).toBeDefined();
+
+      const updatedHistory = llmResult.chunks.find(
+        (c) => c.type === ChunkType.WORKING_HISTORY,
+      );
+      expect(updatedHistory).toBeDefined();
+      // Updated history should have 2 childIds
+      expect(updatedHistory!.childIds?.length).toBe(2);
     });
   });
 });

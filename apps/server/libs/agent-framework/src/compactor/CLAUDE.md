@@ -4,10 +4,10 @@ This directory contains Compactor implementations for compressing memory chunks 
 
 ## File Structure
 
-| File                        | Description                                        |
-| --------------------------- | -------------------------------------------------- |
-| `compactor.types.ts`        | ICompactor interface and related types             |
-| `working-flow.compactor.ts` | WorkingFlowCompactor: compacts WORKING_FLOW chunks |
+| File                           | Description                                           |
+| ------------------------------ | ----------------------------------------------------- |
+| `compactor.types.ts`           | ICompactor interface and related types                |
+| `working-history.compactor.ts` | WorkingHistoryCompactor: compacts conversation chunks |
 
 ## Architecture
 
@@ -49,34 +49,36 @@ interface ICompactor {
 }
 ```
 
-## WorkingFlowCompactor
+## WorkingHistoryCompactor
 
-Compacts WORKING_FLOW chunks (thinking, todo updates, progress) into summaries.
+Compacts conversation history chunks (thinking, messages, actions, responses) into summaries.
 
 ### Prompt Format
 
 ```xml
-<compaction_request>
-  <instruction>Summarize the following workflow events...</instruction>
-  <chunks>
-    <chunk id="xxx" type="WORKING_FLOW" subtype="THINKING">
-      Content here...
-    </chunk>
-    ...
-  </chunks>
-</compaction_request>
+<context>
+  <task_goal>User's task goal</task_goal>
+  <progress_summary>Previous progress</progress_summary>
+</context>
+
+<working_history_to_compact>
+  <entry index="1" type="THINKING" timestamp="...">
+    Content here...
+  </entry>
+  ...
+</working_history_to_compact>
 ```
 
 ### Usage
 
 ```typescript
-import { WorkingFlowCompactor } from './compactor';
+import { WorkingHistoryCompactor } from './compactor';
 
-const compactor = new WorkingFlowCompactor(llmAdapter);
+const compactor = new WorkingHistoryCompactor(llmAdapter, config);
 
 if (compactor.canCompact(chunks)) {
-  const summaryChunk = await compactor.compact(chunks);
-  // Apply COMPACT operation to replace chunks with summary
+  const result = await compactor.compact(chunks, context);
+  // result: { compactedChunk, originalChunkIds, tokensBefore, tokensAfter }
 }
 ```
 

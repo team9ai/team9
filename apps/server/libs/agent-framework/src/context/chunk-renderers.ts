@@ -2,7 +2,6 @@ import {
   MemoryChunk,
   ChunkType,
   ChunkContentType,
-  WorkingFlowSubType,
 } from '../types/chunk.types.js';
 import { IChunkRenderer, ContextMessageRole } from './context.types.js';
 
@@ -294,137 +293,223 @@ export class EnvironmentChunkRenderer implements IChunkRenderer {
   }
 }
 
-// ============ Working Flow Chunk Renderer ============
+// ============ Working History Chunk Renderer ============
 
-export class WorkingFlowChunkRenderer implements IChunkRenderer {
+export class WorkingHistoryChunkRenderer implements IChunkRenderer {
   canRender(chunk: MemoryChunk): boolean {
-    return chunk.type === ChunkType.WORKING_FLOW;
+    return chunk.type === ChunkType.WORKING_HISTORY;
   }
 
-  getRole(chunk: MemoryChunk): ContextMessageRole {
-    // For container chunks, determine role from children
-    if (chunk.children && chunk.children.length > 0) {
-      // Return role based on the last child for proper conversation flow
-      const lastChild = chunk.children[chunk.children.length - 1];
-      if (lastChild.subType === WorkingFlowSubType.USER) {
-        return 'user';
-      }
-      return 'assistant';
-    }
-
-    const subType = chunk.subType;
-    if (subType === WorkingFlowSubType.USER) {
-      return 'user';
-    }
+  getRole(_chunk: MemoryChunk): ContextMessageRole {
+    // WORKING_HISTORY is a container, role depends on children
     return 'assistant';
   }
 
   render(chunk: MemoryChunk): string {
-    // Handle container chunk with children
-    if (chunk.children && chunk.children.length > 0) {
-      return this.renderContainerWithChildren(chunk);
-    }
-
-    const subType = chunk.subType;
-    const textContent = extractTextContent(chunk);
-    const custom = chunk.metadata.custom;
-
-    // Handle compacted summaries
-    if (subType === WorkingFlowSubType.COMPACTED) {
-      const attrs = buildAttributes({
-        id: chunk.id,
-        compacted_at: custom?.compactedAt,
-        original_count: custom?.originalChunkCount,
-      });
-      return `<progress_summary${attrs}>\n${textContent}\n</progress_summary>`;
-    }
-
-    // Handle TODO-related chunks
-    if (custom?.subType === 'todo') {
-      const action =
-        'action' in chunk.content ? chunk.content.action : undefined;
-      const attrs = buildAttributes({
-        id: chunk.id,
-        action,
-      });
-      return `<todo_update${attrs}>\n${textContent}\n</todo_update>`;
-    }
-
-    // Handle other subtypes
-    const subTypeTag = this.getSubTypeTag(subType);
+    // WORKING_HISTORY is a container that holds childIds
+    // The actual rendering of children happens in the context builder
+    // which resolves the child chunks and renders them separately
     const attrs = buildAttributes({
       id: chunk.id,
-      subtype: subType,
+      child_count: chunk.childIds?.length ?? 0,
     });
+    return `<working_history${attrs}>[Container - children rendered separately]</working_history>`;
+  }
+}
 
-    return `<${subTypeTag}${attrs}>\n${textContent}\n</${subTypeTag}>`;
+// ============ Conversation Type Renderers ============
+
+export class UserMessageChunkRenderer implements IChunkRenderer {
+  canRender(chunk: MemoryChunk): boolean {
+    return chunk.type === ChunkType.USER_MESSAGE;
   }
 
-  /**
-   * Render a container chunk with its children
-   */
-  private renderContainerWithChildren(chunk: MemoryChunk): string {
-    if (!chunk.children || chunk.children.length === 0) {
-      return '';
-    }
-
-    const parts: string[] = [];
-
-    for (const child of chunk.children) {
-      const childTag = this.getSubTypeTag(child.subType);
-      const childContent = this.extractChildTextContent(child.content);
-      const attrs = buildAttributes({
-        id: child.id,
-        subtype: child.subType,
-      });
-      parts.push(`<${childTag}${attrs}>\n${childContent}\n</${childTag}>`);
-    }
-
-    return parts.join('\n');
+  getRole(_chunk: MemoryChunk): ContextMessageRole {
+    return 'user';
   }
 
-  /**
-   * Extract text content from a child's content
-   */
-  private extractChildTextContent(content: unknown): string {
-    if (!content || typeof content !== 'object') {
-      return String(content ?? '');
-    }
+  render(chunk: MemoryChunk): string {
+    const textContent = extractTextContent(chunk);
+    const attrs = buildAttributes({ id: chunk.id });
+    return `<user_message${attrs}>\n${textContent}\n</user_message>`;
+  }
+}
 
-    const contentObj = content as Record<string, unknown>;
-
-    if (contentObj.type === ChunkContentType.TEXT) {
-      if ('text' in contentObj && typeof contentObj.text === 'string') {
-        return contentObj.text;
-      }
-      const { type, ...rest } = contentObj;
-      return JSON.stringify(rest, null, 2);
-    }
-
-    // Fallback: serialize as JSON
-    try {
-      const { type, ...rest } = contentObj;
-      return JSON.stringify(rest, null, 2);
-    } catch {
-      return '[Non-serializable content]';
-    }
+export class AgentResponseChunkRenderer implements IChunkRenderer {
+  canRender(chunk: MemoryChunk): boolean {
+    return chunk.type === ChunkType.AGENT_RESPONSE;
   }
 
-  private getSubTypeTag(subType?: WorkingFlowSubType | string): string {
-    switch (subType) {
-      case WorkingFlowSubType.USER:
-        return 'user_message';
-      case WorkingFlowSubType.THINKING:
-        return 'thinking';
-      case WorkingFlowSubType.RESPONSE:
-        return 'assistant_response';
-      case WorkingFlowSubType.AGENT_ACTION:
-        return 'agent_action';
-      case WorkingFlowSubType.ACTION_RESPONSE:
-        return 'action_response';
-      default:
-        return 'working_flow';
-    }
+  getRole(_chunk: MemoryChunk): ContextMessageRole {
+    return 'assistant';
+  }
+
+  render(chunk: MemoryChunk): string {
+    const textContent = extractTextContent(chunk);
+    const attrs = buildAttributes({ id: chunk.id });
+    return `<assistant_response${attrs}>\n${textContent}\n</assistant_response>`;
+  }
+}
+
+export class ThinkingChunkRenderer implements IChunkRenderer {
+  canRender(chunk: MemoryChunk): boolean {
+    return chunk.type === ChunkType.THINKING;
+  }
+
+  getRole(_chunk: MemoryChunk): ContextMessageRole {
+    return 'assistant';
+  }
+
+  render(chunk: MemoryChunk): string {
+    const textContent = extractTextContent(chunk);
+    const attrs = buildAttributes({ id: chunk.id });
+    return `<thinking${attrs}>\n${textContent}\n</thinking>`;
+  }
+}
+
+export class AgentActionChunkRenderer implements IChunkRenderer {
+  canRender(chunk: MemoryChunk): boolean {
+    return chunk.type === ChunkType.AGENT_ACTION;
+  }
+
+  getRole(_chunk: MemoryChunk): ContextMessageRole {
+    return 'assistant';
+  }
+
+  render(chunk: MemoryChunk): string {
+    const content = chunk.content;
+    const action = 'action' in content ? content.action : 'unknown';
+    const toolName = 'toolName' in content ? content.toolName : undefined;
+    const skillName = 'skillName' in content ? content.skillName : undefined;
+    const callId = 'callId' in content ? content.callId : undefined;
+
+    const textContent = extractTextContent(chunk);
+    const attrs = buildAttributes({
+      id: chunk.id,
+      action,
+      tool: toolName,
+      skill: skillName,
+      call_id: callId,
+    });
+    return `<agent_action${attrs}>\n${textContent}\n</agent_action>`;
+  }
+}
+
+export class ActionResponseChunkRenderer implements IChunkRenderer {
+  canRender(chunk: MemoryChunk): boolean {
+    return chunk.type === ChunkType.ACTION_RESPONSE;
+  }
+
+  getRole(_chunk: MemoryChunk): ContextMessageRole {
+    return 'user';
+  }
+
+  render(chunk: MemoryChunk): string {
+    const content = chunk.content;
+    const source = 'source' in content ? content.source : 'unknown';
+    const success = 'success' in content ? content.success : undefined;
+    const callId = 'callId' in content ? content.callId : undefined;
+
+    const textContent = extractTextContent(chunk);
+    const attrs = buildAttributes({
+      id: chunk.id,
+      source,
+      success,
+      call_id: callId,
+    });
+    return `<action_response${attrs}>\n${textContent}\n</action_response>`;
+  }
+}
+
+export class SubagentSpawnChunkRenderer implements IChunkRenderer {
+  canRender(chunk: MemoryChunk): boolean {
+    return chunk.type === ChunkType.SUBAGENT_SPAWN;
+  }
+
+  getRole(_chunk: MemoryChunk): ContextMessageRole {
+    return 'assistant';
+  }
+
+  render(chunk: MemoryChunk): string {
+    const content = chunk.content;
+    const subAgentId = 'subAgentId' in content ? content.subAgentId : undefined;
+    const agentType = 'agentType' in content ? content.agentType : undefined;
+
+    const textContent = extractTextContent(chunk);
+    const attrs = buildAttributes({
+      id: chunk.id,
+      subagent_id: subAgentId,
+      agent_type: agentType,
+    });
+    return `<subagent_spawn${attrs}>\n${textContent}\n</subagent_spawn>`;
+  }
+}
+
+export class SubagentResultChunkRenderer implements IChunkRenderer {
+  canRender(chunk: MemoryChunk): boolean {
+    return chunk.type === ChunkType.SUBAGENT_RESULT;
+  }
+
+  getRole(_chunk: MemoryChunk): ContextMessageRole {
+    return 'user';
+  }
+
+  render(chunk: MemoryChunk): string {
+    const content = chunk.content;
+    const subAgentId = 'subAgentId' in content ? content.subAgentId : undefined;
+    const success = 'success' in content ? content.success : undefined;
+
+    const textContent = extractTextContent(chunk);
+    const attrs = buildAttributes({
+      id: chunk.id,
+      subagent_id: subAgentId,
+      success,
+    });
+    return `<subagent_result${attrs}>\n${textContent}\n</subagent_result>`;
+  }
+}
+
+export class ParentMessageChunkRenderer implements IChunkRenderer {
+  canRender(chunk: MemoryChunk): boolean {
+    return chunk.type === ChunkType.PARENT_MESSAGE;
+  }
+
+  getRole(_chunk: MemoryChunk): ContextMessageRole {
+    return 'user';
+  }
+
+  render(chunk: MemoryChunk): string {
+    const content = chunk.content;
+    const parentAgentId =
+      'parentAgentId' in content ? content.parentAgentId : undefined;
+
+    const textContent = extractTextContent(chunk);
+    const attrs = buildAttributes({
+      id: chunk.id,
+      parent_agent_id: parentAgentId,
+    });
+    return `<parent_message${attrs}>\n${textContent}\n</parent_message>`;
+  }
+}
+
+export class CompactedChunkRenderer implements IChunkRenderer {
+  canRender(chunk: MemoryChunk): boolean {
+    return chunk.type === ChunkType.COMPACTED;
+  }
+
+  getRole(_chunk: MemoryChunk): ContextMessageRole {
+    return 'assistant';
+  }
+
+  render(chunk: MemoryChunk): string {
+    const textContent = extractTextContent(chunk);
+    const custom = chunk.metadata.custom;
+    const attrs = buildAttributes({
+      id: chunk.id,
+      compacted_at: custom?.compactedAt,
+      original_count: custom?.originalChunkCount,
+    });
+    return `<progress_summary${attrs}>\n${textContent}\n</progress_summary>`;
   }
 }
 
@@ -487,7 +572,17 @@ export function getDefaultRenderers(): IChunkRenderer[] {
     new WorkflowChunkRenderer(),
     new DelegationChunkRenderer(),
     new EnvironmentChunkRenderer(),
-    new WorkingFlowChunkRenderer(),
+    new WorkingHistoryChunkRenderer(),
     new OutputChunkRenderer(),
+    // Conversation type renderers
+    new UserMessageChunkRenderer(),
+    new AgentResponseChunkRenderer(),
+    new ThinkingChunkRenderer(),
+    new AgentActionChunkRenderer(),
+    new ActionResponseChunkRenderer(),
+    new SubagentSpawnChunkRenderer(),
+    new SubagentResultChunkRenderer(),
+    new ParentMessageChunkRenderer(),
+    new CompactedChunkRenderer(),
   ];
 }

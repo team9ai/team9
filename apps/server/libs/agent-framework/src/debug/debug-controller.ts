@@ -135,7 +135,6 @@ export class DefaultDebugController implements DebugController {
     // Create a new chunk with the updated content
     const editedChunk = createChunk({
       type: originalChunk.type,
-      subType: originalChunk.subType,
       content: newContent,
       retentionStrategy: originalChunk.retentionStrategy,
       mutable: originalChunk.mutable,

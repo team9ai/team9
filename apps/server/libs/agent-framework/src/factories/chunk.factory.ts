@@ -11,13 +11,24 @@ import { generateChunkId } from '../utils/id.utils.js';
  * Default priority values for different chunk types
  */
 const DEFAULT_PRIORITIES: Record<ChunkType, number> = {
+  // Core types
   [ChunkType.SYSTEM]: 1000,
   [ChunkType.AGENT]: 900,
   [ChunkType.WORKFLOW]: 800,
   [ChunkType.DELEGATION]: 700,
   [ChunkType.ENVIRONMENT]: 600,
-  [ChunkType.WORKING_FLOW]: 500,
+  [ChunkType.WORKING_HISTORY]: 500,
   [ChunkType.OUTPUT]: 400,
+  // Conversation types (all same priority, ordered by creation time)
+  [ChunkType.COMPACTED]: 500,
+  [ChunkType.USER_MESSAGE]: 500,
+  [ChunkType.THINKING]: 500,
+  [ChunkType.AGENT_RESPONSE]: 500,
+  [ChunkType.AGENT_ACTION]: 500,
+  [ChunkType.ACTION_RESPONSE]: 500,
+  [ChunkType.SUBAGENT_SPAWN]: 500,
+  [ChunkType.SUBAGENT_RESULT]: 500,
+  [ChunkType.PARENT_MESSAGE]: 500,
 };
 
 /**
@@ -25,26 +36,48 @@ const DEFAULT_PRIORITIES: Record<ChunkType, number> = {
  */
 const DEFAULT_RETENTION_STRATEGIES: Record<ChunkType, ChunkRetentionStrategy> =
   {
+    // Core types
     [ChunkType.SYSTEM]: ChunkRetentionStrategy.CRITICAL,
     [ChunkType.AGENT]: ChunkRetentionStrategy.CRITICAL,
     [ChunkType.WORKFLOW]: ChunkRetentionStrategy.CRITICAL,
     [ChunkType.DELEGATION]: ChunkRetentionStrategy.COMPRESSIBLE,
     [ChunkType.ENVIRONMENT]: ChunkRetentionStrategy.COMPRESSIBLE,
-    [ChunkType.WORKING_FLOW]: ChunkRetentionStrategy.BATCH_COMPRESSIBLE,
+    [ChunkType.WORKING_HISTORY]: ChunkRetentionStrategy.CRITICAL,
     [ChunkType.OUTPUT]: ChunkRetentionStrategy.COMPRESSIBLE,
+    // Conversation types
+    [ChunkType.COMPACTED]: ChunkRetentionStrategy.COMPRESSIBLE,
+    [ChunkType.USER_MESSAGE]: ChunkRetentionStrategy.COMPRESSIBLE,
+    [ChunkType.THINKING]: ChunkRetentionStrategy.BATCH_COMPRESSIBLE,
+    [ChunkType.AGENT_RESPONSE]: ChunkRetentionStrategy.COMPRESSIBLE,
+    [ChunkType.AGENT_ACTION]: ChunkRetentionStrategy.BATCH_COMPRESSIBLE,
+    [ChunkType.ACTION_RESPONSE]: ChunkRetentionStrategy.BATCH_COMPRESSIBLE,
+    [ChunkType.SUBAGENT_SPAWN]: ChunkRetentionStrategy.COMPRESSIBLE,
+    [ChunkType.SUBAGENT_RESULT]: ChunkRetentionStrategy.COMPRESSIBLE,
+    [ChunkType.PARENT_MESSAGE]: ChunkRetentionStrategy.COMPRESSIBLE,
   };
 
 /**
  * Default mutability for different chunk types
  */
 const DEFAULT_MUTABILITY: Record<ChunkType, boolean> = {
+  // Core types
   [ChunkType.SYSTEM]: false,
   [ChunkType.AGENT]: false,
   [ChunkType.WORKFLOW]: false,
   [ChunkType.DELEGATION]: true,
   [ChunkType.ENVIRONMENT]: false,
-  [ChunkType.WORKING_FLOW]: true,
+  [ChunkType.WORKING_HISTORY]: true,
   [ChunkType.OUTPUT]: false,
+  // Conversation types (all immutable once created)
+  [ChunkType.COMPACTED]: false,
+  [ChunkType.USER_MESSAGE]: false,
+  [ChunkType.THINKING]: false,
+  [ChunkType.AGENT_RESPONSE]: false,
+  [ChunkType.AGENT_ACTION]: false,
+  [ChunkType.ACTION_RESPONSE]: false,
+  [ChunkType.SUBAGENT_SPAWN]: false,
+  [ChunkType.SUBAGENT_RESULT]: false,
+  [ChunkType.PARENT_MESSAGE]: false,
 };
 
 /**
@@ -80,8 +113,9 @@ export function createChunk(input: CreateChunkInput): Readonly<MemoryChunk> {
 
   const chunk: MemoryChunk = {
     id: generateChunkId(),
+    componentId: input.componentId,
+    chunkKey: input.chunkKey,
     type: input.type,
-    subType: input.subType,
     content: input.content,
     retentionStrategy:
       input.retentionStrategy ?? DEFAULT_RETENTION_STRATEGIES[input.type],
@@ -113,8 +147,9 @@ export function deriveChunk(
   const parentIds = updates.parentIds ?? [original.id];
 
   return createChunk({
+    componentId: updates.componentId ?? original.componentId,
+    chunkKey: updates.chunkKey ?? original.chunkKey,
     type: updates.type ?? original.type,
-    subType: updates.subType ?? original.subType,
     content: updates.content ?? original.content,
     retentionStrategy: updates.retentionStrategy ?? original.retentionStrategy,
     mutable: updates.mutable ?? original.mutable,

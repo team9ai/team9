@@ -1,5 +1,5 @@
 import { MemoryState, StateProvenance } from '../types/state.types.js';
-import { MemoryChunk, WorkingFlowSubType } from '../types/chunk.types.js';
+import { MemoryChunk } from '../types/chunk.types.js';
 import {
   Operation,
   OperationType,
@@ -54,7 +54,7 @@ function applySingleOperationInternal(
     case OperationType.ADD: {
       const addOp = operation as AddOperation;
 
-      // Check if this is adding a child to an existing chunk
+      // Check if this is adding a child to an existing chunk (legacy behavior for childIds)
       if (addOp.parentChunkId && addOp.child) {
         const targetChunk = chunks.get(addOp.parentChunkId);
         if (!targetChunk) {
@@ -62,23 +62,14 @@ function applySingleOperationInternal(
             `Parent chunk not found in state: ${addOp.parentChunkId}`,
           );
         }
-        // Create a NEW chunk with a NEW ID containing the updated children
+        // Create a NEW chunk with a NEW ID containing the updated childIds
         // This ensures each state has its own immutable snapshot of the chunk
         // and prevents upsert operations from overwriting historical data
         const newChunkId = generateChunkId();
         const updatedChunk: MemoryChunk = {
           ...targetChunk,
           id: newChunkId,
-          children: [
-            ...(targetChunk.children ?? []),
-            {
-              id: addOp.child.id,
-              subType: addOp.child.subType as WorkingFlowSubType,
-              content: addOp.child.content as MemoryChunk['content'],
-              createdAt: addOp.child.createdAt,
-              custom: addOp.child.custom,
-            },
-          ],
+          childIds: [...(targetChunk.childIds ?? []), addOp.child.id],
           metadata: {
             ...targetChunk.metadata,
             custom: {
@@ -274,7 +265,7 @@ function computeOperationResult(
 }
 
 /**
- * Apply an operation to the state and persist to storage
+ * Apply a single operation to the state and persist to storage
  * @param state - The current state
  * @param operation - The operation to apply
  * @param context - Execution context containing pending chunks and storage

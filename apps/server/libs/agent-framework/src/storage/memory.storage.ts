@@ -10,11 +10,7 @@ function cloneChunk(chunk: MemoryChunk): MemoryChunk {
   return {
     ...chunk,
     content: { ...chunk.content },
-    children: chunk.children?.map((child) => ({
-      ...child,
-      content: { ...child.content },
-      custom: child.custom ? { ...child.custom } : undefined,
-    })),
+    childIds: chunk.childIds ? [...chunk.childIds] : undefined,
     metadata: {
       ...chunk.metadata,
       custom: chunk.metadata.custom ? { ...chunk.metadata.custom } : undefined,

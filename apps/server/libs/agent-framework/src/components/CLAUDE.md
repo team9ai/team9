@@ -1,256 +1,226 @@
 # Components Module
 
-Higher-level abstractions that combine chunks and tools for agent configuration.
+Component-Centric architecture for organizing agent functionality. Components are first-class citizens that encapsulate chunks, tools, events, and rendering logic.
 
 ## Overview
 
-Components are modular building blocks that define an agent's structure. Each component can include:
+This module provides two component systems:
 
-- **Instructions** - Prompt content rendered as a memory chunk
-- **Tools** - Custom tools automatically categorized and registered
+1. **New Component-Centric Architecture** (`IComponent` interface) - Full-featured components with lifecycle, event handling, and rendering
+2. **Legacy ComponentConfig** - Simple declarative component definitions for backward compatibility
 
-## Architecture
+## Directory Structure
+
+```
+components/
+├── base/                      # Core base components (always enabled)
+│   ├── abstract-component.ts  # Base class for all components
+│   ├── working-history/       # Conversation history management
+│   ├── task-lifecycle/        # Task completion tracking
+│   └── error/                 # Error handling and display
+├── builtin/                   # Pre-built optional components
+│   ├── system/                # System instructions
+│   ├── todo/                  # Todo list management
+│   ├── subagent/              # Sub-agent status tracking
+│   └── memory/                # Memory management operations
+├── component.interface.ts     # IComponent interface & types
+├── component.types.ts         # Legacy ComponentConfig types
+├── component-manager.ts       # Per-thread component lifecycle
+├── component-renderer.ts      # Legacy blueprint rendering
+└── template-renderer.ts       # Template expression rendering
+```
+
+---
+
+## New Component-Centric Architecture
+
+### Core Concepts
+
+- **IComponent**: Main interface defining component behavior
+- **AbstractComponent**: Base class providing default implementations
+- **ComponentManager**: Manages component lifecycle and aggregation per thread
+
+### Component Types (NewComponentType)
+
+| Type        | Description                                                  |
+| ----------- | ------------------------------------------------------------ |
+| `base`      | Core framework component, always present, cannot be disabled |
+| `stable`    | Once specified in blueprint, cannot be disabled at runtime   |
+| `pluggable` | Can be enabled/disabled at runtime via events                |
+
+### Component Lifecycle
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Components System                         │
+│                  Component Lifecycle                         │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
-│  Blueprint.components: ComponentConfig[]                     │
-│      │                                                       │
-│      ├── SystemComponent                                    │
-│      │   ├── type: 'system'                                 │
-│      │   ├── instructions: string (required)                │
-│      │   ├── tools?: CustomToolConfig[] → 'common' category │
-│      │   └── customData?: Record<string, unknown>           │
-│      │                                                       │
-│      ├── AgentComponent                                     │
-│      │   ├── type: 'agent'                                  │
-│      │   ├── instructions?: string                          │
-│      │   ├── tools?: CustomToolConfig[] → 'agent' category  │
-│      │   └── customData?: Record<string, unknown>           │
-│      │                                                       │
-│      └── WorkflowComponent                                  │
-│          ├── type: 'workflow'                               │
-│          ├── instructions?: string                          │
-│          ├── tools?: CustomToolConfig[] → 'workflow' category│
-│          └── customData?: Record<string, unknown>           │
+│  onInitialize()   ─→   First load into thread (one-time)    │
+│       │                                                      │
+│       ▼                                                      │
+│  onActivate()     ─→   Component enabled                    │
+│       │                                                      │
+│       ▼                                                      │
+│  [Component Active - handles events, renders chunks]         │
+│       │                                                      │
+│       ▼                                                      │
+│  onDeactivate()   ─→   Component disabled (pluggable only)  │
+│       │                                                      │
+│       ▼                                                      │
+│  onDestroy()      ─→   Complete removal (cleanup)           │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Component Types
-
-### SystemComponent
-
-System-level instructions and common tools.
+### Creating a Custom Component
 
 ```typescript
-interface SystemComponent {
-  type: 'system';
-  instructions: string; // Required
-  tools?: CustomToolConfig[];
-  customData?: Record<string, unknown>;
+import {
+  AbstractComponent,
+  NewComponentType,
+  ChunkType,
+  ChunkRetentionStrategy,
+} from '@team9/agent-framework';
+
+class MyComponent extends AbstractComponent {
+  readonly id = 'my-component';
+  readonly name = 'My Component';
+  readonly type: NewComponentType = 'pluggable';
+  readonly dependencies = ['working-history']; // Optional
+
+  constructor() {
+    super();
+    this.registerChunkConfig({
+      key: 'main',
+      type: ChunkType.AGENT,
+      initialContent: { type: 'TEXT', text: 'Initial content' },
+      retentionStrategy: ChunkRetentionStrategy.CRITICAL,
+      mutable: true,
+      priority: 500,
+    });
+  }
+
+  getReducersForEvent(event: AgentEvent): ComponentReducerFn[] {
+    if (event.type === EventType.USER_MESSAGE) {
+      return [this.handleUserMessage.bind(this)];
+    }
+    return [];
+  }
+
+  private async handleUserMessage(
+    state: MemoryState,
+    event: AgentEvent,
+    context: ComponentContext,
+  ): Promise<ReducerResult> {
+    // Process event and return operations
+    return { operations: [], chunks: [] };
+  }
 }
 ```
 
-- Maps to `SYSTEM` chunk type
-- Tools registered with `common` category
-- Retention: `CRITICAL`
-- Priority: `1000`
+### Render Locations & Order
 
-### AgentComponent
+| Location | Description                                             |
+| -------- | ------------------------------------------------------- |
+| `system` | Rendered in system prompt (stable context)              |
+| `flow`   | Rendered in conversation flow (user/assistant messages) |
 
-Agent-specific instructions and tools.
+**Order Ranges:**
 
-```typescript
-interface AgentComponent {
-  type: 'agent';
-  instructions?: string;
-  tools?: CustomToolConfig[];
-  customData?: Record<string, unknown>;
-}
-```
+- 0-100: Static content (base instructions)
+- 100-300: Semi-static content (loaded documents)
+- 300-1000: Dynamic content (conversation, todos)
 
-- Maps to `AGENT` chunk type
-- Tools registered with `agent` category
-- Retention: `CRITICAL`
-- Priority: `900`
+### Key Files
 
-### WorkflowComponent
+| File                                                     | Description                                          |
+| -------------------------------------------------------- | ---------------------------------------------------- |
+| [component.interface.ts](component.interface.ts)         | `IComponent`, `ComponentContext`, `RenderedFragment` |
+| [component-manager.ts](component-manager.ts)             | `ComponentManager` class                             |
+| [base/abstract-component.ts](base/abstract-component.ts) | `AbstractComponent` base class                       |
 
-Workflow-specific instructions and tools.
+---
 
-```typescript
-interface WorkflowComponent {
-  type: 'workflow';
-  instructions?: string;
-  tools?: CustomToolConfig[];
-  customData?: Record<string, unknown>;
-}
-```
+## Legacy ComponentConfig (Backward Compatible)
 
-- Maps to `WORKFLOW` chunk type
-- Tools registered with `workflow` category
-- Retention: `COMPRESSIBLE`
-- Priority: `800`
+Simple declarative components for blueprint definitions.
 
-## ComponentRenderer
+### Component Types
 
-Converts components to chunks and tools at runtime.
+| Type       | ChunkType | ToolCategory | Retention    | Priority |
+| ---------- | --------- | ------------ | ------------ | -------- |
+| `system`   | SYSTEM    | common       | CRITICAL     | 1000     |
+| `agent`    | AGENT     | agent        | CRITICAL     | 900      |
+| `workflow` | WORKFLOW  | workflow     | COMPRESSIBLE | 800      |
 
 ### Usage
 
 ```typescript
-import { createComponentRenderer, ComponentConfig } from '@team9/agent-framework';
-
-const renderer = createComponentRenderer();
+import {
+  createComponentRenderer,
+  ComponentConfig,
+} from '@team9/agent-framework';
 
 const components: ComponentConfig[] = [
   {
     type: 'system',
     instructions: 'You are a helpful assistant.',
-    tools: [
-      {
-        definition: { name: 'search', description: 'Search the web', ... },
-        executor: searchExecutor,
-      },
-    ],
+    tools: [searchTool],
   },
   {
     type: 'agent',
     instructions: 'Focus on code quality.',
-    tools: [
-      {
-        definition: { name: 'lint', description: 'Lint code', ... },
-        executor: lintExecutor,
-      },
-    ],
+    tools: [lintTool],
   },
 ];
 
+const renderer = createComponentRenderer();
 const result = renderer.render(components);
-// result.chunks: MemoryChunk[] (SYSTEM, AGENT chunks)
-// result.tools: Tool[] (with proper categories assigned)
+// result.chunks: MemoryChunk[]
+// result.tools: Tool[] (with categories assigned)
 ```
 
-### ComponentRenderResult
+### Helper Functions
 
 ```typescript
-interface ComponentRenderResult {
-  chunks: MemoryChunk[]; // Generated memory chunks
-  tools: Tool[]; // Tools with categories assigned
-}
-```
-
-## Blueprint Integration
-
-Components are defined in Blueprint and processed by BlueprintLoader.
-
-```typescript
-const blueprint: Blueprint = {
-  name: 'My Agent',
-  llmConfig: { model: 'gpt-4' },
-  components: [
-    {
-      type: 'system',
-      instructions: 'You are a coding assistant.',
-      tools: [readFileTool, writeFileTool],
-    },
-    {
-      type: 'agent',
-      tools: [codeReviewTool],
-    },
-  ],
-  tools: ['wait_user_response', 'invoke_tool', 'task_complete'], // Control tools
-};
-
-// BlueprintLoader.createThreadFromBlueprint returns:
-// - thread, initialState (as before)
-// - tools: Tool[] (extracted from components)
-```
-
-## Mappings
-
-### ComponentType to ToolCategory
-
-| ComponentType | ToolCategory |
-| ------------- | ------------ |
-| `system`      | `common`     |
-| `agent`       | `agent`      |
-| `workflow`    | `workflow`   |
-
-### ComponentType to ChunkType
-
-| ComponentType | ChunkType  |
-| ------------- | ---------- |
-| `system`      | `SYSTEM`   |
-| `agent`       | `AGENT`    |
-| `workflow`    | `WORKFLOW` |
-
-## Helper Functions
-
-```typescript
-// Create components easily
 import {
   createSystemComponent,
   createAgentComponent,
   createWorkflowComponent,
 } from '@team9/agent-framework';
 
-const system = createSystemComponent('You are a helpful assistant.', [
-  searchTool,
-  fetchTool,
-]);
-
-const agent = createAgentComponent('Focus on TypeScript code.', [lintTool]);
-
-const workflow = createWorkflowComponent('Follow the PR review workflow.', [
-  submitPRTool,
-]);
+const system = createSystemComponent('Instructions here', [tool1, tool2]);
+const agent = createAgentComponent('Agent instructions', [tool3]);
+const workflow = createWorkflowComponent('Workflow instructions', [tool4]);
 ```
 
-## Type Guards
-
-```typescript
-import {
-  isSystemComponent,
-  isAgentComponent,
-  isWorkflowComponent,
-} from '@team9/agent-framework';
-
-if (isSystemComponent(component)) {
-  // component.instructions is required
-}
-```
-
-## Backward Compatibility
-
-The `initialChunks` field in Blueprint is deprecated but still supported. When both `components` and `initialChunks` are present:
-
-1. Components are rendered first
-2. Legacy chunks are appended after component chunks
-3. A warning is issued recommending migration to components
+---
 
 ## Exports
 
 ```typescript
-// Types
+// New Component-Centric Architecture
+export type {
+  IComponent,
+  ComponentContext,
+  ComponentReducerFn,
+  RenderedFragment,
+};
+export type { NewComponentType, NewComponentConfig, ComponentRuntimeState };
+export { AbstractComponent } from './base/abstract-component';
+export { ComponentManager, createComponentManager } from './component-manager';
+
+// Legacy ComponentConfig
 export type { ComponentType, ComponentConfig };
-export type { SystemComponent, AgentComponent, WorkflowComponent };
-export type { BaseComponent };
-export type { ComponentRenderResult, ComponentRenderOptions };
-
-// Constants
-export { COMPONENT_TO_TOOL_CATEGORY, COMPONENT_TO_CHUNK_TYPE };
-
-// Type Guards
-export { isSystemComponent, isAgentComponent, isWorkflowComponent };
-
-// Classes
-export { ComponentRenderer };
-
-// Factory Functions
-export { createComponentRenderer };
+export {
+  ComponentRenderer,
+  createComponentRenderer,
+} from './component-renderer';
 export { createSystemComponent, createAgentComponent, createWorkflowComponent };
+
+// Base Components
+export * from './base';
+
+// Builtin Components
+export * from './builtin';
 ```

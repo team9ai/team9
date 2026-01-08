@@ -5,7 +5,6 @@ import {
   ChunkType,
   ChunkContentType,
   ChunkRetentionStrategy,
-  WorkingFlowSubType,
 } from '../../types/index.js';
 import {
   createChunk,
@@ -17,7 +16,6 @@ import {
   createReorderOperation,
   createBatchReplaceOperation,
   createBatchOperation,
-  createAddChildOperation,
 } from '../../factories/index.js';
 import {
   applyOperation,
@@ -54,94 +52,66 @@ describe('Executor Module', () => {
         expect(result.addedChunks.length).toBe(1);
       });
 
-      it('should add a child to an existing WORKING_FLOW chunk and preserve content', async () => {
-        // Create a WORKING_FLOW container chunk
+      it('should add a conversation chunk to WORKING_HISTORY container using childIds', async () => {
+        // Create a WORKING_HISTORY container chunk
         const container = createChunk({
-          type: ChunkType.WORKING_FLOW,
+          type: ChunkType.WORKING_HISTORY,
           content: { type: ChunkContentType.TEXT, text: '' },
         });
-        // Initialize with empty children array
-        const containerWithChildren = { ...container, children: [] };
-
-        const state = createState({
-          threadId: 'thread_1',
-          chunks: [containerWithChildren],
-        });
-
-        // Create the child content with all fields
-        const childContent = {
-          type: ChunkContentType.TEXT,
-          text: 'Hello, this is a user message!',
-          attachments: ['file1.txt'],
+        // Initialize with empty childIds array
+        const containerWithChildIds = {
+          ...container,
+          childIds: [] as string[],
         };
 
-        const context = createExecutionContext(storage);
-        const addChildOp = createAddChildOperation(container.id, {
-          id: 'child_001',
-          subType: WorkingFlowSubType.USER,
-          content: childContent,
-          createdAt: Date.now(),
+        // Create a conversation chunk
+        const userMessage = createChunk({
+          type: ChunkType.USER_MESSAGE,
+          content: {
+            type: ChunkContentType.TEXT,
+            text: 'Hello, this is a user message!',
+            attachments: ['file1.txt'],
+          },
           custom: { eventType: 'USER_MESSAGE' },
         });
 
-        const result = await applyOperation(state, addChildOp, context);
+        const state = createState({
+          threadId: 'thread_1',
+          chunks: [containerWithChildIds, userMessage],
+        });
 
-        // ADD child creates a NEW chunk with a NEW ID (for immutability)
-        // The new chunk should have derivedFrom pointing to the original
-        expect(result.state.chunks.size).toBe(1);
-        const chunks = Array.from(result.state.chunks.values());
-        const updatedChunk = chunks[0];
-        expect(updatedChunk).toBeDefined();
-        expect(updatedChunk.id).not.toBe(container.id); // New ID
-        expect(updatedChunk.metadata.custom?.derivedFrom).toBe(container.id);
-        expect(updatedChunk.children).toBeDefined();
-        expect(updatedChunk.children!.length).toBe(1);
-
-        // Verify child content is preserved completely
-        const child = updatedChunk.children![0];
-        expect(child.id).toBe('child_001');
-        expect(child.subType).toBe(WorkingFlowSubType.USER);
-        expect(child.content).toEqual(childContent);
-
-        // Explicitly check all content fields
-        const content = child.content as {
-          type: string;
-          text: string;
-          attachments: string[];
-        };
-        expect(content.type).toBe(ChunkContentType.TEXT);
-        expect(content.text).toBe('Hello, this is a user message!');
-        expect(content.attachments).toEqual(['file1.txt']);
+        // Verify the setup
+        expect(state.chunks.size).toBe(2);
+        expect(state.chunks.get(container.id)?.childIds).toEqual([]);
+        expect(state.chunks.get(userMessage.id)?.type).toBe(
+          ChunkType.USER_MESSAGE,
+        );
       });
 
-      it('should preserve children content through JSON serialization (simulating API)', async () => {
-        // Create a WORKING_FLOW container chunk with a child
+      it('should preserve conversation chunk content through JSON serialization', async () => {
+        // Create a WORKING_HISTORY container and conversation chunks
         const container = createChunk({
-          type: ChunkType.WORKING_FLOW,
+          type: ChunkType.WORKING_HISTORY,
           content: { type: ChunkContentType.TEXT, text: '' },
         });
 
-        const childContent = {
-          type: ChunkContentType.TEXT,
-          text: 'Test message content',
-          role: 'user',
-        };
+        const userMessage = createChunk({
+          type: ChunkType.USER_MESSAGE,
+          content: {
+            type: ChunkContentType.TEXT,
+            text: 'Test message content',
+            role: 'user',
+          },
+        });
 
-        const containerWithChildren = {
+        const containerWithChildIds = {
           ...container,
-          children: [
-            {
-              id: 'child_001',
-              subType: WorkingFlowSubType.USER,
-              content: childContent,
-              createdAt: Date.now(),
-            },
-          ],
+          childIds: [userMessage.id],
         };
 
         const state = createState({
           threadId: 'thread_1',
-          chunks: [containerWithChildren],
+          chunks: [containerWithChildIds, userMessage],
         });
 
         // Simulate API serialization like in routes/agents.ts
@@ -149,13 +119,17 @@ describe('Executor Module', () => {
         const serialized = JSON.stringify(chunks);
         const deserialized = JSON.parse(serialized);
 
-        // Verify the child content is preserved
-        expect(deserialized[0].children).toBeDefined();
-        expect(deserialized[0].children.length).toBe(1);
-        expect(deserialized[0].children[0].content).toEqual(childContent);
-        expect(deserialized[0].children[0].content.text).toBe(
-          'Test message content',
+        // Verify the container has childIds
+        const deserializedContainer = deserialized.find(
+          (c: { type: string }) => c.type === ChunkType.WORKING_HISTORY,
         );
+        expect(deserializedContainer.childIds).toEqual([userMessage.id]);
+
+        // Verify the user message content is preserved
+        const deserializedMessage = deserialized.find(
+          (c: { type: string }) => c.type === ChunkType.USER_MESSAGE,
+        );
+        expect(deserializedMessage.content.text).toBe('Test message content');
       });
     });
 
@@ -211,6 +185,69 @@ describe('Executor Module', () => {
           ChunkRetentionStrategy.CRITICAL,
         );
         expect(result.state.chunks.has(chunk.id)).toBe(false);
+      });
+
+      it('should update WORKING_HISTORY childIds when updating container', async () => {
+        // Create initial container with one child
+        const userMessage1 = createChunk({
+          type: ChunkType.USER_MESSAGE,
+          content: { type: ChunkContentType.TEXT, text: 'Message 1' },
+        });
+
+        const container = createChunk({
+          type: ChunkType.WORKING_HISTORY,
+          content: { type: ChunkContentType.TEXT, text: '' },
+        });
+        const containerWithChild = {
+          ...container,
+          childIds: [userMessage1.id],
+        };
+
+        const state = createState({
+          threadId: 'thread_1',
+          chunks: [containerWithChild, userMessage1],
+        });
+
+        // Create a new message to add
+        const userMessage2 = createChunk({
+          type: ChunkType.USER_MESSAGE,
+          content: { type: ChunkContentType.TEXT, text: 'Message 2' },
+        });
+
+        // Derive a new container with both childIds
+        const updatedContainer = deriveChunk(containerWithChild, {});
+        const updatedContainerWithChildren = {
+          ...updatedContainer,
+          childIds: [userMessage1.id, userMessage2.id],
+        };
+
+        const context = createExecutionContext(storage, [
+          updatedContainerWithChildren,
+          userMessage2,
+        ]);
+
+        // First add the new message
+        let result = await applyOperation(
+          state,
+          createAddOperation(userMessage2.id),
+          context,
+        );
+
+        // Then update the container
+        result = await applyOperation(
+          result.state,
+          createUpdateOperation(container.id, updatedContainerWithChildren.id),
+          context,
+        );
+
+        // Verify the updated container has both childIds
+        const finalContainer = result.state.chunks.get(
+          updatedContainerWithChildren.id,
+        );
+        expect(finalContainer?.childIds).toEqual([
+          userMessage1.id,
+          userMessage2.id,
+        ]);
       });
     });
 

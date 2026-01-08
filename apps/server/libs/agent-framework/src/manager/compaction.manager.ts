@@ -7,7 +7,7 @@ import {
   TextContent,
 } from '../types/chunk.types.js';
 import { ICompactor, CompactionContext } from '../compactor/compactor.types.js';
-import { WorkingFlowCompactor } from '../compactor/working-flow.compactor.js';
+import { WorkingHistoryCompactor } from '../compactor/working-history.compactor.js';
 import { ILLMAdapter, LLMConfig } from '../llm/llm.types.js';
 import { ThreadManager } from './thread.manager.js';
 import { createBatchReplaceOperation } from '../factories/operation.factory.js';
@@ -44,7 +44,7 @@ export interface TokenCheckResult {
   needsTruncation: boolean;
   /** Chunks suggested for compaction */
   chunksToCompact: MemoryChunk[];
-  /** Chunk IDs to truncate (oldest WORKING_FLOW chunks first) */
+  /** Chunk IDs to truncate (oldest conversation chunks first) */
   chunksToTruncate: string[];
 }
 
@@ -68,6 +68,21 @@ const DEFAULT_TOKEN_THRESHOLDS: TokenThresholds = {
   hardThreshold: 80000, // 80K tokens - force compaction
   truncationThreshold: 100000, // 100K tokens - start truncating
 };
+
+/**
+ * Conversation chunk types that can be compacted
+ */
+const CONVERSATION_CHUNK_TYPES = [
+  ChunkType.USER_MESSAGE,
+  ChunkType.AGENT_RESPONSE,
+  ChunkType.THINKING,
+  ChunkType.AGENT_ACTION,
+  ChunkType.ACTION_RESPONSE,
+  ChunkType.SUBAGENT_SPAWN,
+  ChunkType.SUBAGENT_RESULT,
+  ChunkType.PARENT_MESSAGE,
+  ChunkType.COMPACTED,
+];
 
 /**
  * CompactionManager handles memory compaction logic
@@ -98,7 +113,7 @@ export class CompactionManager {
     };
 
     // Initialize default compactors
-    this.compactors.push(new WorkingFlowCompactor(llmAdapter, config.llm));
+    this.compactors.push(new WorkingHistoryCompactor(llmAdapter, config.llm));
   }
 
   /**
@@ -110,7 +125,7 @@ export class CompactionManager {
     let totalTokens = 0;
     let compressibleTokens = 0;
     const compressibleChunks: MemoryChunk[] = [];
-    const workingFlowChunks: Array<{
+    const conversationChunks: Array<{
       chunk: MemoryChunk;
       tokens: number;
       createdAt: number;
@@ -125,8 +140,8 @@ export class CompactionManager {
         compressibleChunks.push(chunk);
       }
 
-      if (chunk.type === ChunkType.WORKING_FLOW) {
-        workingFlowChunks.push({
+      if (CONVERSATION_CHUNK_TYPES.includes(chunk.type)) {
+        conversationChunks.push({
           chunk,
           tokens,
           createdAt: chunk.metadata.createdAt,
@@ -139,12 +154,12 @@ export class CompactionManager {
     const needsTruncation =
       totalTokens >= this.tokenThresholds.truncationThreshold;
 
-    // Calculate chunks to truncate if needed (oldest WORKING_FLOW chunks first)
+    // Calculate chunks to truncate if needed (oldest conversation chunks first)
     let chunksToTruncate: string[] = [];
     if (needsTruncation) {
       const excessTokens = totalTokens - this.tokenThresholds.hardThreshold;
       chunksToTruncate = this.selectChunksToTruncate(
-        workingFlowChunks,
+        conversationChunks,
         excessTokens,
       );
     }
@@ -193,7 +208,7 @@ export class CompactionManager {
    */
   private isCompressible(chunk: MemoryChunk): boolean {
     return (
-      chunk.type === ChunkType.WORKING_FLOW &&
+      CONVERSATION_CHUNK_TYPES.includes(chunk.type) &&
       (chunk.retentionStrategy === ChunkRetentionStrategy.COMPRESSIBLE ||
         chunk.retentionStrategy === ChunkRetentionStrategy.BATCH_COMPRESSIBLE ||
         chunk.retentionStrategy === ChunkRetentionStrategy.DISPOSABLE)
@@ -204,7 +219,7 @@ export class CompactionManager {
    * Select chunks to truncate based on creation time (oldest first)
    */
   private selectChunksToTruncate(
-    workingFlowChunks: Array<{
+    conversationChunks: Array<{
       chunk: MemoryChunk;
       tokens: number;
       createdAt: number;
@@ -212,7 +227,7 @@ export class CompactionManager {
     excessTokens: number,
   ): string[] {
     // Sort by creation time (oldest first)
-    const sorted = [...workingFlowChunks].sort(
+    const sorted = [...conversationChunks].sort(
       (a, b) => a.createdAt - b.createdAt,
     );
 
@@ -352,10 +367,7 @@ export class CompactionManager {
   private extractProgressSummary(state: MemoryState): string | undefined {
     // Look for existing compacted chunks
     for (const chunk of state.chunks.values()) {
-      if (
-        chunk.type === ChunkType.WORKING_FLOW &&
-        chunk.metadata.custom?.subType === 'COMPACTED'
-      ) {
+      if (chunk.type === ChunkType.COMPACTED) {
         const content = chunk.content;
         if ('text' in content && typeof content.text === 'string') {
           return content.text;

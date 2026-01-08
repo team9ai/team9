@@ -22,6 +22,7 @@ export enum ChunkRetentionStrategy {
  * Defines different types of contextual information blocks
  */
 export enum ChunkType {
+  // ============ Core Types ============
   /** System-related contextual information */
   SYSTEM = 'SYSTEM',
   /** Agent's own contextual information */
@@ -32,33 +33,29 @@ export enum ChunkType {
   DELEGATION = 'DELEGATION',
   /** Current environment-related contextual information */
   ENVIRONMENT = 'ENVIRONMENT',
-  /** Agent's current working flow contextual information */
-  WORKING_FLOW = 'WORKING_FLOW',
+  /** Agent's working history - container that holds references to conversation chunks */
+  WORKING_HISTORY = 'WORKING_HISTORY',
   /** Agent's final output result */
   OUTPUT = 'OUTPUT',
-}
 
-/**
- * Working Flow Chunk subtypes
- */
-export enum WorkingFlowSubType {
+  // ============ Conversation Types (for conversation history) ============
   /** Summarized previously compressed contextual information */
   COMPACTED = 'COMPACTED',
-  /** User interjections, interventions, and reply guidance */
-  USER = 'USER',
-  /** Agent thinking process related context */
+  /** User message */
+  USER_MESSAGE = 'USER_MESSAGE',
+  /** Agent thinking process */
   THINKING = 'THINKING',
-  /** Intermediate process responses from the agent model */
-  RESPONSE = 'RESPONSE',
-  /** Actions from Agent calling MCP, Skill, SubAgent, etc. */
+  /** Agent response */
+  AGENT_RESPONSE = 'AGENT_RESPONSE',
+  /** Agent action (tool call, skill call, etc.) */
   AGENT_ACTION = 'AGENT_ACTION',
-  /** Response to Agent Action */
+  /** Response to agent action */
   ACTION_RESPONSE = 'ACTION_RESPONSE',
   /** Subagent spawn notification */
   SUBAGENT_SPAWN = 'SUBAGENT_SPAWN',
   /** Subagent result */
   SUBAGENT_RESULT = 'SUBAGENT_RESULT',
-  /** Message from parent/manager agent */
+  /** Message from parent agent */
   PARENT_MESSAGE = 'PARENT_MESSAGE',
 }
 
@@ -154,23 +151,6 @@ export interface ChunkMetadata {
 }
 
 /**
- * Working Flow child item
- * Represents a single message (user or agent) within a WORKING_FLOW chunk
- */
-export interface WorkingFlowChild {
-  /** Child unique identifier */
-  id: string;
-  /** Child subtype */
-  subType: WorkingFlowSubType;
-  /** Content */
-  content: ChunkContent;
-  /** Creation timestamp */
-  createdAt: number;
-  /** Custom metadata */
-  custom?: Record<string, unknown>;
-}
-
-/**
  * Memory Chunk interface
  * Represents an independent logical block of contextual information
  * Once used, a Chunk becomes immutable; new information generates a new Chunk
@@ -178,14 +158,16 @@ export interface WorkingFlowChild {
 export interface MemoryChunk {
   /** Unique identifier, format: chunk_xxx */
   id: string;
+  /** Component ID that owns this chunk (optional, some chunks may not belong to a component) */
+  componentId?: string;
+  /** Chunk key within the component (identifies the chunk's purpose) */
+  chunkKey?: string;
   /** Chunk type */
   type: ChunkType;
-  /** Working Flow subtype (only valid when type is WORKING_FLOW and no children) */
-  subType?: WorkingFlowSubType;
   /** Chunk content */
   content: ChunkContent;
-  /** Child items (for WORKING_FLOW container chunks) */
-  children?: WorkingFlowChild[];
+  /** Child chunk IDs (for WORKING_HISTORY container - references to independent chunks) */
+  childIds?: string[];
   /** Retention strategy */
   retentionStrategy: ChunkRetentionStrategy;
   /** Whether this Chunk can be modified by Agent in current Thread */
@@ -200,8 +182,11 @@ export interface MemoryChunk {
  * Input parameters for creating a Memory Chunk
  */
 export interface CreateChunkInput {
+  /** Component ID that owns this chunk */
+  componentId?: string;
+  /** Chunk key within the component */
+  chunkKey?: string;
   type: ChunkType;
-  subType?: WorkingFlowSubType;
   content: ChunkContent;
   retentionStrategy?: ChunkRetentionStrategy;
   mutable?: boolean;

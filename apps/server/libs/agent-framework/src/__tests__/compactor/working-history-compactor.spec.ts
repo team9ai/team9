@@ -1,13 +1,12 @@
 /**
- * Unit tests for WorkingFlowCompactor
+ * Unit tests for WorkingHistoryCompactor
  */
-import { WorkingFlowCompactor } from '../../compactor/working-flow.compactor.js';
+import { WorkingHistoryCompactor } from '../../compactor/working-history.compactor.js';
 import { createChunk, createState } from '../../factories/index.js';
 import {
   ChunkType,
   ChunkContentType,
   ChunkRetentionStrategy,
-  WorkingFlowSubType,
 } from '../../types/index.js';
 import {
   ILLMAdapter,
@@ -35,9 +34,9 @@ class MockLLMAdapter implements ILLMAdapter {
   }
 }
 
-describe('WorkingFlowCompactor', () => {
+describe('WorkingHistoryCompactor', () => {
   let llmAdapter: MockLLMAdapter;
-  let compactor: WorkingFlowCompactor;
+  let compactor: WorkingHistoryCompactor;
   const config: LLMConfig = {
     model: 'gpt-4',
     temperature: 0.3,
@@ -46,7 +45,7 @@ describe('WorkingFlowCompactor', () => {
 
   beforeEach(() => {
     llmAdapter = new MockLLMAdapter();
-    compactor = new WorkingFlowCompactor(llmAdapter, config);
+    compactor = new WorkingHistoryCompactor(llmAdapter, config);
   });
 
   describe('canCompact', () => {
@@ -54,10 +53,10 @@ describe('WorkingFlowCompactor', () => {
       expect(compactor.canCompact([])).toBe(false);
     });
 
-    it('should return true for WORKING_FLOW chunks with COMPRESSIBLE strategy', () => {
+    it('should return true for conversation chunks with COMPRESSIBLE strategy', () => {
       const chunks = [
         createChunk({
-          type: ChunkType.WORKING_FLOW,
+          type: ChunkType.THINKING,
           content: { type: ChunkContentType.TEXT, text: 'Thinking...' },
           retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
         }),
@@ -66,10 +65,10 @@ describe('WorkingFlowCompactor', () => {
       expect(compactor.canCompact(chunks)).toBe(true);
     });
 
-    it('should return true for WORKING_FLOW chunks with BATCH_COMPRESSIBLE strategy', () => {
+    it('should return true for conversation chunks with BATCH_COMPRESSIBLE strategy', () => {
       const chunks = [
         createChunk({
-          type: ChunkType.WORKING_FLOW,
+          type: ChunkType.AGENT_RESPONSE,
           content: { type: ChunkContentType.TEXT, text: 'Planning...' },
           retentionStrategy: ChunkRetentionStrategy.BATCH_COMPRESSIBLE,
         }),
@@ -78,10 +77,10 @@ describe('WorkingFlowCompactor', () => {
       expect(compactor.canCompact(chunks)).toBe(true);
     });
 
-    it('should return true for WORKING_FLOW chunks with DISPOSABLE strategy', () => {
+    it('should return true for conversation chunks with DISPOSABLE strategy', () => {
       const chunks = [
         createChunk({
-          type: ChunkType.WORKING_FLOW,
+          type: ChunkType.AGENT_ACTION,
           content: { type: ChunkContentType.TEXT, text: 'Debug log' },
           retentionStrategy: ChunkRetentionStrategy.DISPOSABLE,
         }),
@@ -90,7 +89,7 @@ describe('WorkingFlowCompactor', () => {
       expect(compactor.canCompact(chunks)).toBe(true);
     });
 
-    it('should return false for non-WORKING_FLOW chunks', () => {
+    it('should return false for non-conversation chunks', () => {
       const chunks = [
         createChunk({
           type: ChunkType.AGENT,
@@ -104,7 +103,7 @@ describe('WorkingFlowCompactor', () => {
     it('should return false for CRITICAL retention strategy', () => {
       const chunks = [
         createChunk({
-          type: ChunkType.WORKING_FLOW,
+          type: ChunkType.USER_MESSAGE,
           content: { type: ChunkContentType.TEXT, text: 'Critical info' },
           retentionStrategy: ChunkRetentionStrategy.CRITICAL,
         }),
@@ -113,10 +112,10 @@ describe('WorkingFlowCompactor', () => {
       expect(compactor.canCompact(chunks)).toBe(false);
     });
 
-    it('should return false for mixed chunk types', () => {
+    it('should return false for mixed chunk types (conversation + non-conversation)', () => {
       const chunks = [
         createChunk({
-          type: ChunkType.WORKING_FLOW,
+          type: ChunkType.THINKING,
           content: { type: ChunkContentType.TEXT, text: 'Thinking...' },
           retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
         }),
@@ -134,8 +133,7 @@ describe('WorkingFlowCompactor', () => {
     it('should compact chunks and return result', async () => {
       const chunks = [
         createChunk({
-          type: ChunkType.WORKING_FLOW,
-          subType: WorkingFlowSubType.THINKING,
+          type: ChunkType.THINKING,
           content: {
             type: ChunkContentType.TEXT,
             text: 'Analyzing the problem...',
@@ -143,8 +141,7 @@ describe('WorkingFlowCompactor', () => {
           retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
         }),
         createChunk({
-          type: ChunkType.WORKING_FLOW,
-          subType: WorkingFlowSubType.THINKING,
+          type: ChunkType.THINKING,
           content: {
             type: ChunkContentType.TEXT,
             text: 'Planning solution...',
@@ -162,8 +159,7 @@ describe('WorkingFlowCompactor', () => {
       const result = await compactor.compact(chunks, { state });
 
       expect(result.compactedChunk).toBeDefined();
-      expect(result.compactedChunk.type).toBe(ChunkType.WORKING_FLOW);
-      expect(result.compactedChunk.subType).toBe(WorkingFlowSubType.COMPACTED);
+      expect(result.compactedChunk.type).toBe(ChunkType.COMPACTED);
       expect(result.originalChunkIds.length).toBe(2);
       expect(result.tokensBefore).toBeGreaterThan(0);
       expect(result.tokensAfter).toBeGreaterThan(0);
@@ -172,12 +168,12 @@ describe('WorkingFlowCompactor', () => {
     it('should include parent IDs in compacted chunk', async () => {
       const chunks = [
         createChunk({
-          type: ChunkType.WORKING_FLOW,
+          type: ChunkType.USER_MESSAGE,
           content: { type: ChunkContentType.TEXT, text: 'Work 1' },
           retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
         }),
         createChunk({
-          type: ChunkType.WORKING_FLOW,
+          type: ChunkType.AGENT_RESPONSE,
           content: { type: ChunkContentType.TEXT, text: 'Work 2' },
           retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
         }),
@@ -201,7 +197,7 @@ describe('WorkingFlowCompactor', () => {
       const state = createState({ threadId: 'thread_1' });
 
       await expect(compactor.compact(chunks, { state })).rejects.toThrow(
-        'WorkingFlowCompactor cannot compact these chunks',
+        'WorkingHistoryCompactor cannot compact these chunks',
       );
     });
 
@@ -212,7 +208,7 @@ describe('WorkingFlowCompactor', () => {
       });
 
       const workingChunk = createChunk({
-        type: ChunkType.WORKING_FLOW,
+        type: ChunkType.THINKING,
         content: { type: ChunkContentType.TEXT, text: 'Working...' },
         retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
       });
@@ -233,7 +229,7 @@ describe('WorkingFlowCompactor', () => {
 
     it('should store metadata about compaction', async () => {
       const chunk = createChunk({
-        type: ChunkType.WORKING_FLOW,
+        type: ChunkType.AGENT_RESPONSE,
         content: { type: ChunkContentType.TEXT, text: 'Working...' },
         retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
       });
