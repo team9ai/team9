@@ -7,6 +7,10 @@ import {
   CopyObjectCommand,
   CreateBucketCommand,
   HeadBucketCommand,
+  PutBucketLifecycleConfigurationCommand,
+  GetBucketLifecycleConfigurationCommand,
+  DeleteBucketLifecycleCommand,
+  type LifecycleRule,
 } from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import { v7 as uuidv7 } from 'uuid';
@@ -90,6 +94,31 @@ export interface FileInfo {
   lastModified: Date;
   etag?: string;
   url: string;
+}
+
+/**
+ * Options for creating an expiration lifecycle rule
+ */
+export interface ExpirationRuleOptions {
+  /** Rule ID (must be unique within the bucket) */
+  id: string;
+  /** Prefix filter - only objects with this prefix will be affected */
+  prefix?: string;
+  /** Number of days after which objects expire */
+  expirationDays: number;
+  /** Whether the rule is enabled (default: true) */
+  enabled?: boolean;
+}
+
+/**
+ * Lifecycle rule info returned from getLifecycleRules
+ */
+export interface LifecycleRuleInfo {
+  id: string;
+  prefix?: string;
+  enabled: boolean;
+  expirationDays?: number;
+  expirationDate?: Date;
 }
 
 const DEFAULT_MIN_SIZE = 1;
@@ -408,5 +437,141 @@ export class StorageService {
    */
   getClient(): S3Client {
     return this.s3Client;
+  }
+
+  // ==================== Lifecycle Rules ====================
+
+  /**
+   * Set lifecycle rules on a bucket for automatic object expiration
+   *
+   * @example
+   * // Delete objects with 'temp/' prefix after 7 days
+   * await storageService.setLifecycleRules('my-bucket', [
+   *   { id: 'delete-temp', prefix: 'temp/', expirationDays: 7 }
+   * ]);
+   *
+   * // Delete all objects after 30 days
+   * await storageService.setLifecycleRules('my-bucket', [
+   *   { id: 'delete-all', expirationDays: 30 }
+   * ]);
+   */
+  async setLifecycleRules(
+    bucket: string,
+    rules: ExpirationRuleOptions[],
+  ): Promise<void> {
+    const lifecycleRules: LifecycleRule[] = rules.map((rule) => ({
+      ID: rule.id,
+      Status: rule.enabled !== false ? 'Enabled' : 'Disabled',
+      Filter: {
+        Prefix: rule.prefix ?? '',
+      },
+      Expiration: {
+        Days: rule.expirationDays,
+      },
+    }));
+
+    const command = new PutBucketLifecycleConfigurationCommand({
+      Bucket: bucket,
+      LifecycleConfiguration: {
+        Rules: lifecycleRules,
+      },
+    });
+
+    await this.s3Client.send(command);
+    this.logger.log(
+      `Set ${rules.length} lifecycle rule(s) on bucket ${bucket}`,
+    );
+  }
+
+  /**
+   * Add a single expiration rule to existing rules
+   * If a rule with the same ID exists, it will be replaced
+   */
+  async addExpirationRule(
+    bucket: string,
+    rule: ExpirationRuleOptions,
+  ): Promise<void> {
+    const existingRules = await this.getLifecycleRules(bucket);
+    const filteredRules = existingRules.filter((r) => r.id !== rule.id);
+
+    const allRules: ExpirationRuleOptions[] = [
+      ...filteredRules.map((r) => ({
+        id: r.id,
+        prefix: r.prefix,
+        expirationDays: r.expirationDays ?? 0,
+        enabled: r.enabled,
+      })),
+      rule,
+    ].filter((r) => r.expirationDays > 0);
+
+    await this.setLifecycleRules(bucket, allRules);
+  }
+
+  /**
+   * Get lifecycle rules from a bucket
+   */
+  async getLifecycleRules(bucket: string): Promise<LifecycleRuleInfo[]> {
+    try {
+      const command = new GetBucketLifecycleConfigurationCommand({
+        Bucket: bucket,
+      });
+
+      const response = await this.s3Client.send(command);
+
+      return (response.Rules || []).map((rule) => ({
+        id: rule.ID || '',
+        prefix: rule.Filter?.Prefix,
+        enabled: rule.Status === 'Enabled',
+        expirationDays: rule.Expiration?.Days,
+        expirationDate: rule.Expiration?.Date,
+      }));
+    } catch (error: unknown) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'name' in error &&
+        error.name === 'NoSuchLifecycleConfiguration'
+      ) {
+        return [];
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Remove a specific lifecycle rule by ID
+   */
+  async removeLifecycleRule(bucket: string, ruleId: string): Promise<void> {
+    const existingRules = await this.getLifecycleRules(bucket);
+    const filteredRules = existingRules.filter((r) => r.id !== ruleId);
+
+    if (filteredRules.length === 0) {
+      await this.deleteLifecycleRules(bucket);
+    } else {
+      const rules: ExpirationRuleOptions[] = filteredRules
+        .filter((r) => r.expirationDays !== undefined)
+        .map((r) => ({
+          id: r.id,
+          prefix: r.prefix,
+          expirationDays: r.expirationDays!,
+          enabled: r.enabled,
+        }));
+
+      await this.setLifecycleRules(bucket, rules);
+    }
+
+    this.logger.log(`Removed lifecycle rule '${ruleId}' from bucket ${bucket}`);
+  }
+
+  /**
+   * Delete all lifecycle rules from a bucket
+   */
+  async deleteLifecycleRules(bucket: string): Promise<void> {
+    const command = new DeleteBucketLifecycleCommand({
+      Bucket: bucket,
+    });
+
+    await this.s3Client.send(command);
+    this.logger.log(`Deleted all lifecycle rules from bucket ${bucket}`);
   }
 }
