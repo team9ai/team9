@@ -3,7 +3,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Loader2 } from "lucide-react";
 import type { Message } from "@/types/im";
-import { formatDistanceToNow } from "@/lib/date-utils";
+import { formatMessageTime } from "@/lib/date-utils";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { MessageContent } from "./MessageContent";
 
@@ -183,7 +183,7 @@ function MessageItem({
               <span className="text-xs text-muted-foreground">(edited)</span>
             )}
             <span className="text-xs text-muted-foreground">
-              {formatDistanceToNow(new Date(message.createdAt))}
+              {formatMessageTime(new Date(message.createdAt))}
             </span>
           </div>
           <div className="bg-purple-600 text-white rounded-lg px-4 py-2 w-fit max-w-sm message-content-own">
@@ -219,7 +219,7 @@ function MessageItem({
               "Unknown User"}
           </span>
           <span className="text-xs text-muted-foreground">
-            {formatDistanceToNow(new Date(message.createdAt))}
+            {formatMessageTime(new Date(message.createdAt))}
           </span>
           {message.isEdited && (
             <span className="text-xs text-muted-foreground">(edited)</span>
