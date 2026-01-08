@@ -424,6 +424,9 @@ importers:
       "@team9/shared":
         specifier: workspace:*
         version: link:../../libs/shared
+      transliteration:
+        specifier: ^2.6.0
+        version: 2.6.0
 
   apps/server/apps/logic:
     dependencies:
@@ -609,6 +612,9 @@ importers:
       "@nestjs/core":
         specifier: ^11.0.0
         version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      uuid:
+        specifier: ^11.0.0
+        version: 11.1.0
 
   enterprise/libs/license:
     dependencies:
@@ -636,6 +642,9 @@ importers:
       "@nestjs/core":
         specifier: ^11.0.0
         version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      uuid:
+        specifier: ^11.0.0
+        version: 11.1.0
 
 packages:
   "@alloc/quick-lru@5.2.0":
@@ -10967,6 +10976,14 @@ packages:
       }
     engines: { node: ">=14.16" }
 
+  transliteration@2.6.0:
+    resolution:
+      {
+        integrity: sha512-T6frfMj7N5xNK0l+duIzIWKxkc9ewG72uv7NeOs4dIoysqTnYpwxeVEE5qYdKKmy7hby55ah0wNUoMaLsB2Zjw==,
+      }
+    engines: { node: ">=20.0.0" }
+    hasBin: true
+
   tree-kill@1.2.2:
     resolution:
       {
@@ -11323,6 +11340,13 @@ packages:
         integrity: sha512-pMZTvIkT1d+TFGvDOqodOclx0QWkkgi6Tdoa8gC8ffGAAqz9pzPTZWAybbsHHoED/ztMtkv/VoYTYyShUn81hA==,
       }
     engines: { node: ">= 0.4.0" }
+
+  uuid@11.1.0:
+    resolution:
+      {
+        integrity: sha512-0/A9rDy9P7cJ+8w1c9WD9V//9Wj15Ce2MPz8Ri6032usz+NfePxx5AcN3bN+r6ZL6jEo066/yNYB3tn4pQEx+A==,
+      }
+    hasBin: true
 
   uuid@13.0.0:
     resolution:
@@ -19156,6 +19180,8 @@ snapshots:
       "@tokenizer/token": 0.3.0
       ieee754: 1.2.1
 
+  transliteration@2.6.0: {}
+
   tree-kill@1.2.2: {}
 
   ts-algebra@2.0.0: {}
@@ -19474,6 +19500,8 @@ snapshots:
   util-deprecate@1.0.2: {}
 
   utils-merge@1.0.1: {}
+
+  uuid@11.1.0: {}
 
   uuid@13.0.0: {}
 

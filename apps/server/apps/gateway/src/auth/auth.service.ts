@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException, Inject } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { v7 as uuidv7 } from 'uuid';
+import { slugify } from 'transliteration';
 import {
   DATABASE_CONNECTION,
   eq,
@@ -115,28 +116,45 @@ export class AuthService {
   }
 
   private async generateUniqueSlug(baseSlug: string): Promise<string> {
-    // Sanitize base slug
-    let slug = baseSlug.toLowerCase().replace(/[^a-z0-9-]/g, '-');
-    let counter = 0;
-    let uniqueSlug = slug;
+    // Username is already validated to be [a-z0-9_]+, slugify handles edge cases
+    let slug = slugify(baseSlug, { lowercase: true, separator: '-' })
+      .replace(/^-+|-+$/g, '')
+      .substring(0, 50);
 
-    // Check if slug exists and append number if needed
-    while (true) {
+    // If slug is empty after sanitization, use fallback
+    if (!slug) {
+      slug = 'workspace';
+    }
+
+    const MAX_ATTEMPTS = 10;
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      const uniqueSlug =
+        attempt === 0 ? slug : `${slug}-${this.generateShortId()}`;
+
       const existing = await this.db
-        .select()
+        .select({ id: schema.tenants.id })
         .from(schema.tenants)
         .where(eq(schema.tenants.slug, uniqueSlug))
         .limit(1);
 
       if (existing.length === 0) {
-        break;
+        return uniqueSlug;
       }
-
-      counter++;
-      uniqueSlug = `${slug}-${counter}`;
     }
 
-    return uniqueSlug;
+    // Fallback: use UUID suffix to guarantee uniqueness
+    return `${slug}-${uuidv7().substring(0, 8)}`;
+  }
+
+  private generateShortId(length = 4): string {
+    // Generate a short random alphanumeric ID (6 chars)
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
   }
 
   async login(dto: LoginDto): Promise<AuthResponse> {
