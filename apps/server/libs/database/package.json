@@ -13,9 +13,9 @@
   "scripts": {
     "build": "tsc",
     "build:schemas": "tsc -p tsconfig.schemas.json",
-    "db:generate": "pnpm build:schemas && dotenv -e ../../.env -- drizzle-kit generate --config=drizzle.config.mjs",
+    "db:generate": "rm -rf dist tsconfig.schemas.tsbuildinfo && pnpm build:schemas && dotenv -e ../../.env -- drizzle-kit generate --config=drizzle.config.mjs",
     "db:migrate": "dotenv -e ../../.env -- drizzle-kit migrate --config=drizzle.config.mjs",
-    "db:push": "pnpm build:schemas && dotenv -e ../../.env -- drizzle-kit push --config=drizzle.config.mjs",
+    "db:push": "rm -rf dist tsconfig.schemas.tsbuildinfo && pnpm build:schemas && dotenv -e ../../.env -- drizzle-kit push --config=drizzle.config.mjs",
     "db:studio": "dotenv -e ../../.env -- drizzle-kit studio --config=drizzle.config.mjs"
   },
   "dependencies": {
