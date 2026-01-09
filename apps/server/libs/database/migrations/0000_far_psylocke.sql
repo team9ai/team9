@@ -1,8 +1,13 @@
 CREATE TYPE "public"."member_role" AS ENUM('owner', 'admin', 'member');--> statement-breakpoint
 CREATE TYPE "public"."channel_type" AS ENUM('direct', 'public', 'private');--> statement-breakpoint
+CREATE TYPE "public"."share_type" AS ENUM('user', 'channel');--> statement-breakpoint
+CREATE TYPE "public"."file_category" AS ENUM('attachment', 'avatar', 'document', 'media', 'other');--> statement-breakpoint
+CREATE TYPE "public"."file_status" AS ENUM('pending', 'confirmed', 'deleted');--> statement-breakpoint
+CREATE TYPE "public"."file_visibility" AS ENUM('private', 'workspace', 'public');--> statement-breakpoint
 CREATE TYPE "public"."user_status" AS ENUM('online', 'offline', 'away', 'busy');--> statement-breakpoint
 CREATE TYPE "public"."message_type" AS ENUM('text', 'file', 'image', 'system');--> statement-breakpoint
 CREATE TYPE "public"."ack_status" AS ENUM('sent', 'delivered', 'read');--> statement-breakpoint
+CREATE TYPE "public"."outbox_status" AS ENUM('pending', 'processing', 'completed', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."mention_type" AS ENUM('user', 'channel', 'everyone', 'here');--> statement-breakpoint
 CREATE TYPE "public"."tenant_plan" AS ENUM('free', 'pro', 'enterprise');--> statement-breakpoint
 CREATE TYPE "public"."tenant_role" AS ENUM('owner', 'admin', 'member', 'guest');--> statement-breakpoint
@@ -16,7 +21,7 @@ CREATE TABLE "config" (
 );
 --> statement-breakpoint
 CREATE TABLE "im_channel_members" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"channel_id" uuid NOT NULL,
 	"user_id" uuid NOT NULL,
 	"role" "member_role" DEFAULT 'member' NOT NULL,
@@ -28,7 +33,7 @@ CREATE TABLE "im_channel_members" (
 );
 --> statement-breakpoint
 CREATE TABLE "im_channels" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"tenant_id" uuid,
 	"name" varchar(255),
 	"description" text,
@@ -40,8 +45,40 @@ CREATE TABLE "im_channels" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "im_file_shares" (
+	"id" uuid PRIMARY KEY NOT NULL,
+	"file_id" uuid NOT NULL,
+	"share_type" "share_type" NOT NULL,
+	"user_id" uuid,
+	"channel_id" uuid,
+	"shared_by" uuid,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"expires_at" timestamp,
+	CONSTRAINT "unique_file_user_share" UNIQUE("file_id","user_id"),
+	CONSTRAINT "unique_file_channel_share" UNIQUE("file_id","channel_id")
+);
+--> statement-breakpoint
+CREATE TABLE "im_files" (
+	"id" uuid PRIMARY KEY NOT NULL,
+	"bucket" varchar(100) NOT NULL,
+	"object_key" varchar(500) NOT NULL,
+	"file_name" varchar(500) NOT NULL,
+	"mime_type" varchar(255) NOT NULL,
+	"file_size" bigint NOT NULL,
+	"tenant_id" uuid NOT NULL,
+	"uploaded_by" uuid,
+	"status" "file_status" DEFAULT 'pending' NOT NULL,
+	"visibility" "file_visibility" DEFAULT 'private' NOT NULL,
+	"category" "file_category" DEFAULT 'other' NOT NULL,
+	"metadata" jsonb,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"confirmed_at" timestamp,
+	"deleted_at" timestamp
+);
+--> statement-breakpoint
 CREATE TABLE "im_users" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"email" varchar(255) NOT NULL,
 	"username" varchar(100) NOT NULL,
 	"display_name" varchar(255),
@@ -57,7 +94,7 @@ CREATE TABLE "im_users" (
 );
 --> statement-breakpoint
 CREATE TABLE "im_messages" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"channel_id" uuid NOT NULL,
 	"sender_id" uuid,
 	"parent_id" uuid,
@@ -76,7 +113,7 @@ CREATE TABLE "im_messages" (
 );
 --> statement-breakpoint
 CREATE TABLE "im_message_attachments" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"message_id" uuid NOT NULL,
 	"file_name" varchar(500) NOT NULL,
 	"file_key" varchar(500) NOT NULL,
@@ -90,7 +127,7 @@ CREATE TABLE "im_message_attachments" (
 );
 --> statement-breakpoint
 CREATE TABLE "im_message_reactions" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"message_id" uuid NOT NULL,
 	"user_id" uuid NOT NULL,
 	"emoji" varchar(50) NOT NULL,
@@ -99,7 +136,7 @@ CREATE TABLE "im_message_reactions" (
 );
 --> statement-breakpoint
 CREATE TABLE "im_message_acks" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"message_id" uuid NOT NULL,
 	"user_id" uuid NOT NULL,
 	"status" "ack_status" DEFAULT 'sent' NOT NULL,
@@ -112,8 +149,20 @@ CREATE TABLE "im_message_acks" (
 	CONSTRAINT "unique_message_user_ack" UNIQUE("message_id","user_id")
 );
 --> statement-breakpoint
+CREATE TABLE "im_message_outbox" (
+	"id" uuid PRIMARY KEY NOT NULL,
+	"message_id" uuid NOT NULL,
+	"event_type" varchar(64) NOT NULL,
+	"payload" jsonb NOT NULL,
+	"status" "outbox_status" DEFAULT 'pending' NOT NULL,
+	"retry_count" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"processed_at" timestamp,
+	"error_message" varchar(500)
+);
+--> statement-breakpoint
 CREATE TABLE "im_user_channel_read_status" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"user_id" uuid NOT NULL,
 	"channel_id" uuid NOT NULL,
 	"last_read_message_id" uuid,
@@ -123,7 +172,7 @@ CREATE TABLE "im_user_channel_read_status" (
 );
 --> statement-breakpoint
 CREATE TABLE "im_mentions" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"message_id" uuid NOT NULL,
 	"mentioned_user_id" uuid,
 	"mentioned_channel_id" uuid,
@@ -133,7 +182,7 @@ CREATE TABLE "im_mentions" (
 );
 --> statement-breakpoint
 CREATE TABLE "tenants" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"name" varchar(100) NOT NULL,
 	"slug" varchar(50) NOT NULL,
 	"domain" varchar(255),
@@ -148,7 +197,7 @@ CREATE TABLE "tenants" (
 );
 --> statement-breakpoint
 CREATE TABLE "tenant_members" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"tenant_id" uuid NOT NULL,
 	"user_id" uuid NOT NULL,
 	"role" "tenant_role" DEFAULT 'member' NOT NULL,
@@ -159,14 +208,14 @@ CREATE TABLE "tenant_members" (
 );
 --> statement-breakpoint
 CREATE TABLE "invitation_usage" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"invitation_id" uuid NOT NULL,
 	"user_id" uuid NOT NULL,
 	"used_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "workspace_invitations" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"tenant_id" uuid NOT NULL,
 	"code" varchar(32) NOT NULL,
 	"created_by" uuid,
@@ -184,6 +233,12 @@ ALTER TABLE "im_channel_members" ADD CONSTRAINT "im_channel_members_channel_id_i
 ALTER TABLE "im_channel_members" ADD CONSTRAINT "im_channel_members_user_id_im_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."im_users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "im_channels" ADD CONSTRAINT "im_channels_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "im_channels" ADD CONSTRAINT "im_channels_created_by_im_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."im_users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "im_file_shares" ADD CONSTRAINT "im_file_shares_file_id_im_files_id_fk" FOREIGN KEY ("file_id") REFERENCES "public"."im_files"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "im_file_shares" ADD CONSTRAINT "im_file_shares_user_id_im_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."im_users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "im_file_shares" ADD CONSTRAINT "im_file_shares_channel_id_im_channels_id_fk" FOREIGN KEY ("channel_id") REFERENCES "public"."im_channels"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "im_file_shares" ADD CONSTRAINT "im_file_shares_shared_by_im_users_id_fk" FOREIGN KEY ("shared_by") REFERENCES "public"."im_users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "im_files" ADD CONSTRAINT "im_files_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "im_files" ADD CONSTRAINT "im_files_uploaded_by_im_users_id_fk" FOREIGN KEY ("uploaded_by") REFERENCES "public"."im_users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "im_messages" ADD CONSTRAINT "im_messages_channel_id_im_channels_id_fk" FOREIGN KEY ("channel_id") REFERENCES "public"."im_channels"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "im_messages" ADD CONSTRAINT "im_messages_sender_id_im_users_id_fk" FOREIGN KEY ("sender_id") REFERENCES "public"."im_users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "im_message_attachments" ADD CONSTRAINT "im_message_attachments_message_id_im_messages_id_fk" FOREIGN KEY ("message_id") REFERENCES "public"."im_messages"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -191,6 +246,7 @@ ALTER TABLE "im_message_reactions" ADD CONSTRAINT "im_message_reactions_message_
 ALTER TABLE "im_message_reactions" ADD CONSTRAINT "im_message_reactions_user_id_im_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."im_users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "im_message_acks" ADD CONSTRAINT "im_message_acks_message_id_im_messages_id_fk" FOREIGN KEY ("message_id") REFERENCES "public"."im_messages"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "im_message_acks" ADD CONSTRAINT "im_message_acks_user_id_im_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."im_users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "im_message_outbox" ADD CONSTRAINT "im_message_outbox_message_id_im_messages_id_fk" FOREIGN KEY ("message_id") REFERENCES "public"."im_messages"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "im_user_channel_read_status" ADD CONSTRAINT "im_user_channel_read_status_user_id_im_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."im_users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "im_user_channel_read_status" ADD CONSTRAINT "im_user_channel_read_status_channel_id_im_channels_id_fk" FOREIGN KEY ("channel_id") REFERENCES "public"."im_channels"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "im_user_channel_read_status" ADD CONSTRAINT "im_user_channel_read_status_last_read_message_id_im_messages_id_fk" FOREIGN KEY ("last_read_message_id") REFERENCES "public"."im_messages"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -205,6 +261,15 @@ ALTER TABLE "invitation_usage" ADD CONSTRAINT "invitation_usage_user_id_im_users
 ALTER TABLE "workspace_invitations" ADD CONSTRAINT "workspace_invitations_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workspace_invitations" ADD CONSTRAINT "workspace_invitations_created_by_im_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."im_users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "idx_channels_tenant" ON "im_channels" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "idx_file_shares_file_id" ON "im_file_shares" USING btree ("file_id");--> statement-breakpoint
+CREATE INDEX "idx_file_shares_user_id" ON "im_file_shares" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "idx_file_shares_channel_id" ON "im_file_shares" USING btree ("channel_id");--> statement-breakpoint
+CREATE INDEX "idx_files_tenant_id" ON "im_files" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "idx_files_uploaded_by" ON "im_files" USING btree ("uploaded_by");--> statement-breakpoint
+CREATE INDEX "idx_files_status" ON "im_files" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "idx_files_bucket_key" ON "im_files" USING btree ("bucket","object_key");--> statement-breakpoint
+CREATE INDEX "idx_files_category" ON "im_files" USING btree ("category");--> statement-breakpoint
+CREATE INDEX "idx_files_created_at" ON "im_files" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "idx_messages_channel_id" ON "im_messages" USING btree ("channel_id");--> statement-breakpoint
 CREATE INDEX "idx_messages_sender_id" ON "im_messages" USING btree ("sender_id");--> statement-breakpoint
 CREATE INDEX "idx_messages_parent_id" ON "im_messages" USING btree ("parent_id");--> statement-breakpoint
@@ -215,5 +280,9 @@ CREATE INDEX "idx_message_acks_message_id" ON "im_message_acks" USING btree ("me
 CREATE INDEX "idx_message_acks_user_id" ON "im_message_acks" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "idx_message_acks_status" ON "im_message_acks" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "idx_message_acks_retry" ON "im_message_acks" USING btree ("status","retry_count");--> statement-breakpoint
+CREATE INDEX "idx_outbox_status" ON "im_message_outbox" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "idx_outbox_created" ON "im_message_outbox" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "idx_outbox_message_id" ON "im_message_outbox" USING btree ("message_id");--> statement-breakpoint
+CREATE INDEX "idx_outbox_status_created" ON "im_message_outbox" USING btree ("status","created_at");--> statement-breakpoint
 CREATE INDEX "idx_mentions_user_id" ON "im_mentions" USING btree ("mentioned_user_id");--> statement-breakpoint
 CREATE INDEX "idx_mentions_message_id" ON "im_mentions" USING btree ("message_id");
