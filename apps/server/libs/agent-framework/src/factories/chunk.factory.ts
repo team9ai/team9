@@ -117,6 +117,7 @@ export function createChunk(input: CreateChunkInput): Readonly<MemoryChunk> {
     chunkKey: input.chunkKey,
     type: input.type,
     content: input.content,
+    childIds: input.childIds,
     retentionStrategy:
       input.retentionStrategy ?? DEFAULT_RETENTION_STRATEGIES[input.type],
     mutable: input.mutable ?? DEFAULT_MUTABILITY[input.type],

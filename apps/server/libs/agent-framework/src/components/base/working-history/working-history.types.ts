@@ -1,9 +1,9 @@
 /**
  * Working History Types
- * Type definitions for working history management
+ * Re-export compaction types from shared types
  */
 
-// Currently no custom types needed for working history
-// Types are reused from chunk.types.ts and event.types.ts
-
-export {};
+export type {
+  CompactionResult,
+  CompactionConfig,
+} from '../../../types/compaction.types.js';

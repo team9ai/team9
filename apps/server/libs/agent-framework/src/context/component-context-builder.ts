@@ -9,7 +9,7 @@
  * 4. Calls component.renderChunk() for rendering
  */
 
-import type { MemoryChunk, ChunkType } from '../types/chunk.types.js';
+import type { MemoryChunk } from '../types/chunk.types.js';
 import type { MemoryState } from '../types/state.types.js';
 import type { ITokenizer } from '../tokenizer/tokenizer.types.js';
 import type {
@@ -22,8 +22,9 @@ import type {
   IComponent,
   RenderedFragment,
   ComponentContext,
+  ComponentRuntimeState,
 } from '../components/component.interface.js';
-import type { ComponentManager } from '../components/component-manager.js';
+import { createComponentContext } from '../components/component-context.js';
 
 /**
  * Extended options for component-aware context building
@@ -31,6 +32,10 @@ import type { ComponentManager } from '../components/component-manager.js';
 export interface ComponentContextBuildOptions extends ContextBuildOptions {
   /** Thread ID for component context */
   threadId: string;
+  /** Enabled components for this context */
+  components: IComponent[];
+  /** Optional runtime states for components (for ComponentContext creation) */
+  componentRuntimeStates?: Map<string, ComponentRuntimeState>;
 }
 
 /**
@@ -47,17 +52,15 @@ export interface ComponentContextBuildResult extends ContextBuildResult {
 
 /**
  * Component-Aware Context Builder
- * Uses ComponentManager and IComponent.renderChunk() for rendering
+ * Uses IComponent.renderChunk() for rendering
+ *
+ * Note: This is a stateless builder. Components and their runtime states
+ * should be passed in via options.
  */
 export class ComponentContextBuilder {
-  private componentManager: ComponentManager;
   private defaultTokenizer?: ITokenizer;
 
-  constructor(
-    componentManager: ComponentManager,
-    defaultTokenizer?: ITokenizer,
-  ) {
-    this.componentManager = componentManager;
+  constructor(defaultTokenizer?: ITokenizer) {
     this.defaultTokenizer = defaultTokenizer;
   }
 
@@ -77,6 +80,8 @@ export class ComponentContextBuilder {
   ): ComponentContextBuildResult {
     const {
       threadId,
+      components,
+      componentRuntimeStates,
       maxTokens,
       tokenizer = this.defaultTokenizer,
       systemPrompt,
@@ -84,11 +89,9 @@ export class ComponentContextBuilder {
       includeOnlyChunkIds,
     } = options;
 
-    // Get all enabled components for this thread
-    const enabledComponents =
-      this.componentManager.getEnabledComponents(threadId);
+    // Build component map
     const componentMap = new Map<string, IComponent>();
-    for (const component of enabledComponents) {
+    for (const component of components) {
       componentMap.set(component.id, component);
     }
 
@@ -125,13 +128,13 @@ export class ComponentContextBuilder {
         continue;
       }
 
-      // Get component context
-      const context = this.componentManager.getComponentContext(
+      // Get or create component context
+      const context = this.getOrCreateContext(
         threadId,
         componentId,
         state,
+        componentRuntimeStates,
       );
-      if (!context) continue;
 
       // Render chunk using component
       const fragments = component.renderChunk(chunk, context);
@@ -252,6 +255,38 @@ export class ComponentContextBuilder {
   }
 
   /**
+   * Get or create a ComponentContext for rendering
+   */
+  private getOrCreateContext(
+    threadId: string,
+    componentId: string,
+    state: MemoryState,
+    runtimeStates?: Map<string, ComponentRuntimeState>,
+  ): ComponentContext {
+    // Try to get existing runtime state
+    const runtimeState = runtimeStates?.get(componentId);
+
+    if (runtimeState) {
+      return createComponentContext(threadId, componentId, state, runtimeState);
+    }
+
+    // Create a minimal runtime state for rendering
+    const minimalRuntimeState: ComponentRuntimeState = {
+      componentId,
+      enabled: true,
+      chunkIds: [],
+      data: {},
+    };
+
+    return createComponentContext(
+      threadId,
+      componentId,
+      state,
+      minimalRuntimeState,
+    );
+  }
+
+  /**
    * Group flow fragments into messages with appropriate roles
    */
   private groupFlowFragments(
@@ -361,8 +396,7 @@ export class ComponentContextBuilder {
  * Create a new component-aware context builder
  */
 export function createComponentContextBuilder(
-  componentManager: ComponentManager,
   tokenizer?: ITokenizer,
 ): ComponentContextBuilder {
-  return new ComponentContextBuilder(componentManager, tokenizer);
+  return new ComponentContextBuilder(tokenizer);
 }

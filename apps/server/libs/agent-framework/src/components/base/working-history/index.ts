@@ -23,3 +23,18 @@ export {
   reduceSubAgentResult,
   reduceSubAgentError,
 } from './working-history.reducers.js';
+export {
+  // Compaction operations
+  compactWorkingHistory,
+  createCompactionResult,
+  shouldTriggerCompaction,
+  hasCompressibleChunks,
+  isCompressibleChunk,
+  getRetainedChunks,
+  extractChunkText,
+  type CompactionTriggerOptions,
+} from './working-history.compactor.js';
+export type {
+  CompactionResult,
+  CompactionConfig,
+} from './working-history.types.js';

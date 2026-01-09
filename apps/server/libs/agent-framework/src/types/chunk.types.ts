@@ -192,6 +192,8 @@ export interface CreateChunkInput {
   mutable?: boolean;
   priority?: ChunkPriority;
   parentIds?: string[];
+  /** Child chunk IDs (for container chunks like WORKING_HISTORY) */
+  childIds?: string[];
   sourceOperation?: Operation;
   custom?: Record<string, unknown>;
 }

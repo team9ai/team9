@@ -13,13 +13,15 @@ import {
   ChunkContentType,
   ChunkContent,
 } from '../../types/chunk.types.js';
-import {
-  ICompactor,
-  CompactionResult,
-} from '../../compactor/compactor.types.js';
 import type { ILLMAdapter } from '../../llm/llm.types.js';
 import type { ThreadManager } from '../../manager/thread.manager.js';
 import type { ObserverManager } from '../../observer/observer.types.js';
+import type {
+  IComponent,
+  ComponentCompactionConfig,
+} from '../../components/component.interface.js';
+import { compactWorkingHistory } from '../../components/base/working-history/working-history.compactor.js';
+import type { ComponentLookup } from '../../compactor/index.js';
 
 // Mock LLM adapter
 const createMockLLMAdapter = (): ILLMAdapter => ({
@@ -52,6 +54,7 @@ const createMockChunk = (
     content?: ChunkContent;
     custom?: Record<string, unknown>;
     createdAt?: number;
+    childIds?: string[];
   },
 ): MemoryChunk => ({
   id,
@@ -60,6 +63,7 @@ const createMockChunk = (
     type: ChunkContentType.TEXT,
     text: 'test content',
   },
+  childIds: options?.childIds,
   retentionStrategy:
     options?.retentionStrategy ?? ChunkRetentionStrategy.COMPRESSIBLE,
   mutable: false,
@@ -82,6 +86,33 @@ const createMockState = (chunks: MemoryChunk[]): MemoryState => {
     metadata: {
       createdAt: Date.now(),
     },
+  };
+};
+
+// Helper to create state with WORKING_HISTORY
+const createStateWithWorkingHistory = (
+  conversationChunks: MemoryChunk[],
+): MemoryState => {
+  const workingHistoryChunk = createMockChunk('working-history-1', {
+    type: ChunkType.WORKING_HISTORY,
+    content: { type: ChunkContentType.TEXT, text: '' },
+    childIds: conversationChunks.map((c) => c.id),
+  });
+
+  return createMockState([workingHistoryChunk, ...conversationChunks]);
+};
+
+/**
+ * Create a componentLookup function that returns the mock component for WORKING_HISTORY chunks
+ */
+const createMockComponentLookup = (
+  component: Partial<IComponent>,
+): ComponentLookup => {
+  return (chunk: MemoryChunk) => {
+    if (chunk.type === ChunkType.WORKING_HISTORY) {
+      return component as IComponent;
+    }
+    return undefined;
   };
 };
 
@@ -145,7 +176,7 @@ describe('CompactionManager', () => {
       expect(result).toEqual([]);
     });
 
-    it('should return WORKING_FLOW chunks with COMPRESSIBLE retention', () => {
+    it('should return conversation chunks with COMPRESSIBLE retention', () => {
       const compressibleChunk = createMockChunk('c1', {
         type: ChunkType.THINKING,
         retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
@@ -186,7 +217,7 @@ describe('CompactionManager', () => {
       expect(result).toHaveLength(1);
     });
 
-    it('should not return non-WORKING_FLOW chunks', () => {
+    it('should not return non-conversation chunks', () => {
       const systemChunk = createMockChunk('c1', {
         type: ChunkType.SYSTEM,
         retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
@@ -315,7 +346,7 @@ describe('CompactionManager', () => {
       expect(result.chunksToTruncate[0]).toBe('old-chunk');
     });
 
-    it('should not count non-WORKING_FLOW chunks as compressible', () => {
+    it('should not count non-conversation chunks as compressible', () => {
       const systemChunk = createMockChunk('sys-1', {
         type: ChunkType.SYSTEM,
         content: { type: ChunkContentType.TEXT, text: 'System content' },
@@ -328,7 +359,7 @@ describe('CompactionManager', () => {
 
       const result = manager.checkTokenUsage(state);
 
-      // Total should include both, but compressible should only include WORKING_FLOW
+      // Total should include both, but compressible should only include conversation chunks
       expect(result.chunksToCompact).toHaveLength(1);
       expect(result.chunksToCompact[0].id).toBe('work-1');
     });
@@ -353,24 +384,11 @@ describe('CompactionManager', () => {
     });
   });
 
-  describe('registerCompactor', () => {
-    it('should register custom compactor', () => {
-      const customCompactor: ICompactor = {
-        canCompact: jest.fn().mockReturnValue(true),
-        compact: jest.fn(),
-      };
-
-      manager.registerCompactor(customCompactor);
-
-      // The custom compactor should now be available
-      // We can verify by checking canCompact is called when appropriate
-      expect(customCompactor.canCompact).not.toHaveBeenCalled();
-    });
-  });
-
   describe('executeCompaction', () => {
     let mockThreadManager: jest.Mocked<ThreadManager>;
     let mockObserverManager: jest.Mocked<ObserverManager>;
+    let mockComponent: Partial<IComponent>;
+    let componentLookup: ComponentLookup;
 
     const mockThread = {
       id: 'thread-1',
@@ -393,6 +411,26 @@ describe('CompactionManager', () => {
         notifyCompactionStart: jest.fn(),
         notifyCompactionEnd: jest.fn(),
       } as unknown as jest.Mocked<ObserverManager>;
+
+      // Create mock component with compactChunk that uses the test's llmAdapter
+      mockComponent = {
+        id: 'working-history',
+        name: 'Working History',
+        type: 'base',
+        compactChunk: async (
+          _chunk: MemoryChunk,
+          state: MemoryState,
+          adapter: ILLMAdapter,
+          config?: ComponentCompactionConfig,
+        ) => {
+          const result = await compactWorkingHistory(state, adapter, config);
+          return {
+            ...result,
+            componentId: 'working-history',
+          };
+        },
+      };
+      componentLookup = createMockComponentLookup(mockComponent);
     });
 
     it('should throw error when state not found', async () => {
@@ -401,154 +439,104 @@ describe('CompactionManager', () => {
       await expect(
         manager.executeCompaction(
           'thread-1',
-          [createMockChunk('c1')],
           mockThreadManager,
           mockObserverManager,
         ),
       ).rejects.toThrow('Current state not found for thread: thread-1');
     });
 
-    it('should return current state when no chunks to compact', async () => {
+    it('should throw error when no WORKING_HISTORY chunk found', async () => {
       const state = createMockState([]);
       mockThreadManager.getCurrentState.mockResolvedValue(state);
-      mockThreadManager.getThread.mockResolvedValue(mockThread);
-
-      const result = await manager.executeCompaction(
-        'thread-1',
-        [],
-        mockThreadManager,
-        mockObserverManager,
-      );
-
-      expect(result.state).toBe(state);
-      expect(result.addedChunks).toEqual([]);
-      expect(result.removedChunkIds).toEqual([]);
-      expect(mockObserverManager.notifyCompactionStart).not.toHaveBeenCalled();
-    });
-
-    it('should throw error when thread not found (empty chunks case)', async () => {
-      const state = createMockState([]);
-      mockThreadManager.getCurrentState.mockResolvedValue(state);
-      mockThreadManager.getThread.mockResolvedValue(null);
 
       await expect(
         manager.executeCompaction(
           'thread-1',
-          [],
           mockThreadManager,
           mockObserverManager,
         ),
-      ).rejects.toThrow('Thread not found: thread-1');
+      ).rejects.toThrow('No chunks available for compaction');
+    });
+
+    it('should throw error when no compressible chunks in WORKING_HISTORY', async () => {
+      // Create state with WORKING_HISTORY but only CRITICAL chunks
+      const criticalChunk = createMockChunk('critical-1', {
+        type: ChunkType.THINKING,
+        retentionStrategy: ChunkRetentionStrategy.CRITICAL,
+      });
+      const state = createStateWithWorkingHistory([criticalChunk]);
+      mockThreadManager.getCurrentState.mockResolvedValue(state);
+
+      await expect(
+        manager.executeCompaction(
+          'thread-1',
+          mockThreadManager,
+          mockObserverManager,
+        ),
+      ).rejects.toThrow('No chunks available for compaction');
     });
 
     it('should notify observers on compaction start and end', async () => {
-      const chunks = [createMockChunk('c1'), createMockChunk('c2')];
-      const state = createMockState(chunks);
-      const compactedChunk = createMockChunk('compacted-1', {
-        custom: { subType: 'COMPACTED' },
+      const chunk1 = createMockChunk('c1', {
+        type: ChunkType.THINKING,
+        retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
       });
+      const chunk2 = createMockChunk('c2', {
+        type: ChunkType.AGENT_RESPONSE,
+        retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
+      });
+      const state = createStateWithWorkingHistory([chunk1, chunk2]);
 
       mockThreadManager.getCurrentState.mockResolvedValue(state);
       mockThreadManager.applyReducerResult.mockResolvedValue({
         thread: mockThread,
         state,
-        addedChunks: [compactedChunk],
+        addedChunks: [],
         removedChunkIds: ['c1', 'c2'],
       });
 
-      // Replace all compactors with our mock
-      const mockCompactor: ICompactor = {
-        canCompact: jest.fn().mockReturnValue(true),
-        compact: jest.fn().mockResolvedValue({
-          compactedChunk,
-          originalChunkIds: ['c1', 'c2'],
-          tokensBefore: 200,
-          tokensAfter: 50,
-        } as CompactionResult),
-      };
-      (manager as any).compactors = [mockCompactor];
-
       await manager.executeCompaction(
         'thread-1',
-        chunks,
         mockThreadManager,
         mockObserverManager,
+        componentLookup,
       );
 
       expect(mockObserverManager.notifyCompactionStart).toHaveBeenCalledWith(
         expect.objectContaining({
           threadId: 'thread-1',
-          chunkCount: 2,
-          chunkIds: ['c1', 'c2'],
         }),
       );
 
       expect(mockObserverManager.notifyCompactionEnd).toHaveBeenCalledWith(
         expect.objectContaining({
           threadId: 'thread-1',
-          tokensBefore: 200,
-          tokensAfter: 50,
-          compactedChunkId: 'compacted-1',
           originalChunkIds: ['c1', 'c2'],
         }),
       );
     });
 
-    it('should throw error when no suitable compactor found', async () => {
-      const chunks = [createMockChunk('c1')];
-      const state = createMockState(chunks);
-      mockThreadManager.getCurrentState.mockResolvedValue(state);
-
-      // Create manager without default compactor handling these chunks
-      const customMgr = new CompactionManager(llmAdapter, config);
-      // Clear default compactors by registering one that rejects all
-      const rejectingCompactor: ICompactor = {
-        canCompact: jest.fn().mockReturnValue(false),
-        compact: jest.fn(),
-      };
-      // Override internal compactors - need to make them all reject
-      (customMgr as any).compactors = [rejectingCompactor];
-
-      await expect(
-        customMgr.executeCompaction(
-          'thread-1',
-          chunks,
-          mockThreadManager,
-          mockObserverManager,
-        ),
-      ).rejects.toThrow('No suitable compactor found for chunks');
-    });
-
     it('should apply compaction result through thread manager', async () => {
-      const chunks = [createMockChunk('c1')];
-      const state = createMockState(chunks);
-      const compactedChunk = createMockChunk('compacted-1');
+      const chunk1 = createMockChunk('c1', {
+        type: ChunkType.THINKING,
+        retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
+        content: { type: ChunkContentType.TEXT, text: 'Some content' },
+      });
+      const state = createStateWithWorkingHistory([chunk1]);
 
       mockThreadManager.getCurrentState.mockResolvedValue(state);
       mockThreadManager.applyReducerResult.mockResolvedValue({
         thread: mockThread,
         state,
-        addedChunks: [compactedChunk],
+        addedChunks: [],
         removedChunkIds: ['c1'],
       });
 
-      // Replace all compactors with our mock
-      const mockCompactor: ICompactor = {
-        canCompact: jest.fn().mockReturnValue(true),
-        compact: jest.fn().mockResolvedValue({
-          compactedChunk,
-          originalChunkIds: ['c1'],
-          tokensBefore: 100,
-          tokensAfter: 50,
-        } as CompactionResult),
-      };
-      (manager as any).compactors = [mockCompactor];
-
       await manager.executeCompaction(
         'thread-1',
-        chunks,
         mockThreadManager,
         mockObserverManager,
+        componentLookup,
       );
 
       expect(mockThreadManager.applyReducerResult).toHaveBeenCalledWith(
@@ -559,115 +547,114 @@ describe('CompactionManager', () => {
               type: 'BATCH_REPLACE',
             }),
           ]),
-          chunks: [compactedChunk],
+          chunks: expect.arrayContaining([
+            expect.objectContaining({
+              type: ChunkType.COMPACTED,
+            }),
+          ]),
         }),
       );
     });
-  });
 
-  describe('extractTaskGoal (via executeCompaction context)', () => {
-    // This tests the private extractTaskGoal method through its usage
-    it('should extract task from SYSTEM chunk', async () => {
-      const systemChunk = createMockChunk('sys-1', {
-        type: ChunkType.SYSTEM,
-        content: {
-          type: ChunkContentType.TEXT,
-          text: '',
-          task: 'Complete the analysis',
-        },
+    it('should call LLM adapter with correct prompt', async () => {
+      const chunk1 = createMockChunk('c1', {
+        type: ChunkType.USER_MESSAGE,
+        retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
+        content: { type: ChunkContentType.TEXT, text: 'User message content' },
       });
-      const workingChunk = createMockChunk('c1');
-      const state = createMockState([systemChunk, workingChunk]);
+      const state = createStateWithWorkingHistory([chunk1]);
 
-      const mockThreadManager = {
-        getCurrentState: jest.fn().mockResolvedValue(state),
-        applyReducerResult: jest.fn().mockResolvedValue({
-          thread: { id: 'thread-1' },
-          state,
-          addedChunks: [],
-          removedChunkIds: [],
-        }),
-      } as unknown as jest.Mocked<ThreadManager>;
-
-      const mockObserverManager = {
-        notifyCompactionStart: jest.fn(),
-        notifyCompactionEnd: jest.fn(),
-      } as unknown as jest.Mocked<ObserverManager>;
-
-      let capturedContext: any = null;
-      const mockCompactor: ICompactor = {
-        canCompact: jest.fn().mockReturnValue(true),
-        compact: jest.fn().mockImplementation((chunks, context) => {
-          capturedContext = context;
-          return Promise.resolve({
-            compactedChunk: createMockChunk('compacted-1'),
-            originalChunkIds: chunks.map((c: MemoryChunk) => c.id),
-          });
-        }),
-      };
-      // Replace all compactors with our mock
-      (manager as any).compactors = [mockCompactor];
+      mockThreadManager.getCurrentState.mockResolvedValue(state);
+      mockThreadManager.applyReducerResult.mockResolvedValue({
+        thread: mockThread,
+        state,
+        addedChunks: [],
+        removedChunkIds: ['c1'],
+      });
 
       await manager.executeCompaction(
         'thread-1',
-        [workingChunk],
         mockThreadManager,
         mockObserverManager,
+        componentLookup,
       );
 
-      expect(capturedContext.taskGoal).toBe('Complete the analysis');
+      expect(llmAdapter.complete).toHaveBeenCalledWith(
+        expect.objectContaining({
+          messages: expect.arrayContaining([
+            expect.objectContaining({
+              role: 'user',
+              content: expect.stringContaining('User message content'),
+            }),
+          ]),
+        }),
+      );
     });
-  });
 
-  describe('extractProgressSummary (via executeCompaction context)', () => {
-    it('should extract progress from COMPACTED chunk', async () => {
-      const compactedChunk = createMockChunk('compacted-old', {
-        type: ChunkType.COMPACTED,
+    it('should include retained content in prompt when CRITICAL chunks exist', async () => {
+      const criticalChunk = createMockChunk('critical-1', {
+        type: ChunkType.USER_MESSAGE,
+        retentionStrategy: ChunkRetentionStrategy.CRITICAL,
         content: {
           type: ChunkContentType.TEXT,
-          text: 'Previous progress summary',
+          text: 'Critical information',
         },
       });
-      const workingChunk = createMockChunk('c1');
-      const state = createMockState([compactedChunk, workingChunk]);
+      const compressibleChunk = createMockChunk('c1', {
+        type: ChunkType.AGENT_RESPONSE,
+        retentionStrategy: ChunkRetentionStrategy.COMPRESSIBLE,
+        content: { type: ChunkContentType.TEXT, text: 'Response content' },
+      });
 
-      const mockThreadManager = {
-        getCurrentState: jest.fn().mockResolvedValue(state),
-        applyReducerResult: jest.fn().mockResolvedValue({
-          thread: { id: 'thread-1' },
-          state,
-          addedChunks: [],
-          removedChunkIds: [],
-        }),
-      } as unknown as jest.Mocked<ThreadManager>;
+      // Add both to state but only compressible to WORKING_HISTORY childIds
+      const workingHistoryChunk = createMockChunk('working-history-1', {
+        type: ChunkType.WORKING_HISTORY,
+        content: { type: ChunkContentType.TEXT, text: '' },
+        childIds: [compressibleChunk.id],
+      });
 
-      const mockObserverManager = {
-        notifyCompactionStart: jest.fn(),
-        notifyCompactionEnd: jest.fn(),
-      } as unknown as jest.Mocked<ObserverManager>;
+      const chunkMap = new Map<string, MemoryChunk>();
+      chunkMap.set(workingHistoryChunk.id, workingHistoryChunk);
+      chunkMap.set(criticalChunk.id, criticalChunk);
+      chunkMap.set(compressibleChunk.id, compressibleChunk);
 
-      let capturedContext: any = null;
-      const mockCompactor: ICompactor = {
-        canCompact: jest.fn().mockReturnValue(true),
-        compact: jest.fn().mockImplementation((chunks, context) => {
-          capturedContext = context;
-          return Promise.resolve({
-            compactedChunk: createMockChunk('compacted-1'),
-            originalChunkIds: chunks.map((c: MemoryChunk) => c.id),
-          });
-        }),
+      const state: MemoryState = {
+        id: 'state-1',
+        threadId: 'thread-1',
+        chunkIds: [
+          workingHistoryChunk.id,
+          criticalChunk.id,
+          compressibleChunk.id,
+        ],
+        chunks: chunkMap,
+        metadata: { createdAt: Date.now() },
       };
-      // Replace all compactors with our mock
-      (manager as any).compactors = [mockCompactor];
+
+      mockThreadManager.getCurrentState.mockResolvedValue(state);
+      mockThreadManager.applyReducerResult.mockResolvedValue({
+        thread: mockThread,
+        state,
+        addedChunks: [],
+        removedChunkIds: ['c1'],
+      });
 
       await manager.executeCompaction(
         'thread-1',
-        [workingChunk],
         mockThreadManager,
         mockObserverManager,
+        componentLookup,
       );
 
-      expect(capturedContext.progressSummary).toBe('Previous progress summary');
+      // Verify that LLM was called with a prompt containing retained content section
+      expect(llmAdapter.complete).toHaveBeenCalledWith(
+        expect.objectContaining({
+          messages: expect.arrayContaining([
+            expect.objectContaining({
+              content: expect.stringContaining('Critical information'),
+            }),
+          ]),
+        }),
+      );
     });
   });
 });

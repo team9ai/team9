@@ -12,31 +12,9 @@ import {
   CreateThreadResult,
 } from '../manager/thread.manager.js';
 import type { Tool } from '../tools/tool.types.js';
-import type {
-  IComponent,
-  ComponentConstructor,
-} from '../components/component.interface.js';
+import type { IComponent } from '../components/component.interface.js';
+import type { IComponentRegistry } from '../components/component-registry.js';
 import type { MemoryChunk } from '../types/chunk.types.js';
-
-/**
- * ComponentRegistry - Maps component keys to constructors
- */
-export interface IComponentRegistry {
-  /**
-   * Register a component constructor with a key
-   */
-  register(key: string, constructor: ComponentConstructor): void;
-
-  /**
-   * Get component constructor by key
-   */
-  get(key: string): ComponentConstructor | undefined;
-
-  /**
-   * Check if a component is registered
-   */
-  has(key: string): boolean;
-}
 
 /**
  * Extended thread creation result with tools and subAgents
@@ -130,7 +108,7 @@ export class BlueprintLoader {
 
   /**
    * Validate a single component configuration
-   * Calls static validateBlueprintConfig on component constructor if available
+   * Instantiates component and calls validateBlueprintConfig if available
    * @returns Object with errors and warnings arrays
    */
   private validateComponent(
@@ -148,40 +126,36 @@ export class BlueprintLoader {
     }
 
     // Get component constructor from registry
-    const ComponentConstructor = this.componentRegistry.get(
-      component.componentKey,
-    );
-    if (!ComponentConstructor) {
+    const Constructor = this.componentRegistry.get(component.componentKey);
+    if (!Constructor) {
       errors.push(
         `${prefix}: component not registered: ${component.componentKey}`,
       );
       return { errors, warnings };
     }
 
-    // Check if constructor has validateBlueprintConfig method
-    if ('validateBlueprintConfig' in ComponentConstructor) {
-      const validateFn = (ComponentConstructor as any).validateBlueprintConfig;
-      if (typeof validateFn === 'function') {
-        try {
-          const issues = validateFn(component.config || {});
-          if (Array.isArray(issues)) {
-            issues.forEach((issue) => {
-              const message = `${prefix}: ${issue.message}`;
-              // Separate errors and warnings based on level
-              if (issue.level === 'warning') {
-                warnings.push(message);
-              } else {
-                // Default to error if level is not specified or is 'error'
-                errors.push(message);
-              }
-            });
-          }
-        } catch (error) {
-          errors.push(
-            `${prefix}: validation failed - ${error instanceof Error ? error.message : String(error)}`,
-          );
+    // Instantiate component and call validateBlueprintConfig if available
+    try {
+      const instance = new Constructor(component.config);
+      if (typeof instance.validateBlueprintConfig === 'function') {
+        const issues = instance.validateBlueprintConfig(component.config || {});
+        if (Array.isArray(issues)) {
+          issues.forEach((issue) => {
+            const message = `${prefix}: ${issue.message}`;
+            // Separate errors and warnings based on level
+            if (issue.level === 'warning') {
+              warnings.push(message);
+            } else {
+              // Default to error if level is not specified or is 'error'
+              errors.push(message);
+            }
+          });
         }
       }
+    } catch (error) {
+      errors.push(
+        `${prefix}: validation failed - ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     return { errors, warnings };
@@ -225,13 +199,13 @@ export class BlueprintLoader {
     const { componentKey, config } = entry;
 
     // Get component constructor from registry
-    const ComponentConstructor = this.componentRegistry.get(componentKey);
-    if (!ComponentConstructor) {
+    const Constructor = this.componentRegistry.get(componentKey);
+    if (!Constructor) {
       throw new Error(`Component not registered: ${componentKey}`);
     }
 
     // Instantiate component with config
-    return new ComponentConstructor(config);
+    return new Constructor(config);
   }
 
   /**

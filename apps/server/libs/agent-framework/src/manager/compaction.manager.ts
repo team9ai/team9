@@ -6,15 +6,13 @@ import {
   ChunkContentType,
   TextContent,
 } from '../types/chunk.types.js';
-import { ICompactor, CompactionContext } from '../compactor/compactor.types.js';
-import { WorkingHistoryCompactor } from '../compactor/working-history.compactor.js';
 import { ILLMAdapter, LLMConfig } from '../llm/llm.types.js';
 import { ThreadManager } from './thread.manager.js';
-import { createBatchReplaceOperation } from '../factories/operation.factory.js';
 import type { ObserverManager } from '../observer/observer.types.js';
 import type { DispatchResult } from './memory.manager.js';
 import { ITokenizer } from '../tokenizer/tokenizer.types.js';
 import { createTokenizer } from '../tokenizer/tiktoken.tokenizer.js';
+import { Compactor, type ComponentLookup } from '../compactor/index.js';
 
 /**
  * Token threshold configuration for memory management
@@ -87,17 +85,15 @@ const CONVERSATION_CHUNK_TYPES = [
 /**
  * CompactionManager handles memory compaction logic
  * Uses token-based thresholds for intelligent memory management
+ * Delegates actual compaction to Compactor class
  */
 export class CompactionManager {
-  private compactors: ICompactor[] = [];
   private config: CompactionManagerConfig;
   private tokenizer: ITokenizer;
   private tokenThresholds: TokenThresholds;
+  private compactor: Compactor;
 
-  constructor(
-    private llmAdapter: ILLMAdapter,
-    config: CompactionManagerConfig,
-  ) {
+  constructor(llmAdapter: ILLMAdapter, config: CompactionManagerConfig) {
     this.config = {
       autoCompactEnabled: true,
       ...config,
@@ -112,8 +108,11 @@ export class CompactionManager {
       ...config.tokenThresholds,
     };
 
-    // Initialize default compactors
-    this.compactors.push(new WorkingHistoryCompactor(llmAdapter, config.llm));
+    // Create Compactor instance
+    this.compactor = new Compactor(llmAdapter, {
+      temperature: config.llm.temperature,
+      maxTokens: config.llm.maxTokens,
+    });
   }
 
   /**
@@ -253,19 +252,20 @@ export class CompactionManager {
   }
 
   /**
-   * Execute compaction for specific chunks
+   * Execute compaction using Compactor.
+   * Compactor identifies chunks to compact and delegates to component's compactChunk method.
    *
    * @param threadId - The thread ID
-   * @param chunks - Chunks to compact
    * @param threadManager - Thread manager for state operations
    * @param observerManager - Observer manager for notifications
+   * @param componentLookup - Optional function to find component for chunk (provided by ComponentManager)
    * @returns The dispatch result after compaction
    */
   async executeCompaction(
     threadId: string,
-    chunks: MemoryChunk[],
     threadManager: ThreadManager,
     observerManager: ObserverManager,
+    componentLookup?: ComponentLookup,
   ): Promise<DispatchResult> {
     // Get current state
     const currentState = await threadManager.getCurrentState(threadId);
@@ -273,116 +273,50 @@ export class CompactionManager {
       throw new Error(`Current state not found for thread: ${threadId}`);
     }
 
-    if (chunks.length === 0) {
-      const thread = await threadManager.getThread(threadId);
-      if (!thread) {
-        throw new Error(`Thread not found: ${threadId}`);
-      }
-      return {
-        thread,
-        state: currentState,
-        addedChunks: [],
-        removedChunkIds: [],
-      };
-    }
+    // Get chunks to compact
+    const chunksToCompact = this.compactor.getChunksToCompact(currentState);
 
     // Notify observers of compaction start
-    const chunkIds = chunks.map((c) => c.id);
     observerManager.notifyCompactionStart({
       threadId,
-      chunkCount: chunks.length,
-      chunkIds,
+      chunkCount: chunksToCompact.length,
+      chunkIds: chunksToCompact.map((c) => c.chunk.id),
       timestamp: Date.now(),
     });
 
-    // Find a suitable compactor
-    const compactor = this.compactors.find((c) => c.canCompact(chunks));
-    if (!compactor) {
-      throw new Error('No suitable compactor found for chunks');
-    }
-
-    // Build compaction context
-    const context: CompactionContext = {
-      state: currentState,
-      taskGoal: this.extractTaskGoal(currentState),
-      progressSummary: this.extractProgressSummary(currentState),
-    };
-
-    // Run compaction
-    const compactionResult = await compactor.compact(chunks, context);
-
-    // Create batch replace operation
-    const operation = createBatchReplaceOperation(
-      compactionResult.originalChunkIds,
-      compactionResult.compactedChunk.id,
+    // Run compaction using Compactor (delegates to component's compactChunk)
+    const reducerResult = await this.compactor.compactToReducerResult(
+      currentState,
+      componentLookup,
     );
 
     // Apply through thread manager
-    const result = await threadManager.applyReducerResult(threadId, {
-      operations: [operation],
-      chunks: [compactionResult.compactedChunk],
-    });
+    const result = await threadManager.applyReducerResult(
+      threadId,
+      reducerResult,
+    );
+
+    // Get compaction result for observer notification
+    const compactedChunk = reducerResult.chunks[0];
+    const originalChunkIds =
+      chunksToCompact.length > 0
+        ? (chunksToCompact[0].chunk.childIds ?? []).filter((id) => {
+            const chunk = currentState.chunks.get(id);
+            return chunk && this.isCompressible(chunk);
+          })
+        : [];
 
     // Notify observers of compaction end
     observerManager.notifyCompactionEnd({
       threadId,
-      tokensBefore: compactionResult.tokensBefore ?? 0,
-      tokensAfter: compactionResult.tokensAfter ?? 0,
-      compactedChunkId: compactionResult.compactedChunk.id,
-      originalChunkIds: compactionResult.originalChunkIds,
+      tokensBefore: 0, // Token counting handled by Compactor internally
+      tokensAfter: 0,
+      compactedChunkId: compactedChunk?.id ?? '',
+      originalChunkIds,
       timestamp: Date.now(),
     });
 
     return result;
-  }
-
-  /**
-   * Extract task goal from state (for compaction context)
-   */
-  private extractTaskGoal(state: MemoryState): string | undefined {
-    // Look for system chunks or delegation chunks with task info
-    for (const chunk of state.chunks.values()) {
-      if (
-        chunk.type === ChunkType.SYSTEM ||
-        chunk.type === ChunkType.DELEGATION
-      ) {
-        const content = chunk.content;
-        if ('task' in content && typeof content.task === 'string') {
-          return content.task;
-        }
-        if ('taskContext' in content && content.taskContext) {
-          const ctx = content.taskContext as Record<string, unknown>;
-          if ('goal' in ctx && typeof ctx.goal === 'string') {
-            return ctx.goal;
-          }
-        }
-      }
-    }
-    return undefined;
-  }
-
-  /**
-   * Extract progress summary from state (for compaction context)
-   */
-  private extractProgressSummary(state: MemoryState): string | undefined {
-    // Look for existing compacted chunks
-    for (const chunk of state.chunks.values()) {
-      if (chunk.type === ChunkType.COMPACTED) {
-        const content = chunk.content;
-        if ('text' in content && typeof content.text === 'string') {
-          return content.text;
-        }
-      }
-    }
-    return undefined;
-  }
-
-  /**
-   * Register a custom compactor
-   * @param compactor - The compactor to register
-   */
-  registerCompactor(compactor: ICompactor): void {
-    this.compactors.push(compactor);
   }
 
   /**

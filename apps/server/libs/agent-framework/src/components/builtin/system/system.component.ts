@@ -38,9 +38,9 @@ export class SystemInstructionsComponent extends AbstractComponent {
 
   private config: SystemInstructionsComponentConfig;
 
-  constructor(config: SystemInstructionsComponentConfig) {
+  constructor(config?: SystemInstructionsComponentConfig) {
     super();
-    this.config = config;
+    this.config = config ?? { instructions: '' };
   }
 
   /**

@@ -1,10 +1,7 @@
 /**
  * Unit tests for BlueprintLoader
  */
-import {
-  BlueprintLoader,
-  IComponentRegistry,
-} from '../../blueprint/blueprint-loader.js';
+import { BlueprintLoader } from '../../blueprint/blueprint-loader.js';
 import {
   MemoryManager,
   MemoryManagerConfig,
@@ -17,24 +14,7 @@ import type {
 } from '../../llm/llm.types.js';
 import { ReducerRegistry } from '../../reducer/reducer.types.js';
 import { SystemInstructionsComponent } from '../../components/builtin/system/system.component.js';
-import type { ComponentConstructor } from '../../components/component.interface.js';
-
-// Simple in-memory component registry for testing
-class TestComponentRegistry implements IComponentRegistry {
-  private registry = new Map<string, ComponentConstructor>();
-
-  register(key: string, constructor: ComponentConstructor): void {
-    this.registry.set(key, constructor);
-  }
-
-  get(key: string): ComponentConstructor | undefined {
-    return this.registry.get(key);
-  }
-
-  has(key: string): boolean {
-    return this.registry.has(key);
-  }
-}
+import { ComponentRegistry } from '../../components/component-registry.js';
 
 // Mock LLM adapter
 const createMockLLMAdapter = (): ILLMAdapter => ({
@@ -60,7 +40,7 @@ describe('BlueprintLoader', () => {
   let reducerRegistry: ReducerRegistry;
   let llmAdapter: ILLMAdapter;
   let memoryManager: MemoryManager;
-  let componentRegistry: TestComponentRegistry;
+  let componentRegistry: ComponentRegistry;
   let blueprintLoader: BlueprintLoader;
 
   beforeEach(() => {
@@ -83,12 +63,9 @@ describe('BlueprintLoader', () => {
       config,
     );
 
-    componentRegistry = new TestComponentRegistry();
-    // Register built-in system component
-    componentRegistry.register(
-      'builtin:system',
-      SystemInstructionsComponent as any,
-    );
+    componentRegistry = new ComponentRegistry();
+    // Register built-in system component constructor (key extracted from component.id)
+    componentRegistry.register(SystemInstructionsComponent);
 
     blueprintLoader = new BlueprintLoader(memoryManager, componentRegistry);
   });

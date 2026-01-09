@@ -12,8 +12,32 @@ import type {
 import type { MemoryState } from '../types/state.types.js';
 import type { AgentEvent } from '../types/event.types.js';
 import type { Operation } from '../types/operation.types.js';
+import type {
+  CompactionResult,
+  CompactionConfig,
+} from '../types/compaction.types.js';
 import type { ReducerResult } from '../reducer/reducer.types.js';
 import type { Tool } from '../tools/tool.types.js';
+import type { ILLMAdapter } from '../llm/llm.types.js';
+
+// ============ Component Compaction Types ============
+
+/**
+ * Configuration for component compaction
+ * Extends base CompactionConfig with component-specific options
+ */
+export interface ComponentCompactionConfig extends CompactionConfig {
+  // Component-specific config can be added here in the future
+}
+
+/**
+ * Result of component compaction
+ * Wraps CompactionResult with component context
+ */
+export interface ComponentCompactionResult extends CompactionResult {
+  /** Component ID that performed the compaction */
+  componentId?: string;
+}
 
 // ============ Render Configuration ============
 
@@ -280,15 +304,29 @@ export interface IComponent extends ComponentLifecycle {
    * @returns Array of validation issues (errors and warnings)
    */
   validate?(): ComponentValidationIssue[];
-}
 
-// ============ Component Configuration ============
+  // ============ Compaction ============
 
-/**
- * Component constructor type with optional static blueprint validation
- */
-export type ComponentConstructor<TConfig = Record<string, unknown>> = {
-  new (config?: TConfig): IComponent;
+  /**
+   * Compact a specific chunk owned by this component (optional)
+   * Called by Compactor when this chunk needs compaction
+   *
+   * For example, WorkingHistoryComponent receives the WORKING_HISTORY chunk
+   * and compacts its compressible children into a summary.
+   *
+   * @param chunk - The chunk to compact (e.g., WORKING_HISTORY container)
+   * @param state - Current memory state (for context access)
+   * @param llmAdapter - LLM adapter for generating summaries
+   * @param config - Compaction configuration
+   * @returns Compaction result for this chunk, or null if compaction not needed
+   */
+  compactChunk?(
+    chunk: MemoryChunk,
+    state: MemoryState,
+    llmAdapter: ILLMAdapter,
+    config?: ComponentCompactionConfig,
+  ): Promise<ComponentCompactionResult | null>;
+
   /**
    * Optional static method to validate blueprint component configuration
    * Called during blueprint validation before component instantiation
@@ -296,7 +334,14 @@ export type ComponentConstructor<TConfig = Record<string, unknown>> = {
    * @returns Array of validation issues (errors and warnings), or null if validation not needed
    */
   validateBlueprintConfig?(config: unknown): ComponentValidationIssue[] | null;
-};
+}
+
+/**
+ * Component constructor type
+ * Used for registering component classes that can be instantiated with config
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type ComponentConstructor = new (config?: any) => IComponent;
 
 /**
  * New component configuration for Blueprint (Component-Centric architecture)
@@ -306,7 +351,7 @@ export type ComponentConstructor<TConfig = Record<string, unknown>> = {
  */
 export interface NewComponentConfig<TConfig = Record<string, unknown>> {
   /** Component class or instance */
-  component: IComponent | ComponentConstructor<TConfig>;
+  component: IComponent | ComponentConstructor;
   /** Configuration to pass to component constructor */
   config?: TConfig;
 }

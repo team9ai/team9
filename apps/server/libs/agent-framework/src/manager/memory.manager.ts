@@ -4,7 +4,6 @@ import type {
   LLMInteraction,
 } from '../types/thread.types.js';
 import { MemoryState } from '../types/state.types.js';
-import { MemoryChunk } from '../types/chunk.types.js';
 import {
   AgentEvent,
   getDefaultDispatchStrategy,
@@ -12,7 +11,6 @@ import {
 import { ReducerRegistry } from '../reducer/reducer.types.js';
 import { StorageProvider } from '../storage/storage.types.js';
 import { ILLMAdapter, LLMConfig } from '../llm/llm.types.js';
-import { ICompactor } from '../compactor/compactor.types.js';
 import {
   ThreadManager,
   CreateThreadOptions,
@@ -298,10 +296,10 @@ export class MemoryManager {
     }
 
     // In auto mode, check for pending compaction and execute it
-    const chunksToCompact =
+    const shouldCompact =
       this.eventProcessor.consumePendingCompaction(threadId);
-    if (chunksToCompact) {
-      await this.triggerCompaction(threadId, chunksToCompact);
+    if (shouldCompact) {
+      await this.triggerCompaction(threadId);
     }
 
     return result;
@@ -310,33 +308,16 @@ export class MemoryManager {
   // ============ Compaction ============
 
   /**
-   * Trigger compaction for specific chunks
-   * Since processing is serial, no blocking is needed
+   * Trigger compaction for the thread's WORKING_HISTORY.
+   * Compaction is now delegated to the WorkingHistoryComponent operations.
+   * Since processing is serial, no blocking is needed.
    */
-  async triggerCompaction(
-    threadId: string,
-    chunks?: MemoryChunk[],
-  ): Promise<DispatchResult> {
-    // Get chunks to compact if not provided
-    const chunksToCompact =
-      chunks ??
-      this.compactionManager.getCompressibleChunks(
-        (await this.threadManager.getCurrentState(threadId))!,
-      );
-
+  async triggerCompaction(threadId: string): Promise<DispatchResult> {
     return this.compactionManager.executeCompaction(
       threadId,
-      chunksToCompact,
       this.threadManager,
       this.observerManager,
     );
-  }
-
-  /**
-   * Register a custom compactor
-   */
-  registerCompactor(compactor: ICompactor): void {
-    this.compactionManager.registerCompactor(compactor);
   }
 
   // ============ Truncation ============
@@ -497,7 +478,6 @@ export class MemoryManager {
       if (pendingCompaction) {
         const result = await this.compactionManager.executeCompaction(
           threadId,
-          pendingCompaction,
           this.threadManager,
           this.observerManager,
         );
