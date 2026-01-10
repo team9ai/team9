@@ -3,9 +3,9 @@
  */
 import { BlueprintLoader } from '../../blueprint/blueprint-loader.js';
 import {
-  MemoryManager,
-  MemoryManagerConfig,
-} from '../../manager/memory.manager.js';
+  AgentOrchestrator,
+  AgentOrchestratorConfig,
+} from '../../manager/agent-orchestrator.js';
 import { InMemoryStorageProvider } from '../../storage/memory.storage.js';
 import { Blueprint } from '../../blueprint/blueprint.types.js';
 import type {
@@ -39,7 +39,7 @@ describe('BlueprintLoader', () => {
   let storage: InMemoryStorageProvider;
   let reducerRegistry: ReducerRegistry;
   let llmAdapter: ILLMAdapter;
-  let memoryManager: MemoryManager;
+  let orchestrator: AgentOrchestrator;
   let componentRegistry: ComponentRegistry;
   let blueprintLoader: BlueprintLoader;
 
@@ -48,7 +48,7 @@ describe('BlueprintLoader', () => {
     reducerRegistry = createMockReducerRegistry();
     llmAdapter = createMockLLMAdapter();
 
-    const config: MemoryManagerConfig = {
+    const config: AgentOrchestratorConfig = {
       llm: {
         model: 'claude-3-5-sonnet-20241022',
         temperature: 0.7,
@@ -56,7 +56,7 @@ describe('BlueprintLoader', () => {
       autoCompactEnabled: false,
     };
 
-    memoryManager = new MemoryManager(
+    orchestrator = new AgentOrchestrator(
       storage,
       reducerRegistry,
       llmAdapter,
@@ -67,7 +67,7 @@ describe('BlueprintLoader', () => {
     // Register built-in system component constructor (key extracted from component.id)
     componentRegistry.register(SystemInstructionsComponent);
 
-    blueprintLoader = new BlueprintLoader(memoryManager, componentRegistry);
+    blueprintLoader = new BlueprintLoader(orchestrator, componentRegistry);
   });
 
   const createValidBlueprint = (overrides?: Partial<Blueprint>): Blueprint => ({
@@ -297,7 +297,7 @@ describe('BlueprintLoader', () => {
       };
 
       // Verify that custom is still a separate field
-      const threadResult = await memoryManager.createThread({
+      const threadResult = await orchestrator.createThread({
         ...threadOptions,
         custom: { userId: '123', sessionId: 'abc' },
       });
@@ -371,7 +371,7 @@ describe('BlueprintLoader', () => {
         await blueprintLoader.createThreadFromBlueprint(blueprint);
 
       // Simulate thread update (like changing state)
-      const updatedThread = await memoryManager.getThread(thread.id);
+      const updatedThread = await orchestrator.getThread(thread.id);
 
       // Blueprint fields should be preserved
       expect(updatedThread?.blueprintId).toBe('immutable-test');

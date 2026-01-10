@@ -1,3 +1,4 @@
+import { MemoryThread } from '../types/thread.types.js';
 import { MemoryState } from '../types/state.types.js';
 import {
   MemoryChunk,
@@ -7,12 +8,37 @@ import {
   TextContent,
 } from '../types/chunk.types.js';
 import { ILLMAdapter, LLMConfig } from '../llm/llm.types.js';
-import { ThreadManager } from './thread.manager.js';
 import type { ObserverManager } from '../observer/observer.types.js';
-import type { DispatchResult } from './memory.manager.js';
 import { ITokenizer } from '../tokenizer/tokenizer.types.js';
 import { createTokenizer } from '../tokenizer/tiktoken.tokenizer.js';
 import { Compactor, type ComponentLookup } from '../compactor/index.js';
+import type { ReducerResult } from '../reducer/reducer.types.js';
+
+/**
+ * Result of dispatching an event (re-exported for compaction)
+ */
+export interface DispatchResult {
+  /** The updated thread */
+  thread: Readonly<MemoryThread>;
+  /** The new state after processing the event */
+  state: Readonly<MemoryState>;
+  /** Chunks that were added */
+  addedChunks: MemoryChunk[];
+  /** Chunk IDs that were removed */
+  removedChunkIds: string[];
+}
+
+/**
+ * Interface for runtime coordination operations needed by CompactionManager
+ * AgentOrchestrator implements this interface
+ */
+export interface ICompactionCoordinator {
+  getCurrentState(threadId: string): Promise<Readonly<MemoryState> | null>;
+  applyReducerResult(
+    threadId: string,
+    reducerResult: ReducerResult,
+  ): Promise<DispatchResult>;
+}
 
 /**
  * Token threshold configuration for memory management
@@ -256,19 +282,19 @@ export class CompactionManager {
    * Compactor identifies chunks to compact and delegates to component's compactChunk method.
    *
    * @param threadId - The thread ID
-   * @param threadManager - Thread manager for state operations
+   * @param coordinator - Runtime coordinator for state operations
    * @param observerManager - Observer manager for notifications
    * @param componentLookup - Optional function to find component for chunk (provided by ComponentManager)
    * @returns The dispatch result after compaction
    */
   async executeCompaction(
     threadId: string,
-    threadManager: ThreadManager,
+    coordinator: ICompactionCoordinator,
     observerManager: ObserverManager,
     componentLookup?: ComponentLookup,
   ): Promise<DispatchResult> {
     // Get current state
-    const currentState = await threadManager.getCurrentState(threadId);
+    const currentState = await coordinator.getCurrentState(threadId);
     if (!currentState) {
       throw new Error(`Current state not found for thread: ${threadId}`);
     }
@@ -290,8 +316,8 @@ export class CompactionManager {
       componentLookup,
     );
 
-    // Apply through thread manager
-    const result = await threadManager.applyReducerResult(
+    // Apply through coordinator
+    const result = await coordinator.applyReducerResult(
       threadId,
       reducerResult,
     );

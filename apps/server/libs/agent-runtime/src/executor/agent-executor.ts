@@ -9,7 +9,7 @@
  */
 
 import type {
-  MemoryManager,
+  AgentOrchestrator,
   ILLMAdapter,
   CustomToolConfig,
   IToolRegistry,
@@ -91,7 +91,7 @@ export class AgentExecutor {
   private spawnSubagentHandler?: SpawnSubagentHandler;
 
   constructor(
-    memoryManager: MemoryManager,
+    memoryManager: AgentOrchestrator,
     llmAdapter: ILLMAdapter,
     config: AgentExecutorConfig = {},
   ) {
@@ -258,7 +258,7 @@ export class AgentExecutor {
  * Create an agent executor
  */
 export function createAgentExecutor(
-  memoryManager: MemoryManager,
+  memoryManager: AgentOrchestrator,
   llmAdapter: ILLMAdapter,
   config?: AgentExecutorConfig,
 ): AgentExecutor {

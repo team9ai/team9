@@ -1,3 +1,7 @@
+// User-friendly boot API (primary entry point)
+export * from './boot/index.js';
+
+// Internal modules (for advanced usage)
 export * from './types/index.js';
 export * from './utils/index.js';
 export * from './factories/index.js';

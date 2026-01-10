@@ -8,7 +8,7 @@ import type {
   StepResult,
   AgentStatus,
   EventDispatchStrategy,
-  MemoryManager,
+  AgentOrchestrator,
   DebugController,
 } from '@team9/agent-framework';
 import type { AgentExecutor } from '../executor/agent-executor.js';
@@ -24,7 +24,7 @@ export interface AgentRuntimeState {
   /** Cached agent instances by ID */
   agentsCache: Map<string, AgentInstance>;
   /** Memory managers by agent ID */
-  memoryManagers: Map<string, MemoryManager>;
+  memoryManagers: Map<string, AgentOrchestrator>;
   /** Debug controllers by agent ID */
   debugControllers: Map<string, DebugController>;
   /** Executors by agent ID */

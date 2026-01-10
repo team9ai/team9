@@ -1,6 +1,7 @@
 import { MemoryChunk } from '../types/chunk.types.js';
 import { MemoryState } from '../types/state.types.js';
-import { MemoryThread, Step } from '../types/thread.types.js';
+import { MemoryThread, QueuedEvent } from '../types/thread.types.js';
+import { Step } from '../manager/memory-manager.interface.js';
 
 /**
  * Query options for listing states
@@ -187,6 +188,56 @@ export interface StorageProvider {
    * @param stepId - The step ID
    */
   deleteStep(stepId: string): Promise<void>;
+
+  // ============ Event Queue Operations ============
+
+  /**
+   * Push an event to the queue (FIFO)
+   * @param threadId - The thread ID
+   * @param event - The event to push
+   */
+  pushEvent(threadId: string, event: QueuedEvent): Promise<void>;
+
+  /**
+   * Push multiple events to the queue (batch operation)
+   * @param threadId - The thread ID
+   * @param events - The events to push
+   */
+  pushEvents(threadId: string, events: QueuedEvent[]): Promise<void>;
+
+  /**
+   * Pop the next event from the queue (FIFO)
+   * @param threadId - The thread ID
+   * @returns The next event or null if queue is empty
+   */
+  popEvent(threadId: string): Promise<QueuedEvent | null>;
+
+  /**
+   * Peek the next event without removing it
+   * @param threadId - The thread ID
+   * @returns The next event or null if queue is empty
+   */
+  peekEvent(threadId: string): Promise<QueuedEvent | null>;
+
+  /**
+   * Get all events in the queue
+   * @param threadId - The thread ID
+   * @returns Array of queued events (ordered by queue time)
+   */
+  getEventQueue(threadId: string): Promise<QueuedEvent[]>;
+
+  /**
+   * Clear all events in the queue
+   * @param threadId - The thread ID
+   */
+  clearEventQueue(threadId: string): Promise<void>;
+
+  /**
+   * Get the number of events in the queue
+   * @param threadId - The thread ID
+   * @returns The queue length
+   */
+  getEventQueueLength(threadId: string): Promise<number>;
 
   // ============ Transaction Support ============
 

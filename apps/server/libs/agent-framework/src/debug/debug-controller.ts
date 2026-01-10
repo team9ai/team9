@@ -1,12 +1,13 @@
 import type { ChunkContent } from '../types/chunk.types.js';
 import type { AgentEvent } from '../types/event.types.js';
 import type {
-  MemoryManager,
+  AgentOrchestrator,
   DispatchResult,
   StepResult,
-} from '../manager/memory.manager.js';
-import type { ThreadManager } from '../manager/thread.manager.js';
+} from '../manager/agent-orchestrator.js';
+import type { IMemoryManager } from '../manager/memory-manager.interface.js';
 import type { StorageProvider } from '../storage/storage.types.js';
+import type { ReducerResult } from '../reducer/reducer.types.js';
 import type {
   DebugController,
   ForkResult,
@@ -26,15 +27,15 @@ export class DefaultDebugController implements DebugController {
   private snapshots: Map<string, Snapshot> = new Map();
 
   constructor(
-    private memoryManager: MemoryManager,
+    private orchestrator: AgentOrchestrator,
     private storage: StorageProvider,
   ) {}
 
   /**
-   * Get the thread manager
+   * Get the memory manager
    */
-  private get threadManager(): ThreadManager {
-    return this.memoryManager.getThreadManager();
+  private get memoryManager(): IMemoryManager {
+    return this.orchestrator.getMemoryManager();
   }
 
   /**
@@ -64,7 +65,7 @@ export class DefaultDebugController implements DebugController {
    * Check if a step is currently locked (being processed)
    */
   async isStepLocked(threadId: string): Promise<boolean> {
-    return this.memoryManager.isStepLocked(threadId);
+    return this.orchestrator.isStepLocked(threadId);
   }
 
   /**
@@ -74,7 +75,7 @@ export class DefaultDebugController implements DebugController {
     threadId: string,
     event: AgentEvent,
   ): Promise<DispatchResult> {
-    return this.memoryManager.dispatch(threadId, event);
+    return this.orchestrator.dispatch(threadId, event);
   }
 
   /**
@@ -94,7 +95,7 @@ export class DefaultDebugController implements DebugController {
     const chunkArray = Array.from(chunks.values());
 
     // Create a new thread with the same chunks
-    const result = await this.threadManager.createThread({
+    const result = await this.memoryManager.createThread({
       initialChunks: chunkArray,
       custom: {
         forkedFrom: {
@@ -150,11 +151,15 @@ export class DefaultDebugController implements DebugController {
     // Create an update operation
     const operation = createUpdateOperation(chunkId, editedChunk.id);
 
-    // Apply the operation through the thread manager
-    const result = await this.threadManager.applyOperations(
+    // Build reducer result and apply through orchestrator
+    const reducerResult: ReducerResult = {
+      operations: [operation],
+      chunks: [editedChunk],
+    };
+
+    const result = await this.orchestrator.applyReducerResult(
       threadId,
-      [operation],
-      [editedChunk],
+      reducerResult,
     );
 
     return {
@@ -173,7 +178,7 @@ export class DefaultDebugController implements DebugController {
     description?: string,
   ): Promise<Snapshot> {
     // Get current state
-    const currentState = await this.threadManager.getCurrentState(threadId);
+    const currentState = await this.memoryManager.getCurrentState(threadId);
     if (!currentState) {
       throw new Error(`Thread not found or has no state: ${threadId}`);
     }
@@ -214,7 +219,7 @@ export class DefaultDebugController implements DebugController {
   async restoreSnapshot(snapshot: Snapshot): Promise<void> {
     // First, delete the existing thread if it exists
     try {
-      await this.threadManager.deleteThread(snapshot.threadId);
+      await this.memoryManager.deleteThread(snapshot.threadId);
     } catch {
       // Thread might not exist, that's ok
     }
@@ -230,7 +235,7 @@ export class DefaultDebugController implements DebugController {
     const chunkIds = lastState.chunkIds;
     const chunks = snapshot.chunks.filter((c) => chunkIds.includes(c.id));
 
-    await this.threadManager.createThread({
+    await this.memoryManager.createThread({
       initialChunks: chunks,
       custom: {
         restoredFrom: {
@@ -263,49 +268,49 @@ export class DefaultDebugController implements DebugController {
    * Get the current execution mode for a thread
    */
   getExecutionMode(threadId: string): ExecutionMode {
-    return this.memoryManager.getExecutionMode(threadId);
+    return this.orchestrator.getExecutionMode(threadId);
   }
 
   /**
    * Set the execution mode for a thread
    */
   async setExecutionMode(threadId: string, mode: ExecutionMode): Promise<void> {
-    return this.memoryManager.setExecutionMode(threadId, mode);
+    return this.orchestrator.setExecutionMode(threadId, mode);
   }
 
   /**
    * Execute a single step in stepping mode
    */
   async step(threadId: string): Promise<StepResult> {
-    return this.memoryManager.step(threadId);
+    return this.orchestrator.step(threadId);
   }
 
   /**
    * Check if there's a pending compaction for a thread
    */
   hasPendingCompaction(threadId: string): boolean {
-    return this.memoryManager.hasPendingCompaction(threadId);
+    return this.orchestrator.hasPendingCompaction(threadId);
   }
 
   /**
    * Check if there's a pending truncation for a thread
    */
   hasPendingTruncation(threadId: string): boolean {
-    return this.memoryManager.hasPendingTruncation(threadId);
+    return this.orchestrator.hasPendingTruncation(threadId);
   }
 
   /**
    * Get the number of queued events for a thread
    */
   async getQueuedEventCount(threadId: string): Promise<number> {
-    return this.memoryManager.getPersistentQueueLength(threadId);
+    return this.orchestrator.getPersistentQueueLength(threadId);
   }
 
   /**
    * Peek at the next event without processing it
    */
   async peekNextEvent(threadId: string): Promise<AgentEvent | null> {
-    const queuedEvent = await this.memoryManager.peekPersistentEvent(threadId);
+    const queuedEvent = await this.orchestrator.peekPersistentEvent(threadId);
     return queuedEvent?.event ?? null;
   }
 }
@@ -314,8 +319,8 @@ export class DefaultDebugController implements DebugController {
  * Create a debug controller
  */
 export function createDebugController(
-  memoryManager: MemoryManager,
+  orchestrator: AgentOrchestrator,
   storage: StorageProvider,
 ): DebugController {
-  return new DefaultDebugController(memoryManager, storage);
+  return new DefaultDebugController(orchestrator, storage);
 }

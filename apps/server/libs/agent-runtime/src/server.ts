@@ -18,7 +18,7 @@ import {
 } from './db/index.js';
 import type { LLMConfig, StorageProvider } from '@team9/agent-framework';
 import {
-  MemoryManager,
+  AgentOrchestrator,
   createDefaultReducerRegistry,
   DefaultDebugController,
   InMemoryStorageProvider,
@@ -74,7 +74,7 @@ const createMemoryManager = (config: LLMConfig) => {
     OPENROUTER_API_KEY,
   );
 
-  return new MemoryManager(storage, reducerRegistry, llmAdapter, {
+  return new AgentOrchestrator(storage, reducerRegistry, llmAdapter, {
     llm: config,
     autoCompactEnabled: true,
   });

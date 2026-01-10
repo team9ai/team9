@@ -19,6 +19,11 @@ Agent Framework - Core library providing memory management, context building, an
 agent-framework/
 ├── src/
 │   ├── index.ts           # Main export
+│   ├── boot/              # ★ User-friendly API (see boot/CLAUDE.md)
+│   │   ├── AgentFactory.ts # Factory for creating/managing agents
+│   │   ├── Agent.ts       # Agent instance wrapper
+│   │   ├── types.ts       # Boot layer type definitions
+│   │   └── index.ts       # Boot exports
 │   ├── tools/             # Tool system (see tools/CLAUDE.md)
 │   │   ├── tool.types.ts  # Tool type definitions
 │   │   ├── tool.registry.ts # Tool registration & execution
@@ -57,6 +62,47 @@ agent-framework/
 
 ## Quick Start
 
+### Recommended: Using Boot API
+
+```typescript
+import {
+  AgentFactory,
+  Agent,
+  InMemoryStorageProvider,
+  EventType,
+} from '@team9/agent-framework';
+
+// 1. Create factory
+const factory = new AgentFactory({
+  storage: new InMemoryStorageProvider(),
+  llmAdapter: myLLMAdapter,
+  defaultLLMConfig: { model: 'gpt-4' },
+  components: [SystemPromptComponent, WorkingHistoryComponent],
+  tools: [myCustomTool],
+});
+
+// 2. Create agent from blueprint
+const agent = await factory.createAgent({
+  name: 'my-agent',
+  llmConfig: { model: 'gpt-4' },
+  components: [
+    { componentKey: 'system-prompt', config: { prompt: 'You are helpful.' } },
+  ],
+  tools: ['task-complete'],
+});
+
+// 3. Dispatch events and interact
+await agent.dispatch({
+  type: EventType.USER_MESSAGE,
+  content: 'Hello!',
+  timestamp: Date.now(),
+});
+
+const state = await agent.getState();
+```
+
+### Advanced: Using Internal APIs
+
 ```typescript
 import {
   // Types
@@ -72,27 +118,21 @@ import {
   createAddOperation,
 
   // Core
-  createMemoryManager,
   createContextBuilder,
   createTokenizer,
   createDefaultReducerRegistry,
 
   // Storage
-  MemoryStorageProvider,
+  InMemoryStorageProvider,
   PostgresStorageProvider,
 
   // Tools
   ToolRegistry,
   createDefaultToolRegistry,
   controlTools,
-  invokeToolTool,
 
   // Components
-  ComponentRenderer,
-  createComponentRenderer,
-  createSystemComponent,
-  createAgentComponent,
-  createWorkflowComponent,
+  ComponentRegistry,
 } from '@team9/agent-framework';
 ```
 
@@ -185,6 +225,7 @@ When making code changes, update the relevant CLAUDE.md with:
 
 | Directory         | CLAUDE.md Location                                   |
 | ----------------- | ---------------------------------------------------- |
+| `src/boot/`       | [src/boot/CLAUDE.md](src/boot/CLAUDE.md) ★           |
 | `src/tools/`      | [src/tools/CLAUDE.md](src/tools/CLAUDE.md)           |
 | `src/components/` | [src/components/CLAUDE.md](src/components/CLAUDE.md) |
 | `src/types/`      | [src/types/CLAUDE.md](src/types/CLAUDE.md)           |

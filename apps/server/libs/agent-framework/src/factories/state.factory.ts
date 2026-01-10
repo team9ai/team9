@@ -69,6 +69,7 @@ export function createState(input: CreateStateInput): Readonly<MemoryState> {
     chunkIds: Object.freeze([...chunkIds]) as string[],
     chunks: createImmutableChunkMap(chunks),
     metadata: deepFreeze(metadata),
+    needLLMContinueResponse: input.needLLMContinueResponse,
   };
 
   return Object.freeze(state);
@@ -88,6 +89,7 @@ export function deriveState(
     sourceOperation?: StateMetadata['sourceOperation'];
     provenance?: StateProvenance;
     custom?: Record<string, unknown>;
+    needLLMContinueResponse?: boolean;
   },
 ): Readonly<MemoryState> {
   let newChunks: Map<string, MemoryChunk>;
@@ -115,6 +117,10 @@ export function deriveState(
     chunkIds: Object.freeze([...newChunkIds]) as string[],
     chunks: newChunks,
     metadata: deepFreeze(metadata),
+    needLLMContinueResponse:
+      'needLLMContinueResponse' in updates
+        ? updates.needLLMContinueResponse
+        : original.needLLMContinueResponse,
   };
 
   return Object.freeze(state);
@@ -137,6 +143,7 @@ export function serializeState(state: MemoryState): SerializableMemoryState {
     chunkIds: [...state.chunkIds],
     chunks,
     metadata: { ...state.metadata },
+    needLLMContinueResponse: state.needLLMContinueResponse,
   };
 }
 
@@ -159,6 +166,7 @@ export function deserializeState(
     chunkIds: Object.freeze([...serialized.chunkIds]) as string[],
     chunks,
     metadata: deepFreeze({ ...serialized.metadata }),
+    needLLMContinueResponse: serialized.needLLMContinueResponse,
   };
 
   return Object.freeze(state);

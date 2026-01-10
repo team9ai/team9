@@ -10,7 +10,7 @@
  * - The result will have cancelled=true
  */
 
-import type { MemoryManager } from '../manager/memory.manager.js';
+import type { AgentOrchestrator } from '../manager/agent-orchestrator.js';
 import type { AgentEvent } from '../types/event.types.js';
 import type { ILLMAdapter, LLMToolDefinition } from '../llm/llm.types.js';
 import type {
@@ -44,7 +44,7 @@ export class LLMLoopExecutor {
   private currentThreadId: string | null = null;
 
   constructor(
-    private memoryManager: MemoryManager,
+    private orchestrator: AgentOrchestrator,
     llmAdapter: ILLMAdapter,
     config: LLMLoopExecutorConfig = {},
   ) {
@@ -71,7 +71,7 @@ export class LLMLoopExecutor {
 
     // Create turn executor
     this.turnExecutor = new TurnExecutor(
-      memoryManager,
+      this.orchestrator,
       contextBuilder,
       llmCaller,
       toolDefinitions,
@@ -146,7 +146,7 @@ export class LLMLoopExecutor {
 
       // Check for cancellation
       if (this.currentCancellation.isCancellationRequested) {
-        const finalState = await this.memoryManager.getCurrentState(threadId);
+        const finalState = await this.orchestrator.getCurrentState(threadId);
         return {
           success: false,
           finalState: finalState!,
@@ -162,7 +162,7 @@ export class LLMLoopExecutor {
         this.currentCancellation,
       );
 
-      const finalState = await this.memoryManager.getCurrentState(threadId);
+      const finalState = await this.orchestrator.getCurrentState(threadId);
       if (!finalState) {
         throw new Error(`Thread not found: ${threadId}`);
       }
@@ -191,7 +191,7 @@ export class LLMLoopExecutor {
         '[LLMLoopExecutor.runSingleTurn] Error during execution:',
         error,
       );
-      const finalState = await this.memoryManager.getCurrentState(threadId);
+      const finalState = await this.orchestrator.getCurrentState(threadId);
       return {
         success: false,
         finalState: finalState!,
@@ -240,7 +240,7 @@ export class LLMLoopExecutor {
         // Check for cancellation at the start of each turn
         if (this.currentCancellation.isCancellationRequested) {
           console.log('[LLMLoopExecutor.run] Execution cancelled before turn');
-          const finalState = await this.memoryManager.getCurrentState(threadId);
+          const finalState = await this.orchestrator.getCurrentState(threadId);
           return {
             success: false,
             finalState: finalState!,
@@ -260,7 +260,7 @@ export class LLMLoopExecutor {
 
         if (!turnResult.success) {
           // Turn failed (possibly cancelled during LLM call)
-          const finalState = await this.memoryManager.getCurrentState(threadId);
+          const finalState = await this.orchestrator.getCurrentState(threadId);
           return {
             success: false,
             finalState: finalState!,
@@ -290,7 +290,7 @@ export class LLMLoopExecutor {
         );
       }
 
-      const finalState = await this.memoryManager.getCurrentState(threadId);
+      const finalState = await this.orchestrator.getCurrentState(threadId);
       if (!finalState) {
         throw new Error(`Thread not found: ${threadId}`);
       }
@@ -304,7 +304,7 @@ export class LLMLoopExecutor {
       };
     } catch (error) {
       console.error('[LLMLoopExecutor.run] Error during execution:', error);
-      const finalState = await this.memoryManager.getCurrentState(threadId);
+      const finalState = await this.orchestrator.getCurrentState(threadId);
       return {
         success: false,
         finalState: finalState!,
@@ -326,9 +326,9 @@ export class LLMLoopExecutor {
  * Create an LLM loop executor
  */
 export function createLLMLoopExecutor(
-  memoryManager: MemoryManager,
+  orchestrator: AgentOrchestrator,
   llmAdapter: ILLMAdapter,
   config?: LLMLoopExecutorConfig,
 ): LLMLoopExecutor {
-  return new LLMLoopExecutor(memoryManager, llmAdapter, config);
+  return new LLMLoopExecutor(orchestrator, llmAdapter, config);
 }

@@ -62,6 +62,11 @@ export interface MemoryState {
   chunks: ReadonlyMap<string, MemoryChunk>;
   /** State metadata */
   metadata: StateMetadata;
+  /**
+   * Flag indicating whether the LLM needs to continue generating a response
+   * Set based on event's llmResponseRequirement during state transition
+   */
+  needLLMContinueResponse?: boolean;
 }
 
 /**
@@ -73,6 +78,7 @@ export interface SerializableMemoryState {
   chunkIds: string[];
   chunks: Record<string, MemoryChunk>;
   metadata: StateMetadata;
+  needLLMContinueResponse?: boolean;
 }
 
 /**
@@ -86,4 +92,6 @@ export interface CreateStateInput {
   /** Provenance information for traceability */
   provenance?: StateProvenance;
   custom?: Record<string, unknown>;
+  /** Initial value for needLLMContinueResponse */
+  needLLMContinueResponse?: boolean;
 }

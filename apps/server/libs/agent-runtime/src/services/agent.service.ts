@@ -12,7 +12,7 @@
 
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type {
-  MemoryManager,
+  AgentOrchestrator,
   MemoryState,
   DebugController,
   Blueprint,
@@ -71,8 +71,10 @@ export class AgentService {
   private pendingSpawnParentStates = new Map<string, string>();
 
   constructor(
-    createMemoryManager: (config: LLMConfig) => MemoryManager,
-    createDebugController: (memoryManager: MemoryManager) => DebugController,
+    createMemoryManager: (config: LLMConfig) => AgentOrchestrator,
+    createDebugController: (
+      memoryManager: AgentOrchestrator,
+    ) => DebugController,
     getLLMAdapter?: () => ILLMAdapter,
     db?: PostgresJsDatabase<Record<string, never>> | null,
     externalToolsConfig?: ExternalToolsConfig,
@@ -92,7 +94,7 @@ export class AgentService {
     // Initialize shared state
     this.state = {
       agentsCache: new Map<string, AgentInstance>(),
-      memoryManagers: new Map<string, MemoryManager>(),
+      memoryManagers: new Map<string, AgentOrchestrator>(),
       debugControllers: new Map<string, DebugController>(),
       executors: new Map<string, AgentExecutor>(),
     };
@@ -200,7 +202,7 @@ export class AgentService {
       externalTools: this.externalTools,
       sseBroadcaster: this.sseBroadcaster,
       onAgentForked: (agentId, memoryManager) => {
-        this.setupObserver(agentId, memoryManager as MemoryManager);
+        this.setupObserver(agentId, memoryManager as AgentOrchestrator);
       },
       saveAgent: async (agent) => {
         // Use lifecycle service's internal save
@@ -224,7 +226,10 @@ export class AgentService {
   /**
    * Set up observers for an agent
    */
-  private setupObserver(agentId: string, memoryManager: MemoryManager): void {
+  private setupObserver(
+    agentId: string,
+    memoryManager: AgentOrchestrator,
+  ): void {
     this.sseBroadcaster.setupObserver(agentId, memoryManager);
     this.stepHistoryService.setupObserver(agentId, memoryManager);
 

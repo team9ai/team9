@@ -9,7 +9,7 @@ import { createId } from '@paralleldrive/cuid2';
 import { eq } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type {
-  MemoryManager,
+  AgentOrchestrator,
   DebugController,
   Blueprint,
   BlueprintLoader,
@@ -18,6 +18,7 @@ import type {
   ExecutionMode,
   CustomToolConfig,
 } from '@team9/agent-framework';
+import { ComponentRegistry } from '@team9/agent-framework';
 import type { AgentInstance, AgentRuntimeState } from '../types/index.js';
 import { AgentExecutor } from '../executor/agent-executor.js';
 import type {
@@ -32,15 +33,15 @@ import { agents } from '../db/index.js';
  */
 export type OnAgentInitialized = (
   agentId: string,
-  memoryManager: MemoryManager,
+  memoryManager: AgentOrchestrator,
 ) => void;
 
 /**
  * Configuration for AgentLifecycleService
  */
 export interface AgentLifecycleServiceConfig {
-  createMemoryManager: (config: LLMConfig) => MemoryManager;
-  createDebugController: (memoryManager: MemoryManager) => DebugController;
+  createMemoryManager: (config: LLMConfig) => AgentOrchestrator;
+  createDebugController: (memoryManager: AgentOrchestrator) => DebugController;
   getLLMAdapter?: () => ILLMAdapter;
   db?: PostgresJsDatabase<Record<string, never>> | null;
   externalTools?: CustomToolConfig[];
@@ -192,7 +193,11 @@ export class AgentLifecycleService {
     this.state.debugControllers.set(id, debugController);
 
     // Create blueprint loader and create thread
-    const loader = new (await this.getBlueprintLoader())(memoryManager);
+    const componentRegistry = new ComponentRegistry();
+    const loader = new (await this.getBlueprintLoader())(
+      memoryManager,
+      componentRegistry,
+    );
     const { thread, tools: componentTools } =
       await loader.createThreadFromBlueprint(blueprint);
 

@@ -1,4 +1,5 @@
 import { MemoryState, StateProvenance } from '../types/state.types.js';
+import { LLMResponseRequirement } from '../types/event.types.js';
 import { MemoryChunk } from '../types/chunk.types.js';
 import {
   Operation,
@@ -29,6 +30,9 @@ export interface ApplyResult {
 
 /**
  * Context for operation execution
+ *
+ * TODO: Consider making chunk creation an operation itself to eliminate pendingChunks.
+ * Alternative: ADD operation could carry chunk data directly instead of referencing chunkId.
  */
 export interface ExecutionContext {
   /** Map of chunk ID to chunk for chunks being added */
@@ -362,6 +366,7 @@ export async function applyOperations(
  * @param operations - The operations to apply
  * @param context - Execution context containing pending chunks and storage
  * @param provenance - Provenance information for traceability
+ * @param llmResponseRequirement - Event's requirement for LLM response
  * @returns The final result after applying all operations
  */
 export async function applyOperationsWithProvenance(
@@ -369,6 +374,7 @@ export async function applyOperationsWithProvenance(
   operations: Operation[],
   context: ExecutionContext,
   provenance: StateProvenance,
+  llmResponseRequirement: LLMResponseRequirement,
 ): Promise<ApplyResult> {
   const originalStateId = state.id;
   let currentState = state;
@@ -386,7 +392,15 @@ export async function applyOperationsWithProvenance(
     allRemovedChunkIds.push(...result.removedChunkIds);
   }
 
-  // Create final state with provenance information
+  // Calculate needLLMContinueResponse based on event's requirement
+  const needLLMContinueResponse =
+    llmResponseRequirement === 'need'
+      ? true
+      : llmResponseRequirement === 'no_need'
+        ? false
+        : state.needLLMContinueResponse; // 'keep' -> inherit from original state
+
+  // Create final state with provenance information and needLLMContinueResponse
   const finalState = deriveState(currentState, {
     chunks: Array.from(currentState.chunks.values()),
     chunkIds: [...currentState.chunkIds],
@@ -394,6 +408,7 @@ export async function applyOperationsWithProvenance(
       ...provenance,
       timestamp: Date.now(),
     },
+    needLLMContinueResponse,
   });
 
   // Correct the previousStateId to point to the original input state

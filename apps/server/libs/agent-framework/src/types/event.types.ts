@@ -38,6 +38,17 @@ export function getDefaultDispatchStrategy(
   }
 }
 
+// ============ LLM Response Requirement ============
+
+/**
+ * Requirement for LLM response after processing an event
+ *
+ * - need: LLM should generate a response (e.g., after user message)
+ * - no_need: LLM should NOT generate a response (e.g., after task completion)
+ * - keep: Keep the previous state's value (default for most events)
+ */
+export type LLMResponseRequirement = 'need' | 'no_need' | 'keep';
+
 // ============ Event Type Enum ============
 
 export enum EventType {
@@ -114,6 +125,13 @@ export interface BaseEvent {
    * If not specified, uses the default strategy for the event type
    */
   dispatchStrategy?: EventDispatchStrategy;
+  /**
+   * Requirement for LLM response after processing this event
+   * - 'need': LLM should generate a response
+   * - 'no_need': LLM should NOT generate a response
+   * - 'keep': Keep the previous state's value (default if not specified)
+   */
+  llmResponseRequirement?: LLMResponseRequirement;
 }
 
 // ============ Error Events ============

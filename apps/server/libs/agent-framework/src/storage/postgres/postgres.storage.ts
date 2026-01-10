@@ -2,7 +2,8 @@ import { eq, and, gte, lte, asc, desc, inArray } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { MemoryChunk } from '../../types/chunk.types.js';
 import { MemoryState } from '../../types/state.types.js';
-import { MemoryThread, Step } from '../../types/thread.types.js';
+import { MemoryThread, QueuedEvent } from '../../types/thread.types.js';
+import { Step } from '../../manager/memory-manager.interface.js';
 import { StorageProvider, ListStatesOptions } from '../storage.types.js';
 import {
   memoryThreads,
@@ -19,6 +20,7 @@ interface StateData {
   threadId?: string;
   chunkIds: string[];
   metadata: MemoryState['metadata'];
+  needLLMContinueResponse?: boolean;
 }
 
 /**
@@ -33,6 +35,7 @@ function stateToData(state: MemoryState): StateData {
       ...state.metadata,
       sourceOperation: state.metadata.sourceOperation,
     },
+    needLLMContinueResponse: state.needLLMContinueResponse,
   };
 }
 
@@ -50,6 +53,7 @@ async function dataToState(
     chunkIds: data.chunkIds,
     chunks,
     metadata: data.metadata,
+    needLLMContinueResponse: data.needLLMContinueResponse,
   };
 }
 
@@ -352,6 +356,97 @@ export class PostgresStorageProvider implements StorageProvider {
 
   async deleteStep(stepId: string): Promise<void> {
     await this.db.delete(memorySteps).where(eq(memorySteps.id, stepId));
+  }
+
+  // ============ Event Queue Operations ============
+  // Note: Event queue is stored in the thread's JSONB data field
+  // This is a temporary implementation; can be migrated to a separate table later
+
+  async pushEvent(threadId: string, event: QueuedEvent): Promise<void> {
+    const thread = await this.getThread(threadId);
+    if (!thread) {
+      throw new Error(`Thread not found: ${threadId}`);
+    }
+
+    const currentQueue = thread.eventQueue ?? [];
+    const updatedThread: MemoryThread = {
+      ...thread,
+      eventQueue: [...currentQueue, event],
+    };
+
+    await this.updateThread(updatedThread);
+  }
+
+  async pushEvents(threadId: string, events: QueuedEvent[]): Promise<void> {
+    if (events.length === 0) return;
+
+    const thread = await this.getThread(threadId);
+    if (!thread) {
+      throw new Error(`Thread not found: ${threadId}`);
+    }
+
+    const currentQueue = thread.eventQueue ?? [];
+    const updatedThread: MemoryThread = {
+      ...thread,
+      eventQueue: [...currentQueue, ...events],
+    };
+
+    await this.updateThread(updatedThread);
+  }
+
+  async popEvent(threadId: string): Promise<QueuedEvent | null> {
+    const thread = await this.getThread(threadId);
+    if (!thread) {
+      throw new Error(`Thread not found: ${threadId}`);
+    }
+
+    const currentQueue = thread.eventQueue ?? [];
+    if (currentQueue.length === 0) {
+      return null;
+    }
+
+    const [poppedEvent, ...remainingQueue] = currentQueue;
+    const updatedThread: MemoryThread = {
+      ...thread,
+      eventQueue: remainingQueue,
+    };
+
+    await this.updateThread(updatedThread);
+    return poppedEvent;
+  }
+
+  async peekEvent(threadId: string): Promise<QueuedEvent | null> {
+    const thread = await this.getThread(threadId);
+    if (!thread) {
+      return null;
+    }
+
+    const currentQueue = thread.eventQueue ?? [];
+    return currentQueue[0] ?? null;
+  }
+
+  async getEventQueue(threadId: string): Promise<QueuedEvent[]> {
+    const thread = await this.getThread(threadId);
+    return thread?.eventQueue ?? [];
+  }
+
+  async clearEventQueue(threadId: string): Promise<void> {
+    const thread = await this.getThread(threadId);
+    if (!thread) {
+      throw new Error(`Thread not found: ${threadId}`);
+    }
+
+    const updatedThread: MemoryThread = {
+      ...thread,
+      eventQueue: [],
+    };
+
+    await this.updateThread(updatedThread);
+  }
+
+  async getEventQueueLength(threadId: string): Promise<number> {
+    const thread = await this.getThread(threadId);
+    return thread?.eventQueue?.length ?? 0;
   }
 
   // ============ Transaction Support ============

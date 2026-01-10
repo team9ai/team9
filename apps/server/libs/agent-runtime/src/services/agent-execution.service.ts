@@ -179,10 +179,6 @@ export class AgentExecutionService {
     try {
       const executionResult = await executor.runSingleTurn(agent.threadId);
 
-      if (executionResult.success && executionResult.turnsExecuted > 0) {
-        await memoryManager.setNeedsResponse(agent.threadId, false);
-      }
-
       // Observer handles step recording via onStateChange
 
       const updatedResult = await this.buildStepResult(
@@ -214,7 +210,7 @@ export class AgentExecutionService {
     threadId: string,
     memoryManager: {
       getPersistentQueueLength: (threadId: string) => Promise<number>;
-      needsResponse: (threadId: string) => Promise<boolean>;
+      needLLMContinueResponse: (threadId: string) => Promise<boolean>;
       getCurrentState: (threadId: string) => Promise<unknown>;
       getThread: (threadId: string) => Promise<unknown>;
       hasPendingCompaction: (threadId: string) => boolean;
@@ -222,7 +218,7 @@ export class AgentExecutionService {
     },
   ): Promise<StepResult> {
     const queueLength = await memoryManager.getPersistentQueueLength(threadId);
-    const needsResponse = await memoryManager.needsResponse(threadId);
+    const needsResponse = await memoryManager.needLLMContinueResponse(threadId);
     const finalState = await memoryManager.getCurrentState(threadId);
     const thread = await memoryManager.getThread(threadId);
 

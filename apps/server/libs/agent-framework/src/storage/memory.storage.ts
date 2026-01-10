@@ -1,6 +1,7 @@
 import { MemoryChunk } from '../types/chunk.types.js';
 import { MemoryState } from '../types/state.types.js';
-import { MemoryThread, Step } from '../types/thread.types.js';
+import { MemoryThread, QueuedEvent } from '../types/thread.types.js';
+import { Step } from '../manager/memory-manager.interface.js';
 import { StorageProvider, ListStatesOptions } from './storage.types.js';
 
 /**
@@ -38,6 +39,7 @@ function cloneState(state: MemoryState): MemoryState {
       ...state.metadata,
       custom: state.metadata.custom ? { ...state.metadata.custom } : undefined,
     },
+    needLLMContinueResponse: state.needLLMContinueResponse,
   };
 }
 
@@ -50,6 +52,7 @@ export class InMemoryStorageProvider implements StorageProvider {
   private chunks = new Map<string, MemoryChunk>();
   private states = new Map<string, MemoryState>();
   private steps = new Map<string, Step>();
+  private eventQueues = new Map<string, QueuedEvent[]>();
 
   // Track chunk-to-thread relationships (derived from states)
   private chunkThreadIndex = new Map<string, string>();
@@ -309,6 +312,53 @@ export class InMemoryStorageProvider implements StorageProvider {
     this.steps.delete(stepId);
   }
 
+  // ============ Event Queue Operations ============
+
+  async pushEvent(threadId: string, event: QueuedEvent): Promise<void> {
+    const queue = this.eventQueues.get(threadId) ?? [];
+    queue.push({ ...event });
+    this.eventQueues.set(threadId, queue);
+  }
+
+  async pushEvents(threadId: string, events: QueuedEvent[]): Promise<void> {
+    const queue = this.eventQueues.get(threadId) ?? [];
+    for (const event of events) {
+      queue.push({ ...event });
+    }
+    this.eventQueues.set(threadId, queue);
+  }
+
+  async popEvent(threadId: string): Promise<QueuedEvent | null> {
+    const queue = this.eventQueues.get(threadId);
+    if (!queue || queue.length === 0) {
+      return null;
+    }
+    const event = queue.shift()!;
+    return { ...event };
+  }
+
+  async peekEvent(threadId: string): Promise<QueuedEvent | null> {
+    const queue = this.eventQueues.get(threadId);
+    if (!queue || queue.length === 0) {
+      return null;
+    }
+    return { ...queue[0] };
+  }
+
+  async getEventQueue(threadId: string): Promise<QueuedEvent[]> {
+    const queue = this.eventQueues.get(threadId) ?? [];
+    return queue.map((e) => ({ ...e }));
+  }
+
+  async clearEventQueue(threadId: string): Promise<void> {
+    this.eventQueues.delete(threadId);
+  }
+
+  async getEventQueueLength(threadId: string): Promise<number> {
+    const queue = this.eventQueues.get(threadId);
+    return queue?.length ?? 0;
+  }
+
   // ============ Transaction Support ============
 
   async transaction<T>(
@@ -339,6 +389,7 @@ export class InMemoryStorageProvider implements StorageProvider {
     this.chunks.clear();
     this.states.clear();
     this.steps.clear();
+    this.eventQueues.clear();
     this.chunkThreadIndex.clear();
     this.stateThreadIndex.clear();
     this.stepThreadIndex.clear();

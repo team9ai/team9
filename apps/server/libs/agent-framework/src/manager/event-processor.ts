@@ -5,23 +5,50 @@ import {
   AgentEvent,
   EventType,
   EventDispatchStrategy,
+  LLMResponseRequirement,
   getDefaultDispatchStrategy,
 } from '../types/event.types.js';
 import { ReducerRegistry, ReducerResult } from '../reducer/reducer.types.js';
-import { ThreadManager } from './thread.manager.js';
 import type { ObserverManager } from '../observer/observer.types.js';
 import type { CompactionManager } from './compaction.manager.js';
 import type { ExecutionModeController } from './execution-mode.controller.js';
 import { generateId, IdPrefix, generateStepId } from '../utils/id.utils.js';
+import type { Step } from './memory-manager.interface.js';
 
 /**
- * Event types that trigger the needsResponse flag
- * These are events that expect the agent to generate a response
+ * Interface for runtime coordination operations needed by EventProcessor
+ * AgentOrchestrator implements this interface
  */
-const RESPONSE_TRIGGERING_EVENTS: EventType[] = [
-  EventType.USER_MESSAGE,
-  EventType.PARENT_AGENT_MESSAGE,
-];
+export interface IRuntimeCoordinator {
+  // State operations
+  getCurrentState(threadId: string): Promise<Readonly<MemoryState> | null>;
+  getThread(threadId: string): Promise<Readonly<MemoryThread> | null>;
+
+  // State transitions
+  applyReducerResultWithProvenance(
+    threadId: string,
+    reducerResult: ReducerResult,
+    provenance: StateProvenance,
+    llmResponseRequirement: LLMResponseRequirement,
+  ): Promise<{
+    thread: Readonly<MemoryThread>;
+    state: Readonly<MemoryState>;
+    addedChunks: MemoryChunk[];
+    removedChunkIds: string[];
+  }>;
+
+  // Step operations
+  getCurrentStepId(threadId: string): Promise<string | null>;
+  createStep(
+    threadId: string,
+    stepId: string,
+    triggerEvent: { eventId?: string; type: string; timestamp: number },
+    previousStateId?: string,
+    eventPayload?: AgentEvent,
+  ): Promise<Step>;
+  completeStep(stepId: string, resultStateId: string): Promise<void>;
+  failStep(stepId: string, error: string): Promise<void>;
+}
 
 /**
  * Result of dispatching an event
@@ -65,7 +92,7 @@ export interface ProcessEventOptions {
  */
 export class EventProcessor {
   constructor(
-    private threadManager: ThreadManager,
+    private coordinator: IRuntimeCoordinator,
     private reducerRegistry: ReducerRegistry,
     private observerManager: ObserverManager,
     private compactionManager: CompactionManager,
@@ -101,17 +128,17 @@ export class EventProcessor {
     // Get step ID for provenance tracking
     // In stepping mode, use the current step lock ID
     // In auto mode, generate a new step ID for each event processing
-    const existingStepId = await this.threadManager.getCurrentStepId(threadId);
+    const existingStepId = await this.coordinator.getCurrentStepId(threadId);
     const stepId = existingStepId ?? generateStepId();
 
     // Step 1: Get current state (fetch latest state)
-    const currentState = await this.threadManager.getCurrentState(threadId);
+    const currentState = await this.coordinator.getCurrentState(threadId);
     if (!currentState) {
       throw new Error(`Current state not found for thread: ${threadId}`);
     }
 
     // Create and save the step record at the start (includes full event payload for debugging)
-    await this.threadManager.createStep(
+    await this.coordinator.createStep(
       threadId,
       stepId,
       {
@@ -151,7 +178,7 @@ export class EventProcessor {
       // If no operations, return current state unchanged (with strategy flags)
       if (reducerResult.operations.length === 0) {
         // Complete step with current state (no change)
-        await this.threadManager.completeStep(stepId, currentState.id);
+        await this.coordinator.completeStep(stepId, currentState.id);
 
         const noOpResult = await this.createNoOpResult(threadId, currentState);
         return {
@@ -185,20 +212,21 @@ export class EventProcessor {
         },
       };
 
+      // Determine LLM response requirement from event (default to 'keep' if not specified)
+      const llmResponseRequirement: LLMResponseRequirement =
+        event.llmResponseRequirement ?? 'keep';
+
       // Step 4: Apply reducer result through thread manager with provenance (execute operations -> store new state)
-      const result = await this.threadManager.applyReducerResultWithProvenance(
+      // The llmResponseRequirement determines whether the new state needs LLM to continue responding
+      const result = await this.coordinator.applyReducerResultWithProvenance(
         threadId,
         reducerResult,
         provenance,
+        llmResponseRequirement,
       );
 
       // Complete step with the new state
-      await this.threadManager.completeStep(stepId, result.state.id);
-
-      // Set needsResponse flag if this is a response-triggering event (user input, etc.)
-      if (this.isResponseTriggeringEvent(event)) {
-        await this.threadManager.setNeedsResponse(threadId, true);
-      }
+      await this.coordinator.completeStep(stepId, result.state.id);
 
       // Notify observers of state change
       this.notifyStateChange(
@@ -243,19 +271,12 @@ export class EventProcessor {
       };
     } catch (error) {
       // Mark step as failed if an error occurs
-      await this.threadManager.failStep(
+      await this.coordinator.failStep(
         stepId,
         error instanceof Error ? error.message : String(error),
       );
       throw error;
     }
-  }
-
-  /**
-   * Check if the event should trigger the needsResponse flag
-   */
-  private isResponseTriggeringEvent(event: AgentEvent): boolean {
-    return RESPONSE_TRIGGERING_EVENTS.includes(event.type);
   }
 
   /**
@@ -294,7 +315,7 @@ export class EventProcessor {
     threadId: string,
     currentState: Readonly<MemoryState>,
   ): Promise<DispatchResult> {
-    const thread = await this.threadManager.getThread(threadId);
+    const thread = await this.coordinator.getThread(threadId);
     if (!thread) {
       throw new Error(`Thread not found: ${threadId}`);
     }

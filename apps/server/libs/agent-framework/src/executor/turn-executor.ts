@@ -5,7 +5,7 @@
  * response parsing, event dispatching, and tool call handling.
  */
 
-import type { MemoryManager } from '../manager/memory.manager.js';
+import type { AgentOrchestrator } from '../manager/agent-orchestrator.js';
 import type { LLMMessage, LLMToolDefinition } from '../llm/llm.types.js';
 import type { ContextBuilder } from '../context/context-builder.js';
 import type { AgentEvent } from '../types/event.types.js';
@@ -44,7 +44,7 @@ export interface SingleTurnResult {
  */
 export class TurnExecutor {
   constructor(
-    private memoryManager: MemoryManager,
+    private orchestrator: AgentOrchestrator,
     private contextBuilder: ContextBuilder,
     private llmCaller: LLMCaller,
     private toolDefinitions: LLMToolDefinition[],
@@ -64,7 +64,7 @@ export class TurnExecutor {
   ): Promise<SingleTurnResult> {
     const events: AgentEvent[] = [];
 
-    const currentState = await this.memoryManager.getCurrentState(threadId);
+    const currentState = await this.orchestrator.getCurrentState(threadId);
     if (!currentState) {
       return {
         success: false,
@@ -129,7 +129,7 @@ export class TurnExecutor {
         '[TurnExecutor.execute] Dispatching response event:',
         responseEvent.type,
       );
-      const dispatchResult = await this.memoryManager.dispatch(
+      const dispatchResult = await this.orchestrator.dispatch(
         threadId,
         responseEvent,
       );
@@ -160,7 +160,7 @@ export class TurnExecutor {
           const handlerContext: ToolCallHandlerContext = {
             threadId,
             callId: toolCallEvent.callId,
-            memoryManager: this.memoryManager,
+            orchestrator: this.orchestrator,
           };
 
           const handlerResult = await handler.handle(
@@ -172,7 +172,7 @@ export class TurnExecutor {
           // Dispatch any result events from the handler
           if (handlerResult.resultEvents) {
             for (const resultEvent of handlerResult.resultEvents) {
-              await this.memoryManager.dispatch(threadId, resultEvent);
+              await this.orchestrator.dispatch(threadId, resultEvent);
               events.push(resultEvent);
             }
           }
@@ -247,14 +247,14 @@ export class TurnExecutor {
   ): Promise<void> {
     try {
       // Get the most recent step for this thread (created during dispatch)
-      const steps = await this.memoryManager.getStepsByThread(threadId);
+      const steps = await this.orchestrator.getStepsByThread(threadId);
       if (steps.length > 0) {
         // Sort by startedAt descending to get the most recent step
         const sortedSteps = [...steps].sort(
           (a, b) => b.startedAt - a.startedAt,
         );
         const latestStep = sortedSteps[0];
-        await this.memoryManager.updateStepLLMInteraction(
+        await this.orchestrator.updateStepLLMInteraction(
           latestStep.id,
           interaction,
         );
@@ -277,14 +277,14 @@ export class TurnExecutor {
  * Create a turn executor instance
  */
 export function createTurnExecutor(
-  memoryManager: MemoryManager,
+  orchestrator: AgentOrchestrator,
   contextBuilder: ContextBuilder,
   llmCaller: LLMCaller,
   toolDefinitions: LLMToolDefinition[],
   toolCallHandlers: IToolCallHandler[],
 ): TurnExecutor {
   return new TurnExecutor(
-    memoryManager,
+    orchestrator,
     contextBuilder,
     llmCaller,
     toolDefinitions,

@@ -6,11 +6,11 @@ import {
   BlueprintValidationResult,
   BlueprintSchema,
 } from './blueprint.types.js';
-import { MemoryManager } from '../manager/memory.manager.js';
-import {
+import { AgentOrchestrator } from '../manager/agent-orchestrator.js';
+import type {
   CreateThreadOptions,
   CreateThreadResult,
-} from '../manager/thread.manager.js';
+} from '../manager/memory-manager.interface.js';
 import type { Tool } from '../tools/tool.types.js';
 import type { IComponent } from '../components/component.interface.js';
 import type { IComponentRegistry } from '../components/component-registry.js';
@@ -35,7 +35,7 @@ export interface CreateThreadFromBlueprintResult extends CreateThreadResult {
  */
 export class BlueprintLoader {
   constructor(
-    private memoryManager: MemoryManager,
+    private orchestrator: AgentOrchestrator,
     private componentRegistry: IComponentRegistry,
   ) {}
 
@@ -256,7 +256,7 @@ export class BlueprintLoader {
       subAgents: loadedBlueprint.subAgents || {},
     };
 
-    const threadResult = await this.memoryManager.createThread(threadOptions);
+    const threadResult = await this.orchestrator.createThread(threadOptions);
 
     return {
       ...threadResult,

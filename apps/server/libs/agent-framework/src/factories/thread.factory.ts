@@ -73,8 +73,6 @@ export function updateThread(
     eventQueue?: QueuedEvent[];
     /** Current step ID for locking (use undefined to clear) */
     currentStepId?: string | undefined;
-    /** Whether agent needs to generate a response */
-    needsResponse?: boolean;
     /** Child thread IDs for subagent tracking */
     childThreadIds?: string[];
   },
@@ -96,11 +94,6 @@ export function updateThread(
       'currentStepId' in updates
         ? updates.currentStepId
         : original.currentStepId,
-    // Handle needsResponse flag
-    needsResponse:
-      'needsResponse' in updates
-        ? updates.needsResponse
-        : original.needsResponse,
     // Preserve parent-child relationships
     parentThreadId: original.parentThreadId,
     childThreadIds: updates.childThreadIds ?? original.childThreadIds ?? [],

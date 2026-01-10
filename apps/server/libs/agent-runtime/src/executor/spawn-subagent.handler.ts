@@ -15,7 +15,7 @@ import type {
   ToolCallHandlerResult,
   AgentEvent,
   Blueprint,
-  MemoryManager,
+  AgentOrchestrator,
   MemoryState,
   MemoryChunk,
   ILLMAdapter,
@@ -54,7 +54,7 @@ export type SubagentCreatedCallback = (
   parentAgentId: string,
   childThreadId: string,
   subagentKey: string,
-  memoryManager: MemoryManager,
+  memoryManager: AgentOrchestrator,
 ) => void;
 
 /**
@@ -64,7 +64,7 @@ export interface SpawnSubagentHandlerConfig {
   /** Parent blueprint containing subagent definitions */
   parentBlueprint: Blueprint;
   /** Factory function to create a new MemoryManager for subagent */
-  createMemoryManager: (blueprint: Blueprint) => Promise<MemoryManager>;
+  createMemoryManager: (blueprint: Blueprint) => Promise<AgentOrchestrator>;
   /** Factory function to create a new LLM adapter for subagent */
   createLLMAdapter: (blueprint: Blueprint) => ILLMAdapter;
   /** Callback when subagent completes */
@@ -96,7 +96,7 @@ interface PendingSpawnInfo {
   task: string;
   blueprint: Blueprint;
   context?: Record<string, unknown>;
-  memoryManager: MemoryManager;
+  orchestrator: AgentOrchestrator;
 }
 
 export class SpawnSubagentHandler implements IToolCallHandler {
@@ -184,7 +184,7 @@ export class SpawnSubagentHandler implements IToolCallHandler {
       task,
       blueprint: subagentBlueprint,
       context: subagentContext,
-      memoryManager: context.memoryManager,
+      orchestrator: context.orchestrator,
     });
 
     // Create spawn event - actual execution happens when this event is processed
@@ -226,12 +226,12 @@ export class SpawnSubagentHandler implements IToolCallHandler {
       task,
       blueprint,
       context: subagentContext,
-      memoryManager,
+      orchestrator,
     } = pendingSpawn;
 
     try {
       // Get parent state for context inheritance
-      const parentState = await memoryManager.getCurrentState(parentThreadId);
+      const parentState = await orchestrator.getCurrentState(parentThreadId);
       if (!parentState) {
         console.error('[SpawnSubagentHandler] Parent thread state not found');
         return null;
@@ -239,7 +239,7 @@ export class SpawnSubagentHandler implements IToolCallHandler {
 
       // Create child thread with subagent
       const childThreadId = await this.createSubagentThread(
-        { threadId: parentThreadId, callId: '', memoryManager },
+        { threadId: parentThreadId, callId: '', orchestrator },
         blueprint,
         subagentKey,
         task,
@@ -293,7 +293,7 @@ export class SpawnSubagentHandler implements IToolCallHandler {
     });
 
     // Link child to parent
-    await context.memoryManager.addChildThread(context.threadId, thread.id);
+    await context.orchestrator.addChildThread(context.threadId, thread.id);
 
     // Inject initial user message (the task)
     const initialMessage: AgentEvent = {
@@ -324,17 +324,12 @@ export class SpawnSubagentHandler implements IToolCallHandler {
   ): Promise<Map<string, MemoryChunk>> {
     const chunks = new Map<string, MemoryChunk>();
 
-    // Get chunks from the thread manager via memory manager
-    const threadManager = context.memoryManager.getThreadManager();
+    // Get chunks from state directly via orchestrator
+    // Note: This is a simplified approach - chunks are already in the state
     for (const chunkId of parentState.chunkIds) {
-      // Access storage directly through thread manager
-      // Note: This is a simplified approach - in production you might want
-      // to expose a proper method on MemoryManager for this
-      const state = await threadManager.getCurrentState(context.threadId);
-      if (state) {
-        // For now, we'll just work with the state's chunk IDs
-        // The actual chunk data would need to be fetched from storage
-        // This is a limitation we'll address in the context-inheritance utils
+      const chunk = parentState.chunks.get(chunkId);
+      if (chunk) {
+        chunks.set(chunkId, chunk);
       }
     }
 
@@ -348,7 +343,7 @@ export class SpawnSubagentHandler implements IToolCallHandler {
     childThreadId: string,
     parentThreadId: string,
     subagentKey: string,
-    memoryManager: MemoryManager,
+    memoryManager: AgentOrchestrator,
     blueprint: Blueprint,
   ): Promise<void> {
     try {

@@ -2,7 +2,10 @@ import type { MemoryThread } from '../types/thread.types.js';
 import type { MemoryState } from '../types/state.types.js';
 import type { MemoryChunk, ChunkContent } from '../types/chunk.types.js';
 import type { AgentEvent } from '../types/event.types.js';
-import type { DispatchResult, StepResult } from '../manager/memory.manager.js';
+import type {
+  DispatchResult,
+  StepResult,
+} from '../manager/agent-orchestrator.js';
 import type { ExecutionMode } from '../blueprint/blueprint.types.js';
 
 /**

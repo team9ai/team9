@@ -7,7 +7,7 @@
 
 import type { MemoryState } from '../types/state.types.js';
 import type { AgentEvent } from '../types/event.types.js';
-import type { MemoryManager } from '../manager/memory.manager.js';
+import type { AgentOrchestrator } from '../manager/agent-orchestrator.js';
 import type { LLMToolDefinition } from '../llm/llm.types.js';
 
 // ============================================================================
@@ -84,8 +84,8 @@ export interface ToolCallHandlerContext {
   threadId: string;
   /** Unique call ID for this tool invocation */
   callId: string;
-  /** Memory manager for dispatching events */
-  memoryManager: MemoryManager;
+  /** Agent orchestrator for dispatching events */
+  orchestrator: AgentOrchestrator;
 }
 
 /**

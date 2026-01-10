@@ -6,7 +6,7 @@
  */
 
 import { createId } from '@paralleldrive/cuid2';
-import type { MemoryManager, MemoryObserver } from '@team9/agent-framework';
+import type { AgentOrchestrator, MemoryObserver } from '@team9/agent-framework';
 import type { StepHistoryEntry } from '../types/index.js';
 
 /**
@@ -26,7 +26,7 @@ export class StepHistoryService {
    * Set up observer for an agent's memory manager
    * Automatically records step history based on events
    */
-  setupObserver(agentId: string, memoryManager: MemoryManager): void {
+  setupObserver(agentId: string, memoryManager: AgentOrchestrator): void {
     // Clean up existing observer if any
     this.removeObserver(agentId);
 

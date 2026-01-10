@@ -14,7 +14,7 @@ import {
   ChunkContent,
 } from '../../types/chunk.types.js';
 import type { ILLMAdapter } from '../../llm/llm.types.js';
-import type { ThreadManager } from '../../manager/thread.manager.js';
+import type { ICompactionCoordinator } from '../../manager/compaction.manager.js';
 import type { ObserverManager } from '../../observer/observer.types.js';
 import type {
   IComponent,
@@ -385,7 +385,7 @@ describe('CompactionManager', () => {
   });
 
   describe('executeCompaction', () => {
-    let mockThreadManager: jest.Mocked<ThreadManager>;
+    let mockCoordinator: jest.Mocked<ICompactionCoordinator>;
     let mockObserverManager: jest.Mocked<ObserverManager>;
     let mockComponent: Partial<IComponent>;
     let componentLookup: ComponentLookup;
@@ -401,11 +401,10 @@ describe('CompactionManager', () => {
     };
 
     beforeEach(() => {
-      mockThreadManager = {
+      mockCoordinator = {
         getCurrentState: jest.fn(),
-        getThread: jest.fn(),
         applyReducerResult: jest.fn(),
-      } as unknown as jest.Mocked<ThreadManager>;
+      } as unknown as jest.Mocked<ICompactionCoordinator>;
 
       mockObserverManager = {
         notifyCompactionStart: jest.fn(),
@@ -434,12 +433,12 @@ describe('CompactionManager', () => {
     });
 
     it('should throw error when state not found', async () => {
-      mockThreadManager.getCurrentState.mockResolvedValue(null);
+      mockCoordinator.getCurrentState.mockResolvedValue(null);
 
       await expect(
         manager.executeCompaction(
           'thread-1',
-          mockThreadManager,
+          mockCoordinator,
           mockObserverManager,
         ),
       ).rejects.toThrow('Current state not found for thread: thread-1');
@@ -447,12 +446,12 @@ describe('CompactionManager', () => {
 
     it('should throw error when no WORKING_HISTORY chunk found', async () => {
       const state = createMockState([]);
-      mockThreadManager.getCurrentState.mockResolvedValue(state);
+      mockCoordinator.getCurrentState.mockResolvedValue(state);
 
       await expect(
         manager.executeCompaction(
           'thread-1',
-          mockThreadManager,
+          mockCoordinator,
           mockObserverManager,
         ),
       ).rejects.toThrow('No chunks available for compaction');
@@ -465,12 +464,12 @@ describe('CompactionManager', () => {
         retentionStrategy: ChunkRetentionStrategy.CRITICAL,
       });
       const state = createStateWithWorkingHistory([criticalChunk]);
-      mockThreadManager.getCurrentState.mockResolvedValue(state);
+      mockCoordinator.getCurrentState.mockResolvedValue(state);
 
       await expect(
         manager.executeCompaction(
           'thread-1',
-          mockThreadManager,
+          mockCoordinator,
           mockObserverManager,
         ),
       ).rejects.toThrow('No chunks available for compaction');
@@ -487,8 +486,8 @@ describe('CompactionManager', () => {
       });
       const state = createStateWithWorkingHistory([chunk1, chunk2]);
 
-      mockThreadManager.getCurrentState.mockResolvedValue(state);
-      mockThreadManager.applyReducerResult.mockResolvedValue({
+      mockCoordinator.getCurrentState.mockResolvedValue(state);
+      mockCoordinator.applyReducerResult.mockResolvedValue({
         thread: mockThread,
         state,
         addedChunks: [],
@@ -497,7 +496,7 @@ describe('CompactionManager', () => {
 
       await manager.executeCompaction(
         'thread-1',
-        mockThreadManager,
+        mockCoordinator,
         mockObserverManager,
         componentLookup,
       );
@@ -524,8 +523,8 @@ describe('CompactionManager', () => {
       });
       const state = createStateWithWorkingHistory([chunk1]);
 
-      mockThreadManager.getCurrentState.mockResolvedValue(state);
-      mockThreadManager.applyReducerResult.mockResolvedValue({
+      mockCoordinator.getCurrentState.mockResolvedValue(state);
+      mockCoordinator.applyReducerResult.mockResolvedValue({
         thread: mockThread,
         state,
         addedChunks: [],
@@ -534,12 +533,12 @@ describe('CompactionManager', () => {
 
       await manager.executeCompaction(
         'thread-1',
-        mockThreadManager,
+        mockCoordinator,
         mockObserverManager,
         componentLookup,
       );
 
-      expect(mockThreadManager.applyReducerResult).toHaveBeenCalledWith(
+      expect(mockCoordinator.applyReducerResult).toHaveBeenCalledWith(
         'thread-1',
         expect.objectContaining({
           operations: expect.arrayContaining([
@@ -564,8 +563,8 @@ describe('CompactionManager', () => {
       });
       const state = createStateWithWorkingHistory([chunk1]);
 
-      mockThreadManager.getCurrentState.mockResolvedValue(state);
-      mockThreadManager.applyReducerResult.mockResolvedValue({
+      mockCoordinator.getCurrentState.mockResolvedValue(state);
+      mockCoordinator.applyReducerResult.mockResolvedValue({
         thread: mockThread,
         state,
         addedChunks: [],
@@ -574,7 +573,7 @@ describe('CompactionManager', () => {
 
       await manager.executeCompaction(
         'thread-1',
-        mockThreadManager,
+        mockCoordinator,
         mockObserverManager,
         componentLookup,
       );
@@ -630,8 +629,8 @@ describe('CompactionManager', () => {
         metadata: { createdAt: Date.now() },
       };
 
-      mockThreadManager.getCurrentState.mockResolvedValue(state);
-      mockThreadManager.applyReducerResult.mockResolvedValue({
+      mockCoordinator.getCurrentState.mockResolvedValue(state);
+      mockCoordinator.applyReducerResult.mockResolvedValue({
         thread: mockThread,
         state,
         addedChunks: [],
@@ -640,7 +639,7 @@ describe('CompactionManager', () => {
 
       await manager.executeCompaction(
         'thread-1',
-        mockThreadManager,
+        mockCoordinator,
         mockObserverManager,
         componentLookup,
       );

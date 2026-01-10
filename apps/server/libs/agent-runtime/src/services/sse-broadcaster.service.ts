@@ -5,7 +5,7 @@
  * Separates SSE subscription/broadcast logic from AgentService.
  */
 
-import type { MemoryManager, MemoryObserver } from '@team9/agent-framework';
+import type { AgentOrchestrator, MemoryObserver } from '@team9/agent-framework';
 import type { SSEMessage, SSEEventType } from '../types/index.js';
 
 /**
@@ -24,7 +24,7 @@ export class SSEBroadcaster {
    * Set up observer for an agent's memory manager
    * Automatically broadcasts events to SSE subscribers
    */
-  setupObserver(agentId: string, memoryManager: MemoryManager): void {
+  setupObserver(agentId: string, memoryManager: AgentOrchestrator): void {
     // Clean up existing observer if any
     this.removeObserver(agentId);
 
