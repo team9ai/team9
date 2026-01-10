@@ -132,7 +132,11 @@ export function RichTextEditor({
           />
         )}
 
-        <KeyboardShortcutsPlugin onSubmit={onSubmit} disabled={disabled} />
+        <KeyboardShortcutsPlugin
+          onSubmit={onSubmit}
+          disabled={disabled}
+          hasAttachments={uploadingFiles.some((f) => f.status === "completed")}
+        />
       </div>
     </LexicalComposer>
   );

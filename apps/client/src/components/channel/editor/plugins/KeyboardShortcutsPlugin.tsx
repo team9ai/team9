@@ -6,25 +6,29 @@ import {
   $getRoot,
   $createParagraphNode,
 } from "lexical";
-import { exportToHtml } from "../utils/exportContent";
+import { exportToHtml, hasContent } from "../utils/exportContent";
 
 interface KeyboardShortcutsPluginProps {
   onSubmit: (content: string) => Promise<void>;
   disabled?: boolean;
+  hasAttachments?: boolean;
 }
 
 export function KeyboardShortcutsPlugin({
   onSubmit,
   disabled,
+  hasAttachments = false,
 }: KeyboardShortcutsPluginProps) {
   const [editor] = useLexicalComposerContext();
 
   const handleSubmit = useCallback(async () => {
     if (disabled) return false;
 
-    const content = exportToHtml(editor);
+    // Check for actual text content (not just HTML tags like <br>) or attachments
+    const editorHasContent = hasContent(editor);
+    if (!editorHasContent && !hasAttachments) return false;
 
-    if (!content.trim()) return false;
+    const content = editorHasContent ? exportToHtml(editor) : "";
 
     try {
       await onSubmit(content);
@@ -43,7 +47,7 @@ export function KeyboardShortcutsPlugin({
       console.error("Failed to send message:", error);
       return false;
     }
-  }, [editor, onSubmit, disabled]);
+  }, [editor, onSubmit, disabled, hasAttachments]);
 
   useEffect(() => {
     // Handle Enter key for sending messages

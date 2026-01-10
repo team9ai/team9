@@ -174,7 +174,7 @@ function MessageItem({
   const initials =
     message.sender?.displayName?.[0] || message.sender?.username?.[0] || "?";
 
-  const hasContent = message.content && message.content.trim().length > 0;
+  const hasContent = Boolean(message.content?.trim());
   const hasAttachments = message.attachments && message.attachments.length > 0;
 
   if (isOwnMessage) {
