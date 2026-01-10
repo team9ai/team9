@@ -23,6 +23,7 @@ import { RedisService } from '@team9/redis';
 import { WS_EVENTS } from '../im/websocket/events/events.constants.js';
 import { REDIS_KEYS } from '../im/shared/constants/redis-keys.js';
 import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
+import { ChannelsService } from '../im/channels/channels.service.js';
 
 // Import RabbitMQ types (will be optional)
 type RabbitMQEventService = any;
@@ -97,6 +98,7 @@ export class WorkspaceService {
     @Inject(WEBSOCKET_GATEWAY)
     private readonly websocketGateway: any,
     private readonly redisService: RedisService,
+    private readonly channelsService: ChannelsService,
     @Optional() private readonly rabbitMQEventService?: RabbitMQEventService,
   ) {}
 
@@ -474,6 +476,77 @@ export class WorkspaceService {
       this.logger.debug(
         `${offlineIds.length} offline users will miss WORKSPACE_MEMBER_JOINED event (RabbitMQ disabled)`,
       );
+    }
+
+    // Create direct channel between inviter and invitee if invitation has a creator
+    if (invitation.createdBy) {
+      try {
+        const directChannel = await this.channelsService.createDirectChannel(
+          invitation.createdBy,
+          userId,
+          invitation.tenantId,
+        );
+
+        // Check online status for both users
+        const onlineUsersHash = await this.redisService.hgetall(
+          REDIS_KEYS.ONLINE_USERS,
+        );
+        const inviterOnline = invitation.createdBy in onlineUsersHash;
+        const inviteeOnline = userId in onlineUsersHash;
+
+        // Notify inviter via WebSocket or RabbitMQ based on online status
+        if (inviterOnline) {
+          await this.websocketGateway.sendToUser(
+            invitation.createdBy,
+            WS_EVENTS.CHANNEL_CREATED,
+            directChannel,
+          );
+          this.logger.log(
+            `Sent CHANNEL_CREATED to online inviter ${invitation.createdBy} via WebSocket`,
+          );
+        } else if (this.rabbitMQEventService) {
+          await this.rabbitMQEventService.sendToOfflineUsers(
+            invitation.tenantId,
+            [invitation.createdBy],
+            WS_EVENTS.CHANNEL_CREATED,
+            directChannel,
+          );
+          this.logger.log(
+            `Queued CHANNEL_CREATED to offline inviter ${invitation.createdBy} via RabbitMQ`,
+          );
+        }
+
+        // Notify invitee via WebSocket or RabbitMQ based on online status
+        if (inviteeOnline) {
+          await this.websocketGateway.sendToUser(
+            userId,
+            WS_EVENTS.CHANNEL_CREATED,
+            directChannel,
+          );
+          this.logger.log(
+            `Sent CHANNEL_CREATED to online invitee ${userId} via WebSocket`,
+          );
+        } else if (this.rabbitMQEventService) {
+          await this.rabbitMQEventService.sendToOfflineUsers(
+            invitation.tenantId,
+            [userId],
+            WS_EVENTS.CHANNEL_CREATED,
+            directChannel,
+          );
+          this.logger.log(
+            `Queued CHANNEL_CREATED to offline invitee ${userId} via RabbitMQ`,
+          );
+        }
+
+        this.logger.log(
+          `Created direct channel between inviter ${invitation.createdBy} and invitee ${userId}`,
+        );
+      } catch (error) {
+        // Don't fail the invitation if direct channel creation fails
+        this.logger.warn(
+          `Failed to create direct channel between inviter and invitee: ${error.message}`,
+        );
+      }
     }
 
     return {
