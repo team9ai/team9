@@ -12,14 +12,15 @@ import type { PostgresJsDatabase } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
 import { v7 as uuidv7 } from 'uuid';
-import type {
-  UpstreamMessage,
-  IMMessageEnvelope,
-  TextMessagePayload,
-  ServerAckResponse,
-  CreateMessageDto,
-  CreateMessageResponse,
-  OutboxEventPayload,
+import {
+  env,
+  type UpstreamMessage,
+  type IMMessageEnvelope,
+  type TextMessagePayload,
+  type ServerAckResponse,
+  type CreateMessageDto,
+  type CreateMessageResponse,
+  type OutboxEventPayload,
 } from '@team9/shared';
 import { SequenceService } from '../sequence/sequence.service.js';
 import { MessageRouterService } from './message-router.service.js';
@@ -451,7 +452,7 @@ export class MessageService {
         metadata: dto.metadata,
       };
 
-      // 4. Write message + outbox in transaction
+      // 4. Write message + attachments + outbox in transaction
       await this.db.transaction(async (tx) => {
         // Insert message
         await tx.insert(schema.messages).values({
@@ -465,6 +466,20 @@ export class MessageService {
           clientMsgId: dto.clientMsgId,
           metadata: dto.metadata,
         });
+
+        // Insert attachments if provided
+        if (dto.attachments?.length) {
+          const attachmentValues = dto.attachments.map((att) => ({
+            id: uuidv7(),
+            messageId: msgId,
+            fileKey: att.fileKey,
+            fileName: att.fileName,
+            fileUrl: `${env.S3_ENDPOINT}/${att.fileKey}`,
+            mimeType: att.mimeType,
+            fileSize: att.fileSize,
+          }));
+          await tx.insert(schema.messageAttachments).values(attachmentValues);
+        }
 
         // Insert outbox event
         await tx.insert(schema.messageOutbox).values({

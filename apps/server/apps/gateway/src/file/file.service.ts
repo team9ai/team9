@@ -52,8 +52,11 @@ export interface FileRecord {
   createdAt: Date;
 }
 
-export interface ConfirmUploadResult extends FileInfo {
-  fileId: string;
+export interface ConfirmUploadResult {
+  key: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
   visibility: FileVisibility;
 }
 
@@ -187,8 +190,10 @@ export class FileService implements OnModuleInit {
     this.logger.debug(`Confirmed upload and created file record ${fileId}`);
 
     return {
-      ...fileInfo,
-      fileId,
+      key: dto.key,
+      fileName: dto.fileName,
+      fileSize: fileInfo.size,
+      mimeType: fileInfo.contentType || 'application/octet-stream',
       visibility,
     };
   }

@@ -84,6 +84,9 @@ export class MessagesController {
       const channel = await this.channelsService.findById(channelId);
       const workspaceId = channel?.tenantId ?? undefined;
 
+      // Determine message type based on attachments
+      const messageType = dto.attachments?.length ? 'file' : 'text';
+
       try {
         const result = await this.logicClientService.createMessage({
           clientMsgId,
@@ -91,8 +94,9 @@ export class MessagesController {
           senderId: userId,
           content: dto.content,
           parentId: dto.parentId,
-          type: 'text',
+          type: messageType,
           workspaceId,
+          attachments: dto.attachments,
         });
 
         // Fetch the full message details for response

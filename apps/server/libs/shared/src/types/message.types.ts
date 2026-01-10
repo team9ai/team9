@@ -217,6 +217,13 @@ export interface PongMessage {
  * DTO for creating a message via HTTP API
  * Used by Gateway to call Logic Service
  */
+export interface CreateMessageAttachmentDto {
+  fileKey: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+}
+
 export interface CreateMessageDto {
   // Client-generated message ID (for deduplication)
   clientMsgId: string;
@@ -235,6 +242,9 @@ export interface CreateMessageDto {
 
   // Message type
   type: 'text' | 'file' | 'image';
+
+  // File attachments
+  attachments?: CreateMessageAttachmentDto[];
 
   // Additional metadata
   metadata?: Record<string, unknown>;
