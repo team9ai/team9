@@ -22,6 +22,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { WorkspaceModule } from './workspace/workspace.module.js';
 import { ClusterModule } from './cluster/cluster.module.js';
 import { TenantMiddleware } from './common/middleware/tenant.middleware.js';
+import { FileModule } from './file/file.module.js';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { TenantMiddleware } from './common/middleware/tenant.middleware.js';
     ClusterModule,
     ImModule,
     WorkspaceModule,
+    FileModule,
   ],
   controllers: [AppController],
   providers: [AppService],

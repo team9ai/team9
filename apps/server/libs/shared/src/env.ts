@@ -124,4 +124,9 @@ export const env = {
   get APP_URL() {
     return getRequiredEnv('APP_URL');
   },
+
+  // Application Environment
+  get APP_ENV() {
+    return process.env.APP_ENV || process.env.NODE_ENV || 'development';
+  },
 };

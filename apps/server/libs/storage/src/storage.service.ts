@@ -10,6 +10,9 @@ import {
   PutBucketLifecycleConfigurationCommand,
   GetBucketLifecycleConfigurationCommand,
   DeleteBucketLifecycleCommand,
+  PutObjectTaggingCommand,
+  GetObjectTaggingCommand,
+  DeleteObjectTaggingCommand,
   type LifecycleRule,
 } from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
@@ -55,6 +58,8 @@ export interface PresignedUploadOptions {
   minSize?: number;
   /** Maximum file size in bytes (default: 100MB) */
   maxSize?: number;
+  /** Object tags to set on upload (e.g., { status: 'pending' }) */
+  tagging?: Record<string, string>;
 }
 
 /**
@@ -116,9 +121,26 @@ export interface ExpirationRuleOptions {
 export interface LifecycleRuleInfo {
   id: string;
   prefix?: string;
+  tag?: { key: string; value: string };
   enabled: boolean;
   expirationDays?: number;
   expirationDate?: Date;
+}
+
+/**
+ * Options for creating a tag-based expiration lifecycle rule
+ */
+export interface TagBasedExpirationRuleOptions {
+  /** Rule ID (must be unique within the bucket) */
+  id: string;
+  /** Tag key to filter objects */
+  tagKey: string;
+  /** Tag value to filter objects */
+  tagValue: string;
+  /** Number of days after which objects expire */
+  expirationDays: number;
+  /** Whether the rule is enabled (default: true) */
+  enabled?: boolean;
 }
 
 const DEFAULT_MIN_SIZE = 1;
@@ -191,6 +213,16 @@ export class StorageService {
     if (options?.contentType) {
       conditions.push(['eq', '$Content-Type', options.contentType]);
       fields['Content-Type'] = options.contentType;
+    }
+
+    // Set object tags on upload (e.g., status=pending for lifecycle rules)
+    if (options?.tagging && Object.keys(options.tagging).length > 0) {
+      // Format: key1=value1&key2=value2 (URL encoded)
+      const taggingString = Object.entries(options.tagging)
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+        .join('&');
+      conditions.push(['eq', '$tagging', taggingString]);
+      fields['tagging'] = taggingString;
     }
 
     const { url, fields: presignedFields } = await createPresignedPost(
@@ -518,13 +550,24 @@ export class StorageService {
 
       const response = await this.s3Client.send(command);
 
-      return (response.Rules || []).map((rule) => ({
-        id: rule.ID || '',
-        prefix: rule.Filter?.Prefix,
-        enabled: rule.Status === 'Enabled',
-        expirationDays: rule.Expiration?.Days,
-        expirationDate: rule.Expiration?.Date,
-      }));
+      return (response.Rules || []).map((rule) => {
+        const info: LifecycleRuleInfo = {
+          id: rule.ID || '',
+          enabled: rule.Status === 'Enabled',
+          expirationDays: rule.Expiration?.Days,
+          expirationDate: rule.Expiration?.Date,
+        };
+        if (rule.Filter?.Prefix) {
+          info.prefix = rule.Filter.Prefix;
+        }
+        if (rule.Filter?.Tag) {
+          info.tag = {
+            key: rule.Filter.Tag.Key || '',
+            value: rule.Filter.Tag.Value || '',
+          };
+        }
+        return info;
+      });
     } catch (error: unknown) {
       if (
         error &&
@@ -573,5 +616,168 @@ export class StorageService {
 
     await this.s3Client.send(command);
     this.logger.log(`Deleted all lifecycle rules from bucket ${bucket}`);
+  }
+
+  /**
+   * Set a tag-based lifecycle rule for automatic object expiration
+   *
+   * @example
+   * // Delete objects with tag status=pending after 1 day
+   * await storageService.setTagBasedLifecycleRule('my-bucket', {
+   *   id: 'delete-pending',
+   *   tagKey: 'status',
+   *   tagValue: 'pending',
+   *   expirationDays: 1
+   * });
+   */
+  async setTagBasedLifecycleRule(
+    bucket: string,
+    options: TagBasedExpirationRuleOptions,
+  ): Promise<void> {
+    const existingRules = await this.getLifecycleRules(bucket);
+    const filteredRules = existingRules.filter((r) => r.id !== options.id);
+
+    const lifecycleRules: LifecycleRule[] = [
+      // Keep existing rules (convert back to LifecycleRule format)
+      ...filteredRules
+        .filter((r) => r.expirationDays !== undefined)
+        .map((r) => {
+          const rule: LifecycleRule = {
+            ID: r.id,
+            Status: r.enabled ? 'Enabled' : 'Disabled',
+            Expiration: { Days: r.expirationDays },
+            Filter: {},
+          };
+          if (r.prefix) {
+            rule.Filter = { Prefix: r.prefix };
+          } else if (r.tag) {
+            rule.Filter = { Tag: { Key: r.tag.key, Value: r.tag.value } };
+          }
+          return rule;
+        }),
+      // Add new tag-based rule
+      {
+        ID: options.id,
+        Status: options.enabled !== false ? 'Enabled' : 'Disabled',
+        Filter: {
+          Tag: {
+            Key: options.tagKey,
+            Value: options.tagValue,
+          },
+        },
+        Expiration: {
+          Days: options.expirationDays,
+        },
+      },
+    ];
+
+    const command = new PutBucketLifecycleConfigurationCommand({
+      Bucket: bucket,
+      LifecycleConfiguration: {
+        Rules: lifecycleRules,
+      },
+    });
+
+    await this.s3Client.send(command);
+    this.logger.log(
+      `Set tag-based lifecycle rule '${options.id}' on bucket ${bucket}: ${options.tagKey}=${options.tagValue} expires in ${options.expirationDays} days`,
+    );
+  }
+
+  // ==================== Object Tagging ====================
+
+  /**
+   * Set tags on an object
+   *
+   * @example
+   * await storageService.setObjectTags('my-bucket', 'file.pdf', {
+   *   status: 'pending',
+   *   uploadedBy: 'user123'
+   * });
+   */
+  async setObjectTags(
+    bucket: string,
+    key: string,
+    tags: Record<string, string>,
+  ): Promise<void> {
+    const command = new PutObjectTaggingCommand({
+      Bucket: bucket,
+      Key: key,
+      Tagging: {
+        TagSet: Object.entries(tags).map(([Key, Value]) => ({ Key, Value })),
+      },
+    });
+
+    await this.s3Client.send(command);
+    this.logger.debug(`Set tags on ${bucket}/${key}: ${JSON.stringify(tags)}`);
+  }
+
+  /**
+   * Get tags from an object
+   */
+  async getObjectTags(
+    bucket: string,
+    key: string,
+  ): Promise<Record<string, string>> {
+    const command = new GetObjectTaggingCommand({
+      Bucket: bucket,
+      Key: key,
+    });
+
+    const response = await this.s3Client.send(command);
+    const tags: Record<string, string> = {};
+
+    for (const tag of response.TagSet || []) {
+      if (tag.Key && tag.Value !== undefined) {
+        tags[tag.Key] = tag.Value;
+      }
+    }
+
+    return tags;
+  }
+
+  /**
+   * Delete all tags from an object
+   */
+  async deleteObjectTags(bucket: string, key: string): Promise<void> {
+    const command = new DeleteObjectTaggingCommand({
+      Bucket: bucket,
+      Key: key,
+    });
+
+    await this.s3Client.send(command);
+    this.logger.debug(`Deleted tags from ${bucket}/${key}`);
+  }
+
+  /**
+   * Update a single tag on an object (preserves other tags)
+   */
+  async updateObjectTag(
+    bucket: string,
+    key: string,
+    tagKey: string,
+    tagValue: string,
+  ): Promise<void> {
+    const existingTags = await this.getObjectTags(bucket, key);
+    existingTags[tagKey] = tagValue;
+    await this.setObjectTags(bucket, key, existingTags);
+  }
+
+  /**
+   * Remove a single tag from an object (preserves other tags)
+   */
+  async removeObjectTag(
+    bucket: string,
+    key: string,
+    tagKey: string,
+  ): Promise<void> {
+    const existingTags = await this.getObjectTags(bucket, key);
+    delete existingTags[tagKey];
+
+    if (Object.keys(existingTags).length === 0) {
+      await this.deleteObjectTags(bucket, key);
+    } else {
+      await this.setObjectTags(bucket, key, existingTags);
+    }
   }
 }
