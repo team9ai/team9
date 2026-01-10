@@ -8,4 +8,5 @@ export * from './message-acks.js';
 export * from './message-outbox.js';
 export * from './user-channel-read-status.js';
 export * from './mentions.js';
+export * from './files.js';
 export * from './relations.js';

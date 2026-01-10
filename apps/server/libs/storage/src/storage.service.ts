@@ -13,9 +13,11 @@ import {
   PutObjectTaggingCommand,
   GetObjectTaggingCommand,
   DeleteObjectTaggingCommand,
+  GetObjectCommand,
   type LifecycleRule,
 } from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v7 as uuidv7 } from 'uuid';
 import { extname } from 'path';
 import { S3_CLIENT } from './storage.constants.js';
@@ -237,7 +239,7 @@ export class StorageService {
     );
 
     const expiresAt = new Date(Date.now() + expiresIn * 1000);
-    const publicUrl = this.getPublicUrl(bucket, key);
+    const publicUrl = this.getObjectUrl(bucket, key);
 
     this.logger.log(
       `Created presigned POST URL for ${bucket}/${key} (size: ${minSize}-${maxSize} bytes)`,
@@ -271,15 +273,56 @@ export class StorageService {
       size: metadata.contentLength || 0,
       contentType: metadata.contentType,
       lastModified: metadata.lastModified || new Date(),
-      url: this.getPublicUrl(bucket, key),
+      url: this.getObjectUrl(bucket, key),
     };
   }
 
   /**
-   * Get a public URL for an object
+   * Get the object URL (only accessible if bucket is public)
+   */
+  getObjectUrl(bucket: string, key: string): string {
+    return `${this.endpoint}/${bucket}/${key}`;
+  }
+
+  /**
+   * @deprecated Use getObjectUrl instead
    */
   getPublicUrl(bucket: string, key: string): string {
-    return `${this.endpoint}/${bucket}/${key}`;
+    return this.getObjectUrl(bucket, key);
+  }
+
+  /**
+   * Create a presigned download URL for temporary access to a private object
+   *
+   * @param bucket - The bucket name
+   * @param key - The object key
+   * @param expiresIn - URL expiration in seconds (default: 3600 = 1 hour)
+   * @returns Presigned URL for downloading the object
+   *
+   * @example
+   * const url = await storageService.createPresignedDownload('my-bucket', 'file.pdf');
+   * // URL valid for 1 hour
+   *
+   * const url = await storageService.createPresignedDownload('my-bucket', 'file.pdf', 86400);
+   * // URL valid for 24 hours
+   */
+  async createPresignedDownload(
+    bucket: string,
+    key: string,
+    expiresIn = 3600,
+  ): Promise<string> {
+    const command = new GetObjectCommand({
+      Bucket: bucket,
+      Key: key,
+    });
+
+    const url = await getSignedUrl(this.s3Client, command, { expiresIn });
+
+    this.logger.debug(
+      `Created presigned download URL for ${bucket}/${key} (expires in ${expiresIn}s)`,
+    );
+
+    return url;
   }
 
   // ==================== File Operations ====================

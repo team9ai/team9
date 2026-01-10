@@ -7,6 +7,7 @@ import { messageAttachments } from './message-attachments.js';
 import { messageReactions } from './message-reactions.js';
 import { userChannelReadStatus } from './user-channel-read-status.js';
 import { mentions } from './mentions.js';
+import { files } from './files.js';
 import { tenants } from '../tenant/tenants.js';
 import { tenantMembers } from '../tenant/tenant-members.js';
 
@@ -119,5 +120,20 @@ export const mentionsRelations = relations(mentions, ({ one }) => ({
   mentionedChannel: one(channels, {
     fields: [mentions.mentionedChannelId],
     references: [channels.id],
+  }),
+}));
+
+export const filesRelations = relations(files, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [files.tenantId],
+    references: [tenants.id],
+  }),
+  channel: one(channels, {
+    fields: [files.channelId],
+    references: [channels.id],
+  }),
+  uploader: one(users, {
+    fields: [files.uploaderId],
+    references: [users.id],
   }),
 }));

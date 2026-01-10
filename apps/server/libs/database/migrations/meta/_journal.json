@@ -8,6 +8,13 @@
       "when": 1767948794613,
       "tag": "0000_soft_nico_minoru",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1768022325914,
+      "tag": "0001_exotic_ken_ellis",
+      "breakpoints": true
     }
   ]
 }
