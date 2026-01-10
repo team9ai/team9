@@ -68,10 +68,15 @@ export function useFileUpload(options: UseFileUploadOptions = {}) {
         channelId,
       });
 
-      // Step 2: Upload to S3
-      await fileApi.uploadToS3(presigned.url, file, (progress) => {
-        updateFileStatus(id, { progress });
-      });
+      // Step 2: Upload to S3 using presigned POST
+      await fileApi.uploadToS3(
+        presigned.url,
+        file,
+        presigned.fields,
+        (progress) => {
+          updateFileStatus(id, { progress });
+        },
+      );
 
       // Step 3: Confirm upload
       updateFileStatus(id, { status: "confirming", progress: 100 });

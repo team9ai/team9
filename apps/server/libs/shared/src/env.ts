@@ -106,6 +106,9 @@ export const env = {
   get S3_SECRET_KEY() {
     return process.env.S3_SECRET_KEY || getRequiredEnv('MINIO_ROOT_PASSWORD');
   },
+  get S3_FORCE_PATH_STYLE() {
+    return process.env.S3_FORCE_PATH_STYLE === 'true';
+  },
 
   // AI Service
   get AI_SERVICE_HOST() {

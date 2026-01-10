@@ -217,14 +217,14 @@ export class StorageService {
       fields['Content-Type'] = options.contentType;
     }
 
-    // Set object tags on upload (e.g., status=pending for lifecycle rules)
+    // Set object tags on upload using S3 POST Tagging field (XML format)
     if (options?.tagging && Object.keys(options.tagging).length > 0) {
-      // Format: key1=value1&key2=value2 (URL encoded)
-      const taggingString = Object.entries(options.tagging)
-        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-        .join('&');
-      conditions.push(['eq', '$tagging', taggingString]);
-      fields['tagging'] = taggingString;
+      const tagsXml = Object.entries(options.tagging)
+        .map(([k, v]) => `<Tag><Key>${k}</Key><Value>${v}</Value></Tag>`)
+        .join('');
+      const taggingXml = `<Tagging><TagSet>${tagsXml}</TagSet></Tagging>`;
+      conditions.push(['eq', '$Tagging', taggingXml]);
+      fields['Tagging'] = taggingXml;
     }
 
     const { url, fields: presignedFields } = await createPresignedPost(

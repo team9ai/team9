@@ -16,6 +16,7 @@ import { env } from '@team9/shared';
         const region = env.S3_REGION;
         const accessKeyId = env.S3_ACCESS_KEY;
         const secretAccessKey = env.S3_SECRET_KEY;
+        const forcePathStyle = env.S3_FORCE_PATH_STYLE;
 
         logger.log(`Connecting to S3-compatible storage at ${endpoint}`);
 
@@ -26,7 +27,7 @@ import { env } from '@team9/shared';
             accessKeyId,
             secretAccessKey,
           },
-          forcePathStyle: true, // Required for MinIO
+          forcePathStyle, // Required for MinIO
         });
 
         logger.log('S3 client initialized successfully');

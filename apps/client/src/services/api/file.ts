@@ -5,7 +5,7 @@ export type FileVisibility = "private" | "channel" | "workspace" | "public";
 export interface PresignedUploadCredentials {
   url: string;
   key: string;
-  fields?: Record<string, string>;
+  fields: Record<string, string>;
 }
 
 export interface CreatePresignedUploadDto {
@@ -137,15 +137,25 @@ export const fileApi = {
   },
 
   /**
-   * Upload a file directly to S3 using presigned URL
+   * Upload a file directly to S3 using presigned POST URL
+   * Uses FormData with fields from presigned credentials
    */
   uploadToS3: async (
     presignedUrl: string,
     file: File,
+    fields: Record<string, string>,
     onProgress?: (progress: number) => void,
   ): Promise<void> => {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
+
+      // Build FormData with presigned fields
+      const formData = new FormData();
+      Object.entries(fields).forEach(([key, value]) => {
+        formData.append(key, value);
+      });
+      // File must be appended last for S3 POST upload
+      formData.append("file", file);
 
       xhr.upload.addEventListener("progress", (event) => {
         if (event.lengthComputable && onProgress) {
@@ -155,6 +165,7 @@ export const fileApi = {
       });
 
       xhr.addEventListener("load", () => {
+        // S3 POST returns 204 on success
         if (xhr.status >= 200 && xhr.status < 300) {
           resolve();
         } else {
@@ -170,12 +181,9 @@ export const fileApi = {
         reject(new Error("Upload aborted"));
       });
 
-      xhr.open("PUT", presignedUrl);
-      xhr.setRequestHeader(
-        "Content-Type",
-        file.type || "application/octet-stream",
-      );
-      xhr.send(file);
+      xhr.open("POST", presignedUrl);
+      // Don't set Content-Type header - browser will set it with boundary for FormData
+      xhr.send(formData);
     });
   },
 };
