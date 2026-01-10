@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
   $getSelection,
@@ -15,7 +15,14 @@ import {
   ListNode,
 } from "@lexical/list";
 import { $getNearestNodeOfType, mergeRegister } from "@lexical/utils";
-import { Bold, Italic, List, ListOrdered, Smile } from "lucide-react";
+import {
+  Bold,
+  Italic,
+  List,
+  ListOrdered,
+  Smile,
+  Paperclip,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -26,7 +33,12 @@ import { EmojiPicker } from "./EmojiPicker";
 import { cn } from "@/lib/utils";
 import { $createTextNode, $insertNodes } from "lexical";
 
-export function EditorToolbar() {
+interface EditorToolbarProps {
+  onFileSelect?: (files: FileList) => void;
+}
+
+export function EditorToolbar({ onFileSelect }: EditorToolbarProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [editor] = useLexicalComposerContext();
   const [isBold, setIsBold] = useState(false);
   const [isItalic, setIsItalic] = useState(false);
@@ -114,8 +126,30 @@ export function EditorToolbar() {
     editor.focus();
   };
 
+  const handleFileClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0 && onFileSelect) {
+      onFileSelect(files);
+    }
+    // Reset input so same file can be selected again
+    e.target.value = "";
+  };
+
   return (
     <div className="flex items-center gap-1 mb-2 pb-2 border-b border-slate-100">
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        onChange={handleFileChange}
+        className="hidden"
+        accept="*/*"
+      />
       <Button
         type="button"
         variant="ghost"
@@ -193,6 +227,22 @@ export function EditorToolbar() {
           <EmojiPicker onSelect={insertEmoji} />
         </PopoverContent>
       </Popover>
+
+      {onFileSelect && (
+        <>
+          <div className="w-px h-5 bg-slate-200 mx-1" />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleFileClick}
+            className="h-8 w-8 p-0"
+            title="Attach file"
+          >
+            <Paperclip size={16} />
+          </Button>
+        </>
+      )}
     </div>
   );
 }

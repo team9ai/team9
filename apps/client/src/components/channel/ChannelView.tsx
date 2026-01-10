@@ -5,6 +5,7 @@ import { useChannel, useMarkAsRead } from "@/hooks/useChannels";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import { ChannelHeader } from "./ChannelHeader";
+import type { AttachmentDto } from "@/types/im";
 
 interface ChannelViewProps {
   channelId: string;
@@ -39,10 +40,14 @@ export function ChannelView({ channelId }: ChannelViewProps) {
     }
   }, [channelId, latestMessageId, messagesLoading]);
 
-  const handleSendMessage = async (content: string) => {
-    if (!content.trim()) return;
+  const handleSendMessage = async (
+    content: string,
+    attachments?: AttachmentDto[],
+  ) => {
+    // Allow sending if there's content or attachments
+    if (!content.trim() && (!attachments || attachments.length === 0)) return;
 
-    await sendMessage.mutateAsync({ content });
+    await sendMessage.mutateAsync({ content, attachments });
   };
 
   if (channelLoading) {
@@ -75,6 +80,7 @@ export function ChannelView({ channelId }: ChannelViewProps) {
       />
 
       <MessageInput
+        channelId={channelId}
         onSend={handleSendMessage}
         disabled={sendMessage.isPending}
       />

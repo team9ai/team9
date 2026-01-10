@@ -65,6 +65,10 @@ export class GatewayMQService implements OnModuleInit, OnModuleDestroy {
     this.nodeId = nodeId;
     this.queueName = MQ_QUEUES.GATEWAY(nodeId);
 
+    // Ensure exchanges are created before setting up queue
+    await this.waitForConnection();
+    await this.setupExchanges();
+
     await this.setupQueue();
     await this.startConsuming();
 

@@ -71,7 +71,7 @@ export class FileController {
    * Get presigned download URL for a file
    * Validates access permissions before generating URL
    */
-  @Get(':key(*)/download-url')
+  @Get(':key/download-url')
   @UseGuards(AuthGuard)
   async getDownloadUrl(
     @CurrentTenantId() workspaceId: string,
@@ -93,7 +93,7 @@ export class FileController {
   /**
    * Get public download URL (for public files only, no auth required)
    */
-  @Get('public/:key(*)/download-url')
+  @Get('public/:key/download-url')
   async getPublicDownloadUrl(
     @CurrentTenantId() workspaceId: string,
     @Param('key') key: string,
@@ -112,7 +112,7 @@ export class FileController {
   /**
    * Update file visibility
    */
-  @Patch(':key(*)/visibility')
+  @Patch(':key/visibility')
   @UseGuards(AuthGuard)
   async updateVisibility(
     @CurrentTenantId() workspaceId: string,
@@ -136,7 +136,7 @@ export class FileController {
   /**
    * Delete a file
    */
-  @Delete(':key(*)')
+  @Delete(':key')
   @UseGuards(AuthGuard)
   async deleteFile(
     @CurrentTenantId() workspaceId: string,

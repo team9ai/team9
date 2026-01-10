@@ -123,16 +123,17 @@ export interface UpdateChannelDto {
   avatarUrl?: string;
 }
 
+export interface AttachmentDto {
+  fileKey: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+}
+
 export interface CreateMessageDto {
   content: string;
   parentId?: string;
-  attachments?: Array<{
-    fileKey: string;
-    fileName: string;
-    fileUrl: string;
-    fileSize: number;
-    mimeType: string;
-  }>;
+  attachments?: AttachmentDto[];
 }
 
 export interface UpdateMessageDto {

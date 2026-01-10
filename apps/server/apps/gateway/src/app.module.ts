@@ -16,6 +16,7 @@ import {
 import { RedisModule } from '@team9/redis';
 import { AiClientModule } from '@team9/ai-client';
 import { RabbitmqModule } from '@team9/rabbitmq';
+import { StorageModule } from '@team9/storage';
 import { ImModule } from './im/im.module.js';
 import { EditionModule } from './edition/index.js';
 import { AuthModule } from './auth/auth.module.js';
@@ -40,6 +41,7 @@ import { FileModule } from './file/file.module.js';
     RedisModule,
     AiClientModule,
     RabbitmqModule,
+    StorageModule,
     AuthModule,
     ClusterModule,
     ImModule,

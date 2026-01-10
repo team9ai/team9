@@ -14,13 +14,20 @@ import { editorTheme } from "./themes/editorTheme";
 import { MentionNode } from "./nodes/MentionNode";
 import { EditorToolbar } from "./EditorToolbar";
 import { MentionsPlugin, KeyboardShortcutsPlugin } from "./plugins";
+import { AttachmentPreview } from "./AttachmentPreview";
 import { cn } from "@/lib/utils";
+import type { UploadingFile } from "@/hooks/useFileUpload";
 
 interface RichTextEditorProps {
   onSubmit: (content: string) => Promise<void>;
   disabled?: boolean;
   placeholder?: string;
   className?: string;
+  // File upload props
+  onFileSelect?: (files: FileList) => void;
+  uploadingFiles?: UploadingFile[];
+  onRemoveFile?: (id: string) => void;
+  onRetryFile?: (id: string) => void;
 }
 
 function Placeholder({ text }: { text: string }) {
@@ -61,6 +68,10 @@ export function RichTextEditor({
   disabled = false,
   placeholder = "Type a message... (Enter to send, Shift+Enter for new line)",
   className,
+  onFileSelect,
+  uploadingFiles = [],
+  onRemoveFile,
+  onRetryFile,
 }: RichTextEditorProps) {
   const editorRef = useRef<LexicalEditor | null>(null);
 
@@ -84,7 +95,7 @@ export function RichTextEditor({
   return (
     <LexicalComposer initialConfig={initialConfig}>
       <div className={cn("relative", className)}>
-        <EditorToolbar />
+        <EditorToolbar onFileSelect={onFileSelect} />
 
         <div className="relative min-h-[80px] max-h-[200px] overflow-y-auto">
           <RichTextPlugin
@@ -111,6 +122,15 @@ export function RichTextEditor({
           {/* Mentions dropdown container */}
           <MentionsPlugin />
         </div>
+
+        {/* Attachment previews */}
+        {uploadingFiles.length > 0 && onRemoveFile && (
+          <AttachmentPreview
+            files={uploadingFiles}
+            onRemove={onRemoveFile}
+            onRetry={onRetryFile}
+          />
+        )}
 
         <KeyboardShortcutsPlugin onSubmit={onSubmit} disabled={disabled} />
       </div>
