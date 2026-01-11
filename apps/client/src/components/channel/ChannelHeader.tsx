@@ -1,13 +1,20 @@
+import { useState } from "react";
 import { Hash, Lock, Phone, Video, Search, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import type { Channel, ChannelWithUnread } from "@/types/im";
+import { ChannelSettingsSheet } from "./ChannelSettingsSheet";
+import type { Channel, ChannelWithUnread, MemberRole } from "@/types/im";
 
 interface ChannelHeaderProps {
   channel: Channel | ChannelWithUnread;
+  currentUserRole?: MemberRole;
 }
 
-export function ChannelHeader({ channel }: ChannelHeaderProps) {
+export function ChannelHeader({
+  channel,
+  currentUserRole,
+}: ChannelHeaderProps) {
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const ChannelIcon = channel.type === "private" ? Lock : Hash;
 
   // For direct messages, show the other user's info
@@ -69,11 +76,27 @@ export function ChannelHeader({ channel }: ChannelHeaderProps) {
           <Button variant="ghost" size="icon">
             <Search size={18} />
           </Button>
-          <Button variant="ghost" size="icon">
-            <Info size={18} />
-          </Button>
+          {!isDirect && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsSettingsOpen(true)}
+            >
+              <Info size={18} />
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* Channel Settings Sheet */}
+      {!isDirect && (
+        <ChannelSettingsSheet
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          channelId={channel.id}
+          currentUserRole={currentUserRole}
+        />
+      )}
     </>
   );
 }

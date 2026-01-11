@@ -121,6 +121,12 @@ export interface UpdateChannelDto {
   name?: string;
   description?: string;
   avatarUrl?: string;
+  isArchived?: boolean;
+}
+
+export interface DeleteChannelDto {
+  confirmationName?: string;
+  permanent?: boolean;
 }
 
 export interface AttachmentDto {
@@ -203,4 +209,22 @@ export interface WSUserTyping {
 
 export interface WSChannelEvent {
   channelId: string;
+}
+
+export interface WSChannelDeleted {
+  channelId: string;
+  channelName?: string;
+  deletedBy: string;
+}
+
+export interface WSChannelArchived {
+  channelId: string;
+  channelName?: string;
+  archivedBy: string;
+}
+
+export interface WSChannelUnarchived {
+  channelId: string;
+  channelName?: string;
+  unarchivedBy: string;
 }

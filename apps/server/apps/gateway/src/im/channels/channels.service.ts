@@ -476,4 +476,141 @@ export class ChannelsService {
 
     return members.map((m) => m.userId);
   }
+
+  /**
+   * Archive a channel (soft delete)
+   */
+  async archiveChannel(
+    channelId: string,
+    requesterId: string,
+  ): Promise<ChannelResponse> {
+    // Check permission
+    const role = await this.getMemberRole(channelId, requesterId);
+    if (!role || !['owner', 'admin'].includes(role)) {
+      throw new ForbiddenException(
+        'Insufficient permissions to archive channel',
+      );
+    }
+
+    // Get channel to check type
+    const channel = await this.findById(channelId);
+    if (!channel) {
+      throw new NotFoundException('Channel not found');
+    }
+    if (channel.type === 'direct') {
+      throw new ForbiddenException('Cannot archive direct message channels');
+    }
+
+    const [updated] = await this.db
+      .update(schema.channels)
+      .set({
+        isArchived: true,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.channels.id, channelId))
+      .returning();
+
+    return updated;
+  }
+
+  /**
+   * Unarchive a channel
+   */
+  async unarchiveChannel(
+    channelId: string,
+    requesterId: string,
+  ): Promise<ChannelResponse> {
+    const role = await this.getMemberRole(channelId, requesterId);
+    if (!role || !['owner', 'admin'].includes(role)) {
+      throw new ForbiddenException('Insufficient permissions');
+    }
+
+    const [updated] = await this.db
+      .update(schema.channels)
+      .set({
+        isArchived: false,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.channels.id, channelId))
+      .returning();
+
+    if (!updated) {
+      throw new NotFoundException('Channel not found');
+    }
+
+    return updated;
+  }
+
+  /**
+   * Delete a channel permanently
+   */
+  async deleteChannel(
+    channelId: string,
+    requesterId: string,
+    confirmationName?: string,
+  ): Promise<void> {
+    // Only owner can delete
+    const role = await this.getMemberRole(channelId, requesterId);
+    if (role !== 'owner') {
+      throw new ForbiddenException('Only owner can delete a channel');
+    }
+
+    const channel = await this.findById(channelId);
+    if (!channel) {
+      throw new NotFoundException('Channel not found');
+    }
+
+    if (channel.type === 'direct') {
+      throw new ForbiddenException('Cannot delete direct message channels');
+    }
+
+    // Verify confirmation name matches (Slack-style safety)
+    if (confirmationName && channel.name !== confirmationName) {
+      throw new ForbiddenException('Channel name confirmation does not match');
+    }
+
+    // Delete channel (cascades to members, messages, etc.)
+    await this.db
+      .delete(schema.channels)
+      .where(eq(schema.channels.id, channelId));
+  }
+
+  /**
+   * Normalize channel name (Slack-style rules)
+   */
+  static normalizeChannelName(name: string): string {
+    return name
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-_]/g, '')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .substring(0, 80);
+  }
+
+  /**
+   * Validate channel name
+   */
+  static validateChannelName(name: string): {
+    valid: boolean;
+    error?: string;
+  } {
+    if (!name || name.trim().length === 0) {
+      return { valid: false, error: 'Channel name is required' };
+    }
+    if (name.length > 80) {
+      return {
+        valid: false,
+        error: 'Channel name must be 80 characters or less',
+      };
+    }
+    if (!/^[a-z0-9][a-z0-9-_]*$/.test(name)) {
+      return {
+        valid: false,
+        error:
+          'Channel name can only contain lowercase letters, numbers, hyphens, and underscores',
+      };
+    }
+    return { valid: true };
+  }
 }
