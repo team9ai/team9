@@ -24,9 +24,15 @@ export function MessagesSubSidebar() {
   const currentWorkspace =
     workspaces?.find((w) => w.id === selectedWorkspaceId) || workspaces?.[0];
 
-  const { data: members = [], isLoading } = useWorkspaceMembers(
+  const { data: membersData, isLoading } = useWorkspaceMembers(
     currentWorkspace?.id,
   );
+
+  // Flatten paginated data
+  const members = useMemo(() => {
+    if (!membersData?.pages) return [];
+    return membersData.pages.flatMap((page) => page.members);
+  }, [membersData]);
   const createDirectChannel = useCreateDirectChannel();
   const [searchQuery, setSearchQuery] = useState("");
 

@@ -1,5 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import api, { type LoginRequest, type RegisterRequest } from "@/services/api";
+import api, {
+  type LoginRequest,
+  type RegisterRequest,
+  type User,
+} from "@/services/api";
+import { appActions } from "@/stores";
+
+// Sync user data to Zustand store
+const syncUserToStore = (user: User | null) => {
+  if (user) {
+    appActions.setUser({
+      id: user.id,
+      name: user.displayName || user.username,
+      email: user.email,
+      avatarUrl: user.avatarUrl,
+    });
+  } else {
+    appActions.setUser(null);
+  }
+};
 
 export const useLogin = () => {
   const queryClient = useQueryClient();
@@ -9,6 +28,7 @@ export const useLogin = () => {
     onSuccess: (data) => {
       // Tokens are already stored in api.auth.login
       queryClient.setQueryData(["currentUser"], data.user);
+      syncUserToStore(data.user);
     },
   });
 };
@@ -21,6 +41,7 @@ export const useRegister = () => {
     onSuccess: (data) => {
       // Tokens are already stored in api.auth.register
       queryClient.setQueryData(["currentUser"], data.user);
+      syncUserToStore(data.user);
     },
   });
 };
@@ -33,6 +54,7 @@ export const useLogout = () => {
     onSuccess: () => {
       // Tokens are already removed in api.auth.logout
       queryClient.clear();
+      syncUserToStore(null);
     },
   });
 };
@@ -40,7 +62,11 @@ export const useLogout = () => {
 export const useCurrentUser = () => {
   return useQuery({
     queryKey: ["currentUser"],
-    queryFn: () => api.auth.getCurrentUser(),
+    queryFn: async () => {
+      const user = await api.auth.getCurrentUser();
+      syncUserToStore(user);
+      return user;
+    },
     enabled: !!localStorage.getItem("auth_token"),
   });
 };

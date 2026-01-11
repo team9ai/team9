@@ -2,32 +2,32 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { CreateMessageDto, CreateMessageResponse } from '@team9/shared';
 
 /**
- * Logic Client Service
+ * IM Worker Client Service
  *
- * HTTP client for calling Logic Service from Gateway.
+ * HTTP client for calling IM Worker Service from Gateway.
  * Provides synchronous message creation with the Outbox pattern.
  */
 @Injectable()
-export class LogicClientService implements OnModuleInit {
-  private readonly logger = new Logger(LogicClientService.name);
+export class ImWorkerClientService implements OnModuleInit {
+  private readonly logger = new Logger(ImWorkerClientService.name);
   private readonly baseUrl: string;
   private readonly timeout: number;
 
   constructor() {
-    this.baseUrl = process.env.LOGIC_SERVICE_URL || 'http://localhost:3001';
-    this.timeout = parseInt(process.env.LOGIC_CLIENT_TIMEOUT || '5000', 10);
+    this.baseUrl = process.env.IM_WORKER_SERVICE_URL || 'http://localhost:3001';
+    this.timeout = parseInt(process.env.IM_WORKER_CLIENT_TIMEOUT || '5000', 10);
   }
 
   onModuleInit(): void {
-    this.logger.log(`Logic client initialized, targeting: ${this.baseUrl}`);
+    this.logger.log(`IM Worker client initialized, targeting: ${this.baseUrl}`);
   }
 
   /**
-   * Create a message via Logic Service HTTP API
+   * Create a message via IM Worker Service HTTP API
    *
    * This method:
-   * 1. Sends message data to Logic Service
-   * 2. Logic Service persists message + outbox event in transaction
+   * 1. Sends message data to IM Worker Service
+   * 2. IM Worker Service persists message + outbox event in transaction
    * 3. Returns msgId and seqId immediately
    * 4. Message delivery handled asynchronously by OutboxProcessor
    */
@@ -52,29 +52,29 @@ export class LogicClientService implements OnModuleInit {
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(
-          `Logic service error (${response.status}): ${errorText}`,
+          `IM Worker service error (${response.status}): ${errorText}`,
         );
       }
 
       const result = (await response.json()) as CreateMessageResponse;
 
       this.logger.debug(
-        `Message created via Logic: ${result.msgId} (${result.status})`,
+        `Message created via IM Worker: ${result.msgId} (${result.status})`,
       );
 
       return result;
     } catch (error) {
       if ((error as Error).name === 'AbortError') {
-        throw new Error(`Logic service timeout after ${this.timeout}ms`);
+        throw new Error(`IM Worker service timeout after ${this.timeout}ms`);
       }
 
-      this.logger.error(`Failed to create message via Logic: ${error}`);
+      this.logger.error(`Failed to create message via IM Worker: ${error}`);
       throw error;
     }
   }
 
   /**
-   * Health check for Logic Service
+   * Health check for IM Worker Service
    */
   async healthCheck(): Promise<boolean> {
     try {

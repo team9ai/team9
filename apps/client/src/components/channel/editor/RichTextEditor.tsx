@@ -9,6 +9,7 @@ import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { ListNode, ListItemNode } from "@lexical/list";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import type { EditorState, LexicalEditor } from "lexical";
+import type { InitialConfigType } from "@lexical/react/LexicalComposer";
 
 import { editorTheme } from "./themes/editorTheme";
 import { MentionNode } from "./nodes/MentionNode";
@@ -75,10 +76,10 @@ export function RichTextEditor({
 }: RichTextEditorProps) {
   const editorRef = useRef<LexicalEditor | null>(null);
 
-  const initialConfig = {
+  const initialConfig: InitialConfigType = {
     namespace: "MessageEditor",
     theme: editorTheme,
-    nodes: [MentionNode, ListNode, ListItemNode],
+    nodes: [MentionNode, ListNode, ListItemNode] as InitialConfigType["nodes"],
     onError: (error: Error) => {
       console.error("Lexical error:", error);
     },

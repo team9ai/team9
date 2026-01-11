@@ -20,6 +20,7 @@ import { useChannelsByType } from "@/hooks/useChannels";
 import { useOnlineUsers } from "@/hooks/useIMUsers";
 import { Link, useParams } from "@tanstack/react-router";
 import { NewMessageDialog } from "@/components/dialog/NewMessageDialog";
+import { CreateChannelDialog } from "@/components/dialog/CreateChannelDialog";
 
 const topItems = [
   { id: "huddle", label: "Huddle", icon: Headphones },
@@ -37,6 +38,7 @@ export function HomeSubSidebar() {
   const [dmsExpanded, setDmsExpanded] = useState(true);
   const [appsExpanded, setAppsExpanded] = useState(true);
   const [isNewMessageOpen, setIsNewMessageOpen] = useState(false);
+  const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
 
   const {
     publicChannels = [],
@@ -127,18 +129,29 @@ export function HomeSubSidebar() {
 
           {/* Channels Section */}
           <div className="mt-4">
-            <Button
-              variant="ghost"
-              onClick={() => setChannelsExpanded(!channelsExpanded)}
-              className="w-full justify-start gap-1 px-2 h-auto py-1.5 text-sm text-white/90 hover:text-white hover:bg-white/10"
-            >
-              {channelsExpanded ? (
-                <ChevronDown size={14} />
-              ) : (
-                <ChevronRight size={14} />
-              )}
-              <span>Channels</span>
-            </Button>
+            <div className="flex items-center justify-between">
+              <Button
+                variant="ghost"
+                onClick={() => setChannelsExpanded(!channelsExpanded)}
+                className="flex-1 justify-start gap-1 px-2 h-auto py-1.5 text-sm text-white/90 hover:text-white hover:bg-white/10"
+              >
+                {channelsExpanded ? (
+                  <ChevronDown size={14} />
+                ) : (
+                  <ChevronRight size={14} />
+                )}
+                <span>Channels</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-white/70 hover:text-white hover:bg-white/10"
+                onClick={() => setIsCreateChannelOpen(true)}
+                title="Add channel"
+              >
+                <Plus size={14} />
+              </Button>
+            </div>
             {channelsExpanded && (
               <div className="ml-4 mt-1 space-y-0.5">
                 {isLoading ? (
@@ -282,6 +295,12 @@ export function HomeSubSidebar() {
       <NewMessageDialog
         isOpen={isNewMessageOpen}
         onClose={() => setIsNewMessageOpen(false)}
+      />
+
+      {/* Create Channel Dialog */}
+      <CreateChannelDialog
+        isOpen={isCreateChannelOpen}
+        onClose={() => setIsCreateChannelOpen(false)}
       />
     </aside>
   );

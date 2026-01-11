@@ -39,7 +39,87 @@ function formatFileSize(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
 }
 
-function AttachmentItem({
+// Image attachment - Slack style thumbnail
+function ImageAttachmentItem({
+  file,
+  onRemove,
+  onRetry,
+}: {
+  file: UploadingFile;
+  onRemove: () => void;
+  onRetry?: () => void;
+}) {
+  const isError = file.status === "error";
+  const isUploading =
+    file.status === "uploading" || file.status === "confirming";
+
+  return (
+    <div className="relative group">
+      {/* Image thumbnail */}
+      <div
+        className={cn(
+          "w-20 h-20 rounded-lg overflow-hidden border-2",
+          isError && "border-red-300",
+          isUploading && "border-blue-300",
+          !isError && !isUploading && "border-transparent",
+        )}
+      >
+        <img
+          src={URL.createObjectURL(file.file)}
+          alt={file.file.name}
+          className={cn(
+            "w-full h-full object-cover",
+            isUploading && "opacity-50",
+          )}
+        />
+
+        {/* Upload progress overlay */}
+        {isUploading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+            <Loader2 className="w-6 h-6 text-white animate-spin" />
+          </div>
+        )}
+
+        {/* Error overlay */}
+        {isError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-red-500/20">
+            <AlertCircle className="w-6 h-6 text-red-500" />
+          </div>
+        )}
+      </div>
+
+      {/* Remove button - shows on hover */}
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        onClick={onRemove}
+        disabled={isUploading}
+        className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full bg-white border shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+        title="Remove"
+      >
+        <X className="w-3 h-3 text-slate-600" />
+      </Button>
+
+      {/* Retry button for errors */}
+      {isError && onRetry && (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={onRetry}
+          className="absolute -bottom-2 -right-2 h-6 w-6 p-0 rounded-full bg-white border shadow-sm"
+          title="Retry upload"
+        >
+          <RefreshCw className="w-3 h-3 text-red-500" />
+        </Button>
+      )}
+    </div>
+  );
+}
+
+// File attachment - original style (unchanged)
+function FileAttachmentItem({
   file,
   onRemove,
   onRetry,
@@ -49,7 +129,6 @@ function AttachmentItem({
   onRetry?: () => void;
 }) {
   const FileIcon = getFileIcon(file.file.type);
-  const isImage = file.file.type.startsWith("image/");
   const isError = file.status === "error";
   const isUploading =
     file.status === "uploading" || file.status === "confirming";
@@ -64,22 +143,11 @@ function AttachmentItem({
         isUploading && "border-purple-300 bg-purple-50",
       )}
     >
-      {/* Preview or Icon */}
+      {/* Icon */}
       <div className="w-10 h-10 flex-shrink-0 rounded bg-slate-100 flex items-center justify-center overflow-hidden">
-        {isImage && file.status === "completed" ? (
-          <img
-            src={URL.createObjectURL(file.file)}
-            alt={file.file.name}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <FileIcon
-            className={cn(
-              "w-5 h-5",
-              isError ? "text-red-500" : "text-slate-500",
-            )}
-          />
-        )}
+        <FileIcon
+          className={cn("w-5 h-5", isError ? "text-red-500" : "text-slate-500")}
+        />
       </div>
 
       {/* File Info */}
@@ -148,6 +216,28 @@ function AttachmentItem({
   );
 }
 
+function AttachmentItem({
+  file,
+  onRemove,
+  onRetry,
+}: {
+  file: UploadingFile;
+  onRemove: () => void;
+  onRetry?: () => void;
+}) {
+  const isImage = file.file.type.startsWith("image/");
+
+  if (isImage) {
+    return (
+      <ImageAttachmentItem file={file} onRemove={onRemove} onRetry={onRetry} />
+    );
+  }
+
+  return (
+    <FileAttachmentItem file={file} onRemove={onRemove} onRetry={onRetry} />
+  );
+}
+
 export function AttachmentPreview({
   files,
   onRemove,
@@ -156,7 +246,7 @@ export function AttachmentPreview({
   if (files.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap gap-2 p-2 border-t border-slate-100 bg-slate-50 rounded-b-lg">
+    <div className="flex flex-wrap gap-2 pt-3">
       {files.map((file) => (
         <AttachmentItem
           key={file.id}

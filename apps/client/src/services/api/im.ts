@@ -8,6 +8,7 @@ import type {
   Mention,
   CreateChannelDto,
   UpdateChannelDto,
+  DeleteChannelDto,
   CreateMessageDto,
   UpdateMessageDto,
   AddMemberDto,
@@ -105,6 +106,22 @@ export const channelsApi = {
   // Mark messages as read
   markAsRead: async (channelId: string, data: MarkAsReadDto): Promise<void> => {
     await http.post(`/v1/im/channels/${channelId}/read`, data);
+  },
+
+  // Delete or archive channel
+  deleteChannel: async (
+    channelId: string,
+    data?: DeleteChannelDto,
+  ): Promise<void> => {
+    await http.delete(`/v1/im/channels/${channelId}`, { data });
+  },
+
+  // Unarchive channel
+  unarchiveChannel: async (channelId: string): Promise<Channel> => {
+    const response = await http.post<Channel>(
+      `/v1/im/channels/${channelId}/unarchive`,
+    );
+    return response.data;
   },
 };
 

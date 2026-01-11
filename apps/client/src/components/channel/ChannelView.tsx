@@ -1,7 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useChannel as useChannelWS } from "@/hooks/useWebSocket";
 import { useMessages, useSendMessage } from "@/hooks/useMessages";
-import { useChannel, useMarkAsRead } from "@/hooks/useChannels";
+import {
+  useChannel,
+  useMarkAsRead,
+  useChannelMembers,
+} from "@/hooks/useChannels";
+import { useUser } from "@/stores";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import { ChannelHeader } from "./ChannelHeader";
@@ -13,6 +18,8 @@ interface ChannelViewProps {
 
 export function ChannelView({ channelId }: ChannelViewProps) {
   const { data: channel, isLoading: channelLoading } = useChannel(channelId);
+  const { data: members = [] } = useChannelMembers(channelId);
+  const currentUser = useUser();
   const {
     data: messagesData,
     isLoading: messagesLoading,
@@ -22,6 +29,13 @@ export function ChannelView({ channelId }: ChannelViewProps) {
   } = useMessages(channelId);
   const sendMessage = useSendMessage(channelId);
   const markAsRead = useMarkAsRead();
+
+  // Get current user's role in this channel
+  const currentUserRole = useMemo(() => {
+    if (!currentUser) return "member";
+    const membership = members.find((m) => m.userId === currentUser.id);
+    return membership?.role || "member";
+  }, [members, currentUser]);
 
   // Auto-join channel via WebSocket
   useChannelWS(channelId);
@@ -68,7 +82,7 @@ export function ChannelView({ channelId }: ChannelViewProps) {
 
   return (
     <div className="h-full flex flex-col">
-      <ChannelHeader channel={channel} />
+      <ChannelHeader channel={channel} currentUserRole={currentUserRole} />
 
       <MessageList
         messages={messages}

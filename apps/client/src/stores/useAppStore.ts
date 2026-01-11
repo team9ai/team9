@@ -6,6 +6,7 @@ interface User {
   id: string;
   name: string;
   email: string;
+  avatarUrl?: string;
 }
 
 export type SidebarSection =
@@ -102,6 +103,7 @@ export const useAppStore = create<AppState>()(
           theme: state.theme,
           lastVisitedPaths: state.lastVisitedPaths,
           activeSidebar: state.activeSidebar,
+          user: state.user,
         }),
       },
     ),

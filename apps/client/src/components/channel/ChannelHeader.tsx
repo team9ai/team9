@@ -1,13 +1,27 @@
-import { Hash, Lock, Phone, Video, Search, Info } from "lucide-react";
+import { useState } from "react";
+import { Hash, Lock, Phone, Video, Search, Info, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import type { Channel, ChannelWithUnread } from "@/types/im";
+import { ChannelDetailsModal } from "./ChannelDetailsModal";
+import { useChannelMembers } from "@/hooks/useChannels";
+import type { Channel, ChannelWithUnread, MemberRole } from "@/types/im";
 
 interface ChannelHeaderProps {
   channel: Channel | ChannelWithUnread;
+  currentUserRole?: MemberRole;
 }
 
-export function ChannelHeader({ channel }: ChannelHeaderProps) {
+export function ChannelHeader({
+  channel,
+  currentUserRole,
+}: ChannelHeaderProps) {
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [defaultTab, setDefaultTab] = useState<
+    "about" | "members" | "settings"
+  >("about");
+  const { data: members = [] } = useChannelMembers(
+    channel.type !== "direct" ? channel.id : undefined,
+  );
   const ChannelIcon = channel.type === "private" ? Lock : Hash;
 
   // For direct messages, show the other user's info
@@ -25,6 +39,11 @@ export function ChannelHeader({ channel }: ChannelHeaderProps) {
   };
 
   const isOnline = otherUser?.status === "online";
+
+  const openDetails = (tab: "about" | "members" | "settings") => {
+    setDefaultTab(tab);
+    setIsDetailsOpen(true);
+  };
 
   return (
     <>
@@ -60,6 +79,16 @@ export function ChannelHeader({ channel }: ChannelHeaderProps) {
         </div>
 
         <div className="flex items-center gap-1">
+          {!isDirect && (
+            <Button
+              variant="ghost"
+              className="h-8 px-2 gap-1"
+              onClick={() => openDetails("members")}
+            >
+              <Users size={16} />
+              <span className="text-sm">{members.length}</span>
+            </Button>
+          )}
           <Button variant="ghost" size="icon">
             <Phone size={18} />
           </Button>
@@ -69,11 +98,28 @@ export function ChannelHeader({ channel }: ChannelHeaderProps) {
           <Button variant="ghost" size="icon">
             <Search size={18} />
           </Button>
-          <Button variant="ghost" size="icon">
-            <Info size={18} />
-          </Button>
+          {!isDirect && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => openDetails("about")}
+            >
+              <Info size={18} />
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* Channel Details Modal */}
+      {!isDirect && (
+        <ChannelDetailsModal
+          isOpen={isDetailsOpen}
+          onClose={() => setIsDetailsOpen(false)}
+          channelId={channel.id}
+          currentUserRole={currentUserRole}
+          defaultTab={defaultTab}
+        />
+      )}
     </>
   );
 }

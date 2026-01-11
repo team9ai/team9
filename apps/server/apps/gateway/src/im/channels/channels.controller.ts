@@ -22,6 +22,7 @@ import {
   UpdateChannelDto,
   AddMemberDto,
   UpdateMemberDto,
+  DeleteChannelDto,
 } from './dto/index.js';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import { CurrentTenantId } from '../../common/decorators/current-tenant.decorator.js';
@@ -54,7 +55,16 @@ export class ChannelsController {
     @CurrentTenantId() tenantId: string | undefined,
     @Body() dto: CreateChannelDto,
   ): Promise<ChannelResponse> {
-    return this.channelsService.create(dto, userId, tenantId);
+    const channel = await this.channelsService.create(dto, userId, tenantId);
+
+    // Notify the creator about the new channel
+    await this.websocketGateway.sendToUser(
+      userId,
+      WS_EVENTS.CHANNEL_CREATED,
+      channel,
+    );
+
+    return channel;
   }
 
   @Post('direct/:targetUserId')
@@ -163,5 +173,83 @@ export class ChannelsController {
   ): Promise<{ success: boolean }> {
     await this.channelsService.removeMember(channelId, userId, userId);
     return { success: true };
+  }
+
+  @Delete(':id')
+  async deleteChannel(
+    @CurrentUser('sub') userId: string,
+    @Param('id') channelId: string,
+    @Body() dto: DeleteChannelDto,
+  ): Promise<{ success: boolean }> {
+    // Get member IDs and channel info before deletion
+    const memberIds = await this.channelsService.getChannelMemberIds(channelId);
+    const channel = await this.channelsService.findById(channelId);
+
+    if (dto.permanent) {
+      // Hard delete
+      await this.channelsService.deleteChannel(
+        channelId,
+        userId,
+        dto.confirmationName,
+      );
+
+      // Notify all members about deletion
+      for (const memberId of memberIds) {
+        await this.websocketGateway.sendToUser(
+          memberId,
+          WS_EVENTS.CHANNEL_DELETED,
+          {
+            channelId,
+            channelName: channel?.name,
+            deletedBy: userId,
+          },
+        );
+      }
+    } else {
+      // Soft delete (archive)
+      await this.channelsService.archiveChannel(channelId, userId);
+
+      // Notify all members about archival
+      for (const memberId of memberIds) {
+        await this.websocketGateway.sendToUser(
+          memberId,
+          WS_EVENTS.CHANNEL_ARCHIVED,
+          {
+            channelId,
+            channelName: channel?.name,
+            archivedBy: userId,
+          },
+        );
+      }
+    }
+
+    return { success: true };
+  }
+
+  @Post(':id/unarchive')
+  async unarchiveChannel(
+    @CurrentUser('sub') userId: string,
+    @Param('id') channelId: string,
+  ): Promise<ChannelResponse> {
+    const channel = await this.channelsService.unarchiveChannel(
+      channelId,
+      userId,
+    );
+
+    // Notify members
+    const memberIds = await this.channelsService.getChannelMemberIds(channelId);
+    for (const memberId of memberIds) {
+      await this.websocketGateway.sendToUser(
+        memberId,
+        WS_EVENTS.CHANNEL_UNARCHIVED,
+        {
+          channelId,
+          channelName: channel.name,
+          unarchivedBy: userId,
+        },
+      );
+    }
+
+    return channel;
   }
 }

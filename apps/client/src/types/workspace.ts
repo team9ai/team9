@@ -65,3 +65,19 @@ export interface WorkspaceMember {
   invitedBy?: string;
   lastSeenAt: string | null;
 }
+
+export interface GetMembersParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+}
+
+export interface PaginatedMembersResponse {
+  members: WorkspaceMember[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
