@@ -11,12 +11,12 @@ Team9 is a full-stack instant messaging and team collaboration platform built as
 ### Development
 
 ```bash
-pnpm dev              # Run server (gateway + logic) and client concurrently
+pnpm dev              # Run server (gateway + im-worker) and client concurrently
 pnpm dev:client       # Web frontend only (Vite dev server)
 pnpm dev:desktop      # Tauri desktop app (hot reload)
 pnpm dev:server       # Gateway service only
-pnpm dev:logic        # Background logic service only
-pnpm dev:server:all   # Both gateway and logic services
+pnpm dev:im-worker    # Background IM worker service only
+pnpm dev:server:all   # Both gateway and im-worker services
 ```
 
 ### Database Operations
@@ -54,7 +54,7 @@ apps/
 ├── server/
 │   ├── apps/
 │   │   ├── gateway/  # Main API gateway (port 3000)
-│   │   └── logic/    # Background logic service
+│   │   └── im-worker/  # Background IM worker service (port 3001)
 │   └── libs/         # Shared libraries
 │       ├── database/ # Drizzle schemas and DB module
 │       ├── auth/     # Shared authentication
@@ -73,7 +73,7 @@ apps/
 The backend follows a modular NestJS architecture with two main applications:
 
 - **Gateway:** Main API service with REST endpoints and WebSocket gateway
-- **Logic:** Background service for async processing
+- **IM Worker:** Background service for async processing (message persistence, routing, offline delivery)
 
 **Key Modules:**
 

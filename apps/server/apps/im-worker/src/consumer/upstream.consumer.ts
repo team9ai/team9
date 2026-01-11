@@ -15,7 +15,7 @@ import { PostBroadcastService } from '../post-broadcast/post-broadcast.service.j
  * Upstream Consumer - consumes messages from Gateway nodes
  *
  * Listens to:
- * - im.queue.logic.upstream - all upstream messages including:
+ * - im.queue.im-worker.upstream - all upstream messages including:
  *   - Regular messages (text, file, image)
  *   - ACK, typing, read, presence events
  *   - Post-broadcast tasks (offline message handling)
@@ -51,7 +51,7 @@ export class UpstreamConsumer implements OnModuleInit {
     });
 
     // Create upstream queue
-    await channel.assertQueue(MQ_QUEUES.LOGIC_UPSTREAM, {
+    await channel.assertQueue(MQ_QUEUES.IM_WORKER_UPSTREAM, {
       durable: true,
       autoDelete: false,
     });
@@ -60,7 +60,7 @@ export class UpstreamConsumer implements OnModuleInit {
     const routingKeys = Object.values(MQ_ROUTING_KEYS.UPSTREAM);
     for (const key of routingKeys) {
       await channel.bindQueue(
-        MQ_QUEUES.LOGIC_UPSTREAM,
+        MQ_QUEUES.IM_WORKER_UPSTREAM,
         MQ_EXCHANGES.IM_UPSTREAM,
         key,
       );
@@ -76,7 +76,7 @@ export class UpstreamConsumer implements OnModuleInit {
     const channel = this.amqpConnection.channel;
 
     const { consumerTag } = await channel.consume(
-      MQ_QUEUES.LOGIC_UPSTREAM,
+      MQ_QUEUES.IM_WORKER_UPSTREAM,
       async (msg) => {
         if (!msg) return;
 

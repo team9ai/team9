@@ -431,7 +431,7 @@ importers:
         specifier: ^2.6.0
         version: 2.6.0
 
-  apps/server/apps/logic:
+  apps/server/apps/im-worker:
     dependencies:
       "@team9/database":
         specifier: workspace:*

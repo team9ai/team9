@@ -27,7 +27,7 @@ import type { PostBroadcastTask } from '@team9/shared';
 import { ChannelsService } from '../channels/channels.service.js';
 import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
-import { LogicClientService } from '../services/logic-client.service.js';
+import { ImWorkerClientService } from '../services/im-worker-client.service.js';
 
 @Controller({
   path: 'im',
@@ -42,7 +42,7 @@ export class MessagesController {
     private readonly channelsService: ChannelsService,
     @Inject(forwardRef(() => WebsocketGateway))
     private readonly websocketGateway: WebsocketGateway,
-    @Optional() private readonly logicClientService?: LogicClientService,
+    @Optional() private readonly imWorkerClientService?: ImWorkerClientService,
     @Optional() private readonly gatewayMQService?: GatewayMQService,
   ) {}
 
@@ -76,8 +76,8 @@ export class MessagesController {
       throw new ForbiddenException('Access denied');
     }
 
-    // Use Logic Service HTTP API if available (new architecture with hybrid mode)
-    if (this.logicClientService) {
+    // Use IM Worker Service HTTP API if available (new architecture with hybrid mode)
+    if (this.imWorkerClientService) {
       const clientMsgId = uuidv7();
 
       // Get workspaceId (tenantId) from channel for offline message routing
@@ -88,7 +88,7 @@ export class MessagesController {
       const messageType = dto.attachments?.length ? 'file' : 'text';
 
       try {
-        const result = await this.logicClientService.createMessage({
+        const result = await this.imWorkerClientService.createMessage({
           clientMsgId,
           channelId,
           senderId: userId,
@@ -114,7 +114,7 @@ export class MessagesController {
 
         const broadcastAt = Date.now();
 
-        // Send post-broadcast task to Logic Service via RabbitMQ (event-driven)
+        // Send post-broadcast task to IM Worker Service via RabbitMQ (event-driven)
         // This handles: offline messages, unread counts, outbox completion
         if (this.gatewayMQService?.isReady()) {
           const postBroadcastTask: PostBroadcastTask = {
@@ -141,7 +141,7 @@ export class MessagesController {
         return message;
       } catch (error) {
         this.logger.error(
-          `Failed to create message via Logic service: ${error}`,
+          `Failed to create message via IM Worker service: ${error}`,
         );
         // Fall through to legacy path on error
       }

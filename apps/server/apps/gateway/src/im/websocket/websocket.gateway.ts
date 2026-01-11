@@ -33,7 +33,7 @@ import { HeartbeatService } from '../../cluster/heartbeat/heartbeat.service.js';
 import { ZombieCleanerService } from '../../cluster/heartbeat/zombie-cleaner.service.js';
 import { ConnectionService } from '../../cluster/connection/connection.service.js';
 import { SocketRedisAdapterService } from '../../cluster/adapter/socket-redis-adapter.service.js';
-import { LogicClientService } from '../services/logic-client.service.js';
+import { ImWorkerClientService } from '../services/im-worker-client.service.js';
 
 interface SendMessageData {
   channelId: string;
@@ -99,7 +99,7 @@ export class WebsocketGateway
     @Optional() private readonly gatewayMQService?: GatewayMQService,
     @Optional()
     private readonly socketRedisAdapterService?: SocketRedisAdapterService,
-    @Optional() private readonly logicClientService?: LogicClientService,
+    @Optional() private readonly imWorkerClientService?: ImWorkerClientService,
   ) {}
 
   /**
@@ -240,7 +240,7 @@ export class WebsocketGateway
         });
       }
 
-      // Notify Logic service that user is online (for offline message delivery)
+      // Notify IM Worker service that user is online (for offline message delivery)
       if (this.gatewayMQService && this.clusterNodeService) {
         try {
           await this.gatewayMQService.publishUpstream({
@@ -259,11 +259,11 @@ export class WebsocketGateway
             receivedAt: Date.now(),
           });
           this.logger.debug(
-            `[WS] Notified Logic service of user ${payload.sub} online`,
+            `[WS] Notified IM Worker service of user ${payload.sub} online`,
           );
         } catch (error) {
           this.logger.warn(
-            `[WS] Failed to notify Logic service of user online: ${error}`,
+            `[WS] Failed to notify IM Worker service of user online: ${error}`,
           );
         }
       }
@@ -366,7 +366,7 @@ export class WebsocketGateway
             });
         }
 
-        // Notify Logic service that user is offline
+        // Notify IM Worker service that user is offline
         if (this.gatewayMQService && this.clusterNodeService) {
           try {
             await this.gatewayMQService.publishUpstream({
@@ -385,11 +385,11 @@ export class WebsocketGateway
               receivedAt: Date.now(),
             });
             this.logger.debug(
-              `[WS] Notified Logic service of user ${socketClient.userId} offline`,
+              `[WS] Notified IM Worker service of user ${socketClient.userId} offline`,
             );
           } catch (error) {
             this.logger.warn(
-              `[WS] Failed to notify Logic service of user offline: ${error}`,
+              `[WS] Failed to notify IM Worker service of user offline: ${error}`,
             );
           }
         }
@@ -469,13 +469,13 @@ export class WebsocketGateway
     const clientMsgId = data.clientMsgId || uuidv7();
 
     try {
-      // Use Logic Service HTTP API if available (new architecture)
-      if (this.logicClientService) {
+      // Use IM Worker Service HTTP API if available (new architecture)
+      if (this.imWorkerClientService) {
         // Get workspaceId (tenantId) from channel for offline message routing
         const channel = await this.channelsService.findById(channelId);
         const workspaceId = channel?.tenantId ?? undefined;
 
-        const result = await this.logicClientService.createMessage({
+        const result = await this.imWorkerClientService.createMessage({
           clientMsgId,
           channelId,
           senderId: socketClient.userId,
@@ -498,7 +498,7 @@ export class WebsocketGateway
 
         const broadcastAt = Date.now();
 
-        // Send post-broadcast task to Logic Service via RabbitMQ (event-driven)
+        // Send post-broadcast task to IM Worker Service via RabbitMQ (event-driven)
         // This handles: offline messages, unread counts, outbox completion
         if (this.gatewayMQService?.isReady()) {
           const postBroadcastTask: PostBroadcastTask = {
@@ -728,7 +728,7 @@ export class WebsocketGateway
       return { error: 'Not authenticated' };
     }
 
-    // Send ACK to Logic service via RabbitMQ for reliable processing
+    // Send ACK to IM Worker service via RabbitMQ for reliable processing
     if (this.gatewayMQService && this.clusterNodeService) {
       try {
         await this.gatewayMQService.publishUpstream({
@@ -754,7 +754,7 @@ export class WebsocketGateway
 
         return { success: true };
       } catch (error) {
-        this.logger.error(`Failed to send ACK to Logic service: ${error}`);
+        this.logger.error(`Failed to send ACK to IM Worker service: ${error}`);
         return { error: 'Failed to process ACK' };
       }
     }

@@ -18,7 +18,7 @@ import { PostBroadcastModule } from './post-broadcast/post-broadcast.module.js';
       envFilePath: [
         join(process.cwd(), '.env.local'),
         join(process.cwd(), '.env'),
-        // When running from apps/logic directory, look for .env in apps/server
+        // When running from apps/im-worker directory, look for .env in apps/server
         join(process.cwd(), '../../.env.local'),
         join(process.cwd(), '../../.env'),
       ],
@@ -38,6 +38,6 @@ export class AppModule implements OnModuleInit {
   private readonly logger = new Logger(AppModule.name);
 
   onModuleInit() {
-    this.logger.log('Logic Service initialized');
+    this.logger.log('IM Worker Service initialized');
   }
 }
