@@ -1,19 +1,38 @@
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
+import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import { MESSAGE_SERVICE_PROTO_PATH } from '@team9/shared';
 import { AppModule } from './app.module.js';
 
 async function bootstrap() {
   const logger = new Logger('ImWorkerService');
 
+  // Create gRPC-only application
   const app = await NestFactory.create(AppModule);
 
-  // IM Worker doesn't need HTTP endpoints for now
-  // It mainly consumes messages from RabbitMQ
-  const port = process.env.IM_WORKER_PORT ?? 3001;
+  // Configure gRPC microservice on port 3001
+  const grpcPort = process.env.IM_WORKER_PORT ?? 3001;
 
-  await app.listen(port);
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.GRPC,
+    options: {
+      package: 'message',
+      protoPath: MESSAGE_SERVICE_PROTO_PATH,
+      url: `0.0.0.0:${grpcPort}`,
+      loader: {
+        keepCase: true, // Keep snake_case from proto
+        longs: String, // Convert int64 to string
+        enums: String,
+        defaults: true,
+        oneofs: true,
+      },
+    },
+  });
 
-  logger.log(`IM Worker Service is running on port ${port}`);
+  // Start gRPC microservice
+  await app.startAllMicroservices();
+
+  logger.log(`IM Worker Service gRPC is running on port ${grpcPort}`);
 }
 
 void bootstrap();

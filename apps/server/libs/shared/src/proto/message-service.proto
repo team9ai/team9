@@ -1,0 +1,79 @@
+syntax = "proto3";
+
+package message;
+
+// Message Service - gRPC API for message operations
+// Called by Gateway to create messages in IM-Worker
+service MessageService {
+  // Create a new message with Outbox pattern
+  rpc CreateMessage (CreateMessageRequest) returns (CreateMessageResponse);
+
+  // Health check
+  rpc Health (HealthRequest) returns (HealthResponse);
+}
+
+// Attachment data for file/image messages
+message Attachment {
+  string file_key = 1;
+  string file_name = 2;
+  int64 file_size = 3;
+  string mime_type = 4;
+}
+
+// Request to create a new message
+message CreateMessageRequest {
+  // Client-generated message ID (for deduplication)
+  string client_msg_id = 1;
+
+  // Target channel ID
+  string channel_id = 2;
+
+  // Sender user ID
+  string sender_id = 3;
+
+  // Message content
+  string content = 4;
+
+  // Parent message ID (for threads) - optional
+  optional string parent_id = 5;
+
+  // Message type: 'text', 'file', 'image'
+  string type = 6;
+
+  // File attachments - optional
+  repeated Attachment attachments = 7;
+
+  // Additional metadata as JSON string - optional
+  optional string metadata_json = 8;
+
+  // Workspace ID (for offline message routing) - optional
+  optional string workspace_id = 9;
+}
+
+// Response after creating a message
+message CreateMessageResponse {
+  // Server-generated message ID
+  string msg_id = 1;
+
+  // Sequence ID (for ordering within channel)
+  string seq_id = 2;
+
+  // Echo back the client message ID
+  string client_msg_id = 3;
+
+  // Status: 'persisted' or 'duplicate'
+  string status = 4;
+
+  // Server timestamp (milliseconds)
+  int64 timestamp = 5;
+
+  // Error message if failed - optional
+  optional string error = 6;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;
+  string timestamp = 2;
+}

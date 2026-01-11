@@ -27,7 +27,7 @@ import type { PostBroadcastTask } from '@team9/shared';
 import { ChannelsService } from '../channels/channels.service.js';
 import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
-import { ImWorkerClientService } from '../services/im-worker-client.service.js';
+import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
 
 @Controller({
   path: 'im',
@@ -42,7 +42,7 @@ export class MessagesController {
     private readonly channelsService: ChannelsService,
     @Inject(forwardRef(() => WebsocketGateway))
     private readonly websocketGateway: WebsocketGateway,
-    @Optional() private readonly imWorkerClientService?: ImWorkerClientService,
+    private readonly imWorkerGrpcClientService: ImWorkerGrpcClientService,
     @Optional() private readonly gatewayMQService?: GatewayMQService,
   ) {}
 
@@ -76,86 +76,62 @@ export class MessagesController {
       throw new ForbiddenException('Access denied');
     }
 
-    // Use IM Worker Service HTTP API if available (new architecture with hybrid mode)
-    if (this.imWorkerClientService) {
-      const clientMsgId = uuidv7();
+    const clientMsgId = uuidv7();
 
-      // Get workspaceId (tenantId) from channel for offline message routing
-      const channel = await this.channelsService.findById(channelId);
-      const workspaceId = channel?.tenantId ?? undefined;
+    // Get workspaceId (tenantId) from channel for offline message routing
+    const channel = await this.channelsService.findById(channelId);
+    const workspaceId = channel?.tenantId ?? undefined;
 
-      // Determine message type based on attachments
-      const messageType = dto.attachments?.length ? 'file' : 'text';
+    // Determine message type based on attachments
+    const messageType = dto.attachments?.length ? 'file' : 'text';
 
-      try {
-        const result = await this.imWorkerClientService.createMessage({
-          clientMsgId,
-          channelId,
-          senderId: userId,
-          content: dto.content,
-          parentId: dto.parentId,
-          type: messageType,
-          workspaceId,
-          attachments: dto.attachments,
-        });
+    // Create message via gRPC
+    const result = await this.imWorkerGrpcClientService.createMessage({
+      clientMsgId,
+      channelId,
+      senderId: userId,
+      content: dto.content,
+      parentId: dto.parentId,
+      type: messageType,
+      workspaceId,
+      attachments: dto.attachments,
+    });
 
-        // Fetch the full message details for response
-        const message = await this.messagesService.getMessageWithDetails(
-          result.msgId,
-        );
+    // Fetch the full message details for response
+    const message = await this.messagesService.getMessageWithDetails(
+      result.msgId,
+    );
 
-        // Hybrid Mode: Immediately broadcast to online users via Socket.io Redis Adapter
-        // This provides low-latency delivery (~10ms) for online users
-        this.websocketGateway.sendToChannel(
-          channelId,
-          WS_EVENTS.NEW_MESSAGE,
-          message,
-        );
-
-        const broadcastAt = Date.now();
-
-        // Send post-broadcast task to IM Worker Service via RabbitMQ (event-driven)
-        // This handles: offline messages, unread counts, outbox completion
-        if (this.gatewayMQService?.isReady()) {
-          const postBroadcastTask: PostBroadcastTask = {
-            msgId: result.msgId,
-            channelId,
-            senderId: userId,
-            workspaceId,
-            broadcastAt,
-          };
-
-          // Fire-and-forget: don't block response for post-broadcast processing
-          this.gatewayMQService
-            .publishPostBroadcast(postBroadcastTask)
-            .catch((err) => {
-              this.logger.warn(`Failed to publish post-broadcast task: ${err}`);
-              // Outbox processor will handle it as fallback
-            });
-        }
-
-        this.logger.debug(
-          `Message ${result.msgId} persisted and broadcast immediately`,
-        );
-
-        return message;
-      } catch (error) {
-        this.logger.error(
-          `Failed to create message via IM Worker service: ${error}`,
-        );
-        // Fall through to legacy path on error
-      }
-    }
-
-    // Fallback to legacy direct DB write
-    const message = await this.messagesService.create(channelId, userId, dto);
-
-    // Broadcast new message to all channel members via WebSocket (legacy path only)
+    // Immediately broadcast to online users via Socket.io Redis Adapter
     this.websocketGateway.sendToChannel(
       channelId,
       WS_EVENTS.NEW_MESSAGE,
       message,
     );
+
+    const broadcastAt = Date.now();
+
+    // Send post-broadcast task to IM Worker Service via RabbitMQ (event-driven)
+    // This handles: offline messages, unread counts, outbox completion
+    if (this.gatewayMQService?.isReady()) {
+      const postBroadcastTask: PostBroadcastTask = {
+        msgId: result.msgId,
+        channelId,
+        senderId: userId,
+        workspaceId,
+        broadcastAt,
+      };
+
+      // Fire-and-forget: don't block response for post-broadcast processing
+      this.gatewayMQService
+        .publishPostBroadcast(postBroadcastTask)
+        .catch((err) => {
+          this.logger.warn(`Failed to publish post-broadcast task: ${err}`);
+          // Outbox processor will handle it as fallback
+        });
+    }
+
+    this.logger.debug(`Message ${result.msgId} persisted and broadcast (gRPC)`);
 
     return message;
   }
