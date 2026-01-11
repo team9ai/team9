@@ -5,10 +5,11 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { WorkspaceService } from './workspace.service.js';
-import { CreateInvitationDto } from './dto/index.js';
+import { CreateInvitationDto, GetMembersQueryDto } from './dto/index.js';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 
 @Controller({
@@ -29,8 +30,13 @@ export class WorkspaceController {
   async getWorkspaceMembers(
     @Param('workspaceId') workspaceId: string,
     @CurrentUser('sub') userId: string,
+    @Query() query: GetMembersQueryDto,
   ) {
-    return this.workspaceService.getWorkspaceMembers(workspaceId, userId);
+    return this.workspaceService.getWorkspaceMembers(workspaceId, userId, {
+      page: query.page,
+      limit: query.limit,
+      search: query.search,
+    });
   }
 
   @Get(':workspaceId/debug/online-status')

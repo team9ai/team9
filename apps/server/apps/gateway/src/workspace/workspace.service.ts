@@ -88,6 +88,16 @@ export interface WorkspaceMemberResponse {
   lastSeenAt: Date | null;
 }
 
+export interface PaginatedMembersResponse {
+  members: WorkspaceMemberResponse[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 @Injectable()
 export class WorkspaceService {
   private readonly logger = new Logger(WorkspaceService.name);
@@ -566,13 +576,43 @@ export class WorkspaceService {
   async getWorkspaceMembers(
     tenantId: string,
     requesterId: string,
-  ): Promise<WorkspaceMemberResponse[]> {
+    options?: { page?: number; limit?: number; search?: string },
+  ): Promise<PaginatedMembersResponse> {
+    const page = options?.page ?? 1;
+    const limit = options?.limit ?? 20;
+    const search = options?.search?.trim();
+
     // Verify requester is a member
     const isMember = await this.isWorkspaceMember(tenantId, requesterId);
     if (!isMember) {
       throw new BadRequestException('Not a member of this workspace');
     }
 
+    // Build where conditions
+    const whereConditions = [
+      eq(schema.tenantMembers.tenantId, tenantId),
+      isNull(schema.tenantMembers.leftAt),
+    ];
+
+    // Add search condition if provided
+    if (search) {
+      whereConditions.push(
+        sql`(${schema.users.username} ILIKE ${`%${search}%`} OR ${schema.users.displayName} ILIKE ${`%${search}%`})`,
+      );
+    }
+
+    // Get total count
+    const [{ count }] = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(schema.tenantMembers)
+      .innerJoin(schema.users, eq(schema.tenantMembers.userId, schema.users.id))
+      .where(and(...whereConditions));
+
+    const total = Number(count);
+    const totalPages = Math.ceil(total / limit);
+    const offset = (page - 1) * limit;
+
+    // Get paginated members
     const members = await this.db
       .select({
         id: schema.tenantMembers.id,
@@ -587,27 +627,35 @@ export class WorkspaceService {
       })
       .from(schema.tenantMembers)
       .innerJoin(schema.users, eq(schema.tenantMembers.userId, schema.users.id))
-      .where(
-        and(
-          eq(schema.tenantMembers.tenantId, tenantId),
-          isNull(schema.tenantMembers.leftAt),
-        ),
-      )
-      .orderBy(schema.tenantMembers.joinedAt);
+      .where(and(...whereConditions))
+      .orderBy(schema.tenantMembers.joinedAt)
+      .limit(limit)
+      .offset(offset);
 
     // Get real-time online status from Redis (single source of truth)
     const onlineUsersHash = await this.redisService.hgetall(
       REDIS_KEYS.ONLINE_USERS,
     );
 
-    return members.map((m) => ({
-      ...m,
-      // Status is ONLY from Redis, defaults to 'offline' if not found
-      status:
-        (onlineUsersHash[m.userId] as 'online' | 'offline' | 'away' | 'busy') ||
-        'offline',
-      invitedBy: m.invitedBy ?? undefined,
-    }));
+    return {
+      members: members.map((m) => ({
+        ...m,
+        // Status is ONLY from Redis, defaults to 'offline' if not found
+        status:
+          (onlineUsersHash[m.userId] as
+            | 'online'
+            | 'offline'
+            | 'away'
+            | 'busy') || 'offline',
+        invitedBy: m.invitedBy ?? undefined,
+      })),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    };
   }
 
   async isWorkspaceMember(tenantId: string, userId: string): Promise<boolean> {

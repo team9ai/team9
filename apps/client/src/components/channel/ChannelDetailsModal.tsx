@@ -22,6 +22,7 @@ import {
   useUpdateChannel,
 } from "@/hooks/useChannels";
 import { DeleteChannelDialog } from "@/components/dialog/DeleteChannelDialog";
+import { AddMemberDialog } from "./AddMemberDialog";
 import { useUser } from "@/stores";
 import type { MemberRole } from "@/types/im";
 
@@ -57,6 +58,7 @@ export function ChannelDetailsModal({
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showAddMemberDialog, setShowAddMemberDialog] = useState(false);
   const [memberSearch, setMemberSearch] = useState("");
 
   const isAdmin = currentUserRole === "owner" || currentUserRole === "admin";
@@ -245,7 +247,10 @@ export function ChannelDetailsModal({
 
                   {/* Add Member Button */}
                   {isAdmin && (
-                    <button className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-slate-50 transition-colors">
+                    <button
+                      onClick={() => setShowAddMemberDialog(true)}
+                      className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-slate-50 transition-colors"
+                    >
                       <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center">
                         <UserPlus size={18} className="text-blue-600" />
                       </div>
@@ -343,6 +348,13 @@ export function ChannelDetailsModal({
           onDeleted={onClose}
         />
       )}
+
+      {/* Add Member Dialog */}
+      <AddMemberDialog
+        isOpen={showAddMemberDialog}
+        onClose={() => setShowAddMemberDialog(false)}
+        channelId={channelId}
+      />
     </>
   );
 }

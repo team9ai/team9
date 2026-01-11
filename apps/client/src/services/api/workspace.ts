@@ -5,7 +5,8 @@ import type {
   CreateInvitationDto,
   InvitationInfo,
   AcceptInvitationResponse,
-  WorkspaceMember,
+  GetMembersParams,
+  PaginatedMembersResponse,
 } from "@/types/workspace";
 
 export const workspaceApi = {
@@ -15,10 +16,14 @@ export const workspaceApi = {
     return response.data;
   },
 
-  // Get workspace members
-  getMembers: async (workspaceId: string): Promise<WorkspaceMember[]> => {
-    const response = await http.get<WorkspaceMember[]>(
+  // Get workspace members (paginated)
+  getMembers: async (
+    workspaceId: string,
+    params?: GetMembersParams,
+  ): Promise<PaginatedMembersResponse> => {
+    const response = await http.get<PaginatedMembersResponse>(
       `/v1/workspaces/${workspaceId}/members`,
+      { params },
     );
     return response.data;
   },

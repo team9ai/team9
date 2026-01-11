@@ -6,6 +6,7 @@ import type {
   CreateChannelDto,
   UpdateChannelDto,
   DeleteChannelDto,
+  AddMemberDto,
 } from "@/types/im";
 import { useSelectedWorkspaceId } from "@/stores";
 
@@ -224,5 +225,24 @@ export function useChannelMembers(channelId: string | undefined) {
     queryKey: ["channels", channelId, "members"],
     queryFn: () => imApi.channels.getMembers(channelId!),
     enabled: !!channelId,
+  });
+}
+
+/**
+ * Hook to add a member to a channel
+ */
+export function useAddChannelMember(channelId: string) {
+  const queryClient = useQueryClient();
+  const workspaceId = useSelectedWorkspaceId();
+
+  return useMutation({
+    mutationFn: (data: AddMemberDto) =>
+      imApi.channels.addMember(channelId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["channels", channelId, "members"],
+      });
+      queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
+    },
   });
 }
