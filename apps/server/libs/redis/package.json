@@ -14,5 +14,8 @@
   "dependencies": {
     "ioredis": "^5.4.1",
     "@team9/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
   }
 }

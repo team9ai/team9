@@ -436,9 +436,16 @@ importers:
       "@team9/shared":
         specifier: workspace:*
         version: link:../../libs/shared
+      "@team9/storage":
+        specifier: workspace:*
+        version: link:../../libs/storage
       transliteration:
         specifier: ^2.6.0
         version: 2.6.0
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.8.3
 
   apps/server/apps/im-worker:
     dependencies:
@@ -454,6 +461,10 @@ importers:
       "@team9/shared":
         specifier: workspace:*
         version: link:../../libs/shared
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.8.3
 
   apps/server/libs/agent-framework:
     dependencies:
@@ -528,6 +539,10 @@ importers:
       "@team9/database":
         specifier: workspace:*
         version: link:../database
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.8.3
 
   apps/server/libs/auth:
     dependencies:
@@ -546,6 +561,10 @@ importers:
       "@team9/shared":
         specifier: workspace:*
         version: link:../shared
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.8.3
 
   apps/server/libs/database:
     dependencies:
@@ -580,6 +599,10 @@ importers:
       "@team9/shared":
         specifier: workspace:*
         version: link:../shared
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.8.3
 
   apps/server/libs/redis:
     dependencies:
@@ -589,8 +612,16 @@ importers:
       ioredis:
         specifier: ^5.4.1
         version: 5.8.2
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.8.3
 
-  apps/server/libs/shared: {}
+  apps/server/libs/shared:
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.8.3
 
   apps/server/libs/storage:
     dependencies:
@@ -606,6 +637,10 @@ importers:
       "@team9/shared":
         specifier: workspace:*
         version: link:../shared
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.8.3
 
   enterprise/libs/analytics:
     dependencies:
@@ -624,9 +659,6 @@ importers:
       "@nestjs/core":
         specifier: ^11.0.0
         version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      uuid:
-        specifier: ^11.0.0
-        version: 11.1.0
 
   enterprise/libs/license:
     dependencies:
@@ -654,9 +686,6 @@ importers:
       "@nestjs/core":
         specifier: ^11.0.0
         version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      uuid:
-        specifier: ^11.0.0
-        version: 11.1.0
 
 packages:
   "@alloc/quick-lru@5.2.0":
@@ -11532,13 +11561,6 @@ packages:
       }
     engines: { node: ">= 0.4.0" }
 
-  uuid@11.1.0:
-    resolution:
-      {
-        integrity: sha512-0/A9rDy9P7cJ+8w1c9WD9V//9Wj15Ce2MPz8Ri6032usz+NfePxx5AcN3bN+r6ZL6jEo066/yNYB3tn4pQEx+A==,
-      }
-    hasBin: true
-
   uuid@13.0.0:
     resolution:
       {
@@ -19804,8 +19826,6 @@ snapshots:
   util-deprecate@1.0.2: {}
 
   utils-merge@1.0.1: {}
-
-  uuid@11.1.0: {}
 
   uuid@13.0.0: {}
 

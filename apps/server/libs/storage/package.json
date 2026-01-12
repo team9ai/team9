@@ -16,5 +16,8 @@
     "@aws-sdk/s3-presigned-post": "^3.958.0",
     "@aws-sdk/s3-request-presigner": "^3.958.0",
     "@team9/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
   }
 }

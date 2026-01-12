@@ -12,5 +12,8 @@
   "scripts": {
     "build": "tsc"
   },
-  "dependencies": {}
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
 }

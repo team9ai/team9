@@ -1,5 +1,0 @@
-packages:
-  - 'apps/*'
-  - 'libs/*'
-  # Enterprise modules (optional - loaded via git submodule)
-  - '../../enterprise/libs/*'

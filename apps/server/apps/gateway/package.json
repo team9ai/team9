@@ -23,5 +23,8 @@
     "@team9/shared": "workspace:*",
     "@team9/storage": "workspace:*",
     "transliteration": "^2.6.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
   }
 }

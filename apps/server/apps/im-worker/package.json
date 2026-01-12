@@ -18,5 +18,8 @@
     "@team9/rabbitmq": "workspace:*",
     "@team9/redis": "workspace:*",
     "@team9/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
   }
 }

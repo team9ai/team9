@@ -12,7 +12,10 @@ RUN apk add --no-cache libc6-compat
 FROM base AS deps
 WORKDIR /app
 
-# Copy workspace config
+# 构建阶段需要 devDependencies (typescript 等)
+ENV NODE_ENV=development
+
+# Copy workspace config (单一 workspace)
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 
 # Copy all package.json files for workspace resolution
@@ -34,18 +37,18 @@ RUN pnpm install --frozen-lockfile
 # ============================================
 # Stage: Builder
 # ============================================
-FROM base AS builder
+FROM deps AS builder
 WORKDIR /app
 
-# Copy dependencies
-COPY --from=deps /app ./
-
-# Copy source code
+# Copy source code and tsconfig files
 COPY apps/server ./apps/server
 
-# Build all packages
-WORKDIR /app/apps/server
-RUN pnpm build
+# Re-run install to recreate symlinks after copying source
+RUN pnpm install --frozen-lockfile
+
+# Clean tsbuildinfo files to force fresh build, then build
+RUN find apps/server -name "*.tsbuildinfo" -delete && \
+    pnpm --filter '@team9/*' --filter '!@team9/server' build
 
 # ============================================
 # Stage: Runner
@@ -60,7 +63,6 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 # Copy node_modules
 COPY --from=deps --chown=nestjs:nodejs /app/node_modules ./node_modules
-COPY --from=deps --chown=nestjs:nodejs /app/apps/server/node_modules ./apps/server/node_modules
 
 # Copy built artifacts
 COPY --from=builder --chown=nestjs:nodejs /app/apps/server/apps/gateway/dist ./apps/server/apps/gateway/dist
