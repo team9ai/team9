@@ -1,5 +1,6 @@
 # ============================================
-# Team9 IM Worker Service
+# Team9 IM Worker Service (TypeScript Runtime)
+# 使用 tsx 直接运行 TypeScript，无需预编译
 # ============================================
 
 FROM node:20-alpine AS base
@@ -32,21 +33,9 @@ COPY apps/server/libs/agent-runtime/package.json ./apps/server/libs/agent-runtim
 RUN pnpm install --frozen-lockfile
 
 # ============================================
-# Stage: Builder
+# Stage: Runner (直接运行 TypeScript)
 # ============================================
-FROM base AS builder
-WORKDIR /app
-
-COPY --from=deps /app ./
-COPY apps/server ./apps/server
-
-WORKDIR /app/apps/server
-RUN pnpm build
-
-# ============================================
-# Stage: Runner
-# ============================================
-FROM node:20-alpine AS runner
+FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -54,15 +43,33 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nestjs
 
-# Copy built application
-COPY --from=builder --chown=nestjs:nodejs /app/apps/server/apps/im-worker/dist ./dist
-COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs ./libs
-COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nestjs:nodejs /app/apps/server/node_modules ./server_modules
+# Copy node_modules from deps
+COPY --from=deps --chown=nestjs:nodejs /app/node_modules ./node_modules
+COPY --from=deps --chown=nestjs:nodejs /app/apps/server/node_modules ./apps/server/node_modules
+COPY --from=deps --chown=nestjs:nodejs /app/apps/server/apps/im-worker/node_modules ./apps/server/apps/im-worker/node_modules
+
+# Copy libs node_modules
+COPY --from=deps --chown=nestjs:nodejs /app/apps/server/libs/auth/node_modules ./apps/server/libs/auth/node_modules
+COPY --from=deps --chown=nestjs:nodejs /app/apps/server/libs/database/node_modules ./apps/server/libs/database/node_modules
+COPY --from=deps --chown=nestjs:nodejs /app/apps/server/libs/shared/node_modules ./apps/server/libs/shared/node_modules
+COPY --from=deps --chown=nestjs:nodejs /app/apps/server/libs/redis/node_modules ./apps/server/libs/redis/node_modules
+COPY --from=deps --chown=nestjs:nodejs /app/apps/server/libs/rabbitmq/node_modules ./apps/server/libs/rabbitmq/node_modules
+COPY --from=deps --chown=nestjs:nodejs /app/apps/server/libs/ai-client/node_modules ./apps/server/libs/ai-client/node_modules
+COPY --from=deps --chown=nestjs:nodejs /app/apps/server/libs/storage/node_modules ./apps/server/libs/storage/node_modules
+
+# Copy source code and configs
+COPY --chown=nestjs:nodejs apps/server/tsconfig.json ./apps/server/
+COPY --chown=nestjs:nodejs apps/server/libs ./apps/server/libs
+COPY --chown=nestjs:nodejs apps/server/apps/im-worker ./apps/server/apps/im-worker
+
+# Copy workspace config files needed for module resolution
+COPY --chown=nestjs:nodejs pnpm-workspace.yaml package.json ./
 
 USER nestjs
 
-# IM Worker uses gRPC, no HTTP port exposed by default
-# Port can be configured via environment variable if needed
+WORKDIR /app/apps/server/apps/im-worker
 
-CMD ["node", "dist/main.js"]
+EXPOSE 3001
+
+# Run TypeScript directly with tsx
+CMD ["npx", "tsx", "src/main.ts"]
