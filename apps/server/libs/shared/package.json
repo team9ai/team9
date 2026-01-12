@@ -9,5 +9,8 @@
     ".": "./src/index.ts",
     "./interfaces": "./src/interfaces/index.ts"
   },
+  "scripts": {
+    "build": "tsc"
+  },
   "dependencies": {}
 }

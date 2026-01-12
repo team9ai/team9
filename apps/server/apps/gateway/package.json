@@ -21,6 +21,7 @@
     "@team9/rabbitmq": "workspace:*",
     "@team9/redis": "workspace:*",
     "@team9/shared": "workspace:*",
+    "@team9/storage": "workspace:*",
     "transliteration": "^2.6.0"
   }
 }

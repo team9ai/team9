@@ -1,6 +1,5 @@
 # ============================================
-# Team9 IM Worker Service (TypeScript Runtime)
-# 使用 tsx 直接运行 TypeScript，无需预编译
+# Team9 IM Worker Service (预编译版本)
 # ============================================
 
 FROM node:20-alpine AS base
@@ -33,9 +32,25 @@ COPY apps/server/libs/agent-runtime/package.json ./apps/server/libs/agent-runtim
 RUN pnpm install --frozen-lockfile
 
 # ============================================
-# Stage: Runner (直接运行 TypeScript)
+# Stage: Builder
 # ============================================
-FROM base AS runner
+FROM base AS builder
+WORKDIR /app
+
+# Copy dependencies
+COPY --from=deps /app ./
+
+# Copy source code
+COPY apps/server ./apps/server
+
+# Build all packages
+WORKDIR /app/apps/server
+RUN pnpm build
+
+# ============================================
+# Stage: Runner
+# ============================================
+FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -43,19 +58,28 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nestjs
 
-# Copy dependencies from deps stage
+# Copy node_modules
 COPY --from=deps --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=deps --chown=nestjs:nodejs /app/apps/server/node_modules ./apps/server/node_modules
-COPY --from=deps --chown=nestjs:nodejs /app/apps/server/apps ./apps/server/apps
-COPY --from=deps --chown=nestjs:nodejs /app/apps/server/libs ./apps/server/libs
 
-# Copy source code and configs (overwrite with actual source)
-COPY --chown=nestjs:nodejs apps/server/tsconfig.json ./apps/server/
-COPY --chown=nestjs:nodejs apps/server/libs ./apps/server/libs
-COPY --chown=nestjs:nodejs apps/server/apps/im-worker ./apps/server/apps/im-worker
+# Copy built artifacts
+COPY --from=builder --chown=nestjs:nodejs /app/apps/server/apps/im-worker/dist ./apps/server/apps/im-worker/dist
+COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/shared/dist ./apps/server/libs/shared/dist
+COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/auth/dist ./apps/server/libs/auth/dist
+COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/database/dist ./apps/server/libs/database/dist
+COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/redis/dist ./apps/server/libs/redis/dist
+COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/rabbitmq/dist ./apps/server/libs/rabbitmq/dist
+COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/ai-client/dist ./apps/server/libs/ai-client/dist
+COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/storage/dist ./apps/server/libs/storage/dist
 
-# Copy workspace config files needed for module resolution
-COPY --chown=nestjs:nodejs pnpm-workspace.yaml package.json ./
+# Copy package.json files (needed for module resolution)
+COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/shared/package.json ./apps/server/libs/shared/
+COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/auth/package.json ./apps/server/libs/auth/
+COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/database/package.json ./apps/server/libs/database/
+COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/redis/package.json ./apps/server/libs/redis/
+COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/rabbitmq/package.json ./apps/server/libs/rabbitmq/
+COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/ai-client/package.json ./apps/server/libs/ai-client/
+COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/storage/package.json ./apps/server/libs/storage/
 
 USER nestjs
 
@@ -63,4 +87,4 @@ WORKDIR /app/apps/server/apps/im-worker
 
 EXPOSE 3001
 
-CMD ["npx", "tsx", "src/main.ts"]
+CMD ["node", "dist/main.js"]
