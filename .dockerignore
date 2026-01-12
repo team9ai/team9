@@ -1,0 +1,54 @@
+# Dependencies (will be installed in Docker)
+node_modules
+**/node_modules
+
+# Build outputs
+dist
+**/dist
+.next
+.nuxt
+
+# Development files
+.env
+.env.*
+!.env.example
+
+# IDE & Editor
+.idea
+.vscode
+*.swp
+*.swo
+.*.sw?
+
+# OS files
+.DS_Store
+Thumbs.db
+*.log
+
+# Test & Coverage
+coverage
+**/*.spec.ts
+**/*.test.ts
+**/__tests__
+
+# Git
+.git
+.gitignore
+.gitmodules
+
+# Documentation (not needed in image)
+*.md
+docs
+
+# Tauri (desktop only, not for web deploy)
+apps/client/src-tauri
+
+# Misc
+.husky
+.eslintrc*
+.prettierrc*
+jest.config.*
+*.tsbuildinfo
+
+# Enterprise submodule (if not needed)
+# enterprise

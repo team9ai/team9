@@ -1,20 +1,21 @@
 # ============================================
-# Team9 IM Worker Service Dockerfile
+# Team9 Gateway Service
 # ============================================
 
-# Stage 1: Base image with pnpm
 FROM node:20-alpine AS base
 RUN corepack enable && corepack prepare pnpm@latest --activate
 RUN apk add --no-cache libc6-compat
 
-# Stage 2: Install dependencies
+# ============================================
+# Stage: Dependencies
+# ============================================
 FROM base AS deps
 WORKDIR /app
 
-# Copy workspace configuration files
+# Copy workspace config
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 
-# Copy all package.json files to preserve workspace structure
+# Copy all package.json files for workspace resolution
 COPY apps/server/package.json ./apps/server/
 COPY apps/server/apps/gateway/package.json ./apps/server/apps/gateway/
 COPY apps/server/apps/im-worker/package.json ./apps/server/apps/im-worker/
@@ -28,49 +29,39 @@ COPY apps/server/libs/storage/package.json ./apps/server/libs/storage/
 COPY apps/server/libs/agent-framework/package.json ./apps/server/libs/agent-framework/
 COPY apps/server/libs/agent-runtime/package.json ./apps/server/libs/agent-runtime/
 
-# Install all dependencies
 RUN pnpm install --frozen-lockfile
 
-# Stage 3: Build the application
+# ============================================
+# Stage: Builder
+# ============================================
 FROM base AS builder
 WORKDIR /app
 
-# Copy dependencies from deps stage
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/server/node_modules ./apps/server/node_modules
-COPY --from=deps /app/apps/server/apps/gateway/node_modules ./apps/server/apps/gateway/node_modules
-COPY --from=deps /app/apps/server/apps/im-worker/node_modules ./apps/server/apps/im-worker/node_modules
-COPY --from=deps /app/apps/server/libs ./apps/server/libs
-
-# Copy source code
+COPY --from=deps /app ./
 COPY apps/server ./apps/server
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 
-# Build all libs and im-worker
 WORKDIR /app/apps/server
 RUN pnpm build
 
-# Stage 4: Production image
+# ============================================
+# Stage: Runner
+# ============================================
 FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Create non-root user for security
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nestjs
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nestjs
 
-# Copy built artifacts
-COPY --from=builder --chown=nestjs:nodejs /app/apps/server/apps/im-worker/dist ./apps/server/apps/im-worker/dist
-COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs ./apps/server/libs
-COPY --from=builder --chown=nestjs:nodejs /app/apps/server/node_modules ./apps/server/node_modules
+# Copy built application
+COPY --from=builder --chown=nestjs:nodejs /app/apps/server/apps/gateway/dist ./dist
+COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs ./libs
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nestjs:nodejs /app/apps/server/package.json ./apps/server/
+COPY --from=builder --chown=nestjs:nodejs /app/apps/server/node_modules ./server_modules
 
 USER nestjs
 
-EXPOSE 3001
-
-WORKDIR /app/apps/server/apps/im-worker
+EXPOSE 3000
 
 CMD ["node", "dist/main.js"]
