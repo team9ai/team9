@@ -1,0 +1,76 @@
+# ============================================
+# Team9 Gateway Service Dockerfile
+# ============================================
+
+# Stage 1: Base image with pnpm
+FROM node:20-alpine AS base
+RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN apk add --no-cache libc6-compat
+
+# Stage 2: Install dependencies
+FROM base AS deps
+WORKDIR /app
+
+# Copy workspace configuration files
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+
+# Copy all package.json files to preserve workspace structure
+COPY apps/server/package.json ./apps/server/
+COPY apps/server/apps/gateway/package.json ./apps/server/apps/gateway/
+COPY apps/server/apps/im-worker/package.json ./apps/server/apps/im-worker/
+COPY apps/server/libs/auth/package.json ./apps/server/libs/auth/
+COPY apps/server/libs/database/package.json ./apps/server/libs/database/
+COPY apps/server/libs/shared/package.json ./apps/server/libs/shared/
+COPY apps/server/libs/redis/package.json ./apps/server/libs/redis/
+COPY apps/server/libs/rabbitmq/package.json ./apps/server/libs/rabbitmq/
+COPY apps/server/libs/ai-client/package.json ./apps/server/libs/ai-client/
+COPY apps/server/libs/storage/package.json ./apps/server/libs/storage/
+COPY apps/server/libs/agent-framework/package.json ./apps/server/libs/agent-framework/
+COPY apps/server/libs/agent-runtime/package.json ./apps/server/libs/agent-runtime/
+
+# Install all dependencies
+RUN pnpm install --frozen-lockfile
+
+# Stage 3: Build the application
+FROM base AS builder
+WORKDIR /app
+
+# Copy dependencies from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/server/node_modules ./apps/server/node_modules
+COPY --from=deps /app/apps/server/apps/gateway/node_modules ./apps/server/apps/gateway/node_modules
+COPY --from=deps /app/apps/server/apps/im-worker/node_modules ./apps/server/apps/im-worker/node_modules
+COPY --from=deps /app/apps/server/libs ./apps/server/libs
+
+# Copy source code
+COPY apps/server ./apps/server
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+
+# Build all libs and gateway
+WORKDIR /app/apps/server
+RUN pnpm build
+
+# Stage 4: Production image
+FROM node:20-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Create non-root user for security
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nestjs
+
+# Copy built artifacts
+COPY --from=builder --chown=nestjs:nodejs /app/apps/server/apps/gateway/dist ./apps/server/apps/gateway/dist
+COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs ./apps/server/libs
+COPY --from=builder --chown=nestjs:nodejs /app/apps/server/node_modules ./apps/server/node_modules
+COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nestjs:nodejs /app/apps/server/package.json ./apps/server/
+
+USER nestjs
+
+EXPOSE 3000
+
+WORKDIR /app/apps/server/apps/gateway
+
+CMD ["node", "dist/main.js"]
