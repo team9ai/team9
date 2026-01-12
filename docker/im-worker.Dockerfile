@@ -43,21 +43,13 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nestjs
 
-# Copy node_modules from deps
+# Copy dependencies from deps stage
 COPY --from=deps --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=deps --chown=nestjs:nodejs /app/apps/server/node_modules ./apps/server/node_modules
-COPY --from=deps --chown=nestjs:nodejs /app/apps/server/apps/im-worker/node_modules ./apps/server/apps/im-worker/node_modules
+COPY --from=deps --chown=nestjs:nodejs /app/apps/server/apps ./apps/server/apps
+COPY --from=deps --chown=nestjs:nodejs /app/apps/server/libs ./apps/server/libs
 
-# Copy libs node_modules
-COPY --from=deps --chown=nestjs:nodejs /app/apps/server/libs/auth/node_modules ./apps/server/libs/auth/node_modules
-COPY --from=deps --chown=nestjs:nodejs /app/apps/server/libs/database/node_modules ./apps/server/libs/database/node_modules
-COPY --from=deps --chown=nestjs:nodejs /app/apps/server/libs/shared/node_modules ./apps/server/libs/shared/node_modules
-COPY --from=deps --chown=nestjs:nodejs /app/apps/server/libs/redis/node_modules ./apps/server/libs/redis/node_modules
-COPY --from=deps --chown=nestjs:nodejs /app/apps/server/libs/rabbitmq/node_modules ./apps/server/libs/rabbitmq/node_modules
-COPY --from=deps --chown=nestjs:nodejs /app/apps/server/libs/ai-client/node_modules ./apps/server/libs/ai-client/node_modules
-COPY --from=deps --chown=nestjs:nodejs /app/apps/server/libs/storage/node_modules ./apps/server/libs/storage/node_modules
-
-# Copy source code and configs
+# Copy source code and configs (overwrite with actual source)
 COPY --chown=nestjs:nodejs apps/server/tsconfig.json ./apps/server/
 COPY --chown=nestjs:nodejs apps/server/libs ./apps/server/libs
 COPY --chown=nestjs:nodejs apps/server/apps/im-worker ./apps/server/apps/im-worker
@@ -71,5 +63,4 @@ WORKDIR /app/apps/server/apps/im-worker
 
 EXPOSE 3001
 
-# Run TypeScript directly with tsx
 CMD ["npx", "tsx", "src/main.ts"]
