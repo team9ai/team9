@@ -522,6 +522,12 @@ importers:
 
   apps/server/apps/im-worker:
     dependencies:
+      "@grpc/grpc-js":
+        specifier: ^1.12.0
+        version: 1.14.3
+      "@grpc/proto-loader":
+        specifier: ^0.7.13
+        version: 0.7.15
       "@nestjs/common":
         specifier: ^11.0.1
         version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -552,6 +558,9 @@ importers:
       rxjs:
         specifier: ^7.8.1
         version: 7.8.2
+      uuid:
+        specifier: ^13.0.0
+        version: 13.0.0
     devDependencies:
       typescript:
         specifier: ^5.7.3
