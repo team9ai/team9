@@ -17,7 +17,13 @@
     "@team9/database": "workspace:*",
     "@team9/rabbitmq": "workspace:*",
     "@team9/redis": "workspace:*",
-    "@team9/shared": "workspace:*"
+    "@team9/shared": "workspace:*",
+    "@nestjs/common": "^11.0.1",
+    "@nestjs/config": "^4.0.2",
+    "@nestjs/core": "^11.0.1",
+    "@nestjs/microservices": "^11.0.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
   },
   "devDependencies": {
     "typescript": "^5.7.3"

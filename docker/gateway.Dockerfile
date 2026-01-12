@@ -1,5 +1,5 @@
 # ============================================
-# Team9 Gateway Service (预编译版本)
+# Team9 Gateway Service
 # ============================================
 
 FROM node:20-alpine AS base
@@ -12,11 +12,10 @@ RUN apk add --no-cache libc6-compat
 FROM base AS deps
 WORKDIR /app
 
-# 构建阶段需要 devDependencies (typescript 等)
 ENV NODE_ENV=development
 
-# Copy workspace config (单一 workspace)
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+# Copy workspace config
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc ./
 
 # Copy all package.json files for workspace resolution
 COPY apps/server/package.json ./apps/server/
@@ -32,7 +31,7 @@ COPY apps/server/libs/storage/package.json ./apps/server/libs/storage/
 COPY apps/server/libs/agent-framework/package.json ./apps/server/libs/agent-framework/
 COPY apps/server/libs/agent-runtime/package.json ./apps/server/libs/agent-runtime/
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 # ============================================
 # Stage: Builder
@@ -40,15 +39,18 @@ RUN pnpm install --frozen-lockfile
 FROM deps AS builder
 WORKDIR /app
 
-# Copy source code and tsconfig files
+# Copy source code
 COPY apps/server ./apps/server
 
-# Re-run install to recreate symlinks after copying source
-RUN pnpm install --frozen-lockfile
+# Reinstall to create symlinks, ignore scripts to avoid husky
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
-# Clean tsbuildinfo files to force fresh build, then build
+# Clean tsbuildinfo and build
 RUN find apps/server -name "*.tsbuildinfo" -delete && \
     pnpm --filter '@team9/*' --filter '!@team9/server' build
+
+# Use pnpm deploy to create a standalone deployment
+RUN pnpm --filter @team9/gateway deploy --prod /app/deploy
 
 # ============================================
 # Stage: Runner
@@ -61,31 +63,10 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nestjs
 
-# Copy node_modules
-COPY --from=deps --chown=nestjs:nodejs /app/node_modules ./node_modules
-
-# Copy built artifacts
-COPY --from=builder --chown=nestjs:nodejs /app/apps/server/apps/gateway/dist ./apps/server/apps/gateway/dist
-COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/shared/dist ./apps/server/libs/shared/dist
-COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/auth/dist ./apps/server/libs/auth/dist
-COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/database/dist ./apps/server/libs/database/dist
-COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/redis/dist ./apps/server/libs/redis/dist
-COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/rabbitmq/dist ./apps/server/libs/rabbitmq/dist
-COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/ai-client/dist ./apps/server/libs/ai-client/dist
-COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/storage/dist ./apps/server/libs/storage/dist
-
-# Copy package.json files (needed for module resolution)
-COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/shared/package.json ./apps/server/libs/shared/
-COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/auth/package.json ./apps/server/libs/auth/
-COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/database/package.json ./apps/server/libs/database/
-COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/redis/package.json ./apps/server/libs/redis/
-COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/rabbitmq/package.json ./apps/server/libs/rabbitmq/
-COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/ai-client/package.json ./apps/server/libs/ai-client/
-COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/storage/package.json ./apps/server/libs/storage/
+# Copy deployed app (pnpm deploy now includes workspace packages with dist)
+COPY --from=builder --chown=nestjs:nodejs /app/deploy ./
 
 USER nestjs
-
-WORKDIR /app/apps/server/apps/gateway
 
 EXPOSE 3000
 
