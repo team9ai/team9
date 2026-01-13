@@ -18,7 +18,8 @@ async function bootstrap() {
     options: {
       package: 'message',
       protoPath: MESSAGE_SERVICE_PROTO_PATH,
-      url: `0.0.0.0:${grpcPort}`,
+      // Use [::] to listen on both IPv4 and IPv6 (Railway uses IPv6 internal network)
+      url: `[::]:${grpcPort}`,
       loader: {
         keepCase: true, // Keep snake_case from proto
         longs: String, // Convert int64 to string
