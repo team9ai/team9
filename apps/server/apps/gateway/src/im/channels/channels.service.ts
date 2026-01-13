@@ -576,15 +576,14 @@ export class ChannelsService {
   }
 
   /**
-   * Normalize channel name (Slack-style rules)
+   * Normalize channel name (supports Unicode)
    */
   static normalizeChannelName(name: string): string {
     return name
-      .toLowerCase()
-      .replace(/\s+/g, '-')
-      .replace(/[^a-z0-9-_]/g, '')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
+      .trim()
+      .replace(/\s+/g, '-') // Replace spaces with hyphens
+      .replace(/-+/g, '-') // Collapse multiple hyphens
+      .replace(/^-|-$/g, '') // Remove leading/trailing hyphens
       .substring(0, 80);
   }
 
@@ -604,11 +603,12 @@ export class ChannelsService {
         error: 'Channel name must be 80 characters or less',
       };
     }
-    if (!/^[a-z0-9][a-z0-9-_]*$/.test(name)) {
+    // Allow Unicode letters, numbers, hyphens, and underscores
+    // Must start with a letter or number (Unicode-aware)
+    if (!/^[\p{L}\p{N}][\p{L}\p{N}\-_]*$/u.test(name)) {
       return {
         valid: false,
-        error:
-          'Channel name can only contain lowercase letters, numbers, hyphens, and underscores',
+        error: 'Channel name must start with a letter or number',
       };
     }
     return { valid: true };

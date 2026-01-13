@@ -22,11 +22,10 @@ interface CreateChannelDialogProps {
 
 function normalizeChannelName(name: string): string {
   return name
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-_]/g, "")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
+    .trim()
+    .replace(/\s+/g, "-") // Replace spaces with hyphens
+    .replace(/-+/g, "-") // Collapse multiple hyphens
+    .replace(/^-|-$/g, "") // Remove leading/trailing hyphens
     .substring(0, 80);
 }
 
@@ -40,11 +39,12 @@ function validateChannelName(name: string): { valid: boolean; error?: string } {
       error: "Channel name must be 80 characters or less",
     };
   }
-  if (!/^[a-z0-9][a-z0-9-_]*$/.test(name)) {
+  // Allow Unicode letters, numbers, hyphens, and underscores
+  // Must start with a letter or number (Unicode-aware)
+  if (!/^[\p{L}\p{N}][\p{L}\p{N}\-_]*$/u.test(name)) {
     return {
       valid: false,
-      error:
-        "Must start with letter or number, and only contain lowercase letters, numbers, hyphens, and underscores",
+      error: "Must start with a letter or number",
     };
   }
   return { valid: true };
