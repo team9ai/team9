@@ -95,16 +95,17 @@ export const env = {
 
   // S3/MinIO Storage
   get S3_ENDPOINT() {
-    return getRequiredEnv('S3_ENDPOINT');
+    // return getRequiredEnv('S3_ENDPOINT');
+    return process.env.S3_ENDPOINT || undefined;
   },
   get S3_REGION() {
     return getRequiredEnv('S3_REGION');
   },
   get S3_ACCESS_KEY() {
-    return process.env.S3_ACCESS_KEY || getRequiredEnv('MINIO_ROOT_USER');
+    return getRequiredEnv('S3_ACCESS_KEY');
   },
   get S3_SECRET_KEY() {
-    return process.env.S3_SECRET_KEY || getRequiredEnv('MINIO_ROOT_PASSWORD');
+    return getRequiredEnv('S3_SECRET_ACCESS_KEY');
   },
   get S3_FORCE_PATH_STYLE() {
     return process.env.S3_FORCE_PATH_STYLE === 'true';
