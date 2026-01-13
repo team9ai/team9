@@ -1,0 +1,28 @@
+:{$PORT:80} {
+    root * /srv
+
+    # Enable gzip compression
+    encode gzip
+
+    # SPA client-side routing support
+    try_files {path} /index.html
+
+    file_server
+
+    # Health check endpoint
+    handle /health {
+        respond "OK" 200
+    }
+
+    # Cache static assets
+    @static {
+        path *.js *.css *.woff2 *.png *.jpg *.svg *.ico
+    }
+    header @static Cache-Control "public, max-age=31536000, immutable"
+
+    # Don't cache HTML
+    @html {
+        path *.html /
+    }
+    header @html Cache-Control "no-cache, no-store, must-revalidate"
+}
