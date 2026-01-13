@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/main.js",
+    "db:migrate": "pnpm --filter @team9/database db:migrate",
     "start:dev": "node --loader @swc-node/register/esm --watch src/main.ts",
     "start:debug": "node --inspect --loader @swc-node/register/esm src/main.ts",
     "start:prod": "node dist/main.js",
