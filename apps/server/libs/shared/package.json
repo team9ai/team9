@@ -16,7 +16,7 @@
     }
   },
   "scripts": {
-    "build": "tsc"
+    "build": "tsc && mkdir -p dist/proto && cp src/proto/*.proto dist/proto/"
   },
   "dependencies": {},
   "devDependencies": {
