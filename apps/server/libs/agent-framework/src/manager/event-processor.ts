@@ -2,53 +2,19 @@ import { MemoryThread } from '../types/thread.types.js';
 import { MemoryState, StateProvenance } from '../types/state.types.js';
 import { MemoryChunk } from '../types/chunk.types.js';
 import {
-  AgentEvent,
+  type BaseEvent,
   EventType,
   EventDispatchStrategy,
   LLMResponseRequirement,
-  getDefaultDispatchStrategy,
 } from '../types/event.types.js';
 import { ReducerRegistry, ReducerResult } from '../reducer/reducer.types.js';
 import type { ObserverManager } from '../observer/observer.types.js';
 import type { CompactionManager } from './compaction.manager.js';
-import type { ExecutionModeController } from './execution-mode.controller.js';
 import { generateId, IdPrefix, generateStepId } from '../utils/id.utils.js';
-import type { Step } from './memory-manager.interface.js';
-
-/**
- * Interface for runtime coordination operations needed by EventProcessor
- * AgentOrchestrator implements this interface
- */
-export interface IRuntimeCoordinator {
-  // State operations
-  getCurrentState(threadId: string): Promise<Readonly<MemoryState> | null>;
-  getThread(threadId: string): Promise<Readonly<MemoryThread> | null>;
-
-  // State transitions
-  applyReducerResultWithProvenance(
-    threadId: string,
-    reducerResult: ReducerResult,
-    provenance: StateProvenance,
-    llmResponseRequirement: LLMResponseRequirement,
-  ): Promise<{
-    thread: Readonly<MemoryThread>;
-    state: Readonly<MemoryState>;
-    addedChunks: MemoryChunk[];
-    removedChunkIds: string[];
-  }>;
-
-  // Step operations
-  getCurrentStepId(threadId: string): Promise<string | null>;
-  createStep(
-    threadId: string,
-    stepId: string,
-    triggerEvent: { eventId?: string; type: string; timestamp: number },
-    previousStateId?: string,
-    eventPayload?: AgentEvent,
-  ): Promise<Step>;
-  completeStep(stepId: string, resultStateId: string): Promise<void>;
-  failStep(stepId: string, error: string): Promise<void>;
-}
+import type { IMemoryManager } from './memory-manager.interface.js';
+import type { IStateTransitionManager } from './state-transition.manager.js';
+import type { StepLockManager } from './step-lock.manager.js';
+import type { StepLifecycleManager } from './step-lifecycle.manager.js';
 
 /**
  * Result of dispatching an event
@@ -81,22 +47,39 @@ export interface DispatchResult {
 /**
  * Options for event processing
  */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface ProcessEventOptions {
-  /** Whether this is stepping mode (doesn't trigger auto-compaction immediately) */
-  steppingMode?: boolean;
+  // Reserved for future use
+}
+
+/**
+ * Result of compaction check
+ */
+export enum CompactionCheckResult {
+  /** Hard threshold exceeded, must compact before processing */
+  FORCE = 'force',
+  /** Soft threshold exceeded, compaction recommended */
+  SUGGESTION = 'suggestion',
+  /** No compaction needed */
+  NO = 'no',
 }
 
 /**
  * EventProcessor handles the core event processing logic
  * Extracted from MemoryManager for better separation of concerns
+ *
+ * Note: Compaction is now checked BEFORE processing events by the caller (EventDispatcher/AgentOrchestrator).
+ * This ensures we don't add more tokens when already over the hard threshold.
  */
 export class EventProcessor {
   constructor(
-    private coordinator: IRuntimeCoordinator,
+    private memoryManager: IMemoryManager,
+    private stateTransitionManager: IStateTransitionManager,
+    private stepLockManager: StepLockManager,
+    private stepLifecycleManager: StepLifecycleManager,
     private reducerRegistry: ReducerRegistry,
     private observerManager: ObserverManager,
     private compactionManager: CompactionManager,
-    private executionModeController: ExecutionModeController,
   ) {}
 
   /**
@@ -116,10 +99,9 @@ export class EventProcessor {
    */
   async processEvent(
     threadId: string,
-    event: AgentEvent,
-    options: ProcessEventOptions = {},
+    event: BaseEvent,
+    _options: ProcessEventOptions = {},
   ): Promise<DispatchResult> {
-    const { steppingMode = false } = options;
     const startTime = Date.now();
 
     // Generate a unique event ID for provenance tracking
@@ -128,17 +110,18 @@ export class EventProcessor {
     // Get step ID for provenance tracking
     // In stepping mode, use the current step lock ID
     // In auto mode, generate a new step ID for each event processing
-    const existingStepId = await this.coordinator.getCurrentStepId(threadId);
+    const existingStepId =
+      await this.stepLockManager.getCurrentStepId(threadId);
     const stepId = existingStepId ?? generateStepId();
 
     // Step 1: Get current state (fetch latest state)
-    const currentState = await this.coordinator.getCurrentState(threadId);
+    const currentState = await this.memoryManager.getCurrentState(threadId);
     if (!currentState) {
       throw new Error(`Current state not found for thread: ${threadId}`);
     }
 
     // Create and save the step record at the start (includes full event payload for debugging)
-    await this.coordinator.createStep(
+    await this.stepLifecycleManager.createStep(
       threadId,
       stepId,
       {
@@ -152,14 +135,17 @@ export class EventProcessor {
 
     try {
       // Determine dispatch strategy for this event
+      // Default to QUEUE if not specified on the event
       const dispatchStrategy =
-        event.dispatchStrategy ?? getDefaultDispatchStrategy(event.type);
+        event.dispatchStrategy ?? EventDispatchStrategy.QUEUE;
 
       // Check if this is an interrupt-type event (should cancel current LLM generation)
-      const shouldInterrupt = dispatchStrategy === 'interrupt';
+      const shouldInterrupt =
+        dispatchStrategy === EventDispatchStrategy.INTERRUPT;
 
       // Check if this is a terminate-type event (should end event loop)
-      const shouldTerminate = dispatchStrategy === 'terminate';
+      const shouldTerminate =
+        dispatchStrategy === EventDispatchStrategy.TERMINATE;
 
       // Notify observers of event dispatch
       this.observerManager.notifyEventDispatch({
@@ -178,7 +164,7 @@ export class EventProcessor {
       // If no operations, return current state unchanged (with strategy flags)
       if (reducerResult.operations.length === 0) {
         // Complete step with current state (no change)
-        await this.coordinator.completeStep(stepId, currentState.id);
+        await this.stepLifecycleManager.completeStep(stepId, currentState.id);
 
         const noOpResult = await this.createNoOpResult(threadId, currentState);
         return {
@@ -198,7 +184,6 @@ export class EventProcessor {
         timestamp: startTime,
         context: {
           dispatchStrategy,
-          steppingMode,
           // Include subAgentId for LLM_SUBAGENT_SPAWN events
           ...(event.type === EventType.LLM_SUBAGENT_SPAWN && {
             subAgentId: (event as { subAgentId?: string }).subAgentId,
@@ -212,21 +197,22 @@ export class EventProcessor {
         },
       };
 
-      // Determine LLM response requirement from event (default to 'keep' if not specified)
+      // Determine LLM response requirement from event (default to KEEP if not specified)
       const llmResponseRequirement: LLMResponseRequirement =
-        event.llmResponseRequirement ?? 'keep';
+        event.llmResponseRequirement ?? LLMResponseRequirement.KEEP;
 
-      // Step 4: Apply reducer result through thread manager with provenance (execute operations -> store new state)
+      // Step 4: Apply reducer result through state transition manager with provenance (execute operations -> store new state)
       // The llmResponseRequirement determines whether the new state needs LLM to continue responding
-      const result = await this.coordinator.applyReducerResultWithProvenance(
-        threadId,
-        reducerResult,
-        provenance,
-        llmResponseRequirement,
-      );
+      const result =
+        await this.stateTransitionManager.applyReducerResultWithProvenance(
+          threadId,
+          reducerResult,
+          provenance,
+          llmResponseRequirement,
+        );
 
       // Complete step with the new state
-      await this.coordinator.completeStep(stepId, result.state.id);
+      await this.stepLifecycleManager.completeStep(stepId, result.state.id);
 
       // Notify observers of state change
       this.notifyStateChange(
@@ -241,7 +227,7 @@ export class EventProcessor {
 
       // Notify observers of sub-agent spawn if this is a spawn event
       if (event.type === EventType.LLM_SUBAGENT_SPAWN) {
-        const spawnEvent = event as {
+        const spawnEvent = event as unknown as {
           subAgentId: string;
           agentType: string;
           task: string;
@@ -259,9 +245,6 @@ export class EventProcessor {
         });
       }
 
-      // Handle auto-compaction based on mode
-      this.handleAutoCompaction(threadId, result.state, steppingMode);
-
       // Step 5: Return result with terminate/interrupt flags (is terminate type?)
       return {
         ...result,
@@ -271,7 +254,7 @@ export class EventProcessor {
       };
     } catch (error) {
       // Mark step as failed if an error occurs
-      await this.coordinator.failStep(
+      await this.stepLifecycleManager.failStep(
         stepId,
         error instanceof Error ? error.message : String(error),
       );
@@ -284,7 +267,7 @@ export class EventProcessor {
    */
   private async executeReducer(
     threadId: string,
-    event: AgentEvent,
+    event: BaseEvent,
     currentState: Readonly<MemoryState>,
   ): Promise<ReducerResult> {
     const reducerStartTime = Date.now();
@@ -315,7 +298,7 @@ export class EventProcessor {
     threadId: string,
     currentState: Readonly<MemoryState>,
   ): Promise<DispatchResult> {
-    const thread = await this.coordinator.getThread(threadId);
+    const thread = await this.memoryManager.getThread(threadId);
     if (!thread) {
       throw new Error(`Thread not found: ${threadId}`);
     }
@@ -334,7 +317,7 @@ export class EventProcessor {
     threadId: string,
     previousState: Readonly<MemoryState>,
     newState: Readonly<MemoryState>,
-    triggerEvent: AgentEvent,
+    triggerEvent: BaseEvent,
     reducerResult: ReducerResult,
     addedChunks: MemoryChunk[],
     removedChunkIds: string[],
@@ -352,48 +335,24 @@ export class EventProcessor {
   }
 
   /**
-   * Handle auto-compaction and truncation based on token thresholds
+   * Check if compaction is needed for the current state
+   * Called by EventDispatcher/AgentOrchestrator BEFORE processing events
+   * to ensure we compact first when over the hard threshold
+   *
+   * @param state - The current memory state
+   * @returns 'force' if hard threshold exceeded, 'suggestion' if soft threshold exceeded, 'no' otherwise
    */
-  private handleAutoCompaction(
-    threadId: string,
-    state: Readonly<MemoryState>,
-    steppingMode: boolean,
-  ): void {
+  checkCompactionNeeded(state: Readonly<MemoryState>): CompactionCheckResult {
     const tokenCheck = this.compactionManager.checkTokenUsage(state);
 
-    // Hard threshold (forceCompaction) triggers compaction
     if (tokenCheck.forceCompaction && tokenCheck.chunksToCompact.length > 0) {
-      // Set pending compaction for both stepping and auto modes
-      // In auto mode, MemoryManager will trigger it in the background
-      // In stepping mode, it will be executed on next step
-      this.executionModeController.setPendingCompaction(
-        threadId,
-        tokenCheck.chunksToCompact,
-      );
+      return CompactionCheckResult.FORCE;
     }
 
-    // Set pending truncation if truncation threshold is exceeded
-    if (tokenCheck.needsTruncation && tokenCheck.chunksToTruncate.length > 0) {
-      this.executionModeController.setPendingTruncation(
-        threadId,
-        tokenCheck.chunksToTruncate,
-      );
+    if (tokenCheck.suggestCompaction && tokenCheck.chunksToCompact.length > 0) {
+      return CompactionCheckResult.SUGGESTION;
     }
-  }
 
-  /**
-   * Check if auto-compaction was triggered and consume it
-   * Used by MemoryManager to trigger background compaction in auto mode
-   */
-  consumePendingCompaction(threadId: string): MemoryChunk[] | null {
-    return this.executionModeController.consumePendingCompaction(threadId);
-  }
-
-  /**
-   * Check if truncation was triggered and consume it
-   * Used by MemoryManager to trigger background truncation in auto mode
-   */
-  consumePendingTruncation(threadId: string): string[] | null {
-    return this.executionModeController.consumePendingTruncation(threadId);
+    return CompactionCheckResult.NO;
   }
 }

@@ -17,7 +17,7 @@ import { createAddOperation } from '../../../factories/operation.factory.js';
  * Options for creating a system error chunk
  */
 export interface SystemErrorChunkOptions {
-  componentId: string;
+  componentKey: string;
   code?: string;
   error: string;
   errorDetails?: unknown;
@@ -31,11 +31,11 @@ export interface SystemErrorChunkOptions {
 export function createSystemErrorChunk(
   options: SystemErrorChunkOptions,
 ): MemoryChunk {
-  const { componentId, code, error, errorDetails, eventType, timestamp } =
+  const { componentKey, code, error, errorDetails, eventType, timestamp } =
     options;
 
   return createChunk({
-    componentId,
+    componentKey,
     type: ChunkType.SYSTEM,
     content: {
       type: ChunkContentType.TEXT,

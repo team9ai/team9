@@ -164,7 +164,7 @@ This enables:
 ```typescript
 interface QueuedEvent {
   id: string; // Generated ID with 'qevt_' prefix
-  event: AgentEvent; // The actual event
+  event: BaseEvent; // The actual event
   queuedAt: number; // Timestamp when queued
 }
 ```
@@ -196,7 +196,7 @@ Events are stored in `Thread.eventQueue` and persisted to database:
 ```typescript
 // Push event to queue (returns QueuedEvent with generated ID)
 const queuedEvent = await threadManager.pushEvent(threadId, event);
-// queuedEvent: { id: 'qevt_xxx', event: AgentEvent, queuedAt: number }
+// queuedEvent: { id: 'qevt_xxx', event: BaseEvent, queuedAt: number }
 
 // Pop first event from queue
 const poppedEvent = await threadManager.popEvent(threadId);

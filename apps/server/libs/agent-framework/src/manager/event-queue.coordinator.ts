@@ -1,5 +1,5 @@
 import type { QueuedEvent } from '../types/thread.types.js';
-import type { AgentEvent } from '../types/event.types.js';
+import type { BaseEvent } from '../types/event.types.js';
 import type { IMemoryManager } from './memory-manager.interface.js';
 import type { ObserverManager } from '../observer/observer.types.js';
 import { generateQueuedEventId } from '../utils/id.utils.js';
@@ -29,7 +29,7 @@ export class EventQueueCoordinator {
    */
   async pushEventToQueue(
     threadId: string,
-    event: AgentEvent,
+    event: BaseEvent,
   ): Promise<QueuedEvent> {
     const queuedEvent: QueuedEvent = {
       id: generateQueuedEventId(),

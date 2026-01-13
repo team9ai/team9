@@ -15,8 +15,8 @@ import {
   ChunkContentType,
   ChunkRetentionStrategy,
 } from '../../../types/chunk.types.js';
-import type { AgentEvent, TodoItem } from '../../../types/event.types.js';
-import { EventType } from '../../../types/event.types.js';
+import type { BaseEvent } from '../../../types/event.types.js';
+import { TodoEventType, type TodoItem } from './todo.types.js';
 import type {
   NewComponentType,
   ComponentContext,
@@ -43,13 +43,17 @@ export class TodoComponent extends AbstractComponent {
   readonly name = 'Todo Manager';
   readonly type: NewComponentType = 'pluggable';
 
-  private static readonly HANDLED_EVENTS = new Set([
-    EventType.TODO_SET,
-    EventType.TODO_COMPLETED,
-    EventType.TODO_EXPANDED,
-    EventType.TODO_UPDATED,
-    EventType.TODO_DELETED,
-  ]);
+  /**
+   * Event types this component handles
+   * These events will be routed to this component by the ReducerRegistry
+   */
+  readonly supportedEventTypes = [
+    TodoEventType.TODO_SET,
+    TodoEventType.TODO_COMPLETED,
+    TodoEventType.TODO_EXPANDED,
+    TodoEventType.TODO_UPDATED,
+    TodoEventType.TODO_DELETED,
+  ] as const;
 
   // ============ Lifecycle ============
 
@@ -63,7 +67,7 @@ export class TodoComponent extends AbstractComponent {
   createInitialChunks(_context: ComponentContext): MemoryChunk[] {
     return [
       createChunk({
-        componentId: this.id,
+        componentKey: this.id,
         chunkKey: TODO_CHUNK_KEY,
         type: ChunkType.SYSTEM,
         content: {
@@ -81,27 +85,25 @@ export class TodoComponent extends AbstractComponent {
 
   // ============ Event Handling ============
 
-  getReducersForEvent(event: AgentEvent): ComponentReducerFn[] {
-    if (!TodoComponent.HANDLED_EVENTS.has(event.type)) {
-      return [];
-    }
-
+  protected override getReducersForEventImpl(
+    event: BaseEvent,
+  ): ComponentReducerFn[] {
     switch (event.type) {
-      case EventType.TODO_SET:
+      case TodoEventType.TODO_SET:
         return [(state, evt, ctx) => reduceTodoSet(this.id, state, evt, ctx)];
-      case EventType.TODO_COMPLETED:
+      case TodoEventType.TODO_COMPLETED:
         return [
           (state, evt, ctx) => reduceTodoCompleted(this.id, state, evt, ctx),
         ];
-      case EventType.TODO_EXPANDED:
+      case TodoEventType.TODO_EXPANDED:
         return [
           (state, evt, ctx) => reduceTodoExpanded(this.id, state, evt, ctx),
         ];
-      case EventType.TODO_UPDATED:
+      case TodoEventType.TODO_UPDATED:
         return [
           (state, evt, ctx) => reduceTodoUpdated(this.id, state, evt, ctx),
         ];
-      case EventType.TODO_DELETED:
+      case TodoEventType.TODO_DELETED:
         return [
           (state, evt, ctx) => reduceTodoDeleted(this.id, state, evt, ctx),
         ];
@@ -116,7 +118,7 @@ export class TodoComponent extends AbstractComponent {
     chunk: MemoryChunk,
     _context: ComponentContext,
   ): RenderedFragment[] {
-    if (chunk.componentId !== this.id) {
+    if (chunk.componentKey !== this.id) {
       return [];
     }
 

@@ -1,181 +1,327 @@
 /**
  * Component Renderer
- * Converts Components to Chunks and Tools at runtime
+ * Responsible for rendering chunks to fragments and assembling them into prompts
+ *
+ * Architecture:
+ * - Takes MemoryState and components
+ * - Calls component.renderChunk() to get RenderedFragment[]
+ * - Separates fragments by location (system/flow)
+ * - Sorts fragments by order
+ * - Assembles into system content and flow messages
  */
 
-import type { ComponentConfig, ComponentType } from './component.types.js';
-import {
-  COMPONENT_TO_CHUNK_TYPE,
-  COMPONENT_TO_TOOL_CATEGORY,
-} from './component.types.js';
+import type { MemoryChunk } from '../types/chunk.types.js';
+import type { MemoryState } from '../types/state.types.js';
 import type {
-  MemoryChunk,
-  ChunkContent,
-  CreateChunkInput,
-} from '../types/chunk.types.js';
-import {
-  ChunkType,
-  ChunkContentType,
-  ChunkRetentionStrategy,
-} from '../types/chunk.types.js';
-import type {
-  Tool,
-  CustomToolConfig,
-  ToolCategory,
-} from '../tools/tool.types.js';
-import { createChunk } from '../factories/chunk.factory.js';
+  IComponent,
+  RenderedFragment,
+  ComponentContext,
+  ComponentRuntimeState,
+} from './component.interface.js';
+import type { ContextMessageRole } from '../context/context.types.js';
+import { createComponentContext } from './component-context.js';
 
 /**
- * Result of rendering components
+ * Options for fragment rendering
  */
-export interface ComponentRenderResult {
-  /** Generated memory chunks */
-  chunks: MemoryChunk[];
-  /** Tools extracted from components with proper categories */
-  tools: Tool[];
+export interface FragmentRenderOptions {
+  /** Thread ID for component context */
+  threadId: string;
+  /** Enabled components for this context */
+  components: IComponent[];
+  /** Optional runtime states for components (for ComponentContext creation) */
+  componentRuntimeStates?: Map<string, ComponentRuntimeState>;
+  /** Chunk types to exclude */
+  excludeTypes?: string[];
+  /** Only include specific chunk IDs */
+  includeOnlyChunkIds?: string[];
 }
 
 /**
- * Options for component rendering
+ * A flow message with role, content, and metadata
  */
-export interface ComponentRenderOptions {
-  /** Whether to include empty components (no instructions) */
-  includeEmpty?: boolean;
+export interface FlowMessage {
+  role: ContextMessageRole;
+  content: string;
+  chunkIds: string[];
+  componentKeys: string[];
+}
+
+/**
+ * Result of fragment rendering
+ */
+export interface FragmentRenderResult {
+  /** System prompt content (assembled from system fragments) */
+  systemContent: string;
+  /** System fragments (sorted by order, for debugging) */
+  systemFragments: RenderedFragment[];
+  /** Flow messages (user/assistant conversation) */
+  flowMessages: FlowMessage[];
+  /** Flow fragments (sorted by order, for debugging) */
+  flowFragments: RenderedFragment[];
+  /** Component keys that contributed to the render */
+  contributingComponentKeys: string[];
+  /** All chunk IDs that were rendered */
+  renderedChunkIds: string[];
+}
+
+/**
+ * Internal structure for tracking fragment source
+ */
+interface FragmentWithSource {
+  fragment: RenderedFragment;
+  chunk: MemoryChunk;
+  componentKey: string;
 }
 
 /**
  * Component Renderer
- * Converts component configurations to memory chunks and tools
+ * Renders chunks to fragments and assembles them into prompts
  */
 export class ComponentRenderer {
   /**
-   * Render all components to chunks and tools
+   * Render state to system content and flow messages
    */
   render(
-    components: ComponentConfig[],
-    options: ComponentRenderOptions = {},
-  ): ComponentRenderResult {
-    // TODO: 其实还需要提取subagents
-    const chunks: MemoryChunk[] = [];
-    const tools: Tool[] = [];
+    state: MemoryState,
+    options: FragmentRenderOptions,
+  ): FragmentRenderResult {
+    const {
+      threadId,
+      components,
+      componentRuntimeStates,
+      excludeTypes = [],
+      includeOnlyChunkIds,
+    } = options;
 
+    // Build component map for lookup
+    const componentMap = new Map<string, IComponent>();
     for (const component of components) {
-      const result = this.renderComponent(component, options);
-      if (result.chunk) {
-        chunks.push(result.chunk);
+      componentMap.set(component.id, component);
+    }
+
+    // Collect all fragments from all chunks
+    const allFragments: FragmentWithSource[] = [];
+
+    // Process chunks in state order
+    for (const chunkId of state.chunkIds) {
+      const chunk = state.chunks.get(chunkId);
+      if (!chunk) continue;
+
+      // Apply filters
+      if (includeOnlyChunkIds && !includeOnlyChunkIds.includes(chunkId)) {
+        continue;
       }
-      tools.push(...result.tools);
+      if (excludeTypes.includes(chunk.type)) {
+        continue;
+      }
+
+      // Find the component that owns this chunk
+      const componentKey = chunk.componentKey;
+      if (!componentKey) {
+        // Chunk has no componentKey - skip
+        continue;
+      }
+
+      const component = componentMap.get(componentKey);
+      if (!component) {
+        // Component not enabled - skip this chunk
+        continue;
+      }
+
+      // Get or create component context
+      const context = this.getOrCreateContext(
+        threadId,
+        componentKey,
+        state,
+        componentRuntimeStates,
+      );
+
+      // Render chunk using component
+      const fragments = component.renderChunk(chunk, context);
+      for (const fragment of fragments) {
+        allFragments.push({
+          fragment,
+          chunk,
+          componentKey,
+        });
+      }
     }
 
-    return { chunks, tools };
-  }
+    // Separate fragments by location
+    const systemFragmentSources: FragmentWithSource[] = [];
+    const flowFragmentSources: FragmentWithSource[] = [];
 
-  /**
-   * Render a single component
-   */
-  private renderComponent(
-    component: ComponentConfig,
-    options: ComponentRenderOptions,
-  ): { chunk: MemoryChunk | null; tools: Tool[] } {
-    // Skip components without instructions unless includeEmpty is true
-    if (!component.instructions && !options.includeEmpty) {
-      // Still extract tools even if no instructions
-      const tools = this.extractTools(component);
-      return { chunk: null, tools };
+    for (const source of allFragments) {
+      if (source.fragment.location === 'system') {
+        systemFragmentSources.push(source);
+      } else {
+        flowFragmentSources.push(source);
+      }
     }
 
-    // Create chunk from component
-    const chunk = this.createChunkFromComponent(component);
+    // Sort by order (ascending)
+    const sortByOrder = (a: FragmentWithSource, b: FragmentWithSource) =>
+      (a.fragment.order ?? 500) - (b.fragment.order ?? 500);
 
-    // Extract tools with proper category
-    const tools = this.extractTools(component);
+    systemFragmentSources.sort(sortByOrder);
+    flowFragmentSources.sort(sortByOrder);
 
-    return { chunk, tools };
-  }
+    // Assemble system content
+    const systemParts: string[] = [];
+    for (const { fragment } of systemFragmentSources) {
+      systemParts.push(fragment.content);
+    }
+    const systemContent = systemParts.join('\n\n');
 
-  /**
-   * Create a memory chunk from a component
-   */
-  private createChunkFromComponent(component: ComponentConfig): MemoryChunk {
-    const chunkType = this.getChunkType(component.type);
-    const content = this.createContent(component);
+    // Group flow fragments into messages
+    const flowMessages = this.groupFlowFragments(flowFragmentSources, state);
 
-    const input: CreateChunkInput = {
-      type: chunkType,
-      content,
-      retentionStrategy: this.getRetentionStrategy(component.type),
-      mutable: false,
-      priority: this.getPriority(component.type),
-      custom: component.customData,
-    };
+    // Collect metadata
+    const contributingComponentKeys = new Set<string>();
+    const renderedChunkIds = new Set<string>();
 
-    return createChunk(input);
-  }
+    for (const { chunk, componentKey } of allFragments) {
+      contributingComponentKeys.add(componentKey);
+      renderedChunkIds.add(chunk.id);
+    }
 
-  /**
-   * Get ChunkType from ComponentType
-   */
-  private getChunkType(componentType: ComponentType): ChunkType {
-    const mapping: Record<ComponentType, ChunkType> = {
-      system: ChunkType.SYSTEM,
-      agent: ChunkType.AGENT,
-      workflow: ChunkType.WORKFLOW,
-    };
-    return mapping[componentType];
-  }
-
-  /**
-   * Get retention strategy for component type
-   */
-  private getRetentionStrategy(
-    componentType: ComponentType,
-  ): ChunkRetentionStrategy {
-    // System and Agent components are critical, Workflow is compressible
-    const strategies: Record<ComponentType, ChunkRetentionStrategy> = {
-      system: ChunkRetentionStrategy.CRITICAL,
-      agent: ChunkRetentionStrategy.CRITICAL,
-      workflow: ChunkRetentionStrategy.COMPRESSIBLE,
-    };
-    return strategies[componentType];
-  }
-
-  /**
-   * Get priority for component type
-   */
-  private getPriority(componentType: ComponentType): number {
-    const priorities: Record<ComponentType, number> = {
-      system: 1000,
-      agent: 900,
-      workflow: 800,
-    };
-    return priorities[componentType];
-  }
-
-  /**
-   * Create chunk content from component
-   */
-  private createContent(component: ComponentConfig): ChunkContent {
     return {
-      type: ChunkContentType.TEXT,
-      text: component.instructions || '',
+      systemContent,
+      systemFragments: systemFragmentSources.map((s) => s.fragment),
+      flowMessages,
+      flowFragments: flowFragmentSources.map((s) => s.fragment),
+      contributingComponentKeys: Array.from(contributingComponentKeys),
+      renderedChunkIds: Array.from(renderedChunkIds),
     };
   }
 
   /**
-   * Extract tools from component and assign proper category
+   * Get or create a ComponentContext for rendering
    */
-  private extractTools(component: ComponentConfig): Tool[] {
-    if (!component.tools || component.tools.length === 0) {
-      return [];
+  private getOrCreateContext(
+    threadId: string,
+    componentKey: string,
+    state: MemoryState,
+    runtimeStates?: Map<string, ComponentRuntimeState>,
+  ): ComponentContext {
+    // Try to get existing runtime state
+    const runtimeState = runtimeStates?.get(componentKey);
+
+    if (runtimeState) {
+      return createComponentContext(
+        threadId,
+        componentKey,
+        state,
+        runtimeState,
+      );
     }
 
-    const category = COMPONENT_TO_TOOL_CATEGORY[component.type];
+    // Create a minimal runtime state for rendering
+    const minimalRuntimeState: ComponentRuntimeState = {
+      componentKey,
+      enabled: true,
+      chunkIds: [],
+      data: {},
+    };
 
-    return component.tools.map((toolConfig) => ({
-      definition: toolConfig.definition,
-      executor: toolConfig.executor,
-      category: toolConfig.category ?? category,
-    }));
+    return createComponentContext(
+      threadId,
+      componentKey,
+      state,
+      minimalRuntimeState,
+    );
+  }
+
+  /**
+   * Group flow fragments into messages with appropriate roles
+   */
+  private groupFlowFragments(
+    fragmentSources: FragmentWithSource[],
+    state: MemoryState,
+  ): FlowMessage[] {
+    const messages: FlowMessage[] = [];
+
+    // Sort fragments by chunk order in state
+    const chunkOrderMap = new Map<string, number>();
+    state.chunkIds.forEach((id, index) => {
+      chunkOrderMap.set(id, index);
+    });
+
+    fragmentSources.sort((a, b) => {
+      const orderA = chunkOrderMap.get(a.chunk.id) ?? 0;
+      const orderB = chunkOrderMap.get(b.chunk.id) ?? 0;
+      if (orderA !== orderB) return orderA - orderB;
+      // Secondary sort by fragment order
+      return (a.fragment.order ?? 500) - (b.fragment.order ?? 500);
+    });
+
+    // Group consecutive fragments by role
+    for (const { fragment, chunk, componentKey } of fragmentSources) {
+      const role = this.getChunkRole(chunk);
+
+      if (messages.length > 0 && messages[messages.length - 1].role === role) {
+        // Append to existing message
+        const lastMsg = messages[messages.length - 1];
+        lastMsg.content += '\n\n' + fragment.content;
+        if (!lastMsg.chunkIds.includes(chunk.id)) {
+          lastMsg.chunkIds.push(chunk.id);
+        }
+        if (!lastMsg.componentKeys.includes(componentKey)) {
+          lastMsg.componentKeys.push(componentKey);
+        }
+      } else {
+        // Start new message
+        messages.push({
+          role,
+          content: fragment.content,
+          chunkIds: [chunk.id],
+          componentKeys: [componentKey],
+        });
+      }
+    }
+
+    return messages;
+  }
+
+  /**
+   * Determine the message role for a chunk based on its type and content
+   */
+  private getChunkRole(chunk: MemoryChunk): ContextMessageRole {
+    // User message types
+    if (
+      chunk.type === 'USER_MESSAGE' ||
+      chunk.type === 'PARENT_MESSAGE' ||
+      chunk.type === 'ACTION_RESPONSE' ||
+      chunk.type === 'SUBAGENT_RESULT' ||
+      chunk.type === 'ENVIRONMENT'
+    ) {
+      return 'user';
+    }
+
+    // Assistant message types
+    if (
+      chunk.type === 'AGENT_RESPONSE' ||
+      chunk.type === 'AGENT_ACTION' ||
+      chunk.type === 'SUBAGENT_SPAWN' ||
+      chunk.type === 'THINKING'
+    ) {
+      return 'assistant';
+    }
+
+    // System types
+    if (chunk.type === 'SYSTEM') {
+      return 'system';
+    }
+
+    // Check content for role hint
+    const content = chunk.content as { role?: string };
+    if (content.role === 'user') return 'user';
+    if (content.role === 'assistant') return 'assistant';
+    if (content.role === 'system') return 'system';
+
+    // Default to user for unknown types
+    return 'user';
   }
 }
 
@@ -184,52 +330,4 @@ export class ComponentRenderer {
  */
 export function createComponentRenderer(): ComponentRenderer {
   return new ComponentRenderer();
-}
-
-/**
- * Helper function to create a SystemComponent
- */
-export function createSystemComponent(
-  instructions: string,
-  tools?: CustomToolConfig[],
-  customData?: Record<string, unknown>,
-): ComponentConfig {
-  return {
-    type: 'system',
-    instructions,
-    tools,
-    customData,
-  };
-}
-
-/**
- * Helper function to create an AgentComponent
- */
-export function createAgentComponent(
-  instructions?: string,
-  tools?: CustomToolConfig[],
-  customData?: Record<string, unknown>,
-): ComponentConfig {
-  return {
-    type: 'agent',
-    instructions,
-    tools,
-    customData,
-  };
-}
-
-/**
- * Helper function to create a WorkflowComponent
- */
-export function createWorkflowComponent(
-  instructions?: string,
-  tools?: CustomToolConfig[],
-  customData?: Record<string, unknown>,
-): ComponentConfig {
-  return {
-    type: 'workflow',
-    instructions,
-    tools,
-    customData,
-  };
 }

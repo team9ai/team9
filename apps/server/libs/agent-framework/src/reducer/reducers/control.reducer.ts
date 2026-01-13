@@ -7,7 +7,7 @@ import {
 } from '../../types/chunk.types.js';
 import { Operation } from '../../types/operation.types.js';
 import {
-  AgentEvent,
+  BaseEvent,
   EventType,
   TaskCompletedEvent,
   TaskAbandonedEvent,
@@ -117,7 +117,7 @@ function createConversationResult(
 export class TaskCompletedReducer implements EventReducer<TaskCompletedEvent> {
   readonly eventTypes = [EventType.TASK_COMPLETED];
 
-  canHandle(event: AgentEvent): event is TaskCompletedEvent {
+  canHandle(event: BaseEvent): event is TaskCompletedEvent {
     return event.type === EventType.TASK_COMPLETED;
   }
 
@@ -152,7 +152,7 @@ export class TaskCompletedReducer implements EventReducer<TaskCompletedEvent> {
 export class TaskAbandonedReducer implements EventReducer<TaskAbandonedEvent> {
   readonly eventTypes = [EventType.TASK_ABANDONED];
 
-  canHandle(event: AgentEvent): event is TaskAbandonedEvent {
+  canHandle(event: BaseEvent): event is TaskAbandonedEvent {
     return event.type === EventType.TASK_ABANDONED;
   }
 
@@ -187,7 +187,7 @@ export class TaskAbandonedReducer implements EventReducer<TaskAbandonedEvent> {
 export class TaskTerminatedReducer implements EventReducer<TaskTerminatedEvent> {
   readonly eventTypes = [EventType.TASK_TERMINATED];
 
-  canHandle(event: AgentEvent): event is TaskTerminatedEvent {
+  canHandle(event: BaseEvent): event is TaskTerminatedEvent {
     return event.type === EventType.TASK_TERMINATED;
   }
 
@@ -224,7 +224,7 @@ export class TaskTerminatedReducer implements EventReducer<TaskTerminatedEvent> 
 export class TodoSetReducer implements EventReducer<TodoSetEvent> {
   readonly eventTypes = [EventType.TODO_SET];
 
-  canHandle(event: AgentEvent): event is TodoSetEvent {
+  canHandle(event: BaseEvent): event is TodoSetEvent {
     return event.type === EventType.TODO_SET;
   }
 
@@ -252,7 +252,7 @@ export class TodoSetReducer implements EventReducer<TodoSetEvent> {
 export class TodoCompletedReducer implements EventReducer<TodoCompletedEvent> {
   readonly eventTypes = [EventType.TODO_COMPLETED];
 
-  canHandle(event: AgentEvent): event is TodoCompletedEvent {
+  canHandle(event: BaseEvent): event is TodoCompletedEvent {
     return event.type === EventType.TODO_COMPLETED;
   }
 
@@ -263,7 +263,6 @@ export class TodoCompletedReducer implements EventReducer<TodoCompletedEvent> {
       {
         action: 'todo_completed',
         todoId: event.todoId,
-        result: event.result,
       },
       {
         eventType: event.type,
@@ -281,7 +280,7 @@ export class TodoCompletedReducer implements EventReducer<TodoCompletedEvent> {
 export class TodoExpandedReducer implements EventReducer<TodoExpandedEvent> {
   readonly eventTypes = [EventType.TODO_EXPANDED];
 
-  canHandle(event: AgentEvent): event is TodoExpandedEvent {
+  canHandle(event: BaseEvent): event is TodoExpandedEvent {
     return event.type === EventType.TODO_EXPANDED;
   }
 
@@ -310,7 +309,7 @@ export class TodoExpandedReducer implements EventReducer<TodoExpandedEvent> {
 export class TodoUpdatedReducer implements EventReducer<TodoUpdatedEvent> {
   readonly eventTypes = [EventType.TODO_UPDATED];
 
-  canHandle(event: AgentEvent): event is TodoUpdatedEvent {
+  canHandle(event: BaseEvent): event is TodoUpdatedEvent {
     return event.type === EventType.TODO_UPDATED;
   }
 
@@ -340,7 +339,7 @@ export class TodoUpdatedReducer implements EventReducer<TodoUpdatedEvent> {
 export class TodoDeletedReducer implements EventReducer<TodoDeletedEvent> {
   readonly eventTypes = [EventType.TODO_DELETED];
 
-  canHandle(event: AgentEvent): event is TodoDeletedEvent {
+  canHandle(event: BaseEvent): event is TodoDeletedEvent {
     return event.type === EventType.TODO_DELETED;
   }
 
@@ -371,7 +370,7 @@ export class TodoDeletedReducer implements EventReducer<TodoDeletedEvent> {
 export class MemoryMarkCriticalReducer implements EventReducer<MemoryMarkCriticalEvent> {
   readonly eventTypes = [EventType.MEMORY_MARK_CRITICAL];
 
-  canHandle(event: AgentEvent): event is MemoryMarkCriticalEvent {
+  canHandle(event: BaseEvent): event is MemoryMarkCriticalEvent {
     return event.type === EventType.MEMORY_MARK_CRITICAL;
   }
 
@@ -402,7 +401,7 @@ export class MemoryMarkCriticalReducer implements EventReducer<MemoryMarkCritica
 export class MemoryForgetReducer implements EventReducer<MemoryForgetEvent> {
   readonly eventTypes = [EventType.MEMORY_FORGET];
 
-  canHandle(event: AgentEvent): event is MemoryForgetEvent {
+  canHandle(event: BaseEvent): event is MemoryForgetEvent {
     return event.type === EventType.MEMORY_FORGET;
   }
 

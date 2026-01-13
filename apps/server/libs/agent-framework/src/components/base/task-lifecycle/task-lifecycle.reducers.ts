@@ -5,7 +5,7 @@
 
 import type { MemoryState } from '../../../types/state.types.js';
 import type {
-  AgentEvent,
+  BaseEvent,
   TaskCompletedEvent,
   TaskAbandonedEvent,
   TaskTerminatedEvent,
@@ -19,9 +19,9 @@ import { createTaskOutputResult } from './task-lifecycle.operations.js';
  * Reduce TASK_COMPLETED event
  */
 export function reduceTaskCompleted(
-  componentId: string,
+  componentKey: string,
   _state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
   context: ComponentContext,
 ): ReducerResult {
   const taskEvent = event as TaskCompletedEvent;
@@ -36,7 +36,7 @@ export function reduceTaskCompleted(
   context.setData('lifecycle', lifecycleData);
 
   return createTaskOutputResult({
-    componentId,
+    componentKey,
     action: 'task_completed',
     eventType: taskEvent.type,
     timestamp: taskEvent.timestamp,
@@ -52,9 +52,9 @@ export function reduceTaskCompleted(
  * Reduce TASK_ABANDONED event
  */
 export function reduceTaskAbandoned(
-  componentId: string,
+  componentKey: string,
   _state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
   context: ComponentContext,
 ): ReducerResult {
   const taskEvent = event as TaskAbandonedEvent;
@@ -69,7 +69,7 @@ export function reduceTaskAbandoned(
   context.setData('lifecycle', lifecycleData);
 
   return createTaskOutputResult({
-    componentId,
+    componentKey,
     action: 'task_abandoned',
     eventType: taskEvent.type,
     timestamp: taskEvent.timestamp,
@@ -85,9 +85,9 @@ export function reduceTaskAbandoned(
  * Reduce TASK_TERMINATED event
  */
 export function reduceTaskTerminated(
-  componentId: string,
+  componentKey: string,
   _state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
   context: ComponentContext,
 ): ReducerResult {
   const taskEvent = event as TaskTerminatedEvent;
@@ -103,7 +103,7 @@ export function reduceTaskTerminated(
   context.setData('lifecycle', lifecycleData);
 
   return createTaskOutputResult({
-    componentId,
+    componentKey,
     action: 'task_terminated',
     eventType: taskEvent.type,
     timestamp: taskEvent.timestamp,

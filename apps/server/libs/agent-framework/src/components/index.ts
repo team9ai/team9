@@ -4,7 +4,6 @@
  */
 
 // Core types and interfaces
-export * from './component.types.js';
 export * from './component.interface.js';
 
 // Component management

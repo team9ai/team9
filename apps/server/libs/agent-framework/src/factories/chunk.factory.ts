@@ -113,7 +113,7 @@ export function createChunk(input: CreateChunkInput): Readonly<MemoryChunk> {
 
   const chunk: MemoryChunk = {
     id: generateChunkId(),
-    componentId: input.componentId,
+    componentKey: input.componentKey,
     chunkKey: input.chunkKey,
     type: input.type,
     content: input.content,
@@ -148,7 +148,7 @@ export function deriveChunk(
   const parentIds = updates.parentIds ?? [original.id];
 
   return createChunk({
-    componentId: updates.componentId ?? original.componentId,
+    componentKey: updates.componentKey ?? original.componentKey,
     chunkKey: updates.chunkKey ?? original.chunkKey,
     type: updates.type ?? original.type,
     content: updates.content ?? original.content,

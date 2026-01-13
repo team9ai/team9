@@ -62,7 +62,7 @@ Creates an OUTPUT chunk for task completion.
 import { createTaskOutputChunk } from '@team9/agent-framework';
 
 const chunk = createTaskOutputChunk({
-  componentId: 'core:task-lifecycle',
+  componentKey: 'core:task-lifecycle',
   status: 'completed',
   result: 'Task completed successfully',
 });
@@ -77,7 +77,7 @@ import { createTaskOutputResult } from '@team9/agent-framework';
 
 const result = createTaskOutputResult({
   state,
-  componentId: 'core:task-lifecycle',
+  componentKey: 'core:task-lifecycle',
   status: 'completed',
   result: 'Analysis complete',
 });

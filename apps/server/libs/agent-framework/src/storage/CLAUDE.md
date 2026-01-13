@@ -24,8 +24,8 @@ interface IStorageProvider {
   saveState(threadId: string, state: MemoryState): Promise<void>;
 
   // Event history (for replay)
-  appendEvent(threadId: string, event: AgentEvent): Promise<void>;
-  getEvents(threadId: string, fromIndex?: number): Promise<AgentEvent[]>;
+  appendEvent(threadId: string, event: BaseEvent): Promise<void>;
+  getEvents(threadId: string, fromIndex?: number): Promise<BaseEvent[]>;
 }
 ```
 

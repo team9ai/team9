@@ -394,11 +394,11 @@ export async function applyOperationsWithProvenance(
 
   // Calculate needLLMContinueResponse based on event's requirement
   const needLLMContinueResponse =
-    llmResponseRequirement === 'need'
+    llmResponseRequirement === LLMResponseRequirement.NEED
       ? true
-      : llmResponseRequirement === 'no_need'
+      : llmResponseRequirement === LLMResponseRequirement.NO_NEED
         ? false
-        : state.needLLMContinueResponse; // 'keep' -> inherit from original state
+        : state.needLLMContinueResponse; // KEEP -> inherit from original state
 
   // Create final state with provenance information and needLLMContinueResponse
   const finalState = deriveState(currentState, {

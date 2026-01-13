@@ -6,7 +6,7 @@
 import type { MemoryState } from '../../../types/state.types.js';
 import { ChunkType } from '../../../types/chunk.types.js';
 import type {
-  AgentEvent,
+  BaseEvent,
   UserMessageEvent,
   ParentAgentMessageEvent,
   LLMTextResponseEvent,
@@ -26,13 +26,13 @@ import { createConversationResult } from './working-history.operations.js';
 // ============ Input Reducers ============
 
 export function reduceUserMessage(
-  componentId: string,
+  componentKey: string,
   state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
 ): ReducerResult {
   const e = event as UserMessageEvent;
   return createConversationResult({
-    componentId,
+    componentKey,
     state,
     chunkType: ChunkType.USER_MESSAGE,
     content: {
@@ -44,13 +44,13 @@ export function reduceUserMessage(
 }
 
 export function reduceParentAgentMessage(
-  componentId: string,
+  componentKey: string,
   state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
 ): ReducerResult {
   const e = event as ParentAgentMessageEvent;
   return createConversationResult({
-    componentId,
+    componentKey,
     state,
     chunkType: ChunkType.PARENT_MESSAGE,
     content: {
@@ -65,13 +65,13 @@ export function reduceParentAgentMessage(
 // ============ LLM Response Reducers ============
 
 export function reduceLLMTextResponse(
-  componentId: string,
+  componentKey: string,
   state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
 ): ReducerResult {
   const e = event as LLMTextResponseEvent;
   return createConversationResult({
-    componentId,
+    componentKey,
     state,
     chunkType: ChunkType.AGENT_RESPONSE,
     content: {
@@ -84,13 +84,13 @@ export function reduceLLMTextResponse(
 }
 
 export function reduceLLMToolCall(
-  componentId: string,
+  componentKey: string,
   state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
 ): ReducerResult {
   const e = event as LLMToolCallEvent;
   return createConversationResult({
-    componentId,
+    componentKey,
     state,
     chunkType: ChunkType.AGENT_ACTION,
     content: {
@@ -106,13 +106,13 @@ export function reduceLLMToolCall(
 }
 
 export function reduceLLMSkillCall(
-  componentId: string,
+  componentKey: string,
   state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
 ): ReducerResult {
   const e = event as LLMSkillCallEvent;
   return createConversationResult({
-    componentId,
+    componentKey,
     state,
     chunkType: ChunkType.AGENT_ACTION,
     content: {
@@ -128,13 +128,13 @@ export function reduceLLMSkillCall(
 }
 
 export function reduceLLMSubAgentSpawn(
-  componentId: string,
+  componentKey: string,
   state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
 ): ReducerResult {
   const e = event as LLMSubAgentSpawnEvent;
   return createConversationResult({
-    componentId,
+    componentKey,
     state,
     chunkType: ChunkType.SUBAGENT_SPAWN,
     content: {
@@ -150,13 +150,13 @@ export function reduceLLMSubAgentSpawn(
 }
 
 export function reduceLLMSubAgentMessage(
-  componentId: string,
+  componentKey: string,
   state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
 ): ReducerResult {
   const e = event as LLMSubAgentMessageEvent;
   return createConversationResult({
-    componentId,
+    componentKey,
     state,
     chunkType: ChunkType.AGENT_ACTION,
     content: {
@@ -169,13 +169,13 @@ export function reduceLLMSubAgentMessage(
 }
 
 export function reduceLLMClarification(
-  componentId: string,
+  componentKey: string,
   state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
 ): ReducerResult {
   const e = event as LLMClarificationEvent;
   return createConversationResult({
-    componentId,
+    componentKey,
     state,
     chunkType: ChunkType.AGENT_RESPONSE,
     content: {
@@ -190,13 +190,13 @@ export function reduceLLMClarification(
 // ============ Result Reducers ============
 
 export function reduceToolResult(
-  componentId: string,
+  componentKey: string,
   state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
 ): ReducerResult {
   const e = event as ToolResultEvent;
   return createConversationResult({
-    componentId,
+    componentKey,
     state,
     chunkType: ChunkType.ACTION_RESPONSE,
     content: {
@@ -212,13 +212,13 @@ export function reduceToolResult(
 }
 
 export function reduceSkillResult(
-  componentId: string,
+  componentKey: string,
   state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
 ): ReducerResult {
   const e = event as SkillResultEvent;
   return createConversationResult({
-    componentId,
+    componentKey,
     state,
     chunkType: ChunkType.ACTION_RESPONSE,
     content: {
@@ -234,13 +234,13 @@ export function reduceSkillResult(
 }
 
 export function reduceSubAgentResult(
-  componentId: string,
+  componentKey: string,
   state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
 ): ReducerResult {
   const e = event as SubAgentResultEvent;
   return createConversationResult({
-    componentId,
+    componentKey,
     state,
     chunkType: ChunkType.SUBAGENT_RESULT,
     content: {
@@ -254,13 +254,13 @@ export function reduceSubAgentResult(
 }
 
 export function reduceSubAgentError(
-  componentId: string,
+  componentKey: string,
   state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
 ): ReducerResult {
   const e = event as SubAgentErrorEvent;
   return createConversationResult({
-    componentId,
+    componentKey,
     state,
     chunkType: ChunkType.SUBAGENT_RESULT,
     content: {

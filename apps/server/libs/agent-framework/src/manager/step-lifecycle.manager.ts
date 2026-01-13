@@ -1,5 +1,5 @@
 import type { IMemoryManager, Step } from './memory-manager.interface.js';
-import type { AgentEvent } from '../types/event.types.js';
+import type { BaseEvent } from '../types/event.types.js';
 
 /**
  * StepLifecycleManager handles step lifecycle operations
@@ -37,7 +37,7 @@ export class StepLifecycleManager {
     stepId: string,
     triggerEvent: { eventId?: string; type: string; timestamp: number },
     previousStateId?: string,
-    eventPayload?: AgentEvent,
+    eventPayload?: BaseEvent,
   ): Promise<Step> {
     const step: Step = {
       id: stepId,

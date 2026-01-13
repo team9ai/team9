@@ -35,8 +35,8 @@ export function findWorkingHistoryChunk(
  * Options for creating a conversation result
  */
 export interface ConversationResultOptions {
-  /** Component ID that owns this chunk */
-  componentId: string;
+  /** Component key that owns this chunk */
+  componentKey: string;
   /** Memory state to update */
   state: MemoryState;
   /** Type of chunk to create */
@@ -61,11 +61,11 @@ export interface ConversationResultOptions {
 export function createConversationResult(
   options: ConversationResultOptions,
 ): ReducerResult {
-  const { componentId, state, chunkType, content, eventMeta } = options;
+  const { componentKey, state, chunkType, content, eventMeta } = options;
 
   // Create the conversation chunk
   const conversationChunk = createChunk({
-    componentId,
+    componentKey,
     type: chunkType,
     content: {
       type: ChunkContentType.TEXT,
@@ -100,7 +100,7 @@ export function createConversationResult(
   } else {
     // Create new WORKING_HISTORY container with this chunk as first child
     const historyChunk = createChunk({
-      componentId,
+      componentKey,
       chunkKey: WORKING_HISTORY_KEY,
       type: ChunkType.WORKING_HISTORY,
       content: {

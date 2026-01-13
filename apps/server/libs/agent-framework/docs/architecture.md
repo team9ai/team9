@@ -50,7 +50,7 @@ agent-framework/src/
 ### 事件驱动架构
 
 ```
-AgentEvent（事件）
+BaseEvent（事件）
     ↓
 [ReducerRegistry]（归约器注册表）
     ↓
@@ -208,7 +208,7 @@ interface MemoryThread {
 
 ```typescript
 interface Step {
-  triggerEvent: AgentEvent; // 触发事件
+  triggerEvent: BaseEvent; // 触发事件
   llmInteraction?: LLMInteraction;
   status: 'running' | 'completed' | 'failed';
   previousStateId: string;
@@ -475,8 +475,8 @@ interface IComponent {
 ```typescript
 interface EventReducer {
   eventTypes: EventType[];
-  canHandle(event: AgentEvent): boolean;
-  reduce(state: MemoryState, event: AgentEvent): ReducerResult;
+  canHandle(event: BaseEvent): boolean;
+  reduce(state: MemoryState, event: BaseEvent): ReducerResult;
 }
 
 interface ReducerResult {
@@ -549,7 +549,7 @@ function applyOperation(
 
 ### `response-parser.ts` - 响应解析器
 
-解析 LLM 响应为 AgentEvent。
+解析 LLM 响应为 BaseEvent。
 
 ### `cancellation-token.ts` - 取消令牌
 
@@ -810,7 +810,7 @@ interface DebugController {
 
   // 状态编辑
   editChunk(chunkId: string, updates: Partial<MemoryChunk>): Promise<void>;
-  injectEvent(event: AgentEvent): Promise<void>;
+  injectEvent(event: BaseEvent): Promise<void>;
 }
 ```
 
@@ -952,5 +952,5 @@ interface ILLMAdapter {
 ### LLM 响应 → 事件
 
 1. ResponseParser 解析 LLM 响应
-2. 创建 AgentEvent（LLM_TEXT_RESPONSE, LLM_TOOL_CALL 等）
+2. 创建 BaseEvent（LLM_TEXT_RESPONSE, LLM_TOOL_CALL 等）
 3. 事件分发回系统

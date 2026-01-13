@@ -11,7 +11,7 @@ import type {
   ToolCallHandlerContext,
   ToolCallHandlerResult,
 } from '@team9/agent-framework';
-import type { IToolRegistry, AgentEvent } from '@team9/agent-framework';
+import type { IToolRegistry, BaseEvent } from '@team9/agent-framework';
 import { EventType } from '@team9/agent-framework';
 
 /**
@@ -47,7 +47,7 @@ export class InvokeToolHandler implements IToolCallHandler {
     if (!externalToolName) {
       console.warn('[InvokeToolHandler] Missing tool_name in invoke_tool call');
       // Return error result event
-      const errorEvent: AgentEvent = {
+      const errorEvent: BaseEvent = {
         type: EventType.TOOL_RESULT,
         toolName: 'invoke_tool',
         callId: context.callId,
@@ -89,7 +89,7 @@ export class InvokeToolHandler implements IToolCallHandler {
         ? toolResult.content
         : { error: toolResult.error, content: toolResult.content };
 
-      const toolResultEvent: AgentEvent = {
+      const toolResultEvent: BaseEvent = {
         type: EventType.TOOL_RESULT,
         toolName: externalToolName,
         callId: context.callId,
@@ -106,7 +106,7 @@ export class InvokeToolHandler implements IToolCallHandler {
       console.error('[InvokeToolHandler] Tool execution error:', error);
 
       // Create error result event
-      const errorEvent: AgentEvent = {
+      const errorEvent: BaseEvent = {
         type: EventType.TOOL_RESULT,
         toolName: externalToolName,
         callId: context.callId,

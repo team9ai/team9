@@ -5,7 +5,7 @@ import {
   MemoryChunk,
 } from '../../types/chunk.types.js';
 import {
-  AgentEvent,
+  BaseEvent,
   EventType,
   UserMessageEvent,
   ParentAgentMessageEvent,
@@ -105,7 +105,7 @@ function createConversationResult(
 export class UserMessageReducer implements EventReducer<UserMessageEvent> {
   readonly eventTypes = [EventType.USER_MESSAGE];
 
-  canHandle(event: AgentEvent): event is UserMessageEvent {
+  canHandle(event: BaseEvent): event is UserMessageEvent {
     return event.type === EventType.USER_MESSAGE;
   }
 
@@ -129,7 +129,7 @@ export class UserMessageReducer implements EventReducer<UserMessageEvent> {
 export class ParentAgentMessageReducer implements EventReducer<ParentAgentMessageEvent> {
   readonly eventTypes = [EventType.PARENT_AGENT_MESSAGE];
 
-  canHandle(event: AgentEvent): event is ParentAgentMessageEvent {
+  canHandle(event: BaseEvent): event is ParentAgentMessageEvent {
     return event.type === EventType.PARENT_AGENT_MESSAGE;
   }
 

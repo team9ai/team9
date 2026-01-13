@@ -18,11 +18,11 @@ export const SYSTEM_CHUNK_KEY = 'system_instructions';
  * Create main instructions chunk
  */
 export function createMainInstructionsChunk(
-  componentId: string,
+  componentKey: string,
   instructions: string,
 ): MemoryChunk {
   return createChunk({
-    componentId,
+    componentKey,
     chunkKey: SYSTEM_CHUNK_KEY,
     type: ChunkType.SYSTEM,
     content: {
@@ -41,12 +41,12 @@ export function createMainInstructionsChunk(
  * Create context section chunk
  */
 export function createContextChunk(
-  componentId: string,
+  componentKey: string,
   key: string,
   value: string,
 ): MemoryChunk {
   return createChunk({
-    componentId,
+    componentKey,
     chunkKey: `context_${key}`,
     type: ChunkType.SYSTEM,
     content: {

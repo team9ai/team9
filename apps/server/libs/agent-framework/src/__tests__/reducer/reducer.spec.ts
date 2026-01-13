@@ -58,7 +58,7 @@ describe('Reducer Module', () => {
       const state = createState({ threadId: 'thread_1' });
 
       const result = await registry.reduce(state, {
-        type: 'UNKNOWN_EVENT' as EventType,
+        type: 'UNKNOWN_EVENT',
         timestamp: Date.now(),
       } as unknown as UserMessageEvent);
 

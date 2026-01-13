@@ -16,11 +16,9 @@ import {
   initDatabaseFromUrl,
   type PostgresJsDatabase,
 } from './db/index.js';
-import type { LLMConfig, StorageProvider } from '@team9/agent-framework';
+import type { StorageProvider } from '@team9/agent-framework';
 import {
-  AgentOrchestrator,
-  createDefaultReducerRegistry,
-  DefaultDebugController,
+  AgentFactory,
   InMemoryStorageProvider,
   PostgresStorageProvider,
 } from '@team9/agent-framework';
@@ -62,29 +60,7 @@ function getStorageProvider(): StorageProvider {
   return sharedStorageProvider;
 }
 
-// Factory functions for creating framework instances
-const createMemoryManager = (config: LLMConfig) => {
-  // Use shared storage provider
-  const storage = getStorageProvider();
-  const reducerRegistry = createDefaultReducerRegistry();
-
-  // Create LLM adapter - uses OpenRouter if API key is available, otherwise mock
-  const llmAdapter = createLLMAdapter(
-    config.model || 'anthropic/claude-sonnet-4',
-    OPENROUTER_API_KEY,
-  );
-
-  return new AgentOrchestrator(storage, reducerRegistry, llmAdapter, {
-    llm: config,
-    autoCompactEnabled: true,
-  });
-};
-
-const createDebugController = (memoryManager: unknown) => {
-  // Use the same shared storage provider
-  const storage = getStorageProvider();
-  return new DefaultDebugController(memoryManager as any, storage);
-};
+// AgentFactory instance (created in start())
 
 const app = new Hono();
 
@@ -131,22 +107,23 @@ async function start() {
     }
   }
 
-  // Create a shared LLM adapter factory for executor
-  const getLLMAdapter = () => {
-    // Default model for agent executor
-    return createLLMAdapter(
-      process.env.DEFAULT_MODEL || 'anthropic/claude-sonnet-4.5',
-      OPENROUTER_API_KEY,
-    );
-  };
+  // Get storage provider (shared for all agents)
+  const storage = getStorageProvider();
+
+  // Create LLM adapter
+  const defaultModel = process.env.DEFAULT_MODEL || 'anthropic/claude-sonnet-4';
+  const llmAdapter = createLLMAdapter(defaultModel, OPENROUTER_API_KEY);
+
+  // Create AgentFactory (boot API)
+  const agentFactory = new AgentFactory({
+    storage,
+    llmAdapter,
+    defaultLLMConfig: { model: defaultModel },
+    autoCompactEnabled: true,
+  });
 
   // Initialize services after database is ready
-  const agentService = new AgentService(
-    createMemoryManager,
-    createDebugController,
-    getLLMAdapter,
-    dbInstance,
-  );
+  const agentService = new AgentService(agentFactory, dbInstance);
   const blueprintService = new BlueprintService(dbInstance);
   setContext({ agentService, blueprintService });
 

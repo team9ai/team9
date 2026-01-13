@@ -1,5 +1,5 @@
 import { MemoryState } from '../types/state.types.js';
-import { AgentEvent, EventType } from '../types/event.types.js';
+import type { BaseEvent, EventTypeValue } from '../types/event.types.js';
 import {
   EventReducer,
   ReducerRegistry,
@@ -43,7 +43,7 @@ import {
  */
 export class DefaultReducerRegistry implements ReducerRegistry {
   private reducers: EventReducer[] = [];
-  private reducersByEventType: Map<EventType, EventReducer[]> = new Map();
+  private reducersByEventType: Map<EventTypeValue, EventReducer[]> = new Map();
 
   register(reducer: EventReducer): void {
     if (this.reducers.includes(reducer)) {
@@ -80,12 +80,13 @@ export class DefaultReducerRegistry implements ReducerRegistry {
     }
   }
 
-  getReducersForEvent(event: AgentEvent): EventReducer[] {
-    const candidates = this.reducersByEventType.get(event.type) ?? [];
+  getReducersForEvent(event: BaseEvent): EventReducer[] {
+    const candidates =
+      this.reducersByEventType.get(event.type as EventTypeValue) ?? [];
     return candidates.filter((reducer) => reducer.canHandle(event));
   }
 
-  async reduce(state: MemoryState, event: AgentEvent): Promise<ReducerResult> {
+  async reduce(state: MemoryState, event: BaseEvent): Promise<ReducerResult> {
     const reducers = this.getReducersForEvent(event);
 
     if (reducers.length === 0) {

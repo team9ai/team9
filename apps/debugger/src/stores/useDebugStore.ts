@@ -417,7 +417,7 @@ export const useDebugStore = create<DebugStore>((set, get) => ({
 
     try {
       // Build the event by spreading payload fields at the event level
-      // This matches the AgentEvent structure expected by the server
+      // This matches the BaseEvent structure expected by the server
       const event = {
         type: eventType,
         timestamp: Date.now(),

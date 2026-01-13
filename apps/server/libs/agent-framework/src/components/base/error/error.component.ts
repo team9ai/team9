@@ -11,7 +11,7 @@
 import { AbstractComponent } from '../abstract-component.js';
 import type { MemoryChunk } from '../../../types/chunk.types.js';
 import { ChunkType } from '../../../types/chunk.types.js';
-import type { AgentEvent } from '../../../types/event.types.js';
+import type { BaseEvent } from '../../../types/event.types.js';
 import { EventType } from '../../../types/event.types.js';
 import type {
   NewComponentType,
@@ -36,20 +36,22 @@ export class ErrorComponent extends AbstractComponent {
   readonly name = 'Error Handler';
   readonly type: NewComponentType = 'base';
 
-  private static readonly HANDLED_EVENTS = new Set([
+  /**
+   * Event types this component handles
+   * These events will be routed to this component by the ReducerRegistry
+   */
+  override readonly supportedEventTypes = [
     EventType.TOOL_ERROR,
     EventType.SKILL_ERROR,
     EventType.SUBAGENT_ERROR,
     EventType.SYSTEM_ERROR,
-  ]);
+  ] as const;
 
   // ============ Event Handling ============
 
-  getReducersForEvent(event: AgentEvent): ComponentReducerFn[] {
-    if (!ErrorComponent.HANDLED_EVENTS.has(event.type)) {
-      return [];
-    }
-
+  protected override getReducersForEventImpl(
+    event: BaseEvent,
+  ): ComponentReducerFn[] {
     switch (event.type) {
       case EventType.TOOL_ERROR:
         return [(state, evt, ctx) => reduceToolError(this.id, state, evt, ctx)];
@@ -77,7 +79,7 @@ export class ErrorComponent extends AbstractComponent {
     _context: ComponentContext,
   ): RenderedFragment[] {
     // Only render SYSTEM error chunks from this component
-    if (chunk.type !== ChunkType.SYSTEM || chunk.componentId !== this.id) {
+    if (chunk.type !== ChunkType.SYSTEM || chunk.componentKey !== this.id) {
       return [];
     }
 

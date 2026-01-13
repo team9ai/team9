@@ -6,7 +6,7 @@ import {
   MemoryChunk,
 } from '../../types/chunk.types.js';
 import {
-  AgentEvent,
+  BaseEvent,
   EventType,
   ToolErrorEvent,
   SubAgentErrorEvent,
@@ -105,7 +105,7 @@ function createConversationResult(
 export class ToolErrorReducer implements EventReducer<ToolErrorEvent> {
   readonly eventTypes = [EventType.TOOL_ERROR];
 
-  canHandle(event: AgentEvent): event is ToolErrorEvent {
+  canHandle(event: BaseEvent): event is ToolErrorEvent {
     return event.type === EventType.TOOL_ERROR;
   }
 
@@ -136,7 +136,7 @@ export class ToolErrorReducer implements EventReducer<ToolErrorEvent> {
 export class SubAgentErrorReducer implements EventReducer<SubAgentErrorEvent> {
   readonly eventTypes = [EventType.SUBAGENT_ERROR];
 
-  canHandle(event: AgentEvent): event is SubAgentErrorEvent {
+  canHandle(event: BaseEvent): event is SubAgentErrorEvent {
     return event.type === EventType.SUBAGENT_ERROR;
   }
 
@@ -166,7 +166,7 @@ export class SubAgentErrorReducer implements EventReducer<SubAgentErrorEvent> {
 export class SkillErrorReducer implements EventReducer<SkillErrorEvent> {
   readonly eventTypes = [EventType.SKILL_ERROR];
 
-  canHandle(event: AgentEvent): event is SkillErrorEvent {
+  canHandle(event: BaseEvent): event is SkillErrorEvent {
     return event.type === EventType.SKILL_ERROR;
   }
 
@@ -196,7 +196,7 @@ export class SkillErrorReducer implements EventReducer<SkillErrorEvent> {
 export class SystemErrorReducer implements EventReducer<SystemErrorEvent> {
   readonly eventTypes = [EventType.SYSTEM_ERROR];
 
-  canHandle(event: AgentEvent): event is SystemErrorEvent {
+  canHandle(event: BaseEvent): event is SystemErrorEvent {
     return event.type === EventType.SYSTEM_ERROR;
   }
 

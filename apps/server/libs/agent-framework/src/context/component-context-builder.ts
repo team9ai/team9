@@ -2,29 +2,25 @@
  * Component-Aware Context Builder
  * Builds LLM context using component-based rendering system
  *
- * Architecture:
- * 1. Groups chunks by componentId
- * 2. Gets RenderConfig from each component for its chunks
- * 3. Sorts fragments by location -> order
- * 4. Calls component.renderChunk() for rendering
+ * Uses ComponentRenderer for fragment assembly, then adds:
+ * - Token counting
+ * - Token limit enforcement
+ * - Message construction
  */
 
-import type { MemoryChunk } from '../types/chunk.types.js';
 import type { MemoryState } from '../types/state.types.js';
 import type { ITokenizer } from '../tokenizer/tokenizer.types.js';
 import type {
   ContextBuildOptions,
   ContextBuildResult,
   ContextMessage,
-  ContextMessageRole,
 } from './context.types.js';
 import type {
   IComponent,
   RenderedFragment,
-  ComponentContext,
   ComponentRuntimeState,
 } from '../components/component.interface.js';
-import { createComponentContext } from '../components/component-context.js';
+import { ComponentRenderer } from '../components/component-renderer.js';
 
 /**
  * Extended options for component-aware context building
@@ -42,8 +38,8 @@ export interface ComponentContextBuildOptions extends ContextBuildOptions {
  * Extended result with component metadata
  */
 export interface ComponentContextBuildResult extends ContextBuildResult {
-  /** Components that contributed to the context */
-  componentIds: string[];
+  /** Component keys that contributed to the context */
+  componentKeys: string[];
   /** System prompt fragments (sorted by order) */
   systemFragments: RenderedFragment[];
   /** Flow fragments (sorted by order) */
@@ -52,16 +48,15 @@ export interface ComponentContextBuildResult extends ContextBuildResult {
 
 /**
  * Component-Aware Context Builder
- * Uses IComponent.renderChunk() for rendering
- *
- * Note: This is a stateless builder. Components and their runtime states
- * should be passed in via options.
+ * Uses ComponentRenderer for fragment assembly, adds token management
  */
 export class ComponentContextBuilder {
   private defaultTokenizer?: ITokenizer;
+  private renderer: ComponentRenderer;
 
   constructor(defaultTokenizer?: ITokenizer) {
     this.defaultTokenizer = defaultTokenizer;
+    this.renderer = new ComponentRenderer();
   }
 
   /**
@@ -89,88 +84,19 @@ export class ComponentContextBuilder {
       includeOnlyChunkIds,
     } = options;
 
-    // Build component map
-    const componentMap = new Map<string, IComponent>();
-    for (const component of components) {
-      componentMap.set(component.id, component);
-    }
+    // Use ComponentRenderer for fragment assembly
+    const renderResult = this.renderer.render(state, {
+      threadId,
+      components,
+      componentRuntimeStates,
+      excludeTypes,
+      includeOnlyChunkIds,
+    });
 
-    // Collect all fragments from all components
-    const allFragments: Array<{
-      fragment: RenderedFragment;
-      chunk: MemoryChunk;
-      componentId: string;
-    }> = [];
-
-    // Process chunks ordered by state.chunkIds
-    for (const chunkId of state.chunkIds) {
-      const chunk = state.chunks.get(chunkId);
-      if (!chunk) continue;
-
-      // Apply filters
-      if (includeOnlyChunkIds && !includeOnlyChunkIds.includes(chunkId)) {
-        continue;
-      }
-      if (excludeTypes.includes(chunk.type)) {
-        continue;
-      }
-
-      // Find the component that owns this chunk
-      const componentId = chunk.componentId;
-      if (!componentId) {
-        // Chunk has no componentId - skip or use fallback rendering
-        continue;
-      }
-
-      const component = componentMap.get(componentId);
-      if (!component) {
-        // Component not enabled - skip this chunk
-        continue;
-      }
-
-      // Get or create component context
-      const context = this.getOrCreateContext(
-        threadId,
-        componentId,
-        state,
-        componentRuntimeStates,
-      );
-
-      // Render chunk using component
-      const fragments = component.renderChunk(chunk, context);
-      for (const fragment of fragments) {
-        allFragments.push({
-          fragment,
-          chunk,
-          componentId,
-        });
-      }
-    }
-
-    // Separate fragments by location
-    const systemFragments: RenderedFragment[] = [];
-    const flowFragments: RenderedFragment[] = [];
-
-    for (const { fragment } of allFragments) {
-      if (fragment.location === 'system') {
-        systemFragments.push(fragment);
-      } else {
-        flowFragments.push(fragment);
-      }
-    }
-
-    // Sort by order (ascending)
-    const sortByOrder = (a: RenderedFragment, b: RenderedFragment) =>
-      (a.order ?? 500) - (b.order ?? 500);
-
-    systemFragments.sort(sortByOrder);
-    flowFragments.sort(sortByOrder);
-
-    // Build messages
+    // Build messages with token management
     const messages: ContextMessage[] = [];
     const includedChunkIds: string[] = [];
     const excludedChunkIds: string[] = [];
-    const contributingComponentIds = new Set<string>();
     let tokenCount = 0;
     const tokenCountExact = !!tokenizer;
 
@@ -188,8 +114,8 @@ export class ComponentContextBuilder {
     if (systemPrompt) {
       systemParts.push(systemPrompt);
     }
-    for (const fragment of systemFragments) {
-      systemParts.push(fragment.content);
+    if (renderResult.systemContent) {
+      systemParts.push(renderResult.systemContent);
     }
 
     if (systemParts.length > 0) {
@@ -204,23 +130,21 @@ export class ComponentContextBuilder {
         tokenCount += systemTokens;
 
         // Track included chunks from system fragments
-        for (const { fragment, chunk, componentId } of allFragments) {
-          if (fragment.location === 'system') {
-            includedChunkIds.push(chunk.id);
-            contributingComponentIds.add(componentId);
+        for (const chunkId of renderResult.renderedChunkIds) {
+          const chunk = state.chunks.get(chunkId);
+          if (chunk) {
+            // Check if this chunk contributed to system fragments
+            const isSystemChunk = renderResult.systemFragments.length > 0;
+            if (isSystemChunk) {
+              includedChunkIds.push(chunkId);
+            }
           }
         }
       }
     }
 
-    // Build flow messages (user/assistant alternating)
-    // Group flow fragments into messages based on chunk roles
-    const flowMessages = this.groupFlowFragments(
-      allFragments.filter(({ fragment }) => fragment.location === 'flow'),
-      state,
-    );
-
-    for (const msg of flowMessages) {
+    // Build flow messages
+    for (const msg of renderResult.flowMessages) {
       const msgTokens = countTokens(msg.content);
 
       if (maxTokens && tokenCount + msgTokens > maxTokens) {
@@ -237,9 +161,6 @@ export class ComponentContextBuilder {
       });
       tokenCount += msgTokens;
       includedChunkIds.push(...msg.chunkIds);
-      for (const compId of msg.componentIds) {
-        contributingComponentIds.add(compId);
-      }
     }
 
     return {
@@ -248,147 +169,10 @@ export class ComponentContextBuilder {
       tokenCountExact,
       includedChunkIds,
       excludedChunkIds,
-      componentIds: Array.from(contributingComponentIds),
-      systemFragments,
-      flowFragments,
+      componentKeys: renderResult.contributingComponentKeys,
+      systemFragments: renderResult.systemFragments,
+      flowFragments: renderResult.flowFragments,
     };
-  }
-
-  /**
-   * Get or create a ComponentContext for rendering
-   */
-  private getOrCreateContext(
-    threadId: string,
-    componentId: string,
-    state: MemoryState,
-    runtimeStates?: Map<string, ComponentRuntimeState>,
-  ): ComponentContext {
-    // Try to get existing runtime state
-    const runtimeState = runtimeStates?.get(componentId);
-
-    if (runtimeState) {
-      return createComponentContext(threadId, componentId, state, runtimeState);
-    }
-
-    // Create a minimal runtime state for rendering
-    const minimalRuntimeState: ComponentRuntimeState = {
-      componentId,
-      enabled: true,
-      chunkIds: [],
-      data: {},
-    };
-
-    return createComponentContext(
-      threadId,
-      componentId,
-      state,
-      minimalRuntimeState,
-    );
-  }
-
-  /**
-   * Group flow fragments into messages with appropriate roles
-   */
-  private groupFlowFragments(
-    fragments: Array<{
-      fragment: RenderedFragment;
-      chunk: MemoryChunk;
-      componentId: string;
-    }>,
-    state: MemoryState,
-  ): Array<{
-    role: ContextMessageRole;
-    content: string;
-    chunkIds: string[];
-    componentIds: string[];
-  }> {
-    const messages: Array<{
-      role: ContextMessageRole;
-      content: string;
-      chunkIds: string[];
-      componentIds: string[];
-    }> = [];
-
-    // Sort fragments by chunk order in state
-    const chunkOrderMap = new Map<string, number>();
-    state.chunkIds.forEach((id, index) => {
-      chunkOrderMap.set(id, index);
-    });
-
-    fragments.sort((a, b) => {
-      const orderA = chunkOrderMap.get(a.chunk.id) ?? 0;
-      const orderB = chunkOrderMap.get(b.chunk.id) ?? 0;
-      if (orderA !== orderB) return orderA - orderB;
-      // Secondary sort by fragment order
-      return (a.fragment.order ?? 500) - (b.fragment.order ?? 500);
-    });
-
-    // Group consecutive fragments by role
-    for (const { fragment, chunk, componentId } of fragments) {
-      const role = this.getChunkRole(chunk);
-
-      if (messages.length > 0 && messages[messages.length - 1].role === role) {
-        // Append to existing message
-        const lastMsg = messages[messages.length - 1];
-        lastMsg.content += '\n\n' + fragment.content;
-        if (!lastMsg.chunkIds.includes(chunk.id)) {
-          lastMsg.chunkIds.push(chunk.id);
-        }
-        if (!lastMsg.componentIds.includes(componentId)) {
-          lastMsg.componentIds.push(componentId);
-        }
-      } else {
-        // Start new message
-        messages.push({
-          role,
-          content: fragment.content,
-          chunkIds: [chunk.id],
-          componentIds: [componentId],
-        });
-      }
-    }
-
-    return messages;
-  }
-
-  /**
-   * Determine the message role for a chunk based on its type and content
-   */
-  private getChunkRole(chunk: MemoryChunk): ContextMessageRole {
-    // User message types
-    if (
-      chunk.type === 'USER_MESSAGE' ||
-      chunk.type === 'PARENT_MESSAGE' ||
-      chunk.type === 'ACTION_RESPONSE' ||
-      chunk.type === 'SUBAGENT_RESULT' ||
-      chunk.type === 'ENVIRONMENT'
-    ) {
-      return 'user';
-    }
-
-    // Assistant message types
-    if (
-      chunk.type === 'AGENT_RESPONSE' ||
-      chunk.type === 'AGENT_ACTION' ||
-      chunk.type === 'SUBAGENT_SPAWN' ||
-      chunk.type === 'THINKING'
-    ) {
-      return 'assistant';
-    }
-
-    // System types
-    if (chunk.type === 'SYSTEM') {
-      return 'system';
-    }
-
-    // Check content for role hint
-    const content = chunk.content as { role?: string };
-    if (content.role === 'user') return 'user';
-    if (content.role === 'assistant') return 'assistant';
-    if (content.role === 'system') return 'system';
-
-    // Default to user for unknown types
-    return 'user';
   }
 }
 

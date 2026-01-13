@@ -1,5 +1,4 @@
 import { LLMConfig } from '../llm/llm.types.js';
-import type { ComponentConfig } from '../components/component.types.js';
 
 /**
  * Execution mode for agent event processing
@@ -24,8 +23,8 @@ export interface Blueprint {
   /** Agent description */
   description?: string;
   /**
-   * Components that define the agent's structure (new component-centric format)
-   * Each component entry contains a component class/instance and its configuration
+   * Components that define the agent's structure
+   * Each component entry contains a component key and its configuration
    * Components are rendered to chunks and tools at runtime
    */
   components?: BlueprintComponentEntry[];
@@ -76,10 +75,10 @@ export interface BlueprintValidationResult {
   warnings: string[];
 }
 
-// ============ New Component-Centric Configuration ============
+// ============ Component-Centric Configuration ============
 
 /**
- * New component configuration entry for Blueprint
+ * Component configuration entry for Blueprint
  * Uses component key (string) to reference registered components
  */
 export interface BlueprintComponentEntry<TConfig = Record<string, unknown>> {
@@ -89,31 +88,6 @@ export interface BlueprintComponentEntry<TConfig = Record<string, unknown>> {
   config?: TConfig;
   /** Whether to enable this component initially (default: true) */
   enabled?: boolean;
-}
-
-/**
- * Union type for component configuration - supports both legacy and new formats
- * - Legacy: ComponentConfig from component.types.ts (system/agent/workflow)
- * - New: BlueprintComponentEntry with IComponent
- */
-export type AnyComponentConfig = ComponentConfig | BlueprintComponentEntry;
-
-/**
- * Type guard to check if config is new-style BlueprintComponentEntry
- */
-export function isBlueprintComponentEntry(
-  config: AnyComponentConfig,
-): config is BlueprintComponentEntry {
-  return 'componentKey' in config;
-}
-
-/**
- * Type guard to check if config is legacy ComponentConfig
- */
-export function isLegacyComponentConfig(
-  config: AnyComponentConfig,
-): config is ComponentConfig {
-  return 'type' in config && !('componentKey' in config);
 }
 
 // ============ Zod Schemas for Validation ============
@@ -138,20 +112,7 @@ export const LLMConfigSchema = z.object({
 export const ExecutionModeSchema = z.enum(['auto', 'stepping']);
 
 /**
- * Zod schema for ComponentConfig (legacy format)
- * Note: This validates the basic structure, component-specific validation
- * (e.g., system component requires instructions) is handled separately
- */
-export const ComponentConfigSchema = z.object({
-  type: z.enum(['system', 'agent', 'workflow']),
-  instructions: z.string().optional(),
-  tools: z.array(z.any()).optional(), // CustomToolConfig is complex, validate at runtime
-  subAgents: z.array(z.string()).optional(),
-  customData: z.record(z.string(), z.unknown()).optional(),
-}) as z.ZodType<ComponentConfig>;
-
-/**
- * Zod schema for BlueprintComponentEntry (new component-centric format)
+ * Zod schema for BlueprintComponentEntry
  * Uses componentKey (string) to reference registered components
  */
 export const BlueprintComponentEntrySchema = z.object({

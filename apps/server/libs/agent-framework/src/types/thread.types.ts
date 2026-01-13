@@ -1,6 +1,6 @@
 import type { LLMConfig } from '../llm/llm.types.js';
 import type { Blueprint } from '../blueprint/blueprint.types.js';
-import type { AgentEvent } from './event.types.js';
+import type { BaseEvent } from './event.types.js';
 
 // Re-export Step types from memory-manager.interface for backward compatibility
 export type {
@@ -28,7 +28,7 @@ export interface QueuedEvent {
   /** Unique identifier for the queued event */
   id: string;
   /** The event payload */
-  event: AgentEvent;
+  event: BaseEvent;
   /** Timestamp when the event was queued */
   queuedAt: number;
 }

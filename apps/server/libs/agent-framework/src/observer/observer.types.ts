@@ -1,7 +1,7 @@
 import type { MemoryState } from '../types/state.types.js';
 import type { MemoryChunk } from '../types/chunk.types.js';
 import type { Operation } from '../types/operation.types.js';
-import type { AgentEvent } from '../types/event.types.js';
+import type { BaseEvent } from '../types/event.types.js';
 import type { ReducerResult } from '../reducer/reducer.types.js';
 import type { QueuedEvent } from '../types/thread.types.js';
 
@@ -65,7 +65,7 @@ export interface MemoryObserver {
  */
 export interface EventDispatchInfo {
   threadId: string;
-  event: AgentEvent;
+  event: BaseEvent;
   timestamp: number;
 }
 
@@ -75,7 +75,7 @@ export interface EventDispatchInfo {
 export interface ReducerExecuteInfo {
   threadId: string;
   reducerName: string;
-  inputEvent: AgentEvent;
+  inputEvent: BaseEvent;
   inputState: MemoryState;
   result: ReducerResult;
   logs: string[];
@@ -90,7 +90,7 @@ export interface StateChangeInfo {
   previousState: MemoryState;
   newState: MemoryState;
   /** The event that triggered this state change, or null for system operations like truncation */
-  triggerEvent: AgentEvent | null;
+  triggerEvent: BaseEvent | null;
   reducerName: string;
   operations: Operation[];
   addedChunks: MemoryChunk[];

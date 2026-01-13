@@ -26,6 +26,23 @@ export interface ApplyReducerResultOutput {
 }
 
 /**
+ * Interface for state transition operations
+ */
+export interface IStateTransitionManager {
+  applyReducerResult(
+    threadId: string,
+    reducerResult: ReducerResult,
+  ): Promise<ApplyReducerResultOutput>;
+
+  applyReducerResultWithProvenance(
+    threadId: string,
+    reducerResult: ReducerResult,
+    provenance: StateProvenance,
+    llmResponseRequirement: LLMResponseRequirement,
+  ): Promise<ApplyReducerResultOutput>;
+}
+
+/**
  * StateTransitionManager handles state transitions for threads
  * Applies reducer results and updates thread state
  */

@@ -17,9 +17,9 @@ This directory contains all concrete EventReducer implementations.
 Each reducer implements the `EventReducer<T>` interface:
 
 ```typescript
-interface EventReducer<T extends AgentEvent> {
+interface EventReducer<T extends BaseEvent> {
   readonly eventTypes: EventType[];
-  canHandle(event: AgentEvent): event is T;
+  canHandle(event: BaseEvent): event is T;
   reduce(state: MemoryState, event: T): ReducerResult;
 }
 ```

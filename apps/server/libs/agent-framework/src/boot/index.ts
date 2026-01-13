@@ -18,7 +18,7 @@ export type {
   MemoryState,
   MemoryThread,
   MemoryChunk,
-  AgentEvent,
+  BaseEvent,
   MemoryObserver,
   Tool,
   DispatchResult,

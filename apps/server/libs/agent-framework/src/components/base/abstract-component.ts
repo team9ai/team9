@@ -3,9 +3,9 @@
  * Provides default implementations for IComponent interface
  */
 
-import type { MemoryChunk } from '../../types/chunk.types.js';
+import type { MemoryChunk, ChunkType } from '../../types/chunk.types.js';
 import type { MemoryState } from '../../types/state.types.js';
-import type { AgentEvent } from '../../types/event.types.js';
+import type { BaseEvent } from '../../types/event.types.js';
 import type { Tool } from '../../tools/tool.types.js';
 import { createChunk } from '../../factories/chunk.factory.js';
 import type {
@@ -53,6 +53,21 @@ export abstract class AbstractComponent implements IComponent {
 
   readonly dependencies?: string[];
 
+  /**
+   * ChunkTypes this component is responsible for (used by truncation)
+   * Override in subclass to declare which chunk types this component handles.
+   * When truncation needs to reduce context, it will ask components to truncate
+   * their owned chunks based on this type matching.
+   */
+  readonly responsibleChunkTypes: ChunkType[] = [];
+
+  /**
+   * Event types this component can handle
+   * Used by ReducerRegistry to route events to the correct component.
+   * Override in subclass to declare which events this component handles.
+   */
+  readonly supportedEventTypes: readonly string[] = [];
+
   // ============ Protected State ============
 
   protected chunkConfigs: ComponentChunkConfig[] = [];
@@ -79,7 +94,7 @@ export abstract class AbstractComponent implements IComponent {
           : config.initialContent;
 
       return createChunk({
-        componentId: this.id,
+        componentKey: this.id,
         chunkKey: config.key,
         type: config.type,
         content,
@@ -93,11 +108,28 @@ export abstract class AbstractComponent implements IComponent {
   getOwnedChunkIds(state: MemoryState): string[] {
     const ids: string[] = [];
     for (const [id, chunk] of state.chunks) {
-      if (chunk.componentId === this.id) {
+      if (chunk.componentKey === this.id) {
         ids.push(id);
       }
     }
     return ids;
+  }
+
+  /**
+   * Get chunks owned by this component based on responsibleChunkTypes
+   * Used by truncation to find chunks this component can truncate.
+   * Matches chunks by their type against this.responsibleChunkTypes.
+   *
+   * @param state - Current memory state
+   * @returns Array of chunks whose type is in responsibleChunkTypes
+   */
+  getOwnedChunks(state: MemoryState): MemoryChunk[] {
+    if (this.responsibleChunkTypes.length === 0) {
+      return [];
+    }
+    return Array.from(state.chunks.values()).filter((chunk) =>
+      this.responsibleChunkTypes.includes(chunk.type),
+    );
   }
 
   // ============ Tools ============
@@ -109,10 +141,42 @@ export abstract class AbstractComponent implements IComponent {
   // ============ Event Handling ============
 
   /**
-   * Default implementation: no events handled
-   * Subclasses should override to handle specific events
+   * Check if this component supports the given event type
+   * @param eventType - The event type to check
+   * @returns true if this component handles the event type
    */
-  getReducersForEvent(_event: AgentEvent): ComponentReducerFn[] {
+  supportsEventType(eventType: string): boolean {
+    return this.supportedEventTypes.includes(eventType);
+  }
+
+  /**
+   * Get reducers for an event
+   * This is the public method that checks supportedEventTypes first,
+   * then delegates to getReducersForEventImpl() for actual reducer logic.
+   *
+   * Subclasses should override getReducersForEventImpl() instead of this method.
+   */
+  getReducersForEvent(event: BaseEvent): ComponentReducerFn[] {
+    // Check if this component handles this event type
+    if (!this.supportsEventType(event.type)) {
+      return [];
+    }
+
+    // Delegate to implementation method
+    return this.getReducersForEventImpl(event);
+  }
+
+  /**
+   * Implementation method for getting reducers for a specific event
+   * Subclasses should override this method to provide actual reducer logic.
+   *
+   * This method is only called if the event type is in supportedEventTypes,
+   * so subclasses don't need to check event types again.
+   *
+   * @param event - The event to get reducers for (guaranteed to be a supported type)
+   * @returns Array of reducer functions to execute
+   */
+  protected getReducersForEventImpl(_event: BaseEvent): ComponentReducerFn[] {
     return [];
   }
 

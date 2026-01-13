@@ -1,7 +1,7 @@
 import type { MemoryThread } from '../types/thread.types.js';
 import type { MemoryState } from '../types/state.types.js';
 import type { MemoryChunk, ChunkContent } from '../types/chunk.types.js';
-import type { AgentEvent } from '../types/event.types.js';
+import type { BaseEvent } from '../types/event.types.js';
 import type {
   DispatchResult,
   StepResult,
@@ -81,7 +81,7 @@ export interface DebugController {
    * @param threadId - Thread ID
    * @param event - Event to inject
    */
-  injectEvent(threadId: string, event: AgentEvent): Promise<DispatchResult>;
+  injectEvent(threadId: string, event: BaseEvent): Promise<DispatchResult>;
 
   /**
    * Fork a new thread from a specific state
@@ -152,7 +152,7 @@ export interface DebugController {
   setExecutionMode(threadId: string, mode: ExecutionMode): Promise<void>;
 
   /**
-   * Execute a single step in stepping mode
+   * Execute a single step manually in stepping mode
    * If there's a pending compaction, it will be executed first.
    * Otherwise, processes the next queued event.
    *
@@ -160,21 +160,7 @@ export interface DebugController {
    * @returns The result of the step operation
    * @throws Error if not in stepping mode
    */
-  step(threadId: string): Promise<StepResult>;
-
-  /**
-   * Check if there's a pending compaction for a thread
-   * @param threadId - Thread ID
-   * @returns true if compaction is pending
-   */
-  hasPendingCompaction(threadId: string): boolean;
-
-  /**
-   * Check if there's a pending truncation for a thread
-   * @param threadId - Thread ID
-   * @returns true if truncation is pending
-   */
-  hasPendingTruncation(threadId: string): boolean;
+  manualStep(threadId: string): Promise<StepResult>;
 
   /**
    * Check if a step is currently locked (being processed)
@@ -195,5 +181,5 @@ export interface DebugController {
    * @param threadId - Thread ID
    * @returns The next event or null if queue is empty
    */
-  peekNextEvent(threadId: string): Promise<AgentEvent | null>;
+  peekNextEvent(threadId: string): Promise<BaseEvent | null>;
 }

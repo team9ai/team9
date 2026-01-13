@@ -2,12 +2,12 @@
  * Agent Execution Service
  *
  * Handles agent execution: event injection, stepping, and LLM response generation.
- * Manages the execution flow and broadcasting of results.
+ * Uses Agent methods for dispatch/step operations.
  * Also handles subagent lifecycle and result propagation.
  */
 
 import type {
-  AgentEvent,
+  BaseEvent,
   DispatchResult,
   StepResult,
 } from '@team9/agent-framework';
@@ -54,15 +54,15 @@ export class AgentExecutionService {
    */
   async injectEvent(
     agentId: string,
-    event: AgentEvent,
+    event: BaseEvent,
     autoRun: boolean = true,
   ): Promise<InjectEventResult | null> {
-    const controller = this.state.debugControllers.get(agentId);
-    const agent = this.state.agentsCache.get(agentId);
-    if (!controller || !agent) return null;
+    const agent = this.state.agents.get(agentId);
+    const agentInstance = this.state.agentsCache.get(agentId);
+    if (!agent || !agentInstance) return null;
 
-    // First, inject the event into memory
-    const dispatchResult = await controller.injectEvent(agent.threadId, event);
+    // First, dispatch the event using Agent
+    const dispatchResult = await agent.dispatch(event);
 
     // Debug logging
     const isStepMode = this.config.isSteppingMode(agentId);
@@ -84,7 +84,7 @@ export class AgentExecutionService {
         this.broadcast(agentId, 'agent:thinking', { event });
 
         // Run asynchronously - don't await
-        this.runExecutorAsync(agentId, executor, agent.threadId);
+        this.runExecutorAsync(agentId, executor, agentInstance.threadId);
       }
     }
 
@@ -136,23 +136,23 @@ export class AgentExecutionService {
    * Execute a single step in stepping mode
    *
    * Priority:
-   * 1. Events in queue (processed by MemoryManager.step)
-   * 2. Pending truncation (processed by MemoryManager.step)
-   * 3. Pending compaction (processed by MemoryManager.step)
-   * 4. LLM response generation (only if needsResponse is true)
+   * 1. Events in queue (processed by Agent.step)
+   * 2. Pending compaction (processed by Agent.step)
+   * 3. LLM response generation (only if needLLMContinueResponse is true)
+   *
+   * Note: Truncation is now handled non-destructively in TurnExecutor before LLM calls.
    */
   async step(agentId: string): Promise<StepResult | null> {
-    const controller = this.state.debugControllers.get(agentId);
-    const agent = this.state.agentsCache.get(agentId);
-    const memoryManager = this.state.memoryManagers.get(agentId);
-    if (!controller || !agent || !memoryManager) return null;
+    const agent = this.state.agents.get(agentId);
+    const agentInstance = this.state.agentsCache.get(agentId);
+    if (!agent || !agentInstance) return null;
 
-    // Step 1: Call MemoryManager.step() for events/truncation/compaction
-    const memoryResult = await controller.step(agent.threadId);
+    // Step 1: Call Agent.step() for events/truncation/compaction
+    const memoryResult = await agent.step();
 
     // Handle interrupt if needed
     if (memoryResult.shouldInterrupt) {
-      this.state.executors.get(agentId)?.cancel(agent.threadId);
+      this.state.executors.get(agentId)?.cancel(agentInstance.threadId);
     }
 
     // If memory operation was performed, return (Observer handles step recording)
@@ -167,7 +167,7 @@ export class AgentExecutionService {
 
     // Step 2: No pending operations - check if LLM response needed
     const executor = this.state.executors.get(agentId);
-    if (!executor || !memoryResult.needsResponse) {
+    if (!executor || !memoryResult.needLLMContinueResponse) {
       // No-op: nothing to do, no step recorded
       this.broadcastStepResult(agentId, memoryResult, false);
       return memoryResult;
@@ -177,14 +177,13 @@ export class AgentExecutionService {
     this.broadcast(agentId, 'agent:thinking', {});
 
     try {
-      const executionResult = await executor.runSingleTurn(agent.threadId);
+      const executionResult = await executor.runSingleTurn(
+        agentInstance.threadId,
+      );
 
       // Observer handles step recording via onStateChange
 
-      const updatedResult = await this.buildStepResult(
-        agent.threadId,
-        memoryManager,
-      );
+      const updatedResult = await this.buildStepResult(agentId);
       this.broadcastStepResult(
         agentId,
         updatedResult,
@@ -206,21 +205,28 @@ export class AgentExecutionService {
   /**
    * Build step result from current state
    */
-  private async buildStepResult(
-    threadId: string,
-    memoryManager: {
-      getPersistentQueueLength: (threadId: string) => Promise<number>;
-      needLLMContinueResponse: (threadId: string) => Promise<boolean>;
-      getCurrentState: (threadId: string) => Promise<unknown>;
-      getThread: (threadId: string) => Promise<unknown>;
-      hasPendingCompaction: (threadId: string) => boolean;
-      hasPendingTruncation: (threadId: string) => boolean;
-    },
-  ): Promise<StepResult> {
-    const queueLength = await memoryManager.getPersistentQueueLength(threadId);
-    const needsResponse = await memoryManager.needLLMContinueResponse(threadId);
-    const finalState = await memoryManager.getCurrentState(threadId);
-    const thread = await memoryManager.getThread(threadId);
+  private async buildStepResult(agentId: string): Promise<StepResult> {
+    const agent = this.state.agents.get(agentId);
+    const agentInstance = this.state.agentsCache.get(agentId);
+    if (!agent || !agentInstance) {
+      return {
+        dispatchResult: null,
+        eventProcessed: false,
+        compactionPerformed: false,
+        truncationPerformed: false,
+        hasPendingOperations: false,
+        queuedEventCount: 0,
+        needLLMContinueResponse: false,
+      };
+    }
+
+    const orchestrator = agent.getOrchestrator();
+    const threadId = agentInstance.threadId;
+
+    const queueLength = await orchestrator.getPersistentQueueLength(threadId);
+    const needsResponse = await orchestrator.needLLMContinueResponse(threadId);
+    const finalState = await agent.getState();
+    const thread = await agent.getThread();
 
     return {
       dispatchResult:
@@ -235,12 +241,9 @@ export class AgentExecutionService {
       eventProcessed: false,
       compactionPerformed: false,
       truncationPerformed: false,
-      hasPendingOperations:
-        queueLength > 0 ||
-        memoryManager.hasPendingCompaction(threadId) ||
-        memoryManager.hasPendingTruncation(threadId),
+      hasPendingOperations: queueLength > 0,
       queuedEventCount: queueLength,
-      needsResponse,
+      needLLMContinueResponse: needsResponse,
     };
   }
 
@@ -265,7 +268,7 @@ export class AgentExecutionService {
         compactionPerformed: result.compactionPerformed,
         hasPendingOperations: result.hasPendingOperations,
         queuedEventCount: result.queuedEventCount,
-        needsResponse: result.needsResponse,
+        needLLMContinueResponse: result.needLLMContinueResponse,
         llmResponseGenerated,
         lastResponse,
         shouldTerminate: result.shouldTerminate,
@@ -287,11 +290,10 @@ export class AgentExecutionService {
     result: unknown,
     success: boolean,
   ): Promise<void> {
-    const parentAgent = this.state.agentsCache.get(parentAgentId);
-    const memoryManager = this.state.memoryManagers.get(parentAgentId);
-    const controller = this.state.debugControllers.get(parentAgentId);
+    const parentAgent = this.state.agents.get(parentAgentId);
+    const parentAgentInstance = this.state.agentsCache.get(parentAgentId);
 
-    if (!parentAgent || !memoryManager || !controller) {
+    if (!parentAgent || !parentAgentInstance) {
       console.error(
         '[onSubagentComplete] Parent agent not found:',
         parentAgentId,
@@ -307,7 +309,7 @@ export class AgentExecutionService {
     );
 
     // Create SUBAGENT_RESULT event
-    const resultEvent: AgentEvent = {
+    const resultEvent: BaseEvent = {
       type: EventType.SUBAGENT_RESULT,
       subAgentId: subagentKey,
       childThreadId,
@@ -324,8 +326,8 @@ export class AgentExecutionService {
       success,
     });
 
-    // Inject the result event into parent thread
-    await controller.injectEvent(parentAgent.threadId, resultEvent);
+    // Dispatch the result event into parent agent
+    await parentAgent.dispatch(resultEvent);
 
     // Trigger parent agent to continue execution
     const isStepMode = this.config.isSteppingMode(parentAgentId);
@@ -337,7 +339,11 @@ export class AgentExecutionService {
         parentAgentId,
       );
       this.broadcast(parentAgentId, 'agent:thinking', { event: resultEvent });
-      this.runExecutorAsync(parentAgentId, executor, parentAgent.threadId);
+      this.runExecutorAsync(
+        parentAgentId,
+        executor,
+        parentAgentInstance.threadId,
+      );
     }
   }
 
@@ -349,7 +355,7 @@ export class AgentExecutionService {
     parentAgentId: string,
     childThreadId: string,
     subagentKey: string,
-    event: AgentEvent,
+    event: BaseEvent,
   ): void {
     this.broadcast(parentAgentId, 'subagent:step', {
       subagentKey,

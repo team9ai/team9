@@ -230,7 +230,7 @@ export class BlueprintLoader {
         // Create a simple context for initial chunk creation
         const context = {
           threadId: '', // Will be set after thread creation
-          componentId: componentInstance.id,
+          componentKey: componentInstance.id,
           getOwnedChunks: () => [],
           getData: <T>(_key: string): T | undefined => undefined,
           setData: <T>(_key: string, _value: T): void => {},

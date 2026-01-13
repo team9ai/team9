@@ -14,18 +14,18 @@ import type {
  */
 export class DefaultComponentContext implements ComponentContext {
   public readonly threadId: string;
-  public readonly componentId: string;
+  public readonly componentKey: string;
   private readonly state: MemoryState;
   private readonly runtimeState: ComponentRuntimeState;
 
   constructor(
     threadId: string,
-    componentId: string,
+    componentKey: string,
     state: MemoryState,
     runtimeState: ComponentRuntimeState,
   ) {
     this.threadId = threadId;
-    this.componentId = componentId;
+    this.componentKey = componentKey;
     this.state = state;
     this.runtimeState = runtimeState;
   }
@@ -50,13 +50,13 @@ export class DefaultComponentContext implements ComponentContext {
  */
 export function createComponentContext(
   threadId: string,
-  componentId: string,
+  componentKey: string,
   state: MemoryState,
   runtimeState: ComponentRuntimeState,
 ): ComponentContext {
   return new DefaultComponentContext(
     threadId,
-    componentId,
+    componentKey,
     state,
     runtimeState,
   );

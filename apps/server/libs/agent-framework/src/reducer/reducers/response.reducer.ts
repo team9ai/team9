@@ -5,7 +5,7 @@ import {
   MemoryChunk,
 } from '../../types/chunk.types.js';
 import {
-  AgentEvent,
+  BaseEvent,
   EventType,
   ToolResultEvent,
   SkillResultEvent,
@@ -103,7 +103,7 @@ function createConversationResult(
 export class ToolResultReducer implements EventReducer<ToolResultEvent> {
   readonly eventTypes = [EventType.TOOL_RESULT];
 
-  canHandle(event: AgentEvent): event is ToolResultEvent {
+  canHandle(event: BaseEvent): event is ToolResultEvent {
     return event.type === EventType.TOOL_RESULT;
   }
 
@@ -133,7 +133,7 @@ export class ToolResultReducer implements EventReducer<ToolResultEvent> {
 export class SkillResultReducer implements EventReducer<SkillResultEvent> {
   readonly eventTypes = [EventType.SKILL_RESULT];
 
-  canHandle(event: AgentEvent): event is SkillResultEvent {
+  canHandle(event: BaseEvent): event is SkillResultEvent {
     return event.type === EventType.SKILL_RESULT;
   }
 
@@ -163,7 +163,7 @@ export class SkillResultReducer implements EventReducer<SkillResultEvent> {
 export class SubAgentResultReducer implements EventReducer<SubAgentResultEvent> {
   readonly eventTypes = [EventType.SUBAGENT_RESULT];
 
-  canHandle(event: AgentEvent): event is SubAgentResultEvent {
+  canHandle(event: BaseEvent): event is SubAgentResultEvent {
     return event.type === EventType.SUBAGENT_RESULT;
   }
 

@@ -16,9 +16,9 @@ export const STATUS_CHUNK_KEY = 'subagent_status';
 /**
  * Create status chunk for tracking active sub-agents
  */
-export function createSubAgentStatusChunk(componentId: string): MemoryChunk {
+export function createSubAgentStatusChunk(componentKey: string): MemoryChunk {
   return createChunk({
-    componentId,
+    componentKey,
     chunkKey: STATUS_CHUNK_KEY,
     type: ChunkType.SYSTEM,
     content: {

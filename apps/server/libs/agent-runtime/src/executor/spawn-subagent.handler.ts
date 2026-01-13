@@ -13,12 +13,13 @@ import type {
   IToolCallHandler,
   ToolCallHandlerContext,
   ToolCallHandlerResult,
-  AgentEvent,
+  BaseEvent,
   Blueprint,
   AgentOrchestrator,
   MemoryState,
   MemoryChunk,
-  ILLMAdapter,
+  AgentFactory,
+  Agent,
 } from '@team9/agent-framework';
 import {
   EventType,
@@ -44,7 +45,7 @@ export type SubagentStepCallback = (
   parentThreadId: string,
   childThreadId: string,
   subagentKey: string,
-  event: AgentEvent,
+  event: BaseEvent,
 ) => void;
 
 /**
@@ -63,18 +64,16 @@ export type SubagentCreatedCallback = (
 export interface SpawnSubagentHandlerConfig {
   /** Parent blueprint containing subagent definitions */
   parentBlueprint: Blueprint;
-  /** Factory function to create a new MemoryManager for subagent */
-  createMemoryManager: (blueprint: Blueprint) => Promise<AgentOrchestrator>;
-  /** Factory function to create a new LLM adapter for subagent */
-  createLLMAdapter: (blueprint: Blueprint) => ILLMAdapter;
+  /** AgentFactory for creating subagents (boot API) */
+  factory: AgentFactory;
+  /** Parent agent ID for callbacks */
+  parentAgentId?: string;
   /** Callback when subagent completes */
   onSubagentComplete?: SubagentCompleteCallback;
   /** Callback for subagent step events */
   onSubagentStep?: SubagentStepCallback;
   /** Callback when subagent is created (for setting up observers) */
   onSubagentCreated?: SubagentCreatedCallback;
-  /** Parent agent ID for callbacks */
-  parentAgentId?: string;
 }
 
 /**
@@ -188,7 +187,7 @@ export class SpawnSubagentHandler implements IToolCallHandler {
     });
 
     // Create spawn event - actual execution happens when this event is processed
-    const spawnEvent: AgentEvent = {
+    const spawnEvent: BaseEvent = {
       type: EventType.LLM_SUBAGENT_SPAWN,
       subAgentId: spawnId, // Temporary ID, will be replaced with actual thread ID
       agentType: subagentKey,
@@ -270,9 +269,9 @@ export class SpawnSubagentHandler implements IToolCallHandler {
     parentState: MemoryState,
     subagentContext?: Record<string, unknown>,
   ): Promise<string> {
-    // Create memory manager for subagent
-    const subagentMemoryManager =
-      await this.config.createMemoryManager(blueprint);
+    // Create subagent using boot API
+    const subagent = await this.config.factory.createAgent(blueprint);
+    const subagentOrchestrator = subagent.getOrchestrator();
 
     // Build inherited context from parent
     const parentChunks = await this.getParentChunks(context, parentState);
@@ -281,38 +280,39 @@ export class SpawnSubagentHandler implements IToolCallHandler {
     // Create context summary for the subagent
     const contextSummary = createSubagentContextSummary(inheritedContext, task);
 
-    // Create thread with parent reference
-    const { thread } = await subagentMemoryManager.createThread({
-      parentThreadId: context.threadId,
-      blueprintKey: subagentKey,
-      custom: {
-        task,
-        parentContext: subagentContext,
-        contextSummary,
-      },
-    });
+    // Update thread custom metadata
+    const thread = await subagent.getThread();
+    if (thread) {
+      // Store context info in thread metadata via orchestrator
+      // Note: The thread was already created by factory.createAgent()
+      // We'll inject the context via the initial message instead
+    }
 
     // Link child to parent
-    await context.orchestrator.addChildThread(context.threadId, thread.id);
+    await context.orchestrator.addChildThread(
+      context.threadId,
+      subagent.threadId,
+    );
 
-    // Inject initial user message (the task)
-    const initialMessage: AgentEvent = {
+    // Inject initial user message (the task with context)
+    const initialMessage: BaseEvent = {
       type: EventType.USER_MESSAGE,
-      content: task,
+      content: `${contextSummary}\n\nTask: ${task}`,
       timestamp: Date.now(),
     };
-    await subagentMemoryManager.dispatch(thread.id, initialMessage);
+    await subagent.dispatch(initialMessage);
 
     // Start subagent execution asynchronously
     this.runSubagentAsync(
-      thread.id,
+      subagent.threadId,
       context.threadId,
       subagentKey,
-      subagentMemoryManager,
+      subagentOrchestrator,
+      subagent,
       blueprint,
     );
 
-    return thread.id;
+    return subagent.threadId;
   }
 
   /**
@@ -343,18 +343,19 @@ export class SpawnSubagentHandler implements IToolCallHandler {
     childThreadId: string,
     parentThreadId: string,
     subagentKey: string,
-    memoryManager: AgentOrchestrator,
+    orchestrator: AgentOrchestrator,
+    subagent: Agent,
     blueprint: Blueprint,
   ): Promise<void> {
     try {
       // Import AgentExecutor dynamically to avoid circular dependency
       const { AgentExecutor } = await import('./agent-executor.js');
 
-      // Create LLM adapter for subagent
-      const llmAdapter = this.config.createLLMAdapter(blueprint);
+      // Get LLM adapter from orchestrator
+      const llmAdapter = orchestrator.getLLMAdapter();
 
       // Create executor for subagent
-      const executor = new AgentExecutor(memoryManager, llmAdapter, {
+      const executor = new AgentExecutor(orchestrator, llmAdapter, {
         tools: blueprint.tools ?? [],
         maxTurns: 10, // Limit subagent turns
       });
@@ -372,16 +373,16 @@ export class SpawnSubagentHandler implements IToolCallHandler {
           this.config.parentAgentId,
           childThreadId,
           subagentKey,
-          memoryManager,
+          orchestrator,
         );
       }
 
       // Set up observer for subagent progress
-      const unsubscribe = memoryManager.addObserver({
-        onStateChange: (info) => {
+      const unsubscribe = orchestrator.addObserver({
+        onStateChange: (_info: unknown) => {
           // Notify parent about subagent progress
           if (this.config.onSubagentStep) {
-            const event: AgentEvent = {
+            const event: BaseEvent = {
               type: EventType.LLM_TEXT_RESPONSE,
               content: `Subagent state changed`,
               timestamp: Date.now(),
@@ -452,7 +453,7 @@ export class SpawnSubagentHandler implements IToolCallHandler {
     callId: string,
     errorMessage: string,
   ): ToolCallHandlerResult {
-    const errorEvent: AgentEvent = {
+    const errorEvent: BaseEvent = {
       type: EventType.TOOL_RESULT,
       toolName: 'spawn_subagent',
       callId,

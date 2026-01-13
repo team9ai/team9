@@ -1,5 +1,5 @@
 import type {
-  AgentEvent,
+  BaseEvent,
   MemoryState,
   MemoryChunk,
   ChunkContent,
@@ -8,8 +8,7 @@ import type {
   StepResult,
   AgentStatus,
   EventDispatchStrategy,
-  AgentOrchestrator,
-  DebugController,
+  Agent,
 } from '@team9/agent-framework';
 import type { AgentExecutor } from '../executor/agent-executor.js';
 
@@ -23,10 +22,8 @@ export type { ExecutionMode, StepResult, AgentStatus, EventDispatchStrategy };
 export interface AgentRuntimeState {
   /** Cached agent instances by ID */
   agentsCache: Map<string, AgentInstance>;
-  /** Memory managers by agent ID */
-  memoryManagers: Map<string, AgentOrchestrator>;
-  /** Debug controllers by agent ID */
-  debugControllers: Map<string, DebugController>;
+  /** Agent instances by ID (boot API Agent wrapper) */
+  agents: Map<string, Agent>;
   /** Executors by agent ID */
   executors: Map<string, AgentExecutor>;
 }
@@ -83,8 +80,6 @@ export interface AgentInstance {
  */
 export interface ExecutionModeStatus {
   mode: ExecutionMode;
-  hasPendingCompaction: boolean;
-  hasPendingTruncation: boolean;
 }
 
 /**
@@ -106,7 +101,7 @@ export interface CreateAgentRequest {
  * Inject event request
  */
 export interface InjectEventRequest {
-  event: AgentEvent;
+  event: BaseEvent;
 }
 
 /**
@@ -130,7 +125,7 @@ export interface EditChunkRequest {
 export interface BatchTestConfig {
   blueprintId: string;
   concurrency: number;
-  inputEvent: AgentEvent;
+  inputEvent: BaseEvent;
   modelOverride?: LLMConfig;
   timeout?: number;
 }

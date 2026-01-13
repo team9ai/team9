@@ -1,7 +1,7 @@
 import { MemoryState } from '../types/state.types.js';
 import { MemoryChunk } from '../types/chunk.types.js';
 import { Operation } from '../types/operation.types.js';
-import { AgentEvent, EventType } from '../types/event.types.js';
+import type { BaseEvent, EventTypeValue } from '../types/event.types.js';
 
 /**
  * Result of a reducer processing
@@ -18,16 +18,16 @@ export interface ReducerResult {
  * Base event reducer interface
  * Reducers process events and generate operations to modify state
  */
-export interface EventReducer<TEvent extends AgentEvent = AgentEvent> {
+export interface EventReducer<TEvent extends BaseEvent = BaseEvent> {
   /** Event types this reducer handles */
-  readonly eventTypes: EventType[];
+  readonly eventTypes: EventTypeValue[];
 
   /**
    * Check if this reducer can handle the given event
    * @param event - The event to check
    * @returns Whether this reducer can handle the event
    */
-  canHandle(event: AgentEvent): event is TEvent;
+  canHandle(event: BaseEvent): event is TEvent;
 
   /**
    * Process an event and generate operations
@@ -62,7 +62,7 @@ export interface ReducerRegistry {
    * @param event - The event to find reducers for
    * @returns Array of reducers that can handle the event
    */
-  getReducersForEvent(event: AgentEvent): EventReducer[];
+  getReducersForEvent(event: BaseEvent): EventReducer[];
 
   /**
    * Process an event through all applicable reducers
@@ -70,7 +70,7 @@ export interface ReducerRegistry {
    * @param event - The event to process
    * @returns Combined result from all applicable reducers
    */
-  reduce(state: MemoryState, event: AgentEvent): Promise<ReducerResult>;
+  reduce(state: MemoryState, event: BaseEvent): Promise<ReducerResult>;
 }
 
 /**
@@ -79,10 +79,10 @@ export interface ReducerRegistry {
  */
 export type ReducerMiddleware = (
   state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
   next: (
     state: MemoryState,
-    event: AgentEvent,
+    event: BaseEvent,
   ) => ReducerResult | Promise<ReducerResult>,
 ) => ReducerResult | Promise<ReducerResult>;
 

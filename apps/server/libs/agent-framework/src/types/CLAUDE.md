@@ -4,14 +4,14 @@ This directory defines core type definitions for the Agent Memory Context system
 
 ## File Structure
 
-| File                 | Description                                                                                            |
-| -------------------- | ------------------------------------------------------------------------------------------------------ |
-| `chunk.types.ts`     | Memory Chunk types: ChunkType, ChunkContentType, ChunkRetentionStrategy, MemoryChunk                   |
-| `state.types.ts`     | Memory State types: MemoryState (immutable state container)                                            |
-| `operation.types.ts` | Operation types: OperationType, Operation (ADD, REMOVE, UPDATE, COMPACT, CLEAR)                        |
-| `thread.types.ts`    | Thread types: Thread, ThreadMetadata (supports multi-thread conversations)                             |
-| `event.types.ts`     | Event type definitions: EventType enum (27+ event types), AgentEvent union type, EventDispatchStrategy |
-| `agent.types.ts`     | Agent types: AgentStatus (processing, waiting_internal, awaiting_input, paused, completed, error)      |
+| File                 | Description                                                                                          |
+| -------------------- | ---------------------------------------------------------------------------------------------------- |
+| `chunk.types.ts`     | Memory Chunk types: ChunkType, ChunkContentType, ChunkRetentionStrategy, MemoryChunk                 |
+| `state.types.ts`     | Memory State types: MemoryState (immutable state container)                                          |
+| `operation.types.ts` | Operation types: OperationType, Operation (ADD, REMOVE, UPDATE, COMPACT, CLEAR)                      |
+| `thread.types.ts`    | Thread types: Thread, ThreadMetadata (supports multi-thread conversations)                           |
+| `event.types.ts`     | Event type definitions: EventType enum (27+ event types), BaseEvent interface, EventDispatchStrategy |
+| `agent.types.ts`     | Agent types: AgentStatus (processing, waiting_internal, awaiting_input, paused, completed, error)    |
 
 ## Core Concepts
 

@@ -11,7 +11,7 @@
 import { AbstractComponent } from '../abstract-component.js';
 import type { MemoryChunk } from '../../../types/chunk.types.js';
 import { ChunkType } from '../../../types/chunk.types.js';
-import type { AgentEvent } from '../../../types/event.types.js';
+import type { BaseEvent } from '../../../types/event.types.js';
 import { EventType } from '../../../types/event.types.js';
 import type {
   NewComponentType,
@@ -35,19 +35,21 @@ export class TaskLifecycleComponent extends AbstractComponent {
   readonly name = 'Task Lifecycle';
   readonly type: NewComponentType = 'base';
 
-  private static readonly HANDLED_EVENTS = new Set([
+  /**
+   * Event types this component handles
+   * These events will be routed to this component by the ReducerRegistry
+   */
+  override readonly supportedEventTypes = [
     EventType.TASK_COMPLETED,
     EventType.TASK_ABANDONED,
     EventType.TASK_TERMINATED,
-  ]);
+  ] as const;
 
   // ============ Event Handling ============
 
-  getReducersForEvent(event: AgentEvent): ComponentReducerFn[] {
-    if (!TaskLifecycleComponent.HANDLED_EVENTS.has(event.type)) {
-      return [];
-    }
-
+  protected override getReducersForEventImpl(
+    event: BaseEvent,
+  ): ComponentReducerFn[] {
     switch (event.type) {
       case EventType.TASK_COMPLETED:
         return [
@@ -85,7 +87,7 @@ export class TaskLifecycleComponent extends AbstractComponent {
     _context: ComponentContext,
   ): RenderedFragment[] {
     // Only render OUTPUT chunks from this component
-    if (chunk.type !== ChunkType.OUTPUT || chunk.componentId !== this.id) {
+    if (chunk.type !== ChunkType.OUTPUT || chunk.componentKey !== this.id) {
       return [];
     }
 

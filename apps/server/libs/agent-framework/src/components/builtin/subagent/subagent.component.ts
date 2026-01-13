@@ -50,7 +50,7 @@ export class SubAgentComponent extends AbstractComponent {
     chunk: MemoryChunk,
     context: ComponentContext,
   ): RenderedFragment[] {
-    if (chunk.componentId !== this.id) {
+    if (chunk.componentKey !== this.id) {
       return [];
     }
 

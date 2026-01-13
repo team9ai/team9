@@ -12,7 +12,8 @@ import type { ObserverManager } from '../observer/observer.types.js';
 import { ITokenizer } from '../tokenizer/tokenizer.types.js';
 import { createTokenizer } from '../tokenizer/tiktoken.tokenizer.js';
 import { Compactor, type ComponentLookup } from '../compactor/index.js';
-import type { ReducerResult } from '../reducer/reducer.types.js';
+import type { IMemoryManager } from './memory-manager.interface.js';
+import type { IStateTransitionManager } from './state-transition.manager.js';
 
 /**
  * Result of dispatching an event (re-exported for compaction)
@@ -26,18 +27,6 @@ export interface DispatchResult {
   addedChunks: MemoryChunk[];
   /** Chunk IDs that were removed */
   removedChunkIds: string[];
-}
-
-/**
- * Interface for runtime coordination operations needed by CompactionManager
- * AgentOrchestrator implements this interface
- */
-export interface ICompactionCoordinator {
-  getCurrentState(threadId: string): Promise<Readonly<MemoryState> | null>;
-  applyReducerResult(
-    threadId: string,
-    reducerResult: ReducerResult,
-  ): Promise<DispatchResult>;
 }
 
 /**
@@ -282,19 +271,21 @@ export class CompactionManager {
    * Compactor identifies chunks to compact and delegates to component's compactChunk method.
    *
    * @param threadId - The thread ID
-   * @param coordinator - Runtime coordinator for state operations
+   * @param memoryManager - Memory manager for state access
+   * @param stateTransitionManager - State transition manager for applying reducer results
    * @param observerManager - Observer manager for notifications
    * @param componentLookup - Optional function to find component for chunk (provided by ComponentManager)
    * @returns The dispatch result after compaction
    */
   async executeCompaction(
     threadId: string,
-    coordinator: ICompactionCoordinator,
+    memoryManager: IMemoryManager,
+    stateTransitionManager: IStateTransitionManager,
     observerManager: ObserverManager,
     componentLookup?: ComponentLookup,
   ): Promise<DispatchResult> {
     // Get current state
-    const currentState = await coordinator.getCurrentState(threadId);
+    const currentState = await memoryManager.getCurrentState(threadId);
     if (!currentState) {
       throw new Error(`Current state not found for thread: ${threadId}`);
     }
@@ -316,8 +307,8 @@ export class CompactionManager {
       componentLookup,
     );
 
-    // Apply through coordinator
-    const result = await coordinator.applyReducerResult(
+    // Apply through state transition manager
+    const result = await stateTransitionManager.applyReducerResult(
       threadId,
       reducerResult,
     );

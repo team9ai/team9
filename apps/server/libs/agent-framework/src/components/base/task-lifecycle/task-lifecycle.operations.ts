@@ -19,7 +19,7 @@ const OUTPUT_CHUNK_KEY = 'task_output';
  * Options for creating a task output chunk
  */
 export interface TaskOutputOptions {
-  componentId: string;
+  componentKey: string;
   action: 'task_completed' | 'task_abandoned' | 'task_terminated';
   eventType: string;
   timestamp: number;
@@ -31,11 +31,11 @@ export interface TaskOutputOptions {
  * Create a task output chunk
  */
 export function createTaskOutputChunk(options: TaskOutputOptions): MemoryChunk {
-  const { componentId, action, eventType, timestamp, status, content } =
+  const { componentKey, action, eventType, timestamp, status, content } =
     options;
 
   return createChunk({
-    componentId,
+    componentKey,
     chunkKey: OUTPUT_CHUNK_KEY,
     type: ChunkType.OUTPUT,
     content: {

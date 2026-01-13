@@ -8,8 +8,10 @@
 import type { AgentOrchestrator } from '../manager/agent-orchestrator.js';
 import type { LLMMessage, LLMToolDefinition } from '../llm/llm.types.js';
 import type { ContextBuilder } from '../context/context-builder.js';
-import type { AgentEvent } from '../types/event.types.js';
+import type { BaseEvent } from '../types/event.types.js';
 import type { LLMInteraction } from '../types/thread.types.js';
+import type { MemoryState } from '../types/state.types.js';
+import type { IComponent } from '../components/component.interface.js';
 import type {
   IToolCallHandler,
   ToolCallHandlerContext,
@@ -18,6 +20,7 @@ import type {
 import { EventType } from '../types/event.types.js';
 import { LLMCaller } from './llm-caller.js';
 import { parseResponseToEvents } from './response-parser.js';
+import { truncate } from '../manager/truncation.manager.js';
 
 /**
  * Result of a single turn execution
@@ -32,7 +35,7 @@ export interface SingleTurnResult {
   /** LLM response content */
   responseContent?: string;
   /** Events generated during this turn */
-  events: AgentEvent[];
+  events: BaseEvent[];
   /** Error message if failed */
   error?: string;
   /** LLM interaction data for debugging */
@@ -40,16 +43,33 @@ export interface SingleTurnResult {
 }
 
 /**
+ * TurnExecutor configuration for truncation
+ */
+export interface TurnExecutorConfig {
+  /** Components for truncation support */
+  components?: IComponent[];
+  /** Maximum token limit for context (triggers truncation when exceeded) */
+  maxContextTokens?: number;
+}
+
+/**
  * TurnExecutor handles the execution of a single LLM turn
  */
 export class TurnExecutor {
+  private components: IComponent[];
+  private maxContextTokens?: number;
+
   constructor(
     private orchestrator: AgentOrchestrator,
     private contextBuilder: ContextBuilder,
     private llmCaller: LLMCaller,
     private toolDefinitions: LLMToolDefinition[],
     private toolCallHandlers: IToolCallHandler[],
-  ) {}
+    config?: TurnExecutorConfig,
+  ) {
+    this.components = config?.components ?? [];
+    this.maxContextTokens = config?.maxContextTokens;
+  }
 
   /**
    * Execute a single LLM turn
@@ -62,7 +82,7 @@ export class TurnExecutor {
     threadId: string,
     cancellation: CancellationTokenSource | null,
   ): Promise<SingleTurnResult> {
-    const events: AgentEvent[] = [];
+    const events: BaseEvent[] = [];
 
     const currentState = await this.orchestrator.getCurrentState(threadId);
     if (!currentState) {
@@ -75,8 +95,20 @@ export class TurnExecutor {
       };
     }
 
-    // Build context for LLM
-    const context = this.contextBuilder.build(currentState);
+    // Apply truncation if configured and needed
+    let stateForLLM: MemoryState = currentState;
+    if (this.maxContextTokens && this.components.length > 0) {
+      const truncationResult = await truncate(currentState, this.components, {
+        maxTokenTarget: this.maxContextTokens,
+      });
+      if (truncationResult.wasTruncated) {
+        stateForLLM = truncationResult.truncatedState;
+        console.log('[TurnExecutor.execute] State truncated for LLM context');
+      }
+    }
+
+    // Build context for LLM (using potentially truncated state)
+    const context = this.contextBuilder.build(stateForLLM);
     const messages: LLMMessage[] = context.messages.map((msg) => ({
       role: msg.role,
       content: msg.content,
@@ -143,7 +175,7 @@ export class TurnExecutor {
 
       // Check if this is a tool call that can be handled
       if (responseEvent.type === EventType.LLM_TOOL_CALL) {
-        const toolCallEvent = responseEvent as {
+        const toolCallEvent = responseEvent as unknown as {
           callId: string;
           toolName: string;
           arguments: Record<string, unknown>;
@@ -282,6 +314,7 @@ export function createTurnExecutor(
   llmCaller: LLMCaller,
   toolDefinitions: LLMToolDefinition[],
   toolCallHandlers: IToolCallHandler[],
+  config?: TurnExecutorConfig,
 ): TurnExecutor {
   return new TurnExecutor(
     orchestrator,
@@ -289,5 +322,6 @@ export function createTurnExecutor(
     llmCaller,
     toolDefinitions,
     toolCallHandlers,
+    config,
   );
 }

@@ -74,7 +74,7 @@ import { createConversationResult } from '@team9/agent-framework';
 
 const result = createConversationResult({
   state,
-  componentId: 'core:working-history',
+  componentKey: 'core:working-history',
   chunkType: ChunkType.USER_MESSAGE,
   content: { type: 'TEXT', text: 'Hello' },
   role: 'user',

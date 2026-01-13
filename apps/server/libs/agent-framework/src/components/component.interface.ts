@@ -10,7 +10,7 @@ import type {
   ChunkRetentionStrategy,
 } from '../types/chunk.types.js';
 import type { MemoryState } from '../types/state.types.js';
-import type { AgentEvent } from '../types/event.types.js';
+import type { BaseEvent } from '../types/event.types.js';
 import type { Operation } from '../types/operation.types.js';
 import type {
   CompactionResult,
@@ -35,8 +35,8 @@ export interface ComponentCompactionConfig extends CompactionConfig {
  * Wraps CompactionResult with component context
  */
 export interface ComponentCompactionResult extends CompactionResult {
-  /** Component ID that performed the compaction */
-  componentId?: string;
+  /** Component key that performed the compaction */
+  componentKey?: string;
 }
 
 // ============ Render Configuration ============
@@ -77,8 +77,8 @@ export interface RenderedFragment {
 export interface ComponentContext {
   /** Current thread ID */
   threadId: string;
-  /** Component ID */
-  componentId: string;
+  /** Component key */
+  componentKey: string;
   /**
    * Get all chunks owned by this component
    */
@@ -204,20 +204,17 @@ export interface ComponentChunkConfig {
  */
 export type ComponentReducerFn = (
   state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
   context: ComponentContext,
 ) => ReducerResult | Promise<ReducerResult>;
 
 // ============ Main Component Interface ============
 
 /**
- * New component type (Component-Centric architecture)
+ * Component type for Component-Centric architecture
  * - 'base': Core framework component, always present, cannot be disabled (implicit, no need to specify)
  * - 'stable': Stable component, once specified in blueprint, cannot be disabled at runtime
  * - 'pluggable': Can be enabled/disabled at runtime via events
- *
- * Note: This is distinct from the legacy ComponentType ('system' | 'agent' | 'workflow')
- * which is defined in component.types.ts for backwards compatibility
  */
 export type NewComponentType = 'base' | 'stable' | 'pluggable';
 
@@ -276,11 +273,23 @@ export interface IComponent extends ComponentLifecycle {
   // ============ Event Handling ============
 
   /**
+   * Event types this component can handle
+   * Used by ReducerRegistry to route events to the correct component
+   *
+   * If not specified, the component won't receive any events for processing.
+   * Components should declare all event types they handle here.
+   *
+   * @example
+   * readonly supportedEventTypes = [EventType.TODO_SET, EventType.TODO_COMPLETED];
+   */
+  readonly supportedEventTypes?: readonly string[];
+
+  /**
    * Filter an event and return reducers that should handle it
    * @param event - The event to filter
    * @returns Array of reducer functions to execute, or empty array if event should be ignored
    */
-  getReducersForEvent(event: AgentEvent): ComponentReducerFn[];
+  getReducersForEvent(event: BaseEvent): ComponentReducerFn[];
 
   // ============ Rendering ============
 
@@ -344,10 +353,7 @@ export interface IComponent extends ComponentLifecycle {
 export type ComponentConstructor = new (config?: any) => IComponent;
 
 /**
- * New component configuration for Blueprint (Component-Centric architecture)
- *
- * Note: This is distinct from the legacy ComponentConfig which is defined
- * in component.types.ts for backwards compatibility
+ * Component configuration for Blueprint (Component-Centric architecture)
  */
 export interface NewComponentConfig<TConfig = Record<string, unknown>> {
   /** Component class or instance */
@@ -377,8 +383,8 @@ export function isComponentInstance(value: unknown): value is IComponent {
  * Runtime state for a component within a thread
  */
 export interface ComponentRuntimeState {
-  /** Component ID */
-  componentId: string;
+  /** Component key */
+  componentKey: string;
   /** Whether component is currently enabled */
   enabled: boolean;
   /** IDs of chunks owned by this component */

@@ -4,15 +4,15 @@
  */
 
 import type { MemoryState } from '../../../types/state.types.js';
+import type { BaseEvent } from '../../../types/event.types.js';
 import type {
-  AgentEvent,
   TodoItem,
   TodoSetEvent,
   TodoCompletedEvent,
   TodoExpandedEvent,
   TodoUpdatedEvent,
   TodoDeletedEvent,
-} from '../../../types/event.types.js';
+} from './todo.types.js';
 import type { ReducerResult } from '../../../reducer/reducer.types.js';
 import type { ComponentContext } from '../../component.interface.js';
 import {
@@ -31,9 +31,9 @@ import {
  * Reduce TODO_SET event
  */
 export function reduceTodoSet(
-  componentId: string,
+  componentKey: string,
   state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
   context: ComponentContext,
 ): ReducerResult {
   const todoEvent = event as TodoSetEvent;
@@ -41,16 +41,16 @@ export function reduceTodoSet(
   // Update component data
   context.setData('todos', todoEvent.todos);
 
-  return createTodoSetResult(componentId, state, todoEvent.todos, formatTodos);
+  return createTodoSetResult(componentKey, state, todoEvent.todos, formatTodos);
 }
 
 /**
  * Reduce TODO_COMPLETED event
  */
 export function reduceTodoCompleted(
-  componentId: string,
+  componentKey: string,
   state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
   context: ComponentContext,
 ): ReducerResult {
   const todoEvent = event as TodoCompletedEvent;
@@ -60,16 +60,16 @@ export function reduceTodoCompleted(
   const updatedTodos = updateTodoStatus(todos, todoEvent.todoId, 'completed');
   context.setData('todos', updatedTodos);
 
-  return createTodoUpdateResult(componentId, state, updatedTodos, formatTodos);
+  return createTodoUpdateResult(componentKey, state, updatedTodos, formatTodos);
 }
 
 /**
  * Reduce TODO_EXPANDED event
  */
 export function reduceTodoExpanded(
-  componentId: string,
+  componentKey: string,
   state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
   context: ComponentContext,
 ): ReducerResult {
   const todoEvent = event as TodoExpandedEvent;
@@ -79,16 +79,16 @@ export function reduceTodoExpanded(
   const updatedTodos = expandTodo(todos, todoEvent.todoId, todoEvent.subItems);
   context.setData('todos', updatedTodos);
 
-  return createTodoUpdateResult(componentId, state, updatedTodos, formatTodos);
+  return createTodoUpdateResult(componentKey, state, updatedTodos, formatTodos);
 }
 
 /**
  * Reduce TODO_UPDATED event
  */
 export function reduceTodoUpdated(
-  componentId: string,
+  componentKey: string,
   state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
   context: ComponentContext,
 ): ReducerResult {
   const todoEvent = event as TodoUpdatedEvent;
@@ -103,16 +103,16 @@ export function reduceTodoUpdated(
   );
   context.setData('todos', updatedTodos);
 
-  return createTodoUpdateResult(componentId, state, updatedTodos, formatTodos);
+  return createTodoUpdateResult(componentKey, state, updatedTodos, formatTodos);
 }
 
 /**
  * Reduce TODO_DELETED event
  */
 export function reduceTodoDeleted(
-  componentId: string,
+  componentKey: string,
   state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
   context: ComponentContext,
 ): ReducerResult {
   const todoEvent = event as TodoDeletedEvent;
@@ -122,5 +122,5 @@ export function reduceTodoDeleted(
   const updatedTodos = deleteTodo(todos, todoEvent.todoId);
   context.setData('todos', updatedTodos);
 
-  return createTodoUpdateResult(componentId, state, updatedTodos, formatTodos);
+  return createTodoUpdateResult(componentKey, state, updatedTodos, formatTodos);
 }

@@ -2,16 +2,18 @@
  * Agent Debug Service
  *
  * Handles debugging operations: fork, edit, execution mode control.
- * Provides tools for inspecting and manipulating agent state.
+ * Uses Agent + getOrchestrator() for advanced operations.
  */
 
 import { createId } from '@paralleldrive/cuid2';
 import type {
   ExecutionMode,
-  LLMConfig,
-  ILLMAdapter,
   CustomToolConfig,
+  Agent,
+  AgentFactory,
+  DebugController,
 } from '@team9/agent-framework';
+import { createDebugController } from '@team9/agent-framework';
 import type {
   AgentInstance,
   AgentRuntimeState,
@@ -24,10 +26,10 @@ import type { SSEBroadcaster } from './sse-broadcaster.service.js';
  * Configuration for AgentDebugService
  */
 export interface AgentDebugServiceConfig {
-  getLLMAdapter?: () => ILLMAdapter;
+  factory: AgentFactory;
   externalTools?: CustomToolConfig[];
   sseBroadcaster?: SSEBroadcaster;
-  onAgentForked?: (agentId: string, memoryManager: unknown) => void;
+  onAgentForked?: (agentId: string, agent: Agent) => void;
   saveAgent?: (agent: AgentInstance) => Promise<void>;
 }
 
@@ -37,33 +39,30 @@ export interface AgentDebugServiceConfig {
 export class AgentDebugService {
   constructor(
     private state: AgentRuntimeState,
-    private config: AgentDebugServiceConfig = {},
+    private config: AgentDebugServiceConfig,
   ) {}
 
   /**
    * Check if agent is in stepping mode
    */
   isSteppingMode(agentId: string): boolean {
-    const controller = this.state.debugControllers.get(agentId);
-    const agent = this.state.agentsCache.get(agentId);
-    if (!controller || !agent) return false;
+    const agent = this.state.agents.get(agentId);
+    const agentInstance = this.state.agentsCache.get(agentId);
+    if (!agent || !agentInstance) return false;
 
-    return controller.getExecutionMode(agent.threadId) === 'stepping';
+    return agent.getExecutionMode() === 'stepping';
   }
 
   /**
    * Get execution mode status for an agent
    */
   getExecutionModeStatus(agentId: string): ExecutionModeStatus | null {
-    const controller = this.state.debugControllers.get(agentId);
-    const agent = this.state.agentsCache.get(agentId);
-    const memoryManager = this.state.memoryManagers.get(agentId);
-    if (!controller || !agent || !memoryManager) return null;
+    const agent = this.state.agents.get(agentId);
+    const agentInstance = this.state.agentsCache.get(agentId);
+    if (!agent || !agentInstance) return null;
 
     return {
-      mode: controller.getExecutionMode(agent.threadId),
-      hasPendingCompaction: memoryManager.hasPendingCompaction(agent.threadId),
-      hasPendingTruncation: memoryManager.hasPendingTruncation(agent.threadId),
+      mode: agent.getExecutionMode(),
     };
   }
 
@@ -74,18 +73,18 @@ export class AgentDebugService {
     agentId: string,
     mode: ExecutionMode,
   ): Promise<boolean> {
-    const controller = this.state.debugControllers.get(agentId);
-    const agent = this.state.agentsCache.get(agentId);
-    if (!controller || !agent) return false;
+    const agent = this.state.agents.get(agentId);
+    const agentInstance = this.state.agentsCache.get(agentId);
+    if (!agent || !agentInstance) return false;
 
-    const previousMode = agent.executionMode;
-    await controller.setExecutionMode(agent.threadId, mode);
+    const previousMode = agentInstance.executionMode;
+    await agent.setExecutionMode(mode);
 
-    agent.executionMode = mode;
-    agent.updatedAt = Date.now();
+    agentInstance.executionMode = mode;
+    agentInstance.updatedAt = Date.now();
 
     // Persist mode change
-    await this.config.saveAgent?.(agent);
+    await this.config.saveAgent?.(agentInstance);
 
     // Broadcast mode change
     this.config.sseBroadcaster?.broadcast(agentId, 'agent:mode_changed', {
@@ -97,59 +96,73 @@ export class AgentDebugService {
   }
 
   /**
+   * Get or create a DebugController for an agent
+   */
+  private getDebugController(agent: Agent): DebugController {
+    const orchestrator = agent.getOrchestrator();
+    const storage = orchestrator.getMemoryManager().getStorage();
+    return createDebugController(orchestrator, storage);
+  }
+
+  /**
    * Fork from a specific state
    */
   async forkFromState(
     agentId: string,
     stateId: string,
   ): Promise<AgentInstance | null> {
-    const controller = this.state.debugControllers.get(agentId);
-    const agent = this.state.agentsCache.get(agentId);
-    if (!controller || !agent) return null;
+    const agent = this.state.agents.get(agentId);
+    const agentInstance = this.state.agentsCache.get(agentId);
+    if (!agent || !agentInstance) return null;
 
-    const result = await controller.forkFromState(agent.threadId, stateId);
+    // Use DebugController for fork operation (advanced debug operation)
+    const debugController = this.getDebugController(agent);
+    const result = await debugController.forkFromState(
+      agentInstance.threadId,
+      stateId,
+    );
 
     // Create a new agent instance for the forked thread
-    const forkedAgent: AgentInstance = {
+    const forkedAgentInstance: AgentInstance = {
       id: `agent_${createId()}`,
-      blueprintId: agent.blueprintId,
-      name: `${agent.name} (forked)`,
+      blueprintId: agentInstance.blueprintId,
+      name: `${agentInstance.name} (forked)`,
       threadId: result.newThreadId,
       status: 'awaiting_input',
-      executionMode: agent.executionMode,
-      llmConfig: agent.llmConfig,
-      modelOverride: agent.modelOverride,
-      tools: agent.tools ?? [],
+      executionMode: agentInstance.executionMode,
+      llmConfig: agentInstance.llmConfig,
+      modelOverride: agentInstance.modelOverride,
+      tools: agentInstance.tools ?? [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
       parentAgentId: agentId,
       subAgentIds: [],
     };
 
-    // Share the same memory manager
-    const memoryManager = this.state.memoryManagers.get(agentId)!;
-    this.state.memoryManagers.set(forkedAgent.id, memoryManager);
-    this.state.debugControllers.set(forkedAgent.id, controller);
+    // Restore forked agent using factory (creates Agent wrapper for existing thread)
+    const forkedAgent = await this.config.factory.restoreAgent(
+      result.newThreadId,
+    );
+    this.state.agents.set(forkedAgentInstance.id, forkedAgent);
 
     // Notify for observer setup
-    this.config.onAgentForked?.(forkedAgent.id, memoryManager);
+    this.config.onAgentForked?.(forkedAgentInstance.id, forkedAgent);
 
     // Create executor for forked agent with inherited tools
-    if (this.config.getLLMAdapter) {
-      const llmAdapter = this.config.getLLMAdapter();
-      const executor = new AgentExecutor(memoryManager, llmAdapter, {
-        tools: agent.tools ?? [],
-        customTools: this.config.externalTools ?? [],
-      });
-      this.state.executors.set(forkedAgent.id, executor);
-    }
+    const forkedOrchestrator = forkedAgent.getOrchestrator();
+    const llmAdapter = forkedOrchestrator.getLLMAdapter();
+    const executor = new AgentExecutor(forkedOrchestrator, llmAdapter, {
+      tools: agentInstance.tools ?? [],
+      customTools: this.config.externalTools ?? [],
+    });
+    this.state.executors.set(forkedAgentInstance.id, executor);
 
-    this.state.agentsCache.set(forkedAgent.id, forkedAgent);
+    this.state.agentsCache.set(forkedAgentInstance.id, forkedAgentInstance);
 
     // Persist forked agent
-    await this.config.saveAgent?.(forkedAgent);
+    await this.config.saveAgent?.(forkedAgentInstance);
 
-    return forkedAgent;
+    return forkedAgentInstance;
   }
 
   /**
@@ -161,12 +174,14 @@ export class AgentDebugService {
     chunkId: string,
     newContent: unknown,
   ): Promise<boolean> {
-    const controller = this.state.debugControllers.get(agentId);
-    const agent = this.state.agentsCache.get(agentId);
-    if (!controller || !agent) return false;
+    const agent = this.state.agents.get(agentId);
+    const agentInstance = this.state.agentsCache.get(agentId);
+    if (!agent || !agentInstance) return false;
 
-    await controller.editChunk(
-      agent.threadId,
+    // Use DebugController for edit operation (advanced debug operation)
+    const debugController = this.getDebugController(agent);
+    await debugController.editChunk(
+      agentInstance.threadId,
       stateId,
       chunkId,
       newContent as any,
@@ -180,7 +195,7 @@ export class AgentDebugService {
  */
 export function createAgentDebugService(
   state: AgentRuntimeState,
-  config?: AgentDebugServiceConfig,
+  config: AgentDebugServiceConfig,
 ): AgentDebugService {
   return new AgentDebugService(state, config);
 }

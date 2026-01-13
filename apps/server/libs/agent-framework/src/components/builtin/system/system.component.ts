@@ -27,9 +27,6 @@ import {
 /**
  * SystemInstructionsComponent provides static system-level instructions
  * This is a stable component that cannot be disabled at runtime
- *
- * Note: This is distinct from the legacy SystemComponent interface
- * in component.types.ts which is kept for backwards compatibility
  */
 export class SystemInstructionsComponent extends AbstractComponent {
   readonly id = 'builtin:system';
@@ -52,38 +49,8 @@ export class SystemInstructionsComponent extends AbstractComponent {
   ): ComponentValidationIssue[] | null {
     const issues: ComponentValidationIssue[] = [];
 
-    // Check if config is legacy ComponentConfig with type='system'
+    // Validate SystemInstructionsComponentConfig
     if (
-      typeof config === 'object' &&
-      config !== null &&
-      'type' in config &&
-      config.type === 'system'
-    ) {
-      // Legacy ComponentConfig validation
-      const legacyConfig = config as { type: string; instructions?: string };
-
-      if (
-        !legacyConfig.instructions ||
-        legacyConfig.instructions.trim() === ''
-      ) {
-        issues.push({
-          message: 'System component requires instructions',
-          level: 'error',
-        });
-      }
-
-      if (
-        legacyConfig.instructions &&
-        legacyConfig.instructions.trim().length < 10
-      ) {
-        issues.push({
-          message: 'System instructions are very short (< 10 characters)',
-          level: 'warning',
-        });
-      }
-    }
-    // Check if config is SystemInstructionsComponentConfig
-    else if (
       typeof config === 'object' &&
       config !== null &&
       'instructions' in config
@@ -136,7 +103,7 @@ export class SystemInstructionsComponent extends AbstractComponent {
     chunk: MemoryChunk,
     _context: ComponentContext,
   ): RenderedFragment[] {
-    if (chunk.type !== ChunkType.SYSTEM || chunk.componentId !== this.id) {
+    if (chunk.type !== ChunkType.SYSTEM || chunk.componentKey !== this.id) {
       return [];
     }
 

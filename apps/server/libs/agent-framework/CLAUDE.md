@@ -110,7 +110,7 @@ import {
   MemoryState,
   ChunkType,
   EventType,
-  AgentEvent,
+  BaseEvent,
 
   // Factories
   createChunk,

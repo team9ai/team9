@@ -8,7 +8,7 @@
 import type { AgentOrchestrator } from '../manager/agent-orchestrator.js';
 import type { MemoryState } from '../types/state.types.js';
 import type { MemoryThread, QueuedEvent } from '../types/thread.types.js';
-import type { AgentEvent } from '../types/event.types.js';
+import type { BaseEvent } from '../types/event.types.js';
 import type { MemoryObserver } from '../observer/observer.types.js';
 import type { ExecutionMode } from '../blueprint/blueprint.types.js';
 import type { DispatchResult } from '../manager/event-processor.js';
@@ -43,17 +43,17 @@ export class Agent {
    * @param event - The event to dispatch
    * @returns The dispatch result with updated state
    */
-  async dispatch(event: AgentEvent): Promise<DispatchResult> {
+  async dispatch(event: BaseEvent): Promise<DispatchResult> {
     return this.orchestrator.dispatch(this.threadId, event);
   }
 
   /**
-   * Execute a single step in stepping mode
+   * Execute a single step manually in stepping mode
    * @returns The step result
    * @throws Error if not in stepping mode
    */
-  async step(): Promise<StepResult> {
-    return this.orchestrator.step(this.threadId);
+  async manualStep(): Promise<StepResult> {
+    return this.orchestrator.manualStep(this.threadId);
   }
 
   // ============ State Queries ============
@@ -169,5 +169,22 @@ export class Agent {
    */
   async getStateHistory(): Promise<readonly MemoryState[]> {
     return this.orchestrator.getStateHistory(this.threadId);
+  }
+
+  // ============ Advanced Access ============
+
+  /**
+   * Get the underlying orchestrator for advanced operations
+   *
+   * Use this for debug-level operations like:
+   * - isStepLocked(), hasPendingCompaction(), hasPendingTruncation()
+   * - peekPersistentEvent()
+   * - Fork, edit, snapshot operations via debug utilities
+   * - LLMLoopExecutor creation in AgentExecutor
+   *
+   * @returns The AgentOrchestrator instance
+   */
+  getOrchestrator(): AgentOrchestrator {
+    return this.orchestrator;
   }
 }

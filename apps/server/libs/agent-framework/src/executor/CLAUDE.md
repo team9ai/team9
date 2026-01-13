@@ -11,7 +11,7 @@ This directory contains executors for applying operations to state and managing 
 | `llm-loop.executor.ts`  | LLM loop executor: orchestrates turns and manages cancellation       |
 | `turn-executor.ts`      | Turn executor: executes a single LLM turn                            |
 | `llm-caller.ts`         | LLM caller: handles LLM API calls with timeout/cancellation          |
-| `response-parser.ts`    | Response parser: parses LLM responses into AgentEvents               |
+| `response-parser.ts`    | Response parser: parses LLM responses into BaseEvents                |
 
 ## Architecture
 
@@ -138,13 +138,13 @@ const { response, interaction } = await caller.callWithTimeout(
 
 ## Response Parser
 
-Parses LLM responses into AgentEvents.
+Parses LLM responses into BaseEvents.
 
 ```typescript
 import { parseResponseToEvents } from '@team9/agent-framework';
 
 const events = parseResponseToEvents(llmResponse);
-// Returns: AgentEvent[] (LLM_TEXT_RESPONSE, LLM_TOOL_CALL, etc.)
+// Returns: BaseEvent[] (LLM_TEXT_RESPONSE, LLM_TOOL_CALL, etc.)
 ```
 
 ## Cancellation
@@ -188,7 +188,7 @@ interface ToolCallHandlerResult {
   // true = continue loop, false = stop and wait
   shouldContinue: boolean;
   // Events to dispatch (e.g., TOOL_RESULT)
-  resultEvents?: AgentEvent[];
+  resultEvents?: BaseEvent[];
 }
 ```
 

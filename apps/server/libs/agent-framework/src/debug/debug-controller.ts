@@ -1,5 +1,5 @@
 import type { ChunkContent } from '../types/chunk.types.js';
-import type { AgentEvent } from '../types/event.types.js';
+import type { BaseEvent } from '../types/event.types.js';
 import type {
   AgentOrchestrator,
   DispatchResult,
@@ -73,7 +73,7 @@ export class DefaultDebugController implements DebugController {
    */
   async injectEvent(
     threadId: string,
-    event: AgentEvent,
+    event: BaseEvent,
   ): Promise<DispatchResult> {
     return this.orchestrator.dispatch(threadId, event);
   }
@@ -279,24 +279,10 @@ export class DefaultDebugController implements DebugController {
   }
 
   /**
-   * Execute a single step in stepping mode
+   * Execute a single step manually in stepping mode
    */
-  async step(threadId: string): Promise<StepResult> {
-    return this.orchestrator.step(threadId);
-  }
-
-  /**
-   * Check if there's a pending compaction for a thread
-   */
-  hasPendingCompaction(threadId: string): boolean {
-    return this.orchestrator.hasPendingCompaction(threadId);
-  }
-
-  /**
-   * Check if there's a pending truncation for a thread
-   */
-  hasPendingTruncation(threadId: string): boolean {
-    return this.orchestrator.hasPendingTruncation(threadId);
+  async manualStep(threadId: string): Promise<StepResult> {
+    return this.orchestrator.manualStep(threadId);
   }
 
   /**
@@ -309,7 +295,7 @@ export class DefaultDebugController implements DebugController {
   /**
    * Peek at the next event without processing it
    */
-  async peekNextEvent(threadId: string): Promise<AgentEvent | null> {
+  async peekNextEvent(threadId: string): Promise<BaseEvent | null> {
     const queuedEvent = await this.orchestrator.peekPersistentEvent(threadId);
     return queuedEvent?.event ?? null;
   }

@@ -1,4 +1,3 @@
-import { MemoryChunk } from '../types/chunk.types.js';
 import type { ExecutionMode } from '../blueprint/blueprint.types.js';
 
 // DispatchResult is imported by memory.manager.ts - we use a forward reference here to avoid circular deps
@@ -6,9 +5,10 @@ import type { ExecutionMode } from '../blueprint/blueprint.types.js';
 import type { DispatchResult } from './event-processor.js';
 
 /**
- * Result of a step operation
+ * Result of processNext() - the core event processing unit
+ * Used by both step() (stepping mode) and auto mode processing
  */
-export interface StepResult {
+export interface ProcessNextResult {
   /** The dispatch result, or null if nothing was done */
   dispatchResult: DispatchResult | null;
   /** Whether an event from the queue was processed */
@@ -17,12 +17,12 @@ export interface StepResult {
   compactionPerformed: boolean;
   /** Whether a truncation was performed */
   truncationPerformed: boolean;
-  /** Whether there are more pending operations (events in queue, compaction, or truncation) */
+  /** Whether there are more pending operations (events in queue) */
   hasPendingOperations: boolean;
   /** Number of events remaining in the persistent queue */
   queuedEventCount: number;
-  /** Whether the agent needs to generate a response (set after user input) */
-  needsResponse?: boolean;
+  /** Whether the agent needs LLM to continue responding (set after user input) */
+  needLLMContinueResponse?: boolean;
   /**
    * Whether the agent should terminate (end event loop)
    * Set to true when a terminate-type event (TASK_COMPLETED, TASK_ABANDONED, TASK_TERMINATED) is processed
@@ -37,6 +37,12 @@ export interface StepResult {
 }
 
 /**
+ * Result of a step operation (in stepping mode)
+ * Same as ProcessNextResult - step() just adds mode checking
+ */
+export type StepResult = ProcessNextResult;
+
+/**
  * Configuration for ExecutionModeController
  */
 export interface ExecutionModeControllerConfig {
@@ -48,17 +54,14 @@ export interface ExecutionModeControllerConfig {
  * ExecutionModeController manages execution mode and stepping logic
  *
  * Simplified design: Since processing is serial (one event at a time),
- * no blocking mechanism is needed. This controller just tracks:
- * - Execution mode per thread (auto vs stepping)
- * - Pending compaction/truncation for stepping mode
+ * no blocking mechanism is needed. This controller just tracks execution mode per thread.
+ *
+ * Note: Compaction is now checked directly before processing events (not via pending state).
+ * Truncation is handled non-destructively in TurnExecutor before LLM calls.
  */
 export class ExecutionModeController {
   /** Tracks execution mode per thread */
   private executionModes: Map<string, ExecutionMode> = new Map();
-  /** Tracks pending compaction per thread (for stepping mode) */
-  private pendingCompaction: Map<string, MemoryChunk[]> = new Map();
-  /** Tracks pending truncation per thread */
-  private pendingTruncations: Map<string, string[]> = new Map();
 
   private config: ExecutionModeControllerConfig;
 
@@ -96,63 +99,9 @@ export class ExecutionModeController {
   }
 
   /**
-   * Check if there's a pending compaction
-   */
-  hasPendingCompaction(threadId: string): boolean {
-    return this.pendingCompaction.has(threadId);
-  }
-
-  /**
-   * Set pending compaction for next step
-   */
-  setPendingCompaction(threadId: string, chunks: MemoryChunk[]): void {
-    this.pendingCompaction.set(threadId, chunks);
-  }
-
-  /**
-   * Get and clear pending compaction
-   */
-  consumePendingCompaction(threadId: string): MemoryChunk[] | null {
-    const chunks = this.pendingCompaction.get(threadId);
-    if (chunks) {
-      this.pendingCompaction.delete(threadId);
-      return chunks;
-    }
-    return null;
-  }
-
-  /**
-   * Check if there's a pending truncation
-   */
-  hasPendingTruncation(threadId: string): boolean {
-    return this.pendingTruncations.has(threadId);
-  }
-
-  /**
-   * Set pending truncation chunk IDs
-   */
-  setPendingTruncation(threadId: string, chunkIds: string[]): void {
-    this.pendingTruncations.set(threadId, chunkIds);
-  }
-
-  /**
-   * Get and clear pending truncation
-   */
-  consumePendingTruncation(threadId: string): string[] | null {
-    const chunkIds = this.pendingTruncations.get(threadId);
-    if (chunkIds) {
-      this.pendingTruncations.delete(threadId);
-      return chunkIds;
-    }
-    return null;
-  }
-
-  /**
    * Clean up state for a deleted thread
    */
   cleanup(threadId: string): void {
     this.executionModes.delete(threadId);
-    this.pendingCompaction.delete(threadId);
-    this.pendingTruncations.delete(threadId);
   }
 }

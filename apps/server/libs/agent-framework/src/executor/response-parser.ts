@@ -1,11 +1,11 @@
 /**
  * Response Parser
  *
- * Parses LLM responses into AgentEvents.
+ * Parses LLM responses into BaseEvents.
  */
 
 import type { LLMCompletionResponse } from '../llm/llm.types.js';
-import type { AgentEvent } from '../types/event.types.js';
+import type { BaseEvent } from '../types/event.types.js';
 import { EventType } from '../types/event.types.js';
 
 /**
@@ -14,8 +14,8 @@ import { EventType } from '../types/event.types.js';
  */
 export function parseResponseToEvents(
   response: LLMCompletionResponse,
-): AgentEvent[] {
-  const events: AgentEvent[] = [];
+): BaseEvent[] {
+  const events: BaseEvent[] = [];
   const timestamp = Date.now();
 
   // First, add text response event if there's content

@@ -11,8 +11,15 @@
 import { AbstractComponent } from '../abstract-component.js';
 import type { MemoryChunk } from '../../../types/chunk.types.js';
 import { ChunkType, ChunkContentType } from '../../../types/chunk.types.js';
-import type { AgentEvent } from '../../../types/event.types.js';
+import type { MemoryState } from '../../../types/state.types.js';
+import type { BaseEvent } from '../../../types/event.types.js';
 import { EventType } from '../../../types/event.types.js';
+import type {
+  TruncationContext,
+  TruncationResult,
+  TruncationStepResult,
+  ITruncatableComponent,
+} from '../../../types/truncation.types.js';
 import type {
   NewComponentType,
   ComponentContext,
@@ -37,13 +44,35 @@ import {
 /**
  * WorkingHistoryComponent handles all conversation flow events
  * This is a base component that cannot be disabled
+ * Implements ITruncatableComponent for context reduction
  */
-export class WorkingHistoryComponent extends AbstractComponent {
+export class WorkingHistoryComponent
+  extends AbstractComponent
+  implements ITruncatableComponent
+{
   readonly id = 'core:working-history';
   readonly name = 'Working History';
   readonly type: NewComponentType = 'base';
 
-  private static readonly HANDLED_EVENTS = new Set([
+  // ChunkTypes this component is responsible for (used by truncation)
+  override readonly responsibleChunkTypes = [
+    ChunkType.WORKING_HISTORY,
+    ChunkType.USER_MESSAGE,
+    ChunkType.AGENT_RESPONSE,
+    ChunkType.THINKING,
+    ChunkType.AGENT_ACTION,
+    ChunkType.ACTION_RESPONSE,
+    ChunkType.COMPACTED,
+    ChunkType.SUBAGENT_SPAWN,
+    ChunkType.SUBAGENT_RESULT,
+    ChunkType.PARENT_MESSAGE,
+  ];
+
+  /**
+   * Event types this component handles
+   * These events will be routed to this component by the ReducerRegistry
+   */
+  override readonly supportedEventTypes = [
     EventType.USER_MESSAGE,
     EventType.PARENT_AGENT_MESSAGE,
     EventType.LLM_TEXT_RESPONSE,
@@ -56,13 +85,11 @@ export class WorkingHistoryComponent extends AbstractComponent {
     EventType.SKILL_RESULT,
     EventType.SUBAGENT_RESULT,
     EventType.SUBAGENT_ERROR,
-  ]);
+  ] as const;
 
-  getReducersForEvent(event: AgentEvent): ComponentReducerFn[] {
-    if (!WorkingHistoryComponent.HANDLED_EVENTS.has(event.type)) {
-      return [];
-    }
-
+  protected override getReducersForEventImpl(
+    event: BaseEvent,
+  ): ComponentReducerFn[] {
     switch (event.type) {
       case EventType.USER_MESSAGE:
         return [(state, evt) => reduceUserMessage(this.id, state, evt)];
@@ -140,5 +167,111 @@ export class WorkingHistoryComponent extends AbstractComponent {
       );
     }
     return JSON.stringify(content);
+  }
+
+  // ============ Truncation (ITruncatableComponent) ============
+
+  /**
+   * Return the minimum/simplest version of working history
+   * Keeps compacted summaries + last 5 messages
+   */
+  async minifyTruncate(
+    ctx: TruncationContext,
+  ): Promise<TruncationResult | null> {
+    const ownedChunks = this.getOwnedChunks(ctx.state);
+    const historyChunk = ownedChunks.find(
+      (c) => c.type === ChunkType.WORKING_HISTORY,
+    );
+    if (!historyChunk) return null;
+
+    const childIds = historyChunk.childIds ?? [];
+    if (childIds.length <= 5) return null; // Already minimal
+
+    // Keep compacted summaries + last 5 messages
+    const compactedIds = childIds.filter((id) => {
+      const chunk = ctx.state.chunks.get(id);
+      return chunk?.type === ChunkType.COMPACTED;
+    });
+    const recentIds = childIds.slice(-5);
+
+    const minimalChildIds = [...new Set([...compactedIds, ...recentIds])];
+
+    // Calculate tokens reduced
+    const removedIds = childIds.filter((id) => !minimalChildIds.includes(id));
+    const tokensReduced = this.estimateTokensForChunkIds(ctx.state, removedIds);
+
+    if (tokensReduced === 0) return null;
+
+    return {
+      truncatedChunks: [{ ...historyChunk, childIds: minimalChildIds }],
+      tokensReduced,
+    };
+  }
+
+  /**
+   * Discard one piece of content (oldest non-compacted message)
+   */
+  async stepTruncate(
+    ctx: TruncationContext,
+  ): Promise<TruncationStepResult | null> {
+    const ownedChunks = this.getOwnedChunks(ctx.state);
+    const historyChunk = ownedChunks.find(
+      (c) => c.type === ChunkType.WORKING_HISTORY,
+    );
+    if (!historyChunk?.childIds?.length) return null;
+
+    const childIds = [...historyChunk.childIds];
+
+    // Find oldest non-compacted chunk to remove
+    let removedIndex = -1;
+    for (let i = 0; i < childIds.length; i++) {
+      const chunk = ctx.state.chunks.get(childIds[i]);
+      if (chunk && chunk.type !== ChunkType.COMPACTED) {
+        removedIndex = i;
+        break;
+      }
+    }
+
+    if (removedIndex === -1) return null; // Only compacted chunks left
+
+    const removedId = childIds[removedIndex];
+    childIds.splice(removedIndex, 1);
+
+    const tokensReduced = this.estimateTokensForChunkIds(ctx.state, [
+      removedId,
+    ]);
+
+    return {
+      truncatedChunks: [{ ...historyChunk, childIds }],
+      tokensReduced,
+      canContinue: childIds.some((id) => {
+        const chunk = ctx.state.chunks.get(id);
+        return chunk && chunk.type !== ChunkType.COMPACTED;
+      }),
+    };
+  }
+
+  /**
+   * Get weight for truncation priority (lower = discard first)
+   * Working history has medium-low priority - can be truncated before system chunks
+   */
+  getTruncationWeight(_ctx: TruncationContext): number {
+    return 50;
+  }
+
+  /**
+   * Estimate tokens for a list of chunk IDs
+   * Simple estimation: ~4 characters per token
+   */
+  private estimateTokensForChunkIds(
+    state: MemoryState,
+    chunkIds: string[],
+  ): number {
+    return chunkIds.reduce((sum, id) => {
+      const chunk = state.chunks.get(id);
+      if (!chunk) return sum;
+      const text = this.extractContent(chunk);
+      return sum + Math.ceil(text.length / 4);
+    }, 0);
   }
 }

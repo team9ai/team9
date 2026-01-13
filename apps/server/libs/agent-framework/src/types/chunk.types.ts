@@ -158,8 +158,8 @@ export interface ChunkMetadata {
 export interface MemoryChunk {
   /** Unique identifier, format: chunk_xxx */
   id: string;
-  /** Component ID that owns this chunk (optional, some chunks may not belong to a component) */
-  componentId?: string;
+  /** Component key that owns this chunk (optional, some chunks may not belong to a component) */
+  componentKey?: string;
   /** Chunk key within the component (identifies the chunk's purpose) */
   chunkKey?: string;
   /** Chunk type */
@@ -182,8 +182,8 @@ export interface MemoryChunk {
  * Input parameters for creating a Memory Chunk
  */
 export interface CreateChunkInput {
-  /** Component ID that owns this chunk */
-  componentId?: string;
+  /** Component key that owns this chunk */
+  componentKey?: string;
   /** Chunk key within the component */
   chunkKey?: string;
   type: ChunkType;

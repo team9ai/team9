@@ -2,23 +2,20 @@
  * Agent Lifecycle Service
  *
  * Manages agent creation, deletion, restoration, and configuration.
- * Handles all agent lifecycle operations.
+ * Handles all agent lifecycle operations using boot API (AgentFactory + Agent).
  */
 
 import { createId } from '@paralleldrive/cuid2';
 import { eq } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type {
-  AgentOrchestrator,
-  DebugController,
   Blueprint,
-  BlueprintLoader,
   LLMConfig,
-  ILLMAdapter,
   ExecutionMode,
   CustomToolConfig,
+  Agent,
+  AgentFactory,
 } from '@team9/agent-framework';
-import { ComponentRegistry } from '@team9/agent-framework';
 import type { AgentInstance, AgentRuntimeState } from '../types/index.js';
 import { AgentExecutor } from '../executor/agent-executor.js';
 import type {
@@ -31,18 +28,13 @@ import { agents } from '../db/index.js';
 /**
  * Callback invoked when an agent is created or restored
  */
-export type OnAgentInitialized = (
-  agentId: string,
-  memoryManager: AgentOrchestrator,
-) => void;
+export type OnAgentInitialized = (agentId: string, agent: Agent) => void;
 
 /**
  * Configuration for AgentLifecycleService
  */
 export interface AgentLifecycleServiceConfig {
-  createMemoryManager: (config: LLMConfig) => AgentOrchestrator;
-  createDebugController: (memoryManager: AgentOrchestrator) => DebugController;
-  getLLMAdapter?: () => ILLMAdapter;
+  factory: AgentFactory;
   db?: PostgresJsDatabase<Record<string, never>> | null;
   externalTools?: CustomToolConfig[];
   onAgentInitialized?: OnAgentInitialized;
@@ -108,14 +100,6 @@ export class AgentLifecycleService {
   }
 
   /**
-   * Get BlueprintLoader class (dynamic import to avoid circular deps)
-   */
-  private async getBlueprintLoader(): Promise<typeof BlueprintLoader> {
-    const { BlueprintLoader } = await import('@team9/agent-framework');
-    return BlueprintLoader;
-  }
-
-  /**
    * Load all agents from database and restore their runtime state
    */
   async restoreAgents(): Promise<void> {
@@ -128,36 +112,34 @@ export class AgentLifecycleService {
     const rows = await this.config.db.select().from(agents);
 
     for (const row of rows) {
-      const agent = row.data as AgentInstance;
+      const agentInstance = row.data as AgentInstance;
 
       try {
-        // Restore memory manager
-        const memoryManager = this.config.createMemoryManager(agent.llmConfig);
-        this.state.memoryManagers.set(agent.id, memoryManager);
-
-        // Restore debug controller
-        const debugController =
-          this.config.createDebugController(memoryManager);
-        this.state.debugControllers.set(agent.id, debugController);
+        // Restore agent using boot API
+        const agent = await this.config.factory.restoreAgent(
+          agentInstance.threadId,
+        );
+        this.state.agents.set(agentInstance.id, agent);
 
         // Notify for observer setup
-        this.config.onAgentInitialized?.(agent.id, memoryManager);
+        this.config.onAgentInitialized?.(agentInstance.id, agent);
 
         // Restore executor with tools from saved agent data
-        if (this.config.getLLMAdapter) {
-          const llmAdapter = this.config.getLLMAdapter();
-          const executor = new AgentExecutor(memoryManager, llmAdapter, {
-            tools: agent.tools ?? [],
-            customTools: this.config.externalTools ?? [],
-          });
-          this.state.executors.set(agent.id, executor);
-        }
+        const orchestrator = agent.getOrchestrator();
+        const llmAdapter = orchestrator.getLLMAdapter();
+        const executor = new AgentExecutor(orchestrator, llmAdapter, {
+          tools: agentInstance.tools ?? [],
+          customTools: this.config.externalTools ?? [],
+        });
+        this.state.executors.set(agentInstance.id, executor);
 
         // Add to cache
-        this.state.agentsCache.set(agent.id, agent);
-        console.log(`Restored agent: ${agent.id} (${agent.name})`);
+        this.state.agentsCache.set(agentInstance.id, agentInstance);
+        console.log(
+          `Restored agent: ${agentInstance.id} (${agentInstance.name})`,
+        );
       } catch (error) {
-        console.error(`Failed to restore agent ${agent.id}:`, error);
+        console.error(`Failed to restore agent ${agentInstance.id}:`, error);
       }
     }
 
@@ -172,9 +154,6 @@ export class AgentLifecycleService {
     modelOverride?: LLMConfig,
   ): Promise<AgentInstance> {
     const id = `agent_${createId()}`;
-    const llmConfig = modelOverride
-      ? { ...blueprint.llmConfig, ...modelOverride }
-      : blueprint.llmConfig;
 
     // Check if blueprint has subAgents - if so, automatically include spawn_subagent tool
     const hasSubAgents =
@@ -184,76 +163,61 @@ export class AgentLifecycleService {
       agentTools = [...agentTools, 'spawn_subagent'];
     }
 
-    // Create memory manager for this agent
-    const memoryManager = this.config.createMemoryManager(llmConfig);
-    this.state.memoryManagers.set(id, memoryManager);
+    // Determine initial execution mode
+    const executionMode: ExecutionMode = blueprint.executionMode ?? 'auto';
 
-    // Create debug controller
-    const debugController = this.config.createDebugController(memoryManager);
-    this.state.debugControllers.set(id, debugController);
-
-    // Create blueprint loader and create thread
-    const componentRegistry = new ComponentRegistry();
-    const loader = new (await this.getBlueprintLoader())(
-      memoryManager,
-      componentRegistry,
-    );
-    const { thread, tools: componentTools } =
-      await loader.createThreadFromBlueprint(blueprint);
+    // Create agent using boot API
+    const agent = await this.config.factory.createAgent(blueprint, {
+      llmConfigOverride: modelOverride,
+      executionMode,
+    });
+    this.state.agents.set(id, agent);
 
     // Notify for observer setup
-    this.config.onAgentInitialized?.(id, memoryManager);
+    this.config.onAgentInitialized?.(id, agent);
+
+    // Get orchestrator and llmAdapter for AgentExecutor
+    const orchestrator = agent.getOrchestrator();
+    const llmAdapter = orchestrator.getLLMAdapter();
+
+    // Get component tools from the agent
+    const componentTools = agent.tools.map((t) => ({
+      definition: t.definition,
+      executor: t.executor,
+      category: t.category,
+    }));
 
     // Merge external tools with component tools
     const allCustomTools: CustomToolConfig[] = [
       ...(this.config.externalTools ?? []),
-      ...componentTools.map((t) => ({
-        definition: t.definition,
-        executor: t.executor,
-        category: t.category,
-      })),
+      ...componentTools,
     ];
 
     // Create agent executor for LLM response generation
-    if (this.config.getLLMAdapter) {
-      const llmAdapter = this.config.getLLMAdapter();
+    const executor = new AgentExecutor(orchestrator, llmAdapter, {
+      tools: agentTools,
+      customTools: allCustomTools,
+      // Configure subagent support if blueprint has subAgents
+      spawnSubagentConfig: hasSubAgents
+        ? {
+            parentBlueprint: blueprint,
+            parentAgentId: id,
+            factory: this.config.factory,
+            onSubagentComplete: this.config.onSubagentComplete,
+            onSubagentStep: this.config.onSubagentStep,
+            onSubagentCreated: this.config.onSubagentCreated,
+          }
+        : undefined,
+    });
+    this.state.executors.set(id, executor);
 
-      const executor = new AgentExecutor(memoryManager, llmAdapter, {
-        tools: agentTools,
-        customTools: allCustomTools,
-        // Configure subagent support if blueprint has subAgents
-        spawnSubagentConfig: hasSubAgents
-          ? {
-              parentBlueprint: blueprint,
-              parentAgentId: id,
-              createMemoryManager: async (subBlueprint) => {
-                return this.config.createMemoryManager(subBlueprint.llmConfig);
-              },
-              createLLMAdapter: () => {
-                return this.config.getLLMAdapter!();
-              },
-              onSubagentComplete: this.config.onSubagentComplete,
-              onSubagentStep: this.config.onSubagentStep,
-              onSubagentCreated: this.config.onSubagentCreated,
-            }
-          : undefined,
-      });
-      this.state.executors.set(id, executor);
-    }
-
-    // Determine initial execution mode
-    const executionMode: ExecutionMode = blueprint.executionMode ?? 'auto';
-
-    // Initialize execution mode in memory manager
-    memoryManager.initializeExecutionMode(thread.id, executionMode);
-
-    // Create agent instance
+    // Create agent instance metadata
     // Initial status is awaiting_input (waiting for first user message)
-    const agent: AgentInstance = {
+    const agentInstance: AgentInstance = {
       id,
       blueprintId: blueprint.id,
       name: blueprint.name,
-      threadId: thread.id,
+      threadId: agent.threadId,
       status: 'awaiting_input',
       executionMode,
       llmConfig: blueprint.llmConfig,
@@ -264,12 +228,12 @@ export class AgentLifecycleService {
       subAgentIds: [],
     };
 
-    this.state.agentsCache.set(id, agent);
+    this.state.agentsCache.set(id, agentInstance);
 
     // Persist to database
-    await this.saveAgent(agent);
+    await this.saveAgent(agentInstance);
 
-    return agent;
+    return agentInstance;
   }
 
   /**
@@ -294,20 +258,19 @@ export class AgentLifecycleService {
     id: string,
     cleanup?: (agentId: string) => void,
   ): Promise<boolean> {
-    const agent = this.state.agentsCache.get(id);
-    if (!agent) return false;
+    const agentInstance = this.state.agentsCache.get(id);
+    if (!agentInstance) return false;
 
     // Call cleanup callback if provided
     cleanup?.(id);
 
-    // Delete thread
-    const memoryManager = this.state.memoryManagers.get(id);
-    if (memoryManager) {
-      await memoryManager.deleteThread(agent.threadId);
-      this.state.memoryManagers.delete(id);
+    // Delete thread via agent's orchestrator
+    const agent = this.state.agents.get(id);
+    if (agent) {
+      await agent.getOrchestrator().deleteThread(agentInstance.threadId);
+      this.state.agents.delete(id);
     }
 
-    this.state.debugControllers.delete(id);
     this.state.executors.delete(id);
     this.state.agentsCache.delete(id);
 
@@ -324,16 +287,16 @@ export class AgentLifecycleService {
     agentId: string,
     config: { modelOverride?: LLMConfig },
   ): Promise<boolean> {
-    const agent = this.state.agentsCache.get(agentId);
-    if (!agent) return false;
+    const agentInstance = this.state.agentsCache.get(agentId);
+    if (!agentInstance) return false;
 
     if (config.modelOverride) {
-      agent.modelOverride = config.modelOverride;
+      agentInstance.modelOverride = config.modelOverride;
     }
-    agent.updatedAt = Date.now();
+    agentInstance.updatedAt = Date.now();
 
     // Persist config change
-    await this.saveAgent(agent);
+    await this.saveAgent(agentInstance);
 
     return true;
   }

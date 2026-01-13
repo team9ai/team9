@@ -12,8 +12,8 @@ import { AbstractComponent } from '../../base/abstract-component.js';
 import type { MemoryChunk } from '../../../types/chunk.types.js';
 import { ChunkRetentionStrategy } from '../../../types/chunk.types.js';
 import type { MemoryState } from '../../../types/state.types.js';
-import type { AgentEvent } from '../../../types/event.types.js';
-import { EventType } from '../../../types/event.types.js';
+import type { BaseEvent } from '../../../types/event.types.js';
+import { MemoryEventType } from './memory.types.js';
 import type {
   NewComponentType,
   ComponentContext,
@@ -32,10 +32,14 @@ export class MemoryComponent extends AbstractComponent {
   readonly name = 'Memory Manager';
   readonly type: NewComponentType = 'stable';
 
-  private static readonly HANDLED_EVENTS = new Set([
-    EventType.MEMORY_MARK_CRITICAL,
-    EventType.MEMORY_FORGET,
-  ]);
+  /**
+   * Event types this component handles
+   * These events will be routed to this component by the ReducerRegistry
+   */
+  override readonly supportedEventTypes = [
+    MemoryEventType.MEMORY_MARK_CRITICAL,
+    MemoryEventType.MEMORY_FORGET,
+  ] as const;
 
   // ============ Lifecycle ============
 
@@ -55,17 +59,15 @@ export class MemoryComponent extends AbstractComponent {
 
   // ============ Event Handling ============
 
-  getReducersForEvent(event: AgentEvent): ComponentReducerFn[] {
-    if (!MemoryComponent.HANDLED_EVENTS.has(event.type)) {
-      return [];
-    }
-
+  protected override getReducersForEventImpl(
+    event: BaseEvent,
+  ): ComponentReducerFn[] {
     switch (event.type) {
-      case EventType.MEMORY_MARK_CRITICAL:
+      case MemoryEventType.MEMORY_MARK_CRITICAL:
         return [
           (state, evt, ctx) => reduceMarkCritical(this.id, state, evt, ctx),
         ];
-      case EventType.MEMORY_FORGET:
+      case MemoryEventType.MEMORY_FORGET:
         return [(state, evt, ctx) => reduceForget(this.id, state, evt, ctx)];
       default:
         return [];

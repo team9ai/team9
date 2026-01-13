@@ -3,7 +3,7 @@
  * Helper functions for todo manipulation
  */
 
-import type { TodoItem } from '../../../types/event.types.js';
+import type { TodoItem } from './todo.types.js';
 
 /**
  * Format todos as text for display

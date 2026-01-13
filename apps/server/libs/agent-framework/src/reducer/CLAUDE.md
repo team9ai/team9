@@ -41,7 +41,7 @@ import { ReducerRegistry, createDefaultReducerRegistry } from './reducer';
 const registry = createDefaultReducerRegistry();
 
 // Process event
-const event: AgentEvent = { type: EventType.USER_INPUT, ... };
+const event: BaseEvent = { type: EventType.USER_INPUT, ... };
 const result = registry.reduce(state, event);
 
 // result.operations - operations to apply to state

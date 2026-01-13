@@ -6,11 +6,11 @@
 import type { MemoryChunk } from '../../../types/chunk.types.js';
 import { ChunkRetentionStrategy } from '../../../types/chunk.types.js';
 import type { MemoryState } from '../../../types/state.types.js';
+import type { BaseEvent } from '../../../types/event.types.js';
 import type {
-  AgentEvent,
   MemoryMarkCriticalEvent,
   MemoryForgetEvent,
-} from '../../../types/event.types.js';
+} from './memory.types.js';
 import type { ReducerResult } from '../../../reducer/reducer.types.js';
 import type { ComponentContext } from '../../component.interface.js';
 import { deriveChunk } from '../../../factories/chunk.factory.js';
@@ -23,9 +23,9 @@ import {
  * Reduce MEMORY_MARK_CRITICAL event
  */
 export function reduceMarkCritical(
-  _componentId: string,
+  _componentKey: string,
   state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
   context: ComponentContext,
 ): ReducerResult {
   const memEvent = event as MemoryMarkCriticalEvent;
@@ -65,9 +65,9 @@ export function reduceMarkCritical(
  * Reduce MEMORY_FORGET event
  */
 export function reduceForget(
-  _componentId: string,
+  _componentKey: string,
   state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
   context: ComponentContext,
 ): ReducerResult {
   const memEvent = event as MemoryForgetEvent;

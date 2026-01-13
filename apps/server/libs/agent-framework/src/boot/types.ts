@@ -17,7 +17,7 @@ export type { Blueprint } from '../blueprint/blueprint.types.js';
 export type { MemoryState } from '../types/state.types.js';
 export type { MemoryThread, QueuedEvent } from '../types/thread.types.js';
 export type { MemoryChunk } from '../types/chunk.types.js';
-export type { AgentEvent } from '../types/event.types.js';
+export type { BaseEvent } from '../types/event.types.js';
 export type { MemoryObserver } from '../observer/observer.types.js';
 export type { Tool } from '../tools/tool.types.js';
 export type { DispatchResult } from '../manager/event-processor.js';

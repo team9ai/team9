@@ -9,7 +9,7 @@
 import type { MemoryState } from '../types/state.types.js';
 import type { MemoryThread, QueuedEvent } from '../types/thread.types.js';
 import type { MemoryChunk } from '../types/chunk.types.js';
-import type { AgentEvent, EventType } from '../types/event.types.js';
+import type { BaseEvent, EventType } from '../types/event.types.js';
 import type { StorageProvider } from '../storage/storage.types.js';
 import type { LLMConfig } from '../llm/llm.types.js';
 import type {
@@ -102,7 +102,7 @@ export interface Step {
     type: EventType | string;
     timestamp: number;
   };
-  eventPayload?: AgentEvent;
+  eventPayload?: BaseEvent;
   llmInteraction?: LLMInteraction;
   status: StepStatus;
   startedAt: number;

@@ -11,7 +11,7 @@
  */
 
 import type { AgentOrchestrator } from '../manager/agent-orchestrator.js';
-import type { AgentEvent } from '../types/event.types.js';
+import type { BaseEvent } from '../types/event.types.js';
 import type { ILLMAdapter, LLMToolDefinition } from '../llm/llm.types.js';
 import type {
   LLMLoopExecutorConfig,
@@ -69,13 +69,17 @@ export class LLMLoopExecutor {
     // Create LLM caller
     const llmCaller = new LLMCaller(llmAdapter, this.config.timeout);
 
-    // Create turn executor
+    // Create turn executor with truncation config
     this.turnExecutor = new TurnExecutor(
       this.orchestrator,
       contextBuilder,
       llmCaller,
       toolDefinitions,
       this.config.toolCallHandlers,
+      {
+        components: config?.components,
+        maxContextTokens: config?.maxContextTokens,
+      },
     );
 
     console.log(
@@ -222,7 +226,7 @@ export class LLMLoopExecutor {
    * - Cancelled via cancel()
    */
   async run(threadId: string): Promise<LLMLoopExecutionResult> {
-    const events: AgentEvent[] = [];
+    const events: BaseEvent[] = [];
     let turnsExecuted = 0;
     let lastResponse: string | undefined;
 

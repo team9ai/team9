@@ -5,7 +5,7 @@
 
 import type { MemoryState } from '../../../types/state.types.js';
 import type {
-  AgentEvent,
+  BaseEvent,
   ToolErrorEvent,
   SkillErrorEvent,
   SubAgentErrorEvent,
@@ -36,9 +36,9 @@ function trackError(context: ComponentContext, error: ErrorEntry): void {
  * Reduce TOOL_ERROR event
  */
 export function reduceToolError(
-  componentId: string,
+  componentKey: string,
   state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
   context: ComponentContext,
 ): ReducerResult {
   const errorEvent = event as ToolErrorEvent;
@@ -54,7 +54,7 @@ export function reduceToolError(
   });
 
   return createConversationResult({
-    componentId,
+    componentKey,
     state,
     chunkType: ChunkType.ACTION_RESPONSE,
     content: {
@@ -76,9 +76,9 @@ export function reduceToolError(
  * Reduce SKILL_ERROR event
  */
 export function reduceSkillError(
-  componentId: string,
+  componentKey: string,
   state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
   context: ComponentContext,
 ): ReducerResult {
   const errorEvent = event as SkillErrorEvent;
@@ -94,7 +94,7 @@ export function reduceSkillError(
   });
 
   return createConversationResult({
-    componentId,
+    componentKey,
     state,
     chunkType: ChunkType.ACTION_RESPONSE,
     content: {
@@ -116,9 +116,9 @@ export function reduceSkillError(
  * Reduce SUBAGENT_ERROR event
  */
 export function reduceSubAgentError(
-  componentId: string,
+  componentKey: string,
   state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
   context: ComponentContext,
 ): ReducerResult {
   const errorEvent = event as SubAgentErrorEvent;
@@ -134,7 +134,7 @@ export function reduceSubAgentError(
   });
 
   return createConversationResult({
-    componentId,
+    componentKey,
     state,
     chunkType: ChunkType.SUBAGENT_RESULT,
     content: {
@@ -156,9 +156,9 @@ export function reduceSubAgentError(
  * Reduce SYSTEM_ERROR event
  */
 export function reduceSystemError(
-  componentId: string,
+  componentKey: string,
   _state: MemoryState,
-  event: AgentEvent,
+  event: BaseEvent,
   context: ComponentContext,
 ): ReducerResult {
   const errorEvent = event as SystemErrorEvent;
@@ -175,7 +175,7 @@ export function reduceSystemError(
 
   // System errors create standalone SYSTEM chunks
   return createSystemErrorResult({
-    componentId,
+    componentKey,
     code: errorEvent.code,
     error: errorEvent.error,
     errorDetails: errorEvent.errorDetails,

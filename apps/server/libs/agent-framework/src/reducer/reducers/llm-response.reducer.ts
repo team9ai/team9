@@ -5,7 +5,7 @@ import {
   MemoryChunk,
 } from '../../types/chunk.types.js';
 import {
-  AgentEvent,
+  BaseEvent,
   EventType,
   LLMTextResponseEvent,
   LLMToolCallEvent,
@@ -106,7 +106,7 @@ function createConversationResult(
 export class LLMTextResponseReducer implements EventReducer<LLMTextResponseEvent> {
   readonly eventTypes = [EventType.LLM_TEXT_RESPONSE];
 
-  canHandle(event: AgentEvent): event is LLMTextResponseEvent {
+  canHandle(event: BaseEvent): event is LLMTextResponseEvent {
     return event.type === EventType.LLM_TEXT_RESPONSE;
   }
 
@@ -135,7 +135,7 @@ export class LLMTextResponseReducer implements EventReducer<LLMTextResponseEvent
 export class LLMToolCallReducer implements EventReducer<LLMToolCallEvent> {
   readonly eventTypes = [EventType.LLM_TOOL_CALL];
 
-  canHandle(event: AgentEvent): event is LLMToolCallEvent {
+  canHandle(event: BaseEvent): event is LLMToolCallEvent {
     return event.type === EventType.LLM_TOOL_CALL;
   }
 
@@ -164,7 +164,7 @@ export class LLMToolCallReducer implements EventReducer<LLMToolCallEvent> {
 export class LLMSkillCallReducer implements EventReducer<LLMSkillCallEvent> {
   readonly eventTypes = [EventType.LLM_SKILL_CALL];
 
-  canHandle(event: AgentEvent): event is LLMSkillCallEvent {
+  canHandle(event: BaseEvent): event is LLMSkillCallEvent {
     return event.type === EventType.LLM_SKILL_CALL;
   }
 
@@ -194,7 +194,7 @@ export class LLMSkillCallReducer implements EventReducer<LLMSkillCallEvent> {
 export class LLMSubAgentSpawnReducer implements EventReducer<LLMSubAgentSpawnEvent> {
   readonly eventTypes = [EventType.LLM_SUBAGENT_SPAWN];
 
-  canHandle(event: AgentEvent): event is LLMSubAgentSpawnEvent {
+  canHandle(event: BaseEvent): event is LLMSubAgentSpawnEvent {
     return event.type === EventType.LLM_SUBAGENT_SPAWN;
   }
 
@@ -225,7 +225,7 @@ export class LLMSubAgentSpawnReducer implements EventReducer<LLMSubAgentSpawnEve
 export class LLMSubAgentMessageReducer implements EventReducer<LLMSubAgentMessageEvent> {
   readonly eventTypes = [EventType.LLM_SUBAGENT_MESSAGE];
 
-  canHandle(event: AgentEvent): event is LLMSubAgentMessageEvent {
+  canHandle(event: BaseEvent): event is LLMSubAgentMessageEvent {
     return event.type === EventType.LLM_SUBAGENT_MESSAGE;
   }
 
@@ -252,7 +252,7 @@ export class LLMSubAgentMessageReducer implements EventReducer<LLMSubAgentMessag
 export class LLMClarificationReducer implements EventReducer<LLMClarificationEvent> {
   readonly eventTypes = [EventType.LLM_CLARIFICATION];
 
-  canHandle(event: AgentEvent): event is LLMClarificationEvent {
+  canHandle(event: BaseEvent): event is LLMClarificationEvent {
     return event.type === EventType.LLM_CLARIFICATION;
   }
 

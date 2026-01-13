@@ -4,10 +4,7 @@ Component-Centric architecture for organizing agent functionality. Components ar
 
 ## Overview
 
-This module provides two component systems:
-
-1. **New Component-Centric Architecture** (`IComponent` interface) - Full-featured components with lifecycle, event handling, and rendering
-2. **Legacy ComponentConfig** - Simple declarative component definitions for backward compatibility
+This module provides the **Component-Centric Architecture** (`IComponent` interface) - full-featured components with lifecycle, event handling, and rendering.
 
 ## Directory Structure
 
@@ -24,21 +21,25 @@ components/
 │   ├── subagent/              # Sub-agent status tracking
 │   └── memory/                # Memory management operations
 ├── component.interface.ts     # IComponent interface & types
-├── component.types.ts         # Legacy ComponentConfig types
-├── component-manager.ts       # Per-thread component lifecycle
-├── component-renderer.ts      # Legacy blueprint rendering
+├── component-manager.ts       # Global component registration
+├── component-context.ts       # Runtime context implementation
+├── component-registry.ts      # Component class registry
+├── component-renderer.ts      # Fragment assembly and rendering
+├── thread-component.provider.ts # Thread-level component provider
 └── template-renderer.ts       # Template expression rendering
 ```
 
 ---
 
-## New Component-Centric Architecture
+## Component-Centric Architecture
 
 ### Core Concepts
 
 - **IComponent**: Main interface defining component behavior
 - **AbstractComponent**: Base class providing default implementations
-- **ComponentManager**: Manages component lifecycle and aggregation per thread
+- **ComponentManager**: Global registry for component constructors
+- **ComponentRegistry**: Per-thread component instance storage
+- **ComponentRenderer**: Renders chunks to fragments and assembles prompts
 
 ### Component Types (NewComponentType)
 
@@ -100,7 +101,7 @@ class MyComponent extends AbstractComponent {
     });
   }
 
-  getReducersForEvent(event: AgentEvent): ComponentReducerFn[] {
+  getReducersForEvent(event: BaseEvent): ComponentReducerFn[] {
     if (event.type === EventType.USER_MESSAGE) {
       return [this.handleUserMessage.bind(this)];
     }
@@ -109,7 +110,7 @@ class MyComponent extends AbstractComponent {
 
   private async handleUserMessage(
     state: MemoryState,
-    event: AgentEvent,
+    event: BaseEvent,
     context: ComponentContext,
   ): Promise<ReducerResult> {
     // Process event and return operations
@@ -137,61 +138,53 @@ class MyComponent extends AbstractComponent {
 | -------------------------------------------------------- | ---------------------------------------------------- |
 | [component.interface.ts](component.interface.ts)         | `IComponent`, `ComponentContext`, `RenderedFragment` |
 | [component-manager.ts](component-manager.ts)             | `ComponentManager` class                             |
+| [component-renderer.ts](component-renderer.ts)           | `ComponentRenderer` class                            |
 | [base/abstract-component.ts](base/abstract-component.ts) | `AbstractComponent` base class                       |
 
 ---
 
-## Legacy ComponentConfig (Backward Compatible)
+## Rendering Architecture
 
-Simple declarative components for blueprint definitions.
+The rendering system uses two main classes:
 
-### Component Types
+### ComponentRenderer
 
-| Type       | ChunkType | ToolCategory | Retention    | Priority |
-| ---------- | --------- | ------------ | ------------ | -------- |
-| `system`   | SYSTEM    | common       | CRITICAL     | 1000     |
-| `agent`    | AGENT     | agent        | CRITICAL     | 900      |
-| `workflow` | WORKFLOW  | workflow     | COMPRESSIBLE | 800      |
+Responsible for:
 
-### Usage
+- Collecting `RenderedFragment[]` from each component's `renderChunk()` method
+- Separating fragments by location (system/flow)
+- Sorting fragments by order
+- Assembling into `systemContent` and `flowMessages`
 
 ```typescript
-import {
-  createComponentRenderer,
-  ComponentConfig,
-} from '@team9/agent-framework';
+const renderer = new ComponentRenderer();
+const result = renderer.render(state, {
+  threadId: 'thread-1',
+  components: activeComponents,
+});
 
-const components: ComponentConfig[] = [
-  {
-    type: 'system',
-    instructions: 'You are a helpful assistant.',
-    tools: [searchTool],
-  },
-  {
-    type: 'agent',
-    instructions: 'Focus on code quality.',
-    tools: [lintTool],
-  },
-];
-
-const renderer = createComponentRenderer();
-const result = renderer.render(components);
-// result.chunks: MemoryChunk[]
-// result.tools: Tool[] (with categories assigned)
+// result.systemContent: string (assembled system prompt)
+// result.flowMessages: FlowMessage[] (user/assistant messages)
 ```
 
-### Helper Functions
+### ComponentContextBuilder
+
+Wraps `ComponentRenderer` and adds:
+
+- Token counting
+- Token limit enforcement
+- Message construction for LLM calls
 
 ```typescript
-import {
-  createSystemComponent,
-  createAgentComponent,
-  createWorkflowComponent,
-} from '@team9/agent-framework';
+const builder = new ComponentContextBuilder(tokenizer);
+const result = builder.build(state, {
+  threadId: 'thread-1',
+  components: activeComponents,
+  maxTokens: 4000,
+});
 
-const system = createSystemComponent('Instructions here', [tool1, tool2]);
-const agent = createAgentComponent('Agent instructions', [tool3]);
-const workflow = createWorkflowComponent('Workflow instructions', [tool4]);
+// result.messages: ContextMessage[]
+// result.tokenCount: number
 ```
 
 ---
@@ -199,7 +192,7 @@ const workflow = createWorkflowComponent('Workflow instructions', [tool4]);
 ## Exports
 
 ```typescript
-// New Component-Centric Architecture
+// Component-Centric Architecture
 export type {
   IComponent,
   ComponentContext,
@@ -209,14 +202,10 @@ export type {
 export type { NewComponentType, NewComponentConfig, ComponentRuntimeState };
 export { AbstractComponent } from './base/abstract-component';
 export { ComponentManager, createComponentManager } from './component-manager';
-
-// Legacy ComponentConfig
-export type { ComponentType, ComponentConfig };
 export {
   ComponentRenderer,
   createComponentRenderer,
 } from './component-renderer';
-export { createSystemComponent, createAgentComponent, createWorkflowComponent };
 
 // Base Components
 export * from './base';

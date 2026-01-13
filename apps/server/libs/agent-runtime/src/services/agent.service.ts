@@ -12,21 +12,22 @@
 
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type {
-  AgentOrchestrator,
   MemoryState,
-  DebugController,
   Blueprint,
   LLMConfig,
-  AgentEvent,
+  BaseEvent,
   DispatchResult,
-  ILLMAdapter,
   ExecutionMode,
   StepResult,
   QueuedEvent,
   Step,
   IToolRegistry,
   CustomToolConfig,
+  Agent,
+  AgentOrchestrator,
+  SubAgentSpawnInfo,
 } from '@team9/agent-framework';
+import { AgentFactory } from '@team9/agent-framework';
 import type {
   AgentInstance,
   AgentRuntimeState,
@@ -57,6 +58,9 @@ export class AgentService {
   /** Shared runtime state */
   private state: AgentRuntimeState;
 
+  /** AgentFactory instance */
+  private factory: AgentFactory;
+
   /** Specialized services */
   private lifecycleService: AgentLifecycleService;
   private debugService: AgentDebugService;
@@ -71,14 +75,12 @@ export class AgentService {
   private pendingSpawnParentStates = new Map<string, string>();
 
   constructor(
-    createMemoryManager: (config: LLMConfig) => AgentOrchestrator,
-    createDebugController: (
-      memoryManager: AgentOrchestrator,
-    ) => DebugController,
-    getLLMAdapter?: () => ILLMAdapter,
+    factory: AgentFactory,
     db?: PostgresJsDatabase<Record<string, never>> | null,
     externalToolsConfig?: ExternalToolsConfig,
   ) {
+    this.factory = factory;
+
     // Initialize external tools
     this.externalTools = externalToolsConfig
       ? createExternalTools(externalToolsConfig)
@@ -94,8 +96,7 @@ export class AgentService {
     // Initialize shared state
     this.state = {
       agentsCache: new Map<string, AgentInstance>(),
-      memoryManagers: new Map<string, AgentOrchestrator>(),
-      debugControllers: new Map<string, DebugController>(),
+      agents: new Map<string, Agent>(),
       executors: new Map<string, AgentExecutor>(),
     };
 
@@ -112,13 +113,11 @@ export class AgentService {
 
     // Initialize lifecycle service with subagent support
     const lifecycleConfig: AgentLifecycleServiceConfig = {
-      createMemoryManager,
-      createDebugController,
-      getLLMAdapter,
+      factory: this.factory,
       db,
       externalTools: this.externalTools,
-      onAgentInitialized: (agentId, memoryManager) => {
-        this.setupObserver(agentId, memoryManager);
+      onAgentInitialized: (agentId, agent) => {
+        this.setupObserver(agentId, agent);
       },
       // Configure subagent callbacks
       onSubagentComplete: async (
@@ -156,7 +155,7 @@ export class AgentService {
         parentAgentId,
         childThreadId,
         subagentKey,
-        memoryManager,
+        orchestrator,
       ) => {
         console.log(
           '[AgentService] Subagent created:',
@@ -166,9 +165,9 @@ export class AgentService {
         );
         // Create a pseudo agent ID for the subagent to track in SSE
         const subagentId = `${parentAgentId}:subagent:${subagentKey}:${childThreadId}`;
-        // Set up SSE observer for the subagent's memory manager
-        this.sseBroadcaster.setupObserver(subagentId, memoryManager);
-        this.stepHistoryService.setupObserver(subagentId, memoryManager);
+        // Set up SSE observer for the subagent (orchestrator is passed directly)
+        this.sseBroadcaster.setupObserver(subagentId, orchestrator);
+        this.stepHistoryService.setupObserver(subagentId, orchestrator);
 
         // Get parentStateId from pending spawn events (saved by onSubAgentSpawn observer)
         // The key format matches the subAgentId from the spawn event
@@ -198,15 +197,15 @@ export class AgentService {
 
     // Initialize debug service
     this.debugService = new AgentDebugService(this.state, {
-      getLLMAdapter,
+      factory: this.factory,
       externalTools: this.externalTools,
       sseBroadcaster: this.sseBroadcaster,
-      onAgentForked: (agentId, memoryManager) => {
-        this.setupObserver(agentId, memoryManager as AgentOrchestrator);
+      onAgentForked: (agentId, agent) => {
+        this.setupObserver(agentId, agent);
       },
-      saveAgent: async (agent) => {
+      saveAgent: async (agentInstance) => {
         // Use lifecycle service's internal save
-        await this.lifecycleService.updateConfig(agent.id, {});
+        await this.lifecycleService.updateConfig(agentInstance.id, {});
       },
     });
   }
@@ -226,16 +225,14 @@ export class AgentService {
   /**
    * Set up observers for an agent
    */
-  private setupObserver(
-    agentId: string,
-    memoryManager: AgentOrchestrator,
-  ): void {
-    this.sseBroadcaster.setupObserver(agentId, memoryManager);
-    this.stepHistoryService.setupObserver(agentId, memoryManager);
+  private setupObserver(agentId: string, agent: Agent): void {
+    const orchestrator = agent.getOrchestrator();
+    this.sseBroadcaster.setupObserver(agentId, orchestrator);
+    this.stepHistoryService.setupObserver(agentId, orchestrator);
 
     // Set up subagent spawn observer to trigger execution when LLM_SUBAGENT_SPAWN event is processed
-    memoryManager.addObserver({
-      onSubAgentSpawn: async (info) => {
+    agent.addObserver({
+      onSubAgentSpawn: async (info: SubAgentSpawnInfo) => {
         console.log(
           '[AgentService] SubAgentSpawn event received:',
           info.subAgentId,
@@ -398,7 +395,7 @@ export class AgentService {
    */
   async injectEvent(
     agentId: string,
-    event: AgentEvent,
+    event: BaseEvent,
     autoRun: boolean = true,
   ): Promise<{
     dispatchResult: DispatchResult;
@@ -419,38 +416,34 @@ export class AgentService {
   /**
    * Get state history for an agent
    */
-  async getStateHistory(agentId: string): Promise<MemoryState[]> {
-    const agent = this.state.agentsCache.get(agentId);
+  async getStateHistory(agentId: string): Promise<readonly MemoryState[]> {
+    const agentInstance = this.state.agentsCache.get(agentId);
+    if (!agentInstance) return [];
+
+    const agent = this.state.agents.get(agentId);
     if (!agent) return [];
 
-    const memoryManager = this.state.memoryManagers.get(agentId);
-    if (!memoryManager) return [];
-
-    return memoryManager.getStateHistory(agent.threadId);
+    return agent.getStateHistory();
   }
 
   /**
    * Get current state for an agent
    */
   async getCurrentState(agentId: string): Promise<MemoryState | null> {
-    const agent = this.state.agentsCache.get(agentId);
+    const agent = this.state.agents.get(agentId);
     if (!agent) return null;
 
-    const memoryManager = this.state.memoryManagers.get(agentId);
-    if (!memoryManager) return null;
-
-    return memoryManager.getCurrentState(agent.threadId);
+    return agent.getState();
   }
 
   /**
    * Get the persistent event queue for an agent
    */
   async getEventQueue(agentId: string): Promise<QueuedEvent[]> {
-    const agent = this.state.agentsCache.get(agentId);
-    const memoryManager = this.state.memoryManagers.get(agentId);
-    if (!agent || !memoryManager) return [];
+    const agent = this.state.agents.get(agentId);
+    if (!agent) return [];
 
-    return memoryManager.getPersistentEventQueue(agent.threadId);
+    return agent.getPendingEvents();
   }
 
   // ============ SSE Operations ============
@@ -484,21 +477,20 @@ export class AgentService {
    * Get a step by ID
    */
   async getStepById(agentId: string, stepId: string): Promise<Step | null> {
-    const memoryManager = this.state.memoryManagers.get(agentId);
-    if (!memoryManager) return null;
+    const agent = this.state.agents.get(agentId);
+    if (!agent) return null;
 
-    return memoryManager.getStep(stepId);
+    return agent.getStep(stepId);
   }
 
   /**
    * Get all steps for an agent's thread
    */
   async getSteps(agentId: string): Promise<Step[]> {
-    const agent = this.state.agentsCache.get(agentId);
-    const memoryManager = this.state.memoryManagers.get(agentId);
-    if (!agent || !memoryManager) return [];
+    const agent = this.state.agents.get(agentId);
+    if (!agent) return [];
 
-    return memoryManager.getStepsByThread(agent.threadId);
+    return agent.getSteps();
   }
 
   // ============ Tool Registry Access ============

@@ -76,7 +76,7 @@ Creates a SYSTEM chunk for critical system errors.
 import { createSystemErrorChunk } from '@team9/agent-framework';
 
 const chunk = createSystemErrorChunk({
-  componentId: 'core:error',
+  componentKey: 'core:error',
   code: 'CONFIG_ERROR',
   message: 'Invalid configuration',
   severity: 'fatal',
@@ -92,7 +92,7 @@ import { createSystemErrorResult } from '@team9/agent-framework';
 
 const result = createSystemErrorResult({
   state,
-  componentId: 'core:error',
+  componentKey: 'core:error',
   code: 'MEMORY_LIMIT',
   message: 'Memory limit exceeded',
   severity: 'error',

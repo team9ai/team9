@@ -171,3 +171,45 @@ export function deserializeState(
 
   return Object.freeze(state);
 }
+
+/**
+ * Deep clone a memory state for temporary modification
+ * Creates a mutable copy that can be safely modified without affecting the original.
+ * Used for truncation where we need a temporary view of the state.
+ *
+ * Note: Unlike deriveState, this preserves the original ID since it's
+ * meant for temporary manipulation, not creating a new persisted state.
+ *
+ * @param state - The state to clone
+ * @returns A mutable copy of the state
+ */
+export function cloneState(state: MemoryState): MemoryState {
+  // Clone chunks map
+  const clonedChunks = new Map<string, MemoryChunk>();
+  for (const [id, chunk] of state.chunks) {
+    // Deep clone each chunk
+    clonedChunks.set(id, {
+      ...chunk,
+      // Clone childIds array if present
+      childIds: chunk.childIds ? [...chunk.childIds] : undefined,
+      // Clone metadata
+      metadata: {
+        ...chunk.metadata,
+        custom: chunk.metadata.custom
+          ? { ...chunk.metadata.custom }
+          : undefined,
+      },
+      // Note: content is assumed to be immutable (text/image data)
+    });
+  }
+
+  return {
+    ...state,
+    chunkIds: [...state.chunkIds],
+    chunks: clonedChunks,
+    metadata: {
+      ...state.metadata,
+      custom: state.metadata.custom ? { ...state.metadata.custom } : undefined,
+    },
+  };
+}
