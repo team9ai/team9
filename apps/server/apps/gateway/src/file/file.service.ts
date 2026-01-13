@@ -83,20 +83,19 @@ export class FileService implements OnModuleInit {
   }
 
   /**
-   * Generate bucket name based on environment and workspace
+   * Get the shared bucket name from environment variable
    */
-  getBucketName(workspaceId: string): string {
-    const appEnv = env.APP_ENV;
-    return `t9-${appEnv}-${workspaceId}`;
+  getBucketName(): string {
+    return env.S3_BUCKET;
   }
 
   /**
-   * Generate file path prefix: userId/yyyy-mm/
+   * Generate file path prefix with workspace isolation: workspace-{workspaceId}/{yyyy-mm}/
    */
-  getFilePrefix(userId: string): string {
+  getFilePrefix(workspaceId: string): string {
     const now = new Date();
     const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    return `${userId}/${yearMonth}/`;
+    return `workspace-${workspaceId}/${yearMonth}/`;
   }
 
   /**
@@ -134,16 +133,15 @@ export class FileService implements OnModuleInit {
    */
   async createPresignedUpload(
     workspaceId: string,
-    userId: string,
     dto: CreatePresignedUploadDto,
   ): Promise<PresignedUploadCredentials> {
-    const bucket = this.getBucketName(workspaceId);
+    const bucket = this.getBucketName();
     await this.ensureBucketWithLifecycle(bucket);
 
     return this.storageService.createPresignedUpload(bucket, {
       filename: dto.filename,
       contentType: dto.contentType,
-      prefix: this.getFilePrefix(userId),
+      prefix: this.getFilePrefix(workspaceId),
       maxSize: MAX_FILE_SIZE,
       // Tag as pending - will be auto-deleted by lifecycle rule if not confirmed
       tagging: { [TAG_STATUS_KEY]: TAG_STATUS_PENDING },
@@ -160,7 +158,7 @@ export class FileService implements OnModuleInit {
     userId: string,
     dto: ConfirmUploadDto,
   ): Promise<ConfirmUploadResult> {
-    const bucket = this.getBucketName(workspaceId);
+    const bucket = this.getBucketName();
 
     // Verify file exists in storage and get metadata
     const fileInfo = await this.storageService.confirmUpload(bucket, dto.key);

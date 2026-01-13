@@ -41,13 +41,12 @@ export class FileController {
   @UseGuards(AuthGuard)
   async createPresignedUpload(
     @CurrentTenantId() workspaceId: string,
-    @CurrentUser('sub') userId: string,
     @Body() dto: CreatePresignedUploadDto,
   ): Promise<PresignedUploadCredentials> {
     if (!workspaceId) {
       throw new BadRequestException('X-Tenant-Id header is required');
     }
-    return this.fileService.createPresignedUpload(workspaceId, userId, dto);
+    return this.fileService.createPresignedUpload(workspaceId, dto);
   }
 
   /**
