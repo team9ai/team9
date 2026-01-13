@@ -152,7 +152,7 @@ const DEFAULT_EXPIRES_IN = 300; // 5 minutes
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
-  private readonly endpoint: string;
+  private readonly endpoint: string | undefined;
 
   constructor(@Inject(S3_CLIENT) private readonly s3Client: S3Client) {
     this.endpoint = env.S3_ENDPOINT;
@@ -279,9 +279,16 @@ export class StorageService {
 
   /**
    * Get the object URL (only accessible if bucket is public)
+   * For MinIO (with endpoint): {endpoint}/{bucket}/{key}
+   * For AWS S3 (no endpoint): https://{bucket}.s3.{region}.amazonaws.com/{key}
    */
   getObjectUrl(bucket: string, key: string): string {
-    return `${this.endpoint}/${bucket}/${key}`;
+    if (this.endpoint) {
+      return `${this.endpoint}/${bucket}/${key}`;
+    }
+    // AWS S3 URL format
+    const region = env.S3_REGION;
+    return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
   }
 
   /**

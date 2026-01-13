@@ -18,7 +18,9 @@ import { env } from '@team9/shared';
         const secretAccessKey = env.S3_SECRET_KEY;
         const forcePathStyle = env.S3_FORCE_PATH_STYLE;
 
-        logger.log(`Connecting to S3-compatible storage at ${endpoint}`);
+        logger.log(
+          `Connecting to S3-compatible storage at ${endpoint || 'AWS S3'}`,
+        );
 
         const client = new S3Client({
           endpoint,
