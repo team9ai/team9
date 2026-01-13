@@ -66,6 +66,9 @@ RUN addgroup --system --gid 1001 nodejs && \
 # Copy deployed app (pnpm deploy now includes workspace packages with dist)
 COPY --from=builder --chown=nestjs:nodejs /app/deploy ./
 
+# Copy database migrations
+COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/database/migrations ./node_modules/@team9/database/migrations
+
 USER nestjs
 
 EXPOSE 3000

@@ -4,3 +4,4 @@ export * from './config.service.js';
 export * from './database.constants.js';
 export * from './schemas/index.js';
 export * from './drizzle.js';
+export * from './migrate.js';
