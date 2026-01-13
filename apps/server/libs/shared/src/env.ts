@@ -110,6 +110,10 @@ export const env = {
   get S3_FORCE_PATH_STYLE() {
     return process.env.S3_FORCE_PATH_STYLE === 'true';
   },
+  // S3 CORS origins (comma-separated), falls back to CORS_ORIGIN if not set
+  get S3_CORS_ORIGINS() {
+    return process.env.S3_CORS_ORIGINS || '';
+  },
 
   // CORS
   get CORS_ORIGIN() {

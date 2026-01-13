@@ -14,6 +14,7 @@ import {
   GetObjectTaggingCommand,
   DeleteObjectTaggingCommand,
   GetObjectCommand,
+  PutBucketCorsCommand,
   type LifecycleRule,
 } from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
@@ -470,7 +471,7 @@ export class StorageService {
   // ==================== Bucket Operations ====================
 
   /**
-   * Create a bucket
+   * Create a bucket with CORS configuration
    */
   async createBucket(bucket: string): Promise<void> {
     const command = new CreateBucketCommand({
@@ -479,6 +480,41 @@ export class StorageService {
 
     await this.s3Client.send(command);
     this.logger.log(`Created bucket ${bucket}`);
+
+    // Configure CORS for the bucket
+    await this.setBucketCors(bucket);
+  }
+
+  /**
+   * Set CORS configuration for a bucket
+   * Uses S3_CORS_ORIGINS env var (comma-separated) or defaults to CORS_ORIGIN
+   * Example: S3_CORS_ORIGINS=https://example.com,http://localhost:1420
+   */
+  async setBucketCors(bucket: string): Promise<void> {
+    // Get allowed origins from environment
+    // S3_CORS_ORIGINS takes precedence, then CORS_ORIGIN, then default to '*'
+    const originsEnv = env.S3_CORS_ORIGINS || env.CORS_ORIGIN || '*';
+    const allowedOrigins = originsEnv.split(',').map((o) => o.trim());
+
+    const corsCommand = new PutBucketCorsCommand({
+      Bucket: bucket,
+      CORSConfiguration: {
+        CORSRules: [
+          {
+            AllowedHeaders: ['*'],
+            AllowedMethods: ['GET', 'PUT', 'POST', 'DELETE', 'HEAD'],
+            AllowedOrigins: allowedOrigins,
+            ExposeHeaders: ['ETag'],
+            MaxAgeSeconds: 3000,
+          },
+        ],
+      },
+    });
+
+    await this.s3Client.send(corsCommand);
+    this.logger.log(
+      `Set CORS configuration for bucket ${bucket}, allowed origins: ${allowedOrigins.join(', ')}`,
+    );
   }
 
   /**
