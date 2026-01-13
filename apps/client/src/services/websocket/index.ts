@@ -117,7 +117,7 @@ class WebSocketService {
       this.disconnect();
     });
 
-    this.socket.on("reconnect", (attemptNumber) => {
+    this.socket.on("reconnect", () => {
       this.reconnectAttempts = 0;
       // Also refresh on reconnect in case authenticated event doesn't fire
       this.refreshQueriesAfterReconnect();

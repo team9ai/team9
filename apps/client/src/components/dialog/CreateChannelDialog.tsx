@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Hash, Lock, AlertCircle, ArrowLeft, Globe, Users } from "lucide-react";
+import { Hash, Lock, AlertCircle, ArrowLeft, Globe } from "lucide-react";
 import {
   Dialog,
   DialogContent,

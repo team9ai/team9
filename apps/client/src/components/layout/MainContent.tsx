@@ -6,11 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Card } from "@/components/ui/card";
 
-interface MainContentProps {
-  activeSection: string;
-}
-
-export function MainContent({ activeSection }: MainContentProps) {
+export function MainContent() {
   return (
     <main className="flex-1 flex flex-col bg-white">
       {/* Content Header */}
