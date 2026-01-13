@@ -4,9 +4,21 @@ import { VersioningType, Logger } from '@nestjs/common';
 import { AppModule } from './app.module.js';
 import { SocketRedisAdapterService } from './cluster/adapter/socket-redis-adapter.service.js';
 import { WebsocketGateway } from './im/websocket/websocket.gateway.js';
+import { runMigrations } from '@team9/database';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
+
+  // Run database migrations before starting the app
+  try {
+    logger.log('Running database migrations...');
+    await runMigrations();
+    logger.log('Database migrations completed');
+  } catch (error) {
+    logger.error('Database migration failed:', error);
+    process.exit(1);
+  }
+
   const app = await NestFactory.create(AppModule);
   app.enableCors();
   app.setGlobalPrefix('api');
