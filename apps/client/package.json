@@ -8,7 +8,7 @@
     "dev:desktop": "tauri dev",
     "dev:ios": "tauri ios dev",
     "dev:android": "tauri android dev",
-    "build": "tsc && vite build",
+    "build": "vite build",
     "build:mac": "tauri build",
     "build:windows": "tauri build",
     "build:ios": "tauri ios build",
