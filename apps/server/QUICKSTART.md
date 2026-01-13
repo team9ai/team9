@@ -209,10 +209,6 @@ const response = await firstValueFrom(
 # Main service port
 PORT=3000
 
-# AI microservice configuration
-AI_SERVICE_PORT=3001        # AI microservice listening port
-AI_SERVICE_HOST=localhost   # AI microservice host address
-
 # OpenAI
 OPENAI_API_KEY=             # OpenAI API Key
 

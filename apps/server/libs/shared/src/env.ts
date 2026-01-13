@@ -110,14 +110,6 @@ export const env = {
     return process.env.S3_FORCE_PATH_STYLE === 'true';
   },
 
-  // AI Service
-  get AI_SERVICE_HOST() {
-    return getRequiredEnv('AI_SERVICE_HOST');
-  },
-  get AI_SERVICE_PORT() {
-    return getRequiredEnvAsInt('AI_SERVICE_PORT');
-  },
-
   // CORS
   get CORS_ORIGIN() {
     return getRequiredEnv('CORS_ORIGIN');

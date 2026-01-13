@@ -3,10 +3,6 @@
  * Centralized definition of all allowed configuration keys
  */
 export enum ConfigKey {
-  // Microservice Configuration (gRPC)
-  AI_SERVICE_HOST = 'AI_SERVICE_HOST',
-  AI_SERVICE_PORT = 'AI_SERVICE_PORT',
-
   // OpenAI Configuration
   OPENAI_API_KEY = 'OPENAI_API_KEY',
   OPENAI_BASE_URL = 'OPENAI_BASE_URL',
@@ -34,16 +30,6 @@ export const ConfigMetadata: Record<
     defaultValue?: string;
   }
 > = {
-  [ConfigKey.AI_SERVICE_HOST]: {
-    description: 'AI microservice host address',
-    isSecret: false,
-    defaultValue: 'localhost',
-  },
-  [ConfigKey.AI_SERVICE_PORT]: {
-    description: 'AI microservice gRPC port',
-    isSecret: false,
-    defaultValue: '3001',
-  },
   [ConfigKey.OPENAI_API_KEY]: {
     description: 'OpenAI API key',
     isSecret: true,

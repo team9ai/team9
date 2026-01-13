@@ -5,7 +5,6 @@ import { DATABASE_CONNECTION } from './database.constants.js';
 import * as schema from './schemas/index.js';
 import { Config } from './schemas/config.js';
 import { ConfigKey } from './config-keys.js';
-import { env } from '@team9/shared';
 
 @Injectable()
 export class ConfigService {
@@ -117,19 +116,6 @@ export class ConfigService {
       this.logger.error(`Failed to delete configuration "${key}"`, error);
       throw error;
     }
-  }
-
-  /**
-   * Get microservice configuration (gRPC)
-   */
-  getMicroserviceConfig() {
-    return {
-      host: this.get(ConfigKey.AI_SERVICE_HOST) || env.AI_SERVICE_HOST,
-      port: parseInt(
-        this.get(ConfigKey.AI_SERVICE_PORT) || String(env.AI_SERVICE_PORT),
-        10,
-      ),
-    };
   }
 
   /**
