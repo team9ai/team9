@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 name: team9
 
 services:
@@ -10,12 +10,12 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?err_postgres_password_is_required_in_env_file}
       POSTGRES_DB: ${POSTGRES_DB:?err_postgres_db_is_required_in_env_file}
     ports:
-      - '${DB_PORT:-5432}:5432'
+      - "${DB_PORT:-5432}:5432"
     volumes:
       # Persist PostgreSQL data to prevent data loss on container restart
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -30,13 +30,13 @@ services:
     command: redis-server --requirepass ${REDIS_PASSWORD:?err_redis_password_is_required_in_env_file}
     ports:
       # Map Redis default port
-      - '${REDIS_PORT:-6379}:6379'
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       # Persist Redis data
       - redis_data:/data
     healthcheck:
       # Use redis-cli ping command to check service health
-      test: ['CMD-SHELL', 'redis-cli -a ${REDIS_PASSWORD} ping | grep PONG']
+      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD} ping | grep PONG"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -51,14 +51,14 @@ services:
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?err_rabbitmq_password_is_required_in_env_file}
     ports:
       # AMQP protocol port
-      - '${RABBITMQ_PORT:-5672}:5672'
+      - "${RABBITMQ_PORT:-5672}:5672"
       # Web UI management port
-      - '${RABBITMQ_MANAGEMENT_PORT:-15672}:15672'
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
     volumes:
       # Persist RabbitMQ data
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
-      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -73,15 +73,15 @@ services:
       MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:?err_s3_secret_access_key_is_required_in_env_file}
     ports:
       # S3 API port
-      - '${S3_API_PORT:-9000}:9000'
+      - "${S3_API_PORT:-9000}:9000"
       # Web Console port
-      - '${S3_CONSOLE_PORT:-9001}:9001'
+      - "${S3_CONSOLE_PORT:-9001}:9001"
     volumes:
       # Persist MinIO data
       - minio_data:/data
     command: server /data --console-address ":9001"
     healthcheck:
-      test: ['CMD', 'mc', 'ready', 'local']
+      test: ["CMD", "mc", "ready", "local"]
       interval: 10s
       timeout: 5s
       retries: 5

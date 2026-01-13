@@ -114,6 +114,10 @@ export const env = {
   get S3_CORS_ORIGINS() {
     return process.env.S3_CORS_ORIGINS || '';
   },
+  // Shared S3 bucket name (single bucket for all workspaces)
+  get S3_BUCKET() {
+    return process.env.S3_BUCKET || `t9-${this.APP_ENV}`;
+  },
 
   // CORS
   get CORS_ORIGIN() {
