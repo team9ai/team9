@@ -3,6 +3,11 @@ import { useEffect } from "react";
 import imApi from "@/services/api/im";
 import wsService from "@/services/websocket";
 import type { UpdateUserStatusDto } from "@/types/im";
+import type {
+  UserOnlineEvent,
+  UserOfflineEvent,
+  UserStatusChangedEvent,
+} from "@/types/ws-events";
 
 /**
  * Hook to search users
@@ -30,22 +35,16 @@ export function useOnlineUsers() {
 
   // Listen for real-time status updates
   useEffect(() => {
-    const handleUserOnline = ({
-      userId,
-      status,
-    }: {
-      userId: string;
-      status: string;
-    }) => {
+    const handleUserOnline = ({ userId }: UserOnlineEvent) => {
       queryClient.setQueryData(
         ["im-users", "online"],
         (old: Record<string, string> | undefined) => {
-          return { ...old, [userId]: status };
+          return { ...old, [userId]: "online" };
         },
       );
     };
 
-    const handleUserOffline = ({ userId }: { userId: string }) => {
+    const handleUserOffline = ({ userId }: UserOfflineEvent) => {
       queryClient.setQueryData(
         ["im-users", "online"],
         (old: Record<string, string> | undefined) => {
@@ -60,10 +59,7 @@ export function useOnlineUsers() {
     const handleUserStatusChanged = ({
       userId,
       status,
-    }: {
-      userId: string;
-      status: string;
-    }) => {
+    }: UserStatusChangedEvent) => {
       queryClient.setQueryData(
         ["im-users", "online"],
         (old: Record<string, string> | undefined) => {

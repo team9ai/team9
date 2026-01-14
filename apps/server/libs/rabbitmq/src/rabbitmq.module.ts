@@ -16,10 +16,6 @@ import { GatewayMQService } from './gateway/gateway-mq.service.js';
         const username = env.RABBITMQ_USER;
         const password = env.RABBITMQ_PASSWORD;
         const vhost = env.RABBITMQ_VHOST;
-        console.log(
-          '==========',
-          `amqp://${username}:${password}@${host}:${port}${vhost}`,
-        );
         return {
           uri: `amqp://${username}:${password}@${host}:${port}${vhost}`,
           connectionInitOptions: { wait: true },
