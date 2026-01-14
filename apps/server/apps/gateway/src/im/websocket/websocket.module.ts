@@ -11,7 +11,7 @@ import { ImWorkerClientService } from '../services/im-worker-client.service.js';
 @Module({
   imports: [
     AuthModule,
-    UsersModule,
+    forwardRef(() => UsersModule),
     forwardRef(() => ChannelsModule),
     forwardRef(() => MessagesModule),
     forwardRef(() => WorkspaceModule),

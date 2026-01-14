@@ -104,7 +104,7 @@ export class MessagesController {
     // Immediately broadcast to online users via Socket.io Redis Adapter
     this.websocketGateway.sendToChannel(
       channelId,
-      WS_EVENTS.NEW_MESSAGE,
+      WS_EVENTS.MESSAGE.NEW,
       message,
     );
 
@@ -184,7 +184,7 @@ export class MessagesController {
     // Broadcast message update to all channel members via WebSocket
     this.websocketGateway.sendToChannel(
       message.channelId,
-      WS_EVENTS.MESSAGE_UPDATED,
+      WS_EVENTS.MESSAGE.UPDATED,
       message,
     );
 
@@ -200,7 +200,7 @@ export class MessagesController {
     await this.messagesService.delete(messageId, userId);
 
     // Broadcast message deletion to all channel members via WebSocket
-    this.websocketGateway.sendToChannel(channelId, WS_EVENTS.MESSAGE_DELETED, {
+    this.websocketGateway.sendToChannel(channelId, WS_EVENTS.MESSAGE.DELETED, {
       messageId,
     });
 

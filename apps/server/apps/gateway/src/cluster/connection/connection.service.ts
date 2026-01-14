@@ -180,7 +180,7 @@ export class ConnectionService implements OnModuleInit {
 
       for (const socketId of socketIds) {
         try {
-          this.server.to(socketId).emit(WS_EVENTS.NEW_MESSAGE, fullMessage);
+          this.server.to(socketId).emit(WS_EVENTS.MESSAGE.NEW, fullMessage);
 
           this.logger.debug(
             `Delivered message ${message.msgId} to socket ${socketId}`,

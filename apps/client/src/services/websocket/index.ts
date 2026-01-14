@@ -1,13 +1,31 @@
 import { io, Socket } from "socket.io-client";
-import type {
-  Message,
-  WSMarkAsRead,
-  WSTyping,
-  WSReaction,
-  WSUserTyping,
-  WSChannelEvent,
-} from "@/types/im";
 import { queryClient } from "@/lib/query-client";
+import {
+  WS_EVENTS,
+  type MarkAsReadPayload,
+  type TypingStartPayload,
+  type AddReactionPayload,
+  type NewMessageEvent,
+  type MessageUpdatedEvent,
+  type MessageDeletedEvent,
+  type UserTypingEvent,
+  type ReadStatusUpdatedEvent,
+  type ChannelJoinedEvent,
+  type ChannelLeftEvent,
+  type ChannelCreatedEvent,
+  type ChannelUpdatedEvent,
+  type ChannelDeletedEvent,
+  type ChannelArchivedEvent,
+  type ChannelUnarchivedEvent,
+  type UserOnlineEvent,
+  type UserOfflineEvent,
+  type UserStatusChangedEvent,
+  type ReactionAddedEvent,
+  type ReactionRemovedEvent,
+  type WorkspaceMemberJoinedEvent,
+  type WorkspaceMemberLeftEvent,
+  type WorkspaceMemberRemovedEvent,
+} from "@/types/ws-events";
 
 type EventCallback = (...args: any[]) => void;
 
@@ -184,31 +202,31 @@ class WebSocketService {
   }
 
   // Read status
-  markAsRead(data: WSMarkAsRead): void {
+  markAsRead(data: MarkAsReadPayload): void {
     if (!this.socket) return;
-    this.socket.emit("mark_as_read", data);
+    this.socket.emit(WS_EVENTS.READ_STATUS.MARK_AS_READ, data);
   }
 
   // Typing indicators
-  startTyping(data: WSTyping): void {
+  startTyping(data: TypingStartPayload): void {
     if (!this.socket) return;
-    this.socket.emit("typing_start", data);
+    this.socket.emit(WS_EVENTS.TYPING.START, data);
   }
 
-  stopTyping(data: WSTyping): void {
+  stopTyping(data: TypingStartPayload): void {
     if (!this.socket) return;
-    this.socket.emit("typing_stop", data);
+    this.socket.emit(WS_EVENTS.TYPING.STOP, data);
   }
 
   // Reactions
-  addReaction(data: WSReaction): void {
+  addReaction(data: AddReactionPayload): void {
     if (!this.socket) return;
-    this.socket.emit("add_reaction", data);
+    this.socket.emit(WS_EVENTS.REACTION.ADD, data);
   }
 
-  removeReaction(data: WSReaction): void {
+  removeReaction(data: AddReactionPayload): void {
     if (!this.socket) return;
-    this.socket.emit("remove_reaction", data);
+    this.socket.emit(WS_EVENTS.REACTION.REMOVE, data);
   }
 
   // Event listeners
@@ -242,74 +260,90 @@ class WebSocketService {
   }
 
   // Convenience methods for common events
-  onNewMessage(callback: (message: Message) => void): void {
-    this.on("new_message", callback);
+  onNewMessage(callback: (event: NewMessageEvent) => void): void {
+    this.on(WS_EVENTS.MESSAGE.NEW, callback);
   }
 
-  onMessageUpdated(callback: (message: Message) => void): void {
-    this.on("message_updated", callback);
+  onMessageUpdated(callback: (event: MessageUpdatedEvent) => void): void {
+    this.on(WS_EVENTS.MESSAGE.UPDATED, callback);
   }
 
-  onMessageDeleted(callback: (data: { messageId: string }) => void): void {
-    this.on("message_deleted", callback);
+  onMessageDeleted(callback: (event: MessageDeletedEvent) => void): void {
+    this.on(WS_EVENTS.MESSAGE.DELETED, callback);
   }
 
-  onUserTyping(callback: (data: WSUserTyping) => void): void {
-    this.on("user_typing", callback);
+  onUserTyping(callback: (event: UserTypingEvent) => void): void {
+    this.on(WS_EVENTS.TYPING.USER_TYPING, callback);
   }
 
-  onReadStatusUpdated(
-    callback: (data: { channelId: string; userId: string }) => void,
+  onReadStatusUpdated(callback: (event: ReadStatusUpdatedEvent) => void): void {
+    this.on(WS_EVENTS.READ_STATUS.UPDATED, callback);
+  }
+
+  onChannelJoined(callback: (event: ChannelJoinedEvent) => void): void {
+    this.on(WS_EVENTS.CHANNEL.JOINED, callback);
+  }
+
+  onChannelLeft(callback: (event: ChannelLeftEvent) => void): void {
+    this.on(WS_EVENTS.CHANNEL.LEFT, callback);
+  }
+
+  onChannelCreated(callback: (event: ChannelCreatedEvent) => void): void {
+    this.on(WS_EVENTS.CHANNEL.CREATED, callback);
+  }
+
+  onChannelUpdated(callback: (event: ChannelUpdatedEvent) => void): void {
+    this.on(WS_EVENTS.CHANNEL.UPDATED, callback);
+  }
+
+  onChannelDeleted(callback: (event: ChannelDeletedEvent) => void): void {
+    this.on(WS_EVENTS.CHANNEL.DELETED, callback);
+  }
+
+  onChannelArchived(callback: (event: ChannelArchivedEvent) => void): void {
+    this.on(WS_EVENTS.CHANNEL.ARCHIVED, callback);
+  }
+
+  onChannelUnarchived(callback: (event: ChannelUnarchivedEvent) => void): void {
+    this.on(WS_EVENTS.CHANNEL.UNARCHIVED, callback);
+  }
+
+  onUserOnline(callback: (event: UserOnlineEvent) => void): void {
+    this.on(WS_EVENTS.USER.ONLINE, callback);
+  }
+
+  onUserOffline(callback: (event: UserOfflineEvent) => void): void {
+    this.on(WS_EVENTS.USER.OFFLINE, callback);
+  }
+
+  onUserStatusChanged(callback: (event: UserStatusChangedEvent) => void): void {
+    this.on(WS_EVENTS.USER.STATUS_CHANGED, callback);
+  }
+
+  onReactionAdded(callback: (event: ReactionAddedEvent) => void): void {
+    this.on(WS_EVENTS.REACTION.ADDED, callback);
+  }
+
+  onReactionRemoved(callback: (event: ReactionRemovedEvent) => void): void {
+    this.on(WS_EVENTS.REACTION.REMOVED, callback);
+  }
+
+  onWorkspaceMemberJoined(
+    callback: (event: WorkspaceMemberJoinedEvent) => void,
   ): void {
-    this.on("read_status_updated", callback);
+    this.on(WS_EVENTS.WORKSPACE.MEMBER_JOINED, callback);
   }
 
-  onChannelJoined(callback: (data: WSChannelEvent) => void): void {
-    this.on("channel_joined", callback);
-  }
-
-  onChannelLeft(callback: (data: WSChannelEvent) => void): void {
-    this.on("channel_left", callback);
-  }
-
-  onChannelCreated(callback: (data: any) => void): void {
-    this.on("channel_created", callback);
-  }
-
-  onUserOnline(
-    callback: (data: { userId: string; status: string }) => void,
+  onWorkspaceMemberLeft(
+    callback: (event: WorkspaceMemberLeftEvent) => void,
   ): void {
-    this.on("user_online", callback);
+    this.on(WS_EVENTS.WORKSPACE.MEMBER_LEFT, callback);
   }
 
-  onUserOffline(callback: (data: { userId: string }) => void): void {
-    this.on("user_offline", callback);
-  }
-
-  onUserStatusChanged(
-    callback: (data: { userId: string; status: string }) => void,
+  onWorkspaceMemberRemoved(
+    callback: (event: WorkspaceMemberRemovedEvent) => void,
   ): void {
-    this.on("user_status_changed", callback);
-  }
-
-  onReactionAdded(
-    callback: (data: {
-      messageId: string;
-      userId: string;
-      emoji: string;
-    }) => void,
-  ): void {
-    this.on("reaction_added", callback);
-  }
-
-  onReactionRemoved(
-    callback: (data: {
-      messageId: string;
-      userId: string;
-      emoji: string;
-    }) => void,
-  ): void {
-    this.on("reaction_removed", callback);
+    this.on(WS_EVENTS.WORKSPACE.MEMBER_REMOVED, callback);
   }
 }
 

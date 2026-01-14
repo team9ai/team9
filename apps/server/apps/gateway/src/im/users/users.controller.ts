@@ -6,10 +6,15 @@ import {
   Param,
   Query,
   UseGuards,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { UsersService, UserResponse } from './users.service.js';
 import { UpdateUserDto, UpdateUserStatusDto } from './dto/index.js';
 import { AuthGuard, CurrentUser } from '@team9/auth';
+import { WebsocketGateway } from '../websocket/websocket.gateway.js';
+import { WS_EVENTS } from '../websocket/events/events.constants.js';
+import { WorkspaceService } from '../../workspace/workspace.service.js';
 
 @Controller({
   path: 'im/users',
@@ -17,7 +22,13 @@ import { AuthGuard, CurrentUser } from '@team9/auth';
 })
 @UseGuards(AuthGuard)
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    @Inject(forwardRef(() => WebsocketGateway))
+    private readonly websocketGateway: WebsocketGateway,
+    @Inject(forwardRef(() => WorkspaceService))
+    private readonly workspaceService: WorkspaceService,
+  ) {}
 
   @Get()
   async search(
@@ -54,6 +65,21 @@ export class UsersController {
     @Body() dto: UpdateUserStatusDto,
   ): Promise<{ success: boolean }> {
     await this.usersService.updateStatus(userId, dto.status);
+
+    // Broadcast status change to all workspaces the user belongs to
+    const workspaceIds =
+      await this.workspaceService.getWorkspaceIdsByUserId(userId);
+    for (const workspaceId of workspaceIds) {
+      await this.websocketGateway.broadcastToWorkspace(
+        workspaceId,
+        WS_EVENTS.USER.STATUS_CHANGED,
+        {
+          userId,
+          status: dto.status,
+        },
+      );
+    }
+
     return { success: true };
   }
 }

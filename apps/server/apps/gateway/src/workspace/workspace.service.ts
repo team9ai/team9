@@ -453,7 +453,7 @@ export class WorkspaceService {
       try {
         await this.websocketGateway.broadcastToWorkspace(
           invitation.tenantId,
-          WS_EVENTS.WORKSPACE_MEMBER_JOINED,
+          WS_EVENTS.WORKSPACE.MEMBER_JOINED,
           memberJoinedPayload,
         );
         this.logger.log(
@@ -470,7 +470,7 @@ export class WorkspaceService {
         await this.rabbitMQEventService.sendToOfflineUsers(
           invitation.tenantId,
           offlineIds,
-          WS_EVENTS.WORKSPACE_MEMBER_JOINED,
+          WS_EVENTS.WORKSPACE.MEMBER_JOINED,
           memberJoinedPayload,
         );
         this.logger.log(
@@ -508,7 +508,7 @@ export class WorkspaceService {
         if (inviterOnline) {
           await this.websocketGateway.sendToUser(
             invitation.createdBy,
-            WS_EVENTS.CHANNEL_CREATED,
+            WS_EVENTS.CHANNEL.CREATED,
             directChannel,
           );
           this.logger.log(
@@ -518,7 +518,7 @@ export class WorkspaceService {
           await this.rabbitMQEventService.sendToOfflineUsers(
             invitation.tenantId,
             [invitation.createdBy],
-            WS_EVENTS.CHANNEL_CREATED,
+            WS_EVENTS.CHANNEL.CREATED,
             directChannel,
           );
           this.logger.log(
@@ -530,7 +530,7 @@ export class WorkspaceService {
         if (inviteeOnline) {
           await this.websocketGateway.sendToUser(
             userId,
-            WS_EVENTS.CHANNEL_CREATED,
+            WS_EVENTS.CHANNEL.CREATED,
             directChannel,
           );
           this.logger.log(
@@ -540,7 +540,7 @@ export class WorkspaceService {
           await this.rabbitMQEventService.sendToOfflineUsers(
             invitation.tenantId,
             [userId],
-            WS_EVENTS.CHANNEL_CREATED,
+            WS_EVENTS.CHANNEL.CREATED,
             directChannel,
           );
           this.logger.log(
