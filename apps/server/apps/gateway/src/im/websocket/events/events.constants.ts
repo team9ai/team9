@@ -21,7 +21,6 @@ export const WS_EVENTS = {
   CHANNEL_UPDATED: 'channel_updated',
 
   // Message
-  SEND_MESSAGE: 'send_message',
   NEW_MESSAGE: 'new_message',
   MESSAGE_UPDATED: 'message_updated',
   MESSAGE_DELETED: 'message_deleted',

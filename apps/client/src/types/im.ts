@@ -180,12 +180,6 @@ export interface SearchUsersParams {
 }
 
 // WebSocket event types
-export interface WSMessage {
-  channelId: string;
-  content: string;
-  parentId?: string;
-}
-
 export interface WSMarkAsRead {
   channelId: string;
   messageId: string;

@@ -137,7 +137,7 @@ The codebase supports Community and Enterprise editions via environment variable
 
 Message Operations:
 
-- `send_message` → `new_message`: Broadcasting new messages to channel members
+- `new_message`: Server broadcasts new messages to channel members
 - `mark_as_read` → `read_status_updated`: Read receipt tracking
 - `add_reaction` → `reaction_added`, `reaction_removed`: Message reactions
 

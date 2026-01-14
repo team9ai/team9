@@ -1,7 +1,6 @@
 import { io, Socket } from "socket.io-client";
 import type {
   Message,
-  WSMessage,
   WSMarkAsRead,
   WSTyping,
   WSReaction,
@@ -184,15 +183,7 @@ class WebSocketService {
     this.socket.emit("leave_channel", { channelId });
   }
 
-  // Message operations
-  sendMessage(data: WSMessage): void {
-    if (!this.socket) {
-      console.warn("[WS] Cannot send message: not connected");
-      return;
-    }
-    this.socket.emit("send_message", data);
-  }
-
+  // Read status
   markAsRead(data: WSMarkAsRead): void {
     if (!this.socket) return;
     this.socket.emit("mark_as_read", data);
