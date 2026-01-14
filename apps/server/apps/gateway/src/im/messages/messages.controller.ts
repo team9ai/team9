@@ -70,7 +70,6 @@ export class MessagesController {
     @Param('channelId') channelId: string,
     @Body() dto: CreateMessageDto,
   ): Promise<MessageResponse> {
-    //todo 做成装饰器
     const isMember = await this.channelsService.isMember(channelId, userId);
     if (!isMember) {
       throw new ForbiddenException('Access denied');
