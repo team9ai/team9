@@ -7,14 +7,17 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
     "./schemas": {
+      "source": "./src/schemas/index.ts",
       "types": "./dist/schemas/index.d.ts",
       "default": "./dist/schemas/index.js"
     },
     "./config": {
+      "source": "./src/config.service.ts",
       "types": "./dist/config.service.d.ts",
       "default": "./dist/config.service.js"
     }

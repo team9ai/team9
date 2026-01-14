@@ -7,10 +7,12 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
     "./interfaces": {
+      "source": "./src/interfaces/index.ts",
       "types": "./dist/interfaces/index.d.ts",
       "default": "./dist/interfaces/index.js"
     }
