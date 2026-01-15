@@ -1,5 +1,6 @@
 import { createRootRoute, Outlet } from "@tanstack/react-router";
 import { lazy } from "react";
+import { useThemeEffect } from "@/hooks/useTheme";
 
 const TanStackRouterDevtools = import.meta.env.PROD
   ? () => null
@@ -17,12 +18,18 @@ const ReactQueryDevtools = import.meta.env.PROD
       })),
     );
 
-export const Route = createRootRoute({
-  component: () => (
+function RootComponent() {
+  useThemeEffect();
+
+  return (
     <>
       <Outlet />
       <ReactQueryDevtools />
       <TanStackRouterDevtools position="bottom-right" />
     </>
-  ),
+  );
+}
+
+export const Route = createRootRoute({
+  component: RootComponent,
 });

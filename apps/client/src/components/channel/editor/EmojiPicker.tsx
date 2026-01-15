@@ -1,5 +1,6 @@
 import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
+import { useTheme } from "@/stores/useAppStore";
 
 interface EmojiPickerProps {
   onSelect: (emoji: string) => void;
@@ -13,11 +14,13 @@ interface EmojiData {
 }
 
 export function EmojiPicker({ onSelect }: EmojiPickerProps) {
+  const theme = useTheme();
+
   return (
     <Picker
       data={data}
       onEmojiSelect={(emoji: EmojiData) => onSelect(emoji.native)}
-      theme="light"
+      theme={theme}
       previewPosition="none"
       skinTonePosition="none"
       maxFrequentRows={2}
