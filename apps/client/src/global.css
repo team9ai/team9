@@ -53,17 +53,6 @@
   --gap-lg: clamp(16px, 2vw, 24px);
   --gap-xl: clamp(24px, 3vw, 32px);
 
-  /* Mobile touch target sizes (iOS: 44px min, Android: 48px min) */
-  --touch-target-sm: clamp(44px, 10vw, 48px);
-  --touch-target-md: clamp(48px, 12vw, 56px);
-  --touch-target-lg: clamp(56px, 14vw, 64px);
-
-  /* Mobile-specific spacing */
-  --mobile-padding: clamp(16px, 4vw, 24px);
-  --mobile-margin: clamp(12px, 3vw, 20px);
-  --mobile-safe-area-bottom: env(safe-area-inset-bottom, 0px);
-  --mobile-safe-area-top: env(safe-area-inset-top, 0px);
-
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
