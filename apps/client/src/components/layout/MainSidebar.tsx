@@ -326,7 +326,7 @@ export function MainSidebar() {
                 title={label}
               >
                 <Icon size={20} />
-                <span className="text-[9px]">{label}</span>
+                <span className="text-xs mt-1.5">{label}</span>
               </Button>
             );
           })}

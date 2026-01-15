@@ -89,12 +89,9 @@
 @theme inline {
   /*
    * Fluid Design System
-   * Override Tailwind defaults so all spacing/text classes are responsive
-   * p-4, m-2, gap-4, text-sm, text-lg etc. will now scale with viewport
+   * Only font sizes are fluid, spacing remains fixed for UI consistency
+   * text-xs, text-sm, text-base, text-lg etc. will scale with viewport
    */
-
-  /* Fluid base spacing unit - affects p-1, m-2, gap-4, w-8, h-12, etc. */
-  --spacing: clamp(3px, 0.25vw, 4px);
 
   /* Fluid font sizes - overrides text-xs, text-sm, text-base, text-lg, etc. */
   --text-xs: clamp(0.7rem, 0.5vw + 0.5rem, 0.75rem);
@@ -117,13 +114,6 @@
   --text-5xl--line-height: 1;
   --text-6xl: clamp(3rem, 2.5vw + 2rem, 3.75rem);
   --text-6xl--line-height: 1;
-
-  /* Fluid container max-widths */
-  --container-sm: clamp(320px, 90vw, 640px);
-  --container-md: clamp(384px, 90vw, 768px);
-  --container-lg: clamp(512px, 90vw, 1024px);
-  --container-xl: clamp(640px, 90vw, 1280px);
-  --container-2xl: clamp(768px, 90vw, 1536px);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
