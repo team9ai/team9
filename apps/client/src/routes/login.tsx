@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useLogin, useCurrentUser } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,13 +11,14 @@ type LoginSearch = {
 };
 
 function LoginPending() {
+  const { t } = useTranslation("auth");
   return (
     <div className="min-h-screen flex items-center justify-center bg-white">
       <div className="w-full max-w-100 px-4">
         {/* Logo/Brand */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Team9</h1>
-          <p className="text-gray-600 text-lg">Sign in to your workspace</p>
+          <p className="text-gray-600 text-lg">{t("signInToWorkspace")}</p>
         </div>
 
         {/* Loading Skeleton */}
@@ -54,6 +56,7 @@ export const Route = createFileRoute("/login")({
 });
 
 function Login() {
+  const { t } = useTranslation("auth");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -83,9 +86,7 @@ function Login() {
       navigate({ to: redirect || "/" });
     } catch (err: any) {
       const errorMessage =
-        err?.response?.data?.message ||
-        err?.message ||
-        "Login failed. Please try again.";
+        err?.response?.data?.message || err?.message || t("loginFailed");
       setError(errorMessage);
     }
   };
@@ -96,7 +97,7 @@ function Login() {
         {/* Logo/Brand */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Team9</h1>
-          <p className="text-gray-600 text-lg">Sign in to your workspace</p>
+          <p className="text-gray-600 text-lg">{t("signInToWorkspace")}</p>
         </div>
 
         {/* Login Form */}
@@ -108,14 +109,14 @@ function Login() {
                 htmlFor="email"
                 className="block text-sm font-semibold text-gray-900"
               >
-                Email address
+                {t("email")}
               </label>
               <Input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@work-email.com"
+                placeholder={t("emailPlaceholder")}
                 className="w-full h-11 px-3"
                 required
                 autoFocus
@@ -128,14 +129,14 @@ function Login() {
                 htmlFor="password"
                 className="block text-sm font-semibold text-gray-900"
               >
-                Password
+                {t("password")}
               </label>
               <Input
                 id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
+                placeholder={t("passwordPlaceholder")}
                 className="w-full h-11 px-3"
                 required
               />
@@ -154,7 +155,7 @@ function Login() {
               className="w-full h-11 bg-purple-600 hover:bg-purple-700 text-white font-semibold text-base"
               disabled={login.isPending}
             >
-              {login.isPending ? "Signing in..." : "Sign In with Email"}
+              {login.isPending ? t("signingIn") : t("signInWithEmail")}
             </Button>
           </form>
         </div>
@@ -162,12 +163,12 @@ function Login() {
         {/* Sign Up Link */}
         <div className="text-center mt-6">
           <p className="text-gray-600 text-sm">
-            Don't have an account?{" "}
+            {t("dontHaveAccount")}{" "}
             <Link
               to="/register"
               className="text-purple-600 hover:underline font-medium"
             >
-              Create an account
+              {t("createAccount")}
             </Link>
           </p>
         </div>
@@ -175,13 +176,13 @@ function Login() {
         {/* Footer */}
         <div className="text-center mt-8 text-xs text-gray-500">
           <p>
-            By continuing, you're agreeing to our{" "}
+            {t("termsAgreement")}{" "}
             <a href="#" className="text-purple-600 hover:underline">
-              Terms of Service
+              {t("termsOfService")}
             </a>{" "}
-            and{" "}
+            {t("and")}{" "}
             <a href="#" className="text-purple-600 hover:underline">
-              Privacy Policy
+              {t("privacyPolicy")}
             </a>
           </p>
         </div>

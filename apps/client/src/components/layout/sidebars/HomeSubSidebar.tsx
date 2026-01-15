@@ -9,6 +9,7 @@ import {
   Star,
   Plus,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,18 +23,28 @@ import { Link, useParams } from "@tanstack/react-router";
 import { NewMessageDialog } from "@/components/dialog/NewMessageDialog";
 import { CreateChannelDialog } from "@/components/dialog/CreateChannelDialog";
 
-const topItems = [
-  { id: "huddle", label: "Huddle", icon: Headphones },
-  { id: "directory", label: "Directory", icon: BookOpen },
+const topItems: {
+  id: string;
+  labelKey: "huddle" | "directory" | "starred";
+  icon: typeof Headphones;
+  descriptionKey?: "starredDescription";
+}[] = [
+  { id: "huddle", labelKey: "huddle", icon: Headphones },
+  { id: "directory", labelKey: "directory", icon: BookOpen },
   {
     id: "starred",
-    label: "Starred",
+    labelKey: "starred",
     icon: Star,
-    description: "Drag important items here",
+    descriptionKey: "starredDescription",
   },
 ];
 
 export function HomeSubSidebar() {
+  const { t: tNav } = useTranslation("navigation");
+  const { t: tCommon } = useTranslation("common");
+  const { t: tChannel } = useTranslation("channel");
+  const { t: tMessage } = useTranslation("message");
+
   const [channelsExpanded, setChannelsExpanded] = useState(true);
   const [dmsExpanded, setDmsExpanded] = useState(true);
   const [appsExpanded, setAppsExpanded] = useState(true);
@@ -95,7 +106,7 @@ export function HomeSubSidebar() {
           />
           <Input
             type="text"
-            placeholder="Search..."
+            placeholder={tCommon("searchPlaceholder")}
             className="pl-8 h-9 bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:bg-white/15"
           />
         </div>
@@ -116,11 +127,11 @@ export function HomeSubSidebar() {
                   className="w-full justify-start gap-2 px-2 h-auto py-1.5 text-sm text-white/80 hover:bg-white/10 hover:text-white"
                 >
                   <Icon size={16} />
-                  <span className="truncate">{item.label}</span>
+                  <span className="truncate">{tNav(item.labelKey)}</span>
                 </Button>
-                {item.description && (
+                {item.descriptionKey && (
                   <p className="px-2 text-xs text-white/50 mt-1 mb-2">
-                    {item.description}
+                    {tNav(item.descriptionKey)}
                   </p>
                 )}
               </div>
@@ -140,14 +151,14 @@ export function HomeSubSidebar() {
                 ) : (
                   <ChevronRight size={14} />
                 )}
-                <span>Channels</span>
+                <span>{tNav("channels")}</span>
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-6 w-6 text-white/70 hover:text-white hover:bg-white/10"
                 onClick={() => setIsCreateChannelOpen(true)}
-                title="Add channel"
+                title={tNav("addChannel")}
               >
                 <Plus size={14} />
               </Button>
@@ -155,9 +166,13 @@ export function HomeSubSidebar() {
             {channelsExpanded && (
               <div className="ml-4 mt-1 space-y-0.5">
                 {isLoading ? (
-                  <p className="text-xs text-white/50 px-2 py-1">Loading...</p>
+                  <p className="text-xs text-white/50 px-2 py-1">
+                    {tCommon("loading")}
+                  </p>
                 ) : allChannels.length === 0 ? (
-                  <p className="text-xs text-white/50 px-2 py-1">No channels</p>
+                  <p className="text-xs text-white/50 px-2 py-1">
+                    {tChannel("noChannels")}
+                  </p>
                 ) : (
                   allChannels.map((channel) => {
                     const ChannelIcon =
@@ -204,14 +219,18 @@ export function HomeSubSidebar() {
               ) : (
                 <ChevronRight size={14} />
               )}
-              <span>Direct Messages</span>
+              <span>{tNav("directMessages")}</span>
             </Button>
             {dmsExpanded && (
               <div className="ml-2 mt-1 space-y-0.5">
                 {isLoading ? (
-                  <p className="text-xs text-white/50 px-2 py-1">Loading...</p>
+                  <p className="text-xs text-white/50 px-2 py-1">
+                    {tCommon("loading")}
+                  </p>
                 ) : directMessageUsers.length === 0 ? (
-                  <p className="text-xs text-white/50 px-2 py-1">No messages</p>
+                  <p className="text-xs text-white/50 px-2 py-1">
+                    {tMessage("noMessages")}
+                  </p>
                 ) : (
                   directMessageUsers.map((dm) => {
                     const isOnline = dm.userId
@@ -273,7 +292,7 @@ export function HomeSubSidebar() {
               ) : (
                 <ChevronRight size={14} />
               )}
-              <span>Apps</span>
+              <span>{tNav("apps")}</span>
             </Button>
           </div>
         </nav>
@@ -285,7 +304,7 @@ export function HomeSubSidebar() {
           variant="ghost"
           onClick={() => setIsNewMessageOpen(true)}
           className="w-full justify-center gap-2 px-2 h-10 text-sm text-white/90 hover:bg-white/10 hover:text-white rounded-full border border-white/20"
-          title="New Message"
+          title={tNav("newMessage")}
         >
           <Plus size={18} />
         </Button>

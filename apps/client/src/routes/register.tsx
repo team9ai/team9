@@ -1,18 +1,20 @@
 import { useState, useEffect } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useRegister, useCurrentUser } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function RegisterPending() {
+  const { t } = useTranslation("auth");
   return (
     <div className="min-h-screen flex items-center justify-center bg-white py-12">
       <div className="w-full max-w-100 px-4">
         {/* Logo/Brand */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Team9</h1>
-          <p className="text-gray-600 text-lg">Create your account</p>
+          <p className="text-gray-600 text-lg">{t("createYourAccount")}</p>
         </div>
 
         {/* Loading Skeleton */}
@@ -57,6 +59,8 @@ export const Route = createFileRoute("/register")({
 });
 
 function Register() {
+  const { t } = useTranslation("auth");
+  const { t: tCommon } = useTranslation("common");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -81,17 +85,17 @@ function Register() {
 
     // Validation
     if (password !== confirmPassword) {
-      setError("Passwords do not match!");
+      setError(t("passwordsNotMatch"));
       return;
     }
 
     if (password.length < 6) {
-      setError("Password must be at least 6 characters long");
+      setError(t("passwordTooShort"));
       return;
     }
 
     if (username.length < 3) {
-      setError("Username must be at least 3 characters long");
+      setError(t("usernameTooShort"));
       return;
     }
 
@@ -106,9 +110,7 @@ function Register() {
       navigate({ to: "/" });
     } catch (err: any) {
       const errorMessage =
-        err?.response?.data?.message ||
-        err?.message ||
-        "Registration failed. Please try again.";
+        err?.response?.data?.message || err?.message || t("registerFailed");
       setError(errorMessage);
     }
   };
@@ -119,7 +121,7 @@ function Register() {
         {/* Logo/Brand */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">Team9</h1>
-          <p className="text-gray-600 text-lg">Create your account</p>
+          <p className="text-gray-600 text-lg">{t("createYourAccount")}</p>
         </div>
 
         {/* Registration Form */}
@@ -131,21 +133,19 @@ function Register() {
                 htmlFor="email"
                 className="block text-sm font-semibold text-gray-900"
               >
-                Email address
+                {t("email")}
               </label>
               <Input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@work-email.com"
+                placeholder={t("emailPlaceholder")}
                 className="w-full h-11 px-3"
                 required
                 autoFocus
               />
-              <p className="text-xs text-gray-500">
-                We recommend using your work email address
-              </p>
+              <p className="text-xs text-gray-500">{t("emailHint")}</p>
             </div>
 
             {/* Username Field */}
@@ -154,22 +154,20 @@ function Register() {
                 htmlFor="username"
                 className="block text-sm font-semibold text-gray-900"
               >
-                Username
+                {t("username")}
               </label>
               <Input
                 id="username"
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="Choose a username"
+                placeholder={t("usernamePlaceholder")}
                 className="w-full h-11 px-3"
                 required
                 minLength={3}
                 maxLength={100}
               />
-              <p className="text-xs text-gray-500">
-                Username must be 3-100 characters
-              </p>
+              <p className="text-xs text-gray-500">{t("usernameHint")}</p>
             </div>
 
             {/* Display Name Field (Optional) */}
@@ -178,21 +176,21 @@ function Register() {
                 htmlFor="displayName"
                 className="block text-sm font-semibold text-gray-900"
               >
-                Display name{" "}
-                <span className="text-gray-500 font-normal">(optional)</span>
+                {t("displayName")}{" "}
+                <span className="text-gray-500 font-normal">
+                  ({tCommon("optional")})
+                </span>
               </label>
               <Input
                 id="displayName"
                 type="text"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Enter your full name"
+                placeholder={t("displayNamePlaceholder")}
                 className="w-full h-11 px-3"
                 maxLength={255}
               />
-              <p className="text-xs text-gray-500">
-                This is how your name will appear in Team9
-              </p>
+              <p className="text-xs text-gray-500">{t("displayNameHint")}</p>
             </div>
 
             {/* Password Field */}
@@ -201,22 +199,20 @@ function Register() {
                 htmlFor="password"
                 className="block text-sm font-semibold text-gray-900"
               >
-                Password
+                {t("password")}
               </label>
               <Input
                 id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Create a password"
+                placeholder={t("createPassword")}
                 className="w-full h-11 px-3"
                 required
                 minLength={6}
                 maxLength={100}
               />
-              <p className="text-xs text-gray-500">
-                Password must be at least 6 characters
-              </p>
+              <p className="text-xs text-gray-500">{t("passwordHint")}</p>
             </div>
 
             {/* Confirm Password Field */}
@@ -225,14 +221,14 @@ function Register() {
                 htmlFor="confirmPassword"
                 className="block text-sm font-semibold text-gray-900"
               >
-                Confirm password
+                {t("confirmPassword")}
               </label>
               <Input
                 id="confirmPassword"
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Confirm your password"
+                placeholder={t("confirmPasswordPlaceholder")}
                 className="w-full h-11 px-3"
                 required
                 minLength={6}
@@ -252,7 +248,7 @@ function Register() {
               className="w-full h-11 bg-purple-600 hover:bg-purple-700 text-white font-semibold text-base"
               disabled={register.isPending}
             >
-              {register.isPending ? "Creating account..." : "Create Account"}
+              {register.isPending ? t("creatingAccount") : t("createAccount")}
             </Button>
           </form>
         </div>
@@ -260,12 +256,12 @@ function Register() {
         {/* Sign In Link */}
         <div className="text-center mt-6">
           <p className="text-gray-600 text-sm">
-            Already have an account?{" "}
+            {t("alreadyHaveAccount")}{" "}
             <Link
               to="/login"
               className="text-purple-600 hover:underline font-medium"
             >
-              Sign in
+              {t("signIn")}
             </Link>
           </p>
         </div>
@@ -273,13 +269,13 @@ function Register() {
         {/* Footer */}
         <div className="text-center mt-8 text-xs text-gray-500">
           <p>
-            By creating an account, you're agreeing to our{" "}
+            {t("createTermsAgreement")}{" "}
             <a href="#" className="text-purple-600 hover:underline">
-              Terms of Service
+              {t("termsOfService")}
             </a>{" "}
-            and{" "}
+            {t("and")}{" "}
             <a href="#" className="text-purple-600 hover:underline">
-              Privacy Policy
+              {t("privacyPolicy")}
             </a>
           </p>
         </div>

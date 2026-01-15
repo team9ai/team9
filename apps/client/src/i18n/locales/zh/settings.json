@@ -1,0 +1,21 @@
+{
+  "profile": "个人档案",
+  "preferences": "首选项",
+  "updateStatus": "更新你的状态",
+  "setStatus": "设置为 {{status}}",
+  "pauseNotifications": "暂停通知",
+  "status.online": "在线",
+  "status.away": "离开",
+  "status.busy": "忙碌",
+  "status.offline": "离线",
+  "language": "语言",
+  "selectLanguage": "选择语言",
+  "theme": "主题",
+  "lightTheme": "浅色",
+  "darkTheme": "深色",
+  "systemTheme": "跟随系统",
+  "notifications": "通知",
+  "sound": "声音",
+  "desktop": "桌面通知",
+  "email": "邮件通知"
+}

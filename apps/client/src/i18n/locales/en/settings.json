@@ -1,0 +1,21 @@
+{
+  "profile": "Profile",
+  "preferences": "Preferences",
+  "updateStatus": "Update your status",
+  "setStatus": "Set as {{status}}",
+  "pauseNotifications": "Pause notifications",
+  "status.online": "Online",
+  "status.away": "Away",
+  "status.busy": "Busy",
+  "status.offline": "Offline",
+  "language": "Language",
+  "selectLanguage": "Select language",
+  "theme": "Theme",
+  "lightTheme": "Light",
+  "darkTheme": "Dark",
+  "systemTheme": "System",
+  "notifications": "Notifications",
+  "sound": "Sound",
+  "desktop": "Desktop notifications",
+  "email": "Email notifications"
+}

@@ -10,7 +10,10 @@ import {
   User,
   Settings,
   LogOut,
+  Globe,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { supportedLanguages } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -40,12 +43,28 @@ import { useCurrentUser, useLogout } from "@/hooks/useAuth";
 import { useUpdateStatus, useOnlineUsers } from "@/hooks/useIMUsers";
 import type { UserStatus } from "@/types/im";
 
+// Navigation items with i18n keys
 const navigationItems = [
-  { id: "home", label: "Home", icon: Home, path: "/" },
-  { id: "messages", label: "DMs", icon: MessageSquare, path: "/messages" },
-  { id: "activity", label: "Activity", icon: Activity, path: "/activity" },
-  { id: "files", label: "Files", icon: FileText, path: "/files" },
-  { id: "more", label: "More", icon: MoreHorizontal, path: "/more" },
+  { id: "home", labelKey: "home" as const, icon: Home, path: "/" },
+  {
+    id: "messages",
+    labelKey: "dms" as const,
+    icon: MessageSquare,
+    path: "/messages",
+  },
+  {
+    id: "activity",
+    labelKey: "activity" as const,
+    icon: Activity,
+    path: "/activity",
+  },
+  { id: "files", labelKey: "files" as const, icon: FileText, path: "/files" },
+  {
+    id: "more",
+    labelKey: "more" as const,
+    icon: MoreHorizontal,
+    path: "/more",
+  },
 ];
 
 // Workspace avatar colors (similar to Google Chrome)
@@ -63,6 +82,11 @@ const WORKSPACE_COLORS = [
 ];
 
 export function MainSidebar() {
+  const { t: tNav, i18n } = useTranslation("navigation");
+  const { t: tSettings } = useTranslation("settings");
+  const { t: tAuth } = useTranslation("auth");
+  const { t: tCommon } = useTranslation("common");
+
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
@@ -110,16 +134,13 @@ export function MainSidebar() {
   };
 
   const getStatusLabel = (status: UserStatus) => {
-    switch (status) {
-      case "online":
-        return "在线";
-      case "away":
-        return "离开";
-      case "busy":
-        return "忙碌";
-      default:
-        return "离线";
-    }
+    const statusMap = {
+      online: tSettings("status.online"),
+      away: tSettings("status.away"),
+      busy: tSettings("status.busy"),
+      offline: tSettings("status.offline"),
+    } as const;
+    return statusMap[status] || statusMap.offline;
   };
 
   // Get first 5 workspaces and remaining ones
@@ -205,7 +226,7 @@ export function MainSidebar() {
                 </Avatar>
               </TooltipTrigger>
               <TooltipContent side="right">
-                <p>No Workspace</p>
+                <p>{tNav("noWorkspace")}</p>
               </TooltipContent>
             </Tooltip>
           ) : (
@@ -251,7 +272,7 @@ export function MainSidebar() {
               <TooltipContent side="right" className="max-w-xs">
                 <div className="space-y-1">
                   <p className="font-semibold text-xs mb-2 text-slate-700">
-                    More Workspaces
+                    {tNav("moreWorkspaces")}
                   </p>
                   {moreWorkspaces.map((workspace, index) => {
                     const moreIndex = 5 + index; // Continue color sequence
@@ -284,6 +305,7 @@ export function MainSidebar() {
           {navigationItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
+            const label = tNav(item.labelKey);
 
             return (
               <Button
@@ -301,10 +323,10 @@ export function MainSidebar() {
                   "w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-white/10 text-white/70 hover:text-white",
                   isActive && "bg-white/10 text-white",
                 )}
-                title={item.label}
+                title={label}
               >
                 <Icon size={20} />
-                <span className="text-[9px]">{item.label}</span>
+                <span className="text-[9px]">{label}</span>
               </Button>
             );
           })}
@@ -367,7 +389,7 @@ export function MainSidebar() {
               <div className="mt-3">
                 <div className="flex items-center gap-2 px-3 py-2 border rounded-md text-sm text-muted-foreground hover:bg-accent cursor-pointer">
                   <Smile size={16} />
-                  <span>更新你的状态</span>
+                  <span>{tSettings("updateStatus")}</span>
                 </div>
               </div>
             </div>
@@ -380,12 +402,18 @@ export function MainSidebar() {
                 onClick={handleStatusToggle}
                 className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent"
               >
-                <span>设置为 {isOnline ? "离线" : "在线"}</span>
+                <span>
+                  {tSettings("setStatus", {
+                    status: isOnline
+                      ? tSettings("status.offline")
+                      : tSettings("status.online"),
+                  })}
+                </span>
               </button>
               <button className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent">
-                <span>暂停通知</span>
+                <span>{tSettings("pauseNotifications")}</span>
                 <div className="flex items-center gap-1 text-muted-foreground">
-                  <span>开</span>
+                  <span>{tCommon("on")}</span>
                   <ChevronRight size={14} />
                 </div>
               </button>
@@ -397,15 +425,42 @@ export function MainSidebar() {
             <div className="py-1">
               <button className="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-accent">
                 <User size={16} />
-                <span>个人档案</span>
+                <span>{tSettings("profile")}</span>
               </button>
               <button className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent">
                 <div className="flex items-center gap-3">
                   <Settings size={16} />
-                  <span>首选项</span>
+                  <span>{tSettings("preferences")}</span>
                 </div>
                 <span className="text-xs text-muted-foreground">⌘,</span>
               </button>
+            </div>
+
+            <Separator />
+
+            {/* Language Switcher */}
+            <div className="py-1">
+              <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground">
+                {tSettings("language")}
+              </div>
+              {supportedLanguages.map((lang) => (
+                <button
+                  key={lang.code}
+                  onClick={() => i18n.changeLanguage(lang.code)}
+                  className={cn(
+                    "w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent",
+                    i18n.language === lang.code && "bg-accent",
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <Globe size={16} />
+                    <span>{lang.nativeName}</span>
+                  </div>
+                  {i18n.language === lang.code && (
+                    <span className="text-purple-600">✓</span>
+                  )}
+                </button>
+              ))}
             </div>
 
             <Separator />
@@ -417,7 +472,9 @@ export function MainSidebar() {
                 className="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-accent text-red-600"
               >
                 <LogOut size={16} />
-                <span>登出 {currentWorkspaceName}</span>
+                <span>
+                  {tAuth("signOutFrom", { workspace: currentWorkspaceName })}
+                </span>
               </button>
             </div>
           </PopoverContent>

@@ -7,6 +7,7 @@ import {
   Users,
   Bell,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -18,6 +19,11 @@ import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 
 export function HomeMainContent() {
+  const { t: tNav } = useTranslation("navigation");
+  const { t: tCommon } = useTranslation("common");
+  const { t: tChannel } = useTranslation("channel");
+  const { t: tMessage } = useTranslation("message");
+
   const workspaceId = useSelectedWorkspaceId();
   const { data: workspaces } = useUserWorkspaces();
   const { publicChannels, privateChannels, directChannels, isLoading } =
@@ -44,7 +50,9 @@ export function HomeMainContent() {
       <header className="h-14 bg-white flex items-center justify-between px-6 border-b">
         <div className="flex items-center gap-2">
           <Home size={20} className="text-purple-600" />
-          <h2 className="font-semibold text-lg text-slate-900">Home</h2>
+          <h2 className="font-semibold text-lg text-slate-900">
+            {tNav("home")}
+          </h2>
         </div>
       </header>
 
@@ -54,12 +62,11 @@ export function HomeMainContent() {
           {/* Welcome Section */}
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-slate-900 mb-2">
-              Welcome back
-              {currentWorkspace ? ` to ${currentWorkspace.name}` : ""}!
+              {currentWorkspace
+                ? tNav("welcomeBackTo", { workspace: currentWorkspace.name })
+                : `${tNav("welcomeBack")}!`}
             </h1>
-            <p className="text-slate-600">
-              Here's what's happening in your workspace.
-            </p>
+            <p className="text-slate-600">{tNav("workspaceActivity")}</p>
           </div>
 
           {/* Unread Messages Section */}
@@ -68,13 +75,13 @@ export function HomeMainContent() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Bell size={18} className="text-purple-600" />
-                  Catch up
+                  {tNav("catchUp")}
                   <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
                     {unreadChannels.reduce(
                       (acc, ch) => acc + (ch.unreadCount || 0),
                       0,
                     )}{" "}
-                    unread
+                    {tChannel("unread")}
                   </span>
                 </CardTitle>
               </CardHeader>
@@ -98,19 +105,21 @@ export function HomeMainContent() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Hash size={18} className="text-slate-600" />
-                  Channels
+                  {tNav("channels")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-0">
                 {isLoading ? (
-                  <p className="text-sm text-slate-500 py-4">Loading...</p>
+                  <p className="text-sm text-slate-500 py-4">
+                    {tCommon("loading")}
+                  </p>
                 ) : recentChannels.length === 0 ? (
                   <div className="text-center py-6">
                     <p className="text-sm text-slate-500 mb-3">
-                      No channels yet
+                      {tChannel("noChannelsYet")}
                     </p>
                     <Button variant="outline" size="sm">
-                      Browse Channels
+                      {tChannel("browseChannels")}
                     </Button>
                   </div>
                 ) : (
@@ -128,19 +137,21 @@ export function HomeMainContent() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <MessageSquare size={18} className="text-slate-600" />
-                  Direct Messages
+                  {tNav("directMessages")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-0">
                 {isLoading ? (
-                  <p className="text-sm text-slate-500 py-4">Loading...</p>
+                  <p className="text-sm text-slate-500 py-4">
+                    {tCommon("loading")}
+                  </p>
                 ) : recentDMs.length === 0 ? (
                   <div className="text-center py-6">
                     <p className="text-sm text-slate-500 mb-3">
-                      No conversations yet
+                      {tMessage("noConversations")}
                     </p>
                     <Button variant="outline" size="sm">
-                      Start a Conversation
+                      {tMessage("startConversation")}
                     </Button>
                   </div>
                 ) : (
@@ -157,25 +168,27 @@ export function HomeMainContent() {
           {/* Quick Actions */}
           <Card className="mt-6">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Quick Actions</CardTitle>
+              <CardTitle className="text-base">
+                {tNav("quickActions")}
+              </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <QuickActionButton
                   icon={<Hash size={20} />}
-                  label="Browse Channels"
+                  label={tChannel("browseChannels")}
                 />
                 <QuickActionButton
                   icon={<MessageSquare size={20} />}
-                  label="New Message"
+                  label={tNav("newMessage")}
                 />
                 <QuickActionButton
                   icon={<Users size={20} />}
-                  label="View Members"
+                  label={tNav("viewMembers")}
                 />
                 <QuickActionButton
                   icon={<Bell size={20} />}
-                  label="Notifications"
+                  label={tNav("notifications")}
                 />
               </div>
             </CardContent>
