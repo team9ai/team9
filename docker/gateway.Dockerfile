@@ -5,8 +5,10 @@
 #   EDITION: community (default) or enterprise
 #
 # Usage:
-#   docker build -f docker/gateway.Dockerfile -t team9-gateway .
-#   docker build -f docker/gateway.Dockerfile --build-arg EDITION=enterprise -t team9-gateway:enterprise .
+#   Community: docker build -f docker/gateway.Dockerfile -t team9-gateway .
+#   Enterprise: docker build -f docker/gateway.Dockerfile --build-arg EDITION=enterprise -t team9-gateway:enterprise .
+#
+# Note: Enterprise builds require the enterprise/ submodule to be present
 # ============================================
 
 FROM node:20-alpine AS base
@@ -39,12 +41,13 @@ COPY apps/server/libs/storage/package.json ./apps/server/libs/storage/
 COPY apps/server/libs/agent-framework/package.json ./apps/server/libs/agent-framework/
 COPY apps/server/libs/agent-runtime/package.json ./apps/server/libs/agent-runtime/
 
-# Copy enterprise package.json files if they exist (for enterprise builds)
-COPY enterprise/libs/tenant/package.json ./enterprise/libs/tenant/
-COPY enterprise/libs/sso/package.json ./enterprise/libs/sso/
-COPY enterprise/libs/audit/package.json ./enterprise/libs/audit/
-COPY enterprise/libs/analytics/package.json ./enterprise/libs/analytics/
-COPY enterprise/libs/license/package.json ./enterprise/libs/license/
+# Copy enterprise package.json files if enterprise/ directory exists
+# Using bracket glob trick: [e]nterprise matches "enterprise" if exists, nothing if not
+COPY enterpris[e]/libs/tenant/package.json ./enterprise/libs/tenant/
+COPY enterpris[e]/libs/sso/package.json ./enterprise/libs/sso/
+COPY enterpris[e]/libs/audit/package.json ./enterprise/libs/audit/
+COPY enterpris[e]/libs/analytics/package.json ./enterprise/libs/analytics/
+COPY enterpris[e]/libs/license/package.json ./enterprise/libs/license/
 
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
@@ -59,8 +62,8 @@ ARG EDITION=community
 # Copy source code
 COPY apps/server ./apps/server
 
-# Copy enterprise source code (for enterprise builds)
-COPY enterprise ./enterprise
+# Copy enterprise source code if exists
+COPY enterpris[e] ./enterprise/
 
 # Reinstall to create symlinks, ignore scripts to avoid husky
 RUN pnpm install --frozen-lockfile --ignore-scripts
