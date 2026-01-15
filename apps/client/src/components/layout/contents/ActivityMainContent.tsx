@@ -46,11 +46,13 @@ const activities = [
 
 export function ActivityMainContent() {
   return (
-    <main className="flex-1 flex flex-col bg-white">
+    <main className="flex-1 flex flex-col bg-white dark:bg-background">
       {/* Content Header */}
-      <header className="h-14 bg-white flex items-center justify-between px-4">
+      <header className="h-14 bg-white dark:bg-background flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
-          <h2 className="font-semibold text-lg text-slate-900">Activity</h2>
+          <h2 className="font-semibold text-lg text-slate-900 dark:text-foreground">
+            Activity
+          </h2>
         </div>
 
         <div className="flex items-center gap-2">
@@ -72,9 +74,9 @@ export function ActivityMainContent() {
       <Separator />
 
       {/* Activity Feed */}
-      <ScrollArea className="flex-1 bg-slate-50">
+      <ScrollArea className="flex-1 bg-slate-50 dark:bg-background">
         <div className="p-4">
-          <div className="max-w-4xl space-y-3">
+          <div className="space-y-3">
             {activities.map((activity) => (
               <Card
                 key={activity.id}
@@ -88,17 +90,19 @@ export function ActivityMainContent() {
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-baseline gap-2 mb-1">
-                      <span className="font-semibold text-sm text-slate-900">
+                      <span className="font-semibold text-sm text-slate-900 dark:text-foreground">
                         {activity.user}
                       </span>
-                      <span className="text-xs text-slate-500">
+                      <span className="text-xs text-slate-500 dark:text-muted-foreground">
                         {activity.channel}
                       </span>
-                      <span className="text-xs text-slate-400 ml-auto">
+                      <span className="text-xs text-slate-400 dark:text-muted-foreground ml-auto">
                         {activity.time}
                       </span>
                     </div>
-                    <p className="text-sm text-slate-700">{activity.message}</p>
+                    <p className="text-sm text-slate-700 dark:text-foreground/80">
+                      {activity.message}
+                    </p>
                   </div>
                 </div>
               </Card>

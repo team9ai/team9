@@ -90,7 +90,7 @@ export function MoreMainContent() {
       {/* Settings Content */}
       <ScrollArea className="flex-1 bg-secondary/50">
         <div className="p-4">
-          <div className="max-w-2xl space-y-6">
+          <div className="space-y-6">
             {settingsGroups.map((group) => (
               <div key={group.title}>
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">
