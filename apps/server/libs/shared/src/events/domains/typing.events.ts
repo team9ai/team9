@@ -1,56 +1,56 @@
 /**
- * 打字状态相关 WebSocket 事件类型定义
+ * Typing status related WebSocket event type definitions
  *
  * @module events/domains/typing
  */
 
-// ==================== 客户端 -> 服务器 ====================
+// ==================== Client -> Server ====================
 
 /**
- * 开始打字请求
+ * Typing start request
  *
- * 客户端发送此事件以通知其他用户当前用户正在输入。
- * 服务器会在 Redis 中设置 5 秒 TTL 的打字状态。
+ * Sent by the client to notify other users that the current user is typing.
+ * The server will set a typing status with 5-second TTL in Redis.
  *
  * @event typing_start
  * @direction Client -> Server
  *
  * @example
  * ```typescript
- * // 客户端 - 当用户开始输入时
+ * // Client - when user starts typing
  * socket.emit('typing_start', { channelId: 'channel-uuid' });
  * ```
  */
 export interface TypingStartPayload {
-  /** 正在输入的频道 ID */
+  /** Channel ID where user is typing */
   channelId: string;
 }
 
 /**
- * 停止打字请求
+ * Typing stop request
  *
- * 客户端发送此事件以通知其他用户当前用户停止输入。
+ * Sent by the client to notify other users that the current user stopped typing.
  *
  * @event typing_stop
  * @direction Client -> Server
  *
  * @example
  * ```typescript
- * // 客户端 - 当用户停止输入或发送消息后
+ * // Client - when user stops typing or sends message
  * socket.emit('typing_stop', { channelId: 'channel-uuid' });
  * ```
  */
 export interface TypingStopPayload {
-  /** 停止输入的频道 ID */
+  /** Channel ID where user stopped typing */
   channelId: string;
 }
 
-// ==================== 服务器 -> 客户端 ====================
+// ==================== Server -> Client ====================
 
 /**
- * 用户正在打字事件
+ * User typing event
  *
- * 当用户开始或停止打字时，服务器广播此事件给频道其他成员。
+ * Broadcast by the server to other channel members when a user starts or stops typing.
  *
  * @event user_typing
  * @direction Server -> Channel Members (excluding sender)
@@ -59,32 +59,32 @@ export interface TypingStopPayload {
  * ```typescript
  * socket.on('user_typing', (event: UserTypingEvent) => {
  *   if (event.isTyping) {
- *     // 显示 "xxx 正在输入..."
+ *     // Show "xxx is typing..."
  *     showTypingIndicator(event.channelId, event.username);
  *   } else {
- *     // 隐藏打字指示器
+ *     // Hide typing indicator
  *     hideTypingIndicator(event.channelId, event.userId);
  *   }
  * });
  * ```
  */
 export interface UserTypingEvent {
-  /** 频道 ID */
+  /** Channel ID */
   channelId: string;
-  /** 正在打字的用户 ID */
+  /** Typing user ID */
   userId: string;
-  /** 正在打字的用户名 */
+  /** Typing username */
   username: string;
-  /** 是否正在打字 */
+  /** Whether currently typing */
   isTyping: boolean;
 }
 
-// ==================== 响应类型 ====================
+// ==================== Response Types ====================
 
 /**
- * 打字状态操作响应
+ * Typing status operation response
  */
 export interface TypingOperationResponse {
-  /** 操作是否成功 */
+  /** Whether operation succeeded */
   success: boolean;
 }

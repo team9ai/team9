@@ -1,209 +1,209 @@
 /**
- * WebSocket 事件名称常量
+ * WebSocket Event Name Constants
  *
- * 按功能域分组的所有 WebSocket 事件名称。
- * 使用 `as const` 确保类型推断为字面量类型。
+ * All WebSocket event names grouped by functional domain.
+ * Using `as const` ensures type inference as literal types.
  *
  * @example
  * ```typescript
  * import { WS_EVENTS } from '@team9/shared';
  *
- * // 服务器端
+ * // Server side
  * client.emit(WS_EVENTS.AUTH.AUTHENTICATED, { userId });
  *
- * // 客户端
+ * // Client side
  * socket.on(WS_EVENTS.MESSAGE.NEW, (message) => { ... });
  * ```
  */
 export const WS_EVENTS = {
-  // ==================== 连接相关 ====================
+  // ==================== Connection ====================
   /**
-   * Socket.io 内置连接事件
+   * Socket.io built-in connection events
    */
   CONNECTION: {
-    /** 连接建立 */
+    /** Connection established */
     CONNECT: 'connection',
-    /** 连接断开 */
+    /** Connection closed */
     DISCONNECT: 'disconnect',
-    /** 连接错误 */
+    /** Connection error */
     ERROR: 'error',
   },
 
-  // ==================== 认证相关 ====================
+  // ==================== Authentication ====================
   /**
-   * 用户认证事件
+   * User authentication events
    */
   AUTH: {
-    /** 认证请求 - 客户端发送 */
+    /** Authentication request - sent by client */
     AUTHENTICATE: 'authenticate',
-    /** 认证成功 - 服务器发送 */
+    /** Authentication success - sent by server */
     AUTHENTICATED: 'authenticated',
-    /** 认证失败 - 服务器发送 */
+    /** Authentication failure - sent by server */
     AUTH_ERROR: 'auth_error',
   },
 
-  // ==================== 频道操作 ====================
+  // ==================== Channel Operations ====================
   /**
-   * 频道相关事件
+   * Channel related events
    */
   CHANNEL: {
-    /** 加入频道 - 客户端发送 */
+    /** Join channel - sent by client */
     JOIN: 'join_channel',
-    /** 离开频道 - 客户端发送 */
+    /** Leave channel - sent by client */
     LEAVE: 'leave_channel',
-    /** 频道已加入 - 服务器广播 */
+    /** Channel joined - broadcast by server */
     JOINED: 'channel_joined',
-    /** 频道已离开 - 服务器广播 */
+    /** Channel left - broadcast by server */
     LEFT: 'channel_left',
-    /** 频道已创建 - 服务器广播 */
+    /** Channel created - broadcast by server */
     CREATED: 'channel_created',
-    /** 频道已更新 - 服务器广播 */
+    /** Channel updated - broadcast by server */
     UPDATED: 'channel_updated',
-    /** 频道已删除 - 服务器广播 */
+    /** Channel deleted - broadcast by server */
     DELETED: 'channel_deleted',
-    /** 频道已归档 - 服务器广播 */
+    /** Channel archived - broadcast by server */
     ARCHIVED: 'channel_archived',
-    /** 频道已取消归档 - 服务器广播 */
+    /** Channel unarchived - broadcast by server */
     UNARCHIVED: 'channel_unarchived',
   },
 
-  // ==================== 消息操作 ====================
+  // ==================== Message Operations ====================
   /**
-   * 消息相关事件
+   * Message related events
    */
   MESSAGE: {
-    /** 新消息 - 服务器广播 */
+    /** New message - broadcast by server */
     NEW: 'new_message',
-    /** 消息已更新 - 服务器广播 */
+    /** Message updated - broadcast by server */
     UPDATED: 'message_updated',
-    /** 消息已删除 - 服务器广播 */
+    /** Message deleted - broadcast by server */
     DELETED: 'message_deleted',
   },
 
-  // ==================== 读取状态 ====================
+  // ==================== Read Status ====================
   /**
-   * 消息读取状态事件
+   * Message read status events
    */
   READ_STATUS: {
-    /** 标记已读 - 客户端发送 */
+    /** Mark as read - sent by client */
     MARK_AS_READ: 'mark_as_read',
-    /** 读取状态已更新 - 服务器广播 */
+    /** Read status updated - broadcast by server */
     UPDATED: 'read_status_updated',
   },
 
-  // ==================== 打字状态 ====================
+  // ==================== Typing Status ====================
   /**
-   * 打字指示器事件
+   * Typing indicator events
    */
   TYPING: {
-    /** 开始打字 - 客户端发送 */
+    /** Start typing - sent by client */
     START: 'typing_start',
-    /** 停止打字 - 客户端发送 */
+    /** Stop typing - sent by client */
     STOP: 'typing_stop',
-    /** 用户正在打字 - 服务器广播 */
+    /** User typing - broadcast by server */
     USER_TYPING: 'user_typing',
   },
 
-  // ==================== 用户状态 ====================
+  // ==================== User Status ====================
   /**
-   * 用户在线状态事件
+   * User online status events
    */
   USER: {
-    /** 用户上线 - 服务器广播 */
+    /** User online - broadcast by server */
     ONLINE: 'user_online',
-    /** 用户离线 - 服务器广播 */
+    /** User offline - broadcast by server */
     OFFLINE: 'user_offline',
-    /** 用户状态变更 - 服务器广播 */
+    /** User status changed - broadcast by server */
     STATUS_CHANGED: 'user_status_changed',
   },
 
-  // ==================== 消息反应 ====================
+  // ==================== Message Reactions ====================
   /**
-   * 消息表情反应事件
+   * Message emoji reaction events
    */
   REACTION: {
-    /** 添加反应 - 客户端发送 */
+    /** Add reaction - sent by client */
     ADD: 'add_reaction',
-    /** 移除反应 - 客户端发送 */
+    /** Remove reaction - sent by client */
     REMOVE: 'remove_reaction',
-    /** 反应已添加 - 服务器广播 */
+    /** Reaction added - broadcast by server */
     ADDED: 'reaction_added',
-    /** 反应已移除 - 服务器广播 */
+    /** Reaction removed - broadcast by server */
     REMOVED: 'reaction_removed',
   },
 
-  // ==================== 提及通知 ====================
+  // ==================== Mention Notifications ====================
   /**
-   * @提及 通知事件
+   * @mention notification events
    */
   MENTION: {
-    /** 收到提及 - 服务器发送给被提及用户 */
+    /** Mention received - sent by server to mentioned user */
     RECEIVED: 'mention_received',
   },
 
-  // ==================== 工作空间 ====================
+  // ==================== Workspace ====================
   /**
-   * 工作空间相关事件
+   * Workspace related events
    */
   WORKSPACE: {
-    /** 加入工作空间 - 客户端发送 */
+    /** Join workspace - sent by client */
     JOIN: 'join_workspace',
-    /** 工作空间成员列表 - 服务器发送 */
+    /** Workspace members list - sent by server */
     MEMBERS_LIST: 'workspace_members_list',
-    /** 成员加入 - 服务器广播 */
+    /** Member joined - broadcast by server */
     MEMBER_JOINED: 'workspace_member_joined',
-    /** 成员离开 - 服务器广播 */
+    /** Member left - broadcast by server */
     MEMBER_LEFT: 'workspace_member_left',
-    /** 成员被移除 - 服务器广播 */
+    /** Member removed - broadcast by server */
     MEMBER_REMOVED: 'workspace_member_removed',
   },
 
-  // ==================== 系统事件 ====================
+  // ==================== System Events ====================
   /**
-   * 心跳和系统事件
+   * Heartbeat and system events
    */
   SYSTEM: {
-    /** 心跳请求 - 客户端发送 */
+    /** Heartbeat request - sent by client */
     PING: 'ping',
-    /** 心跳响应 - 服务器返回 */
+    /** Heartbeat response - sent by server */
     PONG: 'pong',
-    /** 消息确认 - 客户端发送 */
+    /** Message acknowledgment - sent by client */
     MESSAGE_ACK: 'message_ack',
-    /** 消息确认响应 - 服务器返回 */
+    /** Message acknowledgment response - sent by server */
     MESSAGE_ACK_RESPONSE: 'message_ack_response',
-    /** 消息已发送确认 - 服务器发送 */
+    /** Message sent confirmation - sent by server */
     MESSAGE_SENT: 'message_sent',
   },
 
-  // ==================== 会话管理 ====================
+  // ==================== Session Management ====================
   /**
-   * 会话状态事件
+   * Session status events
    */
   SESSION: {
-    /** 会话过期 */
+    /** Session expired */
     EXPIRED: 'session_expired',
-    /** 会话超时 */
+    /** Session timeout */
     TIMEOUT: 'session_timeout',
-    /** 被其他设备踢出 */
+    /** Kicked by another device */
     KICKED: 'session_kicked',
   },
 
-  // ==================== 消息同步 ====================
+  // ==================== Message Sync ====================
   /**
-   * 离线消息同步事件
+   * Offline message sync events
    */
   SYNC: {
-    /** 请求同步消息 - 客户端发送 */
+    /** Request sync messages - sent by client */
     MESSAGES: 'sync_messages',
-    /** 同步响应 - 服务器返回 */
+    /** Sync response - sent by server */
     MESSAGES_RESPONSE: 'sync_messages_response',
-    /** 消息重试 - 服务器发送 */
+    /** Message retry - sent by server */
     MESSAGE_RETRY: 'message_retry',
   },
 } as const;
 
 /**
- * 所有 WebSocket 事件名称的联合类型
+ * Union type of all WebSocket event names
  */
 export type WsEventName =
   | (typeof WS_EVENTS.CONNECTION)[keyof typeof WS_EVENTS.CONNECTION]

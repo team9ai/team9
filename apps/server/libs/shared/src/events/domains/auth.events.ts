@@ -1,58 +1,58 @@
 /**
- * 认证相关 WebSocket 事件类型定义
+ * Authentication related WebSocket event type definitions
  *
  * @module events/domains/auth
  */
 
-// ==================== 服务器 -> 客户端 ====================
+// ==================== Server -> Client ====================
 
 /**
- * 认证成功事件
+ * Authentication success event
  *
- * 当用户 WebSocket 连接认证成功后，服务器发送此事件给客户端。
+ * Sent by the server to the client when WebSocket connection authentication succeeds.
  *
  * @event authenticated
  * @direction Server -> Client
  *
  * @example
  * ```typescript
- * // 服务器端
+ * // Server side
  * client.emit(WS_EVENTS.AUTH.AUTHENTICATED, { userId: user.id });
  *
- * // 客户端
+ * // Client side
  * socket.on('authenticated', (event: AuthenticatedEvent) => {
- *   console.log('认证成功，用户ID:', event.userId);
+ *   console.log('Authentication successful, User ID:', event.userId);
  * });
  * ```
  */
 export interface AuthenticatedEvent {
-  /** 认证成功的用户 ID */
+  /** Authenticated user ID */
   userId: string;
 }
 
 /**
- * 认证错误事件
+ * Authentication error event
  *
- * 当用户 WebSocket 连接认证失败后，服务器发送此事件给客户端。
- * 发送后服务器会主动断开连接。
+ * Sent by the server to the client when WebSocket connection authentication fails.
+ * The server will disconnect after sending this event.
  *
  * @event auth_error
  * @direction Server -> Client
  *
  * @example
  * ```typescript
- * // 服务器端
+ * // Server side
  * client.emit(WS_EVENTS.AUTH.AUTH_ERROR, { message: 'Token expired' });
  * client.disconnect();
  *
- * // 客户端
+ * // Client side
  * socket.on('auth_error', (event: AuthErrorEvent) => {
- *   console.error('认证失败:', event.message);
- *   // 可能需要重新登录
+ *   console.error('Authentication failed:', event.message);
+ *   // May need to re-login
  * });
  * ```
  */
 export interface AuthErrorEvent {
-  /** 错误信息 */
+  /** Error message */
   message: string;
 }

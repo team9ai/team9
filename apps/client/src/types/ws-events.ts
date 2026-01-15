@@ -1,27 +1,27 @@
 /**
- * WebSocket 事件名称和类型定义
+ * WebSocket event names and type definitions
  *
- * 注意：这些类型应与后端 @team9/shared/events 保持一致
+ * Note: These types should be consistent with backend @team9/shared/events
  */
 
-// ==================== 事件名称常量 ====================
+// ==================== Event Name Constants ====================
 
 export const WS_EVENTS = {
-  // 连接相关
+  // Connection related
   CONNECTION: {
     CONNECT: "connection",
     DISCONNECT: "disconnect",
     ERROR: "error",
   },
 
-  // 认证相关
+  // Authentication related
   AUTH: {
     AUTHENTICATE: "authenticate",
     AUTHENTICATED: "authenticated",
     AUTH_ERROR: "auth_error",
   },
 
-  // 频道操作
+  // Channel operations
   CHANNEL: {
     JOIN: "join_channel",
     LEAVE: "leave_channel",
@@ -34,34 +34,34 @@ export const WS_EVENTS = {
     UNARCHIVED: "channel_unarchived",
   },
 
-  // 消息操作
+  // Message operations
   MESSAGE: {
     NEW: "new_message",
     UPDATED: "message_updated",
     DELETED: "message_deleted",
   },
 
-  // 读取状态
+  // Read status
   READ_STATUS: {
     MARK_AS_READ: "mark_as_read",
     UPDATED: "read_status_updated",
   },
 
-  // 打字状态
+  // Typing status
   TYPING: {
     START: "typing_start",
     STOP: "typing_stop",
     USER_TYPING: "user_typing",
   },
 
-  // 用户状态
+  // User status
   USER: {
     ONLINE: "user_online",
     OFFLINE: "user_offline",
     STATUS_CHANGED: "user_status_changed",
   },
 
-  // 消息反应
+  // Message reactions
   REACTION: {
     ADD: "add_reaction",
     REMOVE: "remove_reaction",
@@ -69,12 +69,12 @@ export const WS_EVENTS = {
     REMOVED: "reaction_removed",
   },
 
-  // 提及通知
+  // Mention notifications
   MENTION: {
     RECEIVED: "mention_received",
   },
 
-  // 工作空间
+  // Workspace
   WORKSPACE: {
     JOIN: "join_workspace",
     MEMBERS_LIST: "workspace_members_list",
@@ -83,7 +83,7 @@ export const WS_EVENTS = {
     MEMBER_REMOVED: "workspace_member_removed",
   },
 
-  // 系统事件
+  // System events
   SYSTEM: {
     PING: "ping",
     PONG: "pong",
@@ -92,14 +92,14 @@ export const WS_EVENTS = {
     MESSAGE_SENT: "message_sent",
   },
 
-  // 会话管理
+  // Session management
   SESSION: {
     EXPIRED: "session_expired",
     TIMEOUT: "session_timeout",
     KICKED: "session_kicked",
   },
 
-  // 消息同步
+  // Message sync
   SYNC: {
     MESSAGES: "sync_messages",
     MESSAGES_RESPONSE: "sync_messages_response",
@@ -107,44 +107,44 @@ export const WS_EVENTS = {
   },
 } as const;
 
-// ==================== 认证事件类型 ====================
+// ==================== Authentication Event Types ====================
 
-/** 认证成功事件 */
+/** Authentication success event */
 export interface AuthenticatedEvent {
   userId: string;
 }
 
-/** 认证错误事件 */
+/** Authentication error event */
 export interface AuthErrorEvent {
   message: string;
 }
 
-// ==================== 频道事件类型 ====================
+// ==================== Channel Event Types ====================
 
-/** 加入频道请求 */
+/** Join channel request */
 export interface JoinChannelPayload {
   channelId: string;
 }
 
-/** 离开频道请求 */
+/** Leave channel request */
 export interface LeaveChannelPayload {
   channelId: string;
 }
 
-/** 频道已加入事件 */
+/** Channel joined event */
 export interface ChannelJoinedEvent {
   channelId: string;
   userId: string;
   username: string;
 }
 
-/** 频道已离开事件 */
+/** Channel left event */
 export interface ChannelLeftEvent {
   channelId: string;
   userId: string;
 }
 
-/** 频道已创建事件 */
+/** Channel created event */
 export interface ChannelCreatedEvent {
   id: string;
   tenantId: string;
@@ -158,7 +158,7 @@ export interface ChannelCreatedEvent {
   updatedAt: string;
 }
 
-/** 频道已更新事件 */
+/** Channel updated event */
 export interface ChannelUpdatedEvent {
   channelId: string;
   name?: string;
@@ -168,69 +168,69 @@ export interface ChannelUpdatedEvent {
   updatedAt: string;
 }
 
-/** 频道已删除事件 */
+/** Channel deleted event */
 export interface ChannelDeletedEvent {
   channelId: string;
   channelName?: string;
   deletedBy: string;
 }
 
-/** 频道已归档事件 */
+/** Channel archived event */
 export interface ChannelArchivedEvent {
   channelId: string;
   channelName?: string;
   archivedBy: string;
 }
 
-/** 频道已取消归档事件 */
+/** Channel unarchived event */
 export interface ChannelUnarchivedEvent {
   channelId: string;
   channelName?: string;
   unarchivedBy: string;
 }
 
-// ==================== 消息事件类型 ====================
+// ==================== Message Event Types ====================
 
 import type { Message } from "./im";
 
-/** 新消息事件 */
+/** New message event */
 export type NewMessageEvent = Message;
 
-/** 消息已更新事件 */
+/** Message updated event */
 export type MessageUpdatedEvent = Message;
 
-/** 消息已删除事件 */
+/** Message deleted event */
 export interface MessageDeletedEvent {
   messageId: string;
   channelId?: string;
 }
 
-/** 标记已读请求 */
+/** Mark as read request */
 export interface MarkAsReadPayload {
   channelId: string;
   messageId: string;
 }
 
-/** 读取状态已更新事件 */
+/** Read status updated event */
 export interface ReadStatusUpdatedEvent {
   channelId: string;
   userId: string;
   lastReadMessageId: string;
 }
 
-// ==================== 打字状态事件类型 ====================
+// ==================== Typing Status Event Types ====================
 
-/** 开始打字请求 */
+/** Typing start request */
 export interface TypingStartPayload {
   channelId: string;
 }
 
-/** 停止打字请求 */
+/** Typing stop request */
 export interface TypingStopPayload {
   channelId: string;
 }
 
-/** 用户正在打字事件 */
+/** User typing event */
 export interface UserTypingEvent {
   channelId: string;
   userId: string;
@@ -238,24 +238,24 @@ export interface UserTypingEvent {
   isTyping: boolean;
 }
 
-// ==================== 用户状态事件类型 ====================
+// ==================== User Status Event Types ====================
 
 import type { UserStatus } from "./im";
 
-/** 用户上线事件 */
+/** User online event */
 export interface UserOnlineEvent {
   userId: string;
   username: string;
   workspaceId: string;
 }
 
-/** 用户离线事件 */
+/** User offline event */
 export interface UserOfflineEvent {
   userId: string;
   workspaceId: string;
 }
 
-/** 用户状态变更事件 */
+/** User status changed event */
 export interface UserStatusChangedEvent {
   userId: string;
   status: UserStatus;
@@ -263,42 +263,42 @@ export interface UserStatusChangedEvent {
   changedAt?: string;
 }
 
-// ==================== 反应事件类型 ====================
+// ==================== Reaction Event Types ====================
 
-/** 添加反应请求 */
+/** Add reaction request */
 export interface AddReactionPayload {
   messageId: string;
   emoji: string;
 }
 
-/** 移除反应请求 */
+/** Remove reaction request */
 export interface RemoveReactionPayload {
   messageId: string;
   emoji: string;
 }
 
-/** 反应已添加事件 */
+/** Reaction added event */
 export interface ReactionAddedEvent {
   messageId: string;
   userId: string;
   emoji: string;
 }
 
-/** 反应已移除事件 */
+/** Reaction removed event */
 export interface ReactionRemovedEvent {
   messageId: string;
   userId: string;
   emoji: string;
 }
 
-// ==================== 工作空间事件类型 ====================
+// ==================== Workspace Event Types ====================
 
-/** 加入工作空间请求 */
+/** Join workspace request */
 export interface JoinWorkspacePayload {
   workspaceId: string;
 }
 
-/** 工作空间成员 */
+/** Workspace member */
 export interface WorkspaceMember {
   id: string;
   userId: string;
@@ -315,26 +315,26 @@ export interface WorkspaceMember {
   };
 }
 
-/** 工作空间成员列表事件 */
+/** Workspace members list event */
 export interface WorkspaceMembersListEvent {
   workspaceId: string;
   members: WorkspaceMember[];
 }
 
-/** 工作空间成员加入事件 */
+/** Workspace member joined event */
 export interface WorkspaceMemberJoinedEvent {
   workspaceId: string;
   member: WorkspaceMember;
 }
 
-/** 工作空间成员离开事件 */
+/** Workspace member left event */
 export interface WorkspaceMemberLeftEvent {
   workspaceId: string;
   userId: string;
   username?: string;
 }
 
-/** 工作空间成员被移除事件 */
+/** Workspace member removed event */
 export interface WorkspaceMemberRemovedEvent {
   workspaceId: string;
   userId: string;
@@ -342,34 +342,34 @@ export interface WorkspaceMemberRemovedEvent {
   removedBy: string;
 }
 
-// ==================== 系统事件类型 ====================
+// ==================== System Event Types ====================
 
-/** 心跳请求 */
+/** Ping request */
 export interface PingPayload {
   timestamp: number;
 }
 
-/** 心跳响应 */
+/** Pong response */
 export interface PongEvent {
   type: "pong";
   timestamp: number;
   serverTime: number;
 }
 
-/** 消息确认请求 */
+/** Message acknowledgment request */
 export interface MessageAckPayload {
   msgId: string;
   ackType: "delivered" | "read";
 }
 
-/** 消息确认响应 */
+/** Message acknowledgment response */
 export interface MessageAckResponseEvent {
   msgId: string;
   status: "received" | "error";
   error?: string;
 }
 
-/** 消息已发送确认事件 */
+/** Message sent confirmation event */
 export interface MessageSentEvent {
   msgId: string;
   clientMsgId?: string;
@@ -377,19 +377,19 @@ export interface MessageSentEvent {
   serverTime: number;
 }
 
-/** 会话过期事件 */
+/** Session expired event */
 export interface SessionExpiredEvent {
   reason: string;
   expiredAt?: string;
 }
 
-/** 会话超时事件 */
+/** Session timeout event */
 export interface SessionTimeoutEvent {
   reason: string;
   lastActiveAt?: string;
 }
 
-/** 被其他设备踢出事件 */
+/** Kicked by another device event */
 export interface SessionKickedEvent {
   reason: string;
   newDeviceInfo?: {
@@ -398,10 +398,10 @@ export interface SessionKickedEvent {
   };
 }
 
-/** 提及类型 */
+/** Mention type */
 export type MentionType = "user" | "channel" | "everyone" | "here";
 
-/** 收到提及事件 */
+/** Mention received event */
 export interface MentionReceivedEvent {
   mentionId: string;
   messageId: string;
@@ -413,9 +413,9 @@ export interface MentionReceivedEvent {
   createdAt: string;
 }
 
-// ==================== 类型映射 ====================
+// ==================== Type Mappings ====================
 
-/** 客户端发送的事件及其 payload 类型映射 */
+/** Client to server events and their payload type mappings */
 export interface ClientToServerEvents {
   join_channel: JoinChannelPayload;
   leave_channel: LeaveChannelPayload;
@@ -429,7 +429,7 @@ export interface ClientToServerEvents {
   message_ack: MessageAckPayload;
 }
 
-/** 服务器发送的事件及其 payload 类型映射 */
+/** Server to client events and their payload type mappings */
 export interface ServerToClientEvents {
   authenticated: AuthenticatedEvent;
   auth_error: AuthErrorEvent;

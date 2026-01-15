@@ -53,9 +53,9 @@ i18n
       escapeValue: false,
     },
     detection: {
-      // 优先使用用户保存的语言，然后是浏览器语言
+      // Prioritize user-saved language, then browser language
       order: ["localStorage", "navigator", "htmlTag"],
-      // 用户选择语言后保存到 localStorage
+      // Save to localStorage after user selects language
       caches: ["localStorage"],
       lookupLocalStorage: "i18nextLng",
     },

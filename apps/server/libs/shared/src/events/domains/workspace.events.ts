@@ -1,33 +1,33 @@
 /**
- * 工作空间相关 WebSocket 事件类型定义
+ * Workspace related WebSocket event type definitions
  *
  * @module events/domains/workspace
  */
 
 import type { UserStatus } from './user.events.js';
 
-// ==================== 工作空间成员类型 ====================
+// ==================== Workspace Member Types ====================
 
 /**
- * 工作空间成员角色
+ * Workspace member role
  */
 export type WorkspaceMemberRole = 'owner' | 'admin' | 'member';
 
 /**
- * 工作空间成员信息
+ * Workspace member information
  */
 export interface WorkspaceMember {
-  /** 成员关系 ID */
+  /** Member relationship ID */
   id: string;
-  /** 用户 ID */
+  /** User ID */
   userId: string;
-  /** 工作空间 ID */
+  /** Workspace ID */
   workspaceId: string;
-  /** 成员角色 */
+  /** Member role */
   role: WorkspaceMemberRole;
-  /** 加入时间 */
+  /** Joined at */
   joinedAt: string;
-  /** 用户详细信息 */
+  /** User details */
   user?: {
     id: string;
     username: string;
@@ -38,37 +38,37 @@ export interface WorkspaceMember {
   };
 }
 
-// ==================== 客户端 -> 服务器 ====================
+// ==================== Client -> Server ====================
 
 /**
- * 加入工作空间请求
+ * Join workspace request
  *
- * 客户端发送此事件以订阅工作空间的实时事件（如成员上下线、新频道创建等）。
- * 服务器会验证用户是否为工作空间成员。
+ * Sent by the client to subscribe to workspace's real-time events (e.g., member online/offline, new channel creation).
+ * The server will verify if the user is a workspace member.
  *
  * @event join_workspace
  * @direction Client -> Server
  *
  * @example
  * ```typescript
- * // 客户端 - 进入工作空间时
+ * // Client - when entering workspace
  * socket.emit('join_workspace', { workspaceId: 'workspace-uuid' });
  *
- * // 服务器响应
- * // 成功后会发送 workspace_members_list 事件
+ * // Server response
+ * // On success, will send workspace_members_list event
  * ```
  */
 export interface JoinWorkspacePayload {
-  /** 要加入的工作空间 ID */
+  /** Workspace ID to join */
   workspaceId: string;
 }
 
-// ==================== 服务器 -> 客户端 ====================
+// ==================== Server -> Client ====================
 
 /**
- * 工作空间成员列表事件
+ * Workspace members list event
  *
- * 当用户加入工作空间后，服务器发送此事件给该用户，包含当前所有成员信息。
+ * Sent by the server to the user after joining a workspace, containing all current member information.
  *
  * @event workspace_members_list
  * @direction Server -> Client
@@ -76,22 +76,22 @@ export interface JoinWorkspacePayload {
  * @example
  * ```typescript
  * socket.on('workspace_members_list', (event: WorkspaceMembersListEvent) => {
- *   // 初始化成员列表
+ *   // Initialize member list
  *   setWorkspaceMembers(event.workspaceId, event.members);
  * });
  * ```
  */
 export interface WorkspaceMembersListEvent {
-  /** 工作空间 ID */
+  /** Workspace ID */
   workspaceId: string;
-  /** 成员列表 */
+  /** Member list */
   members: WorkspaceMember[];
 }
 
 /**
- * 工作空间成员加入事件
+ * Workspace member joined event
  *
- * 当新成员加入工作空间后，服务器广播此事件给工作空间所有在线成员。
+ * Broadcast by the server to all online workspace members when a new member joins.
  *
  * @event workspace_member_joined
  * @direction Server -> Workspace Members
@@ -99,24 +99,24 @@ export interface WorkspaceMembersListEvent {
  * @example
  * ```typescript
  * socket.on('workspace_member_joined', (event: WorkspaceMemberJoinedEvent) => {
- *   // 添加新成员到列表
+ *   // Add new member to list
  *   addWorkspaceMember(event.workspaceId, event.member);
- *   // 可选：显示通知
- *   showNotification(`${event.member.user?.username} 加入了工作空间`);
+ *   // Optional: show notification
+ *   showNotification(`${event.member.user?.username} joined the workspace`);
  * });
  * ```
  */
 export interface WorkspaceMemberJoinedEvent {
-  /** 工作空间 ID */
+  /** Workspace ID */
   workspaceId: string;
-  /** 新加入的成员信息 */
+  /** New member information */
   member: WorkspaceMember;
 }
 
 /**
- * 工作空间成员离开事件
+ * Workspace member left event
  *
- * 当成员主动离开工作空间后，服务器广播此事件给工作空间所有在线成员。
+ * Broadcast by the server to all online workspace members when a member voluntarily leaves.
  *
  * @event workspace_member_left
  * @direction Server -> Workspace Members
@@ -124,25 +124,25 @@ export interface WorkspaceMemberJoinedEvent {
  * @example
  * ```typescript
  * socket.on('workspace_member_left', (event: WorkspaceMemberLeftEvent) => {
- *   // 从成员列表中移除
+ *   // Remove from member list
  *   removeWorkspaceMember(event.workspaceId, event.userId);
  * });
  * ```
  */
 export interface WorkspaceMemberLeftEvent {
-  /** 工作空间 ID */
+  /** Workspace ID */
   workspaceId: string;
-  /** 离开的用户 ID */
+  /** Left user ID */
   userId: string;
-  /** 离开的用户名（用于显示通知） */
+  /** Left username (for notification display) */
   username?: string;
 }
 
 /**
- * 工作空间成员被移除事件
+ * Workspace member removed event
  *
- * 当成员被管理员移除后，服务器广播此事件给工作空间所有在线成员。
- * 被移除的成员也会收到此事件，以便客户端做相应处理。
+ * Broadcast by the server to all online workspace members when a member is removed by an admin.
+ * The removed member will also receive this event for client-side handling.
  *
  * @event workspace_member_removed
  * @direction Server -> Workspace Members
@@ -150,36 +150,36 @@ export interface WorkspaceMemberLeftEvent {
  * @example
  * ```typescript
  * socket.on('workspace_member_removed', (event: WorkspaceMemberRemovedEvent) => {
- *   // 如果是当前用户被移除
+ *   // If current user was removed
  *   if (event.userId === currentUserId) {
- *     showNotification('您已被移出此工作空间');
+ *     showNotification('You have been removed from this workspace');
  *     navigateToHome();
  *     return;
  *   }
- *   // 否则从成员列表中移除
+ *   // Otherwise remove from member list
  *   removeWorkspaceMember(event.workspaceId, event.userId);
  * });
  * ```
  */
 export interface WorkspaceMemberRemovedEvent {
-  /** 工作空间 ID */
+  /** Workspace ID */
   workspaceId: string;
-  /** 被移除的用户 ID */
+  /** Removed user ID */
   userId: string;
-  /** 被移除的用户名 */
+  /** Removed username */
   username?: string;
-  /** 执行移除操作的管理员用户 ID */
+  /** Admin user ID who performed the removal */
   removedBy: string;
 }
 
-// ==================== 响应类型 ====================
+// ==================== Response Types ====================
 
 /**
- * 工作空间操作响应
+ * Workspace operation response
  */
 export interface WorkspaceOperationResponse {
-  /** 操作是否成功 */
+  /** Whether operation succeeded */
   success?: boolean;
-  /** 错误信息 */
+  /** Error message */
   error?: string;
 }

@@ -8,6 +8,7 @@ import {
   UserPlus,
   Search,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ export function ChannelDetailsModal({
   currentUserRole = "member",
   defaultTab = "about",
 }: ChannelDetailsModalProps) {
+  const { t } = useTranslation("channel");
   const { data: channel } = useChannel(channelId);
   const { data: members = [] } = useChannelMembers(channelId);
   const updateChannel = useUpdateChannel();
@@ -121,9 +123,13 @@ export function ChannelDetailsModal({
           >
             <div className="px-6">
               <TabsList className="w-full justify-start">
-                <TabsTrigger value="about">关于</TabsTrigger>
-                <TabsTrigger value="members">成员 {members.length}</TabsTrigger>
-                {isAdmin && <TabsTrigger value="settings">设置</TabsTrigger>}
+                <TabsTrigger value="about">{t("about")}</TabsTrigger>
+                <TabsTrigger value="members">
+                  {t("members", { count: members.length })}
+                </TabsTrigger>
+                {isAdmin && (
+                  <TabsTrigger value="settings">{t("settings")}</TabsTrigger>
+                )}
               </TabsList>
             </div>
 
@@ -134,19 +140,19 @@ export function ChannelDetailsModal({
                   {isEditing ? (
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        <Label>频道名称</Label>
+                        <Label>{t("channelName")}</Label>
                         <Input
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>描述</Label>
+                        <Label>{t("channelDescription")}</Label>
                         <Textarea
                           value={editDescription}
                           onChange={(e) => setEditDescription(e.target.value)}
                           rows={3}
-                          placeholder="添加频道描述..."
+                          placeholder={t("channelDescriptionPlaceholder")}
                         />
                       </div>
                       <div className="flex gap-2">
@@ -155,14 +161,14 @@ export function ChannelDetailsModal({
                           onClick={handleSaveEdit}
                           disabled={updateChannel.isPending}
                         >
-                          {updateChannel.isPending ? "保存中..." : "保存"}
+                          {updateChannel.isPending ? t("saving") : t("save")}
                         </Button>
                         <Button
                           size="sm"
                           variant="ghost"
                           onClick={() => setIsEditing(false)}
                         >
-                          取消
+                          {t("cancel", { ns: "common" })}
                         </Button>
                       </div>
                     </div>
@@ -171,7 +177,7 @@ export function ChannelDetailsModal({
                       <div className="flex items-start justify-between">
                         <div className="space-y-1">
                           <h3 className="text-sm font-medium text-slate-500">
-                            频道名称
+                            {t("channelName")}
                           </h3>
                           <p className="font-medium">#{channel.name}</p>
                         </div>
@@ -182,32 +188,32 @@ export function ChannelDetailsModal({
                             onClick={handleStartEdit}
                           >
                             <Edit2 size={14} className="mr-1" />
-                            编辑
+                            {t("edit")}
                           </Button>
                         )}
                       </div>
 
                       <div className="space-y-1">
                         <h3 className="text-sm font-medium text-slate-500">
-                          描述
+                          {t("channelDescription")}
                         </h3>
                         <p className="text-slate-700">
-                          {channel.description || "暂无描述"}
+                          {channel.description || t("noDescription")}
                         </p>
                       </div>
 
                       <div className="space-y-1">
                         <h3 className="text-sm font-medium text-slate-500">
-                          类型
+                          {t("type")}
                         </h3>
                         <p className="flex items-center gap-1">
                           {channel.type === "private" ? (
                             <>
-                              <Lock size={14} /> 私有频道
+                              <Lock size={14} /> {t("privateChannel")}
                             </>
                           ) : (
                             <>
-                              <Hash size={14} /> 公开频道
+                              <Hash size={14} /> {t("publicChannel")}
                             </>
                           )}
                         </p>
@@ -215,12 +221,10 @@ export function ChannelDetailsModal({
 
                       <div className="space-y-1">
                         <h3 className="text-sm font-medium text-slate-500">
-                          创建时间
+                          {t("createdAt")}
                         </h3>
                         <p>
-                          {new Date(channel.createdAt).toLocaleDateString(
-                            "zh-CN",
-                          )}
+                          {new Date(channel.createdAt).toLocaleDateString()}
                         </p>
                       </div>
                     </>
@@ -238,7 +242,7 @@ export function ChannelDetailsModal({
                       className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                     />
                     <Input
-                      placeholder="查找成员"
+                      placeholder={t("findMember")}
                       value={memberSearch}
                       onChange={(e) => setMemberSearch(e.target.value)}
                       className="pl-9"
@@ -254,7 +258,7 @@ export function ChannelDetailsModal({
                       <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center">
                         <UserPlus size={18} className="text-blue-600" />
                       </div>
-                      <span className="font-medium">添加人员</span>
+                      <span className="font-medium">{t("addPeople")}</span>
                     </button>
                   )}
 
@@ -285,7 +289,7 @@ export function ChannelDetailsModal({
                                 {isCurrentUser && (
                                   <span className="text-slate-500 font-normal">
                                     {" "}
-                                    (你)
+                                    {t("you")}
                                   </span>
                                 )}
                               </p>
@@ -294,8 +298,8 @@ export function ChannelDetailsModal({
                           {member.role !== "member" && (
                             <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600">
                               {member.role === "owner"
-                                ? "频道管理者"
-                                : "管理员"}
+                                ? t("channelAdmin")
+                                : t("admin")}
                             </span>
                           )}
                         </div>
@@ -311,15 +315,17 @@ export function ChannelDetailsModal({
                   <div className="space-y-6 pt-4">
                     <div className="flex items-center gap-3">
                       <Settings size={18} className="text-slate-500" />
-                      <h3 className="font-medium">频道设置</h3>
+                      <h3 className="font-medium">{t("channelSettings")}</h3>
                     </div>
 
                     {/* Danger Zone */}
                     {isOwner && (
                       <div className="space-y-4 p-4 border border-red-200 rounded-lg bg-red-50/50">
-                        <h4 className="font-medium text-red-600">危险操作</h4>
+                        <h4 className="font-medium text-red-600">
+                          {t("dangerZone")}
+                        </h4>
                         <p className="text-sm text-slate-600">
-                          删除频道后，所有消息和文件都将被永久删除，无法恢复。
+                          {t("deleteChannelWarning")}
                         </p>
                         <Button
                           variant="outline"
@@ -327,7 +333,7 @@ export function ChannelDetailsModal({
                           onClick={() => setShowDeleteDialog(true)}
                         >
                           <Trash2 size={16} className="mr-2" />
-                          删除此频道
+                          {t("deleteThisChannel")}
                         </Button>
                       </div>
                     )}

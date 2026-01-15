@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Upload } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { RichTextEditor } from "./editor";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { cn } from "@/lib/utils";
@@ -16,6 +17,7 @@ export function MessageInput({
   onSend,
   disabled,
 }: MessageInputProps) {
+  const { t } = useTranslation("message");
   const [isDragging, setIsDragging] = useState(false);
   const dragCounterRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -160,7 +162,7 @@ export function MessageInput({
         <div className="absolute inset-0 bg-blue-50/90 border-2 border-dashed border-blue-400 rounded-lg flex items-center justify-center z-10 pointer-events-none">
           <div className="flex flex-col items-center gap-2 text-blue-600">
             <Upload size={32} />
-            <span className="text-sm font-medium">拖放文件到这里上传</span>
+            <span className="text-sm font-medium">{t("dragToUpload")}</span>
           </div>
         </div>
       )}

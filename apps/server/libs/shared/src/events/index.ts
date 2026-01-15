@@ -1,13 +1,13 @@
 /**
- * WebSocket 事件模块
+ * WebSocket Events Module
  *
- * 提供前后端共享的 WebSocket 事件名称和类型定义。
+ * Provides shared WebSocket event names and type definitions for frontend and backend.
  *
  * @module events
  *
  * @example
  * ```typescript
- * // 后端使用
+ * // Backend usage
  * import { WS_EVENTS, ChannelJoinedEvent } from '@team9/shared';
  *
  * client.emit(WS_EVENTS.CHANNEL.JOINED, {
@@ -16,23 +16,23 @@
  *   username: '...'
  * } satisfies ChannelJoinedEvent);
  *
- * // 前端使用
+ * // Frontend usage
  * import { WS_EVENTS, NewMessageEvent } from '@team9/shared';
  *
  * socket.on(WS_EVENTS.MESSAGE.NEW, (event: NewMessageEvent) => {
- *   // 处理新消息
+ *   // Handle new message
  * });
  * ```
  */
 
-// 事件名称常量
+// Event name constants
 export { WS_EVENTS } from './event-names.js';
 export type { WsEventName } from './event-names.js';
 
-// 所有事件类型
+// All event types
 export * from './domains/index.js';
 
-// ==================== 类型映射 ====================
+// ==================== Type Mappings ====================
 
 import type {
   // Auth
@@ -90,7 +90,7 @@ import type {
 } from './domains/index.js';
 
 /**
- * 客户端发送的事件及其 payload 类型映射
+ * Client to server events and their payload type mappings
  */
 export interface ClientToServerEvents {
   // Channel
@@ -115,7 +115,7 @@ export interface ClientToServerEvents {
 }
 
 /**
- * 服务器发送的事件及其 payload 类型映射
+ * Server to client events and their payload type mappings
  */
 export interface ServerToClientEvents {
   // Auth
@@ -161,17 +161,17 @@ export interface ServerToClientEvents {
 }
 
 /**
- * 用于 Socket.io 类型化的接口
+ * Interfaces for Socket.io typing
  *
  * @example
  * ```typescript
- * // 服务器端
+ * // Server side
  * import { Server } from 'socket.io';
  * import type { TypedSocketServer } from '@team9/shared';
  *
  * const io: TypedSocketServer = new Server();
  *
- * // 客户端
+ * // Client side
  * import { io } from 'socket.io-client';
  * import type { TypedSocket } from '@team9/shared';
  *

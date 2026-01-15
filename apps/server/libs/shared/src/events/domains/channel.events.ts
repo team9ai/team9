@@ -1,60 +1,60 @@
 /**
- * 频道相关 WebSocket 事件类型定义
+ * Channel related WebSocket event type definitions
  *
  * @module events/domains/channel
  */
 
-// ==================== 客户端 -> 服务器 ====================
+// ==================== Client -> Server ====================
 
 /**
- * 加入频道请求
+ * Join channel request
  *
- * 客户端发送此事件以订阅频道的实时消息。
- * 服务器会验证用户是否为频道成员。
+ * Sent by the client to subscribe to channel's real-time messages.
+ * The server will verify if the user is a channel member.
  *
  * @event join_channel
  * @direction Client -> Server
  *
  * @example
  * ```typescript
- * // 客户端
+ * // Client side
  * socket.emit('join_channel', { channelId: 'channel-uuid' });
  *
- * // 服务器响应
- * // 成功: { success: true }
- * // 失败: { error: 'Not a member of this channel' }
+ * // Server response
+ * // Success: { success: true }
+ * // Failure: { error: 'Not a member of this channel' }
  * ```
  */
 export interface JoinChannelPayload {
-  /** 要加入的频道 ID */
+  /** Channel ID to join */
   channelId: string;
 }
 
 /**
- * 离开频道请求
+ * Leave channel request
  *
- * 客户端发送此事件以取消订阅频道的实时消息。
+ * Sent by the client to unsubscribe from channel's real-time messages.
  *
  * @event leave_channel
  * @direction Client -> Server
  *
  * @example
  * ```typescript
- * // 客户端
+ * // Client side
  * socket.emit('leave_channel', { channelId: 'channel-uuid' });
  * ```
  */
 export interface LeaveChannelPayload {
-  /** 要离开的频道 ID */
+  /** Channel ID to leave */
   channelId: string;
 }
 
-// ==================== 服务器 -> 客户端 ====================
+// ==================== Server -> Client ====================
 
 /**
- * 频道已加入事件
+ * Channel joined event
  *
- * 当用户加入频道后，服务器广播此事件给频道内其他成员。
+ * Broadcast by the server to other channel members when a user joins the channel.
  *
  * @event channel_joined
  * @direction Server -> Channel Members
@@ -62,23 +62,23 @@ export interface LeaveChannelPayload {
  * @example
  * ```typescript
  * socket.on('channel_joined', (event: ChannelJoinedEvent) => {
- *   console.log(`${event.username} 加入了频道`);
+ *   console.log(`${event.username} joined the channel`);
  * });
  * ```
  */
 export interface ChannelJoinedEvent {
-  /** 频道 ID */
+  /** Channel ID */
   channelId: string;
-  /** 加入的用户 ID */
+  /** Joined user ID */
   userId: string;
-  /** 加入的用户名 */
+  /** Joined username */
   username: string;
 }
 
 /**
- * 频道已离开事件
+ * Channel left event
  *
- * 当用户离开频道后，服务器广播此事件给频道内其他成员。
+ * Broadcast by the server to other channel members when a user leaves the channel.
  *
  * @event channel_left
  * @direction Server -> Channel Members
@@ -86,21 +86,21 @@ export interface ChannelJoinedEvent {
  * @example
  * ```typescript
  * socket.on('channel_left', (event: ChannelLeftEvent) => {
- *   console.log(`用户 ${event.userId} 离开了频道`);
+ *   console.log(`User ${event.userId} left the channel`);
  * });
  * ```
  */
 export interface ChannelLeftEvent {
-  /** 频道 ID */
+  /** Channel ID */
   channelId: string;
-  /** 离开的用户 ID */
+  /** Left user ID */
   userId: string;
 }
 
 /**
- * 频道已创建事件
+ * Channel created event
  *
- * 当新频道创建后，服务器发送此事件给相关用户（频道成员或工作空间成员）。
+ * Sent by the server to related users (channel members or workspace members) when a new channel is created.
  *
  * @event channel_created
  * @direction Server -> Related Users
@@ -108,38 +108,38 @@ export interface ChannelLeftEvent {
  * @example
  * ```typescript
  * socket.on('channel_created', (event: ChannelCreatedEvent) => {
- *   // 将新频道添加到频道列表
+ *   // Add new channel to channel list
  *   addChannel(event);
  * });
  * ```
  */
 export interface ChannelCreatedEvent {
-  /** 频道 ID */
+  /** Channel ID */
   id: string;
-  /** 租户/工作空间 ID */
+  /** Tenant/Workspace ID */
   tenantId: string;
-  /** 频道名称 */
+  /** Channel name */
   name: string;
-  /** 频道描述 */
+  /** Channel description */
   description?: string;
-  /** 频道头像 URL */
+  /** Channel avatar URL */
   avatarUrl?: string;
-  /** 频道类型 */
+  /** Channel type */
   type: 'direct' | 'public' | 'private';
-  /** 创建者用户 ID */
+  /** Creator user ID */
   createdBy: string;
-  /** 是否已归档 */
+  /** Whether archived */
   isArchived: boolean;
-  /** 创建时间 */
+  /** Created at */
   createdAt: string;
-  /** 更新时间 */
+  /** Updated at */
   updatedAt: string;
 }
 
 /**
- * 频道已更新事件
+ * Channel updated event
  *
- * 当频道信息（名称、描述等）更新后，服务器广播此事件给频道成员。
+ * Broadcast by the server to channel members when channel info (name, description, etc.) is updated.
  *
  * @event channel_updated
  * @direction Server -> Channel Members
@@ -147,30 +147,30 @@ export interface ChannelCreatedEvent {
  * @example
  * ```typescript
  * socket.on('channel_updated', (event: ChannelUpdatedEvent) => {
- *   // 更新本地频道信息
+ *   // Update local channel info
  *   updateChannel(event.channelId, event);
  * });
  * ```
  */
 export interface ChannelUpdatedEvent {
-  /** 频道 ID */
+  /** Channel ID */
   channelId: string;
-  /** 更新后的频道名称 */
+  /** Updated channel name */
   name?: string;
-  /** 更新后的频道描述 */
+  /** Updated channel description */
   description?: string;
-  /** 更新后的频道头像 */
+  /** Updated channel avatar */
   avatarUrl?: string;
-  /** 执行更新的用户 ID */
+  /** User ID who performed the update */
   updatedBy: string;
-  /** 更新时间 */
+  /** Updated at */
   updatedAt: string;
 }
 
 /**
- * 频道已删除事件
+ * Channel deleted event
  *
- * 当频道被删除后，服务器广播此事件给频道成员。
+ * Broadcast by the server to channel members when a channel is deleted.
  *
  * @event channel_deleted
  * @direction Server -> Channel Members
@@ -178,9 +178,9 @@ export interface ChannelUpdatedEvent {
  * @example
  * ```typescript
  * socket.on('channel_deleted', (event: ChannelDeletedEvent) => {
- *   // 从频道列表中移除
+ *   // Remove from channel list
  *   removeChannel(event.channelId);
- *   // 如果当前在此频道，跳转到其他频道
+ *   // If currently in this channel, navigate to another
  *   if (currentChannelId === event.channelId) {
  *     navigateToDefaultChannel();
  *   }
@@ -188,19 +188,19 @@ export interface ChannelUpdatedEvent {
  * ```
  */
 export interface ChannelDeletedEvent {
-  /** 被删除的频道 ID */
+  /** Deleted channel ID */
   channelId: string;
-  /** 被删除的频道名称（用于显示通知） */
+  /** Deleted channel name (for notification display) */
   channelName?: string;
-  /** 执行删除的用户 ID */
+  /** User ID who performed the deletion */
   deletedBy: string;
 }
 
 /**
- * 频道已归档事件
+ * Channel archived event
  *
- * 当频道被归档后，服务器广播此事件给频道成员。
- * 归档的频道仍可查看历史消息，但不能发送新消息。
+ * Broadcast by the server to channel members when a channel is archived.
+ * Archived channels can still view history but cannot send new messages.
  *
  * @event channel_archived
  * @direction Server -> Channel Members
@@ -208,24 +208,24 @@ export interface ChannelDeletedEvent {
  * @example
  * ```typescript
  * socket.on('channel_archived', (event: ChannelArchivedEvent) => {
- *   // 更新频道状态为已归档
+ *   // Update channel status to archived
  *   setChannelArchived(event.channelId, true);
  * });
  * ```
  */
 export interface ChannelArchivedEvent {
-  /** 被归档的频道 ID */
+  /** Archived channel ID */
   channelId: string;
-  /** 被归档的频道名称 */
+  /** Archived channel name */
   channelName?: string;
-  /** 执行归档的用户 ID */
+  /** User ID who performed the archive */
   archivedBy: string;
 }
 
 /**
- * 频道已取消归档事件
+ * Channel unarchived event
  *
- * 当频道取消归档后，服务器广播此事件给频道成员。
+ * Broadcast by the server to channel members when a channel is unarchived.
  *
  * @event channel_unarchived
  * @direction Server -> Channel Members
@@ -233,28 +233,28 @@ export interface ChannelArchivedEvent {
  * @example
  * ```typescript
  * socket.on('channel_unarchived', (event: ChannelUnarchivedEvent) => {
- *   // 更新频道状态为未归档
+ *   // Update channel status to not archived
  *   setChannelArchived(event.channelId, false);
  * });
  * ```
  */
 export interface ChannelUnarchivedEvent {
-  /** 取消归档的频道 ID */
+  /** Unarchived channel ID */
   channelId: string;
-  /** 频道名称 */
+  /** Channel name */
   channelName?: string;
-  /** 执行操作的用户 ID */
+  /** User ID who performed the operation */
   unarchivedBy: string;
 }
 
-// ==================== 响应类型 ====================
+// ==================== Response Types ====================
 
 /**
- * 加入/离开频道的响应
+ * Join/Leave channel response
  */
 export interface ChannelOperationResponse {
-  /** 操作是否成功 */
+  /** Whether operation succeeded */
   success?: boolean;
-  /** 错误信息 */
+  /** Error message */
   error?: string;
 }

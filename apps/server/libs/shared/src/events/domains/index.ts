@@ -1,29 +1,29 @@
 /**
- * 事件域类型导出
+ * Event domain type exports
  *
  * @module events/domains
  */
 
-// 认证事件
+// Auth events
 export * from './auth.events.js';
 
-// 频道事件
+// Channel events
 export * from './channel.events.js';
 
-// 消息事件
+// Message events
 export * from './message.events.js';
 
-// 打字状态事件
+// Typing status events
 export * from './typing.events.js';
 
-// 用户状态事件
+// User status events
 export * from './user.events.js';
 
-// 反应事件
+// Reaction events
 export * from './reaction.events.js';
 
-// 工作空间事件
+// Workspace events
 export * from './workspace.events.js';
 
-// 系统事件
+// System events
 export * from './system.events.js';

@@ -1,38 +1,38 @@
 /**
- * 系统相关 WebSocket 事件类型定义
+ * System related WebSocket event type definitions
  *
- * 包括心跳、消息确认、会话管理、消息同步等系统级事件。
+ * Includes heartbeat, message acknowledgment, session management, message sync and other system-level events.
  *
  * @module events/domains/system
  */
 
-// ==================== 心跳事件 ====================
+// ==================== Heartbeat Events ====================
 
 /**
- * 心跳请求
+ * Ping request
  *
- * 客户端定期发送此事件以保持连接活跃并检测网络状态。
+ * Sent periodically by the client to keep the connection alive and detect network status.
  *
  * @event ping
  * @direction Client -> Server
  *
  * @example
  * ```typescript
- * // 客户端 - 每 30 秒发送一次心跳
+ * // Client - send heartbeat every 30 seconds
  * setInterval(() => {
  *   socket.emit('ping', { timestamp: Date.now() });
  * }, 30000);
  * ```
  */
 export interface PingPayload {
-  /** 客户端发送时间戳（毫秒） */
+  /** Client send timestamp (milliseconds) */
   timestamp: number;
 }
 
 /**
- * 心跳响应
+ * Pong response
  *
- * 服务器收到心跳请求后返回此事件。
+ * Returned by the server after receiving a ping request.
  *
  * @event pong
  * @direction Server -> Client
@@ -41,44 +41,44 @@ export interface PingPayload {
  * ```typescript
  * socket.on('pong', (event: PongEvent) => {
  *   const latency = Date.now() - event.timestamp;
- *   console.log(`网络延迟: ${latency}ms`);
+ *   console.log(`Network latency: ${latency}ms`);
  * });
  * ```
  */
 export interface PongEvent {
-  /** 事件类型标识 */
+  /** Event type identifier */
   type: 'pong';
-  /** 原始客户端时间戳（回显） */
+  /** Original client timestamp (echo) */
   timestamp: number;
-  /** 服务器当前时间戳 */
+  /** Server current timestamp */
   serverTime: number;
 }
 
-// ==================== 消息确认事件 ====================
+// ==================== Message Acknowledgment Events ====================
 
 /**
- * 消息确认类型
+ * Message acknowledgment type
  */
 export type MessageAckType = 'delivered' | 'read';
 
 /**
- * 消息确认请求
+ * Message acknowledgment request
  *
- * 客户端发送此事件以确认消息已送达或已读。
- * 服务器会将确认信息转发给 IM Worker 服务处理。
+ * Sent by the client to acknowledge message delivery or read status.
+ * The server will forward the acknowledgment to the IM Worker service for processing.
  *
  * @event message_ack
  * @direction Client -> Server
  *
  * @example
  * ```typescript
- * // 客户端 - 消息渲染到屏幕后
+ * // Client - after message renders to screen
  * socket.emit('message_ack', {
  *   msgId: 'message-uuid',
  *   ackType: 'delivered'
  * });
  *
- * // 客户端 - 用户查看消息后
+ * // Client - after user views message
  * socket.emit('message_ack', {
  *   msgId: 'message-uuid',
  *   ackType: 'read'
@@ -86,16 +86,16 @@ export type MessageAckType = 'delivered' | 'read';
  * ```
  */
 export interface MessageAckPayload {
-  /** 消息 ID */
+  /** Message ID */
   msgId: string;
-  /** 确认类型 */
+  /** Acknowledgment type */
   ackType: MessageAckType;
 }
 
 /**
- * 消息确认响应
+ * Message acknowledgment response
  *
- * 服务器收到消息确认后返回此事件。
+ * Returned by the server after receiving message acknowledgment.
  *
  * @event message_ack_response
  * @direction Server -> Client
@@ -103,24 +103,24 @@ export interface MessageAckPayload {
  * @example
  * ```typescript
  * socket.on('message_ack_response', (event: MessageAckResponseEvent) => {
- *   console.log(`消息 ${event.msgId} 确认状态: ${event.status}`);
+ *   console.log(`Message ${event.msgId} ack status: ${event.status}`);
  * });
  * ```
  */
 export interface MessageAckResponseEvent {
-  /** 消息 ID */
+  /** Message ID */
   msgId: string;
-  /** 确认状态 */
+  /** Acknowledgment status */
   status: 'received' | 'error';
-  /** 错误信息（当 status 为 error 时） */
+  /** Error message (when status is error) */
   error?: string;
 }
 
 /**
- * 消息已发送确认事件
+ * Message sent confirmation event
  *
- * 当消息成功持久化后，服务器发送此事件给发送者。
- * 包含服务器分配的消息序列号。
+ * Sent by the server to the sender after message is successfully persisted.
+ * Includes server-assigned message sequence number.
  *
  * @event message_sent
  * @direction Server -> Sender
@@ -128,28 +128,28 @@ export interface MessageAckResponseEvent {
  * @example
  * ```typescript
  * socket.on('message_sent', (event: MessageSentEvent) => {
- *   // 更新本地消息状态为已发送
+ *   // Update local message status to sent
  *   updateMessageStatus(event.clientMsgId, 'sent', event.seqId);
  * });
  * ```
  */
 export interface MessageSentEvent {
-  /** 服务器生成的消息 ID */
+  /** Server-generated message ID */
   msgId: string;
-  /** 客户端生成的消息 ID（用于匹配本地消息） */
+  /** Client-generated message ID (for matching local message) */
   clientMsgId?: string;
-  /** 消息序列号（用于排序） */
+  /** Message sequence number (for ordering) */
   seqId: string;
-  /** 服务器时间戳 */
+  /** Server timestamp */
   serverTime: number;
 }
 
-// ==================== 会话管理事件 ====================
+// ==================== Session Management Events ====================
 
 /**
- * 会话过期事件
+ * Session expired event
  *
- * 当用户的认证 token 过期后，服务器发送此事件。
+ * Sent by the server when user's auth token expires.
  *
  * @event session_expired
  * @direction Server -> Client
@@ -157,24 +157,24 @@ export interface MessageSentEvent {
  * @example
  * ```typescript
  * socket.on('session_expired', (event: SessionExpiredEvent) => {
- *   // 清理本地状态
+ *   // Clear local state
  *   clearAuthState();
- *   // 跳转到登录页
+ *   // Navigate to login page
  *   navigateToLogin(event.reason);
  * });
  * ```
  */
 export interface SessionExpiredEvent {
-  /** 过期原因 */
+  /** Expiration reason */
   reason: string;
-  /** 过期时间 */
+  /** Expiration time */
   expiredAt?: string;
 }
 
 /**
- * 会话超时事件
+ * Session timeout event
  *
- * 当心跳超时导致会话失效时，服务器发送此事件。
+ * Sent by the server when heartbeat timeout causes session invalidation.
  *
  * @event session_timeout
  * @direction Server -> Client
@@ -182,22 +182,22 @@ export interface SessionExpiredEvent {
  * @example
  * ```typescript
  * socket.on('session_timeout', (event: SessionTimeoutEvent) => {
- *   // 尝试重新连接
+ *   // Try to reconnect
  *   reconnect();
  * });
  * ```
  */
 export interface SessionTimeoutEvent {
-  /** 超时原因 */
+  /** Timeout reason */
   reason: string;
-  /** 最后活跃时间 */
+  /** Last active time */
   lastActiveAt?: string;
 }
 
 /**
- * 被其他设备踢出事件
+ * Kicked by another device event
  *
- * 当同一账号在其他设备登录导致当前设备被踢出时，服务器发送此事件。
+ * Sent by the server when the same account logs in on another device, causing current device to be kicked.
  *
  * @event session_kicked
  * @direction Server -> Client
@@ -205,36 +205,36 @@ export interface SessionTimeoutEvent {
  * @example
  * ```typescript
  * socket.on('session_kicked', (event: SessionKickedEvent) => {
- *   showAlert(`您的账号在其他设备 (${event.newDeviceInfo?.platform}) 上登录`);
- *   // 断开连接并跳转到登录页
+ *   showAlert(`Your account logged in on another device (${event.newDeviceInfo?.platform})`);
+ *   // Disconnect and navigate to login page
  *   disconnect();
  *   navigateToLogin();
  * });
  * ```
  */
 export interface SessionKickedEvent {
-  /** 踢出原因 */
+  /** Kick reason */
   reason: string;
-  /** 新设备信息 */
+  /** New device info */
   newDeviceInfo?: {
     platform: string;
     version?: string;
   };
 }
 
-// ==================== 消息同步事件 ====================
+// ==================== Message Sync Events ====================
 
 /**
- * 同步消息请求
+ * Sync messages request
  *
- * 客户端发送此事件以请求同步离线期间的消息。
+ * Sent by the client to request syncing messages missed during offline period.
  *
  * @event sync_messages
  * @direction Client -> Server
  *
  * @example
  * ```typescript
- * // 客户端 - 重新连接后
+ * // Client - after reconnecting
  * socket.emit('sync_messages', {
  *   channelId: 'channel-uuid',
  *   lastMessageId: 'last-known-message-uuid',
@@ -243,18 +243,18 @@ export interface SessionKickedEvent {
  * ```
  */
 export interface SyncMessagesPayload {
-  /** 频道 ID（可选，不指定则同步所有频道） */
+  /** Channel ID (optional, sync all channels if not specified) */
   channelId?: string;
-  /** 最后已知的消息 ID（从此消息之后开始同步） */
+  /** Last known message ID (sync starts after this message) */
   lastMessageId?: string;
-  /** 最大同步消息数量 */
+  /** Maximum number of messages to sync */
   limit?: number;
 }
 
 /**
- * 同步消息响应
+ * Sync messages response
  *
- * 服务器返回请求的离线消息。
+ * Returns the requested offline messages.
  *
  * @event sync_messages_response
  * @direction Server -> Client
@@ -262,11 +262,11 @@ export interface SyncMessagesPayload {
  * @example
  * ```typescript
  * socket.on('sync_messages_response', (event: SyncMessagesResponseEvent) => {
- *   // 将同步的消息添加到本地存储
+ *   // Add synced messages to local storage
  *   for (const msg of event.messages) {
  *     addMessage(msg);
  *   }
- *   // 如果还有更多消息，继续同步
+ *   // If there are more messages, continue syncing
  *   if (event.hasMore) {
  *     requestMoreMessages(event.channelId, event.messages.at(-1)?.id);
  *   }
@@ -274,9 +274,9 @@ export interface SyncMessagesPayload {
  * ```
  */
 export interface SyncMessagesResponseEvent {
-  /** 频道 ID */
+  /** Channel ID */
   channelId?: string;
-  /** 同步的消息列表 */
+  /** Synced message list */
   messages: Array<{
     id: string;
     channelId: string;
@@ -286,14 +286,14 @@ export interface SyncMessagesResponseEvent {
     createdAt: string;
     [key: string]: unknown;
   }>;
-  /** 是否还有更多消息 */
+  /** Whether there are more messages */
   hasMore: boolean;
 }
 
 /**
- * 消息重试事件
+ * Message retry event
  *
- * 当消息投递失败后，服务器请求客户端重试。
+ * Sent by the server when message delivery fails, requesting client to retry.
  *
  * @event message_retry
  * @direction Server -> Client
@@ -301,37 +301,37 @@ export interface SyncMessagesResponseEvent {
  * @example
  * ```typescript
  * socket.on('message_retry', (event: MessageRetryEvent) => {
- *   // 找到本地待发送的消息
+ *   // Find local pending message
  *   const pendingMessage = getPendingMessage(event.clientMsgId);
  *   if (pendingMessage) {
- *     // 重新发送
+ *     // Resend
  *     resendMessage(pendingMessage);
  *   }
  * });
  * ```
  */
 export interface MessageRetryEvent {
-  /** 客户端消息 ID */
+  /** Client message ID */
   clientMsgId: string;
-  /** 重试原因 */
+  /** Retry reason */
   reason: string;
-  /** 当前重试次数 */
+  /** Current retry count */
   retryCount: number;
-  /** 最大重试次数 */
+  /** Maximum retries */
   maxRetries: number;
 }
 
-// ==================== 提及通知事件 ====================
+// ==================== Mention Notification Events ====================
 
 /**
- * 提及类型
+ * Mention type
  */
 export type MentionType = 'user' | 'channel' | 'everyone' | 'here';
 
 /**
- * 收到提及事件
+ * Mention received event
  *
- * 当用户在消息中被 @提及 时，服务器发送此事件给被提及的用户。
+ * Sent by the server to the mentioned user when they are @mentioned in a message.
  *
  * @event mention_received
  * @direction Server -> Mentioned User
@@ -339,28 +339,28 @@ export type MentionType = 'user' | 'channel' | 'everyone' | 'here';
  * @example
  * ```typescript
  * socket.on('mention_received', (event: MentionReceivedEvent) => {
- *   // 显示提及通知
+ *   // Show mention notification
  *   showMentionNotification(event);
- *   // 更新提及未读计数
+ *   // Update mention unread count
  *   incrementMentionCount(event.channelId);
  * });
  * ```
  */
 export interface MentionReceivedEvent {
-  /** 提及 ID */
+  /** Mention ID */
   mentionId: string;
-  /** 消息 ID */
+  /** Message ID */
   messageId: string;
-  /** 频道 ID */
+  /** Channel ID */
   channelId: string;
-  /** 提及类型 */
+  /** Mention type */
   type: MentionType;
-  /** 发送消息的用户 ID */
+  /** Message sender user ID */
   senderId: string;
-  /** 发送消息的用户名 */
+  /** Message sender username */
   senderUsername: string;
-  /** 消息内容预览 */
+  /** Message content preview */
   messagePreview: string;
-  /** 创建时间 */
+  /** Created at */
   createdAt: string;
 }

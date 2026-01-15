@@ -1,80 +1,80 @@
 /**
- * 消息相关 WebSocket 事件类型定义
+ * Message related WebSocket event type definitions
  *
  * @module events/domains/message
  */
 
-// ==================== 基础消息类型 ====================
+// ==================== Base Message Types ====================
 
 /**
- * 消息类型枚举
+ * Message type enumeration
  */
 export type WSMessageType = 'text' | 'file' | 'image' | 'system';
 
 /**
- * 消息发送者信息
+ * Message sender information
  */
 export interface MessageSender {
-  /** 用户 ID */
+  /** User ID */
   id: string;
-  /** 用户名 */
+  /** Username */
   username: string;
-  /** 显示名称 */
+  /** Display name */
   displayName?: string;
-  /** 头像 URL */
+  /** Avatar URL */
   avatarUrl?: string;
 }
 
 /**
- * 消息附件信息
+ * Message attachment information
  */
 export interface MessageAttachment {
-  /** 附件 ID */
+  /** Attachment ID */
   id: string;
-  /** 消息 ID */
+  /** Message ID */
   messageId: string;
-  /** 文件存储 Key */
+  /** File storage key */
   fileKey: string;
-  /** 文件名 */
+  /** File name */
   fileName: string;
-  /** 文件 URL */
+  /** File URL */
   fileUrl: string;
-  /** 文件大小（字节） */
+  /** File size (bytes) */
   fileSize: number;
-  /** MIME 类型 */
+  /** MIME type */
   mimeType: string;
-  /** 缩略图 URL（图片类型） */
+  /** Thumbnail URL (for images) */
   thumbnailUrl?: string;
-  /** 图片宽度 */
+  /** Image width */
   width?: number;
-  /** 图片高度 */
+  /** Image height */
   height?: number;
-  /** 创建时间 */
+  /** Created at */
   createdAt: string;
 }
 
 /**
- * 消息反应信息
+ * Message reaction information
  */
 export interface MessageReaction {
-  /** 反应 ID */
+  /** Reaction ID */
   id: string;
-  /** 消息 ID */
+  /** Message ID */
   messageId: string;
-  /** 用户 ID */
+  /** User ID */
   userId: string;
-  /** 表情符号 */
+  /** Emoji */
   emoji: string;
-  /** 创建时间 */
+  /** Created at */
   createdAt: string;
 }
 
-// ==================== 服务器 -> 客户端 ====================
+// ==================== Server -> Client ====================
 
 /**
- * 新消息事件
+ * New message event
  *
- * 当频道内有新消息时，服务器广播此事件给频道成员。
+ * Broadcast by the server to channel members when there's a new message in the channel.
  *
  * @event new_message
  * @direction Server -> Channel Members
@@ -82,52 +82,52 @@ export interface MessageReaction {
  * @example
  * ```typescript
  * socket.on('new_message', (event: NewMessageEvent) => {
- *   // 添加消息到消息列表
+ *   // Add message to message list
  *   addMessage(event);
- *   // 更新未读计数
+ *   // Update unread count
  *   incrementUnreadCount(event.channelId);
  * });
  * ```
  */
 export interface NewMessageEvent {
-  /** 消息 ID */
+  /** Message ID */
   id: string;
-  /** 频道 ID */
+  /** Channel ID */
   channelId: string;
-  /** 发送者用户 ID */
+  /** Sender user ID */
   senderId: string;
-  /** 父消息 ID（线程回复） */
+  /** Parent message ID (thread reply) */
   parentId?: string;
-  /** 消息内容 */
+  /** Message content */
   content: string;
-  /** 消息类型 */
+  /** Message type */
   type: WSMessageType;
-  /** 附加元数据 */
+  /** Additional metadata */
   metadata?: Record<string, unknown>;
-  /** 是否已置顶 */
+  /** Whether pinned */
   isPinned: boolean;
-  /** 是否已编辑 */
+  /** Whether edited */
   isEdited: boolean;
-  /** 是否已删除 */
+  /** Whether deleted */
   isDeleted: boolean;
-  /** 创建时间 */
+  /** Created at */
   createdAt: string;
-  /** 更新时间 */
+  /** Updated at */
   updatedAt: string;
-  /** 发送者详细信息 */
+  /** Sender details */
   sender?: MessageSender;
-  /** 附件列表 */
+  /** Attachments list */
   attachments?: MessageAttachment[];
-  /** 反应列表 */
+  /** Reactions list */
   reactions?: MessageReaction[];
-  /** 回复数量（仅父消息） */
+  /** Reply count (parent messages only) */
   replyCount?: number;
 }
 
 /**
- * 消息已更新事件
+ * Message updated event
  *
- * 当消息被编辑后，服务器广播此事件给频道成员。
+ * Broadcast by the server to channel members when a message is edited.
  *
  * @event message_updated
  * @direction Server -> Channel Members
@@ -135,50 +135,50 @@ export interface NewMessageEvent {
  * @example
  * ```typescript
  * socket.on('message_updated', (event: MessageUpdatedEvent) => {
- *   // 更新消息内容
+ *   // Update message content
  *   updateMessage(event.id, event);
  * });
  * ```
  */
 export interface MessageUpdatedEvent {
-  /** 消息 ID */
+  /** Message ID */
   id: string;
-  /** 频道 ID */
+  /** Channel ID */
   channelId: string;
-  /** 发送者用户 ID */
+  /** Sender user ID */
   senderId: string;
-  /** 父消息 ID */
+  /** Parent message ID */
   parentId?: string;
-  /** 更新后的消息内容 */
+  /** Updated message content */
   content: string;
-  /** 消息类型 */
+  /** Message type */
   type: WSMessageType;
-  /** 附加元数据 */
+  /** Additional metadata */
   metadata?: Record<string, unknown>;
-  /** 是否已置顶 */
+  /** Whether pinned */
   isPinned: boolean;
-  /** 是否已编辑（更新后应为 true） */
+  /** Whether edited (should be true after update) */
   isEdited: boolean;
-  /** 是否已删除 */
+  /** Whether deleted */
   isDeleted: boolean;
-  /** 创建时间 */
+  /** Created at */
   createdAt: string;
-  /** 更新时间 */
+  /** Updated at */
   updatedAt: string;
-  /** 发送者详细信息 */
+  /** Sender details */
   sender?: MessageSender;
-  /** 附件列表 */
+  /** Attachments list */
   attachments?: MessageAttachment[];
-  /** 反应列表 */
+  /** Reactions list */
   reactions?: MessageReaction[];
-  /** 回复数量 */
+  /** Reply count */
   replyCount?: number;
 }
 
 /**
- * 消息已删除事件
+ * Message deleted event
  *
- * 当消息被删除后，服务器广播此事件给频道成员。
+ * Broadcast by the server to channel members when a message is deleted.
  *
  * @event message_deleted
  * @direction Server -> Channel Members
@@ -186,31 +186,31 @@ export interface MessageUpdatedEvent {
  * @example
  * ```typescript
  * socket.on('message_deleted', (event: MessageDeletedEvent) => {
- *   // 从消息列表中移除或标记为已删除
+ *   // Remove from message list or mark as deleted
  *   removeMessage(event.messageId);
  * });
  * ```
  */
 export interface MessageDeletedEvent {
-  /** 被删除的消息 ID */
+  /** Deleted message ID */
   messageId: string;
-  /** 频道 ID（可选，便于前端处理） */
+  /** Channel ID (optional, for frontend convenience) */
   channelId?: string;
 }
 
-// ==================== 消息读取状态 ====================
+// ==================== Message Read Status ====================
 
 /**
- * 标记已读请求
+ * Mark as read request
  *
- * 客户端发送此事件以标记频道消息为已读。
+ * Sent by the client to mark channel messages as read.
  *
  * @event mark_as_read
  * @direction Client -> Server
  *
  * @example
  * ```typescript
- * // 客户端
+ * // Client side
  * socket.emit('mark_as_read', {
  *   channelId: 'channel-uuid',
  *   messageId: 'message-uuid'
@@ -218,17 +218,17 @@ export interface MessageDeletedEvent {
  * ```
  */
 export interface MarkAsReadPayload {
-  /** 频道 ID */
+  /** Channel ID */
   channelId: string;
-  /** 已读到的消息 ID */
+  /** Message ID read up to */
   messageId: string;
 }
 
 /**
- * 读取状态已更新事件
+ * Read status updated event
  *
- * 当用户标记消息已读后，服务器广播此事件给频道其他成员。
- * 用于显示已读回执。
+ * Broadcast by the server to other channel members when a user marks messages as read.
+ * Used to display read receipts.
  *
  * @event read_status_updated
  * @direction Server -> Channel Members
@@ -236,16 +236,16 @@ export interface MarkAsReadPayload {
  * @example
  * ```typescript
  * socket.on('read_status_updated', (event: ReadStatusUpdatedEvent) => {
- *   // 更新用户的已读位置
+ *   // Update user's read position
  *   updateReadStatus(event.channelId, event.userId, event.lastReadMessageId);
  * });
  * ```
  */
 export interface ReadStatusUpdatedEvent {
-  /** 频道 ID */
+  /** Channel ID */
   channelId: string;
-  /** 标记已读的用户 ID */
+  /** User ID who marked as read */
   userId: string;
-  /** 最后已读的消息 ID */
+  /** Last read message ID */
   lastReadMessageId: string;
 }

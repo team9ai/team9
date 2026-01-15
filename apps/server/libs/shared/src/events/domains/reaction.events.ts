@@ -1,22 +1,22 @@
 /**
- * 消息反应相关 WebSocket 事件类型定义
+ * Message reaction related WebSocket event type definitions
  *
  * @module events/domains/reaction
  */
 
-// ==================== 客户端 -> 服务器 ====================
+// ==================== Client -> Server ====================
 
 /**
- * 添加反应请求
+ * Add reaction request
  *
- * 客户端发送此事件以为消息添加表情反应。
+ * Sent by the client to add an emoji reaction to a message.
  *
  * @event add_reaction
  * @direction Client -> Server
  *
  * @example
  * ```typescript
- * // 客户端 - 用户点击表情
+ * // Client - user clicks emoji
  * socket.emit('add_reaction', {
  *   messageId: 'message-uuid',
  *   emoji: '👍'
@@ -24,23 +24,23 @@
  * ```
  */
 export interface AddReactionPayload {
-  /** 消息 ID */
+  /** Message ID */
   messageId: string;
-  /** 表情符号（Unicode 或 emoji shortcode） */
+  /** Emoji (Unicode or emoji shortcode) */
   emoji: string;
 }
 
 /**
- * 移除反应请求
+ * Remove reaction request
  *
- * 客户端发送此事件以移除消息的表情反应。
+ * Sent by the client to remove an emoji reaction from a message.
  *
  * @event remove_reaction
  * @direction Client -> Server
  *
  * @example
  * ```typescript
- * // 客户端 - 用户取消点击已选择的表情
+ * // Client - user clicks to remove previously selected emoji
  * socket.emit('remove_reaction', {
  *   messageId: 'message-uuid',
  *   emoji: '👍'
@@ -48,18 +48,18 @@ export interface AddReactionPayload {
  * ```
  */
 export interface RemoveReactionPayload {
-  /** 消息 ID */
+  /** Message ID */
   messageId: string;
-  /** 要移除的表情符号 */
+  /** Emoji to remove */
   emoji: string;
 }
 
-// ==================== 服务器 -> 客户端 ====================
+// ==================== Server -> Client ====================
 
 /**
- * 反应已添加事件
+ * Reaction added event
  *
- * 当用户为消息添加反应后，服务器广播此事件给频道所有成员。
+ * Broadcast by the server to all channel members when a user adds a reaction to a message.
  *
  * @event reaction_added
  * @direction Server -> Channel Members
@@ -67,7 +67,7 @@ export interface RemoveReactionPayload {
  * @example
  * ```typescript
  * socket.on('reaction_added', (event: ReactionAddedEvent) => {
- *   // 更新消息的反应列表
+ *   // Update message's reaction list
  *   addReactionToMessage(event.messageId, {
  *     userId: event.userId,
  *     emoji: event.emoji
@@ -76,18 +76,18 @@ export interface RemoveReactionPayload {
  * ```
  */
 export interface ReactionAddedEvent {
-  /** 消息 ID */
+  /** Message ID */
   messageId: string;
-  /** 添加反应的用户 ID */
+  /** User ID who added the reaction */
   userId: string;
-  /** 添加的表情符号 */
+  /** Added emoji */
   emoji: string;
 }
 
 /**
- * 反应已移除事件
+ * Reaction removed event
  *
- * 当用户移除消息反应后，服务器广播此事件给频道所有成员。
+ * Broadcast by the server to all channel members when a user removes a reaction from a message.
  *
  * @event reaction_removed
  * @direction Server -> Channel Members
@@ -95,7 +95,7 @@ export interface ReactionAddedEvent {
  * @example
  * ```typescript
  * socket.on('reaction_removed', (event: ReactionRemovedEvent) => {
- *   // 从消息的反应列表中移除
+ *   // Remove from message's reaction list
  *   removeReactionFromMessage(event.messageId, {
  *     userId: event.userId,
  *     emoji: event.emoji
@@ -104,22 +104,22 @@ export interface ReactionAddedEvent {
  * ```
  */
 export interface ReactionRemovedEvent {
-  /** 消息 ID */
+  /** Message ID */
   messageId: string;
-  /** 移除反应的用户 ID */
+  /** User ID who removed the reaction */
   userId: string;
-  /** 被移除的表情符号 */
+  /** Removed emoji */
   emoji: string;
 }
 
-// ==================== 响应类型 ====================
+// ==================== Response Types ====================
 
 /**
- * 反应操作响应
+ * Reaction operation response
  */
 export interface ReactionOperationResponse {
-  /** 操作是否成功 */
+  /** Whether operation succeeded */
   success: boolean;
-  /** 错误信息 */
+  /** Error message */
   error?: string;
 }

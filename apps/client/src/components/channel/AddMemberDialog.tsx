@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { Search, UserPlus, Check, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ export function AddMemberDialog({
   onClose,
   channelId,
 }: AddMemberDialogProps) {
+  const { t } = useTranslation("channel");
   const workspaceId = useSelectedWorkspaceId();
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -142,7 +144,7 @@ export function AddMemberDialog({
         <div className="px-6 pt-6 pb-4 border-b">
           <DialogTitle className="flex items-center gap-2">
             <UserPlus size={20} className="text-slate-600" />
-            <span>添加成员</span>
+            <span>{t("addMembers")}</span>
           </DialogTitle>
         </div>
 
@@ -154,7 +156,7 @@ export function AddMemberDialog({
               className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
             />
             <Input
-              placeholder="搜索用户名或昵称..."
+              placeholder={t("searchMember")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9"
@@ -175,7 +177,7 @@ export function AddMemberDialog({
               </div>
             ) : availableMembers.length === 0 ? (
               <div className="text-center py-8 text-slate-500">
-                {search ? "未找到匹配的用户" : "所有成员都已在频道中"}
+                {search ? t("noMatchingUsers") : t("allMembersInChannel")}
               </div>
             ) : (
               <>
@@ -194,12 +196,12 @@ export function AddMemberDialog({
         <div className="px-6 py-4 border-t flex items-center justify-between">
           <span className="text-sm text-slate-500">
             {selectedIds.size > 0
-              ? `已选择 ${selectedIds.size} 人`
-              : "选择要添加的成员"}
+              ? t("selectedCount", { count: selectedIds.size })
+              : t("selectMembersToAdd")}
           </span>
           <div className="flex gap-2">
             <Button variant="ghost" onClick={onClose}>
-              取消
+              {t("cancel", { ns: "common" })}
             </Button>
             <Button
               onClick={handleAddMembers}
@@ -208,10 +210,12 @@ export function AddMemberDialog({
               {addMember.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  添加中...
+                  {t("adding")}
                 </>
+              ) : selectedIds.size > 0 ? (
+                t("addCount", { count: selectedIds.size })
               ) : (
-                `添加 ${selectedIds.size > 0 ? selectedIds.size : ""} 人`
+                t("add")
               )}
             </Button>
           </div>
