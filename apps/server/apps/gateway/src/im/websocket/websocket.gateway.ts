@@ -16,13 +16,29 @@ import { UsersService } from '../users/users.service.js';
 import { ChannelsService } from '../channels/channels.service.js';
 import { MessagesService } from '../messages/messages.service.js';
 import { RedisService } from '@team9/redis';
+import { env, PingMessage, PongMessage } from '@team9/shared';
 import {
-  env,
-  PingMessage,
-  PongMessage,
-  PostBroadcastTask,
-} from '@team9/shared';
-import { WS_EVENTS } from './events/events.constants.js';
+  WS_EVENTS,
+  type JoinChannelPayload,
+  type ChannelJoinedEvent,
+  type ChannelLeftEvent,
+  type MarkAsReadPayload,
+  type ReadStatusUpdatedEvent,
+  type TypingStartPayload,
+  type UserTypingEvent,
+  type UserOnlineEvent,
+  type UserOfflineEvent,
+  type AddReactionPayload,
+  type ReactionAddedEvent,
+  type ReactionRemovedEvent,
+  type PingPayload,
+  type MessageAckPayload,
+  type JoinWorkspacePayload,
+  type ChannelOperationResponse,
+  type TypingOperationResponse,
+  type ReactionOperationResponse,
+  type WorkspaceOperationResponse,
+} from './events/events.constants.js';
 import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
 import { SocketWithUser } from '../shared/interfaces/socket-with-user.interface.js';
 import { WorkspaceService } from '../../workspace/workspace.service.js';
@@ -33,38 +49,6 @@ import { HeartbeatService } from '../../cluster/heartbeat/heartbeat.service.js';
 import { ZombieCleanerService } from '../../cluster/heartbeat/zombie-cleaner.service.js';
 import { ConnectionService } from '../../cluster/connection/connection.service.js';
 import { SocketRedisAdapterService } from '../../cluster/adapter/socket-redis-adapter.service.js';
-import { ImWorkerClientService } from '../services/im-worker-client.service.js';
-
-interface SendMessageData {
-  channelId: string;
-  content: string;
-  parentId?: string;
-  clientMsgId?: string;
-  workspaceId?: string;
-}
-
-interface ChannelData {
-  channelId: string;
-}
-
-interface MarkAsReadData {
-  channelId: string;
-  messageId: string;
-}
-
-interface ReactionData {
-  messageId: string;
-  emoji: string;
-}
-
-interface PingData {
-  timestamp: number;
-}
-
-interface MessageAckData {
-  msgId: string;
-  ackType: 'delivered' | 'read';
-}
 
 @WebSocketGateway({
   cors: {
@@ -99,7 +83,6 @@ export class WebsocketGateway
     @Optional() private readonly gatewayMQService?: GatewayMQService,
     @Optional()
     private readonly socketRedisAdapterService?: SocketRedisAdapterService,
-    @Optional() private readonly imWorkerClientService?: ImWorkerClientService,
   ) {}
 
   /**
@@ -155,7 +138,9 @@ export class WebsocketGateway
 
       if (!token) {
         this.logger.warn(`[WS] No token provided for client ${client.id}`);
-        client.emit(WS_EVENTS.AUTH_ERROR, { message: 'No token provided' });
+        client.emit(WS_EVENTS.AUTH.AUTH_ERROR, {
+          message: 'No token provided',
+        });
         client.disconnect();
         return;
       }
@@ -233,7 +218,7 @@ export class WebsocketGateway
 
       // Broadcast user online to each workspace
       for (const workspaceId of workspaceIds) {
-        this.server.to(`workspace:${workspaceId}`).emit(WS_EVENTS.USER_ONLINE, {
+        this.server.to(`workspace:${workspaceId}`).emit(WS_EVENTS.USER.ONLINE, {
           userId: payload.sub,
           username: payload.username,
           workspaceId,
@@ -295,13 +280,15 @@ export class WebsocketGateway
         }
       }
 
-      client.emit(WS_EVENTS.AUTHENTICATED, { userId: payload.sub });
+      client.emit(WS_EVENTS.AUTH.AUTHENTICATED, { userId: payload.sub });
       this.logger.log(
         `Client authenticated: ${client.id} (user: ${payload.sub})`,
       );
     } catch (error) {
       this.logger.error(`Authentication failed for ${client.id}:`, error);
-      client.emit(WS_EVENTS.AUTH_ERROR, { message: 'Authentication failed' });
+      client.emit(WS_EVENTS.AUTH.AUTH_ERROR, {
+        message: 'Authentication failed',
+      });
       client.disconnect();
     }
   }
@@ -360,7 +347,7 @@ export class WebsocketGateway
         for (const workspaceId of workspaceIds) {
           this.server
             .to(`workspace:${workspaceId}`)
-            .emit(WS_EVENTS.USER_OFFLINE, {
+            .emit(WS_EVENTS.USER.OFFLINE, {
               userId: socketClient.userId,
               workspaceId,
             });
@@ -401,10 +388,10 @@ export class WebsocketGateway
 
   // ==================== Channel Operations ====================
 
-  @SubscribeMessage(WS_EVENTS.JOIN_CHANNEL)
+  @SubscribeMessage(WS_EVENTS.CHANNEL.JOIN)
   async handleJoinChannel(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: ChannelData,
+    @MessageBody() data: JoinChannelPayload,
   ) {
     const socketClient = client as SocketWithUser;
     const { channelId } = data;
@@ -419,7 +406,7 @@ export class WebsocketGateway
 
     void client.join(`channel:${channelId}`);
 
-    client.to(`channel:${channelId}`).emit(WS_EVENTS.CHANNEL_JOINED, {
+    client.to(`channel:${channelId}`).emit(WS_EVENTS.CHANNEL.JOINED, {
       channelId,
       userId: socketClient.userId,
       username: socketClient.username,
@@ -428,17 +415,17 @@ export class WebsocketGateway
     return { success: true };
   }
 
-  @SubscribeMessage(WS_EVENTS.LEAVE_CHANNEL)
+  @SubscribeMessage(WS_EVENTS.CHANNEL.LEAVE)
   handleLeaveChannel(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: ChannelData,
+    @MessageBody() data: JoinChannelPayload,
   ) {
     const socketClient = client as SocketWithUser;
     const { channelId } = data;
 
     void client.leave(`channel:${channelId}`);
 
-    client.to(`channel:${channelId}`).emit(WS_EVENTS.CHANNEL_LEFT, {
+    client.to(`channel:${channelId}`).emit(WS_EVENTS.CHANNEL.LEFT, {
       channelId,
       userId: socketClient.userId,
     });
@@ -446,121 +433,12 @@ export class WebsocketGateway
     return { success: true };
   }
 
-  // ==================== Message Operations ====================
-
-  @SubscribeMessage(WS_EVENTS.SEND_MESSAGE)
-  async handleSendMessage(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: SendMessageData,
-  ) {
-    const socketClient = client as SocketWithUser;
-    const { channelId, content, parentId } = data;
-
-    // Quick validation (use cached check if available)
-    const isMember = await this.channelsService.isMember(
-      channelId,
-      socketClient.userId,
-    );
-    if (!isMember) {
-      return { error: 'Not a member of this channel' };
-    }
-
-    // Generate clientMsgId if not provided
-    const clientMsgId = data.clientMsgId || uuidv7();
-
-    try {
-      // Use IM Worker Service HTTP API if available (new architecture)
-      if (this.imWorkerClientService) {
-        // Get workspaceId (tenantId) from channel for offline message routing
-        const channel = await this.channelsService.findById(channelId);
-        const workspaceId = channel?.tenantId ?? undefined;
-
-        const result = await this.imWorkerClientService.createMessage({
-          clientMsgId,
-          channelId,
-          senderId: socketClient.userId,
-          content,
-          parentId,
-          type: 'text',
-          workspaceId,
-        });
-
-        // Fetch the full message details for broadcast
-        const message = await this.messagesService.getMessageWithDetails(
-          result.msgId,
-        );
-
-        // Hybrid Mode: Immediately broadcast to online users via Socket.io Redis Adapter
-        // This provides low-latency delivery (~10ms) for online users
-        this.server
-          .to(`channel:${channelId}`)
-          .emit(WS_EVENTS.NEW_MESSAGE, message);
-
-        const broadcastAt = Date.now();
-
-        // Send post-broadcast task to IM Worker Service via RabbitMQ (event-driven)
-        // This handles: offline messages, unread counts, outbox completion
-        if (this.gatewayMQService?.isReady()) {
-          const postBroadcastTask: PostBroadcastTask = {
-            msgId: result.msgId,
-            channelId,
-            senderId: socketClient.userId,
-            workspaceId,
-            broadcastAt,
-          };
-
-          // Fire-and-forget: don't block response for post-broadcast processing
-          this.gatewayMQService
-            .publishPostBroadcast(postBroadcastTask)
-            .catch((err) => {
-              this.logger.warn(`Failed to publish post-broadcast task: ${err}`);
-            });
-        }
-
-        // Stop typing indicator
-        await this.handleTypingStop(client, { channelId });
-
-        // Return the persisted message info to sender
-        return {
-          success: true,
-          msgId: result.msgId,
-          seqId: result.seqId,
-          clientMsgId: result.clientMsgId,
-          status: result.status,
-        };
-      }
-
-      // Fallback to legacy direct DB write (for backwards compatibility)
-      const message = await this.messagesService.create(
-        channelId,
-        socketClient.userId,
-        {
-          content,
-          parentId,
-        },
-      );
-
-      // Broadcast to channel (legacy path)
-      this.server
-        .to(`channel:${channelId}`)
-        .emit(WS_EVENTS.NEW_MESSAGE, message);
-
-      // Stop typing indicator
-      await this.handleTypingStop(client, { channelId });
-
-      return { success: true, message };
-    } catch (error) {
-      this.logger.error(`Failed to send message: ${error}`);
-      return { error: (error as Error).message };
-    }
-  }
-
   // ==================== Read Status ====================
 
-  @SubscribeMessage(WS_EVENTS.MARK_AS_READ)
+  @SubscribeMessage(WS_EVENTS.READ_STATUS.MARK_AS_READ)
   async handleMarkAsRead(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: MarkAsReadData,
+    @MessageBody() data: MarkAsReadPayload,
   ) {
     const socketClient = client as SocketWithUser;
     const { channelId, messageId } = data;
@@ -571,7 +449,7 @@ export class WebsocketGateway
       messageId,
     );
 
-    client.to(`channel:${channelId}`).emit(WS_EVENTS.READ_STATUS_UPDATED, {
+    client.to(`channel:${channelId}`).emit(WS_EVENTS.READ_STATUS.UPDATED, {
       channelId,
       userId: socketClient.userId,
       lastReadMessageId: messageId,
@@ -582,10 +460,10 @@ export class WebsocketGateway
 
   // ==================== Typing Status ====================
 
-  @SubscribeMessage(WS_EVENTS.TYPING_START)
+  @SubscribeMessage(WS_EVENTS.TYPING.START)
   async handleTypingStart(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: ChannelData,
+    @MessageBody() data: JoinChannelPayload,
   ) {
     const socketClient = client as SocketWithUser;
     const { channelId } = data;
@@ -594,7 +472,7 @@ export class WebsocketGateway
     // Set typing status with 5s TTL
     await this.redisService.set(typingKey, '1', 5);
 
-    client.to(`channel:${channelId}`).emit(WS_EVENTS.USER_TYPING, {
+    client.to(`channel:${channelId}`).emit(WS_EVENTS.TYPING.USER_TYPING, {
       channelId,
       userId: socketClient.userId,
       username: socketClient.username,
@@ -604,10 +482,10 @@ export class WebsocketGateway
     return { success: true };
   }
 
-  @SubscribeMessage(WS_EVENTS.TYPING_STOP)
+  @SubscribeMessage(WS_EVENTS.TYPING.STOP)
   async handleTypingStop(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: ChannelData,
+    @MessageBody() data: JoinChannelPayload,
   ) {
     const socketClient = client as SocketWithUser;
     const { channelId } = data;
@@ -615,7 +493,7 @@ export class WebsocketGateway
 
     await this.redisService.del(typingKey);
 
-    client.to(`channel:${channelId}`).emit(WS_EVENTS.USER_TYPING, {
+    client.to(`channel:${channelId}`).emit(WS_EVENTS.TYPING.USER_TYPING, {
       channelId,
       userId: socketClient.userId,
       isTyping: false,
@@ -626,10 +504,10 @@ export class WebsocketGateway
 
   // ==================== Heartbeat (Ping/Pong) ====================
 
-  @SubscribeMessage(WS_EVENTS.PING)
+  @SubscribeMessage(WS_EVENTS.SYSTEM.PING)
   async handlePing(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: PingData,
+    @MessageBody() data: PingPayload,
   ): Promise<PongMessage> {
     const socketClient = client as SocketWithUser;
     const pingMessage: PingMessage = {
@@ -664,10 +542,10 @@ export class WebsocketGateway
 
   // ==================== Reactions ====================
 
-  @SubscribeMessage(WS_EVENTS.ADD_REACTION)
+  @SubscribeMessage(WS_EVENTS.REACTION.ADD)
   async handleAddReaction(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: ReactionData,
+    @MessageBody() data: AddReactionPayload,
   ) {
     const socketClient = client as SocketWithUser;
     const { messageId, emoji } = data;
@@ -680,7 +558,7 @@ export class WebsocketGateway
 
     const channelId = await this.messagesService.getMessageChannelId(messageId);
 
-    this.server.to(`channel:${channelId}`).emit(WS_EVENTS.REACTION_ADDED, {
+    this.server.to(`channel:${channelId}`).emit(WS_EVENTS.REACTION.ADDED, {
       messageId,
       userId: socketClient.userId,
       emoji,
@@ -689,10 +567,10 @@ export class WebsocketGateway
     return { success: true };
   }
 
-  @SubscribeMessage(WS_EVENTS.REMOVE_REACTION)
+  @SubscribeMessage(WS_EVENTS.REACTION.REMOVE)
   async handleRemoveReaction(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: ReactionData,
+    @MessageBody() data: AddReactionPayload,
   ) {
     const socketClient = client as SocketWithUser;
     const { messageId, emoji } = data;
@@ -705,7 +583,7 @@ export class WebsocketGateway
 
     const channelId = await this.messagesService.getMessageChannelId(messageId);
 
-    this.server.to(`channel:${channelId}`).emit(WS_EVENTS.REACTION_REMOVED, {
+    this.server.to(`channel:${channelId}`).emit(WS_EVENTS.REACTION.REMOVED, {
       messageId,
       userId: socketClient.userId,
       emoji,
@@ -716,10 +594,10 @@ export class WebsocketGateway
 
   // ==================== Message ACK (via RabbitMQ to Logic Service) ====================
 
-  @SubscribeMessage(WS_EVENTS.MESSAGE_ACK)
+  @SubscribeMessage(WS_EVENTS.SYSTEM.MESSAGE_ACK)
   async handleMessageAck(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: MessageAckData,
+    @MessageBody() data: MessageAckPayload,
   ) {
     const socketClient = client as SocketWithUser;
     const { msgId, ackType } = data;
@@ -747,7 +625,7 @@ export class WebsocketGateway
           receivedAt: Date.now(),
         });
 
-        client.emit(WS_EVENTS.MESSAGE_ACK_RESPONSE, {
+        client.emit(WS_EVENTS.SYSTEM.MESSAGE_ACK_RESPONSE, {
           msgId,
           status: 'received',
         });
@@ -760,7 +638,10 @@ export class WebsocketGateway
     }
 
     // Fallback: just acknowledge receipt
-    client.emit(WS_EVENTS.MESSAGE_ACK_RESPONSE, { msgId, status: 'received' });
+    client.emit(WS_EVENTS.SYSTEM.MESSAGE_ACK_RESPONSE, {
+      msgId,
+      status: 'received',
+    });
     return { success: true };
   }
 
@@ -788,11 +669,11 @@ export class WebsocketGateway
     messageId: string,
   ): Promise<void> {
     const message = await this.messagesService.getMessageWithDetails(messageId);
-    this.sendToChannel(channelId, WS_EVENTS.MESSAGE_UPDATED, message);
+    this.sendToChannel(channelId, WS_EVENTS.MESSAGE.UPDATED, message);
   }
 
   broadcastMessageDeleted(channelId: string, messageId: string): void {
-    this.sendToChannel(channelId, WS_EVENTS.MESSAGE_DELETED, { messageId });
+    this.sendToChannel(channelId, WS_EVENTS.MESSAGE.DELETED, { messageId });
   }
 
   // ==================== Workspace Operations ====================
@@ -805,7 +686,7 @@ export class WebsocketGateway
     this.server.to(`workspace:${workspaceId}`).emit(event, data);
   }
 
-  @SubscribeMessage(WS_EVENTS.JOIN_WORKSPACE)
+  @SubscribeMessage(WS_EVENTS.WORKSPACE.JOIN)
   async handleJoinWorkspace(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { workspaceId: string },
@@ -832,7 +713,7 @@ export class WebsocketGateway
     );
 
     // Send initial members list to the client
-    client.emit(WS_EVENTS.WORKSPACE_MEMBERS_LIST, {
+    client.emit(WS_EVENTS.WORKSPACE.MEMBERS_LIST, {
       workspaceId,
       members,
     });

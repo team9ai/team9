@@ -179,52 +179,5 @@ export interface SearchUsersParams {
   limit?: number;
 }
 
-// WebSocket event types
-export interface WSMessage {
-  channelId: string;
-  content: string;
-  parentId?: string;
-}
-
-export interface WSMarkAsRead {
-  channelId: string;
-  messageId: string;
-}
-
-export interface WSTyping {
-  channelId: string;
-}
-
-export interface WSReaction {
-  messageId: string;
-  emoji: string;
-}
-
-export interface WSUserTyping {
-  channelId: string;
-  userId: string;
-  username: string;
-  isTyping: boolean;
-}
-
-export interface WSChannelEvent {
-  channelId: string;
-}
-
-export interface WSChannelDeleted {
-  channelId: string;
-  channelName?: string;
-  deletedBy: string;
-}
-
-export interface WSChannelArchived {
-  channelId: string;
-  channelName?: string;
-  archivedBy: string;
-}
-
-export interface WSChannelUnarchived {
-  channelId: string;
-  channelName?: string;
-  unarchivedBy: string;
-}
+// WebSocket event types have been moved to @/types/ws-events.ts
+// Import from there for WebSocket related types

@@ -1,6 +1,13 @@
 # ============================================
 # Team9 Gateway Service
 # ============================================
+# Build args:
+#   EDITION: community (default) or enterprise
+#
+# Usage:
+#   docker build -f docker/gateway.Dockerfile -t team9-gateway .
+#   docker build -f docker/gateway.Dockerfile --build-arg EDITION=enterprise -t team9-gateway:enterprise .
+# ============================================
 
 FROM node:20-alpine AS base
 RUN corepack enable && corepack prepare pnpm@latest --activate
@@ -12,6 +19,7 @@ RUN apk add --no-cache libc6-compat
 FROM base AS deps
 WORKDIR /app
 
+ARG EDITION=community
 ENV NODE_ENV=development
 
 # Copy workspace config
@@ -31,6 +39,13 @@ COPY apps/server/libs/storage/package.json ./apps/server/libs/storage/
 COPY apps/server/libs/agent-framework/package.json ./apps/server/libs/agent-framework/
 COPY apps/server/libs/agent-runtime/package.json ./apps/server/libs/agent-runtime/
 
+# Copy enterprise package.json files if they exist (for enterprise builds)
+COPY enterprise/libs/tenant/package.json ./enterprise/libs/tenant/
+COPY enterprise/libs/sso/package.json ./enterprise/libs/sso/
+COPY enterprise/libs/audit/package.json ./enterprise/libs/audit/
+COPY enterprise/libs/analytics/package.json ./enterprise/libs/analytics/
+COPY enterprise/libs/license/package.json ./enterprise/libs/license/
+
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
 # ============================================
@@ -39,14 +54,20 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 FROM deps AS builder
 WORKDIR /app
 
+ARG EDITION=community
+
 # Copy source code
 COPY apps/server ./apps/server
+
+# Copy enterprise source code (for enterprise builds)
+COPY enterprise ./enterprise
 
 # Reinstall to create symlinks, ignore scripts to avoid husky
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
-# Clean tsbuildinfo and build
+# Clean tsbuildinfo and build all packages
 RUN find apps/server -name "*.tsbuildinfo" -delete && \
+    find enterprise -name "*.tsbuildinfo" -delete 2>/dev/null || true && \
     pnpm --filter '@team9/*' --filter '!@team9/server' build
 
 # Use pnpm deploy to create a standalone deployment
@@ -58,7 +79,9 @@ RUN pnpm --filter @team9/gateway deploy --prod /app/deploy
 FROM node:20-alpine AS runner
 WORKDIR /app
 
+ARG EDITION=community
 ENV NODE_ENV=production
+ENV EDITION=${EDITION}
 
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nestjs

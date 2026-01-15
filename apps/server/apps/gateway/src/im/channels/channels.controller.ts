@@ -60,7 +60,7 @@ export class ChannelsController {
     // Notify the creator about the new channel
     await this.websocketGateway.sendToUser(
       userId,
-      WS_EVENTS.CHANNEL_CREATED,
+      WS_EVENTS.CHANNEL.CREATED,
       channel,
     );
 
@@ -82,12 +82,12 @@ export class ChannelsController {
     // Notify both users about the new DM channel so they can join the room
     await this.websocketGateway.sendToUser(
       targetUserId,
-      WS_EVENTS.CHANNEL_CREATED,
+      WS_EVENTS.CHANNEL.CREATED,
       channel,
     );
     await this.websocketGateway.sendToUser(
       userId,
-      WS_EVENTS.CHANNEL_CREATED,
+      WS_EVENTS.CHANNEL.CREATED,
       channel,
     );
 
@@ -112,7 +112,19 @@ export class ChannelsController {
     @Param('id') channelId: string,
     @Body() dto: UpdateChannelDto,
   ): Promise<ChannelResponse> {
-    return this.channelsService.update(channelId, dto, userId);
+    const channel = await this.channelsService.update(channelId, dto, userId);
+
+    // Notify channel members about the update
+    this.websocketGateway.sendToChannel(channelId, WS_EVENTS.CHANNEL.UPDATED, {
+      channelId,
+      name: channel.name,
+      description: channel.description,
+      avatarUrl: channel.avatarUrl,
+      updatedBy: userId,
+      updatedAt: channel.updatedAt,
+    });
+
+    return channel;
   }
 
   @Get(':id/members')
@@ -197,7 +209,7 @@ export class ChannelsController {
       for (const memberId of memberIds) {
         await this.websocketGateway.sendToUser(
           memberId,
-          WS_EVENTS.CHANNEL_DELETED,
+          WS_EVENTS.CHANNEL.DELETED,
           {
             channelId,
             channelName: channel?.name,
@@ -213,7 +225,7 @@ export class ChannelsController {
       for (const memberId of memberIds) {
         await this.websocketGateway.sendToUser(
           memberId,
-          WS_EVENTS.CHANNEL_ARCHIVED,
+          WS_EVENTS.CHANNEL.ARCHIVED,
           {
             channelId,
             channelName: channel?.name,
@@ -241,7 +253,7 @@ export class ChannelsController {
     for (const memberId of memberIds) {
       await this.websocketGateway.sendToUser(
         memberId,
-        WS_EVENTS.CHANNEL_UNARCHIVED,
+        WS_EVENTS.CHANNEL.UNARCHIVED,
         {
           channelId,
           channelName: channel.name,
