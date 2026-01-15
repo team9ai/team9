@@ -45,14 +45,17 @@ i18n
   .use(initReactI18next)
   .init({
     resources,
-    fallbackLng: "zh",
+    fallbackLng: "en",
+    supportedLngs: ["zh", "en"],
     defaultNS: "common",
     ns: ["common", "auth", "navigation", "channel", "message", "settings"],
     interpolation: {
       escapeValue: false,
     },
     detection: {
+      // 优先使用用户保存的语言，然后是浏览器语言
       order: ["localStorage", "navigator", "htmlTag"],
+      // 用户选择语言后保存到 localStorage
       caches: ["localStorage"],
       lookupLocalStorage: "i18nextLng",
     },
