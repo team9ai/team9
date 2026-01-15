@@ -100,7 +100,7 @@ export function NewMessageDialog({ isOpen, onClose }: NewMessageDialogProps) {
                     className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors text-left disabled:opacity-50"
                   >
                     <Avatar className="w-10 h-10">
-                      <AvatarFallback className="bg-gradient-to-br from-purple-400 to-purple-600 text-white">
+                      <AvatarFallback className="bg-linear-to-br from-purple-400 to-purple-600 text-white">
                         {(user.displayName || user.username)[0].toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
