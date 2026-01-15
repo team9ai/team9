@@ -49,12 +49,14 @@ COPY enterpris[e]/libs/audit/package.json ./enterprise/libs/audit/
 COPY enterpris[e]/libs/analytics/package.json ./enterprise/libs/analytics/
 COPY enterpris[e]/libs/license/package.json ./enterprise/libs/license/
 
-# Remove enterprise from workspace if directory doesn't exist (community builds)
+# For community builds: remove enterprise from workspace and reinstall without frozen lockfile
+# For enterprise builds: use frozen lockfile as normal
 RUN if [ ! -d "enterprise" ]; then \
-      sed -i '/enterprise/d' pnpm-workspace.yaml; \
+      sed -i '/enterprise/d' pnpm-workspace.yaml && \
+      pnpm install --ignore-scripts; \
+    else \
+      pnpm install --frozen-lockfile --ignore-scripts; \
     fi
-
-RUN pnpm install --frozen-lockfile --ignore-scripts
 
 # ============================================
 # Stage: Builder
@@ -70,13 +72,14 @@ COPY apps/server ./apps/server
 # Copy enterprise source code if exists
 COPY enterpris[e] ./enterprise/
 
-# Remove enterprise from workspace if directory doesn't exist (community builds)
-RUN if [ ! -d "enterprise" ]; then \
-      sed -i '/enterprise/d' pnpm-workspace.yaml; \
-    fi
-
 # Reinstall to create symlinks, ignore scripts to avoid husky
-RUN pnpm install --frozen-lockfile --ignore-scripts
+# For community builds: don't use frozen lockfile since we removed enterprise packages
+RUN if [ ! -d "enterprise" ]; then \
+      sed -i '/enterprise/d' pnpm-workspace.yaml && \
+      pnpm install --ignore-scripts; \
+    else \
+      pnpm install --frozen-lockfile --ignore-scripts; \
+    fi
 
 # Clean tsbuildinfo and build all packages
 RUN find apps/server -name "*.tsbuildinfo" -delete && \
