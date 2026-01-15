@@ -528,7 +528,7 @@ importers:
         version: link:../../../../enterprise/libs/analytics
       "@team9/enterprise-audit":
         specifier: workspace:*
-        version: link:../../../../enterprise/libs/audit
+        version: file:enterprise/libs/audit(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)(uuid@13.0.0)
       "@team9/enterprise-license":
         specifier: workspace:*
         version: link:../../../../enterprise/libs/license
@@ -812,6 +812,9 @@ importers:
       "@nestjs/core":
         specifier: ^11.0.0
         version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      uuid:
+        specifier: ^11.0.0
+        version: 11.1.0
     devDependencies:
       "@types/node":
         specifier: ^22.0.0
@@ -5597,6 +5600,13 @@ packages:
 
   "@team9/database@file:apps/server/libs/database":
     resolution: { directory: apps/server/libs/database, type: directory }
+
+  "@team9/enterprise-audit@file:enterprise/libs/audit":
+    resolution: { directory: enterprise/libs/audit, type: directory }
+    peerDependencies:
+      "@nestjs/common": ^11.0.0
+      "@nestjs/core": ^11.0.0
+      uuid: ^11.0.0
 
   "@team9/enterprise-tenant@file:enterprise/libs/tenant":
     resolution: { directory: enterprise/libs/tenant, type: directory }
@@ -12014,6 +12024,13 @@ packages:
       }
     engines: { node: ">= 0.4.0" }
 
+  uuid@11.1.0:
+    resolution:
+      {
+        integrity: sha512-0/A9rDy9P7cJ+8w1c9WD9V//9Wj15Ce2MPz8Ri6032usz+NfePxx5AcN3bN+r6ZL6jEo066/yNYB3tn4pQEx+A==,
+      }
+    hasBin: true
+
   uuid@13.0.0:
     resolution:
       {
@@ -15927,6 +15944,13 @@ snapshots:
       - prisma
       - sql.js
       - sqlite3
+    optional: true
+
+  "@team9/enterprise-audit@file:enterprise/libs/audit(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)(uuid@13.0.0)":
+    dependencies:
+      "@nestjs/common": 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      "@nestjs/core": 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      uuid: 13.0.0
     optional: true
 
   "@team9/enterprise-tenant@file:enterprise/libs/tenant(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)(@nestjs/jwt@11.0.2(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)))(@nestjs/passport@11.0.5(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(passport@0.7.0))(@types/pg@8.16.0)(class-validator@0.14.3)(express@5.2.1)(gel@2.2.0)(passport-jwt@4.0.1)(rxjs@7.8.2)(socket.io@4.8.3)":
@@ -20449,6 +20473,8 @@ snapshots:
   util-deprecate@1.0.2: {}
 
   utils-merge@1.0.1: {}
+
+  uuid@11.1.0: {}
 
   uuid@13.0.0: {}
 
