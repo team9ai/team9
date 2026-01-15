@@ -53,11 +53,13 @@ const files = [
 
 export function FilesMainContent() {
   return (
-    <main className="flex-1 flex flex-col bg-white">
+    <main className="flex-1 flex flex-col bg-white dark:bg-background">
       {/* Content Header */}
-      <header className="h-14 bg-white flex items-center justify-between px-4">
+      <header className="h-14 bg-white dark:bg-background flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
-          <h2 className="font-semibold text-lg text-slate-900">Files</h2>
+          <h2 className="font-semibold text-lg text-slate-900 dark:text-foreground">
+            Files
+          </h2>
         </div>
 
         <div className="flex items-center gap-2">
@@ -79,9 +81,9 @@ export function FilesMainContent() {
       <Separator />
 
       {/* Files List */}
-      <ScrollArea className="flex-1 bg-slate-50">
+      <ScrollArea className="flex-1 bg-slate-50 dark:bg-background">
         <div className="p-4">
-          <div className="max-w-4xl space-y-2">
+          <div className="space-y-2">
             {files.map((file) => {
               const FileIcon = file.icon;
               return (
@@ -90,23 +92,27 @@ export function FilesMainContent() {
                   className="p-4 hover:shadow-md transition-shadow cursor-pointer"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-lg bg-purple-100 flex items-center justify-center shrink-0">
-                      <FileIcon className="w-6 h-6 text-purple-600" />
+                    <div className="w-12 h-12 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center shrink-0">
+                      <FileIcon className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-sm text-slate-900 truncate">
+                      <h3 className="font-semibold text-sm text-slate-900 dark:text-foreground truncate">
                         {file.name}
                       </h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-slate-500">
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <span className="text-xs text-slate-500 dark:text-muted-foreground">
                           {file.size}
                         </span>
-                        <span className="text-xs text-slate-400">•</span>
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-slate-400 dark:text-muted-foreground">
+                          •
+                        </span>
+                        <span className="text-xs text-slate-500 dark:text-muted-foreground">
                           Uploaded by: {file.uploadedBy}
                         </span>
-                        <span className="text-xs text-slate-400">•</span>
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-slate-400 dark:text-muted-foreground">
+                          •
+                        </span>
+                        <span className="text-xs text-slate-500 dark:text-muted-foreground">
                           {file.uploadedAt}
                         </span>
                       </div>
