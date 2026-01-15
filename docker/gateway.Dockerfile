@@ -49,6 +49,11 @@ COPY enterpris[e]/libs/audit/package.json ./enterprise/libs/audit/
 COPY enterpris[e]/libs/analytics/package.json ./enterprise/libs/analytics/
 COPY enterpris[e]/libs/license/package.json ./enterprise/libs/license/
 
+# Remove enterprise from workspace if directory doesn't exist (community builds)
+RUN if [ ! -d "enterprise" ]; then \
+      sed -i '/enterprise/d' pnpm-workspace.yaml; \
+    fi
+
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
 # ============================================
@@ -64,6 +69,11 @@ COPY apps/server ./apps/server
 
 # Copy enterprise source code if exists
 COPY enterpris[e] ./enterprise/
+
+# Remove enterprise from workspace if directory doesn't exist (community builds)
+RUN if [ ! -d "enterprise" ]; then \
+      sed -i '/enterprise/d' pnpm-workspace.yaml; \
+    fi
 
 # Reinstall to create symlinks, ignore scripts to avoid husky
 RUN pnpm install --frozen-lockfile --ignore-scripts
