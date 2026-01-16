@@ -330,29 +330,42 @@ export class ChannelsService {
     userId: string,
     role: 'owner' | 'admin' | 'member' = 'member',
   ): Promise<void> {
-    // Check if already a member
-    const existing = await this.db
+    // Check if user has any membership record (active or left)
+    const [existing] = await this.db
       .select()
       .from(schema.channelMembers)
       .where(
         and(
           eq(schema.channelMembers.channelId, channelId),
           eq(schema.channelMembers.userId, userId),
-          isNull(schema.channelMembers.leftAt),
         ),
       )
       .limit(1);
 
-    if (existing.length > 0) {
-      throw new ConflictException('User is already a member');
+    if (existing) {
+      // User has a record
+      if (existing.leftAt === null) {
+        // Still an active member
+        throw new ConflictException('User is already a member');
+      }
+      // User previously left - rejoin by clearing leftAt and updating joinedAt
+      await this.db
+        .update(schema.channelMembers)
+        .set({
+          leftAt: null,
+          joinedAt: new Date(),
+          role,
+        })
+        .where(eq(schema.channelMembers.id, existing.id));
+    } else {
+      // No existing record - insert new
+      await this.db.insert(schema.channelMembers).values({
+        id: uuidv7(),
+        channelId,
+        userId,
+        role,
+      });
     }
-
-    await this.db.insert(schema.channelMembers).values({
-      id: uuidv7(),
-      channelId,
-      userId,
-      role,
-    });
   }
 
   async removeMember(
