@@ -7,6 +7,7 @@ import { formatMessageTime } from "@/lib/date-utils";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { MessageContent } from "./MessageContent";
 import { MessageAttachments } from "./MessageAttachments";
+import { MessageContextMenu } from "./MessageContextMenu";
 
 interface MessageListProps {
   messages: Message[];
@@ -177,21 +178,111 @@ function MessageItem({
   const hasContent = Boolean(message.content?.trim());
   const hasAttachments = message.attachments && message.attachments.length > 0;
 
+  // Context menu handlers - these can be expanded later
+  const handleReply = () => {
+    console.log("Reply to message:", message.id);
+    // TODO: Implement reply functionality
+  };
+
+  const handleReplyInThread = () => {
+    console.log("Reply in thread:", message.id);
+    // TODO: Implement thread reply functionality
+  };
+
+  const handleEdit = () => {
+    console.log("Edit message:", message.id);
+    // TODO: Implement edit functionality
+  };
+
+  const handleDelete = () => {
+    console.log("Delete message:", message.id);
+    // TODO: Implement delete functionality
+  };
+
+  const handlePin = () => {
+    console.log("Pin message:", message.id);
+    // TODO: Implement pin functionality
+  };
+
   if (isOwnMessage) {
     // Own message - right aligned
     return (
-      <div className="flex justify-end gap-3 px-2 py-1">
-        <div className="flex flex-col items-end">
-          <div className="flex items-baseline gap-2 mb-1">
-            {message.isEdited && (
-              <span className="text-xs text-muted-foreground">(edited)</span>
+      <MessageContextMenu
+        message={message}
+        isOwnMessage={isOwnMessage}
+        onReply={handleReply}
+        onReplyInThread={handleReplyInThread}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        onPin={handlePin}
+      >
+        <div className="flex justify-end gap-3 px-2 py-1">
+          <div className="flex flex-col items-end">
+            <div className="flex items-baseline gap-2 mb-1">
+              {message.isEdited && (
+                <span className="text-xs text-muted-foreground">(edited)</span>
+              )}
+              <span className="text-xs text-muted-foreground">
+                {formatMessageTime(new Date(message.createdAt))}
+              </span>
+            </div>
+            {hasContent && (
+              <div className="bg-purple-600 text-white rounded-lg px-4 py-2 w-fit max-w-sm message-content-own">
+                <MessageContent
+                  content={message.content}
+                  className="text-sm whitespace-pre-wrap wrap-break-word"
+                />
+              </div>
             )}
+            {hasAttachments && (
+              <MessageAttachments
+                attachments={message.attachments!}
+                isOwnMessage={true}
+              />
+            )}
+          </div>
+          <Avatar className="w-9 h-9 shrink-0">
+            <AvatarFallback className="bg-linear-to-br from-purple-400 to-purple-600 text-white text-sm">
+              {initials.toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+        </div>
+      </MessageContextMenu>
+    );
+  }
+
+  // Other's message - left aligned
+  return (
+    <MessageContextMenu
+      message={message}
+      isOwnMessage={isOwnMessage}
+      onReply={handleReply}
+      onReplyInThread={handleReplyInThread}
+      onPin={handlePin}
+    >
+      <div className="flex gap-3 px-2 py-1">
+        <Avatar className="w-9 h-9 shrink-0">
+          <AvatarFallback className="bg-linear-to-br from-purple-400 to-purple-600 text-white text-sm">
+            {initials.toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+
+        <div className="flex flex-col items-start">
+          <div className="flex items-baseline gap-2 mb-1">
+            <span className="font-semibold text-sm">
+              {message.sender?.displayName ||
+                message.sender?.username ||
+                "Unknown User"}
+            </span>
             <span className="text-xs text-muted-foreground">
               {formatMessageTime(new Date(message.createdAt))}
             </span>
+            {message.isEdited && (
+              <span className="text-xs text-muted-foreground">(edited)</span>
+            )}
           </div>
           {hasContent && (
-            <div className="bg-purple-600 text-white rounded-lg px-4 py-2 w-fit max-w-sm message-content-own">
+            <div className="bg-slate-100 rounded-lg px-4 py-2 w-fit max-w-sm message-content-other">
               <MessageContent
                 content={message.content}
                 className="text-sm whitespace-pre-wrap wrap-break-word"
@@ -201,57 +292,11 @@ function MessageItem({
           {hasAttachments && (
             <MessageAttachments
               attachments={message.attachments!}
-              isOwnMessage={true}
+              isOwnMessage={false}
             />
           )}
         </div>
-        <Avatar className="w-9 h-9 shrink-0">
-          <AvatarFallback className="bg-linear-to-br from-purple-400 to-purple-600 text-white text-sm">
-            {initials.toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
       </div>
-    );
-  }
-
-  // Other's message - left aligned
-  return (
-    <div className="flex gap-3 px-2 py-1">
-      <Avatar className="w-9 h-9 shrink-0">
-        <AvatarFallback className="bg-linear-to-br from-purple-400 to-purple-600 text-white text-sm">
-          {initials.toUpperCase()}
-        </AvatarFallback>
-      </Avatar>
-
-      <div className="flex flex-col items-start">
-        <div className="flex items-baseline gap-2 mb-1">
-          <span className="font-semibold text-sm">
-            {message.sender?.displayName ||
-              message.sender?.username ||
-              "Unknown User"}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {formatMessageTime(new Date(message.createdAt))}
-          </span>
-          {message.isEdited && (
-            <span className="text-xs text-muted-foreground">(edited)</span>
-          )}
-        </div>
-        {hasContent && (
-          <div className="bg-slate-100 rounded-lg px-4 py-2 w-fit max-w-sm message-content-other">
-            <MessageContent
-              content={message.content}
-              className="text-sm whitespace-pre-wrap wrap-break-word"
-            />
-          </div>
-        )}
-        {hasAttachments && (
-          <MessageAttachments
-            attachments={message.attachments!}
-            isOwnMessage={false}
-          />
-        )}
-      </div>
-    </div>
+    </MessageContextMenu>
   );
 }

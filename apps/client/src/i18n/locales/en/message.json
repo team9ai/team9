@@ -21,5 +21,13 @@
   "typing": "{{user}} is typing...",
   "typingMultiple": "{{users}} are typing...",
   "markAsRead": "Mark as read",
-  "markAllAsRead": "Mark all as read"
+  "markAllAsRead": "Mark all as read",
+  "replyInThread": "Reply in thread",
+  "copyLink": "Copy link",
+  "copyMessage": "Copy message",
+  "pinMessage": "Pin message",
+  "unpinMessage": "Unpin message",
+  "deleteMessage": "Delete message...",
+  "messageCopied": "Message copied",
+  "linkCopied": "Link copied"
 }

@@ -21,5 +21,13 @@
   "typing": "{{user}} 正在输入...",
   "typingMultiple": "{{users}} 正在输入...",
   "markAsRead": "标记为已读",
-  "markAllAsRead": "全部标记为已读"
+  "markAllAsRead": "全部标记为已读",
+  "replyInThread": "在消息列中回复",
+  "copyLink": "复制链接",
+  "copyMessage": "复制消息",
+  "pinMessage": "固定消息",
+  "unpinMessage": "取消固定",
+  "deleteMessage": "删除消息...",
+  "messageCopied": "消息已复制",
+  "linkCopied": "链接已复制"
 }
