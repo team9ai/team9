@@ -53,5 +53,8 @@
   "saving": "Saving...",
   "edit": "Edit",
   "joinChannel": "Join Channel",
-  "joining": "Joining..."
+  "joining": "Joining...",
+  "leaving": "Leaving...",
+  "leaveChannelWarning": "You will no longer have access to this channel's messages and files.",
+  "leaveThisChannel": "Leave this channel"
 }

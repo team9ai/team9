@@ -7,6 +7,7 @@ import {
   Edit2,
   UserPlus,
   Search,
+  LogOut,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -21,6 +22,7 @@ import {
   useChannel,
   useChannelMembers,
   useUpdateChannel,
+  useLeaveChannel,
 } from "@/hooks/useChannels";
 import { DeleteChannelDialog } from "@/components/dialog/DeleteChannelDialog";
 import { AddMemberDialog } from "./AddMemberDialog";
@@ -46,6 +48,7 @@ export function ChannelDetailsModal({
   const { data: channel } = useChannel(channelId);
   const { data: members = [] } = useChannelMembers(channelId);
   const updateChannel = useUpdateChannel();
+  const leaveChannel = useLeaveChannel();
   const currentUser = useUser();
 
   const [activeTab, setActiveTab] = useState(defaultTab);
@@ -65,6 +68,17 @@ export function ChannelDetailsModal({
 
   const isAdmin = currentUserRole === "owner" || currentUserRole === "admin";
   const isOwner = currentUserRole === "owner";
+
+  const handleLeaveChannel = async () => {
+    try {
+      await leaveChannel.mutateAsync(channelId);
+      onClose();
+      // No need to navigate - the route page will automatically switch to PublicChannelPreviewView
+      // when publicChannels query refreshes and isMember becomes false
+    } catch (error) {
+      console.error("Failed to leave channel:", error);
+    }
+  };
 
   const handleStartEdit = () => {
     if (!channel) return;
@@ -127,9 +141,7 @@ export function ChannelDetailsModal({
                 <TabsTrigger value="members">
                   {t("members", { count: members.length })}
                 </TabsTrigger>
-                {isAdmin && (
-                  <TabsTrigger value="settings">{t("settings")}</TabsTrigger>
-                )}
+                <TabsTrigger value="settings">{t("settings")}</TabsTrigger>
               </TabsList>
             </div>
 
@@ -310,36 +322,53 @@ export function ChannelDetailsModal({
               </TabsContent>
 
               {/* Settings Tab */}
-              {isAdmin && (
-                <TabsContent value="settings" className="px-6 pb-6 mt-0">
-                  <div className="space-y-6 pt-4">
-                    <div className="flex items-center gap-3">
-                      <Settings size={18} className="text-slate-500" />
-                      <h3 className="font-medium">{t("channelSettings")}</h3>
-                    </div>
-
-                    {/* Danger Zone */}
-                    {isOwner && (
-                      <div className="space-y-4 p-4 border border-red-200 rounded-lg bg-red-50/50">
-                        <h4 className="font-medium text-red-600">
-                          {t("dangerZone")}
-                        </h4>
-                        <p className="text-sm text-slate-600">
-                          {t("deleteChannelWarning")}
-                        </p>
-                        <Button
-                          variant="outline"
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                          onClick={() => setShowDeleteDialog(true)}
-                        >
-                          <Trash2 size={16} className="mr-2" />
-                          {t("deleteThisChannel")}
-                        </Button>
-                      </div>
-                    )}
+              <TabsContent value="settings" className="px-6 pb-6 mt-0">
+                <div className="space-y-6 pt-4">
+                  <div className="flex items-center gap-3">
+                    <Settings size={18} className="text-slate-500" />
+                    <h3 className="font-medium">{t("channelSettings")}</h3>
                   </div>
-                </TabsContent>
-              )}
+
+                  {/* Leave Channel - visible to non-owners */}
+                  {!isOwner && (
+                    <div className="space-y-4 p-4 border border-slate-200 rounded-lg">
+                      <p className="text-sm text-slate-600">
+                        {t("leaveChannelWarning")}
+                      </p>
+                      <Button
+                        variant="outline"
+                        onClick={handleLeaveChannel}
+                        disabled={leaveChannel.isPending}
+                      >
+                        <LogOut size={16} className="mr-2" />
+                        {leaveChannel.isPending
+                          ? t("leaving")
+                          : t("leaveThisChannel")}
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Delete Channel - only visible to owner */}
+                  {isOwner && (
+                    <div className="space-y-4 p-4 border border-red-200 rounded-lg bg-red-50/50">
+                      <h4 className="font-medium text-red-600">
+                        {t("dangerZone")}
+                      </h4>
+                      <p className="text-sm text-slate-600">
+                        {t("deleteChannelWarning")}
+                      </p>
+                      <Button
+                        variant="outline"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                        onClick={() => setShowDeleteDialog(true)}
+                      >
+                        <Trash2 size={16} className="mr-2" />
+                        {t("deleteThisChannel")}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
             </ScrollArea>
           </Tabs>
         </DialogContent>

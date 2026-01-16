@@ -53,5 +53,8 @@
   "saving": "保存中...",
   "edit": "编辑",
   "joinChannel": "加入频道",
-  "joining": "加入中..."
+  "joining": "加入中...",
+  "leaving": "离开中...",
+  "leaveChannelWarning": "离开后，你将无法访问此频道的消息和文件。",
+  "leaveThisChannel": "离开此频道"
 }

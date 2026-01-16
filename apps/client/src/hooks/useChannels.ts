@@ -318,6 +318,29 @@ export function useJoinChannel() {
 }
 
 /**
+ * Hook to leave a channel
+ */
+export function useLeaveChannel() {
+  const queryClient = useQueryClient();
+  const workspaceId = useSelectedWorkspaceId();
+
+  return useMutation({
+    mutationFn: (channelId: string) => imApi.channels.leaveChannel(channelId),
+    onSuccess: (_, channelId) => {
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
+      queryClient.invalidateQueries({
+        queryKey: ["publicChannels", workspaceId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["channels", channelId] });
+      queryClient.invalidateQueries({
+        queryKey: ["channelMembers", channelId],
+      });
+    },
+  });
+}
+
+/**
  * Hook to check channel membership from publicChannels cache
  * Returns { isMember, isLoading, channel } for the given channelId
  */
