@@ -17,7 +17,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useState } from "react";
-import { useChannelsByType } from "@/hooks/useChannels";
+import { useChannelsByType, usePublicChannels } from "@/hooks/useChannels";
 import { useOnlineUsers } from "@/hooks/useIMUsers";
 import { Link, useParams } from "@tanstack/react-router";
 import { NewMessageDialog } from "@/components/dialog/NewMessageDialog";
@@ -52,16 +52,28 @@ export function HomeSubSidebar() {
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
 
   const {
-    publicChannels = [],
+    publicChannels: myPublicChannels = [],
     privateChannels = [],
     directChannels = [],
     isLoading,
   } = useChannelsByType();
+  const { data: allPublicChannels = [], isLoading: isLoadingPublic } =
+    usePublicChannels();
   const { data: onlineUsers = {} } = useOnlineUsers();
   const params = useParams({ strict: false });
   const selectedChannelId = (params as { channelId?: string }).channelId;
 
-  const allChannels = [...publicChannels, ...privateChannels];
+  // Merge my public channels (with unread counts) with all public channels
+  // Show all public channels, but use the unreadCount from myPublicChannels if available
+  const publicChannelsWithStatus = allPublicChannels.map((channel) => {
+    const myChannel = myPublicChannels.find((ch) => ch.id === channel.id);
+    return {
+      ...channel,
+      unreadCount: myChannel?.unreadCount || 0,
+    };
+  });
+
+  const allChannels = [...publicChannelsWithStatus, ...privateChannels];
 
   // Extract users from direct channels
   const directMessageUsers = directChannels.map((channel) => {
@@ -165,7 +177,7 @@ export function HomeSubSidebar() {
             </div>
             {channelsExpanded && (
               <div className="ml-4 mt-1 space-y-0.5">
-                {isLoading ? (
+                {isLoading || isLoadingPublic ? (
                   <p className="text-xs text-white/50 px-2 py-1">
                     {tCommon("loading")}
                   </p>
@@ -177,6 +189,8 @@ export function HomeSubSidebar() {
                   allChannels.map((channel) => {
                     const ChannelIcon =
                       channel.type === "private" ? Lock : Hash;
+                    const isMember =
+                      "isMember" in channel ? channel.isMember : true;
                     return (
                       <Link
                         key={channel.id}
@@ -186,10 +200,14 @@ export function HomeSubSidebar() {
                         <Button
                           variant="ghost"
                           className={cn(
-                            "w-full justify-start gap-2 px-2 h-auto py-1.5 text-sm text-white/80 hover:bg-white/10 hover:text-white",
+                            "w-full justify-start gap-2 px-2 h-auto py-1.5 text-sm hover:bg-white/10 hover:text-white",
+                            isMember ? "text-white/80" : "text-white/50 italic",
                           )}
                         >
-                          <ChannelIcon size={16} />
+                          <ChannelIcon
+                            size={16}
+                            className={cn(!isMember && "opacity-50")}
+                          />
                           <span className="truncate flex-1 text-left">
                             {channel.name}
                           </span>

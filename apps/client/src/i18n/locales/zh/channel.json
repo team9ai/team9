@@ -51,5 +51,7 @@
   "deleteThisChannel": "删除此频道",
   "save": "保存",
   "saving": "保存中...",
-  "edit": "编辑"
+  "edit": "编辑",
+  "joinChannel": "加入频道",
+  "joining": "加入中..."
 }

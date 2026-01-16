@@ -16,10 +16,15 @@ interface ChannelViewProps {
   channelId: string;
 }
 
+/**
+ * ChannelView - Only renders for channel members
+ * For non-members, use PublicChannelPreviewView instead
+ */
 export function ChannelView({ channelId }: ChannelViewProps) {
   const { data: channel, isLoading: channelLoading } = useChannel(channelId);
   const { data: members = [] } = useChannelMembers(channelId);
   const currentUser = useUser();
+
   const {
     data: messagesData,
     isLoading: messagesLoading,

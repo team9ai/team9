@@ -18,6 +18,7 @@ import type {
   UpdateUserStatusDto,
   GetMessagesParams,
   SearchUsersParams,
+  PublicChannelPreview,
 } from "@/types/im";
 
 // Channels API
@@ -122,6 +123,29 @@ export const channelsApi = {
       `/v1/im/channels/${channelId}/unarchive`,
     );
     return response.data;
+  },
+
+  // Get all public channels in workspace
+  getPublicChannels: async (): Promise<PublicChannelPreview[]> => {
+    const response = await http.get<PublicChannelPreview[]>(
+      "/v1/im/channels/public",
+    );
+    return response.data;
+  },
+
+  // Get public channel preview (for non-members)
+  getChannelPreview: async (
+    channelId: string,
+  ): Promise<PublicChannelPreview> => {
+    const response = await http.get<PublicChannelPreview>(
+      `/v1/im/channels/${channelId}/preview`,
+    );
+    return response.data;
+  },
+
+  // Join a public channel
+  joinChannel: async (channelId: string): Promise<void> => {
+    await http.post(`/v1/im/channels/${channelId}/join`);
   },
 };
 

@@ -51,5 +51,7 @@
   "deleteThisChannel": "Delete this channel",
   "save": "Save",
   "saving": "Saving...",
-  "edit": "Edit"
+  "edit": "Edit",
+  "joinChannel": "Join Channel",
+  "joining": "Joining..."
 }

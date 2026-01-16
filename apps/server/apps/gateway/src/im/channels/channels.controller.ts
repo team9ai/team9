@@ -49,6 +49,14 @@ export class ChannelsController {
     return this.channelsService.getUserChannels(userId, tenantId);
   }
 
+  @Get('public')
+  async getPublicChannels(
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string | undefined,
+  ) {
+    return this.channelsService.getPublicChannels(tenantId, userId);
+  }
+
   @Post()
   async createChannel(
     @CurrentUser('sub') userId: string,
@@ -57,12 +65,21 @@ export class ChannelsController {
   ): Promise<ChannelResponse> {
     const channel = await this.channelsService.create(dto, userId, tenantId);
 
-    // Notify the creator about the new channel
-    await this.websocketGateway.sendToUser(
-      userId,
-      WS_EVENTS.CHANNEL.CREATED,
-      channel,
-    );
+    // For public channels, broadcast to entire workspace so everyone sees the new channel
+    if (dto.type === 'public' && tenantId) {
+      await this.websocketGateway.broadcastToWorkspace(
+        tenantId,
+        WS_EVENTS.CHANNEL.CREATED,
+        channel,
+      );
+    } else {
+      // For private/direct channels, only notify the creator
+      await this.websocketGateway.sendToUser(
+        userId,
+        WS_EVENTS.CHANNEL.CREATED,
+        channel,
+      );
+    }
 
     return channel;
   }
@@ -104,6 +121,46 @@ export class ChannelsController {
       throw new ForbiddenException('Access denied');
     }
     return this.channelsService.findByIdOrThrow(channelId, userId);
+  }
+
+  @Get(':id/preview')
+  async getChannelPreview(
+    @CurrentUser('sub') userId: string,
+    @Param('id') channelId: string,
+  ) {
+    const preview = await this.channelsService.getPublicChannelPreview(
+      channelId,
+      userId,
+    );
+    if (!preview) {
+      throw new ForbiddenException(
+        'Channel not found or not publicly accessible',
+      );
+    }
+    return preview;
+  }
+
+  @Post(':id/join')
+  async joinChannel(
+    @CurrentUser('sub') userId: string,
+    @Param('id') channelId: string,
+  ): Promise<{ success: boolean }> {
+    await this.channelsService.joinPublicChannel(channelId, userId);
+
+    // Get the channel to send to the user
+    const channel = await this.channelsService.findByIdOrThrow(
+      channelId,
+      userId,
+    );
+
+    // Notify the user about the joined channel
+    await this.websocketGateway.sendToUser(
+      userId,
+      WS_EVENTS.CHANNEL.CREATED,
+      channel,
+    );
+
+    return { success: true };
   }
 
   @Patch(':id')

@@ -28,26 +28,44 @@ export function useChannels() {
   useEffect(() => {
     const handleChannelJoined = () => {
       queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
+      queryClient.invalidateQueries({
+        queryKey: ["publicChannels", workspaceId],
+      });
     };
 
     const handleChannelLeft = () => {
       queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
+      queryClient.invalidateQueries({
+        queryKey: ["publicChannels", workspaceId],
+      });
     };
 
     const handleChannelCreated = () => {
       queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
+      queryClient.invalidateQueries({
+        queryKey: ["publicChannels", workspaceId],
+      });
     };
 
     const handleChannelDeleted = () => {
       queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
+      queryClient.invalidateQueries({
+        queryKey: ["publicChannels", workspaceId],
+      });
     };
 
     const handleChannelArchived = () => {
       queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
+      queryClient.invalidateQueries({
+        queryKey: ["publicChannels", workspaceId],
+      });
     };
 
     const handleChannelUnarchived = () => {
       queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
+      queryClient.invalidateQueries({
+        queryKey: ["publicChannels", workspaceId],
+      });
     };
 
     wsService.on("channel_joined", handleChannelJoined);
@@ -78,6 +96,8 @@ export function useChannel(channelId: string | undefined) {
     queryKey: ["channels", channelId],
     queryFn: () => imApi.channels.getChannel(channelId!),
     enabled: !!channelId,
+    // Don't retry on 403 (user is not a member)
+    retry: false,
   });
 }
 
@@ -225,6 +245,8 @@ export function useChannelMembers(channelId: string | undefined) {
     queryKey: ["channels", channelId, "members"],
     queryFn: () => imApi.channels.getMembers(channelId!),
     enabled: !!channelId,
+    // Don't retry on 403 (user is not a member)
+    retry: false,
   });
 }
 
@@ -245,4 +267,70 @@ export function useAddChannelMember(channelId: string) {
       queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
     },
   });
+}
+
+/**
+ * Hook to fetch all public channels in workspace
+ */
+export function usePublicChannels() {
+  const workspaceId = useSelectedWorkspaceId();
+
+  return useQuery({
+    queryKey: ["publicChannels", workspaceId],
+    queryFn: () => imApi.channels.getPublicChannels(),
+    staleTime: 30000,
+    enabled: !!workspaceId,
+  });
+}
+
+/**
+ * Hook to get public channel preview (for non-members)
+ */
+export function useChannelPreview(channelId: string | undefined) {
+  return useQuery({
+    queryKey: ["channelPreview", channelId],
+    queryFn: () => imApi.channels.getChannelPreview(channelId!),
+    enabled: !!channelId,
+  });
+}
+
+/**
+ * Hook to join a public channel
+ */
+export function useJoinChannel() {
+  const queryClient = useQueryClient();
+  const workspaceId = useSelectedWorkspaceId();
+
+  return useMutation({
+    mutationFn: (channelId: string) => imApi.channels.joinChannel(channelId),
+    onSuccess: (_, channelId) => {
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
+      queryClient.invalidateQueries({
+        queryKey: ["publicChannels", workspaceId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["channelPreview", channelId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["channels", channelId] });
+    },
+  });
+}
+
+/**
+ * Hook to check channel membership from publicChannels cache
+ * Returns { isMember, isLoading, channel } for the given channelId
+ */
+export function useChannelMembership(channelId: string | undefined) {
+  const { data: publicChannels = [], isLoading } = usePublicChannels();
+
+  const channel = channelId
+    ? publicChannels.find((ch) => ch.id === channelId)
+    : undefined;
+
+  return {
+    isMember: channel?.isMember ?? null, // null means unknown (channel not in list or still loading)
+    isLoading,
+    channel,
+  };
 }

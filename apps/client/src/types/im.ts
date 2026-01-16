@@ -44,6 +44,11 @@ export interface ChannelWithUnread extends Channel {
   };
 }
 
+export interface PublicChannelPreview extends Channel {
+  isMember: boolean;
+  memberCount: number;
+}
+
 export interface ChannelMember {
   id: string;
   channelId: string;
