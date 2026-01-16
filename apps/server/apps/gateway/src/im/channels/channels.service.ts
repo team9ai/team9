@@ -576,6 +576,111 @@ export class ChannelsService {
   }
 
   /**
+   * Get all public channels in a workspace/tenant (for browsing)
+   * Returns channels with membership status for the requesting user
+   * Optimized: Uses subqueries to avoid N+1 query problem
+   */
+  async getPublicChannels(
+    tenantId: string | undefined,
+    userId: string,
+  ): Promise<(ChannelResponse & { isMember: boolean; memberCount: number })[]> {
+    const result = await this.db
+      .select({
+        id: schema.channels.id,
+        tenantId: schema.channels.tenantId,
+        name: schema.channels.name,
+        description: schema.channels.description,
+        type: schema.channels.type,
+        avatarUrl: schema.channels.avatarUrl,
+        createdBy: schema.channels.createdBy,
+        isArchived: schema.channels.isArchived,
+        createdAt: schema.channels.createdAt,
+        updatedAt: schema.channels.updatedAt,
+        memberCount: sql<number>`(
+          SELECT COUNT(*)::int
+          FROM im_channel_members
+          WHERE channel_id = im_channels.id
+          AND left_at IS NULL
+        )`,
+        isMember: sql<boolean>`EXISTS (
+          SELECT 1
+          FROM im_channel_members
+          WHERE channel_id = im_channels.id
+          AND user_id = ${userId}
+          AND left_at IS NULL
+        )`,
+      })
+      .from(schema.channels)
+      .where(
+        and(
+          eq(schema.channels.type, 'public'),
+          eq(schema.channels.isArchived, false),
+          tenantId ? eq(schema.channels.tenantId, tenantId) : undefined,
+        ),
+      );
+
+    return result;
+  }
+
+  /**
+   * Get public channel details (for non-members to preview)
+   */
+  async getPublicChannelPreview(
+    channelId: string,
+    userId: string,
+  ): Promise<
+    (ChannelResponse & { isMember: boolean; memberCount: number }) | null
+  > {
+    const [channel] = await this.db
+      .select()
+      .from(schema.channels)
+      .where(
+        and(
+          eq(schema.channels.id, channelId),
+          eq(schema.channels.type, 'public'),
+        ),
+      )
+      .limit(1);
+
+    if (!channel) {
+      return null;
+    }
+
+    const isMember = await this.isMember(channelId, userId);
+    const memberCount = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(schema.channelMembers)
+      .where(
+        and(
+          eq(schema.channelMembers.channelId, channelId),
+          isNull(schema.channelMembers.leftAt),
+        ),
+      )
+      .then((result) => Number(result[0]?.count || 0));
+
+    return {
+      ...channel,
+      isMember,
+      memberCount,
+    };
+  }
+
+  /**
+   * Join a public channel (self-join)
+   */
+  async joinPublicChannel(channelId: string, userId: string): Promise<void> {
+    const channel = await this.findById(channelId);
+    if (!channel) {
+      throw new NotFoundException('Channel not found');
+    }
+    if (channel.type !== 'public') {
+      throw new ForbiddenException('Can only self-join public channels');
+    }
+
+    await this.addMember(channelId, userId, 'member');
+  }
+
+  /**
    * Normalize channel name (supports Unicode)
    */
   static normalizeChannelName(name: string): string {
