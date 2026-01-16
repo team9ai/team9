@@ -8,6 +8,13 @@
       "when": 1768030334915,
       "tag": "0000_lowly_professor_monster",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1768556752139,
+      "tag": "0001_sparkling_power_man",
+      "breakpoints": true
     }
   ]
 }

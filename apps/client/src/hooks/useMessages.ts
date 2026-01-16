@@ -40,6 +40,35 @@ export function useMessages(channelId: string | undefined) {
     const handleNewMessage = (message: Message) => {
       if (message.channelId !== channelId) return;
 
+      // If message is a reply (has parentId), don't add to main message list
+      // Instead, invalidate thread query and update parent's replyCount
+      if (message.parentId) {
+        // Invalidate the thread query to refresh thread panel immediately
+        const rootId = message.rootId || message.parentId;
+        queryClient.invalidateQueries({
+          queryKey: ["thread", rootId],
+          refetchType: "all",
+        });
+
+        // Update the parent message's replyCount in the main list
+        queryClient.setQueryData(["messages", channelId], (old: any) => {
+          if (!old) return old;
+
+          return {
+            ...old,
+            pages: old.pages.map((page: Message[]) =>
+              page.map((msg) => {
+                if (msg.id === rootId) {
+                  return { ...msg, replyCount: (msg.replyCount || 0) + 1 };
+                }
+                return msg;
+              }),
+            ),
+          };
+        });
+        return;
+      }
+
       queryClient.setQueryData(["messages", channelId], (old: any) => {
         if (!old) return { pages: [[message]], pageParams: [undefined] };
 

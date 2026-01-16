@@ -89,6 +89,7 @@ export interface Message {
   channelId: string;
   senderId: string;
   parentId?: string;
+  rootId?: string;
   content: string;
   type: MessageType;
   metadata?: Record<string, any>;
@@ -101,6 +102,18 @@ export interface Message {
   attachments?: MessageAttachment[];
   reactions?: MessageReaction[];
   replyCount?: number;
+}
+
+// Thread response types for nested replies (max 2 levels)
+export interface ThreadReply extends Message {
+  subReplies: Message[];
+  subReplyCount: number;
+}
+
+export interface ThreadResponse {
+  rootMessage: Message;
+  replies: ThreadReply[];
+  totalReplyCount: number;
 }
 
 export interface Mention {

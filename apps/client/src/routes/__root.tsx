@@ -24,8 +24,8 @@ function RootComponent() {
   return (
     <>
       <Outlet />
-      <ReactQueryDevtools />
-      <TanStackRouterDevtools position="bottom-right" />
+      {/* <ReactQueryDevtools />
+      <TanStackRouterDevtools position="bottom-right" /> */}
     </>
   );
 }

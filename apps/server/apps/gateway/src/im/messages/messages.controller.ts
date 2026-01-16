@@ -15,7 +15,11 @@ import {
   Logger,
 } from '@nestjs/common';
 import { v7 as uuidv7 } from 'uuid';
-import { MessagesService, MessageResponse } from './messages.service.js';
+import {
+  MessagesService,
+  MessageResponse,
+  ThreadResponse,
+} from './messages.service.js';
 import {
   CreateMessageDto,
   UpdateMessageDto,
@@ -207,8 +211,31 @@ export class MessagesController {
     return { success: true };
   }
 
+  /**
+   * Get thread with nested replies (max 2 levels)
+   */
   @Get('messages/:id/thread')
-  async getThreadReplies(
+  async getThread(
+    @CurrentUser('sub') userId: string,
+    @Param('id') messageId: string,
+    @Query('limit') limit?: string,
+  ): Promise<ThreadResponse> {
+    const channelId = await this.messagesService.getMessageChannelId(messageId);
+    const isMember = await this.channelsService.isMember(channelId, userId);
+    if (!isMember) {
+      throw new ForbiddenException('Access denied');
+    }
+    return this.messagesService.getThread(
+      messageId,
+      limit ? parseInt(limit, 10) : 50,
+    );
+  }
+
+  /**
+   * Get all sub-replies for a first-level reply (for expanding collapsed replies)
+   */
+  @Get('messages/:id/sub-replies')
+  async getSubReplies(
     @CurrentUser('sub') userId: string,
     @Param('id') messageId: string,
     @Query('limit') limit?: string,
@@ -218,7 +245,7 @@ export class MessagesController {
     if (!isMember) {
       throw new ForbiddenException('Access denied');
     }
-    return this.messagesService.getThreadReplies(
+    return this.messagesService.getSubReplies(
       messageId,
       limit ? parseInt(limit, 10) : 50,
     );

@@ -96,8 +96,10 @@ export interface NewMessageEvent {
   channelId: string;
   /** Sender user ID */
   senderId: string;
-  /** Parent message ID (thread reply) */
+  /** Parent message ID (direct parent for replies) */
   parentId?: string;
+  /** Root message ID (thread root, for efficient querying) */
+  rootId?: string;
   /** Message content */
   content: string;
   /** Message type */
@@ -147,8 +149,10 @@ export interface MessageUpdatedEvent {
   channelId: string;
   /** Sender user ID */
   senderId: string;
-  /** Parent message ID */
+  /** Parent message ID (direct parent for replies) */
   parentId?: string;
+  /** Root message ID (thread root) */
+  rootId?: string;
   /** Updated message content */
   content: string;
   /** Message type */

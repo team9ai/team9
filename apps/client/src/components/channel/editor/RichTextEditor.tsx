@@ -24,6 +24,8 @@ interface RichTextEditorProps {
   disabled?: boolean;
   placeholder?: string;
   className?: string;
+  /** Compact mode for thread panel - smaller height, no toolbar */
+  compact?: boolean;
   // File upload props
   onFileSelect?: (files: FileList) => void;
   uploadingFiles?: UploadingFile[];
@@ -69,6 +71,7 @@ export function RichTextEditor({
   disabled = false,
   placeholder = "Type a message... (Enter to send, Shift+Enter for new line)",
   className,
+  compact = false,
   onFileSelect,
   uploadingFiles = [],
   onRemoveFile,
@@ -96,15 +99,20 @@ export function RichTextEditor({
   return (
     <LexicalComposer initialConfig={initialConfig}>
       <div className={cn("relative", className)}>
-        <EditorToolbar onFileSelect={onFileSelect} />
+        {!compact && <EditorToolbar onFileSelect={onFileSelect} />}
 
-        <div className="relative min-h-[80px] max-h-[200px] overflow-y-auto">
+        <div
+          className={cn(
+            "relative overflow-y-auto",
+            compact ? "min-h-10 max-h-30" : "min-h-20 max-h-50",
+          )}
+        >
           <RichTextPlugin
             contentEditable={
               <ContentEditable
                 className={cn(
                   "outline-none text-sm leading-relaxed",
-                  "min-h-[80px] px-0 py-0",
+                  compact ? "min-h-10 px-0 py-0" : "min-h-20 px-0 py-0",
                   disabled && "opacity-50 cursor-not-allowed",
                 )}
                 aria-placeholder={placeholder}

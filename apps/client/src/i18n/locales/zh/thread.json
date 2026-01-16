@@ -1,0 +1,10 @@
+{
+  "title": "消息列",
+  "loading": "加载消息列中...",
+  "error": "加载失败",
+  "repliesCount": "{{count}} 条回复",
+  "showMoreReplies": "查看更多 {{count}} 条回复",
+  "hideReplies": "收起回复",
+  "replyingTo": "回复",
+  "inputPlaceholder": "在消息列中回复..."
+}

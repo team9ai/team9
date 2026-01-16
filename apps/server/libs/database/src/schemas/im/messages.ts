@@ -30,7 +30,12 @@ export const messages = pgTable(
     senderId: uuid('sender_id').references(() => users.id, {
       onDelete: 'set null',
     }),
+    // Thread support: parentId = direct parent, rootId = thread root message
+    // Root message: parentId = null, rootId = null
+    // First-level reply: parentId = rootId (both point to root message)
+    // Second-level reply: parentId = first-level reply, rootId = root message
     parentId: uuid('parent_id'),
+    rootId: uuid('root_id'),
     content: text('content'),
     type: messageTypeEnum('type').default('text').notNull(),
     metadata: jsonb('metadata'),
@@ -56,6 +61,7 @@ export const messages = pgTable(
     index('idx_messages_channel_id').on(table.channelId),
     index('idx_messages_sender_id').on(table.senderId),
     index('idx_messages_parent_id').on(table.parentId),
+    index('idx_messages_root_id').on(table.rootId),
     index('idx_messages_created_at').on(table.createdAt),
     // New indexes for distributed architecture
     index('idx_messages_seq_id').on(table.channelId, table.seqId),

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Loader2 } from "lucide-react";
+import { Loader2, MessageSquare } from "lucide-react";
 import type { Message } from "@/types/im";
 import { formatMessageTime } from "@/lib/date-utils";
 import { useCurrentUser } from "@/hooks/useAuth";
+import { useThreadStore } from "@/hooks/useThread";
 import { MessageContent } from "./MessageContent";
 import { MessageAttachments } from "./MessageAttachments";
 import { MessageContextMenu } from "./MessageContextMenu";
@@ -157,7 +159,13 @@ function MessageItem({
   message: Message;
   currentUserId?: string;
 }) {
+  const { t } = useTranslation("thread");
+  const openThread = useThreadStore((state) => state.openThread);
   const isOwnMessage = currentUserId === message.senderId;
+
+  // Only show reply count for root messages (messages without parentId)
+  const hasReplies =
+    !message.parentId && message.replyCount && message.replyCount > 0;
 
   if (message.isDeleted) {
     return (
@@ -185,8 +193,7 @@ function MessageItem({
   };
 
   const handleReplyInThread = () => {
-    console.log("Reply in thread:", message.id);
-    // TODO: Implement thread reply functionality
+    openThread(message.id);
   };
 
   const handleEdit = () => {
@@ -202,6 +209,20 @@ function MessageItem({
   const handlePin = () => {
     console.log("Pin message:", message.id);
     // TODO: Implement pin functionality
+  };
+
+  // Reply count indicator component
+  const ReplyCountIndicator = () => {
+    if (!hasReplies) return null;
+    return (
+      <button
+        onClick={handleReplyInThread}
+        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 mt-1"
+      >
+        <MessageSquare size={14} />
+        <span>{t("repliesCount", { count: message.replyCount })}</span>
+      </button>
+    );
   };
 
   if (isOwnMessage) {
@@ -240,6 +261,7 @@ function MessageItem({
                 isOwnMessage={true}
               />
             )}
+            <ReplyCountIndicator />
           </div>
           <Avatar className="w-9 h-9 shrink-0">
             <AvatarFallback className="bg-linear-to-br from-purple-400 to-purple-600 text-white text-sm">
@@ -295,6 +317,7 @@ function MessageItem({
               isOwnMessage={false}
             />
           )}
+          <ReplyCountIndicator />
         </div>
       </div>
     </MessageContextMenu>

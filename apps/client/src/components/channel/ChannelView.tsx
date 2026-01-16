@@ -7,9 +7,11 @@ import {
   useChannelMembers,
 } from "@/hooks/useChannels";
 import { useUser } from "@/stores";
+import { useThreadStore } from "@/hooks/useThread";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import { ChannelHeader } from "./ChannelHeader";
+import { ThreadPanel } from "./ThreadPanel";
 import type { AttachmentDto } from "@/types/im";
 
 interface ChannelViewProps {
@@ -24,6 +26,7 @@ export function ChannelView({ channelId }: ChannelViewProps) {
   const { data: channel, isLoading: channelLoading } = useChannel(channelId);
   const { data: members = [] } = useChannelMembers(channelId);
   const currentUser = useUser();
+  const isThreadOpen = useThreadStore((state) => state.isOpen);
 
   const {
     data: messagesData,
@@ -86,23 +89,29 @@ export function ChannelView({ channelId }: ChannelViewProps) {
   }
 
   return (
-    <div className="h-full flex flex-col">
-      <ChannelHeader channel={channel} currentUserRole={currentUserRole} />
+    <div className="h-full flex">
+      {/* Main channel content */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <ChannelHeader channel={channel} currentUserRole={currentUserRole} />
 
-      <MessageList
-        messages={messages}
-        isLoading={isFetchingNextPage}
-        onLoadMore={() => {
-          if (hasNextPage) fetchNextPage();
-        }}
-        hasMore={hasNextPage}
-      />
+        <MessageList
+          messages={messages}
+          isLoading={isFetchingNextPage}
+          onLoadMore={() => {
+            if (hasNextPage) fetchNextPage();
+          }}
+          hasMore={hasNextPage}
+        />
 
-      <MessageInput
-        channelId={channelId}
-        onSend={handleSendMessage}
-        disabled={sendMessage.isPending}
-      />
+        <MessageInput
+          channelId={channelId}
+          onSend={handleSendMessage}
+          disabled={sendMessage.isPending}
+        />
+      </div>
+
+      {/* Thread panel sidebar */}
+      {isThreadOpen && <ThreadPanel />}
     </div>
   );
 }

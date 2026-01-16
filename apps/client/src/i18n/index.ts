@@ -8,6 +8,7 @@ import zhNavigation from "./locales/zh/navigation.json";
 import zhChannel from "./locales/zh/channel.json";
 import zhMessage from "./locales/zh/message.json";
 import zhSettings from "./locales/zh/settings.json";
+import zhThread from "./locales/zh/thread.json";
 
 import enCommon from "./locales/en/common.json";
 import enAuth from "./locales/en/auth.json";
@@ -15,6 +16,7 @@ import enNavigation from "./locales/en/navigation.json";
 import enChannel from "./locales/en/channel.json";
 import enMessage from "./locales/en/message.json";
 import enSettings from "./locales/en/settings.json";
+import enThread from "./locales/en/thread.json";
 
 export const resources = {
   zh: {
@@ -24,6 +26,7 @@ export const resources = {
     channel: zhChannel,
     message: zhMessage,
     settings: zhSettings,
+    thread: zhThread,
   },
   en: {
     common: enCommon,
@@ -32,6 +35,7 @@ export const resources = {
     channel: enChannel,
     message: enMessage,
     settings: enSettings,
+    thread: enThread,
   },
 };
 
@@ -48,7 +52,15 @@ i18n
     fallbackLng: "en",
     supportedLngs: ["zh", "en"],
     defaultNS: "common",
-    ns: ["common", "auth", "navigation", "channel", "message", "settings"],
+    ns: [
+      "common",
+      "auth",
+      "navigation",
+      "channel",
+      "message",
+      "settings",
+      "thread",
+    ],
     interpolation: {
       escapeValue: false,
     },

@@ -191,12 +191,26 @@ export class MessageService {
   ): Promise<void> {
     const payload = message.payload as TextMessagePayload;
 
+    // Calculate rootId based on parentId
+    let rootId: string | null = null;
+    if (payload.parentId) {
+      const parentInfo = await this.getParentMessageInfo(payload.parentId);
+      if (parentInfo.rootId) {
+        // Parent is already a reply, use its rootId
+        rootId = parentInfo.rootId;
+      } else {
+        // Parent is a root message, so this is a first-level reply
+        rootId = payload.parentId;
+      }
+    }
+
     await this.db.insert(schema.messages).values({
       id: message.msgId,
       channelId: message.targetId,
       senderId,
       content: payload.content,
       parentId: payload.parentId,
+      rootId,
       type: message.type as 'text' | 'file' | 'image' | 'system',
       seqId: message.seqId,
       clientMsgId: message.clientMsgId,
@@ -205,6 +219,31 @@ export class MessageService {
 
     // Cache recent message
     await this.cacheRecentMessage(message.targetId, message);
+  }
+
+  /**
+   * Get parent message info for calculating rootId
+   */
+  private async getParentMessageInfo(
+    messageId: string,
+  ): Promise<{ parentId: string | null; rootId: string | null }> {
+    const [message] = await this.db
+      .select({
+        parentId: schema.messages.parentId,
+        rootId: schema.messages.rootId,
+      })
+      .from(schema.messages)
+      .where(eq(schema.messages.id, messageId))
+      .limit(1);
+
+    if (!message) {
+      return { parentId: null, rootId: null };
+    }
+
+    return {
+      parentId: message.parentId,
+      rootId: message.rootId,
+    };
   }
 
   /**
@@ -452,7 +491,20 @@ export class MessageService {
         metadata: dto.metadata,
       };
 
-      // 4. Write message + attachments + outbox in transaction
+      // 4. Calculate rootId based on parentId
+      let rootId: string | null = null;
+      if (dto.parentId) {
+        const parentInfo = await this.getParentMessageInfo(dto.parentId);
+        if (parentInfo.rootId) {
+          // Parent is already a reply, use its rootId
+          rootId = parentInfo.rootId;
+        } else {
+          // Parent is a root message, so this is a first-level reply
+          rootId = dto.parentId;
+        }
+      }
+
+      // 5. Write message + attachments + outbox in transaction
       await this.db.transaction(async (tx) => {
         // Insert message
         await tx.insert(schema.messages).values({
@@ -461,6 +513,7 @@ export class MessageService {
           senderId: dto.senderId,
           content: dto.content,
           parentId: dto.parentId,
+          rootId,
           type: dto.type,
           seqId,
           clientMsgId: dto.clientMsgId,

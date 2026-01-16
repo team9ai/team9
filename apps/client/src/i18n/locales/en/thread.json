@@ -1,0 +1,12 @@
+{
+  "title": "Thread",
+  "loading": "Loading thread...",
+  "error": "Failed to load thread",
+  "repliesCount": "{{count}} reply",
+  "repliesCount_other": "{{count}} replies",
+  "showMoreReplies": "Show {{count}} more reply",
+  "showMoreReplies_other": "Show {{count}} more replies",
+  "hideReplies": "Hide replies",
+  "replyingTo": "Replying to",
+  "inputPlaceholder": "Reply in thread..."
+}

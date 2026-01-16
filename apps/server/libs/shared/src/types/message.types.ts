@@ -53,6 +53,7 @@ export type MessageType =
 export interface TextMessagePayload {
   content: string;
   parentId?: string;
+  rootId?: string;
   mentions?: string[];
 }
 
@@ -237,8 +238,11 @@ export interface CreateMessageDto {
   // Message content
   content: string;
 
-  // Parent message ID (for threads)
+  // Parent message ID (direct parent for replies)
   parentId?: string;
+
+  // Root message ID (thread root, for efficient querying)
+  rootId?: string;
 
   // Message type
   type: 'text' | 'file' | 'image';
@@ -314,6 +318,7 @@ export interface OutboxEventPayload {
   senderId: string;
   content: string;
   parentId?: string;
+  rootId?: string;
   type: MessageType;
   seqId: string;
   timestamp: number;

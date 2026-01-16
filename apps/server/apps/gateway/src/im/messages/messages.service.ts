@@ -3,12 +3,14 @@ import {
   Inject,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
   eq,
   and,
+  or,
   desc,
   lt,
   sql,
@@ -60,6 +62,7 @@ export interface MessageResponse {
   channelId: string;
   senderId: string | null;
   parentId: string | null;
+  rootId: string | null;
   content: string | null;
   type: 'text' | 'file' | 'image' | 'system';
   isPinned: boolean;
@@ -71,6 +74,18 @@ export interface MessageResponse {
   attachments: MessageAttachmentResponse[];
   reactions: MessageReactionResponse[];
   replyCount: number;
+}
+
+// Thread response types for nested replies (max 2 levels)
+export interface ThreadReply extends MessageResponse {
+  subReplies: MessageResponse[]; // Second-level replies (preview, max 2)
+  subReplyCount: number; // Total count of second-level replies
+}
+
+export interface ThreadResponse {
+  rootMessage: MessageResponse;
+  replies: ThreadReply[];
+  totalReplyCount: number;
 }
 
 @Injectable()
@@ -90,6 +105,33 @@ export class MessagesService {
   ): Promise<MessageResponse> {
     const { content, parentId, attachments } = dto;
 
+    // Calculate rootId based on parentId
+    // - Root message: parentId = null, rootId = null
+    // - First-level reply: parentId = rootId (both point to root message)
+    // - Second-level reply: parentId = first-level reply, rootId = root message
+    let rootId: string | null = null;
+
+    if (parentId) {
+      const parentInfo = await this.getParentMessageInfo(parentId);
+      console.log('[create] parentId:', parentId);
+      console.log('[create] parentInfo:', parentInfo);
+
+      if (parentInfo.rootId) {
+        // Parent is already a reply (has rootId), so this is a second-level reply
+        // Check if parent is already a second-level reply (not allowed)
+        if (parentInfo.parentId && parentInfo.parentId !== parentInfo.rootId) {
+          throw new BadRequestException(
+            'Maximum nesting depth reached. Cannot reply to a second-level reply.',
+          );
+        }
+        rootId = parentInfo.rootId;
+      } else {
+        // Parent is a root message, so this is a first-level reply
+        rootId = parentId;
+      }
+      console.log('[create] calculated rootId:', rootId);
+    }
+
     // Determine message type
     const type = attachments?.length ? 'file' : 'text';
 
@@ -102,6 +144,7 @@ export class MessagesService {
         senderId,
         content,
         parentId,
+        rootId,
         type,
       })
       .returning();
@@ -303,6 +346,7 @@ export class MessagesService {
       channelId: message.channelId,
       senderId: message.senderId,
       parentId: message.parentId,
+      rootId: message.rootId,
       content: message.content,
       type: message.type,
       isPinned: message.isPinned,
@@ -365,6 +409,140 @@ export class MessagesService {
     );
   }
 
+  /**
+   * Get parent message info for determining rootId (single query, O(1))
+   */
+  private async getParentMessageInfo(
+    messageId: string,
+  ): Promise<{ parentId: string | null; rootId: string | null }> {
+    const [message] = await this.db
+      .select({
+        parentId: schema.messages.parentId,
+        rootId: schema.messages.rootId,
+      })
+      .from(schema.messages)
+      .where(eq(schema.messages.id, messageId))
+      .limit(1);
+
+    if (!message) {
+      throw new NotFoundException('Parent message not found');
+    }
+
+    return {
+      parentId: message.parentId,
+      rootId: message.rootId,
+    };
+  }
+
+  /**
+   * Get thread with nested replies (max 2 levels)
+   * Uses rootId for efficient querying - all replies share the same rootId
+   */
+  async getThread(rootMessageId: string, limit = 50): Promise<ThreadResponse> {
+    // Get root message
+    const rootMessage = await this.getMessageWithDetails(rootMessageId);
+
+    // Get ALL replies for this thread in one query using rootId
+    const allReplies = await this.db
+      .select()
+      .from(schema.messages)
+      .where(
+        and(
+          eq(schema.messages.rootId, rootMessageId),
+          eq(schema.messages.isDeleted, false),
+        ),
+      )
+      .orderBy(schema.messages.createdAt);
+
+    console.log('[getThread] rootMessageId:', rootMessageId);
+    console.log('[getThread] allReplies count:', allReplies.length);
+    console.log(
+      '[getThread] allReplies:',
+      allReplies.map((r) => ({
+        id: r.id,
+        parentId: r.parentId,
+        rootId: r.rootId,
+      })),
+    );
+
+    // Separate first-level and second-level replies
+    // First-level: parentId === rootId
+    // Second-level: parentId !== rootId (parentId points to a first-level reply)
+    const firstLevelReplies: schema.Message[] = [];
+    const secondLevelByParent = new Map<string, schema.Message[]>();
+
+    for (const reply of allReplies) {
+      if (reply.parentId === rootMessageId) {
+        // First-level reply
+        firstLevelReplies.push(reply);
+      } else if (reply.parentId) {
+        // Second-level reply - group by parent
+        const existing = secondLevelByParent.get(reply.parentId) || [];
+        existing.push(reply);
+        secondLevelByParent.set(reply.parentId, existing);
+      }
+    }
+
+    // Apply limit to first-level replies
+    const limitedFirstLevel = firstLevelReplies.slice(0, limit);
+
+    // Build thread replies with nested structure
+    const replies: ThreadReply[] = await Promise.all(
+      limitedFirstLevel.map(async (reply) => {
+        const messageDetails = await this.getMessageWithDetails(reply.id);
+        const subRepliesRaw = secondLevelByParent.get(reply.id) || [];
+        const subReplyCount = subRepliesRaw.length;
+
+        // Only include first 2 sub-replies as preview
+        const subRepliesPreview = await Promise.all(
+          subRepliesRaw
+            .slice(0, 2)
+            .map((sr) => this.getMessageWithDetails(sr.id)),
+        );
+
+        return {
+          ...messageDetails,
+          subReplies: subRepliesPreview,
+          subReplyCount,
+        };
+      }),
+    );
+
+    // Total reply count = all replies in thread
+    const totalReplyCount = allReplies.length;
+
+    return {
+      rootMessage,
+      replies,
+      totalReplyCount,
+    };
+  }
+
+  /**
+   * Get all second-level replies for a first-level reply (for expanding)
+   */
+  async getSubReplies(
+    parentId: string,
+    limit = 50,
+  ): Promise<MessageResponse[]> {
+    const replies = await this.db
+      .select()
+      .from(schema.messages)
+      .where(
+        and(
+          eq(schema.messages.parentId, parentId),
+          eq(schema.messages.isDeleted, false),
+        ),
+      )
+      .orderBy(schema.messages.createdAt)
+      .limit(limit);
+
+    return Promise.all(replies.map((m) => this.getMessageWithDetails(m.id)));
+  }
+
+  /**
+   * @deprecated Use getThread() instead for nested thread structure
+   */
   async getThreadReplies(
     parentId: string,
     limit = 50,
