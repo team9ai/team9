@@ -1,15 +1,10 @@
 import { useEffect, useRef, useCallback } from "react";
-import { useTranslation } from "react-i18next";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Loader2, MessageSquare } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import type { Message } from "@/types/im";
-import { formatMessageTime } from "@/lib/date-utils";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useThreadStore } from "@/hooks/useThread";
-import { MessageContent } from "./MessageContent";
-import { MessageAttachments } from "./MessageAttachments";
-import { MessageContextMenu } from "./MessageContextMenu";
+import { MessageItem } from "./MessageItem";
 
 interface MessageListProps {
   messages: Message[];
@@ -31,6 +26,7 @@ export function MessageList({
   const prevScrollHeight = useRef(0);
   const isInitialLoad = useRef(true);
   const { data: currentUser } = useCurrentUser();
+  const openThread = useThreadStore((state) => state.openThread);
 
   // Scroll to bottom on initial load
   useEffect(() => {
@@ -139,54 +135,42 @@ export function MessageList({
       )}
 
       <div className="space-y-4 py-4">
-        {[...messages].reverse().map((message) => (
-          <MessageItem
-            key={message.id}
-            message={message}
-            currentUserId={currentUser?.id}
-          />
-        ))}
+        {[...messages].reverse().map((message) => {
+          // Only show reply count for root messages (messages without parentId)
+          const hasReplies =
+            !message.parentId && message.replyCount && message.replyCount > 0;
+
+          return (
+            <ChannelMessageItem
+              key={message.id}
+              message={message}
+              currentUserId={currentUser?.id}
+              showReplyCount={Boolean(hasReplies)}
+              onReplyCountClick={() => openThread(message.id)}
+            />
+          );
+        })}
         <div ref={messagesEndRef} />
       </div>
     </ScrollArea>
   );
 }
 
-function MessageItem({
+// Wrapper component for channel-specific message behavior
+function ChannelMessageItem({
   message,
   currentUserId,
+  showReplyCount,
+  onReplyCountClick,
 }: {
   message: Message;
   currentUserId?: string;
+  showReplyCount?: boolean;
+  onReplyCountClick?: () => void;
 }) {
-  const { t } = useTranslation("thread");
   const openThread = useThreadStore((state) => state.openThread);
-  const isOwnMessage = currentUserId === message.senderId;
 
-  // Only show reply count for root messages (messages without parentId)
-  const hasReplies =
-    !message.parentId && message.replyCount && message.replyCount > 0;
-
-  if (message.isDeleted) {
-    return (
-      <div className="flex gap-3 opacity-50">
-        <div className="w-9 h-9" />
-        <div className="flex-1">
-          <p className="text-sm text-muted-foreground italic">
-            This message was deleted
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const initials =
-    message.sender?.displayName?.[0] || message.sender?.username?.[0] || "?";
-
-  const hasContent = Boolean(message.content?.trim());
-  const hasAttachments = message.attachments && message.attachments.length > 0;
-
-  // Context menu handlers - these can be expanded later
+  // Context menu handlers
   const handleReply = () => {
     console.log("Reply to message:", message.id);
     // TODO: Implement reply functionality
@@ -211,69 +195,17 @@ function MessageItem({
     // TODO: Implement pin functionality
   };
 
-  // Reply count indicator component
-  const ReplyCountIndicator = () => {
-    if (!hasReplies) return null;
-    return (
-      <button
-        onClick={handleReplyInThread}
-        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 mt-1"
-      >
-        <MessageSquare size={14} />
-        <span>{t("repliesCount", { count: message.replyCount })}</span>
-      </button>
-    );
-  };
-
-  // All messages left aligned (Slack style)
   return (
-    <MessageContextMenu
+    <MessageItem
       message={message}
-      isOwnMessage={isOwnMessage}
+      currentUserId={currentUserId}
+      showReplyCount={showReplyCount}
+      onReplyCountClick={onReplyCountClick}
       onReply={handleReply}
       onReplyInThread={handleReplyInThread}
-      onEdit={isOwnMessage ? handleEdit : undefined}
-      onDelete={isOwnMessage ? handleDelete : undefined}
+      onEdit={handleEdit}
+      onDelete={handleDelete}
       onPin={handlePin}
-    >
-      <div className="flex gap-3 px-2 py-1 hover:bg-muted/50 rounded">
-        <Avatar className="w-9 h-9 shrink-0">
-          <AvatarFallback className="bg-linear-to-br from-purple-400 to-purple-600 text-white text-sm">
-            {initials.toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-
-        <div className="flex flex-col items-start flex-1 min-w-0">
-          <div className="flex items-baseline gap-2 mb-1">
-            <span className="font-semibold text-sm">
-              {message.sender?.displayName ||
-                message.sender?.username ||
-                "Unknown User"}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {formatMessageTime(new Date(message.createdAt))}
-            </span>
-            {message.isEdited && (
-              <span className="text-xs text-muted-foreground">(edited)</span>
-            )}
-          </div>
-          {hasContent && (
-            <div className="w-fit max-w-full">
-              <MessageContent
-                content={message.content}
-                className="text-sm whitespace-pre-wrap wrap-break-word"
-              />
-            </div>
-          )}
-          {hasAttachments && (
-            <MessageAttachments
-              attachments={message.attachments!}
-              isOwnMessage={isOwnMessage}
-            />
-          )}
-          <ReplyCountIndicator />
-        </div>
-      </div>
-    </MessageContextMenu>
+    />
   );
 }

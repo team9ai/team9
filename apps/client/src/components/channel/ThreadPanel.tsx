@@ -2,7 +2,6 @@ import { useRef, useCallback, useEffect } from "react";
 import { X, MessageSquare, Loader2, ArrowDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   useThreadPanelForLevel,
@@ -11,13 +10,9 @@ import {
   type ThreadLevel,
 } from "@/hooks/useThread";
 import { useCurrentUser } from "@/hooks/useAuth";
-import { MessageContent } from "./MessageContent";
-import { MessageAttachments } from "./MessageAttachments";
-import { MessageContextMenu } from "./MessageContextMenu";
-import { RichTextEditor } from "./editor";
-import { formatMessageTime } from "@/lib/date-utils";
-import type { Message, ThreadReply } from "@/types/im";
-import { cn } from "@/lib/utils";
+import { MessageItem } from "./MessageItem";
+import { MessageInput } from "./MessageInput";
+import type { ThreadReply } from "@/types/im";
 
 interface ThreadPanelProps {
   level: ThreadLevel;
@@ -45,6 +40,7 @@ export function ThreadPanel({ level, rootMessageId }: ThreadPanelProps) {
     clearReplyingTo,
   } = useThreadPanelForLevel(level, rootMessageId);
   const { data: currentUser } = useCurrentUser();
+  const sendReply = useSendThreadReply(rootMessageId, level);
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -130,6 +126,12 @@ export function ThreadPanel({ level, rootMessageId }: ThreadPanelProps) {
     }, 100);
   }, [jumpToLatest]);
 
+  // Handle send reply
+  const handleSendReply = async (content: string) => {
+    if (!content.trim()) return;
+    await sendReply.mutateAsync({ content });
+  };
+
   return (
     <div className="w-96 border-l bg-white flex flex-col h-full">
       {/* Header */}
@@ -151,9 +153,10 @@ export function ThreadPanel({ level, rootMessageId }: ThreadPanelProps) {
         <>
           {/* Root message */}
           <div className="px-4 py-3 border-b bg-slate-50">
-            <ThreadMessage
+            <MessageItem
               message={threadData.rootMessage}
               currentUserId={currentUser?.id}
+              compact
               isRootMessage
             />
             <div className="mt-2 text-xs text-muted-foreground">
@@ -205,12 +208,13 @@ export function ThreadPanel({ level, rootMessageId }: ThreadPanelProps) {
             )}
           </div>
 
-          {/* Input */}
-          <ThreadInputArea
-            rootMessageId={rootMessageId}
-            level={level}
+          {/* Input - using shared MessageInput component */}
+          <MessageInput
+            compact
             replyingTo={replyingTo}
             onClearReplyingTo={clearReplyingTo}
+            onSend={handleSendReply}
+            disabled={sendReply.isPending}
           />
         </>
       ) : (
@@ -222,105 +226,7 @@ export function ThreadPanel({ level, rootMessageId }: ThreadPanelProps) {
   );
 }
 
-// Thread message component (simplified version of MessageItem)
-function ThreadMessage({
-  message,
-  currentUserId,
-  isRootMessage = false,
-  indent = false,
-  canOpenNestedThread = false,
-  onOpenNestedThread,
-}: {
-  message: Message;
-  currentUserId?: string;
-  isRootMessage?: boolean;
-  canOpenNestedThread?: boolean;
-  onOpenNestedThread?: (messageId: string) => void;
-  indent?: boolean;
-}) {
-  const isOwnMessage = currentUserId === message.senderId;
-
-  if (message.isDeleted) {
-    return (
-      <div className={cn("flex gap-2 py-1", indent && "ml-6")}>
-        <div className="w-8 h-8" />
-        <p className="text-sm text-muted-foreground italic">
-          This message was deleted
-        </p>
-      </div>
-    );
-  }
-
-  const initials =
-    message.sender?.displayName?.[0] || message.sender?.username?.[0] || "?";
-  const senderName =
-    message.sender?.displayName || message.sender?.username || "Unknown";
-
-  const hasContent = Boolean(message.content?.trim());
-  const hasAttachments = message.attachments && message.attachments.length > 0;
-
-  // Handle reply action - only available in primary thread to open nested thread
-  // In secondary thread, we don't allow further nesting
-  const handleReplyInThread =
-    canOpenNestedThread && onOpenNestedThread
-      ? () => {
-          if (isRootMessage) return;
-          onOpenNestedThread(message.id);
-        }
-      : undefined;
-
-  const content = (
-    <div className={cn("flex gap-2 py-2", indent && "ml-6")}>
-      <Avatar className="w-8 h-8 shrink-0">
-        <AvatarFallback className="bg-linear-to-br from-purple-400 to-purple-600 text-white text-xs">
-          {initials.toUpperCase()}
-        </AvatarFallback>
-      </Avatar>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-baseline gap-2">
-          <span className="font-semibold text-sm">{senderName}</span>
-          <span className="text-xs text-muted-foreground">
-            {formatMessageTime(new Date(message.createdAt))}
-          </span>
-          {message.isEdited && (
-            <span className="text-xs text-muted-foreground">(edited)</span>
-          )}
-        </div>
-        {hasContent && (
-          <div className="mt-1">
-            <MessageContent
-              content={message.content}
-              className="text-sm whitespace-pre-wrap break-words"
-            />
-          </div>
-        )}
-        {hasAttachments && (
-          <MessageAttachments
-            attachments={message.attachments!}
-            isOwnMessage={isOwnMessage}
-          />
-        )}
-      </div>
-    </div>
-  );
-
-  // Only wrap with context menu if it's not a root message
-  if (isRootMessage) {
-    return content;
-  }
-
-  return (
-    <MessageContextMenu
-      message={message}
-      isOwnMessage={isOwnMessage}
-      onReplyInThread={handleReplyInThread}
-    >
-      {content}
-    </MessageContextMenu>
-  );
-}
-
-// Thread reply item - simplified, sub-replies shown in secondary panel
+// Thread reply item - uses shared MessageItem with sub-reply count
 function ThreadReplyItem({
   reply,
   currentUserId,
@@ -332,8 +238,6 @@ function ThreadReplyItem({
   canOpenNestedThread?: boolean;
   onOpenNestedThread?: (messageId: string) => void;
 }) {
-  const { t } = useTranslation("thread");
-
   // Get unread sub-reply count for this reply
   const unreadCount = useThreadStore((state) =>
     state.getUnreadSubReplyCount(reply.id),
@@ -346,77 +250,23 @@ function ThreadReplyItem({
     }
   };
 
+  // Handle reply in thread action from context menu
+  const handleReplyInThread =
+    canOpenNestedThread && onOpenNestedThread
+      ? () => onOpenNestedThread(reply.id)
+      : undefined;
+
   return (
     <div>
-      {/* First-level reply */}
-      <ThreadMessage
+      {/* First-level reply using shared MessageItem */}
+      <MessageItem
         message={reply}
         currentUserId={currentUserId}
-        canOpenNestedThread={canOpenNestedThread}
-        onOpenNestedThread={onOpenNestedThread}
-      />
-
-      {/* Reply count button to open in new panel */}
-      {canOpenNestedThread && reply.subReplyCount > 0 && (
-        <button
-          onClick={handleOpenInNewPanel}
-          className="ml-10 mt-1 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline"
-        >
-          <MessageSquare size={14} />
-          <span>{t("repliesCount", { count: reply.subReplyCount })}</span>
-          {/* Unread sub-reply badge */}
-          {unreadCount > 0 && (
-            <span className="ml-1 px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-medium rounded-full min-w-4.5 text-center">
-              {unreadCount > 99 ? "99+" : unreadCount}
-            </span>
-          )}
-        </button>
-      )}
-    </div>
-  );
-}
-
-// Thread input area with replying-to indicator
-function ThreadInputArea({
-  rootMessageId,
-  level,
-  replyingTo,
-  onClearReplyingTo,
-}: {
-  rootMessageId: string;
-  level: ThreadLevel;
-  replyingTo: { messageId: string; senderName: string } | null;
-  onClearReplyingTo: () => void;
-}) {
-  const { t } = useTranslation("thread");
-  const sendReply = useSendThreadReply(rootMessageId, level);
-
-  const handleSubmit = async (content: string) => {
-    if (!content.trim()) return;
-    await sendReply.mutateAsync({ content });
-  };
-
-  return (
-    <div className="border-t p-3 bg-white">
-      {/* Replying-to indicator */}
-      {replyingTo && (
-        <div className="flex items-center gap-2 mb-2 px-2 py-1 bg-slate-100 rounded text-sm">
-          <span className="text-muted-foreground">{t("replyingTo")}</span>
-          <span className="font-medium">@{replyingTo.senderName}</span>
-          <button
-            onClick={onClearReplyingTo}
-            className="ml-auto text-muted-foreground hover:text-slate-700"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      )}
-
-      <RichTextEditor
-        onSubmit={handleSubmit}
-        disabled={sendReply.isPending}
-        placeholder={t("inputPlaceholder")}
         compact
+        showReplyCount={canOpenNestedThread && reply.subReplyCount > 0}
+        onReplyCountClick={handleOpenInNewPanel}
+        unreadSubReplyCount={unreadCount}
+        onReplyInThread={handleReplyInThread}
       />
     </div>
   );

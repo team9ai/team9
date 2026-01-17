@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Upload } from "lucide-react";
+import { Upload, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { RichTextEditor } from "./editor";
 import { useFileUpload } from "@/hooks/useFileUpload";
@@ -7,17 +7,33 @@ import { cn } from "@/lib/utils";
 import type { AttachmentDto } from "@/types/im";
 
 interface MessageInputProps {
-  channelId: string;
+  /** Channel ID for file upload context (optional in compact mode) */
+  channelId?: string;
   onSend: (content: string, attachments?: AttachmentDto[]) => Promise<void>;
   disabled?: boolean;
+  /** Compact mode for thread panel - smaller height, no drag-drop */
+  compact?: boolean;
+  /** Reply indicator for thread */
+  replyingTo?: {
+    messageId: string;
+    senderName: string;
+  } | null;
+  /** Callback to clear reply indicator */
+  onClearReplyingTo?: () => void;
+  /** Placeholder text override */
+  placeholder?: string;
 }
 
 export function MessageInput({
   channelId,
   onSend,
   disabled,
+  compact = false,
+  replyingTo,
+  onClearReplyingTo,
+  placeholder,
 }: MessageInputProps) {
-  const { t } = useTranslation("message");
+  const { t } = useTranslation(["message", "thread"]);
   const [isDragging, setIsDragging] = useState(false);
   const dragCounterRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -145,6 +161,41 @@ export function MessageInput({
     addFiles(files);
   };
 
+  const defaultPlaceholder = compact
+    ? t("thread:inputPlaceholder")
+    : "Type a message... (Enter to send, Shift+Enter for new line, @ to mention)";
+
+  // Compact mode: simpler layout without drag-drop overlay
+  if (compact) {
+    return (
+      <div className="border-t p-3 bg-white">
+        {/* Replying-to indicator */}
+        {replyingTo && (
+          <div className="flex items-center gap-2 mb-2 px-2 py-1 bg-slate-100 rounded text-sm">
+            <span className="text-muted-foreground">
+              {t("thread:replyingTo")}
+            </span>
+            <span className="font-medium">@{replyingTo.senderName}</span>
+            <button
+              onClick={onClearReplyingTo}
+              className="ml-auto text-muted-foreground hover:text-slate-700"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
+        <RichTextEditor
+          onSubmit={handleSubmit}
+          disabled={disabled || isUploading}
+          placeholder={placeholder || defaultPlaceholder}
+          compact
+        />
+      </div>
+    );
+  }
+
+  // Full mode: with drag-drop and file upload support
   return (
     <div
       ref={containerRef}
@@ -162,7 +213,9 @@ export function MessageInput({
         <div className="absolute inset-0 bg-blue-50/90 border-2 border-dashed border-blue-400 rounded-lg flex items-center justify-center z-10 pointer-events-none">
           <div className="flex flex-col items-center gap-2 text-blue-600">
             <Upload size={32} />
-            <span className="text-sm font-medium">{t("dragToUpload")}</span>
+            <span className="text-sm font-medium">
+              {t("message:dragToUpload")}
+            </span>
           </div>
         </div>
       )}
@@ -170,7 +223,7 @@ export function MessageInput({
       <RichTextEditor
         onSubmit={handleSubmit}
         disabled={disabled || isUploading}
-        placeholder="Type a message... (Enter to send, Shift+Enter for new line, @ to mention)"
+        placeholder={placeholder || defaultPlaceholder}
         onFileSelect={handleFileSelect}
         uploadingFiles={uploadingFiles}
         onRemoveFile={removeFile}
