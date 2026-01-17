@@ -6,5 +6,7 @@
   "showMoreReplies": "查看更多 {{count}} 条回复",
   "hideReplies": "收起回复",
   "replyingTo": "回复",
-  "inputPlaceholder": "在消息列中回复..."
+  "inputPlaceholder": "在消息列中回复...",
+  "loadMore": "加载更多回复",
+  "loadingMore": "加载中..."
 }

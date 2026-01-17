@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { X, ChevronDown, ChevronUp, MessageSquare } from "lucide-react";
+import {
+  X,
+  ChevronDown,
+  ChevronUp,
+  MessageSquare,
+  Loader2,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -26,6 +32,9 @@ export function ThreadPanel() {
     threadData,
     isLoading,
     replyingTo,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
     closeThread,
     setReplyingTo,
     clearReplyingTo,
@@ -80,6 +89,28 @@ export function ThreadPanel() {
                   }
                 />
               ))}
+
+              {/* Load more button */}
+              {hasNextPage && (
+                <div className="flex justify-center py-3">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => fetchNextPage()}
+                    disabled={isFetchingNextPage}
+                    className="text-blue-600 hover:text-blue-700"
+                  >
+                    {isFetchingNextPage ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        {t("loadingMore")}
+                      </>
+                    ) : (
+                      t("loadMore")
+                    )}
+                  </Button>
+                </div>
+              )}
             </div>
           </ScrollArea>
 
@@ -203,12 +234,18 @@ function ThreadReplyItem({
 }) {
   const { t } = useTranslation("thread");
   const [isExpanded, setIsExpanded] = useState(false);
-  const { data: allSubReplies, isLoading: isLoadingSubReplies } = useSubReplies(
-    reply.id,
-    isExpanded && reply.subReplyCount > 2,
-  );
+  const {
+    data: subRepliesData,
+    isLoading: isLoadingSubReplies,
+    hasNextPage: hasMoreSubRepliesPages,
+    isFetchingNextPage: isFetchingMoreSubReplies,
+    fetchNextPage: fetchMoreSubReplies,
+  } = useSubReplies(reply.id, isExpanded && reply.subReplyCount > 2);
 
   const hasMoreSubReplies = reply.subReplyCount > 2;
+
+  // Merge all pages of sub-replies when expanded
+  const allSubReplies = subRepliesData?.pages?.flatMap((page) => page.replies);
   const displayedSubReplies = isExpanded
     ? allSubReplies || reply.subReplies
     : reply.subReplies;
@@ -233,6 +270,24 @@ function ThreadReplyItem({
               indent
             />
           ))}
+
+          {/* Load more sub-replies button */}
+          {isExpanded && hasMoreSubRepliesPages && (
+            <button
+              onClick={() => fetchMoreSubReplies()}
+              className="ml-6 my-2 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
+              disabled={isFetchingMoreSubReplies}
+            >
+              {isFetchingMoreSubReplies ? (
+                <>
+                  <Loader2 size={12} className="animate-spin" />
+                  {t("loadingMore")}
+                </>
+              ) : (
+                t("loadMore")
+              )}
+            </button>
+          )}
         </div>
       )}
 

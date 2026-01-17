@@ -114,6 +114,24 @@ export interface ThreadResponse {
   rootMessage: Message;
   replies: ThreadReply[];
   totalReplyCount: number;
+  hasMore: boolean;
+  nextCursor: string | null;
+}
+
+export interface SubRepliesResponse {
+  replies: Message[];
+  hasMore: boolean;
+  nextCursor: string | null;
+}
+
+export interface GetThreadParams {
+  limit?: number;
+  cursor?: string;
+}
+
+export interface GetSubRepliesParams {
+  limit?: number;
+  cursor?: string;
 }
 
 export interface Mention {

@@ -20,6 +20,9 @@ import type {
   SearchUsersParams,
   PublicChannelPreview,
   ThreadResponse,
+  SubRepliesResponse,
+  GetThreadParams,
+  GetSubRepliesParams,
 } from "@/types/im";
 
 // Channels API
@@ -199,10 +202,10 @@ export const messagesApi = {
     await http.delete(`/v1/im/messages/${messageId}`);
   },
 
-  // Get message thread with nested replies
+  // Get message thread with nested replies (supports cursor-based pagination)
   getThread: async (
     messageId: string,
-    params?: { limit?: number },
+    params?: GetThreadParams,
   ): Promise<ThreadResponse> => {
     const response = await http.get<ThreadResponse>(
       `/v1/im/messages/${messageId}/thread`,
@@ -211,12 +214,12 @@ export const messagesApi = {
     return response.data;
   },
 
-  // Get sub-replies for a first-level reply (for expanding collapsed replies)
+  // Get sub-replies for a first-level reply (supports cursor-based pagination)
   getSubReplies: async (
     messageId: string,
-    params?: { limit?: number },
-  ): Promise<Message[]> => {
-    const response = await http.get<Message[]>(
+    params?: GetSubRepliesParams,
+  ): Promise<SubRepliesResponse> => {
+    const response = await http.get<SubRepliesResponse>(
       `/v1/im/messages/${messageId}/sub-replies`,
       { params },
     );

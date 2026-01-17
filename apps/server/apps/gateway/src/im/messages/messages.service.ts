@@ -15,6 +15,7 @@ import {
   lt,
   sql,
   isNull,
+  inArray,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -86,6 +87,14 @@ export interface ThreadResponse {
   rootMessage: MessageResponse;
   replies: ThreadReply[];
   totalReplyCount: number;
+  hasMore: boolean; // Whether there are more first-level replies
+  nextCursor: string | null; // Cursor for next page (createdAt of last reply)
+}
+
+export interface SubRepliesResponse {
+  replies: MessageResponse[];
+  hasMore: boolean;
+  nextCursor: string | null;
 }
 
 @Injectable()
@@ -113,8 +122,6 @@ export class MessagesService {
 
     if (parentId) {
       const parentInfo = await this.getParentMessageInfo(parentId);
-      console.log('[create] parentId:', parentId);
-      console.log('[create] parentInfo:', parentInfo);
 
       if (parentInfo.rootId) {
         // Parent is already a reply (has rootId), so this is a second-level reply
@@ -361,6 +368,131 @@ export class MessagesService {
     };
   }
 
+  /**
+   * Batch get message details for multiple messages
+   * Optimized to use only 4 queries instead of N*4 queries
+   */
+  private async getMessagesWithDetailsBatch(
+    messages: schema.Message[],
+  ): Promise<Map<string, MessageResponse>> {
+    if (messages.length === 0) {
+      return new Map();
+    }
+
+    const messageIds = messages.map((m) => m.id);
+    const senderIds = [
+      ...new Set(messages.map((m) => m.senderId).filter(Boolean)),
+    ] as string[];
+
+    // Batch query 1: Get all senders
+    const sendersMap = new Map<string, MessageSender>();
+    if (senderIds.length > 0) {
+      const senders = await this.db
+        .select({
+          id: schema.users.id,
+          username: schema.users.username,
+          displayName: schema.users.displayName,
+          avatarUrl: schema.users.avatarUrl,
+        })
+        .from(schema.users)
+        .where(inArray(schema.users.id, senderIds));
+
+      senders.forEach((s) => sendersMap.set(s.id, s));
+    }
+
+    // Batch query 2: Get all attachments
+    const attachmentsMap = new Map<string, MessageAttachmentResponse[]>();
+    const allAttachments = await this.db
+      .select()
+      .from(schema.messageAttachments)
+      .where(inArray(schema.messageAttachments.messageId, messageIds));
+
+    allAttachments.forEach((att) => {
+      const existing = attachmentsMap.get(att.messageId) || [];
+      existing.push(att);
+      attachmentsMap.set(att.messageId, existing);
+    });
+
+    // Batch query 3: Get all reactions
+    const reactionsMap = new Map<string, MessageReactionResponse[]>();
+    const allReactions = await this.db
+      .select({
+        messageId: schema.messageReactions.messageId,
+        emoji: schema.messageReactions.emoji,
+        userId: schema.messageReactions.userId,
+      })
+      .from(schema.messageReactions)
+      .where(inArray(schema.messageReactions.messageId, messageIds));
+
+    // Group reactions by messageId, then by emoji
+    const reactionsByMessage = new Map<string, Map<string, string[]>>();
+    allReactions.forEach((r) => {
+      if (!reactionsByMessage.has(r.messageId)) {
+        reactionsByMessage.set(r.messageId, new Map());
+      }
+      const emojiMap = reactionsByMessage.get(r.messageId)!;
+      const userIds = emojiMap.get(r.emoji) || [];
+      userIds.push(r.userId);
+      emojiMap.set(r.emoji, userIds);
+    });
+
+    // Convert to MessageReactionResponse format
+    reactionsByMessage.forEach((emojiMap, messageId) => {
+      const reactions: MessageReactionResponse[] = Array.from(
+        emojiMap.entries(),
+      ).map(([emoji, userIds]) => ({
+        emoji,
+        count: userIds.length,
+        userIds,
+      }));
+      reactionsMap.set(messageId, reactions);
+    });
+
+    // Batch query 4: Get reply counts for all messages
+    const replyCountsMap = new Map<string, number>();
+    const replyCounts = await this.db
+      .select({
+        parentId: schema.messages.parentId,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(schema.messages)
+      .where(inArray(schema.messages.parentId, messageIds))
+      .groupBy(schema.messages.parentId);
+
+    replyCounts.forEach((rc) => {
+      if (rc.parentId) {
+        replyCountsMap.set(rc.parentId, Number(rc.count));
+      }
+    });
+
+    // Build result map
+    const result = new Map<string, MessageResponse>();
+    messages.forEach((message) => {
+      result.set(message.id, {
+        id: message.id,
+        channelId: message.channelId,
+        senderId: message.senderId,
+        parentId: message.parentId,
+        rootId: message.rootId,
+        content: message.content,
+        type: message.type,
+        isPinned: message.isPinned,
+        isEdited: message.isEdited,
+        isDeleted: message.isDeleted,
+        createdAt: message.createdAt,
+        updatedAt: message.updatedAt,
+        sender: message.senderId
+          ? sendersMap.get(message.senderId) || null
+          : null,
+        attachments: attachmentsMap.get(message.id) || [],
+        reactions: reactionsMap.get(message.id) || [],
+        replyCount: replyCountsMap.get(message.id) || 0,
+      });
+    });
+
+    return result;
+  }
+
   async getChannelMessages(
     channelId: string,
     limit = 50,
@@ -437,33 +569,42 @@ export class MessagesService {
   /**
    * Get thread with nested replies (max 2 levels)
    * Uses rootId for efficient querying - all replies share the same rootId
+   * Optimized: Uses batch queries instead of N+1 queries
+   * Supports cursor-based pagination for first-level replies
+   *
+   * @param rootMessageId - The root message ID
+   * @param limit - Max number of first-level replies to return (default 20)
+   * @param cursor - Cursor for pagination (createdAt ISO string of last reply)
    */
-  async getThread(rootMessageId: string, limit = 50): Promise<ThreadResponse> {
+  async getThread(
+    rootMessageId: string,
+    limit = 20,
+    cursor?: string,
+  ): Promise<ThreadResponse> {
     // Get root message
     const rootMessage = await this.getMessageWithDetails(rootMessageId);
+
+    // Build query conditions
+    const conditions = [
+      eq(schema.messages.rootId, rootMessageId),
+      eq(schema.messages.isDeleted, false),
+    ];
+
+    // Parse cursor (ISO date string)
+    let cursorDate: Date | null = null;
+    if (cursor) {
+      cursorDate = new Date(cursor);
+      if (isNaN(cursorDate.getTime())) {
+        cursorDate = null;
+      }
+    }
 
     // Get ALL replies for this thread in one query using rootId
     const allReplies = await this.db
       .select()
       .from(schema.messages)
-      .where(
-        and(
-          eq(schema.messages.rootId, rootMessageId),
-          eq(schema.messages.isDeleted, false),
-        ),
-      )
+      .where(and(...conditions))
       .orderBy(schema.messages.createdAt);
-
-    console.log('[getThread] rootMessageId:', rootMessageId);
-    console.log('[getThread] allReplies count:', allReplies.length);
-    console.log(
-      '[getThread] allReplies:',
-      allReplies.map((r) => ({
-        id: r.id,
-        parentId: r.parentId,
-        rootId: r.rootId,
-      })),
-    );
 
     // Separate first-level and second-level replies
     // First-level: parentId === rootId
@@ -483,61 +624,118 @@ export class MessagesService {
       }
     }
 
-    // Apply limit to first-level replies
-    const limitedFirstLevel = firstLevelReplies.slice(0, limit);
+    // Apply cursor filter for first-level replies
+    let filteredFirstLevel = firstLevelReplies;
+    if (cursorDate) {
+      filteredFirstLevel = firstLevelReplies.filter(
+        (r) => r.createdAt > cursorDate!,
+      );
+    }
 
-    // Build thread replies with nested structure
-    const replies: ThreadReply[] = await Promise.all(
-      limitedFirstLevel.map(async (reply) => {
-        const messageDetails = await this.getMessageWithDetails(reply.id);
-        const subRepliesRaw = secondLevelByParent.get(reply.id) || [];
-        const subReplyCount = subRepliesRaw.length;
+    // Apply limit + 1 to check if there are more
+    const limitedFirstLevel = filteredFirstLevel.slice(0, limit + 1);
+    const hasMore = limitedFirstLevel.length > limit;
+    const actualFirstLevel = limitedFirstLevel.slice(0, limit);
 
-        // Only include first 2 sub-replies as preview
-        const subRepliesPreview = await Promise.all(
-          subRepliesRaw
-            .slice(0, 2)
-            .map((sr) => this.getMessageWithDetails(sr.id)),
-        );
+    // Calculate next cursor
+    const lastReply = actualFirstLevel[actualFirstLevel.length - 1];
+    const nextCursor =
+      hasMore && lastReply ? lastReply.createdAt.toISOString() : null;
 
-        return {
-          ...messageDetails,
-          subReplies: subRepliesPreview,
-          subReplyCount,
-        };
-      }),
-    );
+    // Collect all messages that need details (first-level + preview sub-replies)
+    const messagesToFetch: schema.Message[] = [...actualFirstLevel];
+    for (const firstLevel of actualFirstLevel) {
+      const subReplies = secondLevelByParent.get(firstLevel.id) || [];
+      // Only fetch first 2 sub-replies as preview
+      messagesToFetch.push(...subReplies.slice(0, 2));
+    }
 
-    // Total reply count = all replies in thread
-    const totalReplyCount = allReplies.length;
+    // Batch fetch all message details in 4 queries instead of N*4
+    const messageDetailsMap =
+      await this.getMessagesWithDetailsBatch(messagesToFetch);
+
+    // Build thread replies with nested structure (pure memory operations)
+    const replies: ThreadReply[] = actualFirstLevel.map((reply) => {
+      const messageDetails = messageDetailsMap.get(reply.id)!;
+      const subRepliesRaw = secondLevelByParent.get(reply.id) || [];
+      const subReplyCount = subRepliesRaw.length;
+
+      // Get pre-fetched sub-reply details
+      const subRepliesPreview = subRepliesRaw
+        .slice(0, 2)
+        .map((sr) => messageDetailsMap.get(sr.id)!);
+
+      return {
+        ...messageDetails,
+        subReplies: subRepliesPreview,
+        subReplyCount,
+      };
+    });
+
+    // Total first-level reply count
+    const totalReplyCount = firstLevelReplies.length;
 
     return {
       rootMessage,
       replies,
       totalReplyCount,
+      hasMore,
+      nextCursor,
     };
   }
 
   /**
-   * Get all second-level replies for a first-level reply (for expanding)
+   * Get second-level replies for a first-level reply (for expanding)
+   * Optimized: Uses batch queries instead of N+1 queries
+   * Supports cursor-based pagination
+   *
+   * @param parentId - The first-level reply ID
+   * @param limit - Max number of replies to return (default 20)
+   * @param cursor - Cursor for pagination (createdAt ISO string of last reply)
    */
   async getSubReplies(
     parentId: string,
-    limit = 50,
-  ): Promise<MessageResponse[]> {
+    limit = 20,
+    cursor?: string,
+  ): Promise<SubRepliesResponse> {
+    // Build query conditions
+    const conditions = [
+      eq(schema.messages.parentId, parentId),
+      eq(schema.messages.isDeleted, false),
+    ];
+
+    // Parse cursor
+    if (cursor) {
+      const cursorDate = new Date(cursor);
+      if (!isNaN(cursorDate.getTime())) {
+        conditions.push(sql`${schema.messages.createdAt} > ${cursorDate}`);
+      }
+    }
+
+    // Fetch limit + 1 to check if there are more
     const replies = await this.db
       .select()
       .from(schema.messages)
-      .where(
-        and(
-          eq(schema.messages.parentId, parentId),
-          eq(schema.messages.isDeleted, false),
-        ),
-      )
+      .where(and(...conditions))
       .orderBy(schema.messages.createdAt)
-      .limit(limit);
+      .limit(limit + 1);
 
-    return Promise.all(replies.map((m) => this.getMessageWithDetails(m.id)));
+    const hasMore = replies.length > limit;
+    const actualReplies = replies.slice(0, limit);
+
+    // Calculate next cursor
+    const lastReply = actualReplies[actualReplies.length - 1];
+    const nextCursor =
+      hasMore && lastReply ? lastReply.createdAt.toISOString() : null;
+
+    // Use batch query instead of N individual queries
+    const detailsMap = await this.getMessagesWithDetailsBatch(actualReplies);
+
+    return {
+      replies: actualReplies.map((m) => detailsMap.get(m.id)!),
+      hasMore,
+      nextCursor,
+    };
   }
 
   /**
@@ -559,7 +757,9 @@ export class MessagesService {
       .orderBy(schema.messages.createdAt)
       .limit(limit);
 
-    return Promise.all(replies.map((m) => this.getMessageWithDetails(m.id)));
+    // Use batch query instead of N individual queries
+    const detailsMap = await this.getMessagesWithDetailsBatch(replies);
+    return replies.map((m) => detailsMap.get(m.id)!);
   }
 
   async update(

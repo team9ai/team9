@@ -1,7 +1,15 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { create } from "zustand";
 import { api } from "@/services/api";
-import type { ThreadResponse, CreateMessageDto } from "@/types/im";
+import type {
+  ThreadResponse,
+  SubRepliesResponse,
+  CreateMessageDto,
+} from "@/types/im";
 
 // Thread panel state management
 interface ReplyingTo {
@@ -32,27 +40,47 @@ export const useThreadStore = create<ThreadState>((set) => ({
 }));
 
 /**
- * Hook to fetch thread data with nested replies
+ * Hook to fetch thread data with nested replies (supports infinite scrolling)
  */
 export function useThread(messageId: string | null) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ["thread", messageId],
-    queryFn: () => api.im.messages.getThread(messageId!),
+    queryFn: ({ pageParam }) =>
+      api.im.messages.getThread(messageId!, {
+        limit: 20,
+        cursor: pageParam,
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.hasMore ? (lastPage.nextCursor ?? undefined) : undefined,
     enabled: !!messageId,
-    staleTime: 10000, // Reduced to allow faster updates
+    staleTime: 10000,
   });
 }
 
 /**
- * Hook to fetch sub-replies for expanding collapsed replies
+ * Hook to fetch sub-replies for expanding collapsed replies (supports infinite scrolling)
  */
 export function useSubReplies(messageId: string | null, enabled = false) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ["subReplies", messageId],
-    queryFn: () => api.im.messages.getSubReplies(messageId!),
+    queryFn: ({ pageParam }) =>
+      api.im.messages.getSubReplies(messageId!, {
+        limit: 20,
+        cursor: pageParam,
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage: SubRepliesResponse) =>
+      lastPage.hasMore ? (lastPage.nextCursor ?? undefined) : undefined,
     enabled: !!messageId && enabled,
     staleTime: 30000,
   });
+}
+
+// Type for infinite query data structure
+interface InfiniteThreadData {
+  pages: ThreadResponse[];
+  pageParams: (string | undefined)[];
 }
 
 /**
@@ -64,16 +92,16 @@ export function useSendThreadReply(rootMessageId: string) {
 
   return useMutation({
     mutationFn: async (data: Omit<CreateMessageDto, "parentId">) => {
-      // Get the channel ID from the root message
-      const threadData = queryClient.getQueryData<ThreadResponse>([
+      // Get the channel ID from the root message (from infinite query cache)
+      const infiniteData = queryClient.getQueryData<InfiniteThreadData>([
         "thread",
         rootMessageId,
       ]);
-      if (!threadData) {
+      if (!infiniteData?.pages?.[0]) {
         throw new Error("Thread data not found");
       }
 
-      const channelId = threadData.rootMessage.channelId;
+      const channelId = infiniteData.pages[0].rootMessage.channelId;
 
       // Determine parentId based on replyingTo state
       // If replyingTo is set, reply to that message (second-level reply)
@@ -88,24 +116,16 @@ export function useSendThreadReply(rootMessageId: string) {
     onSuccess: async () => {
       // Clear replyingTo state first
       clearReplyingTo();
-      // Fetch fresh data and update cache directly
-      const freshData = await api.im.messages.getThread(rootMessageId);
-      console.log("[Thread] Fresh data fetched:", {
-        totalReplyCount: freshData.totalReplyCount,
-        repliesCount: freshData.replies.length,
-        replies: freshData.replies.map((r) => ({
-          id: r.id,
-          content: r.content?.substring(0, 30),
-          subReplyCount: r.subReplyCount,
-        })),
+      // Invalidate and refetch the thread query to get fresh data
+      await queryClient.invalidateQueries({
+        queryKey: ["thread", rootMessageId],
       });
-      queryClient.setQueryData(["thread", rootMessageId], freshData);
     },
   });
 }
 
 /**
- * Hook to get thread state and actions
+ * Hook to get thread state and actions (with pagination support)
  */
 export function useThreadPanel() {
   const {
@@ -118,7 +138,26 @@ export function useThreadPanel() {
     clearReplyingTo,
   } = useThreadStore();
 
-  const { data: threadData, isLoading, error } = useThread(rootMessageId);
+  const {
+    data,
+    isLoading,
+    error,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useThread(rootMessageId);
+
+  // Merge all pages into a single ThreadResponse-like structure
+  const threadData = data?.pages?.[0]
+    ? {
+        rootMessage: data.pages[0].rootMessage,
+        totalReplyCount: data.pages[0].totalReplyCount,
+        // Merge replies from all pages
+        replies: data.pages.flatMap((page) => page.replies),
+        hasMore: data.pages[data.pages.length - 1]?.hasMore ?? false,
+        nextCursor: data.pages[data.pages.length - 1]?.nextCursor ?? null,
+      }
+    : undefined;
 
   return {
     isOpen,
@@ -127,6 +166,10 @@ export function useThreadPanel() {
     threadData,
     isLoading,
     error,
+    // Pagination controls
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
     openThread,
     closeThread,
     setReplyingTo,

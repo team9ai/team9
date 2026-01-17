@@ -8,5 +8,7 @@
   "showMoreReplies_other": "Show {{count}} more replies",
   "hideReplies": "Hide replies",
   "replyingTo": "Replying to",
-  "inputPlaceholder": "Reply in thread..."
+  "inputPlaceholder": "Reply in thread...",
+  "loadMore": "Load more replies",
+  "loadingMore": "Loading..."
 }

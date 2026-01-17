@@ -19,6 +19,7 @@ import {
   MessagesService,
   MessageResponse,
   ThreadResponse,
+  SubRepliesResponse,
 } from './messages.service.js';
 import {
   CreateMessageDto,
@@ -213,12 +214,14 @@ export class MessagesController {
 
   /**
    * Get thread with nested replies (max 2 levels)
+   * Supports cursor-based pagination
    */
   @Get('messages/:id/thread')
   async getThread(
     @CurrentUser('sub') userId: string,
     @Param('id') messageId: string,
     @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
   ): Promise<ThreadResponse> {
     const channelId = await this.messagesService.getMessageChannelId(messageId);
     const isMember = await this.channelsService.isMember(channelId, userId);
@@ -227,19 +230,22 @@ export class MessagesController {
     }
     return this.messagesService.getThread(
       messageId,
-      limit ? parseInt(limit, 10) : 50,
+      limit ? parseInt(limit, 10) : 20,
+      cursor,
     );
   }
 
   /**
-   * Get all sub-replies for a first-level reply (for expanding collapsed replies)
+   * Get sub-replies for a first-level reply (for expanding collapsed replies)
+   * Supports cursor-based pagination
    */
   @Get('messages/:id/sub-replies')
   async getSubReplies(
     @CurrentUser('sub') userId: string,
     @Param('id') messageId: string,
     @Query('limit') limit?: string,
-  ): Promise<MessageResponse[]> {
+    @Query('cursor') cursor?: string,
+  ): Promise<SubRepliesResponse> {
     const channelId = await this.messagesService.getMessageChannelId(messageId);
     const isMember = await this.channelsService.isMember(channelId, userId);
     if (!isMember) {
@@ -247,7 +253,8 @@ export class MessagesController {
     }
     return this.messagesService.getSubReplies(
       messageId,
-      limit ? parseInt(limit, 10) : 50,
+      limit ? parseInt(limit, 10) : 20,
+      cursor,
     );
   }
 
