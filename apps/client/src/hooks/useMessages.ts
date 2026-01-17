@@ -53,32 +53,55 @@ export function useMessages(channelId: string | undefined) {
         // Check if this reply belongs to any currently open thread (primary or secondary)
         // Primary thread uses rootId (original root message)
         // Secondary thread uses parentId (first-level reply that was opened as a thread)
-        const isPrimaryThread =
+        const isPrimaryThreadOpen =
           threadState.primaryThread.isOpen &&
           threadState.primaryThread.rootMessageId === rootId;
-        const isSecondaryThread =
+        const isSecondaryThreadOpen =
           threadState.secondaryThread.isOpen &&
           threadState.secondaryThread.rootMessageId === parentId;
 
+        // Check if this is a sub-reply (reply to a first-level reply, not directly to root)
+        const isSubReply = parentId !== rootId;
+
+        // Determine if this message is a direct reply to secondaryThread
+        // (i.e., the parentId matches the secondaryThread's rootMessageId)
+        // In this case, primaryThread should NOT show new message indicator
+        // because the user is already viewing the secondaryThread
+        const isMessageForSecondaryThread = isSecondaryThreadOpen;
+
         // Handle primary thread updates
-        if (isPrimaryThread) {
-          const threadScrollState = scrollStateStore.getThreadState(rootId);
-          const currentScrollState = threadScrollState.state;
-
-          // Send event to state machine first
-          scrollStateStore.send(rootId, { type: "NEW_MESSAGE" });
-
-          // Only auto-refresh if user is confirmed at bottom (idle state)
-          if (currentScrollState === "idle") {
+        // Only notify primaryThread if the message is NOT for the secondaryThread
+        if (isPrimaryThreadOpen && !isMessageForSecondaryThread) {
+          // If this is a sub-reply and secondaryThread is not open for this parent,
+          // increment unread count for that reply instead of showing new message indicator
+          if (isSubReply) {
+            // Track unread sub-reply for this parent message
+            useThreadStore.getState().incrementUnreadSubReplyCount(parentId);
+            // Still invalidate the thread query so data is fresh when user opens it
             queryClient.invalidateQueries({
               queryKey: ["thread", rootId],
               refetchType: "all",
             });
+          } else {
+            // Direct reply to root - show new message indicator as before
+            const threadScrollState = scrollStateStore.getThreadState(rootId);
+            const currentScrollState = threadScrollState.state;
+
+            // Send event to state machine first
+            scrollStateStore.send(rootId, { type: "NEW_MESSAGE" });
+
+            // Only auto-refresh if user is confirmed at bottom (idle state)
+            if (currentScrollState === "idle") {
+              queryClient.invalidateQueries({
+                queryKey: ["thread", rootId],
+                refetchType: "all",
+              });
+            }
           }
         }
 
         // Handle secondary thread updates (separate from primary)
-        if (isSecondaryThread) {
+        if (isSecondaryThreadOpen) {
           const secondaryRootId = threadState.secondaryThread.rootMessageId!;
           const threadScrollState =
             scrollStateStore.getThreadState(secondaryRootId);
@@ -98,7 +121,7 @@ export function useMessages(channelId: string | undefined) {
         }
 
         // If neither thread is open, just invalidate for when user opens it
-        if (!isPrimaryThread && !isSecondaryThread) {
+        if (!isPrimaryThreadOpen && !isSecondaryThreadOpen) {
           queryClient.invalidateQueries({
             queryKey: ["thread", rootId],
             refetchType: "all",

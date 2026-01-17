@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   useThreadPanelForLevel,
   useSendThreadReply,
+  useThreadStore,
   type ThreadLevel,
 } from "@/hooks/useThread";
 import { useCurrentUser } from "@/hooks/useAuth";
@@ -343,6 +344,11 @@ function ThreadReplyItem({
 }) {
   const { t } = useTranslation("thread");
 
+  // Get unread sub-reply count for this reply
+  const unreadCount = useThreadStore((state) =>
+    state.getUnreadSubReplyCount(reply.id),
+  );
+
   // Handle opening this reply in a new thread panel
   const handleOpenInNewPanel = () => {
     if (canOpenNestedThread && onOpenNestedThread) {
@@ -369,6 +375,12 @@ function ThreadReplyItem({
         >
           <MessageSquare size={14} />
           <span>{t("repliesCount", { count: reply.subReplyCount })}</span>
+          {/* Unread sub-reply badge */}
+          {unreadCount > 0 && (
+            <span className="ml-1 px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-medium rounded-full min-w-4.5 text-center">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
         </button>
       )}
     </div>

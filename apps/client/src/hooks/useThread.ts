@@ -39,6 +39,11 @@ interface ThreadState {
   // Secondary thread (second layer, opened from primary thread)
   secondaryThread: ThreadData;
 
+  // Track unread sub-reply counts per reply message
+  // Key: replyMessageId (first-level reply in primaryThread)
+  // Value: number of unread sub-replies
+  unreadSubReplyCounts: Record<string, number>;
+
   // Actions for primary thread
   openPrimaryThread: (messageId: string) => void;
   closePrimaryThread: () => void;
@@ -50,6 +55,11 @@ interface ThreadState {
   closeSecondaryThread: () => void;
   setSecondaryReplyingTo: (replyingTo: ReplyingTo | null) => void;
   clearSecondaryReplyingTo: () => void;
+
+  // Actions for unread sub-reply counts
+  incrementUnreadSubReplyCount: (replyId: string) => void;
+  clearUnreadSubReplyCount: (replyId: string) => void;
+  getUnreadSubReplyCount: (replyId: string) => number;
 
   // Legacy API (for backward compatibility with MessageList)
   isOpen: boolean;
@@ -70,6 +80,7 @@ const emptyThread: ThreadData = {
 export const useThreadStore = create<ThreadState>((set, get) => ({
   primaryThread: { ...emptyThread },
   secondaryThread: { ...emptyThread },
+  unreadSubReplyCounts: {},
 
   // Primary thread actions
   openPrimaryThread: (messageId: string) =>
@@ -102,13 +113,18 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
 
   // Secondary thread actions
   openSecondaryThread: (messageId: string) =>
-    set({
+    set((state) => ({
       secondaryThread: {
         isOpen: true,
         rootMessageId: messageId,
         replyingTo: null,
       },
-    }),
+      // Clear unread count when opening this reply's thread
+      unreadSubReplyCounts: {
+        ...state.unreadSubReplyCounts,
+        [messageId]: 0,
+      },
+    })),
 
   closeSecondaryThread: () =>
     set({
@@ -124,6 +140,27 @@ export const useThreadStore = create<ThreadState>((set, get) => ({
     set((state) => ({
       secondaryThread: { ...state.secondaryThread, replyingTo: null },
     })),
+
+  // Unread sub-reply count actions
+  incrementUnreadSubReplyCount: (replyId: string) =>
+    set((state) => ({
+      unreadSubReplyCounts: {
+        ...state.unreadSubReplyCounts,
+        [replyId]: (state.unreadSubReplyCounts[replyId] || 0) + 1,
+      },
+    })),
+
+  clearUnreadSubReplyCount: (replyId: string) =>
+    set((state) => ({
+      unreadSubReplyCounts: {
+        ...state.unreadSubReplyCounts,
+        [replyId]: 0,
+      },
+    })),
+
+  getUnreadSubReplyCount: (replyId: string) => {
+    return get().unreadSubReplyCounts[replyId] || 0;
+  },
 
   // Legacy API (maps to primary thread for backward compatibility)
   get isOpen() {
