@@ -225,71 +225,25 @@ function MessageItem({
     );
   };
 
-  if (isOwnMessage) {
-    // Own message - right aligned
-    return (
-      <MessageContextMenu
-        message={message}
-        isOwnMessage={isOwnMessage}
-        onReply={handleReply}
-        onReplyInThread={handleReplyInThread}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        onPin={handlePin}
-      >
-        <div className="flex justify-end gap-3 px-2 py-1">
-          <div className="flex flex-col items-end">
-            <div className="flex items-baseline gap-2 mb-1">
-              {message.isEdited && (
-                <span className="text-xs text-muted-foreground">(edited)</span>
-              )}
-              <span className="text-xs text-muted-foreground">
-                {formatMessageTime(new Date(message.createdAt))}
-              </span>
-            </div>
-            {hasContent && (
-              <div className="bg-purple-600 text-white rounded-lg px-4 py-2 w-fit max-w-sm message-content-own">
-                <MessageContent
-                  content={message.content}
-                  className="text-sm whitespace-pre-wrap wrap-break-word"
-                />
-              </div>
-            )}
-            {hasAttachments && (
-              <MessageAttachments
-                attachments={message.attachments!}
-                isOwnMessage={true}
-              />
-            )}
-            <ReplyCountIndicator />
-          </div>
-          <Avatar className="w-9 h-9 shrink-0">
-            <AvatarFallback className="bg-linear-to-br from-purple-400 to-purple-600 text-white text-sm">
-              {initials.toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-        </div>
-      </MessageContextMenu>
-    );
-  }
-
-  // Other's message - left aligned
+  // All messages left aligned (Slack style)
   return (
     <MessageContextMenu
       message={message}
       isOwnMessage={isOwnMessage}
       onReply={handleReply}
       onReplyInThread={handleReplyInThread}
+      onEdit={isOwnMessage ? handleEdit : undefined}
+      onDelete={isOwnMessage ? handleDelete : undefined}
       onPin={handlePin}
     >
-      <div className="flex gap-3 px-2 py-1">
+      <div className="flex gap-3 px-2 py-1 hover:bg-muted/50 rounded">
         <Avatar className="w-9 h-9 shrink-0">
           <AvatarFallback className="bg-linear-to-br from-purple-400 to-purple-600 text-white text-sm">
             {initials.toUpperCase()}
           </AvatarFallback>
         </Avatar>
 
-        <div className="flex flex-col items-start">
+        <div className="flex flex-col items-start flex-1 min-w-0">
           <div className="flex items-baseline gap-2 mb-1">
             <span className="font-semibold text-sm">
               {message.sender?.displayName ||
@@ -304,7 +258,7 @@ function MessageItem({
             )}
           </div>
           {hasContent && (
-            <div className="bg-slate-100 rounded-lg px-4 py-2 w-fit max-w-sm message-content-other">
+            <div className="w-fit max-w-full">
               <MessageContent
                 content={message.content}
                 className="text-sm whitespace-pre-wrap wrap-break-word"
@@ -314,7 +268,7 @@ function MessageItem({
           {hasAttachments && (
             <MessageAttachments
               attachments={message.attachments!}
-              isOwnMessage={false}
+              isOwnMessage={isOwnMessage}
             />
           )}
           <ReplyCountIndicator />
