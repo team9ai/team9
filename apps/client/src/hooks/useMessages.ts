@@ -89,8 +89,9 @@ export function useMessages(channelId: string | undefined) {
 
           // Only auto-refresh if user is confirmed at bottom (idle state)
           if (currentScrollState === "idle") {
+            // Secondary thread uses subReplies query, not thread query
             queryClient.invalidateQueries({
-              queryKey: ["thread", secondaryRootId],
+              queryKey: ["subReplies", secondaryRootId],
               refetchType: "all",
             });
           }
