@@ -64,16 +64,20 @@ export function MessageContextMenu({
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-56">
         {/* Reply actions */}
-        <ContextMenuItem onClick={onReply}>
-          <Reply className="mr-2 h-4 w-4" />
-          {t("reply")}
-          <ContextMenuShortcut>R</ContextMenuShortcut>
-        </ContextMenuItem>
-        <ContextMenuItem onClick={onReplyInThread}>
-          <MessageSquare className="mr-2 h-4 w-4" />
-          {t("replyInThread")}
-          <ContextMenuShortcut>T</ContextMenuShortcut>
-        </ContextMenuItem>
+        {onReply && (
+          <ContextMenuItem onClick={onReply}>
+            <Reply className="mr-2 h-4 w-4" />
+            {t("reply")}
+            <ContextMenuShortcut>R</ContextMenuShortcut>
+          </ContextMenuItem>
+        )}
+        {onReplyInThread && (
+          <ContextMenuItem onClick={onReplyInThread}>
+            <MessageSquare className="mr-2 h-4 w-4" />
+            {t("replyInThread")}
+            <ContextMenuShortcut>T</ContextMenuShortcut>
+          </ContextMenuItem>
+        )}
 
         <ContextMenuSeparator />
 

@@ -42,7 +42,6 @@ export function ThreadPanel({ level, rootMessageId }: ThreadPanelProps) {
     // UI actions
     closeThread,
     openNestedThread,
-    setReplyingTo,
     clearReplyingTo,
   } = useThreadPanelForLevel(level, rootMessageId);
   const { data: currentUser } = useCurrentUser();
@@ -171,9 +170,6 @@ export function ThreadPanel({ level, rootMessageId }: ThreadPanelProps) {
                     key={reply.id}
                     reply={reply}
                     currentUserId={currentUser?.id}
-                    onReplyTo={(messageId: string, senderName: string) =>
-                      setReplyingTo({ messageId, senderName })
-                    }
                     canOpenNestedThread={canOpenNestedThread}
                     onOpenNestedThread={openNestedThread}
                   />
@@ -231,7 +227,6 @@ function ThreadMessage({
   message,
   currentUserId,
   isRootMessage = false,
-  onReplyTo,
   indent = false,
   canOpenNestedThread = false,
   onOpenNestedThread,
@@ -239,7 +234,6 @@ function ThreadMessage({
   message: Message;
   currentUserId?: string;
   isRootMessage?: boolean;
-  onReplyTo?: (messageId: string, senderName: string) => void;
   canOpenNestedThread?: boolean;
   onOpenNestedThread?: (messageId: string) => void;
   indent?: boolean;
@@ -265,17 +259,15 @@ function ThreadMessage({
   const hasContent = Boolean(message.content?.trim());
   const hasAttachments = message.attachments && message.attachments.length > 0;
 
-  // Handle reply action - either open nested thread or set replying to
-  const handleReplyInThread = () => {
-    if (isRootMessage) return;
-
-    // If can open nested thread, open it; otherwise set replying to this message
-    if (canOpenNestedThread && onOpenNestedThread) {
-      onOpenNestedThread(message.id);
-    } else if (onReplyTo) {
-      onReplyTo(message.id, senderName);
-    }
-  };
+  // Handle reply action - only available in primary thread to open nested thread
+  // In secondary thread, we don't allow further nesting
+  const handleReplyInThread =
+    canOpenNestedThread && onOpenNestedThread
+      ? () => {
+          if (isRootMessage) return;
+          onOpenNestedThread(message.id);
+        }
+      : undefined;
 
   const content = (
     <div className={cn("flex gap-2 py-2", indent && "ml-6")}>
@@ -332,13 +324,11 @@ function ThreadMessage({
 function ThreadReplyItem({
   reply,
   currentUserId,
-  onReplyTo,
   canOpenNestedThread = false,
   onOpenNestedThread,
 }: {
   reply: ThreadReply;
   currentUserId?: string;
-  onReplyTo: (messageId: string, senderName: string) => void;
   canOpenNestedThread?: boolean;
   onOpenNestedThread?: (messageId: string) => void;
 }) {
@@ -362,7 +352,6 @@ function ThreadReplyItem({
       <ThreadMessage
         message={reply}
         currentUserId={currentUserId}
-        onReplyTo={onReplyTo}
         canOpenNestedThread={canOpenNestedThread}
         onOpenNestedThread={onOpenNestedThread}
       />
