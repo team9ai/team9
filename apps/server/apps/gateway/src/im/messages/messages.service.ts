@@ -704,11 +704,13 @@ export class MessagesService {
       eq(schema.messages.isDeleted, false),
     ];
 
-    // Parse cursor
+    // Parse cursor - convert to ISO string for postgres driver compatibility
     if (cursor) {
       const cursorDate = new Date(cursor);
       if (!isNaN(cursorDate.getTime())) {
-        conditions.push(sql`${schema.messages.createdAt} > ${cursorDate}`);
+        conditions.push(
+          sql`${schema.messages.createdAt} > ${cursorDate.toISOString()}`,
+        );
       }
     }
 
