@@ -2,6 +2,7 @@ import {
   useInfiniteQuery,
   useMutation,
   useQueryClient,
+  type InfiniteData,
 } from "@tanstack/react-query";
 import { create } from "zustand";
 import { api } from "@/services/api";
@@ -154,6 +155,7 @@ export function useSendThreadReply(rootMessageId: string) {
  * Hook to get thread state and actions (with pagination support)
  */
 export function useThreadPanel() {
+  const queryClient = useQueryClient();
   const {
     isOpen,
     rootMessageId,
@@ -176,7 +178,6 @@ export function useThreadPanel() {
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
-    refetch,
   } = useThread(rootMessageId);
 
   // Merge all pages into a single ThreadResponse-like structure
@@ -196,6 +197,50 @@ export function useThreadPanel() {
   const shouldShowNewMessageIndicator =
     newMessageCount > 0 && (!isAtBottom || hasNextPage);
 
+  /**
+   * Load all remaining pages and then invalidate to get latest messages.
+   * This is used when user clicks the "new messages" indicator.
+   * Returns a promise that resolves when all data is loaded.
+   */
+  const loadAllPagesAndRefresh = async (): Promise<void> => {
+    if (!rootMessageId) return;
+
+    // First, load all remaining pages
+    let currentData = queryClient.getQueryData<InfiniteData<ThreadResponse>>([
+      "thread",
+      rootMessageId,
+    ]);
+
+    while (currentData?.pages?.[currentData.pages.length - 1]?.hasMore) {
+      await fetchNextPage();
+      currentData = queryClient.getQueryData<InfiniteData<ThreadResponse>>([
+        "thread",
+        rootMessageId,
+      ]);
+    }
+
+    // After loading all existing pages, invalidate and refetch to get new messages
+    // Reset the query completely to fetch fresh data from the beginning
+    await queryClient.resetQueries({
+      queryKey: ["thread", rootMessageId],
+    });
+
+    // After reset, we need to load all pages again to show all messages
+    // But this time we'll get the updated data including new messages
+    currentData = queryClient.getQueryData<InfiniteData<ThreadResponse>>([
+      "thread",
+      rootMessageId,
+    ]);
+
+    while (currentData?.pages?.[currentData.pages.length - 1]?.hasMore) {
+      await fetchNextPage();
+      currentData = queryClient.getQueryData<InfiniteData<ThreadResponse>>([
+        "thread",
+        rootMessageId,
+      ]);
+    }
+  };
+
   return {
     isOpen,
     rootMessageId,
@@ -207,7 +252,7 @@ export function useThreadPanel() {
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
-    refetch,
+    loadAllPagesAndRefresh,
     // New message indicator
     newMessageCount,
     isAtBottom,

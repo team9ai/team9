@@ -36,7 +36,7 @@ export function ThreadPanel() {
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
-    refetch,
+    loadAllPagesAndRefresh,
     // New message indicator
     newMessageCount,
     shouldShowNewMessageIndicator,
@@ -53,6 +53,7 @@ export function ThreadPanel() {
   const [isJumpingToBottom, setIsJumpingToBottom] = useState(false);
 
   // Track scroll position to determine if user is at bottom
+  // Also trigger auto-loading when user scrolls to bottom
   const handleScroll = useCallback(() => {
     const viewport = scrollAreaRef.current?.querySelector(
       "[data-radix-scroll-area-viewport]",
@@ -60,15 +61,26 @@ export function ThreadPanel() {
     if (!viewport) return;
 
     const { scrollTop, scrollHeight, clientHeight } = viewport;
-    // Consider "at bottom" if within 50px of the bottom
-    const atBottom = scrollHeight - scrollTop - clientHeight < 50;
+    // Consider "at bottom" if within 100px of the bottom
+    const atBottom = scrollHeight - scrollTop - clientHeight < 100;
     setIsAtBottom(atBottom);
 
     // If user scrolls to bottom and there are no more pages, clear new message count
     if (atBottom && !hasNextPage) {
       clearNewMessageCount();
     }
-  }, [setIsAtBottom, clearNewMessageCount, hasNextPage]);
+
+    // Auto-load next page when scrolling to bottom (infinite scroll)
+    if (atBottom && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [
+    setIsAtBottom,
+    clearNewMessageCount,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  ]);
 
   // Set up scroll listener
   useEffect(() => {
@@ -85,10 +97,8 @@ export function ThreadPanel() {
   const handleJumpToBottom = useCallback(async () => {
     setIsJumpingToBottom(true);
 
-    // If there are more pages to load, refetch from scratch to get latest
-    if (hasNextPage) {
-      await refetch();
-    }
+    // Load all pages and refresh to get the latest messages
+    await loadAllPagesAndRefresh();
 
     // Clear new message count
     clearNewMessageCount();
@@ -98,7 +108,7 @@ export function ThreadPanel() {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
       setIsJumpingToBottom(false);
     }, 100);
-  }, [hasNextPage, refetch, clearNewMessageCount]);
+  }, [loadAllPagesAndRefresh, clearNewMessageCount]);
 
   if (!isOpen || !rootMessageId) {
     return null;
@@ -150,25 +160,11 @@ export function ThreadPanel() {
                   />
                 ))}
 
-                {/* Load more button */}
-                {hasNextPage && (
-                  <div className="flex justify-center py-3">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => fetchNextPage()}
-                      disabled={isFetchingNextPage}
-                      className="text-blue-600 hover:text-blue-700"
-                    >
-                      {isFetchingNextPage ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          {t("loadingMore")}
-                        </>
-                      ) : (
-                        t("loadMore")
-                      )}
-                    </Button>
+                {/* Loading indicator for infinite scroll */}
+                {isFetchingNextPage && (
+                  <div className="flex justify-center items-center py-3 gap-2 text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-sm">{t("loadingMore")}</span>
                   </div>
                 )}
 
