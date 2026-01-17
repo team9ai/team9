@@ -433,7 +433,12 @@ export function useThreadPanelForLevel(
       ? {
           rootMessage: data.pages[0].rootMessage,
           totalReplyCount: data.pages[0].totalReplyCount,
-          replies: data.pages.flatMap((page) => page.replies),
+          // Deduplicate replies by id to prevent duplicate key errors
+          replies: Array.from(
+            new Map(
+              data.pages.flatMap((page) => page.replies).map((r) => [r.id, r]),
+            ).values(),
+          ),
           hasMore: data.pages[data.pages.length - 1]?.hasMore ?? false,
           nextCursor: data.pages[data.pages.length - 1]?.nextCursor ?? null,
         }
@@ -444,13 +449,21 @@ export function useThreadPanelForLevel(
           totalReplyCount:
             secondaryReplies.data.pages?.[0]?.replies?.length ?? 0,
           // For secondary, replies are flat (no sub-replies structure needed)
-          replies: secondaryReplies.data.pages
-            .flatMap((page) => page.replies)
-            .map((reply) => ({
-              ...reply,
-              subReplies: [],
-              subReplyCount: 0,
-            })),
+          // Deduplicate replies by id to prevent duplicate key errors
+          replies: Array.from(
+            new Map(
+              secondaryReplies.data.pages
+                .flatMap((page) => page.replies)
+                .map((reply) => [
+                  reply.id,
+                  {
+                    ...reply,
+                    subReplies: [],
+                    subReplyCount: 0,
+                  },
+                ]),
+            ).values(),
+          ),
           hasMore:
             secondaryReplies.data.pages[secondaryReplies.data.pages.length - 1]
               ?.hasMore ?? false,
