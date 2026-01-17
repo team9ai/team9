@@ -165,10 +165,32 @@ export function MessageInput({
     ? t("thread:inputPlaceholder")
     : "Type a message... (Enter to send, Shift+Enter for new line, @ to mention)";
 
-  // Compact mode: simpler layout without drag-drop overlay
+  // Compact mode: simpler layout, still supports file upload via toolbar/paste
   if (compact) {
     return (
-      <div className="border-t p-3 bg-white">
+      <div
+        ref={containerRef}
+        className={cn(
+          "border-t p-3 bg-white relative transition-colors",
+          isDragging && "bg-blue-50 border-blue-300",
+        )}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
+        {/* Drag overlay */}
+        {isDragging && (
+          <div className="absolute inset-0 bg-blue-50/90 border-2 border-dashed border-blue-400 rounded-lg flex items-center justify-center z-10 pointer-events-none">
+            <div className="flex flex-col items-center gap-2 text-blue-600">
+              <Upload size={24} />
+              <span className="text-xs font-medium">
+                {t("message:dragToUpload")}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Replying-to indicator */}
         {replyingTo && (
           <div className="flex items-center gap-2 mb-2 px-2 py-1 bg-slate-100 rounded text-sm">
@@ -190,6 +212,10 @@ export function MessageInput({
           disabled={disabled || isUploading}
           placeholder={placeholder || defaultPlaceholder}
           compact
+          onFileSelect={handleFileSelect}
+          uploadingFiles={uploadingFiles}
+          onRemoveFile={removeFile}
+          onRetryFile={retryFile}
         />
       </div>
     );

@@ -12,7 +12,7 @@ import {
 import { useCurrentUser } from "@/hooks/useAuth";
 import { MessageItem } from "./MessageItem";
 import { MessageInput } from "./MessageInput";
-import type { ThreadReply } from "@/types/im";
+import type { ThreadReply, AttachmentDto } from "@/types/im";
 
 interface ThreadPanelProps {
   level: ThreadLevel;
@@ -126,10 +126,13 @@ export function ThreadPanel({ level, rootMessageId }: ThreadPanelProps) {
     }, 100);
   }, [jumpToLatest]);
 
-  // Handle send reply
-  const handleSendReply = async (content: string) => {
-    if (!content.trim()) return;
-    await sendReply.mutateAsync({ content });
+  // Handle send reply with optional attachments
+  const handleSendReply = async (
+    content: string,
+    attachments?: AttachmentDto[],
+  ) => {
+    if (!content.trim() && (!attachments || attachments.length === 0)) return;
+    await sendReply.mutateAsync({ content, attachments });
   };
 
   return (
@@ -210,6 +213,7 @@ export function ThreadPanel({ level, rootMessageId }: ThreadPanelProps) {
 
           {/* Input - using shared MessageInput component */}
           <MessageInput
+            channelId={threadData.rootMessage.channelId}
             compact
             replyingTo={replyingTo}
             onClearReplyingTo={clearReplyingTo}
