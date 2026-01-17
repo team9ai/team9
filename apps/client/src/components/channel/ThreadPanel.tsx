@@ -35,6 +35,7 @@ export function ThreadPanel() {
     replyingTo,
     isFetchingNextPage,
     // State machine
+    scrollState,
     newMessageCount,
     shouldShowNewMessageIndicator,
     isJumpingToLatest,
@@ -99,6 +100,27 @@ export function ThreadPanel() {
 
     return () => cancelAnimationFrame(rafId);
   }, [threadData, isLoading, handleScrollPositionChange]);
+
+  // Track previous replies count to detect new messages
+  const prevRepliesCountRef = useRef<number>(0);
+
+  // Auto-scroll to bottom when new messages arrive while in idle state
+  useEffect(() => {
+    if (!threadData || scrollState !== "idle") return;
+
+    const currentCount = threadData.replies.length;
+    const prevCount = prevRepliesCountRef.current;
+
+    // Update ref for next comparison
+    prevRepliesCountRef.current = currentCount;
+
+    // If count increased and we're in idle state, scroll to bottom
+    if (currentCount > prevCount && prevCount > 0) {
+      requestAnimationFrame(() => {
+        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      });
+    }
+  }, [threadData, scrollState]);
 
   // Handle jumping to bottom when clicking new message indicator
   const handleJumpToBottom = useCallback(async () => {
