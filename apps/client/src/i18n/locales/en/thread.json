@@ -10,5 +10,7 @@
   "replyingTo": "Replying to",
   "inputPlaceholder": "Reply in thread...",
   "loadMore": "Load more replies",
-  "loadingMore": "Loading..."
+  "loadingMore": "Loading...",
+  "newMessages": "{{count}} new message",
+  "newMessages_other": "{{count}} new messages"
 }

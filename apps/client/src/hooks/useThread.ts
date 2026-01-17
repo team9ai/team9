@@ -21,22 +21,48 @@ interface ThreadState {
   isOpen: boolean;
   rootMessageId: string | null;
   replyingTo: ReplyingTo | null;
+  // New message indicator state
+  newMessageCount: number;
+  isAtBottom: boolean;
+  // Actions
   openThread: (messageId: string) => void;
   closeThread: () => void;
   setReplyingTo: (replyingTo: ReplyingTo | null) => void;
   clearReplyingTo: () => void;
+  // New message indicator actions
+  incrementNewMessageCount: () => void;
+  clearNewMessageCount: () => void;
+  setIsAtBottom: (isAtBottom: boolean) => void;
 }
 
 export const useThreadStore = create<ThreadState>((set) => ({
   isOpen: false,
   rootMessageId: null,
   replyingTo: null,
+  newMessageCount: 0,
+  isAtBottom: true,
   openThread: (messageId: string) =>
-    set({ isOpen: true, rootMessageId: messageId, replyingTo: null }),
+    set({
+      isOpen: true,
+      rootMessageId: messageId,
+      replyingTo: null,
+      newMessageCount: 0,
+      isAtBottom: true,
+    }),
   closeThread: () =>
-    set({ isOpen: false, rootMessageId: null, replyingTo: null }),
+    set({
+      isOpen: false,
+      rootMessageId: null,
+      replyingTo: null,
+      newMessageCount: 0,
+      isAtBottom: true,
+    }),
   setReplyingTo: (replyingTo: ReplyingTo | null) => set({ replyingTo }),
   clearReplyingTo: () => set({ replyingTo: null }),
+  incrementNewMessageCount: () =>
+    set((state) => ({ newMessageCount: state.newMessageCount + 1 })),
+  clearNewMessageCount: () => set({ newMessageCount: 0 }),
+  setIsAtBottom: (isAtBottom: boolean) => set({ isAtBottom }),
 }));
 
 /**
@@ -132,10 +158,15 @@ export function useThreadPanel() {
     isOpen,
     rootMessageId,
     replyingTo,
+    newMessageCount,
+    isAtBottom,
     openThread,
     closeThread,
     setReplyingTo,
     clearReplyingTo,
+    incrementNewMessageCount,
+    clearNewMessageCount,
+    setIsAtBottom,
   } = useThreadStore();
 
   const {
@@ -145,6 +176,7 @@ export function useThreadPanel() {
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
+    refetch,
   } = useThread(rootMessageId);
 
   // Merge all pages into a single ThreadResponse-like structure
@@ -159,6 +191,11 @@ export function useThreadPanel() {
       }
     : undefined;
 
+  // Determine if we should show new message indicator
+  // Show when: user is not at bottom OR there are unloaded pages (hasNextPage)
+  const shouldShowNewMessageIndicator =
+    newMessageCount > 0 && (!isAtBottom || hasNextPage);
+
   return {
     isOpen,
     rootMessageId,
@@ -170,6 +207,15 @@ export function useThreadPanel() {
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
+    refetch,
+    // New message indicator
+    newMessageCount,
+    isAtBottom,
+    shouldShowNewMessageIndicator,
+    incrementNewMessageCount,
+    clearNewMessageCount,
+    setIsAtBottom,
+    // Actions
     openThread,
     closeThread,
     setReplyingTo,

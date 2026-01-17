@@ -8,6 +8,7 @@ import imApi from "@/services/api/im";
 import wsService from "@/services/websocket";
 import type { CreateMessageDto, UpdateMessageDto, Message } from "@/types/im";
 import { useSelectedWorkspaceId } from "@/stores";
+import { useThreadStore } from "./useThread";
 
 /**
  * Hook to fetch messages for a channel with infinite scroll
@@ -41,14 +42,49 @@ export function useMessages(channelId: string | undefined) {
       if (message.channelId !== channelId) return;
 
       // If message is a reply (has parentId), don't add to main message list
-      // Instead, invalidate thread query and update parent's replyCount
+      // Instead, handle thread updates appropriately
       if (message.parentId) {
-        // Invalidate the thread query to refresh thread panel immediately
         const rootId = message.rootId || message.parentId;
-        queryClient.invalidateQueries({
-          queryKey: ["thread", rootId],
-          refetchType: "all",
-        });
+        const threadState = useThreadStore.getState();
+
+        // Check if this reply belongs to the currently open thread
+        const isCurrentThread =
+          threadState.isOpen && threadState.rootMessageId === rootId;
+
+        if (isCurrentThread) {
+          // Check if user is at bottom and all pages are loaded
+          const threadQueryState = queryClient.getQueryState([
+            "thread",
+            rootId,
+          ]);
+          const queryData = threadQueryState?.data as
+            | { pages?: Array<{ hasMore?: boolean }> }
+            | undefined;
+          const hasNextPage =
+            queryData?.pages &&
+            Array.isArray(queryData.pages) &&
+            queryData.pages.length > 0 &&
+            queryData.pages[queryData.pages.length - 1]?.hasMore;
+
+          const shouldShowIndicator = !threadState.isAtBottom || hasNextPage;
+
+          if (shouldShowIndicator) {
+            // User is not at bottom or has unloaded pages - show indicator
+            threadState.incrementNewMessageCount();
+          } else {
+            // User is at bottom and all loaded - refresh immediately
+            queryClient.invalidateQueries({
+              queryKey: ["thread", rootId],
+              refetchType: "all",
+            });
+          }
+        } else {
+          // Thread is not open - just invalidate for when user opens it
+          queryClient.invalidateQueries({
+            queryKey: ["thread", rootId],
+            refetchType: "all",
+          });
+        }
 
         // Update the parent message's replyCount in the main list
         queryClient.setQueryData(["messages", channelId], (old: any) => {

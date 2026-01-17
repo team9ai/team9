@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   X,
   ChevronDown,
   ChevronUp,
   MessageSquare,
   Loader2,
+  ArrowDown,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -35,11 +36,69 @@ export function ThreadPanel() {
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
+    refetch,
+    // New message indicator
+    newMessageCount,
+    shouldShowNewMessageIndicator,
+    clearNewMessageCount,
+    setIsAtBottom,
     closeThread,
     setReplyingTo,
     clearReplyingTo,
   } = useThreadPanel();
   const { data: currentUser } = useCurrentUser();
+
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const [isJumpingToBottom, setIsJumpingToBottom] = useState(false);
+
+  // Track scroll position to determine if user is at bottom
+  const handleScroll = useCallback(() => {
+    const viewport = scrollAreaRef.current?.querySelector(
+      "[data-radix-scroll-area-viewport]",
+    );
+    if (!viewport) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = viewport;
+    // Consider "at bottom" if within 50px of the bottom
+    const atBottom = scrollHeight - scrollTop - clientHeight < 50;
+    setIsAtBottom(atBottom);
+
+    // If user scrolls to bottom and there are no more pages, clear new message count
+    if (atBottom && !hasNextPage) {
+      clearNewMessageCount();
+    }
+  }, [setIsAtBottom, clearNewMessageCount, hasNextPage]);
+
+  // Set up scroll listener
+  useEffect(() => {
+    const viewport = scrollAreaRef.current?.querySelector(
+      "[data-radix-scroll-area-viewport]",
+    );
+    if (!viewport) return;
+
+    viewport.addEventListener("scroll", handleScroll);
+    return () => viewport.removeEventListener("scroll", handleScroll);
+  }, [handleScroll]);
+
+  // Handle jumping to bottom when clicking new message indicator
+  const handleJumpToBottom = useCallback(async () => {
+    setIsJumpingToBottom(true);
+
+    // If there are more pages to load, refetch from scratch to get latest
+    if (hasNextPage) {
+      await refetch();
+    }
+
+    // Clear new message count
+    clearNewMessageCount();
+
+    // Scroll to bottom after data loads
+    setTimeout(() => {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      setIsJumpingToBottom(false);
+    }, 100);
+  }, [hasNextPage, refetch, clearNewMessageCount]);
 
   if (!isOpen || !rootMessageId) {
     return null;
@@ -76,43 +135,64 @@ export function ThreadPanel() {
             </div>
           </div>
 
-          {/* Replies */}
-          <ScrollArea className="flex-1 min-h-0">
-            <div className="px-4 py-2 space-y-1">
-              {threadData.replies.map((reply: ThreadReply) => (
-                <ThreadReplyItem
-                  key={reply.id}
-                  reply={reply}
-                  currentUserId={currentUser?.id}
-                  onReplyTo={(messageId: string, senderName: string) =>
-                    setReplyingTo({ messageId, senderName })
-                  }
-                />
-              ))}
+          {/* Replies container with relative positioning for the indicator */}
+          <div className="flex-1 min-h-0 relative">
+            <ScrollArea ref={scrollAreaRef} className="h-full">
+              <div className="px-4 py-2 space-y-1">
+                {threadData.replies.map((reply: ThreadReply) => (
+                  <ThreadReplyItem
+                    key={reply.id}
+                    reply={reply}
+                    currentUserId={currentUser?.id}
+                    onReplyTo={(messageId: string, senderName: string) =>
+                      setReplyingTo({ messageId, senderName })
+                    }
+                  />
+                ))}
 
-              {/* Load more button */}
-              {hasNextPage && (
-                <div className="flex justify-center py-3">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => fetchNextPage()}
-                    disabled={isFetchingNextPage}
-                    className="text-blue-600 hover:text-blue-700"
-                  >
-                    {isFetchingNextPage ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        {t("loadingMore")}
-                      </>
-                    ) : (
-                      t("loadMore")
-                    )}
-                  </Button>
-                </div>
-              )}
-            </div>
-          </ScrollArea>
+                {/* Load more button */}
+                {hasNextPage && (
+                  <div className="flex justify-center py-3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => fetchNextPage()}
+                      disabled={isFetchingNextPage}
+                      className="text-blue-600 hover:text-blue-700"
+                    >
+                      {isFetchingNextPage ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          {t("loadingMore")}
+                        </>
+                      ) : (
+                        t("loadMore")
+                      )}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Bottom anchor for scrolling */}
+                <div ref={bottomRef} />
+              </div>
+            </ScrollArea>
+
+            {/* New message indicator */}
+            {shouldShowNewMessageIndicator && (
+              <button
+                onClick={handleJumpToBottom}
+                disabled={isJumpingToBottom}
+                className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-full shadow-lg hover:bg-blue-700 transition-colors"
+              >
+                {isJumpingToBottom ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <ArrowDown size={16} />
+                )}
+                <span>{t("newMessages", { count: newMessageCount })}</span>
+              </button>
+            )}
+          </div>
 
           {/* Input */}
           <ThreadInputArea
