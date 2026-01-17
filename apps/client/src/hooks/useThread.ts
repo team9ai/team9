@@ -2,6 +2,7 @@ import {
   useInfiniteQuery,
   useMutation,
   useQueryClient,
+  useQuery,
   type InfiniteData,
 } from "@tanstack/react-query";
 import { useEffect, useCallback } from "react";
@@ -11,8 +12,12 @@ import type {
   ThreadResponse,
   SubRepliesResponse,
   CreateMessageDto,
+  Message,
 } from "@/types/im";
-import { useThreadScrollState } from "./useThreadScrollState";
+import {
+  useThreadScrollState,
+  useThreadScrollSelectors,
+} from "./useThreadScrollState";
 
 // Thread panel state management (UI state only, scroll state moved to state machine)
 interface ReplyingTo {
@@ -20,35 +25,121 @@ interface ReplyingTo {
   senderName: string;
 }
 
-interface ThreadState {
+// Individual thread state
+interface ThreadData {
   isOpen: boolean;
   rootMessageId: string | null;
   replyingTo: ReplyingTo | null;
-  // Actions
+}
+
+// Dual-layer thread state (max 2 panels)
+interface ThreadState {
+  // Primary thread (first layer, opened from message list)
+  primaryThread: ThreadData;
+  // Secondary thread (second layer, opened from primary thread)
+  secondaryThread: ThreadData;
+
+  // Actions for primary thread
+  openPrimaryThread: (messageId: string) => void;
+  closePrimaryThread: () => void;
+  setPrimaryReplyingTo: (replyingTo: ReplyingTo | null) => void;
+  clearPrimaryReplyingTo: () => void;
+
+  // Actions for secondary thread
+  openSecondaryThread: (messageId: string) => void;
+  closeSecondaryThread: () => void;
+  setSecondaryReplyingTo: (replyingTo: ReplyingTo | null) => void;
+  clearSecondaryReplyingTo: () => void;
+
+  // Legacy API (for backward compatibility with MessageList)
+  isOpen: boolean;
+  rootMessageId: string | null;
+  replyingTo: ReplyingTo | null;
   openThread: (messageId: string) => void;
   closeThread: () => void;
   setReplyingTo: (replyingTo: ReplyingTo | null) => void;
   clearReplyingTo: () => void;
 }
 
-export const useThreadStore = create<ThreadState>((set) => ({
+const emptyThread: ThreadData = {
   isOpen: false,
   rootMessageId: null,
   replyingTo: null,
-  openThread: (messageId: string) =>
+};
+
+export const useThreadStore = create<ThreadState>((set, get) => ({
+  primaryThread: { ...emptyThread },
+  secondaryThread: { ...emptyThread },
+
+  // Primary thread actions
+  openPrimaryThread: (messageId: string) =>
     set({
-      isOpen: true,
-      rootMessageId: messageId,
-      replyingTo: null,
+      primaryThread: {
+        isOpen: true,
+        rootMessageId: messageId,
+        replyingTo: null,
+      },
+      // Close secondary when opening new primary
+      secondaryThread: { ...emptyThread },
     }),
-  closeThread: () =>
+
+  closePrimaryThread: () =>
     set({
-      isOpen: false,
-      rootMessageId: null,
-      replyingTo: null,
+      primaryThread: { ...emptyThread },
+      // Also close secondary when closing primary
+      secondaryThread: { ...emptyThread },
     }),
-  setReplyingTo: (replyingTo: ReplyingTo | null) => set({ replyingTo }),
-  clearReplyingTo: () => set({ replyingTo: null }),
+
+  setPrimaryReplyingTo: (replyingTo: ReplyingTo | null) =>
+    set((state) => ({
+      primaryThread: { ...state.primaryThread, replyingTo },
+    })),
+
+  clearPrimaryReplyingTo: () =>
+    set((state) => ({
+      primaryThread: { ...state.primaryThread, replyingTo: null },
+    })),
+
+  // Secondary thread actions
+  openSecondaryThread: (messageId: string) =>
+    set({
+      secondaryThread: {
+        isOpen: true,
+        rootMessageId: messageId,
+        replyingTo: null,
+      },
+    }),
+
+  closeSecondaryThread: () =>
+    set({
+      secondaryThread: { ...emptyThread },
+    }),
+
+  setSecondaryReplyingTo: (replyingTo: ReplyingTo | null) =>
+    set((state) => ({
+      secondaryThread: { ...state.secondaryThread, replyingTo },
+    })),
+
+  clearSecondaryReplyingTo: () =>
+    set((state) => ({
+      secondaryThread: { ...state.secondaryThread, replyingTo: null },
+    })),
+
+  // Legacy API (maps to primary thread for backward compatibility)
+  get isOpen() {
+    return get().primaryThread.isOpen;
+  },
+  get rootMessageId() {
+    return get().primaryThread.rootMessageId;
+  },
+  get replyingTo() {
+    return get().primaryThread.replyingTo;
+  },
+  openThread: (messageId: string) => get().openPrimaryThread(messageId),
+  closeThread: () => get().closePrimaryThread(),
+  setReplyingTo: (replyingTo: ReplyingTo | null) =>
+    get().setPrimaryReplyingTo(replyingTo),
+  clearReplyingTo: () => get().clearPrimaryReplyingTo(),
 }));
 
 /**
@@ -73,7 +164,7 @@ export function useThread(messageId: string | null) {
 /**
  * Hook to fetch sub-replies for expanding collapsed replies (supports infinite scrolling)
  */
-export function useSubReplies(messageId: string | null, enabled = false) {
+export function useSubReplies(messageId: string | null, enabled = true) {
   return useInfiniteQuery({
     queryKey: ["subReplies", messageId],
     queryFn: ({ pageParam }) =>
@@ -85,6 +176,18 @@ export function useSubReplies(messageId: string | null, enabled = false) {
     getNextPageParam: (lastPage: SubRepliesResponse) =>
       lastPage.hasMore ? (lastPage.nextCursor ?? undefined) : undefined,
     enabled: !!messageId && enabled,
+    staleTime: 10000,
+  });
+}
+
+/**
+ * Hook to fetch a single message details (for secondary thread root message)
+ */
+export function useMessage(messageId: string | null) {
+  return useQuery({
+    queryKey: ["message", messageId],
+    queryFn: () => api.im.messages.getMessage(messageId!),
+    enabled: !!messageId,
     staleTime: 30000,
   });
 }
@@ -95,29 +198,54 @@ interface InfiniteThreadData {
   pageParams: (string | undefined)[];
 }
 
+// Thread level type
+export type ThreadLevel = "primary" | "secondary";
+
 /**
- * Hook to send a reply in a thread
+ * Hook to send a reply in a thread (supports both primary and secondary threads)
  */
-export function useSendThreadReply(rootMessageId: string) {
+export function useSendThreadReply(
+  rootMessageId: string,
+  level: ThreadLevel = "primary",
+) {
   const queryClient = useQueryClient();
-  const { replyingTo, clearReplyingTo } = useThreadStore();
+  const isPrimary = level === "primary";
+  const replyingTo = useThreadStore((s) =>
+    isPrimary ? s.primaryThread.replyingTo : s.secondaryThread.replyingTo,
+  );
+  const clearReplyingTo = useThreadStore((s) =>
+    isPrimary ? s.clearPrimaryReplyingTo : s.clearSecondaryReplyingTo,
+  );
 
   return useMutation({
     mutationFn: async (data: Omit<CreateMessageDto, "parentId">) => {
-      // Get the channel ID from the root message (from infinite query cache)
-      const infiniteData = queryClient.getQueryData<InfiniteThreadData>([
-        "thread",
-        rootMessageId,
-      ]);
-      if (!infiniteData?.pages?.[0]) {
-        throw new Error("Thread data not found");
+      let channelId: string;
+
+      if (isPrimary) {
+        // Primary: Get channelId from getThread cache
+        const infiniteData = queryClient.getQueryData<InfiniteThreadData>([
+          "thread",
+          rootMessageId,
+        ]);
+        if (!infiniteData?.pages?.[0]) {
+          throw new Error("Thread data not found");
+        }
+        channelId = infiniteData.pages[0].rootMessage.channelId;
+      } else {
+        // Secondary: Get channelId from getMessage cache
+        const messageData = queryClient.getQueryData<Message>([
+          "message",
+          rootMessageId,
+        ]);
+        if (!messageData) {
+          throw new Error("Message data not found");
+        }
+        channelId = messageData.channelId;
       }
 
-      const channelId = infiniteData.pages[0].rootMessage.channelId;
-
       // Determine parentId based on replyingTo state
-      // If replyingTo is set, reply to that message (second-level reply)
-      // Otherwise, reply to root message (first-level reply)
+      // If replyingTo is set, reply to that message
+      // Otherwise, reply to root message
       const parentId = replyingTo?.messageId || rootMessageId;
 
       return api.im.messages.sendMessage(channelId, {
@@ -128,87 +256,180 @@ export function useSendThreadReply(rootMessageId: string) {
     onSuccess: async () => {
       // Clear replyingTo state first
       clearReplyingTo();
-      // Invalidate and refetch the thread query to get fresh data
-      await queryClient.invalidateQueries({
-        queryKey: ["thread", rootMessageId],
-      });
+      // Invalidate and refetch the appropriate query based on level
+      if (isPrimary) {
+        await queryClient.invalidateQueries({
+          queryKey: ["thread", rootMessageId],
+        });
+      } else {
+        await queryClient.invalidateQueries({
+          queryKey: ["subReplies", rootMessageId],
+        });
+      }
     },
   });
 }
 
 /**
- * Hook to get thread state and actions (with pagination support and state machine)
+ * Hook to get thread state and actions for a specific level (with pagination support and state machine)
+ *
+ * Primary level: Uses getThread API to fetch root message + first-level replies
+ * Secondary level: Uses getMessage + getSubReplies API to fetch a first-level reply + its sub-replies
  */
-export function useThreadPanel() {
+export function useThreadPanelForLevel(
+  level: ThreadLevel,
+  rootMessageId: string,
+) {
   const queryClient = useQueryClient();
+  const isPrimary = level === "primary";
 
-  // UI state from thread store
+  // UI state from thread store based on level
+  const threadState = useThreadStore((s) =>
+    isPrimary ? s.primaryThread : s.secondaryThread,
+  );
+  const replyingTo = threadState.replyingTo;
+
+  const baseOpenThread = useThreadStore((s) =>
+    isPrimary ? s.openPrimaryThread : s.openSecondaryThread,
+  );
+  const baseCloseThread = useThreadStore((s) =>
+    isPrimary ? s.closePrimaryThread : s.closeSecondaryThread,
+  );
+  const setReplyingTo = useThreadStore((s) =>
+    isPrimary ? s.setPrimaryReplyingTo : s.setSecondaryReplyingTo,
+  );
+  const clearReplyingTo = useThreadStore((s) =>
+    isPrimary ? s.clearPrimaryReplyingTo : s.clearSecondaryReplyingTo,
+  );
+
+  // For opening nested thread (only available in primary level)
+  const openSecondaryThread = useThreadStore((s) => s.openSecondaryThread);
+
+  // Scroll state from state machine (keyed by messageId)
+  const scrollSelectors = useThreadScrollSelectors(rootMessageId);
   const {
-    isOpen,
-    rootMessageId,
-    replyingTo,
-    openThread: baseOpenThread,
-    closeThread: baseCloseThread,
-    setReplyingTo,
-    clearReplyingTo,
-  } = useThreadStore();
+    state: scrollState,
+    newMessageCount,
+    shouldShowIndicator: shouldShowNewMessageIndicator,
+    isJumpingToLatest,
+    send,
+    setHasMorePages,
+    reset: resetScrollState,
+  } = scrollSelectors;
 
-  // Scroll state from state machine
-  const scrollState = useThreadScrollState((s) => s.state);
-  const scrollContext = useThreadScrollState((s) => s.context);
-  const send = useThreadScrollState((s) => s.send);
-  const setHasMorePages = useThreadScrollState((s) => s.setHasMorePages);
+  // Cleanup scroll state when thread closes
+  const removeScrollState = useThreadScrollState((s) => s.remove);
 
-  // Query for thread data
-  const {
-    data,
-    isLoading,
-    error,
-    hasNextPage,
-    isFetchingNextPage,
-    fetchNextPage,
-  } = useThread(rootMessageId);
+  // === Primary level: Use getThread API ===
+  const primaryQuery = useThread(isPrimary ? rootMessageId : null);
+
+  // === Secondary level: Use getMessage + getSubReplies API ===
+  const secondaryRootMessage = useMessage(!isPrimary ? rootMessageId : null);
+  const secondaryReplies = useSubReplies(
+    !isPrimary ? rootMessageId : null,
+    !isPrimary,
+  );
+
+  // Combine data based on level
+  const data = isPrimary ? primaryQuery.data : null;
+  const isLoading = isPrimary
+    ? primaryQuery.isLoading
+    : secondaryRootMessage.isLoading || secondaryReplies.isLoading;
+  const error = isPrimary
+    ? primaryQuery.error
+    : secondaryRootMessage.error || secondaryReplies.error;
+  const hasNextPage = isPrimary
+    ? primaryQuery.hasNextPage
+    : secondaryReplies.hasNextPage;
+  const isFetchingNextPage = isPrimary
+    ? primaryQuery.isFetchingNextPage
+    : secondaryReplies.isFetchingNextPage;
+  const fetchNextPage = isPrimary
+    ? primaryQuery.fetchNextPage
+    : secondaryReplies.fetchNextPage;
 
   // Sync hasNextPage with state machine
   useEffect(() => {
-    setHasMorePages(hasNextPage ?? false);
-  }, [hasNextPage, setHasMorePages]);
+    if (rootMessageId) {
+      setHasMorePages(hasNextPage ?? false);
+    }
+  }, [hasNextPage, setHasMorePages, rootMessageId]);
 
-  // Reset state machine when thread opens/closes
+  // Reset state machine when thread opens
+  useEffect(() => {
+    if (rootMessageId) {
+      resetScrollState();
+    }
+  }, [rootMessageId, resetScrollState]);
+
+  // Open thread handler
   const openThread = useCallback(
     (messageId: string) => {
-      send({ type: "RESET" });
       baseOpenThread(messageId);
     },
-    [send, baseOpenThread],
+    [baseOpenThread],
   );
 
+  // Close thread handler with cleanup
   const closeThread = useCallback(() => {
-    send({ type: "RESET" });
+    if (rootMessageId) {
+      removeScrollState(rootMessageId);
+    }
     baseCloseThread();
-  }, [send, baseCloseThread]);
+  }, [baseCloseThread, removeScrollState, rootMessageId]);
 
-  // Merge all pages into a single ThreadResponse-like structure
-  const threadData = data?.pages?.[0]
-    ? {
-        rootMessage: data.pages[0].rootMessage,
-        totalReplyCount: data.pages[0].totalReplyCount,
-        // Merge replies from all pages
-        replies: data.pages.flatMap((page) => page.replies),
-        hasMore: data.pages[data.pages.length - 1]?.hasMore ?? false,
-        nextCursor: data.pages[data.pages.length - 1]?.nextCursor ?? null,
+  // Handler to open nested thread (only for primary level)
+  const openNestedThread = useCallback(
+    (messageId: string) => {
+      if (isPrimary) {
+        openSecondaryThread(messageId);
       }
-    : undefined;
+    },
+    [isPrimary, openSecondaryThread],
+  );
 
-  // Computed values from state machine
-  const shouldShowNewMessageIndicator = scrollState === "hasNewMessages";
-  const isJumpingToLatest = scrollState === "jumpingToLatest";
-  const newMessageCount = scrollContext.newMessageCount;
+  // Build threadData based on level
+  // Primary: Use getThread response directly
+  // Secondary: Build from getMessage + getSubReplies
+  const threadData = isPrimary
+    ? data?.pages?.[0]
+      ? {
+          rootMessage: data.pages[0].rootMessage,
+          totalReplyCount: data.pages[0].totalReplyCount,
+          replies: data.pages.flatMap((page) => page.replies),
+          hasMore: data.pages[data.pages.length - 1]?.hasMore ?? false,
+          nextCursor: data.pages[data.pages.length - 1]?.nextCursor ?? null,
+        }
+      : undefined
+    : secondaryRootMessage.data && secondaryReplies.data
+      ? {
+          rootMessage: secondaryRootMessage.data,
+          totalReplyCount:
+            secondaryReplies.data.pages?.[0]?.replies?.length ?? 0,
+          // For secondary, replies are flat (no sub-replies structure needed)
+          replies: secondaryReplies.data.pages
+            .flatMap((page) => page.replies)
+            .map((reply) => ({
+              ...reply,
+              subReplies: [],
+              subReplyCount: 0,
+            })),
+          hasMore:
+            secondaryReplies.data.pages[secondaryReplies.data.pages.length - 1]
+              ?.hasMore ?? false,
+          nextCursor:
+            secondaryReplies.data.pages[secondaryReplies.data.pages.length - 1]
+              ?.nextCursor ?? null,
+        }
+      : undefined;
+
+  // Query key for invalidation
+  const queryKey = isPrimary
+    ? ["thread", rootMessageId]
+    : ["subReplies", rootMessageId];
 
   /**
    * Continue loading from current position and fetch new messages.
-   * This preserves already loaded history and only fetches new data.
-   * Returns a promise that resolves when all data is loaded.
    */
   const jumpToLatest = useCallback(async (): Promise<void> => {
     if (!rootMessageId) return;
@@ -216,58 +437,59 @@ export function useThreadPanel() {
     send({ type: "JUMP_TO_LATEST" });
 
     try {
-      // First, invalidate to mark data as stale and trigger refetch
-      // This will refetch the first page which includes new messages
-      await queryClient.invalidateQueries({
-        queryKey: ["thread", rootMessageId],
-      });
+      await queryClient.invalidateQueries({ queryKey });
 
-      // Then load all remaining pages until no more
-      let currentData = queryClient.getQueryData<InfiniteData<ThreadResponse>>([
-        "thread",
-        rootMessageId,
-      ]);
+      if (isPrimary) {
+        let currentData =
+          queryClient.getQueryData<InfiniteData<ThreadResponse>>(queryKey);
 
-      while (currentData?.pages?.[currentData.pages.length - 1]?.hasMore) {
-        await fetchNextPage();
-        currentData = queryClient.getQueryData<InfiniteData<ThreadResponse>>([
-          "thread",
-          rootMessageId,
-        ]);
+        while (currentData?.pages?.[currentData.pages.length - 1]?.hasMore) {
+          await fetchNextPage();
+          currentData =
+            queryClient.getQueryData<InfiniteData<ThreadResponse>>(queryKey);
+        }
+      } else {
+        let currentData =
+          queryClient.getQueryData<InfiniteData<SubRepliesResponse>>(queryKey);
+
+        while (currentData?.pages?.[currentData.pages.length - 1]?.hasMore) {
+          await fetchNextPage();
+          currentData =
+            queryClient.getQueryData<InfiniteData<SubRepliesResponse>>(
+              queryKey,
+            );
+        }
       }
 
       send({ type: "REFRESH_COMPLETE" });
     } catch {
-      // On error, complete the refresh anyway
       send({ type: "REFRESH_COMPLETE" });
     }
-  }, [rootMessageId, queryClient, fetchNextPage, send]);
+  }, [rootMessageId, queryClient, fetchNextPage, send, queryKey, isPrimary]);
 
   /**
    * Handle scroll position changes
-   * This is called by the ThreadPanel component when scroll position changes
    */
   const handleScrollPositionChange = useCallback(
     async (atBottom: boolean) => {
+      if (!rootMessageId) return;
+
       if (atBottom) {
-        // Check current state before sending event
-        const currentState = useThreadScrollState.getState().state;
-        const currentContext = useThreadScrollState.getState().context;
+        const currentThreadState = useThreadScrollState
+          .getState()
+          .getThreadState(rootMessageId);
 
         send({ type: "SCROLL_TO_BOTTOM" });
 
-        // If there are new messages and no more pages to load, trigger refresh
         if (
-          currentState === "hasNewMessages" &&
+          currentThreadState.state === "hasNewMessages" &&
           !hasNextPage &&
-          currentContext.newMessageCount > 0
+          currentThreadState.context.newMessageCount > 0
         ) {
-          // Trigger refresh to get new messages
           await jumpToLatest();
           return;
         }
 
-        // Auto-load more if has more pages
         if (hasNextPage && !isFetchingNextPage) {
           send({ type: "LOAD_MORE" });
           await fetchNextPage();
@@ -277,30 +499,36 @@ export function useThreadPanel() {
         send({ type: "SCROLL_AWAY" });
       }
     },
-    [send, hasNextPage, isFetchingNextPage, fetchNextPage, jumpToLatest],
+    [
+      rootMessageId,
+      send,
+      hasNextPage,
+      isFetchingNextPage,
+      fetchNextPage,
+      jumpToLatest,
+    ],
   );
 
   /**
    * Handle new message event from WebSocket
-   * This should be called by useMessages when a new thread reply arrives
    */
   const onNewMessage = useCallback(() => {
-    // Only handle if in a state that cares about new messages
     if (scrollState === "idle") {
-      // In idle state, React Query will auto-refresh, no need to show indicator
       queryClient.invalidateQueries({
-        queryKey: ["thread", rootMessageId],
+        queryKey,
         refetchType: "all",
       });
     } else {
-      // In any other state, let the state machine handle it
       send({ type: "NEW_MESSAGE" });
     }
-  }, [scrollState, queryClient, rootMessageId, send]);
+  }, [scrollState, queryClient, queryKey, send]);
 
   return {
+    // Level info
+    level,
+    canOpenNestedThread: isPrimary,
+
     // UI state
-    isOpen,
     rootMessageId,
     replyingTo,
     threadData,
@@ -326,7 +554,29 @@ export function useThreadPanel() {
     // UI actions
     openThread,
     closeThread,
+    openNestedThread,
     setReplyingTo,
     clearReplyingTo,
+  };
+}
+
+/**
+ * Legacy hook for backward compatibility (uses primary thread)
+ * @deprecated Use useThreadPanelForLevel instead
+ */
+export function useThreadPanel() {
+  const primaryThread = useThreadStore((s) => s.primaryThread);
+  const { isOpen, rootMessageId } = primaryThread;
+
+  // Use the new hook if thread is open
+  const panelState = useThreadPanelForLevel("primary", rootMessageId || "");
+
+  // Return compatible interface
+  return {
+    ...panelState,
+    isOpen,
+    rootMessageId,
+    // Legacy openThread that accepts messageId
+    openThread: panelState.openThread,
   };
 }

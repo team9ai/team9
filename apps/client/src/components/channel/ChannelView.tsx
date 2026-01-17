@@ -26,7 +26,10 @@ export function ChannelView({ channelId }: ChannelViewProps) {
   const { data: channel, isLoading: channelLoading } = useChannel(channelId);
   const { data: members = [] } = useChannelMembers(channelId);
   const currentUser = useUser();
-  const isThreadOpen = useThreadStore((state) => state.isOpen);
+
+  // Dual-layer thread state
+  const primaryThread = useThreadStore((state) => state.primaryThread);
+  const secondaryThread = useThreadStore((state) => state.secondaryThread);
 
   const {
     data: messagesData,
@@ -110,8 +113,19 @@ export function ChannelView({ channelId }: ChannelViewProps) {
         />
       </div>
 
-      {/* Thread panel sidebar */}
-      {isThreadOpen && <ThreadPanel />}
+      {/* Thread panel sidebars - up to 2 layers */}
+      {primaryThread.isOpen && primaryThread.rootMessageId && (
+        <ThreadPanel
+          level="primary"
+          rootMessageId={primaryThread.rootMessageId}
+        />
+      )}
+      {secondaryThread.isOpen && secondaryThread.rootMessageId && (
+        <ThreadPanel
+          level="secondary"
+          rootMessageId={secondaryThread.rootMessageId}
+        />
+      )}
     </div>
   );
 }

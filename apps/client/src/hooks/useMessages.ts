@@ -46,30 +46,58 @@ export function useMessages(channelId: string | undefined) {
       // Instead, handle thread updates via state machine
       if (message.parentId) {
         const rootId = message.rootId || message.parentId;
+        const parentId = message.parentId;
         const threadState = useThreadStore.getState();
-        const scrollState = useThreadScrollState.getState();
+        const scrollStateStore = useThreadScrollState.getState();
 
-        // Check if this reply belongs to the currently open thread
-        const isCurrentThread =
-          threadState.isOpen && threadState.rootMessageId === rootId;
+        // Check if this reply belongs to any currently open thread (primary or secondary)
+        // Primary thread uses rootId (original root message)
+        // Secondary thread uses parentId (first-level reply that was opened as a thread)
+        const isPrimaryThread =
+          threadState.primaryThread.isOpen &&
+          threadState.primaryThread.rootMessageId === rootId;
+        const isSecondaryThread =
+          threadState.secondaryThread.isOpen &&
+          threadState.secondaryThread.rootMessageId === parentId;
 
-        if (isCurrentThread) {
-          const currentScrollState = scrollState.state;
+        // Handle primary thread updates
+        if (isPrimaryThread) {
+          const threadScrollState = scrollStateStore.getThreadState(rootId);
+          const currentScrollState = threadScrollState.state;
 
           // Send event to state machine first
-          scrollState.send({ type: "NEW_MESSAGE" });
+          scrollStateStore.send(rootId, { type: "NEW_MESSAGE" });
 
           // Only auto-refresh if user is confirmed at bottom (idle state)
-          // In initializing state, state machine will show indicator
-          // In other states, state machine handles it appropriately
           if (currentScrollState === "idle") {
             queryClient.invalidateQueries({
               queryKey: ["thread", rootId],
               refetchType: "all",
             });
           }
-        } else {
-          // Thread is not open - just invalidate for when user opens it
+        }
+
+        // Handle secondary thread updates (separate from primary)
+        if (isSecondaryThread) {
+          const secondaryRootId = threadState.secondaryThread.rootMessageId!;
+          const threadScrollState =
+            scrollStateStore.getThreadState(secondaryRootId);
+          const currentScrollState = threadScrollState.state;
+
+          // Send event to state machine for secondary thread
+          scrollStateStore.send(secondaryRootId, { type: "NEW_MESSAGE" });
+
+          // Only auto-refresh if user is confirmed at bottom (idle state)
+          if (currentScrollState === "idle") {
+            queryClient.invalidateQueries({
+              queryKey: ["thread", secondaryRootId],
+              refetchType: "all",
+            });
+          }
+        }
+
+        // If neither thread is open, just invalidate for when user opens it
+        if (!isPrimaryThread && !isSecondaryThread) {
           queryClient.invalidateQueries({
             queryKey: ["thread", rootId],
             refetchType: "all",

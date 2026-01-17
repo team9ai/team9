@@ -1,20 +1,13 @@
-import { useState, useRef, useCallback, useEffect } from "react";
-import {
-  X,
-  ChevronDown,
-  ChevronUp,
-  MessageSquare,
-  Loader2,
-  ArrowDown,
-} from "lucide-react";
+import { useRef, useCallback, useEffect } from "react";
+import { X, MessageSquare, Loader2, ArrowDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
-  useThreadPanel,
+  useThreadPanelForLevel,
   useSendThreadReply,
-  useSubReplies,
+  type ThreadLevel,
 } from "@/hooks/useThread";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { MessageContent } from "./MessageContent";
@@ -25,15 +18,19 @@ import { formatMessageTime } from "@/lib/date-utils";
 import type { Message, ThreadReply } from "@/types/im";
 import { cn } from "@/lib/utils";
 
-export function ThreadPanel() {
+interface ThreadPanelProps {
+  level: ThreadLevel;
+  rootMessageId: string;
+}
+
+export function ThreadPanel({ level, rootMessageId }: ThreadPanelProps) {
   const { t } = useTranslation("thread");
   const {
-    isOpen,
-    rootMessageId,
     threadData,
     isLoading,
     replyingTo,
     isFetchingNextPage,
+    canOpenNestedThread,
     // State machine
     scrollState,
     newMessageCount,
@@ -43,9 +40,10 @@ export function ThreadPanel() {
     jumpToLatest,
     // UI actions
     closeThread,
+    openNestedThread,
     setReplyingTo,
     clearReplyingTo,
-  } = useThreadPanel();
+  } = useThreadPanelForLevel(level, rootMessageId);
   const { data: currentUser } = useCurrentUser();
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -132,10 +130,6 @@ export function ThreadPanel() {
     }, 100);
   }, [jumpToLatest]);
 
-  if (!isOpen || !rootMessageId) {
-    return null;
-  }
-
   return (
     <div className="w-96 border-l bg-white flex flex-col h-full">
       {/* Header */}
@@ -179,6 +173,8 @@ export function ThreadPanel() {
                     onReplyTo={(messageId: string, senderName: string) =>
                       setReplyingTo({ messageId, senderName })
                     }
+                    canOpenNestedThread={canOpenNestedThread}
+                    onOpenNestedThread={openNestedThread}
                   />
                 ))}
 
@@ -215,6 +211,7 @@ export function ThreadPanel() {
           {/* Input */}
           <ThreadInputArea
             rootMessageId={rootMessageId}
+            level={level}
             replyingTo={replyingTo}
             onClearReplyingTo={clearReplyingTo}
           />
@@ -235,11 +232,15 @@ function ThreadMessage({
   isRootMessage = false,
   onReplyTo,
   indent = false,
+  canOpenNestedThread = false,
+  onOpenNestedThread,
 }: {
   message: Message;
   currentUserId?: string;
   isRootMessage?: boolean;
   onReplyTo?: (messageId: string, senderName: string) => void;
+  canOpenNestedThread?: boolean;
+  onOpenNestedThread?: (messageId: string) => void;
   indent?: boolean;
 }) {
   const isOwnMessage = currentUserId === message.senderId;
@@ -263,8 +264,14 @@ function ThreadMessage({
   const hasContent = Boolean(message.content?.trim());
   const hasAttachments = message.attachments && message.attachments.length > 0;
 
+  // Handle reply action - either open nested thread or set replying to
   const handleReplyInThread = () => {
-    if (onReplyTo && !isRootMessage) {
+    if (isRootMessage) return;
+
+    // If can open nested thread, open it; otherwise set replying to this message
+    if (canOpenNestedThread && onOpenNestedThread) {
+      onOpenNestedThread(message.id);
+    } else if (onReplyTo) {
       onReplyTo(message.id, senderName);
     }
   };
@@ -320,33 +327,28 @@ function ThreadMessage({
   );
 }
 
-// Thread reply item with collapsible sub-replies
+// Thread reply item - simplified, sub-replies shown in secondary panel
 function ThreadReplyItem({
   reply,
   currentUserId,
   onReplyTo,
+  canOpenNestedThread = false,
+  onOpenNestedThread,
 }: {
   reply: ThreadReply;
   currentUserId?: string;
   onReplyTo: (messageId: string, senderName: string) => void;
+  canOpenNestedThread?: boolean;
+  onOpenNestedThread?: (messageId: string) => void;
 }) {
   const { t } = useTranslation("thread");
-  const [isExpanded, setIsExpanded] = useState(false);
-  const {
-    data: subRepliesData,
-    isLoading: isLoadingSubReplies,
-    hasNextPage: hasMoreSubRepliesPages,
-    isFetchingNextPage: isFetchingMoreSubReplies,
-    fetchNextPage: fetchMoreSubReplies,
-  } = useSubReplies(reply.id, isExpanded && reply.subReplyCount > 2);
 
-  const hasMoreSubReplies = reply.subReplyCount > 2;
-
-  // Merge all pages of sub-replies when expanded
-  const allSubReplies = subRepliesData?.pages?.flatMap((page) => page.replies);
-  const displayedSubReplies = isExpanded
-    ? allSubReplies || reply.subReplies
-    : reply.subReplies;
+  // Handle opening this reply in a new thread panel
+  const handleOpenInNewPanel = () => {
+    if (canOpenNestedThread && onOpenNestedThread) {
+      onOpenNestedThread(reply.id);
+    }
+  };
 
   return (
     <div>
@@ -355,58 +357,18 @@ function ThreadReplyItem({
         message={reply}
         currentUserId={currentUserId}
         onReplyTo={onReplyTo}
+        canOpenNestedThread={canOpenNestedThread}
+        onOpenNestedThread={onOpenNestedThread}
       />
 
-      {/* Sub-replies (second-level) */}
-      {displayedSubReplies.length > 0 && (
-        <div className="border-l-2 border-slate-200 ml-4">
-          {displayedSubReplies.map((subReply: Message) => (
-            <ThreadMessage
-              key={subReply.id}
-              message={subReply}
-              currentUserId={currentUserId}
-              indent
-            />
-          ))}
-
-          {/* Load more sub-replies button */}
-          {isExpanded && hasMoreSubRepliesPages && (
-            <button
-              onClick={() => fetchMoreSubReplies()}
-              className="ml-6 my-2 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
-              disabled={isFetchingMoreSubReplies}
-            >
-              {isFetchingMoreSubReplies ? (
-                <>
-                  <Loader2 size={12} className="animate-spin" />
-                  {t("loadingMore")}
-                </>
-              ) : (
-                t("loadMore")
-              )}
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Expand/collapse button for more sub-replies */}
-      {hasMoreSubReplies && (
+      {/* Reply count button to open in new panel */}
+      {canOpenNestedThread && reply.subReplyCount > 0 && (
         <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="ml-4 mt-1 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
-          disabled={isLoadingSubReplies}
+          onClick={handleOpenInNewPanel}
+          className="ml-10 mt-1 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline"
         >
-          {isExpanded ? (
-            <>
-              <ChevronUp size={14} />
-              {t("hideReplies")}
-            </>
-          ) : (
-            <>
-              <ChevronDown size={14} />
-              {t("showMoreReplies", { count: reply.subReplyCount - 2 })}
-            </>
-          )}
+          <MessageSquare size={14} />
+          <span>{t("repliesCount", { count: reply.subReplyCount })}</span>
         </button>
       )}
     </div>
@@ -416,15 +378,17 @@ function ThreadReplyItem({
 // Thread input area with replying-to indicator
 function ThreadInputArea({
   rootMessageId,
+  level,
   replyingTo,
   onClearReplyingTo,
 }: {
   rootMessageId: string;
+  level: ThreadLevel;
   replyingTo: { messageId: string; senderName: string } | null;
   onClearReplyingTo: () => void;
 }) {
   const { t } = useTranslation("thread");
-  const sendReply = useSendThreadReply(rootMessageId);
+  const sendReply = useSendThreadReply(rootMessageId, level);
 
   const handleSubmit = async (content: string) => {
     if (!content.trim()) return;
