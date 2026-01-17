@@ -76,6 +76,30 @@ export function ThreadPanel() {
     return () => viewport.removeEventListener("scroll", handleScroll);
   }, [handleScroll]);
 
+  // Check initial scroll position when thread data loads
+  // This confirms the user's position and transitions from initializing state
+  useEffect(() => {
+    if (!threadData || isLoading) return;
+
+    // Use requestAnimationFrame to ensure DOM has rendered
+    const rafId = requestAnimationFrame(() => {
+      const viewport = scrollAreaRef.current?.querySelector(
+        "[data-radix-scroll-area-viewport]",
+      );
+      if (!viewport) return;
+
+      const { scrollTop, scrollHeight, clientHeight } = viewport;
+      // Consider "at bottom" if within 100px of the bottom
+      const atBottom = scrollHeight - scrollTop - clientHeight < 100;
+
+      // Notify state machine of initial position
+      // This will transition from initializing to idle (if at bottom) or browsing (if not)
+      handleScrollPositionChange(atBottom);
+    });
+
+    return () => cancelAnimationFrame(rafId);
+  }, [threadData, isLoading, handleScrollPositionChange]);
+
   // Handle jumping to bottom when clicking new message indicator
   const handleJumpToBottom = useCallback(async () => {
     await jumpToLatest();

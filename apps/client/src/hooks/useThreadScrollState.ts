@@ -5,6 +5,7 @@ import { subscribeWithSelector } from "zustand/middleware";
  * Thread Scroll State Machine
  *
  * States:
+ * - initializing: Thread just opened, waiting for first scroll position confirmation
  * - idle: User is at bottom, no pending new messages, ready for real-time updates
  * - browsing: User has scrolled away from bottom, browsing history
  * - hasNewMessages: New messages arrived while user was not at bottom
@@ -13,38 +14,45 @@ import { subscribeWithSelector } from "zustand/middleware";
  *
  * State Transitions:
  *
- *   ┌─────────────────────────────────────────────────────────────┐
- *   │                                                             │
- *   │  ┌──────┐  SCROLL_AWAY   ┌──────────┐                      │
- *   │  │ idle │ ────────────►  │ browsing │                      │
- *   │  └──────┘                └──────────┘                      │
- *   │     ▲                         │                            │
- *   │     │                         │ NEW_MESSAGE                │
- *   │     │                         ▼                            │
- *   │     │   SCROLL_TO_BOTTOM ┌────────────────┐               │
- *   │     │   (no new msgs)    │ hasNewMessages │               │
- *   │     │ ◄──────────────────└────────────────┘               │
- *   │     │                         │                            │
- *   │     │                         │ SCROLL_TO_BOTTOM           │
- *   │     │                         │ (with new msgs) or         │
- *   │     │                         │ JUMP_TO_LATEST             │
- *   │     │                         ▼                            │
- *   │     │   REFRESH_COMPLETE ┌──────────────────┐             │
- *   │     │ ◄──────────────────│ jumpingToLatest  │             │
- *   │     │                    └──────────────────┘             │
- *   │     │                                                      │
- *   │     │   LOAD_COMPLETE    ┌─────────────┐                  │
- *   │     │ ◄──────────────────│ loadingMore │                  │
- *   │                          └─────────────┘                   │
- *   │                               ▲                            │
- *   │                               │ LOAD_MORE                  │
- *   │                               │                            │
- *   └───────────────────────────────┴────────────────────────────┘
- *           (from any state except jumpingToLatest)
+ *   ┌──────────────┐
+ *   │ initializing │ ─── SCROLL_TO_BOTTOM ───► idle
+ *   └──────────────┘
+ *         │
+ *         │ NEW_MESSAGE
+ *         ▼
+ *   ┌────────────────┐
+ *   │ hasNewMessages │
+ *   └────────────────┘
+ *
+ *   ┌──────┐  SCROLL_AWAY   ┌──────────┐
+ *   │ idle │ ────────────►  │ browsing │
+ *   └──────┘                └──────────┘
+ *      ▲                         │
+ *      │                         │ NEW_MESSAGE
+ *      │                         ▼
+ *      │   SCROLL_TO_BOTTOM ┌────────────────┐
+ *      │   (no new msgs)    │ hasNewMessages │
+ *      │ ◄──────────────────└────────────────┘
+ *      │                         │
+ *      │                         │ SCROLL_TO_BOTTOM (with new msgs)
+ *      │                         │ or JUMP_TO_LATEST
+ *      │                         ▼
+ *      │   REFRESH_COMPLETE ┌──────────────────┐
+ *      │ ◄──────────────────│ jumpingToLatest  │
+ *      │                    └──────────────────┘
+ *      │
+ *      │   LOAD_COMPLETE    ┌─────────────┐
+ *      │ ◄──────────────────│ loadingMore │
+ *                           └─────────────┘
+ *                                ▲
+ *                                │ LOAD_MORE
+ *                                │
+ *            (from any state except jumpingToLatest)
  */
 
 // State types
 export type ThreadScrollState =
+  | "initializing"
   | "idle"
   | "browsing"
   | "hasNewMessages"
@@ -91,19 +99,48 @@ function transition(
   context: ThreadScrollContext,
 ): { state: ThreadScrollState; context: ThreadScrollContext } {
   switch (currentState) {
+    case "initializing":
+      switch (event.type) {
+        case "SCROLL_TO_BOTTOM":
+          // User confirmed at bottom, transition to idle
+          return { state: "idle", context };
+        case "SCROLL_AWAY":
+          // User scrolled away before confirming bottom
+          return { state: "browsing", context };
+        case "NEW_MESSAGE":
+          // New message arrived before user confirmed position
+          // Show indicator since we don't know if user is at bottom
+          return {
+            state: "hasNewMessages",
+            context: {
+              ...context,
+              newMessageCount: context.newMessageCount + 1,
+            },
+          };
+        case "LOAD_MORE":
+          return { state: "loadingMore", context };
+        case "RESET":
+          return {
+            state: "initializing",
+            context: { newMessageCount: 0, hasMorePages: false },
+          };
+        default:
+          return { state: currentState, context };
+      }
+
     case "idle":
       switch (event.type) {
         case "SCROLL_AWAY":
           return { state: "browsing", context };
         case "NEW_MESSAGE":
-          // In idle state, new messages are handled by React Query auto-refresh
+          // In idle state (confirmed at bottom), new messages are handled by React Query auto-refresh
           // No state change needed
           return { state: "idle", context };
         case "LOAD_MORE":
           return { state: "loadingMore", context };
         case "RESET":
           return {
-            state: "idle",
+            state: "initializing",
             context: { newMessageCount: 0, hasMorePages: false },
           };
         default:
@@ -135,7 +172,7 @@ function transition(
           return { state: "loadingMore", context };
         case "RESET":
           return {
-            state: "idle",
+            state: "initializing",
             context: { newMessageCount: 0, hasMorePages: false },
           };
         default:
@@ -169,7 +206,7 @@ function transition(
           return { state: currentState, context };
         case "RESET":
           return {
-            state: "idle",
+            state: "initializing",
             context: { newMessageCount: 0, hasMorePages: false },
           };
         default:
@@ -197,7 +234,7 @@ function transition(
           };
         case "RESET":
           return {
-            state: "idle",
+            state: "initializing",
             context: { newMessageCount: 0, hasMorePages: false },
           };
         default:
@@ -213,7 +250,7 @@ function transition(
           return { state: currentState, context };
         case "RESET":
           return {
-            state: "idle",
+            state: "initializing",
             context: { newMessageCount: 0, hasMorePages: false },
           };
         default:
@@ -227,7 +264,7 @@ function transition(
 
 export const useThreadScrollState = create<ThreadScrollStore>()(
   subscribeWithSelector((set, get) => ({
-    state: "idle" as ThreadScrollState,
+    state: "initializing" as ThreadScrollState,
     context: {
       newMessageCount: 0,
       hasMorePages: false,
@@ -275,6 +312,7 @@ export const useThreadScrollSelectors = () => {
     hasMorePages: context.hasMorePages,
 
     // Computed
+    isInitializing: state === "initializing",
     isIdle: state === "idle",
     isBrowsing: state === "browsing",
     hasNewMessages: state === "hasNewMessages",

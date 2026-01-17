@@ -54,12 +54,15 @@ export function useMessages(channelId: string | undefined) {
           threadState.isOpen && threadState.rootMessageId === rootId;
 
         if (isCurrentThread) {
-          // Use state machine to handle new message
-          // The state machine will decide whether to show indicator or refresh
+          const currentScrollState = scrollState.state;
+
+          // Send event to state machine first
           scrollState.send({ type: "NEW_MESSAGE" });
 
-          // If in idle state, also invalidate to trigger refresh
-          if (scrollState.state === "idle") {
+          // Only auto-refresh if user is confirmed at bottom (idle state)
+          // In initializing state, state machine will show indicator
+          // In other states, state machine handles it appropriately
+          if (currentScrollState === "idle") {
             queryClient.invalidateQueries({
               queryKey: ["thread", rootId],
               refetchType: "all",
