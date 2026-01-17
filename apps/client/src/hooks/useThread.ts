@@ -206,8 +206,8 @@ export function useThreadPanel() {
   const newMessageCount = scrollContext.newMessageCount;
 
   /**
-   * Load all remaining pages and then invalidate to get latest messages.
-   * This is used when user clicks the "new messages" indicator or scrolls to bottom with pending new messages.
+   * Continue loading from current position and fetch new messages.
+   * This preserves already loaded history and only fetches new data.
    * Returns a promise that resolves when all data is loaded.
    */
   const jumpToLatest = useCallback(async (): Promise<void> => {
@@ -216,27 +216,14 @@ export function useThreadPanel() {
     send({ type: "JUMP_TO_LATEST" });
 
     try {
-      // First, load all remaining pages
-      let currentData = queryClient.getQueryData<InfiniteData<ThreadResponse>>([
-        "thread",
-        rootMessageId,
-      ]);
-
-      while (currentData?.pages?.[currentData.pages.length - 1]?.hasMore) {
-        await fetchNextPage();
-        currentData = queryClient.getQueryData<InfiniteData<ThreadResponse>>([
-          "thread",
-          rootMessageId,
-        ]);
-      }
-
-      // After loading all existing pages, reset and refetch to get new messages
-      await queryClient.resetQueries({
+      // First, invalidate to mark data as stale and trigger refetch
+      // This will refetch the first page which includes new messages
+      await queryClient.invalidateQueries({
         queryKey: ["thread", rootMessageId],
       });
 
-      // After reset, load all pages again to show all messages
-      currentData = queryClient.getQueryData<InfiniteData<ThreadResponse>>([
+      // Then load all remaining pages until no more
+      let currentData = queryClient.getQueryData<InfiniteData<ThreadResponse>>([
         "thread",
         rootMessageId,
       ]);
@@ -251,7 +238,7 @@ export function useThreadPanel() {
 
       send({ type: "REFRESH_COMPLETE" });
     } catch {
-      // On error, go back to hasNewMessages state
+      // On error, complete the refresh anyway
       send({ type: "REFRESH_COMPLETE" });
     }
   }, [rootMessageId, queryClient, fetchNextPage, send]);
