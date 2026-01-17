@@ -92,7 +92,7 @@ export function MessageItem({
         <MessageSquare size={14} />
         <span>{t("repliesCount", { count: replyCount })}</span>
         {/* Unread sub-reply badge */}
-        {unreadSubReplyCount && unreadSubReplyCount > 0 && (
+        {unreadSubReplyCount != null && unreadSubReplyCount > 0 && (
           <span className="ml-1 px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-medium rounded-full min-w-4.5 text-center">
             {unreadSubReplyCount > 99 ? "99+" : unreadSubReplyCount}
           </span>

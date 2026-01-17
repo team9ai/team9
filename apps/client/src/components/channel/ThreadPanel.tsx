@@ -214,7 +214,6 @@ export function ThreadPanel({ level, rootMessageId }: ThreadPanelProps) {
           {/* Input - using shared MessageInput component */}
           <MessageInput
             channelId={threadData.rootMessage.channelId}
-            compact
             replyingTo={replyingTo}
             onClearReplyingTo={clearReplyingTo}
             onSend={handleSendReply}
