@@ -9,6 +9,7 @@ import wsService from "@/services/websocket";
 import type { CreateMessageDto, UpdateMessageDto, Message } from "@/types/im";
 import { useSelectedWorkspaceId } from "@/stores";
 import { useThreadStore } from "./useThread";
+import { useThreadScrollState } from "./useThreadScrollState";
 
 /**
  * Hook to fetch messages for a channel with infinite scroll
@@ -42,37 +43,23 @@ export function useMessages(channelId: string | undefined) {
       if (message.channelId !== channelId) return;
 
       // If message is a reply (has parentId), don't add to main message list
-      // Instead, handle thread updates appropriately
+      // Instead, handle thread updates via state machine
       if (message.parentId) {
         const rootId = message.rootId || message.parentId;
         const threadState = useThreadStore.getState();
+        const scrollState = useThreadScrollState.getState();
 
         // Check if this reply belongs to the currently open thread
         const isCurrentThread =
           threadState.isOpen && threadState.rootMessageId === rootId;
 
         if (isCurrentThread) {
-          // Check if user is at bottom and all pages are loaded
-          const threadQueryState = queryClient.getQueryState([
-            "thread",
-            rootId,
-          ]);
-          const queryData = threadQueryState?.data as
-            | { pages?: Array<{ hasMore?: boolean }> }
-            | undefined;
-          const hasNextPage =
-            queryData?.pages &&
-            Array.isArray(queryData.pages) &&
-            queryData.pages.length > 0 &&
-            queryData.pages[queryData.pages.length - 1]?.hasMore;
+          // Use state machine to handle new message
+          // The state machine will decide whether to show indicator or refresh
+          scrollState.send({ type: "NEW_MESSAGE" });
 
-          const shouldShowIndicator = !threadState.isAtBottom || hasNextPage;
-
-          if (shouldShowIndicator) {
-            // User is not at bottom or has unloaded pages - show indicator
-            threadState.incrementNewMessageCount();
-          } else {
-            // User is at bottom and all loaded - refresh immediately
+          // If in idle state, also invalidate to trigger refresh
+          if (scrollState.state === "idle") {
             queryClient.invalidateQueries({
               queryKey: ["thread", rootId],
               refetchType: "all",

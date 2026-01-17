@@ -33,15 +33,14 @@ export function ThreadPanel() {
     threadData,
     isLoading,
     replyingTo,
-    hasNextPage,
     isFetchingNextPage,
-    fetchNextPage,
-    loadAllPagesAndRefresh,
-    // New message indicator
+    // State machine
     newMessageCount,
     shouldShowNewMessageIndicator,
-    clearNewMessageCount,
-    setIsAtBottom,
+    isJumpingToLatest,
+    handleScrollPositionChange,
+    jumpToLatest,
+    // UI actions
     closeThread,
     setReplyingTo,
     clearReplyingTo,
@@ -50,10 +49,8 @@ export function ThreadPanel() {
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const [isJumpingToBottom, setIsJumpingToBottom] = useState(false);
 
-  // Track scroll position to determine if user is at bottom
-  // Also trigger auto-loading when user scrolls to bottom
+  // Track scroll position and notify state machine
   const handleScroll = useCallback(() => {
     const viewport = scrollAreaRef.current?.querySelector(
       "[data-radix-scroll-area-viewport]",
@@ -63,24 +60,10 @@ export function ThreadPanel() {
     const { scrollTop, scrollHeight, clientHeight } = viewport;
     // Consider "at bottom" if within 100px of the bottom
     const atBottom = scrollHeight - scrollTop - clientHeight < 100;
-    setIsAtBottom(atBottom);
 
-    // If user scrolls to bottom and there are no more pages, clear new message count
-    if (atBottom && !hasNextPage) {
-      clearNewMessageCount();
-    }
-
-    // Auto-load next page when scrolling to bottom (infinite scroll)
-    if (atBottom && hasNextPage && !isFetchingNextPage) {
-      fetchNextPage();
-    }
-  }, [
-    setIsAtBottom,
-    clearNewMessageCount,
-    hasNextPage,
-    isFetchingNextPage,
-    fetchNextPage,
-  ]);
+    // Notify state machine of scroll position change
+    handleScrollPositionChange(atBottom);
+  }, [handleScrollPositionChange]);
 
   // Set up scroll listener
   useEffect(() => {
@@ -95,20 +78,13 @@ export function ThreadPanel() {
 
   // Handle jumping to bottom when clicking new message indicator
   const handleJumpToBottom = useCallback(async () => {
-    setIsJumpingToBottom(true);
-
-    // Load all pages and refresh to get the latest messages
-    await loadAllPagesAndRefresh();
-
-    // Clear new message count
-    clearNewMessageCount();
+    await jumpToLatest();
 
     // Scroll to bottom after data loads
     setTimeout(() => {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-      setIsJumpingToBottom(false);
     }, 100);
-  }, [loadAllPagesAndRefresh, clearNewMessageCount]);
+  }, [jumpToLatest]);
 
   if (!isOpen || !rootMessageId) {
     return null;
@@ -177,10 +153,10 @@ export function ThreadPanel() {
             {shouldShowNewMessageIndicator && (
               <button
                 onClick={handleJumpToBottom}
-                disabled={isJumpingToBottom}
+                disabled={isJumpingToLatest}
                 className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-full shadow-lg hover:bg-blue-700 transition-colors"
               >
-                {isJumpingToBottom ? (
+                {isJumpingToLatest ? (
                   <Loader2 size={16} className="animate-spin" />
                 ) : (
                   <ArrowDown size={16} />
