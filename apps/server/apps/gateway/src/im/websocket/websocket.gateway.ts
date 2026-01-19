@@ -664,18 +664,6 @@ export class WebsocketGateway
     this.server.to(`channel:${channelId}`).emit(event, data);
   }
 
-  async broadcastMessageUpdate(
-    channelId: string,
-    messageId: string,
-  ): Promise<void> {
-    const message = await this.messagesService.getMessageWithDetails(messageId);
-    this.sendToChannel(channelId, WS_EVENTS.MESSAGE.UPDATED, message);
-  }
-
-  broadcastMessageDeleted(channelId: string, messageId: string): void {
-    this.sendToChannel(channelId, WS_EVENTS.MESSAGE.DELETED, { messageId });
-  }
-
   // ==================== Workspace Operations ====================
 
   async broadcastToWorkspace(
