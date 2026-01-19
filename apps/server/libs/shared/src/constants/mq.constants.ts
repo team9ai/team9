@@ -73,6 +73,6 @@ export const MQ_CONFIG = {
   // ACK timeout in milliseconds (10 seconds)
   ACK_TIMEOUT: 10000,
 
-  // Offline message expiration (7 days)
-  OFFLINE_MESSAGE_TTL: 7 * 24 * 60 * 60 * 1000,
+  // Offline message expiration (15 days)
+  OFFLINE_MESSAGE_TTL: 15 * 24 * 60 * 60 * 1000,
 } as const;
