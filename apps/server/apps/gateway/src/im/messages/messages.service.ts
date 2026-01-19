@@ -3,14 +3,12 @@ import {
   Inject,
   NotFoundException,
   ForbiddenException,
-  BadRequestException,
 } from '@nestjs/common';
 import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
   eq,
   and,
-  or,
   desc,
   lt,
   sql,
@@ -19,19 +17,7 @@ import {
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
-import { RedisService } from '@team9/redis';
-import { env } from '@team9/shared';
-import {
-  CreateMessageDto,
-  UpdateMessageDto,
-  AttachmentDto,
-} from './dto/index.js';
-import {
-  parseMentions,
-  extractMentionedUserIds,
-  hasBroadcastMention,
-} from '../shared/utils/mention-parser.js';
-import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
+import { UpdateMessageDto } from './dto/index.js';
 
 export interface MessageSender {
   id: string;
@@ -99,191 +85,10 @@ export interface SubRepliesResponse {
 
 @Injectable()
 export class MessagesService {
-  private readonly MESSAGES_CACHE_LIMIT = 50;
-
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
-    private readonly redisService: RedisService,
   ) {}
-
-  async create(
-    channelId: string,
-    senderId: string,
-    dto: CreateMessageDto,
-  ): Promise<MessageResponse> {
-    const { content, parentId, attachments } = dto;
-
-    // Calculate rootId based on parentId
-    // - Root message: parentId = null, rootId = null
-    // - First-level reply: parentId = rootId (both point to root message)
-    // - Second-level reply: parentId = first-level reply, rootId = root message
-    let rootId: string | null = null;
-
-    if (parentId) {
-      const parentInfo = await this.getParentMessageInfo(parentId);
-
-      if (parentInfo.rootId) {
-        // Parent is already a reply (has rootId), so this is a second-level reply
-        // Check if parent is already a second-level reply (not allowed)
-        if (parentInfo.parentId && parentInfo.parentId !== parentInfo.rootId) {
-          throw new BadRequestException(
-            'Maximum nesting depth reached. Cannot reply to a second-level reply.',
-          );
-        }
-        rootId = parentInfo.rootId;
-      } else {
-        // Parent is a root message, so this is a first-level reply
-        rootId = parentId;
-      }
-      console.log('[create] calculated rootId:', rootId);
-    }
-
-    // Determine message type
-    const type = attachments?.length ? 'file' : 'text';
-
-    // Create message
-    const [message] = await this.db
-      .insert(schema.messages)
-      .values({
-        id: uuidv7(),
-        channelId,
-        senderId,
-        content,
-        parentId,
-        rootId,
-        type,
-      })
-      .returning();
-
-    // Handle attachments
-    if (attachments?.length) {
-      await this.createAttachments(message.id, attachments);
-    }
-
-    // Parse and save mentions
-    if (content) {
-      await this.saveMentions(message.id, channelId, content);
-    }
-
-    // Update unread count for channel members
-    await this.incrementUnreadCount(channelId, senderId);
-
-    // Cache recent message
-    await this.cacheMessage(channelId, message);
-
-    return this.getMessageWithDetails(message.id);
-  }
-
-  private async createAttachments(
-    messageId: string,
-    attachments: AttachmentDto[],
-  ): Promise<void> {
-    const attachmentValues = attachments.map((att) => ({
-      id: uuidv7(),
-      messageId,
-      fileKey: att.fileKey,
-      fileName: att.fileName,
-      fileUrl: `${env.S3_ENDPOINT}/im-attachments/${att.fileKey}`,
-      mimeType: att.mimeType,
-      fileSize: att.fileSize,
-    }));
-
-    await this.db.insert(schema.messageAttachments).values(attachmentValues);
-  }
-
-  private async saveMentions(
-    messageId: string,
-    channelId: string,
-    content: string,
-  ): Promise<void> {
-    const mentions = parseMentions(content);
-    if (mentions.length === 0) return;
-
-    const userIds = extractMentionedUserIds(mentions);
-    const broadcast = hasBroadcastMention(mentions);
-
-    const mentionRecords: schema.NewMention[] = [];
-
-    // Add user mentions
-    for (const userId of userIds) {
-      mentionRecords.push({
-        id: uuidv7(),
-        messageId,
-        mentionedUserId: userId,
-        type: 'user',
-      });
-    }
-
-    // Add broadcast mentions
-    if (broadcast.everyone) {
-      mentionRecords.push({
-        id: uuidv7(),
-        messageId,
-        type: 'everyone',
-      });
-    }
-
-    if (broadcast.here) {
-      mentionRecords.push({
-        id: uuidv7(),
-        messageId,
-        type: 'here',
-      });
-    }
-
-    if (mentionRecords.length > 0) {
-      await this.db.insert(schema.mentions).values(mentionRecords);
-    }
-  }
-
-  private async incrementUnreadCount(
-    channelId: string,
-    excludeUserId: string,
-  ): Promise<void> {
-    // Get channel members excluding sender
-    const members = await this.db
-      .select({ userId: schema.channelMembers.userId })
-      .from(schema.channelMembers)
-      .where(
-        and(
-          eq(schema.channelMembers.channelId, channelId),
-          sql`${schema.channelMembers.userId} != ${excludeUserId}`,
-          isNull(schema.channelMembers.leftAt),
-        ),
-      );
-
-    for (const member of members) {
-      await this.db
-        .insert(schema.userChannelReadStatus)
-        .values({
-          id: uuidv7(),
-          userId: member.userId,
-          channelId,
-          unreadCount: 1,
-        })
-        .onConflictDoUpdate({
-          target: [
-            schema.userChannelReadStatus.userId,
-            schema.userChannelReadStatus.channelId,
-          ],
-          set: {
-            unreadCount: sql`${schema.userChannelReadStatus.unreadCount} + 1`,
-          },
-        });
-    }
-  }
-
-  private async cacheMessage(
-    channelId: string,
-    message: schema.Message,
-  ): Promise<void> {
-    const key = REDIS_KEYS.RECENT_MESSAGES(channelId);
-    const client = this.redisService.getClient();
-    await client.lpush(key, JSON.stringify(message));
-    await client.ltrim(key, 0, this.MESSAGES_CACHE_LIMIT - 1);
-    await this.redisService.expire(key, 3600);
-  }
 
   async getMessageWithDetails(messageId: string): Promise<MessageResponse> {
     const [message] = await this.db
@@ -539,31 +344,6 @@ export class MessagesService {
     return Promise.all(
       messageList.map((m) => this.getMessageWithDetails(m.id)),
     );
-  }
-
-  /**
-   * Get parent message info for determining rootId (single query, O(1))
-   */
-  private async getParentMessageInfo(
-    messageId: string,
-  ): Promise<{ parentId: string | null; rootId: string | null }> {
-    const [message] = await this.db
-      .select({
-        parentId: schema.messages.parentId,
-        rootId: schema.messages.rootId,
-      })
-      .from(schema.messages)
-      .where(eq(schema.messages.id, messageId))
-      .limit(1);
-
-    if (!message) {
-      throw new NotFoundException('Parent message not found');
-    }
-
-    return {
-      parentId: message.parentId,
-      rootId: message.rootId,
-    };
   }
 
   /**

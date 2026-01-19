@@ -11,3 +11,6 @@ export * from './types/message.types.js';
 
 // WebSocket Events (unified event names and types)
 export * from './events/index.js';
+
+// Utils
+export * from './utils/mention-parser.js';
