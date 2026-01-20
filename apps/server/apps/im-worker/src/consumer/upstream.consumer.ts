@@ -1,5 +1,5 @@
-import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
-import { AmqpConnection } from '@team9/rabbitmq';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { RabbitSubscribe, Nack } from '@team9/rabbitmq';
 import { MQ_EXCHANGES, MQ_QUEUES, MQ_ROUTING_KEYS } from '@team9/shared';
 import type {
   UpstreamMessage,
@@ -14,210 +14,143 @@ import { PostBroadcastService } from '../post-broadcast/post-broadcast.service.j
 /**
  * Upstream Consumer - consumes messages from Gateway nodes
  *
- * Listens to:
- * - im.queue.im-worker.upstream - all upstream messages including:
- *   - Regular messages (text, file, image)
- *   - ACK, typing, read, presence events
- *   - Post-broadcast tasks (offline message handling)
+ * Uses @RabbitSubscribe decorators for each message type:
+ * - Regular messages (text, file, image)
+ * - ACK, typing, read, presence events
+ * - Post-broadcast tasks (offline message handling)
  */
 @Injectable()
-export class UpstreamConsumer implements OnModuleInit {
+export class UpstreamConsumer {
   private readonly logger = new Logger(UpstreamConsumer.name);
-  private consumerTag: string | null = null;
 
   constructor(
-    private readonly amqpConnection: AmqpConnection,
     private readonly messageService: MessageService,
     private readonly ackService: AckService,
     private readonly routerService: MessageRouterService,
     @Optional() private readonly postBroadcastService?: PostBroadcastService,
   ) {}
 
-  async onModuleInit(): Promise<void> {
-    await this.setupQueue();
-    await this.startConsuming();
-    this.logger.log('Upstream consumer started');
-  }
-
   /**
-   * Setup the upstream queue
-   * Note: Exchange is declared in RabbitmqModule configuration.
+   * Handle regular content messages (text, file, image)
    */
-  private async setupQueue(): Promise<void> {
-    const channel = this.amqpConnection.channel;
-
-    // Create upstream queue
-    await channel.assertQueue(MQ_QUEUES.IM_WORKER_UPSTREAM, {
+  @RabbitSubscribe({
+    exchange: MQ_EXCHANGES.IM_UPSTREAM,
+    routingKey: MQ_ROUTING_KEYS.UPSTREAM.MESSAGE,
+    queue: MQ_QUEUES.IM_WORKER_UPSTREAM,
+    queueOptions: {
       durable: true,
-      autoDelete: false,
-    });
-
-    // Bind to all upstream routing keys
-    const routingKeys = Object.values(MQ_ROUTING_KEYS.UPSTREAM);
-    for (const key of routingKeys) {
-      await channel.bindQueue(
-        MQ_QUEUES.IM_WORKER_UPSTREAM,
-        MQ_EXCHANGES.IM_UPSTREAM,
-        key,
+      deadLetterExchange: MQ_EXCHANGES.IM_DLX,
+      deadLetterRoutingKey: 'dlq.upstream',
+    },
+    errorHandler: (_channel, _msg, error) => {
+      console.error(`[UpstreamConsumer] Error processing message: ${error}`);
+    },
+  })
+  async handleContentMessage(upstream: UpstreamMessage): Promise<void | Nack> {
+    try {
+      const response =
+        await this.messageService.processUpstreamMessage(upstream);
+      this.logger.debug(
+        `Processed content message: ${response.msgId}, status: ${response.status}`,
       );
-    }
-
-    this.logger.log('Upstream queue setup complete');
-  }
-
-  /**
-   * Start consuming upstream messages
-   */
-  private async startConsuming(): Promise<void> {
-    const channel = this.amqpConnection.channel;
-
-    const { consumerTag } = await channel.consume(
-      MQ_QUEUES.IM_WORKER_UPSTREAM,
-      async (msg) => {
-        if (!msg) return;
-
-        try {
-          const routingKey = msg.fields.routingKey;
-
-          // Handle post-broadcast tasks separately
-          if (routingKey === MQ_ROUTING_KEYS.UPSTREAM.POST_BROADCAST) {
-            const task: PostBroadcastTask = JSON.parse(msg.content.toString());
-            await this.handlePostBroadcastTask(task);
-          } else {
-            const upstream: UpstreamMessage = JSON.parse(
-              msg.content.toString(),
-            );
-            await this.handleUpstreamMessage(upstream);
-          }
-
-          channel.ack(msg);
-        } catch (error) {
-          this.logger.error(`Failed to process upstream message: ${error}`);
-
-          // Determine if we should retry
-          const retryCount =
-            (msg.properties.headers?.['x-retry-count'] || 0) + 1;
-
-          if (retryCount < 3) {
-            channel.nack(msg, false, true);
-          } else {
-            channel.nack(msg, false, false);
-            this.logger.error('Message moved to DLQ after 3 retries');
-          }
-        }
-      },
-      { noAck: false },
-    );
-
-    this.consumerTag = consumerTag;
-  }
-
-  /**
-   * Handle post-broadcast task (event-driven, replaces polling)
-   * Processes offline messages and unread counts after Gateway broadcast
-   */
-  private async handlePostBroadcastTask(
-    task: PostBroadcastTask,
-  ): Promise<void> {
-    if (!this.postBroadcastService) {
-      this.logger.warn('PostBroadcastService not available, skipping task');
-      return;
-    }
-
-    await this.postBroadcastService.processTask(task);
-  }
-
-  /**
-   * Handle upstream message based on type
-   */
-  private async handleUpstreamMessage(
-    upstream: UpstreamMessage,
-  ): Promise<void> {
-    const { message } = upstream;
-
-    switch (message.type) {
-      case 'text':
-      case 'file':
-      case 'image':
-        await this.handleContentMessage(upstream);
-        break;
-
-      case 'ack':
-        await this.handleAckMessage(upstream);
-        break;
-
-      case 'typing':
-        await this.handleTypingMessage(upstream);
-        break;
-
-      case 'read':
-        await this.handleReadMessage(upstream);
-        break;
-
-      case 'presence':
-        await this.handlePresenceMessage(upstream);
-        break;
-
-      default:
-        this.logger.warn(`Unknown message type: ${message.type}`);
+    } catch (error) {
+      this.logger.error(`Failed to process content message: ${error}`);
+      return new Nack(false);
     }
   }
 
   /**
-   * Handle content message (text, file, image)
+   * Handle ACK messages from client
    */
-  private async handleContentMessage(upstream: UpstreamMessage): Promise<void> {
-    const response = await this.messageService.processUpstreamMessage(upstream);
-
-    // Send ACK response back to sender via their gateway
-    // This would be done through the router service
-    this.logger.debug(
-      `Processed content message: ${response.msgId}, status: ${response.status}`,
-    );
+  @RabbitSubscribe({
+    exchange: MQ_EXCHANGES.IM_UPSTREAM,
+    routingKey: MQ_ROUTING_KEYS.UPSTREAM.ACK,
+    queue: MQ_QUEUES.IM_WORKER_UPSTREAM,
+    queueOptions: {
+      durable: true,
+      deadLetterExchange: MQ_EXCHANGES.IM_DLX,
+      deadLetterRoutingKey: 'dlq.upstream',
+    },
+  })
+  async handleAckMessage(upstream: UpstreamMessage): Promise<void | Nack> {
+    try {
+      await this.ackService.handleClientAck(upstream);
+    } catch (error) {
+      this.logger.error(`Failed to process ACK message: ${error}`);
+      return new Nack(false);
+    }
   }
 
   /**
-   * Handle ACK message from client
+   * Handle typing indicators
    */
-  private async handleAckMessage(upstream: UpstreamMessage): Promise<void> {
-    await this.ackService.handleClientAck(upstream);
+  @RabbitSubscribe({
+    exchange: MQ_EXCHANGES.IM_UPSTREAM,
+    routingKey: MQ_ROUTING_KEYS.UPSTREAM.TYPING,
+    queue: MQ_QUEUES.IM_WORKER_UPSTREAM,
+    queueOptions: {
+      durable: true,
+      deadLetterExchange: MQ_EXCHANGES.IM_DLX,
+      deadLetterRoutingKey: 'dlq.upstream',
+    },
+  })
+  async handleTypingMessage(upstream: UpstreamMessage): Promise<void | Nack> {
+    try {
+      // Typing messages are forwarded immediately to channel members
+      // without database storage
+      this.logger.debug(
+        `Typing indicator from ${upstream.userId} in ${upstream.message.targetId}`,
+      );
+    } catch (error) {
+      this.logger.error(`Failed to process typing message: ${error}`);
+      return new Nack(false);
+    }
   }
 
   /**
-   * Handle typing indicator
+   * Handle read status updates
    */
-  private async handleTypingMessage(upstream: UpstreamMessage): Promise<void> {
-    // Typing messages are forwarded immediately to channel members
-    // without database storage
-    this.logger.debug(
-      `Typing indicator from ${upstream.userId} in ${upstream.message.targetId}`,
-    );
-
-    // Route typing indicator to other channel members
-    // This is handled similarly to regular messages but without storage
-  }
-
-  /**
-   * Handle read status update
-   */
-  private async handleReadMessage(upstream: UpstreamMessage): Promise<void> {
-    await this.ackService.handleReadStatus(upstream);
+  @RabbitSubscribe({
+    exchange: MQ_EXCHANGES.IM_UPSTREAM,
+    routingKey: MQ_ROUTING_KEYS.UPSTREAM.READ,
+    queue: MQ_QUEUES.IM_WORKER_UPSTREAM,
+    queueOptions: {
+      durable: true,
+      deadLetterExchange: MQ_EXCHANGES.IM_DLX,
+      deadLetterRoutingKey: 'dlq.upstream',
+    },
+  })
+  async handleReadMessage(upstream: UpstreamMessage): Promise<void | Nack> {
+    try {
+      await this.ackService.handleReadStatus(upstream);
+    } catch (error) {
+      this.logger.error(`Failed to process read message: ${error}`);
+      return new Nack(false);
+    }
   }
 
   /**
    * Handle user presence (online/offline) events
    * When a user comes online, deliver any unread messages
    */
-  private async handlePresenceMessage(
-    upstream: UpstreamMessage,
-  ): Promise<void> {
-    const { userId, gatewayId } = upstream;
-    const payload = upstream.message.payload as PresencePayload;
+  @RabbitSubscribe({
+    exchange: MQ_EXCHANGES.IM_UPSTREAM,
+    routingKey: MQ_ROUTING_KEYS.UPSTREAM.PRESENCE,
+    queue: MQ_QUEUES.IM_WORKER_UPSTREAM,
+    queueOptions: {
+      durable: true,
+      deadLetterExchange: MQ_EXCHANGES.IM_DLX,
+      deadLetterRoutingKey: 'dlq.upstream',
+    },
+  })
+  async handlePresenceMessage(upstream: UpstreamMessage): Promise<void | Nack> {
+    try {
+      const { userId, gatewayId } = upstream;
+      const payload = upstream.message.payload as PresencePayload;
 
-    if (payload.event === 'online') {
-      this.logger.log(`User ${userId} came online on gateway ${gatewayId}`);
+      if (payload.event === 'online') {
+        this.logger.log(`User ${userId} came online on gateway ${gatewayId}`);
 
-      try {
         // Get unread messages for this user
         const unreadMessages =
           await this.messageService.getUndeliveredMessages(userId);
@@ -232,14 +165,40 @@ export class UpstreamConsumer implements OnModuleInit {
             await this.routerService.sendToGateway(gatewayId, msg, [userId]);
           }
         }
-      } catch (error) {
-        this.logger.error(
-          `Failed to deliver offline messages to user ${userId}: ${error}`,
-        );
+      } else if (payload.event === 'offline') {
+        this.logger.debug(`User ${userId} went offline`);
       }
-    } else if (payload.event === 'offline') {
-      this.logger.debug(`User ${userId} went offline`);
-      // Additional offline handling can be added here if needed
+    } catch (error) {
+      this.logger.error(`Failed to process presence message: ${error}`);
+      return new Nack(false);
+    }
+  }
+
+  /**
+   * Handle post-broadcast tasks (event-driven, replaces polling)
+   * Processes offline messages and unread counts after Gateway broadcast
+   */
+  @RabbitSubscribe({
+    exchange: MQ_EXCHANGES.IM_UPSTREAM,
+    routingKey: MQ_ROUTING_KEYS.UPSTREAM.POST_BROADCAST,
+    queue: MQ_QUEUES.IM_WORKER_UPSTREAM,
+    queueOptions: {
+      durable: true,
+      deadLetterExchange: MQ_EXCHANGES.IM_DLX,
+      deadLetterRoutingKey: 'dlq.upstream',
+    },
+  })
+  async handlePostBroadcastTask(task: PostBroadcastTask): Promise<void | Nack> {
+    try {
+      if (!this.postBroadcastService) {
+        this.logger.warn('PostBroadcastService not available, skipping task');
+        return;
+      }
+
+      await this.postBroadcastService.processTask(task);
+    } catch (error) {
+      this.logger.error(`Failed to process post-broadcast task: ${error}`);
+      return new Nack(false);
     }
   }
 }

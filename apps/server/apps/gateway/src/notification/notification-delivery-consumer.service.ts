@@ -1,9 +1,11 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import {
   RabbitSubscribe,
+  Nack,
   RABBITMQ_QUEUES,
   RABBITMQ_EXCHANGES,
 } from '@team9/rabbitmq';
+import { MQ_EXCHANGES } from '@team9/shared';
 import type { NotificationDeliveryTask } from '@team9/shared';
 import { NotificationDeliveryService } from './notification-delivery.service.js';
 
@@ -36,9 +38,18 @@ export class NotificationDeliveryConsumerService implements OnModuleInit {
     queue: RABBITMQ_QUEUES.NOTIFICATION_DELIVERY,
     queueOptions: {
       durable: true,
+      deadLetterExchange: MQ_EXCHANGES.IM_DLX,
+      deadLetterRoutingKey: 'dlq.delivery',
+    },
+    errorHandler: (_channel, _msg, error) => {
+      console.error(
+        `[NotificationDeliveryConsumer] Error processing message: ${error}`,
+      );
     },
   })
-  async handleDeliveryTask(task: NotificationDeliveryTask): Promise<void> {
+  async handleDeliveryTask(
+    task: NotificationDeliveryTask,
+  ): Promise<void | Nack> {
     this.logger.debug(
       `Received delivery task: ${task.type} for user: ${task.userId}`,
     );
@@ -67,7 +78,8 @@ export class NotificationDeliveryConsumerService implements OnModuleInit {
       }
     } catch (error) {
       this.logger.error(`Failed to process delivery task: ${error}`);
-      // Don't throw - delivery failures shouldn't block the queue
+      // Nack without requeue - delivery failures go to DLX for later inspection
+      return new Nack(false);
     }
   }
 }

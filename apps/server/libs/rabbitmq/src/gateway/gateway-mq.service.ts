@@ -41,10 +41,6 @@ export class GatewayMQService implements OnModuleInit, OnModuleDestroy {
   async onModuleInit(): Promise<void> {
     // Wait for RabbitMQ connection
     await this.waitForConnection();
-
-    // Setup exchanges (idempotent)
-    await this.setupExchanges();
-
     this.logger.log('GatewayMQService initialized, waiting for node ID');
   }
 
@@ -65,10 +61,8 @@ export class GatewayMQService implements OnModuleInit, OnModuleDestroy {
     this.nodeId = nodeId;
     this.queueName = MQ_QUEUES.GATEWAY(nodeId);
 
-    // Ensure exchanges are created before setting up queue
+    // Ensure connection is ready before setting up queue
     await this.waitForConnection();
-    await this.setupExchanges();
-
     await this.setupQueue();
     await this.startConsuming();
 
@@ -87,15 +81,6 @@ export class GatewayMQService implements OnModuleInit, OnModuleDestroy {
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
     throw new Error('RabbitMQ connection timeout');
-  }
-
-  /**
-   * Setup RabbitMQ exchanges
-   * Note: Exchanges are now declared in RabbitmqModule configuration.
-   * This method is kept for logging purposes only.
-   */
-  private async setupExchanges(): Promise<void> {
-    this.logger.log('RabbitMQ exchanges already configured in module');
   }
 
   /**
@@ -164,15 +149,19 @@ export class GatewayMQService implements OnModuleInit, OnModuleDestroy {
         } catch (error) {
           this.logger.error(`Failed to process message: ${error}`);
 
-          // Check retry count
-          const retryCount =
-            (msg.properties.headers?.['x-retry-count'] || 0) + 1;
+          // Get death count from x-death header (set by RabbitMQ DLX mechanism)
+          const xDeath = msg.properties.headers?.['x-death'];
+          const deathCount = xDeath?.[0]?.count || 0;
 
-          if (retryCount < MQ_CONFIG.MAX_RETRY_COUNT) {
-            // Requeue for retry
-            channel.nack(msg, false, true);
+          if (deathCount >= MQ_CONFIG.MAX_RETRY_COUNT) {
+            // Max retries exceeded, reject without requeue (goes to DLQ permanently)
+            this.logger.error(
+              `Message exceeded max retries (${deathCount}), moving to DLQ`,
+            );
+            channel.nack(msg, false, false);
           } else {
-            // Send to DLQ
+            // Reject without requeue - DLX will handle retry with delay
+            // The queue is configured with x-dead-letter-exchange
             channel.nack(msg, false, false);
           }
         }

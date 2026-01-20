@@ -1,4 +1,4 @@
-import { Module, Global, OnModuleInit } from '@nestjs/common';
+import { Module, Global } from '@nestjs/common';
 import { RabbitMQModule } from '@golevelup/nestjs-rabbitmq';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { env, MQ_EXCHANGES } from '@team9/shared';
@@ -19,8 +19,18 @@ import { RABBITMQ_EXCHANGES } from './constants/queues.js';
         const vhost = env.RABBITMQ_VHOST;
         return {
           uri: `amqp://${username}:${password}@${host}:${port}${vhost}`,
-          connectionInitOptions: { wait: true },
-          enableControllerDiscovery: false,
+          connectionInitOptions: { wait: true, reject: true, timeout: 30000 },
+          enableControllerDiscovery: true,
+          prefetchCount: 10,
+          channels: {
+            'im-channel': {
+              prefetchCount: 20,
+              default: true,
+            },
+            'notification-channel': {
+              prefetchCount: 10,
+            },
+          },
           exchanges: [
             // ========== IM Messaging Exchanges ==========
             // Downstream messages: im-worker -> Gateway (for WebSocket delivery)
@@ -76,11 +86,4 @@ import { RABBITMQ_EXCHANGES } from './constants/queues.js';
   providers: [RabbitMQEventService, GatewayMQService],
   exports: [RabbitMQModule, RabbitMQEventService, GatewayMQService],
 })
-export class RabbitmqModule implements OnModuleInit {
-  constructor(private readonly rabbitMQEventService: RabbitMQEventService) {}
-
-  async onModuleInit() {
-    // Setup queues and exchanges on module initialization
-    await this.rabbitMQEventService.setupQueuesAndExchanges();
-  }
-}
+export class RabbitmqModule {}

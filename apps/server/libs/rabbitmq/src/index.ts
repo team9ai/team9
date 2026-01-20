@@ -7,4 +7,5 @@ export {
   RabbitRPC,
   AmqpConnection,
   RabbitMQModule,
+  Nack,
 } from '@golevelup/nestjs-rabbitmq';

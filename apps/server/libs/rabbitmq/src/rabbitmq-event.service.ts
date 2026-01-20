@@ -142,32 +142,6 @@ export class RabbitMQEventService {
   }
 
   /**
-   * Ensure queues and exchanges are set up
-   * Note: Exchanges are now declared in RabbitmqModule configuration.
-   */
-  async setupQueuesAndExchanges(): Promise<void> {
-    try {
-      await this.waitForConnection();
-      this.logger.log('RabbitMQ exchanges already configured in module');
-    } catch (error) {
-      this.logger.error(`Failed to setup RabbitMQ: ${error}`);
-    }
-  }
-
-  /**
-   * Wait for RabbitMQ connection to be initialized
-   */
-  private async waitForConnection(maxRetries = 10, delay = 500): Promise<void> {
-    for (let i = 0; i < maxRetries; i++) {
-      if (this.amqpConnection.managedConnection.isConnected()) {
-        return;
-      }
-      await new Promise((resolve) => setTimeout(resolve, delay));
-    }
-    throw new Error('RabbitMQ connection timeout');
-  }
-
-  /**
    * Get routing key for offline message delivery
    */
   private getRoutingKey(userId: string): string {
@@ -219,33 +193,6 @@ export class RabbitMQEventService {
   }
 
   /**
-   * Setup notification queue bindings
-   * Note: Exchange is declared in RabbitmqModule configuration.
-   */
-  async setupNotificationExchange(): Promise<void> {
-    try {
-      await this.waitForConnection();
-      const channel = this.amqpConnection.channel;
-
-      // Declare notification tasks queue
-      await channel.assertQueue(RABBITMQ_QUEUES.NOTIFICATION_TASKS, {
-        durable: true,
-      });
-
-      // Bind queue to exchange with wildcard routing key
-      await channel.bindQueue(
-        RABBITMQ_QUEUES.NOTIFICATION_TASKS,
-        RABBITMQ_EXCHANGES.NOTIFICATION_EVENTS,
-        'notification.#',
-      );
-
-      this.logger.log('Notification queue bindings set up successfully');
-    } catch (error) {
-      this.logger.error(`Failed to setup notification queue: ${error}`);
-    }
-  }
-
-  /**
    * Publish a notification delivery task to Gateway for WebSocket push
    * @param task - delivery task to publish
    */
@@ -284,34 +231,5 @@ export class RabbitMQEventService {
     };
 
     return routingKeyMap[type] || 'delivery.unknown';
-  }
-
-  /**
-   * Setup notification delivery queue bindings
-   * Note: Exchange is declared in RabbitmqModule configuration.
-   */
-  async setupDeliveryExchange(): Promise<void> {
-    try {
-      await this.waitForConnection();
-      const channel = this.amqpConnection.channel;
-
-      // Declare delivery queue
-      await channel.assertQueue(RABBITMQ_QUEUES.NOTIFICATION_DELIVERY, {
-        durable: true,
-      });
-
-      // Bind queue to exchange with wildcard routing key
-      await channel.bindQueue(
-        RABBITMQ_QUEUES.NOTIFICATION_DELIVERY,
-        RABBITMQ_EXCHANGES.NOTIFICATION_DELIVERY,
-        'delivery.#',
-      );
-
-      this.logger.log(
-        'Notification delivery queue bindings set up successfully',
-      );
-    } catch (error) {
-      this.logger.error(`Failed to setup delivery queue: ${error}`);
-    }
   }
 }

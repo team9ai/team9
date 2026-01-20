@@ -1,9 +1,11 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import {
   RabbitSubscribe,
+  Nack,
   RABBITMQ_QUEUES,
   RABBITMQ_EXCHANGES,
 } from '@team9/rabbitmq';
+import { MQ_EXCHANGES } from '@team9/shared';
 import type {
   NotificationTask,
   MentionNotificationTask,
@@ -42,9 +44,16 @@ export class NotificationConsumerService implements OnModuleInit {
     queue: RABBITMQ_QUEUES.NOTIFICATION_TASKS,
     queueOptions: {
       durable: true,
+      deadLetterExchange: MQ_EXCHANGES.IM_DLX,
+      deadLetterRoutingKey: 'dlq.notification',
+    },
+    errorHandler: (_channel, _msg, error) => {
+      console.error(
+        `[NotificationConsumer] Error processing message: ${error}`,
+      );
     },
   })
-  async handleNotificationTask(task: NotificationTask): Promise<void> {
+  async handleNotificationTask(task: NotificationTask): Promise<void | Nack> {
     this.logger.debug(`Received notification task: ${task.type}`);
 
     try {
@@ -78,7 +87,8 @@ export class NotificationConsumerService implements OnModuleInit {
       }
     } catch (error) {
       this.logger.error(`Failed to process notification task: ${error}`);
-      throw error; // Let RabbitMQ handle retry
+      // Nack without requeue - message will go to DLX
+      return new Nack(false);
     }
   }
 
