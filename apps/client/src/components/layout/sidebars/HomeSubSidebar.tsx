@@ -168,7 +168,7 @@ export function HomeSubSidebar() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 text-white/70 hover:text-white hover:bg-white/10"
+                className="h-6 w-6 shrink-0 text-white/70 hover:text-white hover:bg-white/10"
                 onClick={() => setIsCreateChannelOpen(true)}
                 title={tNav("addChannel")}
               >
