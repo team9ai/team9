@@ -1,7 +1,7 @@
 import {
   Home,
   MessageSquare,
-  Activity,
+  Bell,
   FileText,
   MoreHorizontal,
   MoreVertical,
@@ -41,6 +41,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useCurrentUser, useLogout } from "@/hooks/useAuth";
 import { useUpdateStatus, useOnlineUsers } from "@/hooks/useIMUsers";
+import { useNotificationCounts } from "@/hooks/useNotifications";
 import type { UserStatus } from "@/types/im";
 
 // Navigation items with i18n keys
@@ -55,7 +56,7 @@ const navigationItems = [
   {
     id: "activity",
     labelKey: "activity" as const,
-    icon: Activity,
+    icon: Bell,
     path: "/activity",
   },
   { id: "files", labelKey: "files" as const, icon: FileText, path: "/files" },
@@ -99,6 +100,9 @@ export function MainSidebar() {
   const { mutate: logout } = useLogout();
   const { mutate: updateStatus } = useUpdateStatus();
   const { data: onlineUsers = {} } = useOnlineUsers();
+  const { data: notificationCounts } = useNotificationCounts();
+
+  const unreadCount = notificationCounts?.total ?? 0;
 
   const currentWorkspaceName =
     workspaces?.find((w) => w.id === selectedWorkspaceId)?.name || "Workspace";
@@ -306,6 +310,7 @@ export function MainSidebar() {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
             const label = tNav(item.labelKey);
+            const showBadge = item.id === "activity" && unreadCount > 0;
 
             return (
               <Button
@@ -320,12 +325,19 @@ export function MainSidebar() {
                   navigate({ to: targetPath });
                 }}
                 className={cn(
-                  "w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-white/10 text-white/70 hover:text-white",
+                  "w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-white/10 text-white/70 hover:text-white relative",
                   isActive && "bg-white/10 text-white",
                 )}
                 title={label}
               >
-                <Icon size={20} />
+                <div className="relative">
+                  <Icon size={20} />
+                  {showBadge && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-4 h-4 px-1 bg-red-500 text-white text-[10px] font-medium rounded-full flex items-center justify-center">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                </div>
                 <span className="text-xs mt-1.5">{label}</span>
               </Button>
             );
