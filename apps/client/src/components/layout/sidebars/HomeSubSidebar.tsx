@@ -97,7 +97,7 @@ export function HomeSubSidebar() {
   });
 
   return (
-    <aside className="w-64 bg-[#5b2c6f] text-white flex flex-col">
+    <aside className="w-64 overflow-auto bg-[#5b2c6f] text-white flex flex-col">
       {/* Header */}
       <div className="p-4">
         <Button
