@@ -212,7 +212,10 @@ export function HomeSubSidebar() {
                               !isMember && "opacity-50",
                             )}
                           />
-                          <span className="truncate text-left max-w-35">
+                          <span
+                            className="truncate text-left max-w-35"
+                            title={channel.name}
+                          >
                             {channel.name}
                           </span>
                           {channel.unreadCount > 0 && (
@@ -285,7 +288,10 @@ export function HomeSubSidebar() {
                               <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#5b2c6f]" />
                             )}
                           </div>
-                          <span className="truncate flex-1 text-left">
+                          <span
+                            className="truncate flex-1 text-left"
+                            title={dm.name}
+                          >
                             {dm.name}
                           </span>
                           {dm.unreadCount > 0 && (
