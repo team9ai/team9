@@ -21,9 +21,6 @@ import {
   type CreateMessageDto,
   type CreateMessageResponse,
   type OutboxEventPayload,
-  parseMentions,
-  extractMentionedUserIds,
-  hasBroadcastMention,
 } from '@team9/shared';
 import { SequenceService } from '../sequence/sequence.service.js';
 import { MessageRouterService } from './message-router.service.js';
@@ -536,14 +533,6 @@ export class MessageService {
           await tx.insert(schema.messageAttachments).values(attachmentValues);
         }
 
-        // Parse and save mentions
-        if (dto.content) {
-          const mentionRecords = this.buildMentionRecords(msgId, dto.content);
-          if (mentionRecords.length > 0) {
-            await tx.insert(schema.mentions).values(mentionRecords);
-          }
-        }
-
         // Insert outbox event
         await tx.insert(schema.messageOutbox).values({
           id: uuidv7(),
@@ -598,50 +587,5 @@ export class MessageService {
    */
   async getChannelMemberIdsPublic(channelId: string): Promise<string[]> {
     return this.getChannelMemberIds(channelId);
-  }
-
-  /**
-   * Build mention records from message content
-   */
-  private buildMentionRecords(
-    messageId: string,
-    content: string,
-  ): schema.NewMention[] {
-    const mentions = parseMentions(content);
-    if (mentions.length === 0) return [];
-
-    const userIds = extractMentionedUserIds(mentions);
-    const broadcast = hasBroadcastMention(mentions);
-
-    const mentionRecords: schema.NewMention[] = [];
-
-    // Add user mentions
-    for (const userId of userIds) {
-      mentionRecords.push({
-        id: uuidv7(),
-        messageId,
-        mentionedUserId: userId,
-        type: 'user',
-      });
-    }
-
-    // Add broadcast mentions
-    if (broadcast.everyone) {
-      mentionRecords.push({
-        id: uuidv7(),
-        messageId,
-        type: 'everyone',
-      });
-    }
-
-    if (broadcast.here) {
-      mentionRecords.push({
-        id: uuidv7(),
-        messageId,
-        type: 'here',
-      });
-    }
-
-    return mentionRecords;
   }
 }

@@ -25,6 +25,9 @@ import {
   type WorkspaceMemberJoinedEvent,
   type WorkspaceMemberLeftEvent,
   type WorkspaceMemberRemovedEvent,
+  type NotificationNewEvent,
+  type NotificationCountsUpdatedEvent,
+  type NotificationReadEvent,
 } from "@/types/ws-events";
 
 type EventCallback = (...args: any[]) => void;
@@ -344,6 +347,35 @@ class WebSocketService {
     callback: (event: WorkspaceMemberRemovedEvent) => void,
   ): void {
     this.on(WS_EVENTS.WORKSPACE.MEMBER_REMOVED, callback);
+  }
+
+  // Notification events
+  onNotificationNew(callback: (event: NotificationNewEvent) => void): void {
+    this.on(WS_EVENTS.NOTIFICATION.NEW, callback);
+  }
+
+  onNotificationCountsUpdated(
+    callback: (event: NotificationCountsUpdatedEvent) => void,
+  ): void {
+    this.on(WS_EVENTS.NOTIFICATION.COUNTS_UPDATED, callback);
+  }
+
+  onNotificationRead(callback: (event: NotificationReadEvent) => void): void {
+    this.on(WS_EVENTS.NOTIFICATION.READ, callback);
+  }
+
+  offNotificationNew(callback: (event: NotificationNewEvent) => void): void {
+    this.off(WS_EVENTS.NOTIFICATION.NEW, callback);
+  }
+
+  offNotificationCountsUpdated(
+    callback: (event: NotificationCountsUpdatedEvent) => void,
+  ): void {
+    this.off(WS_EVENTS.NOTIFICATION.COUNTS_UPDATED, callback);
+  }
+
+  offNotificationRead(callback: (event: NotificationReadEvent) => void): void {
+    this.off(WS_EVENTS.NOTIFICATION.READ, callback);
   }
 }
 

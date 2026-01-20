@@ -132,13 +132,17 @@ export const WS_EVENTS = {
     REMOVED: 'reaction_removed',
   },
 
-  // ==================== Mention Notifications ====================
+  // ==================== Notification Center ====================
   /**
-   * @mention notification events
+   * Unified notification center events
    */
-  MENTION: {
-    /** Mention received - sent by server to mentioned user */
-    RECEIVED: 'mention_received',
+  NOTIFICATION: {
+    /** New notification received - sent by server */
+    NEW: 'notification_new',
+    /** Notification counts updated - sent by server */
+    COUNTS_UPDATED: 'notification_counts_updated',
+    /** Notifications marked as read - sent by server (for multi-device sync) */
+    READ: 'notification_read',
   },
 
   // ==================== Workspace ====================
@@ -214,7 +218,7 @@ export type WsEventName =
   | (typeof WS_EVENTS.TYPING)[keyof typeof WS_EVENTS.TYPING]
   | (typeof WS_EVENTS.USER)[keyof typeof WS_EVENTS.USER]
   | (typeof WS_EVENTS.REACTION)[keyof typeof WS_EVENTS.REACTION]
-  | (typeof WS_EVENTS.MENTION)[keyof typeof WS_EVENTS.MENTION]
+  | (typeof WS_EVENTS.NOTIFICATION)[keyof typeof WS_EVENTS.NOTIFICATION]
   | (typeof WS_EVENTS.WORKSPACE)[keyof typeof WS_EVENTS.WORKSPACE]
   | (typeof WS_EVENTS.SYSTEM)[keyof typeof WS_EVENTS.SYSTEM]
   | (typeof WS_EVENTS.SESSION)[keyof typeof WS_EVENTS.SESSION]

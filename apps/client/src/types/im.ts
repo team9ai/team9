@@ -134,17 +134,6 @@ export interface GetSubRepliesParams {
   cursor?: string;
 }
 
-export interface Mention {
-  id: string;
-  messageId: string;
-  mentionedUserId?: string;
-  mentionedChannelId?: string;
-  type: "user" | "channel" | "everyone" | "here";
-  isRead: boolean;
-  createdAt: string;
-  message?: Message;
-}
-
 // API Request/Response types
 export interface CreateChannelDto {
   name: string;

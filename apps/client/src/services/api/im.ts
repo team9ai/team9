@@ -5,7 +5,6 @@ import type {
   ChannelMember,
   Message,
   IMUser,
-  Mention,
   CreateChannelDto,
   UpdateChannelDto,
   DeleteChannelDto,
@@ -296,21 +295,11 @@ export const imUsersApi = {
   },
 };
 
-// Mentions API
-export const mentionsApi = {
-  // Get user mentions
-  getMentions: async (): Promise<Mention[]> => {
-    const response = await http.get<Mention[]>("/v1/im/mentions");
-    return response.data;
-  },
-};
-
 // Combined IM API export
 export const imApi = {
   channels: channelsApi,
   messages: messagesApi,
   users: imUsersApi,
-  mentions: mentionsApi,
 };
 
 export default imApi;

@@ -86,7 +86,10 @@ import type {
   SyncMessagesPayload,
   SyncMessagesResponseEvent,
   MessageRetryEvent,
-  MentionReceivedEvent,
+  // Notification
+  NotificationNewEvent,
+  NotificationCountsUpdatedEvent,
+  NotificationReadEvent,
 } from './domains/index.js';
 
 /**
@@ -157,7 +160,10 @@ export interface ServerToClientEvents {
   session_kicked: SessionKickedEvent;
   sync_messages_response: SyncMessagesResponseEvent;
   message_retry: MessageRetryEvent;
-  mention_received: MentionReceivedEvent;
+  // Notification
+  notification_new: NotificationNewEvent;
+  notification_counts_updated: NotificationCountsUpdatedEvent;
+  notification_read: NotificationReadEvent;
 }
 
 /**

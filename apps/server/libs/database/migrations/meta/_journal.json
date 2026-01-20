@@ -15,6 +15,20 @@
       "when": 1768556752139,
       "tag": "0001_sparkling_power_man",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1768825014876,
+      "tag": "0002_dapper_young_avengers",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1768827934210,
+      "tag": "0003_salty_legion",
+      "breakpoints": true
     }
   ]
 }

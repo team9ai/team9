@@ -73,7 +73,6 @@ export type {
   SyncMessagesPayload,
   SyncMessagesResponseEvent,
   MessageRetryEvent,
-  MentionReceivedEvent,
   // Type mappings
   ClientToServerEvents,
   ServerToClientEvents,

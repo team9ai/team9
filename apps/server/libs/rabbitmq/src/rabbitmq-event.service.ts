@@ -5,6 +5,7 @@ import {
   RABBITMQ_ROUTING_KEYS,
   RABBITMQ_QUEUES,
 } from './constants/queues.js';
+import type { NotificationTask, NotificationDeliveryTask } from '@team9/shared';
 
 export interface WorkspaceMemberEvent {
   workspaceId: string;
@@ -41,18 +42,34 @@ export class RabbitMQEventService {
       timestamp: new Date(),
     };
 
+    const channel = this.amqpConnection.channel;
+
     // Send message to each offline user's queue
     for (const userId of offlineUserIds) {
       message.userId = userId;
+      const queueName = RABBITMQ_QUEUES.USER_OFFLINE_MESSAGES(userId);
+      const routingKey = this.getRoutingKey(userId);
 
       try {
+        // Ensure queue exists and is bound to exchange
+        await channel.assertQueue(queueName, {
+          durable: true,
+          autoDelete: false,
+        });
+        await channel.bindQueue(
+          queueName,
+          RABBITMQ_EXCHANGES.WORKSPACE_EVENTS,
+          routingKey,
+        );
+
+        // Publish message to exchange
         await this.amqpConnection.publish(
           RABBITMQ_EXCHANGES.WORKSPACE_EVENTS,
-          this.getRoutingKey(event, userId),
+          routingKey,
           message,
           {
             persistent: true, // Message persistence
-            expiration: (7 * 24 * 60 * 60 * 1000).toString(), // 7 days expiration
+            expiration: (15 * 24 * 60 * 60 * 1000).toString(), // 15 days expiration
           },
         );
         this.logger.debug(
@@ -126,24 +143,12 @@ export class RabbitMQEventService {
 
   /**
    * Ensure queues and exchanges are set up
+   * Note: Exchanges are now declared in RabbitmqModule configuration.
    */
   async setupQueuesAndExchanges(): Promise<void> {
     try {
-      // Wait for connection to be initialized
       await this.waitForConnection();
-
-      const channel = this.amqpConnection.channel;
-
-      // Declare workspace events exchange
-      await channel.assertExchange(
-        RABBITMQ_EXCHANGES.WORKSPACE_EVENTS,
-        'topic',
-        {
-          durable: true,
-        },
-      );
-
-      this.logger.log('RabbitMQ queues and exchanges set up successfully');
+      this.logger.log('RabbitMQ exchanges already configured in module');
     } catch (error) {
       this.logger.error(`Failed to setup RabbitMQ: ${error}`);
     }
@@ -163,17 +168,150 @@ export class RabbitMQEventService {
   }
 
   /**
-   * Get routing key for an event
+   * Get routing key for offline message delivery
    */
-  private getRoutingKey(event: string, userId: string): string {
+  private getRoutingKey(userId: string): string {
+    // Use user-specific routing key for offline message delivery
+    // Format: user.offline.{userId}
+    return `user.offline.${userId}`;
+  }
+
+  /**
+   * Publish a notification task to be processed by Gateway
+   * @param task - notification task to publish
+   */
+  async publishNotificationTask(task: NotificationTask): Promise<void> {
+    try {
+      const routingKey = this.getNotificationRoutingKey(task.type);
+
+      await this.amqpConnection.publish(
+        RABBITMQ_EXCHANGES.NOTIFICATION_EVENTS,
+        routingKey,
+        task,
+        {
+          persistent: true,
+        },
+      );
+
+      this.logger.debug(
+        `Published notification task: ${task.type} with routing key: ${routingKey}`,
+      );
+    } catch (error) {
+      this.logger.error(`Failed to publish notification task: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get routing key for notification type
+   */
+  private getNotificationRoutingKey(type: NotificationTask['type']): string {
     const routingKeyMap: Record<string, string> = {
-      workspace_member_joined: RABBITMQ_ROUTING_KEYS.WORKSPACE_MEMBER_JOINED,
-      workspace_member_left: RABBITMQ_ROUTING_KEYS.WORKSPACE_MEMBER_LEFT,
-      user_online: RABBITMQ_ROUTING_KEYS.USER_ONLINE,
-      user_offline: RABBITMQ_ROUTING_KEYS.USER_OFFLINE,
+      mention: RABBITMQ_ROUTING_KEYS.NOTIFICATION_MENTION,
+      reply: RABBITMQ_ROUTING_KEYS.NOTIFICATION_REPLY,
+      dm: RABBITMQ_ROUTING_KEYS.NOTIFICATION_DM,
+      workspace_invitation: RABBITMQ_ROUTING_KEYS.NOTIFICATION_WORKSPACE,
+      member_joined: RABBITMQ_ROUTING_KEYS.NOTIFICATION_WORKSPACE,
+      role_changed: RABBITMQ_ROUTING_KEYS.NOTIFICATION_WORKSPACE,
     };
 
-    const baseKey = routingKeyMap[event] || 'workspace.unknown';
-    return `${baseKey}.${userId}`;
+    return routingKeyMap[type] || 'notification.unknown';
+  }
+
+  /**
+   * Setup notification queue bindings
+   * Note: Exchange is declared in RabbitmqModule configuration.
+   */
+  async setupNotificationExchange(): Promise<void> {
+    try {
+      await this.waitForConnection();
+      const channel = this.amqpConnection.channel;
+
+      // Declare notification tasks queue
+      await channel.assertQueue(RABBITMQ_QUEUES.NOTIFICATION_TASKS, {
+        durable: true,
+      });
+
+      // Bind queue to exchange with wildcard routing key
+      await channel.bindQueue(
+        RABBITMQ_QUEUES.NOTIFICATION_TASKS,
+        RABBITMQ_EXCHANGES.NOTIFICATION_EVENTS,
+        'notification.#',
+      );
+
+      this.logger.log('Notification queue bindings set up successfully');
+    } catch (error) {
+      this.logger.error(`Failed to setup notification queue: ${error}`);
+    }
+  }
+
+  /**
+   * Publish a notification delivery task to Gateway for WebSocket push
+   * @param task - delivery task to publish
+   */
+  async publishDeliveryTask(task: NotificationDeliveryTask): Promise<void> {
+    try {
+      const routingKey = this.getDeliveryRoutingKey(task.type);
+
+      await this.amqpConnection.publish(
+        RABBITMQ_EXCHANGES.NOTIFICATION_DELIVERY,
+        routingKey,
+        task,
+        {
+          persistent: true,
+        },
+      );
+
+      this.logger.debug(
+        `Published delivery task: ${task.type} for user: ${task.userId}`,
+      );
+    } catch (error) {
+      this.logger.error(`Failed to publish delivery task: ${error}`);
+      // Don't throw - delivery failures shouldn't block notification creation
+    }
+  }
+
+  /**
+   * Get routing key for delivery task type
+   */
+  private getDeliveryRoutingKey(
+    type: NotificationDeliveryTask['type'],
+  ): string {
+    const routingKeyMap: Record<string, string> = {
+      new: RABBITMQ_ROUTING_KEYS.DELIVERY_NEW,
+      counts: RABBITMQ_ROUTING_KEYS.DELIVERY_COUNTS,
+      read: RABBITMQ_ROUTING_KEYS.DELIVERY_READ,
+    };
+
+    return routingKeyMap[type] || 'delivery.unknown';
+  }
+
+  /**
+   * Setup notification delivery queue bindings
+   * Note: Exchange is declared in RabbitmqModule configuration.
+   */
+  async setupDeliveryExchange(): Promise<void> {
+    try {
+      await this.waitForConnection();
+      const channel = this.amqpConnection.channel;
+
+      // Declare delivery queue
+      await channel.assertQueue(RABBITMQ_QUEUES.NOTIFICATION_DELIVERY, {
+        durable: true,
+      });
+
+      // Bind queue to exchange with wildcard routing key
+      await channel.bindQueue(
+        RABBITMQ_QUEUES.NOTIFICATION_DELIVERY,
+        RABBITMQ_EXCHANGES.NOTIFICATION_DELIVERY,
+        'delivery.#',
+      );
+
+      this.logger.log(
+        'Notification delivery queue bindings set up successfully',
+      );
+    } catch (error) {
+      this.logger.error(`Failed to setup delivery queue: ${error}`);
+    }
   }
 }

@@ -91,31 +91,11 @@ export class GatewayMQService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Setup RabbitMQ exchanges
+   * Note: Exchanges are now declared in RabbitmqModule configuration.
+   * This method is kept for logging purposes only.
    */
   private async setupExchanges(): Promise<void> {
-    const channel = this.amqpConnection.channel;
-
-    // Topic exchange for downstream messages
-    await channel.assertExchange(MQ_EXCHANGES.IM_TOPIC, 'topic', {
-      durable: true,
-    });
-
-    // Direct exchange for upstream messages
-    await channel.assertExchange(MQ_EXCHANGES.IM_UPSTREAM, 'direct', {
-      durable: true,
-    });
-
-    // Dead letter exchange
-    await channel.assertExchange(MQ_EXCHANGES.IM_DLX, 'direct', {
-      durable: true,
-    });
-
-    // Fanout exchange for broadcast
-    await channel.assertExchange(MQ_EXCHANGES.IM_BROADCAST, 'fanout', {
-      durable: true,
-    });
-
-    this.logger.log('RabbitMQ exchanges setup completed');
+    this.logger.log('RabbitMQ exchanges already configured in module');
   }
 
   /**
@@ -267,10 +247,6 @@ export class GatewayMQService implements OnModuleInit, OnModuleDestroy {
           'x-gateway-id': this.nodeId,
         },
       },
-    );
-
-    this.logger.debug(
-      `Published post-broadcast task for message: ${task.msgId}`,
     );
   }
 

@@ -69,11 +69,6 @@ export const WS_EVENTS = {
     REMOVED: "reaction_removed",
   },
 
-  // Mention notifications
-  MENTION: {
-    RECEIVED: "mention_received",
-  },
-
   // Workspace
   WORKSPACE: {
     JOIN: "join_workspace",
@@ -104,6 +99,13 @@ export const WS_EVENTS = {
     MESSAGES: "sync_messages",
     MESSAGES_RESPONSE: "sync_messages_response",
     MESSAGE_RETRY: "message_retry",
+  },
+
+  // Notifications
+  NOTIFICATION: {
+    NEW: "notification_new",
+    COUNTS_UPDATED: "notification_counts_updated",
+    READ: "notification_read",
   },
 } as const;
 
@@ -398,19 +400,45 @@ export interface SessionKickedEvent {
   };
 }
 
-/** Mention type */
-export type MentionType = "user" | "channel" | "everyone" | "here";
+// ==================== Notification Event Types ====================
 
-/** Mention received event */
-export interface MentionReceivedEvent {
-  mentionId: string;
-  messageId: string;
-  channelId: string;
-  type: MentionType;
-  senderId: string;
-  senderUsername: string;
-  messagePreview: string;
+import type {
+  NotificationCategory,
+  NotificationPriority,
+  NotificationType,
+  NotificationActor,
+} from "@/stores/useNotificationStore";
+
+/** New notification event */
+export interface NotificationNewEvent {
+  id: string;
+  category: NotificationCategory;
+  type: NotificationType;
+  priority: NotificationPriority;
+  title: string;
+  body: string | null;
+  actor: NotificationActor | null;
+  tenantId: string | null;
+  channelId: string | null;
+  messageId: string | null;
+  actionUrl: string | null;
   createdAt: string;
+}
+
+/** Notification counts updated event */
+export interface NotificationCountsUpdatedEvent {
+  total: number;
+  byCategory: {
+    message: number;
+    system: number;
+    workspace: number;
+  };
+}
+
+/** Notification read event (multi-device sync) */
+export interface NotificationReadEvent {
+  notificationIds: string[];
+  readAt: string;
 }
 
 // ==================== Type Mappings ====================
@@ -460,5 +488,7 @@ export interface ServerToClientEvents {
   session_expired: SessionExpiredEvent;
   session_timeout: SessionTimeoutEvent;
   session_kicked: SessionKickedEvent;
-  mention_received: MentionReceivedEvent;
+  notification_new: NotificationNewEvent;
+  notification_counts_updated: NotificationCountsUpdatedEvent;
+  notification_read: NotificationReadEvent;
 }

@@ -5,10 +5,15 @@ import type { PostgresJsDatabase } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
 import { RabbitMQEventService } from '@team9/rabbitmq';
-import type {
-  PostBroadcastTask,
-  IMMessageEnvelope,
-  DeviceSession,
+import {
+  parseMentions,
+  type PostBroadcastTask,
+  type IMMessageEnvelope,
+  type DeviceSession,
+  type MentionNotificationTask,
+  type ReplyNotificationTask,
+  type DMNotificationTask,
+  type ParsedMention,
 } from '@team9/shared';
 
 const REDIS_KEYS = {
@@ -81,7 +86,10 @@ export class PostBroadcastService {
       // 5. Update unread counts for ALL recipients
       await this.updateUnreadCounts(channelId, recipientIds);
 
-      // 6. Mark Outbox as completed
+      // 6. Process notification tasks (mentions, replies, DMs)
+      await this.processNotificationTasks(msgId, channelId, senderId);
+
+      // 7. Mark Outbox as completed
       await this.markOutboxCompleted(msgId);
 
       this.logger.debug(
@@ -212,5 +220,169 @@ export class PostBroadcastService {
         processedAt: new Date(),
       })
       .where(eq(schema.messageOutbox.messageId, msgId));
+  }
+
+  /**
+   * Process notification tasks for a message
+   * Publishes notification tasks to RabbitMQ for Gateway to process
+   */
+  async processNotificationTasks(
+    msgId: string,
+    channelId: string,
+    senderId: string,
+  ): Promise<void> {
+    try {
+      // Get message with related data
+      const messageData = await this.getMessageWithContext(msgId);
+      if (!messageData) {
+        this.logger.warn(
+          `Message ${msgId} not found for notification processing`,
+        );
+        return;
+      }
+
+      const { message, sender, channel, mentions, parentMessage } = messageData;
+
+      // Skip if channel has no tenant (DM channels handled separately)
+      const tenantId = channel.tenantId;
+
+      // 1. Process mention notifications
+      if (mentions.length > 0 && tenantId) {
+        const mentionTask: MentionNotificationTask = {
+          type: 'mention',
+          timestamp: Date.now(),
+          payload: {
+            messageId: msgId,
+            channelId,
+            tenantId,
+            senderId,
+            senderUsername: sender.username,
+            channelName: channel.name ?? 'channel',
+            content: message.content ?? '',
+            mentions: mentions.map((m) => ({
+              userId: m.userId,
+              type: m.type,
+            })),
+          },
+        };
+        await this.rabbitMQEventService.publishNotificationTask(mentionTask);
+        this.logger.debug(
+          `Published mention notification task for message ${msgId}`,
+        );
+      }
+
+      // 2. Process reply notifications
+      if (parentMessage && tenantId) {
+        const replyTask: ReplyNotificationTask = {
+          type: 'reply',
+          timestamp: Date.now(),
+          payload: {
+            messageId: msgId,
+            channelId,
+            tenantId,
+            senderId,
+            senderUsername: sender.username,
+            parentMessageId: parentMessage.id,
+            parentSenderId: parentMessage.senderId!,
+            content: message.content ?? '',
+          },
+        };
+        await this.rabbitMQEventService.publishNotificationTask(replyTask);
+        this.logger.debug(
+          `Published reply notification task for message ${msgId}`,
+        );
+      }
+
+      // 3. Process DM notifications (for direct message channels)
+      if (channel.type === 'direct' && !tenantId) {
+        // Get the other participant in the DM
+        const members = await this.getChannelMemberIds(channelId);
+        const recipientId = members.find((id) => id !== senderId);
+
+        if (recipientId) {
+          const dmTask: DMNotificationTask = {
+            type: 'dm',
+            timestamp: Date.now(),
+            payload: {
+              messageId: msgId,
+              channelId,
+              senderId,
+              senderUsername: sender.username,
+              recipientId,
+              content: message.content ?? '',
+            },
+          };
+          await this.rabbitMQEventService.publishNotificationTask(dmTask);
+          this.logger.debug(
+            `Published DM notification task for message ${msgId}`,
+          );
+        }
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to process notification tasks for message ${msgId}: ${error}`,
+      );
+      // Don't throw - notification failures shouldn't block message delivery
+    }
+  }
+
+  /**
+   * Get message with all context needed for notifications
+   */
+  private async getMessageWithContext(msgId: string): Promise<{
+    message: schema.Message;
+    sender: schema.User;
+    channel: schema.Channel;
+    mentions: ParsedMention[];
+    parentMessage: schema.Message | null;
+  } | null> {
+    // Get message
+    const [message] = await this.db
+      .select()
+      .from(schema.messages)
+      .where(eq(schema.messages.id, msgId))
+      .limit(1);
+
+    if (!message || !message.senderId) {
+      return null;
+    }
+
+    // Get sender
+    const [sender] = await this.db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.id, message.senderId))
+      .limit(1);
+
+    if (!sender) {
+      return null;
+    }
+
+    // Get channel
+    const [channel] = await this.db
+      .select()
+      .from(schema.channels)
+      .where(eq(schema.channels.id, message.channelId))
+      .limit(1);
+
+    if (!channel) {
+      return null;
+    }
+
+    // Parse mentions directly from message content
+    const mentions = message.content ? parseMentions(message.content) : [];
+
+    // Get parent message if this is a reply
+    let parentMessage: schema.Message | null = null;
+    if (message.parentId) {
+      const [parent] = await this.db
+        .select()
+        .from(schema.messages)
+        .where(eq(schema.messages.id, message.parentId))
+        .limit(1);
+      parentMessage = parent ?? null;
+    }
+
+    return { message, sender, channel, mentions, parentMessage };
   }
 }

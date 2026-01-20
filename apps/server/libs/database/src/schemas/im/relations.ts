@@ -6,19 +6,25 @@ import { messages } from './messages.js';
 import { messageAttachments } from './message-attachments.js';
 import { messageReactions } from './message-reactions.js';
 import { userChannelReadStatus } from './user-channel-read-status.js';
-import { mentions } from './mentions.js';
 import { files } from './files.js';
+import { notifications } from './notifications.js';
+import {
+  notificationPreferences,
+  channelNotificationMutes,
+} from './notification-preferences.js';
 import { tenants } from '../tenant/tenants.js';
 import { tenantMembers } from '../tenant/tenant-members.js';
 
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ many, one }) => ({
   channelMemberships: many(channelMembers),
   sentMessages: many(messages),
   reactions: many(messageReactions),
   readStatuses: many(userChannelReadStatus),
-  mentions: many(mentions),
   createdChannels: many(channels),
   tenantMemberships: many(tenantMembers),
+  notifications: many(notifications),
+  notificationPreferences: one(notificationPreferences),
+  channelNotificationMutes: many(channelNotificationMutes),
 }));
 
 export const channelsRelations = relations(channels, ({ one, many }) => ({
@@ -63,7 +69,6 @@ export const messagesRelations = relations(messages, ({ one, many }) => ({
   replies: many(messages, { relationName: 'thread' }),
   attachments: many(messageAttachments),
   reactions: many(messageReactions),
-  mentions: many(mentions),
 }));
 
 export const messageAttachmentsRelations = relations(
@@ -108,21 +113,6 @@ export const userChannelReadStatusRelations = relations(
   }),
 );
 
-export const mentionsRelations = relations(mentions, ({ one }) => ({
-  message: one(messages, {
-    fields: [mentions.messageId],
-    references: [messages.id],
-  }),
-  mentionedUser: one(users, {
-    fields: [mentions.mentionedUserId],
-    references: [users.id],
-  }),
-  mentionedChannel: one(channels, {
-    fields: [mentions.mentionedChannelId],
-    references: [channels.id],
-  }),
-}));
-
 export const filesRelations = relations(files, ({ one }) => ({
   tenant: one(tenants, {
     fields: [files.tenantId],
@@ -137,3 +127,51 @@ export const filesRelations = relations(files, ({ one }) => ({
     references: [users.id],
   }),
 }));
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
+    references: [users.id],
+  }),
+  actor: one(users, {
+    fields: [notifications.actorId],
+    references: [users.id],
+    relationName: 'notificationActor',
+  }),
+  tenant: one(tenants, {
+    fields: [notifications.tenantId],
+    references: [tenants.id],
+  }),
+  channel: one(channels, {
+    fields: [notifications.channelId],
+    references: [channels.id],
+  }),
+  message: one(messages, {
+    fields: [notifications.messageId],
+    references: [messages.id],
+  }),
+}));
+
+export const notificationPreferencesRelations = relations(
+  notificationPreferences,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [notificationPreferences.userId],
+      references: [users.id],
+    }),
+  }),
+);
+
+export const channelNotificationMutesRelations = relations(
+  channelNotificationMutes,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [channelNotificationMutes.userId],
+      references: [users.id],
+    }),
+    channel: one(channels, {
+      fields: [channelNotificationMutes.channelId],
+      references: [channels.id],
+    }),
+  }),
+);

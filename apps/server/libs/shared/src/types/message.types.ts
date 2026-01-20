@@ -355,3 +355,216 @@ export interface PostBroadcastTask {
   // Timestamp when broadcast was sent
   broadcastAt: number;
 }
+
+// ============ Notification Task Types ============
+
+/**
+ * Base notification task payload
+ */
+export interface NotificationTaskBase {
+  type: NotificationTaskType;
+  timestamp: number;
+}
+
+export type NotificationTaskType =
+  | 'mention'
+  | 'reply'
+  | 'dm'
+  | 'workspace_invitation'
+  | 'member_joined'
+  | 'role_changed';
+
+/**
+ * Mention notification task
+ */
+export interface MentionNotificationTask extends NotificationTaskBase {
+  type: 'mention';
+  payload: {
+    messageId: string;
+    channelId: string;
+    tenantId: string;
+    senderId: string;
+    senderUsername: string;
+    channelName: string;
+    content: string;
+    mentions: Array<{
+      userId?: string;
+      type: 'user' | 'channel' | 'everyone' | 'here';
+    }>;
+  };
+}
+
+/**
+ * Reply notification task
+ */
+export interface ReplyNotificationTask extends NotificationTaskBase {
+  type: 'reply';
+  payload: {
+    messageId: string;
+    channelId: string;
+    tenantId: string;
+    senderId: string;
+    senderUsername: string;
+    parentMessageId: string;
+    parentSenderId: string;
+    content: string;
+  };
+}
+
+/**
+ * DM notification task
+ */
+export interface DMNotificationTask extends NotificationTaskBase {
+  type: 'dm';
+  payload: {
+    messageId: string;
+    channelId: string;
+    senderId: string;
+    senderUsername: string;
+    recipientId: string;
+    content: string;
+  };
+}
+
+/**
+ * Workspace invitation notification task
+ */
+export interface WorkspaceInvitationNotificationTask extends NotificationTaskBase {
+  type: 'workspace_invitation';
+  payload: {
+    invitationId: string;
+    tenantId: string;
+    tenantName: string;
+    inviterId: string;
+    inviterUsername: string;
+    inviteeId: string;
+  };
+}
+
+/**
+ * Member joined notification task
+ */
+export interface MemberJoinedNotificationTask extends NotificationTaskBase {
+  type: 'member_joined';
+  payload: {
+    tenantId: string;
+    tenantName: string;
+    newMemberId: string;
+    newMemberUsername: string;
+    notifyUserIds: string[];
+  };
+}
+
+/**
+ * Role changed notification task
+ */
+export interface RoleChangedNotificationTask extends NotificationTaskBase {
+  type: 'role_changed';
+  payload: {
+    tenantId: string;
+    tenantName: string;
+    userId: string;
+    oldRole: string;
+    newRole: string;
+    changedById: string;
+    changedByUsername: string;
+  };
+}
+
+/**
+ * Union type of all notification tasks
+ */
+export type NotificationTask =
+  | MentionNotificationTask
+  | ReplyNotificationTask
+  | DMNotificationTask
+  | WorkspaceInvitationNotificationTask
+  | MemberJoinedNotificationTask
+  | RoleChangedNotificationTask;
+
+// ============ Notification Delivery Task Types ============
+// These tasks are sent from im-worker to Gateway for WebSocket push
+
+/**
+ * Notification actor info for delivery
+ */
+export interface NotificationActorInfo {
+  id: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+}
+
+/**
+ * Notification delivery payload (sent to Gateway for WebSocket push)
+ */
+export interface NotificationDeliveryPayload {
+  id: string;
+  category: string;
+  type: string;
+  priority: string;
+  title: string;
+  body: string | null;
+  actor: NotificationActorInfo | null;
+  tenantId: string | null;
+  channelId: string | null;
+  messageId: string | null;
+  actionUrl: string | null;
+  createdAt: string;
+}
+
+/**
+ * Notification counts payload
+ */
+export interface NotificationCountsPayload {
+  total: number;
+  byCategory: {
+    message: number;
+    system: number;
+    workspace: number;
+  };
+}
+
+/**
+ * Base delivery task
+ */
+export interface DeliveryTaskBase {
+  type: 'new' | 'counts' | 'read';
+  userId: string;
+  timestamp: number;
+}
+
+/**
+ * New notification delivery task
+ */
+export interface NewNotificationDeliveryTask extends DeliveryTaskBase {
+  type: 'new';
+  payload: NotificationDeliveryPayload;
+}
+
+/**
+ * Counts update delivery task
+ */
+export interface CountsUpdateDeliveryTask extends DeliveryTaskBase {
+  type: 'counts';
+  payload: NotificationCountsPayload;
+}
+
+/**
+ * Notification read delivery task (for multi-device sync)
+ */
+export interface NotificationReadDeliveryTask extends DeliveryTaskBase {
+  type: 'read';
+  payload: {
+    notificationIds: string[];
+    readAt: string;
+  };
+}
+
+/**
+ * Union type of all delivery tasks
+ */
+export type NotificationDeliveryTask =
+  | NewNotificationDeliveryTask
+  | CountsUpdateDeliveryTask
+  | NotificationReadDeliveryTask;

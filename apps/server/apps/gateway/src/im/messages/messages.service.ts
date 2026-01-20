@@ -678,28 +678,6 @@ export class MessagesService {
       });
   }
 
-  async getUserMentions(
-    userId: string,
-    limit = 50,
-  ): Promise<MessageResponse[]> {
-    const mentionRecords = await this.db
-      .select({ messageId: schema.mentions.messageId })
-      .from(schema.mentions)
-      .where(
-        and(
-          eq(schema.mentions.mentionedUserId, userId),
-          eq(schema.mentions.isRead, false),
-        ),
-      )
-      .orderBy(desc(schema.mentions.createdAt))
-      .limit(limit);
-
-    const messageIds = mentionRecords.map((m) => m.messageId);
-    if (messageIds.length === 0) return [];
-
-    return Promise.all(messageIds.map((id) => this.getMessageWithDetails(id)));
-  }
-
   async getMessageChannelId(messageId: string): Promise<string> {
     const [message] = await this.db
       .select({ channelId: schema.messages.channelId })

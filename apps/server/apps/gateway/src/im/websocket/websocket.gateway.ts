@@ -20,24 +20,10 @@ import { env, PingMessage, PongMessage } from '@team9/shared';
 import {
   WS_EVENTS,
   type JoinChannelPayload,
-  type ChannelJoinedEvent,
-  type ChannelLeftEvent,
   type MarkAsReadPayload,
-  type ReadStatusUpdatedEvent,
-  type TypingStartPayload,
-  type UserTypingEvent,
-  type UserOnlineEvent,
-  type UserOfflineEvent,
   type AddReactionPayload,
-  type ReactionAddedEvent,
-  type ReactionRemovedEvent,
   type PingPayload,
   type MessageAckPayload,
-  type JoinWorkspacePayload,
-  type ChannelOperationResponse,
-  type TypingOperationResponse,
-  type ReactionOperationResponse,
-  type WorkspaceOperationResponse,
 } from './events/events.constants.js';
 import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
 import { SocketWithUser } from '../shared/interfaces/socket-with-user.interface.js';
@@ -254,29 +240,46 @@ export class WebsocketGateway
       }
 
       // Pull and deliver offline messages from RabbitMQ (if enabled)
+      // Use Redis lock to prevent multiple devices from pulling simultaneously
       if (this.rabbitMQEventService) {
-        try {
-          const offlineMessages =
-            await this.rabbitMQEventService.getOfflineMessages(
-              payload.sub,
-              100, // Max 100 offline messages
-            );
+        const lockKey = `im:offline_pull_lock:${payload.sub}`;
+        // Try to acquire lock with SET NX EX (atomic operation)
+        const lockResult = await this.redisService
+          .getClient()
+          .set(lockKey, client.id, 'EX', 30, 'NX');
+        const lockAcquired = lockResult === 'OK';
 
-          if (offlineMessages.length > 0) {
-            this.logger.log(
-              `Delivering ${offlineMessages.length} offline messages to user ${payload.sub}`,
-            );
+        if (lockAcquired) {
+          try {
+            const offlineMessages =
+              await this.rabbitMQEventService.getOfflineMessages(
+                payload.sub,
+                100, // Max 100 offline messages
+              );
 
-            // Send offline messages to client in order
-            for (const msg of offlineMessages) {
-              client.emit(msg.eventType, msg.payload);
+            if (offlineMessages.length > 0) {
+              this.logger.log(
+                `Delivering ${offlineMessages.length} offline messages to user ${payload.sub}`,
+              );
+
+              // Send offline messages to client in order
+              for (const msg of offlineMessages) {
+                client.emit(msg.eventType, msg.payload);
+              }
             }
+          } catch (error) {
+            this.logger.warn(
+              `Failed to retrieve offline messages for user ${payload.sub}: ${error.message}`,
+            );
+            // Don't fail connection if offline message retrieval fails
+          } finally {
+            // Release lock
+            await this.redisService.del(lockKey);
           }
-        } catch (error) {
-          this.logger.warn(
-            `Failed to retrieve offline messages for user ${payload.sub}: ${error.message}`,
+        } else {
+          this.logger.debug(
+            `Skipping offline message pull for user ${payload.sub} - another device is pulling`,
           );
-          // Don't fail connection if offline message retrieval fails
         }
       }
 

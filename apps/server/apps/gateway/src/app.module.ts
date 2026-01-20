@@ -24,6 +24,7 @@ import { WorkspaceModule } from './workspace/workspace.module.js';
 import { ClusterModule } from './cluster/cluster.module.js';
 import { TenantMiddleware } from './common/middleware/tenant.middleware.js';
 import { FileModule } from './file/file.module.js';
+import { NotificationModule } from './notification/notification.module.js';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { FileModule } from './file/file.module.js';
     ImModule,
     WorkspaceModule,
     FileModule,
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -305,15 +305,4 @@ export class MessagesController {
     await this.messagesService.removeReaction(messageId, userId, emoji);
     return { success: true };
   }
-
-  @Get('mentions')
-  async getMyMentions(
-    @CurrentUser('sub') userId: string,
-    @Query('limit') limit?: string,
-  ): Promise<MessageResponse[]> {
-    return this.messagesService.getUserMentions(
-      userId,
-      limit ? parseInt(limit, 10) : 50,
-    );
-  }
 }

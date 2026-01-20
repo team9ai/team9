@@ -27,3 +27,6 @@ export * from './workspace.events.js';
 
 // System events
 export * from './system.events.js';
+
+// Notification events
+export * from './notification.events.js';

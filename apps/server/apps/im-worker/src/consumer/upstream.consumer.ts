@@ -41,14 +41,10 @@ export class UpstreamConsumer implements OnModuleInit {
 
   /**
    * Setup the upstream queue
+   * Note: Exchange is declared in RabbitmqModule configuration.
    */
   private async setupQueue(): Promise<void> {
     const channel = this.amqpConnection.channel;
-
-    // Ensure exchange exists
-    await channel.assertExchange(MQ_EXCHANGES.IM_UPSTREAM, 'direct', {
-      durable: true,
-    });
 
     // Create upstream queue
     await channel.assertQueue(MQ_QUEUES.IM_WORKER_UPSTREAM, {
