@@ -97,7 +97,7 @@ export function HomeSubSidebar() {
   });
 
   return (
-    <aside className="w-64 overflow-auto bg-[#5b2c6f] text-white flex flex-col">
+    <aside className="w-64 overflow-y-auto overflow-x-hidden bg-[#5b2c6f] text-white flex flex-col">
       {/* Header */}
       <div className="p-4">
         <Button
@@ -196,23 +196,27 @@ export function HomeSubSidebar() {
                         key={channel.id}
                         to="/channels/$channelId"
                         params={{ channelId: channel.id }}
+                        className="block min-w-0"
                       >
                         <Button
                           variant="ghost"
                           className={cn(
-                            "w-full justify-start gap-2 px-2 h-auto py-1.5 text-sm hover:bg-white/10 hover:text-white",
+                            "w-full min-w-0 justify-start gap-2 px-2 h-auto py-1.5 text-sm hover:bg-white/10 hover:text-white",
                             isMember ? "text-white/80" : "text-white/50 italic",
                           )}
                         >
                           <ChannelIcon
                             size={16}
-                            className={cn(!isMember && "opacity-50")}
+                            className={cn(
+                              "shrink-0",
+                              !isMember && "opacity-50",
+                            )}
                           />
-                          <span className="truncate flex-1 text-left">
+                          <span className="truncate text-left max-w-35">
                             {channel.name}
                           </span>
                           {channel.unreadCount > 0 && (
-                            <span className="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-5 text-center">
+                            <span className="shrink-0 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-5 text-center">
                               {channel.unreadCount}
                             </span>
                           )}
