@@ -52,6 +52,26 @@ export interface NotificationCounts {
     system: number;
     workspace: number;
   };
+  byType: {
+    // Message category
+    mention: number;
+    channel_mention: number;
+    everyone_mention: number;
+    here_mention: number;
+    reply: number;
+    thread_reply: number;
+    dm_received: number;
+    // System category
+    system_announcement: number;
+    maintenance_notice: number;
+    version_update: number;
+    // Workspace category
+    workspace_invitation: number;
+    role_changed: number;
+    member_joined: number;
+    member_left: number;
+    channel_invite: number;
+  };
 }
 
 interface NotificationState {
@@ -91,6 +111,23 @@ const initialState = {
       message: 0,
       system: 0,
       workspace: 0,
+    },
+    byType: {
+      mention: 0,
+      channel_mention: 0,
+      everyone_mention: 0,
+      here_mention: 0,
+      reply: 0,
+      thread_reply: 0,
+      dm_received: 0,
+      system_announcement: 0,
+      maintenance_notice: 0,
+      version_update: 0,
+      workspace_invitation: 0,
+      role_changed: 0,
+      member_joined: 0,
+      member_left: 0,
+      channel_invite: 0,
     },
   },
   isLoading: false,
@@ -161,6 +198,9 @@ export const useNotificationStore = create<NotificationState>()(
                     [category]: 0,
                   }
                 : { message: 0, system: 0, workspace: 0 },
+              byType: category
+                ? state.counts.byType
+                : initialState.counts.byType,
             },
           }),
           false,
@@ -173,6 +213,7 @@ export const useNotificationStore = create<NotificationState>()(
         set(
           (state) => ({
             counts: {
+              ...state.counts,
               total: Math.max(0, state.counts.total - amount),
               byCategory: {
                 ...state.counts.byCategory,
@@ -191,6 +232,7 @@ export const useNotificationStore = create<NotificationState>()(
         set(
           (state) => ({
             counts: {
+              ...state.counts,
               total: state.counts.total + amount,
               byCategory: {
                 ...state.counts.byCategory,

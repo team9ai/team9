@@ -133,6 +133,27 @@ export interface NotificationCountsUpdatedEvent {
     system: number;
     workspace: number;
   };
+  /** Unread counts by notification type */
+  byType: {
+    // Message category
+    mention: number;
+    channel_mention: number;
+    everyone_mention: number;
+    here_mention: number;
+    reply: number;
+    thread_reply: number;
+    dm_received: number;
+    // System category
+    system_announcement: number;
+    maintenance_notice: number;
+    version_update: number;
+    // Workspace category
+    workspace_invitation: number;
+    role_changed: number;
+    member_joined: number;
+    member_left: number;
+    channel_invite: number;
+  };
 }
 
 /**

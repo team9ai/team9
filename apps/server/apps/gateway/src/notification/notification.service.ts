@@ -47,6 +47,26 @@ export interface NotificationCountsResponse {
     system: number;
     workspace: number;
   };
+  byType: {
+    // Message category
+    mention: number;
+    channel_mention: number;
+    everyone_mention: number;
+    here_mention: number;
+    reply: number;
+    thread_reply: number;
+    dm_received: number;
+    // System category
+    system_announcement: number;
+    maintenance_notice: number;
+    version_update: number;
+    // Workspace category
+    workspace_invitation: number;
+    role_changed: number;
+    member_joined: number;
+    member_left: number;
+    channel_invite: number;
+  };
 }
 
 export interface CreateNotificationParams {
@@ -232,69 +252,34 @@ export class NotificationService {
   }
 
   /**
-   * Get a single notification by ID
-   */
-  async getById(
-    notificationId: string,
-    userId: string,
-  ): Promise<NotificationResponse | null> {
-    const [result] = await this.db
-      .select({
-        notification: schema.notifications,
-        actor: {
-          id: schema.users.id,
-          username: schema.users.username,
-          displayName: schema.users.displayName,
-          avatarUrl: schema.users.avatarUrl,
-        },
-      })
-      .from(schema.notifications)
-      .leftJoin(schema.users, eq(schema.notifications.actorId, schema.users.id))
-      .where(
-        and(
-          eq(schema.notifications.id, notificationId),
-          eq(schema.notifications.userId, userId),
-        ),
-      )
-      .limit(1);
-
-    if (!result) return null;
-
-    return {
-      id: result.notification.id,
-      category: result.notification.category,
-      type: result.notification.type,
-      priority: result.notification.priority,
-      title: result.notification.title,
-      body: result.notification.body,
-      actor: result.actor?.id ? (result.actor as NotificationActor) : null,
-      tenantId: result.notification.tenantId,
-      channelId: result.notification.channelId,
-      messageId: result.notification.messageId,
-      actionUrl: result.notification.actionUrl,
-      isRead: result.notification.isRead,
-      createdAt: result.notification.createdAt,
-    };
-  }
-
-  /**
-   * Get unread notification counts by category
+   * Get unread notification counts by category and type
    */
   async getUnreadCounts(userId: string): Promise<NotificationCountsResponse> {
-    const results = await this.db
+    const baseConditions = and(
+      eq(schema.notifications.userId, userId),
+      eq(schema.notifications.isRead, false),
+      eq(schema.notifications.isArchived, false),
+    );
+
+    // Query counts grouped by category
+    const categoryResults = await this.db
       .select({
         category: schema.notifications.category,
         count: sql<number>`COUNT(*)`,
       })
       .from(schema.notifications)
-      .where(
-        and(
-          eq(schema.notifications.userId, userId),
-          eq(schema.notifications.isRead, false),
-          eq(schema.notifications.isArchived, false),
-        ),
-      )
+      .where(baseConditions)
       .groupBy(schema.notifications.category);
+
+    // Query counts grouped by type
+    const typeResults = await this.db
+      .select({
+        type: schema.notifications.type,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(schema.notifications)
+      .where(baseConditions)
+      .groupBy(schema.notifications.type);
 
     const counts: NotificationCountsResponse = {
       total: 0,
@@ -303,12 +288,39 @@ export class NotificationService {
         system: 0,
         workspace: 0,
       },
+      byType: {
+        // Message category
+        mention: 0,
+        channel_mention: 0,
+        everyone_mention: 0,
+        here_mention: 0,
+        reply: 0,
+        thread_reply: 0,
+        dm_received: 0,
+        // System category
+        system_announcement: 0,
+        maintenance_notice: 0,
+        version_update: 0,
+        // Workspace category
+        workspace_invitation: 0,
+        role_changed: 0,
+        member_joined: 0,
+        member_left: 0,
+        channel_invite: 0,
+      },
     };
 
-    results.forEach((r) => {
+    // Populate category counts
+    categoryResults.forEach((r) => {
       const count = Number(r.count);
       counts.byCategory[r.category as keyof typeof counts.byCategory] = count;
       counts.total += count;
+    });
+
+    // Populate type counts
+    typeResults.forEach((r) => {
+      const count = Number(r.count);
+      counts.byType[r.type as keyof typeof counts.byType] = count;
     });
 
     return counts;

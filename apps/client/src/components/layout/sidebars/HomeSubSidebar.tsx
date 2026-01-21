@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { useChannelsByType, usePublicChannels } from "@/hooks/useChannels";
 import { useOnlineUsers } from "@/hooks/useIMUsers";
@@ -212,9 +213,11 @@ export function HomeSubSidebar() {
                             {channel.name}
                           </span>
                           {channel.unreadCount > 0 && (
-                            <span className="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-5 text-center">
-                              {channel.unreadCount}
-                            </span>
+                            <Badge
+                              variant="notification"
+                              size="sm"
+                              count={channel.unreadCount}
+                            />
                           )}
                         </Button>
                       </Link>
@@ -285,9 +288,11 @@ export function HomeSubSidebar() {
                             {dm.name}
                           </span>
                           {dm.unreadCount > 0 && (
-                            <span className="bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-5 text-center">
-                              {dm.unreadCount}
-                            </span>
+                            <Badge
+                              variant="notification"
+                              size="sm"
+                              count={dm.unreadCount}
+                            />
                           )}
                         </Button>
                       </Link>

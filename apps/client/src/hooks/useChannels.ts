@@ -26,62 +26,34 @@ export function useChannels() {
 
   // Listen for real-time channel updates
   useEffect(() => {
-    const handleChannelJoined = () => {
+    const invalidateChannels = () => {
       queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
       queryClient.invalidateQueries({
         queryKey: ["publicChannels", workspaceId],
       });
     };
 
-    const handleChannelLeft = () => {
-      queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
-      queryClient.invalidateQueries({
-        queryKey: ["publicChannels", workspaceId],
-      });
-    };
+    // Channel lifecycle events
+    wsService.on("channel_joined", invalidateChannels);
+    wsService.on("channel_left", invalidateChannels);
+    wsService.on("channel_created", invalidateChannels);
+    wsService.on("channel_deleted", invalidateChannels);
+    wsService.on("channel_archived", invalidateChannels);
+    wsService.on("channel_unarchived", invalidateChannels);
 
-    const handleChannelCreated = () => {
-      queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
-      queryClient.invalidateQueries({
-        queryKey: ["publicChannels", workspaceId],
-      });
-    };
-
-    const handleChannelDeleted = () => {
-      queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
-      queryClient.invalidateQueries({
-        queryKey: ["publicChannels", workspaceId],
-      });
-    };
-
-    const handleChannelArchived = () => {
-      queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
-      queryClient.invalidateQueries({
-        queryKey: ["publicChannels", workspaceId],
-      });
-    };
-
-    const handleChannelUnarchived = () => {
-      queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
-      queryClient.invalidateQueries({
-        queryKey: ["publicChannels", workspaceId],
-      });
-    };
-
-    wsService.on("channel_joined", handleChannelJoined);
-    wsService.on("channel_left", handleChannelLeft);
-    wsService.on("channel_created", handleChannelCreated);
-    wsService.on("channel_deleted", handleChannelDeleted);
-    wsService.on("channel_archived", handleChannelArchived);
-    wsService.on("channel_unarchived", handleChannelUnarchived);
+    // Message events - refresh to update unread counts
+    wsService.on("new_message", invalidateChannels);
+    wsService.on("read_status_updated", invalidateChannels);
 
     return () => {
-      wsService.off("channel_joined", handleChannelJoined);
-      wsService.off("channel_left", handleChannelLeft);
-      wsService.off("channel_created", handleChannelCreated);
-      wsService.off("channel_deleted", handleChannelDeleted);
-      wsService.off("channel_archived", handleChannelArchived);
-      wsService.off("channel_unarchived", handleChannelUnarchived);
+      wsService.off("channel_joined", invalidateChannels);
+      wsService.off("channel_left", invalidateChannels);
+      wsService.off("channel_created", invalidateChannels);
+      wsService.off("channel_deleted", invalidateChannels);
+      wsService.off("channel_archived", invalidateChannels);
+      wsService.off("channel_unarchived", invalidateChannels);
+      wsService.off("new_message", invalidateChannels);
+      wsService.off("read_status_updated", invalidateChannels);
     };
   }, [queryClient, workspaceId]);
 

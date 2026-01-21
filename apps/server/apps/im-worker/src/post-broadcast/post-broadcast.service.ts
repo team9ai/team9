@@ -294,7 +294,7 @@ export class PostBroadcastService {
       }
 
       // 3. Process DM notifications (for direct message channels)
-      if (channel.type === 'direct' && !tenantId) {
+      if (channel.type === 'direct') {
         // Get the other participant in the DM
         const members = await this.getChannelMemberIds(channelId);
         const recipientId = members.find((id) => id !== senderId);

@@ -433,6 +433,23 @@ export interface NotificationCountsUpdatedEvent {
     system: number;
     workspace: number;
   };
+  byType: {
+    mention: number;
+    channel_mention: number;
+    everyone_mention: number;
+    here_mention: number;
+    reply: number;
+    thread_reply: number;
+    dm_received: number;
+    system_announcement: number;
+    maintenance_notice: number;
+    version_update: number;
+    workspace_invitation: number;
+    role_changed: number;
+    member_joined: number;
+    member_left: number;
+    channel_invite: number;
+  };
 }
 
 /** Notification read event (multi-device sync) */
