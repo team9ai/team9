@@ -7,6 +7,7 @@ import {
 import { MainSidebar } from "@/components/layout/MainSidebar";
 import { DynamicSubSidebar } from "@/components/layout/DynamicSubSidebar";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useWebSocketEvents } from "@/hooks/useWebSocketEvents";
 import { useEffect } from "react";
 import {
   appActions,
@@ -88,6 +89,9 @@ function AuthenticatedLayout() {
 
   // Initialize WebSocket connection
   useWebSocket();
+
+  // Set up centralized WebSocket event listeners for React Query cache updates
+  useWebSocketEvents();
 
   // Save current path as last visited for the active section
   useEffect(() => {

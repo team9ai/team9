@@ -4,19 +4,16 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useUserWorkspaces, useWorkspaceMembers } from "@/hooks/useWorkspace";
 import { useChannelsByType, useCreateDirectChannel } from "@/hooks/useChannels";
 import { useOnlineUsers } from "@/hooks/useIMUsers";
 import { useCurrentUser } from "@/hooks/useAuth";
-import { useQueryClient } from "@tanstack/react-query";
-import wsService from "@/services/websocket";
 import { useWorkspaceStore } from "@/stores";
 import { UserListItem } from "@/components/sidebar/UserListItem";
 
 export function MessagesSubSidebar() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const params = useParams({ strict: false });
   const selectedChannelId = (params as { channelId?: string }).channelId;
 
@@ -54,7 +51,7 @@ export function MessagesSubSidebar() {
       return {
         id: channel.id,
         channelId: channel.id,
-        oderId: otherUser?.id,
+        userId: otherUser?.id,
         name: displayName,
         avatar: avatarText,
         avatarUrl: otherUser?.avatarUrl,
@@ -63,33 +60,6 @@ export function MessagesSubSidebar() {
       };
     });
   }, [directChannels]);
-
-  // Listen for user online/offline events
-  useEffect(() => {
-    const handleUserOnline = () => {
-      if (currentWorkspace?.id) {
-        queryClient.invalidateQueries({
-          queryKey: ["workspace-members", currentWorkspace.id],
-        });
-      }
-    };
-
-    const handleUserOffline = () => {
-      if (currentWorkspace?.id) {
-        queryClient.invalidateQueries({
-          queryKey: ["workspace-members", currentWorkspace.id],
-        });
-      }
-    };
-
-    wsService.on("user_online", handleUserOnline);
-    wsService.on("user_offline", handleUserOffline);
-
-    return () => {
-      wsService.off("user_online", handleUserOnline);
-      wsService.off("user_offline", handleUserOffline);
-    };
-  }, [currentWorkspace?.id, queryClient]);
 
   // Filter members: exclude current user and those with existing DM channels
   const existingDmUserIds = new Set(
@@ -187,7 +157,7 @@ export function MessagesSubSidebar() {
                     name={dm.name}
                     avatar={dm.avatar}
                     avatarUrl={dm.avatarUrl}
-                    isOnline={dm.oderId ? dm.oderId in onlineUsers : false}
+                    isOnline={dm.userId ? dm.userId in onlineUsers : false}
                     isSelected={selectedChannelId === dm.channelId}
                     unreadCount={dm.unreadCount}
                     channelId={dm.channelId}

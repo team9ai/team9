@@ -1,13 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
 import imApi from "@/services/api/im";
-import wsService from "@/services/websocket";
 import type { UpdateUserStatusDto } from "@/types/im";
-import type {
-  UserOnlineEvent,
-  UserOfflineEvent,
-  UserStatusChangedEvent,
-} from "@/types/ws-events";
 
 /**
  * Hook to search users
@@ -23,63 +16,16 @@ export function useSearchUsers(query: string, enabled = true) {
 
 /**
  * Hook to get online users
+ *
+ * Note: WebSocket event listeners for real-time status updates are now
+ * centralized in useWebSocketEvents hook (called once in _authenticated layout).
  */
 export function useOnlineUsers() {
-  const queryClient = useQueryClient();
-
-  const query = useQuery({
+  return useQuery({
     queryKey: ["im-users", "online"],
     queryFn: () => imApi.users.getOnlineUsers(),
     refetchInterval: 30000, // Refresh every 30 seconds
   });
-
-  // Listen for real-time status updates
-  useEffect(() => {
-    const handleUserOnline = ({ userId }: UserOnlineEvent) => {
-      queryClient.setQueryData(
-        ["im-users", "online"],
-        (old: Record<string, string> | undefined) => {
-          return { ...old, [userId]: "online" };
-        },
-      );
-    };
-
-    const handleUserOffline = ({ userId }: UserOfflineEvent) => {
-      queryClient.setQueryData(
-        ["im-users", "online"],
-        (old: Record<string, string> | undefined) => {
-          if (!old) return old;
-          const newData = { ...old };
-          delete newData[userId];
-          return newData;
-        },
-      );
-    };
-
-    const handleUserStatusChanged = ({
-      userId,
-      status,
-    }: UserStatusChangedEvent) => {
-      queryClient.setQueryData(
-        ["im-users", "online"],
-        (old: Record<string, string> | undefined) => {
-          return { ...old, [userId]: status };
-        },
-      );
-    };
-
-    wsService.onUserOnline(handleUserOnline);
-    wsService.onUserOffline(handleUserOffline);
-    wsService.onUserStatusChanged(handleUserStatusChanged);
-
-    return () => {
-      wsService.off("user_online", handleUserOnline);
-      wsService.off("user_offline", handleUserOffline);
-      wsService.off("user_status_changed", handleUserStatusChanged);
-    };
-  }, [queryClient]);
-
-  return query;
 }
 
 /**

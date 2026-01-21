@@ -1,27 +1,21 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useCallback } from "react";
+import { useCallback } from "react";
 import notificationApi, {
   type GetNotificationsParams,
 } from "@/services/api/notification";
-import wsService from "@/services/websocket";
 import {
   useNotificationStore,
   notificationActions,
-  type Notification,
   type NotificationCategory,
 } from "@/stores/useNotificationStore";
-import type {
-  NotificationNewEvent,
-  NotificationCountsUpdatedEvent,
-  NotificationReadEvent,
-} from "@/types/ws-events";
 
 /**
  * Hook to fetch notification counts
+ *
+ * Note: WebSocket event listeners for real-time updates are now centralized
+ * in useWebSocketEvents hook (called once in _authenticated layout).
  */
 export function useNotificationCounts() {
-  const queryClient = useQueryClient();
-
   const query = useQuery({
     queryKey: ["notificationCounts"],
     queryFn: async () => {
@@ -31,56 +25,16 @@ export function useNotificationCounts() {
     },
   });
 
-  // Listen for real-time count updates and new notifications
-  useEffect(() => {
-    const handleCountsUpdated = (event: NotificationCountsUpdatedEvent) => {
-      notificationActions.setCounts(event);
-      queryClient.setQueryData(["notificationCounts"], event);
-    };
-
-    // When a new notification arrives, increment the count in React Query cache
-    const handleNewNotification = (event: NotificationNewEvent) => {
-      // Update Zustand store
-      notificationActions.incrementCount(event.category);
-      // Update React Query cache to keep MainSidebar badge in sync
-      queryClient.setQueryData(
-        ["notificationCounts"],
-        (
-          oldData:
-            | { total: number; byCategory: Record<string, number> }
-            | undefined,
-        ) => {
-          if (!oldData) return oldData;
-          const category = event.category as keyof typeof oldData.byCategory;
-          const newData = {
-            total: oldData.total + 1,
-            byCategory: {
-              ...oldData.byCategory,
-              [category]: (oldData.byCategory[category] || 0) + 1,
-            },
-          };
-          return newData;
-        },
-      );
-    };
-
-    wsService.onNotificationCountsUpdated(handleCountsUpdated);
-    wsService.onNotificationNew(handleNewNotification);
-
-    return () => {
-      wsService.offNotificationCountsUpdated(handleCountsUpdated);
-      wsService.offNotificationNew(handleNewNotification);
-    };
-  }, [queryClient]);
-
   return query;
 }
 
 /**
  * Hook to fetch notifications with pagination
+ *
+ * Note: WebSocket event listeners for real-time updates are now centralized
+ * in useWebSocketEvents hook (called once in _authenticated layout).
  */
 export function useNotifications(params?: GetNotificationsParams) {
-  const queryClient = useQueryClient();
   const { nextCursor, hasMore, filter } = useNotificationStore();
 
   const query = useQuery({
@@ -122,32 +76,6 @@ export function useNotifications(params?: GetNotificationsParams) {
       notificationActions.setLoading(false);
     }
   }, [hasMore, nextCursor, params, filter]);
-
-  // Listen for real-time new notifications
-  useEffect(() => {
-    const handleNewNotification = (event: NotificationNewEvent) => {
-      // Add to store with isRead: false
-      // Note: Count increment is handled by useNotificationCounts hook
-      const notification: Notification = {
-        ...event,
-        isRead: false,
-        readAt: null,
-      };
-      notificationActions.addNotification(notification);
-    };
-
-    const handleNotificationRead = (event: NotificationReadEvent) => {
-      notificationActions.markAsRead(event.notificationIds);
-    };
-
-    wsService.onNotificationNew(handleNewNotification);
-    wsService.onNotificationRead(handleNotificationRead);
-
-    return () => {
-      wsService.offNotificationNew(handleNewNotification);
-      wsService.offNotificationRead(handleNotificationRead);
-    };
-  }, [queryClient]);
 
   return {
     ...query,

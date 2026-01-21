@@ -1,7 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
 import imApi from "@/services/api/im";
-import wsService from "@/services/websocket";
 import type {
   CreateChannelDto,
   UpdateChannelDto,
@@ -12,52 +10,19 @@ import { useSelectedWorkspaceId } from "@/stores";
 
 /**
  * Hook to fetch all user's channels
+ *
+ * Note: WebSocket event listeners for real-time updates are now centralized
+ * in useWebSocketEvents hook (called once in _authenticated layout).
  */
 export function useChannels() {
-  const queryClient = useQueryClient();
   const workspaceId = useSelectedWorkspaceId();
 
-  const query = useQuery({
+  return useQuery({
     queryKey: ["channels", workspaceId],
     queryFn: () => imApi.channels.getChannels(),
     staleTime: 30000,
     enabled: !!workspaceId,
   });
-
-  // Listen for real-time channel updates
-  useEffect(() => {
-    const invalidateChannels = () => {
-      queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
-      queryClient.invalidateQueries({
-        queryKey: ["publicChannels", workspaceId],
-      });
-    };
-
-    // Channel lifecycle events
-    wsService.on("channel_joined", invalidateChannels);
-    wsService.on("channel_left", invalidateChannels);
-    wsService.on("channel_created", invalidateChannels);
-    wsService.on("channel_deleted", invalidateChannels);
-    wsService.on("channel_archived", invalidateChannels);
-    wsService.on("channel_unarchived", invalidateChannels);
-
-    // Message events - refresh to update unread counts
-    wsService.on("new_message", invalidateChannels);
-    wsService.on("read_status_updated", invalidateChannels);
-
-    return () => {
-      wsService.off("channel_joined", invalidateChannels);
-      wsService.off("channel_left", invalidateChannels);
-      wsService.off("channel_created", invalidateChannels);
-      wsService.off("channel_deleted", invalidateChannels);
-      wsService.off("channel_archived", invalidateChannels);
-      wsService.off("channel_unarchived", invalidateChannels);
-      wsService.off("new_message", invalidateChannels);
-      wsService.off("read_status_updated", invalidateChannels);
-    };
-  }, [queryClient, workspaceId]);
-
-  return query;
 }
 
 /**
