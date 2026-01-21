@@ -177,15 +177,20 @@ export class UpstreamConsumer {
   /**
    * Handle post-broadcast tasks (event-driven, replaces polling)
    * Processes offline messages and unread counts after Gateway broadcast
+   *
+   * Note: Uses a separate queue (POST_BROADCAST) from the main upstream queue
+   * to avoid message routing issues with @golevelup/nestjs-rabbitmq.
+   * When multiple handlers share the same queue, messages are distributed
+   * round-robin instead of by routing key.
    */
   @RabbitSubscribe({
     exchange: MQ_EXCHANGES.IM_UPSTREAM,
     routingKey: MQ_ROUTING_KEYS.UPSTREAM.POST_BROADCAST,
-    queue: MQ_QUEUES.IM_WORKER_UPSTREAM,
+    queue: MQ_QUEUES.POST_BROADCAST,
     queueOptions: {
       durable: true,
       deadLetterExchange: MQ_EXCHANGES.IM_DLX,
-      deadLetterRoutingKey: 'dlq.upstream',
+      deadLetterRoutingKey: 'dlq.post_broadcast',
     },
   })
   async handlePostBroadcastTask(task: PostBroadcastTask): Promise<void | Nack> {

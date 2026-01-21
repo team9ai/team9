@@ -30,6 +30,10 @@ async function bootstrap() {
     },
   });
 
+  // Initialize the application to trigger RabbitMQ handler registration
+  // This is required for @RabbitSubscribe decorators to work properly
+  await app.init();
+
   // Start gRPC microservice
   await app.startAllMicroservices();
 
