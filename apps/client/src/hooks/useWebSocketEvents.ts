@@ -15,6 +15,7 @@ import { useSelectedWorkspaceId, useUser } from "@/stores";
 import {
   notificationActions,
   type Notification,
+  type NotificationCounts,
 } from "@/stores/useNotificationStore";
 
 /**
@@ -155,18 +156,17 @@ export function useWebSocketEvents() {
       // 2. Update React Query cache for notification counts
       queryClient.setQueryData(
         ["notificationCounts"],
-        (
-          oldData:
-            | { total: number; byCategory: Record<string, number> }
-            | undefined,
-        ) => {
+        (oldData: NotificationCounts | undefined) => {
           if (!oldData) return oldData;
-          const category = event.category as keyof typeof oldData.byCategory;
           return {
             total: oldData.total + 1,
             byCategory: {
               ...oldData.byCategory,
-              [category]: (oldData.byCategory[category] || 0) + 1,
+              [event.category]: (oldData.byCategory[event.category] || 0) + 1,
+            },
+            byType: {
+              ...oldData.byType,
+              [event.type]: (oldData.byType[event.type] || 0) + 1,
             },
           };
         },
