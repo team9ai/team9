@@ -9,7 +9,11 @@ import { DynamicSubSidebar } from "@/components/layout/DynamicSubSidebar";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useWebSocketEvents } from "@/hooks/useWebSocketEvents";
 import { useEffect } from "react";
-import { appActions, useActiveSidebar, DEFAULT_SECTION_PATHS } from "@/stores";
+import {
+  appActions,
+  DEFAULT_SECTION_PATHS,
+  getSectionFromPath,
+} from "@/stores";
 
 export const Route = createFileRoute("/_authenticated")({
   beforeLoad: ({ location }) => {
@@ -64,7 +68,6 @@ export const Route = createFileRoute("/_authenticated")({
 
 function AuthenticatedLayout() {
   const location = useLocation();
-  const activeSidebar = useActiveSidebar();
 
   // Initialize WebSocket connection
   useWebSocket();
@@ -72,15 +75,17 @@ function AuthenticatedLayout() {
   // Set up centralized WebSocket event listeners for React Query cache updates
   useWebSocketEvents();
 
-  // Save current path as last visited for the active section
+  // Save current path as last visited for its corresponding section
   useEffect(() => {
     const pathname = location.pathname;
     if (pathname === "/") return;
 
-    // Always save to the currently active sidebar section
-    // This way, when user leaves a tab, we remember where they were
-    appActions.setLastVisitedPath(activeSidebar, pathname);
-  }, [location.pathname, activeSidebar]);
+    // Determine which section this path belongs to based on the path itself
+    // This ensures paths are always saved to the correct section,
+    // regardless of the current activeSidebar state (which may be stale)
+    const pathSection = getSectionFromPath(pathname);
+    appActions.setLastVisitedPath(pathSection, pathname);
+  }, [location.pathname]);
 
   return (
     <div className="flex h-screen overflow-hidden">

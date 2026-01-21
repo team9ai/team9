@@ -10,7 +10,6 @@ import {
   useMarkNotificationsAsRead,
   useMarkAllNotificationsAsRead,
 } from "@/hooks/useNotifications";
-import { appActions } from "@/stores";
 import {
   useNotifications as useNotificationsFromStore,
   useNotificationLoading,
@@ -150,15 +149,9 @@ export function ActivityMainContent() {
     }
 
     // Navigate to the relevant location
-    // Switch to home section before navigating to channels
-    // so the channel path gets saved to the correct section
     if (notification.actionUrl) {
-      if (notification.actionUrl.startsWith("/channels")) {
-        appActions.setActiveSidebar("home");
-      }
       navigate({ to: notification.actionUrl });
     } else if (notification.channelId) {
-      appActions.setActiveSidebar("home");
       navigate({ to: `/channels/${notification.channelId}` });
     }
   };
