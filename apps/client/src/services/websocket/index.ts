@@ -351,13 +351,17 @@ class WebSocketService {
 
   // Notification events
   onNotificationNew(callback: (event: NotificationNewEvent) => void): void {
-    this.on(WS_EVENTS.NOTIFICATION.NEW, callback);
+    this.on(WS_EVENTS.NOTIFICATION.NEW, (event) => {
+      callback(event);
+    });
   }
 
   onNotificationCountsUpdated(
     callback: (event: NotificationCountsUpdatedEvent) => void,
   ): void {
-    this.on(WS_EVENTS.NOTIFICATION.COUNTS_UPDATED, callback);
+    this.on(WS_EVENTS.NOTIFICATION.COUNTS_UPDATED, (event) => {
+      callback(event);
+    });
   }
 
   onNotificationRead(callback: (event: NotificationReadEvent) => void): void {

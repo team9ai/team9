@@ -133,6 +133,10 @@ export class MessagesController {
           this.logger.warn(`Failed to publish post-broadcast task: ${err}`);
           // Outbox processor will handle it as fallback
         });
+    } else {
+      this.logger.warn(
+        `[sendMessage] GatewayMQService not ready, skipping post-broadcast task`,
+      );
     }
 
     this.logger.debug(`Message ${result.msgId} persisted and broadcast (gRPC)`);

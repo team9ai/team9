@@ -31,17 +31,45 @@ export function useNotificationCounts() {
     },
   });
 
-  // Listen for real-time count updates
+  // Listen for real-time count updates and new notifications
   useEffect(() => {
     const handleCountsUpdated = (event: NotificationCountsUpdatedEvent) => {
       notificationActions.setCounts(event);
       queryClient.setQueryData(["notificationCounts"], event);
     };
 
+    // When a new notification arrives, increment the count in React Query cache
+    const handleNewNotification = (event: NotificationNewEvent) => {
+      // Update Zustand store
+      notificationActions.incrementCount(event.category);
+      // Update React Query cache to keep MainSidebar badge in sync
+      queryClient.setQueryData(
+        ["notificationCounts"],
+        (
+          oldData:
+            | { total: number; byCategory: Record<string, number> }
+            | undefined,
+        ) => {
+          if (!oldData) return oldData;
+          const category = event.category as keyof typeof oldData.byCategory;
+          const newData = {
+            total: oldData.total + 1,
+            byCategory: {
+              ...oldData.byCategory,
+              [category]: (oldData.byCategory[category] || 0) + 1,
+            },
+          };
+          return newData;
+        },
+      );
+    };
+
     wsService.onNotificationCountsUpdated(handleCountsUpdated);
+    wsService.onNotificationNew(handleNewNotification);
 
     return () => {
       wsService.offNotificationCountsUpdated(handleCountsUpdated);
+      wsService.offNotificationNew(handleNewNotification);
     };
   }, [queryClient]);
 
@@ -99,13 +127,13 @@ export function useNotifications(params?: GetNotificationsParams) {
   useEffect(() => {
     const handleNewNotification = (event: NotificationNewEvent) => {
       // Add to store with isRead: false
+      // Note: Count increment is handled by useNotificationCounts hook
       const notification: Notification = {
         ...event,
         isRead: false,
         readAt: null,
       };
       notificationActions.addNotification(notification);
-      notificationActions.incrementCount(event.category);
     };
 
     const handleNotificationRead = (event: NotificationReadEvent) => {

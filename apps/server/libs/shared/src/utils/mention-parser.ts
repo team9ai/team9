@@ -9,19 +9,23 @@ export interface ParsedMention {
 
 /**
  * Parse @mentions from message content
- * Supports:
+ * Supports two formats:
+ *
+ * Plain text format:
  * - @everyone - mentions all channel members
  * - @here - mentions all online channel members
  * - @<userId> - mentions a specific user by ID
  * - #<channelId> - mentions a specific channel by ID
+ *
+ * HTML format (from rich text editor):
+ * - <mention data-user-id="userId">...</mention> - mentions a specific user
  */
 export function parseMentions(content: string): ParsedMention[] {
   const mentions: ParsedMention[] = [];
+  let match: RegExpExecArray | null;
 
   // Match @everyone
   const everyoneRegex = /@everyone/gi;
-  let match: RegExpExecArray | null;
-
   while ((match = everyoneRegex.exec(content)) !== null) {
     mentions.push({
       type: 'everyone',
@@ -42,10 +46,23 @@ export function parseMentions(content: string): ParsedMention[] {
     });
   }
 
-  // Match @<uuid> format for user mentions
+  // Match @<uuid> format for user mentions (plain text format)
   const userIdRegex =
     /@<([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})>/gi;
   while ((match = userIdRegex.exec(content)) !== null) {
+    mentions.push({
+      type: 'user',
+      userId: match[1],
+      originalText: match[0],
+      startIndex: match.index,
+      endIndex: match.index + match[0].length,
+    });
+  }
+
+  // Match <mention data-user-id="uuid">...</mention> format (HTML format from rich text editor)
+  const htmlMentionRegex =
+    /<mention\s+data-user-id="([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"[^>]*>.*?<\/mention>/gi;
+  while ((match = htmlMentionRegex.exec(content)) !== null) {
     mentions.push({
       type: 'user',
       userId: match[1],

@@ -79,7 +79,6 @@ export class NotificationDeliveryService {
         WS_NOTIFICATION_EVENTS.NEW,
         notification,
       );
-      this.logger.debug(`Delivered notification to online user ${userId}`);
     } else {
       // For offline users, the notification is already persisted in the database
       // They will fetch it when they come online
