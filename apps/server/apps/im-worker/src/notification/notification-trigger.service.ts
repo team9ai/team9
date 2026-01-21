@@ -133,7 +133,7 @@ export class NotificationTriggerService {
         tenantId,
         channelId,
         messageId,
-        actionUrl: `/workspace/${tenantId}/channel/${channelId}?message=${messageId}`,
+        actionUrl: `/channels/${channelId}?message=${messageId}`,
         priority: 'high',
       });
     }
@@ -157,7 +157,7 @@ export class NotificationTriggerService {
           tenantId,
           channelId,
           messageId,
-          actionUrl: `/workspace/${tenantId}/channel/${channelId}?message=${messageId}`,
+          actionUrl: `/channels/${channelId}?message=${messageId}`,
           priority: 'high',
         });
       }
@@ -233,7 +233,7 @@ export class NotificationTriggerService {
       actorId: senderId,
       channelId,
       messageId,
-      actionUrl: `/dm/${channelId}?message=${messageId}`,
+      actionUrl: `/channels/${channelId}?message=${messageId}`,
       priority: 'high',
     });
 
@@ -299,7 +299,7 @@ export class NotificationTriggerService {
         body: undefined,
         actorId: newMemberId,
         tenantId,
-        actionUrl: `/workspace/${tenantId}/members`,
+        actionUrl: `/`,
         priority: 'low',
       });
     }
@@ -334,7 +334,7 @@ export class NotificationTriggerService {
       actorId: changedById,
       tenantId,
       metadata: { oldRole, newRole },
-      actionUrl: `/workspace/${tenantId}`,
+      actionUrl: `/`,
       priority: 'normal',
     });
 

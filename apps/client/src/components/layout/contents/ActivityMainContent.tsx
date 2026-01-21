@@ -152,7 +152,7 @@ export function ActivityMainContent() {
     if (notification.actionUrl) {
       navigate({ to: notification.actionUrl });
     } else if (notification.channelId) {
-      navigate({ to: `/channel/${notification.channelId}` });
+      navigate({ to: `/channels/${notification.channelId}` });
     }
   };
 
