@@ -52,8 +52,8 @@ export function ChannelView({ channelId }: ChannelViewProps) {
   useChannelWS(channelId);
 
   const messages = messagesData?.pages.flat() ?? [];
-  const latestMessageId =
-    messages.length > 0 ? messages[messages.length - 1]?.id : null;
+  // New messages are prepended to pages[0], so messages[0] is the latest
+  const latestMessageId = messages.length > 0 ? messages[0]?.id : null;
 
   // Auto-mark messages as read when viewing the channel or when new messages arrive
   useEffect(() => {

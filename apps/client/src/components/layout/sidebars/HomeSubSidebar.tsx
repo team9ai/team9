@@ -15,7 +15,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { useChannelsByType, usePublicChannels } from "@/hooks/useChannels";
@@ -23,6 +22,7 @@ import { useOnlineUsers } from "@/hooks/useIMUsers";
 import { Link, useParams } from "@tanstack/react-router";
 import { NewMessageDialog } from "@/components/dialog/NewMessageDialog";
 import { CreateChannelDialog } from "@/components/dialog/CreateChannelDialog";
+import { UserListItem } from "@/components/sidebar/UserListItem";
 
 const topItems: {
   id: string;
@@ -253,51 +253,19 @@ export function HomeSubSidebar() {
                     {tMessage("noMessages")}
                   </p>
                 ) : (
-                  directMessageUsers.map((dm) => {
-                    const isOnline = dm.userId
-                      ? dm.userId in onlineUsers
-                      : false;
-                    const isSelected = selectedChannelId === dm.channelId;
-                    return (
-                      <Link
-                        key={dm.id}
-                        to="/channels/$channelId"
-                        params={{ channelId: dm.channelId }}
-                      >
-                        <Button
-                          variant="ghost"
-                          className={cn(
-                            "w-full justify-start gap-2 px-2 h-auto py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white",
-                            isSelected && "bg-white/10 text-white",
-                          )}
-                        >
-                          <div className="relative">
-                            <Avatar className="w-6 h-6">
-                              {dm.avatarUrl && (
-                                <AvatarImage src={dm.avatarUrl} alt={dm.name} />
-                              )}
-                              <AvatarFallback className="bg-purple-400 text-white text-xs">
-                                {dm.avatar}
-                              </AvatarFallback>
-                            </Avatar>
-                            {isOnline && (
-                              <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#5b2c6f]" />
-                            )}
-                          </div>
-                          <span className="truncate flex-1 text-left">
-                            {dm.name}
-                          </span>
-                          {dm.unreadCount > 0 && (
-                            <Badge
-                              variant="notification"
-                              size="sm"
-                              count={dm.unreadCount}
-                            />
-                          )}
-                        </Button>
-                      </Link>
-                    );
-                  })
+                  directMessageUsers.map((dm) => (
+                    <UserListItem
+                      key={dm.id}
+                      name={dm.name}
+                      avatar={dm.avatar}
+                      avatarUrl={dm.avatarUrl}
+                      isOnline={dm.userId ? dm.userId in onlineUsers : false}
+                      isSelected={selectedChannelId === dm.channelId}
+                      unreadCount={dm.unreadCount}
+                      channelId={dm.channelId}
+                      avatarSize="sm"
+                    />
+                  ))
                 )}
               </div>
             )}
