@@ -9,12 +9,7 @@ import { DynamicSubSidebar } from "@/components/layout/DynamicSubSidebar";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useWebSocketEvents } from "@/hooks/useWebSocketEvents";
 import { useEffect } from "react";
-import {
-  appActions,
-  useActiveSidebar,
-  DEFAULT_SECTION_PATHS,
-  type SidebarSection,
-} from "@/stores";
+import { appActions, useActiveSidebar, DEFAULT_SECTION_PATHS } from "@/stores";
 
 export const Route = createFileRoute("/_authenticated")({
   beforeLoad: ({ location }) => {
@@ -67,22 +62,6 @@ export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
 });
 
-// Helper to determine which section a path belongs to
-function getSectionFromPath(pathname: string): SidebarSection {
-  if (pathname.startsWith("/messages") || pathname.startsWith("/channels")) {
-    // Check if we're in a channel view - use the active sidebar
-    if (pathname.startsWith("/channels")) {
-      // Will be handled by activeSidebar in the effect
-      return "home"; // Default, will be overridden
-    }
-    return "messages";
-  }
-  if (pathname.startsWith("/activity")) return "activity";
-  if (pathname.startsWith("/files")) return "files";
-  if (pathname.startsWith("/more")) return "more";
-  return "home";
-}
-
 function AuthenticatedLayout() {
   const location = useLocation();
   const activeSidebar = useActiveSidebar();
@@ -98,13 +77,9 @@ function AuthenticatedLayout() {
     const pathname = location.pathname;
     if (pathname === "/") return;
 
-    // For channel routes, save to the active sidebar section
-    // For other routes, determine section from path
-    const section = pathname.startsWith("/channels")
-      ? activeSidebar
-      : getSectionFromPath(pathname);
-
-    appActions.setLastVisitedPath(section, pathname);
+    // Always save to the currently active sidebar section
+    // This way, when user leaves a tab, we remember where they were
+    appActions.setLastVisitedPath(activeSidebar, pathname);
   }, [location.pathname, activeSidebar]);
 
   return (
