@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet, useParams } from "@tanstack/react-router";
 import { HomeMainContent } from "@/components/layout/contents/HomeMainContent";
 
-export const Route = createFileRoute("/_authenticated/channels")({
+export const Route = createFileRoute("/_authenticated/channels/")({
   component: ChannelsLayout,
 });
 

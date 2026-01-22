@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet, useParams } from "@tanstack/react-router";
 import { MessagesMainContent } from "@/components/layout/contents/MessagesMainContent";
 
-export const Route = createFileRoute("/_authenticated/messages")({
+export const Route = createFileRoute("/_authenticated/messages/")({
   component: MessagesLayout,
 });
 
