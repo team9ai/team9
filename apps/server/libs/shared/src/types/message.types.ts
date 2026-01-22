@@ -359,6 +359,31 @@ export interface PostBroadcastTask {
 // ============ Notification Task Types ============
 
 /**
+ * Notification type priority order (higher number = higher priority)
+ *
+ * Used to deduplicate notifications per user per message.
+ * When a message triggers multiple notification types for the same user,
+ * only the highest priority notification is sent (Slack-like behavior).
+ *
+ * Example: If user A is @mentioned AND the message has @everyone,
+ * user A only receives the @mention notification (priority 100 > 80)
+ */
+export const NOTIFICATION_TYPE_PRIORITY = {
+  // Direct mentions - highest priority
+  mention: 100, // @user
+  dm_received: 100, // DM (equivalent to @user)
+
+  // Channel/group mentions
+  channel_mention: 90, // @channel
+  everyone_mention: 80, // @everyone
+  here_mention: 70, // @here
+
+  // Thread/reply notifications
+  reply: 60, // Reply to user's message
+  thread_reply: 50, // Reply in a thread user participates in
+};
+
+/**
  * Base notification task payload
  */
 export interface NotificationTaskBase {

@@ -288,6 +288,14 @@ export const notificationActions = {
     useNotificationStore.getState().setNotifications(notifications),
   addNotification: (notification: Notification) =>
     useNotificationStore.getState().addNotification(notification),
+  /**
+   * Check if a notification with the given ID already exists in the store
+   * Used for idempotency protection against duplicate WebSocket events
+   */
+  hasNotification: (notificationId: string) =>
+    useNotificationStore
+      .getState()
+      .notifications.some((n) => n.id === notificationId),
   addNotifications: (notifications: Notification[]) =>
     useNotificationStore.getState().addNotifications(notifications),
   markAsRead: (notificationIds: string[]) =>

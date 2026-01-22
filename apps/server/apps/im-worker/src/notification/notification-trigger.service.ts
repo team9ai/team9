@@ -7,9 +7,10 @@ import {
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
-import type {
-  NotificationDeliveryTask,
-  NotificationActorInfo,
+import {
+  NOTIFICATION_TYPE_PRIORITY,
+  type NotificationDeliveryTask,
+  type NotificationActorInfo,
 } from '@team9/shared';
 import { RabbitMQEventService } from '@team9/rabbitmq';
 import {
@@ -96,7 +97,14 @@ export class NotificationTriggerService {
   ) {}
 
   /**
-   * Trigger mention notifications
+   * Trigger mention notifications using collect-aggregate-dedupe pattern
+   *
+   * When a message has multiple mention types (e.g., @user AND @everyone),
+   * each user receives only ONE notification with the highest priority type.
+   * Priority order: @user (100) > @everyone (80) > @here (70)
+   *
+   * This follows Slack's behavior where direct @mentions take precedence
+   * over broadcast mentions for the same user.
    */
   async triggerMentionNotifications(
     params: MentionNotificationParams,
@@ -115,19 +123,88 @@ export class NotificationTriggerService {
     const truncatedContent =
       content.length > 100 ? content.substring(0, 100) + '...' : content;
 
-    const userMentions = mentions.filter((m) => m.type === 'user' && m.userId);
-    const hasEveryone = mentions.some((m) => m.type === 'everyone');
-    const hasHere = mentions.some((m) => m.type === 'here');
+    // Step 1: Collect all notification candidates
+    const candidates: Array<{
+      userId: string;
+      type: 'mention' | 'everyone_mention' | 'here_mention';
+      priority: number;
+      title: string;
+    }> = [];
 
-    // Handle user mentions
+    // Collect @user mentions (highest priority)
+    const userMentions = mentions.filter((m) => m.type === 'user' && m.userId);
     for (const mention of userMentions) {
       if (mention.userId === senderId) continue; // Don't notify self
-
-      await this.createAndPublishDelivery({
+      candidates.push({
         userId: mention.userId!,
-        category: 'message',
         type: 'mention',
+        priority: NOTIFICATION_TYPE_PRIORITY['mention'] ?? 100,
         title: `${senderUsername} mentioned you in #${channelName}`,
+      });
+    }
+
+    // Collect @everyone mentions
+    const hasEveryone = mentions.some((m) => m.type === 'everyone');
+    if (hasEveryone) {
+      const memberIds = await this.getChannelMemberIds(channelId);
+      for (const userId of memberIds) {
+        if (userId === senderId) continue;
+        candidates.push({
+          userId,
+          type: 'everyone_mention',
+          priority: NOTIFICATION_TYPE_PRIORITY['everyone_mention'] ?? 80,
+          title: `${senderUsername} mentioned @everyone in #${channelName}`,
+        });
+      }
+    }
+
+    // Collect @here mentions (only if no @everyone, as @everyone takes precedence)
+    const hasHere = mentions.some((m) => m.type === 'here');
+    if (hasHere && !hasEveryone) {
+      const memberIds = await this.getChannelMemberIds(channelId);
+      for (const userId of memberIds) {
+        if (userId === senderId) continue;
+        candidates.push({
+          userId,
+          type: 'here_mention',
+          priority: NOTIFICATION_TYPE_PRIORITY['here_mention'] ?? 70,
+          title: `${senderUsername} mentioned @here in #${channelName}`,
+        });
+      }
+    }
+
+    // Step 2: Aggregate by userId, keeping only the highest priority notification
+    const aggregated = new Map<
+      string,
+      { type: 'mention' | 'everyone_mention' | 'here_mention'; title: string }
+    >();
+
+    for (const candidate of candidates) {
+      const existing = aggregated.get(candidate.userId);
+      if (!existing) {
+        aggregated.set(candidate.userId, {
+          type: candidate.type,
+          title: candidate.title,
+        });
+      } else {
+        // Keep the higher priority notification
+        const existingPriority = NOTIFICATION_TYPE_PRIORITY[existing.type] ?? 0;
+        if (candidate.priority > existingPriority) {
+          aggregated.set(candidate.userId, {
+            type: candidate.type,
+            title: candidate.title,
+          });
+        }
+      }
+    }
+
+    // Step 3: Create and publish notifications (one per user)
+    for (const [userId, { type, title }] of aggregated) {
+      await this.createAndPublishDelivery({
+        userId,
+        category: 'message',
+        type,
+        title,
         body: truncatedContent,
         actorId: senderId,
         tenantId,
@@ -138,33 +215,8 @@ export class NotificationTriggerService {
       });
     }
 
-    // Handle broadcast mentions (@everyone, @here)
-    if (hasEveryone || hasHere) {
-      const memberIds = await this.getChannelMemberIds(channelId);
-      const recipientIds = memberIds.filter((id) => id !== senderId);
-
-      const type = hasEveryone ? 'everyone_mention' : 'here_mention';
-      const mentionText = hasEveryone ? '@everyone' : '@here';
-
-      for (const userId of recipientIds) {
-        await this.createAndPublishDelivery({
-          userId,
-          category: 'message',
-          type,
-          title: `${senderUsername} mentioned ${mentionText} in #${channelName}`,
-          body: truncatedContent,
-          actorId: senderId,
-          tenantId,
-          channelId,
-          messageId,
-          actionUrl: `/channels/${channelId}?message=${messageId}`,
-          priority: 'high',
-        });
-      }
-    }
-
     this.logger.debug(
-      `Triggered mention notifications for message ${messageId}`,
+      `Triggered ${aggregated.size} mention notifications for message ${messageId} (from ${candidates.length} candidates)`,
     );
   }
 

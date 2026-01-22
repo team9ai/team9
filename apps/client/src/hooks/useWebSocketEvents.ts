@@ -150,6 +150,17 @@ export function useWebSocketEvents() {
 
     // Handle new notification - increment count AND add to notification list
     const handleNotificationNew = (event: NotificationNewEvent) => {
+      // Idempotency check: skip if notification already exists
+      // This protects against duplicate WebSocket events (e.g., reconnection replays)
+      if (notificationActions.hasNotification(event.id)) {
+        if (import.meta.env.DEV) {
+          console.debug(
+            `[WS] Duplicate notification ignored: ${event.id} (${event.type})`,
+          );
+        }
+        return;
+      }
+
       // 1. Increment count in Zustand store
       notificationActions.incrementCount(event.category);
 
