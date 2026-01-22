@@ -17,20 +17,3 @@ export function useWebSocket() {
 
   return wsService;
 }
-
-/**
- * Hook to automatically join/leave a channel
- */
-export function useChannel(channelId: string | undefined) {
-  useEffect(() => {
-    if (!channelId) return;
-
-    console.log("[useChannel] Joining channel:", channelId);
-    wsService.joinChannel(channelId);
-
-    return () => {
-      console.log("[useChannel] Leaving channel:", channelId);
-      wsService.leaveChannel(channelId);
-    };
-  }, [channelId]);
-}

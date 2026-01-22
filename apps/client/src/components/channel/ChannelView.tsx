@@ -1,5 +1,4 @@
 import { useEffect, useMemo } from "react";
-import { useChannel as useChannelWS } from "@/hooks/useWebSocket";
 import { useMessages, useSendMessage } from "@/hooks/useMessages";
 import {
   useChannel,
@@ -47,9 +46,6 @@ export function ChannelView({ channelId }: ChannelViewProps) {
     const membership = members.find((m) => m.userId === currentUser.id);
     return membership?.role || "member";
   }, [members, currentUser]);
-
-  // Auto-join channel via WebSocket
-  useChannelWS(channelId);
 
   const messages = messagesData?.pages.flat() ?? [];
   // New messages are prepended to pages[0], so messages[0] is the latest
