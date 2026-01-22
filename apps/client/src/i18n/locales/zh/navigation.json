@@ -1,7 +1,7 @@
 {
   "home": "首页",
   "dms": "私信",
-  "activity": "动态",
+  "activity": "活动",
   "files": "文件",
   "more": "更多",
   "noWorkspace": "无工作空间",
@@ -21,5 +21,20 @@
   "catchUp": "待处理",
   "quickActions": "快捷操作",
   "viewMembers": "查看成员",
-  "notifications": "通知"
+  "notifications": "通知",
+  "activityAll": "所有",
+  "activityMentions": "@提及",
+  "activityThreads": "消息列",
+  "activityUnread": "未读",
+  "activityToday": "今天",
+  "activityYesterday": "昨天",
+  "noActivity": "暂无动态",
+  "noActivityDescription": "你会在这里看到提及、回复和其他活动",
+  "selectActivity": "选择一个活动",
+  "selectActivityDescription": "从左侧选择活动项查看详情",
+  "mentionInChannel": "# {{channel}} 中的提及",
+  "channelMentionInChannel": "# {{channel}} 中的 @频道提及",
+  "everyoneMentionInChannel": "# {{channel}} 中的 @所有人提及",
+  "replyInChannel": "# {{channel}} 中的回复",
+  "threadReplyInChannel": "# {{channel}} 中的消息列回复"
 }

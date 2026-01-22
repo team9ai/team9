@@ -20,6 +20,16 @@ export type NotificationType =
   | "member_left"
   | "channel_invite";
 export type NotificationPriority = "low" | "normal" | "high" | "urgent";
+export type ActivityTab = "all" | "mentions" | "threads";
+
+// Notification types for each activity tab
+export const MENTION_TYPES: NotificationType[] = [
+  "mention",
+  "channel_mention",
+  "everyone_mention",
+  "here_mention",
+];
+export const THREAD_TYPES: NotificationType[] = ["reply", "thread_reply"];
 
 export interface NotificationActor {
   id: string;
@@ -85,6 +95,9 @@ interface NotificationState {
     category: NotificationCategory | null;
     isRead: boolean | null;
   };
+  // Activity UI state
+  activeTab: ActivityTab;
+  showUnreadOnly: boolean;
 
   // Actions
   setNotifications: (notifications: Notification[]) => void;
@@ -99,6 +112,8 @@ interface NotificationState {
   setHasMore: (hasMore: boolean) => void;
   setNextCursor: (cursor: string | null) => void;
   setFilter: (filter: Partial<NotificationState["filter"]>) => void;
+  setActiveTab: (tab: ActivityTab) => void;
+  setShowUnreadOnly: (showUnreadOnly: boolean) => void;
   reset: () => void;
 }
 
@@ -137,6 +152,8 @@ const initialState = {
     category: null as NotificationCategory | null,
     isRead: null as boolean | null,
   },
+  activeTab: "all" as ActivityTab,
+  showUnreadOnly: false,
 };
 
 // Store
@@ -264,6 +281,11 @@ export const useNotificationStore = create<NotificationState>()(
           "setFilter",
         ),
 
+      setActiveTab: (activeTab) => set({ activeTab }, false, "setActiveTab"),
+
+      setShowUnreadOnly: (showUnreadOnly) =>
+        set({ showUnreadOnly }, false, "setShowUnreadOnly"),
+
       reset: () => set(initialState, false, "reset"),
     }),
     { name: "NotificationStore" },
@@ -281,6 +303,30 @@ export const useNotificationFilter = () =>
   useNotificationStore((state) => state.filter);
 export const useNotificationLoading = () =>
   useNotificationStore((state) => state.isLoading);
+export const useActivityTab = () =>
+  useNotificationStore((state) => state.activeTab);
+export const useShowUnreadOnly = () =>
+  useNotificationStore((state) => state.showUnreadOnly);
+
+// Filtered notifications selector
+export const useFilteredNotifications = () =>
+  useNotificationStore((state) => {
+    let filtered = state.notifications;
+
+    // Filter by tab
+    if (state.activeTab === "mentions") {
+      filtered = filtered.filter((n) => MENTION_TYPES.includes(n.type));
+    } else if (state.activeTab === "threads") {
+      filtered = filtered.filter((n) => THREAD_TYPES.includes(n.type));
+    }
+
+    // Filter by unread
+    if (state.showUnreadOnly) {
+      filtered = filtered.filter((n) => !n.isRead);
+    }
+
+    return filtered;
+  });
 
 // Actions (can be used outside React components)
 export const notificationActions = {
@@ -316,5 +362,9 @@ export const notificationActions = {
     useNotificationStore.getState().setNextCursor(cursor),
   setFilter: (filter: Partial<NotificationState["filter"]>) =>
     useNotificationStore.getState().setFilter(filter),
+  setActiveTab: (tab: ActivityTab) =>
+    useNotificationStore.getState().setActiveTab(tab),
+  setShowUnreadOnly: (showUnreadOnly: boolean) =>
+    useNotificationStore.getState().setShowUnreadOnly(showUnreadOnly),
   reset: () => useNotificationStore.getState().reset(),
 };

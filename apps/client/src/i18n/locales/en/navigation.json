@@ -21,5 +21,20 @@
   "catchUp": "Catch up",
   "quickActions": "Quick Actions",
   "viewMembers": "View Members",
-  "notifications": "Notifications"
+  "notifications": "Notifications",
+  "activityAll": "All",
+  "activityMentions": "Mentions",
+  "activityThreads": "Threads",
+  "activityUnread": "Unread",
+  "activityToday": "Today",
+  "activityYesterday": "Yesterday",
+  "noActivity": "No activity yet",
+  "noActivityDescription": "You'll see mentions, replies, and other activity here",
+  "selectActivity": "Select an activity",
+  "selectActivityDescription": "Choose an activity item from the left sidebar to view details",
+  "mentionInChannel": "Mention in #{{channel}}",
+  "channelMentionInChannel": "@channel mention in #{{channel}}",
+  "everyoneMentionInChannel": "@everyone mention in #{{channel}}",
+  "replyInChannel": "Reply in #{{channel}}",
+  "threadReplyInChannel": "Thread reply in #{{channel}}"
 }
