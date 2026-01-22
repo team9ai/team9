@@ -1,10 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { HomeMainContent } from "@/components/layout/contents/HomeMainContent";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_authenticated/")({
-  component: HomePage,
+  beforeLoad: () => {
+    throw redirect({ to: "/channels" });
+  },
 });
-
-function HomePage() {
-  return <HomeMainContent />;
-}

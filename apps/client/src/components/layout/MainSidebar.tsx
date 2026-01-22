@@ -35,6 +35,7 @@ import {
   useWorkspaceStore,
   appActions,
   getLastVisitedPath,
+  getSectionFromPath,
   type SidebarSection,
 } from "@/stores";
 import { useQueryClient } from "@tanstack/react-query";
@@ -48,26 +49,11 @@ import type { UserStatus } from "@/types/im";
 
 // Navigation items with i18n keys
 const navigationItems = [
-  { id: "home", labelKey: "home" as const, icon: Home, path: "/" },
-  {
-    id: "messages",
-    labelKey: "dms" as const,
-    icon: MessageSquare,
-    path: "/messages",
-  },
-  {
-    id: "activity",
-    labelKey: "activity" as const,
-    icon: Bell,
-    path: "/activity",
-  },
-  { id: "files", labelKey: "files" as const, icon: FileText, path: "/files" },
-  {
-    id: "more",
-    labelKey: "more" as const,
-    icon: MoreHorizontal,
-    path: "/more",
-  },
+  { id: "home", labelKey: "home" as const, icon: Home },
+  { id: "messages", labelKey: "dms" as const, icon: MessageSquare },
+  { id: "activity", labelKey: "activity" as const, icon: Bell },
+  { id: "files", labelKey: "files" as const, icon: FileText },
+  { id: "more", labelKey: "more" as const, icon: MoreHorizontal },
 ];
 
 // Workspace avatar colors (similar to Google Chrome)
@@ -319,7 +305,8 @@ export function MainSidebar() {
         <nav className="flex-1 w-full flex flex-col items-center space-y-1">
           {navigationItems.map((item) => {
             const Icon = item.icon;
-            const isActive = location.pathname === item.path;
+            const currentSection = getSectionFromPath(location.pathname);
+            const isActive = currentSection === item.id;
             const label = tNav(item.labelKey);
 
             // Determine badge count based on navigation item

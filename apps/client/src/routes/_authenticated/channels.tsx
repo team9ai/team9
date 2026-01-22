@@ -1,20 +1,20 @@
 import { createFileRoute, Outlet, useParams } from "@tanstack/react-router";
-import { MessagesMainContent } from "@/components/layout/contents/MessagesMainContent";
+import { HomeMainContent } from "@/components/layout/contents/HomeMainContent";
 
-export const Route = createFileRoute("/_authenticated/messages")({
-  component: MessagesLayout,
+export const Route = createFileRoute("/_authenticated/channels")({
+  component: ChannelsLayout,
 });
 
-function MessagesLayout() {
+function ChannelsLayout() {
   // Check if we have a channelId param (child route is active)
   const params = useParams({ strict: false });
   const hasChannelId = "channelId" in params && params.channelId;
 
   // If child route is active, render the Outlet (child content)
-  // Otherwise, show the default "Select a conversation" content
+  // Otherwise, show the channels overview
   if (hasChannelId) {
     return <Outlet />;
   }
 
-  return <MessagesMainContent />;
+  return <HomeMainContent />;
 }

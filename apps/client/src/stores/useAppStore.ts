@@ -18,7 +18,7 @@ export type SidebarSection =
 
 // Default paths for each sidebar section
 export const DEFAULT_SECTION_PATHS: Record<SidebarSection, string> = {
-  home: "/",
+  home: "/channels",
   messages: "/messages",
   activity: "/activity",
   files: "/files",
@@ -29,14 +29,14 @@ type SectionPaths = Record<SidebarSection, string | null>;
 
 /**
  * Determines which section a path belongs to.
- * /channels paths belong to "home" section by default.
  */
 export function getSectionFromPath(pathname: string): SidebarSection {
+  if (pathname.startsWith("/channels")) return "home";
   if (pathname.startsWith("/messages")) return "messages";
   if (pathname.startsWith("/activity")) return "activity";
   if (pathname.startsWith("/files")) return "files";
   if (pathname.startsWith("/more")) return "more";
-  // "/" and "/channels/*" belong to home
+  // Fallback to home for unknown paths
   return "home";
 }
 

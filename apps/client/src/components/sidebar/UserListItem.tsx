@@ -21,6 +21,8 @@ export interface UserListItemProps {
   subtitle?: string;
   /** If provided, renders as a Link to this channel */
   channelId?: string;
+  /** Link path prefix (default: "/channels"). Use "/messages" for direct messages */
+  linkPrefix?: "/channels" | "/messages";
   /** Click handler (used when channelId is not provided) */
   onClick?: () => void;
   /** Whether the button is disabled */
@@ -42,6 +44,7 @@ export function UserListItem({
   unreadCount = 0,
   subtitle,
   channelId,
+  linkPrefix = "/channels",
   onClick,
   disabled = false,
   avatarSize = "default",
@@ -92,8 +95,12 @@ export function UserListItem({
   );
 
   if (channelId) {
+    const linkTo =
+      linkPrefix === "/messages"
+        ? "/messages/$channelId"
+        : "/channels/$channelId";
     return (
-      <Link to="/channels/$channelId" params={{ channelId }}>
+      <Link to={linkTo} params={{ channelId }}>
         {content}
       </Link>
     );

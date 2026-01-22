@@ -96,7 +96,7 @@ export function MessagesSubSidebar() {
     try {
       const channel = await createDirectChannel.mutateAsync(memberId);
       navigate({
-        to: "/channels/$channelId",
+        to: "/messages/$channelId",
         params: { channelId: channel.id },
       });
     } catch (error) {
@@ -161,6 +161,7 @@ export function MessagesSubSidebar() {
                     isSelected={selectedChannelId === dm.channelId}
                     unreadCount={dm.unreadCount}
                     channelId={dm.channelId}
+                    linkPrefix="/messages"
                   />
                 ))}
 
