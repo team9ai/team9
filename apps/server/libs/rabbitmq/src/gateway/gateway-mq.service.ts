@@ -182,6 +182,8 @@ export class GatewayMQService implements OnModuleInit, OnModuleDestroy {
     }
 
     // Determine routing key based on message type
+    // Content messages (text, file, image, system) -> MESSAGE route -> stored in database
+    // Control messages (ack, typing, read, presence) -> dedicated routes -> not stored
     let routingKey: string;
     switch (message.message.type) {
       case 'ack':
@@ -193,7 +195,11 @@ export class GatewayMQService implements OnModuleInit, OnModuleDestroy {
       case 'read':
         routingKey = MQ_ROUTING_KEYS.UPSTREAM.READ;
         break;
+      case 'presence':
+        routingKey = MQ_ROUTING_KEYS.UPSTREAM.PRESENCE;
+        break;
       default:
+        // Content messages: text, file, image, system
         routingKey = MQ_ROUTING_KEYS.UPSTREAM.MESSAGE;
     }
 
