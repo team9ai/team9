@@ -128,7 +128,7 @@ export function HomeSubSidebar() {
       <Separator className="bg-white/10" />
 
       {/* Content Items */}
-      <ScrollArea className="flex-1 px-3">
+      <ScrollArea className="flex-1 px-3 [&>[data-slot=scroll-area-viewport]>div]:block!">
         <nav className="space-y-0.5 pb-3 pt-2">
           {/* Top-level navigation items */}
           {topItems.map((item) => {
