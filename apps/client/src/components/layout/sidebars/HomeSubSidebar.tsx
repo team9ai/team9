@@ -169,7 +169,7 @@ export function HomeSubSidebar() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 text-white/70 hover:text-white hover:bg-white/10"
+                className="h-6 w-6 shrink-0 text-white/70 hover:text-white hover:bg-white/10"
                 onClick={() => setIsCreateChannelOpen(true)}
                 title={tNav("addChannel")}
               >
@@ -197,19 +197,26 @@ export function HomeSubSidebar() {
                         key={channel.id}
                         to="/channels/$channelId"
                         params={{ channelId: channel.id }}
+                        className="block min-w-0"
                       >
                         <Button
                           variant="ghost"
                           className={cn(
-                            "w-full justify-start gap-2 px-2 h-auto py-1.5 text-sm hover:bg-white/10 hover:text-white",
+                            "w-full min-w-0 justify-start gap-2 px-2 h-auto py-1.5 text-sm hover:bg-white/10 hover:text-white",
                             isMember ? "text-white/80" : "text-white/50 italic",
                           )}
                         >
                           <ChannelIcon
                             size={16}
-                            className={cn(!isMember && "opacity-50")}
+                            className={cn(
+                              "shrink-0",
+                              !isMember && "opacity-50",
+                            )}
                           />
-                          <span className="truncate flex-1 text-left">
+                          <span
+                            className="truncate text-left max-w-35"
+                            title={channel.name}
+                          >
                             {channel.name}
                           </span>
                           {channel.unreadCount > 0 && (
