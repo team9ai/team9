@@ -42,7 +42,7 @@ export function MoreSubSidebar() {
       <Separator className="bg-white/10" />
 
       {/* More Items */}
-      <ScrollArea className="flex-1 px-3">
+      <ScrollArea className="flex-1 min-h-0 px-3">
         <nav className="space-y-0.5 pb-3 pt-2">
           {moreItems.map((item) => {
             const Icon = item.icon;

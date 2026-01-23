@@ -143,7 +143,7 @@ export function MessagesSubSidebar() {
       <Separator className="bg-white/10" />
 
       {/* Messages List */}
-      <ScrollArea className="flex-1 px-3">
+      <ScrollArea className="flex-1 min-h-0 px-3">
         <nav className="space-y-0.5 pb-3 pt-2">
           {isLoading ? (
             <p className="text-xs text-white/50 px-2 py-2">Loading...</p>

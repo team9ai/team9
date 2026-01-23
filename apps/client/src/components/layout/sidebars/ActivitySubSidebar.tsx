@@ -132,7 +132,7 @@ export function ActivitySubSidebar() {
       </div>
 
       {/* Activity List */}
-      <ScrollArea className="flex-1 [&>[data-slot=scroll-area-viewport]>div]:block!">
+      <ScrollArea className="flex-1 min-h-0 [&>[data-slot=scroll-area-viewport]>div]:block!">
         <div className="px-2 py-2">
           {isLoading && notifications.length === 0 ? (
             <div className="flex items-center justify-center py-8">
