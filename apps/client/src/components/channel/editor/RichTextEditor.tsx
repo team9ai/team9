@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect } from "react";
+import { useCallback, useRef, useEffect, useState } from "react";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
@@ -8,8 +8,11 @@ import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { ListNode, ListItemNode } from "@lexical/list";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { $getRoot, $createParagraphNode } from "lexical";
 import type { EditorState, LexicalEditor } from "lexical";
 import type { InitialConfigType } from "@lexical/react/LexicalComposer";
+import { Send } from "lucide-react";
+import { exportToHtml, hasContent } from "./utils/exportContent";
 
 import { editorTheme } from "./themes/editorTheme";
 import { MentionNode } from "./nodes/MentionNode";
@@ -64,6 +67,66 @@ function EditorRefPlugin({
   }, [editor, editorRef]);
 
   return null;
+}
+
+function SendButton({
+  onSubmit,
+  disabled,
+  hasAttachments,
+}: {
+  onSubmit: (content: string) => Promise<void>;
+  disabled?: boolean;
+  hasAttachments?: boolean;
+}) {
+  const [editor] = useLexicalComposerContext();
+  const [editorHasContent, setEditorHasContent] = useState(false);
+
+  useEffect(() => {
+    return editor.registerUpdateListener(({ editorState }) => {
+      editorState.read(() => {
+        setEditorHasContent(hasContent(editor));
+      });
+    });
+  }, [editor]);
+
+  const canSend = !disabled && (editorHasContent || hasAttachments);
+
+  const handleClick = useCallback(async () => {
+    if (!canSend) return;
+
+    const content = editorHasContent ? exportToHtml(editor) : "";
+
+    try {
+      await onSubmit(content);
+
+      editor.update(() => {
+        const root = $getRoot();
+        root.clear();
+        const paragraph = $createParagraphNode();
+        root.append(paragraph);
+        paragraph.select();
+      });
+    } catch (error) {
+      console.error("Failed to send message:", error);
+    }
+  }, [editor, onSubmit, canSend, editorHasContent]);
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={!canSend}
+      className={cn(
+        "p-2 rounded-md transition-colors",
+        canSend
+          ? "bg-blue-500 hover:bg-blue-600 text-white"
+          : "bg-gray-200 text-gray-400 cursor-not-allowed",
+      )}
+      title="Send message"
+    >
+      <Send size={18} />
+    </button>
+  );
 }
 
 export function RichTextEditor({
@@ -140,6 +203,17 @@ export function RichTextEditor({
             onRetry={onRetryFile}
           />
         )}
+
+        {/* Send button */}
+        <div className="flex justify-end mt-2">
+          <SendButton
+            onSubmit={onSubmit}
+            disabled={disabled}
+            hasAttachments={uploadingFiles.some(
+              (f) => f.status === "completed",
+            )}
+          />
+        </div>
 
         <KeyboardShortcutsPlugin
           onSubmit={onSubmit}
