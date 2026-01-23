@@ -49,11 +49,29 @@ export function ActivitySubSidebar() {
       markAsRead([notification.id]);
     }
 
-    // Navigate to the channel/message
+    // Navigate within activity module
     if (notification.actionUrl) {
-      navigate({ to: notification.actionUrl });
+      // Parse actionUrl (e.g., "/channels/123?thread=456&message=789")
+      const url = new URL(notification.actionUrl, window.location.origin);
+      const thread = url.searchParams.get("thread") || undefined;
+      const message = url.searchParams.get("message") || undefined;
+
+      // Extract channelId from pathname (/channels/:channelId or /messages/:channelId)
+      const pathParts = url.pathname.split("/").filter(Boolean);
+      if (pathParts.length >= 2) {
+        const channelId = pathParts[1];
+        // Navigate to activity internal route instead of channels route
+        navigate({
+          to: "/activity/channel/$channelId",
+          params: { channelId },
+          search: { thread, message },
+        });
+      }
     } else if (notification.channelId) {
-      navigate({ to: `/channels/${notification.channelId}` });
+      navigate({
+        to: "/activity/channel/$channelId",
+        params: { channelId: notification.channelId },
+      });
     }
   };
 

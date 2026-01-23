@@ -11,6 +11,8 @@ interface MessageListProps {
   isLoading: boolean;
   onLoadMore: () => void;
   hasMore?: boolean;
+  // Target message ID to scroll to and highlight
+  highlightMessageId?: string;
 }
 
 export function MessageList({
@@ -18,6 +20,7 @@ export function MessageList({
   isLoading,
   onLoadMore,
   hasMore,
+  highlightMessageId,
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
@@ -25,20 +28,38 @@ export function MessageList({
   const prevMessagesLength = useRef(0);
   const prevScrollHeight = useRef(0);
   const isInitialLoad = useRef(true);
+  const hasScrolledToHighlight = useRef(false);
   const { data: currentUser } = useCurrentUser();
   const openThread = useThreadStore((state) => state.openThread);
 
-  // Scroll to bottom on initial load
+  // Scroll to highlighted message or bottom on initial load
   useEffect(() => {
     if (isInitialLoad.current && messages.length > 0) {
       // Use setTimeout to ensure DOM is rendered
       setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+        // If we have a highlight target, scroll to it instead of bottom
+        if (highlightMessageId && !hasScrolledToHighlight.current) {
+          const targetElement = document.getElementById(
+            `message-${highlightMessageId}`,
+          );
+          if (targetElement) {
+            targetElement.scrollIntoView({
+              behavior: "instant",
+              block: "center",
+            });
+            hasScrolledToHighlight.current = true;
+          } else {
+            // Message not in current view, scroll to bottom
+            messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+          }
+        } else {
+          messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+        }
       }, 0);
       isInitialLoad.current = false;
       prevMessagesLength.current = messages.length;
     }
-  }, [messages.length]);
+  }, [messages.length, highlightMessageId]);
 
   // Auto-scroll to bottom on new messages (not on load more)
   useEffect(() => {
@@ -139,6 +160,7 @@ export function MessageList({
           // Only show reply count for root messages (messages without parentId)
           const hasReplies =
             !message.parentId && message.replyCount && message.replyCount > 0;
+          const isHighlighted = highlightMessageId === message.id;
 
           return (
             <ChannelMessageItem
@@ -147,6 +169,7 @@ export function MessageList({
               currentUserId={currentUser?.id}
               showReplyCount={Boolean(hasReplies)}
               onReplyCountClick={() => openThread(message.id)}
+              isHighlighted={isHighlighted}
             />
           );
         })}
@@ -162,11 +185,13 @@ function ChannelMessageItem({
   currentUserId,
   showReplyCount,
   onReplyCountClick,
+  isHighlighted,
 }: {
   message: Message;
   currentUserId?: string;
   showReplyCount?: boolean;
   onReplyCountClick?: () => void;
+  isHighlighted?: boolean;
 }) {
   const openThread = useThreadStore((state) => state.openThread);
 
@@ -201,6 +226,7 @@ function ChannelMessageItem({
       currentUserId={currentUserId}
       showReplyCount={showReplyCount}
       onReplyCountClick={onReplyCountClick}
+      isHighlighted={isHighlighted}
       onReply={handleReply}
       onReplyInThread={handleReplyInThread}
       onEdit={handleEdit}

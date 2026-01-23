@@ -116,6 +116,7 @@ export function ChannelView({
             if (hasNextPage) fetchNextPage();
           }}
           hasMore={hasNextPage}
+          highlightMessageId={initialMessageId}
         />
 
         <MessageInput
@@ -130,6 +131,7 @@ export function ChannelView({
         <ThreadPanel
           level="primary"
           rootMessageId={primaryThread.rootMessageId}
+          highlightMessageId={initialThreadId ? initialMessageId : undefined}
         />
       )}
       {secondaryThread.isOpen && secondaryThread.rootMessageId && (

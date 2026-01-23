@@ -23,6 +23,8 @@ export interface MessageItemProps {
   onReplyCountClick?: () => void;
   /** Unread sub-reply count badge */
   unreadSubReplyCount?: number;
+  /** Highlight this message (e.g., from deep link navigation) */
+  isHighlighted?: boolean;
   /** Context menu handlers */
   onReply?: () => void;
   onReplyInThread?: () => void;
@@ -40,6 +42,7 @@ export function MessageItem({
   showReplyCount = false,
   onReplyCountClick,
   unreadSubReplyCount,
+  isHighlighted = false,
   onReply,
   onReplyInThread,
   onEdit,
@@ -103,10 +106,13 @@ export function MessageItem({
 
   const content = (
     <div
+      id={`message-${message.id}`}
       className={cn(
-        "flex hover:bg-muted/50 rounded",
+        "flex hover:bg-muted/50 rounded transition-colors duration-300",
         compact ? "gap-2 py-2 px-1" : "gap-3 px-2 py-1",
         indent && "ml-6",
+        isHighlighted &&
+          "bg-yellow-100 dark:bg-yellow-900/30 ring-2 ring-yellow-400 dark:ring-yellow-600",
       )}
     >
       <Avatar className={cn("shrink-0", compact ? "w-8 h-8" : "w-9 h-9")}>

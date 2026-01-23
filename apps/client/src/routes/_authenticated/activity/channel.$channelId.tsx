@@ -1,0 +1,55 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { ChannelView } from "@/components/channel/ChannelView";
+import { PublicChannelPreviewView } from "@/components/channel/PublicChannelPreviewView";
+import { useChannelMembership } from "@/hooks/useChannels";
+
+// Search params type for activity channel routes
+export type ActivityChannelSearchParams = {
+  // Thread root message ID - opens thread panel when set
+  thread?: string;
+  // Target message ID - scrolls to and highlights message
+  message?: string;
+};
+
+export const Route = createFileRoute(
+  "/_authenticated/activity/channel/$channelId",
+)({
+  component: ActivityChannelPage,
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): ActivityChannelSearchParams => {
+    return {
+      thread: search.thread as string | undefined,
+      message: search.message as string | undefined,
+    };
+  },
+});
+
+function ActivityChannelPage() {
+  const { channelId } = Route.useParams();
+  const { thread, message } = Route.useSearch();
+  const { isMember, isLoading, channel } = useChannelMembership(channelId);
+
+  // Loading state while checking membership
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
+
+  // If channel is found in publicChannels and user is not a member, show preview
+  if (channel && !isMember) {
+    return <PublicChannelPreviewView channel={channel} />;
+  }
+
+  // User is a member or channel is not public (private/direct), render full view
+  return (
+    <ChannelView
+      channelId={channelId}
+      initialThreadId={thread}
+      initialMessageId={message}
+    />
+  );
+}

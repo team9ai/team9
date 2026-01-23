@@ -17,9 +17,15 @@ import type { ThreadReply, AttachmentDto } from "@/types/im";
 interface ThreadPanelProps {
   level: ThreadLevel;
   rootMessageId: string;
+  // Target message ID to scroll to and highlight in thread
+  highlightMessageId?: string;
 }
 
-export function ThreadPanel({ level, rootMessageId }: ThreadPanelProps) {
+export function ThreadPanel({
+  level,
+  rootMessageId,
+  highlightMessageId,
+}: ThreadPanelProps) {
   const { t } = useTranslation("thread");
   const {
     threadData,
@@ -44,6 +50,7 @@ export function ThreadPanel({ level, rootMessageId }: ThreadPanelProps) {
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const hasScrolledToHighlight = useRef(false);
 
   // Track scroll position and notify state machine
   const handleScroll = useCallback(() => {
@@ -78,6 +85,23 @@ export function ThreadPanel({ level, rootMessageId }: ThreadPanelProps) {
 
     // Use requestAnimationFrame to ensure DOM has rendered
     const rafId = requestAnimationFrame(() => {
+      // If we have a highlight target, scroll to it
+      if (highlightMessageId && !hasScrolledToHighlight.current) {
+        const targetElement = document.getElementById(
+          `message-${highlightMessageId}`,
+        );
+        if (targetElement) {
+          targetElement.scrollIntoView({
+            behavior: "instant",
+            block: "center",
+          });
+          hasScrolledToHighlight.current = true;
+          // Notify state machine we're browsing (not at bottom)
+          handleScrollPositionChange(false);
+          return;
+        }
+      }
+
       const viewport = scrollAreaRef.current?.querySelector(
         "[data-radix-scroll-area-viewport]",
       );
@@ -93,7 +117,7 @@ export function ThreadPanel({ level, rootMessageId }: ThreadPanelProps) {
     });
 
     return () => cancelAnimationFrame(rafId);
-  }, [threadData, isLoading, handleScrollPositionChange]);
+  }, [threadData, isLoading, handleScrollPositionChange, highlightMessageId]);
 
   // Track previous replies count to detect new messages
   const prevRepliesCountRef = useRef<number>(0);
@@ -178,6 +202,7 @@ export function ThreadPanel({ level, rootMessageId }: ThreadPanelProps) {
                     currentUserId={currentUser?.id}
                     canOpenNestedThread={canOpenNestedThread}
                     onOpenNestedThread={openNestedThread}
+                    isHighlighted={highlightMessageId === reply.id}
                   />
                 ))}
 
@@ -235,11 +260,13 @@ function ThreadReplyItem({
   currentUserId,
   canOpenNestedThread = false,
   onOpenNestedThread,
+  isHighlighted = false,
 }: {
   reply: ThreadReply;
   currentUserId?: string;
   canOpenNestedThread?: boolean;
   onOpenNestedThread?: (messageId: string) => void;
+  isHighlighted?: boolean;
 }) {
   // Get unread sub-reply count for this reply
   const unreadCount = useThreadStore((state) =>
@@ -269,6 +296,7 @@ function ThreadReplyItem({
         showReplyCount={canOpenNestedThread && reply.subReplyCount > 0}
         onReplyCountClick={handleOpenInNewPanel}
         unreadSubReplyCount={unreadCount}
+        isHighlighted={isHighlighted}
         onReplyInThread={handleReplyInThread}
       />
     </div>
