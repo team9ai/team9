@@ -84,7 +84,7 @@ export function ActivitySubSidebar() {
   };
 
   return (
-    <aside className="w-64 bg-[#5b2c6f] text-white flex flex-col">
+    <aside className="w-64 h-full overflow-hidden bg-[#5b2c6f] text-white flex flex-col">
       {/* Header */}
       <div className="p-4 pb-2">
         <div className="flex items-center justify-between">
