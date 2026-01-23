@@ -4,6 +4,7 @@ import {
   DATABASE_CONNECTION,
   eq,
   lt,
+  and,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -12,6 +13,7 @@ import type {
   NotificationType,
   NotificationPriority,
 } from '@team9/database/schemas';
+import { NOTIFICATION_TYPE_PRIORITY } from '@team9/shared';
 
 export interface CreateNotificationParams {
   userId: string;
@@ -46,9 +48,75 @@ export class NotificationService {
   ) {}
 
   /**
-   * Create a new notification
+   * Check if a higher priority notification already exists for this user+message
+   * Used for deduplication between mention and reply notifications
+   *
+   * Priority order (from NOTIFICATION_TYPE_PRIORITY):
+   * - mention (100) > channel_mention (90) > everyone_mention (80) > here_mention (70)
+   * - reply (60) > thread_reply (50)
+   *
+   * If user receives both @mention and reply for the same message,
+   * only the @mention notification is kept (Slack-like behavior)
    */
-  async create(params: CreateNotificationParams): Promise<schema.Notification> {
+  async hasHigherPriorityNotification(
+    userId: string,
+    messageId: string,
+    currentType: NotificationType,
+  ): Promise<boolean> {
+    if (!messageId) return false;
+
+    const currentPriority =
+      NOTIFICATION_TYPE_PRIORITY[
+        currentType as keyof typeof NOTIFICATION_TYPE_PRIORITY
+      ] ?? 0;
+
+    // Find existing notifications for this user+message
+    const existing = await this.db
+      .select({ type: schema.notifications.type })
+      .from(schema.notifications)
+      .where(
+        and(
+          eq(schema.notifications.userId, userId),
+          eq(schema.notifications.messageId, messageId),
+        ),
+      )
+      .limit(1);
+
+    if (existing.length === 0) return false;
+
+    const existingType = existing[0].type;
+    const existingPriority =
+      NOTIFICATION_TYPE_PRIORITY[
+        existingType as keyof typeof NOTIFICATION_TYPE_PRIORITY
+      ] ?? 0;
+
+    return existingPriority >= currentPriority;
+  }
+
+  /**
+   * Create a new notification with deduplication check
+   * If a higher priority notification already exists for this user+message,
+   * the creation is skipped to avoid notification spam
+   */
+  async create(
+    params: CreateNotificationParams,
+  ): Promise<schema.Notification | null> {
+    // Check for existing higher priority notification
+    if (params.messageId) {
+      const hasHigherPriority = await this.hasHigherPriorityNotification(
+        params.userId,
+        params.messageId,
+        params.type,
+      );
+
+      if (hasHigherPriority) {
+        this.logger.debug(
+          `Skipped ${params.type} notification for user ${params.userId} - higher priority notification exists`,
+        );
+        return null;
+      }
+    }
+
     const [notification] = await this.db
       .insert(schema.notifications)
       .values({

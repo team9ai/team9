@@ -421,6 +421,14 @@ export interface MentionNotificationTask extends NotificationTaskBase {
 
 /**
  * Reply notification task
+ *
+ * Supports two notification types:
+ * - 'reply': Direct reply to a root message (parentId === rootId or no rootId)
+ * - 'thread_reply': Reply within a thread (parentId !== rootId)
+ *
+ * Notification targets:
+ * - parentSenderId: The user whose message was directly replied to
+ * - rootSenderId: The thread creator (only notified if different from parentSender)
  */
 export interface ReplyNotificationTask extends NotificationTaskBase {
   type: 'reply';
@@ -430,9 +438,15 @@ export interface ReplyNotificationTask extends NotificationTaskBase {
     tenantId: string;
     senderId: string;
     senderUsername: string;
+    channelName: string;
     parentMessageId: string;
     parentSenderId: string;
     content: string;
+    // Thread context for thread_reply notifications
+    rootMessageId?: string;
+    rootSenderId?: string;
+    // True if this is a reply within a thread (parentId !== rootId)
+    isThreadReply?: boolean;
   };
 }
 

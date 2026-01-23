@@ -54,8 +54,6 @@ export class NotificationConsumerService implements OnModuleInit {
     },
   })
   async handleNotificationTask(task: NotificationTask): Promise<void | Nack> {
-    this.logger.debug(`Received notification task: ${task.type}`);
-
     try {
       switch (task.type) {
         case 'mention':

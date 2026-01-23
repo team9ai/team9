@@ -3,12 +3,27 @@ import { ChannelView } from "@/components/channel/ChannelView";
 import { PublicChannelPreviewView } from "@/components/channel/PublicChannelPreviewView";
 import { useChannelMembership } from "@/hooks/useChannels";
 
+// Search params type for channel routes
+export type ChannelSearchParams = {
+  // Thread root message ID - opens thread panel when set
+  thread?: string;
+  // Target message ID - scrolls to and highlights message
+  message?: string;
+};
+
 export const Route = createFileRoute("/_authenticated/channels/$channelId")({
   component: ChannelPage,
+  validateSearch: (search: Record<string, unknown>): ChannelSearchParams => {
+    return {
+      thread: search.thread as string | undefined,
+      message: search.message as string | undefined,
+    };
+  },
 });
 
 function ChannelPage() {
   const { channelId } = Route.useParams();
+  const { thread, message } = Route.useSearch();
   const { isMember, isLoading, channel } = useChannelMembership(channelId);
 
   // Loading state while checking membership
@@ -26,5 +41,11 @@ function ChannelPage() {
   }
 
   // User is a member or channel is not public (private/direct), render full view
-  return <ChannelView channelId={channelId} />;
+  return (
+    <ChannelView
+      channelId={channelId}
+      initialThreadId={thread}
+      initialMessageId={message}
+    />
+  );
 }

@@ -40,9 +40,15 @@ export interface ReplyNotificationParams {
   tenantId: string;
   senderId: string;
   senderUsername: string;
+  channelName: string;
   parentMessageId: string;
   parentSenderId: string;
   content: string;
+  // Thread context for thread_reply notifications
+  rootMessageId?: string;
+  rootSenderId?: string;
+  // True if this is a reply within a thread (parentId !== rootId)
+  isThreadReply?: boolean;
 }
 
 export interface WorkspaceInvitationNotificationParams {
@@ -221,41 +227,124 @@ export class NotificationTriggerService {
   }
 
   /**
-   * Trigger reply notification
+   * Trigger reply notifications using collect-aggregate pattern
+   *
+   * Supports two notification types:
+   * - 'reply': Direct reply to a root message
+   * - 'thread_reply': Reply within a thread (deeper nesting)
+   *
+   * Notification targets:
+   * - parentSenderId: The user whose message was directly replied to (priority 60)
+   * - rootSenderId: The thread creator, if different from parentSender (priority 50)
+   *
+   * Returns the list of notified user IDs for deduplication with mention notifications
    */
   async triggerReplyNotification(
     params: ReplyNotificationParams,
-  ): Promise<void> {
+  ): Promise<string[]> {
     const {
       messageId,
       channelId,
       tenantId,
       senderId,
       senderUsername,
+      channelName,
       parentSenderId,
       content,
+      rootMessageId,
+      rootSenderId,
+      isThreadReply,
     } = params;
-
-    if (senderId === parentSenderId) return; // Don't notify self
 
     const truncatedContent =
       content.length > 100 ? content.substring(0, 100) + '...' : content;
 
-    await this.createAndPublishDelivery({
-      userId: parentSenderId,
-      category: 'message',
-      type: 'reply',
-      title: `${senderUsername} replied to your message`,
-      body: truncatedContent,
-      actorId: senderId,
-      tenantId,
-      channelId,
-      messageId,
-      actionUrl: `/workspace/${tenantId}/channel/${channelId}?message=${messageId}`,
-      priority: 'normal',
-    });
+    // Collect notification candidates
+    const candidates: Array<{
+      userId: string;
+      type: 'reply' | 'thread_reply';
+      priority: number;
+      title: string;
+    }> = [];
 
-    this.logger.debug(`Triggered reply notification for message ${messageId}`);
+    // 1. Notify the parent message sender (highest priority for reply)
+    if (parentSenderId !== senderId) {
+      candidates.push({
+        userId: parentSenderId,
+        type: isThreadReply ? 'thread_reply' : 'reply',
+        priority: isThreadReply
+          ? (NOTIFICATION_TYPE_PRIORITY['thread_reply'] ?? 50)
+          : (NOTIFICATION_TYPE_PRIORITY['reply'] ?? 60),
+        title: isThreadReply
+          ? `${senderUsername} replied in a thread in #${channelName}`
+          : `${senderUsername} replied to your message in #${channelName}`,
+      });
+    }
+
+    // 2. Notify the root message sender if different from parent sender
+    if (
+      isThreadReply &&
+      rootSenderId &&
+      rootSenderId !== senderId &&
+      rootSenderId !== parentSenderId
+    ) {
+      candidates.push({
+        userId: rootSenderId,
+        type: 'thread_reply',
+        priority: NOTIFICATION_TYPE_PRIORITY['thread_reply'] ?? 50,
+        title: `${senderUsername} replied in your thread in #${channelName}`,
+      });
+    }
+
+    // Aggregate by userId, keeping highest priority notification
+    const aggregated = new Map<
+      string,
+      { type: 'reply' | 'thread_reply'; title: string }
+    >();
+
+    for (const candidate of candidates) {
+      const existing = aggregated.get(candidate.userId);
+      if (!existing) {
+        aggregated.set(candidate.userId, {
+          type: candidate.type,
+          title: candidate.title,
+        });
+      } else {
+        // Keep the higher priority notification
+        const existingPriority = NOTIFICATION_TYPE_PRIORITY[existing.type] ?? 0;
+        if (candidate.priority > existingPriority) {
+          aggregated.set(candidate.userId, {
+            type: candidate.type,
+            title: candidate.title,
+          });
+        }
+      }
+    }
+
+    // Create notifications for each user
+    const notifiedUserIds: string[] = [];
+    const actionUrl = rootMessageId
+      ? `/channels/${channelId}?thread=${rootMessageId}&message=${messageId}`
+      : `/channels/${channelId}?message=${messageId}`;
+
+    for (const [userId, { type, title }] of aggregated) {
+      await this.createAndPublishDelivery({
+        userId,
+        category: 'message',
+        type,
+        title,
+        body: truncatedContent,
+        actorId: senderId,
+        tenantId,
+        channelId,
+        messageId,
+        actionUrl,
+        priority: 'normal',
+      });
+      notifiedUserIds.push(userId);
+    }
+
+    return notifiedUserIds;
   }
 
   /**
@@ -423,12 +512,20 @@ export class NotificationTriggerService {
 
   /**
    * Helper to create notification and publish delivery task to Gateway
+   * Returns true if notification was created and published, false if skipped due to deduplication
    */
   private async createAndPublishDelivery(
     params: CreateNotificationParams,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const notification = await this.notificationService.create(params);
+
+    // If notification was skipped due to deduplication, return false
+    if (!notification) {
+      return false;
+    }
+
     await this.publishDeliveryTask(notification);
+    return true;
   }
 
   /**

@@ -47,7 +47,6 @@ export class PostBroadcastService {
    */
   async processTask(task: PostBroadcastTask): Promise<void> {
     const { msgId, channelId, senderId, workspaceId, broadcastAt } = task;
-
     try {
       // 1. Get channel members (excluding sender)
       const memberIds = await this.getChannelMemberIds(channelId);
@@ -271,8 +270,22 @@ export class PostBroadcastService {
         );
       }
 
-      // 2. Process reply notifications
+      // 2. Process reply notifications (with thread context)
       if (parentMessage && tenantId) {
+        // Get root message if this is a thread reply (message has rootId)
+        let rootMessage: schema.Message | null = null;
+        const isThreadReply =
+          message.rootId && message.rootId !== message.parentId;
+
+        if (isThreadReply && message.rootId) {
+          const [root] = await this.db
+            .select()
+            .from(schema.messages)
+            .where(eq(schema.messages.id, message.rootId))
+            .limit(1);
+          rootMessage = root ?? null;
+        }
+
         const replyTask: ReplyNotificationTask = {
           type: 'reply',
           timestamp: Date.now(),
@@ -282,14 +295,19 @@ export class PostBroadcastService {
             tenantId,
             senderId,
             senderUsername: sender.username,
+            channelName: channel.name ?? 'channel',
             parentMessageId: parentMessage.id,
             parentSenderId: parentMessage.senderId!,
             content: message.content ?? '',
+            // Thread context
+            rootMessageId: message.rootId ?? parentMessage.id,
+            rootSenderId: rootMessage?.senderId ?? parentMessage.senderId!,
+            isThreadReply: !!isThreadReply,
           },
         };
         await this.rabbitMQEventService.publishNotificationTask(replyTask);
         this.logger.debug(
-          `Published reply notification task for message ${msgId}`,
+          `Published ${isThreadReply ? 'thread_reply' : 'reply'} notification task for message ${msgId}`,
         );
       }
 

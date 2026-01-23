@@ -15,13 +15,21 @@ import type { AttachmentDto } from "@/types/im";
 
 interface ChannelViewProps {
   channelId: string;
+  // Initial thread ID from URL - opens thread panel when set
+  initialThreadId?: string;
+  // Initial message ID from URL - for scrolling/highlighting (future use)
+  initialMessageId?: string;
 }
 
 /**
  * ChannelView - Only renders for channel members
  * For non-members, use PublicChannelPreviewView instead
  */
-export function ChannelView({ channelId }: ChannelViewProps) {
+export function ChannelView({
+  channelId,
+  initialThreadId,
+  initialMessageId,
+}: ChannelViewProps) {
   const { data: channel, isLoading: channelLoading } = useChannel(channelId);
   const { data: members = [] } = useChannelMembers(channelId);
   const currentUser = useUser();
@@ -29,6 +37,14 @@ export function ChannelView({ channelId }: ChannelViewProps) {
   // Dual-layer thread state
   const primaryThread = useThreadStore((state) => state.primaryThread);
   const secondaryThread = useThreadStore((state) => state.secondaryThread);
+  const openPrimaryThread = useThreadStore((state) => state.openPrimaryThread);
+
+  // Open thread panel from URL param on initial render
+  useEffect(() => {
+    if (initialThreadId && !primaryThread.isOpen) {
+      openPrimaryThread(initialThreadId);
+    }
+  }, [initialThreadId, openPrimaryThread, primaryThread.isOpen]);
 
   const {
     data: messagesData,
