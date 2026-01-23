@@ -308,25 +308,28 @@ export const useActivityTab = () =>
 export const useShowUnreadOnly = () =>
   useNotificationStore((state) => state.showUnreadOnly);
 
-// Filtered notifications selector
-export const useFilteredNotifications = () =>
-  useNotificationStore((state) => {
-    let filtered = state.notifications;
+// Helper function to filter notifications (pure function, no hooks)
+export const filterNotifications = (
+  notifications: Notification[],
+  activeTab: ActivityTab,
+  showUnreadOnly: boolean,
+): Notification[] => {
+  let filtered = notifications;
 
-    // Filter by tab
-    if (state.activeTab === "mentions") {
-      filtered = filtered.filter((n) => MENTION_TYPES.includes(n.type));
-    } else if (state.activeTab === "threads") {
-      filtered = filtered.filter((n) => THREAD_TYPES.includes(n.type));
-    }
+  // Filter by tab
+  if (activeTab === "mentions") {
+    filtered = filtered.filter((n) => MENTION_TYPES.includes(n.type));
+  } else if (activeTab === "threads") {
+    filtered = filtered.filter((n) => THREAD_TYPES.includes(n.type));
+  }
 
-    // Filter by unread
-    if (state.showUnreadOnly) {
-      filtered = filtered.filter((n) => !n.isRead);
-    }
+  // Filter by unread
+  if (showUnreadOnly) {
+    filtered = filtered.filter((n) => !n.isRead);
+  }
 
-    return filtered;
-  });
+  return filtered;
+};
 
 // Actions (can be used outside React components)
 export const notificationActions = {

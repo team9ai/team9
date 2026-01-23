@@ -1,53 +1,40 @@
 import { Bell, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ActivityItem } from "@/components/activity/ActivityItem";
 import { useNotifications } from "@/hooks/useNotifications";
 import {
-  useFilteredNotifications,
+  useNotifications as useNotificationsFromStore,
   useActivityTab,
   useShowUnreadOnly,
-  useNotificationLoading,
   notificationActions,
+  filterNotifications,
   type ActivityTab,
 } from "@/stores/useNotificationStore";
 import { useMarkNotificationsAsRead } from "@/hooks/useNotifications";
 import { groupByDate } from "@/lib/date-utils";
 import { useMemo } from "react";
 
-interface TabConfig {
-  id: ActivityTab;
-  path: string;
-  label: string;
-}
-
 export function ActivitySubSidebar() {
   const { t } = useTranslation("navigation");
-  const location = useLocation();
   const navigate = useNavigate();
 
-  // Tab configuration with translated labels
-  const tabs: TabConfig[] = [
-    { id: "all", path: "/activity", label: t("activityAll") },
-    {
-      id: "mentions",
-      path: "/activity/mentions",
-      label: t("activityMentions"),
-    },
-    { id: "threads", path: "/activity/threads", label: t("activityThreads") },
-  ];
-
   // Fetch notifications on mount
-  useNotifications();
+  const { isLoading } = useNotifications();
 
-  const notifications = useFilteredNotifications();
+  const allNotifications = useNotificationsFromStore();
   const activeTab = useActivityTab();
   const showUnreadOnly = useShowUnreadOnly();
-  const isLoading = useNotificationLoading();
+
+  // Filter notifications using useMemo to avoid creating new array references on every render
+  const notifications = useMemo(
+    () => filterNotifications(allNotifications, activeTab, showUnreadOnly),
+    [allNotifications, activeTab, showUnreadOnly],
+  );
 
   const { mutate: markAsRead } = useMarkNotificationsAsRead();
 
@@ -55,15 +42,6 @@ export function ActivitySubSidebar() {
   const groupedNotifications = useMemo(() => {
     return groupByDate(notifications, (n) => new Date(n.createdAt), "zh");
   }, [notifications]);
-
-  // Determine active tab from URL
-  const currentPath = location.pathname;
-  const currentTab = tabs.find((tab) => tab.path === currentPath)?.id || "all";
-
-  // Sync tab state with URL
-  if (currentTab !== activeTab) {
-    notificationActions.setActiveTab(currentTab);
-  }
 
   const handleActivityClick = (notification: (typeof notifications)[0]) => {
     // Mark as read
@@ -81,6 +59,10 @@ export function ActivitySubSidebar() {
 
   const toggleUnreadOnly = () => {
     notificationActions.setShowUnreadOnly(!showUnreadOnly);
+  };
+
+  const handleTabChange = (value: string) => {
+    notificationActions.setActiveTab(value as ActivityTab);
   };
 
   return (
@@ -107,28 +89,32 @@ export function ActivitySubSidebar() {
 
       {/* Tab Navigation */}
       <div className="px-3 pb-2">
-        <div className="flex gap-1 bg-white/10 rounded-lg p-1">
-          {tabs.map((tab) => (
-            <Link
-              key={tab.id}
-              to={tab.path}
-              className={cn(
-                "flex-1 px-2 py-1.5 text-xs font-medium text-center rounded-md transition-colors",
-                currentPath === tab.path
-                  ? "bg-white/20 text-white"
-                  : "text-white/70 hover:text-white hover:bg-white/10",
-              )}
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
+          <TabsList className="w-full bg-white/10 border-none rounded-lg p-1">
+            <TabsTrigger
+              value="all"
+              className="flex-1 text-xs data-[state=active]:bg-white/20 data-[state=active]:text-white data-[state=inactive]:text-white/70 border-none rounded-md"
             >
-              {tab.label}
-            </Link>
-          ))}
-        </div>
+              {t("activityAll")}
+            </TabsTrigger>
+            <TabsTrigger
+              value="mentions"
+              className="flex-1 text-xs data-[state=active]:bg-white/20 data-[state=active]:text-white data-[state=inactive]:text-white/70 border-none rounded-md"
+            >
+              {t("activityMentions")}
+            </TabsTrigger>
+            <TabsTrigger
+              value="threads"
+              className="flex-1 text-xs data-[state=active]:bg-white/20 data-[state=active]:text-white data-[state=inactive]:text-white/70 border-none rounded-md"
+            >
+              {t("activityThreads")}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
-      <Separator className="bg-white/10" />
-
       {/* Activity List */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 [&>[data-slot=scroll-area-viewport]>div]:block!">
         <div className="px-2 py-2">
           {isLoading && notifications.length === 0 ? (
             <div className="flex items-center justify-center py-8">

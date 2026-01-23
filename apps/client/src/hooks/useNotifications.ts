@@ -35,25 +35,25 @@ export function useNotificationCounts() {
  * in useWebSocketEvents hook (called once in _authenticated layout).
  */
 export function useNotifications(params?: GetNotificationsParams) {
-  const { nextCursor, hasMore, filter } = useNotificationStore();
+  // Use specific selectors to avoid re-renders from unrelated store updates
+  const nextCursor = useNotificationStore((state) => state.nextCursor);
+  const hasMore = useNotificationStore((state) => state.hasMore);
+  const filterCategory = useNotificationStore((state) => state.filter.category);
+  const filterIsRead = useNotificationStore((state) => state.filter.isRead);
 
   const query = useQuery({
     queryKey: ["notifications", params?.category, params?.isRead],
     queryFn: async () => {
-      notificationActions.setLoading(true);
-      try {
-        const response = await notificationApi.getNotifications({
-          ...params,
-          category: params?.category ?? filter.category ?? undefined,
-          isRead: params?.isRead ?? filter.isRead ?? undefined,
-        });
-        notificationActions.setNotifications(response.notifications);
-        notificationActions.setNextCursor(response.nextCursor);
-        notificationActions.setHasMore(response.hasMore);
-        return response;
-      } finally {
-        notificationActions.setLoading(false);
-      }
+      const response = await notificationApi.getNotifications({
+        ...params,
+        category: params?.category ?? filterCategory ?? undefined,
+        isRead: params?.isRead ?? filterIsRead ?? undefined,
+      });
+      // Update store after successful fetch (outside of render cycle)
+      notificationActions.setNotifications(response.notifications);
+      notificationActions.setNextCursor(response.nextCursor);
+      notificationActions.setHasMore(response.hasMore);
+      return response;
     },
   });
 
@@ -61,21 +61,16 @@ export function useNotifications(params?: GetNotificationsParams) {
   const loadMore = useCallback(async () => {
     if (!hasMore || !nextCursor) return;
 
-    notificationActions.setLoading(true);
-    try {
-      const response = await notificationApi.getNotifications({
-        ...params,
-        category: params?.category ?? filter.category ?? undefined,
-        isRead: params?.isRead ?? filter.isRead ?? undefined,
-        cursor: nextCursor,
-      });
-      notificationActions.addNotifications(response.notifications);
-      notificationActions.setNextCursor(response.nextCursor);
-      notificationActions.setHasMore(response.hasMore);
-    } finally {
-      notificationActions.setLoading(false);
-    }
-  }, [hasMore, nextCursor, params, filter]);
+    const response = await notificationApi.getNotifications({
+      ...params,
+      category: params?.category ?? filterCategory ?? undefined,
+      isRead: params?.isRead ?? filterIsRead ?? undefined,
+      cursor: nextCursor,
+    });
+    notificationActions.addNotifications(response.notifications);
+    notificationActions.setNextCursor(response.nextCursor);
+    notificationActions.setHasMore(response.hasMore);
+  }, [hasMore, nextCursor, params, filterCategory, filterIsRead]);
 
   return {
     ...query,
