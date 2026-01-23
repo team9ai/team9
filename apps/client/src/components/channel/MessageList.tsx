@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import type { Message } from "@/types/im";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useThreadStore } from "@/hooks/useThread";
+import { useDeleteMessage } from "@/hooks/useMessages";
 import { MessageItem } from "./MessageItem";
 
 interface MessageListProps {
@@ -194,6 +195,7 @@ function ChannelMessageItem({
   isHighlighted?: boolean;
 }) {
   const openThread = useThreadStore((state) => state.openThread);
+  const deleteMessage = useDeleteMessage();
 
   // Context menu handlers
   const handleReply = () => {
@@ -211,8 +213,7 @@ function ChannelMessageItem({
   };
 
   const handleDelete = () => {
-    console.log("Delete message:", message.id);
-    // TODO: Implement delete functionality
+    deleteMessage.mutate(message.id);
   };
 
   const handlePin = () => {
