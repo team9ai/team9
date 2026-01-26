@@ -8,12 +8,8 @@ interface EnterpriseModuleConfig {
   exportName: string;
 }
 
+// TenantModule removed - now available in community edition via WorkspaceModule
 const ENTERPRISE_MODULES: EnterpriseModuleConfig[] = [
-  {
-    name: 'TenantModule',
-    modulePath: '@team9/enterprise-tenant',
-    exportName: 'TenantModule',
-  },
   {
     name: 'SsoModule',
     modulePath: '@team9/enterprise-sso',

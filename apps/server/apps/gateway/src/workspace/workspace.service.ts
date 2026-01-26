@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
   Inject,
   Logger,
   Optional,
@@ -96,6 +97,19 @@ export interface PaginatedMembersResponse {
     total: number;
     totalPages: number;
   };
+}
+
+export interface WorkspaceResponse {
+  id: string;
+  name: string;
+  slug: string;
+  domain: string | null;
+  logoUrl: string | null;
+  plan: 'free' | 'pro' | 'enterprise';
+  settings: schema.TenantSettings;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 @Injectable()
@@ -735,5 +749,229 @@ export class WorkspaceService {
     );
 
     return { onlineIds, offlineIds };
+  }
+
+  // ===== Workspace CRUD =====
+
+  async create(data: {
+    name: string;
+    slug: string;
+    domain?: string;
+    plan?: 'free' | 'pro' | 'enterprise';
+    ownerId: string;
+  }): Promise<WorkspaceResponse> {
+    // Check if slug already exists
+    const existingSlug = await this.findBySlug(data.slug);
+    if (existingSlug) {
+      throw new ConflictException('Workspace slug already exists');
+    }
+
+    // Check if domain already exists
+    if (data.domain) {
+      const existingDomain = await this.findByDomain(data.domain);
+      if (existingDomain) {
+        throw new ConflictException('Domain already in use');
+      }
+    }
+
+    const [workspace] = await this.db
+      .insert(schema.tenants)
+      .values({
+        id: uuidv7(),
+        name: data.name,
+        slug: data.slug,
+        domain: data.domain,
+        plan: data.plan || 'free',
+      })
+      .returning();
+
+    // Add owner as member
+    await this.addMember(workspace.id, data.ownerId, 'owner');
+
+    this.logger.log(`Created workspace: ${workspace.name} (${workspace.slug})`);
+
+    return workspace as WorkspaceResponse;
+  }
+
+  async findById(id: string): Promise<WorkspaceResponse | null> {
+    const [workspace] = await this.db
+      .select()
+      .from(schema.tenants)
+      .where(eq(schema.tenants.id, id))
+      .limit(1);
+
+    return (workspace as WorkspaceResponse) || null;
+  }
+
+  async findByIdOrThrow(id: string): Promise<WorkspaceResponse> {
+    const workspace = await this.findById(id);
+    if (!workspace) {
+      throw new NotFoundException('Workspace not found');
+    }
+    return workspace;
+  }
+
+  async findBySlug(slug: string): Promise<WorkspaceResponse | null> {
+    const [workspace] = await this.db
+      .select()
+      .from(schema.tenants)
+      .where(eq(schema.tenants.slug, slug))
+      .limit(1);
+
+    return (workspace as WorkspaceResponse) || null;
+  }
+
+  async findByDomain(domain: string): Promise<WorkspaceResponse | null> {
+    const [workspace] = await this.db
+      .select()
+      .from(schema.tenants)
+      .where(eq(schema.tenants.domain, domain))
+      .limit(1);
+
+    return (workspace as WorkspaceResponse) || null;
+  }
+
+  async update(
+    id: string,
+    data: Partial<{
+      name: string;
+      slug: string;
+      domain: string;
+      logoUrl: string;
+      plan: 'free' | 'pro' | 'enterprise';
+      settings: schema.TenantSettings;
+      isActive: boolean;
+    }>,
+  ): Promise<WorkspaceResponse> {
+    const [workspace] = await this.db
+      .update(schema.tenants)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.tenants.id, id))
+      .returning();
+
+    if (!workspace) {
+      throw new NotFoundException('Workspace not found');
+    }
+
+    return workspace as WorkspaceResponse;
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.db.delete(schema.tenants).where(eq(schema.tenants.id, id));
+  }
+
+  // ===== Member Management =====
+
+  async addMember(
+    workspaceId: string,
+    userId: string,
+    role: 'owner' | 'admin' | 'member' | 'guest' = 'member',
+    invitedBy?: string,
+  ): Promise<void> {
+    // Check if already a member
+    const existing = await this.getMember(workspaceId, userId);
+    if (existing) {
+      throw new ConflictException('User is already a member of this workspace');
+    }
+
+    await this.db.insert(schema.tenantMembers).values({
+      id: uuidv7(),
+      tenantId: workspaceId,
+      userId,
+      role,
+      invitedBy,
+    });
+
+    this.logger.log(
+      `Added user ${userId} to workspace ${workspaceId} as ${role}`,
+    );
+  }
+
+  async removeMember(workspaceId: string, userId: string): Promise<void> {
+    // Mark as left rather than hard delete
+    await this.db
+      .update(schema.tenantMembers)
+      .set({ leftAt: new Date() })
+      .where(
+        and(
+          eq(schema.tenantMembers.tenantId, workspaceId),
+          eq(schema.tenantMembers.userId, userId),
+          isNull(schema.tenantMembers.leftAt),
+        ),
+      );
+  }
+
+  async getMember(
+    workspaceId: string,
+    userId: string,
+  ): Promise<{ id: string; role: string; joinedAt: Date } | null> {
+    const [member] = await this.db
+      .select()
+      .from(schema.tenantMembers)
+      .where(
+        and(
+          eq(schema.tenantMembers.tenantId, workspaceId),
+          eq(schema.tenantMembers.userId, userId),
+          isNull(schema.tenantMembers.leftAt),
+        ),
+      )
+      .limit(1);
+
+    return member
+      ? { id: member.id, role: member.role, joinedAt: member.joinedAt }
+      : null;
+  }
+
+  async getMemberRole(
+    workspaceId: string,
+    userId: string,
+  ): Promise<'owner' | 'admin' | 'member' | 'guest' | null> {
+    const member = await this.getMember(workspaceId, userId);
+    return (member?.role as 'owner' | 'admin' | 'member' | 'guest') || null;
+  }
+
+  async updateMemberRole(
+    workspaceId: string,
+    userId: string,
+    role: 'owner' | 'admin' | 'member' | 'guest',
+  ): Promise<void> {
+    await this.db
+      .update(schema.tenantMembers)
+      .set({ role })
+      .where(
+        and(
+          eq(schema.tenantMembers.tenantId, workspaceId),
+          eq(schema.tenantMembers.userId, userId),
+          isNull(schema.tenantMembers.leftAt),
+        ),
+      );
+  }
+
+  // ===== Default Workspace =====
+
+  async getOrCreateDefaultWorkspace(
+    ownerId: string,
+  ): Promise<WorkspaceResponse> {
+    const defaultSlug = 'default';
+    let workspace = await this.findBySlug(defaultSlug);
+
+    if (!workspace) {
+      workspace = await this.create({
+        name: 'Default Workspace',
+        slug: defaultSlug,
+        ownerId,
+      });
+    } else {
+      // Ensure user is a member
+      const isMember = await this.isWorkspaceMember(workspace.id, ownerId);
+      if (!isMember) {
+        await this.addMember(workspace.id, ownerId, 'member');
+      }
+    }
+
+    return workspace;
   }
 }
