@@ -15,7 +15,6 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "optionalDependencies": {
-    "@team9/enterprise-tenant": "workspace:*",
     "@team9/enterprise-sso": "workspace:*",
     "@team9/enterprise-audit": "workspace:*",
     "@team9/enterprise-analytics": "workspace:*",

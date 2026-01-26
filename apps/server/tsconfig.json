@@ -37,8 +37,6 @@
       "@team9/rabbitmq/*": ["libs/rabbitmq/src/*"],
       "@team9/storage": ["libs/storage/src"],
       "@team9/storage/*": ["libs/storage/src/*"],
-      "@team9/enterprise-tenant": ["../../enterprise/libs/tenant/src"],
-      "@team9/enterprise-tenant/*": ["../../enterprise/libs/tenant/src/*"],
       "@team9/enterprise-sso": ["../../enterprise/libs/sso/src"],
       "@team9/enterprise-sso/*": ["../../enterprise/libs/sso/src/*"],
       "@team9/enterprise-audit": ["../../enterprise/libs/audit/src"],
