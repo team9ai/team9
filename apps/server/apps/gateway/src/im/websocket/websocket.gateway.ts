@@ -10,6 +10,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger, Inject, forwardRef, Optional } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
 import { v7 as uuidv7 } from 'uuid';
 import { AuthService } from '../../auth/auth.service.js';
 import { UsersService } from '../users/users.service.js';
@@ -140,15 +141,23 @@ export class WebsocketGateway
       (client as SocketWithUser).userId = payload.sub;
       (client as SocketWithUser).username = payload.username;
 
-      // Store socket mapping (legacy)
+      // Store socket mapping (legacy) with TTL to prevent stale data accumulation
+      // TTL: 5 minutes - will be renewed by heartbeat
+      const SOCKET_TTL = 300;
       this.logger.debug(`[WS] Storing socket mapping in Redis...`);
       await this.redisService.set(
         REDIS_KEYS.SOCKET_USER(client.id),
         payload.sub,
+        SOCKET_TTL,
       );
       await this.redisService.sadd(
         REDIS_KEYS.USER_SOCKETS(payload.sub),
         client.id,
+      );
+      // Set TTL on the user_sockets set
+      await this.redisService.expire(
+        REDIS_KEYS.USER_SOCKETS(payload.sub),
+        SOCKET_TTL,
       );
 
       // Register with distributed services (new architecture - multi-device support)
@@ -299,6 +308,10 @@ export class WebsocketGateway
   async handleDisconnect(client: Socket) {
     const socketClient = client as SocketWithUser;
 
+    this.logger.log(
+      `[WS] handleDisconnect called: socketId=${client.id}, userId=${socketClient.userId}`,
+    );
+
     if (socketClient.userId) {
       // Remove socket mapping (legacy)
       await this.redisService.del(REDIS_KEYS.SOCKET_USER(client.id));
@@ -314,6 +327,9 @@ export class WebsocketGateway
           socketClient.userId,
           client.id,
         );
+        this.logger.debug(
+          `[WS] Removed device session for user ${socketClient.userId}`,
+        );
       }
       if (this.connectionService) {
         this.connectionService.unregisterConnection(client.id);
@@ -328,16 +344,25 @@ export class WebsocketGateway
         hasActiveSessions = await this.sessionService.hasActiveDeviceSessions(
           socketClient.userId,
         );
+        this.logger.log(
+          `[WS] User ${socketClient.userId} hasActiveSessions=${hasActiveSessions} (sessionService)`,
+        );
       } else {
         // Fallback to legacy check
         const remainingSockets = await this.redisService.smembers(
           REDIS_KEYS.USER_SOCKETS(socketClient.userId),
         );
         hasActiveSessions = remainingSockets.length > 0;
+        this.logger.log(
+          `[WS] User ${socketClient.userId} hasActiveSessions=${hasActiveSessions} (legacy, remainingSockets=${remainingSockets.length})`,
+        );
       }
 
       if (!hasActiveSessions) {
         // User has no more connections on any device, set offline
+        this.logger.log(
+          `[WS] Setting user ${socketClient.userId} offline and broadcasting`,
+        );
         await this.usersService.setOffline(socketClient.userId);
 
         // Get user's workspaces
@@ -345,6 +370,10 @@ export class WebsocketGateway
           await this.workspaceService.getWorkspaceIdsByUserId(
             socketClient.userId,
           );
+
+        this.logger.log(
+          `[WS] Broadcasting user_offline to ${workspaceIds.length} workspaces: ${workspaceIds.join(', ')}`,
+        );
 
         // Broadcast offline to each workspace
         for (const workspaceId of workspaceIds) {
@@ -383,10 +412,67 @@ export class WebsocketGateway
             );
           }
         }
+      } else {
+        this.logger.log(
+          `[WS] User ${socketClient.userId} still has active sessions, NOT setting offline`,
+        );
       }
     }
 
     this.logger.log(`Client disconnected: ${client.id}`);
+  }
+
+  // ==================== Event Handlers ====================
+
+  /**
+   * Handle user offline event from ZombieCleanerService
+   * This is triggered when a zombie session is detected and cleaned up
+   */
+  @OnEvent('im.user.offline')
+  async handleUserOfflineEvent(payload: {
+    userId: string;
+    socketId: string;
+    reason: string;
+    gatewayId: string;
+  }): Promise<void> {
+    const { userId, socketId, reason } = payload;
+    this.logger.log(
+      `[WS] Received user offline event: user=${userId}, socket=${socketId}, reason=${reason}`,
+    );
+
+    // Check if user has other active device sessions
+    let hasActiveSessions = false;
+    if (this.sessionService) {
+      hasActiveSessions =
+        await this.sessionService.hasActiveDeviceSessions(userId);
+    }
+
+    if (!hasActiveSessions) {
+      // User has no more connections on any device, set offline
+      await this.usersService.setOffline(userId);
+
+      // Get user's workspaces
+      const workspaceIds =
+        await this.workspaceService.getWorkspaceIdsByUserId(userId);
+
+      // Broadcast offline to each workspace
+      for (const workspaceId of workspaceIds) {
+        this.server
+          .to(`workspace:${workspaceId}`)
+          .emit(WS_EVENTS.USER.OFFLINE, {
+            userId,
+            workspaceId,
+          });
+      }
+
+      this.logger.log(
+        `[WS] User ${userId} marked offline and broadcasted to ${workspaceIds.length} workspaces`,
+      );
+    } else {
+      this.logger.debug(
+        `[WS] User ${userId} still has active sessions, not marking offline`,
+      );
+    }
   }
 
   // ==================== Channel Operations ====================

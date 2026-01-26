@@ -22,7 +22,7 @@ export const MQ_QUEUES = {
   // Gateway node queue (dynamically created per node)
   GATEWAY: (nodeId: string) => `im.queue.gateway.${nodeId}`,
 
-  // IM Worker upstream queue (consumes all upstream messages)
+  // IM Worker upstream queue (single queue, internal routing by message type)
   IM_WORKER_UPSTREAM: 'im.queue.im-worker.upstream',
 
   // Post-broadcast task queue (handles offline messages + unread counts)

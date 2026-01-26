@@ -591,6 +591,35 @@ export class WorkspaceService {
       }
     }
 
+    // Add user to welcome channel and send system message
+    try {
+      const welcomeChannel = await this.channelsService.findByNameAndTenant(
+        'welcome',
+        invitation.tenantId,
+      );
+
+      if (welcomeChannel) {
+        // Add user to welcome channel
+        await this.channelsService.addMember(welcomeChannel.id, userId);
+
+        // Send system message
+        const displayName = user.displayName || user.username;
+        await this.channelsService.sendSystemMessage(
+          welcomeChannel.id,
+          `${displayName} 加入了 ${workspace.name}`,
+        );
+
+        this.logger.log(
+          `Added user ${userId} to welcome channel and sent join message`,
+        );
+      }
+    } catch (error) {
+      // Don't fail the invitation if welcome channel operations fail
+      this.logger.warn(
+        `Failed to add user to welcome channel: ${error.message}`,
+      );
+    }
+
     return {
       workspace: {
         id: workspace.id,

@@ -153,6 +153,42 @@ export class ChannelsService {
     return channel || null;
   }
 
+  async findByNameAndTenant(
+    name: string,
+    tenantId: string,
+  ): Promise<ChannelResponse | null> {
+    const [channel] = await this.db
+      .select()
+      .from(schema.channels)
+      .where(
+        and(
+          eq(schema.channels.name, name),
+          eq(schema.channels.tenantId, tenantId),
+        ),
+      )
+      .limit(1);
+
+    return channel || null;
+  }
+
+  async sendSystemMessage(
+    channelId: string,
+    content: string,
+  ): Promise<{ id: string }> {
+    const [message] = await this.db
+      .insert(schema.messages)
+      .values({
+        id: uuidv7(),
+        channelId,
+        content,
+        type: 'system',
+        senderId: null,
+      })
+      .returning({ id: schema.messages.id });
+
+    return message;
+  }
+
   async findByIdOrThrow(
     id: string,
     userId?: string,
