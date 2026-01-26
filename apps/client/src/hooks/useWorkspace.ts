@@ -5,7 +5,10 @@ import {
   useInfiniteQuery,
 } from "@tanstack/react-query";
 import workspaceApi from "@/services/api/workspace";
-import type { CreateInvitationDto } from "@/types/workspace";
+import type {
+  CreateInvitationDto,
+  CreateWorkspaceDto,
+} from "@/types/workspace";
 
 /**
  * Hook to fetch user's workspaces
@@ -14,6 +17,23 @@ export function useUserWorkspaces() {
   return useQuery({
     queryKey: ["user-workspaces"],
     queryFn: () => workspaceApi.getUserWorkspaces(),
+  });
+}
+
+/**
+ * Hook to create a new workspace
+ */
+export function useCreateWorkspace() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: CreateWorkspaceDto) =>
+      workspaceApi.createWorkspace(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["user-workspaces"],
+      });
+    },
   });
 }
 

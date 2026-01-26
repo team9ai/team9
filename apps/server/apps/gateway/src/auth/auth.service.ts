@@ -1,8 +1,8 @@
 import { Injectable, UnauthorizedException, Inject } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import * as bcrypt from 'bcrypt';
 import { v7 as uuidv7 } from 'uuid';
-import { slugify } from 'transliteration';
 import {
   DATABASE_CONNECTION,
   eq,
@@ -13,6 +13,7 @@ import { RedisService } from '@team9/redis';
 import { env } from '@team9/shared';
 import type { JwtPayload } from '@team9/auth';
 import { RegisterDto, LoginDto } from './dto/index.js';
+import { USER_EVENTS, type UserRegisteredEvent } from './events/user.events.js';
 
 export interface TokenPair {
   accessToken: string;
@@ -38,6 +39,7 @@ export class AuthService {
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly jwtService: JwtService,
     private readonly redisService: RedisService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async register(dto: RegisterDto): Promise<AuthResponse> {
@@ -77,26 +79,11 @@ export class AuthService {
       })
       .returning();
 
-    // Create a personal workspace for the user
-    const workspaceName = `${dto.displayName || dto.username}'s Workspace`;
-    const workspaceSlug = await this.generateUniqueSlug(dto.username);
-
-    const [workspace] = await this.db
-      .insert(schema.tenants)
-      .values({
-        id: uuidv7(),
-        name: workspaceName,
-        slug: workspaceSlug,
-      })
-      .returning();
-
-    // Add user as owner of the workspace
-    await this.db.insert(schema.tenantMembers).values({
-      id: uuidv7(),
-      tenantId: workspace.id,
+    // Emit event to create a personal workspace for the user
+    this.eventEmitter.emit(USER_EVENTS.REGISTERED, {
       userId: user.id,
-      role: 'owner',
-    });
+      displayName: dto.displayName || dto.username,
+    } satisfies UserRegisteredEvent);
 
     // Generate tokens
     const tokens = this.generateTokenPair(user);
@@ -111,48 +98,6 @@ export class AuthService {
         avatarUrl: user.avatarUrl,
       },
     };
-  }
-
-  private async generateUniqueSlug(baseSlug: string): Promise<string> {
-    // Username is already validated to be [a-z0-9_]+, slugify handles edge cases
-    let slug = slugify(baseSlug, { lowercase: true, separator: '-' })
-      .replace(/^-+|-+$/g, '')
-      .substring(0, 50);
-
-    // If slug is empty after sanitization, use fallback
-    if (!slug) {
-      slug = 'workspace';
-    }
-
-    const MAX_ATTEMPTS = 10;
-
-    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-      const uniqueSlug =
-        attempt === 0 ? slug : `${slug}-${this.generateShortId()}`;
-
-      const existing = await this.db
-        .select({ id: schema.tenants.id })
-        .from(schema.tenants)
-        .where(eq(schema.tenants.slug, uniqueSlug))
-        .limit(1);
-
-      if (existing.length === 0) {
-        return uniqueSlug;
-      }
-    }
-
-    // Fallback: use UUID suffix to guarantee uniqueness
-    return `${slug}-${uuidv7().substring(0, 8)}`;
-  }
-
-  private generateShortId(length = 4): string {
-    // Generate a short random alphanumeric ID (6 chars)
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    let result = '';
-    for (let i = 0; i < length; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
   }
 
   async login(dto: LoginDto): Promise<AuthResponse> {

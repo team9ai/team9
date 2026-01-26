@@ -11,6 +11,7 @@ import {
   Settings,
   LogOut,
   Globe,
+  Plus,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
@@ -45,6 +46,7 @@ import { useUpdateStatus, useOnlineUsers } from "@/hooks/useIMUsers";
 import { useNotificationCounts } from "@/hooks/useNotifications";
 import { useChannelsByType } from "@/hooks/useChannels";
 import { NotificationBadge } from "@/components/ui/badge";
+import { CreateWorkspaceDialog } from "@/components/dialog/CreateWorkspaceDialog";
 import type { UserStatus } from "@/types/im";
 
 // Navigation items with i18n keys
@@ -84,6 +86,7 @@ export function MainSidebar() {
   const prevWorkspaceIdRef = useRef<string | null>(null);
 
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [createWorkspaceOpen, setCreateWorkspaceOpen] = useState(false);
   const { data: currentUser } = useCurrentUser();
   const { mutate: logout } = useLogout();
   const { mutate: updateStatus } = useUpdateStatus();
@@ -208,6 +211,10 @@ export function MainSidebar() {
 
   return (
     <TooltipProvider>
+      <CreateWorkspaceDialog
+        isOpen={createWorkspaceOpen}
+        onClose={() => setCreateWorkspaceOpen(false)}
+      />
       <aside className="w-16 bg-[#3f1651] text-white flex flex-col items-center py-4 space-y-2">
         {/* Workspace Avatars */}
         <div className="mb-4 space-y-3">
@@ -299,6 +306,23 @@ export function MainSidebar() {
               </TooltipContent>
             </Tooltip>
           )}
+
+          {/* Create Workspace Button */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Avatar
+                className="w-10 h-10 cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => setCreateWorkspaceOpen(true)}
+              >
+                <AvatarFallback className="bg-white/20 hover:bg-white/30 text-white rounded-full border-2 border-dashed border-white/50">
+                  <Plus size={18} />
+                </AvatarFallback>
+              </Avatar>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <p>{tNav("createWorkspace")}</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         {/* Navigation Items */}

@@ -1,4 +1,21 @@
-// Workspace invitation types
+// Workspace types
+
+export interface CreateWorkspaceDto {
+  name: string;
+  domain?: string;
+}
+
+export interface WorkspaceResponse {
+  id: string;
+  name: string;
+  slug: string;
+  domain: string | null;
+  logoUrl: string | null;
+  plan: "free" | "pro" | "enterprise";
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface UserWorkspace {
   id: string;

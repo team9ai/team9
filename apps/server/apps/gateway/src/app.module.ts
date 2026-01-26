@@ -6,6 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { join } from 'path';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
@@ -35,6 +36,7 @@ import { NotificationModule } from './notification/notification.module.js';
         join(process.cwd(), '.env'),
       ],
     }),
+    EventEmitterModule.forRoot(),
     // Edition module - handles community/enterprise feature loading
     // TenantModule is loaded dynamically in enterprise edition
     EditionModule.forRootAsync(),

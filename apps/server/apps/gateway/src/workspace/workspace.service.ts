@@ -7,7 +7,13 @@ import {
   Logger,
   Optional,
 } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
 import { v7 as uuidv7 } from 'uuid';
+import {
+  USER_EVENTS,
+  type UserRegisteredEvent,
+} from '../auth/events/user.events.js';
+import { generateSlug, generateShortId } from '../common/utils/slug.util.js';
 import {
   DATABASE_CONNECTION,
   eq,
@@ -125,6 +131,18 @@ export class WorkspaceService {
     private readonly channelsService: ChannelsService,
     @Optional() private readonly rabbitMQEventService?: RabbitMQEventService,
   ) {}
+
+  @OnEvent(USER_EVENTS.REGISTERED)
+  async handleUserRegistered(event: UserRegisteredEvent): Promise<void> {
+    const workspaceName = `${event.displayName}'s Workspace`;
+    await this.create({
+      name: workspaceName,
+      ownerId: event.userId,
+    });
+    this.logger.log(
+      `Created personal workspace for user ${event.userId}: ${workspaceName}`,
+    );
+  }
 
   private generateInviteCode(): string {
     return randomBytes(16).toString('hex');
@@ -755,15 +773,19 @@ export class WorkspaceService {
 
   async create(data: {
     name: string;
-    slug: string;
+    slug?: string; // Internal use only, not exposed via API
     domain?: string;
-    plan?: 'free' | 'pro' | 'enterprise';
     ownerId: string;
   }): Promise<WorkspaceResponse> {
-    // Check if slug already exists
-    const existingSlug = await this.findBySlug(data.slug);
-    if (existingSlug) {
-      throw new ConflictException('Workspace slug already exists');
+    // Generate slug from name if not provided
+    const slug = data.slug || (await this.generateUniqueSlug(data.name));
+
+    // Check if provided slug already exists
+    if (data.slug) {
+      const existingSlug = await this.findBySlug(slug);
+      if (existingSlug) {
+        throw new ConflictException('Workspace slug already exists');
+      }
     }
 
     // Check if domain already exists
@@ -779,18 +801,50 @@ export class WorkspaceService {
       .values({
         id: uuidv7(),
         name: data.name,
-        slug: data.slug,
+        slug,
         domain: data.domain,
-        plan: data.plan || 'free',
+        plan: 'free',
       })
       .returning();
 
     // Add owner as member
     await this.addMember(workspace.id, data.ownerId, 'owner');
 
+    // Create default welcome channel
+    await this.channelsService.create(
+      {
+        name: 'welcome',
+        description: 'Welcome to the workspace! Say hello to your teammates.',
+        type: 'public',
+      },
+      data.ownerId,
+      workspace.id,
+    );
+
     this.logger.log(`Created workspace: ${workspace.name} (${workspace.slug})`);
 
     return workspace as WorkspaceResponse;
+  }
+
+  /**
+   * Generate a unique slug from the given base string.
+   * Handles collisions by appending random suffixes.
+   */
+  async generateUniqueSlug(baseName: string): Promise<string> {
+    const slug = generateSlug(baseName);
+    const MAX_ATTEMPTS = 10;
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      const uniqueSlug = attempt === 0 ? slug : `${slug}-${generateShortId()}`;
+
+      const existing = await this.findBySlug(uniqueSlug);
+      if (!existing) {
+        return uniqueSlug;
+      }
+    }
+
+    // Fallback: use UUID suffix to guarantee uniqueness
+    return `${slug}-${uuidv7().substring(0, 8)}`;
   }
 
   async findById(id: string): Promise<WorkspaceResponse | null> {

@@ -3,6 +3,8 @@ import type {
   UserWorkspace,
   WorkspaceInvitation,
   CreateInvitationDto,
+  CreateWorkspaceDto,
+  WorkspaceResponse,
   InvitationInfo,
   AcceptInvitationResponse,
   GetMembersParams,
@@ -10,6 +12,14 @@ import type {
 } from "@/types/workspace";
 
 export const workspaceApi = {
+  // Create a new workspace
+  createWorkspace: async (
+    data: CreateWorkspaceDto,
+  ): Promise<WorkspaceResponse> => {
+    const response = await http.post<WorkspaceResponse>("/v1/workspaces", data);
+    return response.data;
+  },
+
   // Get user's workspaces
   getUserWorkspaces: async (): Promise<UserWorkspace[]> => {
     const response = await http.get<UserWorkspace[]>("/v1/workspaces");
