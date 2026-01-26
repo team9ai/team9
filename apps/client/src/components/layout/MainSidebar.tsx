@@ -86,6 +86,7 @@ export function MainSidebar() {
   const prevWorkspaceIdRef = useRef<string | null>(null);
 
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [moreWorkspacesOpen, setMoreWorkspacesOpen] = useState(false);
   const [createWorkspaceOpen, setCreateWorkspaceOpen] = useState(false);
   const { data: currentUser } = useCurrentUser();
   const { mutate: logout } = useLogout();
@@ -269,17 +270,20 @@ export function MainSidebar() {
 
           {/* More Workspaces Button */}
           {hasMoreWorkspaces && (
-            <Tooltip>
-              <TooltipTrigger asChild>
+            <Popover
+              open={moreWorkspacesOpen}
+              onOpenChange={setMoreWorkspacesOpen}
+            >
+              <PopoverTrigger asChild>
                 <Avatar className="w-10 h-10 cursor-pointer hover:opacity-80 transition-opacity">
                   <AvatarFallback className="bg-white/20 text-white rounded-full">
                     <MoreVertical size={18} />
                   </AvatarFallback>
                 </Avatar>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="max-w-xs">
+              </PopoverTrigger>
+              <PopoverContent side="right" className="w-56 p-2">
                 <div className="space-y-1">
-                  <p className="font-semibold text-xs mb-2 text-slate-700">
+                  <p className="font-semibold text-xs mb-2 text-slate-500 px-2">
                     {tNav("moreWorkspaces")}
                   </p>
                   {moreWorkspaces.map((workspace, index) => {
@@ -287,8 +291,11 @@ export function MainSidebar() {
                     return (
                       <button
                         key={workspace.id}
-                        onClick={() => setSelectedWorkspaceId(workspace.id)}
-                        className="flex items-center gap-2 w-full text-left px-2 py-1.5 text-sm hover:bg-purple-50 rounded transition-colors"
+                        onClick={() => {
+                          setSelectedWorkspaceId(workspace.id);
+                          setMoreWorkspacesOpen(false);
+                        }}
+                        className="flex items-center gap-2 w-full text-left px-2 py-1.5 text-sm hover:bg-accent rounded transition-colors"
                       >
                         <div
                           className={cn(
@@ -298,13 +305,13 @@ export function MainSidebar() {
                         >
                           {getInitials(workspace.name)}
                         </div>
-                        <span className="text-slate-800">{workspace.name}</span>
+                        <span>{workspace.name}</span>
                       </button>
                     );
                   })}
                 </div>
-              </TooltipContent>
-            </Tooltip>
+              </PopoverContent>
+            </Popover>
           )}
 
           {/* Create Workspace Button */}

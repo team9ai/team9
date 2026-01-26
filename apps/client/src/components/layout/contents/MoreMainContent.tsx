@@ -26,7 +26,7 @@ import {
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { InviteManagementDialog } from "@/components/workspace/InviteManagementDialog";
-import { useUserWorkspaces } from "@/hooks/useWorkspace";
+import { useWorkspaceStore } from "@/stores";
 import { useThemeToggle } from "@/hooks/useTheme";
 
 const settingsGroups = [
@@ -61,9 +61,8 @@ export function MoreMainContent() {
   const [isAppearanceDialogOpen, setIsAppearanceDialogOpen] = useState(false);
   const { theme, setTheme } = useThemeToggle();
 
-  // Get user's workspaces
-  const { data: workspaces } = useUserWorkspaces();
-  const workspaceId = workspaces?.[0]?.id; // Use first workspace
+  // Get current selected workspace
+  const { selectedWorkspaceId } = useWorkspaceStore();
 
   const handleSettingClick = (id: string) => {
     if (id === "invitations") {
@@ -150,11 +149,11 @@ export function MoreMainContent() {
       </ScrollArea>
 
       {/* Invite Management Dialog */}
-      {workspaceId && (
+      {selectedWorkspaceId && (
         <InviteManagementDialog
           isOpen={isInviteDialogOpen}
           onClose={() => setIsInviteDialogOpen(false)}
-          workspaceId={workspaceId}
+          workspaceId={selectedWorkspaceId}
         />
       )}
 
