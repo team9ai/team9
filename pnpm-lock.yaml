@@ -547,9 +547,6 @@ importers:
       "@team9/enterprise-sso":
         specifier: workspace:*
         version: link:../../../../enterprise/libs/sso
-      "@team9/enterprise-tenant":
-        specifier: workspace:*
-        version: file:enterprise/libs/tenant(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)(@nestjs/jwt@11.0.2(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)))(@nestjs/passport@11.0.5(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(passport@0.7.0))(@types/pg@8.16.0)(class-validator@0.14.3)(express@5.2.1)(gel@2.2.0)(passport-jwt@4.0.1)(rxjs@7.8.2)(socket.io@4.8.3)
 
   apps/server/apps/im-worker:
     dependencies:
@@ -860,40 +857,6 @@ importers:
         specifier: ^11.0.0
         version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
     devDependencies:
-      "@types/node":
-        specifier: ^22.0.0
-        version: 22.19.3
-      typescript:
-        specifier: ^5.7.3
-        version: 5.8.3
-
-  enterprise/libs/tenant:
-    dependencies:
-      "@nestjs/common":
-        specifier: ^11.0.0
-        version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      "@nestjs/core":
-        specifier: ^11.0.0
-        version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      "@team9/auth":
-        specifier: workspace:*
-        version: link:../../../apps/server/libs/auth
-      "@team9/database":
-        specifier: workspace:*
-        version: link:../../../apps/server/libs/database
-      class-validator:
-        specifier: ^0.14.0
-        version: 0.14.3
-      express:
-        specifier: ^4.18.0
-        version: 4.22.1
-      uuid:
-        specifier: ^13.0.0
-        version: 13.0.0
-    devDependencies:
-      "@types/express":
-        specifier: ^4.17.21
-        version: 4.17.25
       "@types/node":
         specifier: ^22.0.0
         version: 22.19.3
@@ -5631,37 +5594,12 @@ packages:
         integrity: sha512-ei/yRRoCklWHImwpCcDK3VhNXx+QXM9793aQ64YxpqVF0BDuuIlXhZgiAkc15wnPVav+IbkYhmDJIv5R326Mew==,
       }
 
-  "@team9/auth@file:apps/server/libs/auth":
-    resolution: { directory: apps/server/libs/auth, type: directory }
-    peerDependencies:
-      "@nestjs/common": ^11.0.0
-      "@nestjs/core": ^11.0.0
-      "@nestjs/jwt": ^11.0.0
-      "@nestjs/passport": ^11.0.5
-      passport-jwt: ^4.0.1
-      rxjs: ^7.8.1
-      socket.io: ^4.8.3
-
-  "@team9/database@file:apps/server/libs/database":
-    resolution: { directory: apps/server/libs/database, type: directory }
-
   "@team9/enterprise-audit@file:enterprise/libs/audit":
     resolution: { directory: enterprise/libs/audit, type: directory }
     peerDependencies:
       "@nestjs/common": ^11.0.0
       "@nestjs/core": ^11.0.0
       uuid: ^11.0.0
-
-  "@team9/enterprise-tenant@file:enterprise/libs/tenant":
-    resolution: { directory: enterprise/libs/tenant, type: directory }
-    peerDependencies:
-      "@nestjs/common": ^11.0.0
-      "@nestjs/core": ^11.0.0
-      class-validator: ^0.14.0
-      express: ^4.18.0
-
-  "@team9/shared@file:apps/server/libs/shared":
-    resolution: { directory: apps/server/libs/shared, type: directory }
 
   "@tokenizer/inflate@0.4.1":
     resolution:
@@ -5784,22 +5722,10 @@ packages:
         integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==,
       }
 
-  "@types/express-serve-static-core@4.19.8":
-    resolution:
-      {
-        integrity: sha512-02S5fmqeoKzVZCHPZid4b8JH2eM5HzQLZWN2FohQEy/0eXTq8VXZfSN6Pcr3F6N9R/vNrj7cpgbhjie6m/1tCA==,
-      }
-
   "@types/express-serve-static-core@5.1.0":
     resolution:
       {
         integrity: sha512-jnHMsrd0Mwa9Cf4IdOzbz543y4XJepXrbia2T4b6+spXC2We3t1y6K44D3mR8XMFSXMCf3/l7rCgddfx7UNVBA==,
-      }
-
-  "@types/express@4.17.25":
-    resolution:
-      {
-        integrity: sha512-dVd04UKsfpINUnK0yBoYHDF3xu7xVH4BuDotC/xGuycx4CgbP48X/KF/586bcObxT0HENHXEU8Nqtu6NR+eKhw==,
       }
 
   "@types/express@5.0.6":
@@ -5866,12 +5792,6 @@ packages:
     resolution:
       {
         integrity: sha512-ymXWVrDiCxTBE3+RIrrP533E70eA+9qu7zdWoHuOmGujkYtzf4HQF96b8nwHLqhuf4ykX61IGRIB38CC6/sImQ==,
-      }
-
-  "@types/mime@1.3.5":
-    resolution:
-      {
-        integrity: sha512-/pyBZWSLD2n0dcHE3hq8s8ZvcETHtEuF+3E7XVt0Ig2nvsVQXdghHVcEkIWjy9A0wKfTn97a/PSDYohKIlnP/w==,
       }
 
   "@types/ms@2.1.0":
@@ -5962,22 +5882,10 @@ packages:
         integrity: sha512-MWtvHrGZLFttgeEj28VXHxpmwYbor/ATPYbBfSFZEIRK0ecCFLl2Qo55z52Hss+UV9CRN7trSeq1zbgx7YDWWg==,
       }
 
-  "@types/send@0.17.6":
-    resolution:
-      {
-        integrity: sha512-Uqt8rPBE8SY0RK8JB1EzVOIZ32uqy8HwdxCnoCOsYrvnswqmFZ/k+9Ikidlk/ImhsdvBsloHbAlewb2IEBV/Og==,
-      }
-
   "@types/send@1.2.1":
     resolution:
       {
         integrity: sha512-arsCikDvlU99zl1g69TcAB3mzZPpxgw0UQnaHeC1Nwb015xp8bknZv5rIfri9xTOcMuaVgvabfIRA7PSZVuZIQ==,
-      }
-
-  "@types/serve-static@1.15.10":
-    resolution:
-      {
-        integrity: sha512-tRs1dB+g8Itk72rlSI2ZrW6vZg0YrLI81iQSTkMmOqnqCaNr/8Ek4VwWcN5vZgCYWbg/JJSGBlUaYGAOP73qBw==,
       }
 
   "@types/serve-static@2.2.0":
@@ -6624,12 +6532,6 @@ packages:
       }
     engines: { node: ">=10" }
 
-  array-flatten@1.1.1:
-    resolution:
-      {
-        integrity: sha512-PCVAQswWemu6UdxsDFFX/+gVeYqKAod3D3UVm91jHwynguOwAvYPhx8nNlM++NqRcK6CxxpUafjmhIdKiHibqg==,
-      }
-
   array-timsort@1.0.3:
     resolution:
       {
@@ -6800,13 +6702,6 @@ packages:
       {
         integrity: sha512-1W07cM9gS6DcLperZfFSj+bWLtaPGSOHWhPiGzXmvVJbRLdG82sH/Kn8EtW1VqWVA54AKf2h5k5BbnIbwF3h6w==,
       }
-
-  body-parser@1.20.4:
-    resolution:
-      {
-        integrity: sha512-ZTgYYLMOXY9qKU/57FAo8F+HA2dGX7bqGc71txDRC1rS4frdFI5R7NhluHxH6M0YItAP0sHB4uqAOcYKxO6uGA==,
-      }
-    engines: { node: ">= 0.8", npm: 1.2.8000 || >= 1.4.16 }
 
   body-parser@2.2.1:
     resolution:
@@ -7215,13 +7110,6 @@ packages:
       }
     engines: { node: ^14.18.0 || >=16.10.0 }
 
-  content-disposition@0.5.4:
-    resolution:
-      {
-        integrity: sha512-FveZTNuGw04cxlAiWbzi6zTAL/lhehaWbTtgluJh4/E95DqMwTmha3KZN1aAWA8cFIhHzMZUvLevkw5Rqk+tSQ==,
-      }
-    engines: { node: ">= 0.6" }
-
   content-disposition@1.0.1:
     resolution:
       {
@@ -7246,12 +7134,6 @@ packages:
     resolution:
       {
         integrity: sha512-RAj4E421UYRgqokKUmotqAwuplYw15qtdXfY+hGzgCJ/MBjCVZcSoHK/kH9kocfjRjcDME7IiDWR/1WX1TM2Pg==,
-      }
-
-  cookie-signature@1.0.7:
-    resolution:
-      {
-        integrity: sha512-NXdYc3dLr47pBkpUCHtKSwIOQXLVn8dZEuywboCOJY/osA0wFSLlSawr3KN8qXJEyX66FcONTH8EIlVuK0yyFA==,
       }
 
   cookie-signature@1.2.2:
@@ -7341,17 +7223,6 @@ packages:
         integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==,
       }
 
-  debug@2.6.9:
-    resolution:
-      {
-        integrity: sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==,
-      }
-    peerDependencies:
-      supports-color: "*"
-    peerDependenciesMeta:
-      supports-color:
-        optional: true
-
   debug@4.3.7:
     resolution:
       {
@@ -7426,13 +7297,6 @@ packages:
         integrity: sha512-g7nH6P6dyDioJogAAGprGpCtVImJhpPk/roCzdb3fIh61/s/nPsfR6onyMwkCAR/OlC3yBC0lESvUoQEAssIrw==,
       }
     engines: { node: ">= 0.8" }
-
-  destroy@1.2.0:
-    resolution:
-      {
-        integrity: sha512-2sJGJTaXIIaR1w4iJSNoN0hnMY7Gpc/n8D4qSCJw8QqFWXf7cuAgnEHxBpweaVcPevC2l3KpjYCx3NypQQgaJg==,
-      }
-    engines: { node: ">= 0.8", npm: 1.2.8000 || >= 1.4.16 }
 
   detect-libc@2.1.2:
     resolution:
@@ -8163,13 +8027,6 @@ packages:
       }
     engines: { node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0 }
 
-  express@4.22.1:
-    resolution:
-      {
-        integrity: sha512-F2X8g9P1X7uCPZMA3MVf9wcTqlyNp7IhH5qPCI0izhaOIYXaW9L535tGA3qmjRzpH+bZczqq7hVKxTR4NWnu+g==,
-      }
-    engines: { node: ">= 0.10.0" }
-
   express@5.2.1:
     resolution:
       {
@@ -8272,13 +8129,6 @@ packages:
       }
     engines: { node: ">=8" }
 
-  finalhandler@1.3.2:
-    resolution:
-      {
-        integrity: sha512-aA4RyPcd3badbdABGDuTXCMTtOneUCAYH/gxoYRTZlIJdF0YPWuGqiAsIrhNnnqdXGswYk6dGujem4w80UJFhg==,
-      }
-    engines: { node: ">= 0.8" }
-
   finalhandler@2.1.1:
     resolution:
       {
@@ -8368,13 +8218,6 @@ packages:
       {
         integrity: sha512-1X1NTtiJphryn/uLQz3whtY6jK3fTqoE3ohKs0tT+Ujr1W59oopxmoEh7Lu5p6vBaPbgoM0bzveAW4Qi5RyWDQ==,
       }
-
-  fresh@0.5.2:
-    resolution:
-      {
-        integrity: sha512-zJ2mQYM18rEFOudeV4GShTGIQ7RbzA7ozbU9I/XBpm7kqgMywgmylMwXHxZJmkVoYkna9d2pVXVXPdYTP9ej8Q==,
-      }
-    engines: { node: ">= 0.6" }
 
   fresh@2.0.0:
     resolution:
@@ -8676,13 +8519,6 @@ packages:
     peerDependenciesMeta:
       typescript:
         optional: true
-
-  iconv-lite@0.4.24:
-    resolution:
-      {
-        integrity: sha512-v3MXnZAcvnywkTUEZomIActle7RXXeedOR31wwl7VlyoXO4Qi9arvSenNQWne1TcRwhCL1HwLI21bEqdpj8/rA==,
-      }
-    engines: { node: ">=0.10.0" }
 
   iconv-lite@0.7.1:
     resolution:
@@ -9900,12 +9736,6 @@ packages:
       }
     engines: { node: ">= 4.0.0" }
 
-  merge-descriptors@1.0.3:
-    resolution:
-      {
-        integrity: sha512-gaNvAS7TZ897/rVaZ0nMtAyxNyi/pdbjbAwUpFQpN70GqnVfOiXpeUUMKRBmzXaSQ8DdTX4/0ms62r2K+hE6mQ==,
-      }
-
   merge-descriptors@2.0.0:
     resolution:
       {
@@ -9967,14 +9797,6 @@ packages:
         integrity: sha512-Lbgzdk0h4juoQ9fCKXW4by0UJqj+nOOrI9MJ1sSj4nI8aI2eo1qmvQEie4VD1glsS250n15LsWsYtCugiStS5A==,
       }
     engines: { node: ">=18" }
-
-  mime@1.6.0:
-    resolution:
-      {
-        integrity: sha512-x0Vn8spI+wuJ1O6S7gnbaQg8Pxh4NNHb7KSINmEWKiPE4RKOplvijn+NkmYmmRgP68mc70j2EbeTFRsrswaQeg==,
-      }
-    engines: { node: ">=4" }
-    hasBin: true
 
   mime@2.6.0:
     resolution:
@@ -10052,12 +9874,6 @@ packages:
       }
     engines: { node: ">=10" }
     hasBin: true
-
-  ms@2.0.0:
-    resolution:
-      {
-        integrity: sha512-Tpp60P6IUJDTuOq/5Z8cdskzJujfwqfOTkrwIwj7IRISpnkJnT6SyJ4PCPnGMoFjC9ddhal5KVIYtAt97ix05A==,
-      }
 
   ms@2.1.3:
     resolution:
@@ -10418,12 +10234,6 @@ packages:
       }
     engines: { node: 20 || >=22 }
 
-  path-to-regexp@0.1.12:
-    resolution:
-      {
-        integrity: sha512-RA1GjUVMnvYFxuqovrEqZoxxW5NUZqbwKtYz/Tt7nXerk0LbLblQmrsgdeOxV5SFHf0UDggjS/bSeOZwt1pmEQ==,
-      }
-
   path-to-regexp@8.3.0:
     resolution:
       {
@@ -10767,13 +10577,6 @@ packages:
         integrity: sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg==,
       }
     engines: { node: ">= 0.6" }
-
-  raw-body@2.5.3:
-    resolution:
-      {
-        integrity: sha512-s4VSOf6yN0rvbRZGxs8Om5CWj6seneMwK3oDb4lWDH0UPhWcxwOWw5+qk24bxq87szX1ydrwylIOp2uG1ojUpA==,
-      }
-    engines: { node: ">= 0.8" }
 
   raw-body@3.0.2:
     resolution:
@@ -11147,13 +10950,6 @@ packages:
     engines: { node: ">=10" }
     hasBin: true
 
-  send@0.19.2:
-    resolution:
-      {
-        integrity: sha512-VMbMxbDeehAxpOtWJXlcUS5E8iXh6QmN+BkRX1GARS3wRaXEEgzCcB10gTQazO42tpNIya8xIyNx8fll1OFPrg==,
-      }
-    engines: { node: ">= 0.8.0" }
-
   send@1.2.1:
     resolution:
       {
@@ -11198,13 +10994,6 @@ packages:
         integrity: sha512-N3HEHRCZYn3cQbsC4B5ldj9j+tHdf4JZoYPlcI4rRYu0Xy4qN8MQf1Z08EibzB0WpgRG5BGK08FTrmM66eSzKQ==,
       }
     engines: { node: ">=10" }
-
-  serve-static@1.16.3:
-    resolution:
-      {
-        integrity: sha512-x0RTqQel6g5SY7Lg6ZreMmsOzncHFU7nhnRWkKgWuMTu5NN0DR5oruckMqRvacAN9d5w6ARnRBXl9xhDCgfMeA==,
-      }
-    engines: { node: ">= 0.8.0" }
 
   serve-static@2.2.1:
     resolution:
@@ -16031,107 +15820,11 @@ snapshots:
     dependencies:
       "@tauri-apps/api": 2.9.1
 
-  "@team9/auth@file:apps/server/libs/auth(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)(@nestjs/jwt@11.0.2(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)))(@nestjs/passport@11.0.5(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(passport@0.7.0))(passport-jwt@4.0.1)(rxjs@7.8.2)(socket.io@4.8.3)":
-    dependencies:
-      "@nestjs/common": 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      "@nestjs/core": 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      "@nestjs/jwt": 11.0.2(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))
-      "@nestjs/passport": 11.0.5(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(passport@0.7.0)
-      "@team9/shared": file:apps/server/libs/shared
-      passport-jwt: 4.0.1
-      rxjs: 7.8.2
-      socket.io: 4.8.3
-    optional: true
-
-  "@team9/database@file:apps/server/libs/database(@types/pg@8.16.0)(gel@2.2.0)":
-    dependencies:
-      "@team9/shared": file:apps/server/libs/shared
-      drizzle-orm: 0.45.1(@types/pg@8.16.0)(gel@2.2.0)(postgres@3.4.7)
-      postgres: 3.4.7
-    transitivePeerDependencies:
-      - "@aws-sdk/client-rds-data"
-      - "@cloudflare/workers-types"
-      - "@electric-sql/pglite"
-      - "@libsql/client"
-      - "@libsql/client-wasm"
-      - "@neondatabase/serverless"
-      - "@op-engineering/op-sqlite"
-      - "@opentelemetry/api"
-      - "@planetscale/database"
-      - "@prisma/client"
-      - "@tidbcloud/serverless"
-      - "@types/better-sqlite3"
-      - "@types/pg"
-      - "@types/sql.js"
-      - "@upstash/redis"
-      - "@vercel/postgres"
-      - "@xata.io/client"
-      - better-sqlite3
-      - bun-types
-      - expo-sqlite
-      - gel
-      - knex
-      - kysely
-      - mysql2
-      - pg
-      - prisma
-      - sql.js
-      - sqlite3
-    optional: true
-
   "@team9/enterprise-audit@file:enterprise/libs/audit(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)(uuid@13.0.0)":
     dependencies:
       "@nestjs/common": 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       "@nestjs/core": 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       uuid: 13.0.0
-    optional: true
-
-  "@team9/enterprise-tenant@file:enterprise/libs/tenant(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)(@nestjs/jwt@11.0.2(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)))(@nestjs/passport@11.0.5(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(passport@0.7.0))(@types/pg@8.16.0)(class-validator@0.14.3)(express@5.2.1)(gel@2.2.0)(passport-jwt@4.0.1)(rxjs@7.8.2)(socket.io@4.8.3)":
-    dependencies:
-      "@nestjs/common": 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      "@nestjs/core": 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      "@team9/auth": file:apps/server/libs/auth(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)(@nestjs/jwt@11.0.2(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)))(@nestjs/passport@11.0.5(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(passport@0.7.0))(passport-jwt@4.0.1)(rxjs@7.8.2)(socket.io@4.8.3)
-      "@team9/database": file:apps/server/libs/database(@types/pg@8.16.0)(gel@2.2.0)
-      class-validator: 0.14.3
-      express: 5.2.1
-      uuid: 13.0.0
-    transitivePeerDependencies:
-      - "@aws-sdk/client-rds-data"
-      - "@cloudflare/workers-types"
-      - "@electric-sql/pglite"
-      - "@libsql/client"
-      - "@libsql/client-wasm"
-      - "@neondatabase/serverless"
-      - "@nestjs/jwt"
-      - "@nestjs/passport"
-      - "@op-engineering/op-sqlite"
-      - "@opentelemetry/api"
-      - "@planetscale/database"
-      - "@prisma/client"
-      - "@tidbcloud/serverless"
-      - "@types/better-sqlite3"
-      - "@types/pg"
-      - "@types/sql.js"
-      - "@upstash/redis"
-      - "@vercel/postgres"
-      - "@xata.io/client"
-      - better-sqlite3
-      - bun-types
-      - expo-sqlite
-      - gel
-      - knex
-      - kysely
-      - mysql2
-      - passport-jwt
-      - pg
-      - prisma
-      - rxjs
-      - socket.io
-      - sql.js
-      - sqlite3
-    optional: true
-
-  "@team9/shared@file:apps/server/libs/shared":
     optional: true
 
   "@tokenizer/inflate@0.4.1":
@@ -16212,26 +15905,12 @@ snapshots:
 
   "@types/estree@1.0.8": {}
 
-  "@types/express-serve-static-core@4.19.8":
-    dependencies:
-      "@types/node": 22.19.3
-      "@types/qs": 6.14.0
-      "@types/range-parser": 1.2.7
-      "@types/send": 1.2.1
-
   "@types/express-serve-static-core@5.1.0":
     dependencies:
       "@types/node": 22.19.3
       "@types/qs": 6.14.0
       "@types/range-parser": 1.2.7
       "@types/send": 1.2.1
-
-  "@types/express@4.17.25":
-    dependencies:
-      "@types/body-parser": 1.19.6
-      "@types/express-serve-static-core": 4.19.8
-      "@types/qs": 6.14.0
-      "@types/serve-static": 1.15.10
 
   "@types/express@5.0.6":
     dependencies:
@@ -16273,8 +15952,6 @@ snapshots:
       "@types/node": 22.19.3
 
   "@types/methods@1.1.4": {}
-
-  "@types/mime@1.3.5": {}
 
   "@types/ms@2.1.0": {}
 
@@ -16329,20 +16006,9 @@ snapshots:
     dependencies:
       csstype: 3.2.3
 
-  "@types/send@0.17.6":
-    dependencies:
-      "@types/mime": 1.3.5
-      "@types/node": 22.19.3
-
   "@types/send@1.2.1":
     dependencies:
       "@types/node": 22.19.3
-
-  "@types/serve-static@1.15.10":
-    dependencies:
-      "@types/http-errors": 2.0.5
-      "@types/node": 22.19.3
-      "@types/send": 0.17.6
 
   "@types/serve-static@2.2.0":
     dependencies:
@@ -16826,8 +16492,6 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  array-flatten@1.1.1: {}
-
   array-timsort@1.0.3: {}
 
   asap@2.0.6: {}
@@ -16974,23 +16638,6 @@ snapshots:
       buffer: 5.7.1
       inherits: 2.0.4
       readable-stream: 3.6.2
-
-  body-parser@1.20.4:
-    dependencies:
-      bytes: 3.1.2
-      content-type: 1.0.5
-      debug: 2.6.9
-      depd: 2.0.0
-      destroy: 1.2.0
-      http-errors: 2.0.1
-      iconv-lite: 0.4.24
-      on-finished: 2.4.1
-      qs: 6.14.0
-      raw-body: 2.5.3
-      type-is: 1.6.18
-      unpipe: 1.0.0
-    transitivePeerDependencies:
-      - supports-color
 
   body-parser@2.2.1:
     dependencies:
@@ -17214,10 +16861,6 @@ snapshots:
 
   consola@3.4.2: {}
 
-  content-disposition@0.5.4:
-    dependencies:
-      safe-buffer: 5.2.1
-
   content-disposition@1.0.1: {}
 
   content-type@1.0.5: {}
@@ -17225,8 +16868,6 @@ snapshots:
   convert-source-map@2.0.0: {}
 
   cookie-es@2.0.0: {}
-
-  cookie-signature@1.0.7: {}
 
   cookie-signature@1.2.2: {}
 
@@ -17287,10 +16928,6 @@ snapshots:
 
   csstype@3.2.3: {}
 
-  debug@2.6.9:
-    dependencies:
-      ms: 2.0.0
-
   debug@4.3.7:
     dependencies:
       ms: 2.1.3
@@ -17314,8 +16951,6 @@ snapshots:
   denque@2.1.0: {}
 
   depd@2.0.0: {}
-
-  destroy@1.2.0: {}
 
   detect-libc@2.1.2: {}
 
@@ -17813,42 +17448,6 @@ snapshots:
       jest-mock: 30.2.0
       jest-util: 30.2.0
 
-  express@4.22.1:
-    dependencies:
-      accepts: 1.3.8
-      array-flatten: 1.1.1
-      body-parser: 1.20.4
-      content-disposition: 0.5.4
-      content-type: 1.0.5
-      cookie: 0.7.2
-      cookie-signature: 1.0.7
-      debug: 2.6.9
-      depd: 2.0.0
-      encodeurl: 2.0.0
-      escape-html: 1.0.3
-      etag: 1.8.1
-      finalhandler: 1.3.2
-      fresh: 0.5.2
-      http-errors: 2.0.1
-      merge-descriptors: 1.0.3
-      methods: 1.1.2
-      on-finished: 2.4.1
-      parseurl: 1.3.3
-      path-to-regexp: 0.1.12
-      proxy-addr: 2.0.7
-      qs: 6.14.0
-      range-parser: 1.2.1
-      safe-buffer: 5.2.1
-      send: 0.19.2
-      serve-static: 1.16.3
-      setprototypeof: 1.2.0
-      statuses: 2.0.2
-      type-is: 1.6.18
-      utils-merge: 1.0.1
-      vary: 1.1.2
-    transitivePeerDependencies:
-      - supports-color
-
   express@5.2.1:
     dependencies:
       accepts: 2.0.0
@@ -17935,18 +17534,6 @@ snapshots:
     dependencies:
       to-regex-range: 5.0.1
 
-  finalhandler@1.3.2:
-    dependencies:
-      debug: 2.6.9
-      encodeurl: 2.0.0
-      escape-html: 1.0.3
-      on-finished: 2.4.1
-      parseurl: 1.3.3
-      statuses: 2.0.2
-      unpipe: 1.0.0
-    transitivePeerDependencies:
-      - supports-color
-
   finalhandler@2.1.1:
     dependencies:
       debug: 4.4.3
@@ -18016,8 +17603,6 @@ snapshots:
   forwarded@0.2.0: {}
 
   fraction.js@5.3.4: {}
-
-  fresh@0.5.2: {}
 
   fresh@2.0.0: {}
 
@@ -18183,10 +17768,6 @@ snapshots:
       "@babel/runtime": 7.28.4
     optionalDependencies:
       typescript: 5.8.3
-
-  iconv-lite@0.4.24:
-    dependencies:
-      safer-buffer: 2.1.2
 
   iconv-lite@0.7.1:
     dependencies:
@@ -19237,8 +18818,6 @@ snapshots:
     dependencies:
       fs-monkey: 1.1.0
 
-  merge-descriptors@1.0.3: {}
-
   merge-descriptors@2.0.0: {}
 
   merge-stream@2.0.0: {}
@@ -19263,8 +18842,6 @@ snapshots:
   mime-types@3.0.2:
     dependencies:
       mime-db: 1.54.0
-
-  mime@1.6.0: {}
 
   mime@2.6.0: {}
 
@@ -19295,8 +18872,6 @@ snapshots:
       minimist: 1.2.8
 
   mkdirp@1.0.4: {}
-
-  ms@2.0.0: {}
 
   ms@2.1.3: {}
 
@@ -19502,8 +19077,6 @@ snapshots:
       lru-cache: 11.2.4
       minipass: 7.1.2
 
-  path-to-regexp@0.1.12: {}
-
   path-to-regexp@8.3.0: {}
 
   path-type@4.0.0: {}
@@ -19667,13 +19240,6 @@ snapshots:
       safe-buffer: 5.2.1
 
   range-parser@1.2.1: {}
-
-  raw-body@2.5.3:
-    dependencies:
-      bytes: 3.1.2
-      http-errors: 2.0.1
-      iconv-lite: 0.4.24
-      unpipe: 1.0.0
 
   raw-body@3.0.2:
     dependencies:
@@ -19916,24 +19482,6 @@ snapshots:
 
   semver@7.7.3: {}
 
-  send@0.19.2:
-    dependencies:
-      debug: 2.6.9
-      depd: 2.0.0
-      destroy: 1.2.0
-      encodeurl: 2.0.0
-      escape-html: 1.0.3
-      etag: 1.8.1
-      fresh: 0.5.2
-      http-errors: 2.0.1
-      mime: 1.6.0
-      ms: 2.1.3
-      on-finished: 2.4.1
-      range-parser: 1.2.1
-      statuses: 2.0.2
-    transitivePeerDependencies:
-      - supports-color
-
   send@1.2.1:
     dependencies:
       debug: 4.4.3
@@ -19965,15 +19513,6 @@ snapshots:
   seroval@1.3.2: {}
 
   seroval@1.4.2: {}
-
-  serve-static@1.16.3:
-    dependencies:
-      encodeurl: 2.0.0
-      escape-html: 1.0.3
-      parseurl: 1.3.3
-      send: 0.19.2
-    transitivePeerDependencies:
-      - supports-color
 
   serve-static@2.2.1:
     dependencies:
