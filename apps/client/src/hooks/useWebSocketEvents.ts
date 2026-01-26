@@ -39,7 +39,9 @@ export function useWebSocketEvents() {
   const currentUser = useUser();
 
   useEffect(() => {
-    if (!workspaceId) return;
+    if (!workspaceId) {
+      return;
+    }
 
     // ==================== Channel Events ====================
 
@@ -106,10 +108,23 @@ export function useWebSocketEvents() {
     // ==================== User Status Events ====================
 
     const handleUserOnline = ({ userId }: UserOnlineEvent) => {
+      // Check if the query cache exists
+      const existingData = queryClient.getQueryData<Record<string, string>>([
+        "im-users",
+        "online",
+      ]);
+
+      if (existingData === undefined) {
+        // Query hasn't been initialized yet, trigger a fresh fetch
+        queryClient.invalidateQueries({ queryKey: ["im-users", "online"] });
+        return;
+      }
+
+      // Update cache optimistically
       queryClient.setQueryData(
         ["im-users", "online"],
         (old: Record<string, string> | undefined) => {
-          return { ...old, [userId]: "online" };
+          return { ...(old || {}), [userId]: "online" };
         },
       );
     };

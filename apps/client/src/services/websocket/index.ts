@@ -165,6 +165,8 @@ class WebSocketService {
     // Force refetch active queries to get latest data including offline messages
     queryClient.refetchQueries({ queryKey: ["channels"], type: "active" });
     queryClient.refetchQueries({ queryKey: ["messages"], type: "active" });
+    // Also refetch online users to get current status
+    queryClient.refetchQueries({ queryKey: ["im-users", "online"] });
   }
 
   private processPendingJoins(): void {
@@ -235,7 +237,6 @@ class WebSocketService {
   // Event listeners
   on(event: string, callback: EventCallback): void {
     if (!this.socket?.connected) {
-      console.log(`[WS] Queuing listener for event: ${event}`);
       this.pendingListeners.push({ event, callback });
       return;
     }
