@@ -29,5 +29,9 @@
   "unpinMessage": "取消固定",
   "deleteMessage": "删除消息...",
   "messageCopied": "消息已复制",
-  "linkCopied": "链接已复制"
+  "linkCopied": "链接已复制",
+  "sending": "发送中...",
+  "sendFailed": "发送失败",
+  "retry": "重试",
+  "remove": "删除"
 }

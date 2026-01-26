@@ -4,6 +4,7 @@ export type ChannelType = "direct" | "public" | "private";
 export type MessageType = "text" | "file" | "image" | "system";
 export type MemberRole = "owner" | "admin" | "member";
 export type UserStatus = "online" | "offline" | "away" | "busy";
+export type MessageSendStatus = "sending" | "sent" | "failed";
 
 export interface IMUser {
   id: string;
@@ -102,6 +103,10 @@ export interface Message {
   attachments?: MessageAttachment[];
   reactions?: MessageReaction[];
   replyCount?: number;
+  // Client-side only fields for optimistic updates
+  sendStatus?: MessageSendStatus;
+  // Original request data for retry (only present when sendStatus is 'failed')
+  _retryData?: CreateMessageDto;
 }
 
 // Thread response types for nested replies (max 2 levels)

@@ -6,7 +6,12 @@ import {
 import { useEffect } from "react";
 import imApi from "@/services/api/im";
 import wsService from "@/services/websocket";
-import type { CreateMessageDto, UpdateMessageDto, Message } from "@/types/im";
+import type {
+  CreateMessageDto,
+  UpdateMessageDto,
+  Message,
+  MessageSendStatus,
+} from "@/types/im";
 import { useSelectedWorkspaceId } from "@/stores";
 import { useThreadStore } from "./useThread";
 import { useThreadScrollState } from "./useThreadScrollState";
@@ -235,7 +240,7 @@ export function useSendMessage(channelId: string) {
       // Generate a temporary ID for the optimistic message
       const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 
-      // Create optimistic message
+      // Create optimistic message with 'sending' status
       const optimisticMessage: Message = {
         id: tempId,
         channelId,
@@ -274,6 +279,8 @@ export function useSendMessage(channelId: string) {
         })),
         reactions: [],
         replyCount: 0,
+        sendStatus: "sending" as MessageSendStatus,
+        _retryData: newMessageData,
       };
 
       // Optimistically add the message to the cache
@@ -336,16 +343,151 @@ export function useSendMessage(channelId: string) {
       queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
     },
 
-    onError: (_err, _variables, context) => {
-      // Rollback to previous state on error
-      if (context?.previousMessages) {
-        queryClient.setQueryData(
-          ["messages", channelId],
-          context.previousMessages,
-        );
+    onError: (_err, variables, context) => {
+      // Mark the optimistic message as failed instead of rolling back
+      if (context?.tempId) {
+        queryClient.setQueryData(["messages", channelId], (old: any) => {
+          if (!old) return old;
+
+          return {
+            ...old,
+            pages: old.pages.map((page: Message[]) =>
+              page.map((msg) =>
+                msg.id === context.tempId
+                  ? {
+                      ...msg,
+                      sendStatus: "failed" as MessageSendStatus,
+                      _retryData: variables,
+                    }
+                  : msg,
+              ),
+            ),
+          };
+        });
       }
     },
   });
+}
+
+/**
+ * Hook to retry sending a failed message
+ */
+export function useRetryMessage(channelId: string) {
+  const queryClient = useQueryClient();
+  const workspaceId = useSelectedWorkspaceId();
+
+  return useMutation({
+    mutationFn: async ({
+      retryData,
+    }: {
+      tempId: string;
+      retryData: CreateMessageDto;
+    }) => {
+      return imApi.messages.sendMessage(channelId, retryData);
+    },
+
+    onMutate: async ({ tempId }) => {
+      // Mark message as sending again
+      queryClient.setQueryData(["messages", channelId], (old: any) => {
+        if (!old) return old;
+
+        return {
+          ...old,
+          pages: old.pages.map((page: Message[]) =>
+            page.map((msg) =>
+              msg.id === tempId
+                ? { ...msg, sendStatus: "sending" as MessageSendStatus }
+                : msg,
+            ),
+          ),
+        };
+      });
+
+      return { tempId };
+    },
+
+    onSuccess: (serverMessage, { tempId }) => {
+      // Replace the failed message with the real one from server
+      queryClient.setQueryData(["messages", channelId], (old: any) => {
+        if (!old) return { pages: [[serverMessage]], pageParams: [undefined] };
+
+        // Check if server message already exists (added by WebSocket)
+        const serverMessageExists = old.pages.some((page: Message[]) =>
+          page.some((msg: Message) => msg.id === serverMessage.id),
+        );
+
+        return {
+          ...old,
+          pages: old.pages.map((page: Message[], pageIndex: number) => {
+            if (pageIndex === 0) {
+              const tempIndex = page.findIndex((msg) => msg.id === tempId);
+
+              if (tempIndex !== -1) {
+                if (serverMessageExists) {
+                  // Server message already added by WebSocket, just remove temp
+                  return page.filter((msg) => msg.id !== tempId);
+                } else {
+                  // Replace temp message with server message
+                  const newPage = [...page];
+                  newPage[tempIndex] = serverMessage;
+                  return newPage;
+                }
+              }
+
+              if (!serverMessageExists) {
+                return [serverMessage, ...page];
+              }
+            }
+            return page;
+          }),
+        };
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
+    },
+
+    onError: (_err, { tempId, retryData }) => {
+      // Mark back as failed
+      queryClient.setQueryData(["messages", channelId], (old: any) => {
+        if (!old) return old;
+
+        return {
+          ...old,
+          pages: old.pages.map((page: Message[]) =>
+            page.map((msg) =>
+              msg.id === tempId
+                ? {
+                    ...msg,
+                    sendStatus: "failed" as MessageSendStatus,
+                    _retryData: retryData,
+                  }
+                : msg,
+            ),
+          ),
+        };
+      });
+    },
+  });
+}
+
+/**
+ * Hook to remove a failed message from the list
+ */
+export function useRemoveFailedMessage(channelId: string) {
+  const queryClient = useQueryClient();
+
+  return (tempId: string) => {
+    queryClient.setQueryData(["messages", channelId], (old: any) => {
+      if (!old) return old;
+
+      return {
+        ...old,
+        pages: old.pages.map((page: Message[]) =>
+          page.filter((msg) => msg.id !== tempId),
+        ),
+      };
+    });
+  };
 }
 
 /**

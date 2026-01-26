@@ -1,5 +1,11 @@
 import { useTranslation } from "react-i18next";
-import { MessageSquare } from "lucide-react";
+import {
+  MessageSquare,
+  Loader2,
+  AlertCircle,
+  RotateCcw,
+  X,
+} from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { MessageContent } from "./MessageContent";
 import { MessageAttachments } from "./MessageAttachments";
@@ -31,6 +37,10 @@ export interface MessageItemProps {
   onEdit?: () => void;
   onDelete?: () => void;
   onPin?: () => void;
+  /** Retry sending a failed message */
+  onRetry?: () => void;
+  /** Remove a failed message from the list */
+  onRemoveFailed?: () => void;
 }
 
 export function MessageItem({
@@ -48,9 +58,13 @@ export function MessageItem({
   onEdit,
   onDelete,
   onPin,
+  onRetry,
+  onRemoveFailed,
 }: MessageItemProps) {
-  const { t } = useTranslation("thread");
+  const { t } = useTranslation(["thread", "message"]);
   const isOwnMessage = currentUserId === message.senderId;
+  const isSending = message.sendStatus === "sending";
+  const isFailed = message.sendStatus === "failed";
 
   // Deleted message display
   if (message.isDeleted) {
@@ -113,6 +127,8 @@ export function MessageItem({
         indent && "ml-6",
         isHighlighted &&
           "bg-yellow-100 dark:bg-yellow-900/30 ring-2 ring-yellow-400 dark:ring-yellow-600",
+        isSending && "opacity-70",
+        isFailed && "bg-red-50 dark:bg-red-900/10",
       )}
     >
       <Avatar className={cn("shrink-0", compact ? "w-8 h-8" : "w-9 h-9")}>
@@ -135,6 +151,18 @@ export function MessageItem({
           {message.isEdited && (
             <span className="text-xs text-muted-foreground">(edited)</span>
           )}
+          {isSending && (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Loader2 size={12} className="animate-spin" />
+              {t("message:sending")}
+            </span>
+          )}
+          {isFailed && (
+            <span className="flex items-center gap-1 text-xs text-red-500">
+              <AlertCircle size={12} />
+              {t("message:sendFailed")}
+            </span>
+          )}
         </div>
         {hasContent && (
           <div className="w-fit max-w-full">
@@ -149,6 +177,24 @@ export function MessageItem({
             attachments={message.attachments!}
             isOwnMessage={isOwnMessage}
           />
+        )}
+        {isFailed && (
+          <div className="flex items-center gap-2 mt-1">
+            <button
+              onClick={onRetry}
+              className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline"
+            >
+              <RotateCcw size={12} />
+              {t("message:retry")}
+            </button>
+            <button
+              onClick={onRemoveFailed}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-500"
+            >
+              <X size={12} />
+              {t("message:remove")}
+            </button>
+          </div>
         )}
         <ReplyCountIndicator />
       </div>

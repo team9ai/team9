@@ -4,7 +4,11 @@ import { Loader2 } from "lucide-react";
 import type { Message } from "@/types/im";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useThreadStore } from "@/hooks/useThread";
-import { useDeleteMessage } from "@/hooks/useMessages";
+import {
+  useDeleteMessage,
+  useRetryMessage,
+  useRemoveFailedMessage,
+} from "@/hooks/useMessages";
 import { MessageItem } from "./MessageItem";
 
 interface MessageListProps {
@@ -14,6 +18,8 @@ interface MessageListProps {
   hasMore?: boolean;
   // Target message ID to scroll to and highlight
   highlightMessageId?: string;
+  // Channel ID for retry failed messages
+  channelId: string;
 }
 
 export function MessageList({
@@ -22,6 +28,7 @@ export function MessageList({
   onLoadMore,
   hasMore,
   highlightMessageId,
+  channelId,
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
@@ -171,6 +178,7 @@ export function MessageList({
               showReplyCount={Boolean(hasReplies)}
               onReplyCountClick={() => openThread(message.id)}
               isHighlighted={isHighlighted}
+              channelId={channelId}
             />
           );
         })}
@@ -187,15 +195,19 @@ function ChannelMessageItem({
   showReplyCount,
   onReplyCountClick,
   isHighlighted,
+  channelId,
 }: {
   message: Message;
   currentUserId?: string;
   showReplyCount?: boolean;
   onReplyCountClick?: () => void;
   isHighlighted?: boolean;
+  channelId: string;
 }) {
   const openThread = useThreadStore((state) => state.openThread);
   const deleteMessage = useDeleteMessage();
+  const retryMessage = useRetryMessage(channelId);
+  const removeFailedMessage = useRemoveFailedMessage(channelId);
 
   // Context menu handlers
   const handleReply = () => {
@@ -221,6 +233,19 @@ function ChannelMessageItem({
     // TODO: Implement pin functionality
   };
 
+  const handleRetry = () => {
+    if (message._retryData) {
+      retryMessage.mutate({
+        tempId: message.id,
+        retryData: message._retryData,
+      });
+    }
+  };
+
+  const handleRemoveFailed = () => {
+    removeFailedMessage(message.id);
+  };
+
   return (
     <MessageItem
       message={message}
@@ -233,6 +258,8 @@ function ChannelMessageItem({
       onEdit={handleEdit}
       onDelete={handleDelete}
       onPin={handlePin}
+      onRetry={handleRetry}
+      onRemoveFailed={handleRemoveFailed}
     />
   );
 }

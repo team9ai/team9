@@ -29,5 +29,9 @@
   "unpinMessage": "Unpin message",
   "deleteMessage": "Delete message...",
   "messageCopied": "Message copied",
-  "linkCopied": "Link copied"
+  "linkCopied": "Link copied",
+  "sending": "Sending...",
+  "sendFailed": "Failed to send",
+  "retry": "Retry",
+  "remove": "Remove"
 }

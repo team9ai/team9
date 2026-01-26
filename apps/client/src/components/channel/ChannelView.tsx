@@ -117,6 +117,7 @@ export function ChannelView({
           }}
           hasMore={hasNextPage}
           highlightMessageId={initialMessageId}
+          channelId={channelId}
         />
 
         <MessageInput
