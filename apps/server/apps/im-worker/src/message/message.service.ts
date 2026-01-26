@@ -17,6 +17,8 @@ import {
   type UpstreamMessage,
   type IMMessageEnvelope,
   type TextMessagePayload,
+  type FileMessagePayload,
+  type ImageMessagePayload,
   type ServerAckResponse,
   type CreateMessageDto,
   type CreateMessageResponse,
@@ -189,18 +191,62 @@ export class MessageService {
     senderId: string,
     gatewayId: string,
   ): Promise<void> {
-    const payload = message.payload as TextMessagePayload;
+    // Extract content and parentId based on message type
+    let content: string | null = null;
+    let parentId: string | undefined;
+
+    switch (message.type) {
+      case 'text': {
+        const textPayload = message.payload as TextMessagePayload;
+        content = textPayload.content ?? null;
+        parentId = textPayload.parentId;
+        break;
+      }
+      case 'file': {
+        const filePayload = message.payload as FileMessagePayload;
+        // For file messages, store file info as content or leave null
+        content = filePayload.fileName ?? null;
+        break;
+      }
+      case 'image': {
+        const imagePayload = message.payload as ImageMessagePayload;
+        // For image messages, content can be null
+        content = imagePayload.imageUrl ?? null;
+        break;
+      }
+      case 'system': {
+        // System messages may have content in a generic payload
+        const systemPayload = message.payload as Record<string, unknown>;
+        content =
+          typeof systemPayload.content === 'string'
+            ? systemPayload.content
+            : null;
+        break;
+      }
+      default: {
+        // Fallback: try to extract content from generic payload
+        const genericPayload = message.payload as Record<string, unknown>;
+        content =
+          typeof genericPayload.content === 'string'
+            ? genericPayload.content
+            : null;
+        parentId =
+          typeof genericPayload.parentId === 'string'
+            ? genericPayload.parentId
+            : undefined;
+      }
+    }
 
     // Calculate rootId based on parentId
     let rootId: string | null = null;
-    if (payload.parentId) {
-      const parentInfo = await this.getParentMessageInfo(payload.parentId);
+    if (parentId) {
+      const parentInfo = await this.getParentMessageInfo(parentId);
       if (parentInfo.rootId) {
         // Parent is already a reply, use its rootId
         rootId = parentInfo.rootId;
       } else {
         // Parent is a root message, so this is a first-level reply
-        rootId = payload.parentId;
+        rootId = parentId;
       }
     }
 
@@ -208,8 +254,8 @@ export class MessageService {
       id: message.msgId,
       channelId: message.targetId,
       senderId,
-      content: payload.content,
-      parentId: payload.parentId,
+      content,
+      parentId,
       rootId,
       type: message.type as 'text' | 'file' | 'image' | 'system',
       seqId: message.seqId,
