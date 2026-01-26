@@ -208,7 +208,7 @@ export function useMessages(channelId: string | undefined) {
 }
 
 /**
- * Hook to send a message
+ * Hook to send a message with optimistic updates
  */
 export function useSendMessage(channelId: string) {
   const queryClient = useQueryClient();
@@ -217,24 +217,133 @@ export function useSendMessage(channelId: string) {
   return useMutation({
     mutationFn: (data: CreateMessageDto) =>
       imApi.messages.sendMessage(channelId!, data),
-    onSuccess: (newMessage) => {
-      // Immediately add the message to the cache for instant display
-      queryClient.setQueryData(["messages", channelId], (old: any) => {
-        if (!old) return { pages: [[newMessage]], pageParams: [undefined] };
 
-        // Check if message already exists (might have been added via WebSocket)
-        const exists = old.pages.some((page: Message[]) =>
-          page.some((msg) => msg.id === newMessage.id),
-        );
-        if (exists) return old;
+    onMutate: async (newMessageData) => {
+      // Cancel any outgoing refetches to prevent overwriting optimistic update
+      await queryClient.cancelQueries({ queryKey: ["messages", channelId] });
+
+      // Snapshot the previous value for rollback
+      const previousMessages = queryClient.getQueryData([
+        "messages",
+        channelId,
+      ]);
+
+      // Get current user from app store
+      const { useAppStore } = await import("@/stores/useAppStore");
+      const currentUser = useAppStore.getState().user;
+
+      // Generate a temporary ID for the optimistic message
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+
+      // Create optimistic message
+      const optimisticMessage: Message = {
+        id: tempId,
+        channelId,
+        senderId: currentUser?.id || "",
+        content: newMessageData.content,
+        type: "text",
+        isPinned: false,
+        isEdited: false,
+        isDeleted: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        sender: currentUser
+          ? {
+              id: currentUser.id,
+              email: currentUser.email,
+              username: currentUser.name,
+              displayName: currentUser.name,
+              avatarUrl: currentUser.avatarUrl,
+              status: "online",
+              isActive: true,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            }
+          : undefined,
+        // For optimistic update, we create placeholder attachments
+        // They will be replaced with full data from server response
+        attachments: newMessageData.attachments?.map((att, index) => ({
+          id: `temp-att-${index}`,
+          messageId: tempId,
+          fileKey: att.fileKey,
+          fileName: att.fileName,
+          fileUrl: "", // Will be populated by server
+          fileSize: att.fileSize,
+          mimeType: att.mimeType,
+          createdAt: new Date().toISOString(),
+        })),
+        reactions: [],
+        replyCount: 0,
+      };
+
+      // Optimistically add the message to the cache
+      queryClient.setQueryData(["messages", channelId], (old: any) => {
+        if (!old)
+          return { pages: [[optimisticMessage]], pageParams: [undefined] };
 
         return {
           ...old,
-          pages: [[newMessage, ...old.pages[0]], ...old.pages.slice(1)],
+          pages: [[optimisticMessage, ...old.pages[0]], ...old.pages.slice(1)],
         };
       });
+
+      // Return context for rollback and replacement
+      return { previousMessages, tempId };
+    },
+
+    onSuccess: (serverMessage, _, context) => {
+      // Replace the optimistic message with the real one from server
+      queryClient.setQueryData(["messages", channelId], (old: any) => {
+        if (!old) return { pages: [[serverMessage]], pageParams: [undefined] };
+
+        // Check if server message already exists (added by WebSocket)
+        const serverMessageExists = old.pages.some((page: Message[]) =>
+          page.some((msg: Message) => msg.id === serverMessage.id),
+        );
+
+        return {
+          ...old,
+          pages: old.pages.map((page: Message[], pageIndex: number) => {
+            if (pageIndex === 0) {
+              const tempIndex = page.findIndex(
+                (msg) => msg.id === context?.tempId,
+              );
+
+              if (tempIndex !== -1) {
+                // Found temp message - replace or remove it
+                if (serverMessageExists) {
+                  // Server message already added by WebSocket, just remove temp
+                  return page.filter((msg) => msg.id !== context?.tempId);
+                } else {
+                  // Replace temp message with server message
+                  const newPage = [...page];
+                  newPage[tempIndex] = serverMessage;
+                  return newPage;
+                }
+              }
+
+              // Temp message not found (edge case)
+              if (!serverMessageExists) {
+                return [serverMessage, ...page];
+              }
+            }
+            return page;
+          }),
+        };
+      });
+
       // Invalidate channels to update unread counts
       queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
+    },
+
+    onError: (_err, _variables, context) => {
+      // Rollback to previous state on error
+      if (context?.previousMessages) {
+        queryClient.setQueryData(
+          ["messages", channelId],
+          context.previousMessages,
+        );
+      }
     },
   });
 }
