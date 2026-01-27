@@ -43,7 +43,6 @@ COPY apps/server/libs/agent-framework/package.json ./apps/server/libs/agent-fram
 COPY apps/server/libs/agent-runtime/package.json ./apps/server/libs/agent-runtime/
 
 # Copy enterprise package.json files if submodule is present
-COPY enterpris[e]/libs/tenant/package.json ./enterprise/libs/tenant/
 COPY enterpris[e]/libs/sso/package.json ./enterprise/libs/sso/
 COPY enterpris[e]/libs/audit/package.json ./enterprise/libs/audit/
 COPY enterpris[e]/libs/analytics/package.json ./enterprise/libs/analytics/
