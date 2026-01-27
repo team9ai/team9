@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-router";
 import { MainSidebar } from "@/components/layout/MainSidebar";
 import { DynamicSubSidebar } from "@/components/layout/DynamicSubSidebar";
+import { GlobalTopBar } from "@/components/layout/GlobalTopBar";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useWebSocketEvents } from "@/hooks/useWebSocketEvents";
 import { useEffect } from "react";
@@ -88,17 +89,23 @@ function AuthenticatedLayout() {
   }, [location.pathname]);
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Main navigation sidebar - leftmost */}
-      <MainSidebar />
+    <div className="flex flex-col h-screen overflow-hidden">
+      {/* Global top bar with search */}
+      <GlobalTopBar />
 
-      {/* SubSidebar - dynamic based on route */}
-      <DynamicSubSidebar />
+      {/* Main content area with sidebars */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Main navigation sidebar - leftmost */}
+        <MainSidebar />
 
-      {/* Main content area */}
-      <main className="flex-1 overflow-hidden">
-        <Outlet />
-      </main>
+        {/* SubSidebar - dynamic based on route */}
+        <DynamicSubSidebar />
+
+        {/* Main content area */}
+        <main className="flex-1 overflow-hidden">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

@@ -1,10 +1,9 @@
-import { Search, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { useUserWorkspaces, useWorkspaceMembers } from "@/hooks/useWorkspace";
 import { useChannelsByType, useCreateDirectChannel } from "@/hooks/useChannels";
 import { useOnlineUsers } from "@/hooks/useIMUsers";
@@ -37,7 +36,6 @@ export function MessagesSubSidebar() {
     return membersData.pages.flatMap((page) => page.members);
   }, [membersData]);
   const createDirectChannel = useCreateDirectChannel();
-  const [searchQuery, setSearchQuery] = useState("");
 
   // Extract users from direct channels (existing conversations)
   const directMessageUsers = useMemo(() => {
@@ -67,30 +65,10 @@ export function MessagesSubSidebar() {
   );
 
   const filteredMembers = useMemo(() => {
-    let result = members.filter(
+    return members.filter(
       (m) => m.userId !== currentUser?.id && !existingDmUserIds.has(m.userId),
     );
-
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (m) =>
-          m.username.toLowerCase().includes(query) ||
-          m.displayName?.toLowerCase().includes(query),
-      );
-    }
-
-    return result;
-  }, [members, currentUser?.id, searchQuery, existingDmUserIds]);
-
-  // Filter existing DMs by search query
-  const filteredDMs = useMemo(() => {
-    if (!searchQuery) return directMessageUsers;
-    const query = searchQuery.toLowerCase();
-    return directMessageUsers.filter((dm) =>
-      dm.name.toLowerCase().includes(query),
-    );
-  }, [directMessageUsers, searchQuery]);
+  }, [members, currentUser?.id, existingDmUserIds]);
 
   const handleMemberClick = async (memberId: string) => {
     try {
@@ -113,7 +91,7 @@ export function MessagesSubSidebar() {
   return (
     <aside className="w-64 h-full overflow-hidden bg-[#5b2c6f] text-white flex flex-col">
       {/* Header */}
-      <div className="p-4">
+      <div className="p-4 pb-2">
         <Button
           variant="ghost"
           className="w-full justify-between text-white hover:bg-white/10 px-2 h-auto py-1.5"
@@ -121,23 +99,6 @@ export function MessagesSubSidebar() {
           <span className="font-semibold text-lg">Direct Messages</span>
           <ChevronDown size={16} className="text-white/70" />
         </Button>
-      </div>
-
-      {/* Search Bar */}
-      <div className="px-3 pb-3">
-        <div className="relative">
-          <Search
-            size={16}
-            className="absolute left-2 top-1/2 -translate-y-1/2 text-white/50 z-10"
-          />
-          <Input
-            type="text"
-            placeholder="Search messages..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8 h-9 bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:bg-white/15"
-          />
-        </div>
       </div>
 
       <Separator className="bg-white/10" />
@@ -150,8 +111,8 @@ export function MessagesSubSidebar() {
           ) : (
             <>
               {/* Existing DM Conversations */}
-              {filteredDMs.length > 0 &&
-                filteredDMs.map((dm) => (
+              {directMessageUsers.length > 0 &&
+                directMessageUsers.map((dm) => (
                   <UserListItem
                     key={dm.id}
                     name={dm.name}
@@ -168,7 +129,7 @@ export function MessagesSubSidebar() {
               {/* Other Members (no existing DM) */}
               {filteredMembers.length > 0 && (
                 <>
-                  {filteredDMs.length > 0 && (
+                  {directMessageUsers.length > 0 && (
                     <div className="px-2 py-2 text-xs text-white/50 mt-2">
                       Start a conversation
                     </div>
@@ -193,11 +154,12 @@ export function MessagesSubSidebar() {
               )}
 
               {/* Empty State */}
-              {filteredDMs.length === 0 && filteredMembers.length === 0 && (
-                <p className="text-xs text-white/50 px-2 py-2">
-                  {searchQuery ? "No results found" : "No messages yet"}
-                </p>
-              )}
+              {directMessageUsers.length === 0 &&
+                filteredMembers.length === 0 && (
+                  <p className="text-xs text-white/50 px-2 py-2">
+                    No messages yet
+                  </p>
+                )}
             </>
           )}
         </nav>

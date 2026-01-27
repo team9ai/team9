@@ -1,5 +1,4 @@
 import {
-  Search,
   ChevronDown,
   ChevronRight,
   Hash,
@@ -12,7 +11,6 @@ import {
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
@@ -100,7 +98,7 @@ export function HomeSubSidebar() {
   return (
     <aside className="w-64 h-full overflow-hidden bg-[#5b2c6f] text-white flex flex-col">
       {/* Header */}
-      <div className="p-4">
+      <div className="p-4 pb-2">
         <Button
           variant="ghost"
           className="w-full justify-between text-white hover:bg-white/10 px-2 h-auto py-1.5"
@@ -108,21 +106,6 @@ export function HomeSubSidebar() {
           <span className="font-semibold text-lg">Weight Watch</span>
           <ChevronDown size={16} className="text-white/70" />
         </Button>
-      </div>
-
-      {/* Search Bar */}
-      <div className="px-3 pb-3">
-        <div className="relative">
-          <Search
-            size={16}
-            className="absolute left-2 top-1/2 -translate-y-1/2 text-white/50 z-10"
-          />
-          <Input
-            type="text"
-            placeholder={tCommon("searchPlaceholder")}
-            className="pl-8 h-9 bg-white/10 border-white/20 text-white placeholder:text-white/50 focus:bg-white/15"
-          />
-        </div>
       </div>
 
       <Separator className="bg-white/10" />
