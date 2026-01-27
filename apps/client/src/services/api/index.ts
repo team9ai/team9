@@ -144,6 +144,7 @@ export const userApi = {
 import imApi from "./im";
 import workspaceApi from "./workspace";
 import notificationApi from "./notification";
+import searchApi from "./search";
 
 export const api = {
   auth: authApi,
@@ -151,6 +152,7 @@ export const api = {
   im: imApi,
   workspace: workspaceApi,
   notification: notificationApi,
+  search: searchApi,
 };
 
 export default api;
