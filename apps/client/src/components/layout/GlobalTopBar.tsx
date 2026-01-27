@@ -1,4 +1,5 @@
 import { useRef, useEffect, useCallback, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { Search, ArrowLeft, ArrowRight, History, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
@@ -11,24 +12,38 @@ import {
 } from "@/components/ui/popover";
 import { useUser, useWorkspaceStore } from "@/stores";
 import { useUserWorkspaces } from "@/hooks/useWorkspace";
-import { useDebouncedSearch } from "@/hooks/useSearch";
-import { SearchResults } from "@/components/search/SearchResults";
+import { useDebouncedQuickSearch } from "@/hooks/useSearch";
+import { QuickSearchResults } from "@/components/search/QuickSearchResults";
 
 export function GlobalTopBar() {
   const { t } = useTranslation("common");
+  const navigate = useNavigate();
   const user = useUser();
   const { selectedWorkspaceId } = useWorkspaceStore();
   const { data: workspaces } = useUserWorkspaces();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isOpen, setIsOpen] = useState(false);
 
+  // Quick search for channels and users only
   const { searchQuery, updateQuery, clearSearch, data, isLoading, isFetching } =
-    useDebouncedSearch(300);
+    useDebouncedQuickSearch(300);
 
   const currentWorkspace = workspaces?.find(
     (w) => w.id === selectedWorkspaceId,
   );
   const workspaceName = currentWorkspace?.name || "Workspace";
+
+  // Navigate to search page for full search (default to messages)
+  const handleDeepSearch = useCallback(() => {
+    if (searchQuery.trim()) {
+      navigate({
+        to: "/search",
+        search: { q: searchQuery.trim(), type: "messages" },
+      });
+      setIsOpen(false);
+      clearSearch();
+    }
+  }, [navigate, searchQuery, clearSearch]);
 
   // Handle keyboard shortcut (Cmd+K / Ctrl+K)
   useEffect(() => {
@@ -42,11 +57,16 @@ export function GlobalTopBar() {
         setIsOpen(false);
         inputRef.current?.blur();
       }
+      // Enter key navigates to search page
+      if (e.key === "Enter" && isOpen && searchQuery.trim()) {
+        e.preventDefault();
+        handleDeepSearch();
+      }
     };
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen]);
+  }, [isOpen, searchQuery, handleDeepSearch]);
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -151,11 +171,12 @@ export function GlobalTopBar() {
             sideOffset={8}
             onOpenAutoFocus={(e) => e.preventDefault()}
           >
-            <SearchResults
+            <QuickSearchResults
               data={data}
               isLoading={isLoading}
               searchQuery={searchQuery}
               onSelect={handleSelect}
+              onDeepSearch={handleDeepSearch}
             />
           </PopoverContent>
         </Popover>

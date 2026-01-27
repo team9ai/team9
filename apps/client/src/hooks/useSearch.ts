@@ -4,11 +4,19 @@ import searchApi from "@/services/api/search";
 import type {
   CombinedSearchResponse,
   SearchOptions,
+  SearchResults as SearchResultsType,
+  ChannelSearchResultData,
+  UserSearchResultData,
 } from "@/services/api/search";
 
 interface UseSearchOptions extends SearchOptions {
   enabled?: boolean;
   debounceMs?: number;
+}
+
+export interface QuickSearchResponse {
+  channels: SearchResultsType<ChannelSearchResultData>;
+  users: SearchResultsType<UserSearchResultData>;
 }
 
 /**
@@ -171,6 +179,103 @@ export function useDebouncedSearch(debounceMs: number = 300) {
     clearSearch,
     ...searchResults,
     totalResults,
+    hasResults,
+  };
+}
+
+/**
+ * Hook for quick search (channels and users only)
+ * Used for the dropdown search in the top bar
+ */
+export function useQuickSearch(
+  query: string,
+  options: Omit<UseSearchOptions, "type"> = {},
+) {
+  const { enabled = true, limit = 5 } = options;
+  const shouldSearch = enabled && query.trim().length > 0;
+
+  const channelsQuery = useQuery({
+    queryKey: ["search", "channels", "quick", query, limit],
+    queryFn: () => searchApi.searchChannels(query, { limit }),
+    enabled: shouldSearch,
+    staleTime: 30000,
+  });
+
+  const usersQuery = useQuery({
+    queryKey: ["search", "users", "quick", query, limit],
+    queryFn: () => searchApi.searchUsers(query, { limit }),
+    enabled: shouldSearch,
+    staleTime: 30000,
+  });
+
+  const data: QuickSearchResponse | undefined =
+    channelsQuery.data && usersQuery.data
+      ? {
+          channels: channelsQuery.data,
+          users: usersQuery.data,
+        }
+      : undefined;
+
+  return {
+    data,
+    isLoading: channelsQuery.isLoading || usersQuery.isLoading,
+    isFetching: channelsQuery.isFetching || usersQuery.isFetching,
+    isError: channelsQuery.isError || usersQuery.isError,
+  };
+}
+
+/**
+ * Hook for debounced quick search (channels and users only)
+ */
+export function useDebouncedQuickSearch(debounceMs: number = 300) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(
+    null,
+  );
+
+  const updateQuery = useCallback(
+    (value: string) => {
+      setSearchQuery(value);
+
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+
+      const timer = setTimeout(() => {
+        setDebouncedQuery(value);
+      }, debounceMs);
+
+      setDebounceTimer(timer);
+    },
+    [debounceMs, debounceTimer],
+  );
+
+  const clearSearch = useCallback(() => {
+    setSearchQuery("");
+    setDebouncedQuery("");
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+    }
+  }, [debounceTimer]);
+
+  const searchResults = useQuickSearch(debouncedQuery, {
+    enabled: debouncedQuery.trim().length > 0,
+  });
+
+  // Check if there are any results
+  const hasResults = useMemo(() => {
+    if (!searchResults.data) return false;
+    const data = searchResults.data;
+    return data.channels.items.length > 0 || data.users.items.length > 0;
+  }, [searchResults.data]);
+
+  return {
+    searchQuery,
+    debouncedQuery,
+    updateQuery,
+    clearSearch,
+    ...searchResults,
     hasResults,
   };
 }

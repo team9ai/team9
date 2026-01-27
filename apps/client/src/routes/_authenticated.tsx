@@ -45,7 +45,13 @@ export const Route = createFileRoute("/_authenticated")({
                 activeSidebar as keyof typeof DEFAULT_SECTION_PATHS
               ];
 
-            if (lastVisitedPath && lastVisitedPath !== "/") {
+            // Only redirect if the path is valid and not a search page
+            // (search is a global feature, not a section-specific page)
+            if (
+              lastVisitedPath &&
+              lastVisitedPath !== "/" &&
+              !lastVisitedPath.startsWith("/search")
+            ) {
               throw redirect({
                 to: lastVisitedPath,
               });
@@ -80,6 +86,10 @@ function AuthenticatedLayout() {
   useEffect(() => {
     const pathname = location.pathname;
     if (pathname === "/") return;
+
+    // Don't save search page as a last visited path for any section
+    // Search is a global feature, not part of any sidebar section
+    if (pathname.startsWith("/search")) return;
 
     // Determine which section this path belongs to based on the path itself
     // This ensures paths are always saved to the correct section,
