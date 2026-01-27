@@ -26,6 +26,7 @@ import { ClusterModule } from './cluster/cluster.module.js';
 import { TenantMiddleware } from './common/middleware/tenant.middleware.js';
 import { FileModule } from './file/file.module.js';
 import { NotificationModule } from './notification/notification.module.js';
+import { SearchModule } from './search/search.module.js';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { NotificationModule } from './notification/notification.module.js';
     WorkspaceModule,
     FileModule,
     NotificationModule,
+    SearchModule,
   ],
   controllers: [AppController],
   providers: [AppService],

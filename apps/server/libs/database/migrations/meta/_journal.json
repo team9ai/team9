@@ -36,6 +36,13 @@
       "when": 1769491329805,
       "tag": "0004_panoramic_shockwave",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1769501252065,
+      "tag": "0005_charming_ser_duncan",
+      "breakpoints": true
     }
   ]
 }
