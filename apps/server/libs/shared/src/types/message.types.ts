@@ -253,7 +253,7 @@ export interface CreateMessageDto {
   // Additional metadata
   metadata?: Record<string, unknown>;
 
-  // Workspace ID (for offline message routing)
+  // Workspace ID (for message context)
   workspaceId?: string;
 }
 
@@ -335,7 +335,6 @@ export interface OutboxEventPayload {
 /**
  * Post-broadcast task sent from Gateway to Logic Service
  * After Gateway broadcasts to online users, this task handles:
- * - Offline message storage
  * - Unread count updates
  * - Mark Outbox event as completed
  */
@@ -349,7 +348,7 @@ export interface PostBroadcastTask {
   // Sender ID (to exclude from recipients)
   senderId: string;
 
-  // Workspace ID (for offline message routing)
+  // Workspace ID (for message context)
   workspaceId?: string;
 
   // Timestamp when broadcast was sent

@@ -219,7 +219,7 @@ export class WebsocketGateway
         });
       }
 
-      // Notify IM Worker service that user is online (for offline message delivery)
+      // Notify IM Worker service that user is online (for presence tracking)
       if (this.gatewayMQService && this.clusterNodeService) {
         try {
           await this.gatewayMQService.publishUpstream({

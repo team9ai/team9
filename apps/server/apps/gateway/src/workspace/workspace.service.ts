@@ -5,7 +5,6 @@ import {
   ConflictException,
   Inject,
   Logger,
-  Optional,
 } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { v7 as uuidv7 } from 'uuid';
@@ -31,9 +30,6 @@ import { WS_EVENTS } from '../im/websocket/events/events.constants.js';
 import { REDIS_KEYS } from '../im/shared/constants/redis-keys.js';
 import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
-
-// Import RabbitMQ types (will be optional)
-type RabbitMQEventService = any;
 
 export interface InvitationResponse {
   id: string;
@@ -129,7 +125,6 @@ export class WorkspaceService {
     private readonly websocketGateway: any,
     private readonly redisService: RedisService,
     private readonly channelsService: ChannelsService,
-    @Optional() private readonly rabbitMQEventService?: RabbitMQEventService,
   ) {}
 
   @OnEvent(USER_EVENTS.REGISTERED)
@@ -496,27 +491,11 @@ export class WorkspaceService {
       }
     }
 
-    // 2. Queue for offline users via RabbitMQ (reliability)
-    if (offlineIds.length > 0 && this.rabbitMQEventService) {
-      try {
-        await this.rabbitMQEventService.sendToOfflineUsers(
-          invitation.tenantId,
-          offlineIds,
-          WS_EVENTS.WORKSPACE.MEMBER_JOINED,
-          memberJoinedPayload,
-        );
-        this.logger.log(
-          `Queued WORKSPACE_MEMBER_JOINED to ${offlineIds.length} offline users via RabbitMQ`,
-        );
-      } catch (error) {
-        this.logger.warn(
-          `Failed to queue message via RabbitMQ: ${error.message}`,
-        );
-        // Don't fail the request if RabbitMQ fails
-      }
-    } else if (offlineIds.length > 0) {
+    // Note: Offline users will see member joined via notification system
+    // RabbitMQ offline queues removed - using SeqId-based incremental sync for messages
+    if (offlineIds.length > 0) {
       this.logger.debug(
-        `${offlineIds.length} offline users will miss WORKSPACE_MEMBER_JOINED event (RabbitMQ disabled)`,
+        `${offlineIds.length} offline users will receive WORKSPACE_MEMBER_JOINED via notification system`,
       );
     }
 
@@ -536,7 +515,8 @@ export class WorkspaceService {
         const inviterOnline = invitation.createdBy in onlineUsersHash;
         const inviteeOnline = userId in onlineUsersHash;
 
-        // Notify inviter via WebSocket or RabbitMQ based on online status
+        // Notify inviter via WebSocket if online
+        // Note: Offline users will see new channel when they open channels list
         if (inviterOnline) {
           await this.websocketGateway.sendToUser(
             invitation.createdBy,
@@ -546,19 +526,9 @@ export class WorkspaceService {
           this.logger.log(
             `Sent CHANNEL_CREATED to online inviter ${invitation.createdBy} via WebSocket`,
           );
-        } else if (this.rabbitMQEventService) {
-          await this.rabbitMQEventService.sendToOfflineUsers(
-            invitation.tenantId,
-            [invitation.createdBy],
-            WS_EVENTS.CHANNEL.CREATED,
-            directChannel,
-          );
-          this.logger.log(
-            `Queued CHANNEL_CREATED to offline inviter ${invitation.createdBy} via RabbitMQ`,
-          );
         }
 
-        // Notify invitee via WebSocket or RabbitMQ based on online status
+        // Notify invitee via WebSocket if online
         if (inviteeOnline) {
           await this.websocketGateway.sendToUser(
             userId,
@@ -567,16 +537,6 @@ export class WorkspaceService {
           );
           this.logger.log(
             `Sent CHANNEL_CREATED to online invitee ${userId} via WebSocket`,
-          );
-        } else if (this.rabbitMQEventService) {
-          await this.rabbitMQEventService.sendToOfflineUsers(
-            invitation.tenantId,
-            [userId],
-            WS_EVENTS.CHANNEL.CREATED,
-            directChannel,
-          );
-          this.logger.log(
-            `Queued CHANNEL_CREATED to offline invitee ${userId} via RabbitMQ`,
           );
         }
 

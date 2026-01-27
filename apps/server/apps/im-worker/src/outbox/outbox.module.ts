@@ -5,13 +5,14 @@ import { RabbitmqModule } from '@team9/rabbitmq';
 import { OutboxProcessorService } from './outbox-processor.service.js';
 
 /**
- * Outbox Module - Hybrid Mode
+ * Outbox Module - Audit & Manual Recovery
  *
- * Handles post-broadcast tasks:
- * - Offline message storage
+ * Handles:
  * - Unread count updates
+ * - Manual recovery for stale events
  *
- * Note: Real-time broadcast is handled by Gateway via Socket.io Redis Adapter
+ * Note: Offline message storage removed - using SeqId-based incremental sync.
+ * Messages are synced when user opens a channel via GET /v1/im/sync/channel/:channelId
  */
 @Module({
   imports: [DatabaseModule, RedisModule, RabbitmqModule],

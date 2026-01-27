@@ -8,7 +8,6 @@ import type {
 } from '@team9/shared';
 import { MessageService } from '../message/message.service.js';
 import { AckService } from '../ack/ack.service.js';
-import { MessageRouterService } from '../message/message-router.service.js';
 import { PostBroadcastService } from '../post-broadcast/post-broadcast.service.js';
 
 /**
@@ -25,7 +24,6 @@ export class UpstreamConsumer {
   constructor(
     private readonly messageService: MessageService,
     private readonly ackService: AckService,
-    private readonly routerService: MessageRouterService,
     @Optional() private readonly postBroadcastService?: PostBroadcastService,
   ) {}
 
@@ -121,7 +119,8 @@ export class UpstreamConsumer {
 
   /**
    * Process presence (online/offline) events
-   * When a user comes online, deliver any unread messages
+   * Note: Message delivery on reconnect removed - now using SeqId-based incremental sync
+   * Messages are synced when user opens a channel via GET /v1/im/sync/channel/:channelId
    */
   private async processPresenceMessage(
     upstream: UpstreamMessage,
@@ -131,21 +130,7 @@ export class UpstreamConsumer {
 
     if (payload.event === 'online') {
       this.logger.log(`User ${userId} came online on gateway ${gatewayId}`);
-
-      // Get unread messages for this user
-      const unreadMessages =
-        await this.messageService.getUndeliveredMessages(userId);
-
-      if (unreadMessages.length > 0) {
-        this.logger.log(
-          `Delivering ${unreadMessages.length} unread messages to user ${userId}`,
-        );
-
-        // Send unread messages to the user via their gateway
-        for (const msg of unreadMessages) {
-          await this.routerService.sendToGateway(gatewayId, msg, [userId]);
-        }
-      }
+      // Note: Unread messages are now synced lazily when user opens a channel
     } else if (payload.event === 'offline') {
       this.logger.debug(`User ${userId} went offline`);
     }
@@ -153,7 +138,7 @@ export class UpstreamConsumer {
 
   /**
    * Handle post-broadcast tasks (separate queue for isolation)
-   * Processes offline messages and unread counts after Gateway broadcast
+   * Processes unread counts after Gateway broadcast
    */
   @RabbitSubscribe({
     exchange: MQ_EXCHANGES.IM_UPSTREAM,

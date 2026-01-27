@@ -224,7 +224,7 @@ export class GatewayMQService implements OnModuleInit, OnModuleDestroy {
   /**
    * Publish post-broadcast task to Logic Service
    * Called after Gateway broadcasts to online users
-   * Handles: offline messages, unread counts, outbox completion
+   * Handles: unread counts, outbox completion
    */
   async publishPostBroadcast(task: PostBroadcastTask): Promise<void> {
     if (!this.nodeId) {

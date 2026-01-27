@@ -82,7 +82,7 @@ export class MessagesController {
 
     const clientMsgId = uuidv7();
 
-    // Get workspaceId (tenantId) from channel for offline message routing
+    // Get workspaceId (tenantId) from channel for message context
     const channel = await this.channelsService.findById(channelId);
     const workspaceId = channel?.tenantId ?? undefined;
 
@@ -116,7 +116,7 @@ export class MessagesController {
     const broadcastAt = Date.now();
 
     // Send post-broadcast task to IM Worker Service via RabbitMQ (event-driven)
-    // This handles: offline messages, unread counts, outbox completion
+    // This handles: unread counts, outbox completion
     if (this.gatewayMQService?.isReady()) {
       const postBroadcastTask: PostBroadcastTask = {
         msgId: result.msgId,

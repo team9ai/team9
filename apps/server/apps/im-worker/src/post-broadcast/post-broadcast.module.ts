@@ -8,11 +8,11 @@ import { PostBroadcastService } from './post-broadcast.service.js';
  * Post-Broadcast Module
  *
  * Handles event-driven post-broadcast tasks:
- * - Offline message storage
  * - Unread count updates
  * - Outbox completion marking
  *
- * Replaces polling-based Outbox processor with event-driven approach.
+ * Note: Offline message storage removed - using SeqId-based incremental sync.
+ * Messages are synced when user opens a channel via GET /v1/im/sync/channel/:channelId
  */
 @Module({
   imports: [DatabaseModule, RedisModule, RabbitmqModule],

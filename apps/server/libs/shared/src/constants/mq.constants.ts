@@ -25,7 +25,7 @@ export const MQ_QUEUES = {
   // IM Worker upstream queue (single queue, internal routing by message type)
   IM_WORKER_UPSTREAM: 'im.queue.im-worker.upstream',
 
-  // Post-broadcast task queue (handles offline messages + unread counts)
+  // Post-broadcast task queue (handles unread counts + notifications)
   POST_BROADCAST: 'im.queue.post_broadcast',
 
   // ACK processing queue
@@ -49,7 +49,7 @@ export const MQ_ROUTING_KEYS = {
     TYPING: 'upstream.typing',
     READ: 'upstream.read',
     PRESENCE: 'upstream.presence',
-    // Post-broadcast task (handles offline messages + unread counts after Gateway broadcast)
+    // Post-broadcast task (handles unread counts + notifications after Gateway broadcast)
     POST_BROADCAST: 'upstream.post_broadcast',
   },
 
@@ -72,7 +72,4 @@ export const MQ_CONFIG = {
 
   // ACK timeout in milliseconds (10 seconds)
   ACK_TIMEOUT: 10000,
-
-  // Offline message expiration (15 days)
-  OFFLINE_MESSAGE_TTL: 15 * 24 * 60 * 60 * 1000,
 } as const;
