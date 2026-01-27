@@ -29,7 +29,7 @@ import {
 import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
 import { SocketWithUser } from '../shared/interfaces/socket-with-user.interface.js';
 import { WorkspaceService } from '../../workspace/workspace.service.js';
-import { RabbitMQEventService, GatewayMQService } from '@team9/rabbitmq';
+import { GatewayMQService } from '@team9/rabbitmq';
 import { ClusterNodeService } from '../../cluster/cluster-node.service.js';
 import { SessionService } from '../../cluster/session/session.service.js';
 import { HeartbeatService } from '../../cluster/heartbeat/heartbeat.service.js';
@@ -60,7 +60,6 @@ export class WebsocketGateway
     private readonly redisService: RedisService,
     @Inject(forwardRef(() => WorkspaceService))
     private readonly workspaceService: WorkspaceService,
-    @Optional() private readonly rabbitMQEventService?: RabbitMQEventService,
     // Distributed IM Architecture services
     @Optional() private readonly clusterNodeService?: ClusterNodeService,
     @Optional() private readonly sessionService?: SessionService,
@@ -248,49 +247,9 @@ export class WebsocketGateway
         }
       }
 
-      // Pull and deliver offline messages from RabbitMQ (if enabled)
-      // Use Redis lock to prevent multiple devices from pulling simultaneously
-      if (this.rabbitMQEventService) {
-        const lockKey = `im:offline_pull_lock:${payload.sub}`;
-        // Try to acquire lock with SET NX EX (atomic operation)
-        const lockResult = await this.redisService
-          .getClient()
-          .set(lockKey, client.id, 'EX', 30, 'NX');
-        const lockAcquired = lockResult === 'OK';
-
-        if (lockAcquired) {
-          try {
-            const offlineMessages =
-              await this.rabbitMQEventService.getOfflineMessages(
-                payload.sub,
-                100, // Max 100 offline messages
-              );
-
-            if (offlineMessages.length > 0) {
-              this.logger.log(
-                `Delivering ${offlineMessages.length} offline messages to user ${payload.sub}`,
-              );
-
-              // Send offline messages to client in order
-              for (const msg of offlineMessages) {
-                client.emit(msg.eventType, msg.payload);
-              }
-            }
-          } catch (error) {
-            this.logger.warn(
-              `Failed to retrieve offline messages for user ${payload.sub}: ${error.message}`,
-            );
-            // Don't fail connection if offline message retrieval fails
-          } finally {
-            // Release lock
-            await this.redisService.del(lockKey);
-          }
-        } else {
-          this.logger.debug(
-            `Skipping offline message pull for user ${payload.sub} - another device is pulling`,
-          );
-        }
-      }
+      // Note: Offline messages are now handled via lazy loading
+      // When user opens a channel, client calls GET /v1/im/sync/channel/:channelId
+      // This approach reduces database pressure and supports multi-device better
 
       client.emit(WS_EVENTS.AUTH.AUTHENTICATED, { userId: payload.sub });
       this.logger.log(

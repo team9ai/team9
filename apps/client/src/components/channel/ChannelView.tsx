@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { useMessages, useSendMessage } from "@/hooks/useMessages";
+import { useSyncChannel } from "@/hooks/useSyncChannel";
 import {
   useChannel,
   useMarkAsRead,
@@ -33,6 +34,9 @@ export function ChannelView({
   const { data: channel, isLoading: channelLoading } = useChannel(channelId);
   const { data: members = [] } = useChannelMembers(channelId);
   const currentUser = useUser();
+
+  // Sync missed messages when opening channel (lazy loading)
+  useSyncChannel(channelId);
 
   // Dual-layer thread state
   const primaryThread = useThreadStore((state) => state.primaryThread);

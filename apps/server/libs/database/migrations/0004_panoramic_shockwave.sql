@@ -1,0 +1,1 @@
+ALTER TABLE "im_user_channel_read_status" ADD COLUMN "last_sync_seq_id" bigint;

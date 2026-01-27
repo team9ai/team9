@@ -624,3 +624,77 @@ export type NotificationDeliveryTask =
   | NewNotificationDeliveryTask
   | CountsUpdateDeliveryTask
   | NotificationReadDeliveryTask;
+
+// ============ Incremental Sync Types ============
+
+/**
+ * Channel sync status for a user
+ * Used to determine which channels have pending messages to sync
+ */
+export interface ChannelSyncStatus {
+  channelId: string;
+  lastSyncSeqId: string; // BigInt as string for JSON serialization
+  latestSeqId: string; // Current latest seqId in channel
+  pendingCount: number; // Number of messages to sync
+}
+
+/**
+ * Response for syncing messages from a single channel
+ */
+export interface SyncMessagesResponse {
+  channelId: string;
+  messages: SyncMessageItem[];
+  fromSeqId: string;
+  toSeqId: string;
+  hasMore: boolean;
+}
+
+/**
+ * Simplified message item for sync response
+ */
+export interface SyncMessageItem {
+  id: string;
+  channelId: string;
+  senderId: string | null;
+  parentId: string | null;
+  rootId: string | null;
+  content: string | null;
+  type: string;
+  seqId: string;
+  isPinned: boolean;
+  isEdited: boolean;
+  createdAt: string;
+  updatedAt: string;
+  sender?: {
+    id: string;
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+  };
+}
+
+/**
+ * Batch sync response for multiple channels
+ */
+export interface BatchSyncResponse {
+  channels: SyncMessagesResponse[];
+  totalPending: number;
+}
+
+/**
+ * Request to pull messages from specific channels
+ */
+export interface SyncPullRequest {
+  channels: Array<{
+    channelId: string;
+    afterSeqId: string;
+  }>;
+}
+
+/**
+ * Request to acknowledge sync position
+ */
+export interface SyncAckRequest {
+  channelId: string;
+  seqId: string;
+}

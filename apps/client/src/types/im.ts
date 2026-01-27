@@ -211,3 +211,48 @@ export interface SearchUsersParams {
 
 // WebSocket event types have been moved to @/types/ws-events.ts
 // Import from there for WebSocket related types
+
+// ============ Incremental Sync Types ============
+
+/**
+ * Response for syncing messages from a single channel
+ */
+export interface SyncMessagesResponse {
+  channelId: string;
+  messages: SyncMessageItem[];
+  fromSeqId: string;
+  toSeqId: string;
+  hasMore: boolean;
+}
+
+/**
+ * Simplified message item for sync response
+ */
+export interface SyncMessageItem {
+  id: string;
+  channelId: string;
+  senderId: string | null;
+  parentId: string | null;
+  rootId: string | null;
+  content: string | null;
+  type: string;
+  seqId: string;
+  isPinned: boolean;
+  isEdited: boolean;
+  createdAt: string;
+  updatedAt: string;
+  sender?: {
+    id: string;
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+  };
+}
+
+/**
+ * Request to acknowledge sync position
+ */
+export interface SyncAckDto {
+  channelId: string;
+  seqId: string;
+}

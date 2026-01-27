@@ -5,8 +5,7 @@ export const RABBITMQ_EXCHANGES = {
 } as const;
 
 export const RABBITMQ_QUEUES = {
-  // User offline message queue (one queue per user)
-  USER_OFFLINE_MESSAGES: (userId: string) => `user.${userId}.offline_messages`,
+  // Note: USER_OFFLINE_MESSAGES removed - now using SeqId-based incremental sync
   // Notification processing queue (consumed by im-worker)
   NOTIFICATION_TASKS: 'notification.tasks',
   // Notification delivery queue (consumed by Gateway for WebSocket push)

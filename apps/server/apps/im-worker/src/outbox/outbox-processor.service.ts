@@ -11,13 +11,7 @@ import {
 } from '@team9/database';
 import type { PostgresJsDatabase } from '@team9/database';
 import * as schema from '@team9/database/schemas';
-import { RedisService } from '@team9/redis';
-import { RabbitMQEventService } from '@team9/rabbitmq';
-import type { OutboxEventPayload, DeviceSession } from '@team9/shared';
-
-const REDIS_KEYS = {
-  USER_MULTI_SESSION: (userId: string) => `im:session:user:${userId}`,
-};
+import type { OutboxEventPayload } from '@team9/shared';
 
 /**
  * Outbox Processor Service - AUDIT & MANUAL RECOVERY ONLY
@@ -52,8 +46,6 @@ export class OutboxProcessorService {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
-    private readonly redisService: RedisService,
-    private readonly rabbitMQEventService: RabbitMQEventService,
   ) {
     this.logger.log(
       'OutboxProcessorService initialized (event-driven mode, no polling)',
@@ -128,10 +120,12 @@ export class OutboxProcessorService {
   /**
    * Process a single outbox event
    *
-   * HYBRID MODE: Gateway already broadcast to online users via Socket.io Redis Adapter.
-   * This processor only handles:
-   * 1. Offline message storage
-   * 2. Unread count updates
+   * Note: Offline message storage removed - now using SeqId-based incremental sync.
+   * Messages are synced when user opens a channel via GET /v1/im/sync/channel/:channelId
+   *
+   * This processor now only handles:
+   * 1. Unread count updates
+   * 2. Marking outbox as completed
    */
   private async processEvent(event: schema.MessageOutbox): Promise<void> {
     try {
@@ -154,51 +148,17 @@ export class OutboxProcessorService {
         return;
       }
 
-      // Get all device sessions for recipients to identify offline users
-      const userSessions = await this.getAllDeviceSessionsBatch(recipientIds);
+      // Note: Offline message storage removed - now using SeqId-based incremental sync
+      // Messages are synced when user opens a channel via GET /v1/im/sync/channel/:channelId
 
-      // Identify offline users (no active sessions)
-      const offlineUsers: string[] = [];
-      for (const userId of recipientIds) {
-        const sessions = userSessions.get(userId);
-        if (!sessions || sessions.length === 0) {
-          offlineUsers.push(userId);
-        }
-      }
-
-      // Store offline messages for users who weren't online during broadcast
-      if (offlineUsers.length > 0 && payload.workspaceId) {
-        // Use string for seqId to ensure JSON serialization works
-        const message = {
-          msgId: payload.msgId,
-          seqId: payload.seqId, // Already a string from OutboxEventPayload
-          type: payload.type,
-          senderId: payload.senderId,
-          targetType: 'channel' as const,
-          targetId: payload.channelId,
-          payload: {
-            content: payload.content,
-            parentId: payload.parentId,
-          },
-          timestamp: payload.timestamp,
-        };
-
-        await this.rabbitMQEventService.sendToOfflineUsers(
-          payload.workspaceId,
-          offlineUsers,
-          'new_message',
-          message,
-        );
-      }
-
-      // Update unread counts for ALL recipients (online users also get unread count)
+      // Update unread counts for ALL recipients
       await this.updateUnreadCounts(payload.channelId, recipientIds);
 
       // Mark as completed
       await this.markCompleted(event.id);
 
       this.logger.debug(
-        `Processed outbox event ${event.id}: offline=${offlineUsers.length}, total_recipients=${recipientIds.length}`,
+        `Processed outbox event ${event.id}: recipients=${recipientIds.length}`,
       );
     } catch (error) {
       await this.handleRetry(event, error as Error);
@@ -220,35 +180,6 @@ export class OutboxProcessorService {
       );
 
     return members.map((m) => m.userId);
-  }
-
-  /**
-   * Get all device sessions for multiple users (multi-device support)
-   */
-  private async getAllDeviceSessionsBatch(
-    userIds: string[],
-  ): Promise<Map<string, DeviceSession[]>> {
-    const client = this.redisService.getClient();
-    const pipeline = client.pipeline();
-
-    for (const userId of userIds) {
-      pipeline.hgetall(REDIS_KEYS.USER_MULTI_SESSION(userId));
-    }
-
-    const results = await pipeline.exec();
-    const sessionMap = new Map<string, DeviceSession[]>();
-
-    results?.forEach((result, index) => {
-      const [err, data] = result;
-      if (!err && data && Object.keys(data as object).length > 0) {
-        const sessions = Object.values(data as Record<string, string>).map(
-          (v) => JSON.parse(v) as DeviceSession,
-        );
-        sessionMap.set(userIds[index], sessions);
-      }
-    });
-
-    return sessionMap;
   }
 
   /**

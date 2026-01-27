@@ -58,4 +58,9 @@ export const REDIS_KEYS = {
 
   // Client message deduplication - Set with TTL
   MSG_DEDUP: (clientMsgId: string) => `im:dedup:${clientMsgId}`,
+
+  // ============ Sync Position Cache ============
+
+  // User sync positions - Hash: channelId -> lastSyncSeqId
+  USER_SYNC_POSITIONS: (userId: string) => `im:sync:user:${userId}`,
 };

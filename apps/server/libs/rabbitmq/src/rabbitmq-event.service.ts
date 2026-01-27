@@ -3,152 +3,18 @@ import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import {
   RABBITMQ_EXCHANGES,
   RABBITMQ_ROUTING_KEYS,
-  RABBITMQ_QUEUES,
 } from './constants/queues.js';
 import type { NotificationTask, NotificationDeliveryTask } from '@team9/shared';
 
-export interface WorkspaceMemberEvent {
-  workspaceId: string;
-  userId: string;
-  eventType: string;
-  payload: unknown;
-  timestamp: Date;
-}
+// Note: Offline message handling has been migrated to SeqId-based incremental sync.
+// Messages are now synced via GET /v1/im/sync/channel/:channelId when user opens a channel.
+// See: apps/server/apps/gateway/src/im/sync/sync.service.ts
 
 @Injectable()
 export class RabbitMQEventService {
   private readonly logger = new Logger(RabbitMQEventService.name);
 
   constructor(private readonly amqpConnection: AmqpConnection) {}
-
-  /**
-   * Send workspace event to offline users' queues
-   * @param workspaceId - workspace ID
-   * @param offlineUserIds - list of offline user IDs
-   * @param event - event name
-   * @param payload - event data
-   */
-  async sendToOfflineUsers(
-    workspaceId: string,
-    offlineUserIds: string[],
-    event: string,
-    payload: unknown,
-  ): Promise<void> {
-    const message: WorkspaceMemberEvent = {
-      workspaceId,
-      userId: '', // will be set in the loop
-      eventType: event,
-      payload,
-      timestamp: new Date(),
-    };
-
-    const channel = this.amqpConnection.channel;
-
-    // Send message to each offline user's queue
-    for (const userId of offlineUserIds) {
-      message.userId = userId;
-      const queueName = RABBITMQ_QUEUES.USER_OFFLINE_MESSAGES(userId);
-      const routingKey = this.getRoutingKey(userId);
-
-      try {
-        // Ensure queue exists and is bound to exchange
-        await channel.assertQueue(queueName, {
-          durable: true,
-          autoDelete: false,
-        });
-        await channel.bindQueue(
-          queueName,
-          RABBITMQ_EXCHANGES.WORKSPACE_EVENTS,
-          routingKey,
-        );
-
-        // Publish message to exchange
-        await this.amqpConnection.publish(
-          RABBITMQ_EXCHANGES.WORKSPACE_EVENTS,
-          routingKey,
-          message,
-          {
-            persistent: true, // Message persistence
-            expiration: (15 * 24 * 60 * 60 * 1000).toString(), // 15 days expiration
-          },
-        );
-        this.logger.debug(
-          `Queued ${event} to offline user ${userId} in workspace ${workspaceId}`,
-        );
-      } catch (error) {
-        this.logger.error(
-          `Failed to queue message for user ${userId}: ${error}`,
-        );
-      }
-    }
-  }
-
-  /**
-   * Get offline messages for a user
-   * @param userId - user ID
-   * @param limit - maximum number of messages to retrieve
-   */
-  async getOfflineMessages(
-    userId: string,
-    limit = 100,
-  ): Promise<WorkspaceMemberEvent[]> {
-    const queueName = RABBITMQ_QUEUES.USER_OFFLINE_MESSAGES(userId);
-    const messages: WorkspaceMemberEvent[] = [];
-
-    try {
-      // Get channel from connection
-      const channel = this.amqpConnection.channel;
-
-      // Ensure queue exists
-      await channel.assertQueue(queueName, {
-        durable: true,
-        autoDelete: false,
-      });
-
-      // Get messages from queue
-      let messageCount = 0;
-      while (messageCount < limit) {
-        const msg = await channel.get(queueName, { noAck: false });
-
-        if (!msg) {
-          // No more messages
-          break;
-        }
-
-        try {
-          const content = JSON.parse(msg.content.toString());
-          messages.push(content);
-
-          // Acknowledge the message (remove from queue)
-          channel.ack(msg);
-          messageCount++;
-        } catch (error) {
-          this.logger.error(`Failed to parse message: ${error}`);
-          // Reject and requeue the message
-          channel.nack(msg, false, true);
-        }
-      }
-
-      this.logger.log(
-        `Retrieved ${messages.length} offline messages for user ${userId}`,
-      );
-    } catch (error) {
-      this.logger.error(
-        `Failed to get offline messages for user ${userId}: ${error}`,
-      );
-    }
-
-    return messages;
-  }
-
-  /**
-   * Get routing key for offline message delivery
-   */
-  private getRoutingKey(userId: string): string {
-    // Use user-specific routing key for offline message delivery
-    // Format: user.offline.{userId}
-    return `user.offline.${userId}`;
-  }
 
   /**
    * Publish a notification task to be processed by Gateway

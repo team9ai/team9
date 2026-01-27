@@ -1,4 +1,11 @@
-import { pgTable, uuid, timestamp, integer, unique } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  timestamp,
+  integer,
+  unique,
+  bigint,
+} from 'drizzle-orm/pg-core';
 import { users } from './users.js';
 import { channels } from './channels.js';
 import { messages } from './messages.js';
@@ -18,6 +25,8 @@ export const userChannelReadStatus = pgTable(
     ),
     lastReadAt: timestamp('last_read_at').defaultNow().notNull(),
     unreadCount: integer('unread_count').default(0).notNull(),
+    // Track the last synchronized sequence ID for incremental sync
+    lastSyncSeqId: bigint('last_sync_seq_id', { mode: 'bigint' }),
   },
   (table) => [
     unique('unique_user_channel_read').on(table.userId, table.channelId),

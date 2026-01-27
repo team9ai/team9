@@ -22,6 +22,8 @@ import type {
   SubRepliesResponse,
   GetThreadParams,
   GetSubRepliesParams,
+  SyncMessagesResponse,
+  SyncAckDto,
 } from "@/types/im";
 
 // Channels API
@@ -295,11 +297,32 @@ export const imUsersApi = {
   },
 };
 
+// Sync API
+export const syncApi = {
+  // Sync messages for a channel (lazy loading - called when opening a channel)
+  syncChannel: async (
+    channelId: string,
+    limit?: number,
+  ): Promise<SyncMessagesResponse> => {
+    const response = await http.get<SyncMessagesResponse>(
+      `/v1/im/sync/channel/${channelId}`,
+      { params: limit ? { limit } : undefined },
+    );
+    return response.data;
+  },
+
+  // Acknowledge sync position (update lastSyncSeqId)
+  ackSync: async (data: SyncAckDto): Promise<void> => {
+    await http.post("/v1/im/sync/ack", data);
+  },
+};
+
 // Combined IM API export
 export const imApi = {
   channels: channelsApi,
   messages: messagesApi,
   users: imUsersApi,
+  sync: syncApi,
 };
 
 export default imApi;
