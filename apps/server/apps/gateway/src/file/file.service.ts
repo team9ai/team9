@@ -6,6 +6,7 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { v7 as uuidv7 } from 'uuid';
 import {
   StorageService,
@@ -74,6 +75,7 @@ export class FileService implements OnModuleInit {
     private readonly storageService: StorageService,
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async onModuleInit() {
@@ -172,20 +174,46 @@ export class FileService implements OnModuleInit {
     const fileId = uuidv7();
     const visibility = dto.visibility || 'workspace';
 
-    await this.db.insert(schema.files).values({
-      id: fileId,
-      key: dto.key,
-      bucket,
-      fileName: dto.fileName,
-      fileSize: fileInfo.size,
-      mimeType: fileInfo.contentType || 'application/octet-stream',
-      visibility,
-      tenantId: workspaceId,
-      channelId: dto.channelId || null,
-      uploaderId: userId,
-    });
+    const [file] = await this.db
+      .insert(schema.files)
+      .values({
+        id: fileId,
+        key: dto.key,
+        bucket,
+        fileName: dto.fileName,
+        fileSize: fileInfo.size,
+        mimeType: fileInfo.contentType || 'application/octet-stream',
+        visibility,
+        tenantId: workspaceId,
+        channelId: dto.channelId || null,
+        uploaderId: userId,
+      })
+      .returning();
 
     this.logger.debug(`Confirmed upload and created file record ${fileId}`);
+
+    // Emit event for search indexing
+    let channel: schema.Channel | undefined;
+    if (dto.channelId) {
+      const [c] = await this.db
+        .select()
+        .from(schema.channels)
+        .where(eq(schema.channels.id, dto.channelId))
+        .limit(1);
+      channel = c;
+    }
+
+    const [uploader] = await this.db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+
+    this.eventEmitter.emit('file.created', {
+      file,
+      channel,
+      uploader,
+    });
 
     return {
       key: dto.key,
@@ -397,6 +425,9 @@ export class FileService implements OnModuleInit {
 
     // Delete from database
     await this.db.delete(schema.files).where(eq(schema.files.id, file.id));
+
+    // Emit event for search index removal
+    this.eventEmitter.emit('file.deleted', file.id);
 
     this.logger.debug(`Deleted file ${file.id}`);
   }

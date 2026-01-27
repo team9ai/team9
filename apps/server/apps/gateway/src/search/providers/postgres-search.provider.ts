@@ -413,12 +413,13 @@ export class PostgresSearchProvider implements SearchProvider {
 
   /**
    * Convert user query to PostgreSQL tsquery format
-   * Handles phrases and multiple terms
+   * Handles phrases and multiple terms (case-insensitive)
    */
   private buildTsQuery(query: string): string {
     // Clean the query and split into terms
     const terms = query
       .trim()
+      .toLowerCase() // Convert to lowercase for case-insensitive search
       .split(/\s+/)
       .filter((term) => term.length > 0)
       .map((term) => term.replace(/[^\w\u4e00-\u9fff]/g, '')); // Keep alphanumeric and Chinese chars

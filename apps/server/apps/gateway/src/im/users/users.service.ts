@@ -1,4 +1,5 @@
 import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   DATABASE_CONNECTION,
   eq,
@@ -31,6 +32,7 @@ export class UsersService {
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly redisService: RedisService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async findById(id: string): Promise<UserResponse | null> {
@@ -76,31 +78,34 @@ export class UsersService {
   }
 
   async update(id: string, dto: UpdateUserDto): Promise<UserResponse> {
-    const [user] = await this.db
+    const [updatedUser] = await this.db
       .update(schema.users)
       .set({
         ...dto,
         updatedAt: new Date(),
       })
       .where(eq(schema.users.id, id))
-      .returning({
-        id: schema.users.id,
-        email: schema.users.email,
-        username: schema.users.username,
-        displayName: schema.users.displayName,
-        avatarUrl: schema.users.avatarUrl,
-        status: schema.users.status,
-        lastSeenAt: schema.users.lastSeenAt,
-      });
+      .returning();
 
-    if (!user) {
+    if (!updatedUser) {
       throw new NotFoundException('User not found');
     }
 
     // Clear cache
     await this.redisService.del(`${this.USER_CACHE_PREFIX}${id}`);
 
-    return user;
+    // Emit event for search indexing
+    this.eventEmitter.emit('user.updated', { user: updatedUser });
+
+    return {
+      id: updatedUser.id,
+      email: updatedUser.email,
+      username: updatedUser.username,
+      displayName: updatedUser.displayName,
+      avatarUrl: updatedUser.avatarUrl,
+      status: updatedUser.status,
+      lastSeenAt: updatedUser.lastSeenAt,
+    };
   }
 
   async updateStatus(

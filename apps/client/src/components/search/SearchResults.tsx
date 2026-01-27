@@ -2,6 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { MessageSquare, Hash, User, FileText, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import { useCreateDirectChannel } from "@/hooks/useChannels";
 import type { CombinedSearchResponse } from "@/hooks/useSearch";
 
 interface SearchResultsProps {
@@ -19,6 +20,7 @@ export function SearchResults({
 }: SearchResultsProps) {
   const { t } = useTranslation("common");
   const navigate = useNavigate();
+  const createDirectChannel = useCreateDirectChannel();
 
   if (isLoading) {
     return (
@@ -28,10 +30,10 @@ export function SearchResults({
     );
   }
 
-  if (!data || searchQuery.length < 2) {
+  if (!data || !searchQuery.trim()) {
     return (
       <div className="py-8 text-center text-sm text-muted-foreground">
-        {t("searchHint", "Type at least 2 characters to search")}
+        {t("searchHint", "Type to search")}
       </div>
     );
   }
@@ -51,28 +53,44 @@ export function SearchResults({
     );
   }
 
+  // Navigate to message in channel with scroll-to-message
   const handleMessageClick = (channelId: string, messageId: string) => {
     navigate({
-      to: "/im/$channelId",
+      to: "/channels/$channelId",
       params: { channelId },
-      search: { messageId },
+      search: { message: messageId },
     });
     onSelect?.();
   };
 
+  // Navigate to channel
   const handleChannelClick = (channelId: string) => {
     navigate({
-      to: "/im/$channelId",
+      to: "/channels/$channelId",
       params: { channelId },
     });
     onSelect?.();
   };
 
-  const handleUserClick = (userId: string) => {
-    // Navigate to direct message with user
+  // Create or get DM channel with user, then navigate
+  const handleUserClick = async (userId: string) => {
+    try {
+      const channel = await createDirectChannel.mutateAsync(userId);
+      navigate({
+        to: "/messages/$channelId",
+        params: { channelId: channel.id },
+      });
+      onSelect?.();
+    } catch (error) {
+      console.error("Failed to create direct channel:", error);
+    }
+  };
+
+  // Navigate to file's channel
+  const handleFileClick = (channelId: string) => {
     navigate({
-      to: "/im/user/$userId",
-      params: { userId },
+      to: "/channels/$channelId",
+      params: { channelId },
     });
     onSelect?.();
   };
@@ -102,7 +120,7 @@ export function SearchResults({
                 <span className="font-medium">#{item.data.channelName}</span>
               </div>
               <div
-                className="text-sm line-clamp-2"
+                className="text-sm line-clamp-2 [&>mark]:bg-yellow-200 [&>mark]:text-yellow-900 dark:[&>mark]:bg-yellow-800 dark:[&>mark]:text-yellow-100"
                 dangerouslySetInnerHTML={{ __html: item.highlight }}
               />
             </button>
@@ -125,9 +143,13 @@ export function SearchResults({
             >
               <div className="flex items-center gap-2">
                 <Hash className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">{item.data.name}</span>
+                <span
+                  className="font-medium [&>mark]:bg-yellow-200 [&>mark]:text-yellow-900 dark:[&>mark]:bg-yellow-800 dark:[&>mark]:text-yellow-100"
+                  dangerouslySetInnerHTML={{ __html: item.highlight }}
+                />
                 <span className="text-xs text-muted-foreground">
-                  {item.data.memberCount} members
+                  {item.data.memberCount}{" "}
+                  {item.data.memberCount === 1 ? "member" : "members"}
                 </span>
               </div>
               {item.data.description && (
@@ -150,8 +172,9 @@ export function SearchResults({
           {users.items.map((item) => (
             <button
               key={item.id}
-              className="w-full px-3 py-2 text-left hover:bg-accent rounded-md transition-colors"
+              className="w-full px-3 py-2 text-left hover:bg-accent rounded-md transition-colors disabled:opacity-50"
               onClick={() => handleUserClick(item.data.id)}
+              disabled={createDirectChannel.isPending}
             >
               <div className="flex items-center gap-2">
                 <div
@@ -162,9 +185,10 @@ export function SearchResults({
                       : "bg-gray-400",
                   )}
                 />
-                <span className="font-medium">
-                  {item.data.displayName || item.data.username}
-                </span>
+                <span
+                  className="font-medium [&>mark]:bg-yellow-200 [&>mark]:text-yellow-900 dark:[&>mark]:bg-yellow-800 dark:[&>mark]:text-yellow-100"
+                  dangerouslySetInnerHTML={{ __html: item.highlight }}
+                />
                 <span className="text-xs text-muted-foreground">
                   @{item.data.username}
                 </span>
@@ -185,15 +209,14 @@ export function SearchResults({
             <button
               key={item.id}
               className="w-full px-3 py-2 text-left hover:bg-accent rounded-md transition-colors"
-              onClick={() =>
-                handleMessageClick(item.data.channelId, item.data.id)
-              }
+              onClick={() => handleFileClick(item.data.channelId)}
             >
               <div className="flex items-center gap-2">
                 <FileText className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium truncate">
-                  {item.data.fileName}
-                </span>
+                <span
+                  className="font-medium truncate [&>mark]:bg-yellow-200 [&>mark]:text-yellow-900 dark:[&>mark]:bg-yellow-800 dark:[&>mark]:text-yellow-100"
+                  dangerouslySetInnerHTML={{ __html: item.highlight }}
+                />
               </div>
               <div className="text-xs text-muted-foreground mt-1 pl-6">
                 {t("uploadedBy", "Uploaded by")} {item.data.uploaderUsername} in

@@ -52,7 +52,7 @@ export function GlobalTopBar() {
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const value = e.target.value;
       updateQuery(value);
-      if (value.length >= 2) {
+      if (value.trim()) {
         setIsOpen(true);
       }
     },
@@ -60,7 +60,7 @@ export function GlobalTopBar() {
   );
 
   const handleInputFocus = useCallback(() => {
-    if (searchQuery.length >= 2) {
+    if (searchQuery.trim()) {
       setIsOpen(true);
     }
   }, [searchQuery]);

@@ -17,8 +17,8 @@ interface UseSearchOptions extends SearchOptions {
 export function useSearch(query: string, options: UseSearchOptions = {}) {
   const { enabled = true, limit = 10, offset = 0 } = options;
 
-  // Only search if query has at least 2 characters
-  const shouldSearch = enabled && query.trim().length >= 2;
+  // Only search if query is not empty
+  const shouldSearch = enabled && query.trim().length > 0;
 
   return useQuery({
     queryKey: ["search", query, limit, offset],
@@ -37,7 +37,7 @@ export function useSearchMessages(
   options: Omit<UseSearchOptions, "type"> = {},
 ) {
   const { enabled = true, limit = 20, offset = 0 } = options;
-  const shouldSearch = enabled && query.trim().length >= 2;
+  const shouldSearch = enabled && query.trim().length > 0;
 
   return useQuery({
     queryKey: ["search", "messages", query, limit, offset],
@@ -55,7 +55,7 @@ export function useSearchChannels(
   options: Omit<UseSearchOptions, "type"> = {},
 ) {
   const { enabled = true, limit = 20, offset = 0 } = options;
-  const shouldSearch = enabled && query.trim().length >= 2;
+  const shouldSearch = enabled && query.trim().length > 0;
 
   return useQuery({
     queryKey: ["search", "channels", query, limit, offset],
@@ -73,7 +73,7 @@ export function useSearchUsers(
   options: Omit<UseSearchOptions, "type"> = {},
 ) {
   const { enabled = true, limit = 20, offset = 0 } = options;
-  const shouldSearch = enabled && query.trim().length >= 2;
+  const shouldSearch = enabled && query.trim().length > 0;
 
   return useQuery({
     queryKey: ["search", "users", query, limit, offset],
@@ -91,7 +91,7 @@ export function useSearchFiles(
   options: Omit<UseSearchOptions, "type"> = {},
 ) {
   const { enabled = true, limit = 20, offset = 0 } = options;
-  const shouldSearch = enabled && query.trim().length >= 2;
+  const shouldSearch = enabled && query.trim().length > 0;
 
   return useQuery({
     queryKey: ["search", "files", query, limit, offset],
@@ -137,7 +137,7 @@ export function useDebouncedSearch(debounceMs: number = 300) {
   }, [debounceTimer]);
 
   const searchResults = useSearch(debouncedQuery, {
-    enabled: debouncedQuery.length >= 2,
+    enabled: debouncedQuery.trim().length > 0,
   });
 
   // Calculate total results count

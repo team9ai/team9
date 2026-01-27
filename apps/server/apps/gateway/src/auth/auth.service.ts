@@ -85,6 +85,9 @@ export class AuthService {
       displayName: dto.displayName || dto.username,
     } satisfies UserRegisteredEvent);
 
+    // Emit event for search indexing
+    this.eventEmitter.emit('user.created', { user });
+
     // Generate tokens
     const tokens = this.generateTokenPair(user);
 

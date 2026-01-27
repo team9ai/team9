@@ -47,7 +47,7 @@ export class SearchIndexerService {
     channel: schema.Channel,
     sender?: schema.User,
   ): Promise<void> {
-    const searchText = message.content || '';
+    const searchText = (message.content || '').toLowerCase();
     const hasAttachment = await this.checkHasAttachment(message.id);
 
     try {
@@ -99,7 +99,8 @@ export class SearchIndexerService {
   // ==========================================
 
   async indexChannel(channel: schema.Channel): Promise<void> {
-    const searchText = `${channel.name || ''} ${channel.description || ''}`;
+    const searchText =
+      `${channel.name || ''} ${channel.description || ''}`.toLowerCase();
     const memberCount = await this.getChannelMemberCount(channel.id);
 
     try {
@@ -147,7 +148,8 @@ export class SearchIndexerService {
   // ==========================================
 
   async indexUser(user: schema.User): Promise<void> {
-    const searchText = `${user.username || ''} ${user.displayName || ''} ${user.email || ''}`;
+    const searchText =
+      `${user.username || ''} ${user.displayName || ''} ${user.email || ''}`.toLowerCase();
 
     try {
       await this.db
@@ -197,7 +199,7 @@ export class SearchIndexerService {
     channel?: schema.Channel,
     uploader?: schema.User,
   ): Promise<void> {
-    const searchText = file.fileName || '';
+    const searchText = (file.fileName || '').toLowerCase();
 
     try {
       await this.db

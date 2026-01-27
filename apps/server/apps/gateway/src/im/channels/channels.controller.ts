@@ -11,6 +11,7 @@ import {
   Inject,
   forwardRef,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   ChannelsService,
   ChannelResponse,
@@ -39,6 +40,7 @@ export class ChannelsController {
     private readonly channelsService: ChannelsService,
     @Inject(forwardRef(() => WebsocketGateway))
     private readonly websocketGateway: WebsocketGateway,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   @Get()
@@ -81,6 +83,9 @@ export class ChannelsController {
       );
     }
 
+    // Emit event for search indexing
+    this.eventEmitter.emit('channel.created', { channel });
+
     return channel;
   }
 
@@ -107,6 +112,9 @@ export class ChannelsController {
       WS_EVENTS.CHANNEL.CREATED,
       channel,
     );
+
+    // Emit event for search indexing
+    this.eventEmitter.emit('channel.created', { channel });
 
     return channel;
   }
@@ -180,6 +188,9 @@ export class ChannelsController {
       updatedBy: userId,
       updatedAt: channel.updatedAt,
     });
+
+    // Emit event for search indexing
+    this.eventEmitter.emit('channel.updated', { channel });
 
     return channel;
   }
@@ -274,6 +285,9 @@ export class ChannelsController {
           },
         );
       }
+
+      // Emit event for search index removal
+      this.eventEmitter.emit('channel.deleted', channelId);
     } else {
       // Soft delete (archive)
       await this.channelsService.archiveChannel(channelId, userId);

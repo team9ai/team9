@@ -14,6 +14,7 @@ import {
   Optional,
   Logger,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { v7 as uuidv7 } from 'uuid';
 import {
   MessagesService,
@@ -48,6 +49,7 @@ export class MessagesController {
     @Inject(forwardRef(() => WebsocketGateway))
     private readonly websocketGateway: WebsocketGateway,
     private readonly imWorkerGrpcClientService: ImWorkerGrpcClientService,
+    private readonly eventEmitter: EventEmitter2,
     @Optional() private readonly gatewayMQService?: GatewayMQService,
   ) {}
 
@@ -141,6 +143,28 @@ export class MessagesController {
 
     this.logger.debug(`Message ${result.msgId} persisted and broadcast (gRPC)`);
 
+    // Emit event for search indexing
+    this.eventEmitter.emit('message.created', {
+      message: {
+        id: message.id,
+        channelId: message.channelId,
+        senderId: message.senderId,
+        content: message.content,
+        type: message.type,
+        isPinned: message.isPinned,
+        parentId: message.parentId,
+        createdAt: message.createdAt,
+      },
+      channel: channel,
+      sender: message.sender
+        ? {
+            id: message.sender.id,
+            username: message.sender.username,
+            displayName: message.sender.displayName,
+          }
+        : undefined,
+    });
+
     return message;
   }
 
@@ -197,6 +221,31 @@ export class MessagesController {
       message,
     );
 
+    // Emit event for search indexing
+    const channel = await this.channelsService.findById(message.channelId);
+    if (channel) {
+      this.eventEmitter.emit('message.updated', {
+        message: {
+          id: message.id,
+          channelId: message.channelId,
+          senderId: message.senderId,
+          content: message.content,
+          type: message.type,
+          isPinned: message.isPinned,
+          parentId: message.parentId,
+          createdAt: message.createdAt,
+        },
+        channel: channel,
+        sender: message.sender
+          ? {
+              id: message.sender.id,
+              username: message.sender.username,
+              displayName: message.sender.displayName,
+            }
+          : undefined,
+      });
+    }
+
     return message;
   }
 
@@ -212,6 +261,9 @@ export class MessagesController {
     this.websocketGateway.sendToChannel(channelId, WS_EVENTS.MESSAGE.DELETED, {
       messageId,
     });
+
+    // Emit event for search index removal
+    this.eventEmitter.emit('message.deleted', messageId);
 
     return { success: true };
   }
