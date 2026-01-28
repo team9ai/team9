@@ -141,3 +141,42 @@ export function useCurrentWorkspaceRole() {
     isOwnerOrAdmin,
   };
 }
+
+/**
+ * Hook to update a member's role in the workspace
+ */
+export function useUpdateMemberRole(workspaceId: string | undefined) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      userId,
+      role,
+    }: {
+      userId: string;
+      role: "admin" | "member" | "guest";
+    }) => workspaceApi.updateMemberRole(workspaceId!, userId, role),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["workspace-members", workspaceId],
+      });
+    },
+  });
+}
+
+/**
+ * Hook to remove a member from the workspace
+ */
+export function useRemoveMember(workspaceId: string | undefined) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (userId: string) =>
+      workspaceApi.removeMember(workspaceId!, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["workspace-members", workspaceId],
+      });
+    },
+  });
+}

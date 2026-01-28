@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "@tanstack/react-router";
 import { InviteManagementDialog } from "@/components/workspace/InviteManagementDialog";
 import { useWorkspaceStore } from "@/stores";
 import { useThemeToggle } from "@/hooks/useTheme";
@@ -57,6 +58,7 @@ const settingsGroups = [
 
 export function MoreMainContent() {
   const { t } = useTranslation("settings");
+  const navigate = useNavigate();
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [isAppearanceDialogOpen, setIsAppearanceDialogOpen] = useState(false);
   const { theme, setTheme } = useThemeToggle();
@@ -67,6 +69,8 @@ export function MoreMainContent() {
   const handleSettingClick = (id: string) => {
     if (id === "invitations") {
       setIsInviteDialogOpen(true);
+    } else if (id === "members") {
+      navigate({ to: "/more/members" });
     } else if (id === "appearance") {
       setIsAppearanceDialogOpen(true);
     }

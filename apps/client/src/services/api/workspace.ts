@@ -83,6 +83,30 @@ export const workspaceApi = {
     );
     return response.data;
   },
+
+  // Update member role
+  updateMemberRole: async (
+    workspaceId: string,
+    userId: string,
+    role: "admin" | "member" | "guest",
+  ): Promise<{ success: boolean }> => {
+    const response = await http.patch<{ success: boolean }>(
+      `/v1/workspaces/${workspaceId}/members/${userId}/role`,
+      { role },
+    );
+    return response.data;
+  },
+
+  // Remove member from workspace
+  removeMember: async (
+    workspaceId: string,
+    userId: string,
+  ): Promise<{ success: boolean }> => {
+    const response = await http.delete<{ success: boolean }>(
+      `/v1/workspaces/${workspaceId}/members/${userId}`,
+    );
+    return response.data;
+  },
 };
 
 export default workspaceApi;

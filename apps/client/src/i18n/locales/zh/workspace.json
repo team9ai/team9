@@ -1,0 +1,16 @@
+{
+  "members": "成员",
+  "membersDescription": "管理工作空间成员及其角色",
+  "searchMembers": "搜索成员...",
+  "noMembersFound": "未找到成员",
+  "noMembers": "此工作空间中没有成员",
+  "joined": "加入于",
+  "makeAdmin": "设为管理员",
+  "makeMember": "设为成员",
+  "makeGuest": "设为访客",
+  "removeMember": "从工作空间移除",
+  "insufficientPermissions": "权限不足，只有工作空间所有者可以管理成员角色",
+  "cannotChangeOwnerRole": "无法更改所有者的角色",
+  "cannotRemoveOwner": "无法移除工作空间所有者",
+  "confirmRemoveMember": "确定要将 {{name}} 从此工作空间移除吗？"
+}

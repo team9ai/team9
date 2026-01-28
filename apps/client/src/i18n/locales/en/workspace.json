@@ -1,0 +1,16 @@
+{
+  "members": "Members",
+  "membersDescription": "Manage members and their roles in this workspace",
+  "searchMembers": "Search members...",
+  "noMembersFound": "No members found",
+  "noMembers": "No members in this workspace",
+  "joined": "Joined",
+  "makeAdmin": "Make Admin",
+  "makeMember": "Make Member",
+  "makeGuest": "Make Guest",
+  "removeMember": "Remove from Workspace",
+  "insufficientPermissions": "You don't have permission to manage member roles",
+  "cannotChangeOwnerRole": "Cannot change the owner's role",
+  "cannotRemoveOwner": "Cannot remove the workspace owner",
+  "confirmRemoveMember": "Are you sure you want to remove {{name}} from this workspace?"
+}
