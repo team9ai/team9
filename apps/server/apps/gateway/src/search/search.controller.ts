@@ -20,6 +20,7 @@ import type {
   path: 'search',
   version: '1',
 })
+@UseGuards(AuthGuard)
 export class SearchController {
   constructor(
     private readonly searchService: SearchService,
@@ -101,7 +102,7 @@ export class SearchController {
    * Rebuild search index for all entities
    * Call this after migration to index existing data
    */
-  @Get('reindex')
+  @Post('reindex')
   async reindexAll(): Promise<{ success: boolean; message: string }> {
     // Run in background to avoid timeout
     this.searchIndexerService.reindexAll().catch((err) => {
