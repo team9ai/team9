@@ -19,8 +19,9 @@ export class WorkspaceGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
 
     // Get workspace ID from route param or tenantId from middleware
+    // Priority: workspaceId param > tenantId from header > id param (for backward compatibility)
     const workspaceId =
-      request.params.workspaceId || request.params.id || request.tenantId;
+      request.params.workspaceId || request.tenantId || request.params.id;
     const user = request.user;
 
     if (!workspaceId) {
