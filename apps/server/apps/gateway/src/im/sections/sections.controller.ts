@@ -17,12 +17,17 @@ import {
 } from './dto/index.js';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import { CurrentTenantId } from '../../common/decorators/current-tenant.decorator.js';
+import {
+  WorkspaceGuard,
+  WorkspaceRoleGuard,
+  WorkspaceRoles,
+} from '../../workspace/guards/index.js';
 
 @Controller({
   path: 'im/sections',
   version: '1',
 })
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, WorkspaceGuard, WorkspaceRoleGuard)
 export class SectionsController {
   constructor(private readonly sectionsService: SectionsService) {}
 
@@ -41,6 +46,7 @@ export class SectionsController {
   }
 
   @Post()
+  @WorkspaceRoles('owner', 'admin')
   async createSection(
     @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string | undefined,
@@ -55,6 +61,7 @@ export class SectionsController {
   }
 
   @Patch(':id')
+  @WorkspaceRoles('owner', 'admin')
   async updateSection(
     @CurrentUser('sub') userId: string,
     @Param('id') sectionId: string,
@@ -64,6 +71,7 @@ export class SectionsController {
   }
 
   @Delete(':id')
+  @WorkspaceRoles('owner', 'admin')
   async deleteSection(
     @CurrentUser('sub') userId: string,
     @Param('id') sectionId: string,
@@ -73,6 +81,7 @@ export class SectionsController {
   }
 
   @Patch('reorder')
+  @WorkspaceRoles('owner', 'admin')
   async reorderSections(
     @CurrentTenantId() tenantId: string | undefined,
     @Body() dto: ReorderSectionsDto,
@@ -85,11 +94,12 @@ export class SectionsController {
   path: 'im/channels',
   version: '1',
 })
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, WorkspaceGuard, WorkspaceRoleGuard)
 export class ChannelSectionController {
   constructor(private readonly sectionsService: SectionsService) {}
 
   @Patch(':id/move')
+  @WorkspaceRoles('owner', 'admin')
   async moveChannel(
     @CurrentUser('sub') userId: string,
     @Param('id') channelId: string,

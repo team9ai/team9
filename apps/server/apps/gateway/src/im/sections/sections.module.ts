@@ -5,9 +5,10 @@ import {
   ChannelSectionController,
 } from './sections.controller.js';
 import { DatabaseModule } from '@team9/database';
+import { WorkspaceModule } from '../../workspace/workspace.module.js';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, WorkspaceModule],
   controllers: [SectionsController, ChannelSectionController],
   providers: [SectionsService],
   exports: [SectionsService],

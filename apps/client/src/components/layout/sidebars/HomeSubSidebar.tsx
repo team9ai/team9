@@ -10,7 +10,6 @@ import {
   FolderPlus,
   MoreVertical,
   Folder,
-  GripVertical,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -28,6 +27,7 @@ import React, { useState, useMemo } from "react";
 import { useChannelsByType, usePublicChannels } from "@/hooks/useChannels";
 import { useOnlineUsers } from "@/hooks/useIMUsers";
 import { useSections, useMoveChannel } from "@/hooks/useSections";
+import { useCurrentWorkspaceRole } from "@/hooks/useWorkspace";
 import { Link, useParams } from "@tanstack/react-router";
 import { NewMessageDialog } from "@/components/dialog/NewMessageDialog";
 import { CreateChannelDialog } from "@/components/dialog/CreateChannelDialog";
@@ -69,13 +69,16 @@ function DraggableChannel({
   channel,
   isSelected,
   isDragging,
+  canDrag = true,
 }: {
   channel: Channel;
   isSelected: boolean;
   isDragging: boolean;
+  canDrag?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
     id: channel.id,
+    disabled: !canDrag,
   });
 
   const style = transform
@@ -91,24 +94,15 @@ function DraggableChannel({
     <div
       ref={setNodeRef}
       style={style}
-      className={cn(
-        "flex items-center gap-0.5 group",
-        isDragging && "opacity-50",
-      )}
+      {...attributes}
+      {...(canDrag ? listeners : {})}
+      className={cn("touch-none", isDragging && "opacity-50")}
     >
-      {/* Drag Handle - only visible on hover */}
-      <div
-        {...attributes}
-        {...listeners}
-        className="opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing touch-none shrink-0 px-1"
-      >
-        <GripVertical size={14} className="text-white/40" />
-      </div>
-
       <Link
         to="/channels/$channelId"
         params={{ channelId: channel.id }}
-        className="flex-1 min-w-0 block"
+        className="block min-w-0"
+        draggable={false}
       >
         <Button
           variant="ghost"
@@ -122,7 +116,7 @@ function DraggableChannel({
             size={16}
             className={cn("shrink-0", !isMember && "opacity-50")}
           />
-          <span className="truncate text-left" title={channel.name}>
+          <span className="truncate text-left max-w-35" title={channel.name}>
             {channel.name}
           </span>
           {channel.unreadCount > 0 && (
@@ -252,14 +246,19 @@ export function HomeSubSidebar() {
     usePublicChannels();
   const { data: onlineUsers = {} } = useOnlineUsers();
   const { data: sections = [] } = useSections();
-  const moveChannel = useMoveChannel();
+  const { isOwnerOrAdmin } = useCurrentWorkspaceRole();
+  const moveChannel = useMoveChannel((error: any) => {
+    if (error?.response?.status === 403) {
+      alert(tNav("insufficientPermissions"));
+    }
+  });
   const params = useParams({ strict: false });
   const selectedChannelId = (params as { channelId?: string }).channelId;
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 5,
       },
     }),
   );
@@ -286,17 +285,32 @@ export function HomeSubSidebar() {
 
     if (!over || active.id === over.id) return;
 
+    // Check permission
+    if (!isOwnerOrAdmin) {
+      alert(tNav("insufficientPermissions"));
+      return;
+    }
+
     const channelId = active.id as string;
     const overId = over.id as string;
 
     // Determine the target section
     let targetSectionId: string | null = null;
+
     if (overId === "unsectioned") {
+      // Dropped in the unsectioned area
       targetSectionId = null;
     } else if (overId.startsWith("section-")) {
+      // Dropped on a section header
       targetSectionId = overId.replace("section-", "");
     } else {
-      return; // Invalid drop target
+      // Dropped on another channel - find which section that channel belongs to
+      const targetChannel = allChannels.find((ch) => ch.id === overId);
+      if (targetChannel) {
+        targetSectionId = targetChannel.sectionId ?? null;
+      } else {
+        return; // Invalid drop target
+      }
     }
 
     // Move the channel to the target section
@@ -427,12 +441,14 @@ export function HomeSubSidebar() {
                     <Hash size={16} className="mr-2" />
                     {tNav("createChannel")}
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => setIsCreateSectionOpen(true)}
-                  >
-                    <FolderPlus size={16} className="mr-2" />
-                    {tNav("createSection")}
-                  </DropdownMenuItem>
+                  {isOwnerOrAdmin && (
+                    <DropdownMenuItem
+                      onClick={() => setIsCreateSectionOpen(true)}
+                    >
+                      <FolderPlus size={16} className="mr-2" />
+                      {tNav("createSection")}
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -476,6 +492,7 @@ export function HomeSubSidebar() {
                                 channel={channel}
                                 isSelected={selectedChannelId === channel.id}
                                 isDragging={activeId === channel.id}
+                                canDrag={isOwnerOrAdmin}
                               />
                             ))}
                           </DroppableSection>
@@ -495,6 +512,7 @@ export function HomeSubSidebar() {
                             channel={channel}
                             isSelected={selectedChannelId === channel.id}
                             isDragging={activeId === channel.id}
+                            canDrag={isOwnerOrAdmin}
                           />
                         ))}
                       </DroppableSection>

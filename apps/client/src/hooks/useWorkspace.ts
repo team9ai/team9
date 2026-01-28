@@ -9,6 +9,7 @@ import type {
   CreateInvitationDto,
   CreateWorkspaceDto,
 } from "@/types/workspace";
+import { useSelectedWorkspaceId } from "@/stores";
 
 /**
  * Hook to fetch user's workspaces
@@ -117,4 +118,26 @@ export function useWorkspaceMembers(
     },
     enabled: !!workspaceId,
   });
+}
+
+/**
+ * Hook to get current user's role in the current workspace
+ */
+export function useCurrentWorkspaceRole() {
+  const workspaceId = useSelectedWorkspaceId();
+  const { data: workspaces } = useUserWorkspaces();
+
+  const currentWorkspace = workspaces?.find((w) => w.id === workspaceId);
+  const role = currentWorkspace?.role;
+
+  const isOwner = role === "owner";
+  const isAdmin = role === "admin";
+  const isOwnerOrAdmin = isOwner || isAdmin;
+
+  return {
+    role,
+    isOwner,
+    isAdmin,
+    isOwnerOrAdmin,
+  };
 }

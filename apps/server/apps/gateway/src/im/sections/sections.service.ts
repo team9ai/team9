@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  Inject,
-  NotFoundException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { Injectable, Inject, NotFoundException } from '@nestjs/common';
 import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
@@ -206,7 +201,7 @@ export class SectionsService {
     channelId: string,
     sectionId: string | null,
     order?: number,
-    requesterId?: string,
+    _requesterId?: string,
   ): Promise<void> {
     // Verify channel exists
     const [channel] = await this.db
@@ -227,25 +222,7 @@ export class SectionsService {
       }
     }
 
-    // Check if user has permission (owner or admin of channel)
-    if (requesterId) {
-      const [membership] = await this.db
-        .select({ role: schema.channelMembers.role })
-        .from(schema.channelMembers)
-        .where(
-          and(
-            eq(schema.channelMembers.channelId, channelId),
-            eq(schema.channelMembers.userId, requesterId),
-          ),
-        )
-        .limit(1);
-
-      if (!membership || !['owner', 'admin'].includes(membership.role)) {
-        throw new ForbiddenException(
-          'Insufficient permissions to move channel',
-        );
-      }
-    }
+    // Permission check is now handled by WorkspaceRoles guard in controller
 
     await this.db
       .update(schema.channels)

@@ -92,7 +92,7 @@ export function useReorderSections() {
 /**
  * Hook to move a channel to a section
  */
-export function useMoveChannel() {
+export function useMoveChannel(onError?: (error: any) => void) {
   const queryClient = useQueryClient();
   const workspaceId = useSelectedWorkspaceId();
 
@@ -111,6 +111,7 @@ export function useMoveChannel() {
         queryKey: ["publicChannels", workspaceId],
       });
     },
+    onError,
   });
 }
 

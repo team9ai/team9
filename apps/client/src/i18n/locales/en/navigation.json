@@ -47,5 +47,6 @@
   "create": "Create",
   "creating": "Creating...",
   "moveToSection": "Move to section",
-  "noSection": "No section"
+  "noSection": "No section",
+  "insufficientPermissions": "Insufficient permissions. Only workspace owners and admins can manage sections"
 }

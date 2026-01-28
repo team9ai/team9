@@ -47,5 +47,6 @@
   "create": "创建",
   "creating": "创建中...",
   "moveToSection": "移动到分区",
-  "noSection": "无分区"
+  "noSection": "无分区",
+  "insufficientPermissions": "权限不足，只有工作空间的所有者和管理员可以管理分区"
 }
