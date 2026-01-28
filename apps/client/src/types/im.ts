@@ -27,6 +27,8 @@ export interface Channel {
   avatarUrl?: string;
   type: ChannelType;
   createdBy: string;
+  sectionId?: string | null;
+  order: number;
   isArchived: boolean;
   createdAt: string;
   updatedAt: string;

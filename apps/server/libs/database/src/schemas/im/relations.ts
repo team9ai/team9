@@ -1,5 +1,6 @@
 import { relations } from 'drizzle-orm';
 import { users } from './users.js';
+import { channelSections } from './channel-sections.js';
 import { channels } from './channels.js';
 import { channelMembers } from './channel-members.js';
 import { messages } from './messages.js';
@@ -27,6 +28,21 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   channelNotificationMutes: many(channelNotificationMutes),
 }));
 
+export const channelSectionsRelations = relations(
+  channelSections,
+  ({ one, many }) => ({
+    tenant: one(tenants, {
+      fields: [channelSections.tenantId],
+      references: [tenants.id],
+    }),
+    creator: one(users, {
+      fields: [channelSections.createdBy],
+      references: [users.id],
+    }),
+    channels: many(channels),
+  }),
+);
+
 export const channelsRelations = relations(channels, ({ one, many }) => ({
   tenant: one(tenants, {
     fields: [channels.tenantId],
@@ -35,6 +51,10 @@ export const channelsRelations = relations(channels, ({ one, many }) => ({
   creator: one(users, {
     fields: [channels.createdBy],
     references: [users.id],
+  }),
+  section: one(channelSections, {
+    fields: [channels.sectionId],
+    references: [channelSections.id],
   }),
   members: many(channelMembers),
   messages: many(messages),

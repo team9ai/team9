@@ -43,6 +43,13 @@
       "when": 1769501252065,
       "tag": "0005_charming_ser_duncan",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1769521952583,
+      "tag": "0006_mean_emma_frost",
+      "breakpoints": true
     }
   ]
 }

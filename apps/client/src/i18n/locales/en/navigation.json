@@ -37,5 +37,15 @@
   "channelMentionInChannel": "@channel mention in #{{channel}}",
   "everyoneMentionInChannel": "@everyone mention in #{{channel}}",
   "replyInChannel": "Reply in #{{channel}}",
-  "threadReplyInChannel": "Thread reply in #{{channel}}"
+  "threadReplyInChannel": "Thread reply in #{{channel}}",
+  "createChannel": "Create channel",
+  "createSection": "Create section",
+  "createSectionDescription": "Sections help you organize and manage channels",
+  "sectionName": "Section name",
+  "sectionNamePlaceholder": "e.g., Projects, Teams",
+  "cancel": "Cancel",
+  "create": "Create",
+  "creating": "Creating...",
+  "moveToSection": "Move to section",
+  "noSection": "No section"
 }

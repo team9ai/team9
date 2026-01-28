@@ -37,5 +37,15 @@
   "channelMentionInChannel": "# {{channel}} 中的 @频道提及",
   "everyoneMentionInChannel": "# {{channel}} 中的 @所有人提及",
   "replyInChannel": "# {{channel}} 中的回复",
-  "threadReplyInChannel": "# {{channel}} 中的消息列回复"
+  "threadReplyInChannel": "# {{channel}} 中的消息列回复",
+  "createChannel": "创建频道",
+  "createSection": "创建分区",
+  "createSectionDescription": "分区帮助你组织和管理频道",
+  "sectionName": "分区名称",
+  "sectionNamePlaceholder": "例如：项目、团队",
+  "cancel": "取消",
+  "create": "创建",
+  "creating": "创建中...",
+  "moveToSection": "移动到分区",
+  "noSection": "无分区"
 }

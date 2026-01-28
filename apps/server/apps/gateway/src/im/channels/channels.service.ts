@@ -29,6 +29,8 @@ export interface ChannelResponse {
   type: 'direct' | 'public' | 'private';
   avatarUrl: string | null;
   createdBy: string | null;
+  sectionId: string | null;
+  order: number;
   isArchived: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -283,6 +285,8 @@ export class ChannelsService {
         type: schema.channels.type,
         avatarUrl: schema.channels.avatarUrl,
         createdBy: schema.channels.createdBy,
+        sectionId: schema.channels.sectionId,
+        order: schema.channels.order,
         isArchived: schema.channels.isArchived,
         createdAt: schema.channels.createdAt,
         updatedAt: schema.channels.updatedAt,
@@ -642,6 +646,8 @@ export class ChannelsService {
         type: schema.channels.type,
         avatarUrl: schema.channels.avatarUrl,
         createdBy: schema.channels.createdBy,
+        sectionId: schema.channels.sectionId,
+        order: schema.channels.order,
         isArchived: schema.channels.isArchived,
         createdAt: schema.channels.createdAt,
         updatedAt: schema.channels.updatedAt,

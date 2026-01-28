@@ -297,6 +297,77 @@ export const imUsersApi = {
   },
 };
 
+// Sections API
+export interface Section {
+  id: string;
+  tenantId: string | null;
+  name: string;
+  order: number;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateSectionDto {
+  name: string;
+}
+
+export interface UpdateSectionDto {
+  name?: string;
+}
+
+export interface MoveChannelDto {
+  sectionId?: string | null;
+  order?: number;
+}
+
+export const sectionsApi = {
+  // Get all sections
+  getSections: async (): Promise<Section[]> => {
+    const response = await http.get<Section[]>("/v1/im/sections");
+    return response.data;
+  },
+
+  // Create a new section
+  createSection: async (data: CreateSectionDto): Promise<Section> => {
+    const response = await http.post<Section>("/v1/im/sections", data);
+    return response.data;
+  },
+
+  // Update section
+  updateSection: async (
+    sectionId: string,
+    data: UpdateSectionDto,
+  ): Promise<Section> => {
+    const response = await http.patch<Section>(
+      `/v1/im/sections/${sectionId}`,
+      data,
+    );
+    return response.data;
+  },
+
+  // Delete section
+  deleteSection: async (sectionId: string): Promise<void> => {
+    await http.delete(`/v1/im/sections/${sectionId}`);
+  },
+
+  // Reorder sections
+  reorderSections: async (sectionIds: string[]): Promise<Section[]> => {
+    const response = await http.patch<Section[]>("/v1/im/sections/reorder", {
+      sectionIds,
+    });
+    return response.data;
+  },
+
+  // Move channel to section
+  moveChannel: async (
+    channelId: string,
+    data: MoveChannelDto,
+  ): Promise<void> => {
+    await http.patch(`/v1/im/channels/${channelId}/move`, data);
+  },
+};
+
 // Sync API
 export const syncApi = {
   // Sync messages for a channel (lazy loading - called when opening a channel)
@@ -323,6 +394,7 @@ export const imApi = {
   messages: messagesApi,
   users: imUsersApi,
   sync: syncApi,
+  sections: sectionsApi,
 };
 
 export default imApi;
