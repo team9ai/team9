@@ -3,6 +3,7 @@ import {
   Inject,
   NotFoundException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { v7 as uuidv7 } from 'uuid';
 import {
@@ -85,6 +86,8 @@ export interface SubRepliesResponse {
 
 @Injectable()
 export class MessagesService {
+  private readonly logger = new Logger(MessagesService.name);
+
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
@@ -655,6 +658,42 @@ export class MessagesService {
     userId: string,
     messageId: string,
   ): Promise<void> {
+    // Validate messageId format - must be a valid UUID
+    // Temporary IDs (e.g., "temp-1234567890-abc123") should be filtered on the client side,
+    // but we add server-side validation as a defensive measure
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    if (!messageId || !uuidRegex.test(messageId)) {
+      this.logger.warn(
+        `[markAsRead] Invalid messageId format: ${messageId} for user ${userId} in channel ${channelId}. Skipping.`,
+      );
+      return; // Silently skip instead of throwing error to avoid breaking client flow
+    }
+
+    // Check if messageId is a temporary ID (starts with "temp-")
+    if (messageId.startsWith('temp-')) {
+      this.logger.warn(
+        `[markAsRead] Temporary messageId detected: ${messageId} for user ${userId} in channel ${channelId}. Skipping.`,
+      );
+      return;
+    }
+
+    // Verify that the message exists in the database
+    const [existingMessage] = await this.db
+      .select({ id: schema.messages.id })
+      .from(schema.messages)
+      .where(eq(schema.messages.id, messageId))
+      .limit(1);
+
+    if (!existingMessage) {
+      this.logger.warn(
+        `[markAsRead] Message ${messageId} not found in database for user ${userId} in channel ${channelId}. Skipping.`,
+      );
+      return; // Message doesn't exist yet (likely still being processed by server)
+    }
+
+    // All validations passed - update read status
     await this.db
       .insert(schema.userChannelReadStatus)
       .values({

@@ -13,6 +13,7 @@ import { MessageInput } from "./MessageInput";
 import { ChannelHeader } from "./ChannelHeader";
 import { ThreadPanel } from "./ThreadPanel";
 import type { AttachmentDto } from "@/types/im";
+import { isValidMessageId } from "@/lib/utils";
 
 interface ChannelViewProps {
   channelId: string;
@@ -73,7 +74,14 @@ export function ChannelView({
 
   // Auto-mark messages as read when viewing the channel or when new messages arrive
   useEffect(() => {
-    if (latestMessageId && !messagesLoading) {
+    // Only mark as read if the messageId is a valid UUID (not a temporary ID)
+    // Temporary IDs (e.g., "temp-1234567890-abc123") are used for optimistic updates
+    // and should not be sent to the server as they don't exist in the database yet
+    if (
+      latestMessageId &&
+      !messagesLoading &&
+      isValidMessageId(latestMessageId)
+    ) {
       markAsRead.mutate({
         channelId,
         messageId: latestMessageId,
