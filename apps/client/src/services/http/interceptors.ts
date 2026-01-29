@@ -194,6 +194,14 @@ const retryRequest = async (
 const redirectToLogin = () => {
   localStorage.removeItem("auth_token");
   localStorage.removeItem("refresh_token");
+
+  // Don't redirect if already on auth pages (login, register, verify-email)
+  const authPaths = ["/login", "/register", "/verify-email"];
+  const currentPath = window.location.pathname;
+  if (authPaths.some((path) => currentPath.startsWith(path))) {
+    return;
+  }
+
   window.location.href = "/login";
 };
 

@@ -34,15 +34,29 @@ export const useLogin = () => {
 };
 
 export const useRegister = () => {
+  return useMutation({
+    mutationFn: (data: RegisterRequest) => api.auth.register(data),
+    // No longer auto-login after registration
+    // User needs to verify email first
+  });
+};
+
+export const useVerifyEmail = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: RegisterRequest) => api.auth.register(data),
+    mutationFn: (token: string) => api.auth.verifyEmail(token),
     onSuccess: (data) => {
-      // Tokens are already stored in api.auth.register
+      // Tokens are stored in api.auth.verifyEmail
       queryClient.setQueryData(["currentUser"], data.user);
       syncUserToStore(data.user);
     },
+  });
+};
+
+export const useResendVerification = () => {
+  return useMutation({
+    mutationFn: (email: string) => api.auth.resendVerification(email),
   });
 };
 

@@ -1,7 +1,11 @@
 import { useState, useEffect } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useLogin, useCurrentUser } from "@/hooks/useAuth";
+import {
+  useLogin,
+  useCurrentUser,
+  useResendVerification,
+} from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -55,11 +59,59 @@ export const Route = createFileRoute("/login")({
   },
 });
 
+function ResendVerificationButton({ email }: { email: string }) {
+  const { t } = useTranslation("auth");
+  const resendVerification = useResendVerification();
+  const [countdown, setCountdown] = useState(0);
+  const [sent, setSent] = useState(false);
+
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [countdown]);
+
+  const handleResend = async () => {
+    try {
+      await resendVerification.mutateAsync(email);
+      setCountdown(60);
+      setSent(true);
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
+  if (sent && countdown === 0) {
+    return (
+      <p className="text-sm text-green-600 mt-2">
+        {t("verificationEmailSentSuccess")}
+      </p>
+    );
+  }
+
+  return (
+    <Button
+      variant="link"
+      onClick={handleResend}
+      disabled={resendVerification.isPending || countdown > 0}
+      className="p-0 h-auto text-purple-600 hover:text-purple-700"
+    >
+      {countdown > 0
+        ? t("resendIn", { seconds: countdown })
+        : resendVerification.isPending
+          ? t("sending")
+          : t("resendVerificationEmail")}
+    </Button>
+  );
+}
+
 function Login() {
   const { t } = useTranslation("auth");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
 
   const navigate = useNavigate();
   const { redirect } = Route.useSearch();
@@ -76,6 +128,7 @@ function Login() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setUnverifiedEmail(null);
 
     try {
       await login.mutateAsync({
@@ -87,6 +140,15 @@ function Login() {
     } catch (err: any) {
       const errorMessage =
         err?.response?.data?.message || err?.message || t("loginFailed");
+
+      // Check if the error is about unverified email
+      if (
+        errorMessage.toLowerCase().includes("not verified") ||
+        errorMessage.includes("未验证")
+      ) {
+        setUnverifiedEmail(email);
+      }
+
       setError(errorMessage);
     }
   };
@@ -146,6 +208,11 @@ function Login() {
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
                 {error}
+                {unverifiedEmail && (
+                  <div className="mt-2">
+                    <ResendVerificationButton email={unverifiedEmail} />
+                  </div>
+                )}
               </div>
             )}
 

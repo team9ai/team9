@@ -3,11 +3,13 @@ import { JwtModule } from '@nestjs/jwt';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { AuthModule as SharedAuthModule } from '@team9/auth';
+import { EmailModule } from '@team9/email';
 import { env } from '@team9/shared';
 
 @Module({
   imports: [
     SharedAuthModule,
+    EmailModule,
     JwtModule.register({
       privateKey: env.JWT_PRIVATE_KEY,
       publicKey: env.JWT_PUBLIC_KEY,

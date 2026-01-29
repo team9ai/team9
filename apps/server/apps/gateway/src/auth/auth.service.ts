@@ -1,15 +1,23 @@
-import { Injectable, UnauthorizedException, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+  Inject,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
   eq,
+  lt,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
+import { EmailService } from '@team9/email';
 import { env } from '@team9/shared';
 import type { JwtPayload } from '@team9/auth';
 import { RegisterDto, LoginDto } from './dto/index.js';
@@ -30,9 +38,16 @@ export interface AuthResponse extends TokenPair {
   };
 }
 
+export interface RegisterResponse {
+  message: string;
+  email: string;
+}
+
 @Injectable()
 export class AuthService {
   private readonly TOKEN_BLACKLIST_PREFIX = 'im:token_blacklist:';
+  private readonly VERIFICATION_RATE_LIMIT_PREFIX = 'im:verify_rate:';
+  private readonly VERIFICATION_TOKEN_EXPIRY_HOURS = 24;
 
   constructor(
     @Inject(DATABASE_CONNECTION)
@@ -40,9 +55,10 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly redisService: RedisService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly emailService: EmailService,
   ) {}
 
-  async register(dto: RegisterDto): Promise<AuthResponse> {
+  async register(dto: RegisterDto): Promise<RegisterResponse> {
     // Check if email or username already exists
     const existingUser = await this.db
       .select()
@@ -66,18 +82,23 @@ export class AuthService {
 
     // Hash password
     const passwordHash = await bcrypt.hash(dto.password, 10);
+    const userId = uuidv7();
 
-    // Create user
+    // Create user with emailVerified = false
     const [user] = await this.db
       .insert(schema.users)
       .values({
-        id: uuidv7(),
+        id: userId,
         email: dto.email,
         username: dto.username,
         displayName: dto.displayName || dto.username,
         passwordHash,
+        emailVerified: false,
       })
       .returning();
+
+    // Generate and send verification email
+    await this.sendVerificationEmail(user.id, user.email, user.username);
 
     // Emit event to create a personal workspace for the user
     this.eventEmitter.emit(USER_EVENTS.REGISTERED, {
@@ -88,7 +109,86 @@ export class AuthService {
     // Emit event for search indexing
     this.eventEmitter.emit('user.created', { user });
 
-    // Generate tokens
+    return {
+      message:
+        'Registration successful. Please check your email to verify your account.',
+      email: user.email,
+    };
+  }
+
+  private async sendVerificationEmail(
+    userId: string,
+    email: string,
+    username: string,
+  ): Promise<void> {
+    // Generate secure token
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(
+      Date.now() + this.VERIFICATION_TOKEN_EXPIRY_HOURS * 60 * 60 * 1000,
+    );
+
+    // Store token in database
+    await this.db.insert(schema.emailVerificationTokens).values({
+      id: uuidv7(),
+      userId,
+      token,
+      email,
+      expiresAt,
+    });
+
+    // Build verification link
+    const verificationLink = `${env.APP_URL}/verify-email?token=${token}`;
+
+    // Send email
+    await this.emailService.sendVerificationEmail(
+      email,
+      username,
+      verificationLink,
+    );
+  }
+
+  async verifyEmail(token: string): Promise<AuthResponse> {
+    // Find valid token
+    const [tokenRecord] = await this.db
+      .select()
+      .from(schema.emailVerificationTokens)
+      .where(eq(schema.emailVerificationTokens.token, token))
+      .limit(1);
+
+    if (!tokenRecord) {
+      throw new BadRequestException('Invalid verification token');
+    }
+
+    if (tokenRecord.usedAt) {
+      throw new BadRequestException('Verification token has already been used');
+    }
+
+    if (new Date() > tokenRecord.expiresAt) {
+      throw new BadRequestException('Verification token has expired');
+    }
+
+    // Mark token as used
+    await this.db
+      .update(schema.emailVerificationTokens)
+      .set({ usedAt: new Date() })
+      .where(eq(schema.emailVerificationTokens.id, tokenRecord.id));
+
+    // Update user emailVerified status
+    const [user] = await this.db
+      .update(schema.users)
+      .set({
+        emailVerified: true,
+        emailVerifiedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.users.id, tokenRecord.userId))
+      .returning();
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Generate tokens and return AuthResponse
     const tokens = this.generateTokenPair(user);
 
     return {
@@ -101,6 +201,49 @@ export class AuthService {
         avatarUrl: user.avatarUrl,
       },
     };
+  }
+
+  async resendVerificationEmail(email: string): Promise<{ message: string }> {
+    // Rate limiting check using Redis
+    const rateLimitKey = `${this.VERIFICATION_RATE_LIMIT_PREFIX}${email}`;
+    const recentAttempt = await this.redisService.get(rateLimitKey);
+
+    if (recentAttempt) {
+      throw new BadRequestException(
+        'Please wait before requesting another verification email',
+      );
+    }
+
+    // Find user
+    const [user] = await this.db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.email, email))
+      .limit(1);
+
+    if (!user) {
+      // Return success even if user doesn't exist (security - don't reveal user existence)
+      return {
+        message: 'If the email exists, a verification email has been sent.',
+      };
+    }
+
+    if (user.emailVerified) {
+      throw new BadRequestException('Email is already verified');
+    }
+
+    // Delete existing tokens for this user
+    await this.db
+      .delete(schema.emailVerificationTokens)
+      .where(eq(schema.emailVerificationTokens.userId, user.id));
+
+    // Send new verification email
+    await this.sendVerificationEmail(user.id, user.email, user.username);
+
+    // Set rate limit (60 seconds)
+    await this.redisService.set(rateLimitKey, '1', 60);
+
+    return { message: 'Verification email has been sent.' };
   }
 
   async login(dto: LoginDto): Promise<AuthResponse> {
@@ -124,6 +267,13 @@ export class AuthService {
 
     if (!user.isActive) {
       throw new UnauthorizedException('Account is disabled');
+    }
+
+    // Check email verification status
+    if (!user.emailVerified) {
+      throw new UnauthorizedException(
+        'Email not verified. Please check your inbox for the verification email.',
+      );
     }
 
     // Generate tokens
@@ -266,5 +416,12 @@ export class AuthService {
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
     };
+  }
+
+  // Cleanup expired tokens (can be called by a cron job)
+  async cleanupExpiredTokens(): Promise<void> {
+    await this.db
+      .delete(schema.emailVerificationTokens)
+      .where(lt(schema.emailVerificationTokens.expiresAt, new Date()));
   }
 }

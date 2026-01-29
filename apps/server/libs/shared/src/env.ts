@@ -156,4 +156,12 @@ export const env = {
   get SYSTEM_BOT_ENABLED() {
     return process.env.SYSTEM_BOT_ENABLED === 'true';
   },
+
+  // Email (Resend)
+  get RESEND_API_KEY() {
+    return process.env.RESEND_API_KEY; // Optional - email disabled if not set
+  },
+  get EMAIL_FROM() {
+    return process.env.EMAIL_FROM || 'Team9 <noreply@team9.app>';
+  },
 };

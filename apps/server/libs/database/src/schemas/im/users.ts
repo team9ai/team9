@@ -25,6 +25,8 @@ export const users = pgTable('im_users', {
   status: userStatusEnum('status').default('offline').notNull(),
   lastSeenAt: timestamp('last_seen_at'),
   isActive: boolean('is_active').default(true).notNull(),
+  emailVerified: boolean('email_verified').default(false).notNull(),
+  emailVerifiedAt: timestamp('email_verified_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

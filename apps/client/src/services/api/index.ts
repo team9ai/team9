@@ -39,6 +39,11 @@ export interface TokenPair {
   refreshToken: string;
 }
 
+export interface RegisterResponse {
+  message: string;
+  email: string;
+}
+
 export interface PaginationParams {
   page?: number;
   pageSize?: number;
@@ -64,16 +69,34 @@ export const authApi = {
     return authData;
   },
 
-  register: async (data: RegisterRequest): Promise<AuthResponse> => {
-    const response = await http.post<AuthResponse>("/v1/auth/register", data);
+  register: async (data: RegisterRequest): Promise<RegisterResponse> => {
+    const response = await http.post<RegisterResponse>(
+      "/v1/auth/register",
+      data,
+    );
+    return response.data;
+  },
+
+  verifyEmail: async (token: string): Promise<AuthResponse> => {
+    const response = await http.get<AuthResponse>(
+      `/v1/auth/verify-email?token=${token}`,
+    );
 
     const authData = response.data;
 
-    // Store tokens
+    // Store tokens after successful verification
     localStorage.setItem("auth_token", authData.accessToken);
     localStorage.setItem("refresh_token", authData.refreshToken);
 
     return authData;
+  },
+
+  resendVerification: async (email: string): Promise<{ message: string }> => {
+    const response = await http.post<{ message: string }>(
+      "/v1/auth/resend-verification",
+      { email },
+    );
+    return response.data;
   },
 
   logout: async (): Promise<void> => {

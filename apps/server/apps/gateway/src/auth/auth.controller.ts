@@ -6,10 +6,21 @@ import {
   HttpCode,
   HttpStatus,
   Get,
+  Query,
 } from '@nestjs/common';
 import { AuthService } from './auth.service.js';
-import type { AuthResponse, TokenPair } from './auth.service.js';
-import { RegisterDto, LoginDto, RefreshTokenDto } from './dto/index.js';
+import type {
+  AuthResponse,
+  TokenPair,
+  RegisterResponse,
+} from './auth.service.js';
+import {
+  RegisterDto,
+  LoginDto,
+  RefreshTokenDto,
+  VerifyEmailDto,
+  ResendVerificationDto,
+} from './dto/index.js';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import type { JwtPayload } from '@team9/auth';
 
@@ -21,7 +32,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  async register(@Body() dto: RegisterDto): Promise<AuthResponse> {
+  async register(@Body() dto: RegisterDto): Promise<RegisterResponse> {
     return this.authService.register(dto);
   }
 
@@ -29,6 +40,19 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async login(@Body() dto: LoginDto): Promise<AuthResponse> {
     return this.authService.login(dto);
+  }
+
+  @Get('verify-email')
+  async verifyEmail(@Query() dto: VerifyEmailDto): Promise<AuthResponse> {
+    return this.authService.verifyEmail(dto.token);
+  }
+
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  async resendVerification(
+    @Body() dto: ResendVerificationDto,
+  ): Promise<{ message: string }> {
+    return this.authService.resendVerificationEmail(dto.email);
   }
 
   @Post('refresh')
