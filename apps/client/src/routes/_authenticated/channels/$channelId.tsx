@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ChannelView } from "@/components/channel/ChannelView";
-import { PublicChannelPreviewView } from "@/components/channel/PublicChannelPreviewView";
 import { useChannelMembership } from "@/hooks/useChannels";
 
 // Search params type for channel routes
@@ -35,17 +34,13 @@ function ChannelPage() {
     );
   }
 
-  // If channel is found in publicChannels and user is not a member, show preview
-  if (channel && !isMember) {
-    return <PublicChannelPreviewView channel={channel} />;
-  }
-
-  // User is a member or channel is not public (private/direct), render full view
+  // Render channel view - pass previewChannel for non-members of public channels
   return (
     <ChannelView
       channelId={channelId}
       initialThreadId={thread}
       initialMessageId={message}
+      previewChannel={channel && !isMember ? channel : undefined}
     />
   );
 }

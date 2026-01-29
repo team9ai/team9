@@ -73,7 +73,7 @@ export function ChannelDetailsModal({
     try {
       await leaveChannel.mutateAsync(channelId);
       onClose();
-      // No need to navigate - the route page will automatically switch to PublicChannelPreviewView
+      // No need to navigate - ChannelView will automatically switch to preview mode
       // when publicChannels query refreshes and isMember becomes false
     } catch (error) {
       console.error("Failed to leave channel:", error);

@@ -56,5 +56,8 @@
   "joining": "加入中...",
   "leaving": "离开中...",
   "leaveChannelWarning": "离开后，你将无法访问此频道的消息和文件。",
-  "leaveThisChannel": "离开此频道"
+  "leaveThisChannel": "离开此频道",
+  "loadingMessages": "加载消息中...",
+  "loadingMoreMessages": "加载更多消息...",
+  "noMessagesYet": "暂无消息。加入频道开始聊天吧！"
 }

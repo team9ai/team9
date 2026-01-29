@@ -62,7 +62,11 @@ export class MessagesController {
   ): Promise<MessageResponse[]> {
     const isMember = await this.channelsService.isMember(channelId, userId);
     if (!isMember) {
-      throw new ForbiddenException('Access denied');
+      // Allow non-members to read public channel messages (read-only preview)
+      const channel = await this.channelsService.findById(channelId);
+      if (!channel || channel.type !== 'public') {
+        throw new ForbiddenException('Access denied');
+      }
     }
     return this.messagesService.getChannelMessages(
       channelId,

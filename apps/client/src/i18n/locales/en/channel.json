@@ -56,5 +56,8 @@
   "joining": "Joining...",
   "leaving": "Leaving...",
   "leaveChannelWarning": "You will no longer have access to this channel's messages and files.",
-  "leaveThisChannel": "Leave this channel"
+  "leaveThisChannel": "Leave this channel",
+  "loadingMessages": "Loading messages...",
+  "loadingMoreMessages": "Loading more messages...",
+  "noMessagesYet": "No messages yet. Join the channel to start the conversation!"
 }

@@ -20,6 +20,8 @@ interface MessageListProps {
   highlightMessageId?: string;
   // Channel ID for retry failed messages
   channelId: string;
+  // Read-only mode for non-members previewing public channels
+  readOnly?: boolean;
 }
 
 export function MessageList({
@@ -29,6 +31,7 @@ export function MessageList({
   hasMore,
   highlightMessageId,
   channelId,
+  readOnly = false,
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
@@ -169,6 +172,18 @@ export function MessageList({
           const hasReplies =
             !message.parentId && message.replyCount && message.replyCount > 0;
           const isHighlighted = highlightMessageId === message.id;
+
+          // Read-only mode: render without context menu and interactions
+          if (readOnly) {
+            return (
+              <MessageItem
+                key={message.id}
+                message={message}
+                isRootMessage={true}
+                isHighlighted={isHighlighted}
+              />
+            );
+          }
 
           return (
             <ChannelMessageItem

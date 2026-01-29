@@ -449,16 +449,23 @@ export class WebsocketGateway
       socketClient.userId,
     );
     if (!isMember) {
-      return { error: 'Not a member of this channel' };
+      // Allow non-members to join public channel rooms (for preview mode)
+      const channel = await this.channelsService.findById(channelId);
+      if (!channel || channel.type !== 'public') {
+        return { error: 'Not a member of this channel' };
+      }
     }
 
     void client.join(`channel:${channelId}`);
 
-    client.to(`channel:${channelId}`).emit(WS_EVENTS.CHANNEL.JOINED, {
-      channelId,
-      userId: socketClient.userId,
-      username: socketClient.username,
-    });
+    // Only broadcast join event for actual members
+    if (isMember) {
+      client.to(`channel:${channelId}`).emit(WS_EVENTS.CHANNEL.JOINED, {
+        channelId,
+        userId: socketClient.userId,
+        username: socketClient.username,
+      });
+    }
 
     return { success: true };
   }

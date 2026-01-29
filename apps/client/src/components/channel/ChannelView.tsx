@@ -12,7 +12,8 @@ import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import { ChannelHeader } from "./ChannelHeader";
 import { ThreadPanel } from "./ThreadPanel";
-import type { AttachmentDto } from "@/types/im";
+import { JoinChannelPrompt } from "./JoinChannelPrompt";
+import type { AttachmentDto, PublicChannelPreview } from "@/types/im";
 import { isValidMessageId } from "@/lib/utils";
 
 interface ChannelViewProps {
@@ -21,20 +22,31 @@ interface ChannelViewProps {
   initialThreadId?: string;
   // Initial message ID from URL - for scrolling/highlighting (future use)
   initialMessageId?: string;
+  // Preview channel data for non-members (public channel preview mode)
+  previewChannel?: PublicChannelPreview;
 }
 
 /**
- * ChannelView - Only renders for channel members
- * For non-members, use PublicChannelPreviewView instead
+ * ChannelView - Renders channel for both members and non-members (preview mode)
+ * When previewChannel is provided, shows read-only preview with join prompt
  */
 export function ChannelView({
   channelId,
   initialThreadId,
   initialMessageId,
+  previewChannel,
 }: ChannelViewProps) {
-  const { data: channel, isLoading: channelLoading } = useChannel(channelId);
-  const { data: members = [] } = useChannelMembers(channelId);
+  const isPreviewMode = !!previewChannel;
+  const { data: memberChannel, isLoading: channelLoading } = useChannel(
+    isPreviewMode ? undefined : channelId,
+  );
+  const { data: members = [] } = useChannelMembers(
+    isPreviewMode ? undefined : channelId,
+  );
   const currentUser = useUser();
+
+  // Use preview channel data or fetched channel data
+  const channel = previewChannel || memberChannel;
 
   // Sync missed messages when opening channel (lazy loading)
   useSyncChannel(channelId);
@@ -73,7 +85,10 @@ export function ChannelView({
   const latestMessageId = messages.length > 0 ? messages[0]?.id : null;
 
   // Auto-mark messages as read when viewing the channel or when new messages arrive
+  // Skip for preview mode (non-members)
   useEffect(() => {
+    if (isPreviewMode) return;
+
     // Only mark as read if the messageId is a valid UUID (not a temporary ID)
     // Temporary IDs (e.g., "temp-1234567890-abc123") are used for optimistic updates
     // and should not be sent to the server as they don't exist in the database yet
@@ -87,7 +102,7 @@ export function ChannelView({
         messageId: latestMessageId,
       });
     }
-  }, [channelId, latestMessageId, messagesLoading]);
+  }, [channelId, latestMessageId, messagesLoading, isPreviewMode]);
 
   const handleSendMessage = async (
     content: string,
@@ -130,13 +145,21 @@ export function ChannelView({
           hasMore={hasNextPage}
           highlightMessageId={initialMessageId}
           channelId={channelId}
+          readOnly={isPreviewMode}
         />
 
-        <MessageInput
-          channelId={channelId}
-          onSend={handleSendMessage}
-          disabled={sendMessage.isPending}
-        />
+        {isPreviewMode ? (
+          <JoinChannelPrompt
+            channelId={channelId}
+            channelName={channel.name || ""}
+          />
+        ) : (
+          <MessageInput
+            channelId={channelId}
+            onSend={handleSendMessage}
+            disabled={sendMessage.isPending}
+          />
+        )}
       </div>
 
       {/* Thread panel sidebars - up to 2 layers */}
