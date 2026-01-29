@@ -60,6 +60,11 @@ export class BotService implements OnModuleInit {
 
       if (existingBot) {
         this.botUserId = existingBot.id;
+        // Ensure bot email is always verified
+        await this.db
+          .update(schema.users)
+          .set({ emailVerified: true })
+          .where(eq(schema.users.id, existingBot.id));
         this.logger.log(`System bot found: ${username} (${this.botUserId})`);
         return;
       }
@@ -76,6 +81,7 @@ export class BotService implements OnModuleInit {
           passwordHash,
           status: 'online',
           isActive: true,
+          emailVerified: true,
         })
         .returning({ id: schema.users.id });
 
