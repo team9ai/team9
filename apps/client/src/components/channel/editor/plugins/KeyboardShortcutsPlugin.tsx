@@ -21,7 +21,7 @@ export function KeyboardShortcutsPlugin({
 }: KeyboardShortcutsPluginProps) {
   const [editor] = useLexicalComposerContext();
 
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = useCallback(() => {
     if (disabled) return false;
 
     // Check for actual text content (not just HTML tags like <br>) or attachments
@@ -30,23 +30,21 @@ export function KeyboardShortcutsPlugin({
 
     const content = editorHasContent ? exportToHtml(editor) : "";
 
-    try {
-      await onSubmit(content);
+    // Clear editor immediately for better UX
+    editor.update(() => {
+      const root = $getRoot();
+      root.clear();
+      const paragraph = $createParagraphNode();
+      root.append(paragraph);
+      paragraph.select();
+    });
 
-      // Clear editor after successful submit
-      editor.update(() => {
-        const root = $getRoot();
-        root.clear();
-        const paragraph = $createParagraphNode();
-        root.append(paragraph);
-        paragraph.select();
-      });
-
-      return true;
-    } catch (error) {
+    // Send message asynchronously (optimistic update handles UI feedback)
+    onSubmit(content).catch((error) => {
       console.error("Failed to send message:", error);
-      return false;
-    }
+    });
+
+    return true;
   }, [editor, onSubmit, disabled, hasAttachments]);
 
   useEffect(() => {
