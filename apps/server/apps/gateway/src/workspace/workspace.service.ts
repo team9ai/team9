@@ -30,6 +30,7 @@ import { WS_EVENTS } from '../im/websocket/events/events.constants.js';
 import { REDIS_KEYS } from '../im/shared/constants/redis-keys.js';
 import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
+import { BotService } from '../bot/bot.service.js';
 
 export interface InvitationResponse {
   id: string;
@@ -125,6 +126,7 @@ export class WorkspaceService {
     private readonly websocketGateway: any,
     private readonly redisService: RedisService,
     private readonly channelsService: ChannelsService,
+    private readonly botService: BotService,
   ) {}
 
   @OnEvent(USER_EVENTS.REGISTERED)
@@ -809,6 +811,27 @@ export class WorkspaceService {
       data.ownerId,
       workspace.id,
     );
+
+    // Add system bot to workspace if enabled
+    const botUserId = this.botService.getBotUserId();
+    if (botUserId && botUserId !== data.ownerId) {
+      try {
+        await this.addMember(workspace.id, botUserId, 'member', data.ownerId);
+        this.logger.log(`Added system bot to workspace: ${workspace.name}`);
+
+        // Create direct channel between owner and bot
+        await this.channelsService.createDirectChannel(
+          data.ownerId,
+          botUserId,
+          workspace.id,
+        );
+        this.logger.log(
+          `Created direct channel between owner and bot in workspace: ${workspace.name}`,
+        );
+      } catch (error) {
+        this.logger.warn(`Failed to add system bot to workspace: ${error}`);
+      }
+    }
 
     this.logger.log(`Created workspace: ${workspace.name} (${workspace.slug})`);
 

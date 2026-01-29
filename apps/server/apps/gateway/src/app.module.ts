@@ -27,6 +27,7 @@ import { TenantMiddleware } from './common/middleware/tenant.middleware.js';
 import { FileModule } from './file/file.module.js';
 import { NotificationModule } from './notification/notification.module.js';
 import { SearchModule } from './search/search.module.js';
+import { BotModule } from './bot/index.js';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { SearchModule } from './search/search.module.js';
     AiClientModule,
     RabbitmqModule,
     StorageModule,
+    BotModule,
     AuthModule,
     ClusterModule,
     ImModule,

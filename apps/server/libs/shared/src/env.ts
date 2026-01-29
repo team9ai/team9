@@ -138,4 +138,22 @@ export const env = {
   get TASK_TRACKER_PORT() {
     return parseInt(process.env.TASK_TRACKER_PORT || '3002', 10);
   },
+
+  // System Bot Configuration (optional)
+  // If configured, this bot account will be automatically added to all new workspaces
+  get SYSTEM_BOT_EMAIL() {
+    return process.env.SYSTEM_BOT_EMAIL;
+  },
+  get SYSTEM_BOT_USERNAME() {
+    return process.env.SYSTEM_BOT_USERNAME;
+  },
+  get SYSTEM_BOT_PASSWORD() {
+    return process.env.SYSTEM_BOT_PASSWORD;
+  },
+  get SYSTEM_BOT_DISPLAY_NAME() {
+    return process.env.SYSTEM_BOT_DISPLAY_NAME || 'Moltbot';
+  },
+  get SYSTEM_BOT_ENABLED() {
+    return process.env.SYSTEM_BOT_ENABLED === 'true';
+  },
 };
