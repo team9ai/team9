@@ -13,6 +13,8 @@ import type {
   SubRepliesResponse,
   CreateMessageDto,
   Message,
+  ThreadReply,
+  MessageSendStatus,
 } from "@/types/im";
 import {
   useThreadScrollState,
@@ -240,6 +242,7 @@ export type ThreadLevel = "primary" | "secondary";
 
 /**
  * Hook to send a reply in a thread (supports both primary and secondary threads)
+ * With optimistic updates for immediate UI feedback
  */
 export function useSendThreadReply(
   rootMessageId: string,
@@ -290,18 +293,275 @@ export function useSendThreadReply(
         parentId,
       });
     },
-    onSuccess: async () => {
+
+    onMutate: async (newMessageData) => {
+      // Cancel any outgoing refetches to prevent overwriting optimistic update
+      const queryKey = isPrimary
+        ? ["thread", rootMessageId]
+        : ["subReplies", rootMessageId];
+      await queryClient.cancelQueries({ queryKey });
+
+      // Snapshot the previous value for rollback
+      const previousData = queryClient.getQueryData(queryKey);
+
+      // Get current user from app store
+      const { useAppStore } = await import("@/stores/useAppStore");
+      const currentUser = useAppStore.getState().user;
+
+      // Generate a temporary ID for the optimistic message
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+
+      // Determine parentId and rootId
+      const parentId = replyingTo?.messageId || rootMessageId;
+
+      // Get channelId from cache
+      let channelId: string;
+      let threadRootId: string;
+
+      if (isPrimary) {
+        const infiniteData = queryClient.getQueryData<InfiniteThreadData>([
+          "thread",
+          rootMessageId,
+        ]);
+        channelId = infiniteData?.pages?.[0]?.rootMessage.channelId || "";
+        threadRootId = rootMessageId;
+      } else {
+        const messageData = queryClient.getQueryData<Message>([
+          "message",
+          rootMessageId,
+        ]);
+        channelId = messageData?.channelId || "";
+        threadRootId = messageData?.rootId || rootMessageId;
+      }
+
+      // Create optimistic message with 'sending' status
+      const optimisticMessage: Message = {
+        id: tempId,
+        channelId,
+        senderId: currentUser?.id || "",
+        content: newMessageData.content,
+        type: "text",
+        isPinned: false,
+        isEdited: false,
+        isDeleted: false,
+        parentId,
+        rootId: threadRootId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        sender: currentUser
+          ? {
+              id: currentUser.id,
+              email: currentUser.email,
+              username: currentUser.name,
+              displayName: currentUser.name,
+              avatarUrl: currentUser.avatarUrl,
+              status: "online",
+              isActive: true,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            }
+          : undefined,
+        attachments: newMessageData.attachments?.map((att, index) => ({
+          id: `temp-att-${index}`,
+          messageId: tempId,
+          fileKey: att.fileKey,
+          fileName: att.fileName,
+          fileUrl: "",
+          fileSize: att.fileSize,
+          mimeType: att.mimeType,
+          createdAt: new Date().toISOString(),
+        })),
+        reactions: [],
+        replyCount: 0,
+        sendStatus: "sending" as MessageSendStatus,
+        _retryData: { ...newMessageData, parentId },
+      };
+
+      // Optimistically add the message to the cache
+      if (isPrimary) {
+        queryClient.setQueryData<InfiniteData<ThreadResponse>>(
+          ["thread", rootMessageId],
+          (old) => {
+            if (!old) return old;
+
+            // Create optimistic ThreadReply
+            const optimisticReply: ThreadReply = {
+              ...optimisticMessage,
+              subReplies: [],
+              subReplyCount: 0,
+            };
+
+            return {
+              ...old,
+              pages: old.pages.map((page, pageIndex) => {
+                // Add to the last page (newest messages)
+                if (pageIndex === old.pages.length - 1) {
+                  return {
+                    ...page,
+                    replies: [...page.replies, optimisticReply],
+                    totalReplyCount: page.totalReplyCount + 1,
+                  };
+                }
+                return page;
+              }),
+            };
+          },
+        );
+      } else {
+        queryClient.setQueryData<InfiniteData<SubRepliesResponse>>(
+          ["subReplies", rootMessageId],
+          (old) => {
+            if (!old) return old;
+
+            return {
+              ...old,
+              pages: old.pages.map((page, pageIndex) => {
+                // Add to the last page (newest messages)
+                if (pageIndex === old.pages.length - 1) {
+                  return {
+                    ...page,
+                    replies: [...page.replies, optimisticMessage],
+                  };
+                }
+                return page;
+              }),
+            };
+          },
+        );
+      }
+
+      // Return context for rollback and replacement
+      return { previousData, tempId, queryKey };
+    },
+
+    onSuccess: (serverMessage, _, context) => {
       // Clear replyingTo state first
       clearReplyingTo();
-      // Invalidate and refetch the appropriate query based on level
+
+      // Replace the optimistic message with the real one from server
       if (isPrimary) {
-        await queryClient.invalidateQueries({
-          queryKey: ["thread", rootMessageId],
-        });
+        queryClient.setQueryData<InfiniteData<ThreadResponse>>(
+          ["thread", rootMessageId],
+          (old) => {
+            if (!old) return old;
+
+            // Check if server message already exists (added by WebSocket)
+            const serverMessageExists = old.pages.some((page) =>
+              page.replies.some((reply) => reply.id === serverMessage.id),
+            );
+
+            return {
+              ...old,
+              pages: old.pages.map((page) => ({
+                ...page,
+                replies: page.replies
+                  .map((reply) => {
+                    if (reply.id === context?.tempId) {
+                      // If server message already exists, remove temp
+                      if (serverMessageExists) {
+                        return null;
+                      }
+                      // Replace temp with server message
+                      return {
+                        ...serverMessage,
+                        subReplies: reply.subReplies || [],
+                        subReplyCount: reply.subReplyCount || 0,
+                      } as ThreadReply;
+                    }
+                    return reply;
+                  })
+                  .filter((reply): reply is ThreadReply => reply !== null),
+              })),
+            };
+          },
+        );
       } else {
-        await queryClient.invalidateQueries({
-          queryKey: ["subReplies", rootMessageId],
-        });
+        queryClient.setQueryData<InfiniteData<SubRepliesResponse>>(
+          ["subReplies", rootMessageId],
+          (old) => {
+            if (!old) return old;
+
+            // Check if server message already exists (added by WebSocket)
+            const serverMessageExists = old.pages.some((page) =>
+              page.replies.some((reply) => reply.id === serverMessage.id),
+            );
+
+            return {
+              ...old,
+              pages: old.pages.map((page) => ({
+                ...page,
+                replies: page.replies
+                  .map((reply) => {
+                    if (reply.id === context?.tempId) {
+                      // If server message already exists, remove temp
+                      if (serverMessageExists) {
+                        return null;
+                      }
+                      // Replace temp with server message
+                      return serverMessage;
+                    }
+                    return reply;
+                  })
+                  .filter((reply): reply is Message => reply !== null),
+              })),
+            };
+          },
+        );
+      }
+    },
+
+    onError: (_err, variables, context) => {
+      // Mark the optimistic message as failed instead of rolling back
+      if (!context?.tempId) return;
+
+      const parentId = replyingTo?.messageId || rootMessageId;
+
+      if (isPrimary) {
+        queryClient.setQueryData<InfiniteData<ThreadResponse>>(
+          ["thread", rootMessageId],
+          (old) => {
+            if (!old) return old;
+
+            return {
+              ...old,
+              pages: old.pages.map((page) => ({
+                ...page,
+                replies: page.replies.map((reply) =>
+                  reply.id === context.tempId
+                    ? {
+                        ...reply,
+                        sendStatus: "failed" as MessageSendStatus,
+                        _retryData: { ...variables, parentId },
+                      }
+                    : reply,
+                ),
+              })),
+            };
+          },
+        );
+      } else {
+        queryClient.setQueryData<InfiniteData<SubRepliesResponse>>(
+          ["subReplies", rootMessageId],
+          (old) => {
+            if (!old) return old;
+
+            return {
+              ...old,
+              pages: old.pages.map((page) => ({
+                ...page,
+                replies: page.replies.map((reply) =>
+                  reply.id === context.tempId
+                    ? {
+                        ...reply,
+                        sendStatus: "failed" as MessageSendStatus,
+                        _retryData: { ...variables, parentId },
+                      }
+                    : reply,
+                ),
+              })),
+            };
+          },
+        );
       }
     },
   });
