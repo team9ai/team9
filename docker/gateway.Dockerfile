@@ -40,6 +40,7 @@ COPY apps/server/libs/redis/package.json ./apps/server/libs/redis/
 COPY apps/server/libs/rabbitmq/package.json ./apps/server/libs/rabbitmq/
 COPY apps/server/libs/ai-client/package.json ./apps/server/libs/ai-client/
 COPY apps/server/libs/storage/package.json ./apps/server/libs/storage/
+COPY apps/server/libs/email/package.json ./apps/server/libs/email/
 COPY apps/server/libs/agent-framework/package.json ./apps/server/libs/agent-framework/
 COPY apps/server/libs/agent-runtime/package.json ./apps/server/libs/agent-runtime/
 
