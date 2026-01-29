@@ -91,24 +91,24 @@ function SendButton({
 
   const canSend = !disabled && (editorHasContent || hasAttachments);
 
-  const handleClick = useCallback(async () => {
+  const handleClick = useCallback(() => {
     if (!canSend) return;
 
     const content = editorHasContent ? exportToHtml(editor) : "";
 
-    try {
-      await onSubmit(content);
+    // Clear editor immediately for better UX
+    editor.update(() => {
+      const root = $getRoot();
+      root.clear();
+      const paragraph = $createParagraphNode();
+      root.append(paragraph);
+      paragraph.select();
+    });
 
-      editor.update(() => {
-        const root = $getRoot();
-        root.clear();
-        const paragraph = $createParagraphNode();
-        root.append(paragraph);
-        paragraph.select();
-      });
-    } catch (error) {
+    // Send message asynchronously (optimistic update handles UI feedback)
+    onSubmit(content).catch((error) => {
       console.error("Failed to send message:", error);
-    }
+    });
   }, [editor, onSubmit, canSend, editorHasContent]);
 
   return (
