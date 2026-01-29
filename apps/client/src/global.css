@@ -164,6 +164,17 @@
   }
 }
 
+/* Global link styles for messages */
+.message-link {
+  color: #1264a3 !important;
+  text-decoration: underline !important;
+  text-underline-offset: 2px;
+  word-break: break-all;
+  &:hover {
+    color: #0b4f82 !important;
+  }
+}
+
 /* Message content HTML styles */
 .message-content-other {
   /* Styles for messages from others */
@@ -211,6 +222,16 @@
     padding: 0.125rem 0.25rem;
     border-radius: 0.25rem;
     font-weight: 500;
+  }
+  .message-link {
+    color: #1264a3;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    word-break: break-all;
+    &:hover {
+      color: #0b4f82;
+      text-decoration: underline;
+    }
   }
 }
 
@@ -260,5 +281,13 @@
     padding: 0.125rem 0.25rem;
     border-radius: 0.25rem;
     font-weight: 500;
+  }
+  .message-link {
+    color: rgba(255, 255, 255, 0.95);
+    text-decoration: underline;
+    word-break: break-all;
+    &:hover {
+      color: white;
+    }
   }
 }

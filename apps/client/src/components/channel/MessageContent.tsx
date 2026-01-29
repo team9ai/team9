@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import linkifyHtml from "linkify-html";
 
 interface MessageContentProps {
   content: string;
@@ -15,25 +16,34 @@ export function MessageContent({ content, className }: MessageContentProps) {
     // Check if content contains HTML tags
     const isHtml = /<[^>]+>/.test(content);
 
+    let html: string;
+
     if (!isHtml) {
       // Plain text - just escape and convert newlines
-      return escapeHtml(content).replace(/\n/g, "<br>");
+      html = escapeHtml(content).replace(/\n/g, "<br>");
+    } else {
+      // Process HTML content
+      html = content;
+
+      // Convert <mention> tags to styled spans
+      html = html.replace(
+        /<mention data-user-id="([^"]*)" data-display-name="([^"]*)">@&lt;[^&]*&gt;<\/mention>/g,
+        '<span class="mention-tag">@$2</span>',
+      );
+
+      // Also handle @<userId> in plain text for backward compatibility
+      html = html.replace(
+        /@&lt;([a-f0-9-]+)&gt;/gi,
+        '<span class="mention-tag">@User</span>',
+      );
     }
 
-    // Process HTML content
-    let html = content;
-
-    // Convert <mention> tags to styled spans
-    html = html.replace(
-      /<mention data-user-id="([^"]*)" data-display-name="([^"]*)">@&lt;[^&]*&gt;<\/mention>/g,
-      '<span class="mention-tag">@$2</span>',
-    );
-
-    // Also handle @<userId> in plain text for backward compatibility
-    html = html.replace(
-      /@&lt;([a-f0-9-]+)&gt;/gi,
-      '<span class="mention-tag">@User</span>',
-    );
+    // Convert URLs to clickable links using linkifyjs
+    html = linkifyHtml(html, {
+      target: "_blank",
+      rel: "noopener noreferrer",
+      className: "message-link",
+    });
 
     return html;
   }, [content]);

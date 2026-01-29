@@ -53,6 +53,8 @@
     "i18next": "^25.0.1",
     "i18next-browser-languagedetector": "^8.0.4",
     "lexical": "^0.39.0",
+    "linkify-html": "^4.3.2",
+    "linkifyjs": "^4.3.2",
     "lucide-react": "^0.562.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
