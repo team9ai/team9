@@ -55,6 +55,14 @@ export function ChannelView({
   const primaryThread = useThreadStore((state) => state.primaryThread);
   const secondaryThread = useThreadStore((state) => state.secondaryThread);
   const openPrimaryThread = useThreadStore((state) => state.openPrimaryThread);
+  const closePrimaryThread = useThreadStore(
+    (state) => state.closePrimaryThread,
+  );
+
+  // Close thread panels when channel changes
+  useEffect(() => {
+    closePrimaryThread();
+  }, [channelId, closePrimaryThread]);
 
   // Open thread panel from URL param on initial render
   useEffect(() => {
