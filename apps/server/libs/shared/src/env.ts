@@ -133,4 +133,9 @@ export const env = {
   get APP_ENV() {
     return process.env.APP_ENV || process.env.NODE_ENV || 'development';
   },
+
+  // Task Tracker Service
+  get TASK_TRACKER_PORT() {
+    return parseInt(process.env.TASK_TRACKER_PORT || '3002', 10);
+  },
 };
