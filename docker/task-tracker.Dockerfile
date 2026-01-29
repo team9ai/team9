@@ -1,15 +1,11 @@
 # ============================================
-# Team9 Gateway Service
+# Team9 Task Tracker Service
 # ============================================
-# Build args:
-#   EDITION: community (default) or enterprise
+# A background service for tracking long-running tasks
+# with progress updates and SSE support.
 #
 # Usage:
-#   Community: docker build -f docker/gateway.Dockerfile -t team9-gateway .
-#   Enterprise: docker build -f docker/gateway.Dockerfile --build-arg EDITION=enterprise -t team9-gateway:enterprise .
-#
-# Note: Enterprise builds require the enterprise/ submodule to be cloned
-#       (set submodules=true in railway.toml or clone with --recurse-submodules)
+#   docker build -f docker/task-tracker.Dockerfile -t team9-task-tracker .
 # ============================================
 
 FROM node:20-alpine AS base
@@ -22,7 +18,6 @@ RUN apk add --no-cache libc6-compat
 FROM base AS deps
 WORKDIR /app
 
-ARG EDITION=community
 ENV NODE_ENV=development
 
 # Copy workspace config
@@ -43,24 +38,7 @@ COPY apps/server/libs/storage/package.json ./apps/server/libs/storage/
 COPY apps/server/libs/agent-framework/package.json ./apps/server/libs/agent-framework/
 COPY apps/server/libs/agent-runtime/package.json ./apps/server/libs/agent-runtime/
 
-# Copy enterprise package.json files if submodule is present
-COPY enterpris[e]/libs/sso/package.json ./enterprise/libs/sso/
-COPY enterpris[e]/libs/audit/package.json ./enterprise/libs/audit/
-COPY enterpris[e]/libs/analytics/package.json ./enterprise/libs/analytics/
-COPY enterpris[e]/libs/license/package.json ./enterprise/libs/license/
-
-# Install dependencies based on EDITION
-# Community: remove enterprise from workspace, regenerate lockfile
-# Enterprise: use frozen lockfile (requires submodule to be present)
-RUN if [ "$EDITION" = "community" ]; then \
-      echo "Building COMMUNITY edition" && \
-      sed -i '/enterprise/d' pnpm-workspace.yaml && \
-      rm -f pnpm-lock.yaml && \
-      pnpm install --ignore-scripts; \
-    else \
-      echo "Building ENTERPRISE edition" && \
-      pnpm install --frozen-lockfile --ignore-scripts; \
-    fi
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 # ============================================
 # Stage: Builder
@@ -68,29 +46,18 @@ RUN if [ "$EDITION" = "community" ]; then \
 FROM deps AS builder
 WORKDIR /app
 
-ARG EDITION=community
-
 # Copy source code
 COPY apps/server ./apps/server
 
-# Copy enterprise source code if building enterprise edition
-COPY enterpris[e] ./enterprise/
+# Reinstall to create symlinks, ignore scripts to avoid husky
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
-# Remove enterprise from workspace if building community edition
-RUN if [ "$EDITION" = "community" ]; then \
-      sed -i '/enterprise/d' pnpm-workspace.yaml; \
-    fi
-
-# Reinstall to create symlinks
-RUN pnpm install --ignore-scripts
-
-# Clean tsbuildinfo and build all packages
+# Clean tsbuildinfo and build
 RUN find apps/server -name "*.tsbuildinfo" -delete && \
-    find enterprise -name "*.tsbuildinfo" -delete 2>/dev/null || true && \
     pnpm --filter '@team9/*' --filter '!@team9/server' build
 
 # Use pnpm deploy to create a standalone deployment
-RUN pnpm --filter @team9/gateway deploy --prod /app/deploy
+RUN pnpm --filter @team9/task-tracker deploy --prod /app/deploy
 
 # ============================================
 # Stage: Runner
@@ -98,21 +65,16 @@ RUN pnpm --filter @team9/gateway deploy --prod /app/deploy
 FROM node:20-alpine AS runner
 WORKDIR /app
 
-ARG EDITION=community
 ENV NODE_ENV=production
-ENV EDITION=${EDITION}
 
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nestjs
 
-# Copy deployed app
+# Copy deployed app (pnpm deploy now includes workspace packages with dist)
 COPY --from=builder --chown=nestjs:nodejs /app/deploy ./
-
-# Copy database migrations
-COPY --from=builder --chown=nestjs:nodejs /app/apps/server/libs/database/migrations ./node_modules/@team9/database/migrations
 
 USER nestjs
 
-EXPOSE 3000
+EXPOSE 3002
 
 CMD ["node", "dist/main.js"]

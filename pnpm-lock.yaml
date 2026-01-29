@@ -606,6 +606,46 @@ importers:
         specifier: ^5.7.3
         version: 5.8.3
 
+  apps/server/apps/task-tracker:
+    dependencies:
+      "@nestjs/common":
+        specifier: ^11.0.1
+        version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      "@nestjs/config":
+        specifier: ^4.0.2
+        version: 4.0.2(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(rxjs@7.8.2)
+      "@nestjs/core":
+        specifier: ^11.0.1
+        version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      "@nestjs/platform-express":
+        specifier: ^11.0.1
+        version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)
+      "@paralleldrive/cuid2":
+        specifier: ^2.2.2
+        version: 2.3.1
+      "@team9/database":
+        specifier: workspace:*
+        version: link:../../libs/database
+      "@team9/redis":
+        specifier: workspace:*
+        version: link:../../libs/redis
+      "@team9/shared":
+        specifier: workspace:*
+        version: link:../../libs/shared
+      dotenv:
+        specifier: ^17.2.3
+        version: 17.2.3
+      reflect-metadata:
+        specifier: ^0.2.2
+        version: 0.2.2
+      rxjs:
+        specifier: ^7.8.1
+        version: 7.8.2
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.8.3
+
   apps/server/libs/agent-framework:
     dependencies:
       "@paralleldrive/cuid2":
