@@ -45,24 +45,14 @@ import {
   useDraggable,
   useDroppable,
 } from "@dnd-kit/core";
-import type { Channel } from "@/types/im";
+import type { Channel, ChannelWithUnread } from "@/types/im";
 import type { Section } from "@/services/api/im";
 
 const topItems: {
   id: string;
-  labelKey: "huddle" | "directory" | "starred";
+  label: string;
   icon: typeof Headphones;
-  descriptionKey?: "starredDescription";
-}[] = [
-  { id: "huddle", labelKey: "huddle", icon: Headphones },
-  { id: "directory", labelKey: "directory", icon: BookOpen },
-  {
-    id: "starred",
-    labelKey: "starred",
-    icon: Star,
-    descriptionKey: "starredDescription",
-  },
-];
+}[] = [{ id: "dashboard", label: "Dashboard", icon: BookOpen }];
 
 // Draggable Channel Component
 function DraggableChannel({
@@ -71,7 +61,7 @@ function DraggableChannel({
   isDragging,
   canDrag = true,
 }: {
-  channel: Channel;
+  channel: ChannelWithUnread;
   isSelected: boolean;
   isDragging: boolean;
   canDrag?: boolean;
@@ -393,18 +383,18 @@ export function HomeSubSidebar() {
             const Icon = item.icon;
             return (
               <div key={item.id}>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start gap-2 px-2 h-auto py-1.5 text-sm text-white/80 hover:bg-white/10 hover:text-white"
-                >
-                  <Icon size={16} />
-                  <span className="truncate">{tNav(item.labelKey)}</span>
-                </Button>
-                {item.descriptionKey && (
-                  <p className="px-2 text-xs text-white/50 mt-1 mb-2">
-                    {tNav(item.descriptionKey)}
-                  </p>
-                )}
+                <Link to="/channels" className="block">
+                  <Button
+                    variant="ghost"
+                    className={cn(
+                      "w-full justify-start gap-2 px-2 h-auto py-1.5 text-sm text-white/80 hover:bg-white/10 hover:text-white",
+                      !selectedChannelId && "bg-white/10",
+                    )}
+                  >
+                    <Icon size={16} />
+                    <span className="truncate">{item.label}</span>
+                  </Button>
+                </Link>
               </div>
             );
           })}
