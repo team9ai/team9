@@ -27,7 +27,11 @@ import React, { useState, useMemo } from "react";
 import { useChannelsByType, usePublicChannels } from "@/hooks/useChannels";
 import { useOnlineUsers } from "@/hooks/useIMUsers";
 import { useSections, useMoveChannel } from "@/hooks/useSections";
-import { useCurrentWorkspaceRole } from "@/hooks/useWorkspace";
+import {
+  useCurrentWorkspaceRole,
+  useUserWorkspaces,
+} from "@/hooks/useWorkspace";
+import { useSelectedWorkspaceId } from "@/stores";
 import { Link, useParams } from "@tanstack/react-router";
 import { NewMessageDialog } from "@/components/dialog/NewMessageDialog";
 import { CreateChannelDialog } from "@/components/dialog/CreateChannelDialog";
@@ -214,6 +218,9 @@ export function HomeSubSidebar() {
   const { t: tCommon } = useTranslation("common");
   const { t: tChannel } = useTranslation("channel");
   const { t: tMessage } = useTranslation("message");
+  const workspaceId = useSelectedWorkspaceId();
+  const { data: workspaces } = useUserWorkspaces();
+  const currentWorkspace = workspaces?.find((w) => w.id === workspaceId);
 
   const [channelsExpanded, setChannelsExpanded] = useState(true);
   const [dmsExpanded, setDmsExpanded] = useState(true);
@@ -368,7 +375,9 @@ export function HomeSubSidebar() {
           variant="ghost"
           className="w-full justify-between text-white hover:bg-white/10 px-2 h-auto py-1.5"
         >
-          <span className="font-semibold text-lg">Weight Watch</span>
+          <span className="font-semibold text-lg">
+            {currentWorkspace?.name || "Workspace"}
+          </span>
           <ChevronDown size={16} className="text-white/70" />
         </Button>
       </div>
