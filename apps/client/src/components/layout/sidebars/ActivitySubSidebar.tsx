@@ -84,7 +84,7 @@ export function ActivitySubSidebar() {
   };
 
   return (
-    <aside className="w-64 h-full overflow-hidden bg-[#5b2c6f] text-white flex flex-col">
+    <aside className="w-64 h-full overflow-hidden bg-nav-sub-bg text-primary-foreground flex flex-col">
       {/* Header */}
       <div className="p-4 pb-2">
         <div className="flex items-center justify-between">
@@ -96,8 +96,8 @@ export function ActivitySubSidebar() {
             className={cn(
               "h-7 px-2 text-xs",
               showUnreadOnly
-                ? "bg-purple-400/30 text-white hover:bg-purple-400/40"
-                : "text-white/70 hover:text-white hover:bg-white/10",
+                ? "bg-accent/30 text-nav-foreground hover:bg-accent/40"
+                : "text-nav-foreground-subtle hover:text-nav-foreground hover:bg-nav-hover",
             )}
           >
             {t("activityUnread")}
@@ -108,22 +108,22 @@ export function ActivitySubSidebar() {
       {/* Tab Navigation */}
       <div className="px-3 pb-2">
         <Tabs value={activeTab} onValueChange={handleTabChange}>
-          <TabsList className="w-full bg-white/10 border-none rounded-lg p-1">
+          <TabsList className="w-full bg-nav-active border-none rounded-lg p-1">
             <TabsTrigger
               value="all"
-              className="flex-1 text-xs data-[state=active]:bg-white/20 data-[state=active]:text-white data-[state=inactive]:text-white/70 border-none rounded-md"
+              className="flex-1 text-xs data-[state=active]:bg-nav-hover-strong data-[state=active]:text-nav-foreground data-[state=inactive]:text-nav-foreground-subtle border-none rounded-md"
             >
               {t("activityAll")}
             </TabsTrigger>
             <TabsTrigger
               value="mentions"
-              className="flex-1 text-xs data-[state=active]:bg-white/20 data-[state=active]:text-white data-[state=inactive]:text-white/70 border-none rounded-md"
+              className="flex-1 text-xs data-[state=active]:bg-nav-hover-strong data-[state=active]:text-nav-foreground data-[state=inactive]:text-nav-foreground-subtle border-none rounded-md"
             >
               {t("activityMentions")}
             </TabsTrigger>
             <TabsTrigger
               value="threads"
-              className="flex-1 text-xs data-[state=active]:bg-white/20 data-[state=active]:text-white data-[state=inactive]:text-white/70 border-none rounded-md"
+              className="flex-1 text-xs data-[state=active]:bg-nav-hover-strong data-[state=active]:text-nav-foreground data-[state=inactive]:text-nav-foreground-subtle border-none rounded-md"
             >
               {t("activityThreads")}
             </TabsTrigger>
@@ -136,10 +136,10 @@ export function ActivitySubSidebar() {
         <div className="px-2 py-2">
           {isLoading && notifications.length === 0 ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-white/50" />
+              <Loader2 className="w-6 h-6 animate-spin text-nav-foreground-faint" />
             </div>
           ) : notifications.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-white/50">
+            <div className="flex flex-col items-center justify-center py-8 text-nav-foreground-faint">
               <Bell size={32} className="mb-2" />
               <p className="text-sm">{t("noActivity")}</p>
             </div>
@@ -148,7 +148,7 @@ export function ActivitySubSidebar() {
               {groupedNotifications.map((group) => (
                 <div key={group.dateKey}>
                   {/* Date Header */}
-                  <div className="px-2 py-1.5 text-xs font-medium text-white/50">
+                  <div className="px-2 py-1.5 text-xs font-medium text-nav-foreground-faint">
                     {group.dateLabel}
                   </div>
                   {/* Activity Items */}

@@ -128,13 +128,13 @@ export function MainSidebar() {
   const getStatusColor = (status: UserStatus) => {
     switch (status) {
       case "online":
-        return "bg-green-500";
+        return "bg-success";
       case "away":
-        return "bg-yellow-500";
+        return "bg-warning";
       case "busy":
-        return "bg-red-500";
+        return "bg-destructive";
       default:
-        return "bg-gray-400";
+        return "bg-muted-foreground";
     }
   };
 
@@ -216,20 +216,20 @@ export function MainSidebar() {
         isOpen={createWorkspaceOpen}
         onClose={() => setCreateWorkspaceOpen(false)}
       />
-      <aside className="w-16 bg-[#3f1651] text-white flex flex-col items-center py-4 space-y-2">
+      <aside className="w-16 bg-nav-bg text-primary-foreground flex flex-col items-center py-4 space-y-2">
         {/* Workspace Avatars */}
         <div className="mb-4 space-y-3">
           {isLoading ? (
             <Avatar className="w-10 h-10">
-              <AvatarFallback className="bg-white text-[#3f1651] rounded-lg">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#3f1651]" />
+              <AvatarFallback className="bg-background text-foreground rounded-lg">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-foreground" />
               </AvatarFallback>
             </Avatar>
           ) : visibleWorkspaces.length === 0 ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Avatar className="w-10 h-10 cursor-pointer hover:opacity-80 transition-opacity">
-                  <AvatarFallback className="bg-white text-[#3f1651] rounded-full font-bold text-base">
+                  <AvatarFallback className="bg-background text-foreground rounded-full font-bold text-base">
                     🏋
                   </AvatarFallback>
                 </Avatar>
@@ -246,14 +246,14 @@ export function MainSidebar() {
                     className={cn(
                       "w-10 h-10 cursor-pointer transition-all",
                       currentWorkspace?.id === workspace.id
-                        ? "ring-2 ring-white ring-offset-2 ring-offset-[#3f1651]"
+                        ? "ring-2 ring-nav-foreground ring-offset-2 ring-offset-nav-bg"
                         : "hover:opacity-80",
                     )}
                     onClick={() => setSelectedWorkspaceId(workspace.id)}
                   >
                     <AvatarFallback
                       className={cn(
-                        "rounded-full font-bold text-base text-white",
+                        "rounded-full font-bold text-base text-nav-foreground",
                         getWorkspaceColor(index),
                       )}
                     >
@@ -276,14 +276,14 @@ export function MainSidebar() {
             >
               <PopoverTrigger asChild>
                 <Avatar className="w-10 h-10 cursor-pointer hover:opacity-80 transition-opacity">
-                  <AvatarFallback className="bg-white/20 text-white rounded-full">
+                  <AvatarFallback className="bg-nav-hover-strong text-nav-foreground rounded-full">
                     <MoreVertical size={18} />
                   </AvatarFallback>
                 </Avatar>
               </PopoverTrigger>
               <PopoverContent side="right" className="w-56 p-2">
                 <div className="space-y-1">
-                  <p className="font-semibold text-xs mb-2 text-slate-500 px-2">
+                  <p className="font-semibold text-xs mb-2 text-muted-foreground px-2">
                     {tNav("moreWorkspaces")}
                   </p>
                   {moreWorkspaces.map((workspace, index) => {
@@ -299,7 +299,7 @@ export function MainSidebar() {
                       >
                         <div
                           className={cn(
-                            "w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold",
+                            "w-6 h-6 rounded-full flex items-center justify-center text-nav-foreground text-xs font-bold",
                             getWorkspaceColor(moreIndex),
                           )}
                         >
@@ -321,7 +321,7 @@ export function MainSidebar() {
                 className="w-10 h-10 cursor-pointer hover:opacity-80 transition-opacity"
                 onClick={() => setCreateWorkspaceOpen(true)}
               >
-                <AvatarFallback className="bg-white/20 hover:bg-white/30 text-white rounded-full border-2 border-dashed border-white/50">
+                <AvatarFallback className="bg-nav-hover-strong hover:bg-nav-hover-stronger text-nav-foreground rounded-full border-2 border-dashed border-nav-border-muted">
                   <Plus size={18} />
                 </AvatarFallback>
               </Avatar>
@@ -361,8 +361,8 @@ export function MainSidebar() {
                   navigate({ to: targetPath });
                 }}
                 className={cn(
-                  "w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-white/10 text-white/70 hover:text-white relative",
-                  isActive && "bg-white/10 text-white",
+                  "w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-nav-hover text-nav-foreground-subtle hover:text-nav-foreground relative",
+                  isActive && "bg-nav-active text-nav-foreground",
                 )}
                 title={label}
               >
@@ -381,7 +381,7 @@ export function MainSidebar() {
           <PopoverTrigger asChild>
             <div className="relative cursor-pointer">
               <Avatar className="w-10 h-10">
-                <AvatarFallback className="bg-pink-600 hover:bg-pink-700 transition-colors text-white text-sm font-medium">
+                <AvatarFallback className="bg-primary hover:bg-primary/90 transition-colors text-primary-foreground text-sm font-medium">
                   {currentUser?.displayName?.[0] ||
                     currentUser?.username?.[0]?.toUpperCase() ||
                     "U"}
@@ -389,7 +389,7 @@ export function MainSidebar() {
               </Avatar>
               <div
                 className={cn(
-                  "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#3f1651]",
+                  "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-nav-bg",
                   getStatusColor(userStatus),
                 )}
               />
@@ -405,7 +405,7 @@ export function MainSidebar() {
             <div className="p-4">
               <div className="flex items-center gap-3">
                 <Avatar className="w-12 h-12">
-                  <AvatarFallback className="bg-pink-600 text-white text-lg font-medium">
+                  <AvatarFallback className="bg-primary text-primary-foreground text-lg font-medium">
                     {currentUser?.displayName?.[0] ||
                       currentUser?.username?.[0]?.toUpperCase() ||
                       "U"}
@@ -504,7 +504,7 @@ export function MainSidebar() {
                       <span>{lang.nativeName}</span>
                     </div>
                     {i18n.language === lang.code && (
-                      <span className="text-purple-600">✓</span>
+                      <span className="text-primary">✓</span>
                     )}
                   </button>
                 ),
@@ -517,7 +517,7 @@ export function MainSidebar() {
             <div className="py-1">
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-accent text-red-600"
+                className="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-accent text-destructive"
               >
                 <LogOut size={16} />
                 <span>

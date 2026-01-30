@@ -74,14 +74,14 @@ function ImageAttachment({
       <div
         className={cn(
           "rounded-lg overflow-hidden flex items-center justify-center",
-          isOwnMessage ? "bg-purple-500" : "bg-slate-200",
+          isOwnMessage ? "bg-primary" : "bg-muted",
         )}
         style={{
           width: Math.min(attachment.width || 200, 300),
           height: Math.min(attachment.height || 150, 200),
         }}
       >
-        <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -91,11 +91,11 @@ function ImageAttachment({
       <div
         className={cn(
           "rounded-lg p-4 flex flex-col items-center gap-2",
-          isOwnMessage ? "bg-purple-500" : "bg-slate-200",
+          isOwnMessage ? "bg-primary" : "bg-muted",
         )}
       >
-        <ImageIcon className="w-8 h-8 text-slate-400" />
-        <span className="text-xs text-slate-500">
+        <ImageIcon className="w-8 h-8 text-muted-foreground" />
+        <span className="text-xs text-muted-foreground">
           {error || "Image not available"}
         </span>
         <Button
@@ -158,20 +158,20 @@ function FileAttachment({
       className={cn(
         "flex items-center gap-3 p-3 rounded-lg min-w-[200px] max-w-[280px]",
         isOwnMessage
-          ? "bg-purple-500/20 border border-purple-400/30"
-          : "bg-slate-100 border border-slate-200",
+          ? "bg-primary/20 border border-accent/30"
+          : "bg-muted border border-border",
       )}
     >
       <div
         className={cn(
           "w-10 h-10 rounded flex items-center justify-center flex-shrink-0",
-          isOwnMessage ? "bg-purple-400/30" : "bg-slate-200",
+          isOwnMessage ? "bg-accent/30" : "bg-muted",
         )}
       >
         <FileIcon
           className={cn(
             "w-5 h-5",
-            isOwnMessage ? "text-white" : "text-slate-600",
+            isOwnMessage ? "text-primary-foreground" : "text-muted-foreground",
           )}
         />
       </div>
@@ -180,7 +180,7 @@ function FileAttachment({
         <p
           className={cn(
             "text-sm font-medium truncate",
-            isOwnMessage ? "text-white" : "text-slate-900",
+            isOwnMessage ? "text-primary-foreground" : "text-foreground",
           )}
           title={attachment.fileName}
         >
@@ -189,7 +189,7 @@ function FileAttachment({
         <p
           className={cn(
             "text-xs",
-            isOwnMessage ? "text-purple-200" : "text-slate-500",
+            isOwnMessage ? "text-primary/40" : "text-muted-foreground",
           )}
         >
           {formatFileSize(attachment.fileSize)}
@@ -204,8 +204,8 @@ function FileAttachment({
         className={cn(
           "h-8 w-8 p-0 flex-shrink-0",
           isOwnMessage
-            ? "hover:bg-purple-400/30 text-white"
-            : "hover:bg-slate-200 text-slate-600",
+            ? "hover:bg-accent/30 text-primary-foreground"
+            : "hover:bg-muted text-muted-foreground",
         )}
         title="Download"
       >

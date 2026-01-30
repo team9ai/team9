@@ -11,19 +11,19 @@ const fileCategories = [
 
 export function FilesSubSidebar() {
   return (
-    <aside className="w-64 h-full overflow-hidden bg-[#5b2c6f] text-white flex flex-col">
+    <aside className="w-64 h-full overflow-hidden bg-nav-sub-bg text-primary-foreground flex flex-col">
       {/* Header */}
       <div className="p-4 pb-2">
         <Button
           variant="ghost"
-          className="w-full justify-between text-white hover:bg-white/10 px-2 h-auto py-1.5"
+          className="w-full justify-between text-nav-foreground hover:bg-nav-hover px-2 h-auto py-1.5"
         >
           <span className="font-semibold text-lg">Files</span>
-          <ChevronDown size={16} className="text-white/70" />
+          <ChevronDown size={16} className="text-nav-foreground-subtle" />
         </Button>
       </div>
 
-      <Separator className="bg-white/10" />
+      <Separator className="bg-nav-border" />
 
       {/* File Categories */}
       <ScrollArea className="flex-1 min-h-0 px-3">
@@ -34,7 +34,7 @@ export function FilesSubSidebar() {
               <Button
                 key={item.id}
                 variant="ghost"
-                className="w-full justify-start gap-2 px-2 h-auto py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white"
+                className="w-full justify-start gap-2 px-2 h-auto py-2 text-sm text-nav-foreground-muted hover:bg-nav-hover hover:text-nav-foreground"
               >
                 <Icon size={16} />
                 <span className="truncate">{item.label}</span>

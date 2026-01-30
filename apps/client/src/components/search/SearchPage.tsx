@@ -413,8 +413,8 @@ export function SearchPage({
                           className={cn(
                             "absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background",
                             item.data.status === "online"
-                              ? "bg-green-500"
-                              : "bg-gray-400",
+                              ? "bg-success"
+                              : "bg-muted-foreground",
                           )}
                         />
                       </div>

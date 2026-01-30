@@ -38,7 +38,7 @@ interface RichTextEditorProps {
 
 function Placeholder({ text }: { text: string }) {
   return (
-    <div className="absolute top-0 left-0 text-slate-400 pointer-events-none select-none text-sm">
+    <div className="absolute top-0 left-0 text-muted-foreground pointer-events-none select-none text-sm">
       {text}
     </div>
   );
@@ -119,8 +119,8 @@ function SendButton({
       className={cn(
         "p-2 rounded-md transition-colors",
         canSend
-          ? "bg-blue-500 hover:bg-blue-600 text-white"
-          : "bg-gray-200 text-gray-400 cursor-not-allowed",
+          ? "bg-info hover:bg-info/90 text-primary-foreground"
+          : "bg-muted text-muted-foreground cursor-not-allowed",
       )}
       title="Send message"
     >

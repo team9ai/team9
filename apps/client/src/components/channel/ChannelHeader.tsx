@@ -54,12 +54,12 @@ export function ChannelHeader({
           {isDirect && otherUser ? (
             <div className="relative">
               <Avatar className="w-8 h-8">
-                <AvatarFallback className="bg-purple-400 text-white text-sm">
+                <AvatarFallback className="bg-accent text-accent-foreground text-sm">
                   {getInitials(displayName)}
                 </AvatarFallback>
               </Avatar>
               {isOnline && (
-                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-success rounded-full border-2 border-background" />
               )}
             </div>
           ) : (
@@ -106,7 +106,7 @@ export function ChannelHeader({
             size="icon"
             onClick={() => setIsAddMemberOpen(true)}
           >
-            <UserPlus size={18} className="text-blue-500" />
+            <UserPlus size={18} className="text-info" />
           </Button>
           {!isDirect && (
             <Button

@@ -101,9 +101,11 @@ function DraggableChannel({
         <Button
           variant="ghost"
           className={cn(
-            "w-full min-w-0 justify-start gap-2 px-2 h-auto py-1.5 text-sm hover:bg-white/10 hover:text-white",
-            isMember ? "text-white/80" : "text-white/50 italic",
-            isSelected && "bg-white/10",
+            "w-full min-w-0 justify-start gap-2 px-2 h-auto py-1.5 text-sm hover:bg-nav-hover hover:text-nav-foreground",
+            isMember
+              ? "text-nav-foreground-muted"
+              : "text-nav-foreground-faint italic",
+            isSelected && "bg-nav-active",
           )}
         >
           <ChannelIcon
@@ -155,7 +157,7 @@ function DroppableSection({
         ref={setNodeRef}
         className={cn(
           "space-y-0.5 min-h-8 rounded p-1",
-          isOver && "bg-white/5 ring-1 ring-white/20",
+          isOver && "bg-nav-overlay-bg ring-1 ring-nav-ring",
         )}
       >
         {children}
@@ -170,15 +172,15 @@ function DroppableSection({
         ref={setNodeRef}
         className={cn(
           "rounded transition-colors",
-          isOver && "bg-white/5 ring-1 ring-white/20",
+          isOver && "bg-nav-overlay-bg ring-1 ring-nav-ring",
         )}
       >
         <Button
           variant="ghost"
           onClick={onToggle}
           className={cn(
-            "w-full justify-start gap-1 px-2 h-auto py-1.5 text-xs hover:text-white hover:bg-white/10",
-            isEmpty ? "text-white/40" : "text-white/70",
+            "w-full justify-start gap-1 px-2 h-auto py-1.5 text-xs hover:text-nav-foreground hover:bg-nav-hover",
+            isEmpty ? "text-nav-foreground-dim" : "text-nav-foreground-subtle",
           )}
         >
           {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
@@ -199,10 +201,10 @@ function DragOverlayContent({ channel }: { channel: Channel }) {
   const ChannelIcon = channel.type === "private" ? Lock : Hash;
 
   return (
-    <div className="bg-[#5b2c6f] border border-white/20 rounded shadow-lg">
+    <div className="bg-nav-sub-bg border border-nav-border-strong rounded shadow-lg">
       <Button
         variant="ghost"
-        className="w-full min-w-0 justify-start gap-2 px-2 h-auto py-1.5 text-sm text-white/80 pointer-events-none"
+        className="w-full min-w-0 justify-start gap-2 px-2 h-auto py-1.5 text-sm text-nav-foreground-muted pointer-events-none"
       >
         <ChannelIcon size={16} className="shrink-0" />
         <span className="truncate text-left" title={channel.name}>
@@ -368,21 +370,21 @@ export function HomeSubSidebar() {
   });
 
   return (
-    <aside className="w-64 h-full overflow-hidden bg-[#5b2c6f] text-white flex flex-col">
+    <aside className="w-64 h-full overflow-hidden bg-nav-sub-bg text-primary-foreground flex flex-col">
       {/* Header */}
       <div className="p-4 pb-2">
         <Button
           variant="ghost"
-          className="w-full justify-between text-white hover:bg-white/10 px-2 h-auto py-1.5"
+          className="w-full justify-between text-nav-foreground hover:bg-nav-hover px-2 h-auto py-1.5"
         >
           <span className="font-semibold text-lg">
             {currentWorkspace?.name || "Workspace"}
           </span>
-          <ChevronDown size={16} className="text-white/70" />
+          <ChevronDown size={16} className="text-nav-foreground-subtle" />
         </Button>
       </div>
 
-      <Separator className="bg-white/10" />
+      <Separator className="bg-nav-border" />
 
       {/* Content Items */}
       <ScrollArea className="flex-1 min-h-0 px-3 [&>[data-slot=scroll-area-viewport]>div]:block!">
@@ -396,8 +398,8 @@ export function HomeSubSidebar() {
                   <Button
                     variant="ghost"
                     className={cn(
-                      "w-full justify-start gap-2 px-2 h-auto py-1.5 text-sm text-white/80 hover:bg-white/10 hover:text-white",
-                      !selectedChannelId && "bg-white/10",
+                      "w-full justify-start gap-2 px-2 h-auto py-1.5 text-sm text-nav-foreground-muted hover:bg-nav-hover hover:text-nav-foreground",
+                      !selectedChannelId && "bg-nav-active",
                     )}
                   >
                     <Icon size={16} />
@@ -414,7 +416,7 @@ export function HomeSubSidebar() {
               <Button
                 variant="ghost"
                 onClick={() => setChannelsExpanded(!channelsExpanded)}
-                className="flex-1 justify-start gap-1 px-2 h-auto py-1.5 text-sm text-white/90 hover:text-white hover:bg-white/10"
+                className="flex-1 justify-start gap-1 px-2 h-auto py-1.5 text-sm text-nav-foreground-strong hover:text-nav-foreground hover:bg-nav-hover"
               >
                 {channelsExpanded ? (
                   <ChevronDown size={14} />
@@ -428,7 +430,7 @@ export function HomeSubSidebar() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6 shrink-0 text-white/70 hover:text-white hover:bg-white/10"
+                    className="h-6 w-6 shrink-0 text-nav-foreground-subtle hover:text-nav-foreground hover:bg-nav-hover"
                   >
                     <MoreVertical size={14} />
                   </Button>
@@ -460,11 +462,11 @@ export function HomeSubSidebar() {
               >
                 <div className="ml-2 mt-1 space-y-0.5">
                   {isLoading || isLoadingPublic ? (
-                    <p className="text-xs text-white/50 px-2 py-1">
+                    <p className="text-xs text-nav-foreground-faint px-2 py-1">
                       {tCommon("loading")}
                     </p>
                   ) : allChannels.length === 0 && sections.length === 0 ? (
-                    <p className="text-xs text-white/50 px-2 py-1">
+                    <p className="text-xs text-nav-foreground-faint px-2 py-1">
                       {tChannel("noChannels")}
                     </p>
                   ) : (
@@ -534,7 +536,7 @@ export function HomeSubSidebar() {
             <Button
               variant="ghost"
               onClick={() => setDmsExpanded(!dmsExpanded)}
-              className="w-full justify-start gap-1 px-2 h-auto py-1.5 text-sm text-white/90 hover:text-white hover:bg-white/10"
+              className="w-full justify-start gap-1 px-2 h-auto py-1.5 text-sm text-nav-foreground-strong hover:text-nav-foreground hover:bg-nav-hover"
             >
               {dmsExpanded ? (
                 <ChevronDown size={14} />
@@ -546,11 +548,11 @@ export function HomeSubSidebar() {
             {dmsExpanded && (
               <div className="ml-2 mt-1 space-y-0.5">
                 {isLoading ? (
-                  <p className="text-xs text-white/50 px-2 py-1">
+                  <p className="text-xs text-nav-foreground-faint px-2 py-1">
                     {tCommon("loading")}
                   </p>
                 ) : directMessageUsers.length === 0 ? (
-                  <p className="text-xs text-white/50 px-2 py-1">
+                  <p className="text-xs text-nav-foreground-faint px-2 py-1">
                     {tMessage("noMessages")}
                   </p>
                 ) : (
@@ -577,7 +579,7 @@ export function HomeSubSidebar() {
             <Button
               variant="ghost"
               onClick={() => setAppsExpanded(!appsExpanded)}
-              className="w-full justify-start gap-1 px-2 h-auto py-1.5 text-sm text-white/90 hover:text-white hover:bg-white/10"
+              className="w-full justify-start gap-1 px-2 h-auto py-1.5 text-sm text-nav-foreground-strong hover:text-nav-foreground hover:bg-nav-hover"
             >
               {appsExpanded ? (
                 <ChevronDown size={14} />
@@ -591,11 +593,11 @@ export function HomeSubSidebar() {
       </ScrollArea>
 
       {/* Add Button */}
-      <div className="p-3 border-t border-white/10">
+      <div className="p-3 border-t border-nav-border">
         <Button
           variant="ghost"
           onClick={() => setIsNewMessageOpen(true)}
-          className="w-full justify-center gap-2 px-2 h-10 text-sm text-white/90 hover:bg-white/10 hover:text-white rounded-full border border-white/20"
+          className="w-full justify-center gap-2 px-2 h-10 text-sm text-nav-foreground-strong hover:bg-nav-hover hover:text-nav-foreground rounded-full border border-nav-border-strong"
           title={tNav("newMessage")}
         >
           <Plus size={18} />

@@ -57,7 +57,7 @@ export class MentionNode extends TextNode {
   createDOM(config: EditorConfig): HTMLElement {
     const element = super.createDOM(config);
     element.className =
-      "bg-purple-100 text-purple-700 px-1 py-0.5 rounded-sm mx-0.5 cursor-default select-all";
+      "bg-primary/10 text-primary px-1 py-0.5 rounded-sm mx-0.5 cursor-default select-all";
     element.setAttribute("data-mention-user-id", this.__userId);
     element.setAttribute("data-mention-display-name", this.__displayName);
     return element;

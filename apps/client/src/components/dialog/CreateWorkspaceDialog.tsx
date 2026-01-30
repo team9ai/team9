@@ -134,7 +134,7 @@ export function CreateWorkspaceDialog({
 
         <div className="space-y-4 py-2">
           {apiError && (
-            <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm flex items-center gap-2">
+            <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-center gap-2">
               <AlertCircle size={16} />
               {apiError}
             </div>
@@ -160,13 +160,13 @@ export function CreateWorkspaceDialog({
               }}
             />
             {nameError && (
-              <p className="text-xs text-red-500 flex items-center gap-1">
+              <p className="text-xs text-destructive flex items-center gap-1">
                 <AlertCircle size={12} />
                 {nameError}
               </p>
             )}
             {slugPreview && !nameError && (
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted-foreground">
                 URL: <span className="font-mono">{slugPreview}</span>
               </p>
             )}
@@ -180,7 +180,7 @@ export function CreateWorkspaceDialog({
           <Button
             onClick={handleCreate}
             disabled={!canCreate || createWorkspace.isPending}
-            className="bg-purple-600 hover:bg-purple-700"
+            className="bg-primary hover:bg-primary/90"
           >
             {createWorkspace.isPending ? "Creating..." : "Create Workspace"}
           </Button>

@@ -7,7 +7,7 @@ export const editorTheme: EditorThemeClasses = {
     italic: "italic",
     underline: "underline",
     strikethrough: "line-through",
-    code: "bg-slate-100 px-1 py-0.5 rounded font-mono text-sm",
+    code: "bg-muted px-1 py-0.5 rounded font-mono text-sm",
   },
   list: {
     nested: {
@@ -16,9 +16,9 @@ export const editorTheme: EditorThemeClasses = {
     ol: "list-decimal list-inside ml-4",
     ul: "list-disc list-inside ml-4",
     listitem: "my-0.5",
-    listitemChecked: "line-through text-slate-500",
+    listitemChecked: "line-through text-muted-foreground",
     listitemUnchecked: "",
   },
-  link: "text-purple-600 hover:underline cursor-pointer",
-  hashtag: "text-purple-600",
+  link: "text-primary hover:underline cursor-pointer",
+  hashtag: "text-primary",
 };

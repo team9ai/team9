@@ -89,25 +89,27 @@ export function MessagesSubSidebar() {
   const isLoading = isLoadingChannels || isLoadingMembers;
 
   return (
-    <aside className="w-64 h-full overflow-hidden bg-[#5b2c6f] text-white flex flex-col">
+    <aside className="w-64 h-full overflow-hidden bg-nav-sub-bg text-primary-foreground flex flex-col">
       {/* Header */}
       <div className="p-4 pb-2">
         <Button
           variant="ghost"
-          className="w-full justify-between text-white hover:bg-white/10 px-2 h-auto py-1.5"
+          className="w-full justify-between text-nav-foreground hover:bg-nav-hover px-2 h-auto py-1.5"
         >
           <span className="font-semibold text-lg">Direct Messages</span>
-          <ChevronDown size={16} className="text-white/70" />
+          <ChevronDown size={16} className="text-nav-foreground-subtle" />
         </Button>
       </div>
 
-      <Separator className="bg-white/10" />
+      <Separator className="bg-nav-border" />
 
       {/* Messages List */}
       <ScrollArea className="flex-1 min-h-0 px-3">
         <nav className="space-y-0.5 pb-3 pt-2">
           {isLoading ? (
-            <p className="text-xs text-white/50 px-2 py-2">Loading...</p>
+            <p className="text-xs text-nav-foreground-faint px-2 py-2">
+              Loading...
+            </p>
           ) : (
             <>
               {/* Existing DM Conversations */}
@@ -130,7 +132,7 @@ export function MessagesSubSidebar() {
               {filteredMembers.length > 0 && (
                 <>
                   {directMessageUsers.length > 0 && (
-                    <div className="px-2 py-2 text-xs text-white/50 mt-2">
+                    <div className="px-2 py-2 text-xs text-nav-foreground-faint mt-2">
                       Start a conversation
                     </div>
                   )}
@@ -156,7 +158,7 @@ export function MessagesSubSidebar() {
               {/* Empty State */}
               {directMessageUsers.length === 0 &&
                 filteredMembers.length === 0 && (
-                  <p className="text-xs text-white/50 px-2 py-2">
+                  <p className="text-xs text-nav-foreground-faint px-2 py-2">
                     No messages yet
                   </p>
                 )}

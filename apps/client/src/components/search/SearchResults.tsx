@@ -181,8 +181,8 @@ export function SearchResults({
                   className={cn(
                     "h-2 w-2 rounded-full",
                     item.data.status === "online"
-                      ? "bg-green-500"
-                      : "bg-gray-400",
+                      ? "bg-success"
+                      : "bg-muted-foreground",
                   )}
                 />
                 <span

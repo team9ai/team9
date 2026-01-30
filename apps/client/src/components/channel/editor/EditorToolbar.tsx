@@ -140,7 +140,7 @@ export function EditorToolbar({ onFileSelect }: EditorToolbarProps) {
   };
 
   return (
-    <div className="flex items-center gap-1 mb-2 pb-2 border-b border-slate-100">
+    <div className="flex items-center gap-1 mb-2 pb-2 border-b border-border">
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -155,7 +155,7 @@ export function EditorToolbar({ onFileSelect }: EditorToolbarProps) {
         variant="ghost"
         size="sm"
         onClick={formatBold}
-        className={cn("h-8 w-8 p-0", isBold && "bg-purple-100 text-purple-700")}
+        className={cn("h-8 w-8 p-0", isBold && "bg-primary/10 text-primary")}
         title="Bold (Ctrl+B)"
       >
         <Bold size={16} />
@@ -166,16 +166,13 @@ export function EditorToolbar({ onFileSelect }: EditorToolbarProps) {
         variant="ghost"
         size="sm"
         onClick={formatItalic}
-        className={cn(
-          "h-8 w-8 p-0",
-          isItalic && "bg-purple-100 text-purple-700",
-        )}
+        className={cn("h-8 w-8 p-0", isItalic && "bg-primary/10 text-primary")}
         title="Italic (Ctrl+I)"
       >
         <Italic size={16} />
       </Button>
 
-      <div className="w-px h-5 bg-slate-200 mx-1" />
+      <div className="w-px h-5 bg-muted mx-1" />
 
       <Button
         type="button"
@@ -184,7 +181,7 @@ export function EditorToolbar({ onFileSelect }: EditorToolbarProps) {
         onClick={formatBulletList}
         className={cn(
           "h-8 w-8 p-0",
-          listType === "bullet" && "bg-purple-100 text-purple-700",
+          listType === "bullet" && "bg-primary/10 text-primary",
         )}
         title="Bullet List"
       >
@@ -198,14 +195,14 @@ export function EditorToolbar({ onFileSelect }: EditorToolbarProps) {
         onClick={formatNumberedList}
         className={cn(
           "h-8 w-8 p-0",
-          listType === "number" && "bg-purple-100 text-purple-700",
+          listType === "number" && "bg-primary/10 text-primary",
         )}
         title="Numbered List"
       >
         <ListOrdered size={16} />
       </Button>
 
-      <div className="w-px h-5 bg-slate-200 mx-1" />
+      <div className="w-px h-5 bg-muted mx-1" />
 
       <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
         <PopoverTrigger asChild>
@@ -230,7 +227,7 @@ export function EditorToolbar({ onFileSelect }: EditorToolbarProps) {
 
       {onFileSelect && (
         <>
-          <div className="w-px h-5 bg-slate-200 mx-1" />
+          <div className="w-px h-5 bg-muted mx-1" />
           <Button
             type="button"
             variant="ghost"

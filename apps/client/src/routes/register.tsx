@@ -27,7 +27,7 @@ function EmailQuickLinks() {
           href={provider.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 px-6 py-3 border border-gray-300 rounded-lg text-blue-600 font-medium hover:bg-gray-50 transition-colors"
+          className="inline-flex items-center gap-2 px-6 py-3 border border-border rounded-lg text-info font-medium hover:bg-muted transition-colors"
         >
           <Mail className="w-5 h-5" />
           <span>{t("openMailProvider", { provider: provider.name })}</span>
@@ -40,16 +40,18 @@ function EmailQuickLinks() {
 function RegisterPending() {
   const { t } = useTranslation("auth");
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white py-12">
+    <div className="min-h-screen flex items-center justify-center bg-background py-12">
       <div className="w-full max-w-100 px-4">
         {/* Logo/Brand */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Team9</h1>
-          <p className="text-gray-600 text-lg">{t("createYourAccount")}</p>
+          <h1 className="text-4xl font-bold text-foreground mb-2">Team9</h1>
+          <p className="text-muted-foreground text-lg">
+            {t("createYourAccount")}
+          </p>
         </div>
 
         {/* Loading Skeleton */}
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-8">
+        <div className="bg-background border border-border rounded-lg shadow-sm p-8">
           <div className="space-y-5">
             <div className="space-y-2">
               <Skeleton className="h-4 w-24" />
@@ -128,28 +130,30 @@ function VerificationSentView({
   const { t } = useTranslation("auth");
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white py-12">
+    <div className="min-h-screen flex items-center justify-center bg-background py-12">
       <div className="w-full max-w-100 px-4">
         {/* Logo/Brand */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Team9</h1>
-          <p className="text-gray-600 text-lg">{t("verifyYourEmail")}</p>
+          <h1 className="text-4xl font-bold text-foreground mb-2">Team9</h1>
+          <p className="text-muted-foreground text-lg">
+            {t("verifyYourEmail")}
+          </p>
         </div>
 
         {/* Verification Sent Card */}
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-8 text-center">
+        <div className="bg-background border border-border rounded-lg shadow-sm p-8 text-center">
           <div className="mb-6">
-            <Mail className="w-16 h-16 mx-auto text-purple-600" />
+            <Mail className="w-16 h-16 mx-auto text-primary" />
           </div>
           <h2 className="text-xl font-semibold mb-4">
             {isResend ? t("emailAlreadyRegistered") : t("checkYourInbox")}
           </h2>
-          <p className="text-gray-600 mb-6">
+          <p className="text-muted-foreground mb-6">
             {isResend
               ? t("emailAlreadyRegisteredHint", { email })
               : t("verificationEmailSent", { email })}
           </p>
-          <p className="text-sm text-gray-500 mb-6">
+          <p className="text-sm text-muted-foreground mb-6">
             {t("verificationEmailHint")}
           </p>
           <ResendVerificationButton email={email} />
@@ -224,22 +228,24 @@ function Register() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white py-12">
+    <div className="min-h-screen flex items-center justify-center bg-background py-12">
       <div className="w-full max-w-100 px-4">
         {/* Logo/Brand */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Team9</h1>
-          <p className="text-gray-600 text-lg">{t("createYourAccount")}</p>
+          <h1 className="text-4xl font-bold text-foreground mb-2">Team9</h1>
+          <p className="text-muted-foreground text-lg">
+            {t("createYourAccount")}
+          </p>
         </div>
 
         {/* Registration Form */}
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-8">
+        <div className="bg-background border border-border rounded-lg shadow-sm p-8">
           <form onSubmit={handleRegister} className="space-y-5">
             {/* Email Field */}
             <div className="space-y-2">
               <label
                 htmlFor="email"
-                className="block text-sm font-semibold text-gray-900"
+                className="block text-sm font-semibold text-foreground"
               >
                 {t("email")}
               </label>
@@ -253,14 +259,14 @@ function Register() {
                 required
                 autoFocus
               />
-              <p className="text-xs text-gray-500">{t("emailHint")}</p>
+              <p className="text-xs text-muted-foreground">{t("emailHint")}</p>
             </div>
 
             {/* Username Field */}
             <div className="space-y-2">
               <label
                 htmlFor="username"
-                className="block text-sm font-semibold text-gray-900"
+                className="block text-sm font-semibold text-foreground"
               >
                 {t("username")}
               </label>
@@ -275,12 +281,14 @@ function Register() {
                 minLength={3}
                 maxLength={100}
               />
-              <p className="text-xs text-gray-500">{t("usernameHint")}</p>
+              <p className="text-xs text-muted-foreground">
+                {t("usernameHint")}
+              </p>
             </div>
 
             {/* Error Message */}
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
+              <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded text-sm">
                 {error}
               </div>
             )}
@@ -288,7 +296,7 @@ function Register() {
             {/* Submit Button */}
             <Button
               type="submit"
-              className="w-full h-11 bg-purple-600 hover:bg-purple-700 text-white font-semibold text-base"
+              className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-base"
               disabled={register.isPending}
             >
               {register.isPending ? t("creatingAccount") : t("createAccount")}
@@ -298,11 +306,11 @@ function Register() {
 
         {/* Sign In Link */}
         <div className="text-center mt-6">
-          <p className="text-gray-600 text-sm">
+          <p className="text-muted-foreground text-sm">
             {t("alreadyHaveAccount")}{" "}
             <Link
               to="/login"
-              className="text-purple-600 hover:underline font-medium"
+              className="text-primary hover:underline font-medium"
             >
               {t("signIn")}
             </Link>
@@ -310,17 +318,17 @@ function Register() {
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-8 text-xs text-gray-500">
+        <div className="text-center mt-8 text-xs text-muted-foreground">
           <p>
             {t("createTermsAgreement")}{" "}
             <Link
               to="/terms-of-service"
-              className="text-purple-600 hover:underline"
+              className="text-primary hover:underline"
             >
               {t("termsOfService")}
             </Link>{" "}
             {t("and")}{" "}
-            <Link to="/privacy" className="text-purple-600 hover:underline">
+            <Link to="/privacy" className="text-primary hover:underline">
               {t("privacyPolicy")}
             </Link>
           </p>

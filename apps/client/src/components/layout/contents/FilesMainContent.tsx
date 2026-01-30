@@ -53,26 +53,26 @@ const files = [
 
 export function FilesMainContent() {
   return (
-    <main className="flex-1 flex flex-col bg-white dark:bg-background">
+    <main className="flex-1 flex flex-col bg-background dark:bg-background">
       {/* Content Header */}
-      <header className="h-14 bg-white dark:bg-background flex items-center justify-between px-4">
+      <header className="h-14 bg-background dark:bg-background flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
-          <h2 className="font-semibold text-lg text-slate-900 dark:text-foreground">
+          <h2 className="font-semibold text-lg text-foreground dark:text-foreground">
             Files
           </h2>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon-sm" className="hover:bg-purple-50">
+          <Button variant="ghost" size="icon-sm" className="hover:bg-primary/5">
             <Filter
               size={18}
-              className="text-slate-600 hover:text-purple-600"
+              className="text-muted-foreground hover:text-primary"
             />
           </Button>
-          <Button variant="ghost" size="icon-sm" className="hover:bg-purple-50">
+          <Button variant="ghost" size="icon-sm" className="hover:bg-primary/5">
             <Search
               size={18}
-              className="text-slate-600 hover:text-purple-600"
+              className="text-muted-foreground hover:text-primary"
             />
           </Button>
         </div>
@@ -81,7 +81,7 @@ export function FilesMainContent() {
       <Separator />
 
       {/* Files List */}
-      <ScrollArea className="flex-1 bg-slate-50 dark:bg-background">
+      <ScrollArea className="flex-1 bg-muted dark:bg-background">
         <div className="p-4">
           <div className="space-y-2">
             {files.map((file) => {
@@ -92,27 +92,27 @@ export function FilesMainContent() {
                   className="p-4 hover:shadow-md transition-shadow cursor-pointer"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center shrink-0">
-                      <FileIcon className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                      <FileIcon className="w-6 h-6 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-sm text-slate-900 dark:text-foreground truncate">
+                      <h3 className="font-semibold text-sm text-foreground dark:text-foreground truncate">
                         {file.name}
                       </h3>
                       <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <span className="text-xs text-slate-500 dark:text-muted-foreground">
+                        <span className="text-xs text-muted-foreground dark:text-muted-foreground">
                           {file.size}
                         </span>
-                        <span className="text-xs text-slate-400 dark:text-muted-foreground">
+                        <span className="text-xs text-muted-foreground dark:text-muted-foreground">
                           •
                         </span>
-                        <span className="text-xs text-slate-500 dark:text-muted-foreground">
+                        <span className="text-xs text-muted-foreground dark:text-muted-foreground">
                           Uploaded by: {file.uploadedBy}
                         </span>
-                        <span className="text-xs text-slate-400 dark:text-muted-foreground">
+                        <span className="text-xs text-muted-foreground dark:text-muted-foreground">
                           •
                         </span>
-                        <span className="text-xs text-slate-500 dark:text-muted-foreground">
+                        <span className="text-xs text-muted-foreground dark:text-muted-foreground">
                           {file.uploadedAt}
                         </span>
                       </div>
@@ -121,21 +121,21 @@ export function FilesMainContent() {
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        className="hover:bg-purple-50"
+                        className="hover:bg-primary/5"
                       >
                         <Download
                           size={16}
-                          className="text-slate-600 hover:text-purple-600"
+                          className="text-muted-foreground hover:text-primary"
                         />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        className="hover:bg-purple-50"
+                        className="hover:bg-primary/5"
                       >
                         <MoreVertical
                           size={16}
-                          className="text-slate-600 hover:text-purple-600"
+                          className="text-muted-foreground hover:text-primary"
                         />
                       </Button>
                     </div>

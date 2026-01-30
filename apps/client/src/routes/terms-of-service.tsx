@@ -7,32 +7,32 @@ export const Route = createFileRoute("/terms-of-service")({
 
 function TermsOfService() {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-sm border-b border-gray-200">
+      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b border-border">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center gap-3">
           <Link
             to="/login"
-            className="text-gray-500 hover:text-gray-900 transition-colors"
+            className="text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </Link>
-          <h1 className="text-lg font-semibold text-gray-900">Team9</h1>
+          <h1 className="text-lg font-semibold text-foreground">Team9</h1>
         </div>
       </header>
 
       {/* Content */}
       <main className="max-w-4xl mx-auto px-6 py-12">
         <div className="mb-10">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-3xl font-bold text-foreground mb-2">
             Team9 User Terms of Service
           </h1>
-          <p className="text-gray-500 text-sm">
+          <p className="text-muted-foreground text-sm">
             Effective Date: January 30, 2026
           </p>
         </div>
 
-        <p className="text-gray-700 leading-relaxed mb-10">
+        <p className="text-foreground leading-relaxed mb-10">
           These User Terms of Service (the "User Terms") govern your access and
           use of our online AI-powered productivity platform and tools (the
           "Services"). Please read them carefully. Even though you are signing
@@ -40,17 +40,17 @@ function TermsOfService() {
           the Services.
         </p>
 
-        <hr className="border-gray-200 mb-10" />
+        <hr className="border-border mb-10" />
 
         {/* Section 1 */}
         <section className="mb-10">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+          <h2 className="text-xl font-semibold text-foreground mb-4">
             1. First Things First
           </h2>
-          <h3 className="text-base font-semibold text-gray-800 mb-2">
+          <h3 className="text-base font-semibold text-foreground mb-2">
             These User Terms are Legally Binding
           </h3>
-          <p className="text-gray-700 leading-relaxed">
+          <p className="text-foreground leading-relaxed">
             These User Terms are a legally binding contract between you and
             Team9 ("we", "our" and "us"). As part of these User Terms, you agree
             to comply with the most recent version of our Acceptable Use Policy.
@@ -62,22 +62,22 @@ function TermsOfService() {
 
         {/* Section 2 */}
         <section className="mb-10">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+          <h2 className="text-xl font-semibold text-foreground mb-4">
             2. Customer's Choices and Instructions
           </h2>
-          <h3 className="text-base font-semibold text-gray-800 mb-2">
+          <h3 className="text-base font-semibold text-foreground mb-2">
             You are an Authorized User on a Workspace Controlled by a "Customer"
           </h3>
-          <p className="text-gray-700 leading-relaxed mb-4">
+          <p className="text-foreground leading-relaxed mb-4">
             An organization or other third party that we refer to as "Customer"
             has invited you to a workspace (a unique domain on team9.ai). If you
             are joining your employer's workspace, for example, Customer is your
             employer.
           </p>
-          <h3 className="text-base font-semibold text-gray-800 mb-2">
+          <h3 className="text-base font-semibold text-foreground mb-2">
             What This Means for You—and for Us
           </h3>
-          <p className="text-gray-700 leading-relaxed">
+          <p className="text-foreground leading-relaxed">
             Customer has separately agreed to our Customer Terms of Service (the
             "Contract") which permitted Customer to create and configure a
             workspace. When you submit content or information to the Services,
@@ -91,18 +91,18 @@ function TermsOfService() {
 
         {/* Section 3 */}
         <section className="mb-10">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+          <h2 className="text-xl font-semibold text-foreground mb-4">
             3. Special Provisions for AI and Data
           </h2>
-          <h3 className="text-base font-semibold text-gray-800 mb-2">
+          <h3 className="text-base font-semibold text-foreground mb-2">
             Third-Party AI Services Disclaimer
           </h3>
-          <p className="text-gray-700 leading-relaxed mb-3">
+          <p className="text-foreground leading-relaxed mb-3">
             The Services integrate and provide access to various third-party
             Artificial Intelligence (AI) models and services (e.g., OpenAI,
             Anthropic, Google). You acknowledge and agree that:
           </p>
-          <ul className="list-disc pl-6 space-y-2 text-gray-700 leading-relaxed mb-6">
+          <ul className="list-disc pl-6 space-y-2 text-foreground leading-relaxed mb-6">
             <li>
               <strong>No Platform Liability:</strong> Team9 does not own or
               control these third-party AI models. We are not responsible for
@@ -121,14 +121,14 @@ function TermsOfService() {
             </li>
           </ul>
 
-          <h3 className="text-base font-semibold text-gray-800 mb-2">
+          <h3 className="text-base font-semibold text-foreground mb-2">
             No Liability for Data Loss
           </h3>
-          <p className="text-gray-700 leading-relaxed mb-3">
+          <p className="text-foreground leading-relaxed mb-3">
             We implement industry-standard security measures, but we do not
             guarantee that data will never be lost.
           </p>
-          <ul className="list-disc pl-6 space-y-2 text-gray-700 leading-relaxed">
+          <ul className="list-disc pl-6 space-y-2 text-foreground leading-relaxed">
             <li>
               <strong>Backup Responsibility:</strong> You and the Customer are
               solely responsible for maintaining independent backups of all
@@ -145,18 +145,18 @@ function TermsOfService() {
 
         {/* Section 4 */}
         <section className="mb-10">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+          <h2 className="text-xl font-semibold text-foreground mb-4">
             4. The Relationship Between You, Customer and Us
           </h2>
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-5 space-y-3">
-            <p className="text-gray-700 leading-relaxed text-sm font-medium uppercase">
+          <div className="bg-muted border border-border rounded-lg p-5 space-y-3">
+            <p className="text-foreground leading-relaxed text-sm font-medium uppercase">
               As between us and Customer, you agree that it is solely Customer's
               responsibility to: (A) inform you of any relevant Customer
               policies; (B) obtain any necessary consents for the lawful use of
               Customer Data; and (C) resolve any disputes relating to Customer
               Data.
             </p>
-            <p className="text-gray-700 leading-relaxed text-sm font-medium uppercase">
+            <p className="text-foreground leading-relaxed text-sm font-medium uppercase">
               Team9 makes no warranties of any kind, express or implied, to you
               relating to the Services, which are provided to you on an "as is"
               and "as available" basis.
@@ -166,10 +166,10 @@ function TermsOfService() {
 
         {/* Section 5 */}
         <section className="mb-10">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+          <h2 className="text-xl font-semibold text-foreground mb-4">
             5. A Few Ground Rules
           </h2>
-          <ul className="list-disc pl-6 space-y-2 text-gray-700 leading-relaxed">
+          <ul className="list-disc pl-6 space-y-2 text-foreground leading-relaxed">
             <li>
               <strong>Age Requirements:</strong> You represent that you are over
               the legal age of majority in your jurisdiction and at least
@@ -190,11 +190,11 @@ function TermsOfService() {
 
         {/* Section 6 */}
         <section className="mb-10">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+          <h2 className="text-xl font-semibold text-foreground mb-4">
             6. Limitation of Liability
           </h2>
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-5">
-            <p className="text-gray-700 leading-relaxed text-sm font-medium uppercase">
+          <div className="bg-muted border border-border rounded-lg p-5">
+            <p className="text-foreground leading-relaxed text-sm font-medium uppercase">
               In no event will you or we have any liability to the other for any
               lost profits or revenues or for any indirect, special, incidental,
               or consequential damages. Our maximum aggregate liability to you
@@ -205,26 +205,26 @@ function TermsOfService() {
 
         {/* Section 7 */}
         <section className="mb-10">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+          <h2 className="text-xl font-semibold text-foreground mb-4">
             7. General Provisions
           </h2>
 
           <div className="space-y-5">
             <div>
-              <h3 className="text-base font-semibold text-gray-800 mb-1">
+              <h3 className="text-base font-semibold text-foreground mb-1">
                 Privacy Policy
               </h3>
-              <p className="text-gray-700 leading-relaxed">
+              <p className="text-foreground leading-relaxed">
                 Please review our Privacy Policy at team9.ai/privacy for
                 information on how we collect and use data.
               </p>
             </div>
 
             <div>
-              <h3 className="text-base font-semibold text-gray-800 mb-1">
+              <h3 className="text-base font-semibold text-foreground mb-1">
                 Modifications
               </h3>
-              <p className="text-gray-700 leading-relaxed">
+              <p className="text-foreground leading-relaxed">
                 As our business evolves, we may change these User Terms. If we
                 make a material change, we will provide you with reasonable
                 notice (via email or in-app message). Using the Services after
@@ -234,10 +234,10 @@ function TermsOfService() {
             </div>
 
             <div>
-              <h3 className="text-base font-semibold text-gray-800 mb-1">
+              <h3 className="text-base font-semibold text-foreground mb-1">
                 Governing Law
               </h3>
-              <p className="text-gray-700 leading-relaxed">
+              <p className="text-foreground leading-relaxed">
                 The User Terms will be governed by the laws applicable to the
                 Contract between Team9 and the Customer. You consent to the
                 exclusive jurisdiction of the courts specified in that Contract.
@@ -245,10 +245,10 @@ function TermsOfService() {
             </div>
 
             <div>
-              <h3 className="text-base font-semibold text-gray-800 mb-1">
+              <h3 className="text-base font-semibold text-foreground mb-1">
                 Severability
               </h3>
-              <p className="text-gray-700 leading-relaxed">
+              <p className="text-foreground leading-relaxed">
                 If any provision of these User Terms is held to be contrary to
                 law, that provision will be modified to the minimum extent
                 necessary, and the remaining provisions will remain in effect.
@@ -256,15 +256,15 @@ function TermsOfService() {
             </div>
 
             <div>
-              <h3 className="text-base font-semibold text-gray-800 mb-1">
+              <h3 className="text-base font-semibold text-foreground mb-1">
                 Contacting Team9
               </h3>
-              <p className="text-gray-700 leading-relaxed">
+              <p className="text-foreground leading-relaxed">
                 Please feel free to contact us if you have any questions about
                 these User Terms at{" "}
                 <a
                   href="mailto:legal@team9.ai"
-                  className="text-purple-600 hover:underline"
+                  className="text-primary hover:underline"
                 >
                   legal@team9.ai
                 </a>
@@ -275,8 +275,8 @@ function TermsOfService() {
         </section>
 
         {/* Footer */}
-        <hr className="border-gray-200 mb-6" />
-        <footer className="text-center text-sm text-gray-500 pb-12">
+        <hr className="border-border mb-6" />
+        <footer className="text-center text-sm text-muted-foreground pb-12">
           <p>&copy; 2026 Team9. All rights reserved.</p>
         </footer>
       </main>

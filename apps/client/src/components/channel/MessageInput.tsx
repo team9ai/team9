@@ -171,8 +171,8 @@ export function MessageInput({
       <div
         ref={containerRef}
         className={cn(
-          "border-t p-3 bg-white relative transition-colors",
-          isDragging && "bg-blue-50 border-blue-300",
+          "border-t p-3 bg-background relative transition-colors",
+          isDragging && "bg-info/10 border-info/30",
         )}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
@@ -181,8 +181,8 @@ export function MessageInput({
       >
         {/* Drag overlay */}
         {isDragging && (
-          <div className="absolute inset-0 bg-blue-50/90 border-2 border-dashed border-blue-400 rounded-lg flex items-center justify-center z-10 pointer-events-none">
-            <div className="flex flex-col items-center gap-2 text-blue-600">
+          <div className="absolute inset-0 bg-info/10 border-2 border-dashed border-info/40 rounded-lg flex items-center justify-center z-10 pointer-events-none">
+            <div className="flex flex-col items-center gap-2 text-info">
               <Upload size={24} />
               <span className="text-xs font-medium">
                 {t("message:dragToUpload")}
@@ -193,14 +193,14 @@ export function MessageInput({
 
         {/* Replying-to indicator */}
         {replyingTo && (
-          <div className="flex items-center gap-2 mb-2 px-2 py-1 bg-slate-100 rounded text-sm">
+          <div className="flex items-center gap-2 mb-2 px-2 py-1 bg-muted rounded text-sm">
             <span className="text-muted-foreground">
               {t("thread:replyingTo")}
             </span>
             <span className="font-medium">@{replyingTo.senderName}</span>
             <button
               onClick={onClearReplyingTo}
-              className="ml-auto text-muted-foreground hover:text-slate-700"
+              className="ml-auto text-muted-foreground hover:text-foreground"
             >
               <X size={14} />
             </button>
@@ -226,8 +226,8 @@ export function MessageInput({
     <div
       ref={containerRef}
       className={cn(
-        "border-t p-4 bg-white relative transition-colors",
-        isDragging && "bg-blue-50 border-blue-300",
+        "border-t p-4 bg-background relative transition-colors",
+        isDragging && "bg-info/10 border-info/30",
       )}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
@@ -236,8 +236,8 @@ export function MessageInput({
     >
       {/* Drag overlay */}
       {isDragging && (
-        <div className="absolute inset-0 bg-blue-50/90 border-2 border-dashed border-blue-400 rounded-lg flex items-center justify-center z-10 pointer-events-none">
-          <div className="flex flex-col items-center gap-2 text-blue-600">
+        <div className="absolute inset-0 bg-info/10 border-2 border-dashed border-info/40 rounded-lg flex items-center justify-center z-10 pointer-events-none">
+          <div className="flex flex-col items-center gap-2 text-info">
             <Upload size={32} />
             <span className="text-sm font-medium">
               {t("message:dragToUpload")}

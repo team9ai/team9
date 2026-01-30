@@ -66,7 +66,7 @@ export function DeleteChannelDialog({
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-red-600">
+          <DialogTitle className="flex items-center gap-2 text-destructive">
             <AlertTriangle size={20} />
             Delete #{channel.name}
           </DialogTitle>
@@ -77,11 +77,11 @@ export function DeleteChannelDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-800">
+          <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+            <p className="text-sm text-destructive">
               <strong>Warning:</strong> Deleting this channel will:
             </p>
-            <ul className="text-sm text-red-700 list-disc list-inside mt-2">
+            <ul className="text-sm text-destructive list-disc list-inside mt-2">
               <li>Remove all messages and files</li>
               <li>Remove all members from the channel</li>
               <li>This cannot be recovered</li>
@@ -108,7 +108,7 @@ export function DeleteChannelDialog({
               id="permanent"
               checked={isPermanent}
               onChange={(e) => setIsPermanent(e.target.checked)}
-              className="rounded border-slate-300"
+              className="rounded border-border"
             />
             <Label htmlFor="permanent" className="text-sm font-normal">
               Permanently delete (cannot be recovered)

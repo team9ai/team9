@@ -145,7 +145,7 @@ export function CreateChannelDialog({
               <div className="space-y-2">
                 <Label htmlFor="channel-name">Name</Label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                     <Hash size={16} />
                   </span>
                   <Input
@@ -166,13 +166,13 @@ export function CreateChannelDialog({
                 {name &&
                   normalizedName !==
                     name.toLowerCase().replace(/\s+/g, "-") && (
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-muted-foreground">
                       Will be created as:{" "}
                       <span className="font-mono">{normalizedName}</span>
                     </p>
                   )}
                 {nameError && (
-                  <p className="text-xs text-red-500 flex items-center gap-1">
+                  <p className="text-xs text-destructive flex items-center gap-1">
                     <AlertCircle size={12} />
                     {nameError}
                   </p>
@@ -182,7 +182,9 @@ export function CreateChannelDialog({
               <div className="space-y-2">
                 <Label htmlFor="channel-description">
                   Description{" "}
-                  <span className="text-slate-400 font-normal">(optional)</span>
+                  <span className="text-muted-foreground font-normal">
+                    (optional)
+                  </span>
                 </Label>
                 <Textarea
                   id="channel-description"
@@ -202,7 +204,7 @@ export function CreateChannelDialog({
               <Button
                 onClick={handleNextStep}
                 disabled={!canProceed}
-                className="bg-purple-600 hover:bg-purple-700"
+                className="bg-primary hover:bg-primary/90"
               >
                 Next
               </Button>
@@ -234,20 +236,20 @@ export function CreateChannelDialog({
                 onClick={() => setIsPrivate(false)}
                 className={`w-full p-4 rounded-lg border-2 text-left transition-colors ${
                   !isPrivate
-                    ? "border-purple-600 bg-purple-50"
-                    : "border-slate-200 hover:border-slate-300"
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-border"
                 }`}
               >
                 <div className="flex items-start gap-3">
                   <div
                     className={`p-2 rounded-lg ${
-                      !isPrivate ? "bg-purple-100" : "bg-slate-100"
+                      !isPrivate ? "bg-primary/10" : "bg-muted"
                     }`}
                   >
                     <Globe
                       size={20}
                       className={
-                        !isPrivate ? "text-purple-600" : "text-slate-500"
+                        !isPrivate ? "text-primary" : "text-muted-foreground"
                       }
                     />
                   </div>
@@ -255,12 +257,12 @@ export function CreateChannelDialog({
                     <div className="flex items-center gap-2">
                       <span className="font-semibold">Public</span>
                       {!isPrivate && (
-                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
+                        <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
                           Selected
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-slate-500 mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                       Anyone in your workspace can view and join this channel.
                     </p>
                   </div>
@@ -272,20 +274,20 @@ export function CreateChannelDialog({
                 onClick={() => setIsPrivate(true)}
                 className={`w-full p-4 rounded-lg border-2 text-left transition-colors ${
                   isPrivate
-                    ? "border-purple-600 bg-purple-50"
-                    : "border-slate-200 hover:border-slate-300"
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-border"
                 }`}
               >
                 <div className="flex items-start gap-3">
                   <div
                     className={`p-2 rounded-lg ${
-                      isPrivate ? "bg-purple-100" : "bg-slate-100"
+                      isPrivate ? "bg-primary/10" : "bg-muted"
                     }`}
                   >
                     <Lock
                       size={20}
                       className={
-                        isPrivate ? "text-purple-600" : "text-slate-500"
+                        isPrivate ? "text-primary" : "text-muted-foreground"
                       }
                     />
                   </div>
@@ -293,12 +295,12 @@ export function CreateChannelDialog({
                     <div className="flex items-center gap-2">
                       <span className="font-semibold">Private</span>
                       {isPrivate && (
-                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
+                        <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
                           Selected
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-slate-500 mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                       Only invited members can see and join this channel.
                     </p>
                   </div>
@@ -313,7 +315,7 @@ export function CreateChannelDialog({
               <Button
                 onClick={handleCreate}
                 disabled={createChannel.isPending}
-                className="bg-purple-600 hover:bg-purple-700"
+                className="bg-primary hover:bg-primary/90"
               >
                 {createChannel.isPending ? "Creating..." : "Create Channel"}
               </Button>

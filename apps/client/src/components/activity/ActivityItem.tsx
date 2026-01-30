@@ -90,19 +90,19 @@ export function ActivityItem({
     <div
       className={cn(
         "px-2 py-2 rounded-md cursor-pointer transition-colors",
-        "hover:bg-white/10",
-        isSelected && "bg-white/15",
-        !notification.isRead && "border-l-2 border-purple-400",
+        "hover:bg-nav-hover",
+        isSelected && "bg-nav-active-strong",
+        !notification.isRead && "border-l-2 border-accent",
       )}
       onClick={onClick}
     >
       {/* Source context header */}
       <div className="flex items-center gap-1.5 mb-1.5">
-        <Hash size={12} className="text-white/50" />
-        <span className="text-xs text-white/70 truncate flex-1">
+        <Hash size={12} className="text-nav-foreground-faint" />
+        <span className="text-xs text-nav-foreground-subtle truncate flex-1">
           {sourceContext}
         </span>
-        <span className="text-xs text-white/50">{timeStr}</span>
+        <span className="text-xs text-nav-foreground-faint">{timeStr}</span>
       </div>
 
       {/* User info and preview */}
@@ -111,25 +111,25 @@ export function ActivityItem({
           {notification.actor?.avatarUrl && (
             <AvatarImage src={notification.actor.avatarUrl} alt={actorName} />
           )}
-          <AvatarFallback className="bg-purple-500 text-white text-xs">
+          <AvatarFallback className="bg-primary text-primary-foreground text-xs">
             {actorInitial}
           </AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-medium text-white truncate">
+            <span className="text-sm font-medium text-nav-foreground truncate">
               {actorName}
             </span>
-            <Icon size={12} className="text-white/50 shrink-0" />
+            <Icon size={12} className="text-nav-foreground-faint shrink-0" />
           </div>
           {notification.body && (
-            <p className="text-xs text-white/60 mt-0.5 line-clamp-2">
+            <p className="text-xs text-nav-foreground-secondary mt-0.5 line-clamp-2">
               {notification.body}
             </p>
           )}
         </div>
         {!notification.isRead && (
-          <div className="w-2 h-2 rounded-full bg-purple-400 shrink-0 mt-1.5" />
+          <div className="w-2 h-2 rounded-full bg-accent shrink-0 mt-1.5" />
         )}
       </div>
     </div>

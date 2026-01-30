@@ -62,40 +62,44 @@ function VerifyEmail() {
   }, [token]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white">
+    <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-full max-w-100 px-4">
         {/* Logo/Brand */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Team9</h1>
+          <h1 className="text-4xl font-bold text-foreground mb-2">Team9</h1>
         </div>
 
         {/* Verification Status Card */}
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-8 text-center">
+        <div className="bg-background border border-border rounded-lg shadow-sm p-8 text-center">
           {status === "loading" && (
             <>
-              <Loader2 className="w-16 h-16 mx-auto text-purple-600 animate-spin mb-4" />
+              <Loader2 className="w-16 h-16 mx-auto text-primary animate-spin mb-4" />
               <h2 className="text-xl font-semibold">{t("verifyingEmail")}</h2>
             </>
           )}
 
           {status === "success" && (
             <>
-              <CheckCircle className="w-16 h-16 mx-auto text-green-500 mb-4" />
-              <h2 className="text-xl font-semibold text-green-700 mb-2">
+              <CheckCircle className="w-16 h-16 mx-auto text-success mb-4" />
+              <h2 className="text-xl font-semibold text-success mb-2">
                 {t("emailVerified")}
               </h2>
-              <p className="text-gray-600 mb-6">{t("emailVerifiedMessage")}</p>
-              <p className="text-sm text-gray-500">{t("redirectingHome")}</p>
+              <p className="text-muted-foreground mb-6">
+                {t("emailVerifiedMessage")}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {t("redirectingHome")}
+              </p>
             </>
           )}
 
           {status === "error" && (
             <>
-              <XCircle className="w-16 h-16 mx-auto text-red-500 mb-4" />
-              <h2 className="text-xl font-semibold text-red-700 mb-2">
+              <XCircle className="w-16 h-16 mx-auto text-destructive mb-4" />
+              <h2 className="text-xl font-semibold text-destructive mb-2">
                 {t("verificationFailed")}
               </h2>
-              <p className="text-gray-600 mb-6">{errorMessage}</p>
+              <p className="text-muted-foreground mb-6">{errorMessage}</p>
               <div className="space-y-3">
                 <Link to="/login" className="block">
                   <Button className="w-full">{t("backToLogin")}</Button>

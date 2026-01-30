@@ -65,7 +65,7 @@ export function LanguageSwitcher({
             >
               <span>{lang.nativeName}</span>
               {i18n.language === lang.code && (
-                <span className="text-purple-600">✓</span>
+                <span className="text-primary">✓</span>
               )}
             </button>
           ))}

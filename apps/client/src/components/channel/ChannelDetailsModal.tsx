@@ -124,7 +124,7 @@ export function ChannelDetailsModal({
           {/* Header */}
           <div className="px-6 pt-6 pb-4">
             <DialogTitle className="flex items-center gap-2 text-xl">
-              <ChannelIcon size={20} className="text-slate-600" />
+              <ChannelIcon size={20} className="text-muted-foreground" />
               <span>#{channel.name}</span>
             </DialogTitle>
           </div>
@@ -188,7 +188,7 @@ export function ChannelDetailsModal({
                     <>
                       <div className="flex items-start justify-between">
                         <div className="space-y-1">
-                          <h3 className="text-sm font-medium text-slate-500">
+                          <h3 className="text-sm font-medium text-muted-foreground">
                             {t("channelName")}
                           </h3>
                           <p className="font-medium">#{channel.name}</p>
@@ -206,16 +206,16 @@ export function ChannelDetailsModal({
                       </div>
 
                       <div className="space-y-1">
-                        <h3 className="text-sm font-medium text-slate-500">
+                        <h3 className="text-sm font-medium text-muted-foreground">
                           {t("channelDescription")}
                         </h3>
-                        <p className="text-slate-700">
+                        <p className="text-foreground">
                           {channel.description || t("noDescription")}
                         </p>
                       </div>
 
                       <div className="space-y-1">
-                        <h3 className="text-sm font-medium text-slate-500">
+                        <h3 className="text-sm font-medium text-muted-foreground">
                           {t("type")}
                         </h3>
                         <p className="flex items-center gap-1">
@@ -232,7 +232,7 @@ export function ChannelDetailsModal({
                       </div>
 
                       <div className="space-y-1">
-                        <h3 className="text-sm font-medium text-slate-500">
+                        <h3 className="text-sm font-medium text-muted-foreground">
                           {t("createdAt")}
                         </h3>
                         <p>
@@ -251,7 +251,7 @@ export function ChannelDetailsModal({
                   <div className="relative">
                     <Search
                       size={16}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                     />
                     <Input
                       placeholder={t("findMember")}
@@ -265,10 +265,10 @@ export function ChannelDetailsModal({
                   {isAdmin && (
                     <button
                       onClick={() => setShowAddMemberDialog(true)}
-                      className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-slate-50 transition-colors"
+                      className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-muted transition-colors"
                     >
-                      <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center">
-                        <UserPlus size={18} className="text-blue-600" />
+                      <div className="w-9 h-9 rounded-lg bg-info/10 flex items-center justify-center">
+                        <UserPlus size={18} className="text-info" />
                       </div>
                       <span className="font-medium">{t("addPeople")}</span>
                     </button>
@@ -281,14 +281,14 @@ export function ChannelDetailsModal({
                       return (
                         <div
                           key={member.id}
-                          className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50"
+                          className="flex items-center justify-between p-2 rounded-lg hover:bg-muted"
                         >
                           <div className="flex items-center gap-3">
                             <Avatar className="w-9 h-9">
                               {member.user?.avatarUrl && (
                                 <AvatarImage src={member.user.avatarUrl} />
                               )}
-                              <AvatarFallback className="bg-purple-100 text-purple-700">
+                              <AvatarFallback className="bg-primary/10 text-primary">
                                 {(member.user?.displayName ||
                                   member.user?.username ||
                                   "U")[0].toUpperCase()}
@@ -299,7 +299,7 @@ export function ChannelDetailsModal({
                                 {member.user?.displayName ||
                                   member.user?.username}
                                 {isCurrentUser && (
-                                  <span className="text-slate-500 font-normal">
+                                  <span className="text-muted-foreground font-normal">
                                     {" "}
                                     {t("you")}
                                   </span>
@@ -308,7 +308,7 @@ export function ChannelDetailsModal({
                             </div>
                           </div>
                           {member.role !== "member" && (
-                            <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600">
+                            <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">
                               {member.role === "owner"
                                 ? t("channelAdmin")
                                 : t("admin")}
@@ -325,14 +325,14 @@ export function ChannelDetailsModal({
               <TabsContent value="settings" className="px-6 pb-6 mt-0">
                 <div className="space-y-6 pt-4">
                   <div className="flex items-center gap-3">
-                    <Settings size={18} className="text-slate-500" />
+                    <Settings size={18} className="text-muted-foreground" />
                     <h3 className="font-medium">{t("channelSettings")}</h3>
                   </div>
 
                   {/* Leave Channel - visible to non-owners */}
                   {!isOwner && (
-                    <div className="space-y-4 p-4 border border-slate-200 rounded-lg">
-                      <p className="text-sm text-slate-600">
+                    <div className="space-y-4 p-4 border border-border rounded-lg">
+                      <p className="text-sm text-muted-foreground">
                         {t("leaveChannelWarning")}
                       </p>
                       <Button
@@ -350,16 +350,16 @@ export function ChannelDetailsModal({
 
                   {/* Delete Channel - only visible to owner */}
                   {isOwner && (
-                    <div className="space-y-4 p-4 border border-red-200 rounded-lg bg-red-50/50">
-                      <h4 className="font-medium text-red-600">
+                    <div className="space-y-4 p-4 border border-destructive/20 rounded-lg bg-destructive/5">
+                      <h4 className="font-medium text-destructive">
                         {t("dangerZone")}
                       </h4>
-                      <p className="text-sm text-slate-600">
+                      <p className="text-sm text-muted-foreground">
                         {t("deleteChannelWarning")}
                       </p>
                       <Button
                         variant="outline"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
                         onClick={() => setShowDeleteDialog(true)}
                       >
                         <Trash2 size={16} className="mr-2" />

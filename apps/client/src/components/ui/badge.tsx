@@ -11,7 +11,7 @@ const badgeVariants = cva(
         secondary: "bg-secondary text-secondary-foreground",
         destructive: "bg-destructive text-destructive-foreground",
         outline: "border border-input bg-background",
-        notification: "bg-red-500 text-white",
+        notification: "bg-destructive text-primary-foreground",
       },
       size: {
         default: "h-5 min-w-5 px-1.5 text-xs rounded-full",

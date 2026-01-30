@@ -42,11 +42,11 @@ export function NewMessageDialog({ isOpen, onClose }: NewMessageDialogProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/50">
+      <div className="bg-background rounded-lg shadow-xl w-full max-w-md mx-4">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-lg font-semibold text-slate-900">New Message</h2>
+          <h2 className="text-lg font-semibold text-foreground">New Message</h2>
           <Button
             variant="ghost"
             size="icon"
@@ -62,7 +62,7 @@ export function NewMessageDialog({ isOpen, onClose }: NewMessageDialogProps) {
           <div className="relative">
             <Search
               size={18}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
             />
             <Input
               type="text"
@@ -79,15 +79,15 @@ export function NewMessageDialog({ isOpen, onClose }: NewMessageDialogProps) {
         <ScrollArea className="max-h-96">
           <div className="p-2">
             {isLoading ? (
-              <div className="py-8 text-center text-sm text-slate-500">
+              <div className="py-8 text-center text-sm text-muted-foreground">
                 Searching...
               </div>
             ) : searchQuery.length === 0 ? (
-              <div className="py-8 text-center text-sm text-slate-500">
+              <div className="py-8 text-center text-sm text-muted-foreground">
                 Enter username or email to search
               </div>
             ) : users.length === 0 ? (
-              <div className="py-8 text-center text-sm text-slate-500">
+              <div className="py-8 text-center text-sm text-muted-foreground">
                 No users found
               </div>
             ) : (
@@ -97,23 +97,23 @@ export function NewMessageDialog({ isOpen, onClose }: NewMessageDialogProps) {
                     key={user.id}
                     onClick={() => handleSelectUser(user)}
                     disabled={createDirectChannel.isPending}
-                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors text-left disabled:opacity-50"
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted transition-colors text-left disabled:opacity-50"
                   >
                     <Avatar className="w-10 h-10">
-                      <AvatarFallback className="bg-linear-to-br from-purple-400 to-purple-600 text-white">
+                      <AvatarFallback className="bg-primary text-primary-foreground">
                         {(user.displayName || user.username)[0].toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm text-slate-900 truncate">
+                      <p className="font-medium text-sm text-foreground truncate">
                         {user.displayName || user.username}
                       </p>
-                      <p className="text-xs text-slate-500 truncate">
+                      <p className="text-xs text-muted-foreground truncate">
                         @{user.username}
                       </p>
                     </div>
                     {user.status === "online" && (
-                      <div className="w-2 h-2 bg-green-500 rounded-full" />
+                      <div className="w-2 h-2 bg-success rounded-full" />
                     )}
                   </button>
                 ))}
@@ -123,8 +123,8 @@ export function NewMessageDialog({ isOpen, onClose }: NewMessageDialogProps) {
         </ScrollArea>
 
         {/* Footer */}
-        <div className="p-4 border-t bg-slate-50 rounded-b-lg">
-          <p className="text-xs text-slate-500 text-center">
+        <div className="p-4 border-t bg-muted rounded-b-lg">
+          <p className="text-xs text-muted-foreground text-center">
             Select a user to start a direct conversation
           </p>
         </div>

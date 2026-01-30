@@ -160,11 +160,11 @@ export function ThreadPanel({
   };
 
   return (
-    <div className="w-96 border-l bg-white flex flex-col h-full">
+    <div className="w-96 border-l bg-background flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b">
         <div className="flex items-center gap-2">
-          <MessageSquare size={20} className="text-slate-600" />
+          <MessageSquare size={20} className="text-muted-foreground" />
           <h2 className="font-semibold">{t("title")}</h2>
         </div>
         <Button variant="ghost" size="icon" onClick={closeThread}>
@@ -179,7 +179,7 @@ export function ThreadPanel({
       ) : threadData ? (
         <>
           {/* Root message */}
-          <div className="px-4 py-3 border-b bg-slate-50">
+          <div className="px-4 py-3 border-b bg-muted">
             <MessageItem
               message={threadData.rootMessage}
               currentUserId={currentUser?.id}
@@ -224,7 +224,7 @@ export function ThreadPanel({
               <button
                 onClick={handleJumpToBottom}
                 disabled={isJumpingToLatest}
-                className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-full shadow-lg hover:bg-blue-700 transition-colors"
+                className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-info text-primary-foreground text-sm rounded-full shadow-lg hover:bg-info/90 transition-colors"
               >
                 {isJumpingToLatest ? (
                   <Loader2 size={16} className="animate-spin" />

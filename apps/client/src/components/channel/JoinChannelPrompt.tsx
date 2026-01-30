@@ -27,13 +27,15 @@ export function JoinChannelPrompt({
   };
 
   return (
-    <div className="border-t p-4 bg-white">
+    <div className="border-t p-4 bg-background">
       <div className="flex flex-col items-center justify-center py-6 gap-4">
-        <h3 className="text-lg font-semibold text-gray-900"># {channelName}</h3>
+        <h3 className="text-lg font-semibold text-foreground">
+          # {channelName}
+        </h3>
         <Button
           onClick={handleJoin}
           disabled={joinChannel.isPending}
-          className="bg-emerald-700 hover:bg-emerald-800 text-white px-8"
+          className="bg-success hover:bg-success/90 text-primary-foreground px-8"
         >
           {joinChannel.isPending ? (
             <>

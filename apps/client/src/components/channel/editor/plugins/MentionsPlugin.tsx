@@ -55,11 +55,15 @@ function MentionSuggestions({
   isLoading,
 }: MentionSuggestionsProps) {
   return (
-    <div className="absolute bottom-full left-0 mb-1 w-64 max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg z-50">
+    <div className="absolute bottom-full left-0 mb-1 w-64 max-h-60 overflow-y-auto bg-background border border-border rounded-lg shadow-lg z-50">
       {isLoading ? (
-        <div className="px-3 py-2 text-sm text-slate-500">Loading...</div>
+        <div className="px-3 py-2 text-sm text-muted-foreground">
+          Loading...
+        </div>
       ) : suggestions.length === 0 ? (
-        <div className="px-3 py-2 text-sm text-slate-500">No users found</div>
+        <div className="px-3 py-2 text-sm text-muted-foreground">
+          No users found
+        </div>
       ) : (
         <ul className="py-1">
           {suggestions.map((user, index) => (
@@ -68,15 +72,15 @@ function MentionSuggestions({
               className={cn(
                 "flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors",
                 selectedIndex === index
-                  ? "bg-purple-50 text-purple-900"
-                  : "hover:bg-slate-50",
+                  ? "bg-primary/5 text-primary"
+                  : "hover:bg-muted",
               )}
               onClick={() => onSelect(user)}
               onMouseEnter={() => onHover(index)}
             >
               <Avatar className="w-6 h-6">
                 {user.avatarUrl && <AvatarImage src={user.avatarUrl} />}
-                <AvatarFallback className="bg-purple-500 text-white text-xs">
+                <AvatarFallback className="bg-primary text-primary-foreground text-xs">
                   {(user.displayName || user.username)[0].toUpperCase()}
                 </AvatarFallback>
               </Avatar>
@@ -84,12 +88,12 @@ function MentionSuggestions({
                 <p className="text-sm font-medium truncate">
                   {user.displayName || user.username}
                 </p>
-                <p className="text-xs text-slate-500 truncate">
+                <p className="text-xs text-muted-foreground truncate">
                   @{user.username}
                 </p>
               </div>
               {user.status === "online" && (
-                <div className="w-2 h-2 bg-green-500 rounded-full" />
+                <div className="w-2 h-2 bg-success rounded-full" />
               )}
             </li>
           ))}

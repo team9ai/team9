@@ -74,7 +74,7 @@ export function HomeMainContent() {
   };
 
   return (
-    <main className="h-full flex flex-col bg-slate-50 overflow-hidden">
+    <main className="h-full flex flex-col bg-muted overflow-hidden">
       <ScrollArea className="flex-1 min-h-0">
         <div className="p-8 max-w-6xl mx-auto">
           {/* Welcome Section */}
@@ -88,10 +88,10 @@ export function HomeMainContent() {
               className="w-20 h-20  object-cover shadow-md shrink-0"
             />
             <div>
-              <h1 className="text-3xl font-bold text-slate-900 mb-2">
+              <h1 className="text-3xl font-bold text-foreground mb-2">
                 {t("welcomeBackTo", { workspace: workspaceName })}
               </h1>
-              <p className="text-slate-500 text-base">
+              <p className="text-muted-foreground text-base">
                 {t("workspaceActivity")}
               </p>
             </div>
@@ -104,8 +104,8 @@ export function HomeMainContent() {
               <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-5">
                   <div className="flex items-center gap-2 mb-5">
-                    <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                      <Map size={16} className="text-blue-600" />
+                    <div className="w-8 h-8 rounded-lg bg-info/10 flex items-center justify-center">
+                      <Map size={16} className="text-info" />
                     </div>
                     <h3 className="font-semibold text-base">
                       {t("weeklyRoadmap")}
@@ -113,14 +113,14 @@ export function HomeMainContent() {
                   </div>
                   <ul className="space-y-3">
                     <li className="flex items-start gap-2.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0 mt-2" />
-                      <span className="text-sm text-slate-700">
+                      <span className="w-1.5 h-1.5 rounded-full bg-info shrink-0 mt-2" />
+                      <span className="text-sm text-foreground">
                         {t("roadmapLocalEnv")}
                       </span>
                     </li>
                     <li className="flex items-start gap-2.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0 mt-2" />
-                      <span className="text-sm text-slate-700">
+                      <span className="w-1.5 h-1.5 rounded-full bg-info shrink-0 mt-2" />
+                      <span className="text-sm text-foreground">
                         {t("roadmapNewTools")}
                       </span>
                     </li>
@@ -131,8 +131,8 @@ export function HomeMainContent() {
               <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-5">
                   <div className="flex items-center gap-2 mb-5">
-                    <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
-                      <Wrench size={16} className="text-amber-600" />
+                    <div className="w-8 h-8 rounded-lg bg-warning/10 flex items-center justify-center">
+                      <Wrench size={16} className="text-warning" />
                     </div>
                     <h3 className="font-semibold text-base">
                       {t("supportedTools")}
@@ -147,12 +147,12 @@ export function HomeMainContent() {
                     ].map((tool, i) => (
                       <div
                         key={i}
-                        className="flex items-center justify-between py-1.5 px-3 rounded-md bg-slate-50"
+                        className="flex items-center justify-between py-1.5 px-3 rounded-md bg-muted"
                       >
-                        <span className="text-sm text-slate-700">
+                        <span className="text-sm text-foreground">
                           {tool.name}
                         </span>
-                        <span className="text-xs text-slate-400 bg-slate-200 px-2 py-0.5 rounded-full">
+                        <span className="text-xs text-muted-foreground bg-border px-2 py-0.5 rounded-full">
                           {tool.status}
                         </span>
                       </div>
@@ -171,15 +171,15 @@ export function HomeMainContent() {
                   </h3>
                   <div className="flex items-center justify-center gap-3 mb-5">
                     <div className="w-11 h-11 rounded-full bg-linear-to-br from-rose-300 to-rose-400 shadow-sm" />
-                    <div className="relative border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-600 bg-white shadow-sm">
+                    <div className="relative border border-border rounded-xl px-3.5 py-2 text-sm text-muted-foreground bg-background shadow-sm">
                       HI its Clawdbot here!
-                      <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rotate-45 border-l border-b border-slate-200 bg-white" />
+                      <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rotate-45 border-l border-b border-border bg-background" />
                     </div>
                   </div>
                   <div className="text-center">
                     <Button
                       size="sm"
-                      className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6 cursor-pointer"
+                      className="bg-info hover:bg-info/90 text-primary-foreground rounded-lg px-6 cursor-pointer"
                       onClick={handleStartChatWithBot}
                     >
                       Start Chatting
@@ -193,14 +193,14 @@ export function HomeMainContent() {
                   <h3 className="font-semibold text-base mb-4">
                     {t("inviteFriends")}
                   </h3>
-                  <div className="bg-slate-100 rounded-lg px-4 py-2.5 mb-4">
-                    <span className="text-sm font-mono text-slate-700 truncate block">
+                  <div className="bg-muted rounded-lg px-4 py-2.5 mb-4">
+                    <span className="text-sm font-mono text-foreground truncate block">
                       {inviteUrl ?? t("common:loading")}
                     </span>
                   </div>
                   <Button
                     size="sm"
-                    className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6 cursor-pointer"
+                    className="bg-info hover:bg-info/90 text-primary-foreground rounded-lg px-6 cursor-pointer"
                     disabled={!inviteUrl}
                     onClick={handleCopyLink}
                   >
@@ -216,7 +216,7 @@ export function HomeMainContent() {
                   </h3>
                   <Button
                     size="sm"
-                    className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6 cursor-pointer"
+                    className="bg-info hover:bg-info/90 text-primary-foreground rounded-lg px-6 cursor-pointer"
                     onClick={() => setIsCreateChannelOpen(true)}
                   >
                     {t("navigation:createChannel")}
@@ -229,13 +229,13 @@ export function HomeMainContent() {
                   <h3 className="font-semibold text-base mb-4">
                     {t("navigation:joinBetaFeedback")}
                   </h3>
-                  <div className="w-12 h-12 rounded-xl bg-indigo-100 flex items-center justify-center mx-auto mb-3">
+                  <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center mx-auto mb-3">
                     <svg
                       width="28"
                       height="28"
                       viewBox="0 0 24 24"
                       fill="none"
-                      className="text-indigo-600"
+                      className="text-accent"
                     >
                       <path
                         d="M19.27 5.33C17.94 4.71 16.5 4.26 15 4a.09.09 0 0 0-.07.03c-.18.33-.39.76-.53 1.09a16.09 16.09 0 0 0-4.8 0c-.14-.34-.36-.76-.54-1.09c-.01-.02-.04-.03-.07-.03c-1.5.26-2.93.71-4.27 1.33c-.01 0-.02.01-.03.02c-2.72 4.07-3.47 8.03-3.1 11.95c0 .02.01.04.03.05c1.8 1.32 3.53 2.12 5.24 2.65c.03.01.06 0 .07-.02c.4-.55.76-1.13 1.07-1.74c.02-.04 0-.08-.04-.09c-.57-.22-1.11-.48-1.64-.78c-.04-.02-.04-.08-.01-.11c.11-.08.22-.17.33-.25c.02-.02.05-.02.07-.01c3.44 1.57 7.15 1.57 10.55 0c.02-.01.05-.01.07.01c.11.09.22.17.33.26c.04.03.04.09-.01.11c-.52.31-1.07.56-1.64.78c-.04.01-.05.06-.04.09c.32.61.68 1.19 1.07 1.74c.03.01.06.02.09.01c1.72-.53 3.45-1.33 5.25-2.65c.02-.01.03-.03.03-.05c.44-4.53-.73-8.46-3.1-11.95c-.01-.01-.02-.02-.04-.02zM8.52 14.91c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12c0 1.17-.84 2.12-1.89 2.12zm6.97 0c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12c0 1.17-.83 2.12-1.89 2.12z"
@@ -245,7 +245,7 @@ export function HomeMainContent() {
                   </div>
                   <Button
                     size="sm"
-                    className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6 cursor-pointer"
+                    className="bg-info hover:bg-info/90 text-primary-foreground rounded-lg px-6 cursor-pointer"
                     onClick={() =>
                       window.open("https://discord.gg/edMATqpU", "_blank")
                     }
@@ -258,21 +258,21 @@ export function HomeMainContent() {
               <Card className="col-span-2 border-0 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-5 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
-                      <Sparkles size={20} className="text-violet-600" />
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                      <Sparkles size={20} className="text-primary" />
                     </div>
                     <div>
                       <h3 className="font-semibold text-base">
                         {t("navigation:createFirstAIStaff")}
                       </h3>
-                      <p className="text-sm text-slate-500">
+                      <p className="text-sm text-muted-foreground">
                         {t("navigation:aiStaffDescription")}
                       </p>
                     </div>
                   </div>
                   <Button
                     size="sm"
-                    className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6 cursor-pointer"
+                    className="bg-info hover:bg-info/90 text-primary-foreground rounded-lg px-6 cursor-pointer"
                   >
                     {t("navigation:createAIStaff")}
                   </Button>

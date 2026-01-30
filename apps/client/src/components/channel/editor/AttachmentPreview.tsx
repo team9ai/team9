@@ -59,8 +59,8 @@ function ImageAttachmentItem({
       <div
         className={cn(
           "w-20 h-20 rounded-lg overflow-hidden border-2",
-          isError && "border-red-300",
-          isUploading && "border-blue-300",
+          isError && "border-destructive/30",
+          isUploading && "border-info/30",
           !isError && !isUploading && "border-transparent",
         )}
       >
@@ -75,15 +75,15 @@ function ImageAttachmentItem({
 
         {/* Upload progress overlay */}
         {isUploading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-            <Loader2 className="w-6 h-6 text-white animate-spin" />
+          <div className="absolute inset-0 flex items-center justify-center bg-foreground/20">
+            <Loader2 className="w-6 h-6 text-background animate-spin" />
           </div>
         )}
 
         {/* Error overlay */}
         {isError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-red-500/20">
-            <AlertCircle className="w-6 h-6 text-red-500" />
+          <div className="absolute inset-0 flex items-center justify-center bg-destructive/20">
+            <AlertCircle className="w-6 h-6 text-destructive" />
           </div>
         )}
       </div>
@@ -95,10 +95,10 @@ function ImageAttachmentItem({
         size="sm"
         onClick={onRemove}
         disabled={isUploading}
-        className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full bg-white border shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+        className="absolute -top-2 -right-2 h-6 w-6 p-0 rounded-full bg-background border shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
         title="Remove"
       >
-        <X className="w-3 h-3 text-slate-600" />
+        <X className="w-3 h-3 text-muted-foreground" />
       </Button>
 
       {/* Retry button for errors */}
@@ -108,10 +108,10 @@ function ImageAttachmentItem({
           variant="secondary"
           size="sm"
           onClick={onRetry}
-          className="absolute -bottom-2 -right-2 h-6 w-6 p-0 rounded-full bg-white border shadow-sm"
+          className="absolute -bottom-2 -right-2 h-6 w-6 p-0 rounded-full bg-background border shadow-sm"
           title="Retry upload"
         >
-          <RefreshCw className="w-3 h-3 text-red-500" />
+          <RefreshCw className="w-3 h-3 text-destructive" />
         </Button>
       )}
     </div>
@@ -137,39 +137,42 @@ function FileAttachmentItem({
   return (
     <div
       className={cn(
-        "relative group flex items-center gap-2 p-2 rounded-lg border bg-white",
-        isError && "border-red-300 bg-red-50",
-        isCompleted && "border-green-300 bg-green-50",
-        isUploading && "border-purple-300 bg-purple-50",
+        "relative group flex items-center gap-2 p-2 rounded-lg border bg-background",
+        isError && "border-destructive/30 bg-destructive/10",
+        isCompleted && "border-success/30 bg-success/10",
+        isUploading && "border-primary/30 bg-primary/10",
       )}
     >
       {/* Icon */}
-      <div className="w-10 h-10 flex-shrink-0 rounded bg-slate-100 flex items-center justify-center overflow-hidden">
+      <div className="w-10 h-10 flex-shrink-0 rounded bg-muted flex items-center justify-center overflow-hidden">
         <FileIcon
-          className={cn("w-5 h-5", isError ? "text-red-500" : "text-slate-500")}
+          className={cn(
+            "w-5 h-5",
+            isError ? "text-destructive" : "text-muted-foreground",
+          )}
         />
       </div>
 
       {/* File Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1">
-          <span className="text-sm font-medium text-slate-700 truncate max-w-[150px]">
+          <span className="text-sm font-medium text-foreground truncate max-w-[150px]">
             {file.file.name}
           </span>
           {isError && (
-            <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+            <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0" />
           )}
           {isUploading && (
-            <Loader2 className="w-4 h-4 text-purple-500 animate-spin flex-shrink-0" />
+            <Loader2 className="w-4 h-4 text-primary animate-spin flex-shrink-0" />
           )}
         </div>
-        <div className="flex items-center gap-2 text-xs text-slate-500">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span>{formatFileSize(file.file.size)}</span>
           {isUploading && (
-            <span className="text-purple-600">{file.progress}%</span>
+            <span className="text-primary">{file.progress}%</span>
           )}
           {isError && file.error && (
-            <span className="text-red-500 truncate max-w-[100px]">
+            <span className="text-destructive truncate max-w-[100px]">
               {file.error}
             </span>
           )}
@@ -177,9 +180,9 @@ function FileAttachmentItem({
 
         {/* Progress Bar */}
         {isUploading && (
-          <div className="mt-1 h-1 bg-purple-200 rounded-full overflow-hidden">
+          <div className="mt-1 h-1 bg-primary/20 rounded-full overflow-hidden">
             <div
-              className="h-full bg-purple-500 transition-all duration-300"
+              className="h-full bg-primary transition-all duration-300"
               style={{ width: `${file.progress}%` }}
             />
           </div>
@@ -194,10 +197,10 @@ function FileAttachmentItem({
             variant="ghost"
             size="sm"
             onClick={onRetry}
-            className="h-6 w-6 p-0 hover:bg-red-100"
+            className="h-6 w-6 p-0 hover:bg-destructive/10"
             title="Retry upload"
           >
-            <RefreshCw className="w-3 h-3 text-red-500" />
+            <RefreshCw className="w-3 h-3 text-destructive" />
           </Button>
         )}
         <Button
@@ -205,11 +208,11 @@ function FileAttachmentItem({
           variant="ghost"
           size="sm"
           onClick={onRemove}
-          className="h-6 w-6 p-0 hover:bg-slate-200"
+          className="h-6 w-6 p-0 hover:bg-muted"
           title="Remove"
           disabled={isUploading}
         >
-          <X className="w-3 h-3 text-slate-500" />
+          <X className="w-3 h-3 text-muted-foreground" />
         </Button>
       </div>
     </div>

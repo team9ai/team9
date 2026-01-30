@@ -8,32 +8,44 @@ import { Card } from "@/components/ui/card";
 
 export function MainContent() {
   return (
-    <main className="flex-1 flex flex-col bg-white">
+    <main className="flex-1 flex flex-col bg-background">
       {/* Content Header */}
-      <header className="h-14 bg-white flex items-center justify-between px-4">
+      <header className="h-14 bg-background flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
-          <Hash size={18} className="text-purple-600" />
-          <h2 className="font-semibold text-lg text-slate-900">general</h2>
-          <Button variant="ghost" size="icon-sm" className="hover:bg-slate-100">
-            <Star size={16} className="text-slate-400 hover:text-amber-500" />
+          <Hash size={18} className="text-primary" />
+          <h2 className="font-semibold text-lg text-foreground">general</h2>
+          <Button variant="ghost" size="icon-sm" className="hover:bg-muted">
+            <Star
+              size={16}
+              className="text-muted-foreground hover:text-warning"
+            />
           </Button>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon-sm" className="hover:bg-purple-50">
-            <Phone size={18} className="text-slate-600 hover:text-purple-600" />
-          </Button>
-          <Button variant="ghost" size="icon-sm" className="hover:bg-purple-50">
-            <Users size={18} className="text-slate-600 hover:text-purple-600" />
-          </Button>
-          <Button variant="ghost" size="icon-sm" className="hover:bg-purple-50">
-            <Search
+          <Button variant="ghost" size="icon-sm" className="hover:bg-primary/5">
+            <Phone
               size={18}
-              className="text-slate-600 hover:text-purple-600"
+              className="text-muted-foreground hover:text-primary"
             />
           </Button>
-          <Button variant="ghost" size="icon-sm" className="hover:bg-purple-50">
-            <Info size={18} className="text-slate-600 hover:text-purple-600" />
+          <Button variant="ghost" size="icon-sm" className="hover:bg-primary/5">
+            <Users
+              size={18}
+              className="text-muted-foreground hover:text-primary"
+            />
+          </Button>
+          <Button variant="ghost" size="icon-sm" className="hover:bg-primary/5">
+            <Search
+              size={18}
+              className="text-muted-foreground hover:text-primary"
+            />
+          </Button>
+          <Button variant="ghost" size="icon-sm" className="hover:bg-primary/5">
+            <Info
+              size={18}
+              className="text-muted-foreground hover:text-primary"
+            />
           </Button>
         </div>
       </header>
@@ -41,20 +53,20 @@ export function MainContent() {
       <Separator />
 
       {/* Messages Area */}
-      <ScrollArea className="flex-1 bg-slate-50">
+      <ScrollArea className="flex-1 bg-muted">
         <div className="p-4">
           <div className="max-w-4xl">
             {/* Welcome Message */}
             <Card className="mb-8 p-6 border-0 shadow-none bg-transparent">
               <Avatar className="w-16 h-16 mb-4">
-                <AvatarFallback className="bg-linear-to-br from-purple-600 to-purple-700 text-white shadow-lg">
+                <AvatarFallback className="bg-primary text-primary-foreground shadow-lg">
                   <Hash size={32} />
                 </AvatarFallback>
               </Avatar>
-              <h3 className="text-2xl font-bold mb-2 text-slate-900">
+              <h3 className="text-2xl font-bold mb-2 text-foreground">
                 Welcome to #general
               </h3>
-              <p className="text-slate-600 text-sm">
+              <p className="text-muted-foreground text-sm">
                 This is the beginning of the #general channel. This channel is
                 for team-wide communication and announcements.
               </p>
@@ -88,9 +100,9 @@ export function MainContent() {
       <Separator />
 
       {/* Message Input */}
-      <div className="p-4 bg-white">
+      <div className="p-4 bg-background">
         <div className="max-w-4xl">
-          <Card className="p-3 focus-within:border-purple-600 focus-within:ring-2 focus-within:ring-purple-100 transition-all">
+          <Card className="p-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all">
             <Textarea
               placeholder="Message #general"
               className="min-h-0 resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm p-0"
@@ -108,7 +120,7 @@ export function MainContent() {
                   <span className="text-sm">≡</span>
                 </Button>
               </div>
-              <Button size="sm" className="bg-purple-600 hover:bg-purple-700">
+              <Button size="sm" className="bg-primary hover:bg-primary/90">
                 Send
               </Button>
             </div>
@@ -129,18 +141,20 @@ interface MessageItemProps {
 
 function MessageItem({ author, timestamp, avatar, message }: MessageItemProps) {
   return (
-    <div className="flex gap-3 hover:bg-white -mx-2 px-2 py-1.5 rounded transition-colors">
+    <div className="flex gap-3 hover:bg-background -mx-2 px-2 py-1.5 rounded transition-colors">
       <Avatar className="w-9 h-9 shrink-0">
-        <AvatarFallback className="bg-linear-to-br from-purple-600 to-purple-700 text-white font-medium text-sm shadow-sm">
+        <AvatarFallback className="bg-primary text-primary-foreground font-medium text-sm shadow-sm">
           {avatar}
         </AvatarFallback>
       </Avatar>
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2 mb-1">
-          <span className="font-semibold text-sm text-slate-900">{author}</span>
-          <span className="text-xs text-slate-500">{timestamp}</span>
+          <span className="font-semibold text-sm text-foreground">
+            {author}
+          </span>
+          <span className="text-xs text-muted-foreground">{timestamp}</span>
         </div>
-        <p className="text-sm text-slate-700">{message}</p>
+        <p className="text-sm text-foreground">{message}</p>
       </div>
     </div>
   );

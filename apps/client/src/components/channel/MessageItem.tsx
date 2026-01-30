@@ -104,13 +104,13 @@ export function MessageItem({
     return (
       <button
         onClick={onReplyCountClick}
-        className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 mt-1"
+        className="flex items-center gap-1 text-xs text-info hover:text-info mt-1"
       >
         <MessageSquare size={14} />
         <span>{t("repliesCount", { count: replyCount })}</span>
         {/* Unread sub-reply badge */}
         {unreadSubReplyCount != null && unreadSubReplyCount > 0 && (
-          <span className="ml-1 px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-medium rounded-full min-w-4.5 text-center">
+          <span className="ml-1 px-1.5 py-0.5 bg-destructive text-primary-foreground text-[10px] font-medium rounded-full min-w-4.5 text-center">
             {unreadSubReplyCount > 99 ? "99+" : unreadSubReplyCount}
           </span>
         )}
@@ -126,15 +126,15 @@ export function MessageItem({
         compact ? "gap-2 py-2 px-1" : "gap-3 px-2 py-1",
         indent && "ml-6",
         isHighlighted &&
-          "bg-yellow-100 dark:bg-yellow-900/30 ring-2 ring-yellow-400 dark:ring-yellow-600",
+          "bg-warning/20 dark:bg-warning/30 ring-2 ring-warning dark:ring-warning",
         isSending && "opacity-70",
-        isFailed && "bg-red-50 dark:bg-red-900/10",
+        isFailed && "bg-destructive/10 dark:bg-destructive/10",
       )}
     >
       <Avatar className={cn("shrink-0", compact ? "w-8 h-8" : "w-9 h-9")}>
         <AvatarFallback
           className={cn(
-            "bg-linear-to-br from-purple-400 to-purple-600 text-white",
+            "bg-primary text-primary-foreground",
             compact ? "text-xs" : "text-sm",
           )}
         >
@@ -158,7 +158,7 @@ export function MessageItem({
             </span>
           )}
           {isFailed && (
-            <span className="flex items-center gap-1 text-xs text-red-500">
+            <span className="flex items-center gap-1 text-xs text-destructive">
               <AlertCircle size={12} />
               {t("message:sendFailed")}
             </span>
@@ -182,14 +182,14 @@ export function MessageItem({
           <div className="flex items-center gap-2 mt-1">
             <button
               onClick={onRetry}
-              className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline"
+              className="flex items-center gap-1 text-xs text-info hover:text-info hover:underline"
             >
               <RotateCcw size={12} />
               {t("message:retry")}
             </button>
             <button
               onClick={onRemoveFailed}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-500"
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive"
             >
               <X size={12} />
               {t("message:remove")}

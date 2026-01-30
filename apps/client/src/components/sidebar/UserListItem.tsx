@@ -59,8 +59,8 @@ export function UserListItem({
       onClick={channelId ? undefined : onClick}
       disabled={disabled}
       className={cn(
-        "w-full justify-start gap-2 px-2 h-auto py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white",
-        isSelected && "bg-white/10 text-white",
+        "w-full justify-start gap-2 px-2 h-auto py-2 text-sm text-nav-foreground-muted hover:bg-nav-hover hover:text-nav-foreground",
+        isSelected && "bg-nav-active text-nav-foreground",
         disabled && "opacity-50",
       )}
     >
@@ -68,7 +68,7 @@ export function UserListItem({
         <Avatar className={avatarSizeClass}>
           {avatarUrl && <AvatarImage src={avatarUrl} alt={name} />}
           <AvatarFallback
-            className={cn("bg-purple-400 text-white", avatarTextClass)}
+            className={cn("bg-accent text-accent-foreground", avatarTextClass)}
           >
             {avatar}
           </AvatarFallback>
@@ -76,7 +76,7 @@ export function UserListItem({
         {isOnline && (
           <div
             className={cn(
-              "absolute -bottom-0.5 -right-0.5 bg-green-500 rounded-full border-2 border-[#5b2c6f]",
+              "absolute -bottom-0.5 -right-0.5 bg-success rounded-full border-2 border-nav-sub-bg",
               onlineIndicatorSize,
             )}
           />
@@ -85,7 +85,9 @@ export function UserListItem({
       <div className="flex-1 text-left truncate">
         <div className="truncate">{name}</div>
         {subtitle && (
-          <div className="text-xs text-white/50 truncate">{subtitle}</div>
+          <div className="text-xs text-nav-foreground-faint truncate">
+            {subtitle}
+          </div>
         )}
       </div>
       {unreadCount > 0 && (

@@ -178,7 +178,7 @@ export function InviteManagementDialog({
                 <Button
                   onClick={handleCreate}
                   disabled={createInvitation.isPending}
-                  className="w-full bg-purple-600 hover:bg-purple-700"
+                  className="w-full bg-primary hover:bg-primary/90"
                 >
                   {createInvitation.isPending
                     ? "Creating..."
@@ -213,17 +213,17 @@ export function InviteManagementDialog({
                     <div
                       key={invitation.id}
                       className={`border rounded-lg p-4 ${
-                        !invitation.isActive ? "opacity-50 bg-slate-50" : ""
+                        !invitation.isActive ? "opacity-50 bg-muted" : ""
                       }`}
                     >
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xs font-mono bg-slate-100 px-2 py-0.5 rounded">
+                            <span className="text-xs font-mono bg-muted px-2 py-0.5 rounded">
                               {invitation.role.toUpperCase()}
                             </span>
                             {!invitation.isActive && (
-                              <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded">
+                              <span className="text-xs bg-destructive/10 text-destructive px-2 py-0.5 rounded">
                                 REVOKED
                               </span>
                             )}
@@ -312,7 +312,7 @@ export function InviteManagementDialog({
                       </div>
 
                       {invitation.isActive && (
-                        <div className="mt-3 p-2 bg-slate-50 rounded text-xs font-mono break-all">
+                        <div className="mt-3 p-2 bg-muted rounded text-xs font-mono break-all">
                           {invitation.url}
                         </div>
                       )}
@@ -324,9 +324,9 @@ export function InviteManagementDialog({
           </div>
 
           {/* Info */}
-          <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <AlertCircle size={16} className="text-blue-600 mt-0.5" />
-            <div className="text-xs text-blue-900">
+          <div className="flex items-start gap-2 p-3 bg-info/10 border border-info/20 rounded-lg">
+            <AlertCircle size={16} className="text-info mt-0.5" />
+            <div className="text-xs text-info">
               <p className="font-medium mb-1">How it works:</p>
               <ul className="list-disc list-inside space-y-0.5">
                 <li>

@@ -54,8 +54,8 @@ export function MessageContent({ content, className }: MessageContentProps) {
       dangerouslySetInnerHTML={{ __html: processedContent }}
       style={
         {
-          "--mention-bg": "rgb(243 232 255)", // purple-100
-          "--mention-color": "rgb(126 34 206)", // purple-700
+          "--mention-bg": "oklch(from var(--primary) l c h / 15%)",
+          "--mention-color": "var(--primary)",
         } as React.CSSProperties
       }
     />

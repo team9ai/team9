@@ -113,24 +113,24 @@ export function AddMemberDialog({
         key={member.userId}
         onClick={() => toggleSelection(member.userId)}
         className={`flex items-center justify-between w-full p-3 rounded-lg transition-colors ${
-          isSelected ? "bg-blue-50 hover:bg-blue-100" : "hover:bg-slate-50"
+          isSelected ? "bg-info/10 hover:bg-info/20" : "hover:bg-muted"
         }`}
       >
         <div className="flex items-center gap-3">
           <Avatar className="w-9 h-9">
             {member.avatarUrl && <AvatarImage src={member.avatarUrl} />}
-            <AvatarFallback className="bg-purple-100 text-purple-700">
+            <AvatarFallback className="bg-primary/10 text-primary">
               {displayName[0].toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div className="text-left">
             <p className="text-sm font-medium">{displayName}</p>
-            <p className="text-xs text-slate-500">@{member.username}</p>
+            <p className="text-xs text-muted-foreground">@{member.username}</p>
           </div>
         </div>
         {isSelected && (
-          <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
-            <Check size={12} className="text-white" />
+          <div className="w-5 h-5 rounded-full bg-info flex items-center justify-center">
+            <Check size={12} className="text-primary-foreground" />
           </div>
         )}
       </button>
@@ -143,7 +143,7 @@ export function AddMemberDialog({
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b">
           <DialogTitle className="flex items-center gap-2">
-            <UserPlus size={20} className="text-slate-600" />
+            <UserPlus size={20} className="text-muted-foreground" />
             <span>{t("addMembers")}</span>
           </DialogTitle>
         </div>
@@ -153,7 +153,7 @@ export function AddMemberDialog({
           <div className="relative">
             <Search
               size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
             />
             <Input
               placeholder={t("searchMember")}
@@ -173,10 +173,10 @@ export function AddMemberDialog({
           <div className="space-y-1 pb-4">
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
               </div>
             ) : availableMembers.length === 0 ? (
-              <div className="text-center py-8 text-slate-500">
+              <div className="text-center py-8 text-muted-foreground">
                 {search ? t("noMatchingUsers") : t("allMembersInChannel")}
               </div>
             ) : (
@@ -184,7 +184,7 @@ export function AddMemberDialog({
                 {availableMembers.map(renderMemberItem)}
                 {isFetchingNextPage && (
                   <div className="flex items-center justify-center py-4">
-                    <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                   </div>
                 )}
               </>
@@ -194,7 +194,7 @@ export function AddMemberDialog({
 
         {/* Footer */}
         <div className="px-6 py-4 border-t flex items-center justify-between">
-          <span className="text-sm text-slate-500">
+          <span className="text-sm text-muted-foreground">
             {selectedIds.size > 0
               ? t("selectedCount", { count: selectedIds.size })
               : t("selectMembersToAdd")}

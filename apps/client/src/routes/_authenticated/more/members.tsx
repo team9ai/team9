@@ -203,7 +203,7 @@ function MembersPage() {
                       {member.avatarUrl && (
                         <AvatarImage src={member.avatarUrl} />
                       )}
-                      <AvatarFallback className="bg-purple-100 text-purple-700">
+                      <AvatarFallback className="bg-primary/10 text-primary">
                         {(member.displayName || member.username)
                           .charAt(0)
                           .toUpperCase()}

@@ -181,8 +181,8 @@ export function MoreMainContent() {
                   : "border-border hover:border-primary/50 dark:border-border"
               }`}
             >
-              <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
-                <Sun className="w-6 h-6 text-amber-500" />
+              <div className="w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center">
+                <Sun className="w-6 h-6 text-warning" />
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium dark:text-foreground">
@@ -202,8 +202,8 @@ export function MoreMainContent() {
                   : "border-border hover:border-primary/50 dark:border-border"
               }`}
             >
-              <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center">
-                <Moon className="w-6 h-6 text-slate-300" />
+              <div className="w-12 h-12 rounded-full bg-foreground flex items-center justify-center">
+                <Moon className="w-6 h-6 text-muted" />
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium dark:text-foreground">

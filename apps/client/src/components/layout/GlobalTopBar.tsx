@@ -97,13 +97,13 @@ export function GlobalTopBar() {
   }, [clearSearch]);
 
   return (
-    <header className="h-11 bg-[#3f1651] flex items-center px-2 gap-2 shrink-0">
+    <header className="h-11 bg-nav-bg flex items-center px-2 gap-2 shrink-0">
       {/* Left section - Navigation buttons */}
       <div className="flex items-center gap-0.5">
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/10"
+          className="h-7 w-7 text-nav-foreground-subtle hover:text-nav-foreground hover:bg-nav-hover"
           onClick={() => window.history.back()}
         >
           <ArrowLeft size={16} />
@@ -111,7 +111,7 @@ export function GlobalTopBar() {
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/10"
+          className="h-7 w-7 text-nav-foreground-subtle hover:text-nav-foreground hover:bg-nav-hover"
           onClick={() => window.history.forward()}
         >
           <ArrowRight size={16} />
@@ -119,7 +119,7 @@ export function GlobalTopBar() {
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 text-white/70 hover:text-white hover:bg-white/10"
+          className="h-7 w-7 text-nav-foreground-subtle hover:text-nav-foreground hover:bg-nav-hover"
         >
           <History size={16} />
         </Button>
@@ -132,7 +132,7 @@ export function GlobalTopBar() {
             <div className="relative">
               <Search
                 size={16}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50 z-10"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-nav-foreground-faint z-10"
               />
               <Input
                 ref={inputRef}
@@ -141,12 +141,12 @@ export function GlobalTopBar() {
                 onChange={handleInputChange}
                 onFocus={handleInputFocus}
                 placeholder={`${t("searchPlaceholder")} ${workspaceName}`}
-                className="pl-9 pr-8 h-7 bg-white/10 border-white/20 text-white text-sm placeholder:text-white/50 focus:bg-white/15 rounded-md"
+                className="pl-9 pr-8 h-7 bg-nav-input-bg border-nav-border-strong text-nav-foreground text-sm placeholder:text-nav-foreground-faint focus:bg-nav-input-bg-focus rounded-md"
               />
               {searchQuery && (
                 <button
                   onClick={handleClear}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-white/50 hover:text-white/80 transition-colors"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-nav-foreground-faint hover:text-nav-foreground-muted transition-colors"
                 >
                   <X size={14} />
                 </button>
@@ -154,12 +154,12 @@ export function GlobalTopBar() {
               {/* Loading indicator */}
               {isFetching && (
                 <div className="absolute right-8 top-1/2 -translate-y-1/2">
-                  <div className="h-3 w-3 border-2 border-white/30 border-t-white/80 rounded-full animate-spin" />
+                  <div className="h-3 w-3 border-2 border-nav-spinner-border border-t-nav-spinner-border-top rounded-full animate-spin" />
                 </div>
               )}
               {/* Keyboard shortcut hint */}
               {!searchQuery && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 text-xs hidden sm:block">
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-nav-foreground-dim text-xs hidden sm:block">
                   ⌘K
                 </div>
               )}
@@ -186,7 +186,7 @@ export function GlobalTopBar() {
       <div className="flex items-center">
         <Avatar className="h-7 w-7 cursor-pointer">
           <AvatarImage src={user?.avatarUrl || undefined} />
-          <AvatarFallback className="bg-purple-600 text-white text-xs">
+          <AvatarFallback className="bg-primary text-primary-foreground text-xs">
             {user?.name?.[0] || "U"}
           </AvatarFallback>
         </Avatar>

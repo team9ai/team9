@@ -108,7 +108,7 @@ export function CreateSectionDialog({
               }}
             />
             {nameError && (
-              <p className="text-xs text-red-500 flex items-center gap-1">
+              <p className="text-xs text-destructive flex items-center gap-1">
                 <AlertCircle size={12} />
                 {nameError}
               </p>
@@ -123,7 +123,7 @@ export function CreateSectionDialog({
           <Button
             onClick={handleCreate}
             disabled={!canCreate || createSection.isPending}
-            className="bg-purple-600 hover:bg-purple-700"
+            className="bg-primary hover:bg-primary/90"
           >
             {createSection.isPending ? tNav("creating") : tNav("create")}
           </Button>
