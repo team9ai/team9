@@ -6,7 +6,6 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { v7 as uuidv7 } from 'uuid';
 import {
@@ -43,10 +42,16 @@ export interface RegisterResponse {
   email: string;
 }
 
+export interface LoginResponse {
+  message: string;
+  email: string;
+}
+
 @Injectable()
 export class AuthService {
   private readonly TOKEN_BLACKLIST_PREFIX = 'im:token_blacklist:';
   private readonly VERIFICATION_RATE_LIMIT_PREFIX = 'im:verify_rate:';
+  private readonly LOGIN_RATE_LIMIT_PREFIX = 'im:login_rate:';
   private readonly VERIFICATION_TOKEN_EXPIRY_HOURS = 24;
 
   constructor(
@@ -80,11 +85,9 @@ export class AuthService {
       throw new UnauthorizedException('Username already exists');
     }
 
-    // Hash password
-    const passwordHash = await bcrypt.hash(dto.password, 10);
     const userId = uuidv7();
 
-    // Create user with emailVerified = false
+    // Create user without password
     const [user] = await this.db
       .insert(schema.users)
       .values({
@@ -92,7 +95,6 @@ export class AuthService {
         email: dto.email,
         username: dto.username,
         displayName: dto.displayName || dto.username,
-        passwordHash,
         emailVerified: false,
       })
       .returning();
@@ -145,6 +147,33 @@ export class AuthService {
       username,
       verificationLink,
     );
+  }
+
+  private async sendLoginLink(
+    userId: string,
+    email: string,
+    username: string,
+  ): Promise<void> {
+    // Generate secure token
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(
+      Date.now() + this.VERIFICATION_TOKEN_EXPIRY_HOURS * 60 * 60 * 1000,
+    );
+
+    // Store token in database (reuse email verification tokens table)
+    await this.db.insert(schema.emailVerificationTokens).values({
+      id: uuidv7(),
+      userId,
+      token,
+      email,
+      expiresAt,
+    });
+
+    // Build login link
+    const loginLink = `${env.APP_URL}/verify-email?token=${token}`;
+
+    // Send email
+    await this.emailService.sendLoginEmail(email, username, loginLink);
   }
 
   async verifyEmail(token: string): Promise<AuthResponse> {
@@ -246,7 +275,17 @@ export class AuthService {
     return { message: 'Verification email has been sent.' };
   }
 
-  async login(dto: LoginDto): Promise<AuthResponse> {
+  async login(dto: LoginDto): Promise<LoginResponse> {
+    // Rate limiting check using Redis
+    const rateLimitKey = `${this.LOGIN_RATE_LIMIT_PREFIX}${dto.email}`;
+    const recentAttempt = await this.redisService.get(rateLimitKey);
+
+    if (recentAttempt) {
+      throw new BadRequestException(
+        'Please wait before requesting another login link',
+      );
+    }
+
     const [user] = await this.db
       .select()
       .from(schema.users)
@@ -254,40 +293,41 @@ export class AuthService {
       .limit(1);
 
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
-    const isPasswordValid = await bcrypt.compare(
-      dto.password,
-      user.passwordHash,
-    );
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      // Return success even if user doesn't exist (security - don't reveal user existence)
+      return {
+        message: 'If the email exists, a login link has been sent.',
+        email: dto.email,
+      };
     }
 
     if (!user.isActive) {
       throw new UnauthorizedException('Account is disabled');
     }
 
-    // Check email verification status
     if (!user.emailVerified) {
-      throw new UnauthorizedException(
-        'Email not verified. Please check your inbox for the verification email.',
-      );
+      // If email not verified, send verification email instead
+      await this.sendVerificationEmail(user.id, user.email, user.username);
+      return {
+        message:
+          'Your email is not verified yet. We have sent a verification email.',
+        email: dto.email,
+      };
     }
 
-    // Generate tokens
-    const tokens = this.generateTokenPair(user);
+    // Delete existing login tokens for this user
+    await this.db
+      .delete(schema.emailVerificationTokens)
+      .where(eq(schema.emailVerificationTokens.userId, user.id));
+
+    // Send login link
+    await this.sendLoginLink(user.id, user.email, user.username);
+
+    // Set rate limit (60 seconds)
+    await this.redisService.set(rateLimitKey, '1', 60);
 
     return {
-      ...tokens,
-      user: {
-        id: user.id,
-        email: user.email,
-        username: user.username,
-        displayName: user.displayName,
-        avatarUrl: user.avatarUrl,
-      },
+      message: 'Login link has been sent to your email.',
+      email: dto.email,
     };
   }
 

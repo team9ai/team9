@@ -15,13 +15,16 @@ export interface User {
 export interface RegisterRequest {
   email: string;
   username: string;
-  password: string;
   displayName?: string;
 }
 
 export interface LoginRequest {
   email: string;
-  password: string;
+}
+
+export interface LoginResponse {
+  message: string;
+  email: string;
 }
 
 export interface RefreshTokenRequest {
@@ -57,16 +60,9 @@ export interface PaginatedResponse<T> {
 }
 
 export const authApi = {
-  login: async (data: LoginRequest): Promise<AuthResponse> => {
-    const response = await http.post<AuthResponse>("/v1/auth/login", data);
-
-    const authData = response.data;
-
-    // Store tokens
-    localStorage.setItem("auth_token", authData.accessToken);
-    localStorage.setItem("refresh_token", authData.refreshToken);
-
-    return authData;
+  login: async (data: LoginRequest): Promise<LoginResponse> => {
+    const response = await http.post<LoginResponse>("/v1/auth/login", data);
+    return response.data;
   },
 
   register: async (data: RegisterRequest): Promise<RegisterResponse> => {

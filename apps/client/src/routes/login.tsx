@@ -1,14 +1,11 @@
 import { useState, useEffect } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import {
-  useLogin,
-  useCurrentUser,
-  useResendVerification,
-} from "@/hooks/useAuth";
+import { useLogin, useCurrentUser } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Mail } from "lucide-react";
 
 type LoginSearch = {
   redirect?: string;
@@ -30,10 +27,6 @@ function LoginPending() {
           <div className="space-y-5">
             <div className="space-y-2">
               <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-11 w-full" />
-            </div>
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-20" />
               <Skeleton className="h-11 w-full" />
             </div>
             <Skeleton className="h-11 w-full" />
@@ -59,11 +52,10 @@ export const Route = createFileRoute("/login")({
   },
 });
 
-function ResendVerificationButton({ email }: { email: string }) {
+function LoginLinkSentView({ email }: { email: string }) {
   const { t } = useTranslation("auth");
-  const resendVerification = useResendVerification();
-  const [countdown, setCountdown] = useState(0);
-  const [sent, setSent] = useState(false);
+  const login = useLogin();
+  const [countdown, setCountdown] = useState(60);
 
   useEffect(() => {
     if (countdown > 0) {
@@ -74,44 +66,66 @@ function ResendVerificationButton({ email }: { email: string }) {
 
   const handleResend = async () => {
     try {
-      await resendVerification.mutateAsync(email);
+      await login.mutateAsync({ email });
       setCountdown(60);
-      setSent(true);
     } catch {
       // Error handled by mutation
     }
   };
 
-  if (sent && countdown === 0) {
-    return (
-      <p className="text-sm text-green-600 mt-2">
-        {t("verificationEmailSentSuccess")}
-      </p>
-    );
-  }
-
   return (
-    <Button
-      variant="link"
-      onClick={handleResend}
-      disabled={resendVerification.isPending || countdown > 0}
-      className="p-0 h-auto text-purple-600 hover:text-purple-700"
-    >
-      {countdown > 0
-        ? t("resendIn", { seconds: countdown })
-        : resendVerification.isPending
-          ? t("sending")
-          : t("resendVerificationEmail")}
-    </Button>
+    <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="w-full max-w-100 px-4">
+        {/* Logo/Brand */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">Team9</h1>
+          <p className="text-gray-600 text-lg">{t("loginLinkSent")}</p>
+        </div>
+
+        {/* Login Link Sent Card */}
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-8 text-center">
+          <div className="mb-6">
+            <Mail className="w-16 h-16 mx-auto text-purple-600" />
+          </div>
+          <h2 className="text-xl font-semibold mb-4">{t("loginLinkSent")}</h2>
+          <p className="text-gray-600 mb-6">
+            {t("loginLinkSentMessage", { email })}
+          </p>
+          <p className="text-sm text-gray-500 mb-6">{t("loginLinkSentHint")}</p>
+          <Button
+            variant="outline"
+            onClick={handleResend}
+            disabled={login.isPending || countdown > 0}
+            className="w-full"
+          >
+            {countdown > 0
+              ? t("resendIn", { seconds: countdown })
+              : login.isPending
+                ? t("sending")
+                : t("resendLoginLink")}
+          </Button>
+        </div>
+
+        {/* Back to Login Link */}
+        <div className="text-center mt-6">
+          <Link
+            to="/register"
+            className="text-purple-600 hover:underline font-medium"
+          >
+            {t("createAccount")}
+          </Link>
+        </div>
+      </div>
+    </div>
   );
 }
 
 function Login() {
   const { t } = useTranslation("auth");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  const [linkSent, setLinkSent] = useState(false);
+  const [sentEmail, setSentEmail] = useState("");
 
   const navigate = useNavigate();
   const { redirect } = Route.useSearch();
@@ -128,30 +142,22 @@ function Login() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setUnverifiedEmail(null);
 
     try {
-      await login.mutateAsync({
-        email,
-        password,
-      });
-      // Redirect to the original page or home page after successful login
-      navigate({ to: redirect || "/" });
+      await login.mutateAsync({ email });
+      setSentEmail(email);
+      setLinkSent(true);
     } catch (err: any) {
       const errorMessage =
         err?.response?.data?.message || err?.message || t("loginFailed");
-
-      // Check if the error is about unverified email
-      if (
-        errorMessage.toLowerCase().includes("not verified") ||
-        errorMessage.includes("未验证")
-      ) {
-        setUnverifiedEmail(email);
-      }
-
       setError(errorMessage);
     }
   };
+
+  // Show login link sent view
+  if (linkSent) {
+    return <LoginLinkSentView email={sentEmail} />;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-white">
@@ -185,34 +191,10 @@ function Login() {
               />
             </div>
 
-            {/* Password Field */}
-            <div className="space-y-2">
-              <label
-                htmlFor="password"
-                className="block text-sm font-semibold text-gray-900"
-              >
-                {t("password")}
-              </label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={t("passwordPlaceholder")}
-                className="w-full h-11 px-3"
-                required
-              />
-            </div>
-
             {/* Error Message */}
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
                 {error}
-                {unverifiedEmail && (
-                  <div className="mt-2">
-                    <ResendVerificationButton email={unverifiedEmail} />
-                  </div>
-                )}
               </div>
             )}
 
@@ -222,7 +204,7 @@ function Login() {
               className="w-full h-11 bg-purple-600 hover:bg-purple-700 text-white font-semibold text-base"
               disabled={login.isPending}
             >
-              {login.isPending ? t("signingIn") : t("signInWithEmail")}
+              {login.isPending ? t("sendingLoginLink") : t("sendLoginLink")}
             </Button>
           </form>
         </div>

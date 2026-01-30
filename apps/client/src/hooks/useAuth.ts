@@ -21,15 +21,9 @@ const syncUserToStore = (user: User | null) => {
 };
 
 export const useLogin = () => {
-  const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: (data: LoginRequest) => api.auth.login(data),
-    onSuccess: (data) => {
-      // Tokens are already stored in api.auth.login
-      queryClient.setQueryData(["currentUser"], data.user);
-      syncUserToStore(data.user);
-    },
+    // Login now sends a magic link email, no tokens returned
   });
 };
 

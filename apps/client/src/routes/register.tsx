@@ -37,14 +37,6 @@ function RegisterPending() {
               <Skeleton className="h-4 w-24" />
               <Skeleton className="h-11 w-full" />
             </div>
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-11 w-full" />
-            </div>
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-11 w-full" />
-            </div>
             <Skeleton className="h-11 w-full" />
           </div>
         </div>
@@ -153,12 +145,8 @@ function VerificationSentView({
 
 function Register() {
   const { t } = useTranslation("auth");
-  const { t: tCommon } = useTranslation("common");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState("");
@@ -179,17 +167,6 @@ function Register() {
     e.preventDefault();
     setError("");
 
-    // Validation
-    if (password !== confirmPassword) {
-      setError(t("passwordsNotMatch"));
-      return;
-    }
-
-    if (password.length < 6) {
-      setError(t("passwordTooShort"));
-      return;
-    }
-
     if (username.length < 3) {
       setError(t("usernameTooShort"));
       return;
@@ -199,8 +176,6 @@ function Register() {
       const result = await register.mutateAsync({
         email,
         username,
-        password,
-        displayName: displayName || undefined,
       });
       // Show verification sent view
       setRegisteredEmail(result.email);
@@ -282,71 +257,6 @@ function Register() {
                 maxLength={100}
               />
               <p className="text-xs text-gray-500">{t("usernameHint")}</p>
-            </div>
-
-            {/* Display Name Field (Optional) */}
-            <div className="space-y-2">
-              <label
-                htmlFor="displayName"
-                className="block text-sm font-semibold text-gray-900"
-              >
-                {t("displayName")}{" "}
-                <span className="text-gray-500 font-normal">
-                  ({tCommon("optional")})
-                </span>
-              </label>
-              <Input
-                id="displayName"
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder={t("displayNamePlaceholder")}
-                className="w-full h-11 px-3"
-                maxLength={255}
-              />
-              <p className="text-xs text-gray-500">{t("displayNameHint")}</p>
-            </div>
-
-            {/* Password Field */}
-            <div className="space-y-2">
-              <label
-                htmlFor="password"
-                className="block text-sm font-semibold text-gray-900"
-              >
-                {t("password")}
-              </label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={t("createPassword")}
-                className="w-full h-11 px-3"
-                required
-                minLength={6}
-                maxLength={100}
-              />
-              <p className="text-xs text-gray-500">{t("passwordHint")}</p>
-            </div>
-
-            {/* Confirm Password Field */}
-            <div className="space-y-2">
-              <label
-                htmlFor="confirmPassword"
-                className="block text-sm font-semibold text-gray-900"
-              >
-                {t("confirmPassword")}
-              </label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder={t("confirmPasswordPlaceholder")}
-                className="w-full h-11 px-3"
-                required
-                minLength={6}
-              />
             </div>
 
             {/* Error Message */}

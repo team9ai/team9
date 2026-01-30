@@ -3,6 +3,7 @@ import { Resend } from 'resend';
 import { env } from '@team9/shared';
 import { emailVerificationTemplate } from './templates/email-verification.template.js';
 import { passwordResetTemplate } from './templates/password-reset.template.js';
+import { magicLoginTemplate } from './templates/magic-login.template.js';
 
 export interface SendEmailOptions {
   to: string;
@@ -55,6 +56,29 @@ export class EmailService {
     return this.send({
       to: email,
       subject: 'Verify your Team9 email address',
+      html,
+      text,
+    });
+  }
+
+  async sendLoginEmail(
+    email: string,
+    username: string,
+    loginLink: string,
+  ): Promise<boolean> {
+    if (!this.isEnabled()) {
+      this.logger.warn('Email service not configured, skipping login email');
+      return false;
+    }
+
+    const { html, text } = magicLoginTemplate({
+      username,
+      loginLink,
+    });
+
+    return this.send({
+      to: email,
+      subject: 'Sign in to Team9',
       html,
       text,
     });

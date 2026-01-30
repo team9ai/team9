@@ -4,6 +4,7 @@ import {
   MinLength,
   MaxLength,
   Matches,
+  IsOptional,
 } from 'class-validator';
 
 export class RegisterDto {
@@ -19,11 +20,7 @@ export class RegisterDto {
   })
   username: string;
 
-  @IsString()
-  @MinLength(6)
-  @MaxLength(100)
-  password: string;
-
+  @IsOptional()
   @IsString()
   @MaxLength(255)
   displayName?: string;

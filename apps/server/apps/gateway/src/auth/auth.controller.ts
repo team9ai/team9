@@ -13,6 +13,7 @@ import type {
   AuthResponse,
   TokenPair,
   RegisterResponse,
+  LoginResponse,
 } from './auth.service.js';
 import {
   RegisterDto,
@@ -38,7 +39,7 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() dto: LoginDto): Promise<AuthResponse> {
+  async login(@Body() dto: LoginDto): Promise<LoginResponse> {
     return this.authService.login(dto);
   }
 

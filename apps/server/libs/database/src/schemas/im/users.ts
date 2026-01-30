@@ -21,7 +21,7 @@ export const users = pgTable('im_users', {
   username: varchar('username', { length: 100 }).unique().notNull(),
   displayName: varchar('display_name', { length: 255 }),
   avatarUrl: text('avatar_url'),
-  passwordHash: text('password_hash').notNull(),
+  passwordHash: text('password_hash'),
   status: userStatusEnum('status').default('offline').notNull(),
   lastSeenAt: timestamp('last_seen_at'),
   isActive: boolean('is_active').default(true).notNull(),
