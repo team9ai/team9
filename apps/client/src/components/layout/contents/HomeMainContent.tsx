@@ -1,16 +1,32 @@
 import { Bot, Copy, Check, Sparkles, Map, Wrench } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
 import { useUserWorkspaces } from "@/hooks/useWorkspace";
 import { useSelectedWorkspaceId } from "@/stores";
+import { useChannelsByType } from "@/hooks/useChannels";
 
 export function HomeMainContent() {
   const workspaceId = useSelectedWorkspaceId();
   const { data: workspaces } = useUserWorkspaces();
   const currentWorkspace = workspaces?.find((w) => w.id === workspaceId);
   const [copied, setCopied] = useState(false);
+  const navigate = useNavigate();
+  const { directChannels = [] } = useChannelsByType();
+
+  const handleStartChatWithBot = () => {
+    const botChannel = directChannels.find(
+      (ch) => ch.otherUser?.username === "moltbot",
+    );
+    if (botChannel) {
+      navigate({
+        to: "/channels/$channelId",
+        params: { channelId: botChannel.id },
+      });
+    }
+  };
 
   const workspaceName = currentWorkspace?.name || "Workspace";
   const inviteLink = "team9.ai/invite";
@@ -22,8 +38,8 @@ export function HomeMainContent() {
   };
 
   return (
-    <main className="flex-1 flex flex-col bg-slate-50 overflow-hidden">
-      <ScrollArea className="flex-1 h-0">
+    <main className="h-full flex flex-col bg-slate-50 overflow-hidden">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="p-8 max-w-6xl mx-auto">
           {/* Welcome Section */}
           <div className="mb-10">
@@ -117,6 +133,7 @@ export function HomeMainContent() {
                     <Button
                       size="sm"
                       className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6"
+                      onClick={handleStartChatWithBot}
                     >
                       Start Chatting
                     </Button>
