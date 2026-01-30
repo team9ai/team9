@@ -78,11 +78,23 @@ export function HomeMainContent() {
       <ScrollArea className="flex-1 min-h-0">
         <div className="p-8 max-w-6xl mx-auto">
           {/* Welcome Section */}
-          <div className="mb-10">
-            <h1 className="text-3xl font-bold text-slate-900 mb-2">
-              {t("welcomeBackTo", { workspace: workspaceName })}
-            </h1>
-            <p className="text-slate-500 text-base">{t("workspaceActivity")}</p>
+          <div className="mb-10 flex items-center gap-6">
+            <img
+              src="/whale.webp"
+              alt="Team9 Mascot"
+              loading="lazy"
+              width={80}
+              height={80}
+              className="w-20 h-20  object-cover shadow-md shrink-0"
+            />
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900 mb-2">
+                {t("welcomeBackTo", { workspace: workspaceName })}
+              </h1>
+              <p className="text-slate-500 text-base">
+                {t("workspaceActivity")}
+              </p>
+            </div>
           </div>
 
           {/* Two Column Layout */}
