@@ -11,6 +11,32 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Mail } from "lucide-react";
 
+const MAIL_QUICK_LINKS = [
+  { name: "Gmail", url: "https://mail.google.com" },
+  { name: "Outlook", url: "https://outlook.live.com" },
+];
+
+function EmailQuickLinks() {
+  const { t } = useTranslation("auth");
+
+  return (
+    <div className="flex items-center justify-center gap-4 mt-6">
+      {MAIL_QUICK_LINKS.map((provider) => (
+        <a
+          key={provider.name}
+          href={provider.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 px-6 py-3 border border-gray-300 rounded-lg text-blue-600 font-medium hover:bg-gray-50 transition-colors"
+        >
+          <Mail className="w-5 h-5" />
+          <span>{t("openMailProvider", { provider: provider.name })}</span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
 function RegisterPending() {
   const { t } = useTranslation("auth");
   return (
@@ -129,15 +155,8 @@ function VerificationSentView({
           <ResendVerificationButton email={email} />
         </div>
 
-        {/* Back to Login Link */}
-        <div className="text-center mt-6">
-          <Link
-            to="/login"
-            className="text-purple-600 hover:underline font-medium"
-          >
-            {t("backToLogin")}
-          </Link>
-        </div>
+        {/* Email Quick Links */}
+        <EmailQuickLinks />
       </div>
     </div>
   );
