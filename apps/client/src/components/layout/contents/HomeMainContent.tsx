@@ -11,12 +11,14 @@ import {
 } from "@/hooks/useWorkspace";
 import { useSelectedWorkspaceId } from "@/stores";
 import { useChannelsByType } from "@/hooks/useChannels";
+import { CreateChannelDialog } from "@/components/dialog/CreateChannelDialog";
 
 export function HomeMainContent() {
   const workspaceId = useSelectedWorkspaceId();
   const { data: workspaces } = useUserWorkspaces();
   const currentWorkspace = workspaces?.find((w) => w.id === workspaceId);
   const [copied, setCopied] = useState(false);
+  const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
   const navigate = useNavigate();
   const { directChannels = [] } = useChannelsByType();
   const { data: invitations = [] } = useWorkspaceInvitations(
@@ -208,6 +210,7 @@ export function HomeMainContent() {
                   <Button
                     size="sm"
                     className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6"
+                    onClick={() => setIsCreateChannelOpen(true)}
                   >
                     创建频道
                   </Button>
@@ -257,6 +260,11 @@ export function HomeMainContent() {
           </div>
         </div>
       </ScrollArea>
+
+      <CreateChannelDialog
+        isOpen={isCreateChannelOpen}
+        onClose={() => setIsCreateChannelOpen(false)}
+      />
     </main>
   );
 }
