@@ -10,20 +10,44 @@ import * as schema from '@team9/database/schemas';
 import type { BotCapabilities } from '@team9/database/schemas';
 import { env } from '@team9/shared';
 
+export interface CreateBotOptions {
+  username: string;
+  displayName?: string;
+  email?: string;
+  password?: string;
+  type?: 'system' | 'custom' | 'webhook';
+  ownerId?: string;
+  description?: string;
+  capabilities?: BotCapabilities;
+  webhookUrl?: string;
+}
+
+export interface BotInfo {
+  userId: string;
+  botId: string;
+  username: string;
+  displayName: string | null;
+  email: string;
+  type: string;
+  description: string | null;
+  capabilities: BotCapabilities | null;
+  isActive: boolean;
+}
+
 /**
- * BotService manages the system bot account (Moltbot).
+ * BotService manages bot accounts.
  *
- * The bot is stored as two records:
+ * Each bot is stored as two records:
  * - A shadow row in `im_users` (with user_type='bot') for FK compatibility
  * - An extension row in `im_bots` for bot-specific metadata
  *
- * The bot account is automatically created on startup if configured via environment variables.
- * This bot will be automatically added to all new workspaces so users can interact with it.
+ * The system bot is automatically created on startup if configured via environment variables.
+ * Additional bots can be created dynamically via `createBot()`.
  */
 @Injectable()
 export class BotService implements OnModuleInit {
   private readonly logger = new Logger(BotService.name);
-  private botUserId: string | null = null;
+  private systemBotUserId: string | null = null;
 
   constructor(
     @Inject(DATABASE_CONNECTION)
@@ -32,18 +56,17 @@ export class BotService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     if (env.SYSTEM_BOT_ENABLED) {
-      await this.initializeBot();
+      await this.initializeSystemBot();
     } else {
       this.logger.log('System bot is disabled (SYSTEM_BOT_ENABLED != true)');
     }
   }
 
   /**
-   * Initialize the system bot account.
-   * Creates the bot if it doesn't exist, or retrieves its ID if it does.
-   * Ensures both im_users (shadow) and im_bots (extension) records exist.
+   * Initialize the system bot on startup.
+   * Finds existing or creates a new one from environment config.
    */
-  private async initializeBot(): Promise<void> {
+  private async initializeSystemBot(): Promise<void> {
     const email = env.SYSTEM_BOT_EMAIL;
     const username = env.SYSTEM_BOT_USERNAME;
     const password = env.SYSTEM_BOT_PASSWORD;
@@ -57,15 +80,15 @@ export class BotService implements OnModuleInit {
     }
 
     try {
-      // Check if bot already exists in im_users
-      const [existingBot] = await this.db
+      // Check if bot already exists by username
+      const [existingUser] = await this.db
         .select({ id: schema.users.id })
         .from(schema.users)
-        .where(eq(schema.users.email, email))
+        .where(eq(schema.users.username, username))
         .limit(1);
 
-      if (existingBot) {
-        this.botUserId = existingBot.id;
+      if (existingUser) {
+        this.systemBotUserId = existingUser.id;
 
         // Ensure user row is correctly marked as bot
         await this.db
@@ -75,95 +98,157 @@ export class BotService implements OnModuleInit {
             userType: 'bot',
             updatedAt: new Date(),
           })
-          .where(eq(schema.users.id, existingBot.id));
+          .where(eq(schema.users.id, existingUser.id));
 
         // Ensure im_bots extension record exists (idempotent)
-        await this.ensureBotRecord(existingBot.id);
+        const [existingBot] = await this.db
+          .select({ id: schema.bots.id })
+          .from(schema.bots)
+          .where(eq(schema.bots.userId, existingUser.id))
+          .limit(1);
 
-        this.logger.log(`System bot found: ${username} (${this.botUserId})`);
+        if (!existingBot) {
+          await this.db.insert(schema.bots).values({
+            id: uuidv7(),
+            userId: existingUser.id,
+            type: 'system',
+            ownerId: null,
+            description: 'System bot',
+            capabilities: {
+              canSendMessages: true,
+              canReadMessages: true,
+            },
+            isActive: true,
+          });
+        }
+
+        this.logger.log(
+          `System bot found: ${username} (${this.systemBotUserId})`,
+        );
         return;
       }
 
-      // Create the bot account in im_users
-      const passwordHash = await bcrypt.hash(password, 10);
-      const [newBot] = await this.db
-        .insert(schema.users)
-        .values({
-          id: uuidv7(),
-          email,
-          username,
-          displayName,
-          passwordHash,
-          status: 'online',
-          isActive: true,
-          emailVerified: true,
-          userType: 'bot',
-        })
-        .returning({ id: schema.users.id });
-
-      // Create the bot extension record in im_bots
-      await this.db.insert(schema.bots).values({
-        id: uuidv7(),
-        userId: newBot.id,
+      // Create new system bot
+      const bot = await this.createBot({
+        username,
+        displayName,
+        email,
+        password,
         type: 'system',
-        ownerId: null,
         description: 'System bot',
         capabilities: {
           canSendMessages: true,
           canReadMessages: true,
         },
-        isActive: true,
       });
 
-      this.botUserId = newBot.id;
-      this.logger.log(`System bot created: ${username} (${this.botUserId})`);
+      this.systemBotUserId = bot.userId;
+      this.logger.log(
+        `System bot created: ${username} (${this.systemBotUserId})`,
+      );
     } catch (error) {
       this.logger.error('Failed to initialize system bot:', error);
     }
   }
 
   /**
-   * Ensure the im_bots extension record exists for a given user.
-   * Handles migration from old schema where only im_users row existed.
+   * Create a new bot account.
+   * Creates both im_users (shadow) and im_bots (extension) records.
    */
-  private async ensureBotRecord(userId: string): Promise<void> {
-    const [existing] = await this.db
-      .select({ id: schema.bots.id })
-      .from(schema.bots)
-      .where(eq(schema.bots.userId, userId))
-      .limit(1);
+  async createBot(options: CreateBotOptions): Promise<BotInfo> {
+    const {
+      username,
+      displayName,
+      email,
+      password,
+      type = 'custom',
+      ownerId,
+      description,
+      capabilities = { canSendMessages: true, canReadMessages: true },
+      webhookUrl,
+    } = options;
 
-    if (!existing) {
-      await this.db.insert(schema.bots).values({
+    // Generate a placeholder email if not provided
+    const botEmail = email || `${username}+bot@team9.local`;
+    const passwordHash = password ? await bcrypt.hash(password, 10) : undefined;
+
+    // Create shadow user in im_users
+    const [newUser] = await this.db
+      .insert(schema.users)
+      .values({
         id: uuidv7(),
-        userId,
-        type: 'system',
-        ownerId: null,
-        description: 'System bot',
-        capabilities: {
-          canSendMessages: true,
-          canReadMessages: true,
-        },
+        email: botEmail,
+        username,
+        displayName: displayName ?? username,
+        passwordHash,
+        status: 'online',
         isActive: true,
+        emailVerified: true,
+        userType: 'bot',
+      })
+      .returning({
+        id: schema.users.id,
+        email: schema.users.email,
+        username: schema.users.username,
+        displayName: schema.users.displayName,
       });
-      this.logger.log(`Created im_bots extension record for user ${userId}`);
-    }
+
+    // Create extension record in im_bots
+    const [newBot] = await this.db
+      .insert(schema.bots)
+      .values({
+        id: uuidv7(),
+        userId: newUser.id,
+        type,
+        ownerId: ownerId ?? null,
+        description: description ?? null,
+        capabilities,
+        webhookUrl: webhookUrl ?? null,
+        isActive: true,
+      })
+      .returning();
+
+    return {
+      userId: newUser.id,
+      botId: newBot.id,
+      username: newUser.username,
+      displayName: newUser.displayName,
+      email: newUser.email,
+      type: newBot.type,
+      description: newBot.description,
+      capabilities: newBot.capabilities,
+      isActive: newBot.isActive,
+    };
   }
+
+  // ── System bot helpers ─────────────────────────────────────────────
 
   /**
    * Get the system bot user ID.
    * Returns null if bot is not configured or not initialized.
    */
+  getSystemBotUserId(): string | null {
+    return this.systemBotUserId;
+  }
+
+  /** @deprecated Use getSystemBotUserId() instead */
   getBotUserId(): string | null {
-    return this.botUserId;
+    return this.systemBotUserId;
   }
 
   /**
    * Check if the system bot is enabled and initialized.
    */
-  isBotEnabled(): boolean {
-    return this.botUserId !== null;
+  isSystemBotEnabled(): boolean {
+    return this.systemBotUserId !== null;
   }
+
+  /** @deprecated Use isSystemBotEnabled() instead */
+  isBotEnabled(): boolean {
+    return this.systemBotUserId !== null;
+  }
+
+  // ── Generic bot queries ────────────────────────────────────────────
 
   /**
    * Check if a given userId belongs to a bot account.
@@ -178,15 +263,39 @@ export class BotService implements OnModuleInit {
   }
 
   /**
-   * Get the bot user details (from im_users shadow record).
+   * Get bot info by userId (from both im_users and im_bots).
    */
-  async getBotUser(): Promise<{
+  async getBotByUserId(userId: string): Promise<BotInfo | null> {
+    const [row] = await this.db
+      .select({
+        userId: schema.users.id,
+        botId: schema.bots.id,
+        username: schema.users.username,
+        displayName: schema.users.displayName,
+        email: schema.users.email,
+        type: schema.bots.type,
+        description: schema.bots.description,
+        capabilities: schema.bots.capabilities,
+        isActive: schema.bots.isActive,
+      })
+      .from(schema.bots)
+      .innerJoin(schema.users, eq(schema.bots.userId, schema.users.id))
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+
+    return row || null;
+  }
+
+  /**
+   * Get the system bot user details (from im_users shadow record).
+   */
+  async getSystemBotUser(): Promise<{
     id: string;
     email: string;
     username: string;
     displayName: string | null;
   } | null> {
-    if (!this.botUserId) {
+    if (!this.systemBotUserId) {
       return null;
     }
 
@@ -198,40 +307,35 @@ export class BotService implements OnModuleInit {
         displayName: schema.users.displayName,
       })
       .from(schema.users)
-      .where(eq(schema.users.id, this.botUserId))
+      .where(eq(schema.users.id, this.systemBotUserId))
       .limit(1);
 
     return bot || null;
   }
 
-  /**
-   * Get the bot extension profile (from im_bots table).
-   */
-  async getBotProfile(): Promise<{
+  /** @deprecated Use getSystemBotUser() instead */
+  async getBotUser(): Promise<{
     id: string;
-    userId: string;
-    type: string;
-    description: string | null;
-    capabilities: BotCapabilities | null;
-    isActive: boolean;
+    email: string;
+    username: string;
+    displayName: string | null;
   } | null> {
-    if (!this.botUserId) {
+    return this.getSystemBotUser();
+  }
+
+  /**
+   * Get the system bot extension profile (from im_bots table).
+   */
+  async getSystemBotProfile(): Promise<BotInfo | null> {
+    if (!this.systemBotUserId) {
       return null;
     }
 
-    const [bot] = await this.db
-      .select({
-        id: schema.bots.id,
-        userId: schema.bots.userId,
-        type: schema.bots.type,
-        description: schema.bots.description,
-        capabilities: schema.bots.capabilities,
-        isActive: schema.bots.isActive,
-      })
-      .from(schema.bots)
-      .where(eq(schema.bots.userId, this.botUserId))
-      .limit(1);
+    return this.getBotByUserId(this.systemBotUserId);
+  }
 
-    return bot || null;
+  /** @deprecated Use getSystemBotProfile() instead */
+  async getBotProfile(): Promise<BotInfo | null> {
+    return this.getSystemBotProfile();
   }
 }
