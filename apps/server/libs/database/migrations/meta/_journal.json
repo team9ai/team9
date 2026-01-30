@@ -71,6 +71,13 @@
       "when": 1769762615487,
       "tag": "0009_overconfident_spirit",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1769784421539,
+      "tag": "0010_safe_reaper",
+      "breakpoints": true
     }
   ]
 }

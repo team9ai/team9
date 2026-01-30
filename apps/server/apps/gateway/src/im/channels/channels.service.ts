@@ -60,6 +60,7 @@ export interface ChannelMemberResponse {
     displayName: string | null;
     avatarUrl: string | null;
     status: 'online' | 'offline' | 'away' | 'busy';
+    userType: 'human' | 'bot' | 'system';
   };
 }
 
@@ -473,6 +474,7 @@ export class ChannelsService {
           displayName: schema.users.displayName,
           avatarUrl: schema.users.avatarUrl,
           status: schema.users.status,
+          userType: schema.users.userType,
         },
       })
       .from(schema.channelMembers)

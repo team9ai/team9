@@ -87,6 +87,7 @@ export interface WorkspaceMemberResponse {
   avatarUrl: string | null;
   role: 'owner' | 'admin' | 'member' | 'guest';
   status: 'online' | 'offline' | 'away' | 'busy';
+  userType: 'human' | 'bot' | 'system';
   joinedAt: Date;
   invitedBy?: string;
   lastSeenAt: Date | null;
@@ -644,6 +645,7 @@ export class WorkspaceService {
         displayName: schema.users.displayName,
         avatarUrl: schema.users.avatarUrl,
         role: schema.tenantMembers.role,
+        userType: schema.users.userType,
         joinedAt: schema.tenantMembers.joinedAt,
         invitedBy: schema.tenantMembers.invitedBy,
         lastSeenAt: schema.users.lastSeenAt,
@@ -670,6 +672,7 @@ export class WorkspaceService {
             | 'offline'
             | 'away'
             | 'busy') || 'offline',
+        userType: m.userType,
         invitedBy: m.invitedBy ?? undefined,
       })),
       pagination: {

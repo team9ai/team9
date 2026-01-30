@@ -15,6 +15,8 @@ export const userStatusEnum = pgEnum('user_status', [
   'busy',
 ]);
 
+export const userTypeEnum = pgEnum('user_type', ['human', 'bot', 'system']);
+
 export const users = pgTable('im_users', {
   id: uuid('id').primaryKey().notNull(),
   email: varchar('email', { length: 255 }).unique().notNull(),
@@ -27,6 +29,7 @@ export const users = pgTable('im_users', {
   isActive: boolean('is_active').default(true).notNull(),
   emailVerified: boolean('email_verified').default(false).notNull(),
   emailVerifiedAt: timestamp('email_verified_at'),
+  userType: userTypeEnum('user_type').default('human').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

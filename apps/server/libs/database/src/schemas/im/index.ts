@@ -13,4 +13,5 @@ export * from './files.js';
 export * from './notifications.js';
 export * from './notification-preferences.js';
 export * from './search-index.js';
+export * from './bots.js';
 export * from './relations.js';

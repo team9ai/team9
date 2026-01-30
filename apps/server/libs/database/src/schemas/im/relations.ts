@@ -13,6 +13,7 @@ import {
   notificationPreferences,
   channelNotificationMutes,
 } from './notification-preferences.js';
+import { bots } from './bots.js';
 import { tenants } from '../tenant/tenants.js';
 import { tenantMembers } from '../tenant/tenant-members.js';
 
@@ -26,6 +27,8 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   notifications: many(notifications),
   notificationPreferences: one(notificationPreferences),
   channelNotificationMutes: many(channelNotificationMutes),
+  botProfile: one(bots),
+  ownedBots: many(bots, { relationName: 'botOwner' }),
 }));
 
 export const channelSectionsRelations = relations(
@@ -195,3 +198,15 @@ export const channelNotificationMutesRelations = relations(
     }),
   }),
 );
+
+export const botsRelations = relations(bots, ({ one }) => ({
+  user: one(users, {
+    fields: [bots.userId],
+    references: [users.id],
+  }),
+  owner: one(users, {
+    fields: [bots.ownerId],
+    references: [users.id],
+    relationName: 'botOwner',
+  }),
+}));

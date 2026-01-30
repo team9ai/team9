@@ -25,6 +25,7 @@ export interface MessageSender {
   username: string;
   displayName: string | null;
   avatarUrl: string | null;
+  userType: 'human' | 'bot' | 'system';
 }
 
 export interface MessageAttachmentResponse {
@@ -113,6 +114,7 @@ export class MessagesService {
           username: schema.users.username,
           displayName: schema.users.displayName,
           avatarUrl: schema.users.avatarUrl,
+          userType: schema.users.userType,
         })
         .from(schema.users)
         .where(eq(schema.users.id, message.senderId))
@@ -201,6 +203,7 @@ export class MessagesService {
           username: schema.users.username,
           displayName: schema.users.displayName,
           avatarUrl: schema.users.avatarUrl,
+          userType: schema.users.userType,
         })
         .from(schema.users)
         .where(inArray(schema.users.id, senderIds));

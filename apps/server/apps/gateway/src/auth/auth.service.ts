@@ -217,6 +217,10 @@ export class AuthService {
       throw new BadRequestException('User not found');
     }
 
+    if (user.userType !== 'human') {
+      throw new UnauthorizedException('This account cannot authenticate');
+    }
+
     // Generate tokens and return AuthResponse
     const tokens = this.generateTokenPair(user);
 
@@ -300,6 +304,10 @@ export class AuthService {
       };
     }
 
+    if (user.userType !== 'human') {
+      throw new UnauthorizedException('This account cannot log in');
+    }
+
     if (!user.isActive) {
       throw new UnauthorizedException('Account is disabled');
     }
@@ -356,6 +364,10 @@ export class AuthService {
 
       if (!user) {
         throw new UnauthorizedException('User not found');
+      }
+
+      if (user.userType !== 'human') {
+        throw new UnauthorizedException('This account cannot refresh tokens');
       }
 
       // Blacklist old refresh token (TTL = remaining time until expiry)
