@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Hash, Lock, Phone, Video, Search, Info, Users } from "lucide-react";
+import { Hash, Lock, Info, Users, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ChannelDetailsModal } from "./ChannelDetailsModal";
+import { AddMemberDialog } from "./AddMemberDialog";
 import { useChannelMembers } from "@/hooks/useChannels";
 import type { Channel, ChannelWithUnread, MemberRole } from "@/types/im";
 
@@ -16,6 +17,7 @@ export function ChannelHeader({
   currentUserRole,
 }: ChannelHeaderProps) {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [defaultTab, setDefaultTab] = useState<
     "about" | "members" | "settings"
   >("about");
@@ -89,7 +91,7 @@ export function ChannelHeader({
               <span className="text-sm">{members.length}</span>
             </Button>
           )}
-          <Button variant="ghost" size="icon">
+          {/* <Button variant="ghost" size="icon">
             <Phone size={18} />
           </Button>
           <Button variant="ghost" size="icon">
@@ -97,6 +99,14 @@ export function ChannelHeader({
           </Button>
           <Button variant="ghost" size="icon">
             <Search size={18} />
+          </Button> */}
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsAddMemberOpen(true)}
+          >
+            <UserPlus size={18} className="text-blue-500" />
           </Button>
           {!isDirect && (
             <Button
@@ -109,6 +119,13 @@ export function ChannelHeader({
           )}
         </div>
       </div>
+
+      {/* Add Member Dialog */}
+      <AddMemberDialog
+        isOpen={isAddMemberOpen}
+        onClose={() => setIsAddMemberOpen(false)}
+        channelId={channel.id}
+      />
 
       {/* Channel Details Modal */}
       {!isDirect && (
