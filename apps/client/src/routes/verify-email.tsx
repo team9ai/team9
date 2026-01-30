@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useVerifyEmail } from "@/hooks/useAuth";
@@ -27,6 +27,7 @@ function VerifyEmail() {
     "loading",
   );
   const [errorMessage, setErrorMessage] = useState("");
+  const verifiedRef = useRef(false);
 
   useEffect(() => {
     if (!token) {
@@ -34,6 +35,10 @@ function VerifyEmail() {
       setErrorMessage(t("invalidVerificationLink"));
       return;
     }
+
+    // Prevent double execution in React StrictMode
+    if (verifiedRef.current) return;
+    verifiedRef.current = true;
 
     const verify = async () => {
       try {
