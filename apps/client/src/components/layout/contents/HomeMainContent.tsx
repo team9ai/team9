@@ -1,6 +1,7 @@
 import { Sparkles, Map, Wrench } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +15,7 @@ import { useChannelsByType } from "@/hooks/useChannels";
 import { CreateChannelDialog } from "@/components/dialog/CreateChannelDialog";
 
 export function HomeMainContent() {
+  const { t } = useTranslation(["navigation", "common"]);
   const workspaceId = useSelectedWorkspaceId();
   const { data: workspaces } = useUserWorkspaces();
   const currentWorkspace = workspaces?.find((w) => w.id === workspaceId);
@@ -78,9 +80,9 @@ export function HomeMainContent() {
           {/* Welcome Section */}
           <div className="mb-10">
             <h1 className="text-3xl font-bold text-slate-900 mb-2">
-              欢迎回到 {workspaceName}!
+              {t("welcomeBackTo", { workspace: workspaceName })}
             </h1>
-            <p className="text-slate-500 text-base">以下是你的工作空间动态。</p>
+            <p className="text-slate-500 text-base">{t("workspaceActivity")}</p>
           </div>
 
           {/* Two Column Layout */}
@@ -94,20 +96,20 @@ export function HomeMainContent() {
                       <Map size={16} className="text-blue-600" />
                     </div>
                     <h3 className="font-semibold text-base">
-                      本周的开发路线图
+                      {t("weeklyRoadmap")}
                     </h3>
                   </div>
                   <ul className="space-y-3">
                     <li className="flex items-start gap-2.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0 mt-2" />
                       <span className="text-sm text-slate-700">
-                        支持操作本地环境
+                        {t("roadmapLocalEnv")}
                       </span>
                     </li>
                     <li className="flex items-start gap-2.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0 mt-2" />
                       <span className="text-sm text-slate-700">
-                        新增一系列高频工具
+                        {t("roadmapNewTools")}
                       </span>
                     </li>
                   </ul>
@@ -120,7 +122,9 @@ export function HomeMainContent() {
                     <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
                       <Wrench size={16} className="text-amber-600" />
                     </div>
-                    <h3 className="font-semibold text-base">支持的工具列表</h3>
+                    <h3 className="font-semibold text-base">
+                      {t("supportedTools")}
+                    </h3>
                   </div>
                   <div className="space-y-2.5">
                     {[
@@ -151,7 +155,7 @@ export function HomeMainContent() {
               <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-5">
                   <h3 className="font-semibold text-base mb-4 text-center">
-                    和 Clawdbot 开始聊天
+                    {t("chatWithClawdbot")}
                   </h3>
                   <div className="flex items-center justify-center gap-3 mb-5">
                     <div className="w-11 h-11 rounded-full bg-linear-to-br from-rose-300 to-rose-400 shadow-sm" />
@@ -175,11 +179,11 @@ export function HomeMainContent() {
               <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-5 text-center">
                   <h3 className="font-semibold text-base mb-4">
-                    邀请你的好友加入 workspace
+                    {t("inviteFriends")}
                   </h3>
                   <div className="bg-slate-100 rounded-lg px-4 py-2.5 mb-4">
                     <span className="text-sm font-mono text-slate-700 truncate block">
-                      {inviteUrl ?? "加载中..."}
+                      {inviteUrl ?? t("common:loading")}
                     </span>
                   </div>
                   <Button
@@ -188,7 +192,7 @@ export function HomeMainContent() {
                     disabled={!inviteUrl}
                     onClick={handleCopyLink}
                   >
-                    {copied ? "已复制" : "复制链接"}
+                    {copied ? t("navigation:copied") : t("navigation:copyLink")}
                   </Button>
                 </CardContent>
               </Card>
@@ -196,16 +200,14 @@ export function HomeMainContent() {
               <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-5 text-center flex flex-col items-center justify-center h-full">
                   <h3 className="font-semibold text-base mb-5">
-                    创建你的第一个频道并且邀请
-                    <br />
-                    Clawdbot 一起协同
+                    {t("navigation:createFirstChannel")}
                   </h3>
                   <Button
                     size="sm"
                     className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6 cursor-pointer"
                     onClick={() => setIsCreateChannelOpen(true)}
                   >
-                    创建频道
+                    {t("navigation:createChannel")}
                   </Button>
                 </CardContent>
               </Card>
@@ -213,7 +215,7 @@ export function HomeMainContent() {
               <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-5 text-center">
                   <h3 className="font-semibold text-base mb-4">
-                    加入早期内测用户反馈
+                    {t("navigation:joinBetaFeedback")}
                   </h3>
                   <div className="w-12 h-12 rounded-xl bg-indigo-100 flex items-center justify-center mx-auto mb-3">
                     <svg
@@ -236,7 +238,7 @@ export function HomeMainContent() {
                       window.open("https://discord.gg/edMATqpU", "_blank")
                     }
                   >
-                    加入 Discord
+                    {t("navigation:joinDiscord")}
                   </Button>
                 </CardContent>
               </Card>
@@ -249,10 +251,10 @@ export function HomeMainContent() {
                     </div>
                     <div>
                       <h3 className="font-semibold text-base">
-                        创建你的第一个 AI Staff
+                        {t("navigation:createFirstAIStaff")}
                       </h3>
                       <p className="text-sm text-slate-500">
-                        使用 AI 助手提升团队协作效率
+                        {t("navigation:aiStaffDescription")}
                       </p>
                     </div>
                   </div>
@@ -260,7 +262,7 @@ export function HomeMainContent() {
                     size="sm"
                     className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6 cursor-pointer"
                   >
-                    创建 AI Staff
+                    {t("navigation:createAIStaff")}
                   </Button>
                 </CardContent>
               </Card>

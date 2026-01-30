@@ -1,4 +1,5 @@
 import { Hash, AtSign, MessageSquare, Reply } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { formatMessageTime } from "@/lib/date-utils";
@@ -6,7 +7,6 @@ import type {
   Notification,
   NotificationType,
 } from "@/stores/useNotificationStore";
-
 interface ActivityItemProps {
   notification: Notification;
   isSelected?: boolean;
@@ -28,7 +28,10 @@ function getNotificationIcon(type: NotificationType) {
   }
 }
 
-function getSourceContext(notification: Notification): string {
+function getSourceContext(
+  notification: Notification,
+  t: (key: string, options?: Record<string, string>) => string,
+): string {
   const { type, title } = notification;
 
   // Try to extract channel name from title
@@ -38,19 +41,31 @@ function getSourceContext(notification: Notification): string {
 
   switch (type) {
     case "mention":
-      return channelName ? `# ${channelName} 中的提及` : "提及";
+      return channelName
+        ? t("mentionInChannel", { channel: channelName })
+        : t("mentionLabel");
     case "channel_mention":
-      return channelName ? `# ${channelName} 中的 @频道提及` : "@频道提及";
+      return channelName
+        ? t("channelMentionInChannel", { channel: channelName })
+        : t("channelMentionLabel");
     case "everyone_mention":
-      return channelName ? `# ${channelName} 中的 @所有人提及` : "@所有人提及";
+      return channelName
+        ? t("everyoneMentionInChannel", { channel: channelName })
+        : t("everyoneMentionLabel");
     case "here_mention":
-      return channelName ? `# ${channelName} 中的 @here提及` : "@here提及";
+      return channelName
+        ? t("mentionInChannel", { channel: channelName })
+        : t("hereMentionLabel");
     case "reply":
-      return channelName ? `# ${channelName} 中的回复` : "回复";
+      return channelName
+        ? t("replyInChannel", { channel: channelName })
+        : t("replyLabel");
     case "thread_reply":
-      return channelName ? `# ${channelName} 中的消息列回复` : "消息列回复";
+      return channelName
+        ? t("threadReplyInChannel", { channel: channelName })
+        : t("threadReplyLabel");
     default:
-      return "活动";
+      return t("activityLabel");
   }
 }
 
@@ -59,8 +74,9 @@ export function ActivityItem({
   isSelected = false,
   onClick,
 }: ActivityItemProps) {
+  const { t } = useTranslation("navigation");
   const Icon = getNotificationIcon(notification.type);
-  const sourceContext = getSourceContext(notification);
+  const sourceContext = getSourceContext(notification, t);
   const timeStr = formatMessageTime(new Date(notification.createdAt));
 
   const actorName =

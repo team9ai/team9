@@ -99,7 +99,7 @@ const enDayNames = [
 ];
 
 /**
- * Format a date for grouping headers (e.g., "今天", "昨天", "1月13日星期一")
+ * Format a date for grouping headers (e.g., "Today", "Yesterday", "Jan 13, Monday")
  */
 export function formatDateGroup(date: Date, locale: string = "zh"): string {
   const now = new Date();

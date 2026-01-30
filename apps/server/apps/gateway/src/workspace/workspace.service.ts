@@ -568,7 +568,7 @@ export class WorkspaceService {
         const displayName = user.displayName || user.username;
         await this.channelsService.sendSystemMessage(
           welcomeChannel.id,
-          `${displayName} 加入了 ${workspace.name}`,
+          `${displayName} joined ${workspace.name}`,
         );
 
         this.logger.log(
