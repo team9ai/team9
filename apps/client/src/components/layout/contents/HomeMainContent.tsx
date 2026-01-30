@@ -1,4 +1,4 @@
-import { Bot, Sparkles, Map, Wrench } from "lucide-react";
+import { Sparkles, Map, Wrench } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,6 @@ export function HomeMainContent() {
   const createInvitation = useCreateInvitation(workspaceId ?? undefined);
   const hasCreatedRef = useRef(false);
 
-  // 找到一个可用的邀请链接：isActive、未过期、未达到使用上限
   const validInvitation = useMemo(
     () =>
       invitations.find((inv) => {
@@ -39,7 +38,6 @@ export function HomeMainContent() {
     [invitations],
   );
 
-  // 没有可用邀请时自动创建一个
   useEffect(() => {
     if (validInvitation || hasCreatedRef.current || !workspaceId) return;
     hasCreatedRef.current = true;
@@ -89,7 +87,6 @@ export function HomeMainContent() {
           <div className="flex gap-8">
             {/* Left Column */}
             <div className="w-72 shrink-0 flex flex-col gap-6">
-              {/* 本周的开发路线图 */}
               <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-5">
                   <div className="flex items-center gap-2 mb-5">
@@ -117,7 +114,6 @@ export function HomeMainContent() {
                 </CardContent>
               </Card>
 
-              {/* 支持的工具列表 */}
               <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-5">
                   <div className="flex items-center gap-2 mb-5">
@@ -152,7 +148,6 @@ export function HomeMainContent() {
 
             {/* Right Column */}
             <div className="flex-1 grid grid-cols-2 gap-6 auto-rows-min">
-              {/* 和 Clawdbot 开始聊天 */}
               <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-5">
                   <h3 className="font-semibold text-base mb-4 text-center">
@@ -168,7 +163,7 @@ export function HomeMainContent() {
                   <div className="text-center">
                     <Button
                       size="sm"
-                      className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6"
+                      className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6 cursor-pointer"
                       onClick={handleStartChatWithBot}
                     >
                       Start Chatting
@@ -177,7 +172,6 @@ export function HomeMainContent() {
                 </CardContent>
               </Card>
 
-              {/* 邀请你的好友加入 workspace */}
               <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-5 text-center">
                   <h3 className="font-semibold text-base mb-4">
@@ -190,7 +184,7 @@ export function HomeMainContent() {
                   </div>
                   <Button
                     size="sm"
-                    className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6"
+                    className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6 cursor-pointer"
                     disabled={!inviteUrl}
                     onClick={handleCopyLink}
                   >
@@ -199,7 +193,6 @@ export function HomeMainContent() {
                 </CardContent>
               </Card>
 
-              {/* 创建你的第一个频道 */}
               <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-5 text-center flex flex-col items-center justify-center h-full">
                   <h3 className="font-semibold text-base mb-5">
@@ -209,7 +202,7 @@ export function HomeMainContent() {
                   </h3>
                   <Button
                     size="sm"
-                    className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6"
+                    className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6 cursor-pointer"
                     onClick={() => setIsCreateChannelOpen(true)}
                   >
                     创建频道
@@ -217,22 +210,37 @@ export function HomeMainContent() {
                 </CardContent>
               </Card>
 
-              {/* 加入早期内测用户反馈 */}
               <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-5 text-center">
                   <h3 className="font-semibold text-base mb-4">
                     加入早期内测用户反馈
                   </h3>
-                  <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center mx-auto mb-3">
-                    <Bot size={28} className="text-blue-600" />
+                  <div className="w-12 h-12 rounded-xl bg-indigo-100 flex items-center justify-center mx-auto mb-3">
+                    <svg
+                      width="28"
+                      height="28"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      className="text-indigo-600"
+                    >
+                      <path
+                        d="M19.27 5.33C17.94 4.71 16.5 4.26 15 4a.09.09 0 0 0-.07.03c-.18.33-.39.76-.53 1.09a16.09 16.09 0 0 0-4.8 0c-.14-.34-.36-.76-.54-1.09c-.01-.02-.04-.03-.07-.03c-1.5.26-2.93.71-4.27 1.33c-.01 0-.02.01-.03.02c-2.72 4.07-3.47 8.03-3.1 11.95c0 .02.01.04.03.05c1.8 1.32 3.53 2.12 5.24 2.65c.03.01.06 0 .07-.02c.4-.55.76-1.13 1.07-1.74c.02-.04 0-.08-.04-.09c-.57-.22-1.11-.48-1.64-.78c-.04-.02-.04-.08-.01-.11c.11-.08.22-.17.33-.25c.02-.02.05-.02.07-.01c3.44 1.57 7.15 1.57 10.55 0c.02-.01.05-.01.07.01c.11.09.22.17.33.26c.04.03.04.09-.01.11c-.52.31-1.07.56-1.64.78c-.04.01-.05.06-.04.09c.32.61.68 1.19 1.07 1.74c.03.01.06.02.09.01c1.72-.53 3.45-1.33 5.25-2.65c.02-.01.03-.03.03-.05c.44-4.53-.73-8.46-3.1-11.95c-.01-.01-.02-.02-.04-.02zM8.52 14.91c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12c0 1.17-.84 2.12-1.89 2.12zm6.97 0c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12c0 1.17-.83 2.12-1.89 2.12z"
+                        fill="currentColor"
+                      />
+                    </svg>
                   </div>
-                  <p className="text-sm font-medium text-slate-600">
-                    Team9 Support Bot
-                  </p>
+                  <Button
+                    size="sm"
+                    className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6 cursor-pointer"
+                    onClick={() =>
+                      window.open("https://discord.gg/edMATqpU", "_blank")
+                    }
+                  >
+                    加入 Discord
+                  </Button>
                 </CardContent>
               </Card>
 
-              {/* 创建你的第一个 AI Staff */}
               <Card className="col-span-2 border-0 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-5 flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -250,7 +258,7 @@ export function HomeMainContent() {
                   </div>
                   <Button
                     size="sm"
-                    className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6"
+                    className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6 cursor-pointer"
                   >
                     创建 AI Staff
                   </Button>
