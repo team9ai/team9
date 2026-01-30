@@ -1,10 +1,14 @@
-import { Bot, Copy, Check, Sparkles, Map, Wrench } from "lucide-react";
-import { useState } from "react";
+import { Bot, Sparkles, Map, Wrench } from "lucide-react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent } from "@/components/ui/card";
-import { useUserWorkspaces } from "@/hooks/useWorkspace";
+import {
+  useUserWorkspaces,
+  useCreateInvitation,
+  useWorkspaceInvitations,
+} from "@/hooks/useWorkspace";
 import { useSelectedWorkspaceId } from "@/stores";
 import { useChannelsByType } from "@/hooks/useChannels";
 
@@ -15,6 +19,36 @@ export function HomeMainContent() {
   const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
   const { directChannels = [] } = useChannelsByType();
+  const { data: invitations = [] } = useWorkspaceInvitations(
+    workspaceId ?? undefined,
+  );
+  const createInvitation = useCreateInvitation(workspaceId ?? undefined);
+  const hasCreatedRef = useRef(false);
+
+  // 找到一个可用的邀请链接：isActive、未过期、未达到使用上限
+  const validInvitation = useMemo(
+    () =>
+      invitations.find((inv) => {
+        if (!inv.isActive) return false;
+        if (inv.expiresAt && new Date(inv.expiresAt) < new Date()) return false;
+        if (inv.maxUses && inv.usedCount >= inv.maxUses) return false;
+        return true;
+      }),
+    [invitations],
+  );
+
+  // 没有可用邀请时自动创建一个
+  useEffect(() => {
+    if (validInvitation || hasCreatedRef.current || !workspaceId) return;
+    hasCreatedRef.current = true;
+    createInvitation.mutate({
+      role: "member",
+      maxUses: 1000,
+      expiresInDays: 100,
+    });
+  }, [validInvitation, workspaceId]);
+
+  const inviteUrl = validInvitation?.url;
 
   const handleStartChatWithBot = () => {
     const botChannel = directChannels.find(
@@ -29,10 +63,10 @@ export function HomeMainContent() {
   };
 
   const workspaceName = currentWorkspace?.name || "Workspace";
-  const inviteLink = "team9.ai/invite";
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(inviteLink);
+  const handleCopyLink = async () => {
+    if (!inviteUrl) return;
+    await navigator.clipboard.writeText(inviteUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -148,16 +182,16 @@ export function HomeMainContent() {
                     邀请你的好友加入 workspace
                   </h3>
                   <div className="bg-slate-100 rounded-lg px-4 py-2.5 mb-4">
-                    <span className="text-sm font-mono text-slate-700">
-                      {inviteLink}
+                    <span className="text-sm font-mono text-slate-700 truncate block">
+                      {inviteUrl ?? "加载中..."}
                     </span>
                   </div>
                   <Button
                     size="sm"
-                    className="bg-blue-600 hover:bg-blue-700 rounded-lg w-full gap-2"
+                    className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6"
+                    disabled={!inviteUrl}
                     onClick={handleCopyLink}
                   >
-                    {copied ? <Check size={14} /> : <Copy size={14} />}
                     {copied ? "已复制" : "复制链接"}
                   </Button>
                 </CardContent>
