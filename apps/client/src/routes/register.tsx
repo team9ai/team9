@@ -313,13 +313,16 @@ function Register() {
         <div className="text-center mt-8 text-xs text-gray-500">
           <p>
             {t("createTermsAgreement")}{" "}
-            <a href="#" className="text-purple-600 hover:underline">
+            <Link
+              to="/terms-of-service"
+              className="text-purple-600 hover:underline"
+            >
               {t("termsOfService")}
-            </a>{" "}
+            </Link>{" "}
             {t("and")}{" "}
-            <a href="#" className="text-purple-600 hover:underline">
+            <Link to="/privacy" className="text-purple-600 hover:underline">
               {t("privacyPolicy")}
-            </a>
+            </Link>
           </p>
         </div>
       </div>
