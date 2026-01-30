@@ -1,317 +1,211 @@
-import {
-  Home,
-  MessageSquare,
-  Hash,
-  Lock,
-  ChevronRight,
-  Users,
-  Bell,
-} from "lucide-react";
-import { useTranslation } from "react-i18next";
+import { Bot, Copy, Check, Sparkles, Map, Wrench } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useChannelsByType } from "@/hooks/useChannels";
+import { Card, CardContent } from "@/components/ui/card";
 import { useUserWorkspaces } from "@/hooks/useWorkspace";
 import { useSelectedWorkspaceId } from "@/stores";
-import { Link } from "@tanstack/react-router";
-import { cn } from "@/lib/utils";
 
 export function HomeMainContent() {
-  const { t: tNav } = useTranslation("navigation");
-  const { t: tCommon } = useTranslation("common");
-  const { t: tChannel } = useTranslation("channel");
-  const { t: tMessage } = useTranslation("message");
-
   const workspaceId = useSelectedWorkspaceId();
   const { data: workspaces } = useUserWorkspaces();
-  const { publicChannels, privateChannels, directChannels, isLoading } =
-    useChannelsByType();
-
   const currentWorkspace = workspaces?.find((w) => w.id === workspaceId);
+  const [copied, setCopied] = useState(false);
 
-  // Get channels with unread messages
-  const unreadChannels = [
-    ...publicChannels,
-    ...privateChannels,
-    ...directChannels,
-  ].filter((ch) => ch.unreadCount > 0);
+  const workspaceName = currentWorkspace?.name || "Workspace";
+  const inviteLink = "team9.ai/invite";
 
-  // Get recent direct messages (top 5)
-  const recentDMs = directChannels.slice(0, 5);
-
-  // Get all channels (top 5)
-  const recentChannels = [...publicChannels, ...privateChannels].slice(0, 5);
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(inviteLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
-    <main className="flex-1 flex flex-col bg-slate-50">
-      {/* Header */}
-      <header className="h-14 bg-white flex items-center justify-between px-6 border-b">
-        <div className="flex items-center gap-2">
-          <Home size={20} className="text-purple-600" />
-          <h2 className="font-semibold text-lg text-slate-900">
-            {tNav("home")}
-          </h2>
-        </div>
-      </header>
-
-      {/* Content */}
-      <ScrollArea className="flex-1">
-        <div className="p-6 max-w-4xl mx-auto">
+    <main className="flex-1 flex flex-col bg-slate-50 overflow-hidden">
+      <ScrollArea className="flex-1 h-0">
+        <div className="p-8 max-w-6xl mx-auto">
           {/* Welcome Section */}
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-slate-900 mb-2">
-              {currentWorkspace
-                ? tNav("welcomeBackTo", { workspace: currentWorkspace.name })
-                : `${tNav("welcomeBack")}!`}
+          <div className="mb-10">
+            <h1 className="text-3xl font-bold text-slate-900 mb-2">
+              欢迎回到 {workspaceName}!
             </h1>
-            <p className="text-slate-600">{tNav("workspaceActivity")}</p>
+            <p className="text-slate-500 text-base">以下是你的工作空间动态。</p>
           </div>
 
-          {/* Unread Messages Section */}
-          {unreadChannels.length > 0 && (
-            <Card className="mb-6">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Bell size={18} className="text-purple-600" />
-                  {tNav("catchUp")}
-                  <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
-                    {unreadChannels.reduce(
-                      (acc, ch) => acc + (ch.unreadCount || 0),
-                      0,
-                    )}{" "}
-                    {tChannel("unread")}
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="space-y-1">
-                  {unreadChannels.slice(0, 5).map((channel) => (
-                    <ChannelItem
-                      key={channel.id}
-                      channel={channel}
-                      showUnread
-                    />
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Recent Channels */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Hash size={18} className="text-slate-600" />
-                  {tNav("channels")}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                {isLoading ? (
-                  <p className="text-sm text-slate-500 py-4">
-                    {tCommon("loading")}
-                  </p>
-                ) : recentChannels.length === 0 ? (
-                  <div className="text-center py-6">
-                    <p className="text-sm text-slate-500 mb-3">
-                      {tChannel("noChannelsYet")}
-                    </p>
-                    <Button variant="outline" size="sm">
-                      {tChannel("browseChannels")}
-                    </Button>
+          {/* Two Column Layout */}
+          <div className="flex gap-8">
+            {/* Left Column */}
+            <div className="w-72 shrink-0 flex flex-col gap-6">
+              {/* 本周的开发路线图 */}
+              <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-5">
+                  <div className="flex items-center gap-2 mb-5">
+                    <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                      <Map size={16} className="text-blue-600" />
+                    </div>
+                    <h3 className="font-semibold text-base">
+                      本周的开发路线图
+                    </h3>
                   </div>
-                ) : (
-                  <div className="space-y-1">
-                    {recentChannels.map((channel) => (
-                      <ChannelItem key={channel.id} channel={channel} />
+                  <ul className="space-y-3">
+                    <li className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0 mt-2" />
+                      <span className="text-sm text-slate-700">
+                        支持操作本地环境
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0 mt-2" />
+                      <span className="text-sm text-slate-700">
+                        新增一系列高频工具
+                      </span>
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
+
+              {/* 支持的工具列表 */}
+              <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-5">
+                  <div className="flex items-center gap-2 mb-5">
+                    <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                      <Wrench size={16} className="text-amber-600" />
+                    </div>
+                    <h3 className="font-semibold text-base">支持的工具列表</h3>
+                  </div>
+                  <div className="space-y-2.5">
+                    {[
+                      { name: "websearch", status: "soon" },
+                      { name: "nano Banana pro", status: "soon" },
+                      { name: "websearch", status: "soon" },
+                      { name: "nano Banana pro", status: "soon" },
+                    ].map((tool, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between py-1.5 px-3 rounded-md bg-slate-50"
+                      >
+                        <span className="text-sm text-slate-700">
+                          {tool.name}
+                        </span>
+                        <span className="text-xs text-slate-400 bg-slate-200 px-2 py-0.5 rounded-full">
+                          {tool.status}
+                        </span>
+                      </div>
                     ))}
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
 
-            {/* Recent Direct Messages */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <MessageSquare size={18} className="text-slate-600" />
-                  {tNav("directMessages")}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                {isLoading ? (
-                  <p className="text-sm text-slate-500 py-4">
-                    {tCommon("loading")}
-                  </p>
-                ) : recentDMs.length === 0 ? (
-                  <div className="text-center py-6">
-                    <p className="text-sm text-slate-500 mb-3">
-                      {tMessage("noConversations")}
-                    </p>
-                    <Button variant="outline" size="sm">
-                      {tMessage("startConversation")}
+            {/* Right Column */}
+            <div className="flex-1 grid grid-cols-2 gap-6 auto-rows-min">
+              {/* 和 Clawdbot 开始聊天 */}
+              <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-5">
+                  <h3 className="font-semibold text-base mb-4 text-center">
+                    和 Clawdbot 开始聊天
+                  </h3>
+                  <div className="flex items-center justify-center gap-3 mb-5">
+                    <div className="w-11 h-11 rounded-full bg-linear-to-br from-rose-300 to-rose-400 shadow-sm" />
+                    <div className="relative border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-600 bg-white shadow-sm">
+                      HI its Clawdbot here!
+                      <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rotate-45 border-l border-b border-slate-200 bg-white" />
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <Button
+                      size="sm"
+                      className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6"
+                    >
+                      Start Chatting
                     </Button>
                   </div>
-                ) : (
-                  <div className="space-y-1">
-                    {recentDMs.map((channel) => (
-                      <DMItem key={channel.id} channel={channel} />
-                    ))}
+                </CardContent>
+              </Card>
+
+              {/* 邀请你的好友加入 workspace */}
+              <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-5 text-center">
+                  <h3 className="font-semibold text-base mb-4">
+                    邀请你的好友加入 workspace
+                  </h3>
+                  <div className="bg-slate-100 rounded-lg px-4 py-2.5 mb-4">
+                    <span className="text-sm font-mono text-slate-700">
+                      {inviteLink}
+                    </span>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                  <Button
+                    size="sm"
+                    className="bg-blue-600 hover:bg-blue-700 rounded-lg w-full gap-2"
+                    onClick={handleCopyLink}
+                  >
+                    {copied ? <Check size={14} /> : <Copy size={14} />}
+                    {copied ? "已复制" : "复制链接"}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* 创建你的第一个频道 */}
+              <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-5 text-center flex flex-col items-center justify-center h-full">
+                  <h3 className="font-semibold text-base mb-5">
+                    创建你的第一个频道并且邀请
+                    <br />
+                    Clawdbot 一起协同
+                  </h3>
+                  <Button
+                    size="sm"
+                    className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6"
+                  >
+                    创建频道
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* 加入早期内测用户反馈 */}
+              <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-5 text-center">
+                  <h3 className="font-semibold text-base mb-4">
+                    加入早期内测用户反馈
+                  </h3>
+                  <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center mx-auto mb-3">
+                    <Bot size={28} className="text-blue-600" />
+                  </div>
+                  <p className="text-sm font-medium text-slate-600">
+                    Team9 Support Bot
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* 创建你的第一个 AI Staff */}
+              <Card className="col-span-2 border-0 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-5 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
+                      <Sparkles size={20} className="text-violet-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-base">
+                        创建你的第一个 AI Staff
+                      </h3>
+                      <p className="text-sm text-slate-500">
+                        使用 AI 助手提升团队协作效率
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="bg-blue-600 hover:bg-blue-700 rounded-lg px-6"
+                  >
+                    创建 AI Staff
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
           </div>
-
-          {/* Quick Actions */}
-          <Card className="mt-6">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">
-                {tNav("quickActions")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <QuickActionButton
-                  icon={<Hash size={20} />}
-                  label={tChannel("browseChannels")}
-                />
-                <QuickActionButton
-                  icon={<MessageSquare size={20} />}
-                  label={tNav("newMessage")}
-                />
-                <QuickActionButton
-                  icon={<Users size={20} />}
-                  label={tNav("viewMembers")}
-                />
-                <QuickActionButton
-                  icon={<Bell size={20} />}
-                  label={tNav("notifications")}
-                />
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </ScrollArea>
     </main>
-  );
-}
-
-// Channel list item
-interface ChannelItemProps {
-  channel: {
-    id: string;
-    name: string;
-    type: string;
-    unreadCount?: number;
-    otherUser?: {
-      id: string;
-      displayName?: string;
-      username?: string;
-      avatarUrl?: string;
-    };
-  };
-  showUnread?: boolean;
-}
-
-function ChannelItem({ channel, showUnread }: ChannelItemProps) {
-  // For direct channels, show as DM
-  if (channel.type === "direct") {
-    return <DMItem channel={channel} showUnread={showUnread} />;
-  }
-
-  const Icon = channel.type === "private" ? Lock : Hash;
-
-  return (
-    <Link to="/channels/$channelId" params={{ channelId: channel.id }}>
-      <div className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-100 transition-colors cursor-pointer group">
-        <Icon size={16} className="text-slate-500" />
-        <span className="flex-1 text-sm text-slate-700 truncate">
-          {channel.name}
-        </span>
-        {showUnread && channel.unreadCount && channel.unreadCount > 0 && (
-          <span className="bg-purple-600 text-white text-xs rounded-full px-2 py-0.5 min-w-5 text-center">
-            {channel.unreadCount}
-          </span>
-        )}
-        <ChevronRight
-          size={16}
-          className="text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"
-        />
-      </div>
-    </Link>
-  );
-}
-
-// DM list item
-interface DMItemProps {
-  channel: {
-    id: string;
-    otherUser?: {
-      id: string;
-      displayName?: string;
-      username?: string;
-      avatarUrl?: string;
-    };
-    unreadCount?: number;
-  };
-  showUnread?: boolean;
-}
-
-function DMItem({ channel, showUnread }: DMItemProps) {
-  const otherUser = channel.otherUser;
-  const displayName =
-    otherUser?.displayName || otherUser?.username || "Direct Message";
-  const avatarText =
-    otherUser?.displayName?.[0] || otherUser?.username?.[0] || "D";
-
-  return (
-    <Link to="/channels/$channelId" params={{ channelId: channel.id }}>
-      <div className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-slate-100 transition-colors cursor-pointer group">
-        <Avatar className="w-6 h-6">
-          {otherUser?.avatarUrl && (
-            <AvatarImage src={otherUser.avatarUrl} alt={displayName} />
-          )}
-          <AvatarFallback className="bg-purple-500 text-white text-xs">
-            {avatarText}
-          </AvatarFallback>
-        </Avatar>
-        <span className="flex-1 text-sm text-slate-700 truncate">
-          {displayName}
-        </span>
-        {showUnread && channel.unreadCount && channel.unreadCount > 0 && (
-          <span className="bg-purple-600 text-white text-xs rounded-full px-2 py-0.5 min-w-5 text-center">
-            {channel.unreadCount}
-          </span>
-        )}
-        <ChevronRight
-          size={16}
-          className="text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"
-        />
-      </div>
-    </Link>
-  );
-}
-
-// Quick action button
-interface QuickActionButtonProps {
-  icon: React.ReactNode;
-  label: string;
-}
-
-function QuickActionButton({ icon, label }: QuickActionButtonProps) {
-  return (
-    <button
-      className={cn(
-        "flex flex-col items-center gap-2 p-4 rounded-lg border border-slate-200",
-        "hover:bg-purple-50 hover:border-purple-200 transition-colors",
-        "text-slate-600 hover:text-purple-600",
-      )}
-    >
-      {icon}
-      <span className="text-xs font-medium">{label}</span>
-    </button>
   );
 }
