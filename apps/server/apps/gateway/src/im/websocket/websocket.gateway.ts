@@ -10,6 +10,10 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger, Inject, forwardRef, Optional } from '@nestjs/common';
+import {
+  BOT_TOKEN_VALIDATOR,
+  type BotTokenValidatorInterface,
+} from '@team9/auth';
 import { OnEvent } from '@nestjs/event-emitter';
 import { v7 as uuidv7 } from 'uuid';
 import { AuthService } from '../../auth/auth.service.js';
@@ -69,6 +73,9 @@ export class WebsocketGateway
     @Optional() private readonly gatewayMQService?: GatewayMQService,
     @Optional()
     private readonly socketRedisAdapterService?: SocketRedisAdapterService,
+    @Optional()
+    @Inject(BOT_TOKEN_VALIDATOR)
+    private readonly botTokenValidator?: BotTokenValidatorInterface,
   ) {}
 
   /**
@@ -124,13 +131,46 @@ export class WebsocketGateway
       }
 
       this.logger.debug(`[WS] Token received, verifying...`);
-      const payload = this.authService.verifyToken(token);
-      this.logger.log(
-        `[WS] Token verified for user: ${payload.sub} (${payload.username})`,
-      );
+      let payload: { sub: string; username: string };
+      let isBot = false;
+
+      if (token.startsWith('t9bot_')) {
+        // Bot token authentication
+        if (!this.botTokenValidator) {
+          this.logger.warn(
+            `[WS] Bot token received but bot auth not available`,
+          );
+          client.emit(WS_EVENTS.AUTH.AUTH_ERROR, {
+            message: 'Bot authentication not available',
+          });
+          client.disconnect();
+          return;
+        }
+        const botPayload = await this.botTokenValidator.validateBotToken(token);
+        if (!botPayload) {
+          this.logger.warn(`[WS] Invalid bot token for client ${client.id}`);
+          client.emit(WS_EVENTS.AUTH.AUTH_ERROR, {
+            message: 'Invalid bot token',
+          });
+          client.disconnect();
+          return;
+        }
+        payload = { sub: botPayload.sub, username: botPayload.username };
+        isBot = true;
+        this.logger.log(
+          `[WS] Bot token verified for bot user: ${payload.sub} (${payload.username})`,
+        );
+      } else {
+        // Standard JWT authentication
+        payload = this.authService.verifyToken(token);
+        this.logger.log(
+          `[WS] Token verified for user: ${payload.sub} (${payload.username})`,
+        );
+      }
 
       (client as SocketWithUser).userId = payload.sub;
       (client as SocketWithUser).username = payload.username;
+      (client as SocketWithUser).isBot = isBot;
 
       // Store socket mapping (legacy) with TTL to prevent stale data accumulation
       // TTL: 5 minutes - will be renewed by heartbeat
@@ -202,40 +242,44 @@ export class WebsocketGateway
         void client.join(`workspace:${workspaceId}`);
       }
 
-      // Broadcast user online to each workspace
-      for (const workspaceId of workspaceIds) {
-        this.server.to(`workspace:${workspaceId}`).emit(WS_EVENTS.USER.ONLINE, {
-          userId: payload.sub,
-          username: payload.username,
-          workspaceId,
-        });
-      }
+      // Broadcast user online to each workspace (skip for bots)
+      if (!isBot) {
+        for (const workspaceId of workspaceIds) {
+          this.server
+            .to(`workspace:${workspaceId}`)
+            .emit(WS_EVENTS.USER.ONLINE, {
+              userId: payload.sub,
+              username: payload.username,
+              workspaceId,
+            });
+        }
 
-      // Notify IM Worker service that user is online (for presence tracking)
-      if (this.gatewayMQService && this.clusterNodeService) {
-        try {
-          await this.gatewayMQService.publishUpstream({
-            gatewayId: this.clusterNodeService.getNodeId(),
-            userId: payload.sub,
-            socketId: client.id,
-            message: {
-              msgId: uuidv7(),
-              senderId: payload.sub,
-              type: 'presence',
-              targetType: 'user',
-              targetId: payload.sub,
-              payload: { event: 'online' },
-              timestamp: Date.now(),
-            },
-            receivedAt: Date.now(),
-          });
-          this.logger.debug(
-            `[WS] Notified IM Worker service of user ${payload.sub} online`,
-          );
-        } catch (error) {
-          this.logger.warn(
-            `[WS] Failed to notify IM Worker service of user online: ${error}`,
-          );
+        // Notify IM Worker service that user is online (for presence tracking)
+        if (this.gatewayMQService && this.clusterNodeService) {
+          try {
+            await this.gatewayMQService.publishUpstream({
+              gatewayId: this.clusterNodeService.getNodeId(),
+              userId: payload.sub,
+              socketId: client.id,
+              message: {
+                msgId: uuidv7(),
+                senderId: payload.sub,
+                type: 'presence',
+                targetType: 'user',
+                targetId: payload.sub,
+                payload: { event: 'online' },
+                timestamp: Date.now(),
+              },
+              receivedAt: Date.now(),
+            });
+            this.logger.debug(
+              `[WS] Notified IM Worker service of user ${payload.sub} online`,
+            );
+          } catch (error) {
+            this.logger.warn(
+              `[WS] Failed to notify IM Worker service of user online: ${error}`,
+            );
+          }
         }
       }
 
@@ -289,84 +333,91 @@ export class WebsocketGateway
         this.clusterNodeService.decrementConnections();
       }
 
-      // Check if user has other active device sessions (new architecture)
-      let hasActiveSessions = false;
-      if (this.sessionService) {
-        hasActiveSessions = await this.sessionService.hasActiveDeviceSessions(
-          socketClient.userId,
-        );
+      // Bots don't have presence — skip offline logic
+      if (socketClient.isBot) {
         this.logger.log(
-          `[WS] User ${socketClient.userId} hasActiveSessions=${hasActiveSessions} (sessionService)`,
+          `[WS] Bot ${socketClient.userId} disconnected, skipping presence cleanup`,
         );
       } else {
-        // Fallback to legacy check
-        const remainingSockets = await this.redisService.smembers(
-          REDIS_KEYS.USER_SOCKETS(socketClient.userId),
-        );
-        hasActiveSessions = remainingSockets.length > 0;
-        this.logger.log(
-          `[WS] User ${socketClient.userId} hasActiveSessions=${hasActiveSessions} (legacy, remainingSockets=${remainingSockets.length})`,
-        );
-      }
-
-      if (!hasActiveSessions) {
-        // User has no more connections on any device, set offline
-        this.logger.log(
-          `[WS] Setting user ${socketClient.userId} offline and broadcasting`,
-        );
-        await this.usersService.setOffline(socketClient.userId);
-
-        // Get user's workspaces
-        const workspaceIds =
-          await this.workspaceService.getWorkspaceIdsByUserId(
+        // Check if user has other active device sessions (new architecture)
+        let hasActiveSessions = false;
+        if (this.sessionService) {
+          hasActiveSessions = await this.sessionService.hasActiveDeviceSessions(
             socketClient.userId,
           );
-
-        this.logger.log(
-          `[WS] Broadcasting user_offline to ${workspaceIds.length} workspaces: ${workspaceIds.join(', ')}`,
-        );
-
-        // Broadcast offline to each workspace
-        for (const workspaceId of workspaceIds) {
-          this.server
-            .to(`workspace:${workspaceId}`)
-            .emit(WS_EVENTS.USER.OFFLINE, {
-              userId: socketClient.userId,
-              workspaceId,
-            });
+          this.logger.log(
+            `[WS] User ${socketClient.userId} hasActiveSessions=${hasActiveSessions} (sessionService)`,
+          );
+        } else {
+          // Fallback to legacy check
+          const remainingSockets = await this.redisService.smembers(
+            REDIS_KEYS.USER_SOCKETS(socketClient.userId),
+          );
+          hasActiveSessions = remainingSockets.length > 0;
+          this.logger.log(
+            `[WS] User ${socketClient.userId} hasActiveSessions=${hasActiveSessions} (legacy, remainingSockets=${remainingSockets.length})`,
+          );
         }
 
-        // Notify IM Worker service that user is offline
-        if (this.gatewayMQService && this.clusterNodeService) {
-          try {
-            await this.gatewayMQService.publishUpstream({
-              gatewayId: this.clusterNodeService.getNodeId(),
-              userId: socketClient.userId,
-              socketId: client.id,
-              message: {
-                msgId: uuidv7(),
-                senderId: socketClient.userId,
-                type: 'presence',
-                targetType: 'user',
-                targetId: socketClient.userId,
-                payload: { event: 'offline' },
-                timestamp: Date.now(),
-              },
-              receivedAt: Date.now(),
-            });
-            this.logger.debug(
-              `[WS] Notified IM Worker service of user ${socketClient.userId} offline`,
+        if (!hasActiveSessions) {
+          // User has no more connections on any device, set offline
+          this.logger.log(
+            `[WS] Setting user ${socketClient.userId} offline and broadcasting`,
+          );
+          await this.usersService.setOffline(socketClient.userId);
+
+          // Get user's workspaces
+          const workspaceIds =
+            await this.workspaceService.getWorkspaceIdsByUserId(
+              socketClient.userId,
             );
-          } catch (error) {
-            this.logger.warn(
-              `[WS] Failed to notify IM Worker service of user offline: ${error}`,
-            );
+
+          this.logger.log(
+            `[WS] Broadcasting user_offline to ${workspaceIds.length} workspaces: ${workspaceIds.join(', ')}`,
+          );
+
+          // Broadcast offline to each workspace
+          for (const workspaceId of workspaceIds) {
+            this.server
+              .to(`workspace:${workspaceId}`)
+              .emit(WS_EVENTS.USER.OFFLINE, {
+                userId: socketClient.userId,
+                workspaceId,
+              });
           }
+
+          // Notify IM Worker service that user is offline
+          if (this.gatewayMQService && this.clusterNodeService) {
+            try {
+              await this.gatewayMQService.publishUpstream({
+                gatewayId: this.clusterNodeService.getNodeId(),
+                userId: socketClient.userId,
+                socketId: client.id,
+                message: {
+                  msgId: uuidv7(),
+                  senderId: socketClient.userId,
+                  type: 'presence',
+                  targetType: 'user',
+                  targetId: socketClient.userId,
+                  payload: { event: 'offline' },
+                  timestamp: Date.now(),
+                },
+                receivedAt: Date.now(),
+              });
+              this.logger.debug(
+                `[WS] Notified IM Worker service of user ${socketClient.userId} offline`,
+              );
+            } catch (error) {
+              this.logger.warn(
+                `[WS] Failed to notify IM Worker service of user offline: ${error}`,
+              );
+            }
+          }
+        } else {
+          this.logger.log(
+            `[WS] User ${socketClient.userId} still has active sessions, NOT setting offline`,
+          );
         }
-      } else {
-        this.logger.log(
-          `[WS] User ${socketClient.userId} still has active sessions, NOT setting offline`,
-        );
       }
     }
 
