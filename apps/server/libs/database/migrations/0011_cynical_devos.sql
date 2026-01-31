@@ -1,0 +1,1 @@
+ALTER TABLE "im_bots" ADD COLUMN "webhook_headers" jsonb DEFAULT '{}'::jsonb;

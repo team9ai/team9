@@ -78,6 +78,13 @@
       "when": 1769784421539,
       "tag": "0010_safe_reaper",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1769847506656,
+      "tag": "0011_cynical_devos",
+      "breakpoints": true
     }
   ]
 }
