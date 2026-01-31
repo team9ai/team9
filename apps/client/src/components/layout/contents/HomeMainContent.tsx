@@ -1,4 +1,12 @@
-import { Sparkles, Map, Wrench } from "lucide-react";
+import {
+  Sparkles,
+  Map,
+  Wrench,
+  Bot,
+  UserPlus,
+  Hash,
+  MessageSquare,
+} from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -104,33 +112,6 @@ export function HomeMainContent() {
               <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-5">
                   <div className="flex items-center gap-2 mb-5">
-                    <div className="w-8 h-8 rounded-lg bg-info/10 flex items-center justify-center">
-                      <Map size={16} className="text-info" />
-                    </div>
-                    <h3 className="font-semibold text-base">
-                      {t("weeklyRoadmap")}
-                    </h3>
-                  </div>
-                  <ul className="space-y-3">
-                    <li className="flex items-start gap-2.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-info shrink-0 mt-2" />
-                      <span className="text-sm text-foreground">
-                        {t("roadmapLocalEnv")}
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-2.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-info shrink-0 mt-2" />
-                      <span className="text-sm text-foreground">
-                        {t("roadmapNewTools")}
-                      </span>
-                    </li>
-                  </ul>
-                </CardContent>
-              </Card>
-
-              <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
-                <CardContent className="p-5">
-                  <div className="flex items-center gap-2 mb-5">
                     <div className="w-8 h-8 rounded-lg bg-warning/10 flex items-center justify-center">
                       <Wrench size={16} className="text-warning" />
                     </div>
@@ -140,10 +121,22 @@ export function HomeMainContent() {
                   </div>
                   <div className="space-y-2.5">
                     {[
-                      { name: "websearch", status: "soon" },
-                      { name: "nano Banana pro", status: "soon" },
-                      { name: "websearch", status: "soon" },
-                      { name: "nano Banana pro", status: "soon" },
+                      { name: "X API", status: "soon" },
+                      { name: "Nano Banana Pro", status: "soon" },
+                      { name: "Web Search API", status: "soon" },
+                      { name: "Stock API", status: "soon" },
+                      { name: "Youtube Reader", status: "soon" },
+                      { name: "Jina Link Reader", status: "soon" },
+                      { name: "Veo 3.1", status: "soon" },
+                      { name: "Eleven Labs API", status: "soon" },
+                      { name: "Minimax Audio", status: "soon" },
+                      { name: "Kling", status: "soon" },
+                      { name: "Deep Research", status: "soon" },
+                      { name: "Semrush API", status: "soon" },
+                      { name: "Suno API", status: "soon" },
+                      { name: "ChatGPT", status: "soon" },
+                      { name: "Gemini", status: "soon" },
+                      { name: "Claude Code", status: "soon" },
                     ].map((tool, i) => (
                       <div
                         key={i}
@@ -166,9 +159,14 @@ export function HomeMainContent() {
             <div className="flex-1 grid grid-cols-2 gap-6 auto-rows-min">
               <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-5">
-                  <h3 className="font-semibold text-base mb-4 text-center">
-                    {t("chatWithClawdbot")}
-                  </h3>
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <Bot size={16} className="text-primary" />
+                    </div>
+                    <h3 className="font-semibold text-base">
+                      {t("chatWithClawdbot")}
+                    </h3>
+                  </div>
                   <div className="flex items-center justify-center gap-3 mb-5">
                     <div className="w-11 h-11 rounded-full bg-linear-to-br from-rose-300 to-rose-400 shadow-sm" />
                     <div className="relative border border-border rounded-xl px-3.5 py-2 text-sm text-muted-foreground bg-background shadow-sm">
@@ -190,9 +188,14 @@ export function HomeMainContent() {
 
               <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-5 text-center">
-                  <h3 className="font-semibold text-base mb-4">
-                    {t("inviteFriends")}
-                  </h3>
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center">
+                      <UserPlus size={16} className="text-success" />
+                    </div>
+                    <h3 className="font-semibold text-base">
+                      {t("inviteFriends")}
+                    </h3>
+                  </div>
                   <div className="bg-muted rounded-lg px-4 py-2.5 mb-4">
                     <span className="text-sm font-mono text-foreground truncate block">
                       {inviteUrl ?? t("common:loading")}
@@ -211,12 +214,18 @@ export function HomeMainContent() {
 
               <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-5 text-center flex flex-col items-center justify-center h-full">
-                  <h3 className="font-semibold text-base mb-5">
-                    {t("navigation:createFirstChannel")}
-                  </h3>
+                  <div className="flex items-center gap-2 mb-5">
+                    <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
+                      <Hash size={16} className="text-accent" />
+                    </div>
+                    <h3 className="font-semibold text-base">
+                      {t("navigation:createFirstChannel")}
+                    </h3>
+                  </div>
+                  <div className="h-8"></div>
                   <Button
                     size="sm"
-                    className="bg-info hover:bg-info/90 text-primary-foreground rounded-lg px-6 cursor-pointer"
+                    className="bg-info hover:bg-info/90 text-primary-foreground rounded-lg px-6  cursor-pointer"
                     onClick={() => setIsCreateChannelOpen(true)}
                   >
                     {t("navigation:createChannel")}
@@ -225,10 +234,54 @@ export function HomeMainContent() {
               </Card>
 
               <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-5">
+                  <div className="flex items-center gap-2 mb-5">
+                    <div className="w-8 h-8 rounded-lg bg-info/10 flex items-center justify-center">
+                      <Map size={16} className="text-info" />
+                    </div>
+                    <h3 className="font-semibold text-base">
+                      {t("weeklyRoadmap")}
+                    </h3>
+                  </div>
+                  <ul className="space-y-3">
+                    <li className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-info shrink-0 mt-2" />
+                      <span className="text-sm text-foreground">
+                        {t("roadmapCreateAIStaff")}
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-info shrink-0 mt-2" />
+                      <span className="text-sm text-foreground">
+                        {t("roadmapAIStaffOnComputer")}
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-info shrink-0 mt-2" />
+                      <span className="text-sm text-foreground">
+                        {t("roadmapBigToolUpdate")}
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-info shrink-0 mt-2" />
+                      <span className="text-sm text-foreground">
+                        {t("roadmapNewUI")}
+                      </span>
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-5 text-center">
-                  <h3 className="font-semibold text-base mb-4">
-                    {t("navigation:joinBetaFeedback")}
-                  </h3>
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
+                      <MessageSquare size={16} className="text-accent" />
+                    </div>
+                    <h3 className="font-semibold text-base">
+                      {t("navigation:joinBetaFeedback")}
+                    </h3>
+                  </div>
                   <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center mx-auto mb-3">
                     <svg
                       width="28"
@@ -255,7 +308,7 @@ export function HomeMainContent() {
                 </CardContent>
               </Card>
 
-              <Card className="col-span-2 border-0 shadow-sm hover:shadow-md transition-shadow">
+              {/* <Card className="col-span-2 border-0 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-5 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -277,7 +330,7 @@ export function HomeMainContent() {
                     {t("navigation:createAIStaff")}
                   </Button>
                 </CardContent>
-              </Card>
+              </Card> */}
             </div>
           </div>
         </div>
