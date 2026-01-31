@@ -67,7 +67,8 @@ export class OpenclawService {
       );
 
       const result = await this.createInstance(botInfo.userId, botInfo.botId, {
-        pairing_gateway_token: tokenResult.accessToken,
+        TEAM9_TOKEN: tokenResult.accessToken,
+        TEAM9_BASE_URL: env.API_URL,
       });
 
       if (result) {

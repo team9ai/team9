@@ -129,6 +129,11 @@ export const env = {
     return getRequiredEnv('APP_URL');
   },
 
+  // API URL (Team9 backend server base URL)
+  get API_URL() {
+    return getRequiredEnv('API_URL');
+  },
+
   // Application Environment
   get APP_ENV() {
     return process.env.APP_ENV || process.env.NODE_ENV || 'development';
