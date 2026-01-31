@@ -1,5 +1,5 @@
 import { Injectable, Logger, Inject, OnModuleInit } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { v7 as uuidv7 } from 'uuid';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
@@ -13,6 +13,11 @@ import {
 import * as schema from '@team9/database/schemas';
 import type { BotCapabilities } from '@team9/database/schemas';
 import { env } from '@team9/shared';
+import {
+  USER_EVENTS,
+  type UserRegisteredEvent,
+} from '../auth/events/user.events.js';
+import { ChannelsService } from '../im/channels/channels.service.js';
 
 export interface CreateBotOptions {
   username: string;
@@ -58,6 +63,7 @@ export class BotService implements OnModuleInit {
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly eventEmitter: EventEmitter2,
+    private readonly channelsService: ChannelsService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -230,6 +236,53 @@ export class BotService implements OnModuleInit {
     this.eventEmitter.emit('bot.created', botInfo);
 
     return botInfo;
+  }
+
+  // ── Event listeners ──────────────────────────────────────────────────
+
+  @OnEvent(USER_EVENTS.REGISTERED)
+  async handleUserRegistered(event: UserRegisteredEvent): Promise<void> {
+    try {
+      // Look up the user to get their username and email
+      const [user] = await this.db
+        .select({
+          id: schema.users.id,
+          username: schema.users.username,
+          email: schema.users.email,
+          displayName: schema.users.displayName,
+        })
+        .from(schema.users)
+        .where(eq(schema.users.id, event.userId))
+        .limit(1);
+
+      if (!user) {
+        this.logger.warn(
+          `User ${event.userId} not found, skipping bot creation`,
+        );
+        return;
+      }
+
+      const bot = await this.createBot({
+        username: `${user.username}_bot`,
+        displayName: `${event.displayName}'s Bot`,
+        type: 'custom',
+        ownerId: user.id,
+        description: `Auto-created bot for ${user.username}`,
+        capabilities: { canSendMessages: true, canReadMessages: true },
+      });
+
+      // Create a direct channel so the user can see the bot in their DM list
+      await this.channelsService.createDirectChannel(user.id, bot.userId);
+
+      this.logger.log(
+        `Auto-created bot ${bot.botId} with DM channel for user ${user.username} (${user.id})`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to auto-create bot for user ${event.userId}:`,
+        error,
+      );
+    }
   }
 
   // ── System bot helpers ─────────────────────────────────────────────
