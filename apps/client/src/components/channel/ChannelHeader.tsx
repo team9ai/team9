@@ -107,13 +107,15 @@ export function ChannelHeader({
             <Search size={18} />
           </Button> */}
 
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsAddMemberOpen(true)}
-          >
-            <UserPlus size={18} className="text-info" />
-          </Button>
+          {!isDirect && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsAddMemberOpen(true)}
+            >
+              <UserPlus size={18} className="text-info" />
+            </Button>
+          )}
           {!isDirect && (
             <Button
               variant="ghost"
