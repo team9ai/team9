@@ -26,81 +26,81 @@ export class BotController {
    * Only human users can create bots.
    * If generateToken is true, the access token is returned (shown only once).
    */
-  @Post()
-  async createBot(
-    @CurrentUser('sub') userId: string,
-    @Body() dto: CreateBotDto,
-  ) {
-    const bot = await this.botService.createBot({
-      username: dto.username,
-      displayName: dto.displayName,
-      type: dto.type ?? 'custom',
-      ownerId: userId,
-      description: dto.description,
-      webhookUrl: dto.webhookUrl,
-      capabilities: {
-        canSendMessages: true,
-        canReadMessages: true,
-      },
-    });
+  // @Post()
+  // async createBot(
+  //   @CurrentUser('sub') userId: string,
+  //   @Body() dto: CreateBotDto,
+  // ) {
+  //   const bot = await this.botService.createBot({
+  //     username: dto.username,
+  //     displayName: dto.displayName,
+  //     type: dto.type ?? 'custom',
+  //     ownerId: userId,
+  //     description: dto.description,
+  //     webhookUrl: dto.webhookUrl,
+  //     capabilities: {
+  //       canSendMessages: true,
+  //       canReadMessages: true,
+  //     },
+  //   });
 
-    let accessToken: string | undefined;
-    if (dto.generateToken) {
-      const tokenResult = await this.botService.generateAccessToken(bot.botId);
-      accessToken = tokenResult.accessToken;
-    }
+  //   let accessToken: string | undefined;
+  //   if (dto.generateToken) {
+  //     const tokenResult = await this.botService.generateAccessToken(bot.botId);
+  //     accessToken = tokenResult.accessToken;
+  //   }
 
-    return { bot, accessToken };
-  }
+  //   return { bot, accessToken };
+  // }
 
   /**
    * Regenerate a bot's access token.
    * The old token is immediately invalidated.
    * Only the bot owner can regenerate the token.
    */
-  @Post(':botId/regenerate-token')
-  async regenerateToken(
-    @CurrentUser('sub') userId: string,
-    @Param('botId') botId: string,
-  ) {
-    await this.assertBotOwner(botId, userId);
-    const result = await this.botService.generateAccessToken(botId);
-    return { accessToken: result.accessToken };
-  }
+  // @Post(':botId/regenerate-token')
+  // async regenerateToken(
+  //   @CurrentUser('sub') userId: string,
+  //   @Param('botId') botId: string,
+  // ) {
+  //   await this.assertBotOwner(botId, userId);
+  //   const result = await this.botService.generateAccessToken(botId);
+  //   return { accessToken: result.accessToken };
+  // }
 
   /**
    * Revoke a bot's access token.
    * Only the bot owner can revoke the token.
    */
-  @Delete(':botId/revoke-token')
-  async revokeToken(
-    @CurrentUser('sub') userId: string,
-    @Param('botId') botId: string,
-  ) {
-    await this.assertBotOwner(botId, userId);
-    await this.botService.revokeAccessToken(botId);
-    return { success: true };
-  }
+  // @Delete(':botId/revoke-token')
+  // async revokeToken(
+  //   @CurrentUser('sub') userId: string,
+  //   @Param('botId') botId: string,
+  // ) {
+  //   await this.assertBotOwner(botId, userId);
+  //   await this.botService.revokeAccessToken(botId);
+  //   return { success: true };
+  // }
 
   /**
    * Update a bot's webhook URL.
    * Pass null to remove the webhook.
    * Only the bot owner can update the webhook.
    */
-  @Patch(':botId/webhook')
-  async updateWebhookUrl(
-    @CurrentUser('sub') userId: string,
-    @Param('botId') botId: string,
-    @Body() dto: UpdateWebhookDto,
-  ) {
-    await this.assertBotOwner(botId, userId);
-    await this.botService.updateWebhook(
-      botId,
-      dto.webhookUrl ?? null,
-      dto.webhookHeaders,
-    );
-    return { success: true };
-  }
+  // @Patch(':botId/webhook')
+  // async updateWebhookUrl(
+  //   @CurrentUser('sub') userId: string,
+  //   @Param('botId') botId: string,
+  //   @Body() dto: UpdateWebhookDto,
+  // ) {
+  //   await this.assertBotOwner(botId, userId);
+  //   await this.botService.updateWebhook(
+  //     botId,
+  //     dto.webhookUrl ?? null,
+  //     dto.webhookHeaders,
+  //   );
+  //   return { success: true };
+  // }
 
   /**
    * Verify the current user is the owner of the bot.
