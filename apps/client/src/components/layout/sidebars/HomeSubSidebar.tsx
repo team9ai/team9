@@ -366,6 +366,7 @@ export function HomeSubSidebar() {
       avatarUrl: otherUser?.avatarUrl,
       status: otherUser?.status || ("offline" as const),
       unreadCount: channel.unreadCount || 0,
+      isBot: otherUser?.userType === "bot",
     };
   });
 
@@ -567,6 +568,7 @@ export function HomeSubSidebar() {
                       unreadCount={dm.unreadCount}
                       channelId={dm.channelId}
                       avatarSize="sm"
+                      isBot={dm.isBot}
                     />
                   ))
                 )}

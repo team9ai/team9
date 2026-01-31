@@ -15,6 +15,7 @@ export interface IMUser {
   status: UserStatus;
   lastSeenAt?: string;
   isActive: boolean;
+  userType?: "human" | "bot" | "system";
   createdAt: string;
   updatedAt: string;
 }
@@ -44,6 +45,7 @@ export interface ChannelWithUnread extends Channel {
     displayName?: string;
     avatarUrl?: string;
     status: UserStatus;
+    userType?: "human" | "bot" | "system";
   };
 }
 

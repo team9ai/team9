@@ -29,6 +29,8 @@ export interface UserListItemProps {
   disabled?: boolean;
   /** Avatar size: 'sm' (6) or 'default' (8) */
   avatarSize?: "sm" | "default";
+  /** Whether this user is a bot */
+  isBot?: boolean;
 }
 
 /**
@@ -48,6 +50,7 @@ export function UserListItem({
   onClick,
   disabled = false,
   avatarSize = "default",
+  isBot = false,
 }: UserListItemProps) {
   const avatarSizeClass = avatarSize === "sm" ? "w-6 h-6" : "w-8 h-8";
   const avatarTextClass = avatarSize === "sm" ? "text-xs" : "text-sm";
@@ -67,6 +70,7 @@ export function UserListItem({
       <div className="relative">
         <Avatar className={avatarSizeClass}>
           {avatarUrl && <AvatarImage src={avatarUrl} alt={name} />}
+          {isBot && !avatarUrl && <AvatarImage src="/bot.webp" alt={name} />}
           <AvatarFallback
             className={cn("bg-accent text-accent-foreground", avatarTextClass)}
           >

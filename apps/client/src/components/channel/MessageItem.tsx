@@ -6,7 +6,7 @@ import {
   RotateCcw,
   X,
 } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MessageContent } from "./MessageContent";
 import { MessageAttachments } from "./MessageAttachments";
 import { MessageContextMenu } from "./MessageContextMenu";
@@ -132,6 +132,12 @@ export function MessageItem({
       )}
     >
       <Avatar className={cn("shrink-0", compact ? "w-8 h-8" : "w-9 h-9")}>
+        {message.sender?.avatarUrl && (
+          <AvatarImage src={message.sender.avatarUrl} alt={senderName} />
+        )}
+        {message.sender?.userType === "bot" && !message.sender?.avatarUrl && (
+          <AvatarImage src="/bot.webp" alt={senderName} />
+        )}
         <AvatarFallback
           className={cn(
             "bg-primary text-primary-foreground",

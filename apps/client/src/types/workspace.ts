@@ -78,6 +78,7 @@ export interface WorkspaceMember {
   avatarUrl: string | null;
   role: "owner" | "admin" | "member" | "guest";
   status: "online" | "offline" | "away" | "busy";
+  userType?: "human" | "bot" | "system";
   joinedAt: string;
   invitedBy?: string;
   lastSeenAt: string | null;

@@ -55,6 +55,7 @@ export function MessagesSubSidebar() {
         avatarUrl: otherUser?.avatarUrl,
         status: otherUser?.status || ("offline" as const),
         unreadCount: channel.unreadCount || 0,
+        isBot: otherUser?.userType === "bot",
       };
     });
   }, [directChannels]);
@@ -125,6 +126,7 @@ export function MessagesSubSidebar() {
                     unreadCount={dm.unreadCount}
                     channelId={dm.channelId}
                     linkPrefix="/messages"
+                    isBot={dm.isBot}
                   />
                 ))}
 
@@ -149,6 +151,7 @@ export function MessagesSubSidebar() {
                         }
                         onClick={() => handleMemberClick(member.userId)}
                         disabled={createDirectChannel.isPending}
+                        isBot={member.userType === "bot"}
                       />
                     );
                   })}
