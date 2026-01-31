@@ -181,7 +181,7 @@ export class BotService implements OnModuleInit {
     } = options;
 
     // Generate a placeholder email if not provided
-    const botEmail = email || `${username}+bot@team9.local`;
+    const botEmail = email || `${username}_bot@team9.local`;
     const passwordHash = password ? await bcrypt.hash(password, 10) : undefined;
 
     // Create shadow user in im_users
