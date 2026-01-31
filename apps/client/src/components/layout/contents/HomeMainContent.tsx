@@ -158,7 +158,7 @@ export function HomeMainContent() {
             {/* Right Column */}
             <div className="flex-1 grid grid-cols-2 gap-6 auto-rows-min">
               <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
-                <CardContent className="p-5">
+                <CardContent className="p-5 flex flex-col h-full">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
                       <Bot size={16} className="text-primary" />
@@ -167,14 +167,18 @@ export function HomeMainContent() {
                       {t("chatWithClawdbot")}
                     </h3>
                   </div>
-                  <div className="flex items-center justify-center gap-3 mb-5">
-                    <div className="w-11 h-11 rounded-full bg-linear-to-br from-rose-300 to-rose-400 shadow-sm" />
+                  <div className="flex items-center justify-center gap-3 mb-4">
+                    <img
+                      src="/bot.webp"
+                      alt="Clawdbot"
+                      className="w-11 h-11 rounded-full shadow-sm shrink-0"
+                    />
                     <div className="relative border border-border rounded-xl px-3.5 py-2 text-sm text-muted-foreground bg-background shadow-sm">
                       HI its Clawdbot here!
                       <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rotate-45 border-l border-b border-border bg-background" />
                     </div>
                   </div>
-                  <div className="text-center">
+                  <div className="mt-auto text-center">
                     <Button
                       size="sm"
                       className="bg-info hover:bg-info/90 text-primary-foreground rounded-lg px-6 cursor-pointer"
@@ -187,7 +191,7 @@ export function HomeMainContent() {
               </Card>
 
               <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
-                <CardContent className="p-5 text-center">
+                <CardContent className="p-5 flex flex-col h-full">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-8 h-8 rounded-lg bg-success/10 flex items-center justify-center">
                       <UserPlus size={16} className="text-success" />
@@ -201,20 +205,24 @@ export function HomeMainContent() {
                       {inviteUrl ?? t("common:loading")}
                     </span>
                   </div>
-                  <Button
-                    size="sm"
-                    className="bg-info hover:bg-info/90 text-primary-foreground rounded-lg px-6 cursor-pointer"
-                    disabled={!inviteUrl}
-                    onClick={handleCopyLink}
-                  >
-                    {copied ? t("navigation:copied") : t("navigation:copyLink")}
-                  </Button>
+                  <div className="mt-auto text-center">
+                    <Button
+                      size="sm"
+                      className="bg-info hover:bg-info/90 text-primary-foreground rounded-lg px-6 cursor-pointer"
+                      disabled={!inviteUrl}
+                      onClick={handleCopyLink}
+                    >
+                      {copied
+                        ? t("navigation:copied")
+                        : t("navigation:copyLink")}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
 
               <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
-                <CardContent className="p-5 text-center flex flex-col items-center justify-center h-full">
-                  <div className="flex items-center gap-2 mb-5">
+                <CardContent className="p-5 flex flex-col h-full">
+                  <div className="flex items-center gap-2 mb-4">
                     <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
                       <Hash size={16} className="text-accent" />
                     </div>
@@ -222,20 +230,64 @@ export function HomeMainContent() {
                       {t("navigation:createFirstChannel")}
                     </h3>
                   </div>
-                  <div className="h-8"></div>
-                  <Button
-                    size="sm"
-                    className="bg-info hover:bg-info/90 text-primary-foreground rounded-lg px-6  cursor-pointer"
-                    onClick={() => setIsCreateChannelOpen(true)}
-                  >
-                    {t("navigation:createChannel")}
-                  </Button>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {t("navigation:createChannelDescription")}
+                  </p>
+                  <div className="mt-auto text-center">
+                    <Button
+                      size="sm"
+                      className="bg-info hover:bg-info/90 text-primary-foreground rounded-lg px-6 cursor-pointer"
+                      onClick={() => setIsCreateChannelOpen(true)}
+                    >
+                      {t("navigation:createChannel")}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
 
               <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-5 flex flex-col h-full">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
+                      <MessageSquare size={16} className="text-accent" />
+                    </div>
+                    <h3 className="font-semibold text-base">
+                      {t("navigation:joinBetaFeedback")}
+                    </h3>
+                  </div>
+                  <div className="flex items-center justify-center mb-4">
+                    <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
+                      <svg
+                        width="28"
+                        height="28"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        className="text-accent"
+                      >
+                        <path
+                          d="M19.27 5.33C17.94 4.71 16.5 4.26 15 4a.09.09 0 0 0-.07.03c-.18.33-.39.76-.53 1.09a16.09 16.09 0 0 0-4.8 0c-.14-.34-.36-.76-.54-1.09c-.01-.02-.04-.03-.07-.03c-1.5.26-2.93.71-4.27 1.33c-.01 0-.02.01-.03.02c-2.72 4.07-3.47 8.03-3.1 11.95c0 .02.01.04.03.05c1.8 1.32 3.53 2.12 5.24 2.65c.03.01.06 0 .07-.02c.4-.55.76-1.13 1.07-1.74c.02-.04 0-.08-.04-.09c-.57-.22-1.11-.48-1.64-.78c-.04-.02-.04-.08-.01-.11c.11-.08.22-.17.33-.25c.02-.02.05-.02.07-.01c3.44 1.57 7.15 1.57 10.55 0c.02-.01.05-.01.07.01c.11.09.22.17.33.26c.04.03.04.09-.01.11c-.52.31-1.07.56-1.64.78c-.04.01-.05.06-.04.09c.32.61.68 1.19 1.07 1.74c.03.01.06.02.09.01c1.72-.53 3.45-1.33 5.25-2.65c.02-.01.03-.03.03-.05c.44-4.53-.73-8.46-3.1-11.95c-.01-.01-.02-.02-.04-.02zM8.52 14.91c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12c0 1.17-.84 2.12-1.89 2.12zm6.97 0c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12c0 1.17-.83 2.12-1.89 2.12z"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="mt-auto text-center">
+                    <Button
+                      size="sm"
+                      className="bg-info hover:bg-info/90 text-primary-foreground rounded-lg px-6 cursor-pointer"
+                      onClick={() =>
+                        window.open("https://discord.gg/edMATqpU", "_blank")
+                      }
+                    >
+                      {t("navigation:joinDiscord")}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="col-span-2 border-0 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-5">
-                  <div className="flex items-center gap-2 mb-5">
+                  <div className="flex items-center gap-2 mb-4">
                     <div className="w-8 h-8 rounded-lg bg-info/10 flex items-center justify-center">
                       <Map size={16} className="text-info" />
                     </div>
@@ -243,7 +295,7 @@ export function HomeMainContent() {
                       {t("weeklyRoadmap")}
                     </h3>
                   </div>
-                  <ul className="space-y-3">
+                  <ul className="grid grid-cols-2 gap-x-6 gap-y-3">
                     <li className="flex items-start gap-2.5">
                       <span className="w-1.5 h-1.5 rounded-full bg-info shrink-0 mt-2" />
                       <span className="text-sm text-foreground">
@@ -269,42 +321,6 @@ export function HomeMainContent() {
                       </span>
                     </li>
                   </ul>
-                </CardContent>
-              </Card>
-
-              <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
-                <CardContent className="p-5 text-center">
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
-                      <MessageSquare size={16} className="text-accent" />
-                    </div>
-                    <h3 className="font-semibold text-base">
-                      {t("navigation:joinBetaFeedback")}
-                    </h3>
-                  </div>
-                  <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center mx-auto mb-3">
-                    <svg
-                      width="28"
-                      height="28"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      className="text-accent"
-                    >
-                      <path
-                        d="M19.27 5.33C17.94 4.71 16.5 4.26 15 4a.09.09 0 0 0-.07.03c-.18.33-.39.76-.53 1.09a16.09 16.09 0 0 0-4.8 0c-.14-.34-.36-.76-.54-1.09c-.01-.02-.04-.03-.07-.03c-1.5.26-2.93.71-4.27 1.33c-.01 0-.02.01-.03.02c-2.72 4.07-3.47 8.03-3.1 11.95c0 .02.01.04.03.05c1.8 1.32 3.53 2.12 5.24 2.65c.03.01.06 0 .07-.02c.4-.55.76-1.13 1.07-1.74c.02-.04 0-.08-.04-.09c-.57-.22-1.11-.48-1.64-.78c-.04-.02-.04-.08-.01-.11c.11-.08.22-.17.33-.25c.02-.02.05-.02.07-.01c3.44 1.57 7.15 1.57 10.55 0c.02-.01.05-.01.07.01c.11.09.22.17.33.26c.04.03.04.09-.01.11c-.52.31-1.07.56-1.64.78c-.04.01-.05.06-.04.09c.32.61.68 1.19 1.07 1.74c.03.01.06.02.09.01c1.72-.53 3.45-1.33 5.25-2.65c.02-.01.03-.03.03-.05c.44-4.53-.73-8.46-3.1-11.95c-.01-.01-.02-.02-.04-.02zM8.52 14.91c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12c0 1.17-.84 2.12-1.89 2.12zm6.97 0c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12c0 1.17-.83 2.12-1.89 2.12z"
-                        fill="currentColor"
-                      />
-                    </svg>
-                  </div>
-                  <Button
-                    size="sm"
-                    className="bg-info hover:bg-info/90 text-primary-foreground rounded-lg px-6 cursor-pointer"
-                    onClick={() =>
-                      window.open("https://discord.gg/edMATqpU", "_blank")
-                    }
-                  >
-                    {t("navigation:joinDiscord")}
-                  </Button>
                 </CardContent>
               </Card>
 
