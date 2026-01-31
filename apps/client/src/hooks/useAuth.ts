@@ -4,7 +4,12 @@ import api, {
   type RegisterRequest,
   type User,
 } from "@/services/api";
-import { appActions } from "@/stores";
+import {
+  appActions,
+  workspaceActions,
+  homeActions,
+  notificationActions,
+} from "@/stores";
 
 // Sync user data to Zustand store
 const syncUserToStore = (user: User | null) => {
@@ -62,7 +67,15 @@ export const useLogout = () => {
     onSuccess: () => {
       // Tokens are already removed in api.auth.logout
       queryClient.clear();
-      syncUserToStore(null);
+
+      // Reset all Zustand stores to prevent stale data on next login
+      appActions.reset();
+      workspaceActions.reset();
+      homeActions.reset();
+      notificationActions.reset();
+
+      // Clear sessionStorage flags
+      sessionStorage.removeItem("app_initialized");
     },
   });
 };

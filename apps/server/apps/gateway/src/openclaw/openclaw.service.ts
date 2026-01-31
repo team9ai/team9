@@ -103,7 +103,7 @@ export class OpenclawService {
       subdomain,
       env: customEnv,
     };
-
+    console.log('Creating OpenClaw instance with body:', body);
     const createResponse = await this.request<CreateInstanceResponse>(
       'POST',
       '/api/instances',
