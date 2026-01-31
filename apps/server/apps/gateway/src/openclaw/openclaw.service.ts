@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { env } from '@team9/shared';
-import type { BotInfo } from '../bot/bot.service.js';
+import { BotService, type BotInfo } from '../bot/bot.service.js';
 
 // ── Request / Response types ───────────────────────────────────────────
 
 export interface CreateInstanceRequest {
-  user_id: string;
+  id: string;
   subdomain?: string;
   env?: Record<string, string>;
 }
@@ -38,6 +38,8 @@ export interface CreateInstanceResponse {
 export class OpenclawService {
   private readonly logger = new Logger(OpenclawService.name);
 
+  constructor(private readonly botService: BotService) {}
+
   private get apiUrl(): string | undefined {
     return env.OPENCLAW_API_URL;
   }
@@ -59,7 +61,15 @@ export class OpenclawService {
   @OnEvent('bot.created')
   async handleBotCreated(botInfo: BotInfo): Promise<void> {
     try {
-      const result = await this.createInstance(botInfo.userId, botInfo.botId);
+      // Generate an access token so the external bot service can call IM APIs
+      const tokenResult = await this.botService.generateAccessToken(
+        botInfo.botId,
+      );
+
+      const result = await this.createInstance(botInfo.userId, botInfo.botId, {
+        pairing_gateway_token: tokenResult.accessToken,
+      });
+
       if (result) {
         this.logger.log(
           `OpenClaw instance created for bot ${botInfo.userId}: ${result.access_url}`,
@@ -79,7 +89,7 @@ export class OpenclawService {
    * Create a new compute instance for the given user.
    */
   async createInstance(
-    userId: string,
+    id: string,
     subdomain?: string,
     customEnv?: Record<string, string>,
   ): Promise<CreateInstanceResponse | null> {
@@ -89,12 +99,18 @@ export class OpenclawService {
     }
 
     const body: CreateInstanceRequest = {
-      user_id: userId,
-      ...(subdomain && { subdomain }),
-      ...(customEnv && { env: customEnv }),
+      id,
+      subdomain,
+      env: customEnv,
     };
 
-    return this.request<CreateInstanceResponse>('POST', '/api/instances', body);
+    const createResponse = await this.request<CreateInstanceResponse>(
+      'POST',
+      '/api/instances',
+      body,
+    );
+
+    return createResponse;
   }
 
   /**
