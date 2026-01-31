@@ -322,7 +322,10 @@ export class MessagesService {
       .orderBy(desc(schema.messages.createdAt))
       .limit(limit);
 
-    if (before) {
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    if (before && uuidRegex.test(before)) {
       const [beforeMessage] = await this.db
         .select({ createdAt: schema.messages.createdAt })
         .from(schema.messages)

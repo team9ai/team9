@@ -13,6 +13,7 @@ import type {
   MessageSendStatus,
 } from "@/types/im";
 import { useSelectedWorkspaceId } from "@/stores";
+import { isTemporaryId } from "@/lib/utils";
 import { useThreadStore } from "./useThread";
 import { useThreadScrollState } from "./useThreadScrollState";
 
@@ -31,7 +32,12 @@ export function useMessages(channelId: string | undefined) {
       }),
     getNextPageParam: (lastPage) => {
       if (lastPage.length === 0) return undefined;
-      return lastPage[lastPage.length - 1].id;
+      for (let i = lastPage.length - 1; i >= 0; i--) {
+        if (!isTemporaryId(lastPage[i].id)) {
+          return lastPage[i].id;
+        }
+      }
+      return undefined;
     },
     initialPageParam: undefined as string | undefined,
     enabled: !!channelId,
