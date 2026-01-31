@@ -109,14 +109,6 @@ export class WebsocketGateway
   // ==================== Connection Lifecycle ====================
 
   async handleConnection(client: Socket) {
-    this.logger.log(`[WS] Client attempting connection: ${client.id}`);
-    this.logger.debug(
-      `[WS] Handshake auth: ${JSON.stringify(client.handshake.auth)}`,
-    );
-    this.logger.debug(
-      `[WS] Headers: ${JSON.stringify(client.handshake.headers)}`,
-    );
-
     try {
       const token =
         client.handshake.auth?.token ||

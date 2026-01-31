@@ -49,6 +49,11 @@ export const bots = pgTable(
     // Webhook integration
     webhookUrl: text('webhook_url'),
 
+    // Custom headers sent with webhook requests (e.g. { "Authorization": "Bearer xxx" })
+    webhookHeaders: jsonb('webhook_headers')
+      .$type<Record<string, string>>()
+      .default({}),
+
     // Access token for API authentication (hashed)
     accessToken: text('access_token'),
 

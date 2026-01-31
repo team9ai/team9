@@ -1,6 +1,13 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
 import { v7 as uuidv7 } from 'uuid';
-import { DATABASE_CONNECTION, eq, and, isNull, sql } from '@team9/database';
+import {
+  DATABASE_CONNECTION,
+  eq,
+  and,
+  isNull,
+  inArray,
+  sql,
+} from '@team9/database';
 import type { PostgresJsDatabase } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import { RabbitMQEventService } from '@team9/rabbitmq';
@@ -56,10 +63,13 @@ export class PostBroadcastService {
       // 2. Update unread counts for ALL recipients
       await this.updateUnreadCounts(channelId, recipientIds);
 
-      // 6. Process notification tasks (mentions, replies, DMs)
+      // 3. Process notification tasks (mentions, replies, DMs)
       await this.processNotificationTasks(msgId, channelId, senderId);
 
-      // 7. Mark Outbox as completed
+      // 4. Push to bot webhooks (fire-and-forget, errors logged but not thrown)
+      await this.pushToBotWebhooks(msgId, senderId, memberIds);
+
+      // 5. Mark Outbox as completed
       await this.markOutboxCompleted(msgId);
 
       this.logger.debug(
@@ -310,5 +320,132 @@ export class PostBroadcastService {
     }
 
     return { message, sender, channel, mentions, parentMessage };
+  }
+
+  // ── Bot Webhook Push ─────────────────────────────────────────────
+
+  /**
+   * Push message to bot webhooks for bots in the channel.
+   * Fire-and-forget: failures are logged but do not block message delivery.
+   */
+  private async pushToBotWebhooks(
+    msgId: string,
+    senderId: string,
+    memberIds: string[],
+  ): Promise<void> {
+    try {
+      if (memberIds.length === 0) return;
+
+      // Find bot members in this channel that have webhookUrls configured
+      const botMembers = await this.db
+        .select({
+          userId: schema.bots.userId,
+          webhookUrl: schema.bots.webhookUrl,
+          webhookHeaders: schema.bots.webhookHeaders,
+          botId: schema.bots.id,
+        })
+        .from(schema.bots)
+        .innerJoin(schema.users, eq(schema.bots.userId, schema.users.id))
+        .where(
+          and(
+            inArray(schema.bots.userId, memberIds),
+            eq(schema.bots.isActive, true),
+            eq(schema.users.userType, 'bot'),
+            sql`${schema.bots.webhookUrl} IS NOT NULL`,
+          ),
+        );
+
+      if (botMembers.length === 0) return;
+
+      // Skip bots that are the sender (bot shouldn't webhook itself)
+      const targetBots = botMembers.filter((b) => b.userId !== senderId);
+      if (targetBots.length === 0) return;
+
+      // Get message details for webhook payload
+      const messageData = await this.getMessageWithContext(msgId);
+      if (!messageData) return;
+
+      const { message, sender, channel } = messageData;
+
+      const webhookPayload = {
+        event: 'message.created',
+        timestamp: new Date().toISOString(),
+        data: {
+          messageId: message.id,
+          channelId: message.channelId,
+          senderId: message.senderId,
+          content: message.content,
+          type: message.type,
+          parentId: message.parentId,
+          createdAt: message.createdAt,
+          sender: {
+            id: sender.id,
+            username: sender.username,
+            displayName: sender.displayName,
+          },
+          channel: {
+            id: channel.id,
+            name: channel.name,
+            type: channel.type,
+          },
+        },
+      };
+
+      // Fire-and-forget HTTP calls to each bot's webhook
+      for (const bot of targetBots) {
+        const customHeaders =
+          bot.webhookHeaders && typeof bot.webhookHeaders === 'object'
+            ? (bot.webhookHeaders as Record<string, string>)
+            : {};
+        this.deliverWebhook(
+          bot.webhookUrl!,
+          bot.botId,
+          webhookPayload,
+          customHeaders,
+        ).catch((err) => {
+          this.logger.warn(
+            `Webhook delivery failed for bot ${bot.botId}: ${err.message}`,
+          );
+        });
+      }
+    } catch (error) {
+      this.logger.warn(`Bot webhook push failed: ${error}`);
+      // Don't throw - webhook failures should never block message delivery
+    }
+  }
+
+  /**
+   * Deliver a webhook payload to a bot's URL with a timeout.
+   */
+  private async deliverWebhook(
+    url: string,
+    botId: string,
+    payload: unknown,
+    customHeaders: Record<string, string> = {},
+  ): Promise<void> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Team9-Event': 'message.created',
+          'X-Team9-Bot-Id': botId,
+          ...customHeaders,
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        this.logger.warn(
+          `Webhook returned ${response.status} for bot ${botId}`,
+        );
+      }
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 }

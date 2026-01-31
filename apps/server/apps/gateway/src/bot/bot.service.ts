@@ -1,9 +1,13 @@
 import { Injectable, Logger, Inject, OnModuleInit } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { v7 as uuidv7 } from 'uuid';
+import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 import {
   DATABASE_CONNECTION,
   eq,
+  and,
+  like,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -29,6 +33,7 @@ export interface BotInfo {
   displayName: string | null;
   email: string;
   type: string;
+  ownerId: string | null;
   description: string | null;
   capabilities: BotCapabilities | null;
   isActive: boolean;
@@ -52,6 +57,7 @@ export class BotService implements OnModuleInit {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -208,17 +214,22 @@ export class BotService implements OnModuleInit {
       })
       .returning();
 
-    return {
+    const botInfo: BotInfo = {
       userId: newUser.id,
       botId: newBot.id,
       username: newUser.username,
       displayName: newUser.displayName,
       email: newUser.email,
       type: newBot.type,
+      ownerId: newBot.ownerId,
       description: newBot.description,
       capabilities: newBot.capabilities,
       isActive: newBot.isActive,
     };
+
+    this.eventEmitter.emit('bot.created', botInfo);
+
+    return botInfo;
   }
 
   // ── System bot helpers ─────────────────────────────────────────────
@@ -274,6 +285,7 @@ export class BotService implements OnModuleInit {
         displayName: schema.users.displayName,
         email: schema.users.email,
         type: schema.bots.type,
+        ownerId: schema.bots.ownerId,
         description: schema.bots.description,
         capabilities: schema.bots.capabilities,
         isActive: schema.bots.isActive,
@@ -338,4 +350,152 @@ export class BotService implements OnModuleInit {
   async getBotProfile(): Promise<BotInfo | null> {
     return this.getSystemBotProfile();
   }
+
+  // ── Access Token Management ──────────────────────────────────────
+
+  /**
+   * Generate a new access token for a bot.
+   * The raw token is returned only once and cannot be retrieved later.
+   *
+   * Token format: `t9bot_` + 96 hex chars (48 random bytes)
+   * Storage format: `{fingerprint}:{bcryptHash}` in im_bots.accessToken
+   */
+  async generateAccessToken(botId: string): Promise<BotTokenResult> {
+    const [bot] = await this.db
+      .select({
+        id: schema.bots.id,
+        userId: schema.bots.userId,
+      })
+      .from(schema.bots)
+      .where(eq(schema.bots.id, botId))
+      .limit(1);
+
+    if (!bot) {
+      throw new Error(`Bot not found: ${botId}`);
+    }
+
+    const rawHex = crypto.randomBytes(48).toString('hex');
+    const rawToken = `t9bot_${rawHex}`;
+    const fingerprint = rawHex.slice(0, 8);
+    const hash = await bcrypt.hash(rawHex, 10);
+
+    await this.db
+      .update(schema.bots)
+      .set({
+        accessToken: `${fingerprint}:${hash}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.bots.id, botId));
+
+    return { botId, userId: bot.userId, accessToken: rawToken };
+  }
+
+  /**
+   * Validate a bot access token and return the associated user info.
+   * Returns null if the token is invalid or the bot is inactive.
+   */
+  async validateAccessToken(
+    rawToken: string,
+  ): Promise<{ userId: string; email: string; username: string } | null> {
+    // Strip the t9bot_ prefix to get the raw hex
+    const rawHex = rawToken.startsWith('t9bot_') ? rawToken.slice(6) : rawToken;
+
+    if (rawHex.length === 0) return null;
+
+    const fingerprint = rawHex.slice(0, 8);
+
+    // Use fingerprint for quick lookup instead of scanning all bots
+    const rows = await this.db
+      .select({
+        botId: schema.bots.id,
+        userId: schema.bots.userId,
+        accessToken: schema.bots.accessToken,
+        email: schema.users.email,
+        username: schema.users.username,
+      })
+      .from(schema.bots)
+      .innerJoin(schema.users, eq(schema.bots.userId, schema.users.id))
+      .where(
+        and(
+          like(schema.bots.accessToken, `${fingerprint}:%`),
+          eq(schema.bots.isActive, true),
+        ),
+      );
+
+    for (const row of rows) {
+      const storedHash = row.accessToken!.slice(fingerprint.length + 1);
+      const isValid = await bcrypt.compare(rawHex, storedHash);
+      if (isValid) {
+        return {
+          userId: row.userId,
+          email: row.email,
+          username: row.username,
+        };
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Revoke a bot's access token.
+   */
+  async revokeAccessToken(botId: string): Promise<void> {
+    await this.db
+      .update(schema.bots)
+      .set({ accessToken: null, updatedAt: new Date() })
+      .where(eq(schema.bots.id, botId));
+  }
+
+  /**
+   * Update a bot's webhook configuration.
+   */
+  async updateWebhook(
+    botId: string,
+    webhookUrl: string | null,
+    webhookHeaders?: Record<string, string> | null,
+  ): Promise<void> {
+    const update: Record<string, unknown> = {
+      webhookUrl,
+      updatedAt: new Date(),
+    };
+    if (webhookHeaders !== undefined) {
+      update.webhookHeaders = webhookHeaders ?? {};
+    }
+    await this.db
+      .update(schema.bots)
+      .set(update)
+      .where(eq(schema.bots.id, botId));
+  }
+
+  /**
+   * Get a bot by its botId (from im_bots table).
+   */
+  async getBotById(botId: string): Promise<BotInfo | null> {
+    const [row] = await this.db
+      .select({
+        userId: schema.users.id,
+        botId: schema.bots.id,
+        username: schema.users.username,
+        displayName: schema.users.displayName,
+        email: schema.users.email,
+        type: schema.bots.type,
+        ownerId: schema.bots.ownerId,
+        description: schema.bots.description,
+        capabilities: schema.bots.capabilities,
+        isActive: schema.bots.isActive,
+      })
+      .from(schema.bots)
+      .innerJoin(schema.users, eq(schema.bots.userId, schema.users.id))
+      .where(eq(schema.bots.id, botId))
+      .limit(1);
+
+    return row || null;
+  }
+}
+
+export interface BotTokenResult {
+  botId: string;
+  userId: string;
+  accessToken: string;
 }

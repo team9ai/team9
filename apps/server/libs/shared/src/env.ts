@@ -157,6 +157,14 @@ export const env = {
     return process.env.SYSTEM_BOT_ENABLED === 'true';
   },
 
+  // OpenClaw Hive (optional)
+  get OPENCLAW_API_URL() {
+    return process.env.OPENCLAW_API_URL; // e.g. http://localhost:3000
+  },
+  get OPENCLAW_AUTH_TOKEN() {
+    return process.env.OPENCLAW_AUTH_TOKEN;
+  },
+
   // Email (Resend)
   get RESEND_API_KEY() {
     return process.env.RESEND_API_KEY; // Optional - email disabled if not set

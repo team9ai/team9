@@ -27,7 +27,8 @@ import { TenantMiddleware } from './common/middleware/tenant.middleware.js';
 import { FileModule } from './file/file.module.js';
 import { NotificationModule } from './notification/notification.module.js';
 import { SearchModule } from './search/search.module.js';
-import { BotModule } from './bot/index.js';
+import { BotModule } from './bot/bot.module.js';
+import { OpenclawModule } from './openclaw/openclaw.module.js';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { BotModule } from './bot/index.js';
     RabbitmqModule,
     StorageModule,
     BotModule,
+    OpenclawModule,
     AuthModule,
     ClusterModule,
     ImModule,
