@@ -8,6 +8,7 @@ import {
   eq,
   and,
   like,
+  isNull,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -68,7 +69,7 @@ export class BotService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     if (env.SYSTEM_BOT_ENABLED) {
-      await this.initializeSystemBot();
+      // await this.initializeSystemBot();
     } else {
       this.logger.log('System bot is disabled (SYSTEM_BOT_ENABLED != true)');
     }
@@ -262,6 +263,11 @@ export class BotService implements OnModuleInit {
         return;
       }
 
+      // Wait for the user's workspace to be created (may be handled by another
+      // event listener concurrently), then retrieve its tenantId so the DM
+      // channel is associated with the correct workspace.
+      const tenantId = await this.waitForUserTenant(user.id);
+
       const bot = await this.createBot({
         username: `${user.username}_bot`,
         displayName: `${event.displayName}'s Bot`,
@@ -272,10 +278,14 @@ export class BotService implements OnModuleInit {
       });
 
       // Create a direct channel so the user can see the bot in their DM list
-      await this.channelsService.createDirectChannel(user.id, bot.userId);
+      await this.channelsService.createDirectChannel(
+        user.id,
+        bot.userId,
+        tenantId,
+      );
 
       this.logger.log(
-        `Auto-created bot ${bot.botId} with DM channel for user ${user.username} (${user.id})`,
+        `Auto-created bot ${bot.botId} with DM channel (tenant=${tenantId}) for user ${user.username} (${user.id})`,
       );
     } catch (error) {
       this.logger.error(
@@ -283,6 +293,40 @@ export class BotService implements OnModuleInit {
         error,
       );
     }
+  }
+
+  /**
+   * Poll for the user's tenant membership. The workspace may be created by
+   * another concurrent event listener, so we retry a few times.
+   */
+  private async waitForUserTenant(
+    userId: string,
+    maxRetries = 10,
+    delayMs = 300,
+  ): Promise<string | undefined> {
+    for (let i = 0; i < maxRetries; i++) {
+      const [membership] = await this.db
+        .select({ tenantId: schema.tenantMembers.tenantId })
+        .from(schema.tenantMembers)
+        .where(
+          and(
+            eq(schema.tenantMembers.userId, userId),
+            isNull(schema.tenantMembers.leftAt),
+          ),
+        )
+        .limit(1);
+
+      if (membership) {
+        return membership.tenantId;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+
+    this.logger.warn(
+      `No tenant found for user ${userId} after ${maxRetries} retries, creating DM channel without tenantId`,
+    );
+    return undefined;
   }
 
   // ── System bot helpers ─────────────────────────────────────────────
