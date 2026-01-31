@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Hash, Lock, Info, Users, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChannelDetailsModal } from "./ChannelDetailsModal";
 import { AddMemberDialog } from "./AddMemberDialog";
 import { useChannelMembers } from "@/hooks/useChannels";
@@ -54,6 +54,12 @@ export function ChannelHeader({
           {isDirect && otherUser ? (
             <div className="relative">
               <Avatar className="w-8 h-8">
+                {otherUser.avatarUrl && (
+                  <AvatarImage src={otherUser.avatarUrl} alt={displayName} />
+                )}
+                {otherUser.userType === "bot" && !otherUser.avatarUrl && (
+                  <AvatarImage src="/bot.webp" alt={displayName} />
+                )}
                 <AvatarFallback className="bg-accent text-accent-foreground text-sm">
                   {getInitials(displayName)}
                 </AvatarFallback>
