@@ -145,6 +145,32 @@ async function migrateAllBots() {
         botId = existingBot.id;
         botUserId = existingBot.userId;
 
+        // Ensure bot is a workspace member (for adding to group channels)
+        if (tenantId) {
+          const [existingTenantMember] = await db
+            .select({ id: schema.tenantMembers.id })
+            .from(schema.tenantMembers)
+            .where(
+              and(
+                eq(schema.tenantMembers.tenantId, tenantId),
+                eq(schema.tenantMembers.userId, botUserId),
+                isNull(schema.tenantMembers.leftAt),
+              ),
+            )
+            .limit(1);
+
+          if (!existingTenantMember) {
+            await db.insert(schema.tenantMembers).values({
+              id: uuidv7(),
+              tenantId,
+              userId: botUserId,
+              role: 'member',
+              invitedBy: user.id,
+            });
+            console.log(`    Added bot to workspace`);
+          }
+        }
+
         // Check if bot already has OpenClaw instance (has access token)
         if (existingBot.accessToken) {
           console.log(`    Already has bot with token, skipping`);
@@ -200,7 +226,19 @@ async function migrateAllBots() {
         // 7. Create OpenClaw instance
         await createOpenClawInstance(botUserId, botId, accessToken);
 
-        // 8. Create direct channel
+        // 8. Add bot to workspace (for adding to group channels)
+        if (tenantId) {
+          await db.insert(schema.tenantMembers).values({
+            id: uuidv7(),
+            tenantId,
+            userId: botUserId,
+            role: 'member',
+            invitedBy: user.id,
+          });
+          console.log(`    Added bot to workspace`);
+        }
+
+        // 9. Create direct channel
         const channelId = uuidv7();
         await db.insert(schema.channels).values({
           id: channelId,
@@ -209,7 +247,7 @@ async function migrateAllBots() {
           createdBy: user.id,
         });
 
-        // 9. Add channel members
+        // 10. Add channel members
         await db.insert(schema.channelMembers).values([
           { id: uuidv7(), channelId, userId: user.id, role: 'member' },
           { id: uuidv7(), channelId, userId: botUserId, role: 'member' },

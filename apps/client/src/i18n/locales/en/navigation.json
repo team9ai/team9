@@ -74,5 +74,6 @@
   "replyLabel": "Reply",
   "threadReplyLabel": "Thread reply",
   "activityLabel": "Activity",
-  "userJoinedWorkspace": "{{displayName}} joined {{workspace}}"
+  "userJoinedWorkspace": "{{displayName}} joined {{workspace}}",
+  "openclawWarmingUp": "Your OpenClaw is doing some stretches - about 2 minutes to get ready (up to 10 if it's feeling lazy). Once it's warmed up, click {{name}}'s bot on the left to start chatting!"
 }

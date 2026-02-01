@@ -1,11 +1,11 @@
 import {
-  Sparkles,
   Map,
   Wrench,
   Bot,
   UserPlus,
   Hash,
   MessageSquare,
+  Loader2,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
@@ -18,7 +18,7 @@ import {
   useCreateInvitation,
   useWorkspaceInvitations,
 } from "@/hooks/useWorkspace";
-import { useSelectedWorkspaceId } from "@/stores";
+import { useSelectedWorkspaceId, useUser } from "@/stores";
 import { useChannelsByType } from "@/hooks/useChannels";
 import { CreateChannelDialog } from "@/components/dialog/CreateChannelDialog";
 
@@ -31,6 +31,16 @@ export function HomeMainContent() {
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
   const navigate = useNavigate();
   const { directChannels = [] } = useChannelsByType();
+  const user = useUser();
+
+  // Check if user registered within the last 10 minutes
+  const isNewUser = useMemo(() => {
+    if (!user?.createdAt) return false;
+    const createdAt = new Date(user.createdAt);
+    const now = new Date();
+    const tenMinutesInMs = 10 * 60 * 1000;
+    return now.getTime() - createdAt.getTime() < tenMinutesInMs;
+  }, [user?.createdAt]);
   const { data: invitations = [] } = useWorkspaceInvitations(
     workspaceId ?? undefined,
   );
@@ -104,6 +114,16 @@ export function HomeMainContent() {
               </p>
             </div>
           </div>
+
+          {/* OpenClaw Warm-up Notification */}
+          {isNewUser && (
+            <div className="mb-6 flex items-center gap-3 px-4 py-3 rounded-lg bg-info/10 border border-info/20">
+              <Loader2 size={18} className="text-info animate-spin shrink-0" />
+              <p className="text-sm text-foreground">
+                {t("openclawWarmingUp", { name: user?.name })}
+              </p>
+            </div>
+          )}
 
           {/* Two Column Layout */}
           <div className="flex gap-8">
