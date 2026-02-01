@@ -166,7 +166,7 @@ export function AddMemberDialog({
 
         {/* Members List */}
         <ScrollArea
-          className="flex-1 px-6"
+          className="flex-1 min-h-0 px-6"
           onScrollCapture={handleScroll}
           ref={scrollRef}
         >

@@ -277,6 +277,18 @@ export class BotService implements OnModuleInit {
         capabilities: { canSendMessages: true, canReadMessages: true },
       });
 
+      // Add bot to workspace so it can be added to group channels
+      if (tenantId) {
+        await this.db.insert(schema.tenantMembers).values({
+          id: uuidv7(),
+          tenantId,
+          userId: bot.userId,
+          role: 'member',
+          invitedBy: user.id,
+        });
+        this.logger.log(`Added bot ${bot.botId} to workspace ${tenantId}`);
+      }
+
       // Create a direct channel so the user can see the bot in their DM list
       await this.channelsService.createDirectChannel(
         user.id,

@@ -74,5 +74,6 @@
   "replyLabel": "回复",
   "threadReplyLabel": "消息列回复",
   "activityLabel": "活动",
-  "userJoinedWorkspace": "{{displayName}} 加入了 {{workspace}}"
+  "userJoinedWorkspace": "{{displayName}} 加入了 {{workspace}}",
+  "openclawWarmingUp": "您的 OpenClaw 正在做热身运动，大约2分钟就能上岗。准备好后，点击左侧的 {{name}}'s bot 开始唠嗑吧！"
 }

@@ -19,6 +19,7 @@ const syncUserToStore = (user: User | null) => {
       name: user.displayName || user.username,
       email: user.email,
       avatarUrl: user.avatarUrl,
+      createdAt: user.createdAt,
     });
   } else {
     appActions.setUser(null);
