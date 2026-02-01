@@ -62,7 +62,7 @@ export function HomeMainContent() {
 
   const handleStartChatWithBot = () => {
     const botChannel = directChannels.find(
-      (ch) => ch.otherUser?.username === "moltbot",
+      (ch) => ch.otherUser?.userType === "bot",
     );
     if (botChannel) {
       navigate({
