@@ -4,6 +4,7 @@ import { Users, Calendar, AlertCircle, CheckCircle2, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import workspaceApi from "@/services/api/workspace";
+import { workspaceActions } from "@/stores";
 import { useState, useEffect, useRef } from "react";
 
 export const Route = createFileRoute("/invite/$code")({
@@ -26,9 +27,9 @@ function InvitePage() {
 
   const acceptMutation = useMutation({
     mutationFn: () => workspaceApi.acceptInvitation(code),
-    onSuccess: async () => {
+    onSuccess: async (data) => {
+      workspaceActions.setSelectedWorkspaceId(data.workspace.id);
       await queryClient.invalidateQueries({ queryKey: ["user-workspaces"] });
-      await new Promise((resolve) => setTimeout(resolve, 100));
       navigate({ to: "/" });
     },
     onError: (error: any) => {

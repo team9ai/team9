@@ -5,6 +5,7 @@ import { useVerifyEmail } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
 import workspaceApi from "@/services/api/workspace";
+import { workspaceActions } from "@/stores";
 
 type VerifyEmailSearch = {
   token?: string;
@@ -50,7 +51,9 @@ function VerifyEmail() {
         const pendingInviteCode = localStorage.getItem("pending_invite_code");
         if (pendingInviteCode) {
           try {
-            await workspaceApi.acceptInvitation(pendingInviteCode);
+            const result =
+              await workspaceApi.acceptInvitation(pendingInviteCode);
+            workspaceActions.setSelectedWorkspaceId(result.workspace.id);
           } catch {
             // Fail silently — user can revisit the invite link later
           } finally {
