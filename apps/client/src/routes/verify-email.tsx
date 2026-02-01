@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useVerifyEmail } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
+import workspaceApi from "@/services/api/workspace";
 
 type VerifyEmailSearch = {
   token?: string;
@@ -44,6 +45,19 @@ function VerifyEmail() {
       try {
         await verifyEmail.mutateAsync(token);
         setStatus("success");
+
+        // Auto-accept pending invitation after successful verification
+        const pendingInviteCode = localStorage.getItem("pending_invite_code");
+        if (pendingInviteCode) {
+          try {
+            await workspaceApi.acceptInvitation(pendingInviteCode);
+          } catch {
+            // Fail silently — user can revisit the invite link later
+          } finally {
+            localStorage.removeItem("pending_invite_code");
+          }
+        }
+
         // Redirect to home after 3 seconds
         setTimeout(() => {
           navigate({ to: "/" });

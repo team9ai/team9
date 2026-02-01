@@ -35,6 +35,7 @@ function EmailQuickLinks() {
 
 type LoginSearch = {
   redirect?: string;
+  invite?: string;
 };
 
 function LoginPending() {
@@ -76,11 +77,18 @@ export const Route = createFileRoute("/login")({
   validateSearch: (search: Record<string, unknown>): LoginSearch => {
     return {
       redirect: (search.redirect as string) || "/",
+      invite: (search.invite as string) || undefined,
     };
   },
 });
 
-function LoginLinkSentView({ email }: { email: string }) {
+function LoginLinkSentView({
+  email,
+  invite,
+}: {
+  email: string;
+  invite?: string;
+}) {
   const { t } = useTranslation("auth");
   const login = useLogin();
   const [countdown, setCountdown] = useState(60);
@@ -143,6 +151,7 @@ function LoginLinkSentView({ email }: { email: string }) {
         <div className="text-center mt-6">
           <Link
             to="/register"
+            search={invite ? { invite } : {}}
             className="text-primary hover:underline font-medium"
           >
             {t("createAccount")}
@@ -161,20 +170,29 @@ function Login() {
   const [sentEmail, setSentEmail] = useState("");
 
   const navigate = useNavigate();
-  const { redirect } = Route.useSearch();
+  const { redirect, invite } = Route.useSearch();
   const login = useLogin();
   const { data: currentUser, isLoading } = useCurrentUser();
 
   // Redirect if already logged in
   useEffect(() => {
     if (currentUser && !isLoading) {
-      navigate({ to: redirect || "/" });
+      if (invite) {
+        navigate({ to: "/invite/$code", params: { code: invite } });
+      } else {
+        navigate({ to: redirect || "/" });
+      }
     }
-  }, [currentUser, isLoading, navigate, redirect]);
+  }, [currentUser, isLoading, navigate, redirect, invite]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    // Save invite code to localStorage to bridge the email verification gap
+    if (invite) {
+      localStorage.setItem("pending_invite_code", invite);
+    }
 
     try {
       await login.mutateAsync({ email });
@@ -189,7 +207,7 @@ function Login() {
 
   // Show login link sent view
   if (linkSent) {
-    return <LoginLinkSentView email={sentEmail} />;
+    return <LoginLinkSentView email={sentEmail} invite={invite} />;
   }
 
   return (
@@ -250,6 +268,7 @@ function Login() {
             {t("dontHaveAccount")}{" "}
             <Link
               to="/register"
+              search={invite ? { invite } : {}}
               className="text-primary hover:underline font-medium"
             >
               {t("createAccount")}

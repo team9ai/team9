@@ -4,7 +4,7 @@ import { Users, Calendar, AlertCircle, CheckCircle2, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import workspaceApi from "@/services/api/workspace";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export const Route = createFileRoute("/invite/$code")({
   component: InvitePage,
@@ -15,6 +15,9 @@ function InvitePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [alreadyMember, setAlreadyMember] = useState(false);
+  const autoAcceptTriggered = useRef(false);
+
+  const token = localStorage.getItem("auth_token");
 
   const { data: inviteInfo, isLoading } = useQuery({
     queryKey: ["invitation", code],
@@ -24,15 +27,12 @@ function InvitePage() {
   const acceptMutation = useMutation({
     mutationFn: () => workspaceApi.acceptInvitation(code),
     onSuccess: async () => {
-      // Invalidate and refetch user workspaces query
       await queryClient.invalidateQueries({ queryKey: ["user-workspaces"] });
-      // Wait a bit for the query to refetch
       await new Promise((resolve) => setTimeout(resolve, 100));
       navigate({ to: "/" });
     },
     onError: (error: any) => {
       console.error("Failed to accept invitation:", error);
-      // Check if user is already a member
       if (
         error?.response?.data?.message?.includes("already a member") ||
         error?.response?.status === 400
@@ -41,6 +41,21 @@ function InvitePage() {
       }
     },
   });
+
+  // Auto-accept for logged-in users
+  useEffect(() => {
+    if (token && inviteInfo?.isValid && !autoAcceptTriggered.current) {
+      autoAcceptTriggered.current = true;
+      acceptMutation.mutate();
+    }
+  }, [token, inviteInfo]);
+
+  // Redirect unauthenticated users to register
+  useEffect(() => {
+    if (!token && !isLoading && inviteInfo?.isValid) {
+      navigate({ to: "/register", search: { invite: code } });
+    }
+  }, [token, isLoading, inviteInfo, code, navigate]);
 
   if (isLoading) {
     return (
@@ -90,8 +105,6 @@ function InvitePage() {
       </div>
     );
   }
-
-  const token = localStorage.getItem("auth_token");
 
   // Show "Already a Member" state
   if (alreadyMember) {
@@ -165,52 +178,17 @@ function InvitePage() {
         {/* Actions */}
         <div className="space-y-3">
           {token ? (
-            <Button
-              onClick={() => acceptMutation.mutate()}
-              disabled={acceptMutation.isPending}
-              className="w-full bg-primary hover:bg-primary/90"
-              size="lg"
-            >
-              {acceptMutation.isPending ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-foreground mr-2" />
-                  Joining...
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 size={18} className="mr-2" />
-                  Accept Invitation
-                </>
-              )}
-            </Button>
+            <div className="text-center py-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-3" />
+              <p className="text-muted-foreground">Joining workspace...</p>
+            </div>
           ) : (
-            <>
-              <Button
-                onClick={() =>
-                  navigate({
-                    to: "/login",
-                    search: { redirect: `/invite/${code}` },
-                  })
-                }
-                className="w-full bg-primary hover:bg-primary/90"
-                size="lg"
-              >
-                Sign In to Accept
-              </Button>
-              <Button
-                onClick={() =>
-                  navigate({
-                    to: "/register",
-                    search: { redirect: `/invite/${code}` },
-                  })
-                }
-                variant="outline"
-                className="w-full"
-                size="lg"
-              >
-                Create Account
-              </Button>
-            </>
+            <div className="text-center py-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-3" />
+              <p className="text-muted-foreground">
+                Redirecting to registration...
+              </p>
+            </div>
           )}
         </div>
 

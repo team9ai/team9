@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
 import {
   useRegister,
   useCurrentUser,
@@ -9,7 +10,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Mail } from "lucide-react";
+import { Mail, Users } from "lucide-react";
+import workspaceApi from "@/services/api/workspace";
 
 const MAIL_QUICK_LINKS = [
   { name: "Gmail", url: "https://mail.google.com" },
@@ -78,9 +80,20 @@ function RegisterPending() {
   );
 }
 
+type RegisterSearch = {
+  invite?: string;
+  redirect?: string;
+};
+
 export const Route = createFileRoute("/register")({
   component: Register,
   pendingComponent: RegisterPending,
+  validateSearch: (search: Record<string, unknown>): RegisterSearch => {
+    return {
+      invite: (search.invite as string) || undefined,
+      redirect: (search.redirect as string) || undefined,
+    };
+  },
 });
 
 function ResendVerificationButton({ email }: { email: string }) {
@@ -176,15 +189,27 @@ function Register() {
   const [emailAlreadyExists, setEmailAlreadyExists] = useState(false);
 
   const navigate = useNavigate();
+  const { invite } = Route.useSearch();
   const register = useRegister();
   const { data: currentUser, isLoading } = useCurrentUser();
+
+  // Fetch invite info if invite code is present
+  const { data: inviteInfo } = useQuery({
+    queryKey: ["invitation", invite],
+    queryFn: () => workspaceApi.getInvitationInfo(invite!),
+    enabled: !!invite,
+  });
 
   // Redirect if already logged in
   useEffect(() => {
     if (currentUser && !isLoading) {
-      navigate({ to: "/" });
+      if (invite) {
+        navigate({ to: "/invite/$code", params: { code: invite } });
+      } else {
+        navigate({ to: "/" });
+      }
     }
-  }, [currentUser, isLoading, navigate]);
+  }, [currentUser, isLoading, navigate, invite]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -193,6 +218,11 @@ function Register() {
     if (username.length < 3) {
       setError(t("usernameTooShort"));
       return;
+    }
+
+    // Save invite code to localStorage to bridge the email verification gap
+    if (invite) {
+      localStorage.setItem("pending_invite_code", invite);
     }
 
     try {
@@ -240,6 +270,26 @@ function Register() {
 
         {/* Registration Form */}
         <div className="bg-background border border-border rounded-lg shadow-sm p-8">
+          {/* Invite banner */}
+          {inviteInfo?.isValid && (
+            <div className="mb-6 p-4 bg-primary/5 border border-primary/20 rounded-lg text-center">
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <Users size={16} className="text-primary" />
+                <p className="text-sm text-muted-foreground">
+                  You've been invited to join
+                </p>
+              </div>
+              <p className="text-lg font-semibold text-primary">
+                {inviteInfo.workspaceName}
+              </p>
+              {inviteInfo.invitedBy && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Invited by {inviteInfo.invitedBy}
+                </p>
+              )}
+            </div>
+          )}
+
           <form onSubmit={handleRegister} className="space-y-5">
             {/* Email Field */}
             <div className="space-y-2">
@@ -310,6 +360,7 @@ function Register() {
             {t("alreadyHaveAccount")}{" "}
             <Link
               to="/login"
+              search={invite ? { invite } : {}}
               className="text-primary hover:underline font-medium"
             >
               {t("signIn")}
