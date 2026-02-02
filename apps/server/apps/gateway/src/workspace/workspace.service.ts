@@ -502,56 +502,99 @@ export class WorkspaceService {
       );
     }
 
-    // Create direct channel between inviter and invitee if invitation has a creator
-    if (invitation.createdBy) {
-      try {
-        const directChannel = await this.channelsService.createDirectChannel(
-          invitation.createdBy,
+    // Create DM channels between the new user and all existing workspace members (batch)
+    try {
+      const existingMembers = await this.db
+        .select({
+          userId: schema.tenantMembers.userId,
+          userType: schema.users.userType,
+        })
+        .from(schema.tenantMembers)
+        .innerJoin(
+          schema.users,
+          eq(schema.tenantMembers.userId, schema.users.id),
+        )
+        .where(
+          and(
+            eq(schema.tenantMembers.tenantId, invitation.tenantId),
+            isNull(schema.tenantMembers.leftAt),
+            sql`${schema.tenantMembers.userId} != ${userId}`,
+          ),
+        );
+
+      if (existingMembers.length > 0) {
+        const memberIds = existingMembers.map((m) => m.userId);
+
+        // Batch create all DM channels (3 queries instead of N*3)
+        const dmChannels = await this.channelsService.createDirectChannelsBatch(
           userId,
+          memberIds,
           invitation.tenantId,
         );
 
-        // Check online status for both users
+        // Send system messages for human members and broadcast via WebSocket
         const onlineUsersHash = await this.redisService.hgetall(
           REDIS_KEYS.ONLINE_USERS,
         );
-        const inviterOnline = invitation.createdBy in onlineUsersHash;
-        const inviteeOnline = userId in onlineUsersHash;
+        const newUserOnline = userId in onlineUsersHash;
+        const displayName = user.displayName || user.username;
 
-        // Notify inviter via WebSocket if online
-        // Note: Offline users will see new channel when they open channels list
-        if (inviterOnline) {
-          await this.websocketGateway.sendToUser(
-            invitation.createdBy,
-            WS_EVENTS.CHANNEL.CREATED,
-            directChannel,
-          );
-          this.logger.log(
-            `Sent CHANNEL_CREATED to online inviter ${invitation.createdBy} via WebSocket`,
-          );
-        }
+        await Promise.allSettled(
+          existingMembers.map(async (member) => {
+            const dmChannel = dmChannels.get(member.userId);
+            if (!dmChannel) return;
 
-        // Notify invitee via WebSocket if online
-        if (inviteeOnline) {
-          await this.websocketGateway.sendToUser(
-            userId,
-            WS_EVENTS.CHANNEL.CREATED,
-            directChannel,
-          );
-          this.logger.log(
-            `Sent CHANNEL_CREATED to online invitee ${userId} via WebSocket`,
-          );
-        }
+            // Send system message only for human members, not bots
+            if (member.userType !== 'bot' && member.userType !== 'system') {
+              const systemMessage =
+                await this.channelsService.sendSystemMessage(
+                  dmChannel.id,
+                  `${displayName} joined ${workspace.name}. Say hello!`,
+                );
+
+              this.websocketGateway.sendToChannel(
+                dmChannel.id,
+                WS_EVENTS.MESSAGE.NEW,
+                {
+                  ...systemMessage,
+                  createdAt: systemMessage.createdAt.toISOString(),
+                  updatedAt: systemMessage.updatedAt.toISOString(),
+                  sender: null,
+                  attachments: [],
+                  reactions: [],
+                },
+              );
+            }
+
+            // Notify existing member via WebSocket if online
+            if (member.userId in onlineUsersHash) {
+              await this.websocketGateway.sendToUser(
+                member.userId,
+                WS_EVENTS.CHANNEL.CREATED,
+                dmChannel,
+              );
+            }
+
+            // Notify new user via WebSocket if online
+            if (newUserOnline) {
+              await this.websocketGateway.sendToUser(
+                userId,
+                WS_EVENTS.CHANNEL.CREATED,
+                dmChannel,
+              );
+            }
+          }),
+        );
 
         this.logger.log(
-          `Created direct channel between inviter ${invitation.createdBy} and invitee ${userId}`,
-        );
-      } catch (error) {
-        // Don't fail the invitation if direct channel creation fails
-        this.logger.warn(
-          `Failed to create direct channel between inviter and invitee: ${error.message}`,
+          `Created ${dmChannels.size} DM channels for new member ${userId}`,
         );
       }
+    } catch (error) {
+      // Don't fail the invitation if DM channel creation fails
+      this.logger.warn(
+        `Failed to create DM channels for new member: ${error.message}`,
+      );
     }
 
     // Add user to welcome channel and send system message
@@ -567,9 +610,23 @@ export class WorkspaceService {
 
         // Send system message
         const displayName = user.displayName || user.username;
-        await this.channelsService.sendSystemMessage(
+        const systemMessage = await this.channelsService.sendSystemMessage(
           welcomeChannel.id,
           `${displayName} joined ${workspace.name}`,
+        );
+
+        // Broadcast system message to channel members via WebSocket
+        this.websocketGateway.sendToChannel(
+          welcomeChannel.id,
+          WS_EVENTS.MESSAGE.NEW,
+          {
+            ...systemMessage,
+            createdAt: systemMessage.createdAt.toISOString(),
+            updatedAt: systemMessage.updatedAt.toISOString(),
+            sender: null,
+            attachments: [],
+            reactions: [],
+          },
         );
 
         this.logger.log(
@@ -834,6 +891,14 @@ export class WorkspaceService {
       } catch (error) {
         this.logger.warn(`Failed to add system bot to workspace: ${error}`);
       }
+    }
+
+    // Create custom bot for the workspace
+    try {
+      await this.botService.createWorkspaceBot(data.ownerId, workspace.id);
+      this.logger.log(`Created custom bot for workspace: ${workspace.name}`);
+    } catch (error) {
+      this.logger.warn(`Failed to create custom bot for workspace: ${error}`);
     }
 
     this.logger.log(`Created workspace: ${workspace.name} (${workspace.slug})`);

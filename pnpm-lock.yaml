@@ -502,7 +502,7 @@ importers:
         version: link:../../libs/database
       "@team9/email":
         specifier: workspace:*
-        version: link:../../libs/email
+        version: file:apps/server/libs/email(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)
       "@team9/rabbitmq":
         specifier: workspace:*
         version: link:../../libs/rabbitmq
@@ -552,6 +552,9 @@ importers:
         specifier: ^13.0.0
         version: 13.0.0
     devDependencies:
+      "@jest/globals":
+        specifier: ^30.2.0
+        version: 30.2.0
       typescript:
         specifier: ^5.7.3
         version: 5.8.3
@@ -5740,12 +5743,21 @@ packages:
         integrity: sha512-ei/yRRoCklWHImwpCcDK3VhNXx+QXM9793aQ64YxpqVF0BDuuIlXhZgiAkc15wnPVav+IbkYhmDJIv5R326Mew==,
       }
 
+  "@team9/email@file:apps/server/libs/email":
+    resolution: { directory: apps/server/libs/email, type: directory }
+    peerDependencies:
+      "@nestjs/common": ^11.0.0
+      "@nestjs/core": ^11.0.0
+
   "@team9/enterprise-audit@file:enterprise/libs/audit":
     resolution: { directory: enterprise/libs/audit, type: directory }
     peerDependencies:
       "@nestjs/common": ^11.0.0
       "@nestjs/core": ^11.0.0
       uuid: ^11.0.0
+
+  "@team9/shared@file:apps/server/libs/shared":
+    resolution: { directory: apps/server/libs/shared, type: directory }
 
   "@tokenizer/inflate@0.4.1":
     resolution:
@@ -16121,12 +16133,24 @@ snapshots:
     dependencies:
       "@tauri-apps/api": 2.9.1
 
+  "@team9/email@file:apps/server/libs/email(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)":
+    dependencies:
+      "@nestjs/common": 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      "@nestjs/core": 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      "@team9/shared": file:apps/server/libs/shared
+      resend: 4.8.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+    transitivePeerDependencies:
+      - react
+      - react-dom
+
   "@team9/enterprise-audit@file:enterprise/libs/audit(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)(uuid@13.0.0)":
     dependencies:
       "@nestjs/common": 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       "@nestjs/core": 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       uuid: 13.0.0
     optional: true
+
+  "@team9/shared@file:apps/server/libs/shared": {}
 
   "@tokenizer/inflate@0.4.1":
     dependencies:

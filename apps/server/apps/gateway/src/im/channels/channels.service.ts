@@ -12,6 +12,7 @@ import {
   and,
   sql,
   isNull,
+  inArray,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -147,6 +148,110 @@ export class ChannelsService {
     return channel;
   }
 
+  /**
+   * Batch-create DM channels between one user and multiple other users.
+   * Skips pairs that already have an existing DM channel.
+   * Uses 3 queries instead of N*3 for N members.
+   *
+   * Returns all DM channels (existing + newly created) mapped by the other user's ID.
+   */
+  async createDirectChannelsBatch(
+    newUserId: string,
+    memberUserIds: string[],
+    tenantId: string,
+  ): Promise<Map<string, ChannelResponse>> {
+    if (memberUserIds.length === 0) return new Map();
+
+    // 1. Find all existing DM channels between newUserId and any of memberUserIds
+    const existingDms = await this.db
+      .select({
+        channelId: schema.channelMembers.channelId,
+        userId: schema.channelMembers.userId,
+      })
+      .from(schema.channelMembers)
+      .innerJoin(
+        schema.channels,
+        eq(schema.channels.id, schema.channelMembers.channelId),
+      )
+      .where(
+        and(
+          eq(schema.channels.type, 'direct'),
+          eq(schema.channels.tenantId, tenantId),
+          isNull(schema.channelMembers.leftAt),
+          sql`${schema.channelMembers.channelId} IN (
+            SELECT cm2.channel_id FROM im_channel_members cm2
+            WHERE cm2.user_id = ${newUserId} AND cm2.left_at IS NULL
+          )`,
+          inArray(schema.channelMembers.userId, memberUserIds),
+        ),
+      );
+
+    // Map: otherUserId -> channelId for existing DMs
+    const existingMap = new Map<string, string>();
+    for (const row of existingDms) {
+      existingMap.set(row.userId, row.channelId);
+    }
+
+    // Determine which members need new DM channels
+    const needNew = memberUserIds.filter((id) => !existingMap.has(id));
+
+    // 2. Batch insert new channels
+    const resultMap = new Map<string, ChannelResponse>();
+
+    if (needNew.length > 0) {
+      const channelRows = needNew.map((memberId) => ({
+        id: uuidv7(),
+        tenantId,
+        type: 'direct' as const,
+        createdBy: memberId,
+      }));
+
+      const insertedChannels = await this.db
+        .insert(schema.channels)
+        .values(channelRows)
+        .returning();
+
+      // 3. Batch insert channel members (2 per channel: newUser + existingMember)
+      const memberRows = insertedChannels.flatMap((ch, i) => [
+        {
+          id: uuidv7(),
+          channelId: ch.id,
+          userId: needNew[i],
+          role: 'member' as const,
+        },
+        {
+          id: uuidv7(),
+          channelId: ch.id,
+          userId: newUserId,
+          role: 'member' as const,
+        },
+      ]);
+
+      await this.db.insert(schema.channelMembers).values(memberRows);
+
+      for (let i = 0; i < insertedChannels.length; i++) {
+        resultMap.set(needNew[i], insertedChannels[i]);
+      }
+    }
+
+    // 4. Fetch existing channel details for already-existing DMs
+    if (existingMap.size > 0) {
+      const existingChannelIds = [...new Set(existingMap.values())];
+      const channels = await this.db
+        .select()
+        .from(schema.channels)
+        .where(inArray(schema.channels.id, existingChannelIds));
+
+      const channelById = new Map(channels.map((c) => [c.id, c]));
+      for (const [memberId, channelId] of existingMap) {
+        const ch = channelById.get(channelId);
+        if (ch) resultMap.set(memberId, ch);
+      }
+    }
+
+    return resultMap;
+  }
+
   async findById(id: string): Promise<ChannelResponse | null> {
     const [channel] = await this.db
       .select()
@@ -178,7 +283,18 @@ export class ChannelsService {
   async sendSystemMessage(
     channelId: string,
     content: string,
-  ): Promise<{ id: string }> {
+  ): Promise<{
+    id: string;
+    channelId: string;
+    senderId: null;
+    content: string;
+    type: 'system';
+    isPinned: boolean;
+    isEdited: boolean;
+    isDeleted: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  }> {
     const [message] = await this.db
       .insert(schema.messages)
       .values({
@@ -188,9 +304,20 @@ export class ChannelsService {
         type: 'system',
         senderId: null,
       })
-      .returning({ id: schema.messages.id });
+      .returning();
 
-    return message;
+    return {
+      id: message.id,
+      channelId: message.channelId,
+      senderId: null,
+      content: message.content ?? content,
+      type: 'system',
+      isPinned: message.isPinned,
+      isEdited: message.isEdited,
+      isDeleted: message.isDeleted,
+      createdAt: message.createdAt,
+      updatedAt: message.updatedAt,
+    };
   }
 
   async findByIdOrThrow(

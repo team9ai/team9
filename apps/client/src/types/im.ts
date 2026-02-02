@@ -92,7 +92,7 @@ export interface MessageReaction {
 export interface Message {
   id: string;
   channelId: string;
-  senderId: string;
+  senderId: string | null;
   parentId?: string;
   rootId?: string;
   content: string;

@@ -94,8 +94,8 @@ export interface NewMessageEvent {
   id: string;
   /** Channel ID */
   channelId: string;
-  /** Sender user ID */
-  senderId: string;
+  /** Sender user ID (null for system messages) */
+  senderId: string | null;
   /** Parent message ID (direct parent for replies) */
   parentId?: string;
   /** Root message ID (thread root, for efficient querying) */

@@ -62,9 +62,22 @@ export function MessageItem({
   onRemoveFailed,
 }: MessageItemProps) {
   const { t } = useTranslation(["thread", "message"]);
+  const isSystemMessage = message.type === "system";
   const isOwnMessage = currentUserId === message.senderId;
   const isSending = message.sendStatus === "sending";
   const isFailed = message.sendStatus === "failed";
+
+  // System message display (centered, no avatar, gray text)
+  if (isSystemMessage) {
+    return (
+      <div
+        id={`message-${message.id}`}
+        className="flex justify-center py-2 px-2"
+      >
+        <span className="text-xs text-muted-foreground">{message.content}</span>
+      </div>
+    );
+  }
 
   // Deleted message display
   if (message.isDeleted) {

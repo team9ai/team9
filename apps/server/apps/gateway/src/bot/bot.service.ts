@@ -1,5 +1,5 @@
 import { Injectable, Logger, Inject, OnModuleInit } from '@nestjs/common';
-import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { v7 as uuidv7 } from 'uuid';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
@@ -8,16 +8,11 @@ import {
   eq,
   and,
   like,
-  isNull,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import type { BotCapabilities } from '@team9/database/schemas';
 import { env } from '@team9/shared';
-import {
-  USER_EVENTS,
-  type UserRegisteredEvent,
-} from '../auth/events/user.events.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
 
 export interface CreateBotOptions {
@@ -239,108 +234,63 @@ export class BotService implements OnModuleInit {
     return botInfo;
   }
 
-  // ── Event listeners ──────────────────────────────────────────────────
-
-  @OnEvent(USER_EVENTS.REGISTERED)
-  async handleUserRegistered(event: UserRegisteredEvent): Promise<void> {
-    try {
-      // Look up the user to get their username and email
-      const [user] = await this.db
-        .select({
-          id: schema.users.id,
-          username: schema.users.username,
-          email: schema.users.email,
-          displayName: schema.users.displayName,
-        })
-        .from(schema.users)
-        .where(eq(schema.users.id, event.userId))
-        .limit(1);
-
-      if (!user) {
-        this.logger.warn(
-          `User ${event.userId} not found, skipping bot creation`,
-        );
-        return;
-      }
-
-      // Wait for the user's workspace to be created (may be handled by another
-      // event listener concurrently), then retrieve its tenantId so the DM
-      // channel is associated with the correct workspace.
-      const tenantId = await this.waitForUserTenant(user.id);
-
-      const shortId = uuidv7().replace(/-/g, '').slice(0, 8);
-      const botUsername = `bot_${shortId}_${Date.now()}`;
-      const bot = await this.createBot({
-        username: botUsername,
-        displayName: 'OpenClaw Bot',
-        type: 'custom',
-        ownerId: user.id,
-        description: `Auto-created bot for ${user.username}`,
-        capabilities: { canSendMessages: true, canReadMessages: true },
-      });
-
-      // Add bot to workspace so it can be added to group channels
-      if (tenantId) {
-        await this.db.insert(schema.tenantMembers).values({
-          id: uuidv7(),
-          tenantId,
-          userId: bot.userId,
-          role: 'member',
-          invitedBy: user.id,
-        });
-        this.logger.log(`Added bot ${bot.botId} to workspace ${tenantId}`);
-      }
-
-      // Create a direct channel so the user can see the bot in their DM list
-      await this.channelsService.createDirectChannel(
-        user.id,
-        bot.userId,
-        tenantId,
-      );
-
-      this.logger.log(
-        `Auto-created bot ${bot.botId} with DM channel (tenant=${tenantId}) for user ${user.username} (${user.id})`,
-      );
-    } catch (error) {
-      this.logger.error(
-        `Failed to auto-create bot for user ${event.userId}:`,
-        error,
-      );
-    }
-  }
+  // ── Workspace bot creation ───────────────────────────────────────────
 
   /**
-   * Poll for the user's tenant membership. The workspace may be created by
-   * another concurrent event listener, so we retry a few times.
+   * Create a custom bot for a workspace and add it as a member.
+   * Also creates a DM channel between the owner and the bot.
    */
-  private async waitForUserTenant(
-    userId: string,
-    maxRetries = 10,
-    delayMs = 300,
-  ): Promise<string | undefined> {
-    for (let i = 0; i < maxRetries; i++) {
-      const [membership] = await this.db
-        .select({ tenantId: schema.tenantMembers.tenantId })
-        .from(schema.tenantMembers)
-        .where(
-          and(
-            eq(schema.tenantMembers.userId, userId),
-            isNull(schema.tenantMembers.leftAt),
-          ),
-        )
-        .limit(1);
+  async createWorkspaceBot(
+    ownerId: string,
+    tenantId: string,
+  ): Promise<BotInfo> {
+    // Look up the owner
+    const [owner] = await this.db
+      .select({
+        id: schema.users.id,
+        username: schema.users.username,
+      })
+      .from(schema.users)
+      .where(eq(schema.users.id, ownerId))
+      .limit(1);
 
-      if (membership) {
-        return membership.tenantId;
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    if (!owner) {
+      throw new Error(`Owner ${ownerId} not found, skipping bot creation`);
     }
 
-    this.logger.warn(
-      `No tenant found for user ${userId} after ${maxRetries} retries, creating DM channel without tenantId`,
+    const shortId = uuidv7().replace(/-/g, '').slice(0, 8);
+    const botUsername = `bot_${shortId}_${Date.now()}`;
+    const bot = await this.createBot({
+      username: botUsername,
+      displayName: 'OpenClaw Bot',
+      type: 'custom',
+      ownerId: owner.id,
+      description: `Auto-created bot for ${owner.username}`,
+      capabilities: { canSendMessages: true, canReadMessages: true },
+    });
+
+    // Add bot to workspace as a member
+    await this.db.insert(schema.tenantMembers).values({
+      id: uuidv7(),
+      tenantId,
+      userId: bot.userId,
+      role: 'member',
+      invitedBy: owner.id,
+    });
+    this.logger.log(`Added bot ${bot.botId} to workspace ${tenantId}`);
+
+    // Create a direct channel so the owner can see the bot in their DM list
+    await this.channelsService.createDirectChannel(
+      owner.id,
+      bot.userId,
+      tenantId,
     );
-    return undefined;
+
+    this.logger.log(
+      `Created bot ${bot.botId} with DM channel (tenant=${tenantId}) for workspace owner ${owner.username}`,
+    );
+
+    return bot;
   }
 
   // ── System bot helpers ─────────────────────────────────────────────
