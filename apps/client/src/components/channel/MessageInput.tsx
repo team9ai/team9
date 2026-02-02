@@ -163,7 +163,7 @@ export function MessageInput({
 
   const defaultPlaceholder = compact
     ? t("thread:inputPlaceholder")
-    : "Type a message... (Enter to send, Shift+Enter for new line, @ to mention)";
+    : "Type a message... (Enter to send, Shift+Enter / Ctrl+Enter for new line, @ to mention)";
 
   // Compact mode: simpler layout, still supports file upload via toolbar/paste
   if (compact) {

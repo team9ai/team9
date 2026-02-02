@@ -13,7 +13,7 @@
   "cannotChangeOwnerRole": "无法更改所有者的角色",
   "cannotRemoveOwner": "无法移除工作空间所有者",
   "confirmRemoveMember": "确定要将 {{name}} 从此工作空间移除吗？",
-  "maxWorkspacesReached": "每位用户最多只能创建 {{max}} 个工作空间",
+  "maxWorkspacesReached": "每位用户最多只能创建 {{max}} 个工作空间，请联系管理员或通过 <discordLink>Discord</discordLink> 获取帮助。",
   "workspaceFull": "该工作空间已达到 {{max}} 人的成员上限",
-  "workspaceFullInvite": "无法加入——该工作空间已达到成员上限，请联系工作空间管理员。"
+  "workspaceFullInvite": "无法加入——该工作空间已达到成员上限，请联系工作空间管理员或通过 <discordLink>Discord</discordLink> 联系我们。"
 }

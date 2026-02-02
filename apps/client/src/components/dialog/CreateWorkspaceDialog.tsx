@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useTranslation } from "react-i18next";
-import { Building2, AlertCircle } from "lucide-react";
+import { Trans } from "react-i18next";
+import { Building2, AlertCircle, ShieldAlert } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -55,7 +55,6 @@ export function CreateWorkspaceDialog({
   isOpen,
   onClose,
 }: CreateWorkspaceDialogProps) {
-  const { t } = useTranslation("workspace");
   const createWorkspace = useCreateWorkspace();
   const { setSelectedWorkspaceId } = useWorkspaceStore();
 
@@ -63,6 +62,7 @@ export function CreateWorkspaceDialog({
   const [slugPreview, setSlugPreview] = useState("");
   const [nameError, setNameError] = useState<string | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [showLimitDialog, setShowLimitDialog] = useState(false);
 
   // Generate slug preview from name
   useEffect(() => {
@@ -100,9 +100,11 @@ export function CreateWorkspaceDialog({
       handleClose();
     } catch (error: any) {
       console.error("Failed to create workspace:", error);
-      const msg = error?.message || "";
+      const msg = error?.response?.data?.message || error?.message || "";
       if (msg.includes("maximum of")) {
-        setApiError(t("maxWorkspacesReached", { max: 3 }));
+        onClose();
+        resetForm();
+        setShowLimitDialog(true);
       } else {
         setApiError(msg || "Failed to create workspace. Please try again.");
       }
@@ -124,73 +126,107 @@ export function CreateWorkspaceDialog({
   const canCreate = name.trim() && !nameError;
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Building2 size={20} />
-            Create a workspace
-          </DialogTitle>
-          <DialogDescription>
-            Workspaces are where your team collaborates. Create one for your
-            team, project, or organization.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={isOpen} onOpenChange={handleClose}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 size={20} />
+              Create a workspace
+            </DialogTitle>
+            <DialogDescription>
+              Workspaces are where your team collaborates. Create one for your
+              team, project, or organization.
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          {apiError && (
-            <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-center gap-2">
-              <AlertCircle size={16} />
-              {apiError}
+          <div className="space-y-4 py-2">
+            {apiError && (
+              <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-center gap-2">
+                <AlertCircle size={16} />
+                {apiError}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="workspace-name">Name</Label>
+              <Input
+                id="workspace-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Acme Inc"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (
+                    e.key === "Enter" &&
+                    canCreate &&
+                    !createWorkspace.isPending
+                  ) {
+                    e.preventDefault();
+                    handleCreate();
+                  }
+                }}
+              />
+              {nameError && (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <AlertCircle size={12} />
+                  {nameError}
+                </p>
+              )}
+              {slugPreview && !nameError && (
+                <p className="text-xs text-muted-foreground">
+                  URL: <span className="font-mono">{slugPreview}</span>
+                </p>
+              )}
             </div>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="workspace-name">Name</Label>
-            <Input
-              id="workspace-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Acme Inc"
-              autoFocus
-              onKeyDown={(e) => {
-                if (
-                  e.key === "Enter" &&
-                  canCreate &&
-                  !createWorkspace.isPending
-                ) {
-                  e.preventDefault();
-                  handleCreate();
-                }
-              }}
-            />
-            {nameError && (
-              <p className="text-xs text-destructive flex items-center gap-1">
-                <AlertCircle size={12} />
-                {nameError}
-              </p>
-            )}
-            {slugPreview && !nameError && (
-              <p className="text-xs text-muted-foreground">
-                URL: <span className="font-mono">{slugPreview}</span>
-              </p>
-            )}
           </div>
-        </div>
 
-        <DialogFooter>
-          <Button type="button" variant="ghost" onClick={handleClose}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleCreate}
-            disabled={!canCreate || createWorkspace.isPending}
-            className="bg-primary hover:bg-primary/90"
-          >
-            {createWorkspace.isPending ? "Creating..." : "Create Workspace"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={handleClose}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreate}
+              disabled={!canCreate || createWorkspace.isPending}
+              className="bg-primary hover:bg-primary/90"
+            >
+              {createWorkspace.isPending ? "Creating..." : "Create Workspace"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showLimitDialog} onOpenChange={setShowLimitDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader className="items-center text-center">
+            <div className="w-12 h-12 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-2">
+              <ShieldAlert className="w-6 h-6 text-destructive" />
+            </div>
+            <DialogTitle>
+              <Trans
+                i18nKey="maxWorkspacesReached"
+                ns="workspace"
+                values={{ max: 3 }}
+                components={{
+                  discordLink: (
+                    <a
+                      href="https://discord.gg/edMATqpU"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline hover:text-primary/80"
+                    />
+                  ),
+                }}
+              />
+            </DialogTitle>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-center">
+            <Button variant="outline" onClick={() => setShowLimitDialog(false)}>
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

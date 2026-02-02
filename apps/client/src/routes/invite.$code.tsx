@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useTranslation } from "react-i18next";
+import { useTranslation, Trans } from "react-i18next";
 import {
   Users,
   Calendar,
@@ -129,7 +129,20 @@ function InvitePage() {
             {t("workspaceFull", { max: 1000 })}
           </h1>
           <p className="text-muted-foreground mb-6">
-            {t("workspaceFullInvite")}
+            <Trans
+              i18nKey="workspaceFullInvite"
+              ns="workspace"
+              components={{
+                discordLink: (
+                  <a
+                    href="https://discord.gg/edMATqpU"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary underline hover:text-primary/80"
+                  />
+                ),
+              }}
+            />
           </p>
           <Button
             onClick={() => navigate({ to: "/" })}
@@ -235,7 +248,16 @@ function InvitePage() {
           <div className="mt-4 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
             <p className="text-sm text-destructive text-center">
               Failed to accept invitation. Please try again or contact the
-              workspace administrator.
+              workspace administrator via{" "}
+              <a
+                href="https://discord.gg/edMATqpU"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:opacity-80"
+              >
+                Discord
+              </a>
+              .
             </p>
           </div>
         )}

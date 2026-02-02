@@ -13,7 +13,7 @@
   "cannotChangeOwnerRole": "Cannot change the owner's role",
   "cannotRemoveOwner": "Cannot remove the workspace owner",
   "confirmRemoveMember": "Are you sure you want to remove {{name}} from this workspace?",
-  "maxWorkspacesReached": "You can create a maximum of {{max}} workspaces",
+  "maxWorkspacesReached": "You can create a maximum of {{max}} workspaces. Please contact the administrator or reach out via our <discordLink>Discord</discordLink> for assistance.",
   "workspaceFull": "This workspace has reached the maximum of {{max}} members",
-  "workspaceFullInvite": "Unable to join — this workspace has reached its member limit. Please contact the workspace administrator."
+  "workspaceFullInvite": "Unable to join — this workspace has reached its member limit. Please contact the workspace administrator or reach out via our <discordLink>Discord</discordLink>."
 }

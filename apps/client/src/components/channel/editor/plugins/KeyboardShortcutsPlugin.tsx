@@ -53,8 +53,8 @@ export function KeyboardShortcutsPlugin({
     return editor.registerCommand(
       KEY_ENTER_COMMAND,
       (event: KeyboardEvent | null) => {
-        if (event?.shiftKey) {
-          // Let default behavior handle Shift+Enter (line break)
+        if (event?.shiftKey || event?.ctrlKey) {
+          // Let default behavior handle Shift+Enter / Ctrl+Enter (line break)
           return false;
         }
 
