@@ -41,7 +41,7 @@ _Works great for solo power users too._
 **Team9 = Team Collaboration + AI Agents, out of the box.**
 
 <p align="center">
-  <img src="docs/images/screenshot.png" width="700" alt="Team9 Screenshot" />
+  <!-- <img src="docs/images/screenshot.png" width="700" alt="Team9 Screenshot" /> -->
 </p>
 
 ## Features
