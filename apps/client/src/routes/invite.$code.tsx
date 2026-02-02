@@ -1,6 +1,14 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Users, Calendar, AlertCircle, CheckCircle2, Home } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import {
+  Users,
+  Calendar,
+  AlertCircle,
+  CheckCircle2,
+  Home,
+  ShieldAlert,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import workspaceApi from "@/services/api/workspace";
@@ -15,7 +23,9 @@ function InvitePage() {
   const { code } = Route.useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { t } = useTranslation("workspace");
   const [alreadyMember, setAlreadyMember] = useState(false);
+  const [workspaceFull, setWorkspaceFull] = useState(false);
   const autoAcceptTriggered = useRef(false);
 
   const token = localStorage.getItem("auth_token");
@@ -34,10 +44,10 @@ function InvitePage() {
     },
     onError: (error: any) => {
       console.error("Failed to accept invitation:", error);
-      if (
-        error?.response?.data?.message?.includes("already a member") ||
-        error?.response?.status === 400
-      ) {
+      const msg = error?.message || error?.response?.data?.message || "";
+      if (msg.includes("maximum") || msg.includes("member limit")) {
+        setWorkspaceFull(true);
+      } else if (msg.includes("already a member")) {
         setAlreadyMember(true);
       }
     },
@@ -102,6 +112,34 @@ function InvitePage() {
               <span className="font-medium">{inviteInfo.workspaceName}</span>
             </p>
           )}
+        </Card>
+      </div>
+    );
+  }
+
+  // Show "Workspace Full" state
+  if (workspaceFull) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 to-primary/10 p-4">
+        <Card className="p-8 max-w-md w-full text-center">
+          <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-4">
+            <ShieldAlert className="w-8 h-8 text-destructive" />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground mb-2">
+            {t("workspaceFull", { max: 1000 })}
+          </h1>
+          <p className="text-muted-foreground mb-6">
+            {t("workspaceFullInvite")}
+          </p>
+          <Button
+            onClick={() => navigate({ to: "/" })}
+            variant="outline"
+            size="lg"
+            className="w-full"
+          >
+            <Home size={18} className="mr-2" />
+            Go Home
+          </Button>
         </Card>
       </div>
     );
@@ -193,7 +231,7 @@ function InvitePage() {
           )}
         </div>
 
-        {acceptMutation.isError && !alreadyMember && (
+        {acceptMutation.isError && !alreadyMember && !workspaceFull && (
           <div className="mt-4 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
             <p className="text-sm text-destructive text-center">
               Failed to accept invitation. Please try again or contact the

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Building2, AlertCircle } from "lucide-react";
 import {
   Dialog,
@@ -54,6 +55,7 @@ export function CreateWorkspaceDialog({
   isOpen,
   onClose,
 }: CreateWorkspaceDialogProps) {
+  const { t } = useTranslation("workspace");
   const createWorkspace = useCreateWorkspace();
   const { setSelectedWorkspaceId } = useWorkspaceStore();
 
@@ -98,9 +100,12 @@ export function CreateWorkspaceDialog({
       handleClose();
     } catch (error: any) {
       console.error("Failed to create workspace:", error);
-      setApiError(
-        error?.message || "Failed to create workspace. Please try again.",
-      );
+      const msg = error?.message || "";
+      if (msg.includes("maximum of")) {
+        setApiError(t("maxWorkspacesReached", { max: 3 }));
+      } else {
+        setApiError(msg || "Failed to create workspace. Please try again.");
+      }
     }
   };
 

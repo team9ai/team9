@@ -12,5 +12,8 @@
   "insufficientPermissions": "You don't have permission to manage member roles",
   "cannotChangeOwnerRole": "Cannot change the owner's role",
   "cannotRemoveOwner": "Cannot remove the workspace owner",
-  "confirmRemoveMember": "Are you sure you want to remove {{name}} from this workspace?"
+  "confirmRemoveMember": "Are you sure you want to remove {{name}} from this workspace?",
+  "maxWorkspacesReached": "You can create a maximum of {{max}} workspaces",
+  "workspaceFull": "This workspace has reached the maximum of {{max}} members",
+  "workspaceFullInvite": "Unable to join — this workspace has reached its member limit. Please contact the workspace administrator."
 }

@@ -126,6 +126,10 @@ describe('WorkspaceService', () => {
       .spyOn(service, 'generateUniqueSlug' as any)
       .mockResolvedValue('test-workspace');
     jest.spyOn(service, 'addMember' as any).mockResolvedValue(undefined);
+    jest
+      .spyOn(service, 'getUserOwnedWorkspaceCount' as any)
+      .mockResolvedValue(0);
+    jest.spyOn(service, 'getWorkspaceMemberCount' as any).mockResolvedValue(0);
   });
 
   // ── create: custom bot ────────────────────────────────────────────
@@ -234,6 +238,25 @@ describe('WorkspaceService', () => {
         'owner-1',
         'owner',
       );
+    });
+
+    it('should throw when user has reached max workspace limit (3)', async () => {
+      (service as any).getUserOwnedWorkspaceCount.mockResolvedValue(3);
+
+      await expect(
+        service.create({ name: 'New Workspace', ownerId: 'owner-1' }),
+      ).rejects.toThrow('You can create a maximum of 3 workspaces');
+    });
+
+    it('should allow creation when user is below workspace limit', async () => {
+      (service as any).getUserOwnedWorkspaceCount.mockResolvedValue(2);
+
+      const result = await service.create({
+        name: 'Test Workspace',
+        ownerId: 'owner-1',
+      });
+
+      expect(result).toEqual(WORKSPACE_ROW);
     });
   });
 
@@ -407,6 +430,41 @@ describe('WorkspaceService', () => {
       const result = await service.acceptInvitation('abc123', 'user-uuid');
 
       expect(result.workspace.id).toBe('ws-uuid');
+    });
+
+    it('should throw when workspace has reached max member limit (1000)', async () => {
+      (service as any).getWorkspaceMemberCount.mockResolvedValue(1000);
+
+      await expect(
+        service.acceptInvitation('abc123', 'user-uuid'),
+      ).rejects.toThrow('Workspace has reached the maximum of 1000 members');
+    });
+  });
+
+  // ── addMember: member limit ────────────────────────────────────────
+
+  describe('addMember – member limit', () => {
+    beforeEach(() => {
+      // Restore real addMember so we can test it
+      (service.addMember as MockFn).mockRestore();
+      // Stub getMember to return null (not already a member)
+      jest.spyOn(service, 'getMember' as any).mockResolvedValue(null);
+    });
+
+    it('should throw when workspace has reached max member limit (1000)', async () => {
+      (service as any).getWorkspaceMemberCount.mockResolvedValue(1000);
+
+      await expect(
+        service.addMember('ws-uuid', 'new-user', 'member'),
+      ).rejects.toThrow('Workspace has reached the maximum of 1000 members');
+    });
+
+    it('should allow adding member when below limit', async () => {
+      (service as any).getWorkspaceMemberCount.mockResolvedValue(999);
+
+      await service.addMember('ws-uuid', 'new-user', 'member');
+
+      expect(db.insert).toHaveBeenCalled();
     });
   });
 });

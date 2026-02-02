@@ -32,6 +32,9 @@ import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { BotService } from '../bot/bot.service.js';
 
+const MAX_WORKSPACES_PER_USER = 3;
+const MAX_MEMBERS_PER_WORKSPACE = 1000;
+
 export interface InvitationResponse {
   id: string;
   code: string;
@@ -413,6 +416,14 @@ export class WorkspaceService {
     if (existingMember) {
       throw new BadRequestException(
         'You are already a member of this workspace',
+      );
+    }
+
+    // Check if workspace has reached max member limit
+    const memberCount = await this.getWorkspaceMemberCount(invitation.tenantId);
+    if (memberCount >= MAX_MEMBERS_PER_WORKSPACE) {
+      throw new BadRequestException(
+        `Workspace has reached the maximum of ${MAX_MEMBERS_PER_WORKSPACE} members`,
       );
     }
 
@@ -828,6 +839,14 @@ export class WorkspaceService {
     domain?: string;
     ownerId: string;
   }): Promise<WorkspaceResponse> {
+    // Check if user has reached max workspace creation limit
+    const ownedCount = await this.getUserOwnedWorkspaceCount(data.ownerId);
+    if (ownedCount >= MAX_WORKSPACES_PER_USER) {
+      throw new BadRequestException(
+        `You can create a maximum of ${MAX_WORKSPACES_PER_USER} workspaces`,
+      );
+    }
+
     // Generate slug from name if not provided
     const slug = data.slug || (await this.generateUniqueSlug(data.name));
 
@@ -1011,6 +1030,14 @@ export class WorkspaceService {
       throw new ConflictException('User is already a member of this workspace');
     }
 
+    // Check if workspace has reached max member limit
+    const memberCount = await this.getWorkspaceMemberCount(workspaceId);
+    if (memberCount >= MAX_MEMBERS_PER_WORKSPACE) {
+      throw new BadRequestException(
+        `Workspace has reached the maximum of ${MAX_MEMBERS_PER_WORKSPACE} members`,
+      );
+    }
+
     await this.db.insert(schema.tenantMembers).values({
       id: uuidv7(),
       tenantId: workspaceId,
@@ -1107,5 +1134,40 @@ export class WorkspaceService {
     }
 
     return workspace;
+  }
+
+  // ===== Limit Helpers =====
+
+  private async getUserOwnedWorkspaceCount(userId: string): Promise<number> {
+    const [{ count }] = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(schema.tenantMembers)
+      .innerJoin(
+        schema.tenants,
+        eq(schema.tenantMembers.tenantId, schema.tenants.id),
+      )
+      .where(
+        and(
+          eq(schema.tenantMembers.userId, userId),
+          eq(schema.tenantMembers.role, 'owner'),
+          isNull(schema.tenantMembers.leftAt),
+        ),
+      );
+
+    return Number(count);
+  }
+
+  private async getWorkspaceMemberCount(workspaceId: string): Promise<number> {
+    const [{ count }] = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(schema.tenantMembers)
+      .where(
+        and(
+          eq(schema.tenantMembers.tenantId, workspaceId),
+          isNull(schema.tenantMembers.leftAt),
+        ),
+      );
+
+    return Number(count);
   }
 }
