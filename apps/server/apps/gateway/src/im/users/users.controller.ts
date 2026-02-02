@@ -15,6 +15,7 @@ import { AuthGuard, CurrentUser } from '@team9/auth';
 import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
 import { WorkspaceService } from '../../workspace/workspace.service.js';
+import { CurrentTenantId } from '../../common/decorators/current-tenant.decorator.js';
 
 @Controller({
   path: 'im/users',
@@ -34,10 +35,12 @@ export class UsersController {
   async search(
     @Query('q') query: string,
     @Query('limit') limit?: string,
+    @CurrentTenantId() tenantId?: string,
   ): Promise<UserResponse[]> {
     return this.usersService.search(
       query || '',
       limit ? parseInt(limit, 10) : 20,
+      tenantId,
     );
   }
 

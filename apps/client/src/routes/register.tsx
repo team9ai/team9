@@ -169,7 +169,7 @@ function VerificationSentView({
           <p className="text-sm text-muted-foreground mb-2">
             {t("verificationEmailHint")}
           </p>
-          <p className="text-sm text-muted-foreground mb-6">
+          <p className="text-sm text-muted-foreground mb-6 font-bold">
             {t("checkSpamFolder")}
           </p>
           <ResendVerificationButton email={email} />
@@ -220,6 +220,11 @@ function Register() {
 
     if (username.length < 3) {
       setError(t("usernameTooShort"));
+      return;
+    }
+
+    if (!/^[a-z0-9_]+$/.test(username)) {
+      setError(t("usernameInvalidFormat"));
       return;
     }
 
@@ -331,12 +336,13 @@ function Register() {
                 id="username"
                 type="text"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => setUsername(e.target.value.toLowerCase())}
                 placeholder={t("usernamePlaceholder")}
                 className="w-full h-11 px-3"
                 required
                 minLength={3}
-                maxLength={100}
+                maxLength={30}
+                pattern="[a-z0-9_]+"
               />
               <p className="text-xs text-muted-foreground">
                 {t("usernameHint")}

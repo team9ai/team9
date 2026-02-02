@@ -3,13 +3,20 @@ import {
   IsOptional,
   IsBoolean,
   IsEnum,
+  MinLength,
   MaxLength,
+  Matches,
   IsUrl,
 } from 'class-validator';
 
 export class CreateBotDto {
   @IsString()
-  @MaxLength(100)
+  @MinLength(3)
+  @MaxLength(30)
+  @Matches(/^[a-z0-9_]+$/, {
+    message:
+      'Username can only contain lowercase letters, numbers, and underscores',
+  })
   username: string;
 
   @IsString()

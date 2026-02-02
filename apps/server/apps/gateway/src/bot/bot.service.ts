@@ -268,9 +268,11 @@ export class BotService implements OnModuleInit {
       // channel is associated with the correct workspace.
       const tenantId = await this.waitForUserTenant(user.id);
 
+      const shortId = uuidv7().replace(/-/g, '').slice(0, 8);
+      const botUsername = `bot_${shortId}_${Date.now()}`;
       const bot = await this.createBot({
-        username: `${user.username}_bot`,
-        displayName: `${event.displayName}'s Bot`,
+        username: botUsername,
+        displayName: 'OpenClaw Bot',
         type: 'custom',
         ownerId: user.id,
         description: `Auto-created bot for ${user.username}`,

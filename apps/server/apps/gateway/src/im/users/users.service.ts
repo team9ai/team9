@@ -3,9 +3,12 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   DATABASE_CONNECTION,
   eq,
+  and,
   or,
   like,
   sql,
+  inArray,
+  isNull,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -190,7 +193,34 @@ export class UsersService {
     return status === 'online';
   }
 
-  async search(query: string, limit = 20): Promise<UserResponse[]> {
+  async search(
+    query: string,
+    limit = 20,
+    tenantId?: string,
+  ): Promise<UserResponse[]> {
+    const searchCondition = or(
+      like(schema.users.username, `%${query}%`),
+      like(schema.users.displayName, `%${query}%`),
+    );
+
+    const conditions = tenantId
+      ? and(
+          searchCondition,
+          inArray(
+            schema.users.id,
+            this.db
+              .select({ userId: schema.tenantMembers.userId })
+              .from(schema.tenantMembers)
+              .where(
+                and(
+                  eq(schema.tenantMembers.tenantId, tenantId),
+                  isNull(schema.tenantMembers.leftAt),
+                ),
+              ),
+          ),
+        )
+      : searchCondition;
+
     const users = await this.db
       .select({
         id: schema.users.id,
@@ -202,12 +232,7 @@ export class UsersService {
         lastSeenAt: schema.users.lastSeenAt,
       })
       .from(schema.users)
-      .where(
-        or(
-          like(schema.users.username, `%${query}%`),
-          like(schema.users.displayName, `%${query}%`),
-        ),
-      )
+      .where(conditions)
       .limit(limit);
 
     return users;

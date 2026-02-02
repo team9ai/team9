@@ -243,6 +243,10 @@ export class PostgresSearchProvider implements SearchProvider {
 
     const tsQuery = this.buildTsQuery(query.query);
 
+    const tenantJoin = query.tenantId
+      ? sql`JOIN tenant_members tm ON us.user_id = tm.user_id AND tm.tenant_id = ${query.tenantId} AND tm.left_at IS NULL`
+      : sql``;
+
     const results = await this.db.execute<{
       user_id: string;
       username: string | null;
@@ -266,6 +270,7 @@ export class PostgresSearchProvider implements SearchProvider {
         ts_headline('simple', COALESCE(us.display_name, us.username), to_tsquery('simple', ${tsQuery}),
           'StartSel=<mark>, StopSel=</mark>') as highlight
       FROM im_user_search us
+      ${tenantJoin}
       WHERE us.search_vector @@ to_tsquery('simple', ${tsQuery})
         AND us.is_active = true
       ORDER BY score DESC

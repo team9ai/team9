@@ -130,7 +130,7 @@ function LoginLinkSentView({
           <p className="text-sm text-muted-foreground mb-2">
             {t("loginLinkSentHint")}
           </p>
-          <p className="text-sm text-muted-foreground mb-6">
+          <p className="text-sm text-muted-foreground mb-6 font-bold">
             {t("checkSpamFolder")}
           </p>
           <Button
