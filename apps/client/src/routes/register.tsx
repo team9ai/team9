@@ -166,8 +166,11 @@ function VerificationSentView({
               ? t("emailAlreadyRegisteredHint", { email })
               : t("verificationEmailSent", { email })}
           </p>
-          <p className="text-sm text-muted-foreground mb-6">
+          <p className="text-sm text-muted-foreground mb-2">
             {t("verificationEmailHint")}
+          </p>
+          <p className="text-sm text-muted-foreground mb-6">
+            {t("checkSpamFolder")}
           </p>
           <ResendVerificationButton email={email} />
         </div>
