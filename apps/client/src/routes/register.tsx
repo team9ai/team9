@@ -244,6 +244,10 @@ function Register() {
       if (errorMessage.toLowerCase().includes("email already exists")) {
         setEmailAlreadyExists(true);
         setRegisteredEmail(email);
+      } else if (
+        errorMessage.toLowerCase().includes("username already exists")
+      ) {
+        setError(t("usernameAlreadyExists"));
       } else {
         setError(errorMessage);
       }
