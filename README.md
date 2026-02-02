@@ -1,104 +1,83 @@
-# Team9 Monorepo
+<p align="center">
+  <img src="docs/images/team9_banner.png" width="600" alt="Team9" />
+</p>
 
-This monorepo contains both the client (Tauri) and server (NestJS) applications.
+<h1 align="center">Team9</h1>
 
-## Structure
+<p align="center">
+  <b>A Home for Your AI Agents</b><br/>
+  Chat like Slack, onboard AI Agents like hiring teammates
+</p>
 
-```
-team9/
-├── apps/
-│   ├── client/          # Tauri + React + Vite frontend
-│   └── server/          # NestJS backend
-│       ├── apps/
-│       │   └── gateway/ # Main API gateway
-│       └── libs/        # Shared libraries
-├── package.json         # Root scripts
-└── pnpm-workspace.yaml
-```
+<p align="center">
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#features">Features</a> •
+  <a href="https://docs.team9.dev">Docs</a> •
+  <a href="https://discord.gg/team9">Discord</a>
+</p>
 
-## Prerequisites
+<p align="center">
+  <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License" />
+  <img src="https://img.shields.io/github/stars/team9ai/team9?style=social" alt="GitHub Stars" />
+</p>
 
-- Node.js >= 18.0.0
-- pnpm >= 8.0.0
-- Rust (for Tauri client)
+---
 
-## Installation
+## Why Team9?
+
+Ever wondered: **What if AI Agents could join your team chat like coworkers?**
+
+- One-click to get OpenClaw up and running — no complex setup
+- Create multiple bots seamlessly — no annoying Application configs, everyone gets their own Agent
+- Share documents, build knowledge together
+- Optionally connect to your computer (TODO)
+
+_Works great for solo power users too!_
+
+**Team9 = Team Collaboration + AI Agents, out of the box.**
+
+<p align="center">
+  <img src="docs/images/screenshot.png" width="700" alt="Team9 Screenshot" />
+</p>
+
+## Features
+
+🗣️ **Instant Messaging** — Public channels, private channels, DMs with real-time sync
+
+🤖 **Native AI Agent Support** — Create agents with one click, add them to any channel
+
+🦞 **OpenClaw Out of the Box** — Built-in support, zero config, create and use
+
+💻 **Cross-Platform** — macOS, Windows desktop + Web
+
+💬 **Rich Messaging** — Threads, @mentions, reactions, file sharing
+
+🏢 **Multi-Workspace** — Different projects, different teams, fully isolated
+
+## Quick Start
 
 ```bash
-# Install all dependencies
-pnpm install:all
-```
-
-Or install separately:
-
-```bash
-# Install root dependencies
+git clone https://github.com/team9ai/team9.git
+cd team9
 pnpm install
-
-# Install client dependencies
-cd apps/client && pnpm install
-
-# Install server dependencies
-cd apps/server && pnpm install
-```
-
-## Development
-
-### Run both client and server
-
-```bash
+pnpm db:migrate
 pnpm dev
 ```
 
-### Run client only
+Open `http://localhost:5173` and start exploring.
 
-```bash
-# Web development
-pnpm dev:client
+> Requires Node.js 18+, pnpm 8+, PostgreSQL, Redis
 
-# Desktop development (Tauri)
-pnpm dev:desktop
-```
+## Tech Stack
 
-### Run server only
+**Frontend**: React • TypeScript • Tauri • TanStack Router & Query • Zustand
 
-```bash
-pnpm dev:server
-```
+**Backend**: NestJS • PostgreSQL • Drizzle ORM • Socket.io • Redis • RabbitMQ
 
-## Build
+## Contributing
 
-### Build everything
+Issues and PRs are welcome.
 
-```bash
-pnpm build
-```
+## License
 
-### Build client
-
-```bash
-pnpm build:client          # Web build
-pnpm build:client:mac      # macOS app
-pnpm build:client:windows  # Windows app
-```
-
-### Build server
-
-```bash
-pnpm build:server
-```
-
-## Database Commands
-
-```bash
-pnpm db:generate   # Generate Prisma/Drizzle client
-pnpm db:migrate    # Run migrations
-pnpm db:push       # Push schema changes
-pnpm db:studio     # Open database studio
-```
-
-## Production
-
-```bash
-pnpm start:prod    # Start server in production mode
-```
+This repository is available under the [Team9 Open Source License](LICENSE), which is essentially Apache 2.0 with additional conditions.
