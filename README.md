@@ -12,8 +12,9 @@
 <p align="center">
   <a href="#quick-start">Quick Start</a> •
   <a href="#features">Features</a> •
-  <a href="https://docs.team9.dev">Docs</a> •
-  <a href="https://discord.gg/team9">Discord</a>
+  <!-- <a href="https://docs.team9.ai">Docs</a> • -->
+  <a href="https://discord.gg/edMATqpU">Discord</a> •
+  <a href="https://x.com/Team9_ai">X</a>
 </p>
 
 <p align="center">
@@ -54,7 +55,23 @@ _Works great for solo power users too!_
 
 🏢 **Multi-Workspace** — Different projects, different teams, fully isolated
 
+## Roadmap
+
+> We're in early stage and actively shipping new features. Stay tuned!
+
+- [ ] OpenClaw App Management
+- [ ] OpenClaw Config Panel
+- [ ] Create & manage multiple bots
+- [ ] Bot workflow visualization
+- [ ] Local computer control
+
 ## Quick Start
+
+### Cloud (Recommended)
+
+Try Team9 instantly at **[team9.ai](https://team9.ai)** — no setup required.
+
+### Self-Hosted
 
 ```bash
 git clone https://github.com/team9ai/team9.git
