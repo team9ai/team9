@@ -222,6 +222,24 @@ export class ChannelsController {
       dto.userId,
       dto.role || 'member',
     );
+
+    // Notify the newly added user so their client joins the Socket.io room
+    const channel = await this.channelsService.findByIdOrThrow(
+      channelId,
+      dto.userId,
+    );
+    await this.websocketGateway.sendToUser(
+      dto.userId,
+      WS_EVENTS.CHANNEL.CREATED,
+      channel,
+    );
+
+    // Notify existing channel members about the new member
+    this.websocketGateway.sendToChannel(channelId, WS_EVENTS.CHANNEL.JOINED, {
+      channelId,
+      userId: dto.userId,
+    });
+
     return { success: true };
   }
 
