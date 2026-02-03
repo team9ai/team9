@@ -55,7 +55,7 @@ function MentionSuggestions({
   isLoading,
 }: MentionSuggestionsProps) {
   return (
-    <div className="absolute bottom-full left-0 mb-1 w-64 max-h-60 overflow-y-auto bg-background border border-border rounded-lg shadow-lg z-50">
+    <div className="absolute bottom-full left-0 mb-1 w-64 max-h-60 overflow-y-auto bg-background border border-border rounded-lg shadow-lg z-9999">
       {isLoading ? (
         <div className="px-3 py-2 text-sm text-muted-foreground">
           Loading...

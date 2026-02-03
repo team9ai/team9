@@ -190,10 +190,10 @@ export function RichTextEditor({
           <OnChangePlugin onChange={handleChange} />
           <AutoFocusPlugin />
           <EditorRefPlugin editorRef={editorRef} />
-
-          {/* Mentions dropdown container */}
-          <MentionsPlugin />
         </div>
+
+        {/* Mentions dropdown container - must be outside overflow-y-auto to avoid clipping */}
+        <MentionsPlugin />
 
         {/* Attachment previews */}
         {uploadingFiles.length > 0 && onRemoveFile && (
