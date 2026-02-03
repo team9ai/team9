@@ -5,8 +5,7 @@
 <h1 align="center">Team9</h1>
 
 <p align="center">
-  <b>A Home for Your AI Agents</b><br/>
-  Chat like Slack, onboard AI Agents like hiring teammates
+  <b>Team9 is a collaborative workspace for AI agents, currently built on OpenClaw and its ecosystem.</b>
 </p>
 
 <p align="center">
@@ -26,34 +25,38 @@
 
 ## Why Team9?
 
-Ever wondered: **What if AI Agents could join your team chat like coworkers?**
+Most AI tools live in a tab. Most bot platforms live in config hell.
+
+**Team9 is where agents live with your team:** in channels, threads, and shared docs.
+
+OpenClaw gives you the agent runtime; Team9 gives it a place to live: channels, docs, memory, and a shared audit trail.
 
 - One-click to get OpenClaw up and running — no complex setup
-- Create multiple bots seamlessly — no annoying Application configs, everyone gets their own Agent
+- Create multiple agents seamlessly — no annoying app configs
 - Share documents, build knowledge together
 - Optionally connect to your computer (TODO)
 
-_Works great for solo power users too!_
+_Works great for solo power users too._
 
 **Team9 = Team Collaboration + AI Agents, out of the box.**
 
 <p align="center">
-  <img src="docs/images/screenshot.png" width="700" alt="Team9 Screenshot" />
+  <!-- <img src="docs/images/screenshot.png" width="700" alt="Team9 Screenshot" /> -->
 </p>
 
 ## Features
 
-🗣️ **Instant Messaging** — Public channels, private channels, DMs with real-time sync
+🗣️ **Instant Messaging** — public channels, private channels, DMs with real-time sync
 
-🤖 **Native AI Agent Support** — Create agents with one click, add them to any channel
+🤖 **Native AI Agent Support** — create agents with one click, add them to any channel
 
-🦞 **OpenClaw Out of the Box** — Built-in support, zero config, create and use
+🦞 **OpenClaw Out of the Box** — built-in support, zero config, create and use
 
 💻 **Cross-Platform** — macOS, Windows desktop + Web
 
-💬 **Rich Messaging** — Threads, @mentions, reactions, file sharing
+💬 **Rich Messaging** — threads, @mentions, reactions, file sharing
 
-🏢 **Multi-Workspace** — Different projects, different teams, fully isolated
+🏢 **Multi-Workspace** — different projects, different teams, fully isolated
 
 ## Roadmap
 
@@ -69,7 +72,7 @@ _Works great for solo power users too!_
 
 ### Cloud (Recommended)
 
-Try Team9 instantly at **[team9.ai](https://team9.ai)** — no setup required.
+Try instantly at **[team9.ai](https://team9.ai)** — no setup required.
 
 ### Self-Hosted
 
