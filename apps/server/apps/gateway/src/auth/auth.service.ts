@@ -3,6 +3,7 @@ import {
   UnauthorizedException,
   BadRequestException,
   Inject,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -49,6 +50,7 @@ export interface LoginResponse {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly TOKEN_BLACKLIST_PREFIX = 'im:token_blacklist:';
   private readonly VERIFICATION_RATE_LIMIT_PREFIX = 'im:verify_rate:';
   private readonly LOGIN_RATE_LIMIT_PREFIX = 'im:login_rate:';
@@ -123,6 +125,10 @@ export class AuthService {
     email: string,
     username: string,
   ): Promise<void> {
+    this.logger.log(
+      `[Auth] Preparing verification email for ${email} (userId: ${userId})`,
+    );
+
     // Generate secure token
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(
@@ -140,12 +146,18 @@ export class AuthService {
 
     // Build verification link
     const verificationLink = `${env.APP_URL}/verify-email?token=${token}`;
+    this.logger.log(
+      `[Auth] Verification link generated: ${verificationLink.substring(0, 60)}...`,
+    );
 
     // Send email
-    await this.emailService.sendVerificationEmail(
+    const result = await this.emailService.sendVerificationEmail(
       email,
       username,
       verificationLink,
+    );
+    this.logger.log(
+      `[Auth] Verification email send result for ${email}: ${result}`,
     );
   }
 
@@ -154,6 +166,10 @@ export class AuthService {
     email: string,
     username: string,
   ): Promise<void> {
+    this.logger.log(
+      `[Auth] Preparing login link email for ${email} (userId: ${userId})`,
+    );
+
     // Generate secure token
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(
@@ -171,9 +187,17 @@ export class AuthService {
 
     // Build login link
     const loginLink = `${env.APP_URL}/verify-email?token=${token}`;
+    this.logger.log(
+      `[Auth] Login link generated: ${loginLink.substring(0, 60)}...`,
+    );
 
     // Send email
-    await this.emailService.sendLoginEmail(email, username, loginLink);
+    const result = await this.emailService.sendLoginEmail(
+      email,
+      username,
+      loginLink,
+    );
+    this.logger.log(`[Auth] Login email send result for ${email}: ${result}`);
   }
 
   async verifyEmail(token: string): Promise<AuthResponse> {
