@@ -66,6 +66,10 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto): Promise<RegisterResponse> {
+    this.logger.log(
+      `[Auth] Register attempt for email: ${dto.email}, username: ${dto.username}`,
+    );
+
     // Check if email or username already exists
     const existingUser = await this.db
       .select()
@@ -304,6 +308,8 @@ export class AuthService {
   }
 
   async login(dto: LoginDto): Promise<LoginResponse> {
+    this.logger.log(`[Auth] Login attempt for email: ${dto.email}`);
+
     // Rate limiting check using Redis
     const rateLimitKey = `${this.LOGIN_RATE_LIMIT_PREFIX}${dto.email}`;
     const recentAttempt = await this.redisService.get(rateLimitKey);
