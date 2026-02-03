@@ -5,6 +5,7 @@ import {
   Lock,
   Headphones,
   BookOpen,
+  UserPlus,
   Star,
   Plus,
   FolderPlus,
@@ -36,6 +37,7 @@ import { Link, useParams } from "@tanstack/react-router";
 import { NewMessageDialog } from "@/components/dialog/NewMessageDialog";
 import { CreateChannelDialog } from "@/components/dialog/CreateChannelDialog";
 import { CreateSectionDialog } from "@/components/dialog/CreateSectionDialog";
+import { InviteManagementDialog } from "@/components/workspace/InviteManagementDialog";
 import { UserListItem } from "@/components/sidebar/UserListItem";
 import {
   DndContext,
@@ -56,7 +58,10 @@ const topItems: {
   id: string;
   label: string;
   icon: typeof Headphones;
-}[] = [{ id: "dashboard", label: "Dashboard", icon: BookOpen }];
+}[] = [
+  { id: "dashboard", label: "Dashboard", icon: BookOpen },
+  { id: "invite", label: "Invite Your Team", icon: UserPlus },
+];
 
 // Draggable Channel Component
 function DraggableChannel({
@@ -230,6 +235,7 @@ export function HomeSubSidebar() {
   const [isNewMessageOpen, setIsNewMessageOpen] = useState(false);
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
   const [isCreateSectionOpen, setIsCreateSectionOpen] = useState(false);
+  const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(),
   );
@@ -393,6 +399,20 @@ export function HomeSubSidebar() {
           {/* Top-level navigation items */}
           {topItems.map((item) => {
             const Icon = item.icon;
+            if (item.id === "invite") {
+              return (
+                <div key={item.id}>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setIsInviteDialogOpen(true)}
+                    className="w-full justify-start gap-2 px-2 h-auto py-1.5 text-sm text-nav-foreground-muted hover:bg-nav-hover hover:text-nav-foreground"
+                  >
+                    <Icon size={16} />
+                    <span className="truncate">{item.label}</span>
+                  </Button>
+                </div>
+              );
+            }
             return (
               <div key={item.id}>
                 <Link to="/channels" className="block">
@@ -623,6 +643,15 @@ export function HomeSubSidebar() {
         isOpen={isCreateSectionOpen}
         onClose={() => setIsCreateSectionOpen(false)}
       />
+
+      {/* Invite Management Dialog */}
+      {workspaceId && (
+        <InviteManagementDialog
+          isOpen={isInviteDialogOpen}
+          onClose={() => setIsInviteDialogOpen(false)}
+          workspaceId={workspaceId}
+        />
+      )}
     </aside>
   );
 }
