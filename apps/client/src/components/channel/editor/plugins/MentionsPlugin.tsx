@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
+  $getRoot,
   $getSelection,
   $isRangeSelection,
   $isTextNode,
@@ -118,6 +119,7 @@ export function MentionsPlugin() {
   const [queryString, setQueryString] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const dismissedRef = useRef(false);
 
   const { users, isLoading } = useMentionLookupService(queryString);
 
@@ -146,6 +148,9 @@ export function MentionsPlugin() {
     const match = MentionRegex.exec(text);
 
     if (match) {
+      if (dismissedRef.current) {
+        return null;
+      }
       const mentionString = match[3] || "";
       setQueryString(mentionString);
       return {
@@ -213,8 +218,16 @@ export function MentionsPlugin() {
   );
 
   useEffect(() => {
+    let prevText = "";
+
     return editor.registerUpdateListener(({ editorState }) => {
       editorState.read(() => {
+        const currentText = $getRoot().getTextContent();
+        if (currentText !== prevText) {
+          prevText = currentText;
+          dismissedRef.current = false;
+        }
+
         checkForMentionMatch();
       });
     });
@@ -275,6 +288,7 @@ export function MentionsPlugin() {
       editor.registerCommand(
         KEY_ESCAPE_COMMAND,
         () => {
+          dismissedRef.current = true;
           setQueryString(null);
           return true;
         },
@@ -282,6 +296,26 @@ export function MentionsPlugin() {
       ),
     );
   }, [editor, showDropdown, suggestions, selectedIndex, insertMention]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!showDropdown) return;
+
+    const handleMouseDown = (event: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        dismissedRef.current = true;
+        setQueryString(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => {
+      document.removeEventListener("mousedown", handleMouseDown);
+    };
+  }, [showDropdown]);
 
   // Reset selected index when suggestions change
   useEffect(() => {
