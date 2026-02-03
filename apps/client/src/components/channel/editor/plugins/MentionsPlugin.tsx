@@ -4,7 +4,7 @@ import {
   $getSelection,
   $isRangeSelection,
   $isTextNode,
-  COMMAND_PRIORITY_LOW,
+  COMMAND_PRIORITY_HIGH,
   KEY_ARROW_DOWN_COMMAND,
   KEY_ARROW_UP_COMMAND,
   KEY_ENTER_COMMAND,
@@ -54,6 +54,13 @@ function MentionSuggestions({
   onHover,
   isLoading,
 }: MentionSuggestionsProps) {
+  const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
+
+  // Auto-scroll selected item into view for keyboard navigation
+  useEffect(() => {
+    itemRefs.current[selectedIndex]?.scrollIntoView({ block: "nearest" });
+  }, [selectedIndex]);
+
   return (
     <div className="absolute bottom-full left-0 mb-1 w-64 max-h-60 overflow-y-auto bg-background border border-border rounded-lg shadow-lg z-9999">
       {isLoading ? (
@@ -69,10 +76,13 @@ function MentionSuggestions({
           {suggestions.map((user, index) => (
             <li
               key={user.id}
+              ref={(el) => {
+                itemRefs.current[index] = el;
+              }}
               className={cn(
                 "flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors",
                 selectedIndex === index
-                  ? "bg-primary/5 text-primary"
+                  ? "bg-primary/10 text-primary"
                   : "hover:bg-muted",
               )}
               onClick={() => onSelect(user)}
@@ -224,7 +234,7 @@ export function MentionsPlugin() {
           );
           return true;
         },
-        COMMAND_PRIORITY_LOW,
+        COMMAND_PRIORITY_HIGH,
       ),
       editor.registerCommand(
         KEY_ARROW_UP_COMMAND,
@@ -236,7 +246,7 @@ export function MentionsPlugin() {
           );
           return true;
         },
-        COMMAND_PRIORITY_LOW,
+        COMMAND_PRIORITY_HIGH,
       ),
       editor.registerCommand(
         KEY_ENTER_COMMAND,
@@ -248,7 +258,7 @@ export function MentionsPlugin() {
           }
           return false;
         },
-        COMMAND_PRIORITY_LOW,
+        COMMAND_PRIORITY_HIGH,
       ),
       editor.registerCommand(
         KEY_TAB_COMMAND,
@@ -260,7 +270,7 @@ export function MentionsPlugin() {
           }
           return false;
         },
-        COMMAND_PRIORITY_LOW,
+        COMMAND_PRIORITY_HIGH,
       ),
       editor.registerCommand(
         KEY_ESCAPE_COMMAND,
@@ -268,7 +278,7 @@ export function MentionsPlugin() {
           setQueryString(null);
           return true;
         },
-        COMMAND_PRIORITY_LOW,
+        COMMAND_PRIORITY_HIGH,
       ),
     );
   }, [editor, showDropdown, suggestions, selectedIndex, insertMention]);
