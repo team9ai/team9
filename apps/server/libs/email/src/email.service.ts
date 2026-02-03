@@ -22,9 +22,7 @@ export class EmailService {
     const apiKey = env.RESEND_API_KEY;
     if (apiKey) {
       this.resend = new Resend(apiKey);
-      this.logger.log(
-        `Email service initialized with Resend, API key prefix: ${apiKey.substring(0, 8)}..., from: ${env.EMAIL_FROM}`,
-      );
+      this.logger.log('Email service initialized with Resend');
     } else {
       this.resend = null;
       this.logger.warn(
@@ -113,16 +111,8 @@ export class EmailService {
 
   private async send(options: SendEmailOptions): Promise<boolean> {
     if (!this.resend) {
-      this.logger.warn('Resend client is null, cannot send email');
       return false;
     }
-
-    const sendPayload = {
-      from: this.fromEmail,
-      to: options.to,
-      subject: options.subject,
-    };
-    this.logger.log(`Attempting to send email: ${JSON.stringify(sendPayload)}`);
 
     try {
       const { data, error } = await this.resend.emails.send({
@@ -134,9 +124,7 @@ export class EmailService {
       });
 
       if (error) {
-        this.logger.error(
-          `Failed to send email to ${options.to}, Resend error: ${JSON.stringify(error)}`,
-        );
+        this.logger.error(`Failed to send email to ${options.to}`, error);
         return false;
       }
 
@@ -145,9 +133,7 @@ export class EmailService {
       );
       return true;
     } catch (error) {
-      this.logger.error(
-        `Error sending email to ${options.to}, exception: ${error instanceof Error ? error.message : JSON.stringify(error)}, stack: ${error instanceof Error ? error.stack : 'N/A'}`,
-      );
+      this.logger.error(`Error sending email to ${options.to}`, error);
       return false;
     }
   }
