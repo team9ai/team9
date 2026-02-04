@@ -23,8 +23,6 @@ import { ApplicationsService } from './applications.service.js';
 
 export interface InstallApplicationDto {
   applicationId: string;
-  name: string;
-  description?: string;
   iconUrl?: string;
   config?: ApplicationConfig;
   secrets?: ApplicationSecrets;
@@ -32,8 +30,6 @@ export interface InstallApplicationDto {
 }
 
 export interface UpdateInstalledApplicationDto {
-  name?: string;
-  description?: string;
   iconUrl?: string;
   config?: ApplicationConfig;
   secrets?: ApplicationSecrets;
@@ -71,8 +67,6 @@ export class InstalledApplicationsService {
     const newRecord: NewInstalledApplication = {
       id,
       applicationId: dto.applicationId,
-      name: dto.name,
-      description: dto.description,
       iconUrl: dto.iconUrl,
       tenantId,
       installedBy,

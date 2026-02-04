@@ -14,6 +14,34 @@ export default defineConfig(async () => ({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes("node_modules")) {
+            if (id.includes("/react-dom/") || id.includes("/react/")) {
+              return "vendor-react";
+            }
+            if (
+              id.includes("/@tanstack/react-router/") ||
+              id.includes("/@tanstack/react-query/")
+            ) {
+              return "vendor-router";
+            }
+            if (id.includes("/lexical/") || id.includes("/@lexical/")) {
+              return "lexical-editor";
+            }
+            if (id.includes("/@emoji-mart/")) {
+              return "emoji-mart";
+            }
+            if (id.includes("/@dnd-kit/")) {
+              return "dnd-kit";
+            }
+          }
+        },
+      },
+    },
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //

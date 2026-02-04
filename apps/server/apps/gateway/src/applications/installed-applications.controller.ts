@@ -87,8 +87,6 @@ export class InstalledApplicationsController {
 
     return this.installedApplicationsService.install(tenantId, userId, {
       ...dto,
-      name: dto.name || application.name,
-      description: dto.description || application.description,
       iconUrl: dto.iconUrl || application.iconUrl,
     });
   }
