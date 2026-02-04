@@ -184,17 +184,17 @@ export function HomeMainContent() {
                       <Bot size={16} className="text-info" />
                     </div>
                     <h3 className="font-semibold text-base">
-                      {t("chatWithClawdbot")}
+                      {t("chatWithOpenClaw")}
                     </h3>
                   </div>
                   <div className="flex items-center justify-center gap-3 mb-4">
                     <img
                       src="/bot.webp"
-                      alt="Clawdbot"
+                      alt="OpenClaw"
                       className="w-11 h-11 rounded-full shadow-sm shrink-0"
                     />
                     <div className="relative border border-border rounded-xl px-3.5 py-2 text-sm text-muted-foreground bg-background shadow-sm">
-                      HI its Clawdbot here!
+                      HI its OpenClaw here!
                       <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rotate-45 border-l border-b border-border bg-background" />
                     </div>
                   </div>
