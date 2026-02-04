@@ -99,7 +99,7 @@ export function MoreMainContent() {
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">
                   {group.title}
                 </h3>
-                <Card className="p-2">
+                <Card className="p-2 gap-0">
                   {group.items.map((item, index) => {
                     const Icon = item.icon;
                     return (

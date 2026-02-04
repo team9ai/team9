@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Mail, Users } from "lucide-react";
+import { Mail, Users, ExternalLink } from "lucide-react";
 import workspaceApi from "@/services/api/workspace";
 
 const MAIL_QUICK_LINKS = [
@@ -96,7 +96,13 @@ export const Route = createFileRoute("/register")({
   },
 });
 
-function ResendVerificationButton({ email }: { email: string }) {
+function ResendVerificationButton({
+  email,
+  onVerificationLink,
+}: {
+  email: string;
+  onVerificationLink?: (link: string) => void;
+}) {
   const { t } = useTranslation("auth");
   const resendVerification = useResendVerification();
   const [countdown, setCountdown] = useState(0);
@@ -110,8 +116,12 @@ function ResendVerificationButton({ email }: { email: string }) {
 
   const handleResend = async () => {
     try {
-      await resendVerification.mutateAsync(email);
+      const result = await resendVerification.mutateAsync(email);
       setCountdown(60);
+      // Pass verification link to parent if available (dev mode)
+      if (result.verificationLink && onVerificationLink) {
+        onVerificationLink(result.verificationLink);
+      }
     } catch {
       // Error handled by mutation
     }
@@ -136,11 +146,18 @@ function ResendVerificationButton({ email }: { email: string }) {
 function VerificationSentView({
   email,
   isResend = false,
+  verificationLink: initialVerificationLink,
 }: {
   email: string;
   isResend?: boolean;
+  /** Dev mode: direct verification link (skips email) */
+  verificationLink?: string;
 }) {
   const { t } = useTranslation("auth");
+  // Track verification link internally so resend can update it
+  const [verificationLink, setVerificationLink] = useState(
+    initialVerificationLink,
+  );
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background py-12">
@@ -166,17 +183,41 @@ function VerificationSentView({
               ? t("emailAlreadyRegisteredHint", { email })
               : t("verificationEmailSent", { email })}
           </p>
-          <p className="text-sm text-muted-foreground mb-2">
-            {t("verificationEmailHint")}
-          </p>
-          <p className="text-sm text-muted-foreground mb-6 font-bold">
-            {t("checkSpamFolder")}
-          </p>
-          <ResendVerificationButton email={email} />
+
+          {/* Dev mode: Show direct verification link */}
+          {verificationLink && (
+            <div className="mb-6 p-4 bg-warning/10 border border-warning/30 rounded-lg">
+              <p className="text-sm text-warning font-medium mb-3">
+                🛠️ Dev Mode: Click to verify directly
+              </p>
+              <a
+                href={verificationLink}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Verify Email Now
+              </a>
+            </div>
+          )}
+
+          {!verificationLink && (
+            <>
+              <p className="text-sm text-muted-foreground mb-2">
+                {t("verificationEmailHint")}
+              </p>
+              <p className="text-sm text-muted-foreground mb-6 font-bold">
+                {t("checkSpamFolder")}
+              </p>
+            </>
+          )}
+          <ResendVerificationButton
+            email={email}
+            onVerificationLink={setVerificationLink}
+          />
         </div>
 
-        {/* Email Quick Links */}
-        <EmailQuickLinks />
+        {/* Email Quick Links - hide in dev mode */}
+        {!verificationLink && <EmailQuickLinks />}
       </div>
     </div>
   );
@@ -190,6 +231,9 @@ function Register() {
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState("");
   const [emailAlreadyExists, setEmailAlreadyExists] = useState(false);
+  const [verificationLink, setVerificationLink] = useState<
+    string | undefined
+  >();
 
   const navigate = useNavigate();
   const { invite } = Route.useSearch();
@@ -240,6 +284,7 @@ function Register() {
       });
       // Show verification sent view
       setRegisteredEmail(result.email);
+      setVerificationLink(result.verificationLink);
       setRegistrationSuccess(true);
     } catch (err: any) {
       const errorMessage =
@@ -261,7 +306,12 @@ function Register() {
 
   // Show verification sent view after successful registration
   if (registrationSuccess) {
-    return <VerificationSentView email={registeredEmail} />;
+    return (
+      <VerificationSentView
+        email={registeredEmail}
+        verificationLink={verificationLink}
+      />
+    );
   }
 
   // Show resend verification option if email already exists

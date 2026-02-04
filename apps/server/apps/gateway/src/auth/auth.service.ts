@@ -40,11 +40,15 @@ export interface AuthResponse extends TokenPair {
 export interface RegisterResponse {
   message: string;
   email: string;
+  /** Verification link returned in dev mode when DEV_SKIP_EMAIL_VERIFICATION=true */
+  verificationLink?: string;
 }
 
 export interface LoginResponse {
   message: string;
   email: string;
+  /** Verification link returned in dev mode when DEV_SKIP_EMAIL_VERIFICATION=true */
+  verificationLink?: string;
 }
 
 @Injectable()
@@ -99,9 +103,6 @@ export class AuthService {
       })
       .returning();
 
-    // Generate and send verification email
-    await this.sendVerificationEmail(user.id, user.email, user.username);
-
     // Emit event to create a personal workspace for the user
     this.eventEmitter.emit(USER_EVENTS.REGISTERED, {
       userId: user.id,
@@ -111,10 +112,19 @@ export class AuthService {
     // Emit event for search indexing
     this.eventEmitter.emit('user.created', { user });
 
+    // Generate and send verification email (returns link, may skip email in dev mode)
+    const { verificationLink } = await this.sendVerificationEmail(
+      user.id,
+      user.email,
+      user.username,
+    );
+
     return {
       message:
         'Registration successful. Please check your email to verify your account.',
       email: user.email,
+      // Include verification link in dev mode for easy testing
+      ...(env.DEV_SKIP_EMAIL_VERIFICATION && { verificationLink }),
     };
   }
 
@@ -122,7 +132,7 @@ export class AuthService {
     userId: string,
     email: string,
     username: string,
-  ): Promise<void> {
+  ): Promise<{ verificationLink: string }> {
     // Generate secure token
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(
@@ -141,19 +151,23 @@ export class AuthService {
     // Build verification link
     const verificationLink = `${env.APP_URL}/verify-email?token=${token}`;
 
-    // Send email
-    await this.emailService.sendVerificationEmail(
-      email,
-      username,
-      verificationLink,
-    );
+    // In dev mode with skip verification, don't send email
+    if (!env.DEV_SKIP_EMAIL_VERIFICATION) {
+      await this.emailService.sendVerificationEmail(
+        email,
+        username,
+        verificationLink,
+      );
+    }
+
+    return { verificationLink };
   }
 
   private async sendLoginLink(
     userId: string,
     email: string,
     username: string,
-  ): Promise<void> {
+  ): Promise<{ verificationLink: string }> {
     // Generate secure token
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(
@@ -170,10 +184,14 @@ export class AuthService {
     });
 
     // Build login link
-    const loginLink = `${env.APP_URL}/verify-email?token=${token}`;
+    const verificationLink = `${env.APP_URL}/verify-email?token=${token}`;
 
-    // Send email
-    await this.emailService.sendLoginEmail(email, username, loginLink);
+    // In dev mode with skip verification, don't send email
+    if (!env.DEV_SKIP_EMAIL_VERIFICATION) {
+      await this.emailService.sendLoginEmail(email, username, verificationLink);
+    }
+
+    return { verificationLink };
   }
 
   async verifyEmail(token: string): Promise<AuthResponse> {
@@ -236,7 +254,9 @@ export class AuthService {
     };
   }
 
-  async resendVerificationEmail(email: string): Promise<{ message: string }> {
+  async resendVerificationEmail(
+    email: string,
+  ): Promise<{ message: string; verificationLink?: string }> {
     // Rate limiting check using Redis
     const rateLimitKey = `${this.VERIFICATION_RATE_LIMIT_PREFIX}${email}`;
     const recentAttempt = await this.redisService.get(rateLimitKey);
@@ -271,12 +291,20 @@ export class AuthService {
       .where(eq(schema.emailVerificationTokens.userId, user.id));
 
     // Send new verification email
-    await this.sendVerificationEmail(user.id, user.email, user.username);
+    const { verificationLink } = await this.sendVerificationEmail(
+      user.id,
+      user.email,
+      user.username,
+    );
 
     // Set rate limit (60 seconds)
     await this.redisService.set(rateLimitKey, '1', 60);
 
-    return { message: 'Verification email has been sent.' };
+    return {
+      message: 'Verification email has been sent.',
+      // Include verification link in dev mode for easy testing
+      ...(env.DEV_SKIP_EMAIL_VERIFICATION && { verificationLink }),
+    };
   }
 
   async login(dto: LoginDto): Promise<LoginResponse> {
@@ -314,11 +342,17 @@ export class AuthService {
 
     if (!user.emailVerified) {
       // If email not verified, send verification email instead
-      await this.sendVerificationEmail(user.id, user.email, user.username);
+      const { verificationLink } = await this.sendVerificationEmail(
+        user.id,
+        user.email,
+        user.username,
+      );
       return {
         message:
           'Your email is not verified yet. We have sent a verification email.',
         email: dto.email,
+        // Include verification link in dev mode for easy testing
+        ...(env.DEV_SKIP_EMAIL_VERIFICATION && { verificationLink }),
       };
     }
 
@@ -328,7 +362,11 @@ export class AuthService {
       .where(eq(schema.emailVerificationTokens.userId, user.id));
 
     // Send login link
-    await this.sendLoginLink(user.id, user.email, user.username);
+    const { verificationLink } = await this.sendLoginLink(
+      user.id,
+      user.email,
+      user.username,
+    );
 
     // Set rate limit (60 seconds)
     await this.redisService.set(rateLimitKey, '1', 60);
@@ -336,6 +374,8 @@ export class AuthService {
     return {
       message: 'Login link has been sent to your email.',
       email: dto.email,
+      // Include verification link in dev mode for easy testing
+      ...(env.DEV_SKIP_EMAIL_VERIFICATION && { verificationLink }),
     };
   }
 

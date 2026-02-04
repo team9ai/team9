@@ -12,6 +12,8 @@ import {
   LogOut,
   Globe,
   Plus,
+  Bot,
+  LayoutGrid,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
@@ -55,6 +57,8 @@ const navigationItems = [
   { id: "messages", labelKey: "dms" as const, icon: MessageSquare },
   { id: "activity", labelKey: "activity" as const, icon: Bell },
   { id: "files", labelKey: "files" as const, icon: FileText },
+  { id: "aiStaff", labelKey: "aiStaff" as const, icon: Bot },
+  { id: "application", labelKey: "application" as const, icon: LayoutGrid },
   { id: "more", labelKey: "more" as const, icon: MoreHorizontal },
 ];
 
