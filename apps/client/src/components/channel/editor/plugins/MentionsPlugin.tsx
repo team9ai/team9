@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
+  $getRoot,
   $getSelection,
   $isRangeSelection,
   $isTextNode,
-  COMMAND_PRIORITY_LOW,
+  COMMAND_PRIORITY_HIGH,
   KEY_ARROW_DOWN_COMMAND,
   KEY_ARROW_UP_COMMAND,
   KEY_ENTER_COMMAND,
@@ -54,8 +55,15 @@ function MentionSuggestions({
   onHover,
   isLoading,
 }: MentionSuggestionsProps) {
+  const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
+
+  // Auto-scroll selected item into view for keyboard navigation
+  useEffect(() => {
+    itemRefs.current[selectedIndex]?.scrollIntoView({ block: "nearest" });
+  }, [selectedIndex]);
+
   return (
-    <div className="absolute bottom-full left-0 mb-1 w-64 max-h-60 overflow-y-auto bg-background border border-border rounded-lg shadow-lg z-50">
+    <div className="absolute bottom-full left-0 mb-1 w-64 max-h-60 overflow-y-auto bg-background border border-border rounded-lg shadow-lg z-9999">
       {isLoading ? (
         <div className="px-3 py-2 text-sm text-muted-foreground">
           Loading...
@@ -69,10 +77,13 @@ function MentionSuggestions({
           {suggestions.map((user, index) => (
             <li
               key={user.id}
+              ref={(el) => {
+                itemRefs.current[index] = el;
+              }}
               className={cn(
                 "flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors",
                 selectedIndex === index
-                  ? "bg-primary/5 text-primary"
+                  ? "bg-primary/10 text-primary"
                   : "hover:bg-muted",
               )}
               onClick={() => onSelect(user)}
@@ -108,6 +119,7 @@ export function MentionsPlugin() {
   const [queryString, setQueryString] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const dismissedRef = useRef(false);
 
   const { users, isLoading } = useMentionLookupService(queryString);
 
@@ -136,6 +148,9 @@ export function MentionsPlugin() {
     const match = MentionRegex.exec(text);
 
     if (match) {
+      if (dismissedRef.current) {
+        return null;
+      }
       const mentionString = match[3] || "";
       setQueryString(mentionString);
       return {
@@ -203,8 +218,16 @@ export function MentionsPlugin() {
   );
 
   useEffect(() => {
+    let prevText = "";
+
     return editor.registerUpdateListener(({ editorState }) => {
       editorState.read(() => {
+        const currentText = $getRoot().getTextContent();
+        if (currentText !== prevText) {
+          prevText = currentText;
+          dismissedRef.current = false;
+        }
+
         checkForMentionMatch();
       });
     });
@@ -224,7 +247,7 @@ export function MentionsPlugin() {
           );
           return true;
         },
-        COMMAND_PRIORITY_LOW,
+        COMMAND_PRIORITY_HIGH,
       ),
       editor.registerCommand(
         KEY_ARROW_UP_COMMAND,
@@ -236,7 +259,7 @@ export function MentionsPlugin() {
           );
           return true;
         },
-        COMMAND_PRIORITY_LOW,
+        COMMAND_PRIORITY_HIGH,
       ),
       editor.registerCommand(
         KEY_ENTER_COMMAND,
@@ -248,7 +271,7 @@ export function MentionsPlugin() {
           }
           return false;
         },
-        COMMAND_PRIORITY_LOW,
+        COMMAND_PRIORITY_HIGH,
       ),
       editor.registerCommand(
         KEY_TAB_COMMAND,
@@ -260,18 +283,39 @@ export function MentionsPlugin() {
           }
           return false;
         },
-        COMMAND_PRIORITY_LOW,
+        COMMAND_PRIORITY_HIGH,
       ),
       editor.registerCommand(
         KEY_ESCAPE_COMMAND,
         () => {
+          dismissedRef.current = true;
           setQueryString(null);
           return true;
         },
-        COMMAND_PRIORITY_LOW,
+        COMMAND_PRIORITY_HIGH,
       ),
     );
   }, [editor, showDropdown, suggestions, selectedIndex, insertMention]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!showDropdown) return;
+
+    const handleMouseDown = (event: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        dismissedRef.current = true;
+        setQueryString(null);
+      }
+    };
+
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => {
+      document.removeEventListener("mousedown", handleMouseDown);
+    };
+  }, [showDropdown]);
 
   // Reset selected index when suggestions change
   useEffect(() => {
