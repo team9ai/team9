@@ -9,7 +9,7 @@
 # ============================================
 
 FROM node:20-alpine AS base
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.13.1 --activate
 RUN apk add --no-cache libc6-compat
 
 # ============================================
@@ -36,8 +36,6 @@ COPY apps/server/libs/rabbitmq/package.json ./apps/server/libs/rabbitmq/
 COPY apps/server/libs/ai-client/package.json ./apps/server/libs/ai-client/
 COPY apps/server/libs/storage/package.json ./apps/server/libs/storage/
 COPY apps/server/libs/email/package.json ./apps/server/libs/email/
-COPY apps/server/libs/agent-framework/package.json ./apps/server/libs/agent-framework/
-COPY apps/server/libs/agent-runtime/package.json ./apps/server/libs/agent-runtime/
 
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
