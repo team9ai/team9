@@ -4,7 +4,7 @@ import postgres from 'postgres';
 import { eq } from 'drizzle-orm';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
-import * as schema from './schemas/index.js';
+import * as schema from '../schemas/index.js';
 
 /**
  * Generate access token and create OpenClaw instance for an existing bot.

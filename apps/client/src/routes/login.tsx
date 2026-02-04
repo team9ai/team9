@@ -5,7 +5,7 @@ import { useLogin, useCurrentUser } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Mail } from "lucide-react";
+import { Mail, ExternalLink } from "lucide-react";
 
 const MAIL_QUICK_LINKS = [
   { name: "Gmail", url: "https://mail.google.com" },
@@ -85,9 +85,12 @@ export const Route = createFileRoute("/login")({
 function LoginLinkSentView({
   email,
   invite,
+  verificationLink,
 }: {
   email: string;
   invite?: string;
+  /** Dev mode: direct verification link (skips email) */
+  verificationLink?: string;
 }) {
   const { t } = useTranslation("auth");
   const login = useLogin();
@@ -127,12 +130,33 @@ function LoginLinkSentView({
           <p className="text-muted-foreground mb-6">
             {t("loginLinkSentMessage", { email })}
           </p>
-          <p className="text-sm text-muted-foreground mb-2">
-            {t("loginLinkSentHint")}
-          </p>
-          <p className="text-sm text-muted-foreground mb-6 font-bold">
-            {t("checkSpamFolder")}
-          </p>
+
+          {/* Dev mode: Show direct verification link */}
+          {verificationLink && (
+            <div className="mb-6 p-4 bg-warning/10 border border-warning/30 rounded-lg">
+              <p className="text-sm text-warning font-medium mb-3">
+                🛠️ Dev Mode: Click to login directly
+              </p>
+              <a
+                href={verificationLink}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Login Now
+              </a>
+            </div>
+          )}
+
+          {!verificationLink && (
+            <>
+              <p className="text-sm text-muted-foreground mb-2">
+                {t("loginLinkSentHint")}
+              </p>
+              <p className="text-sm text-muted-foreground mb-6 font-bold">
+                {t("checkSpamFolder")}
+              </p>
+            </>
+          )}
           <Button
             variant="outline"
             onClick={handleResend}
@@ -147,8 +171,8 @@ function LoginLinkSentView({
           </Button>
         </div>
 
-        {/* Email Quick Links */}
-        <EmailQuickLinks />
+        {/* Email Quick Links - hide in dev mode */}
+        {!verificationLink && <EmailQuickLinks />}
 
         {/* Back to Login Link */}
         <div className="text-center mt-6">
@@ -171,6 +195,9 @@ function Login() {
   const [error, setError] = useState("");
   const [linkSent, setLinkSent] = useState(false);
   const [sentEmail, setSentEmail] = useState("");
+  const [verificationLink, setVerificationLink] = useState<
+    string | undefined
+  >();
 
   const navigate = useNavigate();
   const { redirect, invite } = Route.useSearch();
@@ -198,8 +225,9 @@ function Login() {
     }
 
     try {
-      await login.mutateAsync({ email });
+      const result = await login.mutateAsync({ email });
       setSentEmail(email);
+      setVerificationLink(result.verificationLink);
       setLinkSent(true);
     } catch (err: any) {
       const errorMessage =
@@ -210,7 +238,13 @@ function Login() {
 
   // Show login link sent view
   if (linkSent) {
-    return <LoginLinkSentView email={sentEmail} invite={invite} />;
+    return (
+      <LoginLinkSentView
+        email={sentEmail}
+        invite={invite}
+        verificationLink={verificationLink}
+      />
+    );
   }
 
   return (

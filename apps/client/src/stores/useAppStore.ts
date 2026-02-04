@@ -15,6 +15,8 @@ export type SidebarSection =
   | "messages"
   | "activity"
   | "files"
+  | "aiStaff"
+  | "application"
   | "more";
 
 // Default paths for each sidebar section
@@ -23,6 +25,8 @@ export const DEFAULT_SECTION_PATHS: Record<SidebarSection, string> = {
   messages: "/messages",
   activity: "/activity",
   files: "/files",
+  aiStaff: "/ai-staff",
+  application: "/application",
   more: "/more",
 };
 
@@ -36,6 +40,8 @@ export function getSectionFromPath(pathname: string): SidebarSection {
   if (pathname.startsWith("/messages")) return "messages";
   if (pathname.startsWith("/activity")) return "activity";
   if (pathname.startsWith("/files")) return "files";
+  if (pathname.startsWith("/ai-staff")) return "aiStaff";
+  if (pathname.startsWith("/application")) return "application";
   if (pathname.startsWith("/more")) return "more";
   // Fallback to home for unknown paths
   return "home";
@@ -69,6 +75,8 @@ const initialState = {
     messages: null,
     activity: null,
     files: null,
+    aiStaff: null,
+    application: null,
     more: null,
   } as SectionPaths,
   activeSidebar: "home" as SidebarSection,

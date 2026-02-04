@@ -5,7 +5,7 @@ import { v7 as uuidv7 } from 'uuid';
 import { eq, and, isNull } from 'drizzle-orm';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
-import * as schema from './schemas/index.js';
+import * as schema from '../schemas/index.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 

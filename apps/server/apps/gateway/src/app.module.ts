@@ -29,6 +29,7 @@ import { NotificationModule } from './notification/notification.module.js';
 import { SearchModule } from './search/search.module.js';
 import { BotModule } from './bot/bot.module.js';
 import { OpenclawModule } from './openclaw/openclaw.module.js';
+import { ApplicationsModule } from './applications/applications.module.js';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { OpenclawModule } from './openclaw/openclaw.module.js';
     StorageModule,
     BotModule,
     OpenclawModule,
+    ApplicationsModule,
     AuthModule,
     ClusterModule,
     ImModule,
