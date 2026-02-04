@@ -1,6 +1,8 @@
 import http from "../http";
 
 // Types matching server schemas
+export type ApplicationType = "managed" | "custom";
+
 export interface Application {
   id: string;
   name: string;
@@ -8,7 +10,7 @@ export interface Application {
   iconUrl?: string;
   categories: string[];
   enabled: boolean;
-  uninstallable?: boolean;
+  type: ApplicationType;
 }
 
 export interface InstalledApplication {
@@ -25,6 +27,8 @@ export interface InstalledApplication {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Application type - managed apps cannot be uninstalled or disabled */
+  type?: ApplicationType;
 }
 
 export interface InstallApplicationDto {

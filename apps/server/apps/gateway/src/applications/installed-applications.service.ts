@@ -44,7 +44,10 @@ export interface UpdateInstalledApplicationDto {
 /**
  * Omit secrets when returning to frontend.
  */
-export type SafeInstalledApplication = Omit<InstalledApplication, 'secrets'>;
+export type SafeInstalledApplication = Omit<InstalledApplication, 'secrets'> & {
+  /** Application type from the application definition */
+  type?: 'managed' | 'custom';
+};
 
 @Injectable()
 export class InstalledApplicationsService {
@@ -155,6 +158,16 @@ export class InstalledApplicationsService {
       throw new NotFoundException(`Installed application ${id} not found`);
     }
 
+    // Check if this is a managed application - prevent user modifications
+    const application = this.applicationsService.findById(
+      existing.applicationId,
+    );
+    if (application?.type === 'managed' && dto.isActive !== undefined) {
+      throw new ForbiddenException(
+        `Managed application ${application.name} cannot be disabled`,
+      );
+    }
+
     const [updated] = await this.db
       .update(schema.installedApplications)
       .set({
@@ -181,13 +194,13 @@ export class InstalledApplicationsService {
       throw new NotFoundException(`Installed application ${id} not found`);
     }
 
-    // Check if application can be uninstalled
+    // Check if this is a managed application - cannot be uninstalled
     const application = this.applicationsService.findById(
       existing.applicationId,
     );
-    if (application && application.uninstallable === false) {
+    if (application?.type === 'managed') {
       throw new ForbiddenException(
-        `Application ${application.name} cannot be uninstalled`,
+        `Managed application ${application.name} cannot be uninstalled`,
       );
     }
 
@@ -202,10 +215,14 @@ export class InstalledApplicationsService {
   }
 
   /**
-   * Remove secrets from the result.
+   * Remove secrets and add application type from definition.
    */
   private omitSecrets(app: InstalledApplication): SafeInstalledApplication {
     const { secrets: _, ...safe } = app;
-    return safe;
+    const appDefinition = this.applicationsService.findById(app.applicationId);
+    return {
+      ...safe,
+      type: appDefinition?.type,
+    };
   }
 }

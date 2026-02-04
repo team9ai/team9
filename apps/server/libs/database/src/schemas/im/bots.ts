@@ -42,6 +42,12 @@ export const bots = pgTable(
       onDelete: 'set null',
     }),
 
+    // Optional: The installed application that created this bot
+    installedApplicationId: uuid('installed_application_id').references(
+      () => installedApplications.id,
+      { onDelete: 'set null' },
+    ),
+
     description: text('description'),
 
     // Flexible capabilities descriptor
@@ -67,6 +73,7 @@ export const bots = pgTable(
     index('idx_bots_user_id').on(table.userId),
     index('idx_bots_type').on(table.type),
     index('idx_bots_owner_id').on(table.ownerId),
+    index('idx_bots_installed_application_id').on(table.installedApplicationId),
   ],
 );
 
