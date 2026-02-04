@@ -6,6 +6,7 @@ import {
   Hash,
   MessageSquare,
   Loader2,
+  X,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
@@ -29,6 +30,7 @@ export function HomeMainContent() {
   const currentWorkspace = workspaces?.find((w) => w.id === workspaceId);
   const [copied, setCopied] = useState(false);
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
+  const [isWarmupDismissed, setIsWarmupDismissed] = useState(false);
   const navigate = useNavigate();
   const { directChannels = [] } = useChannelsByType();
   const user = useUser();
@@ -116,12 +118,18 @@ export function HomeMainContent() {
           </div>
 
           {/* OpenClaw Warm-up Notification */}
-          {isNewUser && (
+          {isNewUser && !isWarmupDismissed && (
             <div className="mb-6 flex items-center gap-3 px-4 py-3 rounded-lg bg-info/10 border border-info/20">
               <Loader2 size={18} className="text-info animate-spin shrink-0" />
-              <p className="text-sm text-foreground">
+              <p className="text-sm text-foreground flex-1">
                 {t("openclawWarmingUp", { name: user?.name })}
               </p>
+              <button
+                onClick={() => setIsWarmupDismissed(true)}
+                className="p-1 rounded hover:bg-info/20 transition-colors shrink-0"
+              >
+                <X size={16} className="text-muted-foreground" />
+              </button>
             </div>
           )}
 

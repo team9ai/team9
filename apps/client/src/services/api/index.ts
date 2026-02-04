@@ -25,6 +25,8 @@ export interface LoginRequest {
 export interface LoginResponse {
   message: string;
   email: string;
+  /** Verification link returned in dev mode when DEV_SKIP_EMAIL_VERIFICATION=true */
+  verificationLink?: string;
 }
 
 export interface RefreshTokenRequest {
@@ -45,6 +47,8 @@ export interface TokenPair {
 export interface RegisterResponse {
   message: string;
   email: string;
+  /** Verification link returned in dev mode when DEV_SKIP_EMAIL_VERIFICATION=true */
+  verificationLink?: string;
 }
 
 export interface PaginationParams {
@@ -87,11 +91,13 @@ export const authApi = {
     return authData;
   },
 
-  resendVerification: async (email: string): Promise<{ message: string }> => {
-    const response = await http.post<{ message: string }>(
-      "/v1/auth/resend-verification",
-      { email },
-    );
+  resendVerification: async (
+    email: string,
+  ): Promise<{ message: string; verificationLink?: string }> => {
+    const response = await http.post<{
+      message: string;
+      verificationLink?: string;
+    }>("/v1/auth/resend-verification", { email });
     return response.data;
   },
 
@@ -164,6 +170,7 @@ import imApi from "./im";
 import workspaceApi from "./workspace";
 import notificationApi from "./notification";
 import searchApi from "./search";
+import applicationsApi from "./applications";
 
 export const api = {
   auth: authApi,
@@ -172,6 +179,7 @@ export const api = {
   workspace: workspaceApi,
   notification: notificationApi,
   search: searchApi,
+  applications: applicationsApi,
 };
 
 export default api;

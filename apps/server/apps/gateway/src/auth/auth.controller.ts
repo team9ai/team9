@@ -52,7 +52,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async resendVerification(
     @Body() dto: ResendVerificationDto,
-  ): Promise<{ message: string }> {
+  ): Promise<{ message: string; verificationLink?: string }> {
     return this.authService.resendVerificationEmail(dto.email);
   }
 

@@ -9,6 +9,7 @@ import {
   index,
 } from 'drizzle-orm/pg-core';
 import { users } from './users.js';
+import { installedApplications } from './installed-applications.js';
 
 export const botTypeEnum = pgEnum('bot_type', ['system', 'custom', 'webhook']);
 

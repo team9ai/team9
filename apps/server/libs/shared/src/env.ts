@@ -53,7 +53,7 @@ export const env = {
     return getRequiredEnv('POSTGRES_USER');
   },
   get POSTGRES_PASSWORD() {
-    return getRequiredEnv('POSTGRES_PASSWORD');
+    return process.env.POSTGRES_PASSWORD; // Optional - some local DBs don't require password
   },
   get DB_HOST() {
     return getRequiredEnv('DB_HOST');
@@ -176,5 +176,14 @@ export const env = {
   },
   get EMAIL_FROM() {
     return process.env.EMAIL_FROM || 'Team9 <noreply@team9.app>';
+  },
+
+  // Development: Skip email verification (only works when APP_ENV=local)
+  // When enabled, registration and login will return verification link directly instead of sending email
+  get DEV_SKIP_EMAIL_VERIFICATION() {
+    return (
+      process.env.DEV_SKIP_EMAIL_VERIFICATION === 'true' &&
+      this.APP_ENV === 'local'
+    );
   },
 };
