@@ -66,19 +66,19 @@ export class OpenclawService {
         botInfo.botId,
       );
 
-      const result = await this.createInstance(botInfo.userId, botInfo.botId, {
+      const result = await this.createInstance(botInfo.botId, botInfo.botId, {
         TEAM9_TOKEN: tokenResult.accessToken,
         TEAM9_BASE_URL: env.API_URL,
       });
 
       if (result) {
         this.logger.log(
-          `OpenClaw instance created for bot ${botInfo.userId}: ${result.access_url}`,
+          `OpenClaw instance created for bot ${botInfo.botId}: ${result.access_url}`,
         );
       }
     } catch (error) {
       this.logger.warn(
-        `Failed to create OpenClaw instance for bot ${botInfo.userId}:`,
+        `Failed to create OpenClaw instance for bot ${botInfo.botId}:`,
         error,
       );
     }
