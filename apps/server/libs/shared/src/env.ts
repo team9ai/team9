@@ -169,6 +169,11 @@ export const env = {
   get OPENCLAW_AUTH_TOKEN() {
     return process.env.OPENCLAW_AUTH_TOKEN;
   },
+  get CAPABILITY_BASE_URL() {
+    return (
+      process.env.CAPABILITY_BASE_URL || 'https://gateway.capability.team9.ai'
+    );
+  },
 
   // Email (Resend)
   get RESEND_API_KEY() {

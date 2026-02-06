@@ -92,6 +92,20 @@
       "when": 1770139316665,
       "tag": "0012_typical_triton",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1770191198386,
+      "tag": "0013_melted_goliath",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1770193963325,
+      "tag": "0014_hard_shatterstar",
+      "breakpoints": true
     }
   ]
 }

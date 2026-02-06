@@ -10,6 +10,7 @@ import { DatabaseModule } from '@team9/database';
 import { RedisModule } from '@team9/redis';
 import { WebsocketModule } from '../im/websocket/websocket.module.js';
 import { ChannelsModule } from '../im/channels/channels.module.js';
+import { ApplicationsModule } from '../applications/applications.module.js';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { ChannelsModule } from '../im/channels/channels.module.js';
     RedisModule,
     forwardRef(() => WebsocketModule),
     forwardRef(() => ChannelsModule),
+    forwardRef(() => ApplicationsModule),
   ],
   controllers: [WorkspaceController, InvitationsController],
   providers: [WorkspaceService, WorkspaceGuard, WorkspaceRoleGuard],

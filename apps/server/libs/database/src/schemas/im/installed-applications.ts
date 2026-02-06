@@ -43,12 +43,6 @@ export const installedApplications = pgTable(
     // Application identifier (e.g., 'github', 'jira', 'custom-app-123')
     applicationId: varchar('application_id', { length: 255 }).notNull(),
 
-    // Application display name
-    name: varchar('name', { length: 255 }).notNull(),
-
-    // Application description
-    description: text('description'),
-
     // Application icon URL
     iconUrl: text('icon_url'),
 

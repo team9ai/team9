@@ -13,6 +13,8 @@ const APPLICATIONS: Application[] = [
     iconUrl: '/icons/openclaw.svg',
     categories: ['ai', 'bot'],
     enabled: true,
+    type: 'managed',
+    singleton: true,
   },
 ];
 

@@ -1,4 +1,9 @@
 /**
+ * Application type - managed apps are controlled by the system and cannot be modified by users.
+ */
+export type ApplicationType = 'managed' | 'custom';
+
+/**
  * Application definition - represents an available application that can be installed.
  */
 export interface Application {
@@ -24,8 +29,11 @@ export interface Application {
   /** Whether the application is enabled */
   enabled: boolean;
 
-  /** Whether the application can be uninstalled (default: true) */
-  uninstallable?: boolean;
+  /** Application type - managed apps cannot be uninstalled or disabled by users */
+  type: ApplicationType;
+
+  /** If true, only one instance can be installed per tenant */
+  singleton?: boolean;
 }
 
 export type ApplicationCategory =

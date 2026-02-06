@@ -1,0 +1,3 @@
+ALTER TABLE "im_bots" ADD COLUMN "installed_application_id" uuid;--> statement-breakpoint
+ALTER TABLE "im_bots" ADD CONSTRAINT "im_bots_installed_application_id_im_installed_applications_id_fk" FOREIGN KEY ("installed_application_id") REFERENCES "public"."im_installed_applications"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "idx_bots_installed_application_id" ON "im_bots" USING btree ("installed_application_id");

@@ -31,6 +31,7 @@ import { REDIS_KEYS } from '../im/shared/constants/redis-keys.js';
 import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { BotService } from '../bot/bot.service.js';
+import { InstalledApplicationsService } from '../applications/installed-applications.service.js';
 
 const MAX_WORKSPACES_PER_USER = 3;
 const MAX_MEMBERS_PER_WORKSPACE = 1000;
@@ -131,6 +132,7 @@ export class WorkspaceService {
     private readonly redisService: RedisService,
     private readonly channelsService: ChannelsService,
     private readonly botService: BotService,
+    private readonly installedApplicationsService: InstalledApplicationsService,
   ) {}
 
   @OnEvent(USER_EVENTS.REGISTERED)
@@ -912,12 +914,16 @@ export class WorkspaceService {
       }
     }
 
-    // Create custom bot for the workspace
+    // Install OpenClaw application for the workspace
     try {
-      await this.botService.createWorkspaceBot(data.ownerId, workspace.id);
-      this.logger.log(`Created custom bot for workspace: ${workspace.name}`);
+      await this.installedApplicationsService.install(
+        workspace.id,
+        data.ownerId,
+        { applicationId: 'openclaw' },
+      );
+      this.logger.log(`Installed OpenClaw for workspace: ${workspace.name}`);
     } catch (error) {
-      this.logger.warn(`Failed to create custom bot for workspace: ${error}`);
+      this.logger.warn(`Failed to install OpenClaw for workspace: ${error}`);
     }
 
     this.logger.log(`Created workspace: ${workspace.name} (${workspace.slug})`);
