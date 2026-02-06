@@ -59,5 +59,8 @@
   "leaveThisChannel": "离开此频道",
   "loadingMessages": "加载消息中...",
   "loadingMoreMessages": "加载更多消息...",
-  "noMessagesYet": "暂无消息。加入频道开始聊天吧！"
+  "noMessagesYet": "暂无消息。加入频道开始聊天吧！",
+  "botStartupCountdownMessage": "HI，你的专属 OpenClaw Bot 正在启动中，请等待倒计时结束之后正常使用聊天",
+  "botStartupSuccessMessage": "HI，你的专属 OpenClaw Bot 已成功启动!",
+  "botStartChatting": "开始聊天"
 }

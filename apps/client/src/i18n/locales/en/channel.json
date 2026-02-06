@@ -59,5 +59,8 @@
   "leaveThisChannel": "Leave this channel",
   "loadingMessages": "Loading messages...",
   "loadingMoreMessages": "Loading more messages...",
-  "noMessagesYet": "No messages yet. Join the channel to start the conversation!"
+  "noMessagesYet": "No messages yet. Join the channel to start the conversation!",
+  "botStartupCountdownMessage": "HI, Your OpenClaw Bot is starting up. Please wait for the countdown to finish before chatting.",
+  "botStartupSuccessMessage": "HI, Your OpenClaw Bot has started successfully!",
+  "botStartChatting": "Start Chatting"
 }
