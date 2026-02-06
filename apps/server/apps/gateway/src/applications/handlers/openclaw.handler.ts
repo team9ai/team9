@@ -57,6 +57,7 @@ export class OpenClawHandler implements ApplicationHandler {
       {
         TEAM9_TOKEN: accessToken!,
         TEAM9_BASE_URL: env.API_URL,
+        CAPABILITY_BASE_URL: env.CAPABILITY_BASE_URL,
       },
     );
 
