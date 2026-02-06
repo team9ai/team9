@@ -1,5 +1,4 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
-import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
   eq,
@@ -14,7 +13,6 @@ import type {
 } from './application-handler.interface.js';
 import { BotService } from '../../bot/bot.service.js';
 import { OpenclawService } from '../../openclaw/openclaw.service.js';
-import { ChannelsService } from '../../im/channels/channels.service.js';
 
 /**
  * Handler for OpenClaw application installation.
@@ -36,81 +34,28 @@ export class OpenClawHandler implements ApplicationHandler {
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly botService: BotService,
     private readonly openclawService: OpenclawService,
-    private readonly channelsService: ChannelsService,
   ) {}
 
   async onInstall(context: InstallContext): Promise<InstallResult> {
     const { installedApplication, tenantId, installedBy } = context;
 
-    // 1. Get installer info for bot naming
-    const [installer] = await this.db
-      .select({
-        username: schema.users.username,
-      })
-      .from(schema.users)
-      .where(eq(schema.users.id, installedBy))
-      .limit(1);
-
-    if (!installer) {
-      throw new Error(`Installer user ${installedBy} not found`);
-    }
-
-    // 2. Create bot user and bot record
-    const shortId = uuidv7().replace(/-/g, '').slice(0, 8);
-    const botUsername = `bot_${shortId}_${Date.now()}`;
-
-    const bot = await this.botService.createBot({
-      username: botUsername,
-      displayName: 'OpenClaw Bot',
-      type: 'custom',
+    // 1. Create bot with token
+    const { bot, accessToken } = await this.botService.createWorkspaceBot({
       ownerId: installedBy,
-      description: `OpenClaw bot for ${installer.username}`,
-      capabilities: { canSendMessages: true, canReadMessages: true },
+      tenantId,
+      displayName: 'OpenClaw Bot',
+      installedApplicationId: installedApplication.id,
+      generateToken: true,
     });
 
-    this.logger.log(
-      `Created bot ${bot.botId} for OpenClaw installation ${installedApplication.id}`,
-    );
-
-    // 3. Link bot to installed application
-    await this.db
-      .update(schema.bots)
-      .set({
-        installedApplicationId: installedApplication.id,
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.bots.id, bot.botId));
-
-    // 4. Generate access token
-    const tokenResult = await this.botService.generateAccessToken(bot.botId);
-
-    // 5. Add bot to workspace as a member
-    await this.db.insert(schema.tenantMembers).values({
-      id: uuidv7(),
-      tenantId,
-      userId: bot.userId,
-      role: 'member',
-      invitedBy: installedBy,
-    });
-    this.logger.log(`Added bot ${bot.botId} to workspace ${tenantId}`);
-
-    // 6. Create a direct channel so the installer can see the bot
-    await this.channelsService.createDirectChannel(
-      installedBy,
-      bot.userId,
-      tenantId,
-    );
-    this.logger.log(`Created DM channel for bot ${bot.botId}`);
-
-    // 7. Create OpenClaw compute instance
-    // Use bot.botId as instancesId (this is the new convention)
+    // 2. Create OpenClaw compute instance
     const instancesId = bot.botId;
 
     const instanceResult = await this.openclawService.createInstance(
       instancesId,
       instancesId, // subdomain
       {
-        TEAM9_TOKEN: tokenResult.accessToken,
+        TEAM9_TOKEN: accessToken!,
         TEAM9_BASE_URL: env.API_URL,
       },
     );
@@ -121,13 +66,12 @@ export class OpenClawHandler implements ApplicationHandler {
       );
     }
 
-    // 8. Return updated config/secrets
+    // 3. Return updated config/secrets
     return {
       config: {
         instancesId,
       },
       secrets: {
-        accessToken: tokenResult.accessToken,
         instanceResult,
       },
       botId: bot.botId,
