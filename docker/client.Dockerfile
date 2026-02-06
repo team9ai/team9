@@ -25,8 +25,11 @@ COPY apps/server/libs/storage/package.json ./apps/server/libs/storage/
 COPY apps/server/libs/email/package.json ./apps/server/libs/email/
 
 # Install dependencies (remove enterprise workspace entries since submodule is not needed for client)
-RUN sed -i '/enterprise/d' pnpm-workspace.yaml && \
-    pnpm install --frozen-lockfile
+# RUN sed -i '/enterprise/d' pnpm-workspace.yaml && \
+#     pnpm install --frozen-lockfile
+
+# Use pnpm filter to install only client dependencies without modifying workspace files
+RUN pnpm install --frozen-lockfile --filter @team9/client...
 
 # Copy source code
 COPY apps/client ./apps/client
