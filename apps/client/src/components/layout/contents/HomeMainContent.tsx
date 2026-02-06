@@ -1,12 +1,12 @@
 import {
   Map,
-  Wrench,
   Bot,
   UserPlus,
   Hash,
   MessageSquare,
   Loader2,
   X,
+  Wrench,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
@@ -84,6 +84,45 @@ export function HomeMainContent() {
     }
   };
 
+  const handleTryNow = (draft: string) => {
+    const botChannel = directChannels.find(
+      (ch) => ch.otherUser?.userType === "bot",
+    );
+    if (botChannel) {
+      navigate({
+        to: "/channels/$channelId",
+        params: { channelId: botChannel.id },
+        search: { draft },
+      });
+    }
+  };
+
+  const tryNowItems = [
+    {
+      title: "X API",
+      prompt:
+        "How many tweets did Elon Musk post today? Provide the original text, the original link for each, and an overall summary.",
+    },
+    {
+      title: "X Trend API",
+      prompt:
+        "What are the top 10 trending topics on Twitter in the North American market today?",
+    },
+    {
+      title: "Web Search API",
+      prompt: "Gold Price today",
+    },
+    {
+      title: "Website Reader",
+      prompt:
+        "The main content of this article：https://openai.com/index/scaling-postgresql/",
+    },
+    {
+      title: "Deep Research",
+      prompt: "Deep Research, What are OpenClaw and Moltbook?",
+    },
+  ];
+
   const workspaceName = currentWorkspace?.name || "Workspace";
 
   const handleCopyLink = async () => {
@@ -148,33 +187,44 @@ export function HomeMainContent() {
                     </h3>
                   </div>
                   <div className="space-y-2.5">
-                    {[
-                      { name: "X API", status: "soon" },
-                      { name: "Nano Banana Pro", status: "soon" },
-                      { name: "Web Search API", status: "soon" },
-                      { name: "Stock API", status: "soon" },
-                      { name: "Youtube Reader", status: "soon" },
-                      { name: "Jina Link Reader", status: "soon" },
-                      { name: "Veo 3.1", status: "soon" },
-                      { name: "Eleven Labs API", status: "soon" },
-                      { name: "Minimax Audio", status: "soon" },
-                      { name: "Kling", status: "soon" },
-                      { name: "Deep Research", status: "soon" },
-                      { name: "Semrush API", status: "soon" },
-                      { name: "Suno API", status: "soon" },
-                      { name: "ChatGPT", status: "soon" },
-                      { name: "Gemini", status: "soon" },
-                      { name: "Claude Code", status: "soon" },
-                    ].map((tool, i) => (
+                    {tryNowItems.map((item, i) => (
                       <div
                         key={i}
                         className="flex items-center justify-between py-1.5 px-3 rounded-md bg-muted"
                       >
                         <span className="text-sm text-foreground">
-                          {tool.name}
+                          {item.title}
                         </span>
+                        <button
+                          className="text-xs bg-info hover:bg-info/90 text-primary-foreground px-2.5 py-0.5 rounded-full cursor-pointer transition-colors"
+                          onClick={() => handleTryNow(item.prompt)}
+                        >
+                          Try Now
+                        </button>
+                      </div>
+                    ))}
+                    {[
+                      "Nano Banana Pro",
+                      "Stock API",
+                      "Youtube Reader",
+                      "Veo 3.1",
+                      "Eleven Labs API",
+                      "Minimax Audio",
+                      "Kling",
+                      "Gemini Deep Research",
+                      "Semrush API",
+                      "Suno API",
+                      "ChatGPT",
+                      "Gemini",
+                      "Claude Code",
+                    ].map((name, i) => (
+                      <div
+                        key={`soon-${i}`}
+                        className="flex items-center justify-between py-1.5 px-3 rounded-md bg-muted"
+                      >
+                        <span className="text-sm text-foreground">{name}</span>
                         <span className="text-xs text-muted-foreground bg-border px-2 py-0.5 rounded-full">
-                          {tool.status}
+                          soon
                         </span>
                       </div>
                     ))}

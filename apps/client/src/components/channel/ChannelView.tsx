@@ -24,6 +24,8 @@ interface ChannelViewProps {
   initialThreadId?: string;
   // Initial message ID from URL - for scrolling/highlighting (future use)
   initialMessageId?: string;
+  // Draft text to pre-fill in the message input
+  initialDraft?: string;
   // Preview channel data for non-members (public channel preview mode)
   previewChannel?: PublicChannelPreview;
 }
@@ -36,6 +38,7 @@ export function ChannelView({
   channelId,
   initialThreadId,
   initialMessageId,
+  initialDraft,
   previewChannel,
 }: ChannelViewProps) {
   const isPreviewMode = !!previewChannel;
@@ -183,6 +186,7 @@ export function ChannelView({
             channelId={channelId}
             onSend={handleSendMessage}
             disabled={sendMessage.isPending || showOverlay}
+            initialDraft={initialDraft}
           />
         )}
       </div>

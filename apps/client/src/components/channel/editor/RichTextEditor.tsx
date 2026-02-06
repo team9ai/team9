@@ -8,7 +8,7 @@ import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { ListNode, ListItemNode } from "@lexical/list";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { $getRoot, $createParagraphNode } from "lexical";
+import { $getRoot, $createParagraphNode, $createTextNode } from "lexical";
 import type { EditorState, LexicalEditor } from "lexical";
 import type { InitialConfigType } from "@lexical/react/LexicalComposer";
 import { Send } from "lucide-react";
@@ -34,6 +34,8 @@ interface RichTextEditorProps {
   uploadingFiles?: UploadingFile[];
   onRemoveFile?: (id: string) => void;
   onRetryFile?: (id: string) => void;
+  /** Draft text to pre-fill in the editor */
+  initialDraft?: string;
 }
 
 function Placeholder({ text }: { text: string }) {
@@ -65,6 +67,28 @@ function EditorRefPlugin({
   useEffect(() => {
     editorRef.current = editor;
   }, [editor, editorRef]);
+
+  return null;
+}
+
+function InitialDraftPlugin({ draft }: { draft?: string }) {
+  const [editor] = useLexicalComposerContext();
+  const hasApplied = useRef(false);
+
+  useEffect(() => {
+    if (!draft || hasApplied.current) return;
+    hasApplied.current = true;
+
+    editor.update(() => {
+      const root = $getRoot();
+      root.clear();
+      const paragraph = $createParagraphNode();
+      paragraph.append($createTextNode(draft));
+      root.append(paragraph);
+      // Move cursor to end
+      paragraph.selectEnd();
+    });
+  }, [editor, draft]);
 
   return null;
 }
@@ -139,6 +163,7 @@ export function RichTextEditor({
   uploadingFiles = [],
   onRemoveFile,
   onRetryFile,
+  initialDraft,
 }: RichTextEditorProps) {
   const editorRef = useRef<LexicalEditor | null>(null);
 
@@ -190,6 +215,7 @@ export function RichTextEditor({
           <OnChangePlugin onChange={handleChange} />
           <AutoFocusPlugin />
           <EditorRefPlugin editorRef={editorRef} />
+          <InitialDraftPlugin draft={initialDraft} />
         </div>
 
         {/* Mentions dropdown container - must be outside overflow-y-auto to avoid clipping */}
