@@ -7,6 +7,7 @@ import {
   Loader2,
   X,
   Wrench,
+  ArrowRight,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
@@ -196,10 +197,14 @@ export function HomeMainContent() {
                           {item.title}
                         </span>
                         <button
-                          className="text-xs bg-info hover:bg-info/90 text-primary-foreground px-2.5 py-0.5 rounded-full cursor-pointer transition-colors"
+                          className="text-xs font-medium text-info border border-info/30 hover:bg-info/10 px-2 py-0.5 rounded-full cursor-pointer transition-colors duration-200 flex items-center gap-0.5 group"
                           onClick={() => handleTryNow(item.prompt)}
                         >
-                          Try Now
+                          Try
+                          <ArrowRight
+                            size={11}
+                            className="group-hover:translate-x-0.5 transition-transform duration-200"
+                          />
                         </button>
                       </div>
                     ))}
