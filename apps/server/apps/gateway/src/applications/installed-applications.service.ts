@@ -3,6 +3,8 @@ import {
   Inject,
   NotFoundException,
   ForbiddenException,
+  ConflictException,
+  Logger,
 } from '@nestjs/common';
 import { v7 as uuidv7 } from 'uuid';
 import {
@@ -20,11 +22,10 @@ import type {
   ApplicationPermissions,
 } from '@team9/database/schemas';
 import { ApplicationsService } from './applications.service.js';
+import type { ApplicationHandler } from './handlers/application-handler.interface.js';
 
 export interface InstallApplicationDto {
   applicationId: string;
-  name: string;
-  description?: string;
   iconUrl?: string;
   config?: ApplicationConfig;
   secrets?: ApplicationSecrets;
@@ -32,8 +33,6 @@ export interface InstallApplicationDto {
 }
 
 export interface UpdateInstalledApplicationDto {
-  name?: string;
-  description?: string;
   iconUrl?: string;
   config?: ApplicationConfig;
   secrets?: ApplicationSecrets;
@@ -51,28 +50,66 @@ export type SafeInstalledApplication = Omit<InstalledApplication, 'secrets'> & {
 
 @Injectable()
 export class InstalledApplicationsService {
+  private readonly logger = new Logger(InstalledApplicationsService.name);
+  private readonly handlers = new Map<string, ApplicationHandler>();
+
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly applicationsService: ApplicationsService,
-  ) {}
+    @Inject('APPLICATION_HANDLERS')
+    handlers: ApplicationHandler[],
+  ) {
+    // Register handlers by applicationId
+    for (const handler of handlers) {
+      this.handlers.set(handler.applicationId, handler);
+    }
+  }
 
   /**
    * Install an application for a tenant.
+   * Requires a registered handler for the applicationId.
    */
   async install(
     tenantId: string,
     installedBy: string,
     dto: InstallApplicationDto,
   ): Promise<SafeInstalledApplication> {
+    // Fail fast if no handler registered
+    const handler = this.handlers.get(dto.applicationId);
+    if (!handler) {
+      throw new NotFoundException(
+        `No handler registered for application: ${dto.applicationId}`,
+      );
+    }
+
+    // Check singleton constraint
+    const appDefinition = this.applicationsService.findById(dto.applicationId);
+    if (appDefinition?.singleton) {
+      const [existing] = await this.db
+        .select({ id: schema.installedApplications.id })
+        .from(schema.installedApplications)
+        .where(
+          and(
+            eq(schema.installedApplications.tenantId, tenantId),
+            eq(schema.installedApplications.applicationId, dto.applicationId),
+          ),
+        )
+        .limit(1);
+
+      if (existing) {
+        throw new ConflictException(
+          `Application ${dto.applicationId} is already installed for this workspace`,
+        );
+      }
+    }
+
     const id = uuidv7();
     const now = new Date();
 
     const newRecord: NewInstalledApplication = {
       id,
       applicationId: dto.applicationId,
-      name: dto.name,
-      description: dto.description,
       iconUrl: dto.iconUrl,
       tenantId,
       installedBy,
@@ -89,6 +126,30 @@ export class InstalledApplicationsService {
       .insert(schema.installedApplications)
       .values(newRecord)
       .returning();
+
+    this.logger.log(`Invoking handler for application ${dto.applicationId}`);
+
+    const result = await handler.onInstall({
+      installedApplication: inserted,
+      tenantId,
+      installedBy,
+    });
+
+    // Update record with handler results
+    if (result.config || result.secrets || result.permissions) {
+      const [updated] = await this.db
+        .update(schema.installedApplications)
+        .set({
+          config: { ...inserted.config, ...result.config },
+          secrets: { ...inserted.secrets, ...result.secrets },
+          permissions: { ...inserted.permissions, ...result.permissions },
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.installedApplications.id, id))
+        .returning();
+
+      return this.omitSecrets(updated);
+    }
 
     return this.omitSecrets(inserted);
   }
@@ -187,9 +248,10 @@ export class InstalledApplicationsService {
 
   /**
    * Uninstall an application.
+   * If a handler exists, it will be invoked to clean up application-specific resources.
    */
   async uninstall(id: string, tenantId: string): Promise<void> {
-    const existing = await this.findById(id, tenantId);
+    const existing = await this.findByIdWithSecrets(id, tenantId);
     if (!existing) {
       throw new NotFoundException(`Installed application ${id} not found`);
     }
@@ -202,6 +264,15 @@ export class InstalledApplicationsService {
       throw new ForbiddenException(
         `Managed application ${application.name} cannot be uninstalled`,
       );
+    }
+
+    // Invoke handler cleanup if exists
+    const handler = this.handlers.get(existing.applicationId);
+    if (handler?.onUninstall) {
+      this.logger.log(
+        `Invoking uninstall handler for application ${existing.applicationId}`,
+      );
+      await handler.onUninstall(existing);
     }
 
     await this.db

@@ -14,6 +14,7 @@ const APPLICATIONS: Application[] = [
     categories: ['ai', 'bot'],
     enabled: true,
     type: 'managed',
+    singleton: true,
   },
 ];
 
