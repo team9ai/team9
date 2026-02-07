@@ -46,6 +46,7 @@ interface MentionSuggestionsProps {
   onSelect: (user: IMUser) => void;
   onHover: (index: number) => void;
   isLoading?: boolean;
+  position?: { left: number; bottom: number };
 }
 
 function MentionSuggestions({
@@ -54,6 +55,7 @@ function MentionSuggestions({
   onSelect,
   onHover,
   isLoading,
+  position,
 }: MentionSuggestionsProps) {
   const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
 
@@ -63,7 +65,14 @@ function MentionSuggestions({
   }, [selectedIndex]);
 
   return (
-    <div className="absolute bottom-full left-0 mb-1 w-64 max-h-60 overflow-y-auto bg-background border border-border rounded-lg shadow-lg z-9999">
+    <div
+      className="absolute w-64 max-h-60 overflow-y-auto bg-background border border-border rounded-lg shadow-lg z-9999"
+      style={
+        position
+          ? { left: position.left, bottom: position.bottom }
+          : { left: 0, bottom: "100%" }
+      }
+    >
       {isLoading ? (
         <div className="px-3 py-2 text-sm text-muted-foreground">
           Loading...
@@ -118,6 +127,10 @@ export function MentionsPlugin() {
   const [editor] = useLexicalComposerContext();
   const [queryString, setQueryString] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [popupPosition, setPopupPosition] = useState<{
+    left: number;
+    bottom: number;
+  } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const dismissedRef = useRef(false);
 
@@ -128,6 +141,23 @@ export function MentionsPlugin() {
   }, [users]);
 
   const showDropdown = queryString !== null;
+
+  const updatePopupPosition = useCallback(() => {
+    const domSelection = window.getSelection();
+    if (!domSelection || domSelection.rangeCount === 0 || !containerRef.current)
+      return;
+
+    const range = domSelection.getRangeAt(0);
+    const caretRect = range.getBoundingClientRect();
+    const containerRect =
+      containerRef.current.parentElement?.getBoundingClientRect();
+    if (!containerRect) return;
+
+    setPopupPosition({
+      left: Math.max(0, caretRect.left - containerRect.left),
+      bottom: containerRect.bottom - caretRect.top + 4,
+    });
+  }, []);
 
   const checkForMentionMatch = useCallback(() => {
     const selection = $getSelection();
@@ -153,6 +183,8 @@ export function MentionsPlugin() {
       }
       const mentionString = match[3] || "";
       setQueryString(mentionString);
+      // Calculate popup position based on caret
+      setTimeout(updatePopupPosition, 0);
       return {
         leadOffset: match.index + match[1].length,
         matchingString: mentionString,
@@ -162,7 +194,7 @@ export function MentionsPlugin() {
 
     setQueryString(null);
     return null;
-  }, []);
+  }, [updatePopupPosition]);
 
   const insertMention = useCallback(
     (user: IMUser) => {
@@ -334,6 +366,7 @@ export function MentionsPlugin() {
         onSelect={insertMention}
         onHover={setSelectedIndex}
         isLoading={isLoading}
+        position={popupPosition ?? undefined}
       />
     </div>
   );
