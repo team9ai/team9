@@ -61,9 +61,8 @@ export const bots = pgTable(
       .$type<Record<string, string>>()
       .default({}),
 
-    // Access token for API authentication (hashed)
+    // Access token for API authentication (hashed: fingerprint:bcryptHash)
     accessToken: text('access_token'),
-
     isActive: boolean('is_active').default(true).notNull(),
 
     createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -74,6 +73,7 @@ export const bots = pgTable(
     index('idx_bots_type').on(table.type),
     index('idx_bots_owner_id').on(table.ownerId),
     index('idx_bots_installed_application_id').on(table.installedApplicationId),
+    index('idx_bots_access_token').on(table.accessToken),
   ],
 );
 

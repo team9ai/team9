@@ -1,7 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { OnEvent } from '@nestjs/event-emitter';
 import { env } from '@team9/shared';
-import { BotService, type BotInfo } from '../bot/bot.service.js';
 
 // ── Request / Response types ───────────────────────────────────────────
 
@@ -38,8 +36,6 @@ export interface CreateInstanceResponse {
 export class OpenclawService {
   private readonly logger = new Logger(OpenclawService.name);
 
-  constructor(private readonly botService: BotService) {}
-
   private get apiUrl(): string | undefined {
     return env.OPENCLAW_API_URL;
   }
@@ -54,34 +50,6 @@ export class OpenclawService {
    */
   isConfigured(): boolean {
     return !!this.apiUrl;
-  }
-
-  // ── Event listeners ──────────────────────────────────────────────────
-
-  @OnEvent('bot.created')
-  async handleBotCreated(botInfo: BotInfo): Promise<void> {
-    try {
-      // Generate an access token so the external bot service can call IM APIs
-      const tokenResult = await this.botService.generateAccessToken(
-        botInfo.botId,
-      );
-
-      const result = await this.createInstance(botInfo.botId, botInfo.botId, {
-        TEAM9_TOKEN: tokenResult.accessToken,
-        TEAM9_BASE_URL: env.API_URL,
-      });
-
-      if (result) {
-        this.logger.log(
-          `OpenClaw instance created for bot ${botInfo.botId}: ${result.access_url}`,
-        );
-      }
-    } catch (error) {
-      this.logger.warn(
-        `Failed to create OpenClaw instance for bot ${botInfo.botId}:`,
-        error,
-      );
-    }
   }
 
   // ── API methods ────────────────────────────────────────────────────

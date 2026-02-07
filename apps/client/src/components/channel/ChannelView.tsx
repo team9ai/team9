@@ -8,11 +8,13 @@ import {
 } from "@/hooks/useChannels";
 import { useUser } from "@/stores";
 import { useThreadStore } from "@/hooks/useThread";
+import { useBotStartupCountdown } from "@/hooks/useBotStartupCountdown";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import { ChannelHeader } from "./ChannelHeader";
 import { ThreadPanel } from "./ThreadPanel";
 import { JoinChannelPrompt } from "./JoinChannelPrompt";
+import { BotStartupOverlay } from "./BotStartupOverlay";
 import type { AttachmentDto, PublicChannelPreview } from "@/types/im";
 import { isValidMessageId } from "@/lib/utils";
 
@@ -81,6 +83,13 @@ export function ChannelView({
   const sendMessage = useSendMessage(channelId);
   const markAsRead = useMarkAsRead();
 
+  // Bot startup countdown for bot DM channels
+  const { phase, remainingSeconds, startChatting, showOverlay } =
+    useBotStartupCountdown({
+      channel: memberChannel,
+      members,
+    });
+
   // Get current user's role in this channel
   const currentUserRole = useMemo(() => {
     if (!currentUser) return "member";
@@ -144,17 +153,25 @@ export function ChannelView({
       <div className="flex-1 flex flex-col min-w-0">
         <ChannelHeader channel={channel} currentUserRole={currentUserRole} />
 
-        <MessageList
-          messages={messages}
-          isLoading={isFetchingNextPage}
-          onLoadMore={() => {
-            if (hasNextPage) fetchNextPage();
-          }}
-          hasMore={hasNextPage}
-          highlightMessageId={initialMessageId}
-          channelId={channelId}
-          readOnly={isPreviewMode}
-        />
+        {showOverlay ? (
+          <BotStartupOverlay
+            phase={phase as "countdown" | "ready"}
+            remainingSeconds={remainingSeconds}
+            onStartChatting={startChatting}
+          />
+        ) : (
+          <MessageList
+            messages={messages}
+            isLoading={isFetchingNextPage}
+            onLoadMore={() => {
+              if (hasNextPage) fetchNextPage();
+            }}
+            hasMore={hasNextPage}
+            highlightMessageId={initialMessageId}
+            channelId={channelId}
+            readOnly={isPreviewMode}
+          />
+        )}
 
         {isPreviewMode ? (
           <JoinChannelPrompt
@@ -165,7 +182,7 @@ export function ChannelView({
           <MessageInput
             channelId={channelId}
             onSend={handleSendMessage}
-            disabled={sendMessage.isPending}
+            disabled={sendMessage.isPending || showOverlay}
           />
         )}
       </div>

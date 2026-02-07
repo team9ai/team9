@@ -40,6 +40,19 @@ export interface BotInfo {
   isActive: boolean;
 }
 
+export interface CreateWorkspaceBotOptions {
+  ownerId: string;
+  tenantId: string;
+  displayName?: string;
+  installedApplicationId?: string;
+  generateToken?: boolean;
+}
+
+export interface WorkspaceBotResult {
+  bot: BotInfo;
+  accessToken?: string;
+}
+
 /**
  * BotService manages bot accounts.
  *
@@ -237,13 +250,21 @@ export class BotService implements OnModuleInit {
   // ── Workspace bot creation ───────────────────────────────────────────
 
   /**
-   * Create a custom bot for a workspace and add it as a member.
-   * Also creates a DM channel between the owner and the bot.
+   * Create a bot for a workspace.
+   * Handles: create bot, optionally link to application, optionally generate token,
+   * add to workspace, create DM channel.
    */
   async createWorkspaceBot(
-    ownerId: string,
-    tenantId: string,
-  ): Promise<BotInfo> {
+    options: CreateWorkspaceBotOptions,
+  ): Promise<WorkspaceBotResult> {
+    const {
+      ownerId,
+      tenantId,
+      displayName = 'Bot',
+      installedApplicationId,
+      generateToken = false,
+    } = options;
+
     // Look up the owner
     const [owner] = await this.db
       .select({
@@ -255,21 +276,45 @@ export class BotService implements OnModuleInit {
       .limit(1);
 
     if (!owner) {
-      throw new Error(`Owner ${ownerId} not found, skipping bot creation`);
+      throw new Error(`Owner ${ownerId} not found`);
     }
 
+    // 1. Create bot
     const shortId = uuidv7().replace(/-/g, '').slice(0, 8);
     const botUsername = `bot_${shortId}_${Date.now()}`;
     const bot = await this.createBot({
       username: botUsername,
-      displayName: 'OpenClaw Bot',
+      displayName,
       type: 'custom',
       ownerId: owner.id,
-      description: `Auto-created bot for ${owner.username}`,
+      description: `${displayName} for ${owner.username}`,
       capabilities: { canSendMessages: true, canReadMessages: true },
     });
 
-    // Add bot to workspace as a member
+    this.logger.log(`Created bot ${bot.botId} for workspace ${tenantId}`);
+
+    // 2. Link to application if provided
+    if (installedApplicationId) {
+      await this.db
+        .update(schema.bots)
+        .set({
+          installedApplicationId,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.bots.id, bot.botId));
+      this.logger.log(
+        `Linked bot ${bot.botId} to application ${installedApplicationId}`,
+      );
+    }
+
+    // 3. Generate access token if requested
+    let accessToken: string | undefined;
+    if (generateToken) {
+      const tokenResult = await this.generateAccessToken(bot.botId);
+      accessToken = tokenResult.accessToken;
+    }
+
+    // 4. Add bot to workspace as a member
     await this.db.insert(schema.tenantMembers).values({
       id: uuidv7(),
       tenantId,
@@ -279,18 +324,15 @@ export class BotService implements OnModuleInit {
     });
     this.logger.log(`Added bot ${bot.botId} to workspace ${tenantId}`);
 
-    // Create a direct channel so the owner can see the bot in their DM list
+    // 5. Create DM channel
     await this.channelsService.createDirectChannel(
       owner.id,
       bot.userId,
       tenantId,
     );
+    this.logger.log(`Created DM channel for bot ${bot.botId}`);
 
-    this.logger.log(
-      `Created bot ${bot.botId} with DM channel (tenant=${tenantId}) for workspace owner ${owner.username}`,
-    );
-
-    return bot;
+    return { bot, accessToken };
   }
 
   // ── System bot helpers ─────────────────────────────────────────────
@@ -454,18 +496,20 @@ export class BotService implements OnModuleInit {
   /**
    * Validate a bot access token and return the associated user info.
    * Returns null if the token is invalid or the bot is inactive.
+   *
+   * Token format: `t9bot_` + 96 hex chars
+   * Storage format: `{fingerprint}:{bcryptHash}` in im_bots.accessToken
    */
   async validateAccessToken(
     rawToken: string,
   ): Promise<{ userId: string; email: string; username: string } | null> {
-    // Strip the t9bot_ prefix to get the raw hex
-    const rawHex = rawToken.startsWith('t9bot_') ? rawToken.slice(6) : rawToken;
+    if (!rawToken || !rawToken.startsWith('t9bot_')) return null;
 
+    const rawHex = rawToken.slice(6);
     if (rawHex.length === 0) return null;
 
     const fingerprint = rawHex.slice(0, 8);
 
-    // Use fingerprint for quick lookup instead of scanning all bots
     const rows = await this.db
       .select({
         botId: schema.bots.id,

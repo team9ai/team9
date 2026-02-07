@@ -31,6 +31,9 @@ export interface Application {
 
   /** Application type - managed apps cannot be uninstalled or disabled by users */
   type: ApplicationType;
+
+  /** If true, only one instance can be installed per tenant */
+  singleton?: boolean;
 }
 
 export type ApplicationCategory =
