@@ -87,7 +87,18 @@ export class OpenclawService {
    */
   async getInstance(id: string): Promise<Instance | null> {
     if (!this.isConfigured()) return null;
-    return this.request<Instance>('GET', `/api/instances/${id}`);
+    try {
+      const res = await this.request<{ instance: Instance }>(
+        'GET',
+        `/api/instances/${id}`,
+      );
+      return res.instance;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('404')) {
+        return null;
+      }
+      throw error;
+    }
   }
 
   /**
@@ -95,7 +106,11 @@ export class OpenclawService {
    */
   async listInstances(): Promise<Instance[] | null> {
     if (!this.isConfigured()) return null;
-    return this.request<Instance[]>('GET', '/api/instances');
+    const res = await this.request<{ instances: Instance[] }>(
+      'GET',
+      '/api/instances',
+    );
+    return res.instances;
   }
 
   /**

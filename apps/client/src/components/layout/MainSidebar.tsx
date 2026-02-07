@@ -161,13 +161,24 @@ export function MainSidebar() {
   const currentWorkspace =
     workspaces?.find((w) => w.id === selectedWorkspaceId) || workspaces?.[0];
 
-  // Initialize selectedWorkspaceId with the first workspace if not set
+  // Initialize or fix selectedWorkspaceId
   useEffect(() => {
-    if (workspaces && workspaces.length > 0 && !selectedWorkspaceId) {
-      if (import.meta.env.DEV) {
-        console.log("[MainSidebar] Initializing workspace:", workspaces[0].id);
+    if (workspaces && workspaces.length > 0) {
+      const isValid =
+        selectedWorkspaceId &&
+        workspaces.some((w) => w.id === selectedWorkspaceId);
+      if (!isValid) {
+        if (import.meta.env.DEV) {
+          console.log(
+            "[MainSidebar] Resetting workspace to:",
+            workspaces[0].id,
+            selectedWorkspaceId
+              ? "(previous workspace not found in user's workspaces)"
+              : "(no workspace selected)",
+          );
+        }
+        setSelectedWorkspaceId(workspaces[0].id);
       }
-      setSelectedWorkspaceId(workspaces[0].id);
     }
   }, [workspaces, selectedWorkspaceId, setSelectedWorkspaceId]);
 
@@ -194,7 +205,42 @@ export function MainSidebar() {
       queryClient.removeQueries({
         queryKey: ["workspace-members", prevWorkspaceIdRef.current],
       });
+      queryClient.removeQueries({
+        queryKey: ["installed-applications", prevWorkspaceIdRef.current],
+      });
+      queryClient.removeQueries({
+        queryKey: ["installed-application", prevWorkspaceIdRef.current],
+      });
+      queryClient.removeQueries({
+        queryKey: ["openclaw-status", prevWorkspaceIdRef.current],
+      });
+      queryClient.removeQueries({
+        queryKey: ["openclaw-bots", prevWorkspaceIdRef.current],
+      });
+      queryClient.removeQueries({
+        queryKey: ["openclaw-workspaces", prevWorkspaceIdRef.current],
+      });
+      queryClient.removeQueries({
+        queryKey: ["workspace-files", prevWorkspaceIdRef.current],
+      });
+      queryClient.removeQueries({
+        queryKey: ["file-keeper-token", prevWorkspaceIdRef.current],
+      });
       // Note: Don't remove messages as they might be needed if user navigates back
+
+      // Reset last visited paths — detail pages belong to the old workspace
+      const sections: SidebarSection[] = [
+        "home",
+        "messages",
+        "activity",
+        "files",
+        "aiStaff",
+        "application",
+        "more",
+      ];
+      for (const section of sections) {
+        appActions.setLastVisitedPath(section, null);
+      }
 
       // Navigate to home when switching workspace
       navigate({ to: "/" });

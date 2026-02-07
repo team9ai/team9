@@ -553,6 +553,23 @@ export class BotService implements OnModuleInit {
   }
 
   /**
+   * Update a bot's display name.
+   */
+  async updateBotDisplayName(
+    botId: string,
+    displayName: string,
+  ): Promise<void> {
+    const bot = await this.getBotById(botId);
+    if (!bot) {
+      throw new Error(`Bot not found: ${botId}`);
+    }
+    await this.db
+      .update(schema.users)
+      .set({ displayName, updatedAt: new Date() })
+      .where(eq(schema.users.id, bot.userId));
+  }
+
+  /**
    * Update a bot's webhook configuration.
    */
   async updateWebhook(
@@ -571,6 +588,59 @@ export class BotService implements OnModuleInit {
       .update(schema.bots)
       .set(update)
       .where(eq(schema.bots.id, botId));
+  }
+
+  /**
+   * Get bot info by the installed application that created it.
+   */
+  async getBotByInstalledApplicationId(
+    installedApplicationId: string,
+  ): Promise<(BotInfo & { createdAt: Date }) | null> {
+    const [row] = await this.db
+      .select({
+        userId: schema.users.id,
+        botId: schema.bots.id,
+        username: schema.users.username,
+        displayName: schema.users.displayName,
+        email: schema.users.email,
+        type: schema.bots.type,
+        ownerId: schema.bots.ownerId,
+        description: schema.bots.description,
+        capabilities: schema.bots.capabilities,
+        isActive: schema.bots.isActive,
+        createdAt: schema.bots.createdAt,
+      })
+      .from(schema.bots)
+      .innerJoin(schema.users, eq(schema.bots.userId, schema.users.id))
+      .where(eq(schema.bots.installedApplicationId, installedApplicationId))
+      .limit(1);
+
+    return row || null;
+  }
+
+  /**
+   * Get all bots linked to an installed application.
+   */
+  async getBotsByInstalledApplicationId(
+    installedApplicationId: string,
+  ): Promise<(BotInfo & { createdAt: Date })[]> {
+    return this.db
+      .select({
+        userId: schema.users.id,
+        botId: schema.bots.id,
+        username: schema.users.username,
+        displayName: schema.users.displayName,
+        email: schema.users.email,
+        type: schema.bots.type,
+        ownerId: schema.bots.ownerId,
+        description: schema.bots.description,
+        capabilities: schema.bots.capabilities,
+        isActive: schema.bots.isActive,
+        createdAt: schema.bots.createdAt,
+      })
+      .from(schema.bots)
+      .innerJoin(schema.users, eq(schema.bots.userId, schema.users.id))
+      .where(eq(schema.bots.installedApplicationId, installedApplicationId));
   }
 
   /**

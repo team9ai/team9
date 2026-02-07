@@ -1,0 +1,46 @@
+.hideNavPane {
+  // :global(.navigation-pane) {
+  //   display: none !important;
+  // }
+
+  // :global(.sidebar-resize) {
+  //   display: none !important;
+  // }
+
+  // :global(.folders-preview) {
+  //   width: 100% !important;
+  // }
+  :global {
+    .toolbar {
+      // display: none !important;
+      height: unset;
+      min-height: unset;
+      max-height: unset;
+    }
+
+    .breadcrumb {
+      height: unset;
+      min-height: unset;
+      max-height: unset;
+    }
+
+    .fm-modal.dialog[open] {
+      margin: auto;
+    }
+
+    .draggable-file-input {
+      cursor: pointer;
+    }
+
+    .files.list .file-item .rename-file-container.list {
+      display: flex;
+      align-items: center;
+      top: 0;
+      height: 100%;
+
+      .rename-file {
+        top: 0;
+      }
+    }
+  }
+}

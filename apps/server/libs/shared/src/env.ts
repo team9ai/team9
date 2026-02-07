@@ -175,6 +175,14 @@ export const env = {
     );
   },
 
+  // File-Keeper Service (optional)
+  get FILE_KEEPER_BASE_URL() {
+    return process.env.FILE_KEEPER_BASE_URL;
+  },
+  get FILE_KEEPER_JWT_SECRET() {
+    return process.env.FILE_KEEPER_JWT_SECRET;
+  },
+
   // Email (Resend)
   get RESEND_API_KEY() {
     return process.env.RESEND_API_KEY; // Optional - email disabled if not set

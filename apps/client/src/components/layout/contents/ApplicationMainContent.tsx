@@ -12,16 +12,19 @@ import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { api } from "@/services/api";
+import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 
 export function ApplicationMainContent() {
   const navigate = useNavigate();
+  const workspaceId = useSelectedWorkspaceId();
   const {
     data: installedApps,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["installed-applications"],
+    queryKey: ["installed-applications", workspaceId],
     queryFn: () => api.applications.getInstalledApplications(),
+    enabled: !!workspaceId,
   });
 
   const handleAppClick = (appId: string) => {
