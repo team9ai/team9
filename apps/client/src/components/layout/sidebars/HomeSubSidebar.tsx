@@ -9,7 +9,6 @@ import {
   Star,
   Plus,
   FolderPlus,
-  MoreVertical,
   Folder,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -453,7 +452,7 @@ export function HomeSubSidebar() {
                     size="icon"
                     className="h-6 w-6 shrink-0 text-nav-foreground-subtle hover:text-nav-foreground hover:bg-nav-hover"
                   >
-                    <MoreVertical size={14} />
+                    <Plus size={14} />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-40">
