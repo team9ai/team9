@@ -149,13 +149,11 @@ export function MentionsPlugin() {
 
     const range = domSelection.getRangeAt(0);
     const caretRect = range.getBoundingClientRect();
-    const containerRect =
-      containerRef.current.parentElement?.getBoundingClientRect();
-    if (!containerRect) return;
+    const containerRect = containerRef.current.getBoundingClientRect();
 
     setPopupPosition({
       left: Math.max(0, caretRect.left - containerRect.left),
-      bottom: containerRect.bottom - caretRect.top + 4,
+      bottom: containerRect.bottom - caretRect.top,
     });
   }, []);
 
