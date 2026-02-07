@@ -280,7 +280,7 @@ export class BotService implements OnModuleInit {
     }
 
     // 1. Create bot
-    const shortId = uuidv7().replace(/-/g, '').slice(0, 8);
+    const shortId = uuidv7().replace(/-/g, '').slice(-8);
     const botUsername = `bot_${shortId}_${Date.now()}`;
     const bot = await this.createBot({
       username: botUsername,
