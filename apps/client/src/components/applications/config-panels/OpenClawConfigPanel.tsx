@@ -9,6 +9,17 @@ import {
   Check,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -174,32 +185,64 @@ export function OpenClawInstanceTab({ installedApp }: AppConfigPanelProps) {
                 )}
                 Start
               </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={anyPending || instanceStatus.status === "stopped"}
-                onClick={() => stopMutation.mutate()}
-              >
-                {stopMutation.isPending ? (
-                  <Loader2 size={14} className="mr-1 animate-spin" />
-                ) : (
-                  <Square size={14} className="mr-1" />
-                )}
-                Stop
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={anyPending}
-                onClick={() => restartMutation.mutate()}
-              >
-                {restartMutation.isPending ? (
-                  <Loader2 size={14} className="mr-1 animate-spin" />
-                ) : (
-                  <RotateCw size={14} className="mr-1" />
-                )}
-                Restart
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={anyPending || instanceStatus.status === "stopped"}
+                  >
+                    {stopMutation.isPending ? (
+                      <Loader2 size={14} className="mr-1 animate-spin" />
+                    ) : (
+                      <Square size={14} className="mr-1" />
+                    )}
+                    Stop
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Stop Instance</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to stop this instance? All active
+                      connections will be terminated.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => stopMutation.mutate()}>
+                      Stop
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button size="sm" variant="outline" disabled={anyPending}>
+                    {restartMutation.isPending ? (
+                      <Loader2 size={14} className="mr-1 animate-spin" />
+                    ) : (
+                      <RotateCw size={14} className="mr-1" />
+                    )}
+                    Restart
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Restart Instance</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to restart this instance? All active
+                      connections will be temporarily interrupted.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => restartMutation.mutate()}>
+                      Restart
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </>
         ) : (
