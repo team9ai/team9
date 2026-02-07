@@ -8,6 +8,8 @@ export type ChannelSearchParams = {
   thread?: string;
   // Target message ID - scrolls to and highlights message
   message?: string;
+  // Draft text to pre-fill in the message input
+  draft?: string;
 };
 
 export const Route = createFileRoute("/_authenticated/channels/$channelId")({
@@ -16,13 +18,14 @@ export const Route = createFileRoute("/_authenticated/channels/$channelId")({
     return {
       thread: search.thread as string | undefined,
       message: search.message as string | undefined,
+      draft: search.draft as string | undefined,
     };
   },
 });
 
 function ChannelPage() {
   const { channelId } = Route.useParams();
-  const { thread, message } = Route.useSearch();
+  const { thread, message, draft } = Route.useSearch();
   const { isMember, isLoading, channel } = useChannelMembership(channelId);
 
   // Loading state while checking membership
@@ -40,6 +43,7 @@ function ChannelPage() {
       channelId={channelId}
       initialThreadId={thread}
       initialMessageId={message}
+      initialDraft={draft}
       previewChannel={channel && !isMember ? channel : undefined}
     />
   );

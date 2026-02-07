@@ -38,7 +38,7 @@ export class ClusterNodeService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly redisService: RedisService) {
     // Generate unique node ID using hostname + uuid
     const hostname = process.env.HOSTNAME || 'local';
-    this.nodeId = `gateway-${hostname}-${uuidv7().slice(0, 8)}`;
+    this.nodeId = `gateway-${hostname}-${uuidv7()}`;
   }
 
   async onModuleInit(): Promise<void> {

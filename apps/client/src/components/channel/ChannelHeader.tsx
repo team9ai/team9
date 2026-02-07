@@ -109,11 +109,13 @@ export function ChannelHeader({
 
           {!isDirect && (
             <Button
-              variant="ghost"
-              size="icon"
+              variant="outline"
+              size="sm"
+              className="gap-1 border-info text-info hover:bg-info/10 hover:text-info"
               onClick={() => setIsAddMemberOpen(true)}
             >
-              <UserPlus size={18} className="text-info" />
+              <UserPlus size={16} />
+              Invite
             </Button>
           )}
           {!isDirect && (

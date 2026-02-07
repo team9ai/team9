@@ -281,7 +281,7 @@ export class BotService implements OnModuleInit {
     }
 
     // 1. Create bot
-    const shortId = uuidv7().replace(/-/g, '').slice(0, 8);
+    const shortId = uuidv7().replace(/-/g, '').slice(-8);
     const botUsername = `bot_${shortId}_${Date.now()}`;
     const bot = await this.createBot({
       username: botUsername,
@@ -604,9 +604,7 @@ export class BotService implements OnModuleInit {
   /**
    * Get bot info by the installed application that created it.
    */
-  async getBotByInstalledApplicationId(
-    installedApplicationId: string,
-  ): Promise<
+  async getBotByInstalledApplicationId(installedApplicationId: string): Promise<
     | (BotInfo & {
         createdAt: Date;
         mentorId: string | null;

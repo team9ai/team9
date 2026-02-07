@@ -1,5 +1,5 @@
 {
-  "id": "a45f0262-1576-4dfb-bc50-34d85e3ca25f",
+  "id": "084be6ca-1912-48c1-8c8f-075f4d7a8e9e",
   "prevId": "37548c07-ad03-4d78-8090-4a0c367e5348",
   "version": "7",
   "dialect": "postgresql",
@@ -82,12 +82,6 @@
         },
         "owner_id": {
           "name": "owner_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "mentor_id": {
-          "name": "mentor_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
@@ -198,21 +192,6 @@
           "method": "btree",
           "with": {}
         },
-        "idx_bots_mentor_id": {
-          "name": "idx_bots_mentor_id",
-          "columns": [
-            {
-              "expression": "mentor_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "idx_bots_installed_application_id": {
           "name": "idx_bots_installed_application_id",
           "columns": [
@@ -259,15 +238,6 @@
           "tableFrom": "im_bots",
           "tableTo": "im_users",
           "columnsFrom": ["owner_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "im_bots_mentor_id_im_users_id_fk": {
-          "name": "im_bots_mentor_id_im_users_id_fk",
-          "tableFrom": "im_bots",
-          "tableTo": "im_users",
-          "columnsFrom": ["mentor_id"],
           "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"

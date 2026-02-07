@@ -1,0 +1,1 @@
+CREATE INDEX "idx_bots_access_token" ON "im_bots" USING btree ("access_token");

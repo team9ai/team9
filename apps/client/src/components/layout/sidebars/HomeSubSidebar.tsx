@@ -9,7 +9,6 @@ import {
   Star,
   Plus,
   FolderPlus,
-  MoreVertical,
   Folder,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -24,7 +23,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useChannelsByType, usePublicChannels } from "@/hooks/useChannels";
 import { useOnlineUsers } from "@/hooks/useIMUsers";
 import { useSections, useMoveChannel } from "@/hooks/useSections";
@@ -239,6 +238,7 @@ export function HomeSubSidebar() {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(),
   );
+  const [sectionsInitialized, setSectionsInitialized] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const {
@@ -259,6 +259,14 @@ export function HomeSubSidebar() {
   });
   const params = useParams({ strict: false });
   const selectedChannelId = (params as { channelId?: string }).channelId;
+
+  // Default all sections to expanded when first loaded
+  useEffect(() => {
+    if (!sectionsInitialized && sections.length > 0) {
+      setExpandedSections(new Set(sections.map((s) => s.id)));
+      setSectionsInitialized(true);
+    }
+  }, [sections, sectionsInitialized]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -453,7 +461,7 @@ export function HomeSubSidebar() {
                     size="icon"
                     className="h-6 w-6 shrink-0 text-nav-foreground-subtle hover:text-nav-foreground hover:bg-nav-hover"
                   >
-                    <MoreVertical size={14} />
+                    <Plus size={14} />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-40">
