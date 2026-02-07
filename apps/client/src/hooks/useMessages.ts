@@ -13,9 +13,39 @@ import type {
   MessageSendStatus,
 } from "@/types/im";
 import { useSelectedWorkspaceId } from "@/stores";
+import { useAppStore } from "@/stores/useAppStore";
 import { isTemporaryId } from "@/lib/utils";
 import { useThreadStore } from "./useThread";
 import { useThreadScrollState } from "./useThreadScrollState";
+
+// --- Temp message coordination ---
+// Coordinates between HTTP onSuccess and WebSocket handleNewMessage
+// to prevent race conditions (duplicate messages, temp message leaks).
+interface PendingTemp {
+  channelId: string;
+  senderId: string;
+  content: string;
+}
+
+const pendingTempMessages = new Map<string, PendingTemp>();
+const resolvedServerIds = new Set<string>();
+
+function findPendingTempId(
+  channelId: string,
+  senderId: string,
+  content: string,
+): string | undefined {
+  for (const [tempId, p] of pendingTempMessages) {
+    if (
+      p.channelId === channelId &&
+      p.senderId === senderId &&
+      p.content === content
+    ) {
+      return tempId;
+    }
+  }
+  return undefined;
+}
 
 /**
  * Hook to fetch messages for a channel with infinite scroll
@@ -165,11 +195,44 @@ export function useMessages(channelId: string | undefined) {
         const exists = old.pages.some((page: Message[]) =>
           page.some((msg) => msg.id === message.id),
         );
-        if (exists) return old;
 
+        // Use coordination map for precise tempId lookup instead of content-scanning cache
+        const matchedTempId = message.senderId
+          ? findPendingTempId(channelId, message.senderId, message.content)
+          : undefined;
+
+        if (exists) {
+          // Server message exists - clean up any lingering temp duplicate
+          if (!matchedTempId) return old;
+          pendingTempMessages.delete(matchedTempId);
+          return {
+            ...old,
+            pages: old.pages.map((page: Message[]) =>
+              page.filter((msg) => msg.id !== matchedTempId),
+            ),
+          };
+        }
+
+        // Replace matching temp message in-place (smooth transition, no flicker)
+        if (matchedTempId) {
+          // Record that WS handled this server message so onSuccess can skip
+          resolvedServerIds.add(message.id);
+          pendingTempMessages.delete(matchedTempId);
+          setTimeout(() => resolvedServerIds.delete(message.id), 30000);
+          return {
+            ...old,
+            pages: old.pages.map((page: Message[]) =>
+              page.map((msg) => (msg.id === matchedTempId ? message : msg)),
+            ),
+          };
+        }
+
+        // No matching temp found - new message from someone else, prepend
         return {
           ...old,
-          pages: [[message, ...old.pages[0]], ...old.pages.slice(1)],
+          pages: old.pages[0]
+            ? [[message, ...old.pages[0]], ...old.pages.slice(1)]
+            : [[message]],
         };
       });
     };
@@ -239,12 +302,19 @@ export function useSendMessage(channelId: string) {
         channelId,
       ]);
 
-      // Get current user from app store
-      const { useAppStore } = await import("@/stores/useAppStore");
+      // Get current user from app store (static import eliminates async gap)
       const currentUser = useAppStore.getState().user;
 
       // Generate a temporary ID for the optimistic message
       const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+
+      // Register for WS coordination before any async gap
+      pendingTempMessages.set(tempId, {
+        channelId,
+        senderId: currentUser?.id || "",
+        content: newMessageData.content,
+      });
+      setTimeout(() => pendingTempMessages.delete(tempId), 60000);
 
       // Create optimistic message with 'sending' status
       const optimisticMessage: Message = {
@@ -305,44 +375,65 @@ export function useSendMessage(channelId: string) {
     },
 
     onSuccess: (serverMessage, _, context) => {
-      // Replace the optimistic message with the real one from server
+      // Clean up pending tracking
+      if (context?.tempId) {
+        pendingTempMessages.delete(context.tempId);
+      }
+
+      // If WebSocket already handled this message, just ensure no lingering temp
+      if (resolvedServerIds.has(serverMessage.id)) {
+        resolvedServerIds.delete(serverMessage.id);
+        queryClient.setQueryData(["messages", channelId], (old: any) => {
+          if (!old) return old;
+          const hasTempMsg = old.pages.some((page: Message[]) =>
+            page.some((msg) => msg.id === context?.tempId),
+          );
+          if (!hasTempMsg) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: Message[]) =>
+              page.filter((msg) => msg.id !== context?.tempId),
+            ),
+          };
+        });
+        queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
+        return;
+      }
+
+      // Normal path: replace the optimistic message with the real one from server
       queryClient.setQueryData(["messages", channelId], (old: any) => {
         if (!old) return { pages: [[serverMessage]], pageParams: [undefined] };
 
-        // Check if server message already exists (added by WebSocket)
         const serverMessageExists = old.pages.some((page: Message[]) =>
           page.some((msg: Message) => msg.id === serverMessage.id),
         );
 
-        return {
-          ...old,
-          pages: old.pages.map((page: Message[], pageIndex: number) => {
-            if (pageIndex === 0) {
-              const tempIndex = page.findIndex(
-                (msg) => msg.id === context?.tempId,
-              );
+        let tempFound = false;
+        const updatedPages = old.pages.map((page: Message[]) => {
+          const tempIndex = page.findIndex((msg) => msg.id === context?.tempId);
 
-              if (tempIndex !== -1) {
-                // Found temp message - replace or remove it
-                if (serverMessageExists) {
-                  // Server message already added by WebSocket, just remove temp
-                  return page.filter((msg) => msg.id !== context?.tempId);
-                } else {
-                  // Replace temp message with server message
-                  const newPage = [...page];
-                  newPage[tempIndex] = serverMessage;
-                  return newPage;
-                }
-              }
-
-              // Temp message not found (edge case)
-              if (!serverMessageExists) {
-                return [serverMessage, ...page];
-              }
+          if (tempIndex !== -1) {
+            tempFound = true;
+            if (serverMessageExists) {
+              return page.filter((msg) => msg.id !== context?.tempId);
+            } else {
+              const newPage = [...page];
+              newPage[tempIndex] = {
+                ...serverMessage,
+                sendStatus: undefined,
+                _retryData: undefined,
+              };
+              return newPage;
             }
-            return page;
-          }),
-        };
+          }
+          return page;
+        });
+
+        if (!tempFound && !serverMessageExists) {
+          updatedPages[0] = [serverMessage, ...updatedPages[0]];
+        }
+
+        return { ...old, pages: updatedPages };
       });
 
       // Invalidate channels to update unread counts
@@ -350,6 +441,10 @@ export function useSendMessage(channelId: string) {
     },
 
     onError: (_err, variables, context) => {
+      if (context?.tempId) {
+        // Clean up pending tracking
+        pendingTempMessages.delete(context.tempId);
+      }
       // Mark the optimistic message as failed instead of rolling back
       if (context?.tempId) {
         queryClient.setQueryData(["messages", channelId], (old: any) => {
@@ -392,7 +487,16 @@ export function useRetryMessage(channelId: string) {
       return imApi.messages.sendMessage(channelId, retryData);
     },
 
-    onMutate: async ({ tempId }) => {
+    onMutate: async ({ tempId, retryData }) => {
+      // Re-register for WS coordination
+      const currentUser = useAppStore.getState().user;
+      pendingTempMessages.set(tempId, {
+        channelId,
+        senderId: currentUser?.id || "",
+        content: retryData.content,
+      });
+      setTimeout(() => pendingTempMessages.delete(tempId), 60000);
+
       // Mark message as sending again
       queryClient.setQueryData(["messages", channelId], (old: any) => {
         if (!old) return old;
@@ -413,46 +517,71 @@ export function useRetryMessage(channelId: string) {
     },
 
     onSuccess: (serverMessage, { tempId }) => {
-      // Replace the failed message with the real one from server
+      // Clean up pending tracking
+      pendingTempMessages.delete(tempId);
+
+      // If WebSocket already handled this message, just ensure no lingering temp
+      if (resolvedServerIds.has(serverMessage.id)) {
+        resolvedServerIds.delete(serverMessage.id);
+        queryClient.setQueryData(["messages", channelId], (old: any) => {
+          if (!old) return old;
+          const hasTempMsg = old.pages.some((page: Message[]) =>
+            page.some((msg) => msg.id === tempId),
+          );
+          if (!hasTempMsg) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: Message[]) =>
+              page.filter((msg) => msg.id !== tempId),
+            ),
+          };
+        });
+        queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
+        return;
+      }
+
+      // Normal path: replace the failed message with the real one from server
       queryClient.setQueryData(["messages", channelId], (old: any) => {
         if (!old) return { pages: [[serverMessage]], pageParams: [undefined] };
 
-        // Check if server message already exists (added by WebSocket)
         const serverMessageExists = old.pages.some((page: Message[]) =>
           page.some((msg: Message) => msg.id === serverMessage.id),
         );
 
-        return {
-          ...old,
-          pages: old.pages.map((page: Message[], pageIndex: number) => {
-            if (pageIndex === 0) {
-              const tempIndex = page.findIndex((msg) => msg.id === tempId);
+        let tempFound = false;
+        const updatedPages = old.pages.map((page: Message[]) => {
+          const tempIndex = page.findIndex((msg) => msg.id === tempId);
 
-              if (tempIndex !== -1) {
-                if (serverMessageExists) {
-                  // Server message already added by WebSocket, just remove temp
-                  return page.filter((msg) => msg.id !== tempId);
-                } else {
-                  // Replace temp message with server message
-                  const newPage = [...page];
-                  newPage[tempIndex] = serverMessage;
-                  return newPage;
-                }
-              }
-
-              if (!serverMessageExists) {
-                return [serverMessage, ...page];
-              }
+          if (tempIndex !== -1) {
+            tempFound = true;
+            if (serverMessageExists) {
+              return page.filter((msg) => msg.id !== tempId);
+            } else {
+              const newPage = [...page];
+              newPage[tempIndex] = {
+                ...serverMessage,
+                sendStatus: undefined,
+                _retryData: undefined,
+              };
+              return newPage;
             }
-            return page;
-          }),
-        };
+          }
+          return page;
+        });
+
+        if (!tempFound && !serverMessageExists) {
+          updatedPages[0] = [serverMessage, ...updatedPages[0]];
+        }
+
+        return { ...old, pages: updatedPages };
       });
 
       queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
     },
 
     onError: (_err, { tempId, retryData }) => {
+      // Clean up pending tracking
+      pendingTempMessages.delete(tempId);
       // Mark back as failed
       queryClient.setQueryData(["messages", channelId], (old: any) => {
         if (!old) return old;
