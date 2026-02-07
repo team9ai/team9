@@ -22,6 +22,7 @@ import {
   ListOrdered,
   Smile,
   Paperclip,
+  AtSign,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -123,6 +124,19 @@ export function EditorToolbar({ onFileSelect }: EditorToolbarProps) {
       }
     });
     setShowEmojiPicker(false);
+    editor.focus();
+  };
+
+  const insertMention = () => {
+    editor.update(() => {
+      const selection = $getSelection();
+      if ($isRangeSelection(selection)) {
+        selection.insertText("@");
+      } else {
+        const textNode = $createTextNode("@");
+        $insertNodes([textNode]);
+      }
+    });
     editor.focus();
   };
 
@@ -240,6 +254,17 @@ export function EditorToolbar({ onFileSelect }: EditorToolbarProps) {
           </Button>
         </>
       )}
+
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={insertMention}
+        className="h-8 w-8 p-0"
+        title="Mention (@)"
+      >
+        <AtSign size={16} />
+      </Button>
     </div>
   );
 }
