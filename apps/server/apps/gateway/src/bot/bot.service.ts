@@ -8,6 +8,7 @@ import {
   eq,
   and,
   like,
+  aliasedTable,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -570,6 +571,16 @@ export class BotService implements OnModuleInit {
   }
 
   /**
+   * Update a bot's mentor (human user who oversees this AI Staff).
+   */
+  async updateBotMentor(botId: string, mentorId: string | null): Promise<void> {
+    await this.db
+      .update(schema.bots)
+      .set({ mentorId, updatedAt: new Date() })
+      .where(eq(schema.bots.id, botId));
+  }
+
+  /**
    * Update a bot's webhook configuration.
    */
   async updateWebhook(
@@ -595,7 +606,16 @@ export class BotService implements OnModuleInit {
    */
   async getBotByInstalledApplicationId(
     installedApplicationId: string,
-  ): Promise<(BotInfo & { createdAt: Date }) | null> {
+  ): Promise<
+    | (BotInfo & {
+        createdAt: Date;
+        mentorId: string | null;
+        mentorDisplayName: string | null;
+        mentorAvatarUrl: string | null;
+      })
+    | null
+  > {
+    const mentorUsers = aliasedTable(schema.users, 'mentor');
     const [row] = await this.db
       .select({
         userId: schema.users.id,
@@ -609,9 +629,13 @@ export class BotService implements OnModuleInit {
         capabilities: schema.bots.capabilities,
         isActive: schema.bots.isActive,
         createdAt: schema.bots.createdAt,
+        mentorId: schema.bots.mentorId,
+        mentorDisplayName: mentorUsers.displayName,
+        mentorAvatarUrl: mentorUsers.avatarUrl,
       })
       .from(schema.bots)
       .innerJoin(schema.users, eq(schema.bots.userId, schema.users.id))
+      .leftJoin(mentorUsers, eq(schema.bots.mentorId, mentorUsers.id))
       .where(eq(schema.bots.installedApplicationId, installedApplicationId))
       .limit(1);
 
@@ -623,7 +647,15 @@ export class BotService implements OnModuleInit {
    */
   async getBotsByInstalledApplicationId(
     installedApplicationId: string,
-  ): Promise<(BotInfo & { createdAt: Date })[]> {
+  ): Promise<
+    (BotInfo & {
+      createdAt: Date;
+      mentorId: string | null;
+      mentorDisplayName: string | null;
+      mentorAvatarUrl: string | null;
+    })[]
+  > {
+    const mentorUsers = aliasedTable(schema.users, 'mentor');
     return this.db
       .select({
         userId: schema.users.id,
@@ -637,9 +669,13 @@ export class BotService implements OnModuleInit {
         capabilities: schema.bots.capabilities,
         isActive: schema.bots.isActive,
         createdAt: schema.bots.createdAt,
+        mentorId: schema.bots.mentorId,
+        mentorDisplayName: mentorUsers.displayName,
+        mentorAvatarUrl: mentorUsers.avatarUrl,
       })
       .from(schema.bots)
       .innerJoin(schema.users, eq(schema.bots.userId, schema.users.id))
+      .leftJoin(mentorUsers, eq(schema.bots.mentorId, mentorUsers.id))
       .where(eq(schema.bots.installedApplicationId, installedApplicationId));
   }
 

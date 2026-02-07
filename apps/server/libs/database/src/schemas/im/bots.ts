@@ -42,6 +42,11 @@ export const bots = pgTable(
       onDelete: 'set null',
     }),
 
+    // Mentor / supervisor who oversees this AI Staff
+    mentorId: uuid('mentor_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+
     // Optional: The installed application that created this bot
     installedApplicationId: uuid('installed_application_id').references(
       () => installedApplications.id,
@@ -72,6 +77,7 @@ export const bots = pgTable(
     index('idx_bots_user_id').on(table.userId),
     index('idx_bots_type').on(table.type),
     index('idx_bots_owner_id').on(table.ownerId),
+    index('idx_bots_mentor_id').on(table.mentorId),
     index('idx_bots_installed_application_id').on(table.installedApplicationId),
     index('idx_bots_access_token').on(table.accessToken),
   ],

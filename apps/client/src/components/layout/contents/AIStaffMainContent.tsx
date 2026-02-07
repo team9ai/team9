@@ -1,8 +1,8 @@
-import { Bot, Loader2, AlertCircle } from "lucide-react";
+import { Bot, Loader2, AlertCircle, User } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Card } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -78,6 +78,22 @@ function AIStaffCard({ app }: { app: InstalledApplication }) {
               </span>
             )}
           </p>
+          {botInfo?.mentorDisplayName && (
+            <div className="flex items-center gap-1 mt-1">
+              <Avatar className="w-4 h-4">
+                {botInfo.mentorAvatarUrl ? (
+                  <AvatarImage src={botInfo.mentorAvatarUrl} />
+                ) : (
+                  <AvatarFallback className="bg-muted text-muted-foreground text-[8px]">
+                    <User size={10} />
+                  </AvatarFallback>
+                )}
+              </Avatar>
+              <span className="text-xs text-muted-foreground truncate">
+                {botInfo.mentorDisplayName}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </Card>

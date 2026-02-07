@@ -29,6 +29,7 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   channelNotificationMutes: many(channelNotificationMutes),
   botProfile: one(bots),
   ownedBots: many(bots, { relationName: 'botOwner' }),
+  mentoredBots: many(bots, { relationName: 'botMentor' }),
 }));
 
 export const channelSectionsRelations = relations(
@@ -208,5 +209,10 @@ export const botsRelations = relations(bots, ({ one }) => ({
     fields: [bots.ownerId],
     references: [users.id],
     relationName: 'botOwner',
+  }),
+  mentor: one(users, {
+    fields: [bots.mentorId],
+    references: [users.id],
+    relationName: 'botMentor',
   }),
 }));

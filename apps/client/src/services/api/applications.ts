@@ -96,6 +96,9 @@ export interface OpenClawBotInfo {
   displayName: string | null;
   isActive: boolean;
   createdAt: string;
+  mentorId: string | null;
+  mentorDisplayName: string | null;
+  mentorAvatarUrl: string | null;
 }
 
 export const applicationsApi = {
@@ -184,6 +187,17 @@ export const applicationsApi = {
     await http.patch(
       `/v1/installed-applications/${installedAppId}/openclaw/bots/${botId}`,
       data,
+    );
+  },
+
+  updateOpenClawBotMentor: async (
+    installedAppId: string,
+    botId: string,
+    mentorId: string | null,
+  ): Promise<void> => {
+    await http.patch(
+      `/v1/installed-applications/${installedAppId}/openclaw/bots/${botId}/mentor`,
+      { mentorId },
     );
   },
 

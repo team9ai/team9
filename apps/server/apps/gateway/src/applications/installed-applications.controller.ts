@@ -180,6 +180,9 @@ export class InstalledApplicationsController {
       displayName: bot.displayName,
       isActive: bot.isActive,
       createdAt: bot.createdAt,
+      mentorId: bot.mentorId,
+      mentorDisplayName: bot.mentorDisplayName,
+      mentorAvatarUrl: bot.mentorAvatarUrl,
     }));
   }
 
@@ -205,6 +208,25 @@ export class InstalledApplicationsController {
       bot.botId,
       body.displayName.trim(),
     );
+    return { success: true };
+  }
+
+  /**
+   * Update mentor for an OpenClaw bot.
+   */
+  @Patch(':id/openclaw/bots/:botId/mentor')
+  async updateOpenClawBotMentor(
+    @Param('id') id: string,
+    @Param('botId') botId: string,
+    @CurrentTenantId() tenantId: string,
+    @Body() body: { mentorId: string | null },
+  ) {
+    await this.getVerifiedApp(id, tenantId, 'openclaw');
+    const bot = await this.botService.getBotById(botId);
+    if (!bot) {
+      throw new NotFoundException('Bot not found');
+    }
+    await this.botService.updateBotMentor(bot.botId, body.mentorId ?? null);
     return { success: true };
   }
 

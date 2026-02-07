@@ -10,21 +10,29 @@ import {
   Check,
   AlertCircle,
   Pencil,
+  User,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api } from "@/services/api";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import { WorkspaceFileBrowserContent } from "./WorkspaceFileBrowserContent";
 
@@ -134,6 +142,34 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
         queryKey: ["installed-application", workspaceId, staffId],
       });
       setEditingDesc(false);
+    },
+  });
+
+  // Fetch workspace members for mentor selector (human users only)
+  const { data: membersData } = useQuery({
+    queryKey: ["workspace-members", workspaceId],
+    queryFn: () => api.workspace.getMembers(workspaceId!, { limit: 100 }),
+    enabled: !!workspaceId,
+  });
+
+  const humanMembers = useMemo(
+    () => membersData?.members?.filter((m) => m.userType === "human") ?? [],
+    [membersData],
+  );
+
+  const updateMentorMutation = useMutation({
+    mutationFn: (mentorId: string | null) => {
+      if (!botInfo?.botId) throw new Error("No bot");
+      return api.applications.updateOpenClawBotMentor(
+        staffId,
+        botInfo.botId,
+        mentorId,
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["openclaw-bots", workspaceId, staffId],
+      });
     },
   });
 
@@ -291,6 +327,23 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
                       </div>
                     </div>
                   </div>
+
+                  {botInfo?.mentorDisplayName && (
+                    <div className="flex items-center gap-2 mt-3">
+                      <Avatar className="w-5 h-5">
+                        {botInfo.mentorAvatarUrl ? (
+                          <AvatarImage src={botInfo.mentorAvatarUrl} />
+                        ) : (
+                          <AvatarFallback className="bg-muted text-muted-foreground text-[8px]">
+                            <User size={12} />
+                          </AvatarFallback>
+                        )}
+                      </Avatar>
+                      <span className="text-sm text-muted-foreground">
+                        Mentor: {botInfo.mentorDisplayName}
+                      </span>
+                    </div>
+                  )}
 
                   <div className="mt-4">
                     {editingDesc ? (
@@ -590,6 +643,35 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
                               <span className="text-xs text-muted-foreground">
                                 {formatDate(botInfo.createdAt)}
                               </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-muted-foreground">
+                                Mentor
+                              </span>
+                              <Select
+                                value={botInfo.mentorId ?? "__none__"}
+                                onValueChange={(value) =>
+                                  updateMentorMutation.mutate(
+                                    value === "__none__" ? null : value,
+                                  )
+                                }
+                                disabled={updateMentorMutation.isPending}
+                              >
+                                <SelectTrigger className="w-48 h-8 text-sm">
+                                  <SelectValue placeholder="Select mentor..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__none__">None</SelectItem>
+                                  {humanMembers.map((member) => (
+                                    <SelectItem
+                                      key={member.userId}
+                                      value={member.userId}
+                                    >
+                                      {member.displayName || member.username}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             </div>
                           </div>
                         ) : (
