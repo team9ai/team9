@@ -22,6 +22,8 @@ interface MessageInputProps {
   onClearReplyingTo?: () => void;
   /** Placeholder text override */
   placeholder?: string;
+  /** Draft text to pre-fill in the editor */
+  initialDraft?: string;
 }
 
 export function MessageInput({
@@ -32,6 +34,7 @@ export function MessageInput({
   replyingTo,
   onClearReplyingTo,
   placeholder,
+  initialDraft,
 }: MessageInputProps) {
   const { t } = useTranslation(["message", "thread"]);
   const [isDragging, setIsDragging] = useState(false);
@@ -216,6 +219,7 @@ export function MessageInput({
           uploadingFiles={uploadingFiles}
           onRemoveFile={removeFile}
           onRetryFile={retryFile}
+          initialDraft={initialDraft}
         />
       </div>
     );
@@ -254,6 +258,7 @@ export function MessageInput({
         uploadingFiles={uploadingFiles}
         onRemoveFile={removeFile}
         onRetryFile={retryFile}
+        initialDraft={initialDraft}
       />
     </div>
   );
