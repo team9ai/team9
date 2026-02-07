@@ -12,7 +12,7 @@ import {
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
-import type { BotCapabilities } from '@team9/database/schemas';
+import type { BotCapabilities, BotExtra } from '@team9/database/schemas';
 import { env } from '@team9/shared';
 import { ChannelsService } from '../im/channels/channels.service.js';
 
@@ -36,8 +36,10 @@ export interface BotInfo {
   email: string;
   type: string;
   ownerId: string | null;
+  mentorId: string | null;
   description: string | null;
   capabilities: BotCapabilities | null;
+  extra: BotExtra | null;
   isActive: boolean;
 }
 
@@ -47,6 +49,7 @@ export interface CreateWorkspaceBotOptions {
   displayName?: string;
   installedApplicationId?: string;
   generateToken?: boolean;
+  mentorId?: string;
 }
 
 export interface WorkspaceBotResult {
@@ -238,8 +241,10 @@ export class BotService implements OnModuleInit {
       email: newUser.email,
       type: newBot.type,
       ownerId: newBot.ownerId,
+      mentorId: newBot.mentorId,
       description: newBot.description,
       capabilities: newBot.capabilities,
+      extra: newBot.extra,
       isActive: newBot.isActive,
     };
 
@@ -264,6 +269,7 @@ export class BotService implements OnModuleInit {
       displayName = 'Bot',
       installedApplicationId,
       generateToken = false,
+      mentorId,
     } = options;
 
     // Look up the owner
@@ -294,18 +300,21 @@ export class BotService implements OnModuleInit {
 
     this.logger.log(`Created bot ${bot.botId} for workspace ${tenantId}`);
 
-    // 2. Link to application if provided
-    if (installedApplicationId) {
+    // 2. Link to application and set mentor if provided
+    if (installedApplicationId || mentorId) {
       await this.db
         .update(schema.bots)
         .set({
-          installedApplicationId,
+          ...(installedApplicationId && { installedApplicationId }),
+          ...(mentorId && { mentorId }),
           updatedAt: new Date(),
         })
         .where(eq(schema.bots.id, bot.botId));
-      this.logger.log(
-        `Linked bot ${bot.botId} to application ${installedApplicationId}`,
-      );
+      if (installedApplicationId) {
+        this.logger.log(
+          `Linked bot ${bot.botId} to application ${installedApplicationId}`,
+        );
+      }
     }
 
     // 3. Generate access token if requested
@@ -390,8 +399,10 @@ export class BotService implements OnModuleInit {
         email: schema.users.email,
         type: schema.bots.type,
         ownerId: schema.bots.ownerId,
+        mentorId: schema.bots.mentorId,
         description: schema.bots.description,
         capabilities: schema.bots.capabilities,
+        extra: schema.bots.extra,
         isActive: schema.bots.isActive,
       })
       .from(schema.bots)
@@ -581,6 +592,33 @@ export class BotService implements OnModuleInit {
   }
 
   /**
+   * Update a bot's extra metadata (e.g. openclaw.agentId).
+   */
+  async updateBotExtra(botId: string, extra: BotExtra): Promise<void> {
+    await this.db
+      .update(schema.bots)
+      .set({ extra, updatedAt: new Date() })
+      .where(eq(schema.bots.id, botId));
+  }
+
+  /**
+   * Delete a bot and its shadow user.
+   * FK cascades will clean up tenant_members, channel_members, etc.
+   */
+  async deleteBotAndCleanup(botId: string): Promise<void> {
+    const bot = await this.getBotById(botId);
+    if (!bot) {
+      throw new Error(`Bot not found: ${botId}`);
+    }
+
+    // Delete shadow user (im_bots cascades via userId FK)
+    await this.db.delete(schema.users).where(eq(schema.users.id, bot.userId));
+
+    this.logger.log(`Deleted bot ${botId} and shadow user ${bot.userId}`);
+    this.eventEmitter.emit('bot.deleted', { botId, userId: bot.userId });
+  }
+
+  /**
    * Update a bot's webhook configuration.
    */
   async updateWebhook(
@@ -607,7 +645,6 @@ export class BotService implements OnModuleInit {
   async getBotByInstalledApplicationId(installedApplicationId: string): Promise<
     | (BotInfo & {
         createdAt: Date;
-        mentorId: string | null;
         mentorDisplayName: string | null;
         mentorAvatarUrl: string | null;
       })
@@ -623,11 +660,12 @@ export class BotService implements OnModuleInit {
         email: schema.users.email,
         type: schema.bots.type,
         ownerId: schema.bots.ownerId,
+        mentorId: schema.bots.mentorId,
         description: schema.bots.description,
         capabilities: schema.bots.capabilities,
+        extra: schema.bots.extra,
         isActive: schema.bots.isActive,
         createdAt: schema.bots.createdAt,
-        mentorId: schema.bots.mentorId,
         mentorDisplayName: mentorUsers.displayName,
         mentorAvatarUrl: mentorUsers.avatarUrl,
       })
@@ -648,7 +686,6 @@ export class BotService implements OnModuleInit {
   ): Promise<
     (BotInfo & {
       createdAt: Date;
-      mentorId: string | null;
       mentorDisplayName: string | null;
       mentorAvatarUrl: string | null;
     })[]
@@ -663,11 +700,12 @@ export class BotService implements OnModuleInit {
         email: schema.users.email,
         type: schema.bots.type,
         ownerId: schema.bots.ownerId,
+        mentorId: schema.bots.mentorId,
         description: schema.bots.description,
         capabilities: schema.bots.capabilities,
+        extra: schema.bots.extra,
         isActive: schema.bots.isActive,
         createdAt: schema.bots.createdAt,
-        mentorId: schema.bots.mentorId,
         mentorDisplayName: mentorUsers.displayName,
         mentorAvatarUrl: mentorUsers.avatarUrl,
       })
@@ -690,8 +728,10 @@ export class BotService implements OnModuleInit {
         email: schema.users.email,
         type: schema.bots.type,
         ownerId: schema.bots.ownerId,
+        mentorId: schema.bots.mentorId,
         description: schema.bots.description,
         capabilities: schema.bots.capabilities,
+        extra: schema.bots.extra,
         isActive: schema.bots.isActive,
       })
       .from(schema.bots)

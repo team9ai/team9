@@ -6,11 +6,20 @@ import {
   Delete,
   Param,
   Body,
+  Inject,
   UseGuards,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { AuthGuard, CurrentUser } from '@team9/auth';
+import {
+  DATABASE_CONNECTION,
+  eq,
+  and,
+  type PostgresJsDatabase,
+} from '@team9/database';
+import * as schema from '@team9/database/schemas';
 import { CurrentTenantId } from '../common/decorators/current-tenant.decorator.js';
 import { WorkspaceGuard } from '../workspace/guards/workspace.guard.js';
 import {
@@ -35,6 +44,8 @@ import { BotService } from '../bot/bot.service.js';
 @UseGuards(AuthGuard, WorkspaceGuard)
 export class InstalledApplicationsController {
   constructor(
+    @Inject(DATABASE_CONNECTION)
+    private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly installedApplicationsService: InstalledApplicationsService,
     private readonly applicationsService: ApplicationsService,
     private readonly openclawService: OpenclawService,
@@ -176,6 +187,8 @@ export class InstalledApplicationsController {
     const bots = await this.botService.getBotsByInstalledApplicationId(app.id);
     return bots.map((bot) => ({
       botId: bot.botId,
+      agentId: bot.extra?.openclaw?.agentId ?? null,
+      workspace: bot.extra?.openclaw?.workspace ?? null,
       username: bot.username,
       displayName: bot.displayName,
       isActive: bot.isActive,
@@ -213,11 +226,13 @@ export class InstalledApplicationsController {
 
   /**
    * Update mentor for an OpenClaw bot.
+   * Only the current mentor or workspace admin/owner can transfer.
    */
   @Patch(':id/openclaw/bots/:botId/mentor')
   async updateOpenClawBotMentor(
     @Param('id') id: string,
     @Param('botId') botId: string,
+    @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string,
     @Body() body: { mentorId: string | null },
   ) {
@@ -226,6 +241,15 @@ export class InstalledApplicationsController {
     if (!bot) {
       throw new NotFoundException('Bot not found');
     }
+
+    // Permission: current mentor OR workspace admin/owner
+    const isAdmin = await this.isWorkspaceAdmin(userId, tenantId);
+    if (bot.mentorId !== userId && !isAdmin) {
+      throw new ForbiddenException(
+        'Only the current mentor or workspace admin can transfer mentorship',
+      );
+    }
+
     await this.botService.updateBotMentor(bot.botId, body.mentorId ?? null);
     return { success: true };
   }
@@ -344,7 +368,150 @@ export class InstalledApplicationsController {
     ]);
   }
 
+  // ── OpenClaw Agent CRUD ─────────────────────────────────────────
+
+  /**
+   * Create a new agent/bot in an OpenClaw instance.
+   * Any workspace member can create. Creator becomes the mentor.
+   */
+  @Post(':id/openclaw/agents')
+  async createOpenClawAgent(
+    @Param('id') id: string,
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
+    @Body() body: { displayName: string; description?: string },
+  ) {
+    const app = await this.getVerifiedApp(id, tenantId, 'openclaw');
+    const instancesId = (app.config as { instancesId?: string })?.instancesId;
+    if (!instancesId) {
+      throw new NotFoundException(
+        'No instance configured for this application',
+      );
+    }
+
+    if (!body.displayName || typeof body.displayName !== 'string') {
+      throw new BadRequestException('displayName is required');
+    }
+
+    const displayName = body.displayName.trim();
+
+    // 1. Create Team9 bot (creator = mentor)
+    const { bot, accessToken } = await this.botService.createWorkspaceBot({
+      ownerId: userId,
+      tenantId,
+      displayName,
+      installedApplicationId: app.id,
+      generateToken: true,
+      mentorId: userId,
+    });
+
+    // 2. Create agent on OpenClaw control plane with dedicated workspace
+    // Pass full absolute path so the daemon creates the workspace at the
+    // location file-keeper expects: .openclaw/workspace/{name}/
+    const workspaceName = bot.botId;
+    const agent = await this.openclawService.createAgent(instancesId, {
+      name: displayName,
+      workspace: `/data/.openclaw/workspace/${workspaceName}`,
+      team9_token: accessToken!,
+    });
+
+    // 3. Store agentId and workspace name (not path) in bot's extra field
+    // Frontend uses the name to build file-keeper URLs via workspace-dir/{name}
+    await this.botService.updateBotExtra(bot.botId, {
+      openclaw: {
+        agentId: agent?.agent_id,
+        workspace: workspaceName,
+      },
+    });
+
+    // 4. Update description if provided
+    if (body.description) {
+      await this.db
+        .update(schema.bots)
+        .set({ description: body.description.trim(), updatedAt: new Date() })
+        .where(eq(schema.bots.id, bot.botId));
+    }
+
+    return {
+      botId: bot.botId,
+      agentId: agent?.agent_id ?? null,
+      displayName: bot.displayName,
+      mentorId: userId,
+    };
+  }
+
+  /**
+   * Delete a non-default agent/bot from an OpenClaw instance.
+   * Only the mentor or workspace admin/owner can delete.
+   */
+  @Delete(':id/openclaw/agents/:botId')
+  async deleteOpenClawAgent(
+    @Param('id') id: string,
+    @Param('botId') botId: string,
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    const app = await this.getVerifiedApp(id, tenantId, 'openclaw');
+    const bot = await this.botService.getBotById(botId);
+    if (!bot) {
+      throw new NotFoundException('Bot not found');
+    }
+
+    // Cannot delete the default bot
+    const agentId = bot.extra?.openclaw?.agentId;
+    if (!agentId) {
+      throw new BadRequestException('Cannot delete the default bot');
+    }
+
+    // Permission: mentor, owner, or workspace admin/owner
+    const isAdmin = await this.isWorkspaceAdmin(userId, tenantId);
+    if (bot.mentorId !== userId && bot.ownerId !== userId && !isAdmin) {
+      throw new ForbiddenException(
+        'Only the mentor or workspace admin can delete this bot',
+      );
+    }
+
+    // 1. Delete agent on control plane
+    const instancesId = (app.config as { instancesId?: string })?.instancesId;
+    if (instancesId) {
+      try {
+        await this.openclawService.deleteAgent(instancesId, agentId);
+      } catch (error) {
+        // Log but don't block cleanup if control plane fails
+        console.warn(
+          `Failed to delete agent ${agentId} on control plane:`,
+          error,
+        );
+      }
+    }
+
+    // 2. Delete Team9 bot + shadow user
+    await this.botService.deleteBotAndCleanup(botId);
+
+    return { success: true };
+  }
+
   // ── Helpers ──────────────────────────────────────────────────────
+
+  /**
+   * Check if user is workspace admin or owner.
+   */
+  private async isWorkspaceAdmin(
+    userId: string,
+    tenantId: string,
+  ): Promise<boolean> {
+    const [member] = await this.db
+      .select({ role: schema.tenantMembers.role })
+      .from(schema.tenantMembers)
+      .where(
+        and(
+          eq(schema.tenantMembers.userId, userId),
+          eq(schema.tenantMembers.tenantId, tenantId),
+        ),
+      )
+      .limit(1);
+    return member?.role === 'admin' || member?.role === 'owner';
+  }
 
   /**
    * Verify the installed app exists, belongs to the tenant, and matches the expected applicationId.

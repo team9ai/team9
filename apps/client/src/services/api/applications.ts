@@ -92,6 +92,8 @@ export interface OpenClawInstanceStatus {
 
 export interface OpenClawBotInfo {
   botId: string;
+  agentId: string | null;
+  workspace: string | null;
   username: string;
   displayName: string | null;
   isActive: boolean;
@@ -207,6 +209,31 @@ export const applicationsApi = {
   ): Promise<void> => {
     await http.post(
       `/v1/installed-applications/${installedAppId}/openclaw/${action}`,
+    );
+  },
+
+  createOpenClawAgent: async (
+    installedAppId: string,
+    data: { displayName: string; description?: string },
+  ): Promise<{
+    botId: string;
+    agentId: string | null;
+    displayName: string;
+    mentorId: string;
+  }> => {
+    const response = await http.post(
+      `/v1/installed-applications/${installedAppId}/openclaw/agents`,
+      data,
+    );
+    return response.data;
+  },
+
+  deleteOpenClawAgent: async (
+    installedAppId: string,
+    botId: string,
+  ): Promise<void> => {
+    await http.delete(
+      `/v1/installed-applications/${installedAppId}/openclaw/agents/${botId}`,
     );
   },
 

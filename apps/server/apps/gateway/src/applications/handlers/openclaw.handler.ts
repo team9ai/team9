@@ -39,13 +39,14 @@ export class OpenClawHandler implements ApplicationHandler {
   async onInstall(context: InstallContext): Promise<InstallResult> {
     const { installedApplication, tenantId, installedBy } = context;
 
-    // 1. Create bot with token
+    // 1. Create bot with token (installer becomes mentor)
     const { bot, accessToken } = await this.botService.createWorkspaceBot({
       ownerId: installedBy,
       tenantId,
       displayName: 'OpenClaw Bot',
       installedApplicationId: installedApplication.id,
       generateToken: true,
+      mentorId: installedBy,
     });
 
     // 2. Create OpenClaw compute instance
@@ -80,19 +81,7 @@ export class OpenClawHandler implements ApplicationHandler {
   }
 
   async onUninstall(app: schema.InstalledApplication): Promise<void> {
-    // Get the linked bot
-    const [bot] = await this.db
-      .select({ id: schema.bots.id, userId: schema.bots.userId })
-      .from(schema.bots)
-      .where(eq(schema.bots.installedApplicationId, app.id))
-      .limit(1);
-
-    if (!bot) {
-      this.logger.warn(`No bot found for application ${app.id}`);
-      return;
-    }
-
-    // Delete OpenClaw instance
+    // Delete OpenClaw instance (cleans up all agents on control plane)
     const instancesId = (app.config as { instancesId?: string })?.instancesId;
     if (instancesId) {
       try {
@@ -106,7 +95,18 @@ export class OpenClawHandler implements ApplicationHandler {
       }
     }
 
-    // Note: Bot and related records will be cleaned up by FK cascade
-    // when the installed application is deleted
+    // Clean up ALL bots linked to this application
+    const bots = await this.db
+      .select({ id: schema.bots.id })
+      .from(schema.bots)
+      .where(eq(schema.bots.installedApplicationId, app.id));
+
+    for (const bot of bots) {
+      try {
+        await this.botService.deleteBotAndCleanup(bot.id);
+      } catch (error) {
+        this.logger.warn(`Failed to clean up bot ${bot.id}:`, error);
+      }
+    }
   }
 }

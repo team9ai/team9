@@ -23,6 +23,13 @@ export interface BotCapabilities {
   [key: string]: unknown;
 }
 
+export interface BotExtra {
+  openclaw?: {
+    agentId?: string; // OpenClaw agent ID; absent means default agent
+    workspace?: string; // OpenClaw workspace name; absent means "default"
+  };
+}
+
 export const bots = pgTable(
   'im_bots',
   {
@@ -65,6 +72,9 @@ export const bots = pgTable(
     webhookHeaders: jsonb('webhook_headers')
       .$type<Record<string, string>>()
       .default({}),
+
+    // Flexible extension data (e.g. openclaw.agentId)
+    extra: jsonb('extra').$type<BotExtra>().default({}),
 
     // Access token for API authentication (hashed: fingerprint:bcryptHash)
     accessToken: text('access_token'),
