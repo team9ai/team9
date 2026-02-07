@@ -23,7 +23,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useChannelsByType, usePublicChannels } from "@/hooks/useChannels";
 import { useOnlineUsers } from "@/hooks/useIMUsers";
 import { useSections, useMoveChannel } from "@/hooks/useSections";
@@ -238,6 +238,7 @@ export function HomeSubSidebar() {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(),
   );
+  const [sectionsInitialized, setSectionsInitialized] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const {
@@ -258,6 +259,14 @@ export function HomeSubSidebar() {
   });
   const params = useParams({ strict: false });
   const selectedChannelId = (params as { channelId?: string }).channelId;
+
+  // Default all sections to expanded when first loaded
+  useEffect(() => {
+    if (!sectionsInitialized && sections.length > 0) {
+      setExpandedSections(new Set(sections.map((s) => s.id)));
+      setSectionsInitialized(true);
+    }
+  }, [sections, sectionsInitialized]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
