@@ -11,6 +11,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import {
@@ -395,6 +396,14 @@ export class InstalledApplicationsController {
 
     const displayName = body.displayName.trim();
 
+    // 0. Check instance is reachable before creating anything
+    const instance = await this.openclawService.getInstance(instancesId);
+    if (!instance || instance.status !== 'running') {
+      throw new ServiceUnavailableException(
+        `OpenClaw instance is not running (status: ${instance?.status ?? 'not found'})`,
+      );
+    }
+
     // 1. Create Team9 bot (creator = mentor)
     const { bot, accessToken } = await this.botService.createWorkspaceBot({
       ownerId: userId,
@@ -409,11 +418,18 @@ export class InstalledApplicationsController {
     // Pass full absolute path so the daemon creates the workspace at the
     // location file-keeper expects: .openclaw/workspace/{name}/
     const workspaceName = bot.botId;
-    const agent = await this.openclawService.createAgent(instancesId, {
-      name: displayName,
-      workspace: `/data/.openclaw/workspace/${workspaceName}`,
-      team9_token: accessToken!,
-    });
+    let agent: Awaited<ReturnType<OpenclawService['createAgent']>>;
+    try {
+      agent = await this.openclawService.createAgent(instancesId, {
+        name: displayName,
+        workspace: `/data/.openclaw/workspace/${workspaceName}`,
+        team9_token: accessToken!,
+      });
+    } catch (error) {
+      // Rollback: delete the bot we just created
+      await this.botService.deleteBotAndCleanup(bot.botId);
+      throw error;
+    }
 
     // 3. Store agentId and workspace name (not path) in bot's extra field
     // Frontend uses the name to build file-keeper URLs via workspace-dir/{name}

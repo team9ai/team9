@@ -290,7 +290,7 @@ export function AIStaffMainContent() {
     ) ?? [];
 
   return (
-    <main className="flex-1 flex flex-col bg-background">
+    <main className="h-full flex flex-col bg-background overflow-hidden">
       {/* Content Header */}
       <header className="h-14 bg-background flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
@@ -310,7 +310,7 @@ export function AIStaffMainContent() {
       <Separator />
 
       {/* Content */}
-      <ScrollArea className="flex-1 bg-secondary/50">
+      <ScrollArea className="flex-1 min-h-0 bg-secondary/50">
         <div className="p-4">
           {isLoading && (
             <div className="flex items-center justify-center py-12">
