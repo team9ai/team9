@@ -1,4 +1,12 @@
-import { useMemo, useRef, useState, useCallback, useEffect } from "react";
+import {
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+  useEffect,
+  memo,
+  forwardRef,
+} from "react";
 import { useNavigate } from "@tanstack/react-router";
 import linkifyHtml from "linkify-html";
 import { UserProfileCard } from "./UserProfileCard";
@@ -14,6 +22,26 @@ interface HoveredMention {
   displayName: string;
   rect: DOMRect;
 }
+
+/**
+ * Inner component that only renders the HTML.
+ * Wrapped with React.memo so it NEVER re-renders when the parent's
+ * hover state changes — this prevents the DOM from being touched
+ * and eliminates the :hover CSS flicker.
+ */
+const MentionContentInner = memo(
+  forwardRef<HTMLDivElement, { html: string; className?: string }>(
+    function MentionContentInner({ html, className }, ref) {
+      return (
+        <div
+          ref={ref}
+          className={className}
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      );
+    },
+  ),
+);
 
 /**
  * Renders message content with HTML formatting support.
@@ -72,7 +100,8 @@ export function MessageContent({ content, className }: MessageContentProps) {
     return html;
   }, [content]);
 
-  // Event delegation for mention hover and click
+  // Event delegation on container for mention hover and click.
+  // Uses [] dependency — delegation works regardless of content changes.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -82,6 +111,10 @@ export function MessageContent({ content, className }: MessageContentProps) {
         "[data-mention-user-id]",
       );
       if (!target) return;
+
+      // Simulate mouseenter: ignore if coming from within the same mention
+      const related = e.relatedTarget as HTMLElement | null;
+      if (related && target.contains(related)) return;
 
       clearTimeout(hideTimerRef.current);
       clearTimeout(showTimerRef.current);
@@ -100,6 +133,10 @@ export function MessageContent({ content, className }: MessageContentProps) {
         "[data-mention-user-id]",
       );
       if (!target) return;
+
+      // Simulate mouseleave: ignore if moving within the same mention
+      const related = e.relatedTarget as HTMLElement | null;
+      if (related && target.contains(related)) return;
 
       clearTimeout(showTimerRef.current);
       hideTimerRef.current = setTimeout(() => {
@@ -147,7 +184,7 @@ export function MessageContent({ content, className }: MessageContentProps) {
       clearTimeout(showTimerRef.current);
       clearTimeout(hideTimerRef.current);
     };
-  }, [processedContent]);
+  }, []);
 
   const handleCardMouseEnter = useCallback(() => {
     clearTimeout(hideTimerRef.current);
@@ -159,16 +196,12 @@ export function MessageContent({ content, className }: MessageContentProps) {
     }, 200);
   }, []);
 
-  const handleCardNavigate = useCallback(() => {
-    setHoveredMention(null);
-  }, []);
-
   return (
     <>
-      <div
+      <MentionContentInner
         ref={containerRef}
+        html={processedContent}
         className={className}
-        dangerouslySetInnerHTML={{ __html: processedContent }}
       />
       {hoveredMention && (
         <UserProfileCard
@@ -177,7 +210,6 @@ export function MessageContent({ content, className }: MessageContentProps) {
           anchorRect={hoveredMention.rect}
           onMouseEnter={handleCardMouseEnter}
           onMouseLeave={handleCardMouseLeave}
-          onNavigate={handleCardNavigate}
         />
       )}
     </>

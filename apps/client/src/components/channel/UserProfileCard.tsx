@@ -1,10 +1,7 @@
 import { createPortal } from "react-dom";
-import { useEffect, useRef, useState, useCallback } from "react";
-import { useNavigate } from "@tanstack/react-router";
-import { MessageSquare } from "lucide-react";
+import { useRef, useMemo } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useIMUser, useIsUserOnline } from "@/hooks/useIMUsers";
-import { useCreateDirectChannel } from "@/hooks/useChannels";
 
 interface UserProfileCardProps {
   userId: string;
@@ -12,7 +9,6 @@ interface UserProfileCardProps {
   anchorRect: DOMRect;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
-  onNavigate: () => void;
 }
 
 export function UserProfileCard({
@@ -21,19 +17,13 @@ export function UserProfileCard({
   anchorRect,
   onMouseEnter,
   onMouseLeave,
-  onNavigate,
 }: UserProfileCardProps) {
-  const navigate = useNavigate();
-  const createDirectChannel = useCreateDirectChannel();
   const { data: user, isLoading } = useIMUser(userId);
   const isOnline = useIsUserOnline(userId);
   const cardRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState<{ top: number; left: number }>({
-    top: -9999,
-    left: -9999,
-  });
 
-  useEffect(() => {
+  // Calculate position synchronously to avoid double-render flash
+  const position = useMemo(() => {
     const CARD_WIDTH = 280;
     const CARD_HEIGHT_ESTIMATE = 180;
     const OFFSET = 8;
@@ -58,7 +48,7 @@ export function UserProfileCard({
     left = Math.max(8, Math.min(left, window.innerWidth - CARD_WIDTH - 8));
     top = Math.max(8, top);
 
-    setPosition({ top, left });
+    return { top, left };
   }, [anchorRect]);
 
   const name = user?.displayName || user?.username || displayName;
