@@ -60,6 +60,7 @@
     "linkify-html": "^4.3.2",
     "linkifyjs": "^4.3.2",
     "lucide-react": "^0.562.0",
+    "motion": "^12.34.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-gtm-module": "^2.0.11",
