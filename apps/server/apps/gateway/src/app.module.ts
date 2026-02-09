@@ -29,6 +29,7 @@ import { NotificationModule } from './notification/notification.module.js';
 import { SearchModule } from './search/search.module.js';
 import { BotModule } from './bot/bot.module.js';
 import { OpenclawModule } from './openclaw/openclaw.module.js';
+import { FileKeeperModule } from './file-keeper/file-keeper.module.js';
 import { ApplicationsModule } from './applications/applications.module.js';
 
 @Module({
@@ -51,6 +52,7 @@ import { ApplicationsModule } from './applications/applications.module.js';
     StorageModule,
     BotModule,
     OpenclawModule,
+    FileKeeperModule,
     ApplicationsModule,
     AuthModule,
     ClusterModule,

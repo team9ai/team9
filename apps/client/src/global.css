@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -243,8 +244,18 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* Hide scrollbar while keeping scroll functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
   }
 }
 
@@ -254,6 +265,7 @@
   text-decoration: underline !important;
   text-underline-offset: 2px;
   word-break: break-all;
+
   &:hover {
     color: var(--link-hover) !important;
   }
@@ -261,25 +273,32 @@
 
 /* Message content HTML styles */
 .message-content-other {
+
   /* Styles for messages from others */
   p {
     margin: 0;
   }
-  p + p {
+
+  p+p {
     margin-top: 0.25rem;
   }
+
   strong {
     font-weight: 600;
   }
+
   em {
     font-style: italic;
   }
+
   u {
     text-decoration: underline;
   }
+
   s {
     text-decoration: line-through;
   }
+
   code {
     background-color: oklch(from var(--foreground) l c h / 10%);
     padding: 0.125rem 0.25rem;
@@ -287,19 +306,25 @@
     font-family: monospace;
     font-size: 0.875em;
   }
-  ul, ol {
+
+  ul,
+  ol {
     margin: 0.25rem 0;
     padding-left: 1.25rem;
   }
+
   ul {
     list-style-type: disc;
   }
+
   ol {
     list-style-type: decimal;
   }
+
   li {
     margin: 0.125rem 0;
   }
+
   .mention-tag {
     background-color: oklch(from var(--primary) l c h / 15%);
     color: var(--primary);
@@ -307,11 +332,13 @@
     border-radius: 0.25rem;
     font-weight: 500;
   }
+
   .message-link {
     color: var(--link);
     text-decoration: underline;
     text-underline-offset: 2px;
     word-break: break-all;
+
     &:hover {
       color: var(--link-hover);
       text-decoration: underline;
@@ -320,25 +347,32 @@
 }
 
 .message-content-own {
+
   /* Styles for own messages (white text on purple background) */
   p {
     margin: 0;
   }
-  p + p {
+
+  p+p {
     margin-top: 0.25rem;
   }
+
   strong {
     font-weight: 600;
   }
+
   em {
     font-style: italic;
   }
+
   u {
     text-decoration: underline;
   }
+
   s {
     text-decoration: line-through;
   }
+
   code {
     background-color: var(--nav-hover-strong);
     padding: 0.125rem 0.25rem;
@@ -346,19 +380,25 @@
     font-family: monospace;
     font-size: 0.875em;
   }
-  ul, ol {
+
+  ul,
+  ol {
     margin: 0.25rem 0;
     padding-left: 1.25rem;
   }
+
   ul {
     list-style-type: disc;
   }
+
   ol {
     list-style-type: decimal;
   }
+
   li {
     margin: 0.125rem 0;
   }
+
   .mention-tag {
     background-color: var(--nav-hover-strong);
     color: var(--nav-foreground);
@@ -366,10 +406,12 @@
     border-radius: 0.25rem;
     font-weight: 500;
   }
+
   .message-link {
     color: var(--nav-foreground-strong);
     text-decoration: underline;
     word-break: break-all;
+
     &:hover {
       color: var(--nav-foreground);
     }

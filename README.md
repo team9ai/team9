@@ -12,7 +12,7 @@
   <a href="#quick-start">Quick Start</a> •
   <a href="#features">Features</a> •
   <!-- <a href="https://docs.team9.ai">Docs</a> • -->
-  <a href="https://discord.gg/edMATqpU">Discord</a> •
+  <a href="https://discord.gg/CAdS398wje">Discord</a> •
   <a href="https://x.com/Team9_ai">X</a>
 </p>
 

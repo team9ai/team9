@@ -44,6 +44,10 @@ export interface UpdateInstalledApplicationDto {
  * Omit secrets when returning to frontend.
  */
 export type SafeInstalledApplication = Omit<InstalledApplication, 'secrets'> & {
+  /** Application name from the application definition */
+  name?: string;
+  /** Application description from the application definition */
+  description?: string;
   /** Application type from the application definition */
   type?: 'managed' | 'custom';
 };
@@ -293,6 +297,8 @@ export class InstalledApplicationsService {
     const appDefinition = this.applicationsService.findById(app.applicationId);
     return {
       ...safe,
+      name: appDefinition?.name,
+      description: appDefinition?.description,
       type: appDefinition?.type,
     };
   }

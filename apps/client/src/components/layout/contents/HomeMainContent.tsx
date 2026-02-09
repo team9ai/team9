@@ -359,7 +359,7 @@ export function HomeMainContent() {
                       size="sm"
                       className="bg-info hover:bg-info/90 text-primary-foreground rounded-lg px-6 cursor-pointer"
                       onClick={() =>
-                        window.open("https://discord.gg/edMATqpU", "_blank")
+                        window.open("https://discord.gg/CAdS398wje", "_blank")
                       }
                     >
                       {t("navigation:joinDiscord")}

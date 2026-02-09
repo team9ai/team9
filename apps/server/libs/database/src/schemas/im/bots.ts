@@ -23,6 +23,13 @@ export interface BotCapabilities {
   [key: string]: unknown;
 }
 
+export interface BotExtra {
+  openclaw?: {
+    agentId?: string; // OpenClaw agent ID; absent means default agent
+    workspace?: string; // OpenClaw workspace name; absent means "default"
+  };
+}
+
 export const bots = pgTable(
   'im_bots',
   {
@@ -39,6 +46,11 @@ export const bots = pgTable(
 
     // Owner (null for system bots, set for custom/webhook bots)
     ownerId: uuid('owner_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+
+    // Mentor / supervisor who oversees this AI Staff
+    mentorId: uuid('mentor_id').references(() => users.id, {
       onDelete: 'set null',
     }),
 
@@ -61,6 +73,9 @@ export const bots = pgTable(
       .$type<Record<string, string>>()
       .default({}),
 
+    // Flexible extension data (e.g. openclaw.agentId)
+    extra: jsonb('extra').$type<BotExtra>().default({}),
+
     // Access token for API authentication (hashed: fingerprint:bcryptHash)
     accessToken: text('access_token'),
     isActive: boolean('is_active').default(true).notNull(),
@@ -72,6 +87,7 @@ export const bots = pgTable(
     index('idx_bots_user_id').on(table.userId),
     index('idx_bots_type').on(table.type),
     index('idx_bots_owner_id').on(table.ownerId),
+    index('idx_bots_mentor_id').on(table.mentorId),
     index('idx_bots_installed_application_id').on(table.installedApplicationId),
     index('idx_bots_access_token').on(table.accessToken),
   ],

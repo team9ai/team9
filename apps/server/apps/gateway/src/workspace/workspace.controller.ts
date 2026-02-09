@@ -159,7 +159,7 @@ export class WorkspaceController {
   }
 
   @Post(':workspaceId/invitations')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, WorkspaceGuard)
   async createInvitation(
     @Param('workspaceId') workspaceId: string,
     @CurrentUser('sub') userId: string,

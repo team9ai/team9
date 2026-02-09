@@ -9,6 +9,33 @@ export interface CreateInstanceRequest {
   env?: Record<string, string>;
 }
 
+// ── Agent types ────────────────────────────────────────────────────────
+
+export interface CreateAgentRequest {
+  name: string;
+  workspace?: string;
+  model?: string;
+  bindings?: string[];
+  team9_token?: string;
+}
+
+export interface AgentInfo {
+  agent_id: string;
+  name: string;
+  workspace?: string;
+  model?: string;
+  status?: string;
+  bindings?: string[];
+}
+
+export interface SetAgentIdentityRequest {
+  name?: string;
+  theme?: string;
+  emoji?: string;
+  avatar?: string;
+  from_identity?: boolean;
+}
+
 export interface Instance {
   id: string;
   user_id: string;
@@ -87,7 +114,18 @@ export class OpenclawService {
    */
   async getInstance(id: string): Promise<Instance | null> {
     if (!this.isConfigured()) return null;
-    return this.request<Instance>('GET', `/api/instances/${id}`);
+    try {
+      const res = await this.request<{ instance: Instance }>(
+        'GET',
+        `/api/instances/${id}`,
+      );
+      return res.instance;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('404')) {
+        return null;
+      }
+      throw error;
+    }
   }
 
   /**
@@ -95,7 +133,11 @@ export class OpenclawService {
    */
   async listInstances(): Promise<Instance[] | null> {
     if (!this.isConfigured()) return null;
-    return this.request<Instance[]>('GET', '/api/instances');
+    const res = await this.request<{ instances: Instance[] }>(
+      'GET',
+      '/api/instances',
+    );
+    return res.instances;
   }
 
   /**
@@ -120,6 +162,69 @@ export class OpenclawService {
   async stopInstance(id: string): Promise<void> {
     if (!this.isConfigured()) return;
     await this.request('POST', `/api/instances/${id}/stop`);
+  }
+
+  // ── Agent methods ─────────────────────────────────────────────────
+
+  /**
+   * Create a new agent in an OpenClaw instance.
+   */
+  async createAgent(
+    instanceId: string,
+    req: CreateAgentRequest,
+  ): Promise<AgentInfo | null> {
+    if (!this.isConfigured()) {
+      this.logger.debug('OpenClaw not configured, skipping createAgent');
+      return null;
+    }
+    return this.request<AgentInfo>(
+      'POST',
+      `/api/instances/${instanceId}/agents`,
+      req,
+    );
+  }
+
+  /**
+   * List agents in an OpenClaw instance.
+   */
+  async listAgents(
+    instanceId: string,
+    bindings = false,
+  ): Promise<AgentInfo[] | null> {
+    if (!this.isConfigured()) return null;
+    const query = bindings ? '?bindings=true' : '';
+    const res = await this.request<{ agents: AgentInfo[] }>(
+      'GET',
+      `/api/instances/${instanceId}/agents${query}`,
+    );
+    return res.agents;
+  }
+
+  /**
+   * Delete an agent from an OpenClaw instance.
+   */
+  async deleteAgent(instanceId: string, agentId: string): Promise<void> {
+    if (!this.isConfigured()) return;
+    await this.request(
+      'DELETE',
+      `/api/instances/${instanceId}/agents/${agentId}`,
+    );
+  }
+
+  /**
+   * Set the display identity of an agent.
+   */
+  async setAgentIdentity(
+    instanceId: string,
+    agentId: string,
+    req: SetAgentIdentityRequest,
+  ): Promise<void> {
+    if (!this.isConfigured()) return;
+    await this.request(
+      'PUT',
+      `/api/instances/${instanceId}/agents/${agentId}/identity`,
+      req,
+    );
   }
 
   // ── Internal helpers ───────────────────────────────────────────────

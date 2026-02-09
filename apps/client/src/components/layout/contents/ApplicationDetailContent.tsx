@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Card,
   CardContent,
@@ -22,7 +23,7 @@ import { Label } from "@/components/ui/label";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,6 +35,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { getConfigTabs } from "@/components/applications/config-panels";
+import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 
 interface ApplicationDetailContentProps {
   appId: string;
@@ -44,6 +47,7 @@ export function ApplicationDetailContent({
 }: ApplicationDetailContentProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const workspaceId = useSelectedWorkspaceId();
   const [isUninstallDialogOpen, setIsUninstallDialogOpen] = useState(false);
 
   const {
@@ -51,25 +55,38 @@ export function ApplicationDetailContent({
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["installed-application", appId],
+    queryKey: ["installed-application", workspaceId, appId],
     queryFn: () => api.applications.getInstalledApplication(appId),
+    enabled: !!workspaceId,
+    retry: false,
   });
+
+  // Navigate back to list if app not found (e.g. workspace mismatch)
+  useEffect(() => {
+    if (error && (error as any)?.response?.status === 404) {
+      navigate({ to: "/application" });
+    }
+  }, [error, navigate]);
 
   const updateMutation = useMutation({
     mutationFn: (data: { isActive?: boolean }) =>
       api.applications.updateInstalledApplication(appId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["installed-application", appId],
+        queryKey: ["installed-application", workspaceId, appId],
       });
-      queryClient.invalidateQueries({ queryKey: ["installed-applications"] });
+      queryClient.invalidateQueries({
+        queryKey: ["installed-applications", workspaceId],
+      });
     },
   });
 
   const uninstallMutation = useMutation({
     mutationFn: () => api.applications.uninstallApplication(appId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["installed-applications"] });
+      queryClient.invalidateQueries({
+        queryKey: ["installed-applications", workspaceId],
+      });
       navigate({ to: "/application" });
     },
   });
@@ -87,8 +104,12 @@ export function ApplicationDetailContent({
     setIsUninstallDialogOpen(false);
   };
 
+  const configTabs = installedApp
+    ? getConfigTabs(installedApp.applicationId)
+    : undefined;
+
   return (
-    <main className="flex-1 flex flex-col bg-background">
+    <main className="h-full flex flex-col bg-background">
       {/* Content Header */}
       <header className="h-14 bg-background flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
@@ -105,7 +126,7 @@ export function ApplicationDetailContent({
       <Separator />
 
       {/* Content */}
-      <ScrollArea className="flex-1 bg-secondary/50">
+      <ScrollArea className="flex-1 min-h-0 bg-secondary/50">
         <div className="p-4">
           {isLoading && (
             <div className="flex items-center justify-center py-12">
@@ -159,85 +180,106 @@ export function ApplicationDetailContent({
                 </CardHeader>
               </Card>
 
-              {/* Settings Card - only show for non-managed apps */}
-              {installedApp.type !== "managed" && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Settings</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <Label htmlFor="app-active">Enable App</Label>
-                        <p className="text-xs text-muted-foreground">
-                          Turn off to temporarily disable this app
-                        </p>
-                      </div>
-                      <Switch
-                        id="app-active"
-                        checked={installedApp.isActive}
-                        onCheckedChange={handleToggleActive}
-                        disabled={updateMutation.isPending}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              {/* Tabs */}
+              <Tabs defaultValue={configTabs?.[0]?.value ?? "settings"}>
+                <TabsList className="w-full justify-start">
+                  {configTabs?.map((tab) => (
+                    <TabsTrigger key={tab.value} value={tab.value}>
+                      {tab.label}
+                    </TabsTrigger>
+                  ))}
+                  {installedApp.type !== "managed" && (
+                    <TabsTrigger value="settings">Settings</TabsTrigger>
+                  )}
+                  {installedApp.type !== "managed" && (
+                    <TabsTrigger value="danger">Danger Zone</TabsTrigger>
+                  )}
+                </TabsList>
 
-              {/* Danger Zone - only show for non-managed apps */}
-              {installedApp.type !== "managed" && (
-                <Card className="border-destructive/50">
-                  <CardHeader>
-                    <CardTitle className="text-base text-destructive">
-                      Danger Zone
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <p className="text-sm font-medium">Uninstall App</p>
-                        <p className="text-xs text-muted-foreground">
-                          Remove this app from your workspace
-                        </p>
-                      </div>
-                      <AlertDialog
-                        open={isUninstallDialogOpen}
-                        onOpenChange={setIsUninstallDialogOpen}
-                      >
-                        <AlertDialogTrigger asChild>
-                          <Button variant="destructive" size="sm">
-                            <Trash2 size={14} className="mr-1" />
-                            Uninstall
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>
-                              Uninstall {installedApp.name}?
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This will remove the app from your workspace. Any
-                              data associated with this app may be lost.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={handleUninstall}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                              {uninstallMutation.isPending ? (
-                                <Loader2 className="w-4 h-4 animate-spin mr-1" />
-                              ) : null}
-                              Uninstall
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+                {configTabs?.map((tab) => (
+                  <TabsContent
+                    key={tab.value}
+                    value={tab.value}
+                    className="mt-4"
+                  >
+                    <tab.Component installedApp={installedApp} />
+                  </TabsContent>
+                ))}
+
+                {installedApp.type !== "managed" && (
+                  <TabsContent value="settings" className="mt-4">
+                    <Card>
+                      <CardContent className="pt-6 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <Label htmlFor="app-active">Enable App</Label>
+                            <p className="text-xs text-muted-foreground">
+                              Turn off to temporarily disable this app
+                            </p>
+                          </div>
+                          <Switch
+                            id="app-active"
+                            checked={installedApp.isActive}
+                            onCheckedChange={handleToggleActive}
+                            disabled={updateMutation.isPending}
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                )}
+
+                {installedApp.type !== "managed" && (
+                  <TabsContent value="danger" className="mt-4">
+                    <Card className="border-destructive/50">
+                      <CardContent className="pt-6">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <p className="text-sm font-medium">Uninstall App</p>
+                            <p className="text-xs text-muted-foreground">
+                              Remove this app from your workspace
+                            </p>
+                          </div>
+                          <AlertDialog
+                            open={isUninstallDialogOpen}
+                            onOpenChange={setIsUninstallDialogOpen}
+                          >
+                            <AlertDialogTrigger asChild>
+                              <Button variant="destructive" size="sm">
+                                <Trash2 size={14} className="mr-1" />
+                                Uninstall
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>
+                                  Uninstall {installedApp.name}?
+                                </AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will remove the app from your workspace.
+                                  Any data associated with this app may be lost.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={handleUninstall}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  {uninstallMutation.isPending ? (
+                                    <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                                  ) : null}
+                                  Uninstall
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                )}
+              </Tabs>
             </div>
           )}
         </div>

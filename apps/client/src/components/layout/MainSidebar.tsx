@@ -153,21 +153,32 @@ export function MainSidebar() {
   };
 
   // Get first 5 workspaces and remaining ones
-  const visibleWorkspaces = workspaces?.slice(0, 5) || [];
-  const moreWorkspaces = workspaces?.slice(5) || [];
+  const visibleWorkspaces = workspaces?.slice(0, 3) || [];
+  const moreWorkspaces = workspaces?.slice(3) || [];
   const hasMoreWorkspaces = moreWorkspaces.length > 0;
 
   // Set first workspace as selected by default
   const currentWorkspace =
     workspaces?.find((w) => w.id === selectedWorkspaceId) || workspaces?.[0];
 
-  // Initialize selectedWorkspaceId with the first workspace if not set
+  // Initialize or fix selectedWorkspaceId
   useEffect(() => {
-    if (workspaces && workspaces.length > 0 && !selectedWorkspaceId) {
-      if (import.meta.env.DEV) {
-        console.log("[MainSidebar] Initializing workspace:", workspaces[0].id);
+    if (workspaces && workspaces.length > 0) {
+      const isValid =
+        selectedWorkspaceId &&
+        workspaces.some((w) => w.id === selectedWorkspaceId);
+      if (!isValid) {
+        if (import.meta.env.DEV) {
+          console.log(
+            "[MainSidebar] Resetting workspace to:",
+            workspaces[0].id,
+            selectedWorkspaceId
+              ? "(previous workspace not found in user's workspaces)"
+              : "(no workspace selected)",
+          );
+        }
+        setSelectedWorkspaceId(workspaces[0].id);
       }
-      setSelectedWorkspaceId(workspaces[0].id);
     }
   }, [workspaces, selectedWorkspaceId, setSelectedWorkspaceId]);
 
@@ -194,7 +205,42 @@ export function MainSidebar() {
       queryClient.removeQueries({
         queryKey: ["workspace-members", prevWorkspaceIdRef.current],
       });
+      queryClient.removeQueries({
+        queryKey: ["installed-applications", prevWorkspaceIdRef.current],
+      });
+      queryClient.removeQueries({
+        queryKey: ["installed-application", prevWorkspaceIdRef.current],
+      });
+      queryClient.removeQueries({
+        queryKey: ["openclaw-status", prevWorkspaceIdRef.current],
+      });
+      queryClient.removeQueries({
+        queryKey: ["openclaw-bots", prevWorkspaceIdRef.current],
+      });
+      queryClient.removeQueries({
+        queryKey: ["openclaw-workspaces", prevWorkspaceIdRef.current],
+      });
+      queryClient.removeQueries({
+        queryKey: ["workspace-files", prevWorkspaceIdRef.current],
+      });
+      queryClient.removeQueries({
+        queryKey: ["file-keeper-token", prevWorkspaceIdRef.current],
+      });
       // Note: Don't remove messages as they might be needed if user navigates back
+
+      // Reset last visited paths — detail pages belong to the old workspace
+      const sections: SidebarSection[] = [
+        "home",
+        "messages",
+        "activity",
+        "files",
+        "aiStaff",
+        "application",
+        "more",
+      ];
+      for (const section of sections) {
+        appActions.setLastVisitedPath(section, null);
+      }
 
       // Navigate to home when switching workspace
       navigate({ to: "/" });
@@ -220,317 +266,322 @@ export function MainSidebar() {
         isOpen={createWorkspaceOpen}
         onClose={() => setCreateWorkspaceOpen(false)}
       />
-      <aside className="w-16 bg-nav-bg text-primary-foreground flex flex-col items-center py-4 space-y-2">
-        {/* Workspace Avatars */}
-        <div className="mb-4 space-y-3">
-          {isLoading ? (
-            <Avatar className="w-10 h-10">
-              <AvatarFallback className="bg-background text-foreground rounded-lg">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-foreground" />
-              </AvatarFallback>
-            </Avatar>
-          ) : visibleWorkspaces.length === 0 ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Avatar className="w-10 h-10 cursor-pointer hover:opacity-80 transition-opacity">
-                  <AvatarFallback className="bg-background text-foreground rounded-full font-bold text-base">
-                    🏋
-                  </AvatarFallback>
-                </Avatar>
-              </TooltipTrigger>
-              <TooltipContent side="right">
-                <p>{tNav("noWorkspace")}</p>
-              </TooltipContent>
-            </Tooltip>
-          ) : (
-            visibleWorkspaces.map((workspace, index) => (
-              <Tooltip key={workspace.id}>
+      <aside className="w-16 h-full bg-nav-bg text-primary-foreground flex flex-col items-center overflow-hidden">
+        {/* Scrollable area: Workspaces + Navigation */}
+        <div className="flex-1 min-h-0 w-full overflow-y-auto scrollbar-hide flex flex-col items-center pt-4 space-y-2">
+          {/* Workspace Avatars */}
+          <div className="mb-4 space-y-3 shrink-0">
+            {isLoading ? (
+              <Avatar className="w-10 h-10">
+                <AvatarFallback className="bg-background text-foreground rounded-lg">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-foreground" />
+                </AvatarFallback>
+              </Avatar>
+            ) : visibleWorkspaces.length === 0 ? (
+              <Tooltip>
                 <TooltipTrigger asChild>
-                  <Avatar
-                    className={cn(
-                      "w-10 h-10 cursor-pointer transition-all",
-                      currentWorkspace?.id === workspace.id
-                        ? "ring-2 ring-nav-foreground ring-offset-2 ring-offset-nav-bg"
-                        : "hover:opacity-80",
-                    )}
-                    onClick={() => setSelectedWorkspaceId(workspace.id)}
-                  >
-                    <AvatarFallback
-                      className={cn(
-                        "rounded-full font-bold text-base text-nav-foreground",
-                        getWorkspaceColor(index),
-                      )}
-                    >
-                      {getInitials(workspace.name)}
+                  <Avatar className="w-10 h-10 cursor-pointer hover:opacity-80 transition-opacity">
+                    <AvatarFallback className="bg-background text-foreground rounded-full font-bold text-base">
+                      🏋
                     </AvatarFallback>
                   </Avatar>
                 </TooltipTrigger>
                 <TooltipContent side="right">
-                  <p>{workspace.name}</p>
+                  <p>{tNav("noWorkspace")}</p>
                 </TooltipContent>
               </Tooltip>
-            ))
-          )}
+            ) : (
+              visibleWorkspaces.map((workspace, index) => (
+                <Tooltip key={workspace.id}>
+                  <TooltipTrigger asChild>
+                    <Avatar
+                      className={cn(
+                        "w-10 h-10 cursor-pointer transition-all",
+                        currentWorkspace?.id === workspace.id
+                          ? "ring-2 ring-nav-foreground ring-offset-2 ring-offset-nav-bg"
+                          : "hover:opacity-80",
+                      )}
+                      onClick={() => setSelectedWorkspaceId(workspace.id)}
+                    >
+                      <AvatarFallback
+                        className={cn(
+                          "rounded-full font-bold text-base text-nav-foreground",
+                          getWorkspaceColor(index),
+                        )}
+                      >
+                        {getInitials(workspace.name)}
+                      </AvatarFallback>
+                    </Avatar>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    <p>{workspace.name}</p>
+                  </TooltipContent>
+                </Tooltip>
+              ))
+            )}
 
-          {/* More Workspaces Button */}
-          {hasMoreWorkspaces && (
-            <Popover
-              open={moreWorkspacesOpen}
-              onOpenChange={setMoreWorkspacesOpen}
-            >
-              <PopoverTrigger asChild>
-                <Avatar className="w-10 h-10 cursor-pointer hover:opacity-80 transition-opacity">
-                  <AvatarFallback className="bg-nav-hover-strong text-nav-foreground rounded-full">
-                    <MoreVertical size={18} />
+            {/* More Workspaces Button */}
+            {hasMoreWorkspaces && (
+              <Popover
+                open={moreWorkspacesOpen}
+                onOpenChange={setMoreWorkspacesOpen}
+              >
+                <PopoverTrigger asChild>
+                  <Avatar className="w-10 h-10 cursor-pointer hover:opacity-80 transition-opacity">
+                    <AvatarFallback className="bg-nav-hover-strong text-nav-foreground rounded-full">
+                      <MoreVertical size={18} />
+                    </AvatarFallback>
+                  </Avatar>
+                </PopoverTrigger>
+                <PopoverContent side="right" className="w-56 p-2">
+                  <div className="space-y-1">
+                    <p className="font-semibold text-xs mb-2 text-muted-foreground px-2">
+                      {tNav("moreWorkspaces")}
+                    </p>
+                    {moreWorkspaces.map((workspace, index) => {
+                      const moreIndex = 5 + index; // Continue color sequence
+                      return (
+                        <button
+                          key={workspace.id}
+                          onClick={() => {
+                            setSelectedWorkspaceId(workspace.id);
+                            setMoreWorkspacesOpen(false);
+                          }}
+                          className="flex items-center gap-2 w-full text-left px-2 py-1.5 text-sm hover:bg-accent rounded transition-colors"
+                        >
+                          <div
+                            className={cn(
+                              "w-6 h-6 rounded-full flex items-center justify-center text-nav-foreground text-xs font-bold",
+                              getWorkspaceColor(moreIndex),
+                            )}
+                          >
+                            {getInitials(workspace.name)}
+                          </div>
+                          <span>{workspace.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
+
+            {/* Create Workspace Button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Avatar
+                  className="w-10 h-10 cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => setCreateWorkspaceOpen(true)}
+                >
+                  <AvatarFallback className="bg-nav-hover-strong hover:bg-nav-hover-stronger text-nav-foreground rounded-full border-2 border-dashed border-nav-border-muted">
+                    <Plus size={18} />
                   </AvatarFallback>
                 </Avatar>
-              </PopoverTrigger>
-              <PopoverContent side="right" className="w-56 p-2">
-                <div className="space-y-1">
-                  <p className="font-semibold text-xs mb-2 text-muted-foreground px-2">
-                    {tNav("moreWorkspaces")}
-                  </p>
-                  {moreWorkspaces.map((workspace, index) => {
-                    const moreIndex = 5 + index; // Continue color sequence
-                    return (
-                      <button
-                        key={workspace.id}
-                        onClick={() => {
-                          setSelectedWorkspaceId(workspace.id);
-                          setMoreWorkspacesOpen(false);
-                        }}
-                        className="flex items-center gap-2 w-full text-left px-2 py-1.5 text-sm hover:bg-accent rounded transition-colors"
-                      >
-                        <div
-                          className={cn(
-                            "w-6 h-6 rounded-full flex items-center justify-center text-nav-foreground text-xs font-bold",
-                            getWorkspaceColor(moreIndex),
-                          )}
-                        >
-                          {getInitials(workspace.name)}
-                        </div>
-                        <span>{workspace.name}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </PopoverContent>
-            </Popover>
-          )}
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>{tNav("createWorkspace")}</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
 
-          {/* Create Workspace Button */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Avatar
-                className="w-10 h-10 cursor-pointer hover:opacity-80 transition-opacity"
-                onClick={() => setCreateWorkspaceOpen(true)}
-              >
-                <AvatarFallback className="bg-nav-hover-strong hover:bg-nav-hover-stronger text-nav-foreground rounded-full border-2 border-dashed border-nav-border-muted">
-                  <Plus size={18} />
-                </AvatarFallback>
-              </Avatar>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              <p>{tNav("createWorkspace")}</p>
-            </TooltipContent>
-          </Tooltip>
+          {/* Navigation Items */}
+          <nav className="w-full flex flex-col items-center space-y-1">
+            {navigationItems.map((item) => {
+              const Icon = item.icon;
+              const currentSection = getSectionFromPath(location.pathname);
+              const isActive = currentSection === item.id;
+              const label = tNav(item.labelKey);
+
+              // Determine badge count based on navigation item
+              const getBadgeCount = () => {
+                if (item.id === "activity") return activityUnreadCount;
+                if (item.id === "messages") return dmUnreadCount;
+                return 0;
+              };
+              const badgeCount = getBadgeCount();
+
+              return (
+                <Button
+                  key={item.id}
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    const section = item.id as SidebarSection;
+                    appActions.setActiveSidebar(section);
+                    // Navigate to the last visited path for this section
+                    const targetPath = getLastVisitedPath(section);
+                    navigate({ to: targetPath });
+                  }}
+                  className={cn(
+                    "w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-nav-hover text-nav-foreground-subtle hover:text-nav-foreground relative",
+                    isActive && "bg-nav-active text-nav-foreground",
+                  )}
+                  title={label}
+                >
+                  <div className="relative">
+                    <Icon size={20} />
+                    <NotificationBadge count={badgeCount} />
+                  </div>
+                  <span className="text-xs mt-1.5">{label}</span>
+                </Button>
+              );
+            })}
+          </nav>
         </div>
 
-        {/* Navigation Items */}
-        <nav className="flex-1 w-full flex flex-col items-center space-y-1">
-          {navigationItems.map((item) => {
-            const Icon = item.icon;
-            const currentSection = getSectionFromPath(location.pathname);
-            const isActive = currentSection === item.id;
-            const label = tNav(item.labelKey);
-
-            // Determine badge count based on navigation item
-            const getBadgeCount = () => {
-              if (item.id === "activity") return activityUnreadCount;
-              if (item.id === "messages") return dmUnreadCount;
-              return 0;
-            };
-            const badgeCount = getBadgeCount();
-
-            return (
-              <Button
-                key={item.id}
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  const section = item.id as SidebarSection;
-                  appActions.setActiveSidebar(section);
-                  // Navigate to the last visited path for this section
-                  const targetPath = getLastVisitedPath(section);
-                  navigate({ to: targetPath });
-                }}
-                className={cn(
-                  "w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-nav-hover text-nav-foreground-subtle hover:text-nav-foreground relative",
-                  isActive && "bg-nav-active text-nav-foreground",
-                )}
-                title={label}
-              >
-                <div className="relative">
-                  <Icon size={20} />
-                  <NotificationBadge count={badgeCount} />
-                </div>
-                <span className="text-xs mt-1.5">{label}</span>
-              </Button>
-            );
-          })}
-        </nav>
-
-        {/* User Avatar at Bottom */}
-        <Popover open={userMenuOpen} onOpenChange={setUserMenuOpen}>
-          <PopoverTrigger asChild>
-            <div className="relative cursor-pointer">
-              <Avatar className="w-10 h-10">
-                <AvatarFallback className="bg-primary hover:bg-primary/90 transition-colors text-primary-foreground text-sm font-medium">
-                  {currentUser?.displayName?.[0] ||
-                    currentUser?.username?.[0]?.toUpperCase() ||
-                    "U"}
-                </AvatarFallback>
-              </Avatar>
-              <div
-                className={cn(
-                  "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-nav-bg",
-                  getStatusColor(userStatus),
-                )}
-              />
-            </div>
-          </PopoverTrigger>
-          <PopoverContent
-            side="right"
-            align="end"
-            className="w-72 p-0"
-            sideOffset={8}
-          >
-            {/* User Info Header */}
-            <div className="p-4">
-              <div className="flex items-center gap-3">
-                <Avatar className="w-12 h-12">
-                  <AvatarFallback className="bg-primary text-primary-foreground text-lg font-medium">
+        {/* User Avatar at Bottom - always visible */}
+        <div className="shrink-0 py-4">
+          <Popover open={userMenuOpen} onOpenChange={setUserMenuOpen}>
+            <PopoverTrigger asChild>
+              <div className="relative cursor-pointer">
+                <Avatar className="w-10 h-10">
+                  <AvatarFallback className="bg-primary hover:bg-primary/90 transition-colors text-primary-foreground text-sm font-medium">
                     {currentUser?.displayName?.[0] ||
                       currentUser?.username?.[0]?.toUpperCase() ||
                       "U"}
                   </AvatarFallback>
                 </Avatar>
-                <div>
-                  <p className="font-semibold text-sm">
-                    {currentUser?.displayName ||
-                      currentUser?.username ||
-                      "User"}
-                  </p>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <div
-                      className={cn(
-                        "w-2 h-2 rounded-full",
-                        getStatusColor(userStatus),
-                      )}
-                    />
-                    <span>{getStatusLabel(userStatus)}</span>
+                <div
+                  className={cn(
+                    "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-nav-bg",
+                    getStatusColor(userStatus),
+                  )}
+                />
+              </div>
+            </PopoverTrigger>
+            <PopoverContent
+              side="right"
+              align="end"
+              className="w-72 p-0"
+              sideOffset={8}
+            >
+              {/* User Info Header */}
+              <div className="p-4">
+                <div className="flex items-center gap-3">
+                  <Avatar className="w-12 h-12">
+                    <AvatarFallback className="bg-primary text-primary-foreground text-lg font-medium">
+                      {currentUser?.displayName?.[0] ||
+                        currentUser?.username?.[0]?.toUpperCase() ||
+                        "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="font-semibold text-sm">
+                      {currentUser?.displayName ||
+                        currentUser?.username ||
+                        "User"}
+                    </p>
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <div
+                        className={cn(
+                          "w-2 h-2 rounded-full",
+                          getStatusColor(userStatus),
+                        )}
+                      />
+                      <span>{getStatusLabel(userStatus)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status Input */}
+                <div className="mt-3">
+                  <div className="flex items-center gap-2 px-3 py-2 border rounded-md text-sm text-muted-foreground hover:bg-accent cursor-pointer">
+                    <Smile size={16} />
+                    <span>{tSettings("updateStatus")}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Status Input */}
-              <div className="mt-3">
-                <div className="flex items-center gap-2 px-3 py-2 border rounded-md text-sm text-muted-foreground hover:bg-accent cursor-pointer">
-                  <Smile size={16} />
-                  <span>{tSettings("updateStatus")}</span>
-                </div>
+              <Separator />
+
+              {/* Status Toggle */}
+              <div className="py-1">
+                <button
+                  onClick={handleStatusToggle}
+                  className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent"
+                >
+                  <span>
+                    {tSettings("setStatus", {
+                      status: isOnline
+                        ? tSettings("status.offline")
+                        : tSettings("status.online"),
+                    })}
+                  </span>
+                </button>
+                <button className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent">
+                  <span>{tSettings("pauseNotifications")}</span>
+                  <div className="flex items-center gap-1 text-muted-foreground">
+                    <span>{tCommon("on")}</span>
+                    <ChevronRight size={14} />
+                  </div>
+                </button>
               </div>
-            </div>
 
-            <Separator />
+              <Separator />
 
-            {/* Status Toggle */}
-            <div className="py-1">
-              <button
-                onClick={handleStatusToggle}
-                className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent"
-              >
-                <span>
-                  {tSettings("setStatus", {
-                    status: isOnline
-                      ? tSettings("status.offline")
-                      : tSettings("status.online"),
-                  })}
-                </span>
-              </button>
-              <button className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent">
-                <span>{tSettings("pauseNotifications")}</span>
-                <div className="flex items-center gap-1 text-muted-foreground">
-                  <span>{tCommon("on")}</span>
-                  <ChevronRight size={14} />
-                </div>
-              </button>
-            </div>
-
-            <Separator />
-
-            {/* Profile & Settings */}
-            <div className="py-1">
-              <button className="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-accent">
-                <User size={16} />
-                <span>{tSettings("profile")}</span>
-              </button>
-              <button className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent">
-                <div className="flex items-center gap-3">
-                  <Settings size={16} />
-                  <span>{tSettings("preferences")}</span>
-                </div>
-                <span className="text-xs text-muted-foreground">⌘,</span>
-              </button>
-            </div>
-
-            <Separator />
-
-            {/* Language Switcher */}
-            <div className="py-1">
-              <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground">
-                {tSettings("language")}
+              {/* Profile & Settings */}
+              <div className="py-1">
+                <button className="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-accent">
+                  <User size={16} />
+                  <span>{tSettings("profile")}</span>
+                </button>
+                <button className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent">
+                  <div className="flex items-center gap-3">
+                    <Settings size={16} />
+                    <span>{tSettings("preferences")}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">⌘,</span>
+                </button>
               </div>
-              {supportedLanguages.map((lang) =>
-                lang.code === "zh" ? (
-                  <></>
-                ) : (
-                  <button
-                    key={lang.code}
-                    onClick={() => i18n.changeLanguage(lang.code)}
-                    className={cn(
-                      "w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent",
-                      i18n.language === lang.code && "bg-accent",
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Globe size={16} />
-                      <span>{lang.nativeName}</span>
-                    </div>
-                    {i18n.language === lang.code && (
-                      <span className="text-primary">✓</span>
-                    )}
-                  </button>
-                ),
-              )}
-            </div>
 
-            <Separator />
+              <Separator />
 
-            {/* Logout */}
-            <div className="py-1">
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-accent text-destructive"
-              >
-                <LogOut size={16} />
-                <span>
-                  {tAuth("signOutFrom", { workspace: currentWorkspaceName })}
-                </span>
-              </button>
-            </div>
-          </PopoverContent>
-        </Popover>
+              {/* Language Switcher */}
+              <div className="py-1">
+                <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground">
+                  {tSettings("language")}
+                </div>
+                {supportedLanguages.map((lang) =>
+                  lang.code === "zh" ? (
+                    <></>
+                  ) : (
+                    <button
+                      key={lang.code}
+                      onClick={() => i18n.changeLanguage(lang.code)}
+                      className={cn(
+                        "w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent",
+                        i18n.language === lang.code && "bg-accent",
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Globe size={16} />
+                        <span>{lang.nativeName}</span>
+                      </div>
+                      {i18n.language === lang.code && (
+                        <span className="text-primary">✓</span>
+                      )}
+                    </button>
+                  ),
+                )}
+              </div>
+
+              <Separator />
+
+              {/* Logout */}
+              <div className="py-1">
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-accent text-destructive"
+                >
+                  <LogOut size={16} />
+                  <span>
+                    {tAuth("signOutFrom", { workspace: currentWorkspaceName })}
+                  </span>
+                </button>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
       </aside>
     </TooltipProvider>
   );

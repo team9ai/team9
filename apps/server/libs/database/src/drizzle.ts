@@ -13,5 +13,6 @@ export {
   asc,
   isNull,
   inArray,
+  aliasedTable,
 } from 'drizzle-orm';
 export type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
