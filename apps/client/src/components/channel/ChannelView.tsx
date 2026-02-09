@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useMessages, useSendMessage } from "@/hooks/useMessages";
 import { useSyncChannel } from "@/hooks/useSyncChannel";
 import {
@@ -115,8 +115,6 @@ export function ChannelView({
 
   // Bot thinking indicator state (local)
   const [thinkingBotIds, setThinkingBotIds] = useState<string[]>([]);
-  const thinkingTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-
   // Determine if this is a bot DM channel
   const isBotDm = useMemo(() => {
     if (!memberChannel) return false;
@@ -134,9 +132,6 @@ export function ChannelView({
   // Clear thinking state when channel changes
   useEffect(() => {
     setThinkingBotIds([]);
-    if (thinkingTimeoutRef.current) {
-      clearTimeout(thinkingTimeoutRef.current);
-    }
   }, [channelId]);
 
   // Listen for bot replies via WebSocket to dismiss thinking indicator
@@ -176,13 +171,6 @@ export function ChannelView({
 
       if (botIds.length > 0) {
         setThinkingBotIds(botIds);
-        // Auto-clear after 30s timeout
-        if (thinkingTimeoutRef.current) {
-          clearTimeout(thinkingTimeoutRef.current);
-        }
-        thinkingTimeoutRef.current = setTimeout(() => {
-          setThinkingBotIds([]);
-        }, 30000);
       }
     },
     [isBotDm, botDmUserId, memberChannel?.type],
