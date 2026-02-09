@@ -33,5 +33,8 @@
   "sending": "发送中...",
   "sendFailed": "发送失败",
   "retry": "重试",
-  "remove": "删除"
+  "remove": "删除",
+  "botThinking": "思考中",
+  "botAnalyzing": "分析中",
+  "botGenerating": "生成回复中"
 }

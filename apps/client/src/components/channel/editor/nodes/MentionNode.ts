@@ -13,6 +13,7 @@ export type SerializedMentionNode = Spread<
   {
     userId: string;
     displayName: string;
+    userType?: string;
   },
   SerializedTextNode
 >;
@@ -20,6 +21,7 @@ export type SerializedMentionNode = Spread<
 export class MentionNode extends TextNode {
   __userId: string;
   __displayName: string;
+  __userType: string;
 
   static getType(): string {
     return "mention";
@@ -31,6 +33,7 @@ export class MentionNode extends TextNode {
       node.__displayName,
       node.__text,
       node.__key,
+      node.__userType,
     );
     return clone;
   }
@@ -40,10 +43,12 @@ export class MentionNode extends TextNode {
     displayName: string,
     text?: string,
     key?: NodeKey,
+    userType?: string,
   ) {
     super(text ?? `@${displayName}`, key);
     this.__userId = userId;
     this.__displayName = displayName;
+    this.__userType = userType ?? "human";
   }
 
   getUserId(): string {
@@ -52,6 +57,10 @@ export class MentionNode extends TextNode {
 
   getDisplayName(): string {
     return this.__displayName;
+  }
+
+  getUserType(): string {
+    return this.__userType;
   }
 
   createDOM(config: EditorConfig): HTMLElement {
@@ -98,6 +107,7 @@ export class MentionNode extends TextNode {
     const node = $createMentionNode(
       serializedNode.userId,
       serializedNode.displayName,
+      serializedNode.userType,
     );
     node.setTextContent(serializedNode.text);
     node.setFormat(serializedNode.format);
@@ -113,6 +123,7 @@ export class MentionNode extends TextNode {
       type: "mention",
       userId: this.__userId,
       displayName: this.__displayName,
+      userType: this.__userType,
     };
   }
 
@@ -132,8 +143,15 @@ export class MentionNode extends TextNode {
 export function $createMentionNode(
   userId: string,
   displayName: string,
+  userType?: string,
 ): MentionNode {
-  const mentionNode = new MentionNode(userId, displayName);
+  const mentionNode = new MentionNode(
+    userId,
+    displayName,
+    undefined,
+    undefined,
+    userType,
+  );
   mentionNode.setMode("segmented").toggleDirectionless();
   return mentionNode;
 }

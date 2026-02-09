@@ -213,6 +213,7 @@ export function MentionsPlugin() {
         const mentionNode = $createMentionNode(
           user.id,
           user.displayName || user.username,
+          user.userType,
         );
 
         const startOffset = match.index + match[1].length;

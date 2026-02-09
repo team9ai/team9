@@ -33,5 +33,8 @@
   "sending": "Sending...",
   "sendFailed": "Failed to send",
   "retry": "Retry",
-  "remove": "Remove"
+  "remove": "Remove",
+  "botThinking": "Thinking",
+  "botAnalyzing": "Analyzing",
+  "botGenerating": "Generating response"
 }

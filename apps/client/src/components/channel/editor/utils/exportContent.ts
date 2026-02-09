@@ -82,7 +82,8 @@ function processNodeToHtml(node: LexicalNode): string {
     // The display name is stored in a data attribute for client-side rendering
     const userId = node.getUserId();
     const displayName = node.getDisplayName();
-    return `<mention data-user-id="${userId}" data-display-name="${escapeHtml(displayName)}">@&lt;${userId}&gt;</mention>`;
+    const userType = node.getUserType();
+    return `<mention data-user-id="${userId}" data-display-name="${escapeHtml(displayName)}" data-user-type="${userType}">@&lt;${userId}&gt;</mention>`;
   }
 
   if ($isTextNode(node)) {

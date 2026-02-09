@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2 } from "lucide-react";
-import type { Message } from "@/types/im";
+import type { Message, ChannelMember } from "@/types/im";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useChannel, useChannelMembers } from "@/hooks/useChannels";
 import { useThreadStore } from "@/hooks/useThread";
@@ -12,6 +12,7 @@ import {
   useRemoveFailedMessage,
 } from "@/hooks/useMessages";
 import { MessageItem } from "./MessageItem";
+import { BotThinkingIndicator } from "./BotThinkingIndicator";
 
 interface MessageListProps {
   messages: Message[];
@@ -24,6 +25,9 @@ interface MessageListProps {
   channelId: string;
   // Read-only mode for non-members previewing public channels
   readOnly?: boolean;
+  // Bot thinking indicator
+  thinkingBotIds?: string[];
+  members?: ChannelMember[];
 }
 
 export function MessageList({
@@ -34,6 +38,8 @@ export function MessageList({
   highlightMessageId,
   channelId,
   readOnly = false,
+  thinkingBotIds = [],
+  members = [],
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
@@ -194,6 +200,10 @@ export function MessageList({
             />
           );
         })}
+        <BotThinkingIndicator
+          thinkingBotIds={thinkingBotIds}
+          members={members}
+        />
         <div ref={messagesEndRef} />
       </div>
     </ScrollArea>

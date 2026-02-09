@@ -80,7 +80,7 @@ export function MessageContent({ content, className }: MessageContentProps) {
 
       // Convert <mention> tags to styled spans with data attributes for interactivity
       html = html.replace(
-        /<mention data-user-id="([^"]*)" data-display-name="([^"]*)">@&lt;[^&]*&gt;<\/mention>/g,
+        /<mention data-user-id="([^"]*)" data-display-name="([^"]*)"[^>]*>@&lt;[^&]*&gt;<\/mention>/g,
         '<span class="mention-tag" data-mention-user-id="$1" data-mention-display-name="$2">@$2</span>',
       );
 

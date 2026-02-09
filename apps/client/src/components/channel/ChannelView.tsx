@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useMessages, useSendMessage } from "@/hooks/useMessages";
 import { useSyncChannel } from "@/hooks/useSyncChannel";
 import {
@@ -9,14 +9,27 @@ import {
 import { useUser } from "@/stores";
 import { useThreadStore } from "@/hooks/useThread";
 import { useBotStartupCountdown } from "@/hooks/useBotStartupCountdown";
+import wsService from "@/services/websocket";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import { ChannelHeader } from "./ChannelHeader";
 import { ThreadPanel } from "./ThreadPanel";
 import { JoinChannelPrompt } from "./JoinChannelPrompt";
 import { BotStartupOverlay } from "./BotStartupOverlay";
-import type { AttachmentDto, PublicChannelPreview } from "@/types/im";
+import type { AttachmentDto, Message, PublicChannelPreview } from "@/types/im";
 import { isValidMessageId } from "@/lib/utils";
+
+// Extract mentioned bot user IDs directly from message HTML content
+// Uses data-user-type attribute embedded in mention tags by the editor
+function extractMentionedBotIds(content: string): string[] {
+  const mentionRegex = /data-user-id="([^"]*)"[^>]*data-user-type="bot"/g;
+  const botIds: string[] = [];
+  let match;
+  while ((match = mentionRegex.exec(content)) !== null) {
+    botIds.push(match[1]);
+  }
+  return botIds;
+}
 
 interface ChannelViewProps {
   channelId: string;
@@ -100,6 +113,81 @@ export function ChannelView({
     return membership?.role || "member";
   }, [members, currentUser]);
 
+  // Bot thinking indicator state (local)
+  const [thinkingBotIds, setThinkingBotIds] = useState<string[]>([]);
+  const thinkingTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Determine if this is a bot DM channel
+  const isBotDm = useMemo(() => {
+    if (!memberChannel) return false;
+    return (
+      memberChannel.type === "direct" &&
+      (memberChannel as any).otherUser?.userType === "bot"
+    );
+  }, [memberChannel]);
+
+  const botDmUserId = useMemo(() => {
+    if (!isBotDm) return null;
+    return (memberChannel as any)?.otherUser?.id ?? null;
+  }, [isBotDm, memberChannel]);
+
+  // Clear thinking state when channel changes
+  useEffect(() => {
+    setThinkingBotIds([]);
+    if (thinkingTimeoutRef.current) {
+      clearTimeout(thinkingTimeoutRef.current);
+    }
+  }, [channelId]);
+
+  // Listen for bot replies via WebSocket to dismiss thinking indicator
+  useEffect(() => {
+    if (thinkingBotIds.length === 0) return;
+
+    const handleBotReply = (message: Message) => {
+      if (message.channelId !== channelId) return;
+      if (message.sender?.userType === "bot" && message.senderId) {
+        setThinkingBotIds((prev) =>
+          prev.filter((id) => id !== message.senderId),
+        );
+      }
+    };
+
+    wsService.onNewMessage(handleBotReply);
+    return () => {
+      wsService.off("new_message", handleBotReply);
+    };
+  }, [channelId, thinkingBotIds.length]);
+
+  // Trigger thinking indicator after sending a message
+  const startBotThinking = useCallback(
+    (content: string) => {
+      let botIds: string[] = [];
+
+      if (isBotDm && botDmUserId) {
+        // DM with bot: always trigger
+        botIds = [botDmUserId];
+      } else if (
+        memberChannel?.type === "public" ||
+        memberChannel?.type === "private"
+      ) {
+        // Public/private channel: trigger only if @mentioning a bot
+        botIds = extractMentionedBotIds(content);
+      }
+
+      if (botIds.length > 0) {
+        setThinkingBotIds(botIds);
+        // Auto-clear after 30s timeout
+        if (thinkingTimeoutRef.current) {
+          clearTimeout(thinkingTimeoutRef.current);
+        }
+        thinkingTimeoutRef.current = setTimeout(() => {
+          setThinkingBotIds([]);
+        }, 30000);
+      }
+    },
+    [isBotDm, botDmUserId, memberChannel?.type],
+  );
+
   const messages = messagesData?.pages.flat() ?? [];
   // New messages are prepended to pages[0], so messages[0] is the latest
   const latestMessageId = messages.length > 0 ? messages[0]?.id : null;
@@ -131,6 +219,7 @@ export function ChannelView({
     // Allow sending if there's content or attachments
     if (!content.trim() && (!attachments || attachments.length === 0)) return;
 
+    startBotThinking(content);
     await sendMessage.mutateAsync({ content, attachments });
   };
 
@@ -173,6 +262,8 @@ export function ChannelView({
             highlightMessageId={initialMessageId}
             channelId={channelId}
             readOnly={isPreviewMode}
+            thinkingBotIds={thinkingBotIds}
+            members={members}
           />
         )}
 
