@@ -1,14 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import imApi from "@/services/api/im";
 import type { UpdateUserStatusDto } from "@/types/im";
+import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 
 /**
  * Hook to search users
  * When query is empty, returns all users (for @mention autocomplete)
  */
 export function useSearchUsers(query: string, enabled = true) {
+  const workspaceId = useSelectedWorkspaceId();
   return useQuery({
-    queryKey: ["im-users", "search", query],
+    queryKey: ["im-users", "search", query, workspaceId],
     queryFn: () => imApi.users.searchUsers({ q: query, limit: 20 }),
     enabled,
   });
