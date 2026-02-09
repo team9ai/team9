@@ -1,15 +1,6 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useEffect, useRef, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import type { Message } from "@/types/im";
 import { useCurrentUser } from "@/hooks/useAuth";
@@ -153,7 +144,6 @@ export function MessageList({
       </div>
     );
   }
-  console.log("Rendering MessageList with messages:", messages);
   if (messages.length === 0) {
     return <EmptyMessageState channelId={channelId} readOnly={readOnly} />;
   }
@@ -290,7 +280,7 @@ function ChannelMessageItem({
   );
 }
 
-// Empty state with bot hint dialog for public channels
+// Empty state with inline bot hint for public channels
 function EmptyMessageState({
   channelId,
   readOnly,
@@ -303,7 +293,6 @@ function EmptyMessageState({
   const { data: members = [] } = useChannelMembers(
     readOnly ? undefined : channelId,
   );
-  const [dialogOpen, setDialogOpen] = useState(false);
 
   const botMembers = useMemo(
     () => members.filter((m) => m.user?.userType === "bot"),
@@ -312,49 +301,33 @@ function EmptyMessageState({
 
   const isPublic = channel?.type === "public";
 
-  // Auto-open dialog for all empty public channels
-  useEffect(() => {
-    if (isPublic) {
-      setDialogOpen(true);
-    }
-  }, [isPublic]);
-
   const botName =
     botMembers[0]?.user?.displayName || botMembers[0]?.user?.username || "Bot";
 
   return (
-    <div className="flex-1 flex items-center justify-center">
-      <p className="text-muted-foreground">{t("noMessagesYetDefault")}</p>
-
-      {isPublic && (
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="sm:max-w-105">
-            <DialogHeader className="items-center text-center">
-              <img
-                src="/bot.webp"
-                alt={botName}
-                className="w-16 h-16 rounded-full mx-auto mb-2"
-              />
-              <DialogTitle>{t("emptyPublicChannelTitle")}</DialogTitle>
-              <DialogDescription className="pt-2 leading-relaxed">
-                {t("emptyPublicChannelDesc")}
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="rounded-md bg-muted px-4 py-3 text-sm font-mono text-center">
-              <span className="text-primary font-semibold">@{botName}</span>{" "}
-              <span className="text-muted-foreground">
-                {t("emptyPublicChannelHintExample")}
-              </span>
-            </div>
-
-            <DialogFooter className="sm:justify-center">
-              <Button onClick={() => setDialogOpen(false)}>
-                {t("emptyPublicChannelGotIt")}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+    <div className="flex-1 flex items-center justify-center px-4">
+      {isPublic ? (
+        <div className="flex flex-col items-center text-center max-w-sm gap-3">
+          <img
+            src="/bot.webp"
+            alt={botName}
+            className="w-16 h-16 rounded-full"
+          />
+          <h3 className="text-lg font-semibold">
+            {t("emptyPublicChannelTitle")}
+          </h3>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {t("emptyPublicChannelDesc")}
+          </p>
+          <div className="rounded-md bg-muted px-4 py-3 text-sm font-mono">
+            <span className="text-primary font-semibold">@{botName}</span>{" "}
+            <span className="text-muted-foreground">
+              {t("emptyPublicChannelHintExample")}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <p className="text-muted-foreground">{t("noMessagesYetDefault")}</p>
       )}
     </div>
   );
