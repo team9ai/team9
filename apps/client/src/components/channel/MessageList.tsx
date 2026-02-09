@@ -3,6 +3,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2 } from "lucide-react";
 import type { Message } from "@/types/im";
 import { useCurrentUser } from "@/hooks/useAuth";
+import { useChannel } from "@/hooks/useChannels";
 import { useThreadStore } from "@/hooks/useThread";
 import {
   useDeleteMessage,
@@ -219,6 +220,8 @@ function ChannelMessageItem({
   isHighlighted?: boolean;
   channelId: string;
 }) {
+  const { data: channel } = useChannel(channelId);
+  const isDirect = channel?.type === "direct";
   const openThread = useThreadStore((state) => state.openThread);
   const deleteMessage = useDeleteMessage();
   const retryMessage = useRetryMessage(channelId);
@@ -230,9 +233,11 @@ function ChannelMessageItem({
     // TODO: Implement reply functionality
   };
 
-  const handleReplyInThread = () => {
-    openThread(message.id);
-  };
+  const handleReplyInThread = isDirect
+    ? undefined
+    : () => {
+        openThread(message.id);
+      };
 
   const handleEdit = () => {
     console.log("Edit message:", message.id);
@@ -265,11 +270,11 @@ function ChannelMessageItem({
     <MessageItem
       message={message}
       currentUserId={currentUserId}
-      showReplyCount={showReplyCount}
-      onReplyCountClick={onReplyCountClick}
+      showReplyCount={!isDirect && showReplyCount}
+      onReplyCountClick={isDirect ? undefined : onReplyCountClick}
       isHighlighted={isHighlighted}
-      onReply={handleReply}
-      onReplyInThread={handleReplyInThread}
+      onReply={isDirect ? undefined : handleReply}
+      onReplyInThread={handleReplyInThread ?? undefined}
       onEdit={handleEdit}
       onDelete={handleDelete}
       onPin={handlePin}

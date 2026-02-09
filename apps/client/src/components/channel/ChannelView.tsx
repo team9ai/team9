@@ -191,20 +191,24 @@ export function ChannelView({
         )}
       </div>
 
-      {/* Thread panel sidebars - up to 2 layers */}
-      {primaryThread.isOpen && primaryThread.rootMessageId && (
-        <ThreadPanel
-          level="primary"
-          rootMessageId={primaryThread.rootMessageId}
-          highlightMessageId={initialThreadId ? initialMessageId : undefined}
-        />
-      )}
-      {secondaryThread.isOpen && secondaryThread.rootMessageId && (
-        <ThreadPanel
-          level="secondary"
-          rootMessageId={secondaryThread.rootMessageId}
-        />
-      )}
+      {/* Thread panel sidebars - up to 2 layers (hidden for direct messages) */}
+      {channel?.type !== "direct" &&
+        primaryThread.isOpen &&
+        primaryThread.rootMessageId && (
+          <ThreadPanel
+            level="primary"
+            rootMessageId={primaryThread.rootMessageId}
+            highlightMessageId={initialThreadId ? initialMessageId : undefined}
+          />
+        )}
+      {channel?.type !== "direct" &&
+        secondaryThread.isOpen &&
+        secondaryThread.rootMessageId && (
+          <ThreadPanel
+            level="secondary"
+            rootMessageId={secondaryThread.rootMessageId}
+          />
+        )}
     </div>
   );
 }
