@@ -259,6 +259,26 @@
   }
 }
 
+/* Base mention tag styles */
+.mention-tag {
+  background-color: oklch(from var(--primary) l c h / 15%);
+  color: var(--primary);
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-weight: 500;
+}
+
+/* Interactive mentions (with user ID) */
+.mention-tag[data-mention-user-id] {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.mention-tag[data-mention-user-id]:hover {
+  background-color: oklch(from var(--primary) l c h / 30%);
+  text-decoration: underline;
+}
+
 /* Global link styles for messages */
 .message-link {
   color: var(--link) !important;
@@ -333,6 +353,16 @@
     font-weight: 500;
   }
 
+  .mention-tag[data-mention-user-id] {
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+  }
+
+  .mention-tag[data-mention-user-id]:hover {
+    background-color: oklch(from var(--primary) l c h / 30%);
+    text-decoration: underline;
+  }
+
   .message-link {
     color: var(--link);
     text-decoration: underline;
@@ -405,6 +435,16 @@
     padding: 0.125rem 0.25rem;
     border-radius: 0.25rem;
     font-weight: 500;
+  }
+
+  .mention-tag[data-mention-user-id] {
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+  }
+
+  .mention-tag[data-mention-user-id]:hover {
+    background-color: var(--nav-hover-stronger);
+    text-decoration: underline;
   }
 
   .message-link {
