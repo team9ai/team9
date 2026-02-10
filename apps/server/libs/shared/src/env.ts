@@ -183,6 +183,11 @@ export const env = {
     return process.env.FILE_KEEPER_JWT_SECRET;
   },
 
+  // Google OAuth (optional - Google login disabled if not set)
+  get GOOGLE_CLIENT_ID() {
+    return process.env.GOOGLE_CLIENT_ID;
+  },
+
   // Email (Resend)
   get RESEND_API_KEY() {
     return process.env.RESEND_API_KEY; // Optional - email disabled if not set

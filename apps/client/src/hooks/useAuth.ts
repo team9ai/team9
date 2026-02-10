@@ -54,6 +54,19 @@ export const useVerifyEmail = () => {
   });
 };
 
+export const useGoogleAuth = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (credential: string) => api.auth.googleLogin(credential),
+    onSuccess: (data) => {
+      // Tokens are stored in api.auth.googleLogin
+      queryClient.setQueryData(["currentUser"], data.user);
+      syncUserToStore(data.user);
+    },
+  });
+};
+
 export const useResendVerification = () => {
   return useMutation({
     mutationFn: (email: string) => api.auth.resendVerification(email),

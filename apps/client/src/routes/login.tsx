@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useLogin, useCurrentUser } from "@/hooks/useAuth";
+import { useLogin, useCurrentUser, useGoogleAuth } from "@/hooks/useAuth";
+import { GoogleLogin } from "@react-oauth/google";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Mail, ExternalLink } from "lucide-react";
+import { Mail, ExternalLink, Loader2 } from "lucide-react";
 
 const MAIL_QUICK_LINKS = [
   { name: "Gmail", url: "https://mail.google.com" },
@@ -189,6 +190,8 @@ function LoginLinkSentView({
   );
 }
 
+const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
 function Login() {
   const { t } = useTranslation("auth");
   const [email, setEmail] = useState("");
@@ -202,6 +205,7 @@ function Login() {
   const navigate = useNavigate();
   const { redirect, invite } = Route.useSearch();
   const login = useLogin();
+  const googleAuth = useGoogleAuth();
   const { data: currentUser, isLoading } = useCurrentUser();
 
   // Redirect if already logged in
@@ -236,6 +240,30 @@ function Login() {
     }
   };
 
+  const handleGoogleSuccess = async (credentialResponse: {
+    credential?: string;
+  }) => {
+    if (!credentialResponse.credential) return;
+    setError("");
+
+    if (invite) {
+      localStorage.setItem("pending_invite_code", invite);
+    }
+
+    try {
+      await googleAuth.mutateAsync(credentialResponse.credential);
+      if (invite) {
+        navigate({ to: "/invite/$code", params: { code: invite } });
+      } else {
+        navigate({ to: redirect || "/" });
+      }
+    } catch (err: any) {
+      const errorMessage =
+        err?.response?.data?.message || err?.message || t("googleLoginFailed");
+      setError(errorMessage);
+    }
+  };
+
   // Show login link sent view
   if (linkSent) {
     return (
@@ -244,6 +272,27 @@ function Login() {
         invite={invite}
         verificationLink={verificationLink}
       />
+    );
+  }
+
+  // Show loading while Google auth is in progress
+  if (googleAuth.isPending) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-full max-w-100 px-4">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-foreground mb-2">Team9</h1>
+          </div>
+          <div className="bg-background border border-border rounded-lg shadow-sm p-8">
+            <div className="flex flex-col items-center gap-4 py-6">
+              <Loader2 className="w-10 h-10 text-primary animate-spin" />
+              <p className="text-muted-foreground text-base">
+                {t("signingIn")}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -260,6 +309,31 @@ function Login() {
 
         {/* Login Form */}
         <div className="bg-background border border-border rounded-lg shadow-sm p-8">
+          {/* Google Login */}
+          {googleClientId && (
+            <>
+              <div className="flex justify-center">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => setError(t("googleLoginFailed"))}
+                  size="large"
+                  width="100%"
+                  text="continue_with"
+                />
+              </div>
+              <div className="relative my-5">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    {t("orContinueWith")}
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
+
           <form onSubmit={handleLogin} className="space-y-5">
             {/* Email Field */}
             <div className="space-y-2">

@@ -183,14 +183,14 @@ export function GlobalTopBar() {
       </div>
 
       {/* Right section - User avatar */}
-      <div className="flex items-center">
+      {/* <div className="flex items-center">
         <Avatar className="h-7 w-7 cursor-pointer">
           <AvatarImage src={user?.avatarUrl || undefined} />
           <AvatarFallback className="bg-primary text-primary-foreground text-xs">
             {user?.name?.[0] || "U"}
           </AvatarFallback>
         </Avatar>
-      </div>
+      </div> */}
     </header>
   );
 }

@@ -91,6 +91,20 @@ export const authApi = {
     return authData;
   },
 
+  googleLogin: async (credential: string): Promise<AuthResponse> => {
+    const response = await http.post<AuthResponse>("/v1/auth/google", {
+      credential,
+    });
+
+    const authData = response.data;
+
+    // Store tokens after successful Google login
+    localStorage.setItem("auth_token", authData.accessToken);
+    localStorage.setItem("refresh_token", authData.refreshToken);
+
+    return authData;
+  },
+
   resendVerification: async (
     email: string,
   ): Promise<{ message: string; verificationLink?: string }> => {

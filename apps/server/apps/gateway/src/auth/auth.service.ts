@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { OAuth2Client } from 'google-auth-library';
 import * as crypto from 'crypto';
 import { v7 as uuidv7 } from 'uuid';
 import {
@@ -19,7 +20,7 @@ import { RedisService } from '@team9/redis';
 import { EmailService } from '@team9/email';
 import { env } from '@team9/shared';
 import type { JwtPayload } from '@team9/auth';
-import { RegisterDto, LoginDto } from './dto/index.js';
+import { RegisterDto, LoginDto, GoogleLoginDto } from './dto/index.js';
 import { USER_EVENTS, type UserRegisteredEvent } from './events/user.events.js';
 
 export interface TokenPair {
@@ -377,6 +378,156 @@ export class AuthService {
       // Include verification link in dev mode for easy testing
       ...(env.DEV_SKIP_EMAIL_VERIFICATION && { verificationLink }),
     };
+  }
+
+  async googleLogin(dto: GoogleLoginDto): Promise<AuthResponse> {
+    const googleClientId = env.GOOGLE_CLIENT_ID;
+    if (!googleClientId) {
+      throw new BadRequestException('Google login is not configured');
+    }
+
+    // Verify Google ID token
+    const client = new OAuth2Client(googleClientId);
+    let payload;
+    try {
+      const ticket = await client.verifyIdToken({
+        idToken: dto.credential,
+        audience: googleClientId,
+      });
+      payload = ticket.getPayload();
+    } catch {
+      throw new UnauthorizedException('Invalid Google credential');
+    }
+
+    if (!payload || !payload.email) {
+      throw new UnauthorizedException('Invalid Google credential');
+    }
+
+    const { email, name, picture } = payload;
+
+    // Check if user already exists
+    const [existingUser] = await this.db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.email, email))
+      .limit(1);
+
+    if (existingUser) {
+      // Existing user — login directly
+      if (existingUser.userType !== 'human') {
+        throw new UnauthorizedException('This account cannot log in');
+      }
+      if (!existingUser.isActive) {
+        throw new UnauthorizedException('Account is disabled');
+      }
+
+      // Mark email as verified if not already (Google login = verified email)
+      if (!existingUser.emailVerified) {
+        await this.db
+          .update(schema.users)
+          .set({
+            emailVerified: true,
+            emailVerifiedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.users.id, existingUser.id));
+      }
+
+      const tokens = this.generateTokenPair(existingUser);
+      return {
+        ...tokens,
+        user: {
+          id: existingUser.id,
+          email: existingUser.email,
+          username: existingUser.username,
+          displayName: existingUser.displayName,
+          avatarUrl: existingUser.avatarUrl,
+        },
+      };
+    }
+
+    // New user — auto-register
+    const username = await this.generateUniqueUsername(email);
+    const userId = uuidv7();
+
+    const [user] = await this.db
+      .insert(schema.users)
+      .values({
+        id: userId,
+        email,
+        username,
+        displayName: name || username,
+        avatarUrl: picture || null,
+        emailVerified: true,
+        emailVerifiedAt: new Date(),
+      })
+      .returning();
+
+    // Emit events (same as register flow)
+    this.eventEmitter.emit(USER_EVENTS.REGISTERED, {
+      userId: user.id,
+      displayName: name || username,
+    } satisfies UserRegisteredEvent);
+
+    this.eventEmitter.emit('user.created', { user });
+
+    const tokens = this.generateTokenPair(user);
+    return {
+      ...tokens,
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        displayName: user.displayName,
+        avatarUrl: user.avatarUrl,
+      },
+    };
+  }
+
+  private async generateUniqueUsername(email: string): Promise<string> {
+    // Use email prefix as base username
+    const emailPrefix = email.split('@')[0];
+    let base = emailPrefix
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '');
+
+    // Ensure minimum 3 characters
+    if (base.length < 3) {
+      base = base.padEnd(3, '_');
+    }
+
+    // Truncate to 26 chars to leave room for suffix
+    base = base.slice(0, 26);
+
+    // Check if username is available
+    const [existing] = await this.db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.username, base))
+      .limit(1);
+
+    if (!existing) {
+      return base;
+    }
+
+    // Collision — append _XXXX random suffix, retry up to 5 times
+    for (let i = 0; i < 5; i++) {
+      const suffix = Math.floor(1000 + Math.random() * 9000).toString();
+      const candidate = `${base}_${suffix}`;
+      const [conflict] = await this.db
+        .select()
+        .from(schema.users)
+        .where(eq(schema.users.username, candidate))
+        .limit(1);
+      if (!conflict) {
+        return candidate;
+      }
+    }
+
+    // Fallback: use uuid fragment
+    return `${base}_${uuidv7().slice(-4)}`;
   }
 
   async refreshToken(refreshToken: string): Promise<TokenPair> {
