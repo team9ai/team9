@@ -405,16 +405,17 @@ export function MainSidebar() {
                                 setSelectedWorkspaceId(workspace.id)
                               }
                               className={cn(
-                                "flex items-center gap-2 w-full text-left px-2 py-1.5 text-sm rounded transition-colors",
+                                "flex items-center gap-2 w-full text-left px-2 py-1.5 text-sm rounded transition-colors hover:bg-muted/50",
                                 isActive
                                   ? "text-foreground font-medium"
-                                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                                  : "text-muted-foreground hover:text-foreground",
                               )}
                             >
                               <div
                                 className={cn(
-                                  "w-6 h-6 rounded-md flex items-center justify-center bg-linear-to-br text-white text-xs font-semibold",
+                                  "w-6 h-6 rounded-md flex items-center justify-center bg-linear-to-br text-white text-xs font-semibold shrink-0",
                                   getWorkspaceGradient(index),
+                                  !isActive && "opacity-60",
                                 )}
                               >
                                 {getInitials(workspace.name)}
@@ -422,16 +423,13 @@ export function MainSidebar() {
                               <span className="flex-1 truncate">
                                 {workspace.name}
                               </span>
-                              {isActive && (
-                                <span className="text-primary text-xs">✓</span>
-                              )}
                             </button>
                           );
                         })}
                         <Separator className="my-1" />
                         <button
                           onClick={() => setCreateWorkspaceOpen(true)}
-                          className="flex items-center gap-2 w-full text-left px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground rounded transition-colors"
+                          className="flex items-center gap-2 w-full text-left px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground rounded transition-colors"
                         >
                           <div className="w-6 h-6 rounded-md flex items-center justify-center border border-dashed border-muted-foreground/40">
                             <Plus size={14} />
