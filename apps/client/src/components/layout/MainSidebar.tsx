@@ -395,27 +395,49 @@ export function MainSidebar() {
                         <p className="font-semibold text-xs mb-2 text-muted-foreground px-2">
                           {tNav("moreWorkspaces")}
                         </p>
-                        {workspaces.map((workspace, index) => (
-                          <button
-                            key={workspace.id}
-                            onClick={() => setSelectedWorkspaceId(workspace.id)}
-                            className={cn(
-                              "flex items-center gap-2 w-full text-left px-2 py-1.5 text-sm hover:bg-accent rounded transition-colors",
-                              currentWorkspace?.id === workspace.id &&
-                                "bg-accent",
-                            )}
-                          >
-                            <div
+                        {workspaces.map((workspace, index) => {
+                          const isActive =
+                            currentWorkspace?.id === workspace.id;
+                          return (
+                            <button
+                              key={workspace.id}
+                              onClick={() =>
+                                setSelectedWorkspaceId(workspace.id)
+                              }
                               className={cn(
-                                "w-6 h-6 rounded-md flex items-center justify-center bg-linear-to-br text-white text-xs font-semibold",
-                                getWorkspaceGradient(index),
+                                "flex items-center gap-2 w-full text-left px-2 py-1.5 text-sm rounded transition-colors",
+                                isActive
+                                  ? "text-foreground font-medium"
+                                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
                               )}
                             >
-                              {getInitials(workspace.name)}
-                            </div>
-                            <span>{workspace.name}</span>
-                          </button>
-                        ))}
+                              <div
+                                className={cn(
+                                  "w-6 h-6 rounded-md flex items-center justify-center bg-linear-to-br text-white text-xs font-semibold",
+                                  getWorkspaceGradient(index),
+                                )}
+                              >
+                                {getInitials(workspace.name)}
+                              </div>
+                              <span className="flex-1 truncate">
+                                {workspace.name}
+                              </span>
+                              {isActive && (
+                                <span className="text-primary text-xs">✓</span>
+                              )}
+                            </button>
+                          );
+                        })}
+                        <Separator className="my-1" />
+                        <button
+                          onClick={() => setCreateWorkspaceOpen(true)}
+                          className="flex items-center gap-2 w-full text-left px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground rounded transition-colors"
+                        >
+                          <div className="w-6 h-6 rounded-md flex items-center justify-center border border-dashed border-muted-foreground/40">
+                            <Plus size={14} />
+                          </div>
+                          <span>{tNav("createWorkspace")}</span>
+                        </button>
                       </div>
                     </PopoverContent>
                   </Popover>
