@@ -427,26 +427,17 @@ export function MainSidebar() {
                 return (
                   <Tooltip key={workspace.id}>
                     <TooltipTrigger asChild>
-                      <div className="relative flex items-center">
-                        {/* Left indicator bar for selected workspace */}
-                        <div
-                          className={cn(
-                            "absolute -left-2 w-1 rounded-r-full bg-white transition-all",
-                            isSelected ? "h-5" : "h-0 group-hover:h-2",
-                          )}
-                        />
-                        <div
-                          className={cn(
-                            "w-10 h-10 cursor-pointer transition-all flex items-center justify-center bg-linear-to-br text-white text-sm font-semibold shadow-sm",
-                            getWorkspaceGradient(index),
-                            isSelected
-                              ? "rounded-xl scale-105 shadow-md"
-                              : "rounded-2xl hover:rounded-xl hover:shadow-md",
-                          )}
-                          onClick={() => setSelectedWorkspaceId(workspace.id)}
-                        >
-                          {getInitials(workspace.name)}
-                        </div>
+                      <div
+                        className={cn(
+                          "cursor-pointer transition-all duration-200 flex items-center justify-center bg-linear-to-br text-white font-semibold",
+                          getWorkspaceGradient(index),
+                          isSelected
+                            ? "w-11 h-11 rounded-lg text-base ring-2 ring-white/40 shadow-[0_2px_12px_rgba(0,0,0,0.3)]"
+                            : "w-9 h-9 rounded-full text-sm opacity-50 hover:opacity-90 hover:rounded-2xl hover:w-10 hover:h-10",
+                        )}
+                        onClick={() => setSelectedWorkspaceId(workspace.id)}
+                      >
+                        {getInitials(workspace.name)}
                       </div>
                     </TooltipTrigger>
                     <TooltipContent side="right">
