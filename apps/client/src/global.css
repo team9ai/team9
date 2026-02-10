@@ -536,7 +536,7 @@
   margin: 0.25rem 0;
   font-family: "SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, monospace;
   font-size: 0.8125rem;
-  line-height: 1.5;
+  line-height: 1.125;
   tab-size: 2;
   overflow-x: auto;
   white-space: pre;
@@ -544,14 +544,14 @@
 
 /* Markdown message content */
 .markdown-message-content {
-  line-height: 1.5;
+  line-height: 1;
 
   p {
     margin: 0;
   }
 
   p + p {
-    margin-top: 0.35rem;
+    margin-top: 0.3rem;
   }
 
   strong {
