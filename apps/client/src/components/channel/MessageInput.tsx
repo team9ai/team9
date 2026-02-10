@@ -211,6 +211,7 @@ export function MessageInput({
         )}
 
         <RichTextEditor
+          channelId={channelId}
           onSubmit={handleSubmit}
           disabled={disabled || isUploading}
           placeholder={placeholder || defaultPlaceholder}
@@ -251,6 +252,7 @@ export function MessageInput({
       )}
 
       <RichTextEditor
+        channelId={channelId}
         onSubmit={handleSubmit}
         disabled={disabled || isUploading}
         placeholder={placeholder || defaultPlaceholder}

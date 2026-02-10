@@ -67,5 +67,11 @@
   "emptyPublicChannelTitle": "和机器人聊天吧！",
   "emptyPublicChannelDesc": "当前频道内有 AI 机器人，输入 @ 提及机器人即可开始对话。",
   "emptyPublicChannelHintExample": "随便问点什么...",
-  "emptyPublicChannelGotIt": "知道了"
+  "emptyPublicChannelGotIt": "知道了",
+  "botNotMemberTitle": "{{botName}} 不是频道成员",
+  "botNotMemberPublicDesc": "{{botName}} 不是当前频道的成员，无法收到你的消息。是否要先将它添加到频道中？",
+  "botNotMemberPrivateAdminDesc": "{{botName}} 不是当前私有频道的成员，无法收到你的消息。是否要先将它添加到频道中？",
+  "botNotMemberPrivateDesc": "{{botName}} 不是当前私有频道的成员，无法收到你的消息。请联系频道管理员将机器人添加到频道中。",
+  "addBotToChannel": "添加到频道",
+  "addingBot": "添加中..."
 }
