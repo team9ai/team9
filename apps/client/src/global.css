@@ -544,7 +544,7 @@
 
 /* Markdown message content */
 .markdown-message-content {
-  line-height: 1;
+  line-height: 1.125;
 
   p {
     margin: 0;
