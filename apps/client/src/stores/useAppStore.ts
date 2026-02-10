@@ -54,6 +54,7 @@ interface AppState {
   isLoading: boolean;
   lastVisitedPaths: SectionPaths;
   activeSidebar: SidebarSection;
+  sidebarCollapsed: boolean;
 
   // Actions
   setUser: (user: User | null) => void;
@@ -62,6 +63,7 @@ interface AppState {
   setLoading: (loading: boolean) => void;
   setLastVisitedPath: (section: SidebarSection, path: string | null) => void;
   setActiveSidebar: (sidebar: SidebarSection) => void;
+  toggleSidebarCollapsed: () => void;
   reset: () => void;
 }
 
@@ -80,6 +82,7 @@ const initialState = {
     more: null,
   } as SectionPaths,
   activeSidebar: "home" as SidebarSection,
+  sidebarCollapsed: false,
 };
 
 // Store
@@ -117,6 +120,13 @@ export const useAppStore = create<AppState>()(
         setActiveSidebar: (activeSidebar) =>
           set({ activeSidebar }, false, "setActiveSidebar"),
 
+        toggleSidebarCollapsed: () =>
+          set(
+            (state) => ({ sidebarCollapsed: !state.sidebarCollapsed }),
+            false,
+            "toggleSidebarCollapsed",
+          ),
+
         reset: () => set(initialState, false, "reset"),
       }),
       {
@@ -125,6 +135,7 @@ export const useAppStore = create<AppState>()(
           theme: state.theme,
           lastVisitedPaths: state.lastVisitedPaths,
           activeSidebar: state.activeSidebar,
+          sidebarCollapsed: state.sidebarCollapsed,
           user: state.user,
         }),
       },
@@ -141,6 +152,8 @@ export const useLastVisitedPaths = () =>
   useAppStore((state) => state.lastVisitedPaths);
 export const useActiveSidebar = () =>
   useAppStore((state) => state.activeSidebar);
+export const useSidebarCollapsed = () =>
+  useAppStore((state) => state.sidebarCollapsed);
 
 // Get last visited path for a specific section
 export const getLastVisitedPath = (section: SidebarSection): string => {
@@ -158,5 +171,6 @@ export const appActions = {
     useAppStore.getState().setLastVisitedPath(section, path),
   setActiveSidebar: (sidebar: SidebarSection) =>
     useAppStore.getState().setActiveSidebar(sidebar),
+  toggleSidebarCollapsed: () => useAppStore.getState().toggleSidebarCollapsed(),
   reset: () => useAppStore.getState().reset(),
 };

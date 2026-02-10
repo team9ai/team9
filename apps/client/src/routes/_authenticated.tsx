@@ -105,10 +105,7 @@ function AuthenticatedLayout() {
 
       {/* Main content area with sidebars */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Main navigation sidebar - leftmost */}
         <MainSidebar />
-
-        {/* SubSidebar - dynamic based on route */}
         <DynamicSubSidebar />
 
         {/* Main content area */}

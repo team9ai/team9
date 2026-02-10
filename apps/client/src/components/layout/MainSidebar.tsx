@@ -39,6 +39,7 @@ import {
   appActions,
   getLastVisitedPath,
   getSectionFromPath,
+  useSidebarCollapsed,
   type SidebarSection,
 } from "@/stores";
 import { useQueryClient } from "@tanstack/react-query";
@@ -260,17 +261,18 @@ export function MainSidebar() {
     return WORKSPACE_COLORS[index % WORKSPACE_COLORS.length];
   };
 
+  const sidebarCollapsed = useSidebarCollapsed();
+
   return (
     <TooltipProvider>
       <CreateWorkspaceDialog
         isOpen={createWorkspaceOpen}
         onClose={() => setCreateWorkspaceOpen(false)}
       />
-      <aside className="w-16 h-full bg-nav-bg text-primary-foreground flex flex-col items-center overflow-hidden">
-        {/* Scrollable area: Workspaces + Navigation */}
-        <div className="flex-1 min-h-0 w-full overflow-y-auto scrollbar-hide flex flex-col items-center pt-4 space-y-2">
-          {/* Workspace Avatars */}
-          <div className="mb-4 space-y-3 shrink-0">
+      <div className="flex h-full">
+        {/* Column 1: Workspace avatars - always visible */}
+        <aside className="w-16 h-full bg-nav-bg text-primary-foreground flex flex-col items-center overflow-hidden">
+          <div className="flex-1 min-h-0 w-full overflow-y-auto scrollbar-hide flex flex-col items-center pt-4 space-y-3">
             {isLoading ? (
               <Avatar className="w-10 h-10">
                 <AvatarFallback className="bg-background text-foreground rounded-lg">
@@ -384,205 +386,210 @@ export function MainSidebar() {
             </Tooltip>
           </div>
 
-          {/* Navigation Items */}
-          <nav className="w-full flex flex-col items-center space-y-1">
-            {navigationItems.map((item) => {
-              const Icon = item.icon;
-              const currentSection = getSectionFromPath(location.pathname);
-              const isActive = currentSection === item.id;
-              const label = tNav(item.labelKey);
-
-              // Determine badge count based on navigation item
-              const getBadgeCount = () => {
-                if (item.id === "activity") return activityUnreadCount;
-                if (item.id === "messages") return dmUnreadCount;
-                return 0;
-              };
-              const badgeCount = getBadgeCount();
-
-              return (
-                <Button
-                  key={item.id}
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    const section = item.id as SidebarSection;
-                    appActions.setActiveSidebar(section);
-                    // Navigate to the last visited path for this section
-                    const targetPath = getLastVisitedPath(section);
-                    navigate({ to: targetPath });
-                  }}
-                  className={cn(
-                    "w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-nav-hover text-nav-foreground-subtle hover:text-nav-foreground relative",
-                    isActive && "bg-nav-active text-nav-foreground",
-                  )}
-                  title={label}
-                >
-                  <div className="relative">
-                    <Icon size={20} />
-                    <NotificationBadge count={badgeCount} />
-                  </div>
-                  <span className="text-xs mt-1.5">{label}</span>
-                </Button>
-              );
-            })}
-          </nav>
-        </div>
-
-        {/* User Avatar at Bottom - always visible */}
-        <div className="shrink-0 py-4">
-          <Popover open={userMenuOpen} onOpenChange={setUserMenuOpen}>
-            <PopoverTrigger asChild>
-              <div className="relative cursor-pointer">
-                <Avatar className="w-10 h-10">
-                  <AvatarFallback className="bg-primary hover:bg-primary/90 transition-colors text-primary-foreground text-sm font-medium">
-                    {currentUser?.displayName?.[0] ||
-                      currentUser?.username?.[0]?.toUpperCase() ||
-                      "U"}
-                  </AvatarFallback>
-                </Avatar>
-                <div
-                  className={cn(
-                    "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-nav-bg",
-                    getStatusColor(userStatus),
-                  )}
-                />
-              </div>
-            </PopoverTrigger>
-            <PopoverContent
-              side="right"
-              align="end"
-              className="w-72 p-0"
-              sideOffset={8}
-            >
-              {/* User Info Header */}
-              <div className="p-4">
-                <div className="flex items-center gap-3">
-                  <Avatar className="w-12 h-12">
-                    <AvatarFallback className="bg-primary text-primary-foreground text-lg font-medium">
+          {/* User Avatar at Bottom */}
+          <div className="shrink-0 py-4">
+            <Popover open={userMenuOpen} onOpenChange={setUserMenuOpen}>
+              <PopoverTrigger asChild>
+                <div className="relative cursor-pointer">
+                  <Avatar className="w-10 h-10">
+                    <AvatarFallback className="bg-primary hover:bg-primary/90 transition-colors text-primary-foreground text-sm font-medium">
                       {currentUser?.displayName?.[0] ||
                         currentUser?.username?.[0]?.toUpperCase() ||
                         "U"}
                     </AvatarFallback>
                   </Avatar>
-                  <div>
-                    <p className="font-semibold text-sm">
-                      {currentUser?.displayName ||
-                        currentUser?.username ||
-                        "User"}
-                    </p>
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <div
-                        className={cn(
-                          "w-2 h-2 rounded-full",
-                          getStatusColor(userStatus),
-                        )}
-                      />
-                      <span>{getStatusLabel(userStatus)}</span>
+                  <div
+                    className={cn(
+                      "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-nav-bg",
+                      getStatusColor(userStatus),
+                    )}
+                  />
+                </div>
+              </PopoverTrigger>
+              <PopoverContent
+                side="right"
+                align="end"
+                className="w-72 p-0"
+                sideOffset={8}
+              >
+                {/* User Info Header */}
+                <div className="p-4">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="w-12 h-12">
+                      <AvatarFallback className="bg-primary text-primary-foreground text-lg font-medium">
+                        {currentUser?.displayName?.[0] ||
+                          currentUser?.username?.[0]?.toUpperCase() ||
+                          "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-semibold text-sm">
+                        {currentUser?.displayName ||
+                          currentUser?.username ||
+                          "User"}
+                      </p>
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <div
+                          className={cn(
+                            "w-2 h-2 rounded-full",
+                            getStatusColor(userStatus),
+                          )}
+                        />
+                        <span>{getStatusLabel(userStatus)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Status Input */}
+                  <div className="mt-3">
+                    <div className="flex items-center gap-2 px-3 py-2 border rounded-md text-sm text-muted-foreground hover:bg-accent cursor-pointer">
+                      <Smile size={16} />
+                      <span>{tSettings("updateStatus")}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Status Input */}
-                <div className="mt-3">
-                  <div className="flex items-center gap-2 px-3 py-2 border rounded-md text-sm text-muted-foreground hover:bg-accent cursor-pointer">
-                    <Smile size={16} />
-                    <span>{tSettings("updateStatus")}</span>
-                  </div>
+                <Separator />
+
+                {/* Status Toggle */}
+                <div className="py-1">
+                  <button
+                    onClick={handleStatusToggle}
+                    className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent"
+                  >
+                    <span>
+                      {tSettings("setStatus", {
+                        status: isOnline
+                          ? tSettings("status.offline")
+                          : tSettings("status.online"),
+                      })}
+                    </span>
+                  </button>
+                  <button className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent">
+                    <span>{tSettings("pauseNotifications")}</span>
+                    <div className="flex items-center gap-1 text-muted-foreground">
+                      <span>{tCommon("on")}</span>
+                      <ChevronRight size={14} />
+                    </div>
+                  </button>
                 </div>
-              </div>
 
-              <Separator />
+                <Separator />
 
-              {/* Status Toggle */}
-              <div className="py-1">
-                <button
-                  onClick={handleStatusToggle}
-                  className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent"
-                >
-                  <span>
-                    {tSettings("setStatus", {
-                      status: isOnline
-                        ? tSettings("status.offline")
-                        : tSettings("status.online"),
-                    })}
-                  </span>
-                </button>
-                <button className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent">
-                  <span>{tSettings("pauseNotifications")}</span>
-                  <div className="flex items-center gap-1 text-muted-foreground">
-                    <span>{tCommon("on")}</span>
-                    <ChevronRight size={14} />
-                  </div>
-                </button>
-              </div>
-
-              <Separator />
-
-              {/* Profile & Settings */}
-              <div className="py-1">
-                <button className="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-accent">
-                  <User size={16} />
-                  <span>{tSettings("profile")}</span>
-                </button>
-                <button className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent">
-                  <div className="flex items-center gap-3">
-                    <Settings size={16} />
-                    <span>{tSettings("preferences")}</span>
-                  </div>
-                  <span className="text-xs text-muted-foreground">⌘,</span>
-                </button>
-              </div>
-
-              <Separator />
-
-              {/* Language Switcher */}
-              <div className="py-1">
-                <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground">
-                  {tSettings("language")}
+                {/* Profile & Settings */}
+                <div className="py-1">
+                  <button className="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-accent">
+                    <User size={16} />
+                    <span>{tSettings("profile")}</span>
+                  </button>
+                  <button className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent">
+                    <div className="flex items-center gap-3">
+                      <Settings size={16} />
+                      <span>{tSettings("preferences")}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">⌘,</span>
+                  </button>
                 </div>
-                {supportedLanguages.map((lang) =>
-                  lang.code === "zh" ? (
-                    <></>
-                  ) : (
-                    <button
-                      key={lang.code}
-                      onClick={() => i18n.changeLanguage(lang.code)}
-                      className={cn(
-                        "w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent",
-                        i18n.language === lang.code && "bg-accent",
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Globe size={16} />
-                        <span>{lang.nativeName}</span>
-                      </div>
-                      {i18n.language === lang.code && (
-                        <span className="text-primary">✓</span>
-                      )}
-                    </button>
-                  ),
-                )}
-              </div>
 
-              <Separator />
+                <Separator />
 
-              {/* Logout */}
-              <div className="py-1">
-                <button
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-accent text-destructive"
-                >
-                  <LogOut size={16} />
-                  <span>
-                    {tAuth("signOutFrom", { workspace: currentWorkspaceName })}
-                  </span>
-                </button>
-              </div>
-            </PopoverContent>
-          </Popover>
-        </div>
-      </aside>
+                {/* Language Switcher */}
+                <div className="py-1">
+                  <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground">
+                    {tSettings("language")}
+                  </div>
+                  {supportedLanguages.map((lang) =>
+                    lang.code === "zh" ? (
+                      <></>
+                    ) : (
+                      <button
+                        key={lang.code}
+                        onClick={() => i18n.changeLanguage(lang.code)}
+                        className={cn(
+                          "w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent",
+                          i18n.language === lang.code && "bg-accent",
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Globe size={16} />
+                          <span>{lang.nativeName}</span>
+                        </div>
+                        {i18n.language === lang.code && (
+                          <span className="text-primary">✓</span>
+                        )}
+                      </button>
+                    ),
+                  )}
+                </div>
+
+                <Separator />
+
+                {/* Logout */}
+                <div className="py-1">
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-accent text-destructive"
+                  >
+                    <LogOut size={16} />
+                    <span>
+                      {tAuth("signOutFrom", {
+                        workspace: currentWorkspaceName,
+                      })}
+                    </span>
+                  </button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+        </aside>
+
+        {/* Column 2: Navigation items - only when expanded */}
+        {!sidebarCollapsed && (
+          <>
+            <nav className="w-16 h-full bg-nav-sub-bg text-primary-foreground flex flex-col items-center pt-4 space-y-1 overflow-y-auto scrollbar-hide">
+              {navigationItems.map((item) => {
+                const Icon = item.icon;
+                const currentSection = getSectionFromPath(location.pathname);
+                const isActive = currentSection === item.id;
+                const label = tNav(item.labelKey);
+
+                const getBadgeCount = () => {
+                  if (item.id === "activity") return activityUnreadCount;
+                  if (item.id === "messages") return dmUnreadCount;
+                  return 0;
+                };
+                const badgeCount = getBadgeCount();
+
+                return (
+                  <Button
+                    key={item.id}
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      const section = item.id as SidebarSection;
+                      appActions.setActiveSidebar(section);
+                      const targetPath = getLastVisitedPath(section);
+                      navigate({ to: targetPath });
+                    }}
+                    className={cn(
+                      "w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-nav-hover text-nav-foreground-subtle hover:text-nav-foreground relative",
+                      isActive && "bg-nav-active text-nav-foreground",
+                    )}
+                    title={label}
+                  >
+                    <div className="relative">
+                      <Icon size={20} />
+                      <NotificationBadge count={badgeCount} />
+                    </div>
+                    <span className="text-xs mt-1.5">{label}</span>
+                  </Button>
+                );
+              })}
+            </nav>
+            <div className="w-px h-full bg-border shrink-0" />
+          </>
+        )}
+      </div>
     </TooltipProvider>
   );
 }
