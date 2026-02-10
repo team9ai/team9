@@ -131,7 +131,7 @@ export function GlobalTopBar() {
 
       {/* Center section - Navigation buttons + Search bar */}
       <div className="flex-1 flex items-center justify-center gap-1 max-w-2xl mx-auto">
-        <div className="flex items-center gap-0.5 shrink-0">
+        {/* <div className="flex items-center gap-0.5 shrink-0">
           <Button
             variant="ghost"
             size="icon"
@@ -155,7 +155,7 @@ export function GlobalTopBar() {
           >
             <History size={16} />
           </Button>
-        </div>
+        </div> */}
         <div className="flex-1">
           <Popover open={isOpen} onOpenChange={setIsOpen}>
             <PopoverAnchor asChild>

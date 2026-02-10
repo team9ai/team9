@@ -4,7 +4,6 @@ import {
   Bell,
   FileText,
   MoreHorizontal,
-  MoreVertical,
   Smile,
   ChevronRight,
   User,
@@ -57,7 +56,7 @@ const navigationItems = [
   { id: "home", labelKey: "home" as const, icon: Home },
   { id: "messages", labelKey: "dms" as const, icon: MessageSquare },
   { id: "activity", labelKey: "activity" as const, icon: Bell },
-  { id: "files", labelKey: "files" as const, icon: FileText },
+  // { id: "files", labelKey: "files" as const, icon: FileText },
   { id: "aiStaff", labelKey: "aiStaff" as const, icon: Bot },
   { id: "application", labelKey: "application" as const, icon: LayoutGrid },
   { id: "more", labelKey: "more" as const, icon: MoreHorizontal },
@@ -91,7 +90,6 @@ export function MainSidebar() {
   const prevWorkspaceIdRef = useRef<string | null>(null);
 
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [moreWorkspacesOpen, setMoreWorkspacesOpen] = useState(false);
   const [createWorkspaceOpen, setCreateWorkspaceOpen] = useState(false);
   const { data: currentUser } = useCurrentUser();
   const { mutate: logout } = useLogout();
@@ -153,10 +151,7 @@ export function MainSidebar() {
     return statusMap[status] || statusMap.offline;
   };
 
-  // Get first 5 workspaces and remaining ones
-  const visibleWorkspaces = workspaces?.slice(0, 3) || [];
-  const moreWorkspaces = workspaces?.slice(3) || [];
-  const hasMoreWorkspaces = moreWorkspaces.length > 0;
+  const visibleWorkspaces = workspaces || [];
 
   // Set first workspace as selected by default
   const currentWorkspace =
@@ -466,67 +461,6 @@ export function MainSidebar() {
                   </Tooltip>
                 );
               })
-            )}
-
-            {/* More Workspaces Button - only when expanded */}
-            {!sidebarCollapsed && hasMoreWorkspaces && (
-              <Popover
-                open={moreWorkspacesOpen}
-                onOpenChange={setMoreWorkspacesOpen}
-              >
-                <PopoverTrigger asChild>
-                  <div className="w-10 h-10 cursor-pointer hover:opacity-80 transition-opacity rounded-2xl hover:rounded-xl bg-nav-hover-strong flex items-center justify-center text-nav-foreground">
-                    <MoreVertical size={18} />
-                  </div>
-                </PopoverTrigger>
-                <PopoverContent side="right" className="w-56 p-2">
-                  <div className="space-y-1">
-                    <p className="font-semibold text-xs mb-2 text-muted-foreground px-2">
-                      {tNav("moreWorkspaces")}
-                    </p>
-                    {moreWorkspaces.map((workspace, index) => {
-                      const moreIndex = 5 + index; // Continue color sequence
-                      return (
-                        <button
-                          key={workspace.id}
-                          onClick={() => {
-                            setSelectedWorkspaceId(workspace.id);
-                            setMoreWorkspacesOpen(false);
-                          }}
-                          className="flex items-center gap-2 w-full text-left px-2 py-1.5 text-sm hover:bg-accent rounded transition-colors"
-                        >
-                          <div
-                            className={cn(
-                              "w-6 h-6 rounded-md flex items-center justify-center bg-linear-to-br text-white text-xs font-semibold",
-                              getWorkspaceGradient(moreIndex),
-                            )}
-                          >
-                            {getInitials(workspace.name)}
-                          </div>
-                          <span>{workspace.name}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </PopoverContent>
-              </Popover>
-            )}
-
-            {/* Create Workspace Button - only when expanded */}
-            {!sidebarCollapsed && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div
-                    className="w-10 h-10 cursor-pointer hover:opacity-80 transition-all rounded-2xl hover:rounded-xl bg-nav-hover-strong hover:bg-nav-hover-stronger flex items-center justify-center text-nav-foreground border-2 border-dashed border-nav-border-muted"
-                    onClick={() => setCreateWorkspaceOpen(true)}
-                  >
-                    <Plus size={18} />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="right">
-                  <p>{tNav("createWorkspace")}</p>
-                </TooltipContent>
-              </Tooltip>
             )}
 
             {/* Navigation Items - shown here when sidebar is collapsed */}
