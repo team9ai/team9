@@ -63,18 +63,18 @@ const navigationItems = [
   { id: "more", labelKey: "more" as const, icon: MoreHorizontal },
 ];
 
-// Workspace avatar colors (similar to Google Chrome)
-const WORKSPACE_COLORS = [
-  "bg-red-500",
-  "bg-orange-500",
-  "bg-amber-500",
-  "bg-yellow-500",
-  "bg-lime-500",
-  "bg-green-500",
-  "bg-teal-500",
-  "bg-cyan-500",
-  "bg-blue-500",
-  "bg-purple-500",
+// Workspace avatar gradient colors - softer, modern palette
+const WORKSPACE_GRADIENTS = [
+  "from-indigo-500 to-blue-400",
+  "from-violet-500 to-purple-400",
+  "from-rose-400 to-pink-400",
+  "from-emerald-500 to-teal-400",
+  "from-amber-400 to-orange-400",
+  "from-cyan-500 to-sky-400",
+  "from-fuchsia-500 to-pink-400",
+  "from-lime-500 to-green-400",
+  "from-blue-500 to-indigo-400",
+  "from-orange-500 to-red-400",
 ];
 
 export function MainSidebar() {
@@ -257,8 +257,8 @@ export function MainSidebar() {
     return (words[0][0] + words[1][0]).toUpperCase();
   };
 
-  const getWorkspaceColor = (index: number) => {
-    return WORKSPACE_COLORS[index % WORKSPACE_COLORS.length];
+  const getWorkspaceGradient = (index: number) => {
+    return WORKSPACE_GRADIENTS[index % WORKSPACE_GRADIENTS.length];
   };
 
   const sidebarCollapsed = useSidebarCollapsed();
@@ -356,9 +356,12 @@ export function MainSidebar() {
                         {others.slice(0, 2).map((workspace, i) => {
                           const origIdx = workspaces.indexOf(workspace);
                           return (
-                            <Avatar
+                            <div
                               key={workspace.id}
-                              className="absolute border-2 border-nav-bg opacity-70"
+                              className={cn(
+                                "absolute flex items-center justify-center bg-linear-to-br text-white text-xs font-semibold rounded-lg border-2 border-nav-bg opacity-60",
+                                getWorkspaceGradient(origIdx),
+                              )}
                               style={{
                                 width: "32px",
                                 height: "32px",
@@ -367,34 +370,23 @@ export function MainSidebar() {
                                 zIndex: i,
                               }}
                             >
-                              <AvatarFallback
-                                className={cn(
-                                  "rounded-full font-bold text-xs text-nav-foreground",
-                                  getWorkspaceColor(origIdx),
-                                )}
-                              >
-                                {getInitials(workspace.name)}
-                              </AvatarFallback>
-                            </Avatar>
+                              {getInitials(workspace.name)}
+                            </div>
                           );
                         })}
                         {/* Current workspace avatar (on top) */}
                         {currentWorkspace && (
-                          <Avatar
-                            className="w-10 h-10 absolute top-0 left-0 border-2 border-nav-bg ring-2 ring-nav-foreground ring-offset-1 ring-offset-nav-bg"
+                          <div
+                            className={cn(
+                              "w-10 h-10 absolute top-0 left-0 flex items-center justify-center bg-linear-to-br text-white text-sm font-semibold rounded-xl border-2 border-nav-bg shadow-md",
+                              getWorkspaceGradient(
+                                currentIdx >= 0 ? currentIdx : 0,
+                              ),
+                            )}
                             style={{ zIndex: 10 }}
                           >
-                            <AvatarFallback
-                              className={cn(
-                                "rounded-full font-bold text-base text-nav-foreground",
-                                getWorkspaceColor(
-                                  currentIdx >= 0 ? currentIdx : 0,
-                                ),
-                              )}
-                            >
-                              {getInitials(currentWorkspace.name)}
-                            </AvatarFallback>
-                          </Avatar>
+                            {getInitials(currentWorkspace.name)}
+                          </div>
                         )}
                       </div>
                     </PopoverTrigger>
@@ -415,8 +407,8 @@ export function MainSidebar() {
                           >
                             <div
                               className={cn(
-                                "w-6 h-6 rounded-full flex items-center justify-center text-nav-foreground text-xs font-bold",
-                                getWorkspaceColor(index),
+                                "w-6 h-6 rounded-md flex items-center justify-center bg-linear-to-br text-white text-xs font-semibold",
+                                getWorkspaceGradient(index),
                               )}
                             >
                               {getInitials(workspace.name)}
@@ -430,33 +422,39 @@ export function MainSidebar() {
                 );
               })()
             ) : (
-              visibleWorkspaces.map((workspace, index) => (
-                <Tooltip key={workspace.id}>
-                  <TooltipTrigger asChild>
-                    <Avatar
-                      className={cn(
-                        "w-10 h-10 cursor-pointer transition-all",
-                        currentWorkspace?.id === workspace.id
-                          ? "ring-2 ring-nav-foreground ring-offset-2 ring-offset-nav-bg"
-                          : "hover:opacity-80",
-                      )}
-                      onClick={() => setSelectedWorkspaceId(workspace.id)}
-                    >
-                      <AvatarFallback
-                        className={cn(
-                          "rounded-full font-bold text-base text-nav-foreground",
-                          getWorkspaceColor(index),
-                        )}
-                      >
-                        {getInitials(workspace.name)}
-                      </AvatarFallback>
-                    </Avatar>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">
-                    <p>{workspace.name}</p>
-                  </TooltipContent>
-                </Tooltip>
-              ))
+              visibleWorkspaces.map((workspace, index) => {
+                const isSelected = currentWorkspace?.id === workspace.id;
+                return (
+                  <Tooltip key={workspace.id}>
+                    <TooltipTrigger asChild>
+                      <div className="relative flex items-center">
+                        {/* Left indicator bar for selected workspace */}
+                        <div
+                          className={cn(
+                            "absolute -left-2 w-1 rounded-r-full bg-white transition-all",
+                            isSelected ? "h-5" : "h-0 group-hover:h-2",
+                          )}
+                        />
+                        <div
+                          className={cn(
+                            "w-10 h-10 cursor-pointer transition-all flex items-center justify-center bg-linear-to-br text-white text-sm font-semibold shadow-sm",
+                            getWorkspaceGradient(index),
+                            isSelected
+                              ? "rounded-xl scale-105 shadow-md"
+                              : "rounded-2xl hover:rounded-xl hover:shadow-md",
+                          )}
+                          onClick={() => setSelectedWorkspaceId(workspace.id)}
+                        >
+                          {getInitials(workspace.name)}
+                        </div>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      <p>{workspace.name}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })
             )}
 
             {/* More Workspaces Button - only when expanded */}
@@ -466,11 +464,9 @@ export function MainSidebar() {
                 onOpenChange={setMoreWorkspacesOpen}
               >
                 <PopoverTrigger asChild>
-                  <Avatar className="w-10 h-10 cursor-pointer hover:opacity-80 transition-opacity">
-                    <AvatarFallback className="bg-nav-hover-strong text-nav-foreground rounded-full">
-                      <MoreVertical size={18} />
-                    </AvatarFallback>
-                  </Avatar>
+                  <div className="w-10 h-10 cursor-pointer hover:opacity-80 transition-opacity rounded-2xl hover:rounded-xl bg-nav-hover-strong flex items-center justify-center text-nav-foreground">
+                    <MoreVertical size={18} />
+                  </div>
                 </PopoverTrigger>
                 <PopoverContent side="right" className="w-56 p-2">
                   <div className="space-y-1">
@@ -490,8 +486,8 @@ export function MainSidebar() {
                         >
                           <div
                             className={cn(
-                              "w-6 h-6 rounded-full flex items-center justify-center text-nav-foreground text-xs font-bold",
-                              getWorkspaceColor(moreIndex),
+                              "w-6 h-6 rounded-md flex items-center justify-center bg-linear-to-br text-white text-xs font-semibold",
+                              getWorkspaceGradient(moreIndex),
                             )}
                           >
                             {getInitials(workspace.name)}
@@ -509,14 +505,12 @@ export function MainSidebar() {
             {!sidebarCollapsed && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Avatar
-                    className="w-10 h-10 cursor-pointer hover:opacity-80 transition-opacity"
+                  <div
+                    className="w-10 h-10 cursor-pointer hover:opacity-80 transition-all rounded-2xl hover:rounded-xl bg-nav-hover-strong hover:bg-nav-hover-stronger flex items-center justify-center text-nav-foreground border-2 border-dashed border-nav-border-muted"
                     onClick={() => setCreateWorkspaceOpen(true)}
                   >
-                    <AvatarFallback className="bg-nav-hover-strong hover:bg-nav-hover-stronger text-nav-foreground rounded-full border-2 border-dashed border-nav-border-muted">
-                      <Plus size={18} />
-                    </AvatarFallback>
-                  </Avatar>
+                    <Plus size={18} />
+                  </div>
                 </TooltipTrigger>
                 <TooltipContent side="right">
                   <p>{tNav("createWorkspace")}</p>
