@@ -463,6 +463,23 @@ export function MainSidebar() {
               })
             )}
 
+            {/* Create Workspace Button - only when expanded */}
+            {!sidebarCollapsed && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div
+                    className="w-10 h-10 cursor-pointer hover:opacity-80 transition-all rounded-2xl hover:rounded-xl bg-nav-hover-strong hover:bg-nav-hover-stronger flex items-center justify-center text-nav-foreground border-2 border-dashed border-nav-border-muted"
+                    onClick={() => setCreateWorkspaceOpen(true)}
+                  >
+                    <Plus size={18} />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>{tNav("createWorkspace")}</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+
             {/* Navigation Items - shown here when sidebar is collapsed */}
             {sidebarCollapsed && (
               <nav className="w-full flex flex-col items-center space-y-1 border-border">
