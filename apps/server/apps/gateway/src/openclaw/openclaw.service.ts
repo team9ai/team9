@@ -36,6 +36,15 @@ export interface SetAgentIdentityRequest {
   from_identity?: boolean;
 }
 
+// ── Device types ─────────────────────────────────────────────────────
+
+export interface DeviceInfo {
+  request_id: string;
+  name?: string;
+  status: string;
+  [key: string]: any;
+}
+
 export interface Instance {
   id: string;
   user_id: string;
@@ -225,6 +234,40 @@ export class OpenclawService {
       `/api/instances/${instanceId}/agents/${agentId}/identity`,
       req,
     );
+  }
+
+  // ── Device methods ──────────────────────────────────────────────────
+
+  /**
+   * List paired/pending devices for an OpenClaw instance.
+   */
+  async listDevices(instanceId: string): Promise<DeviceInfo[] | null> {
+    if (!this.isConfigured()) return null;
+    const res = await this.request<{ devices: DeviceInfo[] }>(
+      'GET',
+      `/api/instances/${instanceId}/devices`,
+    );
+    return res.devices;
+  }
+
+  /**
+   * Approve a device pairing request.
+   */
+  async approveDevice(instanceId: string, requestId: string): Promise<void> {
+    if (!this.isConfigured()) return;
+    await this.request('POST', `/api/instances/${instanceId}/devices/approve`, {
+      request_id: requestId,
+    });
+  }
+
+  /**
+   * Reject a device pairing request.
+   */
+  async rejectDevice(instanceId: string, requestId: string): Promise<void> {
+    if (!this.isConfigured()) return;
+    await this.request('POST', `/api/instances/${instanceId}/devices/reject`, {
+      request_id: requestId,
+    });
   }
 
   // ── Internal helpers ───────────────────────────────────────────────
