@@ -14,6 +14,7 @@ import linkifyHtml from "linkify-html";
 import Prism from "prismjs";
 import { UserProfileCard } from "./UserProfileCard";
 import { CodeBlock } from "./CodeBlock";
+import { ImagePreviewDialog } from "./ImagePreviewDialog";
 import { useCreateDirectChannel } from "@/hooks/useChannels";
 
 interface MessageContentProps {
@@ -248,6 +249,11 @@ function HtmlMessageContent({ content, className }: MessageContentProps) {
  * Renders plain text / Markdown messages (from bots/API) using react-markdown.
  */
 function MarkdownMessageContent({ content, className }: MessageContentProps) {
+  const [previewImage, setPreviewImage] = useState<{
+    src: string;
+    alt: string;
+  } | null>(null);
+
   return (
     <div className={`${className ?? ""} markdown-message-content`}>
       <ReactMarkdown
@@ -265,14 +271,13 @@ function MarkdownMessageContent({ content, className }: MessageContentProps) {
             </a>
           ),
           img: ({ src, alt }) => (
-            <a href={src} target="_blank" rel="noopener noreferrer">
-              <img
-                src={src}
-                alt={alt || ""}
-                className="markdown-image"
-                loading="lazy"
-              />
-            </a>
+            <img
+              src={src}
+              alt={alt || ""}
+              className="markdown-image"
+              loading="lazy"
+              onClick={() => src && setPreviewImage({ src, alt: alt || "" })}
+            />
           ),
           // Prevent react-markdown from wrapping images in <p> tags that break layout
           p: ({ children, node }) => {
@@ -289,6 +294,17 @@ function MarkdownMessageContent({ content, className }: MessageContentProps) {
       >
         {content}
       </ReactMarkdown>
+
+      {previewImage && (
+        <ImagePreviewDialog
+          src={previewImage.src}
+          alt={previewImage.alt}
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) setPreviewImage(null);
+          }}
+        />
+      )}
     </div>
   );
 }
