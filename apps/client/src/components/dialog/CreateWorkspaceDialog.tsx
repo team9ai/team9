@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Trans } from "react-i18next";
 import { Building2, AlertCircle, ShieldAlert } from "lucide-react";
 import {
@@ -56,6 +57,7 @@ export function CreateWorkspaceDialog({
   onClose,
 }: CreateWorkspaceDialogProps) {
   const createWorkspace = useCreateWorkspace();
+  const queryClient = useQueryClient();
   const { setSelectedWorkspaceId } = useWorkspaceStore();
 
   const [name, setName] = useState("");
@@ -93,6 +95,11 @@ export function CreateWorkspaceDialog({
       // Only send name, backend will generate unique slug
       const workspace = await createWorkspace.mutateAsync({
         name: name.trim(),
+      });
+
+      // Wait for workspace list to refresh before switching
+      await queryClient.invalidateQueries({
+        queryKey: ["user-workspaces"],
       });
 
       // Switch to the newly created workspace
