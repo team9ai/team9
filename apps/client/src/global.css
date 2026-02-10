@@ -544,14 +544,14 @@
 
 /* Markdown message content */
 .markdown-message-content {
-  line-height: 0.8;
+  line-height: 1.5;
 
   p {
     margin: 0;
   }
 
   p + p {
-    margin-top: 0.2rem;
+    margin-top: 0.35rem;
   }
 
   strong {
@@ -564,7 +564,7 @@
 
   ul,
   ol {
-    margin: 0.15rem 0;
+    margin: 0.3rem 0;
     padding-left: 1.25rem;
   }
 
@@ -577,7 +577,7 @@
   }
 
   li {
-    margin: 0.1rem 0;
+    margin: 0.15rem 0;
   }
 
   li > p {
@@ -587,13 +587,13 @@
   blockquote {
     border-left: 3px solid var(--border);
     padding-left: 0.75rem;
-    margin: 0.2rem 0;
+    margin: 0.35rem 0;
     color: var(--muted-foreground);
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-weight: 600;
-    margin: 0.35rem 0 0.1rem;
+    margin: 0.5rem 0 0.2rem;
   }
 
   h1 { font-size: 1.25em; }
@@ -602,7 +602,7 @@
 
   table {
     border-collapse: collapse;
-    margin: 0.2rem 0;
+    margin: 0.35rem 0;
   }
 
   th, td {
