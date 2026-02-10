@@ -614,6 +614,20 @@
     border-top: 1px solid var(--border);
     margin: 0.5rem 0;
   }
+
+  .markdown-image {
+    max-width: 300px;
+    max-height: 300px;
+    border-radius: 0.5rem;
+    object-fit: contain;
+    margin: 0.25rem 0;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+  }
+
+  .markdown-image:hover {
+    opacity: 0.9;
+  }
 }
 
 /* ===== Prism Syntax Highlighting Theme ===== */

@@ -264,6 +264,27 @@ function MarkdownMessageContent({ content, className }: MessageContentProps) {
               {children}
             </a>
           ),
+          img: ({ src, alt }) => (
+            <a href={src} target="_blank" rel="noopener noreferrer">
+              <img
+                src={src}
+                alt={alt || ""}
+                className="markdown-image"
+                loading="lazy"
+              />
+            </a>
+          ),
+          // Prevent react-markdown from wrapping images in <p> tags that break layout
+          p: ({ children, node }) => {
+            const hasImage = node?.children?.some(
+              (child: any) =>
+                child.type === "element" && child.tagName === "img",
+            );
+            if (hasImage) {
+              return <>{children}</>;
+            }
+            return <p>{children}</p>;
+          },
         }}
       >
         {content}
