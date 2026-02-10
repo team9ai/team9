@@ -4,8 +4,12 @@ import {
   COMMAND_PRIORITY_LOW,
   KEY_ENTER_COMMAND,
   $getRoot,
+  $getSelection,
+  $isRangeSelection,
   $createParagraphNode,
 } from "lexical";
+import { CodeNode } from "@lexical/code";
+import { $getNearestNodeOfType } from "@lexical/utils";
 import { exportToHtml, hasContent } from "../utils/exportContent";
 
 interface KeyboardShortcutsPluginProps {
@@ -56,6 +60,16 @@ export function KeyboardShortcutsPlugin({
         if (event?.shiftKey || event?.ctrlKey) {
           // Let default behavior handle Shift+Enter / Ctrl+Enter (line break)
           return false;
+        }
+
+        // Inside a code block, Enter should insert newline instead of sending
+        const selection = $getSelection();
+        if ($isRangeSelection(selection)) {
+          const anchorNode = selection.anchor.getNode();
+          const codeNode = $getNearestNodeOfType(anchorNode, CodeNode);
+          if (codeNode) {
+            return false;
+          }
         }
 
         // Check if mentions popup is open by checking if there's a suggestion container

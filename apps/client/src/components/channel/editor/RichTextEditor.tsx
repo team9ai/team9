@@ -7,12 +7,19 @@ import { ListPlugin } from "@lexical/react/LexicalListPlugin";
 import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
 import { ListNode, ListItemNode } from "@lexical/list";
+import {
+  CodeNode,
+  CodeHighlightNode,
+  registerCodeHighlighting,
+} from "@lexical/code";
+import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $getRoot, $createParagraphNode, $createTextNode } from "lexical";
 import type { EditorState, LexicalEditor } from "lexical";
 import type { InitialConfigType } from "@lexical/react/LexicalComposer";
 import { Send } from "lucide-react";
 import { exportToHtml, hasContent } from "./utils/exportContent";
+import { CHAT_MARKDOWN_TRANSFORMERS } from "./utils/markdownTransformers";
 
 import { editorTheme } from "./themes/editorTheme";
 import { MentionNode } from "./nodes/MentionNode";
@@ -69,6 +76,16 @@ function EditorRefPlugin({
   useEffect(() => {
     editorRef.current = editor;
   }, [editor, editorRef]);
+
+  return null;
+}
+
+function CodeHighlightPlugin() {
+  const [editor] = useLexicalComposerContext();
+
+  useEffect(() => {
+    return registerCodeHighlighting(editor);
+  }, [editor]);
 
   return null;
 }
@@ -173,7 +190,13 @@ export function RichTextEditor({
   const initialConfig: InitialConfigType = {
     namespace: "MessageEditor",
     theme: editorTheme,
-    nodes: [MentionNode, ListNode, ListItemNode] as InitialConfigType["nodes"],
+    nodes: [
+      MentionNode,
+      ListNode,
+      ListItemNode,
+      CodeNode,
+      CodeHighlightNode,
+    ] as InitialConfigType["nodes"],
     onError: (error: Error) => {
       console.error("Lexical error:", error);
     },
@@ -215,6 +238,8 @@ export function RichTextEditor({
 
           <HistoryPlugin />
           <ListPlugin />
+          <MarkdownShortcutPlugin transformers={CHAT_MARKDOWN_TRANSFORMERS} />
+          <CodeHighlightPlugin />
           <OnChangePlugin onChange={handleChange} />
           <AutoFocusPlugin />
           <EditorRefPlugin editorRef={editorRef} />

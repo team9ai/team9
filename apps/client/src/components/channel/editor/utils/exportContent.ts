@@ -7,6 +7,7 @@ import {
   $isParagraphNode,
 } from "lexical";
 import { $isListNode, $isListItemNode } from "@lexical/list";
+import { $isCodeNode, $isCodeHighlightNode } from "@lexical/code";
 import { $isMentionNode } from "../nodes/MentionNode";
 
 /**
@@ -117,6 +118,30 @@ function processNodeToHtml(node: LexicalNode): string {
 
   if ($isLineBreakNode(node)) {
     return "<br>";
+  }
+
+  if ($isCodeNode(node)) {
+    const language = node.getLanguage() || "";
+    const children = node.getChildren();
+    const codeText = children
+      .map((child) => {
+        if ($isCodeHighlightNode(child)) {
+          return escapeHtml(child.getTextContent());
+        }
+        if ($isLineBreakNode(child)) {
+          return "\n";
+        }
+        if ($isTextNode(child)) {
+          return escapeHtml(child.getTextContent());
+        }
+        return "";
+      })
+      .join("");
+    return `<pre><code class="language-${escapeHtml(language)}">${codeText}</code></pre>`;
+  }
+
+  if ($isCodeHighlightNode(node)) {
+    return escapeHtml(node.getTextContent());
   }
 
   if ($isListNode(node)) {

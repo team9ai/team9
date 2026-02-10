@@ -50,10 +50,16 @@ importers:
       "@emoji-mart/react":
         specifier: ^1.1.1
         version: 1.1.1(emoji-mart@5.6.0)(react@19.2.3)
+      "@lexical/code":
+        specifier: ^0.39.0
+        version: 0.39.0
       "@lexical/html":
         specifier: ^0.39.0
         version: 0.39.0
       "@lexical/list":
+        specifier: ^0.39.0
+        version: 0.39.0
+      "@lexical/markdown":
         specifier: ^0.39.0
         version: 0.39.0
       "@lexical/react":
@@ -161,6 +167,9 @@ importers:
       motion:
         specifier: ^12.34.0
         version: 12.34.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      prismjs:
+        specifier: ^1.30.0
+        version: 1.30.0
       react:
         specifier: ^19.1.0
         version: 19.2.3
@@ -201,6 +210,9 @@ importers:
       "@types/node":
         specifier: ^25.0.3
         version: 25.0.3
+      "@types/prismjs":
+        specifier: ^1.26.5
+        version: 1.26.5
       "@types/react":
         specifier: ^19.1.8
         version: 19.2.7
@@ -5693,6 +5705,12 @@ packages:
     resolution:
       {
         integrity: sha512-RmhMd/wD+CF8Dfo+cVIy3RR5cl8CyfXQ0tGgW6XBL8L4LM/UTEbNXYRbLwU6w+CgrKBNbrQWt4FUtTfaU5jSYQ==,
+      }
+
+  "@types/prismjs@1.26.5":
+    resolution:
+      {
+        integrity: sha512-AUZTa7hQ2KY5L7AmtSiqxlhWxb4ina0yd8hNbl4TWuqnv/pFP0nDMb3YrfSBf4hJVGLh2YEIBfKaBW/9UEl6IQ==,
       }
 
   "@types/qs@6.14.0":
@@ -15635,6 +15653,8 @@ snapshots:
       "@types/node": 22.19.3
       pg-protocol: 1.10.3
       pg-types: 2.2.0
+
+  "@types/prismjs@1.26.5": {}
 
   "@types/qs@6.14.0": {}
 

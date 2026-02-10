@@ -457,3 +457,334 @@
     }
   }
 }
+
+/* ===== Code Block Styles ===== */
+
+.code-block-wrapper {
+  position: relative;
+  margin: 0.5rem 0;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background-color: oklch(from var(--foreground) l c h / 5%);
+  border: 1px solid var(--border);
+}
+
+.code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.375rem 0.75rem;
+  background-color: oklch(from var(--foreground) l c h / 8%);
+  border-bottom: 1px solid var(--border);
+}
+
+.code-block-language {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  text-transform: lowercase;
+}
+
+.code-block-copy {
+  font-size: 0.75rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.25rem;
+  color: var(--muted-foreground);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.code-block-copy:hover {
+  background-color: oklch(from var(--foreground) l c h / 10%);
+  color: var(--foreground);
+}
+
+.code-block-pre {
+  margin: 0;
+  padding: 0.75rem;
+  overflow-x: auto;
+  font-family: "SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.code-block-pre code {
+  background: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  font-size: inherit;
+}
+
+/* Inline code */
+.inline-code {
+  background-color: oklch(from var(--foreground) l c h / 10%);
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-family: "SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, monospace;
+  font-size: 0.875em;
+}
+
+/* Editor code block */
+.editor-code-block {
+  background-color: oklch(from var(--foreground) l c h / 5%);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  margin: 0.25rem 0;
+  font-family: "SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  tab-size: 2;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* Markdown message content */
+.markdown-message-content {
+  p {
+    margin: 0;
+  }
+
+  p + p {
+    margin-top: 0.25rem;
+  }
+
+  strong {
+    font-weight: 600;
+  }
+
+  em {
+    font-style: italic;
+  }
+
+  ul,
+  ol {
+    margin: 0.25rem 0;
+    padding-left: 1.25rem;
+  }
+
+  ul {
+    list-style-type: disc;
+  }
+
+  ol {
+    list-style-type: decimal;
+  }
+
+  li {
+    margin: 0.125rem 0;
+  }
+
+  blockquote {
+    border-left: 3px solid var(--border);
+    padding-left: 0.75rem;
+    margin: 0.25rem 0;
+    color: var(--muted-foreground);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    margin: 0.5rem 0 0.25rem;
+  }
+
+  h1 { font-size: 1.25em; }
+  h2 { font-size: 1.125em; }
+  h3 { font-size: 1em; }
+
+  table {
+    border-collapse: collapse;
+    margin: 0.25rem 0;
+  }
+
+  th, td {
+    border: 1px solid var(--border);
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875em;
+  }
+
+  th {
+    background-color: oklch(from var(--foreground) l c h / 5%);
+    font-weight: 600;
+  }
+
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 0.5rem 0;
+  }
+}
+
+/* ===== Prism Syntax Highlighting Theme ===== */
+
+/* Light mode */
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: #6a737d;
+}
+
+.token.punctuation {
+  color: #24292e;
+}
+
+.token.property,
+.token.tag,
+.token.boolean,
+.token.number,
+.token.constant,
+.token.symbol,
+.token.deleted {
+  color: #005cc5;
+}
+
+.token.selector,
+.token.attr-name,
+.token.string,
+.token.char,
+.token.builtin,
+.token.inserted {
+  color: #22863a;
+}
+
+.token.operator,
+.token.entity,
+.token.url {
+  color: #d73a49;
+}
+
+.token.atrule,
+.token.attr-value,
+.token.keyword {
+  color: #d73a49;
+}
+
+.token.function,
+.token.class-name {
+  color: #6f42c1;
+}
+
+.token.regex,
+.token.important,
+.token.variable {
+  color: #e36209;
+}
+
+/* Dark mode */
+.dark .token.comment,
+.dark .token.prolog,
+.dark .token.doctype,
+.dark .token.cdata {
+  color: #8b949e;
+}
+
+.dark .token.punctuation {
+  color: #c9d1d9;
+}
+
+.dark .token.property,
+.dark .token.tag,
+.dark .token.boolean,
+.dark .token.number,
+.dark .token.constant,
+.dark .token.symbol,
+.dark .token.deleted {
+  color: #79c0ff;
+}
+
+.dark .token.selector,
+.dark .token.attr-name,
+.dark .token.string,
+.dark .token.char,
+.dark .token.builtin,
+.dark .token.inserted {
+  color: #a5d6ff;
+}
+
+.dark .token.operator,
+.dark .token.entity,
+.dark .token.url {
+  color: #ff7b72;
+}
+
+.dark .token.atrule,
+.dark .token.attr-value,
+.dark .token.keyword {
+  color: #ff7b72;
+}
+
+.dark .token.function,
+.dark .token.class-name {
+  color: #d2a8ff;
+}
+
+.dark .token.regex,
+.dark .token.important,
+.dark .token.variable {
+  color: #ffa657;
+}
+
+/* Editor code highlight tokens */
+.token-comment { color: #6a737d; }
+.token-punctuation { color: #24292e; }
+.token-property { color: #005cc5; }
+.token-boolean { color: #005cc5; }
+.token-number { color: #005cc5; }
+.token-constant { color: #005cc5; }
+.token-symbol { color: #005cc5; }
+.token-deleted { color: #005cc5; }
+.token-selector { color: #22863a; }
+.token-attr { color: #22863a; }
+.token-string { color: #22863a; }
+.token-char { color: #22863a; }
+.token-builtin { color: #22863a; }
+.token-inserted { color: #22863a; }
+.token-operator { color: #d73a49; }
+.token-keyword { color: #d73a49; }
+.token-atrule { color: #d73a49; }
+.token-function { color: #6f42c1; }
+.token-class-name { color: #6f42c1; }
+.token-class { color: #6f42c1; }
+.token-regex { color: #e36209; }
+.token-variable { color: #e36209; }
+.token-tag { color: #22863a; }
+.token-url { color: #005cc5; }
+.token-namespace { color: #6a737d; }
+.token-prolog { color: #6a737d; }
+.token-doctype { color: #6a737d; }
+.token-cdata { color: #6a737d; }
+.token-entity { color: #d73a49; }
+.token-important { color: #e36209; }
+
+.dark .token-comment { color: #8b949e; }
+.dark .token-punctuation { color: #c9d1d9; }
+.dark .token-property { color: #79c0ff; }
+.dark .token-boolean { color: #79c0ff; }
+.dark .token-number { color: #79c0ff; }
+.dark .token-constant { color: #79c0ff; }
+.dark .token-symbol { color: #79c0ff; }
+.dark .token-deleted { color: #79c0ff; }
+.dark .token-selector { color: #a5d6ff; }
+.dark .token-attr { color: #a5d6ff; }
+.dark .token-string { color: #a5d6ff; }
+.dark .token-char { color: #a5d6ff; }
+.dark .token-builtin { color: #a5d6ff; }
+.dark .token-inserted { color: #a5d6ff; }
+.dark .token-operator { color: #ff7b72; }
+.dark .token-keyword { color: #ff7b72; }
+.dark .token-atrule { color: #ff7b72; }
+.dark .token-function { color: #d2a8ff; }
+.dark .token-class-name { color: #d2a8ff; }
+.dark .token-class { color: #d2a8ff; }
+.dark .token-regex { color: #ffa657; }
+.dark .token-variable { color: #ffa657; }
+.dark .token-tag { color: #a5d6ff; }
+.dark .token-url { color: #79c0ff; }
+.dark .token-namespace { color: #8b949e; }
+.dark .token-prolog { color: #8b949e; }
+.dark .token-doctype { color: #8b949e; }
+.dark .token-cdata { color: #8b949e; }
+.dark .token-entity { color: #ff7b72; }
+.dark .token-important { color: #ffa657; }
