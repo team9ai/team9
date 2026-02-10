@@ -349,7 +349,7 @@ export function MainSidebar() {
                         className="relative cursor-pointer shrink-0"
                         style={{
                           height: `${40 + behindCount * 4}px`,
-                          width: `${40 + behindCount * 4}px`,
+                          width: "40px",
                         }}
                       >
                         {/* Background avatars (behind, offset) */}
@@ -366,7 +366,7 @@ export function MainSidebar() {
                                 width: "32px",
                                 height: "32px",
                                 bottom: `${i * 4}px`,
-                                right: `${i * 4}px`,
+                                left: "4px",
                                 zIndex: i,
                               }}
                             >
@@ -378,7 +378,7 @@ export function MainSidebar() {
                         {currentWorkspace && (
                           <div
                             className={cn(
-                              "w-10 h-10 absolute top-0 left-0 flex items-center justify-center bg-linear-to-br text-white text-sm font-semibold rounded-xl border-2 border-nav-bg shadow-md",
+                              "w-10 h-10 absolute top-0 left-0 flex items-center justify-center bg-linear-to-br text-white text-sm font-semibold rounded-xl shadow-md",
                               getWorkspaceGradient(
                                 currentIdx >= 0 ? currentIdx : 0,
                               ),
@@ -432,7 +432,7 @@ export function MainSidebar() {
                           "cursor-pointer transition-all duration-200 flex items-center justify-center bg-linear-to-br text-white font-semibold",
                           getWorkspaceGradient(index),
                           isSelected
-                            ? "w-11 h-11 rounded-lg text-base ring-2 ring-white/40 shadow-[0_2px_12px_rgba(0,0,0,0.3)]"
+                            ? "w-11 h-11 rounded-lg text-base shadow-[0_2px_12px_rgba(0,0,0,0.3)]"
                             : "w-9 h-9 rounded-full text-sm opacity-50 hover:opacity-90 hover:rounded-2xl hover:w-10 hover:h-10",
                         )}
                         onClick={() => setSelectedWorkspaceId(workspace.id)}
