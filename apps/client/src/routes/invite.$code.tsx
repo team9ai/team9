@@ -135,7 +135,7 @@ function InvitePage() {
               components={{
                 discordLink: (
                   <a
-                    href="https://discord.gg/edMATqpU"
+                    href="https://discord.gg/CAdS398wje"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-primary underline hover:text-primary/80"
@@ -250,7 +250,7 @@ function InvitePage() {
               Failed to accept invitation. Please try again or contact the
               workspace administrator via{" "}
               <a
-                href="https://discord.gg/edMATqpU"
+                href="https://discord.gg/CAdS398wje"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline hover:opacity-80"

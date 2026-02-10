@@ -1,8 +1,10 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2 } from "lucide-react";
-import type { Message } from "@/types/im";
+import type { Message, ChannelMember } from "@/types/im";
 import { useCurrentUser } from "@/hooks/useAuth";
+import { useChannel, useChannelMembers } from "@/hooks/useChannels";
 import { useThreadStore } from "@/hooks/useThread";
 import {
   useDeleteMessage,
@@ -10,6 +12,7 @@ import {
   useRemoveFailedMessage,
 } from "@/hooks/useMessages";
 import { MessageItem } from "./MessageItem";
+import { BotThinkingIndicator } from "./BotThinkingIndicator";
 
 interface MessageListProps {
   messages: Message[];
@@ -22,6 +25,9 @@ interface MessageListProps {
   channelId: string;
   // Read-only mode for non-members previewing public channels
   readOnly?: boolean;
+  // Bot thinking indicator
+  thinkingBotIds?: string[];
+  members?: ChannelMember[];
 }
 
 export function MessageList({
@@ -32,6 +38,8 @@ export function MessageList({
   highlightMessageId,
   channelId,
   readOnly = false,
+  thinkingBotIds = [],
+  members = [],
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
@@ -142,13 +150,8 @@ export function MessageList({
       </div>
     );
   }
-
   if (messages.length === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <p className="text-muted-foreground">No messages yet</p>
-      </div>
-    );
+    return <EmptyMessageState channelId={channelId} readOnly={readOnly} />;
   }
 
   return (
@@ -197,6 +200,10 @@ export function MessageList({
             />
           );
         })}
+        <BotThinkingIndicator
+          thinkingBotIds={thinkingBotIds}
+          members={members}
+        />
         <div ref={messagesEndRef} />
       </div>
     </ScrollArea>
@@ -219,6 +226,8 @@ function ChannelMessageItem({
   isHighlighted?: boolean;
   channelId: string;
 }) {
+  const { data: channel } = useChannel(channelId);
+  const isDirect = channel?.type === "direct";
   const openThread = useThreadStore((state) => state.openThread);
   const deleteMessage = useDeleteMessage();
   const retryMessage = useRetryMessage(channelId);
@@ -230,9 +239,11 @@ function ChannelMessageItem({
     // TODO: Implement reply functionality
   };
 
-  const handleReplyInThread = () => {
-    openThread(message.id);
-  };
+  const handleReplyInThread = isDirect
+    ? undefined
+    : () => {
+        openThread(message.id);
+      };
 
   const handleEdit = () => {
     console.log("Edit message:", message.id);
@@ -265,16 +276,69 @@ function ChannelMessageItem({
     <MessageItem
       message={message}
       currentUserId={currentUserId}
-      showReplyCount={showReplyCount}
-      onReplyCountClick={onReplyCountClick}
+      showReplyCount={!isDirect && showReplyCount}
+      onReplyCountClick={isDirect ? undefined : onReplyCountClick}
       isHighlighted={isHighlighted}
-      onReply={handleReply}
-      onReplyInThread={handleReplyInThread}
+      onReply={isDirect ? undefined : handleReply}
+      onReplyInThread={handleReplyInThread ?? undefined}
       onEdit={handleEdit}
       onDelete={handleDelete}
       onPin={handlePin}
       onRetry={handleRetry}
       onRemoveFailed={handleRemoveFailed}
     />
+  );
+}
+
+// Empty state with inline bot hint for public channels
+function EmptyMessageState({
+  channelId,
+  readOnly,
+}: {
+  channelId: string;
+  readOnly: boolean;
+}) {
+  const { t } = useTranslation("channel");
+  const { data: channel } = useChannel(channelId);
+  const { data: members = [] } = useChannelMembers(
+    readOnly ? undefined : channelId,
+  );
+
+  const botMembers = useMemo(
+    () => members.filter((m) => m.user?.userType === "bot"),
+    [members],
+  );
+
+  const isPublic = channel?.type === "public";
+
+  const botName =
+    botMembers[0]?.user?.displayName || botMembers[0]?.user?.username || "Bot";
+
+  return (
+    <div className="flex-1 flex items-center justify-center px-4">
+      {isPublic ? (
+        <div className="flex flex-col items-center text-center max-w-sm gap-3">
+          <img
+            src="/bot.webp"
+            alt={botName}
+            className="w-16 h-16 rounded-full"
+          />
+          <h3 className="text-lg font-semibold">
+            {t("emptyPublicChannelTitle")}
+          </h3>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {t("emptyPublicChannelDesc")}
+          </p>
+          <div className="rounded-md bg-muted px-4 py-3 text-sm font-mono">
+            <span className="text-primary font-semibold">@{botName}</span>{" "}
+            <span className="text-muted-foreground">
+              {t("emptyPublicChannelHintExample")}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <p className="text-muted-foreground">{t("noMessagesYetDefault")}</p>
+      )}
+    </div>
   );
 }

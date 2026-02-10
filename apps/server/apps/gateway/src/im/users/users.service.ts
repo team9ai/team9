@@ -23,6 +23,7 @@ export interface UserResponse {
   avatarUrl: string | null;
   status: 'online' | 'offline' | 'away' | 'busy';
   lastSeenAt: Date | null;
+  userType: 'human' | 'bot' | 'system';
 }
 
 @Injectable()
@@ -56,6 +57,7 @@ export class UsersService {
         avatarUrl: schema.users.avatarUrl,
         status: schema.users.status,
         lastSeenAt: schema.users.lastSeenAt,
+        userType: schema.users.userType,
       })
       .from(schema.users)
       .where(eq(schema.users.id, id))
@@ -108,6 +110,7 @@ export class UsersService {
       avatarUrl: updatedUser.avatarUrl,
       status: updatedUser.status,
       lastSeenAt: updatedUser.lastSeenAt,
+      userType: updatedUser.userType,
     };
   }
 
@@ -230,6 +233,7 @@ export class UsersService {
         avatarUrl: schema.users.avatarUrl,
         status: schema.users.status,
         lastSeenAt: schema.users.lastSeenAt,
+        userType: schema.users.userType,
       })
       .from(schema.users)
       .where(conditions)
@@ -250,6 +254,7 @@ export class UsersService {
         avatarUrl: schema.users.avatarUrl,
         status: schema.users.status,
         lastSeenAt: schema.users.lastSeenAt,
+        userType: schema.users.userType,
       })
       .from(schema.users)
       .where(sql`${schema.users.id} = ANY(${ids})`);

@@ -62,5 +62,16 @@
   "noMessagesYet": "No messages yet. Join the channel to start the conversation!",
   "botStartupCountdownMessage": "HI, Your OpenClaw Bot is starting up. Please wait for the countdown to finish before chatting.",
   "botStartupSuccessMessage": "HI, Your OpenClaw Bot has started successfully!",
-  "botStartChatting": "Start Chatting"
+  "botStartChatting": "Start Chatting",
+  "noMessagesYetDefault": "No messages yet",
+  "emptyPublicChannelTitle": "Chat with the Bot!",
+  "emptyPublicChannelDesc": "This channel has an AI Bot ready to help. Type @ to mention the bot in your message and start a conversation.",
+  "emptyPublicChannelHintExample": "ask me anything...",
+  "emptyPublicChannelGotIt": "Got it",
+  "botNotMemberTitle": "{{botName}} is not a channel member",
+  "botNotMemberPublicDesc": "{{botName}} is not a member of this channel and won't receive your message. Would you like to add it to the channel first?",
+  "botNotMemberPrivateAdminDesc": "{{botName}} is not a member of this private channel and won't receive your message. Would you like to add it to the channel first?",
+  "botNotMemberPrivateDesc": "{{botName}} is not a member of this private channel and won't receive your message. Please contact a channel admin to add the bot.",
+  "addBotToChannel": "Add to Channel",
+  "addingBot": "Adding..."
 }

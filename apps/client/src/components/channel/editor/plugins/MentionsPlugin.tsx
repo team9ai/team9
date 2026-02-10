@@ -14,9 +14,26 @@ import {
   TextNode,
 } from "lexical";
 import { mergeRegister } from "@lexical/utils";
+import { useTranslation } from "react-i18next";
 import { useSearchUsers } from "@/hooks/useIMUsers";
+import {
+  useChannel,
+  useChannelMembers,
+  useAddChannelMember,
+} from "@/hooks/useChannels";
+import { useUser } from "@/stores";
 import { $createMentionNode } from "../nodes/MentionNode";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import type { IMUser } from "@/types/im";
 
@@ -46,6 +63,7 @@ interface MentionSuggestionsProps {
   onSelect: (user: IMUser) => void;
   onHover: (index: number) => void;
   isLoading?: boolean;
+  position?: { left: number; bottom: number };
 }
 
 function MentionSuggestions({
@@ -54,6 +72,7 @@ function MentionSuggestions({
   onSelect,
   onHover,
   isLoading,
+  position,
 }: MentionSuggestionsProps) {
   const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
 
@@ -63,7 +82,14 @@ function MentionSuggestions({
   }, [selectedIndex]);
 
   return (
-    <div className="absolute bottom-full left-0 mb-1 w-64 max-h-60 overflow-y-auto bg-background border border-border rounded-lg shadow-lg z-9999">
+    <div
+      className="absolute w-64 max-h-60 overflow-y-auto bg-background border border-border rounded-lg shadow-lg z-9999"
+      style={
+        position
+          ? { left: position.left, bottom: position.bottom }
+          : { left: 0, bottom: "100%" }
+      }
+    >
       {isLoading ? (
         <div className="px-3 py-2 text-sm text-muted-foreground">
           Loading...
@@ -114,12 +140,44 @@ function MentionSuggestions({
   );
 }
 
-export function MentionsPlugin() {
+interface MentionsPluginProps {
+  channelId?: string;
+}
+
+export function MentionsPlugin({ channelId }: MentionsPluginProps) {
   const [editor] = useLexicalComposerContext();
+  const { t } = useTranslation("channel");
   const [queryString, setQueryString] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [popupPosition, setPopupPosition] = useState<{
+    left: number;
+    bottom: number;
+  } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const dismissedRef = useRef(false);
+
+  // Bot membership check state
+  const [botToAdd, setBotToAdd] = useState<IMUser | null>(null);
+
+  // Channel context for bot membership check
+  const { data: channel } = useChannel(channelId);
+  const { data: members = [] } = useChannelMembers(channelId);
+  const currentUser = useUser();
+  const addMember = useAddChannelMember(channelId ?? "");
+
+  const isGroupChannel =
+    channel?.type === "public" || channel?.type === "private";
+
+  const currentUserRole = useMemo(() => {
+    if (!currentUser || !members.length) return "member";
+    const membership = members.find((m) => m.userId === currentUser.id);
+    return membership?.role || "member";
+  }, [members, currentUser]);
+
+  const canAddMembers =
+    channel?.type === "public" ||
+    currentUserRole === "owner" ||
+    currentUserRole === "admin";
 
   const { users, isLoading } = useMentionLookupService(queryString);
 
@@ -128,6 +186,21 @@ export function MentionsPlugin() {
   }, [users]);
 
   const showDropdown = queryString !== null;
+
+  const updatePopupPosition = useCallback(() => {
+    const domSelection = window.getSelection();
+    if (!domSelection || domSelection.rangeCount === 0 || !containerRef.current)
+      return;
+
+    const range = domSelection.getRangeAt(0);
+    const caretRect = range.getBoundingClientRect();
+    const containerRect = containerRef.current.getBoundingClientRect();
+
+    setPopupPosition({
+      left: Math.max(0, caretRect.left - containerRect.left),
+      bottom: containerRect.bottom - caretRect.top,
+    });
+  }, []);
 
   const checkForMentionMatch = useCallback(() => {
     const selection = $getSelection();
@@ -153,6 +226,8 @@ export function MentionsPlugin() {
       }
       const mentionString = match[3] || "";
       setQueryString(mentionString);
+      // Calculate popup position based on caret
+      setTimeout(updatePopupPosition, 0);
       return {
         leadOffset: match.index + match[1].length,
         matchingString: mentionString,
@@ -162,7 +237,7 @@ export function MentionsPlugin() {
 
     setQueryString(null);
     return null;
-  }, []);
+  }, [updatePopupPosition]);
 
   const insertMention = useCallback(
     (user: IMUser) => {
@@ -183,6 +258,7 @@ export function MentionsPlugin() {
         const mentionNode = $createMentionNode(
           user.id,
           user.displayName || user.username,
+          user.userType,
         );
 
         const startOffset = match.index + match[1].length;
@@ -216,6 +292,39 @@ export function MentionsPlugin() {
     },
     [editor],
   );
+
+  // Handle user selection with bot membership check
+  const handleSelectUser = useCallback(
+    (user: IMUser) => {
+      // Only check bot membership in group channels
+      if (isGroupChannel && user.userType === "bot") {
+        const isMember = members.some((m) => m.userId === user.id);
+        if (!isMember) {
+          setBotToAdd(user);
+          setQueryString(null);
+          setSelectedIndex(0);
+          return;
+        }
+      }
+      insertMention(user);
+    },
+    [isGroupChannel, members, insertMention],
+  );
+
+  // Handle adding bot to channel then inserting mention
+  const handleAddBot = useCallback(() => {
+    if (!botToAdd || !channelId) return;
+    const bot = botToAdd;
+    addMember.mutate(
+      { userId: bot.id },
+      {
+        onSuccess: () => {
+          setBotToAdd(null);
+          insertMention(bot);
+        },
+      },
+    );
+  }, [botToAdd, channelId, addMember, insertMention]);
 
   useEffect(() => {
     let prevText = "";
@@ -266,7 +375,7 @@ export function MentionsPlugin() {
         (event) => {
           if (suggestions.length > 0) {
             event?.preventDefault();
-            insertMention(suggestions[selectedIndex]);
+            handleSelectUser(suggestions[selectedIndex]);
             return true;
           }
           return false;
@@ -278,7 +387,7 @@ export function MentionsPlugin() {
         (event) => {
           if (suggestions.length > 0) {
             event?.preventDefault();
-            insertMention(suggestions[selectedIndex]);
+            handleSelectUser(suggestions[selectedIndex]);
             return true;
           }
           return false;
@@ -295,7 +404,7 @@ export function MentionsPlugin() {
         COMMAND_PRIORITY_HIGH,
       ),
     );
-  }, [editor, showDropdown, suggestions, selectedIndex, insertMention]);
+  }, [editor, showDropdown, suggestions, selectedIndex, handleSelectUser]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -322,19 +431,79 @@ export function MentionsPlugin() {
     setSelectedIndex(0);
   }, [suggestions]);
 
-  if (!showDropdown) {
-    return null;
-  }
+  const botName = botToAdd?.displayName || botToAdd?.username || "Bot";
+  const dialogDescription = (() => {
+    if (!botToAdd) return "";
+    if (channel?.type === "public") {
+      return t("botNotMemberPublicDesc", { botName });
+    }
+    if (canAddMembers) {
+      return t("botNotMemberPrivateAdminDesc", { botName });
+    }
+    return t("botNotMemberPrivateDesc", { botName });
+  })();
 
   return (
-    <div ref={containerRef} className="relative">
-      <MentionSuggestions
-        suggestions={suggestions}
-        selectedIndex={selectedIndex}
-        onSelect={insertMention}
-        onHover={setSelectedIndex}
-        isLoading={isLoading}
-      />
-    </div>
+    <>
+      {showDropdown && (
+        <div ref={containerRef} className="relative">
+          <MentionSuggestions
+            suggestions={suggestions}
+            selectedIndex={selectedIndex}
+            onSelect={handleSelectUser}
+            onHover={setSelectedIndex}
+            isLoading={isLoading}
+            position={popupPosition ?? undefined}
+          />
+        </div>
+      )}
+
+      <AlertDialog
+        open={!!botToAdd}
+        onOpenChange={(open) => {
+          if (!open) setBotToAdd(null);
+        }}
+      >
+        <AlertDialogContent>
+          <div className="flex flex-col items-center gap-3 pt-2 pb-1">
+            <Avatar className="w-14 h-14">
+              {botToAdd?.avatarUrl ? (
+                <AvatarImage src={botToAdd.avatarUrl} alt={botName} />
+              ) : (
+                <AvatarImage src="/bot.webp" alt={botName} />
+              )}
+              <AvatarFallback className="bg-primary text-primary-foreground text-lg">
+                {botName[0].toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+          </div>
+          <AlertDialogHeader className="text-center sm:text-center">
+            <AlertDialogTitle>
+              {t("botNotMemberTitle", { botName })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>{dialogDescription}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            {canAddMembers ? (
+              <>
+                <AlertDialogCancel>
+                  {t("cancel", { ns: "common" })}
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleAddBot}
+                  disabled={addMember.isPending}
+                >
+                  {addMember.isPending ? t("addingBot") : t("addBotToChannel")}
+                </AlertDialogAction>
+              </>
+            ) : (
+              <AlertDialogAction onClick={() => setBotToAdd(null)}>
+                {t("confirm", { ns: "common" })}
+              </AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

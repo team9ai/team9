@@ -23,6 +23,8 @@ import { cn } from "@/lib/utils";
 import type { UploadingFile } from "@/hooks/useFileUpload";
 
 interface RichTextEditorProps {
+  /** Channel ID for bot membership check in mentions */
+  channelId?: string;
   onSubmit: (content: string) => Promise<void>;
   disabled?: boolean;
   placeholder?: string;
@@ -154,6 +156,7 @@ function SendButton({
 }
 
 export function RichTextEditor({
+  channelId,
   onSubmit,
   disabled = false,
   placeholder = "Type a message... (Enter to send, Shift+Enter for new line)",
@@ -219,7 +222,7 @@ export function RichTextEditor({
         </div>
 
         {/* Mentions dropdown container - must be outside overflow-y-auto to avoid clipping */}
-        <MentionsPlugin />
+        <MentionsPlugin channelId={channelId} />
 
         {/* Attachment previews */}
         {uploadingFiles.length > 0 && onRemoveFile && (
