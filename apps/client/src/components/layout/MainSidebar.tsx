@@ -332,67 +332,103 @@ export function MainSidebar() {
                   <p>{tNav("noWorkspace")}</p>
                 </TooltipContent>
               </Tooltip>
-            ) : sidebarCollapsed && visibleWorkspaces.length > 1 ? (
-              /* Stacked workspace avatars when collapsed */
-              <Popover>
-                <PopoverTrigger asChild>
-                  <div
-                    className="relative cursor-pointer hover:opacity-80 transition-opacity shrink-0"
-                    style={{
-                      height: `${40 + (Math.min(visibleWorkspaces.length, 3) - 1) * 12}px`,
-                      width: "40px",
-                    }}
-                  >
-                    {visibleWorkspaces.slice(0, 3).map((workspace, index) => (
-                      <Avatar
-                        key={workspace.id}
-                        className={cn(
-                          "w-10 h-10 absolute left-0 border-2 border-nav-bg",
-                          currentWorkspace?.id === workspace.id &&
-                            "ring-2 ring-nav-foreground",
-                        )}
-                        style={{ top: `${index * 12}px`, zIndex: 3 - index }}
+            ) : sidebarCollapsed && workspaces && workspaces.length > 1 ? (
+              /* Stacked workspace avatars when collapsed - current on top */
+              (() => {
+                const currentIdx = workspaces.findIndex(
+                  (w) => w.id === currentWorkspace?.id,
+                );
+                const others = workspaces.filter(
+                  (w) => w.id !== currentWorkspace?.id,
+                );
+                const behindCount = Math.min(others.length, 2);
+                return (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <div
+                        className="relative cursor-pointer shrink-0"
+                        style={{
+                          height: `${40 + behindCount * 4}px`,
+                          width: `${40 + behindCount * 4}px`,
+                        }}
                       >
-                        <AvatarFallback
-                          className={cn(
-                            "rounded-full font-bold text-sm text-nav-foreground",
-                            getWorkspaceColor(index),
-                          )}
-                        >
-                          {getInitials(workspace.name)}
-                        </AvatarFallback>
-                      </Avatar>
-                    ))}
-                  </div>
-                </PopoverTrigger>
-                <PopoverContent side="right" className="w-56 p-2">
-                  <div className="space-y-1">
-                    <p className="font-semibold text-xs mb-2 text-muted-foreground px-2">
-                      {tNav("moreWorkspaces")}
-                    </p>
-                    {workspaces?.map((workspace, index) => (
-                      <button
-                        key={workspace.id}
-                        onClick={() => setSelectedWorkspaceId(workspace.id)}
-                        className={cn(
-                          "flex items-center gap-2 w-full text-left px-2 py-1.5 text-sm hover:bg-accent rounded transition-colors",
-                          currentWorkspace?.id === workspace.id && "bg-accent",
+                        {/* Background avatars (behind, offset) */}
+                        {others.slice(0, 2).map((workspace, i) => {
+                          const origIdx = workspaces.indexOf(workspace);
+                          return (
+                            <Avatar
+                              key={workspace.id}
+                              className="absolute border-2 border-nav-bg opacity-70"
+                              style={{
+                                width: "32px",
+                                height: "32px",
+                                bottom: `${i * 4}px`,
+                                right: `${i * 4}px`,
+                                zIndex: i,
+                              }}
+                            >
+                              <AvatarFallback
+                                className={cn(
+                                  "rounded-full font-bold text-xs text-nav-foreground",
+                                  getWorkspaceColor(origIdx),
+                                )}
+                              >
+                                {getInitials(workspace.name)}
+                              </AvatarFallback>
+                            </Avatar>
+                          );
+                        })}
+                        {/* Current workspace avatar (on top) */}
+                        {currentWorkspace && (
+                          <Avatar
+                            className="w-10 h-10 absolute top-0 left-0 border-2 border-nav-bg ring-2 ring-nav-foreground ring-offset-1 ring-offset-nav-bg"
+                            style={{ zIndex: 10 }}
+                          >
+                            <AvatarFallback
+                              className={cn(
+                                "rounded-full font-bold text-base text-nav-foreground",
+                                getWorkspaceColor(
+                                  currentIdx >= 0 ? currentIdx : 0,
+                                ),
+                              )}
+                            >
+                              {getInitials(currentWorkspace.name)}
+                            </AvatarFallback>
+                          </Avatar>
                         )}
-                      >
-                        <div
-                          className={cn(
-                            "w-6 h-6 rounded-full flex items-center justify-center text-nav-foreground text-xs font-bold",
-                            getWorkspaceColor(index),
-                          )}
-                        >
-                          {getInitials(workspace.name)}
-                        </div>
-                        <span>{workspace.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                </PopoverContent>
-              </Popover>
+                      </div>
+                    </PopoverTrigger>
+                    <PopoverContent side="right" className="w-56 p-2">
+                      <div className="space-y-1">
+                        <p className="font-semibold text-xs mb-2 text-muted-foreground px-2">
+                          {tNav("moreWorkspaces")}
+                        </p>
+                        {workspaces.map((workspace, index) => (
+                          <button
+                            key={workspace.id}
+                            onClick={() => setSelectedWorkspaceId(workspace.id)}
+                            className={cn(
+                              "flex items-center gap-2 w-full text-left px-2 py-1.5 text-sm hover:bg-accent rounded transition-colors",
+                              currentWorkspace?.id === workspace.id &&
+                                "bg-accent",
+                            )}
+                          >
+                            <div
+                              className={cn(
+                                "w-6 h-6 rounded-full flex items-center justify-center text-nav-foreground text-xs font-bold",
+                                getWorkspaceColor(index),
+                              )}
+                            >
+                              {getInitials(workspace.name)}
+                            </div>
+                            <span>{workspace.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                );
+              })()
             ) : (
               visibleWorkspaces.map((workspace, index) => (
                 <Tooltip key={workspace.id}>
