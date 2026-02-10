@@ -332,6 +332,67 @@ export function MainSidebar() {
                   <p>{tNav("noWorkspace")}</p>
                 </TooltipContent>
               </Tooltip>
+            ) : sidebarCollapsed && visibleWorkspaces.length > 1 ? (
+              /* Stacked workspace avatars when collapsed */
+              <Popover>
+                <PopoverTrigger asChild>
+                  <div
+                    className="relative cursor-pointer hover:opacity-80 transition-opacity shrink-0"
+                    style={{
+                      height: `${40 + (Math.min(visibleWorkspaces.length, 3) - 1) * 12}px`,
+                      width: "40px",
+                    }}
+                  >
+                    {visibleWorkspaces.slice(0, 3).map((workspace, index) => (
+                      <Avatar
+                        key={workspace.id}
+                        className={cn(
+                          "w-10 h-10 absolute left-0 border-2 border-nav-bg",
+                          currentWorkspace?.id === workspace.id &&
+                            "ring-2 ring-nav-foreground",
+                        )}
+                        style={{ top: `${index * 12}px`, zIndex: 3 - index }}
+                      >
+                        <AvatarFallback
+                          className={cn(
+                            "rounded-full font-bold text-sm text-nav-foreground",
+                            getWorkspaceColor(index),
+                          )}
+                        >
+                          {getInitials(workspace.name)}
+                        </AvatarFallback>
+                      </Avatar>
+                    ))}
+                  </div>
+                </PopoverTrigger>
+                <PopoverContent side="right" className="w-56 p-2">
+                  <div className="space-y-1">
+                    <p className="font-semibold text-xs mb-2 text-muted-foreground px-2">
+                      {tNav("moreWorkspaces")}
+                    </p>
+                    {workspaces?.map((workspace, index) => (
+                      <button
+                        key={workspace.id}
+                        onClick={() => setSelectedWorkspaceId(workspace.id)}
+                        className={cn(
+                          "flex items-center gap-2 w-full text-left px-2 py-1.5 text-sm hover:bg-accent rounded transition-colors",
+                          currentWorkspace?.id === workspace.id && "bg-accent",
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "w-6 h-6 rounded-full flex items-center justify-center text-nav-foreground text-xs font-bold",
+                            getWorkspaceColor(index),
+                          )}
+                        >
+                          {getInitials(workspace.name)}
+                        </div>
+                        <span>{workspace.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
             ) : (
               visibleWorkspaces.map((workspace, index) => (
                 <Tooltip key={workspace.id}>
@@ -362,8 +423,8 @@ export function MainSidebar() {
               ))
             )}
 
-            {/* More Workspaces Button */}
-            {hasMoreWorkspaces && (
+            {/* More Workspaces Button - only when expanded */}
+            {!sidebarCollapsed && hasMoreWorkspaces && (
               <Popover
                 open={moreWorkspacesOpen}
                 onOpenChange={setMoreWorkspacesOpen}
@@ -408,22 +469,24 @@ export function MainSidebar() {
               </Popover>
             )}
 
-            {/* Create Workspace Button */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Avatar
-                  className="w-10 h-10 cursor-pointer hover:opacity-80 transition-opacity"
-                  onClick={() => setCreateWorkspaceOpen(true)}
-                >
-                  <AvatarFallback className="bg-nav-hover-strong hover:bg-nav-hover-stronger text-nav-foreground rounded-full border-2 border-dashed border-nav-border-muted">
-                    <Plus size={18} />
-                  </AvatarFallback>
-                </Avatar>
-              </TooltipTrigger>
-              <TooltipContent side="right">
-                <p>{tNav("createWorkspace")}</p>
-              </TooltipContent>
-            </Tooltip>
+            {/* Create Workspace Button - only when expanded */}
+            {!sidebarCollapsed && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Avatar
+                    className="w-10 h-10 cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => setCreateWorkspaceOpen(true)}
+                  >
+                    <AvatarFallback className="bg-nav-hover-strong hover:bg-nav-hover-stronger text-nav-foreground rounded-full border-2 border-dashed border-nav-border-muted">
+                      <Plus size={18} />
+                    </AvatarFallback>
+                  </Avatar>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>{tNav("createWorkspace")}</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
 
             {/* Navigation Items - shown here when sidebar is collapsed */}
             {sidebarCollapsed && (
