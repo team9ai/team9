@@ -263,6 +263,46 @@ export function MainSidebar() {
 
   const sidebarCollapsed = useSidebarCollapsed();
 
+  const renderNavigationItems = () =>
+    navigationItems.map((item) => {
+      const Icon = item.icon;
+      const currentSection = getSectionFromPath(location.pathname);
+      const isActive = currentSection === item.id;
+      const label = tNav(item.labelKey);
+
+      const getBadgeCount = () => {
+        if (item.id === "activity") return activityUnreadCount;
+        if (item.id === "messages") return dmUnreadCount;
+        return 0;
+      };
+      const badgeCount = getBadgeCount();
+
+      return (
+        <Button
+          key={item.id}
+          variant="ghost"
+          size="icon"
+          onClick={() => {
+            const section = item.id as SidebarSection;
+            appActions.setActiveSidebar(section);
+            const targetPath = getLastVisitedPath(section);
+            navigate({ to: targetPath });
+          }}
+          className={cn(
+            "w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-nav-hover text-nav-foreground-subtle hover:text-nav-foreground relative",
+            isActive && "bg-nav-active text-nav-foreground",
+          )}
+          title={label}
+        >
+          <div className="relative">
+            <Icon size={20} />
+            <NotificationBadge count={badgeCount} />
+          </div>
+          <span className="text-xs mt-1.5">{label}</span>
+        </Button>
+      );
+    });
+
   return (
     <TooltipProvider>
       <CreateWorkspaceDialog
@@ -384,6 +424,13 @@ export function MainSidebar() {
                 <p>{tNav("createWorkspace")}</p>
               </TooltipContent>
             </Tooltip>
+
+            {/* Navigation Items - shown here when sidebar is collapsed */}
+            {sidebarCollapsed && (
+              <nav className="w-full flex flex-col items-center space-y-1 border-border">
+                {renderNavigationItems()}
+              </nav>
+            )}
           </div>
 
           {/* User Avatar at Bottom */}
@@ -547,44 +594,7 @@ export function MainSidebar() {
         {!sidebarCollapsed && (
           <>
             <nav className="w-16 h-full bg-nav-sub-bg text-primary-foreground flex flex-col items-center pt-4 space-y-1 overflow-y-auto scrollbar-hide">
-              {navigationItems.map((item) => {
-                const Icon = item.icon;
-                const currentSection = getSectionFromPath(location.pathname);
-                const isActive = currentSection === item.id;
-                const label = tNav(item.labelKey);
-
-                const getBadgeCount = () => {
-                  if (item.id === "activity") return activityUnreadCount;
-                  if (item.id === "messages") return dmUnreadCount;
-                  return 0;
-                };
-                const badgeCount = getBadgeCount();
-
-                return (
-                  <Button
-                    key={item.id}
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      const section = item.id as SidebarSection;
-                      appActions.setActiveSidebar(section);
-                      const targetPath = getLastVisitedPath(section);
-                      navigate({ to: targetPath });
-                    }}
-                    className={cn(
-                      "w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-nav-hover text-nav-foreground-subtle hover:text-nav-foreground relative",
-                      isActive && "bg-nav-active text-nav-foreground",
-                    )}
-                    title={label}
-                  >
-                    <div className="relative">
-                      <Icon size={20} />
-                      <NotificationBadge count={badgeCount} />
-                    </div>
-                    <span className="text-xs mt-1.5">{label}</span>
-                  </Button>
-                );
-              })}
+              {renderNavigationItems()}
             </nav>
             <div className="w-px h-full bg-border shrink-0" />
           </>
