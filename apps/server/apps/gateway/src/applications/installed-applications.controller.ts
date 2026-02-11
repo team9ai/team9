@@ -322,6 +322,79 @@ export class InstalledApplicationsController {
     return { success: true };
   }
 
+  // ── OpenClaw Device Pairing ─────────────────────────────────────
+
+  /**
+   * List paired/pending devices for an OpenClaw instance.
+   */
+  @Get(':id/openclaw/devices')
+  async getOpenClawDevices(
+    @Param('id') id: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    const app = await this.getVerifiedApp(id, tenantId, 'openclaw');
+    const instancesId = (app.config as { instancesId?: string })?.instancesId;
+    if (!instancesId) {
+      throw new NotFoundException(
+        'No instance configured for this application',
+      );
+    }
+    const devices = await this.openclawService.listDevices(instancesId);
+    return { devices: devices ?? [] };
+  }
+
+  /**
+   * Approve a device pairing request.
+   * Requires: workspace admin or owner
+   */
+  @Post(':id/openclaw/devices/approve')
+  @UseGuards(WorkspaceRoleGuard)
+  @WorkspaceRoles('admin', 'owner')
+  async approveOpenClawDevice(
+    @Param('id') id: string,
+    @CurrentTenantId() tenantId: string,
+    @Body() body: { requestId: string },
+  ) {
+    const app = await this.getVerifiedApp(id, tenantId, 'openclaw');
+    const instancesId = (app.config as { instancesId?: string })?.instancesId;
+    if (!instancesId) {
+      throw new NotFoundException(
+        'No instance configured for this application',
+      );
+    }
+    if (!body.requestId || typeof body.requestId !== 'string') {
+      throw new BadRequestException('requestId is required');
+    }
+    await this.openclawService.approveDevice(instancesId, body.requestId);
+    return { success: true };
+  }
+
+  /**
+   * Reject a device pairing request.
+   * Requires: workspace admin or owner
+   */
+  @Post(':id/openclaw/devices/reject')
+  @UseGuards(WorkspaceRoleGuard)
+  @WorkspaceRoles('admin', 'owner')
+  async rejectOpenClawDevice(
+    @Param('id') id: string,
+    @CurrentTenantId() tenantId: string,
+    @Body() body: { requestId: string },
+  ) {
+    const app = await this.getVerifiedApp(id, tenantId, 'openclaw');
+    const instancesId = (app.config as { instancesId?: string })?.instancesId;
+    if (!instancesId) {
+      throw new NotFoundException(
+        'No instance configured for this application',
+      );
+    }
+    if (!body.requestId || typeof body.requestId !== 'string') {
+      throw new BadRequestException('requestId is required');
+    }
+    await this.openclawService.rejectDevice(instancesId, body.requestId);
+    return { success: true };
+  }
+
   /**
    * List workspaces for an OpenClaw instance via file-keeper.
    */

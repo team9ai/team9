@@ -32,9 +32,13 @@ RUN sed -i '/enterprise/d' pnpm-workspace.yaml && \
 # Copy source code
 COPY apps/client ./apps/client
 
-# Build argument for API URL
+# Build arguments for environment variables
 ARG VITE_API_BASE_URL
+ARG VITE_GOOGLE_CLIENT_ID
+ARG VITE_GTM_ID
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
+ENV VITE_GTM_ID=$VITE_GTM_ID
 
 # Build the app
 RUN pnpm --filter @team9/client build

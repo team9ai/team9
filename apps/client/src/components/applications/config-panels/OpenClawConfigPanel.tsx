@@ -7,6 +7,11 @@ import {
   ExternalLink,
   Copy,
   Check,
+  Monitor,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  HelpCircle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -21,13 +26,23 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { api } from "@/services/api";
+import type { OpenClawDeviceInfo } from "@/services/api/applications";
 import { useState } from "react";
 import type { AppConfigPanelProps } from "./registry";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
+
+const PAIRING_HINT_TEXT =
+  'For security, each new device or browser must be manually approved before it can access the instance. Visit the Access URL first — you will see a "disconnected (1008): pairing required" message — then come to the Devices tab to approve the request.';
 
 function statusBadgeVariant(status?: string) {
   switch (status) {
@@ -136,8 +151,24 @@ export function OpenClawInstanceTab({ installedApp }: AppConfigPanelProps) {
 
               {instanceStatus.accessUrl && (
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-sm text-muted-foreground flex items-center gap-1">
                     Access URL
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpCircle
+                            size={12}
+                            className="text-muted-foreground/60 cursor-help"
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="bottom"
+                          className="max-w-xs text-xs"
+                        >
+                          {PAIRING_HINT_TEXT}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </span>
                   <a
                     href={instanceStatus.accessUrl}
@@ -276,7 +307,16 @@ export function OpenClawBotsTab({ installedApp }: AppConfigPanelProps) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate({ to: "/ai-staff" })}
+            onClick={() =>
+              navigate(
+                bots?.length === 1
+                  ? {
+                      to: "/ai-staff/$staffId",
+                      params: { staffId: bots[0].botId },
+                    }
+                  : { to: "/ai-staff" },
+              )
+            }
           >
             Manage
             <ExternalLink size={12} className="ml-1" />
@@ -326,5 +366,215 @@ export function OpenClawBotsTab({ installedApp }: AppConfigPanelProps) {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function deviceStatusBadge(status: string) {
+  switch (status) {
+    case "approved":
+      return { variant: "default" as const, icon: CheckCircle2 };
+    case "pending":
+      return { variant: "outline" as const, icon: Clock };
+    case "rejected":
+      return { variant: "destructive" as const, icon: XCircle };
+    default:
+      return { variant: "secondary" as const, icon: Monitor };
+  }
+}
+
+export function OpenClawDevicesTab({ installedApp }: AppConfigPanelProps) {
+  const queryClient = useQueryClient();
+  const workspaceId = useSelectedWorkspaceId();
+  const appId = installedApp.id;
+
+  const { data: instanceStatus } = useQuery({
+    queryKey: ["openclaw-status", workspaceId, appId],
+    queryFn: () => api.applications.getOpenClawStatus(appId),
+    refetchInterval: 10000,
+  });
+
+  const { data: devices, isLoading } = useQuery({
+    queryKey: ["openclaw-devices", workspaceId, appId],
+    queryFn: () => api.applications.getOpenClawDevices(appId),
+    refetchInterval: 10000,
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: (requestId: string) =>
+      api.applications.approveOpenClawDevice(appId, requestId),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: ["openclaw-devices", workspaceId, appId],
+      }),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: (requestId: string) =>
+      api.applications.rejectOpenClawDevice(appId, requestId),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: ["openclaw-devices", workspaceId, appId],
+      }),
+  });
+
+  const pendingDevices = devices?.filter((d) => d.status === "pending") ?? [];
+  const otherDevices = devices?.filter((d) => d.status !== "pending") ?? [];
+
+  return (
+    <div className="space-y-4">
+      {/* Pairing description */}
+      <div className="rounded-md bg-muted/50 border px-3 py-2.5">
+        <p className="text-xs text-foreground/70 leading-relaxed">
+          For security, each new device or browser must be manually approved
+          before it can access the instance. Visit the{" "}
+          {instanceStatus?.accessUrl ? (
+            <a
+              href={instanceStatus.accessUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline inline-flex items-center gap-0.5"
+            >
+              Access URL
+              <ExternalLink size={9} />
+            </a>
+          ) : (
+            "Access URL"
+          )}{" "}
+          first — you will see a "disconnected (1008): pairing required" message
+          — then come to the Devices tab to approve the request.
+        </p>
+      </div>
+
+      {/* Pending Requests */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Clock size={16} />
+            Pending Requests
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : pendingDevices.length > 0 ? (
+            <div className="space-y-3">
+              {pendingDevices.map((device) => (
+                <DeviceRow
+                  key={device.request_id}
+                  device={device}
+                  onApprove={() => approveMutation.mutate(device.request_id)}
+                  onReject={() => rejectMutation.mutate(device.request_id)}
+                  isPending={
+                    approveMutation.isPending || rejectMutation.isPending
+                  }
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No pending pairing requests
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Paired Devices */}
+      {otherDevices.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Monitor size={16} />
+              Paired Devices
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {otherDevices.map((device) => {
+                const { variant, icon: StatusIcon } = deviceStatusBadge(
+                  device.status,
+                );
+                return (
+                  <div
+                    key={device.request_id}
+                    className="flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Monitor size={14} className="text-muted-foreground" />
+                      <span className="text-sm">
+                        {device.name || device.request_id}
+                      </span>
+                    </div>
+                    <Badge
+                      variant={variant}
+                      className="flex items-center gap-1"
+                    >
+                      <StatusIcon size={10} />
+                      {device.status}
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function DeviceRow({
+  device,
+  onApprove,
+  onReject,
+  isPending,
+}: {
+  device: OpenClawDeviceInfo;
+  onApprove: () => void;
+  onReject: () => void;
+  isPending: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-md border p-3">
+      <div className="flex items-center gap-2 min-w-0">
+        <Monitor size={14} className="text-muted-foreground shrink-0" />
+        <span className="text-sm truncate">
+          {device.name || device.request_id}
+        </span>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <Button
+          size="sm"
+          variant="default"
+          disabled={isPending}
+          onClick={onApprove}
+        >
+          <CheckCircle2 size={14} className="mr-1" />
+          Approve
+        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button size="sm" variant="outline" disabled={isPending}>
+              <XCircle size={14} className="mr-1" />
+              Reject
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Reject Device</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to reject this pairing request from "
+                {device.name || device.request_id}"?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={onReject}>Reject</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </div>
   );
 }

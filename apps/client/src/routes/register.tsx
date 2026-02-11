@@ -6,12 +6,16 @@ import {
   useRegister,
   useCurrentUser,
   useResendVerification,
+  useGoogleAuth,
 } from "@/hooks/useAuth";
+import { GoogleLogin } from "@react-oauth/google";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Mail, Users, ExternalLink } from "lucide-react";
+import { Mail, Users, ExternalLink, Loader2 } from "lucide-react";
 import workspaceApi from "@/services/api/workspace";
+
+const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 const MAIL_QUICK_LINKS = [
   { name: "Gmail", url: "https://mail.google.com" },
@@ -238,6 +242,7 @@ function Register() {
   const navigate = useNavigate();
   const { invite } = Route.useSearch();
   const register = useRegister();
+  const googleAuth = useGoogleAuth();
   const { data: currentUser, isLoading } = useCurrentUser();
 
   // Fetch invite info if invite code is present
@@ -257,6 +262,30 @@ function Register() {
       }
     }
   }, [currentUser, isLoading, navigate, invite]);
+
+  const handleGoogleSuccess = async (credentialResponse: {
+    credential?: string;
+  }) => {
+    if (!credentialResponse.credential) return;
+    setError("");
+
+    if (invite) {
+      localStorage.setItem("pending_invite_code", invite);
+    }
+
+    try {
+      await googleAuth.mutateAsync(credentialResponse.credential);
+      if (invite) {
+        navigate({ to: "/invite/$code", params: { code: invite } });
+      } else {
+        navigate({ to: "/" });
+      }
+    } catch (err: any) {
+      const errorMessage =
+        err?.response?.data?.message || err?.message || t("googleLoginFailed");
+      setError(errorMessage);
+    }
+  };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -304,6 +333,27 @@ function Register() {
     }
   };
 
+  // Show loading while Google auth is in progress
+  if (googleAuth.isPending) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-full max-w-100 px-4">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-foreground mb-2">Team9</h1>
+          </div>
+          <div className="bg-background border border-border rounded-lg shadow-sm p-8">
+            <div className="flex flex-col items-center gap-4 py-6">
+              <Loader2 className="w-10 h-10 text-primary animate-spin" />
+              <p className="text-muted-foreground text-base">
+                {t("signingIn")}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Show verification sent view after successful registration
   if (registrationSuccess) {
     return (
@@ -350,6 +400,31 @@ function Register() {
                 </p>
               )}
             </div>
+          )}
+
+          {/* Google Sign Up */}
+          {googleClientId && (
+            <>
+              <div className="flex justify-center">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => setError(t("googleLoginFailed"))}
+                  size="large"
+                  width="100%"
+                  text="continue_with"
+                />
+              </div>
+              <div className="relative my-5">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    {t("orContinueWith")}
+                  </span>
+                </div>
+              </div>
+            </>
           )}
 
           <form onSubmit={handleRegister} className="space-y-5">

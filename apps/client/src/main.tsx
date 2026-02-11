@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import TagManager from "react-gtm-module";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 import "./global.css";
 import "./i18n";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
@@ -14,6 +15,8 @@ if (gtmId) {
   TagManager.initialize({ gtmId });
 }
 
+const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
 const router = createRouter({ routeTree });
 
 declare module "@tanstack/react-router" {
@@ -22,10 +25,23 @@ declare module "@tanstack/react-router" {
   }
 }
 
+const AppProviders = ({ children }: { children: React.ReactNode }) => {
+  if (googleClientId) {
+    return (
+      <GoogleOAuthProvider clientId={googleClientId}>
+        {children}
+      </GoogleOAuthProvider>
+    );
+  }
+  return <>{children}</>;
+};
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <AppProviders>
+        <RouterProvider router={router} />
+      </AppProviders>
     </QueryClientProvider>
   </React.StrictMode>,
 );

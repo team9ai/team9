@@ -48,7 +48,10 @@
         "react",
         "react-dom"
       ]
-    }
+    },
+    "onlyBuiltDependencies": [
+      "@nestjs/core"
+    ]
   },
   "engines": {
     "node": ">=18.0.0",

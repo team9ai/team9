@@ -21,6 +21,7 @@ import {
   RefreshTokenDto,
   VerifyEmailDto,
   ResendVerificationDto,
+  GoogleLoginDto,
 } from './dto/index.js';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import type { JwtPayload } from '@team9/auth';
@@ -46,6 +47,12 @@ export class AuthController {
   @Get('verify-email')
   async verifyEmail(@Query() dto: VerifyEmailDto): Promise<AuthResponse> {
     return this.authService.verifyEmail(dto.token);
+  }
+
+  @Post('google')
+  @HttpCode(HttpStatus.OK)
+  async googleLogin(@Body() dto: GoogleLoginDto): Promise<AuthResponse> {
+    return this.authService.googleLogin(dto);
   }
 
   @Post('resend-verification')

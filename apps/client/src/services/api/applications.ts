@@ -103,6 +103,14 @@ export interface OpenClawBotInfo {
   mentorAvatarUrl: string | null;
 }
 
+// OpenClaw device pairing types
+export interface OpenClawDeviceInfo {
+  request_id: string;
+  name?: string;
+  status: string;
+  [key: string]: any;
+}
+
 export const applicationsApi = {
   // Get all available applications
   getApplications: async (): Promise<Application[]> => {
@@ -200,6 +208,35 @@ export const applicationsApi = {
     await http.patch(
       `/v1/installed-applications/${installedAppId}/openclaw/bots/${botId}/mentor`,
       { mentorId },
+    );
+  },
+
+  getOpenClawDevices: async (
+    installedAppId: string,
+  ): Promise<OpenClawDeviceInfo[]> => {
+    const response = await http.get<{ devices: OpenClawDeviceInfo[] }>(
+      `/v1/installed-applications/${installedAppId}/openclaw/devices`,
+    );
+    return response.data.devices;
+  },
+
+  approveOpenClawDevice: async (
+    installedAppId: string,
+    requestId: string,
+  ): Promise<void> => {
+    await http.post(
+      `/v1/installed-applications/${installedAppId}/openclaw/devices/approve`,
+      { requestId },
+    );
+  },
+
+  rejectOpenClawDevice: async (
+    installedAppId: string,
+    requestId: string,
+  ): Promise<void> => {
+    await http.post(
+      `/v1/installed-applications/${installedAppId}/openclaw/devices/reject`,
+      { requestId },
     );
   },
 
