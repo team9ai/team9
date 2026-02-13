@@ -363,6 +363,13 @@
     text-decoration: underline;
   }
 
+  blockquote {
+    border-left: 3px solid var(--border);
+    padding-left: 0.75rem;
+    margin: 0.25rem 0;
+    color: var(--muted-foreground);
+  }
+
   .message-link {
     color: var(--link);
     text-decoration: underline;
@@ -445,6 +452,13 @@
   .mention-tag[data-mention-user-id]:hover {
     background-color: var(--nav-hover-stronger);
     text-decoration: underline;
+  }
+
+  blockquote {
+    border-left: 3px solid var(--nav-hover-strong);
+    padding-left: 0.75rem;
+    margin: 0.25rem 0;
+    opacity: 0.85;
   }
 
   .message-link {
@@ -545,6 +559,8 @@
 /* Markdown message content */
 .markdown-message-content {
   line-height: 1.25;
+  overflow-wrap: break-word;
+  word-break: break-word;
 
   p {
     margin: 0;
@@ -603,6 +619,9 @@
   table {
     border-collapse: collapse;
     margin: 0.35rem 0;
+    display: block;
+    overflow-x: auto;
+    max-width: 100%;
   }
 
   th, td {

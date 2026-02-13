@@ -10,13 +10,15 @@ import {
   ORDERED_LIST,
   UNORDERED_LIST,
   CODE,
+  QUOTE,
 } from "@lexical/markdown";
 import type { Transformer } from "@lexical/markdown";
 
-// Chat-appropriate markdown transformers
-// Excludes: HEADING, QUOTE (not useful for chat input)
+// Chat-appropriate markdown transformers (consistent with Slack)
+// Excludes: HEADING (not standard in chat apps)
 export const CHAT_MARKDOWN_TRANSFORMERS: Transformer[] = [
   CODE,
+  QUOTE,
   UNORDERED_LIST,
   ORDERED_LIST,
   BOLD_ITALIC_STAR,

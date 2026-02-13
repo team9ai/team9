@@ -12,6 +12,7 @@ import {
   CodeHighlightNode,
   registerCodeHighlighting,
 } from "@lexical/code";
+import { QuoteNode } from "@lexical/rich-text";
 import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $getRoot, $createParagraphNode, $createTextNode } from "lexical";
@@ -196,6 +197,7 @@ export function RichTextEditor({
       ListItemNode,
       CodeNode,
       CodeHighlightNode,
+      QuoteNode,
     ] as InitialConfigType["nodes"],
     onError: (error: Error) => {
       console.error("Lexical error:", error);

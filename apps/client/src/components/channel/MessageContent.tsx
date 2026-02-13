@@ -30,7 +30,7 @@ interface HoveredMention {
 
 // Detect HTML content from the Lexical editor
 const HTML_TAG_PATTERN =
-  /<(?:p|strong|em|u|s|code|mention|ul|ol|li|br|pre|a|h[1-6])\b/i;
+  /<(?:p|strong|em|u|s|code|mention|ul|ol|li|br|pre|a|blockquote|h[1-6])\b/i;
 
 /**
  * Inner component that only renders the HTML.
