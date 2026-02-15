@@ -281,10 +281,25 @@ export function useMessages(channelId: string | undefined) {
       useStreamingStore.getState().startStream(event);
     };
 
+    // Auto-create stream if a delta arrives before streaming_start (race condition).
+    const ensureStream = (event: {
+      streamId: string;
+      channelId: string;
+      senderId: string;
+    }) => {
+      if (!useStreamingStore.getState().streams.has(event.streamId)) {
+        useStreamingStore.getState().startStream({
+          streamId: event.streamId,
+          channelId: event.channelId,
+          senderId: event.senderId,
+          startedAt: Date.now(),
+        });
+      }
+    };
+
     const handleStreamingDelta = (event: StreamingDeltaEvent) => {
       if (event.channelId !== channelId) return;
-      // Ignore if we missed the start event (late join)
-      if (!useStreamingStore.getState().streams.has(event.streamId)) return;
+      ensureStream(event);
       useStreamingStore.getState().appendDelta(event.streamId, event.delta);
     };
 
@@ -292,7 +307,7 @@ export function useMessages(channelId: string | undefined) {
       event: StreamingThinkingDeltaEvent,
     ) => {
       if (event.channelId !== channelId) return;
-      if (!useStreamingStore.getState().streams.has(event.streamId)) return;
+      ensureStream(event);
       useStreamingStore
         .getState()
         .appendThinkingDelta(event.streamId, event.delta);

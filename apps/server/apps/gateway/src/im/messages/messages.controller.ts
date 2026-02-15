@@ -105,6 +105,7 @@ export class MessagesController {
       type: messageType,
       workspaceId,
       attachments: dto.attachments,
+      metadata: dto.metadata,
     });
 
     // Fetch the full message details for response
