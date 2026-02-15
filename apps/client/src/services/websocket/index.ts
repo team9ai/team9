@@ -28,6 +28,11 @@ import {
   type NotificationNewEvent,
   type NotificationCountsUpdatedEvent,
   type NotificationReadEvent,
+  type StreamingStartEvent,
+  type StreamingDeltaEvent,
+  type StreamingThinkingDeltaEvent,
+  type StreamingEndEvent,
+  type StreamingAbortEvent,
 } from "@/types/ws-events";
 
 type EventCallback = (...args: any[]) => void;
@@ -381,6 +386,29 @@ class WebSocketService {
 
   offNotificationRead(callback: (event: NotificationReadEvent) => void): void {
     this.off(WS_EVENTS.NOTIFICATION.READ, callback);
+  }
+
+  // Streaming events (AI bot)
+  onStreamingStart(callback: (event: StreamingStartEvent) => void): void {
+    this.on(WS_EVENTS.STREAMING.START, callback);
+  }
+
+  onStreamingDelta(callback: (event: StreamingDeltaEvent) => void): void {
+    this.on(WS_EVENTS.STREAMING.DELTA, callback);
+  }
+
+  onStreamingThinkingDelta(
+    callback: (event: StreamingThinkingDeltaEvent) => void,
+  ): void {
+    this.on(WS_EVENTS.STREAMING.THINKING_DELTA, callback);
+  }
+
+  onStreamingEnd(callback: (event: StreamingEndEvent) => void): void {
+    this.on(WS_EVENTS.STREAMING.END, callback);
+  }
+
+  onStreamingAbort(callback: (event: StreamingAbortEvent) => void): void {
+    this.on(WS_EVENTS.STREAMING.ABORT, callback);
   }
 }
 

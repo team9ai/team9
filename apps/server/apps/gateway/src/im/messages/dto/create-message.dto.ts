@@ -3,6 +3,7 @@ import {
   IsOptional,
   IsUUID,
   IsArray,
+  IsObject,
   ValidateNested,
   MaxLength,
   IsNumber,
@@ -38,4 +39,8 @@ export class CreateMessageDto {
   @Type(() => AttachmentDto)
   @IsOptional()
   attachments?: AttachmentDto[];
+
+  @IsObject()
+  @IsOptional()
+  metadata?: Record<string, unknown>;
 }

@@ -12,8 +12,16 @@ import type {
   Message,
   MessageSendStatus,
 } from "@/types/im";
+import type {
+  StreamingStartEvent,
+  StreamingDeltaEvent,
+  StreamingThinkingDeltaEvent,
+  StreamingEndEvent,
+  StreamingAbortEvent,
+} from "@/types/ws-events";
 import { useSelectedWorkspaceId } from "@/stores";
 import { useAppStore } from "@/stores/useAppStore";
+import { useStreamingStore } from "@/stores/useStreamingStore";
 import { isTemporaryId } from "@/lib/utils";
 import { useThreadStore } from "./useThread";
 import { useThreadScrollState } from "./useThreadScrollState";
@@ -267,14 +275,59 @@ export function useMessages(channelId: string | undefined) {
       });
     };
 
+    // Streaming event handlers
+    const handleStreamingStart = (event: StreamingStartEvent) => {
+      if (event.channelId !== channelId) return;
+      useStreamingStore.getState().startStream(event);
+    };
+
+    const handleStreamingDelta = (event: StreamingDeltaEvent) => {
+      if (event.channelId !== channelId) return;
+      // Ignore if we missed the start event (late join)
+      if (!useStreamingStore.getState().streams.has(event.streamId)) return;
+      useStreamingStore.getState().appendDelta(event.streamId, event.delta);
+    };
+
+    const handleStreamingThinkingDelta = (
+      event: StreamingThinkingDeltaEvent,
+    ) => {
+      if (event.channelId !== channelId) return;
+      if (!useStreamingStore.getState().streams.has(event.streamId)) return;
+      useStreamingStore
+        .getState()
+        .appendThinkingDelta(event.streamId, event.delta);
+    };
+
+    const handleStreamingEnd = (event: StreamingEndEvent) => {
+      if (event.channelId !== channelId) return;
+      useStreamingStore.getState().endStream(event.streamId);
+      // The final message is also broadcast as new_message by the server,
+      // which handleNewMessage will process.
+    };
+
+    const handleStreamingAbort = (event: StreamingAbortEvent) => {
+      if (event.channelId !== channelId) return;
+      useStreamingStore.getState().abortStream(event.streamId);
+    };
+
     wsService.onNewMessage(handleNewMessage);
     wsService.onMessageUpdated(handleMessageUpdated);
     wsService.onMessageDeleted(handleMessageDeleted);
+    wsService.onStreamingStart(handleStreamingStart);
+    wsService.onStreamingDelta(handleStreamingDelta);
+    wsService.onStreamingThinkingDelta(handleStreamingThinkingDelta);
+    wsService.onStreamingEnd(handleStreamingEnd);
+    wsService.onStreamingAbort(handleStreamingAbort);
 
     return () => {
       wsService.off("new_message", handleNewMessage);
       wsService.off("message_updated", handleMessageUpdated);
       wsService.off("message_deleted", handleMessageDeleted);
+      wsService.off("streaming_start", handleStreamingStart);
+      wsService.off("streaming_delta", handleStreamingDelta);
+      wsService.off("streaming_thinking_delta", handleStreamingThinkingDelta);
+      wsService.off("streaming_end", handleStreamingEnd);
+      wsService.off("streaming_abort", handleStreamingAbort);
     };
   }, [channelId, queryClient]);
 

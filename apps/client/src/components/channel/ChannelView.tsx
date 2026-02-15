@@ -134,7 +134,7 @@ export function ChannelView({
     setThinkingBotIds([]);
   }, [channelId]);
 
-  // Listen for bot replies via WebSocket to dismiss thinking indicator
+  // Listen for bot replies or streaming start via WebSocket to dismiss thinking indicator
   useEffect(() => {
     if (thinkingBotIds.length === 0) return;
 
@@ -147,9 +147,20 @@ export function ChannelView({
       }
     };
 
+    const handleStreamingStart = (data: {
+      channelId: string;
+      senderId: string;
+    }) => {
+      if (data.channelId !== channelId) return;
+      // Streaming started — remove bot from thinking indicators
+      setThinkingBotIds((prev) => prev.filter((id) => id !== data.senderId));
+    };
+
     wsService.onNewMessage(handleBotReply);
+    wsService.onStreamingStart(handleStreamingStart);
     return () => {
       wsService.off("new_message", handleBotReply);
+      wsService.off("streaming_start", handleStreamingStart);
     };
   }, [channelId, thinkingBotIds.length]);
 

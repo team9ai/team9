@@ -107,6 +107,15 @@ export const WS_EVENTS = {
     COUNTS_UPDATED: "notification_counts_updated",
     READ: "notification_read",
   },
+
+  // AI Streaming (Bot)
+  STREAMING: {
+    START: "streaming_start",
+    DELTA: "streaming_delta",
+    THINKING_DELTA: "streaming_thinking_delta",
+    END: "streaming_end",
+    ABORT: "streaming_abort",
+  },
 } as const;
 
 // ==================== Authentication Event Types ====================
@@ -458,6 +467,50 @@ export interface NotificationReadEvent {
   readAt: string;
 }
 
+// ==================== Streaming Event Types (AI Bot) ====================
+
+/** Streaming start - bot begins generating a response */
+export interface StreamingStartEvent {
+  streamId: string;
+  channelId: string;
+  senderId: string;
+  parentId?: string;
+  startedAt: number;
+}
+
+/** Streaming text delta - incremental text content */
+export interface StreamingDeltaEvent {
+  streamId: string;
+  channelId: string;
+  senderId: string;
+  delta: string;
+}
+
+/** Streaming thinking delta - AI thinking/reasoning content */
+export interface StreamingThinkingDeltaEvent {
+  streamId: string;
+  channelId: string;
+  senderId: string;
+  delta: string;
+}
+
+/** Streaming end - finalization with persisted message */
+export interface StreamingEndEvent {
+  streamId: string;
+  channelId: string;
+  senderId: string;
+  message: Message;
+}
+
+/** Streaming abort - stream terminated before completion */
+export interface StreamingAbortEvent {
+  streamId: string;
+  channelId: string;
+  senderId: string;
+  reason: "error" | "cancelled" | "timeout" | "disconnect";
+  error?: string;
+}
+
 // ==================== Type Mappings ====================
 
 /** Client to server events and their payload type mappings */
@@ -508,4 +561,10 @@ export interface ServerToClientEvents {
   notification_new: NotificationNewEvent;
   notification_counts_updated: NotificationCountsUpdatedEvent;
   notification_read: NotificationReadEvent;
+  // Streaming (AI bot)
+  streaming_start: StreamingStartEvent;
+  streaming_delta: StreamingDeltaEvent;
+  streaming_thinking_delta: StreamingThinkingDeltaEvent;
+  streaming_end: StreamingEndEvent;
+  streaming_abort: StreamingAbortEvent;
 }

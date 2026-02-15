@@ -204,6 +204,24 @@ export const WS_EVENTS = {
     /** Message retry - sent by server */
     MESSAGE_RETRY: 'message_retry',
   },
+
+  // ==================== AI Streaming (Bot) ====================
+  /**
+   * AI bot streaming message events.
+   * Emitted by bot clients, validated and broadcast by server.
+   */
+  STREAMING: {
+    /** Bot starts streaming a response */
+    START: 'streaming_start',
+    /** Bot sends a text content delta */
+    DELTA: 'streaming_delta',
+    /** Bot sends a thinking/reasoning delta */
+    THINKING_DELTA: 'streaming_thinking_delta',
+    /** Bot finishes streaming, includes final persisted message */
+    END: 'streaming_end',
+    /** Bot aborts streaming (error/cancel/timeout/disconnect) */
+    ABORT: 'streaming_abort',
+  },
 } as const;
 
 /**
@@ -222,4 +240,5 @@ export type WsEventName =
   | (typeof WS_EVENTS.WORKSPACE)[keyof typeof WS_EVENTS.WORKSPACE]
   | (typeof WS_EVENTS.SYSTEM)[keyof typeof WS_EVENTS.SYSTEM]
   | (typeof WS_EVENTS.SESSION)[keyof typeof WS_EVENTS.SESSION]
-  | (typeof WS_EVENTS.SYNC)[keyof typeof WS_EVENTS.SYNC];
+  | (typeof WS_EVENTS.SYNC)[keyof typeof WS_EVENTS.SYNC]
+  | (typeof WS_EVENTS.STREAMING)[keyof typeof WS_EVENTS.STREAMING];
