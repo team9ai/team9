@@ -114,11 +114,15 @@ export class MessagesController {
     );
 
     // Immediately broadcast to online users via Socket.io Redis Adapter
-    this.websocketGateway.sendToChannel(
-      channelId,
-      WS_EVENTS.MESSAGE.NEW,
-      message,
-    );
+    // Skip broadcast when the message is part of a streaming session (bot will
+    // emit streaming_end with the persisted message, which handles the broadcast)
+    if (!dto.skipBroadcast) {
+      this.websocketGateway.sendToChannel(
+        channelId,
+        WS_EVENTS.MESSAGE.NEW,
+        message,
+      );
+    }
 
     const broadcastAt = Date.now();
 

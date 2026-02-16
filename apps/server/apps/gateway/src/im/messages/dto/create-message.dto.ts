@@ -4,6 +4,7 @@ import {
   IsUUID,
   IsArray,
   IsObject,
+  IsBoolean,
   ValidateNested,
   MaxLength,
   IsNumber,
@@ -43,4 +44,8 @@ export class CreateMessageDto {
   @IsObject()
   @IsOptional()
   metadata?: Record<string, unknown>;
+
+  @IsBoolean()
+  @IsOptional()
+  skipBroadcast?: boolean;
 }
