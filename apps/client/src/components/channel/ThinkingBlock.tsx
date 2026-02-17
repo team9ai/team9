@@ -27,14 +27,13 @@ export const ThinkingBlock = memo(function ThinkingBlock({
   const [isExpanded, setIsExpanded] = useState(isStreaming);
   const prevIsStreaming = useRef(isStreaming);
 
-  // Auto-expand when streaming starts, auto-collapse when streaming ends
+  // Auto-expand when thinking starts. Don't auto-collapse when thinking
+  // pauses (text delta arrives) to avoid flicker if think/text alternate.
+  // The block collapses naturally when the streaming component unmounts
+  // and the persisted MessageItem renders with isStreaming=false (initial state).
   useEffect(() => {
     if (isStreaming && !prevIsStreaming.current) {
-      // Streaming just started
       setIsExpanded(true);
-    } else if (!isStreaming && prevIsStreaming.current) {
-      // Streaming just ended - auto-collapse
-      setIsExpanded(false);
     }
     prevIsStreaming.current = isStreaming;
   }, [isStreaming]);

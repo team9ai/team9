@@ -316,8 +316,33 @@ export function useMessages(channelId: string | undefined) {
     const handleStreamingEnd = (event: StreamingEndEvent) => {
       if (event.channelId !== channelId) return;
       useStreamingStore.getState().endStream(event.streamId);
-      // The final message is also broadcast as new_message by the server,
-      // which handleNewMessage will process.
+
+      // Proactively insert the final message into cache as a safety net,
+      // in case the subsequent new_message broadcast is lost.
+      if (event.message) {
+        const msg = event.message as Message;
+        if (!msg.parentId) {
+          // Main channel message - insert into messages cache
+          queryClient.setQueryData(["messages", channelId], (old: any) => {
+            if (!old) return { pages: [[msg]], pageParams: [undefined] };
+            const exists = old.pages.some((page: Message[]) =>
+              page.some((m) => m.id === msg.id),
+            );
+            if (exists) return old;
+            return {
+              ...old,
+              pages: [[msg, ...old.pages[0]], ...old.pages.slice(1)],
+            };
+          });
+        } else {
+          // Thread reply - invalidate thread query so it's fresh when viewed
+          const rootId = msg.rootId || msg.parentId;
+          queryClient.invalidateQueries({
+            queryKey: ["thread", rootId],
+            refetchType: "all",
+          });
+        }
+      }
     };
 
     const handleStreamingAbort = (event: StreamingAbortEvent) => {

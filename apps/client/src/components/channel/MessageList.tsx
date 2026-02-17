@@ -307,7 +307,7 @@ function StreamingMessages({
   const channelStreams = useStreamingStore(
     useShallow((state) =>
       Array.from(state.streams.values()).filter(
-        (s) => s.channelId === channelId,
+        (s) => s.channelId === channelId && !s.parentId,
       ),
     ),
   );
