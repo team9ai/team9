@@ -73,5 +73,8 @@
   "botNotMemberPrivateAdminDesc": "{{botName}} 不是当前私有频道的成员，无法收到你的消息。是否要先将它添加到频道中？",
   "botNotMemberPrivateDesc": "{{botName}} 不是当前私有频道的成员，无法收到你的消息。请联系频道管理员将机器人添加到频道中。",
   "addBotToChannel": "添加到频道",
-  "addingBot": "添加中..."
+  "addingBot": "添加中...",
+  "botInstanceStoppedMessage": "机器人实例当前已停止，请启动实例以恢复聊天。",
+  "botInstanceStart": "启动",
+  "botInstanceStarting": "启动中..."
 }

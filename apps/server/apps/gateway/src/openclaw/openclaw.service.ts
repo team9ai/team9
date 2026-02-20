@@ -1,4 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { DATABASE_CONNECTION, eq, sql } from '@team9/database';
+import type { PostgresJsDatabase } from '@team9/database';
+import * as schema from '@team9/database/schemas';
 import { env } from '@team9/shared';
 
 // ── Request / Response types ───────────────────────────────────────────
@@ -71,6 +74,11 @@ export interface CreateInstanceResponse {
 @Injectable()
 export class OpenclawService {
   private readonly logger = new Logger(OpenclawService.name);
+
+  constructor(
+    @Inject(DATABASE_CONNECTION)
+    private readonly db: PostgresJsDatabase<typeof schema>,
+  ) {}
 
   private get apiUrl(): string | undefined {
     return env.OPENCLAW_API_URL;
@@ -268,6 +276,68 @@ export class OpenclawService {
     await this.request('POST', `/api/instances/${instanceId}/devices/reject`, {
       request_id: requestId,
     });
+  }
+
+  // ── Workspace activity methods ─────────────────────────────────────
+
+  async getWorkspaceLastMessage(workspaceId: string) {
+    const result = await this.db
+      .select({
+        lastMessageAt: sql<string | null>`MAX(${schema.messages.createdAt})`,
+        messagesLast7d: sql<number>`COUNT(CASE WHEN ${schema.messages.createdAt} > NOW() - INTERVAL '7 days' THEN 1 END)`,
+      })
+      .from(schema.channels)
+      .leftJoin(
+        schema.messages,
+        eq(schema.messages.channelId, schema.channels.id),
+      )
+      .where(eq(schema.channels.tenantId, workspaceId));
+
+    return {
+      workspace_id: workspaceId,
+      last_message_at: result[0]?.lastMessageAt ?? null,
+      messages_last_7d: Number(result[0]?.messagesLast7d ?? 0),
+    };
+  }
+
+  async getWorkspacesLastMessages(workspaceIds: string[]) {
+    if (!workspaceIds.length) return { results: [] };
+
+    const results = await Promise.all(
+      workspaceIds.map((id) => this.getWorkspaceLastMessage(id)),
+    );
+
+    return { results };
+  }
+
+  async getAllInstanceActivity() {
+    const rows = await this.db.execute(sql`
+      SELECT
+        ia.config->>'instancesId' AS instance_id,
+        t.name AS workspace_name,
+        MAX(m.created_at) AS last_message_at,
+        COUNT(CASE WHEN m.created_at > NOW() - INTERVAL '7 days' THEN 1 END) AS messages_last_7d
+      FROM im_installed_applications ia
+      JOIN tenants t ON t.id = ia.tenant_id
+      LEFT JOIN im_channels c ON c.tenant_id = ia.tenant_id
+      LEFT JOIN im_messages m ON m.channel_id = c.id
+      WHERE ia.application_id = 'openclaw'
+        AND ia.config->>'instancesId' IS NOT NULL
+      GROUP BY ia.config->>'instancesId', t.name, ia.tenant_id
+    `);
+
+    return {
+      results: (rows as unknown as Array<Record<string, unknown>>).map(
+        (row) => ({
+          instance_id: row.instance_id as string,
+          workspace_name: row.workspace_name as string,
+          last_message_at: row.last_message_at
+            ? String(row.last_message_at)
+            : null,
+          messages_last_7d: Number(row.messages_last_7d ?? 0),
+        }),
+      ),
+    };
   }
 
   // ── Internal helpers ───────────────────────────────────────────────
