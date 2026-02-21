@@ -380,6 +380,162 @@ export class OpenclawService {
     };
   }
 
+  // ── Conversation methods ──────────────────────────────────────────
+
+  async getInstanceConversations(instanceId: string) {
+    const rows = await this.db.execute(sql`
+      SELECT
+        c.id AS channel_id,
+        c.created_at AS channel_created_at,
+        bot_user.id AS bot_user_id,
+        bot_user.username AS bot_username,
+        bot_user.display_name AS bot_display_name,
+        bot_user.avatar_url AS bot_avatar_url,
+        other_user.id AS other_user_id,
+        other_user.username AS other_username,
+        other_user.display_name AS other_display_name,
+        other_user.avatar_url AS other_avatar_url,
+        last_msg.id AS last_message_id,
+        last_msg.content AS last_message_content,
+        last_msg.sender_id AS last_message_sender_id,
+        last_msg.created_at AS last_message_at,
+        last_msg.type AS last_message_type,
+        (SELECT COUNT(*) FROM im_messages WHERE channel_id = c.id AND is_deleted = false) AS message_count
+      FROM im_installed_applications ia
+      JOIN im_bots b ON b.installed_application_id = ia.id
+      JOIN im_users bot_user ON bot_user.id = b.user_id
+      JOIN im_channel_members bot_cm ON bot_cm.user_id = b.user_id AND bot_cm.left_at IS NULL
+      JOIN im_channels c ON c.id = bot_cm.channel_id AND c.type = 'direct'
+      JOIN im_channel_members other_cm ON other_cm.channel_id = c.id AND other_cm.user_id != b.user_id AND other_cm.left_at IS NULL
+      JOIN im_users other_user ON other_user.id = other_cm.user_id
+      LEFT JOIN LATERAL (
+        SELECT id, content, sender_id, created_at, type
+        FROM im_messages
+        WHERE channel_id = c.id AND is_deleted = false
+        ORDER BY created_at DESC
+        LIMIT 1
+      ) last_msg ON true
+      WHERE ia.application_id = 'openclaw'
+        AND ia.config->>'instancesId' = ${instanceId}
+      ORDER BY last_msg.created_at DESC NULLS LAST
+      LIMIT 200
+    `);
+
+    return {
+      conversations: (rows as unknown as Array<Record<string, unknown>>).map(
+        (row) => ({
+          channel_id: row.channel_id as string,
+          channel_created_at: String(row.channel_created_at),
+          bot: {
+            user_id: row.bot_user_id as string,
+            username: row.bot_username as string,
+            display_name: (row.bot_display_name as string) ?? null,
+            avatar_url: (row.bot_avatar_url as string) ?? null,
+          },
+          other_user: {
+            user_id: row.other_user_id as string,
+            username: row.other_username as string,
+            display_name: (row.other_display_name as string) ?? null,
+            avatar_url: (row.other_avatar_url as string) ?? null,
+          },
+          last_message: row.last_message_id
+            ? {
+                id: row.last_message_id as string,
+                content: (row.last_message_content as string) ?? null,
+                sender_id: (row.last_message_sender_id as string) ?? null,
+                created_at: String(row.last_message_at),
+                type: row.last_message_type as string,
+              }
+            : null,
+          message_count: Number(row.message_count ?? 0),
+        }),
+      ),
+    };
+  }
+
+  async getConversationMessages(
+    instanceId: string,
+    channelId: string,
+    limit = 50,
+    before?: string,
+  ) {
+    // Verify the channel belongs to a bot of this instance
+    const check = await this.db.execute(sql`
+      SELECT 1 FROM im_installed_applications ia
+      JOIN im_bots b ON b.installed_application_id = ia.id
+      JOIN im_channel_members cm ON cm.user_id = b.user_id AND cm.channel_id = ${channelId}
+      WHERE ia.application_id = 'openclaw'
+        AND ia.config->>'instancesId' = ${instanceId}
+      LIMIT 1
+    `);
+
+    if (!check || (check as unknown as Array<unknown>).length === 0) {
+      return { messages: [], has_more: false };
+    }
+
+    const fetchLimit = limit + 1;
+    const rows = await this.db.execute(
+      before
+        ? sql`
+            SELECT
+              m.id, m.content, m.type, m.created_at, m.updated_at,
+              m.is_edited, m.parent_id,
+              u.id AS sender_id, u.username AS sender_username,
+              u.display_name AS sender_display_name,
+              u.avatar_url AS sender_avatar_url,
+              u.user_type AS sender_type
+            FROM im_messages m
+            LEFT JOIN im_users u ON u.id = m.sender_id
+            WHERE m.channel_id = ${channelId}
+              AND m.is_deleted = false
+              AND m.created_at < ${before}
+            ORDER BY m.created_at DESC
+            LIMIT ${fetchLimit}
+          `
+        : sql`
+            SELECT
+              m.id, m.content, m.type, m.created_at, m.updated_at,
+              m.is_edited, m.parent_id,
+              u.id AS sender_id, u.username AS sender_username,
+              u.display_name AS sender_display_name,
+              u.avatar_url AS sender_avatar_url,
+              u.user_type AS sender_type
+            FROM im_messages m
+            LEFT JOIN im_users u ON u.id = m.sender_id
+            WHERE m.channel_id = ${channelId}
+              AND m.is_deleted = false
+            ORDER BY m.created_at DESC
+            LIMIT ${fetchLimit}
+          `,
+    );
+
+    const allRows = rows as unknown as Array<Record<string, unknown>>;
+    const hasMore = allRows.length > limit;
+    const sliced = hasMore ? allRows.slice(0, limit) : allRows;
+
+    return {
+      messages: sliced.map((row) => ({
+        id: row.id as string,
+        content: (row.content as string) ?? null,
+        type: row.type as string,
+        created_at: String(row.created_at),
+        updated_at: String(row.updated_at),
+        is_edited: row.is_edited as boolean,
+        parent_id: (row.parent_id as string) ?? null,
+        sender: row.sender_id
+          ? {
+              id: row.sender_id as string,
+              username: row.sender_username as string,
+              display_name: (row.sender_display_name as string) ?? null,
+              avatar_url: (row.sender_avatar_url as string) ?? null,
+              user_type: row.sender_type as string,
+            }
+          : null,
+      })),
+      has_more: hasMore,
+    };
+  }
+
   // ── Internal helpers ───────────────────────────────────────────────
 
   private async request<T>(
