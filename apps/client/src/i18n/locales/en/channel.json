@@ -73,5 +73,8 @@
   "botNotMemberPrivateAdminDesc": "{{botName}} is not a member of this private channel and won't receive your message. Would you like to add it to the channel first?",
   "botNotMemberPrivateDesc": "{{botName}} is not a member of this private channel and won't receive your message. Please contact a channel admin to add the bot.",
   "addBotToChannel": "Add to Channel",
-  "addingBot": "Adding..."
+  "addingBot": "Adding...",
+  "botInstanceStoppedMessage": "The bot's instance is currently stopped. Start it to resume chatting.",
+  "botInstanceStart": "Start",
+  "botInstanceStarting": "Starting..."
 }

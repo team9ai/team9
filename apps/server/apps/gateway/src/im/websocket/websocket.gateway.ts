@@ -333,11 +333,12 @@ export class WebsocketGateway
         this.clusterNodeService.decrementConnections();
       }
 
-      // Bots don't have presence — skip offline logic
+      // Bots: set offline but skip multi-device session checks and broadcast
       if (socketClient.isBot) {
         this.logger.log(
-          `[WS] Bot ${socketClient.userId} disconnected, skipping presence cleanup`,
+          `[WS] Bot ${socketClient.userId} disconnected, setting offline`,
         );
+        await this.usersService.setOffline(socketClient.userId);
       } else {
         // Check if user has other active device sessions (new architecture)
         let hasActiveSessions = false;

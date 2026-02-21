@@ -16,6 +16,8 @@ import { ChannelHeader } from "./ChannelHeader";
 import { ThreadPanel } from "./ThreadPanel";
 import { JoinChannelPrompt } from "./JoinChannelPrompt";
 import { BotStartupOverlay } from "./BotStartupOverlay";
+import { BotInstanceStoppedBanner } from "./BotInstanceStoppedBanner";
+import { useOpenClawBotInstanceStatus } from "@/hooks/useOpenClawBotInstanceStatus";
 import type { AttachmentDto, Message, PublicChannelPreview } from "@/types/im";
 import { isValidMessageId } from "@/lib/utils";
 
@@ -128,6 +130,10 @@ export function ChannelView({
     if (!isBotDm) return null;
     return (memberChannel as any)?.otherUser?.id ?? null;
   }, [isBotDm, memberChannel]);
+
+  // OpenClaw instance status for bot DM channels (to detect stopped instances)
+  const { isInstanceStopped, startInstance, isStarting } =
+    useOpenClawBotInstanceStatus(isBotDm ? botDmUserId : null);
 
   // Clear thinking state when channel changes
   useEffect(() => {
@@ -252,6 +258,13 @@ export function ChannelView({
             readOnly={isPreviewMode}
             thinkingBotIds={thinkingBotIds}
             members={members}
+          />
+        )}
+
+        {isInstanceStopped && (
+          <BotInstanceStoppedBanner
+            onStart={startInstance}
+            isStarting={isStarting}
           />
         )}
 
