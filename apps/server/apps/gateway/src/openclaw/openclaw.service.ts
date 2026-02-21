@@ -310,6 +310,45 @@ export class OpenclawService {
     return { results };
   }
 
+  async searchInstances(q: string) {
+    if (!q.trim()) return { results: [] };
+
+    const pattern = `%${q.trim()}%`;
+    const rows = await this.db.execute(sql`
+      SELECT DISTINCT
+        ia.config->>'instancesId' AS instance_id,
+        t.name AS workspace_name,
+        t.id::text AS workspace_id,
+        b.id::text AS bot_id,
+        b.name AS bot_name
+      FROM im_installed_applications ia
+      JOIN tenants t ON t.id = ia.tenant_id
+      LEFT JOIN im_bots b ON b.installed_application_id = ia.id
+      WHERE ia.application_id = 'openclaw'
+        AND ia.config->>'instancesId' IS NOT NULL
+        AND (
+          t.name ILIKE ${pattern}
+          OR t.id::text ILIKE ${pattern}
+          OR b.id::text ILIKE ${pattern}
+          OR b.name ILIKE ${pattern}
+          OR ia.config->>'instancesId' ILIKE ${pattern}
+        )
+      LIMIT 50
+    `);
+
+    return {
+      results: (rows as unknown as Array<Record<string, unknown>>).map(
+        (row) => ({
+          instance_id: row.instance_id as string,
+          workspace_name: row.workspace_name as string,
+          workspace_id: row.workspace_id as string,
+          bot_id: (row.bot_id as string) ?? null,
+          bot_name: (row.bot_name as string) ?? null,
+        }),
+      ),
+    };
+  }
+
   async getAllInstanceActivity() {
     const rows = await this.db.execute(sql`
       SELECT
