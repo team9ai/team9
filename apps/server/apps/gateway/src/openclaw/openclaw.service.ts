@@ -320,17 +320,18 @@ export class OpenclawService {
         t.name AS workspace_name,
         t.id::text AS workspace_id,
         b.id::text AS bot_id,
-        b.name AS bot_name
+        bu.username AS bot_name
       FROM im_installed_applications ia
       JOIN tenants t ON t.id = ia.tenant_id
       LEFT JOIN im_bots b ON b.installed_application_id = ia.id
+      LEFT JOIN im_users bu ON bu.id = b.user_id
       WHERE ia.application_id = 'openclaw'
         AND ia.config->>'instancesId' IS NOT NULL
         AND (
           t.name ILIKE ${pattern}
           OR t.id::text ILIKE ${pattern}
           OR b.id::text ILIKE ${pattern}
-          OR b.name ILIKE ${pattern}
+          OR bu.username ILIKE ${pattern}
           OR ia.config->>'instancesId' ILIKE ${pattern}
         )
       LIMIT 50
