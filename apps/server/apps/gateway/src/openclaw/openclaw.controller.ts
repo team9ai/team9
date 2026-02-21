@@ -34,4 +34,24 @@ export class OpenclawController {
   async getInstanceActivity() {
     return this.openclawService.getAllInstanceActivity();
   }
+
+  @Get('instances/:instanceId/conversations')
+  async getConversations(@Param('instanceId') instanceId: string) {
+    return this.openclawService.getInstanceConversations(instanceId);
+  }
+
+  @Get('instances/:instanceId/conversations/:channelId/messages')
+  async getConversationMessages(
+    @Param('instanceId') instanceId: string,
+    @Param('channelId') channelId: string,
+    @Query('limit') limit?: string,
+    @Query('before') before?: string,
+  ) {
+    return this.openclawService.getConversationMessages(
+      instanceId,
+      channelId,
+      Math.min(Number(limit) || 50, 100),
+      before,
+    );
+  }
 }
