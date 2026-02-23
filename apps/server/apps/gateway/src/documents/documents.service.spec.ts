@@ -82,6 +82,74 @@ describe('DocumentsService', () => {
   });
 
   // ────────────────────────────────────────────────────────────────
+  // list() — document listing
+  // ────────────────────────────────────────────────────────────────
+
+  describe('list()', () => {
+    it('should return mapped document list items', async () => {
+      const now = new Date();
+      const rows = [
+        {
+          id: 'doc-1',
+          tenantId: 'tenant-1',
+          documentType: 'task_instruction',
+          title: 'First Doc',
+          privileges: [],
+          currentVersionId: 'ver-1',
+          createdBy: USER_ALICE,
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: 'doc-2',
+          tenantId: 'tenant-1',
+          documentType: 'bot_notes',
+          title: null,
+          privileges: [],
+          currentVersionId: 'ver-2',
+          createdBy: BOT_CLAW,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ];
+
+      db.orderBy.mockResolvedValueOnce(rows);
+
+      const result = await service.list('tenant-1');
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({
+        id: 'doc-1',
+        documentType: 'task_instruction',
+        title: 'First Doc',
+        createdBy: USER_ALICE,
+        updatedAt: now,
+        createdAt: now,
+      });
+      expect(result[1]).toEqual({
+        id: 'doc-2',
+        documentType: 'bot_notes',
+        title: null,
+        createdBy: BOT_CLAW,
+        updatedAt: now,
+        createdAt: now,
+      });
+      // Should not include internal fields like privileges, currentVersionId
+      expect(result[0]).not.toHaveProperty('privileges');
+      expect(result[0]).not.toHaveProperty('currentVersionId');
+      expect(result[0]).not.toHaveProperty('tenantId');
+    });
+
+    it('should return empty array when no documents exist', async () => {
+      db.orderBy.mockResolvedValueOnce([]);
+
+      const result = await service.list('tenant-empty');
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────
   // create() — default privilege assignment
   // ────────────────────────────────────────────────────────────────
 

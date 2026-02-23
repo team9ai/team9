@@ -9,6 +9,7 @@ describe('DocumentsController', () => {
 
   beforeEach(async () => {
     mockService = {
+      list: jest.fn<any>(),
       create: jest.fn<any>(),
       getById: jest.fn<any>(),
       update: jest.fn<any>(),
@@ -27,6 +28,22 @@ describe('DocumentsController', () => {
     }).compile();
 
     controller = module.get<DocumentsController>(DocumentsController);
+  });
+
+  // ────────────────────────────────────────────────────────────────
+  // list endpoint
+  // ────────────────────────────────────────────────────────────────
+
+  describe('list()', () => {
+    it('should delegate to service.list with tenantId', async () => {
+      const docs = [{ id: 'doc-1', title: 'Test' }];
+      mockService.list.mockResolvedValue(docs);
+
+      const result = await controller.list('tenant-1');
+
+      expect(mockService.list).toHaveBeenCalledWith('tenant-1');
+      expect(result).toEqual(docs);
+    });
   });
 
   // ────────────────────────────────────────────────────────────────
