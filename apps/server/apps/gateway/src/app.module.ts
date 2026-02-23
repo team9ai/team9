@@ -31,6 +31,7 @@ import { BotModule } from './bot/bot.module.js';
 import { OpenclawModule } from './openclaw/openclaw.module.js';
 import { FileKeeperModule } from './file-keeper/file-keeper.module.js';
 import { ApplicationsModule } from './applications/applications.module.js';
+import { DocumentsModule } from './documents/documents.module.js';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { ApplicationsModule } from './applications/applications.module.js';
     FileModule,
     NotificationModule,
     SearchModule,
+    DocumentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
