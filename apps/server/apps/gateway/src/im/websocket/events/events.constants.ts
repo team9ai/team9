@@ -75,8 +75,8 @@ export type {
   MessageRetryEvent,
   // Streaming (AI bot)
   StreamingStartEvent,
-  StreamingDeltaEvent,
-  StreamingThinkingDeltaEvent,
+  StreamingContentEvent,
+  StreamingThinkingContentEvent,
   StreamingEndEvent,
   StreamingAbortEvent,
   // Type mappings

@@ -14,8 +14,8 @@ import type {
 } from "@/types/im";
 import type {
   StreamingStartEvent,
-  StreamingDeltaEvent,
-  StreamingThinkingDeltaEvent,
+  StreamingContentEvent,
+  StreamingThinkingContentEvent,
   StreamingEndEvent,
   StreamingAbortEvent,
 } from "@/types/ws-events";
@@ -297,20 +297,22 @@ export function useMessages(channelId: string | undefined) {
       }
     };
 
-    const handleStreamingDelta = (event: StreamingDeltaEvent) => {
+    const handleStreamingDelta = (event: StreamingContentEvent) => {
       if (event.channelId !== channelId) return;
       ensureStream(event);
-      useStreamingStore.getState().appendDelta(event.streamId, event.delta);
+      useStreamingStore
+        .getState()
+        .setStreamContent(event.streamId, event.content);
     };
 
     const handleStreamingThinkingDelta = (
-      event: StreamingThinkingDeltaEvent,
+      event: StreamingThinkingContentEvent,
     ) => {
       if (event.channelId !== channelId) return;
       ensureStream(event);
       useStreamingStore
         .getState()
-        .appendThinkingDelta(event.streamId, event.delta);
+        .setThinkingContent(event.streamId, event.content);
     };
 
     const handleStreamingEnd = (event: StreamingEndEvent) => {
@@ -354,8 +356,8 @@ export function useMessages(channelId: string | undefined) {
     wsService.onMessageUpdated(handleMessageUpdated);
     wsService.onMessageDeleted(handleMessageDeleted);
     wsService.onStreamingStart(handleStreamingStart);
-    wsService.onStreamingDelta(handleStreamingDelta);
-    wsService.onStreamingThinkingDelta(handleStreamingThinkingDelta);
+    wsService.onStreamingContent(handleStreamingDelta);
+    wsService.onStreamingThinkingContent(handleStreamingThinkingDelta);
     wsService.onStreamingEnd(handleStreamingEnd);
     wsService.onStreamingAbort(handleStreamingAbort);
 
@@ -364,8 +366,8 @@ export function useMessages(channelId: string | undefined) {
       wsService.off("message_updated", handleMessageUpdated);
       wsService.off("message_deleted", handleMessageDeleted);
       wsService.off("streaming_start", handleStreamingStart);
-      wsService.off("streaming_delta", handleStreamingDelta);
-      wsService.off("streaming_thinking_delta", handleStreamingThinkingDelta);
+      wsService.off("streaming_content", handleStreamingDelta);
+      wsService.off("streaming_thinking_content", handleStreamingThinkingDelta);
       wsService.off("streaming_end", handleStreamingEnd);
       wsService.off("streaming_abort", handleStreamingAbort);
     };

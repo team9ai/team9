@@ -30,11 +30,11 @@ interface StreamingState {
     startedAt: number;
   }) => void;
 
-  /** Append text delta to a stream */
-  appendDelta: (streamId: string, delta: string) => void;
+  /** Set the current accumulated text content for a stream */
+  setStreamContent: (streamId: string, content: string) => void;
 
-  /** Append thinking delta to a stream */
-  appendThinkingDelta: (streamId: string, delta: string) => void;
+  /** Set the current accumulated thinking content for a stream */
+  setThinkingContent: (streamId: string, content: string) => void;
 
   /** End a stream (remove from active) */
   endStream: (streamId: string) => void;
@@ -81,28 +81,28 @@ export const useStreamingStore = create<StreamingState>((set, get) => ({
     });
   },
 
-  appendDelta: (streamId, delta) => {
+  setStreamContent: (streamId, content) => {
     set((state) => {
       const stream = state.streams.get(streamId);
       if (!stream) return state;
       const newStreams = new Map(state.streams);
       newStreams.set(streamId, {
         ...stream,
-        content: delta,
+        content,
         isThinking: false,
       });
       return { streams: newStreams };
     });
   },
 
-  appendThinkingDelta: (streamId, delta) => {
+  setThinkingContent: (streamId, content) => {
     set((state) => {
       const stream = state.streams.get(streamId);
       if (!stream) return state;
       const newStreams = new Map(state.streams);
       newStreams.set(streamId, {
         ...stream,
-        thinking: delta,
+        thinking: content,
         isThinking: true,
       });
       return { streams: newStreams };

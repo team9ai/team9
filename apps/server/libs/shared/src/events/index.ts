@@ -92,8 +92,8 @@ import type {
   NotificationReadEvent,
   // Streaming (AI bot)
   StreamingStartEvent,
-  StreamingDeltaEvent,
-  StreamingThinkingDeltaEvent,
+  StreamingContentEvent,
+  StreamingThinkingContentEvent,
   StreamingEndEvent,
   StreamingAbortEvent,
 } from './domains/index.js';
@@ -123,8 +123,8 @@ export interface ClientToServerEvents {
   sync_messages: SyncMessagesPayload;
   // Streaming (bot -> server)
   streaming_start: StreamingStartEvent;
-  streaming_delta: StreamingDeltaEvent;
-  streaming_thinking_delta: StreamingThinkingDeltaEvent;
+  streaming_content: StreamingContentEvent;
+  streaming_thinking_content: StreamingThinkingContentEvent;
   streaming_end: StreamingEndEvent;
   streaming_abort: StreamingAbortEvent;
 }
@@ -178,8 +178,8 @@ export interface ServerToClientEvents {
   notification_read: NotificationReadEvent;
   // Streaming (server -> client broadcast)
   streaming_start: StreamingStartEvent;
-  streaming_delta: StreamingDeltaEvent;
-  streaming_thinking_delta: StreamingThinkingDeltaEvent;
+  streaming_content: StreamingContentEvent;
+  streaming_thinking_content: StreamingThinkingContentEvent;
   streaming_end: StreamingEndEvent;
   streaming_abort: StreamingAbortEvent;
 }

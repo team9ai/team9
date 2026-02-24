@@ -22,25 +22,25 @@ export interface StreamingStartEvent {
 }
 
 /**
- * Streaming text delta - incremental text content
+ * Streaming text update - full accumulated content
  */
-export interface StreamingDeltaEvent {
+export interface StreamingContentEvent {
   streamId: string;
   channelId: string;
   senderId: string;
-  /** The text delta to append */
-  delta: string;
+  /** Full accumulated text content so far */
+  content: string;
 }
 
 /**
- * Streaming thinking delta - AI thinking/reasoning content
+ * Streaming thinking update - full accumulated reasoning content
  */
-export interface StreamingThinkingDeltaEvent {
+export interface StreamingThinkingContentEvent {
   streamId: string;
   channelId: string;
   senderId: string;
-  /** The thinking text delta to append */
-  delta: string;
+  /** Full accumulated thinking content so far */
+  content: string;
 }
 
 /**

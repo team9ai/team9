@@ -29,8 +29,8 @@ import {
   type NotificationCountsUpdatedEvent,
   type NotificationReadEvent,
   type StreamingStartEvent,
-  type StreamingDeltaEvent,
-  type StreamingThinkingDeltaEvent,
+  type StreamingContentEvent,
+  type StreamingThinkingContentEvent,
   type StreamingEndEvent,
   type StreamingAbortEvent,
 } from "@/types/ws-events";
@@ -393,14 +393,14 @@ class WebSocketService {
     this.on(WS_EVENTS.STREAMING.START, callback);
   }
 
-  onStreamingDelta(callback: (event: StreamingDeltaEvent) => void): void {
-    this.on(WS_EVENTS.STREAMING.DELTA, callback);
+  onStreamingContent(callback: (event: StreamingContentEvent) => void): void {
+    this.on(WS_EVENTS.STREAMING.CONTENT, callback);
   }
 
-  onStreamingThinkingDelta(
-    callback: (event: StreamingThinkingDeltaEvent) => void,
+  onStreamingThinkingContent(
+    callback: (event: StreamingThinkingContentEvent) => void,
   ): void {
-    this.on(WS_EVENTS.STREAMING.THINKING_DELTA, callback);
+    this.on(WS_EVENTS.STREAMING.THINKING_CONTENT, callback);
   }
 
   onStreamingEnd(callback: (event: StreamingEndEvent) => void): void {

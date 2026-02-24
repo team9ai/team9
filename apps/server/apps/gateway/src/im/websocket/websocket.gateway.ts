@@ -30,8 +30,8 @@ import {
   type PingPayload,
   type MessageAckPayload,
   type StreamingStartEvent,
-  type StreamingDeltaEvent,
-  type StreamingThinkingDeltaEvent,
+  type StreamingContentEvent,
+  type StreamingThinkingContentEvent,
   type StreamingEndEvent,
   type StreamingAbortEvent,
 } from './events/events.constants.js';
@@ -870,10 +870,10 @@ export class WebsocketGateway
     return { success: true };
   }
 
-  @SubscribeMessage(WS_EVENTS.STREAMING.DELTA)
+  @SubscribeMessage(WS_EVENTS.STREAMING.CONTENT)
   async handleStreamingDelta(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: StreamingDeltaEvent,
+    @MessageBody() data: StreamingContentEvent,
   ) {
     const socketClient = client as SocketWithUser;
     if (!socketClient.isBot) {
@@ -888,7 +888,7 @@ export class WebsocketGateway
 
     this.server
       .to(`channel:${data.channelId}`)
-      .emit(WS_EVENTS.STREAMING.DELTA, {
+      .emit(WS_EVENTS.STREAMING.CONTENT, {
         ...data,
         senderId: socketClient.userId,
       });
@@ -896,10 +896,10 @@ export class WebsocketGateway
     return { success: true };
   }
 
-  @SubscribeMessage(WS_EVENTS.STREAMING.THINKING_DELTA)
+  @SubscribeMessage(WS_EVENTS.STREAMING.THINKING_CONTENT)
   async handleStreamingThinkingDelta(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: StreamingThinkingDeltaEvent,
+    @MessageBody() data: StreamingThinkingContentEvent,
   ) {
     const socketClient = client as SocketWithUser;
     if (!socketClient.isBot) {
@@ -913,7 +913,7 @@ export class WebsocketGateway
 
     this.server
       .to(`channel:${data.channelId}`)
-      .emit(WS_EVENTS.STREAMING.THINKING_DELTA, {
+      .emit(WS_EVENTS.STREAMING.THINKING_CONTENT, {
         ...data,
         senderId: socketClient.userId,
       });

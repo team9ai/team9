@@ -213,10 +213,10 @@ export const WS_EVENTS = {
   STREAMING: {
     /** Bot starts streaming a response */
     START: 'streaming_start',
-    /** Bot sends a text content delta */
-    DELTA: 'streaming_delta',
-    /** Bot sends a thinking/reasoning delta */
-    THINKING_DELTA: 'streaming_thinking_delta',
+    /** Bot sends full accumulated text content */
+    CONTENT: 'streaming_content',
+    /** Bot sends full accumulated thinking/reasoning content */
+    THINKING_CONTENT: 'streaming_thinking_content',
     /** Bot finishes streaming, includes final persisted message */
     END: 'streaming_end',
     /** Bot aborts streaming (error/cancel/timeout/disconnect) */

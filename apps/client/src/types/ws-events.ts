@@ -111,8 +111,8 @@ export const WS_EVENTS = {
   // AI Streaming (Bot)
   STREAMING: {
     START: "streaming_start",
-    DELTA: "streaming_delta",
-    THINKING_DELTA: "streaming_thinking_delta",
+    CONTENT: "streaming_content",
+    THINKING_CONTENT: "streaming_thinking_content",
     END: "streaming_end",
     ABORT: "streaming_abort",
   },
@@ -478,20 +478,20 @@ export interface StreamingStartEvent {
   startedAt: number;
 }
 
-/** Streaming text delta - incremental text content */
-export interface StreamingDeltaEvent {
+/** Streaming text update - full accumulated content */
+export interface StreamingContentEvent {
   streamId: string;
   channelId: string;
   senderId: string;
-  delta: string;
+  content: string;
 }
 
-/** Streaming thinking delta - AI thinking/reasoning content */
-export interface StreamingThinkingDeltaEvent {
+/** Streaming thinking update - full accumulated reasoning content */
+export interface StreamingThinkingContentEvent {
   streamId: string;
   channelId: string;
   senderId: string;
-  delta: string;
+  content: string;
 }
 
 /** Streaming end - finalization with persisted message */
@@ -563,8 +563,8 @@ export interface ServerToClientEvents {
   notification_read: NotificationReadEvent;
   // Streaming (AI bot)
   streaming_start: StreamingStartEvent;
-  streaming_delta: StreamingDeltaEvent;
-  streaming_thinking_delta: StreamingThinkingDeltaEvent;
+  streaming_content: StreamingContentEvent;
+  streaming_thinking_content: StreamingThinkingContentEvent;
   streaming_end: StreamingEndEvent;
   streaming_abort: StreamingAbortEvent;
 }
