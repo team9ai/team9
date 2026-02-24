@@ -247,44 +247,40 @@ export class WebsocketGateway
         void client.join(`workspace:${workspaceId}`);
       }
 
-      // Broadcast user online to each workspace (skip for bots)
-      if (!isBot) {
-        for (const workspaceId of workspaceIds) {
-          this.server
-            .to(`workspace:${workspaceId}`)
-            .emit(WS_EVENTS.USER.ONLINE, {
-              userId: payload.sub,
-              username: payload.username,
-              workspaceId,
-            });
-        }
+      // Broadcast user online to each workspace
+      for (const workspaceId of workspaceIds) {
+        this.server.to(`workspace:${workspaceId}`).emit(WS_EVENTS.USER.ONLINE, {
+          userId: payload.sub,
+          username: payload.username,
+          workspaceId,
+        });
+      }
 
-        // Notify IM Worker service that user is online (for presence tracking)
-        if (this.gatewayMQService && this.clusterNodeService) {
-          try {
-            await this.gatewayMQService.publishUpstream({
-              gatewayId: this.clusterNodeService.getNodeId(),
-              userId: payload.sub,
-              socketId: client.id,
-              message: {
-                msgId: uuidv7(),
-                senderId: payload.sub,
-                type: 'presence',
-                targetType: 'user',
-                targetId: payload.sub,
-                payload: { event: 'online' },
-                timestamp: Date.now(),
-              },
-              receivedAt: Date.now(),
-            });
-            this.logger.debug(
-              `[WS] Notified IM Worker service of user ${payload.sub} online`,
-            );
-          } catch (error) {
-            this.logger.warn(
-              `[WS] Failed to notify IM Worker service of user online: ${error}`,
-            );
-          }
+      // Notify IM Worker service that user is online (skip for bots — no presence tracking)
+      if (!isBot && this.gatewayMQService && this.clusterNodeService) {
+        try {
+          await this.gatewayMQService.publishUpstream({
+            gatewayId: this.clusterNodeService.getNodeId(),
+            userId: payload.sub,
+            socketId: client.id,
+            message: {
+              msgId: uuidv7(),
+              senderId: payload.sub,
+              type: 'presence',
+              targetType: 'user',
+              targetId: payload.sub,
+              payload: { event: 'online' },
+              timestamp: Date.now(),
+            },
+            receivedAt: Date.now(),
+          });
+          this.logger.debug(
+            `[WS] Notified IM Worker service of user ${payload.sub} online`,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `[WS] Failed to notify IM Worker service of user online: ${error}`,
+          );
         }
       }
 
