@@ -1,4 +1,7 @@
 import { Module, Logger, OnModuleInit } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
+import { SentryModule } from '@sentry/nestjs/setup';
+import { SentryGlobalFilter } from '@sentry/nestjs/setup';
 import { ConfigModule } from '@nestjs/config';
 import { join } from 'path';
 import { DatabaseModule } from '@team9/database';
@@ -14,6 +17,7 @@ import { NotificationModule } from './notification/notification.module.js';
 
 @Module({
   imports: [
+    SentryModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: [
@@ -35,6 +39,7 @@ import { NotificationModule } from './notification/notification.module.js';
     PostBroadcastModule,
     NotificationModule,
   ],
+  providers: [{ provide: APP_FILTER, useClass: SentryGlobalFilter }],
 })
 export class AppModule implements OnModuleInit {
   private readonly logger = new Logger(AppModule.name);
