@@ -5,7 +5,7 @@ import {
   MiddlewareConsumer,
   Logger,
 } from '@nestjs/common';
-import { APP_FILTER } from '@nestjs/core';
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { SentryModule } from '@sentry/nestjs/setup';
 import { SentryGlobalFilter } from '@sentry/nestjs/setup';
 import { ConfigModule } from '@nestjs/config';
@@ -35,6 +35,7 @@ import { OpenclawModule } from './openclaw/openclaw.module.js';
 import { FileKeeperModule } from './file-keeper/file-keeper.module.js';
 import { ApplicationsModule } from './applications/applications.module.js';
 import { DocumentsModule } from './documents/documents.module.js';
+import { SentryUserInterceptor } from './common/interceptors/sentry-user.interceptor.js';
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { DocumentsModule } from './documents/documents.module.js';
   providers: [
     AppService,
     { provide: APP_FILTER, useClass: SentryGlobalFilter },
+    { provide: APP_INTERCEPTOR, useClass: SentryUserInterceptor },
   ],
 })
 export class AppModule implements OnModuleInit, NestModule {
