@@ -8,7 +8,6 @@ import {
   UserPlus,
   Plus,
   FolderPlus,
-  Folder,
   Trash2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -432,34 +431,57 @@ export function HomeSubSidebar() {
                   id={`section-${section.id}`}
                   className="mt-4"
                 >
-                  <Button
-                    variant="ghost"
-                    onClick={() => toggleSectionExpanded(section.id)}
-                    className={cn(
-                      "group/section w-full justify-start gap-1 px-2 h-auto py-1.5 text-sm hover:text-nav-foreground hover:bg-nav-hover",
-                      isSectionEmpty
-                        ? "text-nav-foreground-dim"
-                        : "text-nav-foreground-strong",
-                    )}
-                  >
-                    {isSectionExpanded ? (
-                      <ChevronDown size={14} />
-                    ) : (
-                      <ChevronRight size={14} />
-                    )}
-                    <Folder size={14} />
-                    <span className="truncate">{section.name}</span>
+                  <div className="flex items-center justify-between">
+                    <Button
+                      variant="ghost"
+                      onClick={() => toggleSectionExpanded(section.id)}
+                      className={cn(
+                        "flex-1 justify-start gap-1 px-2 h-auto py-1.5 text-sm hover:text-nav-foreground hover:bg-nav-hover",
+                        isSectionEmpty
+                          ? "text-nav-foreground-dim"
+                          : "text-nav-foreground-strong",
+                      )}
+                    >
+                      {isSectionExpanded ? (
+                        <ChevronDown size={14} />
+                      ) : (
+                        <ChevronRight size={14} />
+                      )}
+                      <span className="truncate">{section.name}</span>
+                    </Button>
                     {isOwnerOrAdmin && (
                       <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <span
-                            role="button"
-                            className="ml-auto opacity-0 group-hover/section:opacity-100 transition-opacity text-nav-foreground-subtle hover:text-destructive"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Trash2 size={14} />
-                          </span>
-                        </AlertDialogTrigger>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 shrink-0 text-nav-foreground-subtle hover:text-nav-foreground hover:bg-nav-hover focus-visible:ring-0 focus-visible:ring-offset-0"
+                            >
+                              <Plus size={14} />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-40">
+                            <DropdownMenuItem
+                              onClick={() => setIsCreateChannelOpen(true)}
+                            >
+                              <Hash size={16} className="mr-2" />
+                              {tNav("createChannel")}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setIsCreateSectionOpen(true)}
+                            >
+                              <FolderPlus size={16} className="mr-2" />
+                              {tNav("createSection")}
+                            </DropdownMenuItem>
+                            <AlertDialogTrigger asChild>
+                              <DropdownMenuItem className="text-destructive focus:text-destructive">
+                                <Trash2 size={16} className="mr-2" />
+                                {tNav("deleteSection")}
+                              </DropdownMenuItem>
+                            </AlertDialogTrigger>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                         <AlertDialogContent>
                           <AlertDialogHeader>
                             <AlertDialogTitle>
@@ -484,7 +506,7 @@ export function HomeSubSidebar() {
                         </AlertDialogContent>
                       </AlertDialog>
                     )}
-                  </Button>
+                  </div>
                   {isSectionExpanded && !isSectionEmpty && (
                     <div className="ml-2 mt-1 space-y-0.5">
                       {isLoading || isLoadingPublic ? (
