@@ -69,6 +69,9 @@ export function useDeleteSection() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sections", workspaceId] });
       queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
+      queryClient.invalidateQueries({
+        queryKey: ["publicChannels", workspaceId],
+      });
     },
   });
 }

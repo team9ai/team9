@@ -6,10 +6,9 @@ import {
   Headphones,
   BookOpen,
   UserPlus,
-  Star,
   Plus,
   FolderPlus,
-  Folder,
+  Trash2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -23,10 +22,25 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import React, { useState, useEffect, useMemo } from "react";
 import { useChannelsByType, usePublicChannels } from "@/hooks/useChannels";
 import { useOnlineUsers } from "@/hooks/useIMUsers";
-import { useSections, useMoveChannel } from "@/hooks/useSections";
+import {
+  useSections,
+  useMoveChannel,
+  useDeleteSection,
+} from "@/hooks/useSections";
 import {
   useCurrentWorkspaceRole,
   useUserWorkspaces,
@@ -51,7 +65,6 @@ import {
   useDroppable,
 } from "@dnd-kit/core";
 import type { Channel, ChannelWithUnread } from "@/types/im";
-import type { Section } from "@/services/api/im";
 
 const topItems: {
   id: string;
@@ -132,70 +145,30 @@ function DraggableChannel({
   );
 }
 
-// Droppable Section Component
-function DroppableSection({
+// Droppable area component (just a drop target container)
+function DroppableArea({
   id,
-  section,
-  isExpanded,
-  onToggle,
   children,
+  className,
 }: {
   id: string;
-  section: Section | null;
-  isExpanded: boolean;
-  onToggle: () => void;
   children: React.ReactNode;
+  className?: string;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id,
   });
-  const { t: tNav } = useTranslation("navigation");
 
-  // Check if section is empty
-  const isEmpty = React.Children.count(children) === 0;
-
-  // For unsectioned area, just render children without section header
-  if (!section) {
-    return (
-      <div
-        ref={setNodeRef}
-        className={cn(
-          "space-y-0.5 min-h-8 rounded p-1",
-          isOver && "bg-nav-overlay-bg ring-1 ring-nav-ring",
-        )}
-      >
-        {children}
-      </div>
-    );
-  }
-
-  // For sections with headers
   return (
-    <div className="space-y-0.5">
-      <div
-        ref={setNodeRef}
-        className={cn(
-          "rounded transition-colors",
-          isOver && "bg-nav-overlay-bg ring-1 ring-nav-ring",
-        )}
-      >
-        <Button
-          variant="ghost"
-          onClick={onToggle}
-          className={cn(
-            "w-full justify-start gap-1 px-2 h-auto py-1.5 text-xs hover:text-nav-foreground hover:bg-nav-hover",
-            isEmpty ? "text-nav-foreground-dim" : "text-nav-foreground-subtle",
-          )}
-        >
-          {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-          <Folder size={12} />
-          <span className="truncate">{section.name}</span>
-        </Button>
-
-        {isExpanded && !isEmpty && (
-          <div className="ml-4 space-y-0.5 py-1">{children}</div>
-        )}
-      </div>
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "rounded",
+        isOver && "bg-nav-overlay-bg ring-1 ring-nav-ring",
+        className,
+      )}
+    >
+      {children}
     </div>
   );
 }
@@ -233,6 +206,9 @@ export function HomeSubSidebar() {
   const [appsExpanded, setAppsExpanded] = useState(true);
   const [isNewMessageOpen, setIsNewMessageOpen] = useState(false);
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
+  const [createChannelSectionId, setCreateChannelSectionId] = useState<
+    string | null
+  >(null);
   const [isCreateSectionOpen, setIsCreateSectionOpen] = useState(false);
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
@@ -257,6 +233,7 @@ export function HomeSubSidebar() {
       alert(tNav("insufficientPermissions"));
     }
   });
+  const deleteSection = useDeleteSection();
   const params = useParams({ strict: false });
   const selectedChannelId = (params as { channelId?: string }).channelId;
 
@@ -439,104 +416,111 @@ export function HomeSubSidebar() {
             );
           })}
 
-          {/* Channels Section */}
-          <div className="mt-4">
-            <div className="flex items-center justify-between">
-              <Button
-                variant="ghost"
-                onClick={() => setChannelsExpanded(!channelsExpanded)}
-                className="flex-1 justify-start gap-1 px-2 h-auto py-1.5 text-sm text-nav-foreground-strong hover:text-nav-foreground hover:bg-nav-hover"
-              >
-                {channelsExpanded ? (
-                  <ChevronDown size={14} />
-                ) : (
-                  <ChevronRight size={14} />
-                )}
-                <span>{tNav("channels")}</span>
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 shrink-0 text-nav-foreground-subtle hover:text-nav-foreground hover:bg-nav-hover"
-                  >
-                    <Plus size={14} />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40">
-                  <DropdownMenuItem
-                    onClick={() => setIsCreateChannelOpen(true)}
-                  >
-                    <Hash size={16} className="mr-2" />
-                    {tNav("createChannel")}
-                  </DropdownMenuItem>
-                  {isOwnerOrAdmin && (
-                    <DropdownMenuItem
-                      onClick={() => setIsCreateSectionOpen(true)}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            {/* Sections as top-level collapsible groups */}
+            {sections.map((section) => {
+              const sectionChannels = channelsBySection[section.id] || [];
+              const isSectionExpanded = expandedSections.has(section.id);
+              const isSectionEmpty = sectionChannels.length === 0;
+
+              return (
+                <DroppableArea
+                  key={section.id}
+                  id={`section-${section.id}`}
+                  className="mt-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <Button
+                      variant="ghost"
+                      onClick={() => toggleSectionExpanded(section.id)}
+                      className={cn(
+                        "flex-1 justify-start gap-1 px-2 h-auto py-1.5 text-sm hover:text-nav-foreground hover:bg-nav-hover",
+                        isSectionEmpty
+                          ? "text-nav-foreground-dim"
+                          : "text-nav-foreground-strong",
+                      )}
                     >
-                      <FolderPlus size={16} className="mr-2" />
-                      {tNav("createSection")}
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            {channelsExpanded && (
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragStart={handleDragStart}
-                onDragEnd={handleDragEnd}
-              >
-                <div className="ml-2 mt-1 space-y-0.5">
-                  {isLoading || isLoadingPublic ? (
-                    <p className="text-xs text-nav-foreground-faint px-2 py-1">
-                      {tCommon("loading")}
-                    </p>
-                  ) : allChannels.length === 0 && sections.length === 0 ? (
-                    <p className="text-xs text-nav-foreground-faint px-2 py-1">
-                      {tChannel("noChannels")}
-                    </p>
-                  ) : (
-                    <>
-                      {/* Render all sections (always visible, even if empty) */}
-                      {sections.map((section) => {
-                        const sectionChannels =
-                          channelsBySection[section.id] || [];
-                        const isSectionExpanded = expandedSections.has(
-                          section.id,
-                        );
-
-                        return (
-                          <DroppableSection
-                            key={section.id}
-                            id={`section-${section.id}`}
-                            section={section}
-                            isExpanded={isSectionExpanded}
-                            onToggle={() => toggleSectionExpanded(section.id)}
-                          >
-                            {sectionChannels.map((channel) => (
-                              <DraggableChannel
-                                key={channel.id}
-                                channel={channel}
-                                isSelected={selectedChannelId === channel.id}
-                                isDragging={activeId === channel.id}
-                                canDrag={isOwnerOrAdmin}
-                              />
-                            ))}
-                          </DroppableSection>
-                        );
-                      })}
-
-                      {/* Render unsectioned channels with a droppable area */}
-                      <DroppableSection
-                        id="unsectioned"
-                        section={null}
-                        isExpanded={true}
-                        onToggle={() => {}}
-                      >
-                        {channelsBySection.unsectioned?.map((channel) => (
+                      {isSectionExpanded ? (
+                        <ChevronDown size={14} />
+                      ) : (
+                        <ChevronRight size={14} />
+                      )}
+                      <span className="truncate">{section.name}</span>
+                    </Button>
+                    {isOwnerOrAdmin && (
+                      <AlertDialog>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 shrink-0 text-nav-foreground-subtle hover:text-nav-foreground hover:bg-nav-hover focus-visible:ring-0 focus-visible:ring-offset-0"
+                            >
+                              <Plus size={14} />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-40">
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setCreateChannelSectionId(section.id);
+                                setIsCreateChannelOpen(true);
+                              }}
+                            >
+                              <Hash size={16} className="mr-2" />
+                              {tNav("createChannel")}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setIsCreateSectionOpen(true)}
+                            >
+                              <FolderPlus size={16} className="mr-2" />
+                              {tNav("createSection")}
+                            </DropdownMenuItem>
+                            <AlertDialogTrigger asChild>
+                              <DropdownMenuItem className="text-destructive focus:text-destructive">
+                                <Trash2 size={16} className="mr-2" />
+                                {tNav("deleteSection")}
+                              </DropdownMenuItem>
+                            </AlertDialogTrigger>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>
+                              {tNav("deleteSection")}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {tNav("deleteSectionConfirm", {
+                                name: section.name,
+                              })}
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>
+                              {tNav("cancel")}
+                            </AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => deleteSection.mutate(section.id)}
+                            >
+                              {tNav("deleteSection")}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </div>
+                  {isSectionExpanded && !isSectionEmpty && (
+                    <div className="ml-2 mt-1 space-y-0.5">
+                      {isLoading || isLoadingPublic ? (
+                        <p className="text-xs text-nav-foreground-faint px-2 py-1">
+                          {tCommon("loading")}
+                        </p>
+                      ) : (
+                        sectionChannels.map((channel) => (
                           <DraggableChannel
                             key={channel.id}
                             channel={channel}
@@ -544,21 +528,99 @@ export function HomeSubSidebar() {
                             isDragging={activeId === channel.id}
                             canDrag={isOwnerOrAdmin}
                           />
-                        ))}
-                      </DroppableSection>
-                    </>
+                        ))
+                      )}
+                    </div>
                   )}
+                </DroppableArea>
+              );
+            })}
+
+            {/* Channels (unsectioned) as top-level collapsible group */}
+            <div className="mt-4">
+              <div className="flex items-center justify-between">
+                <Button
+                  variant="ghost"
+                  onClick={() => setChannelsExpanded(!channelsExpanded)}
+                  className="flex-1 justify-start gap-1 px-2 h-auto py-1.5 text-sm text-nav-foreground-strong hover:text-nav-foreground hover:bg-nav-hover"
+                >
+                  {channelsExpanded ? (
+                    <ChevronDown size={14} />
+                  ) : (
+                    <ChevronRight size={14} />
+                  )}
+                  <span>{tNav("channels")}</span>
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 shrink-0 text-nav-foreground-subtle hover:text-nav-foreground hover:bg-nav-hover"
+                    >
+                      <Plus size={14} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-40">
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setCreateChannelSectionId(null);
+                        setIsCreateChannelOpen(true);
+                      }}
+                    >
+                      <Hash size={16} className="mr-2" />
+                      {tNav("createChannel")}
+                    </DropdownMenuItem>
+                    {isOwnerOrAdmin && (
+                      <DropdownMenuItem
+                        onClick={() => setIsCreateSectionOpen(true)}
+                      >
+                        <FolderPlus size={16} className="mr-2" />
+                        {tNav("createSection")}
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+              {channelsExpanded && (
+                <div className="ml-2 mt-1">
+                  <DroppableArea
+                    id="unsectioned"
+                    className="space-y-0.5 min-h-8 p-1"
+                  >
+                    {isLoading || isLoadingPublic ? (
+                      <p className="text-xs text-nav-foreground-faint px-2 py-1">
+                        {tCommon("loading")}
+                      </p>
+                    ) : channelsBySection.unsectioned?.length === 0 &&
+                      sections.length === 0 ? (
+                      <p className="text-xs text-nav-foreground-faint px-2 py-1">
+                        {tChannel("noChannels")}
+                      </p>
+                    ) : (
+                      channelsBySection.unsectioned?.map((channel) => (
+                        <DraggableChannel
+                          key={channel.id}
+                          channel={channel}
+                          isSelected={selectedChannelId === channel.id}
+                          isDragging={activeId === channel.id}
+                          canDrag={isOwnerOrAdmin}
+                        />
+                      ))
+                    )}
+                  </DroppableArea>
                 </div>
-                <DragOverlay>
-                  {activeId ? (
-                    <DragOverlayContent
-                      channel={allChannels.find((c) => c.id === activeId)!}
-                    />
-                  ) : null}
-                </DragOverlay>
-              </DndContext>
-            )}
-          </div>
+              )}
+            </div>
+
+            <DragOverlay>
+              {activeId ? (
+                <DragOverlayContent
+                  channel={allChannels.find((c) => c.id === activeId)!}
+                />
+              ) : null}
+            </DragOverlay>
+          </DndContext>
 
           {/* DMs Section */}
           <div className="mt-4">
@@ -644,6 +706,7 @@ export function HomeSubSidebar() {
       <CreateChannelDialog
         isOpen={isCreateChannelOpen}
         onClose={() => setIsCreateChannelOpen(false)}
+        sectionId={createChannelSectionId}
       />
 
       {/* Create Section Dialog */}

@@ -14,10 +14,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateChannel } from "@/hooks/useChannels";
+import { useMoveChannel } from "@/hooks/useSections";
 
 interface CreateChannelDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  sectionId?: string | null;
 }
 
 function normalizeChannelName(name: string): string {
@@ -55,9 +57,11 @@ type Step = "name" | "visibility";
 export function CreateChannelDialog({
   isOpen,
   onClose,
+  sectionId,
 }: CreateChannelDialogProps) {
   const navigate = useNavigate();
   const createChannel = useCreateChannel();
+  const moveChannel = useMoveChannel();
 
   const [step, setStep] = useState<Step>("name");
   const [name, setName] = useState("");
@@ -97,6 +101,13 @@ export function CreateChannelDialog({
         description: description || undefined,
         type: isPrivate ? "private" : "public",
       });
+
+      if (sectionId) {
+        await moveChannel.mutateAsync({
+          channelId: channel.id,
+          data: { sectionId, order: 0 },
+        });
+      }
 
       handleClose();
 

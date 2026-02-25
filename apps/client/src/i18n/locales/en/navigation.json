@@ -51,6 +51,8 @@
   "creating": "Creating...",
   "moveToSection": "Move to section",
   "noSection": "No section",
+  "deleteSection": "Delete section",
+  "deleteSectionConfirm": "Are you sure you want to delete \"{{name}}\"? Channels in this section will be moved to Channels.",
   "insufficientPermissions": "Insufficient permissions. Only workspace owners and admins can manage sections",
   "weeklyRoadmap": "This Week's Development Roadmap",
   "roadmapCreateAIStaff": "Create your own AI Staff",
