@@ -206,6 +206,9 @@ export function HomeSubSidebar() {
   const [appsExpanded, setAppsExpanded] = useState(true);
   const [isNewMessageOpen, setIsNewMessageOpen] = useState(false);
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
+  const [createChannelSectionId, setCreateChannelSectionId] = useState<
+    string | null
+  >(null);
   const [isCreateSectionOpen, setIsCreateSectionOpen] = useState(false);
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
@@ -463,7 +466,10 @@ export function HomeSubSidebar() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-40">
                             <DropdownMenuItem
-                              onClick={() => setIsCreateChannelOpen(true)}
+                              onClick={() => {
+                                setCreateChannelSectionId(section.id);
+                                setIsCreateChannelOpen(true);
+                              }}
                             >
                               <Hash size={16} className="mr-2" />
                               {tNav("createChannel")}
@@ -557,7 +563,10 @@ export function HomeSubSidebar() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-40">
                     <DropdownMenuItem
-                      onClick={() => setIsCreateChannelOpen(true)}
+                      onClick={() => {
+                        setCreateChannelSectionId(null);
+                        setIsCreateChannelOpen(true);
+                      }}
                     >
                       <Hash size={16} className="mr-2" />
                       {tNav("createChannel")}
@@ -697,6 +706,7 @@ export function HomeSubSidebar() {
       <CreateChannelDialog
         isOpen={isCreateChannelOpen}
         onClose={() => setIsCreateChannelOpen(false)}
+        sectionId={createChannelSectionId}
       />
 
       {/* Create Section Dialog */}
