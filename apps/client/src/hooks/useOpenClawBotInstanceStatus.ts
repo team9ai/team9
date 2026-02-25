@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { useMemo } from "react";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
+import { useCurrentWorkspaceRole } from "@/hooks/useWorkspace";
 
 /**
  * Resolves the OpenClaw instance status for a given bot user ID.
@@ -10,6 +11,7 @@ import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 export function useOpenClawBotInstanceStatus(botUserId: string | null) {
   const workspaceId = useSelectedWorkspaceId();
   const queryClient = useQueryClient();
+  const { isOwnerOrAdmin } = useCurrentWorkspaceRole();
 
   const { data: installedApps } = useQuery({
     queryKey: ["installed-applications", workspaceId],
@@ -61,6 +63,7 @@ export function useOpenClawBotInstanceStatus(botUserId: string | null) {
       instanceStatus.status !== "running" &&
       instanceStatus.status !== "creating",
     isOpenClawBot,
+    canStart: isOwnerOrAdmin,
     startInstance: () => startMutation.mutate(),
     isStarting: startMutation.isPending,
   };

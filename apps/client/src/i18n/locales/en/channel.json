@@ -75,6 +75,7 @@
   "addBotToChannel": "Add to Channel",
   "addingBot": "Adding...",
   "botInstanceStoppedMessage": "The bot's instance is currently stopped. Start it to resume chatting.",
+  "botInstanceStoppedMemberMessage": "The bot's instance is currently stopped. Please contact a workspace admin to start it.",
   "botInstanceStart": "Start",
   "botInstanceStarting": "Starting..."
 }
