@@ -283,7 +283,8 @@ export function MainSidebar() {
           onClick={() => {
             const section = item.id as SidebarSection;
             appActions.setActiveSidebar(section);
-            const targetPath = getLastVisitedPath(section);
+            const targetPath =
+              section === "home" ? "/channels" : getLastVisitedPath(section);
             navigate({ to: targetPath });
           }}
           className={cn(
