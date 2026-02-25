@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import * as Sentry from "@sentry/react";
 import api, {
   type LoginRequest,
   type RegisterRequest,
@@ -11,7 +12,7 @@ import {
   notificationActions,
 } from "@/stores";
 
-// Sync user data to Zustand store
+// Sync user data to Zustand store and Sentry context
 const syncUserToStore = (user: User | null) => {
   if (user) {
     appActions.setUser({
@@ -21,8 +22,10 @@ const syncUserToStore = (user: User | null) => {
       avatarUrl: user.avatarUrl,
       createdAt: user.createdAt,
     });
+    Sentry.setUser({ id: user.id, email: user.email });
   } else {
     appActions.setUser(null);
+    Sentry.setUser(null);
   }
 };
 
@@ -81,6 +84,9 @@ export const useLogout = () => {
     onSuccess: () => {
       // Tokens are already removed in api.auth.logout
       queryClient.clear();
+
+      // Clear Sentry user context
+      Sentry.setUser(null);
 
       // Reset all Zustand stores to prevent stale data on next login
       appActions.reset();
