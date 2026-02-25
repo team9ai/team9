@@ -23,6 +23,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import React, { useState, useEffect, useMemo } from "react";
 import { useChannelsByType, usePublicChannels } from "@/hooks/useChannels";
 import { useOnlineUsers } from "@/hooks/useIMUsers";
@@ -439,24 +450,39 @@ export function HomeSubSidebar() {
                     <Folder size={14} />
                     <span className="truncate">{section.name}</span>
                     {isOwnerOrAdmin && (
-                      <span
-                        role="button"
-                        className="ml-auto opacity-0 group-hover/section:opacity-100 transition-opacity text-nav-foreground-subtle hover:text-destructive"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (
-                            confirm(
-                              tNav("deleteSectionConfirm", {
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <span
+                            role="button"
+                            className="ml-auto opacity-0 group-hover/section:opacity-100 transition-opacity text-nav-foreground-subtle hover:text-destructive"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Trash2 size={14} />
+                          </span>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>
+                              {tNav("deleteSection")}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {tNav("deleteSectionConfirm", {
                                 name: section.name,
-                              }),
-                            )
-                          ) {
-                            deleteSection.mutate(section.id);
-                          }
-                        }}
-                      >
-                        <Trash2 size={14} />
-                      </span>
+                              })}
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>
+                              {tNav("cancel")}
+                            </AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => deleteSection.mutate(section.id)}
+                            >
+                              {tNav("deleteSection")}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     )}
                   </Button>
                   {isSectionExpanded && !isSectionEmpty && (
