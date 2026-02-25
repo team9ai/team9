@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/react";
 import type { HttpRequestConfig, HttpResponse, HttpError } from "./types";
 import { useWorkspaceStore } from "../../stores";
 
@@ -73,6 +74,17 @@ export const responseLogger = <T>(
 };
 
 export const errorLogger = async (error: HttpError): Promise<never> => {
+  // Report to Sentry (skip 401 as those are handled by auth refresh)
+  if (error.status !== 401) {
+    Sentry.captureException(error, {
+      tags: {
+        url: error.config?.url,
+        method: error.config?.method,
+        status: error.status?.toString(),
+      },
+    });
+  }
+
   if (import.meta.env.DEV) {
     console.error("[HTTP Error]", {
       message: error.message,
