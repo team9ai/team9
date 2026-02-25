@@ -188,6 +188,7 @@ export class InstalledApplicationsController {
     const bots = await this.botService.getBotsByInstalledApplicationId(app.id);
     return bots.map((bot) => ({
       botId: bot.botId,
+      userId: bot.userId,
       agentId: bot.extra?.openclaw?.agentId ?? null,
       workspace: bot.extra?.openclaw?.workspace ?? null,
       username: bot.username,

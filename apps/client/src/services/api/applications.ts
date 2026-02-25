@@ -92,6 +92,7 @@ export interface OpenClawInstanceStatus {
 
 export interface OpenClawBotInfo {
   botId: string;
+  userId: string;
   agentId: string | null;
   workspace: string | null;
   username: string;

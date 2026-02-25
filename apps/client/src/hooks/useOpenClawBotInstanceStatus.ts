@@ -35,7 +35,7 @@ export function useOpenClawBotInstanceStatus(botUserId: string | null) {
   });
 
   const isOpenClawBot = useMemo(
-    () => !!bots?.some((b) => b.botId === botUserId),
+    () => !!bots?.some((b) => b.userId === botUserId),
     [bots, botUserId],
   );
 
