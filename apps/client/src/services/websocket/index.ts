@@ -1,4 +1,5 @@
 import { io, Socket } from "socket.io-client";
+import * as Sentry from "@sentry/react";
 import { queryClient } from "@/lib/query-client";
 import {
   WS_EVENTS,
@@ -109,6 +110,11 @@ class WebSocketService {
       console.log("[WS] Connected successfully");
       this.isConnecting = false;
       this.reconnectAttempts = 0;
+      Sentry.addBreadcrumb({
+        category: "websocket",
+        message: "WebSocket connected",
+        level: "info",
+      });
       // Process pending channel joins
       this.processPendingJoins();
       // Process pending event listeners
@@ -118,12 +124,20 @@ class WebSocketService {
     this.socket.on("disconnect", (reason) => {
       console.log("[WS] Disconnected:", reason);
       this.isConnecting = false;
+      Sentry.addBreadcrumb({
+        category: "websocket",
+        message: `WebSocket disconnected: ${reason}`,
+        level: "warning",
+      });
     });
 
     this.socket.on("connect_error", (error) => {
       console.error("[WS] Connection error:", error);
       this.isConnecting = false;
       this.reconnectAttempts++;
+      Sentry.captureException(error, {
+        tags: { type: "websocket", event: "connect_error" },
+      });
     });
 
     this.socket.on("authenticated", () => {
@@ -139,6 +153,10 @@ class WebSocketService {
 
     this.socket.on("auth_error", (error) => {
       console.error("[WS] Authentication error:", error);
+      Sentry.captureException(
+        new Error(`WebSocket auth error: ${JSON.stringify(error)}`),
+        { tags: { type: "websocket", event: "auth_error" } },
+      );
       this.disconnect();
     });
 
@@ -150,6 +168,10 @@ class WebSocketService {
 
     this.socket.on("reconnect_failed", () => {
       console.error("[WS] Reconnection failed after max attempts");
+      Sentry.captureException(
+        new Error("WebSocket reconnection failed after max attempts"),
+        { tags: { type: "websocket", event: "reconnect_failed" } },
+      );
     });
   }
 
