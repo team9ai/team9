@@ -334,13 +334,33 @@ export class WebsocketGateway
         this.clusterNodeService.decrementConnections();
       }
 
-      // Bots don't have presence — skip offline logic, but clean up active streams
       if (socketClient.isBot) {
         this.logger.log(
-          `[WS] Bot ${socketClient.userId} disconnected, setting offline`,
+          `[WS] Bot ${socketClient.userId} disconnected, cleaning up streams and setting offline`,
         );
         // Abort any active streaming sessions for this bot
         await this.cleanupBotStreams(socketClient.userId);
+
+        // Set bot offline and broadcast — bots are single-connection, always go offline on disconnect
+        await this.usersService.setOffline(socketClient.userId);
+
+        const workspaceIds =
+          await this.workspaceService.getWorkspaceIdsByUserId(
+            socketClient.userId,
+          );
+
+        for (const workspaceId of workspaceIds) {
+          this.server
+            .to(`workspace:${workspaceId}`)
+            .emit(WS_EVENTS.USER.OFFLINE, {
+              userId: socketClient.userId,
+              workspaceId,
+            });
+        }
+
+        this.logger.log(
+          `[WS] Bot ${socketClient.userId} is now offline, broadcasted to ${workspaceIds.length} workspaces`,
+        );
       } else {
         // Check if user has other active device sessions (new architecture)
         let hasActiveSessions = false;
