@@ -107,6 +107,15 @@ export const WS_EVENTS = {
     COUNTS_UPDATED: "notification_counts_updated",
     READ: "notification_read",
   },
+
+  // AI Streaming (Bot)
+  STREAMING: {
+    START: "streaming_start",
+    CONTENT: "streaming_content",
+    THINKING_CONTENT: "streaming_thinking_content",
+    END: "streaming_end",
+    ABORT: "streaming_abort",
+  },
 } as const;
 
 // ==================== Authentication Event Types ====================
@@ -458,6 +467,50 @@ export interface NotificationReadEvent {
   readAt: string;
 }
 
+// ==================== Streaming Event Types (AI Bot) ====================
+
+/** Streaming start - bot begins generating a response */
+export interface StreamingStartEvent {
+  streamId: string;
+  channelId: string;
+  senderId: string;
+  parentId?: string;
+  startedAt: number;
+}
+
+/** Streaming text update - full accumulated content */
+export interface StreamingContentEvent {
+  streamId: string;
+  channelId: string;
+  senderId: string;
+  content: string;
+}
+
+/** Streaming thinking update - full accumulated reasoning content */
+export interface StreamingThinkingContentEvent {
+  streamId: string;
+  channelId: string;
+  senderId: string;
+  content: string;
+}
+
+/** Streaming end - finalization with persisted message */
+export interface StreamingEndEvent {
+  streamId: string;
+  channelId: string;
+  senderId: string;
+  message: Message;
+}
+
+/** Streaming abort - stream terminated before completion */
+export interface StreamingAbortEvent {
+  streamId: string;
+  channelId: string;
+  senderId: string;
+  reason: "error" | "cancelled" | "timeout" | "disconnect";
+  error?: string;
+}
+
 // ==================== Type Mappings ====================
 
 /** Client to server events and their payload type mappings */
@@ -508,4 +561,10 @@ export interface ServerToClientEvents {
   notification_new: NotificationNewEvent;
   notification_counts_updated: NotificationCountsUpdatedEvent;
   notification_read: NotificationReadEvent;
+  // Streaming (AI bot)
+  streaming_start: StreamingStartEvent;
+  streaming_content: StreamingContentEvent;
+  streaming_thinking_content: StreamingThinkingContentEvent;
+  streaming_end: StreamingEndEvent;
+  streaming_abort: StreamingAbortEvent;
 }

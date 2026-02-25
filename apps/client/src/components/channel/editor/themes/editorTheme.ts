@@ -52,6 +52,7 @@ export const editorTheme: EditorThemeClasses = {
     url: "token-url",
     variable: "token-variable",
   },
+  quote: "border-l-3 border-border pl-3 text-muted-foreground",
   link: "text-primary hover:underline cursor-pointer",
   hashtag: "text-primary",
 };

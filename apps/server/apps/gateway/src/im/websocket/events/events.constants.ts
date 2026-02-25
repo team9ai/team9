@@ -73,6 +73,12 @@ export type {
   SyncMessagesPayload,
   SyncMessagesResponseEvent,
   MessageRetryEvent,
+  // Streaming (AI bot)
+  StreamingStartEvent,
+  StreamingContentEvent,
+  StreamingThinkingContentEvent,
+  StreamingEndEvent,
+  StreamingAbortEvent,
   // Type mappings
   ClientToServerEvents,
   ServerToClientEvents,

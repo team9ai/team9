@@ -90,6 +90,12 @@ import type {
   NotificationNewEvent,
   NotificationCountsUpdatedEvent,
   NotificationReadEvent,
+  // Streaming (AI bot)
+  StreamingStartEvent,
+  StreamingContentEvent,
+  StreamingThinkingContentEvent,
+  StreamingEndEvent,
+  StreamingAbortEvent,
 } from './domains/index.js';
 
 /**
@@ -115,6 +121,12 @@ export interface ClientToServerEvents {
   ping: PingPayload;
   message_ack: MessageAckPayload;
   sync_messages: SyncMessagesPayload;
+  // Streaming (bot -> server)
+  streaming_start: StreamingStartEvent;
+  streaming_content: StreamingContentEvent;
+  streaming_thinking_content: StreamingThinkingContentEvent;
+  streaming_end: StreamingEndEvent;
+  streaming_abort: StreamingAbortEvent;
 }
 
 /**
@@ -164,6 +176,12 @@ export interface ServerToClientEvents {
   notification_new: NotificationNewEvent;
   notification_counts_updated: NotificationCountsUpdatedEvent;
   notification_read: NotificationReadEvent;
+  // Streaming (server -> client broadcast)
+  streaming_start: StreamingStartEvent;
+  streaming_content: StreamingContentEvent;
+  streaming_thinking_content: StreamingThinkingContentEvent;
+  streaming_end: StreamingEndEvent;
+  streaming_abort: StreamingAbortEvent;
 }
 
 /**

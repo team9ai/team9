@@ -8,6 +8,7 @@ import {
 } from "lexical";
 import { $isListNode, $isListItemNode } from "@lexical/list";
 import { $isCodeNode, $isCodeHighlightNode } from "@lexical/code";
+import { $isQuoteNode } from "@lexical/rich-text";
 import { $isMentionNode } from "../nodes/MentionNode";
 
 /**
@@ -160,6 +161,14 @@ function processNodeToHtml(node: LexicalNode): string {
       .map((child) => processNodeToHtml(child))
       .join("");
     return `<li>${childrenHtml}</li>`;
+  }
+
+  if ($isQuoteNode(node)) {
+    const children = node.getChildren();
+    const childrenHtml = children
+      .map((child) => processNodeToHtml(child))
+      .join("");
+    return `<blockquote>${childrenHtml}</blockquote>`;
   }
 
   if ($isParagraphNode(node)) {
