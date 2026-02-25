@@ -9,6 +9,7 @@ import {
   Plus,
   FolderPlus,
   Folder,
+  Trash2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -25,7 +26,11 @@ import {
 import React, { useState, useEffect, useMemo } from "react";
 import { useChannelsByType, usePublicChannels } from "@/hooks/useChannels";
 import { useOnlineUsers } from "@/hooks/useIMUsers";
-import { useSections, useMoveChannel } from "@/hooks/useSections";
+import {
+  useSections,
+  useMoveChannel,
+  useDeleteSection,
+} from "@/hooks/useSections";
 import {
   useCurrentWorkspaceRole,
   useUserWorkspaces,
@@ -215,6 +220,7 @@ export function HomeSubSidebar() {
       alert(tNav("insufficientPermissions"));
     }
   });
+  const deleteSection = useDeleteSection();
   const params = useParams({ strict: false });
   const selectedChannelId = (params as { channelId?: string }).channelId;
 
@@ -419,7 +425,7 @@ export function HomeSubSidebar() {
                     variant="ghost"
                     onClick={() => toggleSectionExpanded(section.id)}
                     className={cn(
-                      "w-full justify-start gap-1 px-2 h-auto py-1.5 text-sm hover:text-nav-foreground hover:bg-nav-hover",
+                      "group/section w-full justify-start gap-1 px-2 h-auto py-1.5 text-sm hover:text-nav-foreground hover:bg-nav-hover",
                       isSectionEmpty
                         ? "text-nav-foreground-dim"
                         : "text-nav-foreground-strong",
@@ -432,6 +438,26 @@ export function HomeSubSidebar() {
                     )}
                     <Folder size={14} />
                     <span className="truncate">{section.name}</span>
+                    {isOwnerOrAdmin && (
+                      <span
+                        role="button"
+                        className="ml-auto opacity-0 group-hover/section:opacity-100 transition-opacity text-nav-foreground-subtle hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (
+                            confirm(
+                              tNav("deleteSectionConfirm", {
+                                name: section.name,
+                              }),
+                            )
+                          ) {
+                            deleteSection.mutate(section.id);
+                          }
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </span>
+                    )}
                   </Button>
                   {isSectionExpanded && !isSectionEmpty && (
                     <div className="ml-2 mt-1 space-y-0.5">
