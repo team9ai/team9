@@ -12,6 +12,7 @@ import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { join } from 'path';
 import { AppController } from './app.controller.js';
+import { HealthController } from './health.controller.js';
 import { AppService } from './app.service.js';
 import {
   DatabaseModule,
@@ -69,7 +70,7 @@ import { SentryUserInterceptor } from './common/interceptors/sentry-user.interce
     SearchModule,
     DocumentsModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, HealthController],
   providers: [
     AppService,
     { provide: APP_FILTER, useClass: SentryGlobalFilter },
