@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type { Channel, ChannelWithUnread, ChannelMember } from "@/types/im";
+import wsService from "@/services/websocket";
+import type { UserOnlineEvent } from "@/types/ws-events";
 
 // Total bot startup time in seconds
 const BOT_STARTUP_DURATION = 150;
@@ -28,12 +30,14 @@ export function useBotStartupCountdown({
     return channel?.type === "direct" && otherUser?.userType === "bot";
   }, [channel?.type, otherUser?.userType]);
 
-  // Get bot's createdAt from channel members
-  const botCreatedAt = useMemo(() => {
+  // Get bot member info from channel members
+  const botMember = useMemo(() => {
     if (!isBotDm) return null;
-    const botMember = members.find((m) => m.user?.userType === "bot");
-    return botMember?.user?.createdAt ?? null;
+    return members.find((m) => m.user?.userType === "bot") ?? null;
   }, [isBotDm, members]);
+
+  const botUserId = botMember?.user?.id ?? null;
+  const botCreatedAt = botMember?.user?.createdAt ?? null;
 
   const getInitialRemaining = useCallback((): number => {
     if (!botCreatedAt) return 0;
@@ -98,6 +102,27 @@ export function useBotStartupCountdown({
       }
     };
   }, [phase]);
+
+  // Listen for bot coming online via WebSocket — dismiss overlay immediately
+  useEffect(() => {
+    if (!botUserId || phase !== "countdown") return;
+
+    const handleUserOnline = (event: UserOnlineEvent) => {
+      if (event.userId === botUserId) {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+        setRemainingSeconds(0);
+        setPhase("chatting");
+      }
+    };
+
+    wsService.onUserOnline(handleUserOnline);
+    return () => {
+      wsService.off("user_online", handleUserOnline);
+    };
+  }, [botUserId, phase]);
 
   const startChatting = useCallback(() => {
     if (phase === "ready") {

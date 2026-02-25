@@ -29,6 +29,11 @@ import {
   type AddReactionPayload,
   type PingPayload,
   type MessageAckPayload,
+  type StreamingStartEvent,
+  type StreamingContentEvent,
+  type StreamingThinkingContentEvent,
+  type StreamingEndEvent,
+  type StreamingAbortEvent,
 } from './events/events.constants.js';
 import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
 import { SocketWithUser } from '../shared/interfaces/socket-with-user.interface.js';
@@ -242,44 +247,40 @@ export class WebsocketGateway
         void client.join(`workspace:${workspaceId}`);
       }
 
-      // Broadcast user online to each workspace (skip for bots)
-      if (!isBot) {
-        for (const workspaceId of workspaceIds) {
-          this.server
-            .to(`workspace:${workspaceId}`)
-            .emit(WS_EVENTS.USER.ONLINE, {
-              userId: payload.sub,
-              username: payload.username,
-              workspaceId,
-            });
-        }
+      // Broadcast user online to each workspace
+      for (const workspaceId of workspaceIds) {
+        this.server.to(`workspace:${workspaceId}`).emit(WS_EVENTS.USER.ONLINE, {
+          userId: payload.sub,
+          username: payload.username,
+          workspaceId,
+        });
+      }
 
-        // Notify IM Worker service that user is online (for presence tracking)
-        if (this.gatewayMQService && this.clusterNodeService) {
-          try {
-            await this.gatewayMQService.publishUpstream({
-              gatewayId: this.clusterNodeService.getNodeId(),
-              userId: payload.sub,
-              socketId: client.id,
-              message: {
-                msgId: uuidv7(),
-                senderId: payload.sub,
-                type: 'presence',
-                targetType: 'user',
-                targetId: payload.sub,
-                payload: { event: 'online' },
-                timestamp: Date.now(),
-              },
-              receivedAt: Date.now(),
-            });
-            this.logger.debug(
-              `[WS] Notified IM Worker service of user ${payload.sub} online`,
-            );
-          } catch (error) {
-            this.logger.warn(
-              `[WS] Failed to notify IM Worker service of user online: ${error}`,
-            );
-          }
+      // Notify IM Worker service that user is online (skip for bots — no presence tracking)
+      if (!isBot && this.gatewayMQService && this.clusterNodeService) {
+        try {
+          await this.gatewayMQService.publishUpstream({
+            gatewayId: this.clusterNodeService.getNodeId(),
+            userId: payload.sub,
+            socketId: client.id,
+            message: {
+              msgId: uuidv7(),
+              senderId: payload.sub,
+              type: 'presence',
+              targetType: 'user',
+              targetId: payload.sub,
+              payload: { event: 'online' },
+              timestamp: Date.now(),
+            },
+            receivedAt: Date.now(),
+          });
+          this.logger.debug(
+            `[WS] Notified IM Worker service of user ${payload.sub} online`,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `[WS] Failed to notify IM Worker service of user online: ${error}`,
+          );
         }
       }
 
@@ -333,12 +334,33 @@ export class WebsocketGateway
         this.clusterNodeService.decrementConnections();
       }
 
-      // Bots: set offline but skip multi-device session checks and broadcast
       if (socketClient.isBot) {
         this.logger.log(
-          `[WS] Bot ${socketClient.userId} disconnected, setting offline`,
+          `[WS] Bot ${socketClient.userId} disconnected, cleaning up streams and setting offline`,
         );
+        // Abort any active streaming sessions for this bot
+        await this.cleanupBotStreams(socketClient.userId);
+
+        // Set bot offline and broadcast — bots are single-connection, always go offline on disconnect
         await this.usersService.setOffline(socketClient.userId);
+
+        const workspaceIds =
+          await this.workspaceService.getWorkspaceIdsByUserId(
+            socketClient.userId,
+          );
+
+        for (const workspaceId of workspaceIds) {
+          this.server
+            .to(`workspace:${workspaceId}`)
+            .emit(WS_EVENTS.USER.OFFLINE, {
+              userId: socketClient.userId,
+              workspaceId,
+            });
+        }
+
+        this.logger.log(
+          `[WS] Bot ${socketClient.userId} is now offline, broadcasted to ${workspaceIds.length} workspaces`,
+        );
       } else {
         // Check if user has other active device sessions (new architecture)
         let hasActiveSessions = false;
@@ -806,5 +828,227 @@ export class WebsocketGateway
     });
 
     return { success: true };
+  }
+
+  // ==================== AI Streaming (Bot Only) ====================
+
+  @SubscribeMessage(WS_EVENTS.STREAMING.START)
+  async handleStreamingStart(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: StreamingStartEvent,
+  ) {
+    const socketClient = client as SocketWithUser;
+
+    if (!socketClient.isBot) {
+      return { error: 'Only bot users can stream messages' };
+    }
+
+    const isMember = await this.channelsService.isMember(
+      data.channelId,
+      socketClient.userId,
+    );
+    if (!isMember) {
+      return { error: 'Not a member of this channel' };
+    }
+
+    // Store streaming session in Redis with TTL for auto-cleanup
+    const STREAM_TTL = 120;
+    await this.redisService.set(
+      REDIS_KEYS.STREAMING_SESSION(data.streamId),
+      JSON.stringify({
+        channelId: data.channelId,
+        senderId: socketClient.userId,
+        startedAt: Date.now(),
+      }),
+      STREAM_TTL,
+    );
+
+    // Track active streams for this bot (for disconnect cleanup)
+    await this.redisService.sadd(
+      REDIS_KEYS.BOT_ACTIVE_STREAMS(socketClient.userId),
+      data.streamId,
+    );
+    await this.redisService.expire(
+      REDIS_KEYS.BOT_ACTIVE_STREAMS(socketClient.userId),
+      STREAM_TTL,
+    );
+
+    const event: StreamingStartEvent = {
+      ...data,
+      senderId: socketClient.userId,
+      startedAt: Date.now(),
+    };
+
+    this.server
+      .to(`channel:${data.channelId}`)
+      .emit(WS_EVENTS.STREAMING.START, event);
+
+    return { success: true };
+  }
+
+  @SubscribeMessage(WS_EVENTS.STREAMING.CONTENT)
+  async handleStreamingDelta(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: StreamingContentEvent,
+  ) {
+    const socketClient = client as SocketWithUser;
+    if (!socketClient.isBot) {
+      return { error: 'Only bot users can stream messages' };
+    }
+
+    // Refresh TTL on streaming session
+    await this.redisService.expire(
+      REDIS_KEYS.STREAMING_SESSION(data.streamId),
+      120,
+    );
+
+    this.server
+      .to(`channel:${data.channelId}`)
+      .emit(WS_EVENTS.STREAMING.CONTENT, {
+        ...data,
+        senderId: socketClient.userId,
+      });
+
+    return { success: true };
+  }
+
+  @SubscribeMessage(WS_EVENTS.STREAMING.THINKING_CONTENT)
+  async handleStreamingThinkingDelta(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: StreamingThinkingContentEvent,
+  ) {
+    const socketClient = client as SocketWithUser;
+    if (!socketClient.isBot) {
+      return { error: 'Only bot users can stream messages' };
+    }
+
+    await this.redisService.expire(
+      REDIS_KEYS.STREAMING_SESSION(data.streamId),
+      120,
+    );
+
+    this.server
+      .to(`channel:${data.channelId}`)
+      .emit(WS_EVENTS.STREAMING.THINKING_CONTENT, {
+        ...data,
+        senderId: socketClient.userId,
+      });
+
+    return { success: true };
+  }
+
+  @SubscribeMessage(WS_EVENTS.STREAMING.END)
+  async handleStreamingEnd(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: StreamingEndEvent,
+  ) {
+    const socketClient = client as SocketWithUser;
+    if (!socketClient.isBot) {
+      return { error: 'Only bot users can stream messages' };
+    }
+
+    // Clean up Redis state
+    await this.redisService.del(REDIS_KEYS.STREAMING_SESSION(data.streamId));
+    await this.redisService.srem(
+      REDIS_KEYS.BOT_ACTIVE_STREAMS(socketClient.userId),
+      data.streamId,
+    );
+
+    const endEvent: StreamingEndEvent = {
+      ...data,
+      senderId: socketClient.userId,
+    };
+
+    // Broadcast streaming end to channel
+    this.server
+      .to(`channel:${data.channelId}`)
+      .emit(WS_EVENTS.STREAMING.END, endEvent);
+
+    // Also broadcast as new_message for clients that missed the stream
+    // or joined mid-stream. The message was already persisted via HTTP API.
+    if (data.message) {
+      this.server
+        .to(`channel:${data.channelId}`)
+        .emit(WS_EVENTS.MESSAGE.NEW, data.message);
+    }
+
+    return { success: true };
+  }
+
+  @SubscribeMessage(WS_EVENTS.STREAMING.ABORT)
+  async handleStreamingAbort(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: StreamingAbortEvent,
+  ) {
+    const socketClient = client as SocketWithUser;
+    if (!socketClient.isBot) {
+      return { error: 'Only bot users can stream messages' };
+    }
+
+    await this.redisService.del(REDIS_KEYS.STREAMING_SESSION(data.streamId));
+    await this.redisService.srem(
+      REDIS_KEYS.BOT_ACTIVE_STREAMS(socketClient.userId),
+      data.streamId,
+    );
+
+    this.server
+      .to(`channel:${data.channelId}`)
+      .emit(WS_EVENTS.STREAMING.ABORT, {
+        ...data,
+        senderId: socketClient.userId,
+      });
+
+    return { success: true };
+  }
+
+  // ==================== Streaming Cleanup ====================
+
+  /**
+   * Clean up active streaming sessions when a bot disconnects.
+   * Broadcasts streaming_abort for each active stream.
+   */
+  private async cleanupBotStreams(botUserId: string): Promise<void> {
+    try {
+      const activeStreamIds = await this.redisService.smembers(
+        REDIS_KEYS.BOT_ACTIVE_STREAMS(botUserId),
+      );
+
+      if (activeStreamIds.length === 0) return;
+
+      this.logger.log(
+        `[WS] Cleaning up ${activeStreamIds.length} active streams for bot ${botUserId}`,
+      );
+
+      for (const streamId of activeStreamIds) {
+        // Get stream session data to find channelId
+        const sessionData = await this.redisService.get(
+          REDIS_KEYS.STREAMING_SESSION(streamId),
+        );
+
+        if (sessionData) {
+          const session = JSON.parse(sessionData);
+          // Broadcast abort to channel
+          this.server
+            .to(`channel:${session.channelId}`)
+            .emit(WS_EVENTS.STREAMING.ABORT, {
+              streamId,
+              channelId: session.channelId,
+              senderId: botUserId,
+              reason: 'disconnect' as const,
+            });
+
+          // Clean up Redis
+          await this.redisService.del(REDIS_KEYS.STREAMING_SESSION(streamId));
+        }
+      }
+
+      // Clean up the bot's active streams set
+      await this.redisService.del(REDIS_KEYS.BOT_ACTIVE_STREAMS(botUserId));
+    } catch (error) {
+      this.logger.error(
+        `[WS] Failed to cleanup bot streams for ${botUserId}:`,
+        error,
+      );
+    }
   }
 }

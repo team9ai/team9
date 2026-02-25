@@ -1,4 +1,5 @@
 import { useRef, useCallback, useEffect } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { X, MessageSquare, Loader2, ArrowDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -10,8 +11,11 @@ import {
   type ThreadLevel,
 } from "@/hooks/useThread";
 import { useCurrentUser } from "@/hooks/useAuth";
+import { useChannelMembers } from "@/hooks/useChannels";
+import { useStreamingStore } from "@/stores/useStreamingStore";
 import { MessageItem } from "./MessageItem";
 import { MessageInput } from "./MessageInput";
+import { StreamingMessageItem } from "./StreamingMessageItem";
 import type { ThreadReply, AttachmentDto } from "@/types/im";
 
 interface ThreadPanelProps {
@@ -206,6 +210,12 @@ export function ThreadPanel({
                   />
                 ))}
 
+                {/* Streaming messages for this thread */}
+                <ThreadStreamingMessages
+                  channelId={threadData.rootMessage.channelId}
+                  rootMessageId={rootMessageId}
+                />
+
                 {/* Loading indicator for infinite scroll */}
                 {isFetchingNextPage && (
                   <div className="flex justify-center items-center py-3 gap-2 text-muted-foreground">
@@ -300,5 +310,37 @@ function ThreadReplyItem({
         onReplyInThread={handleReplyInThread}
       />
     </div>
+  );
+}
+
+// Show streaming messages within a thread
+function ThreadStreamingMessages({
+  channelId,
+  rootMessageId,
+}: {
+  channelId: string;
+  rootMessageId: string;
+}) {
+  const { data: members = [] } = useChannelMembers(channelId);
+  const threadStreams = useStreamingStore(
+    useShallow((state) =>
+      Array.from(state.streams.values()).filter(
+        (s) => s.channelId === channelId && s.parentId === rootMessageId,
+      ),
+    ),
+  );
+
+  if (threadStreams.length === 0) return null;
+
+  return (
+    <>
+      {threadStreams.map((stream) => (
+        <StreamingMessageItem
+          key={stream.streamId}
+          stream={stream}
+          members={members}
+        />
+      ))}
+    </>
   );
 }

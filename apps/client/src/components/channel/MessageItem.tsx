@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MessageContent } from "./MessageContent";
 import { MessageAttachments } from "./MessageAttachments";
 import { MessageContextMenu } from "./MessageContextMenu";
+import { ThinkingBlock } from "./ThinkingBlock";
 import { formatMessageTime } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/types/im";
@@ -183,6 +184,12 @@ export function MessageItem({
             </span>
           )}
         </div>
+        {(message.metadata as any)?.thinking && (
+          <ThinkingBlock
+            content={(message.metadata as any).thinking}
+            isStreaming={false}
+          />
+        )}
         {hasContent && (
           <div className="w-fit max-w-full">
             <MessageContent

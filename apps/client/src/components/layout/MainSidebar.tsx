@@ -12,6 +12,7 @@ import {
   Globe,
   Plus,
   Bot,
+  Library,
   LayoutGrid,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -58,6 +59,7 @@ const navigationItems = [
   { id: "activity", labelKey: "activity" as const, icon: Bell },
   // { id: "files", labelKey: "files" as const, icon: FileText },
   { id: "aiStaff", labelKey: "aiStaff" as const, icon: Bot },
+  { id: "library", labelKey: "library" as const, icon: Library },
   { id: "application", labelKey: "application" as const, icon: LayoutGrid },
   { id: "more", labelKey: "more" as const, icon: MoreHorizontal },
 ];
@@ -231,6 +233,7 @@ export function MainSidebar() {
         "activity",
         "files",
         "aiStaff",
+        "library",
         "application",
         "more",
       ];

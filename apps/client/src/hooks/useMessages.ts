@@ -12,8 +12,16 @@ import type {
   Message,
   MessageSendStatus,
 } from "@/types/im";
+import type {
+  StreamingStartEvent,
+  StreamingContentEvent,
+  StreamingThinkingContentEvent,
+  StreamingEndEvent,
+  StreamingAbortEvent,
+} from "@/types/ws-events";
 import { useSelectedWorkspaceId } from "@/stores";
 import { useAppStore } from "@/stores/useAppStore";
+import { useStreamingStore } from "@/stores/useStreamingStore";
 import { isTemporaryId } from "@/lib/utils";
 import { useThreadStore } from "./useThread";
 import { useThreadScrollState } from "./useThreadScrollState";
@@ -267,14 +275,101 @@ export function useMessages(channelId: string | undefined) {
       });
     };
 
+    // Streaming event handlers
+    const handleStreamingStart = (event: StreamingStartEvent) => {
+      if (event.channelId !== channelId) return;
+      useStreamingStore.getState().startStream(event);
+    };
+
+    // Auto-create stream if a delta arrives before streaming_start (race condition).
+    const ensureStream = (event: {
+      streamId: string;
+      channelId: string;
+      senderId: string;
+    }) => {
+      if (!useStreamingStore.getState().streams.has(event.streamId)) {
+        useStreamingStore.getState().startStream({
+          streamId: event.streamId,
+          channelId: event.channelId,
+          senderId: event.senderId,
+          startedAt: Date.now(),
+        });
+      }
+    };
+
+    const handleStreamingDelta = (event: StreamingContentEvent) => {
+      if (event.channelId !== channelId) return;
+      ensureStream(event);
+      useStreamingStore
+        .getState()
+        .setStreamContent(event.streamId, event.content);
+    };
+
+    const handleStreamingThinkingDelta = (
+      event: StreamingThinkingContentEvent,
+    ) => {
+      if (event.channelId !== channelId) return;
+      ensureStream(event);
+      useStreamingStore
+        .getState()
+        .setThinkingContent(event.streamId, event.content);
+    };
+
+    const handleStreamingEnd = (event: StreamingEndEvent) => {
+      if (event.channelId !== channelId) return;
+      useStreamingStore.getState().endStream(event.streamId);
+
+      // Proactively insert the final message into cache as a safety net,
+      // in case the subsequent new_message broadcast is lost.
+      if (event.message) {
+        const msg = event.message as Message;
+        if (!msg.parentId) {
+          // Main channel message - insert into messages cache
+          queryClient.setQueryData(["messages", channelId], (old: any) => {
+            if (!old) return { pages: [[msg]], pageParams: [undefined] };
+            const exists = old.pages.some((page: Message[]) =>
+              page.some((m) => m.id === msg.id),
+            );
+            if (exists) return old;
+            return {
+              ...old,
+              pages: [[msg, ...old.pages[0]], ...old.pages.slice(1)],
+            };
+          });
+        } else {
+          // Thread reply - invalidate thread query so it's fresh when viewed
+          const rootId = msg.rootId || msg.parentId;
+          queryClient.invalidateQueries({
+            queryKey: ["thread", rootId],
+            refetchType: "all",
+          });
+        }
+      }
+    };
+
+    const handleStreamingAbort = (event: StreamingAbortEvent) => {
+      if (event.channelId !== channelId) return;
+      useStreamingStore.getState().abortStream(event.streamId);
+    };
+
     wsService.onNewMessage(handleNewMessage);
     wsService.onMessageUpdated(handleMessageUpdated);
     wsService.onMessageDeleted(handleMessageDeleted);
+    wsService.onStreamingStart(handleStreamingStart);
+    wsService.onStreamingContent(handleStreamingDelta);
+    wsService.onStreamingThinkingContent(handleStreamingThinkingDelta);
+    wsService.onStreamingEnd(handleStreamingEnd);
+    wsService.onStreamingAbort(handleStreamingAbort);
 
     return () => {
       wsService.off("new_message", handleNewMessage);
       wsService.off("message_updated", handleMessageUpdated);
       wsService.off("message_deleted", handleMessageDeleted);
+      wsService.off("streaming_start", handleStreamingStart);
+      wsService.off("streaming_content", handleStreamingDelta);
+      wsService.off("streaming_thinking_content", handleStreamingThinkingDelta);
+      wsService.off("streaming_end", handleStreamingEnd);
+      wsService.off("streaming_abort", handleStreamingAbort);
     };
   }, [channelId, queryClient]);
 

@@ -185,6 +185,7 @@ import workspaceApi from "./workspace";
 import notificationApi from "./notification";
 import searchApi from "./search";
 import applicationsApi from "./applications";
+import documentsApi from "./documents";
 
 export const api = {
   auth: authApi,
@@ -194,6 +195,7 @@ export const api = {
   notification: notificationApi,
   search: searchApi,
   applications: applicationsApi,
+  documents: documentsApi,
 };
 
 export default api;

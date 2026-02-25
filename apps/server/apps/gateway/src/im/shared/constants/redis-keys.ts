@@ -63,4 +63,12 @@ export const REDIS_KEYS = {
 
   // User sync positions - Hash: channelId -> lastSyncSeqId
   USER_SYNC_POSITIONS: (userId: string) => `im:sync:user:${userId}`,
+
+  // ============ AI Streaming ============
+
+  // Active streaming session (TTL 120s, auto-cleanup)
+  STREAMING_SESSION: (streamId: string) => `im:streaming:${streamId}`,
+
+  // Bot's active stream IDs - Set: streamIds for cleanup on disconnect
+  BOT_ACTIVE_STREAMS: (userId: string) => `im:streaming:bot:${userId}`,
 };

@@ -63,6 +63,7 @@ export interface MessageResponse {
   attachments: MessageAttachmentResponse[];
   reactions: MessageReactionResponse[];
   replyCount: number;
+  metadata?: Record<string, unknown> | null;
 }
 
 // Thread response types for nested replies (max 2 levels)
@@ -175,6 +176,7 @@ export class MessagesService {
       attachments,
       reactions,
       replyCount: Number(replyCount),
+      metadata: message.metadata as Record<string, unknown> | null,
     };
   }
 
@@ -298,6 +300,7 @@ export class MessagesService {
         attachments: attachmentsMap.get(message.id) || [],
         reactions: reactionsMap.get(message.id) || [],
         replyCount: replyCountsMap.get(message.id) || 0,
+        metadata: message.metadata as Record<string, unknown> | null,
       });
     });
 

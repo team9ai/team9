@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useTranslation } from "react-i18next";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2 } from "lucide-react";
@@ -11,7 +12,9 @@ import {
   useRetryMessage,
   useRemoveFailedMessage,
 } from "@/hooks/useMessages";
+import { useStreamingStore } from "@/stores/useStreamingStore";
 import { MessageItem } from "./MessageItem";
+import { StreamingMessageItem } from "./StreamingMessageItem";
 import { BotThinkingIndicator } from "./BotThinkingIndicator";
 
 interface MessageListProps {
@@ -200,9 +203,10 @@ export function MessageList({
             />
           );
         })}
-        <BotThinkingIndicator
-          thinkingBotIds={thinkingBotIds}
+        <StreamingMessages
+          channelId={channelId}
           members={members}
+          thinkingBotIds={thinkingBotIds}
         />
         <div ref={messagesEndRef} />
       </div>
@@ -287,6 +291,43 @@ function ChannelMessageItem({
       onRetry={handleRetry}
       onRemoveFailed={handleRemoveFailed}
     />
+  );
+}
+
+// Show streaming messages or fall back to bot thinking indicator
+function StreamingMessages({
+  channelId,
+  members,
+  thinkingBotIds,
+}: {
+  channelId: string;
+  members: ChannelMember[];
+  thinkingBotIds: string[];
+}) {
+  const channelStreams = useStreamingStore(
+    useShallow((state) =>
+      Array.from(state.streams.values()).filter(
+        (s) => s.channelId === channelId && !s.parentId,
+      ),
+    ),
+  );
+
+  if (channelStreams.length > 0) {
+    return (
+      <>
+        {channelStreams.map((stream) => (
+          <StreamingMessageItem
+            key={stream.streamId}
+            stream={stream}
+            members={members}
+          />
+        ))}
+      </>
+    );
+  }
+
+  return (
+    <BotThinkingIndicator thinkingBotIds={thinkingBotIds} members={members} />
   );
 }
 
