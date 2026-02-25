@@ -33,6 +33,8 @@
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/platform-socket.io": "^11.1.10",
     "@nestjs/websockets": "^11.1.10",
+    "@sentry/nestjs": "^10.40.0",
+    "@sentry/profiling-node": "^10.40.0",
     "@socket.io/redis-adapter": "^8.3.0",
     "@team9/ai-client": "workspace:*",
     "@team9/auth": "workspace:*",
