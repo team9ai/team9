@@ -51,6 +51,8 @@
   "creating": "创建中...",
   "moveToSection": "移动到分区",
   "noSection": "无分区",
+  "deleteSection": "删除分区",
+  "deleteSectionConfirm": "确定要删除「{{name}}」吗？该分区中的频道将移回频道列表。",
   "insufficientPermissions": "权限不足，只有工作空间的所有者和管理员可以管理分区",
   "weeklyRoadmap": "本周的开发路线图",
   "roadmapCreateAIStaff": "创建你自己的 AI 员工",
