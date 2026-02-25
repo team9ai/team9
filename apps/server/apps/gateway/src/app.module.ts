@@ -5,6 +5,9 @@ import {
   MiddlewareConsumer,
   Logger,
 } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
+import { SentryModule } from '@sentry/nestjs/setup';
+import { SentryGlobalFilter } from '@sentry/nestjs/setup';
 import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { join } from 'path';
@@ -35,6 +38,7 @@ import { DocumentsModule } from './documents/documents.module.js';
 
 @Module({
   imports: [
+    SentryModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: [
@@ -65,7 +69,10 @@ import { DocumentsModule } from './documents/documents.module.js';
     DocumentsModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    { provide: APP_FILTER, useClass: SentryGlobalFilter },
+  ],
 })
 export class AppModule implements OnModuleInit, NestModule {
   private readonly logger = new Logger(AppModule.name);

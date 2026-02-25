@@ -1,4 +1,5 @@
 import './load-env.js'; // Load environment variables first
+import './instrument.js'; // Initialize Sentry before any other imports
 import { NestFactory } from '@nestjs/core';
 import { VersioningType, Logger } from '@nestjs/common';
 import { AppModule } from './app.module.js';
