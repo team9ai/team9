@@ -33,8 +33,7 @@ async function bootstrap() {
   }
 
   const port = Number(process.env.GATEWAY_PORT) || 3000;
-  // Use [::] to listen on both IPv4 and IPv6 (Railway uses IPv6 internal network)
-  await app.listen(port, '::');
+  await app.listen(port, '0.0.0.0');
   logger.log(`Application is running on port ${port}`);
 }
 void bootstrap();
