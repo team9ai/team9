@@ -807,21 +807,106 @@ export function useDeleteMessage() {
 }
 
 /**
- * Hook to add a reaction
+ * Hook to add a reaction with optimistic update
  */
-export function useAddReaction() {
+export function useAddReaction(channelId?: string) {
+  const queryClient = useQueryClient();
+  const currentUser = useAppStore.getState().user;
+
   return useMutation({
     mutationFn: ({ messageId, emoji }: { messageId: string; emoji: string }) =>
       imApi.messages.addReaction(messageId, { emoji }),
+
+    onMutate: async ({ messageId, emoji }) => {
+      if (!channelId || !currentUser) return;
+      await queryClient.cancelQueries({ queryKey: ["messages", channelId] });
+      const previous = queryClient.getQueryData(["messages", channelId]);
+
+      queryClient.setQueryData(["messages", channelId], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page: Message[]) =>
+            page.map((msg) => {
+              if (msg.id !== messageId) return msg;
+              const existing = msg.reactions || [];
+              if (
+                existing.some(
+                  (r) => r.userId === currentUser.id && r.emoji === emoji,
+                )
+              )
+                return msg;
+              return {
+                ...msg,
+                reactions: [
+                  ...existing,
+                  {
+                    id: `optimistic-${currentUser.id}-${emoji}`,
+                    messageId,
+                    userId: currentUser.id,
+                    emoji,
+                    createdAt: new Date().toISOString(),
+                  },
+                ],
+              };
+            }),
+          ),
+        };
+      });
+
+      return { previous };
+    },
+
+    onError: (_err, _vars, context) => {
+      if (context?.previous && channelId) {
+        queryClient.setQueryData(["messages", channelId], context.previous);
+      }
+    },
   });
 }
 
 /**
- * Hook to remove a reaction
+ * Hook to remove a reaction with optimistic update
  */
-export function useRemoveReaction() {
+export function useRemoveReaction(channelId?: string) {
+  const queryClient = useQueryClient();
+  const currentUser = useAppStore.getState().user;
+
   return useMutation({
     mutationFn: ({ messageId, emoji }: { messageId: string; emoji: string }) =>
       imApi.messages.removeReaction(messageId, emoji),
+
+    onMutate: async ({ messageId, emoji }) => {
+      if (!channelId || !currentUser) return;
+      await queryClient.cancelQueries({ queryKey: ["messages", channelId] });
+      const previous = queryClient.getQueryData(["messages", channelId]);
+
+      queryClient.setQueryData(["messages", channelId], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page: Message[]) =>
+            page.map((msg) => {
+              if (msg.id !== messageId) return msg;
+              return {
+                ...msg,
+                reactions: (msg.reactions || []).filter(
+                  (r: any) =>
+                    !(r.userId === currentUser.id && r.emoji === emoji),
+                ),
+              };
+            }),
+          ),
+        };
+      });
+
+      return { previous };
+    },
+
+    onError: (_err, _vars, context) => {
+      if (context?.previous && channelId) {
+        queryClient.setQueryData(["messages", channelId], context.previous);
+      }
+    },
   });
 }

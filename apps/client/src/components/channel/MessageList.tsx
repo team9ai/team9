@@ -238,8 +238,8 @@ function ChannelMessageItem({
   const deleteMessage = useDeleteMessage();
   const retryMessage = useRetryMessage(channelId);
   const removeFailedMessage = useRemoveFailedMessage(channelId);
-  const addReaction = useAddReaction();
-  const removeReaction = useRemoveReaction();
+  const addReaction = useAddReaction(channelId);
+  const removeReaction = useRemoveReaction(channelId);
 
   // Context menu handlers
   const handleReply = () => {

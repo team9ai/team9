@@ -144,6 +144,18 @@ export function MessageItem({
   const showToolbar = isHovered && !isSending && !isFailed && !isRootMessage;
   const hasReactions = message.reactions && message.reactions.length > 0;
 
+  // Toggle reaction: remove if already reacted, add if not
+  const handleReactionToggle = (emoji: string) => {
+    const hasReacted = message.reactions?.some(
+      (r) => r.userId === currentUserId && r.emoji === emoji,
+    );
+    if (hasReacted) {
+      onRemoveReaction?.(emoji);
+    } else {
+      onAddReaction?.(emoji);
+    }
+  };
+
   const content = (
     <div
       id={`message-${message.id}`}
@@ -161,7 +173,7 @@ export function MessageItem({
     >
       {showToolbar && onAddReaction && (
         <MessageHoverToolbar
-          onReaction={onAddReaction}
+          onReaction={handleReactionToggle}
           onReplyInThread={onReplyInThread}
         />
       )}
