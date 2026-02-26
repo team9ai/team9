@@ -124,20 +124,28 @@ export function MessageItem({
     const replyCount = message.replyCount || 0;
     if (replyCount === 0) return null;
 
+    const hasUnread = unreadSubReplyCount != null && unreadSubReplyCount > 0;
+
     return (
-      <button
-        onClick={onReplyCountClick}
-        className="flex items-center gap-1 text-xs text-info hover:text-info mt-1"
-      >
-        <MessageSquare size={14} />
-        <span>{t("repliesCount", { count: replyCount })}</span>
-        {/* Unread sub-reply badge */}
-        {unreadSubReplyCount != null && unreadSubReplyCount > 0 && (
-          <span className="ml-1 px-1.5 py-0.5 bg-destructive text-primary-foreground text-[10px] font-medium rounded-full min-w-4.5 text-center">
-            {unreadSubReplyCount > 99 ? "99+" : unreadSubReplyCount}
-          </span>
-        )}
-      </button>
+      <div className="flex items-center gap-1 mt-1">
+        <button
+          onClick={onReplyCountClick}
+          className={cn(
+            "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs border transition-colors",
+            hasUnread
+              ? "bg-info/10 border-info/40 text-info hover:bg-info/20"
+              : "bg-muted/50 border-border text-info hover:bg-muted",
+          )}
+        >
+          <MessageSquare size={12} />
+          <span>{t("repliesCount", { count: replyCount })}</span>
+          {hasUnread && (
+            <span className="px-1 py-px bg-info text-primary-foreground text-[10px] font-medium rounded-full min-w-3.5 text-center leading-tight">
+              {unreadSubReplyCount! > 99 ? "99+" : unreadSubReplyCount}
+            </span>
+          )}
+        </button>
+      </div>
     );
   };
 

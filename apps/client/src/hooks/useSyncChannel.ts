@@ -66,10 +66,15 @@ export function useSyncChannel(channelId: string | undefined) {
 
     if (syncedMessages.length === 0) return;
 
-    // Convert synced messages to Message format
-    const convertedMessages = syncedMessages.map(syncItemToMessage);
+    // Convert synced messages to Message format, filtering out thread replies
+    // (messages with parentId) since they belong in thread caches, not the main list
+    const convertedMessages = syncedMessages
+      .filter((item) => !item.parentId)
+      .map(syncItemToMessage);
 
-    // Merge into the messages query cache
+    if (convertedMessages.length === 0) return;
+
+    // Merge into the messages query cache (only root messages)
     queryClient.setQueryData(["messages", channelId], (old: any) => {
       if (!old) {
         // No existing data, create new structure
