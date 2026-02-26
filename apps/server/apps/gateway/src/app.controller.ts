@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { Observable, from, catchError, of, switchMap } from 'rxjs';
 import { v7 as uuidv7 } from 'uuid';
+import * as Sentry from '@sentry/nestjs';
 import { AppService } from './app.service.js';
 import { RedisService } from '@team9/redis';
 import { AiClientService } from '@team9/ai-client';
@@ -43,6 +44,14 @@ export class AppController {
       status: 'ok',
       timestamp: new Date().toISOString(),
     };
+  }
+
+  @Get('debug-sentry')
+  debugSentry(): string {
+    const eventId = Sentry.captureException(
+      new Error('Sentry debug test from gateway'),
+    );
+    return `Sentry test event sent: ${eventId}`;
   }
 
   @Post('ai/chat')
