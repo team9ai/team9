@@ -14,7 +14,7 @@ import {
 import { EmojiPicker } from "./editor/EmojiPicker";
 import { cn } from "@/lib/utils";
 
-const QUICK_EMOJIS = ["👀", "👍", "🙌", "🎉"];
+const QUICK_EMOJIS = ["👀", "👍", "🙌", "✅"];
 
 interface MessageHoverToolbarProps {
   onReaction: (emoji: string) => void;
