@@ -8,6 +8,8 @@ import {
   Logger,
   NotFoundException,
   MessageEvent,
+  Version,
+  VERSION_NEUTRAL,
 } from '@nestjs/common';
 import { Observable, from, catchError, of, switchMap } from 'rxjs';
 import { v7 as uuidv7 } from 'uuid';
@@ -32,6 +34,15 @@ export class AppController {
   @Get()
   getHello(): string {
     return this.appService.getHello();
+  }
+
+  @Version(VERSION_NEUTRAL)
+  @Get('health')
+  healthCheck(): { status: string; timestamp: string } {
+    return {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+    };
   }
 
   @Post('ai/chat')
