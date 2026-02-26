@@ -807,20 +807,26 @@ export function useDeleteMessage() {
 }
 
 /**
- * Hook to add a reaction with optimistic update
+ * Hook to add a reaction with optimistic update (via WebSocket for real-time broadcast)
  */
 export function useAddReaction(channelId?: string) {
   const queryClient = useQueryClient();
-  const currentUser = useAppStore.getState().user;
 
   return useMutation({
-    mutationFn: ({ messageId, emoji }: { messageId: string; emoji: string }) =>
-      imApi.messages.addReaction(messageId, { emoji }),
+    mutationFn: async ({
+      messageId,
+      emoji,
+    }: {
+      messageId: string;
+      emoji: string;
+    }) => {
+      wsService.addReaction({ messageId, emoji });
+    },
 
     onMutate: async ({ messageId, emoji }) => {
+      const currentUser = useAppStore.getState().user;
       if (!channelId || !currentUser) return;
       await queryClient.cancelQueries({ queryKey: ["messages", channelId] });
-      const previous = queryClient.getQueryData(["messages", channelId]);
 
       queryClient.setQueryData(["messages", channelId], (old: any) => {
         if (!old) return old;
@@ -853,33 +859,31 @@ export function useAddReaction(channelId?: string) {
           ),
         };
       });
-
-      return { previous };
-    },
-
-    onError: (_err, _vars, context) => {
-      if (context?.previous && channelId) {
-        queryClient.setQueryData(["messages", channelId], context.previous);
-      }
     },
   });
 }
 
 /**
- * Hook to remove a reaction with optimistic update
+ * Hook to remove a reaction with optimistic update (via WebSocket for real-time broadcast)
  */
 export function useRemoveReaction(channelId?: string) {
   const queryClient = useQueryClient();
-  const currentUser = useAppStore.getState().user;
 
   return useMutation({
-    mutationFn: ({ messageId, emoji }: { messageId: string; emoji: string }) =>
-      imApi.messages.removeReaction(messageId, emoji),
+    mutationFn: async ({
+      messageId,
+      emoji,
+    }: {
+      messageId: string;
+      emoji: string;
+    }) => {
+      wsService.removeReaction({ messageId, emoji });
+    },
 
     onMutate: async ({ messageId, emoji }) => {
+      const currentUser = useAppStore.getState().user;
       if (!channelId || !currentUser) return;
       await queryClient.cancelQueries({ queryKey: ["messages", channelId] });
-      const previous = queryClient.getQueryData(["messages", channelId]);
 
       queryClient.setQueryData(["messages", channelId], (old: any) => {
         if (!old) return old;
@@ -899,14 +903,6 @@ export function useRemoveReaction(channelId?: string) {
           ),
         };
       });
-
-      return { previous };
-    },
-
-    onError: (_err, _vars, context) => {
-      if (context?.previous && channelId) {
-        queryClient.setQueryData(["messages", channelId], context.previous);
-      }
     },
   });
 }
