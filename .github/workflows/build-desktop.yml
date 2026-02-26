@@ -1,17 +1,10 @@
 name: Build Desktop App
 
 on:
-  workflow_dispatch:
-    inputs:
-      platform:
-        description: "Target platform"
-        required: true
-        default: "both"
-        type: choice
-        options:
-          - both
-          - macos
-          - windows
+  push:
+    tags:
+      - "v*" # production: v0.0.1, v1.0.0
+      - "dev*" # testing: dev0.0.1, dev1.0.0
 
 env:
   RUST_BACKTRACE: 1
@@ -25,23 +18,29 @@ jobs:
           - platform: macos
             os: macos-latest
             build-script: build:client:mac
-            artifact-name: team9-macos-${{ github.sha }}
             artifact-path: apps/client/src-tauri/target/release/bundle/dmg/*.dmg
           - platform: windows
             os: windows-latest
             build-script: build:client:windows
-            artifact-name: team9-windows-${{ github.sha }}
             artifact-path: apps/client/src-tauri/target/release/bundle/nsis/*.exe
 
     runs-on: ${{ matrix.os }}
 
-    if: >-
-      inputs.platform == 'both' ||
-      inputs.platform == matrix.platform
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Determine environment
+        id: env
+        shell: bash
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          if [[ "$TAG" == v* ]]; then
+            echo "env_name=production" >> $GITHUB_OUTPUT
+          else
+            echo "env_name=development" >> $GITHUB_OUTPUT
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -74,7 +73,13 @@ jobs:
         run: pnpm install && pnpm -C apps/client install
 
       - name: Write .env.production
-        run: echo "VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}" > apps/client/.env.production
+        run: |
+          if [ "${{ steps.env.outputs.env_name }}" = "production" ]; then
+            echo "VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}" > apps/client/.env.production
+          else
+            echo "VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL_DEV }}" > apps/client/.env.production
+          fi
+        shell: bash
 
       - name: Build desktop app
         run: pnpm ${{ matrix.build-script }}
@@ -82,6 +87,6 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact-name }}
+          name: team9-${{ matrix.platform }}-${{ steps.env.outputs.tag }}
           path: ${{ matrix.artifact-path }}
           if-no-files-found: error
