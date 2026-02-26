@@ -10,6 +10,7 @@ import {
   UseGuards,
   Req,
   ParseIntPipe,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import type { DocumentIdentity } from '@team9/database/schemas';
@@ -48,13 +49,13 @@ export class DocumentsController {
   }
 
   @Get(':id')
-  async getById(@Param('id') id: string) {
+  async getById(@Param('id', ParseUUIDPipe) id: string) {
     return this.documentsService.getById(id);
   }
 
   @Put(':id')
   async update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateDocumentDto,
     @CurrentUser('sub') userId: string,
     @Req() req: any,
@@ -65,7 +66,7 @@ export class DocumentsController {
 
   @Patch(':id/privileges')
   async updatePrivileges(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdatePrivilegesDto,
     @CurrentUser('sub') userId: string,
     @Req() req: any,
@@ -76,13 +77,13 @@ export class DocumentsController {
   }
 
   @Get(':id/versions')
-  async getVersions(@Param('id') id: string) {
+  async getVersions(@Param('id', ParseUUIDPipe) id: string) {
     return this.documentsService.getVersions(id);
   }
 
   @Get(':id/versions/:versionIndex')
   async getVersion(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Param('versionIndex', ParseIntPipe) versionIndex: number,
   ) {
     return this.documentsService.getVersion(id, versionIndex);
@@ -90,7 +91,7 @@ export class DocumentsController {
 
   @Post(':id/suggestions')
   async submitSuggestion(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: SubmitSuggestionDto,
     @CurrentUser('sub') userId: string,
     @Req() req: any,
@@ -101,20 +102,23 @@ export class DocumentsController {
 
   @Get(':id/suggestions')
   async getSuggestions(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Query('status') status?: string,
   ) {
     return this.documentsService.getSuggestions(id, status);
   }
 
   @Get(':id/suggestions/:sugId')
-  async getSuggestionDetail(@Param('sugId') sugId: string) {
+  async getSuggestionDetail(
+    @Param('id', ParseUUIDPipe) _id: string,
+    @Param('sugId', ParseUUIDPipe) sugId: string,
+  ) {
     return this.documentsService.getSuggestionWithDiff(sugId);
   }
 
   @Post(':id/suggestions/:sugId/review')
   async reviewSuggestion(
-    @Param('sugId') sugId: string,
+    @Param('sugId', ParseUUIDPipe) sugId: string,
     @Body() dto: ReviewSuggestionDto,
     @CurrentUser('sub') userId: string,
     @Req() req: any,
