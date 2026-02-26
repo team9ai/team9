@@ -25,12 +25,12 @@ jobs:
           - platform: macos
             os: macos-latest
             build-script: build:client:mac
-            artifact-name: team9-macos
+            artifact-name: team9-macos-${{ github.sha }}
             artifact-path: apps/client/src-tauri/target/release/bundle/dmg/*.dmg
           - platform: windows
             os: windows-latest
             build-script: build:client:windows
-            artifact-name: team9-windows
+            artifact-name: team9-windows-${{ github.sha }}
             artifact-path: apps/client/src-tauri/target/release/bundle/nsis/*.exe
 
     runs-on: ${{ matrix.os }}
@@ -59,26 +59,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10.13.1
 
-      - name: Cache pnpm store
-        uses: actions/cache@v4
+      - name: Install Node.js
+        uses: actions/setup-node@v4
         with:
-          path: ~/.pnpm-store
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-
+          node-version: 22
+          cache: "pnpm"
 
       - name: Install dependencies
-        run: pnpm install:all
+        run: pnpm install && pnpm -C apps/client install
 
       - name: Write .env.production
         run: echo "VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}" > apps/client/.env.production
