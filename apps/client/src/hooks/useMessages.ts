@@ -18,6 +18,8 @@ import type {
   StreamingThinkingContentEvent,
   StreamingEndEvent,
   StreamingAbortEvent,
+  ReactionAddedEvent,
+  ReactionRemovedEvent,
 } from "@/types/ws-events";
 import { useSelectedWorkspaceId } from "@/stores";
 import { useAppStore } from "@/stores/useAppStore";
@@ -352,9 +354,67 @@ export function useMessages(channelId: string | undefined) {
       useStreamingStore.getState().abortStream(event.streamId);
     };
 
+    const handleReactionAdded = (event: ReactionAddedEvent) => {
+      queryClient.setQueryData(["messages", channelId], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page: Message[]) =>
+            page.map((msg) => {
+              if (msg.id !== event.messageId) return msg;
+              const existing = msg.reactions || [];
+              // Prevent duplicate
+              if (
+                existing.some(
+                  (r) => r.userId === event.userId && r.emoji === event.emoji,
+                )
+              )
+                return msg;
+              return {
+                ...msg,
+                reactions: [
+                  ...existing,
+                  {
+                    id: `${event.userId}-${event.emoji}`,
+                    messageId: event.messageId,
+                    userId: event.userId,
+                    emoji: event.emoji,
+                    createdAt: new Date().toISOString(),
+                  },
+                ],
+              };
+            }),
+          ),
+        };
+      });
+    };
+
+    const handleReactionRemoved = (event: ReactionRemovedEvent) => {
+      queryClient.setQueryData(["messages", channelId], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page: Message[]) =>
+            page.map((msg) => {
+              if (msg.id !== event.messageId) return msg;
+              return {
+                ...msg,
+                reactions: (msg.reactions || []).filter(
+                  (r: any) =>
+                    !(r.userId === event.userId && r.emoji === event.emoji),
+                ),
+              };
+            }),
+          ),
+        };
+      });
+    };
+
     wsService.onNewMessage(handleNewMessage);
     wsService.onMessageUpdated(handleMessageUpdated);
     wsService.onMessageDeleted(handleMessageDeleted);
+    wsService.onReactionAdded(handleReactionAdded);
+    wsService.onReactionRemoved(handleReactionRemoved);
     wsService.onStreamingStart(handleStreamingStart);
     wsService.onStreamingContent(handleStreamingDelta);
     wsService.onStreamingThinkingContent(handleStreamingThinkingDelta);
@@ -365,6 +425,8 @@ export function useMessages(channelId: string | undefined) {
       wsService.off("new_message", handleNewMessage);
       wsService.off("message_updated", handleMessageUpdated);
       wsService.off("message_deleted", handleMessageDeleted);
+      wsService.off("reaction_added", handleReactionAdded);
+      wsService.off("reaction_removed", handleReactionRemoved);
       wsService.off("streaming_start", handleStreamingStart);
       wsService.off("streaming_content", handleStreamingDelta);
       wsService.off("streaming_thinking_content", handleStreamingThinkingDelta);

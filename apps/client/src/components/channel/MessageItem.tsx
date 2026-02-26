@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   MessageSquare,
@@ -10,6 +11,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MessageContent } from "./MessageContent";
 import { MessageAttachments } from "./MessageAttachments";
 import { MessageContextMenu } from "./MessageContextMenu";
+import { MessageHoverToolbar } from "./MessageHoverToolbar";
+import { MessageReactions } from "./MessageReactions";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { formatMessageTime } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
@@ -42,6 +45,9 @@ export interface MessageItemProps {
   onRetry?: () => void;
   /** Remove a failed message from the list */
   onRemoveFailed?: () => void;
+  /** Reaction handlers */
+  onAddReaction?: (emoji: string) => void;
+  onRemoveReaction?: (emoji: string) => void;
 }
 
 export function MessageItem({
@@ -61,8 +67,11 @@ export function MessageItem({
   onPin,
   onRetry,
   onRemoveFailed,
+  onAddReaction,
+  onRemoveReaction,
 }: MessageItemProps) {
   const { t } = useTranslation(["thread", "message"]);
+  const [isHovered, setIsHovered] = useState(false);
   const isSystemMessage = message.type === "system";
   const isOwnMessage = currentUserId === message.senderId;
   const isSending = message.sendStatus === "sending";
@@ -132,11 +141,14 @@ export function MessageItem({
     );
   };
 
+  const showToolbar = isHovered && !isSending && !isFailed && !isRootMessage;
+  const hasReactions = message.reactions && message.reactions.length > 0;
+
   const content = (
     <div
       id={`message-${message.id}`}
       className={cn(
-        "flex hover:bg-muted/50 rounded transition-colors duration-300",
+        "relative flex hover:bg-muted/50 rounded transition-colors duration-300",
         compact ? "gap-2 py-2 px-1" : "gap-3 px-2 py-1",
         indent && "ml-6",
         isHighlighted &&
@@ -144,7 +156,15 @@ export function MessageItem({
         isSending && "opacity-70",
         isFailed && "bg-destructive/10 dark:bg-destructive/10",
       )}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
+      {showToolbar && onAddReaction && (
+        <MessageHoverToolbar
+          onReaction={onAddReaction}
+          onReplyInThread={onReplyInThread}
+        />
+      )}
       <Avatar className={cn("shrink-0", compact ? "w-8 h-8" : "w-9 h-9")}>
         {message.sender?.avatarUrl && (
           <AvatarImage src={message.sender.avatarUrl} alt={senderName} />
@@ -223,6 +243,14 @@ export function MessageItem({
           </div>
         )}
         <ReplyCountIndicator />
+        {hasReactions && onAddReaction && onRemoveReaction && (
+          <MessageReactions
+            reactions={message.reactions!}
+            currentUserId={currentUserId}
+            onAddReaction={onAddReaction}
+            onRemoveReaction={onRemoveReaction}
+          />
+        )}
       </div>
     </div>
   );

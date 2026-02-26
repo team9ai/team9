@@ -11,6 +11,8 @@ import {
   useDeleteMessage,
   useRetryMessage,
   useRemoveFailedMessage,
+  useAddReaction,
+  useRemoveReaction,
 } from "@/hooks/useMessages";
 import { useStreamingStore } from "@/stores/useStreamingStore";
 import { MessageItem } from "./MessageItem";
@@ -236,6 +238,8 @@ function ChannelMessageItem({
   const deleteMessage = useDeleteMessage();
   const retryMessage = useRetryMessage(channelId);
   const removeFailedMessage = useRemoveFailedMessage(channelId);
+  const addReaction = useAddReaction();
+  const removeReaction = useRemoveReaction();
 
   // Context menu handlers
   const handleReply = () => {
@@ -276,6 +280,14 @@ function ChannelMessageItem({
     removeFailedMessage(message.id);
   };
 
+  const handleAddReaction = (emoji: string) => {
+    addReaction.mutate({ messageId: message.id, emoji });
+  };
+
+  const handleRemoveReaction = (emoji: string) => {
+    removeReaction.mutate({ messageId: message.id, emoji });
+  };
+
   return (
     <MessageItem
       message={message}
@@ -290,6 +302,8 @@ function ChannelMessageItem({
       onPin={handlePin}
       onRetry={handleRetry}
       onRemoveFailed={handleRemoveFailed}
+      onAddReaction={handleAddReaction}
+      onRemoveReaction={handleRemoveReaction}
     />
   );
 }
