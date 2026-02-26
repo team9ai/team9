@@ -8,6 +8,8 @@ import {
   useThreadPanelForLevel,
   useSendThreadReply,
   useThreadStore,
+  useAddThreadReaction,
+  useRemoveThreadReaction,
   type ThreadLevel,
 } from "@/hooks/useThread";
 import { useCurrentUser } from "@/hooks/useAuth";
@@ -198,12 +200,14 @@ export function ThreadPanel({
           {/* Replies container with relative positioning for the indicator */}
           <div className="flex-1 min-h-0 relative">
             <ScrollArea ref={scrollAreaRef} className="h-full">
-              <div className="px-4 py-2 space-y-1">
+              <div className="px-4 py-4 space-y-1">
                 {threadData.replies.map((reply: ThreadReply) => (
                   <ThreadReplyItem
                     key={reply.id}
                     reply={reply}
                     currentUserId={currentUser?.id}
+                    rootMessageId={rootMessageId}
+                    level={level}
                     canOpenNestedThread={canOpenNestedThread}
                     onOpenNestedThread={openNestedThread}
                     isHighlighted={highlightMessageId === reply.id}
@@ -268,12 +272,16 @@ export function ThreadPanel({
 function ThreadReplyItem({
   reply,
   currentUserId,
+  rootMessageId,
+  level,
   canOpenNestedThread = false,
   onOpenNestedThread,
   isHighlighted = false,
 }: {
   reply: ThreadReply;
   currentUserId?: string;
+  rootMessageId: string;
+  level: ThreadLevel;
   canOpenNestedThread?: boolean;
   onOpenNestedThread?: (messageId: string) => void;
   isHighlighted?: boolean;
@@ -282,6 +290,9 @@ function ThreadReplyItem({
   const unreadCount = useThreadStore((state) =>
     state.getUnreadSubReplyCount(reply.id),
   );
+
+  const addReaction = useAddThreadReaction(rootMessageId, level);
+  const removeReaction = useRemoveThreadReaction(rootMessageId, level);
 
   // Handle opening this reply in a new thread panel
   const handleOpenInNewPanel = () => {
@@ -296,6 +307,14 @@ function ThreadReplyItem({
       ? () => onOpenNestedThread(reply.id)
       : undefined;
 
+  const handleAddReaction = (emoji: string) => {
+    addReaction.mutate({ messageId: reply.id, emoji });
+  };
+
+  const handleRemoveReaction = (emoji: string) => {
+    removeReaction.mutate({ messageId: reply.id, emoji });
+  };
+
   return (
     <div>
       {/* First-level reply using shared MessageItem */}
@@ -308,6 +327,8 @@ function ThreadReplyItem({
         unreadSubReplyCount={unreadCount}
         isHighlighted={isHighlighted}
         onReplyInThread={handleReplyInThread}
+        onAddReaction={handleAddReaction}
+        onRemoveReaction={handleRemoveReaction}
       />
     </div>
   );

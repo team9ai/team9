@@ -389,6 +389,7 @@ export function useMessages(channelId: string | undefined) {
     };
 
     const handleReactionAdded = (event: ReactionAddedEvent) => {
+      // Update main messages cache
       queryClient.setQueryData(["messages", channelId], (old: any) => {
         if (!old) return old;
         return {
@@ -421,9 +422,77 @@ export function useMessages(channelId: string | undefined) {
           ),
         };
       });
+
+      // Update open thread caches
+      const newReaction = {
+        id: `${event.userId}-${event.emoji}`,
+        messageId: event.messageId,
+        userId: event.userId,
+        emoji: event.emoji,
+        createdAt: new Date().toISOString(),
+      };
+      const threadState = useThreadStore.getState();
+      if (
+        threadState.primaryThread.isOpen &&
+        threadState.primaryThread.rootMessageId
+      ) {
+        const threadKey = ["thread", threadState.primaryThread.rootMessageId];
+        queryClient.setQueryData(threadKey, (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: any) => ({
+              ...page,
+              replies: page.replies.map((reply: any) => {
+                if (reply.id !== event.messageId) return reply;
+                const existing = reply.reactions || [];
+                if (
+                  existing.some(
+                    (r: any) =>
+                      r.userId === event.userId && r.emoji === event.emoji,
+                  )
+                )
+                  return reply;
+                return { ...reply, reactions: [...existing, newReaction] };
+              }),
+            })),
+          };
+        });
+      }
+      if (
+        threadState.secondaryThread.isOpen &&
+        threadState.secondaryThread.rootMessageId
+      ) {
+        const subKey = [
+          "subReplies",
+          threadState.secondaryThread.rootMessageId,
+        ];
+        queryClient.setQueryData(subKey, (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: any) => ({
+              ...page,
+              replies: page.replies.map((reply: any) => {
+                if (reply.id !== event.messageId) return reply;
+                const existing = reply.reactions || [];
+                if (
+                  existing.some(
+                    (r: any) =>
+                      r.userId === event.userId && r.emoji === event.emoji,
+                  )
+                )
+                  return reply;
+                return { ...reply, reactions: [...existing, newReaction] };
+              }),
+            })),
+          };
+        });
+      }
     };
 
     const handleReactionRemoved = (event: ReactionRemovedEvent) => {
+      // Update main messages cache
       queryClient.setQueryData(["messages", channelId], (old: any) => {
         if (!old) return old;
         return {
@@ -442,6 +511,60 @@ export function useMessages(channelId: string | undefined) {
           ),
         };
       });
+
+      // Update open thread caches
+      const filterReaction = (reactions: any[]) =>
+        reactions.filter(
+          (r: any) => !(r.userId === event.userId && r.emoji === event.emoji),
+        );
+      const threadState = useThreadStore.getState();
+      if (
+        threadState.primaryThread.isOpen &&
+        threadState.primaryThread.rootMessageId
+      ) {
+        const threadKey = ["thread", threadState.primaryThread.rootMessageId];
+        queryClient.setQueryData(threadKey, (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: any) => ({
+              ...page,
+              replies: page.replies.map((reply: any) => {
+                if (reply.id !== event.messageId) return reply;
+                return {
+                  ...reply,
+                  reactions: filterReaction(reply.reactions || []),
+                };
+              }),
+            })),
+          };
+        });
+      }
+      if (
+        threadState.secondaryThread.isOpen &&
+        threadState.secondaryThread.rootMessageId
+      ) {
+        const subKey = [
+          "subReplies",
+          threadState.secondaryThread.rootMessageId,
+        ];
+        queryClient.setQueryData(subKey, (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: any) => ({
+              ...page,
+              replies: page.replies.map((reply: any) => {
+                if (reply.id !== event.messageId) return reply;
+                return {
+                  ...reply,
+                  reactions: filterReaction(reply.reactions || []),
+                };
+              }),
+            })),
+          };
+        });
+      }
     };
 
     wsService.onNewMessage(handleNewMessage);
