@@ -16,10 +16,12 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SplitButton } from "@/components/ui/split-button";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -223,10 +225,27 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
     }
   };
 
+  const [stopDialogOpen, setStopDialogOpen] = useState(false);
+  const [restartDialogOpen, setRestartDialogOpen] = useState(false);
+
   const isLoading = appsLoading || botsLoading;
   const displayName =
     currentBot?.displayName || openClawApp?.name || "AI Staff";
   const isRunning = instanceStatus?.status === "running";
+
+  const restartDropdownItem = (
+    <DropdownMenuItem
+      disabled={anyPending}
+      onClick={() => setRestartDialogOpen(true)}
+    >
+      {restartMutation.isPending ? (
+        <Loader2 size={14} className="animate-spin" />
+      ) : (
+        <RotateCw size={14} />
+      )}
+      Restart
+    </DropdownMenuItem>
+  );
   const initials = displayName.slice(0, 2).toUpperCase();
 
   return (
@@ -520,133 +539,178 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
 
                 <TabsContent value="instance" className="mt-4">
                   <Card>
-                    <CardContent className="pt-6 space-y-4">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base">Instance</CardTitle>
+                        {!statusLoading && instanceStatus && (
+                          <>
+                            {isRunning ? (
+                              <SplitButton
+                                size="sm"
+                                variant="secondary"
+                                disabled={anyPending}
+                                onClick={() => setStopDialogOpen(true)}
+                                dropdownContent={restartDropdownItem}
+                              >
+                                {stopMutation.isPending ? (
+                                  <Loader2 size={14} className="animate-spin" />
+                                ) : (
+                                  <Square size={14} />
+                                )}
+                                Stop
+                              </SplitButton>
+                            ) : (
+                              <SplitButton
+                                size="sm"
+                                disabled={anyPending || isRunning}
+                                onClick={() => startMutation.mutate()}
+                                dropdownContent={restartDropdownItem}
+                              >
+                                {startMutation.isPending ? (
+                                  <Loader2 size={14} className="animate-spin" />
+                                ) : (
+                                  <Play size={14} />
+                                )}
+                                Start
+                              </SplitButton>
+                            )}
+
+                            <AlertDialog
+                              open={stopDialogOpen}
+                              onOpenChange={setStopDialogOpen}
+                            >
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>
+                                    Stop Instance
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to stop this instance?
+                                    All active connections will be terminated.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => stopMutation.mutate()}
+                                  >
+                                    Stop
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+
+                            <AlertDialog
+                              open={restartDialogOpen}
+                              onOpenChange={setRestartDialogOpen}
+                            >
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>
+                                    Restart Instance
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to restart this
+                                    instance? All active connections will be
+                                    temporarily interrupted.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => restartMutation.mutate()}
+                                  >
+                                    Restart
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
                       {statusLoading ? (
                         <div className="flex items-center justify-center py-4">
                           <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
                         </div>
                       ) : instanceStatus ? (
-                        <>
-                          <div className="space-y-3">
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-muted-foreground">
+                              Status
+                            </span>
+                            <Badge
+                              variant={statusBadgeVariant(
+                                instanceStatus.status,
+                              )}
+                            >
+                              {instanceStatus.status}
+                            </Badge>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-muted-foreground">
+                              Instance ID
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <code className="text-xs bg-muted px-2 py-0.5 rounded font-mono">
+                                {instanceStatus.instanceId}
+                              </code>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={handleCopyInstanceId}
+                              >
+                                {copiedId ? (
+                                  <Check size={12} />
+                                ) : (
+                                  <Copy size={12} />
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+
+                          {instanceStatus.accessUrl && (
                             <div className="flex items-center justify-between">
                               <span className="text-sm text-muted-foreground">
-                                Instance ID
+                                Access URL
                               </span>
-                              <div className="flex items-center gap-1.5">
-                                <code className="text-xs bg-muted px-2 py-0.5 rounded font-mono">
-                                  {instanceStatus.instanceId}
-                                </code>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6"
-                                  onClick={handleCopyInstanceId}
-                                >
-                                  {copiedId ? (
-                                    <Check size={12} />
-                                  ) : (
-                                    <Copy size={12} />
-                                  )}
-                                </Button>
-                              </div>
+                              <a
+                                href={instanceStatus.accessUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-primary hover:underline flex items-center gap-1"
+                              >
+                                {instanceStatus.accessUrl}
+                                <ExternalLink size={10} />
+                              </a>
                             </div>
+                          )}
 
-                            {instanceStatus.accessUrl && (
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm text-muted-foreground">
-                                  Access URL
-                                </span>
-                                <a
-                                  href={instanceStatus.accessUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-xs text-primary hover:underline flex items-center gap-1"
-                                >
-                                  {instanceStatus.accessUrl}
-                                  <ExternalLink size={10} />
-                                </a>
-                              </div>
-                            )}
+                          {instanceStatus.createdAt && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-muted-foreground">
+                                Created
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {formatDate(instanceStatus.createdAt)}
+                              </span>
+                            </div>
+                          )}
 
-                            {instanceStatus.createdAt && (
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm text-muted-foreground">
-                                  Created
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {formatDate(instanceStatus.createdAt)}
-                                </span>
-                              </div>
-                            )}
-
-                            {instanceStatus.lastHeartbeat && (
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm text-muted-foreground">
-                                  Last Heartbeat
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {formatDate(instanceStatus.lastHeartbeat)}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="flex gap-2 pt-2">
-                            <Button
-                              size="sm"
-                              disabled={
-                                anyPending ||
-                                instanceStatus.status === "running"
-                              }
-                              onClick={() => startMutation.mutate()}
-                            >
-                              {startMutation.isPending ? (
-                                <Loader2
-                                  size={14}
-                                  className="mr-1 animate-spin"
-                                />
-                              ) : (
-                                <Play size={14} className="mr-1" />
-                              )}
-                              Start
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              disabled={
-                                anyPending ||
-                                instanceStatus.status === "stopped"
-                              }
-                              onClick={() => stopMutation.mutate()}
-                            >
-                              {stopMutation.isPending ? (
-                                <Loader2
-                                  size={14}
-                                  className="mr-1 animate-spin"
-                                />
-                              ) : (
-                                <Square size={14} className="mr-1" />
-                              )}
-                              Stop
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={anyPending}
-                              onClick={() => restartMutation.mutate()}
-                            >
-                              {restartMutation.isPending ? (
-                                <Loader2
-                                  size={14}
-                                  className="mr-1 animate-spin"
-                                />
-                              ) : (
-                                <RotateCw size={14} className="mr-1" />
-                              )}
-                              Restart
-                            </Button>
-                          </div>
-                        </>
+                          {instanceStatus.lastHeartbeat && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-muted-foreground">
+                                Last Heartbeat
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {formatDate(instanceStatus.lastHeartbeat)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <p className="text-sm text-muted-foreground">
                           No instance information available

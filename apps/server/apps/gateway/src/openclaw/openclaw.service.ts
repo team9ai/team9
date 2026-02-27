@@ -555,6 +555,7 @@ export class OpenclawService {
     const res = await fetch(url, {
       method,
       headers,
+      signal: AbortSignal.timeout(5000),
       ...(body !== undefined && { body: JSON.stringify(body) }),
     });
 

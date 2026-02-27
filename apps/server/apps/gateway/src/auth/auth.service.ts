@@ -2,6 +2,8 @@ import {
   Injectable,
   UnauthorizedException,
   BadRequestException,
+  ConflictException,
+  NotFoundException,
   Inject,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -77,7 +79,29 @@ export class AuthService {
       .limit(1);
 
     if (existingUser.length > 0) {
-      throw new UnauthorizedException('Email already exists');
+      const user = existingUser[0];
+      if (user.emailVerified) {
+        throw new ConflictException(
+          'Email already registered. Please sign in instead.',
+        );
+      }
+      // Email exists but not verified — resend verification email
+      await this.db
+        .delete(schema.emailVerificationTokens)
+        .where(eq(schema.emailVerificationTokens.userId, user.id));
+
+      const { verificationLink } = await this.sendVerificationEmail(
+        user.id,
+        user.email,
+        user.username,
+      );
+
+      return {
+        message:
+          'Registration successful. Please check your email to verify your account.',
+        email: user.email,
+        ...(env.DEV_SKIP_EMAIL_VERIFICATION && { verificationLink }),
+      };
     }
 
     const existingUsername = await this.db
@@ -87,7 +111,7 @@ export class AuthService {
       .limit(1);
 
     if (existingUsername.length > 0) {
-      throw new UnauthorizedException('Username already exists');
+      throw new ConflictException('Username already exists');
     }
 
     const userId = uuidv7();
@@ -326,11 +350,9 @@ export class AuthService {
       .limit(1);
 
     if (!user) {
-      // Return success even if user doesn't exist (security - don't reveal user existence)
-      return {
-        message: 'If the email exists, a login link has been sent.',
-        email: dto.email,
-      };
+      throw new NotFoundException(
+        'No account found with this email. Please register first.',
+      );
     }
 
     if (user.userType !== 'human') {

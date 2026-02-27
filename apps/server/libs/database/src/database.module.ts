@@ -32,7 +32,8 @@ import { env } from '@team9/shared';
           username: user,
           password, // Password is passed directly, no encoding needed
           max: 10,
-          connect_timeout: 5,
+          connect_timeout: 10,
+          max_lifetime: 60 * 30,
         });
 
         return drizzle(client, { schema });
