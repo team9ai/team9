@@ -3,6 +3,7 @@ import {
   UnauthorizedException,
   BadRequestException,
   ConflictException,
+  NotFoundException,
   Inject,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -349,11 +350,9 @@ export class AuthService {
       .limit(1);
 
     if (!user) {
-      // Return success even if user doesn't exist (security - don't reveal user existence)
-      return {
-        message: 'If the email exists, a login link has been sent.',
-        email: dto.email,
-      };
+      throw new NotFoundException(
+        'No account found with this email. Please register first.',
+      );
     }
 
     if (user.userType !== 'human') {
