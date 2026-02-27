@@ -1,18 +1,13 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  MessageSquare,
-  Loader2,
-  AlertCircle,
-  RotateCcw,
-  X,
-} from "lucide-react";
+import { Loader2, AlertCircle, RotateCcw, X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MessageContent } from "./MessageContent";
 import { MessageAttachments } from "./MessageAttachments";
 import { MessageContextMenu } from "./MessageContextMenu";
 import { MessageHoverToolbar } from "./MessageHoverToolbar";
 import { MessageReactions } from "./MessageReactions";
+import { ThreadReplyIndicator } from "./ThreadReplyIndicator";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { formatMessageTime } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
@@ -116,30 +111,6 @@ export function MessageItem({
 
   const hasContent = Boolean(message.content?.trim());
   const hasAttachments = message.attachments && message.attachments.length > 0;
-
-  // Reply count indicator component
-  const ReplyCountIndicator = () => {
-    if (!showReplyCount) return null;
-
-    const replyCount = message.replyCount || 0;
-    if (replyCount === 0) return null;
-
-    return (
-      <button
-        onClick={onReplyCountClick}
-        className="flex items-center gap-1 text-xs text-info hover:text-info mt-1"
-      >
-        <MessageSquare size={14} />
-        <span>{t("repliesCount", { count: replyCount })}</span>
-        {/* Unread sub-reply badge */}
-        {unreadSubReplyCount != null && unreadSubReplyCount > 0 && (
-          <span className="ml-1 px-1.5 py-0.5 bg-destructive text-primary-foreground text-[10px] font-medium rounded-full min-w-4.5 text-center">
-            {unreadSubReplyCount > 99 ? "99+" : unreadSubReplyCount}
-          </span>
-        )}
-      </button>
-    );
-  };
 
   const showToolbar = isHovered && !isSending && !isFailed && !isRootMessage;
   const hasReactions = message.reactions && message.reactions.length > 0;
@@ -254,7 +225,15 @@ export function MessageItem({
             </button>
           </div>
         )}
-        <ReplyCountIndicator />
+        {showReplyCount && (message.replyCount || 0) > 0 && (
+          <ThreadReplyIndicator
+            replyCount={message.replyCount || 0}
+            lastRepliers={message.lastRepliers}
+            lastReplyAt={message.lastReplyAt}
+            unreadCount={unreadSubReplyCount}
+            onClick={onReplyCountClick}
+          />
+        )}
         {hasReactions && onAddReaction && onRemoveReaction && (
           <MessageReactions
             reactions={message.reactions!}

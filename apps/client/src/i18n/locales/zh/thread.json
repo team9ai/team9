@@ -9,5 +9,6 @@
   "inputPlaceholder": "在消息列中回复...",
   "loadMore": "加载更多回复",
   "loadingMore": "加载中...",
-  "newMessages": "{{count}} 条新消息"
+  "newMessages": "{{count}} 条新消息",
+  "lastReply": "最后回复 {{time}}"
 }

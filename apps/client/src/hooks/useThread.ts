@@ -8,6 +8,8 @@ import {
 import { useEffect, useCallback } from "react";
 import { create } from "zustand";
 import { api } from "@/services/api";
+import wsService from "@/services/websocket";
+import { useAppStore } from "@/stores/useAppStore";
 import type {
   ThreadResponse,
   SubRepliesResponse,
@@ -868,6 +870,194 @@ export function useThreadPanelForLevel(
     setReplyingTo,
     clearReplyingTo,
   };
+}
+
+/**
+ * Hook to add a reaction to a thread message with optimistic update
+ */
+export function useAddThreadReaction(
+  rootMessageId: string,
+  level: ThreadLevel = "primary",
+) {
+  const queryClient = useQueryClient();
+  const isPrimary = level === "primary";
+
+  return useMutation({
+    mutationFn: async ({
+      messageId,
+      emoji,
+    }: {
+      messageId: string;
+      emoji: string;
+    }) => {
+      wsService.addReaction({ messageId, emoji });
+    },
+
+    onMutate: async ({ messageId, emoji }) => {
+      const currentUser = useAppStore.getState().user;
+      if (!currentUser) return;
+
+      const queryKey = isPrimary
+        ? ["thread", rootMessageId]
+        : ["subReplies", rootMessageId];
+      await queryClient.cancelQueries({ queryKey });
+
+      if (isPrimary) {
+        queryClient.setQueryData<InfiniteData<ThreadResponse>>(
+          queryKey,
+          (old) => {
+            if (!old) return old;
+            return {
+              ...old,
+              pages: old.pages.map((page) => ({
+                ...page,
+                replies: page.replies.map((reply) => {
+                  if (reply.id !== messageId) return reply;
+                  const existing = reply.reactions || [];
+                  if (
+                    existing.some(
+                      (r) => r.userId === currentUser.id && r.emoji === emoji,
+                    )
+                  )
+                    return reply;
+                  return {
+                    ...reply,
+                    reactions: [
+                      ...existing,
+                      {
+                        id: `optimistic-${currentUser.id}-${emoji}`,
+                        messageId,
+                        userId: currentUser.id,
+                        emoji,
+                        createdAt: new Date().toISOString(),
+                      },
+                    ],
+                  };
+                }),
+              })),
+            };
+          },
+        );
+      } else {
+        queryClient.setQueryData<InfiniteData<SubRepliesResponse>>(
+          queryKey,
+          (old) => {
+            if (!old) return old;
+            return {
+              ...old,
+              pages: old.pages.map((page) => ({
+                ...page,
+                replies: page.replies.map((reply) => {
+                  if (reply.id !== messageId) return reply;
+                  const existing = reply.reactions || [];
+                  if (
+                    existing.some(
+                      (r) => r.userId === currentUser.id && r.emoji === emoji,
+                    )
+                  )
+                    return reply;
+                  return {
+                    ...reply,
+                    reactions: [
+                      ...existing,
+                      {
+                        id: `optimistic-${currentUser.id}-${emoji}`,
+                        messageId,
+                        userId: currentUser.id,
+                        emoji,
+                        createdAt: new Date().toISOString(),
+                      },
+                    ],
+                  };
+                }),
+              })),
+            };
+          },
+        );
+      }
+    },
+  });
+}
+
+/**
+ * Hook to remove a reaction from a thread message with optimistic update
+ */
+export function useRemoveThreadReaction(
+  rootMessageId: string,
+  level: ThreadLevel = "primary",
+) {
+  const queryClient = useQueryClient();
+  const isPrimary = level === "primary";
+
+  return useMutation({
+    mutationFn: async ({
+      messageId,
+      emoji,
+    }: {
+      messageId: string;
+      emoji: string;
+    }) => {
+      wsService.removeReaction({ messageId, emoji });
+    },
+
+    onMutate: async ({ messageId, emoji }) => {
+      const currentUser = useAppStore.getState().user;
+      if (!currentUser) return;
+
+      const queryKey = isPrimary
+        ? ["thread", rootMessageId]
+        : ["subReplies", rootMessageId];
+      await queryClient.cancelQueries({ queryKey });
+
+      if (isPrimary) {
+        queryClient.setQueryData<InfiniteData<ThreadResponse>>(
+          queryKey,
+          (old) => {
+            if (!old) return old;
+            return {
+              ...old,
+              pages: old.pages.map((page) => ({
+                ...page,
+                replies: page.replies.map((reply) => {
+                  if (reply.id !== messageId) return reply;
+                  return {
+                    ...reply,
+                    reactions: (reply.reactions || []).filter(
+                      (r: any) =>
+                        !(r.userId === currentUser.id && r.emoji === emoji),
+                    ),
+                  };
+                }),
+              })),
+            };
+          },
+        );
+      } else {
+        queryClient.setQueryData<InfiniteData<SubRepliesResponse>>(
+          queryKey,
+          (old) => {
+            if (!old) return old;
+            return {
+              ...old,
+              pages: old.pages.map((page) => ({
+                ...page,
+                replies: page.replies.map((reply) => {
+                  if (reply.id !== messageId) return reply;
+                  return {
+                    ...reply,
+                    reactions: (reply.reactions || []).filter(
+                      (r: any) =>
+                        !(r.userId === currentUser.id && r.emoji === emoji),
+                    ),
+                  };
+                }),
+              })),
+            };
+          },
+        );
+      }
+    },
+  });
 }
 
 /**

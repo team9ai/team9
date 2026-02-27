@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect } from "react";
+import { useRef, useCallback, useEffect, useState, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { X, MessageSquare, Loader2, ArrowDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -8,15 +8,30 @@ import {
   useThreadPanelForLevel,
   useSendThreadReply,
   useThreadStore,
+  useAddThreadReaction,
+  useRemoveThreadReaction,
   type ThreadLevel,
 } from "@/hooks/useThread";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useChannelMembers } from "@/hooks/useChannels";
 import { useStreamingStore } from "@/stores/useStreamingStore";
+import wsService from "@/services/websocket";
 import { MessageItem } from "./MessageItem";
 import { MessageInput } from "./MessageInput";
 import { StreamingMessageItem } from "./StreamingMessageItem";
-import type { ThreadReply, AttachmentDto } from "@/types/im";
+import { BotThinkingIndicator } from "./BotThinkingIndicator";
+import type { ThreadReply, AttachmentDto, Message } from "@/types/im";
+
+// Extract mentioned bot user IDs from message HTML content
+function extractMentionedBotIds(content: string): string[] {
+  const mentionRegex = /data-user-id="([^"]*)"[^>]*data-user-type="bot"/g;
+  const botIds: string[] = [];
+  let match;
+  while ((match = mentionRegex.exec(content)) !== null) {
+    botIds.push(match[1]);
+  }
+  return botIds;
+}
 
 interface ThreadPanelProps {
   level: ThreadLevel;
@@ -154,12 +169,110 @@ export function ThreadPanel({
     }, 100);
   }, [jumpToLatest]);
 
+  // Bot thinking indicator state
+  const [thinkingBotIds, setThinkingBotIds] = useState<string[]>([]);
+  const channelId = threadData?.rootMessage.channelId;
+
+  // Determine bots actively participating in this thread:
+  // 1. Root message sender is a bot (e.g. secondary thread replying to bot's message)
+  // 2. Root message @mentions a bot (e.g. primary thread started by @bot)
+  // 3. A bot has replied in the thread (bot is already engaged)
+  const participatingBotIds = useMemo(() => {
+    if (!threadData) return [];
+    const botIds = new Set<string>();
+
+    if (
+      threadData.rootMessage.sender?.userType === "bot" &&
+      threadData.rootMessage.senderId
+    ) {
+      botIds.add(threadData.rootMessage.senderId);
+    }
+
+    for (const id of extractMentionedBotIds(threadData.rootMessage.content)) {
+      botIds.add(id);
+    }
+
+    for (const reply of threadData.replies) {
+      if (reply.sender?.userType === "bot" && reply.senderId) {
+        botIds.add(reply.senderId);
+      }
+    }
+
+    return Array.from(botIds);
+  }, [threadData]);
+
+  // Clear thinking state when thread changes
+  useEffect(() => {
+    setThinkingBotIds([]);
+  }, [rootMessageId]);
+
+  // Keep a ref of all message IDs in this thread for sub-reply matching
+  const threadMessageIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const ids = new Set<string>([rootMessageId]);
+    if (threadData) {
+      for (const reply of threadData.replies) {
+        ids.add(reply.id);
+      }
+    }
+    threadMessageIdsRef.current = ids;
+  }, [threadData, rootMessageId]);
+
+  // Listen for bot replies or streaming start to dismiss thinking indicator
+  useEffect(() => {
+    if (thinkingBotIds.length === 0 || !channelId) return;
+
+    const handleBotReply = (message: Message) => {
+      if (message.channelId !== channelId) return;
+      // Match direct replies to root or sub-replies to any message in this thread
+      if (
+        !message.parentId ||
+        !threadMessageIdsRef.current.has(message.parentId)
+      )
+        return;
+      if (message.sender?.userType === "bot" && message.senderId) {
+        setThinkingBotIds((prev) =>
+          prev.filter((id) => id !== message.senderId),
+        );
+      }
+    };
+
+    const handleStreamingStart = (data: {
+      channelId: string;
+      senderId: string;
+      parentId?: string;
+    }) => {
+      if (data.channelId !== channelId) return;
+      if (!data.parentId || !threadMessageIdsRef.current.has(data.parentId))
+        return;
+      setThinkingBotIds((prev) => prev.filter((id) => id !== data.senderId));
+    };
+
+    wsService.onNewMessage(handleBotReply);
+    wsService.onStreamingStart(handleStreamingStart);
+    return () => {
+      wsService.off("new_message", handleBotReply);
+      wsService.off("streaming_start", handleStreamingStart);
+    };
+  }, [channelId, rootMessageId, thinkingBotIds.length]);
+
   // Handle send reply with optional attachments
   const handleSendReply = async (
     content: string,
     attachments?: AttachmentDto[],
   ) => {
     if (!content.trim() && (!attachments || attachments.length === 0)) return;
+
+    // Detect bots that should respond
+    const mentionedBotIds = extractMentionedBotIds(content);
+    const botIds = Array.from(
+      new Set([...participatingBotIds, ...mentionedBotIds]),
+    );
+
+    if (botIds.length > 0) {
+      setThinkingBotIds(botIds);
+    }
+
     await sendReply.mutateAsync({ content, attachments });
   };
 
@@ -183,7 +296,7 @@ export function ThreadPanel({
       ) : threadData ? (
         <>
           {/* Root message */}
-          <div className="px-4 py-3 border-b bg-muted">
+          <div className="px-4 py-3 border-b bg-muted max-h-48 overflow-y-auto">
             <MessageItem
               message={threadData.rootMessage}
               currentUserId={currentUser?.id}
@@ -198,22 +311,25 @@ export function ThreadPanel({
           {/* Replies container with relative positioning for the indicator */}
           <div className="flex-1 min-h-0 relative">
             <ScrollArea ref={scrollAreaRef} className="h-full">
-              <div className="px-4 py-2 space-y-1">
+              <div className="px-4 py-4 space-y-1">
                 {threadData.replies.map((reply: ThreadReply) => (
                   <ThreadReplyItem
                     key={reply.id}
                     reply={reply}
                     currentUserId={currentUser?.id}
+                    rootMessageId={rootMessageId}
+                    level={level}
                     canOpenNestedThread={canOpenNestedThread}
                     onOpenNestedThread={openNestedThread}
                     isHighlighted={highlightMessageId === reply.id}
                   />
                 ))}
 
-                {/* Streaming messages for this thread */}
+                {/* Streaming messages or bot thinking indicator */}
                 <ThreadStreamingMessages
                   channelId={threadData.rootMessage.channelId}
                   rootMessageId={rootMessageId}
+                  thinkingBotIds={thinkingBotIds}
                 />
 
                 {/* Loading indicator for infinite scroll */}
@@ -268,12 +384,16 @@ export function ThreadPanel({
 function ThreadReplyItem({
   reply,
   currentUserId,
+  rootMessageId,
+  level,
   canOpenNestedThread = false,
   onOpenNestedThread,
   isHighlighted = false,
 }: {
   reply: ThreadReply;
   currentUserId?: string;
+  rootMessageId: string;
+  level: ThreadLevel;
   canOpenNestedThread?: boolean;
   onOpenNestedThread?: (messageId: string) => void;
   isHighlighted?: boolean;
@@ -282,6 +402,9 @@ function ThreadReplyItem({
   const unreadCount = useThreadStore((state) =>
     state.getUnreadSubReplyCount(reply.id),
   );
+
+  const addReaction = useAddThreadReaction(rootMessageId, level);
+  const removeReaction = useRemoveThreadReaction(rootMessageId, level);
 
   // Handle opening this reply in a new thread panel
   const handleOpenInNewPanel = () => {
@@ -296,6 +419,14 @@ function ThreadReplyItem({
       ? () => onOpenNestedThread(reply.id)
       : undefined;
 
+  const handleAddReaction = (emoji: string) => {
+    addReaction.mutate({ messageId: reply.id, emoji });
+  };
+
+  const handleRemoveReaction = (emoji: string) => {
+    removeReaction.mutate({ messageId: reply.id, emoji });
+  };
+
   return (
     <div>
       {/* First-level reply using shared MessageItem */}
@@ -308,18 +439,22 @@ function ThreadReplyItem({
         unreadSubReplyCount={unreadCount}
         isHighlighted={isHighlighted}
         onReplyInThread={handleReplyInThread}
+        onAddReaction={handleAddReaction}
+        onRemoveReaction={handleRemoveReaction}
       />
     </div>
   );
 }
 
-// Show streaming messages within a thread
+// Show streaming messages within a thread, or fall back to bot thinking indicator
 function ThreadStreamingMessages({
   channelId,
   rootMessageId,
+  thinkingBotIds,
 }: {
   channelId: string;
   rootMessageId: string;
+  thinkingBotIds: string[];
 }) {
   const { data: members = [] } = useChannelMembers(channelId);
   const threadStreams = useStreamingStore(
@@ -330,17 +465,21 @@ function ThreadStreamingMessages({
     ),
   );
 
-  if (threadStreams.length === 0) return null;
+  if (threadStreams.length > 0) {
+    return (
+      <>
+        {threadStreams.map((stream) => (
+          <StreamingMessageItem
+            key={stream.streamId}
+            stream={stream}
+            members={members}
+          />
+        ))}
+      </>
+    );
+  }
 
   return (
-    <>
-      {threadStreams.map((stream) => (
-        <StreamingMessageItem
-          key={stream.streamId}
-          stream={stream}
-          members={members}
-        />
-      ))}
-    </>
+    <BotThinkingIndicator thinkingBotIds={thinkingBotIds} members={members} />
   );
 }
