@@ -63,6 +63,8 @@ export interface MessageResponse {
   attachments: MessageAttachmentResponse[];
   reactions: MessageReactionResponse[];
   replyCount: number;
+  lastRepliers: MessageSender[];
+  lastReplyAt: Date | null;
   metadata?: Record<string, unknown> | null;
 }
 
@@ -159,6 +161,48 @@ export class MessagesService {
       .from(schema.messages)
       .where(eq(schema.messages.parentId, messageId));
 
+    // Get last repliers
+    const recentReplierRows = await this.db
+      .select({
+        senderId: schema.messages.senderId,
+        createdAt: schema.messages.createdAt,
+      })
+      .from(schema.messages)
+      .where(eq(schema.messages.parentId, messageId))
+      .orderBy(desc(schema.messages.createdAt));
+
+    const uniqueReplierIds: string[] = [];
+    let lastReplyAt: Date | null = null;
+    for (const row of recentReplierRows) {
+      if (!row.senderId) continue;
+      if (!lastReplyAt) lastReplyAt = row.createdAt;
+      if (
+        uniqueReplierIds.length < 5 &&
+        !uniqueReplierIds.includes(row.senderId)
+      ) {
+        uniqueReplierIds.push(row.senderId);
+      }
+      if (uniqueReplierIds.length >= 5) break;
+    }
+
+    const replierSenders: MessageSender[] = [];
+    if (uniqueReplierIds.length > 0) {
+      const replierUsers = await this.db
+        .select({
+          id: schema.users.id,
+          username: schema.users.username,
+          displayName: schema.users.displayName,
+          avatarUrl: schema.users.avatarUrl,
+          userType: schema.users.userType,
+        })
+        .from(schema.users)
+        .where(inArray(schema.users.id, uniqueReplierIds));
+      for (const id of uniqueReplierIds) {
+        const found = replierUsers.find((u) => u.id === id);
+        if (found) replierSenders.push(found);
+      }
+    }
+
     return {
       id: message.id,
       channelId: message.channelId,
@@ -176,6 +220,8 @@ export class MessagesService {
       attachments,
       reactions,
       replyCount: Number(replyCount),
+      lastRepliers: replierSenders,
+      lastReplyAt,
       metadata: message.metadata as Record<string, unknown> | null,
     };
   }
@@ -278,6 +324,73 @@ export class MessagesService {
       }
     });
 
+    // Batch query 5: Get last repliers for each message (for avatar stack)
+    const lastRepliersMap = new Map<string, MessageSender[]>();
+    const lastReplyAtMap = new Map<string, Date>();
+    const recentReplies = await this.db
+      .select({
+        parentId: schema.messages.parentId,
+        senderId: schema.messages.senderId,
+        createdAt: schema.messages.createdAt,
+      })
+      .from(schema.messages)
+      .where(inArray(schema.messages.parentId, messageIds))
+      .orderBy(desc(schema.messages.createdAt));
+
+    // Collect unique sender IDs not already in sendersMap
+    const missingSenderIds = new Set<string>();
+
+    // Group by parentId, deduplicate senderIds, take first 5
+    const repliersByParent = new Map<
+      string,
+      { senderIds: string[]; lastReplyAt: Date }
+    >();
+    for (const row of recentReplies) {
+      if (!row.parentId || !row.senderId) continue;
+
+      if (!repliersByParent.has(row.parentId)) {
+        repliersByParent.set(row.parentId, {
+          senderIds: [],
+          lastReplyAt: row.createdAt,
+        });
+      }
+      const entry = repliersByParent.get(row.parentId)!;
+      if (
+        entry.senderIds.length < 5 &&
+        !entry.senderIds.includes(row.senderId)
+      ) {
+        entry.senderIds.push(row.senderId);
+        if (!sendersMap.has(row.senderId)) {
+          missingSenderIds.add(row.senderId);
+        }
+      }
+    }
+
+    // Batch-fetch any missing sender info
+    if (missingSenderIds.size > 0) {
+      const missingSenders = await this.db
+        .select({
+          id: schema.users.id,
+          username: schema.users.username,
+          displayName: schema.users.displayName,
+          avatarUrl: schema.users.avatarUrl,
+          userType: schema.users.userType,
+        })
+        .from(schema.users)
+        .where(inArray(schema.users.id, [...missingSenderIds]));
+
+      missingSenders.forEach((s) => sendersMap.set(s.id, s));
+    }
+
+    // Build lastRepliersMap and lastReplyAtMap
+    repliersByParent.forEach(({ senderIds, lastReplyAt }, parentId) => {
+      const senders = senderIds
+        .map((id) => sendersMap.get(id))
+        .filter(Boolean) as MessageSender[];
+      lastRepliersMap.set(parentId, senders);
+      lastReplyAtMap.set(parentId, lastReplyAt);
+    });
+
     // Build result map
     const result = new Map<string, MessageResponse>();
     messages.forEach((message) => {
@@ -300,6 +413,8 @@ export class MessagesService {
         attachments: attachmentsMap.get(message.id) || [],
         reactions: reactionsMap.get(message.id) || [],
         replyCount: replyCountsMap.get(message.id) || 0,
+        lastRepliers: lastRepliersMap.get(message.id) || [],
+        lastReplyAt: lastReplyAtMap.get(message.id) || null,
         metadata: message.metadata as Record<string, unknown> | null,
       });
     });
