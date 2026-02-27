@@ -179,6 +179,11 @@ export function useMessages(channelId: string | undefined) {
           });
         }
 
+        // Auto-open thread panel for bot thread replies
+        if (message.sender?.userType === "bot") {
+          autoOpenBotThread(rootId);
+        }
+
         // Update the parent message's replyCount in the main list
         queryClient.setQueryData(["messages", channelId], (old: any) => {
           if (!old) return old;
@@ -277,10 +282,39 @@ export function useMessages(channelId: string | undefined) {
       });
     };
 
+    // Auto-open thread panel when bot replies to current user's message
+    const autoOpenBotThread = (rootId: string) => {
+      const threadState = useThreadStore.getState();
+      // Already viewing this thread — no action needed
+      if (threadState.primaryThread.rootMessageId === rootId) return;
+
+      const currentUserId = useAppStore.getState().user?.id;
+      if (!currentUserId) return;
+
+      // Look up parent message in cache to verify current user triggered the bot
+      const messagesData = queryClient.getQueryData([
+        "messages",
+        channelId,
+      ]) as any;
+      if (!messagesData) return;
+
+      const parentMsg = messagesData.pages
+        .flat()
+        .find((m: any) => m.id === rootId);
+      if (parentMsg?.senderId === currentUserId) {
+        threadState.openPrimaryThread(rootId);
+      }
+    };
+
     // Streaming event handlers
     const handleStreamingStart = (event: StreamingStartEvent) => {
       if (event.channelId !== channelId) return;
       useStreamingStore.getState().startStream(event);
+
+      // Auto-open thread panel when bot starts streaming in a thread
+      if (event.parentId) {
+        autoOpenBotThread(event.parentId);
+      }
     };
 
     // Auto-create stream if a delta arrives before streaming_start (race condition).
@@ -355,6 +389,7 @@ export function useMessages(channelId: string | undefined) {
     };
 
     const handleReactionAdded = (event: ReactionAddedEvent) => {
+      // Update main messages cache
       queryClient.setQueryData(["messages", channelId], (old: any) => {
         if (!old) return old;
         return {
@@ -387,9 +422,77 @@ export function useMessages(channelId: string | undefined) {
           ),
         };
       });
+
+      // Update open thread caches
+      const newReaction = {
+        id: `${event.userId}-${event.emoji}`,
+        messageId: event.messageId,
+        userId: event.userId,
+        emoji: event.emoji,
+        createdAt: new Date().toISOString(),
+      };
+      const threadState = useThreadStore.getState();
+      if (
+        threadState.primaryThread.isOpen &&
+        threadState.primaryThread.rootMessageId
+      ) {
+        const threadKey = ["thread", threadState.primaryThread.rootMessageId];
+        queryClient.setQueryData(threadKey, (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: any) => ({
+              ...page,
+              replies: page.replies.map((reply: any) => {
+                if (reply.id !== event.messageId) return reply;
+                const existing = reply.reactions || [];
+                if (
+                  existing.some(
+                    (r: any) =>
+                      r.userId === event.userId && r.emoji === event.emoji,
+                  )
+                )
+                  return reply;
+                return { ...reply, reactions: [...existing, newReaction] };
+              }),
+            })),
+          };
+        });
+      }
+      if (
+        threadState.secondaryThread.isOpen &&
+        threadState.secondaryThread.rootMessageId
+      ) {
+        const subKey = [
+          "subReplies",
+          threadState.secondaryThread.rootMessageId,
+        ];
+        queryClient.setQueryData(subKey, (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: any) => ({
+              ...page,
+              replies: page.replies.map((reply: any) => {
+                if (reply.id !== event.messageId) return reply;
+                const existing = reply.reactions || [];
+                if (
+                  existing.some(
+                    (r: any) =>
+                      r.userId === event.userId && r.emoji === event.emoji,
+                  )
+                )
+                  return reply;
+                return { ...reply, reactions: [...existing, newReaction] };
+              }),
+            })),
+          };
+        });
+      }
     };
 
     const handleReactionRemoved = (event: ReactionRemovedEvent) => {
+      // Update main messages cache
       queryClient.setQueryData(["messages", channelId], (old: any) => {
         if (!old) return old;
         return {
@@ -408,6 +511,60 @@ export function useMessages(channelId: string | undefined) {
           ),
         };
       });
+
+      // Update open thread caches
+      const filterReaction = (reactions: any[]) =>
+        reactions.filter(
+          (r: any) => !(r.userId === event.userId && r.emoji === event.emoji),
+        );
+      const threadState = useThreadStore.getState();
+      if (
+        threadState.primaryThread.isOpen &&
+        threadState.primaryThread.rootMessageId
+      ) {
+        const threadKey = ["thread", threadState.primaryThread.rootMessageId];
+        queryClient.setQueryData(threadKey, (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: any) => ({
+              ...page,
+              replies: page.replies.map((reply: any) => {
+                if (reply.id !== event.messageId) return reply;
+                return {
+                  ...reply,
+                  reactions: filterReaction(reply.reactions || []),
+                };
+              }),
+            })),
+          };
+        });
+      }
+      if (
+        threadState.secondaryThread.isOpen &&
+        threadState.secondaryThread.rootMessageId
+      ) {
+        const subKey = [
+          "subReplies",
+          threadState.secondaryThread.rootMessageId,
+        ];
+        queryClient.setQueryData(subKey, (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: any) => ({
+              ...page,
+              replies: page.replies.map((reply: any) => {
+                if (reply.id !== event.messageId) return reply;
+                return {
+                  ...reply,
+                  reactions: filterReaction(reply.reactions || []),
+                };
+              }),
+            })),
+          };
+        });
+      }
     };
 
     wsService.onNewMessage(handleNewMessage);
