@@ -121,6 +121,7 @@ export class OpenclawService {
       'POST',
       '/api/instances',
       body,
+      30000,
     );
 
     return createResponse;
@@ -198,6 +199,7 @@ export class OpenclawService {
       'POST',
       `/api/instances/${instanceId}/agents`,
       req,
+      35000, // daemon command has 30s timeout on control plane
     );
   }
 
@@ -225,6 +227,8 @@ export class OpenclawService {
     await this.request(
       'DELETE',
       `/api/instances/${instanceId}/agents/${agentId}`,
+      undefined,
+      35000,
     );
   }
 
@@ -241,6 +245,7 @@ export class OpenclawService {
       'PUT',
       `/api/instances/${instanceId}/agents/${agentId}/identity`,
       req,
+      35000,
     );
   }
 
@@ -542,6 +547,7 @@ export class OpenclawService {
     method: string,
     path: string,
     body?: unknown,
+    timeoutMs = 8000,
   ): Promise<T> {
     const url = `${this.apiUrl}${path}`;
     const headers: Record<string, string> = {
@@ -555,7 +561,7 @@ export class OpenclawService {
     const res = await fetch(url, {
       method,
       headers,
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(timeoutMs),
       ...(body !== undefined && { body: JSON.stringify(body) }),
     });
 

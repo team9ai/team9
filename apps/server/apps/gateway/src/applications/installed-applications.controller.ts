@@ -540,6 +540,14 @@ export class InstalledApplicationsController {
       throw error;
     }
 
+    if (!agent?.agent_id) {
+      // Agent creation returned empty — rollback the bot
+      await this.botService.deleteBotAndCleanup(bot.botId);
+      throw new ServiceUnavailableException(
+        'Failed to create agent on OpenClaw instance (no agent_id returned)',
+      );
+    }
+
     // 3. Store agentId and workspace name (not path) in bot's extra field
     // Frontend uses the name to build file-keeper URLs via workspace-dir/{name}
     await this.botService.updateBotExtra(bot.botId, {
