@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect } from "react";
+import { useRef, useCallback, useEffect, useState, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { X, MessageSquare, Loader2, ArrowDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -15,10 +15,23 @@ import {
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useChannelMembers } from "@/hooks/useChannels";
 import { useStreamingStore } from "@/stores/useStreamingStore";
+import wsService from "@/services/websocket";
 import { MessageItem } from "./MessageItem";
 import { MessageInput } from "./MessageInput";
 import { StreamingMessageItem } from "./StreamingMessageItem";
-import type { ThreadReply, AttachmentDto } from "@/types/im";
+import { BotThinkingIndicator } from "./BotThinkingIndicator";
+import type { ThreadReply, AttachmentDto, Message } from "@/types/im";
+
+// Extract mentioned bot user IDs from message HTML content
+function extractMentionedBotIds(content: string): string[] {
+  const mentionRegex = /data-user-id="([^"]*)"[^>]*data-user-type="bot"/g;
+  const botIds: string[] = [];
+  let match;
+  while ((match = mentionRegex.exec(content)) !== null) {
+    botIds.push(match[1]);
+  }
+  return botIds;
+}
 
 interface ThreadPanelProps {
   level: ThreadLevel;
@@ -156,12 +169,93 @@ export function ThreadPanel({
     }, 100);
   }, [jumpToLatest]);
 
+  // Bot thinking indicator state
+  const [thinkingBotIds, setThinkingBotIds] = useState<string[]>([]);
+  const channelId = threadData?.rootMessage.channelId;
+
+  // Determine bots actively participating in this thread:
+  // 1. Root message sender is a bot (e.g. secondary thread replying to bot's message)
+  // 2. Root message @mentions a bot (e.g. primary thread started by @bot)
+  // 3. A bot has replied in the thread (bot is already engaged)
+  const participatingBotIds = useMemo(() => {
+    if (!threadData) return [];
+    const botIds = new Set<string>();
+
+    if (
+      threadData.rootMessage.sender?.userType === "bot" &&
+      threadData.rootMessage.senderId
+    ) {
+      botIds.add(threadData.rootMessage.senderId);
+    }
+
+    for (const id of extractMentionedBotIds(threadData.rootMessage.content)) {
+      botIds.add(id);
+    }
+
+    for (const reply of threadData.replies) {
+      if (reply.sender?.userType === "bot" && reply.senderId) {
+        botIds.add(reply.senderId);
+      }
+    }
+
+    return Array.from(botIds);
+  }, [threadData]);
+
+  // Clear thinking state when thread changes
+  useEffect(() => {
+    setThinkingBotIds([]);
+  }, [rootMessageId]);
+
+  // Listen for bot replies or streaming start to dismiss thinking indicator
+  useEffect(() => {
+    if (thinkingBotIds.length === 0 || !channelId) return;
+
+    const handleBotReply = (message: Message) => {
+      if (message.channelId !== channelId) return;
+      // Match replies within this thread (parentId === rootMessageId)
+      if (message.parentId !== rootMessageId) return;
+      if (message.sender?.userType === "bot" && message.senderId) {
+        setThinkingBotIds((prev) =>
+          prev.filter((id) => id !== message.senderId),
+        );
+      }
+    };
+
+    const handleStreamingStart = (data: {
+      channelId: string;
+      senderId: string;
+      parentId?: string;
+    }) => {
+      if (data.channelId !== channelId) return;
+      if (data.parentId !== rootMessageId) return;
+      setThinkingBotIds((prev) => prev.filter((id) => id !== data.senderId));
+    };
+
+    wsService.onNewMessage(handleBotReply);
+    wsService.onStreamingStart(handleStreamingStart);
+    return () => {
+      wsService.off("new_message", handleBotReply);
+      wsService.off("streaming_start", handleStreamingStart);
+    };
+  }, [channelId, rootMessageId, thinkingBotIds.length]);
+
   // Handle send reply with optional attachments
   const handleSendReply = async (
     content: string,
     attachments?: AttachmentDto[],
   ) => {
     if (!content.trim() && (!attachments || attachments.length === 0)) return;
+
+    // Detect bots that should respond
+    const mentionedBotIds = extractMentionedBotIds(content);
+    const botIds = Array.from(
+      new Set([...participatingBotIds, ...mentionedBotIds]),
+    );
+
+    if (botIds.length > 0) {
+      setThinkingBotIds(botIds);
+    }
+
     await sendReply.mutateAsync({ content, attachments });
   };
 
@@ -214,10 +308,11 @@ export function ThreadPanel({
                   />
                 ))}
 
-                {/* Streaming messages for this thread */}
+                {/* Streaming messages or bot thinking indicator */}
                 <ThreadStreamingMessages
                   channelId={threadData.rootMessage.channelId}
                   rootMessageId={rootMessageId}
+                  thinkingBotIds={thinkingBotIds}
                 />
 
                 {/* Loading indicator for infinite scroll */}
@@ -334,13 +429,15 @@ function ThreadReplyItem({
   );
 }
 
-// Show streaming messages within a thread
+// Show streaming messages within a thread, or fall back to bot thinking indicator
 function ThreadStreamingMessages({
   channelId,
   rootMessageId,
+  thinkingBotIds,
 }: {
   channelId: string;
   rootMessageId: string;
+  thinkingBotIds: string[];
 }) {
   const { data: members = [] } = useChannelMembers(channelId);
   const threadStreams = useStreamingStore(
@@ -351,17 +448,21 @@ function ThreadStreamingMessages({
     ),
   );
 
-  if (threadStreams.length === 0) return null;
+  if (threadStreams.length > 0) {
+    return (
+      <>
+        {threadStreams.map((stream) => (
+          <StreamingMessageItem
+            key={stream.streamId}
+            stream={stream}
+            members={members}
+          />
+        ))}
+      </>
+    );
+  }
 
   return (
-    <>
-      {threadStreams.map((stream) => (
-        <StreamingMessageItem
-          key={stream.streamId}
-          stream={stream}
-          members={members}
-        />
-      ))}
-    </>
+    <BotThinkingIndicator thinkingBotIds={thinkingBotIds} members={members} />
   );
 }
