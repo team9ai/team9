@@ -185,7 +185,7 @@ export function ThreadPanel({
       ) : threadData ? (
         <>
           {/* Root message */}
-          <div className="px-4 py-3 border-b bg-muted">
+          <div className="px-4 py-3 border-b bg-muted max-h-48 overflow-y-auto">
             <MessageItem
               message={threadData.rootMessage}
               currentUserId={currentUser?.id}
