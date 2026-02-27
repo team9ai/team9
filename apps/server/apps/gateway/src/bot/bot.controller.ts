@@ -1,11 +1,14 @@
 import {
   Controller,
+  Get,
   Post,
   Patch,
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
+  BadRequestException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
@@ -20,6 +23,18 @@ import { CreateBotDto, UpdateWebhookDto } from './dto/index.js';
 @UseGuards(AuthGuard)
 export class BotController {
   constructor(private readonly botService: BotService) {}
+
+  /**
+   * Check if a username is available (globally unique across im_users).
+   */
+  @Get('check-username')
+  async checkUsername(@Query('username') username: string) {
+    if (!username || typeof username !== 'string') {
+      throw new BadRequestException('username query parameter is required');
+    }
+    const taken = await this.botService.isUsernameTaken(username.trim());
+    return { available: !taken };
+  }
 
   /**
    * Create a new bot account.

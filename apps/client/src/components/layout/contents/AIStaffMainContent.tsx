@@ -23,7 +23,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { api } from "@/services/api";
 import type {
   InstalledApplication,
@@ -170,6 +170,8 @@ interface CreateAgentDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+const USERNAME_REGEX = /^[a-z0-9_]{3,100}$/;
+
 function CreateAgentDialog({
   openClawApps,
   workspaceId,
@@ -181,12 +183,48 @@ function CreateAgentDialog({
     openClawApps.length === 1 ? openClawApps[0].id : "",
   );
   const [displayName, setDisplayName] = useState("");
+  const [username, setUsername] = useState("");
   const [description, setDescription] = useState("");
+  const [usernameStatus, setUsernameStatus] = useState<
+    "idle" | "checking" | "available" | "taken" | "invalid"
+  >("idle");
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  // Debounced username availability check
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    const trimmed = username.trim();
+    if (!trimmed) {
+      setUsernameStatus("idle");
+      return;
+    }
+    if (!USERNAME_REGEX.test(trimmed)) {
+      setUsernameStatus("invalid");
+      return;
+    }
+
+    setUsernameStatus("checking");
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const { available } =
+          await api.applications.checkUsernameAvailable(trimmed);
+        setUsernameStatus(available ? "available" : "taken");
+      } catch {
+        setUsernameStatus("idle");
+      }
+    }, 400);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [username]);
 
   const createMutation = useMutation({
     mutationFn: () =>
       api.applications.createOpenClawAgent(selectedAppId, {
         displayName: displayName.trim(),
+        username: username.trim() || undefined,
         description: description.trim() || undefined,
       }),
     onSuccess: () => {
@@ -194,13 +232,21 @@ function CreateAgentDialog({
         queryKey: ["openclaw-bots", workspaceId, selectedAppId],
       });
       setDisplayName("");
+      setUsername("");
       setDescription("");
+      setUsernameStatus("idle");
       onOpenChange(false);
     },
   });
 
+  const usernameInvalid =
+    usernameStatus === "invalid" || usernameStatus === "taken";
   const canSubmit =
-    !!selectedAppId && !!displayName.trim() && !createMutation.isPending;
+    !!selectedAppId &&
+    !!displayName.trim() &&
+    !usernameInvalid &&
+    usernameStatus !== "checking" &&
+    !createMutation.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -237,6 +283,49 @@ function CreateAgentDialog({
                 }
               }}
             />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">
+              Username{" "}
+              <span className="text-muted-foreground font-normal">
+                (optional)
+              </span>
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                @
+              </span>
+              <Input
+                value={username}
+                onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                placeholder="Leave blank for auto-generated"
+                className="pl-7"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && canSubmit) {
+                    createMutation.mutate();
+                  }
+                }}
+              />
+              {usernameStatus === "checking" && (
+                <Loader2
+                  size={14}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-muted-foreground"
+                />
+              )}
+            </div>
+            {usernameStatus === "invalid" && (
+              <p className="text-xs text-destructive">
+                Lowercase letters, numbers, and underscores only (3-100 chars)
+              </p>
+            )}
+            {usernameStatus === "taken" && (
+              <p className="text-xs text-destructive">
+                This username is already taken
+              </p>
+            )}
+            {usernameStatus === "available" && (
+              <p className="text-xs text-success">Username is available</p>
+            )}
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">

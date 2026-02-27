@@ -47,6 +47,7 @@ export interface CreateWorkspaceBotOptions {
   ownerId: string;
   tenantId: string;
   displayName?: string;
+  username?: string;
   installedApplicationId?: string;
   generateToken?: boolean;
   mentorId?: string;
@@ -267,6 +268,7 @@ export class BotService implements OnModuleInit {
       ownerId,
       tenantId,
       displayName = 'Bot',
+      username,
       installedApplicationId,
       generateToken = false,
       mentorId,
@@ -287,8 +289,8 @@ export class BotService implements OnModuleInit {
     }
 
     // 1. Create bot
-    const shortId = uuidv7().replace(/-/g, '').slice(-8);
-    const botUsername = `bot_${shortId}_${Date.now()}`;
+    const botUsername =
+      username || `bot_${uuidv7().replace(/-/g, '').slice(-8)}_${Date.now()}`;
     const bot = await this.createBot({
       username: botUsername,
       displayName,
@@ -370,6 +372,20 @@ export class BotService implements OnModuleInit {
   /** @deprecated Use isSystemBotEnabled() instead */
   isBotEnabled(): boolean {
     return this.systemBotUserId !== null;
+  }
+
+  // ── Username availability ─────────────────────────────────────────
+
+  /**
+   * Check if a username is already taken.
+   */
+  async isUsernameTaken(username: string): Promise<boolean> {
+    const [existing] = await this.db
+      .select({ id: schema.users.id })
+      .from(schema.users)
+      .where(eq(schema.users.username, username))
+      .limit(1);
+    return !!existing;
   }
 
   // ── Generic bot queries ────────────────────────────────────────────

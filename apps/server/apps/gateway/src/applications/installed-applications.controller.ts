@@ -5,11 +5,13 @@ import {
   Patch,
   Delete,
   Param,
+  Query,
   Body,
   Inject,
   UseGuards,
   NotFoundException,
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -446,6 +448,23 @@ export class InstalledApplicationsController {
   // ── OpenClaw Agent CRUD ─────────────────────────────────────────
 
   /**
+   * Check if a username is available (scoped to OpenClaw context).
+   */
+  @Get(':id/openclaw/check-username')
+  async checkUsername(
+    @Param('id') id: string,
+    @CurrentTenantId() tenantId: string,
+    @Query('username') username: string,
+  ) {
+    await this.getVerifiedApp(id, tenantId, 'openclaw');
+    if (!username || typeof username !== 'string') {
+      throw new BadRequestException('username query parameter is required');
+    }
+    const taken = await this.botService.isUsernameTaken(username.trim());
+    return { available: !taken };
+  }
+
+  /**
    * Create a new agent/bot in an OpenClaw instance.
    * Any workspace member can create. Creator becomes the mentor.
    */
@@ -454,7 +473,8 @@ export class InstalledApplicationsController {
     @Param('id') id: string,
     @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string,
-    @Body() body: { displayName: string; description?: string },
+    @Body()
+    body: { displayName: string; username?: string; description?: string },
   ) {
     const app = await this.getVerifiedApp(id, tenantId, 'openclaw');
     const instancesId = (app.config as { instancesId?: string })?.instancesId;
@@ -469,6 +489,20 @@ export class InstalledApplicationsController {
     }
 
     const displayName = body.displayName.trim();
+    const username = body.username?.trim() || undefined;
+
+    // Validate and check username uniqueness if provided
+    if (username) {
+      if (!/^[a-z0-9_]{3,100}$/.test(username)) {
+        throw new BadRequestException(
+          'Username must be 3-100 characters, lowercase letters, numbers, and underscores only',
+        );
+      }
+      const taken = await this.botService.isUsernameTaken(username);
+      if (taken) {
+        throw new ConflictException('Username is already taken');
+      }
+    }
 
     // 0. Check instance is reachable before creating anything
     const instance = await this.openclawService.getInstance(instancesId);
@@ -483,6 +517,7 @@ export class InstalledApplicationsController {
       ownerId: userId,
       tenantId,
       displayName,
+      username,
       installedApplicationId: app.id,
       generateToken: true,
       mentorId: userId,

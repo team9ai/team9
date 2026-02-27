@@ -250,9 +250,30 @@ export const applicationsApi = {
     );
   },
 
+  checkUsernameAvailable: async (
+    username: string,
+  ): Promise<{ available: boolean }> => {
+    const response = await http.get<{ available: boolean }>(
+      `/v1/bots/check-username`,
+      { params: { username } },
+    );
+    return response.data;
+  },
+
+  checkOpenClawUsername: async (
+    installedAppId: string,
+    username: string,
+  ): Promise<{ available: boolean }> => {
+    const response = await http.get<{ available: boolean }>(
+      `/v1/installed-applications/${installedAppId}/openclaw/check-username`,
+      { params: { username } },
+    );
+    return response.data;
+  },
+
   createOpenClawAgent: async (
     installedAppId: string,
-    data: { displayName: string; description?: string },
+    data: { displayName: string; username?: string; description?: string },
   ): Promise<{
     botId: string;
     agentId: string | null;
