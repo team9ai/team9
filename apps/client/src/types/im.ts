@@ -107,6 +107,14 @@ export interface Message {
   attachments?: MessageAttachment[];
   reactions?: MessageReaction[];
   replyCount?: number;
+  lastRepliers?: {
+    id: string;
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+    userType: string;
+  }[];
+  lastReplyAt?: string;
   // Client-side only fields for optimistic updates
   sendStatus?: MessageSendStatus;
   // Original request data for retry (only present when sendStatus is 'failed')

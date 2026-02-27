@@ -12,5 +12,6 @@
   "loadMore": "Load more replies",
   "loadingMore": "Loading...",
   "newMessages": "{{count}} new message",
-  "newMessages_other": "{{count}} new messages"
+  "newMessages_other": "{{count}} new messages",
+  "lastReply": "Last reply {{time}}"
 }
