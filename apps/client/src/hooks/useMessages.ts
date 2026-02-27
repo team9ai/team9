@@ -181,7 +181,11 @@ export function useMessages(channelId: string | undefined) {
 
         // Auto-open thread panel for bot thread replies
         if (message.sender?.userType === "bot") {
-          autoOpenBotThread(rootId);
+          if (isSubReply) {
+            autoOpenBotSecondaryThread(parentId, rootId);
+          } else {
+            autoOpenBotThread(rootId);
+          }
         }
 
         // Update the parent message's replyCount in the main list
@@ -306,6 +310,35 @@ export function useMessages(channelId: string | undefined) {
       }
     };
 
+    // Auto-open secondary thread panel when bot sub-replies to current user's first-level reply
+    const autoOpenBotSecondaryThread = (parentId: string, rootId: string) => {
+      const threadState = useThreadStore.getState();
+
+      // Primary thread must be open for this root
+      if (
+        !threadState.primaryThread.isOpen ||
+        threadState.primaryThread.rootMessageId !== rootId
+      )
+        return;
+
+      // Already viewing this secondary thread
+      if (threadState.secondaryThread.rootMessageId === parentId) return;
+
+      const currentUserId = useAppStore.getState().user?.id;
+      if (!currentUserId) return;
+
+      // Look up parent message in the thread cache to verify current user triggered the bot
+      const threadData = queryClient.getQueryData(["thread", rootId]) as any;
+      if (!threadData) return;
+
+      const parentMsg = threadData.pages
+        ?.flatMap((page: any) => page.replies)
+        ?.find((r: any) => r.id === parentId);
+      if (parentMsg?.senderId === currentUserId) {
+        threadState.openSecondaryThread(parentId);
+      }
+    };
+
     // Streaming event handlers
     const handleStreamingStart = (event: StreamingStartEvent) => {
       if (event.channelId !== channelId) return;
@@ -313,7 +346,20 @@ export function useMessages(channelId: string | undefined) {
 
       // Auto-open thread panel when bot starts streaming in a thread
       if (event.parentId) {
-        autoOpenBotThread(event.parentId);
+        const threadState = useThreadStore.getState();
+        // If primary thread is open and parentId is not its root, this is a sub-reply streaming
+        if (
+          threadState.primaryThread.isOpen &&
+          threadState.primaryThread.rootMessageId &&
+          threadState.primaryThread.rootMessageId !== event.parentId
+        ) {
+          autoOpenBotSecondaryThread(
+            event.parentId,
+            threadState.primaryThread.rootMessageId,
+          );
+        } else {
+          autoOpenBotThread(event.parentId);
+        }
       }
     };
 
