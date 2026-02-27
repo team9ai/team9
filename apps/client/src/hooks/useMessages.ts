@@ -188,7 +188,7 @@ export function useMessages(channelId: string | undefined) {
           }
         }
 
-        // Update the parent message's replyCount in the main list
+        // Update the parent message's replyCount, lastRepliers, and lastReplyAt in the main list
         queryClient.setQueryData(["messages", channelId], (old: any) => {
           if (!old) return old;
 
@@ -197,7 +197,30 @@ export function useMessages(channelId: string | undefined) {
             pages: old.pages.map((page: Message[]) =>
               page.map((msg) => {
                 if (msg.id === rootId) {
-                  return { ...msg, replyCount: (msg.replyCount || 0) + 1 };
+                  // Build updated lastRepliers from the reply's sender
+                  let updatedRepliers = [...(msg.lastRepliers || [])];
+                  if (message.sender) {
+                    const newReplier = {
+                      id: message.sender.id,
+                      username: message.sender.username,
+                      displayName: message.sender.displayName ?? null,
+                      avatarUrl: message.sender.avatarUrl ?? null,
+                      userType: message.sender.userType ?? "human",
+                    };
+                    // Remove duplicate then prepend
+                    updatedRepliers = updatedRepliers.filter(
+                      (r) => r.id !== newReplier.id,
+                    );
+                    updatedRepliers.unshift(newReplier);
+                    updatedRepliers = updatedRepliers.slice(0, 5);
+                  }
+
+                  return {
+                    ...msg,
+                    replyCount: (msg.replyCount || 0) + 1,
+                    lastRepliers: updatedRepliers,
+                    lastReplyAt: message.createdAt,
+                  };
                 }
                 return msg;
               }),
