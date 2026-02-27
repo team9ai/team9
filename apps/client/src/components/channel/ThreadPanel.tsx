@@ -206,14 +206,30 @@ export function ThreadPanel({
     setThinkingBotIds([]);
   }, [rootMessageId]);
 
+  // Keep a ref of all message IDs in this thread for sub-reply matching
+  const threadMessageIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const ids = new Set<string>([rootMessageId]);
+    if (threadData) {
+      for (const reply of threadData.replies) {
+        ids.add(reply.id);
+      }
+    }
+    threadMessageIdsRef.current = ids;
+  }, [threadData, rootMessageId]);
+
   // Listen for bot replies or streaming start to dismiss thinking indicator
   useEffect(() => {
     if (thinkingBotIds.length === 0 || !channelId) return;
 
     const handleBotReply = (message: Message) => {
       if (message.channelId !== channelId) return;
-      // Match replies within this thread (parentId === rootMessageId)
-      if (message.parentId !== rootMessageId) return;
+      // Match direct replies to root or sub-replies to any message in this thread
+      if (
+        !message.parentId ||
+        !threadMessageIdsRef.current.has(message.parentId)
+      )
+        return;
       if (message.sender?.userType === "bot" && message.senderId) {
         setThinkingBotIds((prev) =>
           prev.filter((id) => id !== message.senderId),
@@ -227,7 +243,8 @@ export function ThreadPanel({
       parentId?: string;
     }) => {
       if (data.channelId !== channelId) return;
-      if (data.parentId !== rootMessageId) return;
+      if (!data.parentId || !threadMessageIdsRef.current.has(data.parentId))
+        return;
       setThinkingBotIds((prev) => prev.filter((id) => id !== data.senderId));
     };
 
