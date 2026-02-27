@@ -193,7 +193,7 @@ export const env = {
     return process.env.RESEND_API_KEY; // Optional - email disabled if not set
   },
   get EMAIL_FROM() {
-    return process.env.EMAIL_FROM || 'Team9 <noreply@team9.app>';
+    return process.env.EMAIL_FROM || 'Team9 <noreply@auth.team9.ai>';
   },
 
   // Development: Skip email verification (only works when APP_ENV=local)

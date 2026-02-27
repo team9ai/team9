@@ -149,11 +149,9 @@ function ResendVerificationButton({
 
 function VerificationSentView({
   email,
-  isResend = false,
   verificationLink: initialVerificationLink,
 }: {
   email: string;
-  isResend?: boolean;
   /** Dev mode: direct verification link (skips email) */
   verificationLink?: string;
 }) {
@@ -179,13 +177,9 @@ function VerificationSentView({
           <div className="mb-6">
             <Mail className="w-16 h-16 mx-auto text-primary" />
           </div>
-          <h2 className="text-xl font-semibold mb-4">
-            {isResend ? t("emailAlreadyRegistered") : t("checkYourInbox")}
-          </h2>
+          <h2 className="text-xl font-semibold mb-4">{t("checkYourInbox")}</h2>
           <p className="text-muted-foreground mb-6">
-            {isResend
-              ? t("emailAlreadyRegisteredHint", { email })
-              : t("verificationEmailSent", { email })}
+            {t("verificationEmailSent", { email })}
           </p>
 
           {/* Dev mode: Show direct verification link */}
@@ -234,7 +228,6 @@ function Register() {
   const [error, setError] = useState("");
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState("");
-  const [emailAlreadyExists, setEmailAlreadyExists] = useState(false);
   const [verificationLink, setVerificationLink] = useState<
     string | undefined
   >();
@@ -319,13 +312,7 @@ function Register() {
       const errorMessage =
         err?.response?.data?.message || err?.message || t("registerFailed");
 
-      // Check if email already exists (user may not have received verification email)
-      if (errorMessage.toLowerCase().includes("email already exists")) {
-        setEmailAlreadyExists(true);
-        setRegisteredEmail(email);
-      } else if (
-        errorMessage.toLowerCase().includes("username already exists")
-      ) {
+      if (errorMessage.toLowerCase().includes("username already exists")) {
         setError(t("usernameAlreadyExists"));
       } else {
         setError(errorMessage);
@@ -362,11 +349,6 @@ function Register() {
         verificationLink={verificationLink}
       />
     );
-  }
-
-  // Show resend verification option if email already exists
-  if (emailAlreadyExists) {
-    return <VerificationSentView email={registeredEmail} isResend />;
   }
 
   return (
