@@ -6,7 +6,6 @@ import { useNavigate, useParams } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useUserWorkspaces, useWorkspaceMembers } from "@/hooks/useWorkspace";
 import { useChannelsByType, useCreateDirectChannel } from "@/hooks/useChannels";
-import { useOnlineUsers } from "@/hooks/useIMUsers";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useWorkspaceStore } from "@/stores";
 import { UserListItem } from "@/components/sidebar/UserListItem";
@@ -21,8 +20,6 @@ export function MessagesSubSidebar() {
   const { selectedWorkspaceId } = useWorkspaceStore();
   const { directChannels = [], isLoading: isLoadingChannels } =
     useChannelsByType();
-  const { data: onlineUsers = {} } = useOnlineUsers();
-
   // Use selected workspace or fallback to first workspace
   const currentWorkspace =
     workspaces?.find((w) => w.id === selectedWorkspaceId) || workspaces?.[0];
@@ -53,7 +50,6 @@ export function MessagesSubSidebar() {
         name: displayName,
         avatar: avatarText,
         avatarUrl: otherUser?.avatarUrl,
-        status: otherUser?.status || ("offline" as const),
         unreadCount: channel.unreadCount || 0,
         isBot: otherUser?.userType === "bot",
       };
@@ -121,7 +117,7 @@ export function MessagesSubSidebar() {
                     name={dm.name}
                     avatar={dm.avatar}
                     avatarUrl={dm.avatarUrl}
-                    isOnline={dm.userId ? dm.userId in onlineUsers : false}
+                    userId={dm.userId}
                     isSelected={selectedChannelId === dm.channelId}
                     unreadCount={dm.unreadCount}
                     channelId={dm.channelId}
@@ -145,7 +141,7 @@ export function MessagesSubSidebar() {
                         key={member.id}
                         name={displayName}
                         avatar={getInitials(displayName)}
-                        isOnline={member.status === "online"}
+                        userId={member.userId}
                         subtitle={
                           member.displayName ? `@${member.username}` : undefined
                         }

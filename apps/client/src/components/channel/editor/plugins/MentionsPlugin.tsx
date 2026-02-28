@@ -16,6 +16,7 @@ import {
 import { mergeRegister } from "@lexical/utils";
 import { useTranslation } from "react-i18next";
 import { useSearchUsers } from "@/hooks/useIMUsers";
+import { OnlineStatusDot } from "@/components/ui/online-status-dot";
 import {
   useChannel,
   useChannelMembers,
@@ -129,9 +130,7 @@ function MentionSuggestions({
                   @{user.username}
                 </p>
               </div>
-              {user.status === "online" && (
-                <div className="w-2 h-2 bg-success rounded-full" />
-              )}
+              <OnlineStatusDot userId={user.id} className="w-2 h-2" />
             </li>
           ))}
         </ul>

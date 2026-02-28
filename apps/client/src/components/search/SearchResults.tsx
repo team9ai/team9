@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { MessageSquare, Hash, User, FileText, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { cn } from "@/lib/utils";
+import { OnlineStatusDot } from "@/components/ui/online-status-dot";
 import { useCreateDirectChannel } from "@/hooks/useChannels";
 import type { CombinedSearchResponse } from "@/hooks/useSearch";
 
@@ -177,13 +177,10 @@ export function SearchResults({
               disabled={createDirectChannel.isPending}
             >
               <div className="flex items-center gap-2">
-                <div
-                  className={cn(
-                    "h-2 w-2 rounded-full",
-                    item.data.status === "online"
-                      ? "bg-success"
-                      : "bg-muted-foreground",
-                  )}
+                <OnlineStatusDot
+                  userId={item.data.id}
+                  showOffline
+                  className="h-2 w-2"
                 />
                 <span
                   className="font-medium [&>mark]:bg-yellow-200 [&>mark]:text-yellow-900 dark:[&>mark]:bg-yellow-800 dark:[&>mark]:text-yellow-100"

@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChannelDetailsModal } from "./ChannelDetailsModal";
 import { AddMemberDialog } from "./AddMemberDialog";
 import { useChannelMembers } from "@/hooks/useChannels";
+import { useIsUserOnline } from "@/hooks/useIMUsers";
 import type { Channel, ChannelWithUnread, MemberRole } from "@/types/im";
 
 interface ChannelHeaderProps {
@@ -40,7 +41,7 @@ export function ChannelHeader({
     return name[0]?.toUpperCase() || "U";
   };
 
-  const isOnline = otherUser?.status === "online";
+  const isOnline = useIsUserOnline(otherUser?.id);
 
   const openDetails = (tab: "about" | "members" | "settings") => {
     setDefaultTab(tab);

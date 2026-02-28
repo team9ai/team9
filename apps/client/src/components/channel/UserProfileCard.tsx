@@ -87,7 +87,7 @@ export function UserProfileCard({
               </Avatar>
               <span
                 className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-popover ${
-                  isOnline ? "bg-green-500" : "bg-muted-foreground/40"
+                  isOnline ? "bg-success" : "bg-muted-foreground/40"
                 }`}
               />
             </div>

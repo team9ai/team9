@@ -35,7 +35,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import React, { useState, useEffect, useMemo } from "react";
 import { useChannelsByType, usePublicChannels } from "@/hooks/useChannels";
-import { useOnlineUsers } from "@/hooks/useIMUsers";
 import {
   useSections,
   useMoveChannel,
@@ -225,7 +224,6 @@ export function HomeSubSidebar() {
   } = useChannelsByType();
   const { data: allPublicChannels = [], isLoading: isLoadingPublic } =
     usePublicChannels();
-  const { data: onlineUsers = {} } = useOnlineUsers();
   const { data: sections = [] } = useSections();
   const { isOwnerOrAdmin } = useCurrentWorkspaceRole();
   const moveChannel = useMoveChannel((error: any) => {
@@ -653,7 +651,7 @@ export function HomeSubSidebar() {
                       name={dm.name}
                       avatar={dm.avatar}
                       avatarUrl={dm.avatarUrl}
-                      isOnline={dm.userId ? dm.userId in onlineUsers : false}
+                      userId={dm.userId}
                       isSelected={selectedChannelId === dm.channelId}
                       unreadCount={dm.unreadCount}
                       channelId={dm.channelId}
