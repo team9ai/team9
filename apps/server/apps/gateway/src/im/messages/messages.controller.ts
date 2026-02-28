@@ -19,6 +19,7 @@ import { v7 as uuidv7 } from 'uuid';
 import {
   MessagesService,
   MessageResponse,
+  PaginatedMessagesResponse,
   ThreadResponse,
   SubRepliesResponse,
 } from './messages.service.js';
@@ -59,7 +60,9 @@ export class MessagesController {
     @Param('channelId') channelId: string,
     @Query('limit') limit?: string,
     @Query('before') before?: string,
-  ): Promise<MessageResponse[]> {
+    @Query('after') after?: string,
+    @Query('around') around?: string,
+  ): Promise<MessageResponse[] | PaginatedMessagesResponse> {
     const t0 = Date.now();
 
     const isMember = await this.channelsService.isMember(channelId, userId);
@@ -72,6 +75,15 @@ export class MessagesController {
     }
 
     const parsedLimit = limit ? parseInt(limit, 10) : 50;
+    // When after/around is used, return paginated response with hasOlder/hasNewer
+    if (after || around) {
+      return this.messagesService.getChannelMessagesPaginated(
+        channelId,
+        parsedLimit,
+        { before, after, around },
+      );
+    }
+    // Legacy: flat array for backward compatibility (OpenClaw plugin etc.)
     const result = await this.messagesService.getChannelMessages(
       channelId,
       parsedLimit,
@@ -103,7 +115,7 @@ export class MessagesController {
       throw new ForbiddenException('Access denied');
     }
 
-    const clientMsgId = uuidv7();
+    const clientMsgId = dto.clientMsgId || uuidv7();
 
     // Get workspaceId (tenantId) from channel for message context
     const channel = await this.channelsService.findById(channelId);

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { useMessages, useSendMessage } from "@/hooks/useMessages";
+import { useChannelMessages, useSendMessage } from "@/hooks/useMessages";
 import { useSyncChannel } from "@/hooks/useSyncChannel";
 import {
   useChannel,
@@ -18,7 +18,12 @@ import { JoinChannelPrompt } from "./JoinChannelPrompt";
 import { BotStartupOverlay } from "./BotStartupOverlay";
 import { BotInstanceStoppedBanner } from "./BotInstanceStoppedBanner";
 import { useOpenClawBotInstanceStatus } from "@/hooks/useOpenClawBotInstanceStatus";
-import type { AttachmentDto, Message, PublicChannelPreview } from "@/types/im";
+import type {
+  AttachmentDto,
+  ChannelWithUnread,
+  Message,
+  PublicChannelPreview,
+} from "@/types/im";
 import { isValidMessageId } from "@/lib/utils";
 
 // Extract mentioned bot user IDs directly from message HTML content
@@ -69,7 +74,7 @@ export function ChannelView({
   const channel = previewChannel || memberChannel;
 
   // Sync missed messages when opening channel (lazy loading)
-  useSyncChannel(channelId);
+  const { hasMoreUnsynced } = useSyncChannel(channelId);
 
   // Dual-layer thread state
   const primaryThread = useThreadStore((state) => state.primaryThread);
@@ -91,13 +96,24 @@ export function ChannelView({
     }
   }, [initialThreadId, openPrimaryThread, primaryThread.isOpen]);
 
+  // Determine if we should anchor to the last read message (unread positioning)
+  const unreadAnchor = useMemo(() => {
+    if (isPreviewMode || !memberChannel) return undefined;
+    const ch = memberChannel as ChannelWithUnread;
+    // Anchor when there are unreads with a known position, within reasonable range
+    if (ch.unreadCount > 0 && ch.lastReadMessageId && ch.unreadCount <= 200) {
+      return ch.lastReadMessageId;
+    }
+    return undefined;
+  }, [isPreviewMode, memberChannel]);
+
   const {
     data: messagesData,
     isLoading: messagesLoading,
     isFetchingNextPage,
     fetchNextPage,
     hasNextPage,
-  } = useMessages(channelId);
+  } = useChannelMessages(channelId, { anchorMessageId: unreadAnchor });
   const sendMessage = useSendMessage(channelId);
   const markAsRead = useMarkAsRead();
 
@@ -198,8 +214,8 @@ export function ChannelView({
     [isBotDm, botDmUserId, memberChannel?.type],
   );
 
-  const messages = messagesData?.pages.flat() ?? [];
-  // New messages are prepended to pages[0], so messages[0] is the latest
+  const messages = messagesData?.pages.flatMap((p) => p.messages) ?? [];
+  // New messages are prepended to pages[0].messages, so messages[0] is the latest
   const latestMessageId = messages.length > 0 ? messages[0]?.id : null;
 
   // Auto-mark messages as read when viewing the channel or when new messages arrive
@@ -261,20 +277,33 @@ export function ChannelView({
             remainingSeconds={remainingSeconds}
             onStartChatting={startChatting}
           />
+        ) : messagesLoading && messages.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center">
+            <p className="text-muted-foreground">Loading messages...</p>
+          </div>
         ) : (
-          <MessageList
-            messages={messages}
-            isLoading={isFetchingNextPage}
-            onLoadMore={() => {
-              if (hasNextPage) fetchNextPage();
-            }}
-            hasMore={hasNextPage}
-            highlightMessageId={initialMessageId}
-            channelId={channelId}
-            readOnly={isPreviewMode}
-            thinkingBotIds={thinkingBotIds}
-            members={members}
-          />
+          <>
+            {hasMoreUnsynced && (
+              <div className="bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800 px-4 py-2 text-sm text-amber-700 dark:text-amber-300">
+                You have older unread messages. Scroll up to load more.
+              </div>
+            )}
+            <MessageList
+              key={channelId}
+              messages={messages}
+              isLoading={isFetchingNextPage}
+              onLoadMore={() => {
+                if (hasNextPage) fetchNextPage();
+              }}
+              hasMore={hasNextPage}
+              highlightMessageId={initialMessageId}
+              channelId={channelId}
+              readOnly={isPreviewMode}
+              thinkingBotIds={thinkingBotIds}
+              members={members}
+              lastReadMessageId={unreadAnchor}
+            />
+          </>
         )}
 
         {(isInstanceStopped || isInstanceStarting) && (
