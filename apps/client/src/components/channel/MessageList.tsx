@@ -1,7 +1,11 @@
-import { useEffect, useRef, useCallback, useMemo } from "react";
+import { useRef, useMemo, useCallback, useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useTranslation } from "react-i18next";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Virtuoso,
+  type VirtuosoHandle,
+  type StateSnapshot,
+} from "react-virtuoso";
 import { Loader2 } from "lucide-react";
 import type { Message, ChannelMember } from "@/types/im";
 import { useCurrentUser } from "@/hooks/useAuth";
@@ -14,10 +18,13 @@ import {
   useAddReaction,
   useRemoveReaction,
 } from "@/hooks/useMessages";
+import { useChannelScrollStore } from "@/hooks/useChannelScrollState";
 import { useStreamingStore } from "@/stores/useStreamingStore";
 import { MessageItem } from "./MessageItem";
 import { StreamingMessageItem } from "./StreamingMessageItem";
 import { BotThinkingIndicator } from "./BotThinkingIndicator";
+import { NewMessagesIndicator } from "./NewMessagesIndicator";
+import { UnreadDivider } from "./UnreadDivider";
 
 interface MessageListProps {
   messages: Message[];
@@ -33,7 +40,15 @@ interface MessageListProps {
   // Bot thinking indicator
   thinkingBotIds?: string[];
   members?: ChannelMember[];
+  // Last read message ID for unread divider positioning
+  lastReadMessageId?: string;
 }
+
+// Large base index for prepending support via firstItemIndex
+const START_INDEX = 100_000;
+
+// Per-channel scroll position snapshots for restoring on channel switch
+const scrollSnapshots = new Map<string, StateSnapshot>();
 
 export function MessageList({
   messages,
@@ -45,108 +60,147 @@ export function MessageList({
   readOnly = false,
   thinkingBotIds = [],
   members = [],
+  lastReadMessageId,
 }: MessageListProps) {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const loadMoreTriggerRef = useRef<HTMLDivElement>(null);
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const prevMessagesLength = useRef(0);
-  const prevScrollHeight = useRef(0);
-  const isInitialLoad = useRef(true);
-  const hasScrolledToHighlight = useRef(false);
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
   const { data: currentUser } = useCurrentUser();
   const openThread = useThreadStore((state) => state.openThread);
 
-  // Scroll to highlighted message or bottom on initial load
-  useEffect(() => {
-    if (isInitialLoad.current && messages.length > 0) {
-      // Use setTimeout to ensure DOM is rendered
-      setTimeout(() => {
-        // If we have a highlight target, scroll to it instead of bottom
-        if (highlightMessageId && !hasScrolledToHighlight.current) {
-          const targetElement = document.getElementById(
-            `message-${highlightMessageId}`,
-          );
-          if (targetElement) {
-            targetElement.scrollIntoView({
-              behavior: "instant",
-              block: "center",
-            });
-            hasScrolledToHighlight.current = true;
-          } else {
-            // Message not in current view, scroll to bottom
-            messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
-          }
-        } else {
-          messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
-        }
-      }, 0);
-      isInitialLoad.current = false;
-      prevMessagesLength.current = messages.length;
-    }
-  }, [messages.length, highlightMessageId]);
+  const scrollStore = useChannelScrollStore();
+  const scrollState = scrollStore.getChannelState(channelId);
+  const showIndicator = scrollStore.shouldShowIndicator(channelId);
 
-  // Auto-scroll to bottom on new messages (not on load more)
-  useEffect(() => {
-    if (
-      !isInitialLoad.current &&
-      messages.length > prevMessagesLength.current &&
-      prevScrollHeight.current === 0
-    ) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-    prevMessagesLength.current = messages.length;
-  }, [messages.length]);
+  // Restore scroll position from previous visit
+  const savedSnapshot = useRef(scrollSnapshots.get(channelId));
 
-  // Intersection Observer for infinite scroll
-  const handleObserver = useCallback(
-    (entries: IntersectionObserverEntry[]) => {
-      const [target] = entries;
-      if (target.isIntersecting && hasMore && !isLoading) {
-        // Store current scroll height before loading more
-        const viewport = scrollAreaRef.current?.querySelector(
-          "[data-radix-scroll-area-viewport]",
-        );
-        if (viewport) {
-          prevScrollHeight.current = viewport.scrollHeight;
-        }
-        onLoadMore();
+  // Save scroll position on unmount (channel switch)
+  useEffect(() => {
+    return () => {
+      virtuosoRef.current?.getState((state) => {
+        scrollSnapshots.set(channelId, state);
+      });
+    };
+  }, [channelId]);
+
+  // Messages come in DESC order (newest first), reverse to chronological for Virtuoso
+  const chronoMessages = useMemo(() => [...messages].reverse(), [messages]);
+
+  // firstItemIndex shifts to support prepending older messages
+  const firstItemIndex = START_INDEX - chronoMessages.length;
+
+  // Find the index of the first unread message (message right after lastReadMessageId)
+  const firstUnreadIndex = useMemo(() => {
+    if (!lastReadMessageId) return -1;
+    const lastReadIdx = chronoMessages.findIndex(
+      (m) => m.id === lastReadMessageId,
+    );
+    if (lastReadIdx >= 0 && lastReadIdx < chronoMessages.length - 1) {
+      return lastReadIdx + 1;
+    }
+    return -1;
+  }, [lastReadMessageId, chronoMessages]);
+
+  // Compute initial scroll position
+  const initialTopMostItemIndex = useMemo(() => {
+    if (highlightMessageId) {
+      const idx = chronoMessages.findIndex((m) => m.id === highlightMessageId);
+      if (idx >= 0) return idx;
+    }
+    // Scroll to the first unread message if available
+    if (firstUnreadIndex >= 0) return firstUnreadIndex;
+    // Default: scroll to bottom (latest message)
+    return chronoMessages.length - 1;
+  }, [highlightMessageId, chronoMessages, firstUnreadIndex]);
+
+  // Load older messages when scrolling to top
+  const handleStartReached = useCallback(() => {
+    if (hasMore && !isLoading) {
+      scrollStore.send(channelId, { type: "LOAD_MORE" });
+      onLoadMore();
+    }
+  }, [hasMore, isLoading, onLoadMore, channelId, scrollStore]);
+
+  // Track bottom state changes
+  const handleAtBottomStateChange = useCallback(
+    (atBottom: boolean) => {
+      if (atBottom) {
+        scrollStore.send(channelId, { type: "SCROLL_TO_BOTTOM" });
+      } else {
+        scrollStore.send(channelId, { type: "SCROLL_AWAY" });
       }
     },
-    [hasMore, isLoading, onLoadMore],
+    [channelId, scrollStore],
   );
 
-  useEffect(() => {
-    const element = loadMoreTriggerRef.current;
-    if (!element) return;
+  // Auto-scroll behavior: only follow new messages when user is at bottom
+  const handleFollowOutput = useCallback((isAtBottom: boolean) => {
+    if (isAtBottom) return "smooth" as const;
+    return false as const;
+  }, []);
 
-    const option = {
-      root: scrollAreaRef.current?.querySelector(
-        "[data-radix-scroll-area-viewport]",
-      ),
-      rootMargin: "100px",
-      threshold: 0,
-    };
+  // Jump to latest handler
+  const handleJumpToLatest = useCallback(() => {
+    scrollStore.send(channelId, { type: "JUMP_TO_LATEST" });
+    virtuosoRef.current?.scrollToIndex({
+      index: chronoMessages.length - 1,
+      behavior: "smooth",
+    });
+    // Transition to idle after the scroll animation
+    setTimeout(() => {
+      scrollStore.send(channelId, { type: "REFRESH_COMPLETE" });
+    }, 500);
+  }, [channelId, scrollStore, chronoMessages.length]);
 
-    const observer = new IntersectionObserver(handleObserver, option);
-    observer.observe(element);
+  // Render individual message items
+  const itemContent = useCallback(
+    (index: number, message: Message) => {
+      const hasReplies =
+        !message.parentId && message.replyCount && message.replyCount > 0;
+      const isHighlighted = highlightMessageId === message.id;
+      // Show unread divider before the first unread message
+      const chronoIndex = index - (START_INDEX - chronoMessages.length);
+      const showUnreadDivider =
+        firstUnreadIndex >= 0 && chronoIndex === firstUnreadIndex;
 
-    return () => observer.disconnect();
-  }, [handleObserver]);
-
-  // Maintain scroll position after loading more messages
-  useEffect(() => {
-    if (prevScrollHeight.current > 0) {
-      const viewport = scrollAreaRef.current?.querySelector(
-        "[data-radix-scroll-area-viewport]",
-      );
-      if (viewport) {
-        const newScrollHeight = viewport.scrollHeight;
-        const heightDiff = newScrollHeight - prevScrollHeight.current;
-        viewport.scrollTop = heightDiff;
-        prevScrollHeight.current = 0;
+      if (readOnly) {
+        return (
+          <div className="py-0.5">
+            {showUnreadDivider && <UnreadDivider />}
+            <MessageItem
+              key={message.id}
+              message={message}
+              isRootMessage={true}
+              isHighlighted={isHighlighted}
+            />
+          </div>
+        );
       }
-    }
-  }, [messages]);
+
+      return (
+        <div className="py-0.5">
+          {showUnreadDivider && <UnreadDivider />}
+          <ChannelMessageItem
+            key={message.id}
+            message={message}
+            currentUserId={currentUser?.id}
+            showReplyCount={Boolean(hasReplies)}
+            onReplyCountClick={() => openThread(message.id)}
+            isHighlighted={isHighlighted}
+            channelId={channelId}
+          />
+        </div>
+      );
+    },
+    [
+      highlightMessageId,
+      readOnly,
+      currentUser?.id,
+      openThread,
+      channelId,
+      firstUnreadIndex,
+      chronoMessages.length,
+    ],
+  );
 
   if (isLoading && messages.length === 0) {
     return (
@@ -160,59 +214,51 @@ export function MessageList({
   }
 
   return (
-    <ScrollArea ref={scrollAreaRef} className="flex-1 min-h-0 px-4">
-      {hasMore && (
-        <div ref={loadMoreTriggerRef} className="py-4 flex justify-center">
-          {isLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Loading more messages...</span>
-            </div>
-          ) : (
-            <div className="h-4" />
-          )}
-        </div>
-      )}
-
-      <div className="space-y-4 py-4">
-        {[...messages].reverse().map((message) => {
-          // Only show reply count for root messages (messages without parentId)
-          const hasReplies =
-            !message.parentId && message.replyCount && message.replyCount > 0;
-          const isHighlighted = highlightMessageId === message.id;
-
-          // Read-only mode: render without context menu and interactions
-          if (readOnly) {
-            return (
-              <MessageItem
-                key={message.id}
-                message={message}
-                isRootMessage={true}
-                isHighlighted={isHighlighted}
+    <div className="flex-1 min-h-0 relative">
+      <Virtuoso
+        ref={virtuosoRef}
+        data={chronoMessages}
+        firstItemIndex={firstItemIndex}
+        initialTopMostItemIndex={
+          savedSnapshot.current ? undefined : initialTopMostItemIndex
+        }
+        restoreStateFrom={savedSnapshot.current ?? undefined}
+        itemContent={itemContent}
+        startReached={handleStartReached}
+        followOutput={handleFollowOutput}
+        atBottomStateChange={handleAtBottomStateChange}
+        atBottomThreshold={150}
+        increaseViewportBy={{ top: 300, bottom: 100 }}
+        className="px-4"
+        components={{
+          Header: () =>
+            hasMore && isLoading ? (
+              <div className="py-4 flex justify-center">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Loading more messages...</span>
+                </div>
+              </div>
+            ) : null,
+          Footer: () => (
+            <div className="py-2">
+              <StreamingMessages
+                channelId={channelId}
+                members={members}
+                thinkingBotIds={thinkingBotIds}
               />
-            );
-          }
+            </div>
+          ),
+        }}
+      />
 
-          return (
-            <ChannelMessageItem
-              key={message.id}
-              message={message}
-              currentUserId={currentUser?.id}
-              showReplyCount={Boolean(hasReplies)}
-              onReplyCountClick={() => openThread(message.id)}
-              isHighlighted={isHighlighted}
-              channelId={channelId}
-            />
-          );
-        })}
-        <StreamingMessages
-          channelId={channelId}
-          members={members}
-          thinkingBotIds={thinkingBotIds}
+      {showIndicator && (
+        <NewMessagesIndicator
+          count={scrollState.context.newMessageCount}
+          onClick={handleJumpToLatest}
         />
-        <div ref={messagesEndRef} />
-      </div>
-    </ScrollArea>
+      )}
+    </div>
   );
 }
 

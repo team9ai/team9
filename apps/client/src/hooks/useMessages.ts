@@ -27,34 +27,21 @@ import { useStreamingStore } from "@/stores/useStreamingStore";
 import { isTemporaryId } from "@/lib/utils";
 import { useThreadStore } from "./useThread";
 import { useThreadScrollState } from "./useThreadScrollState";
+import { useChannelScrollStore } from "./useChannelScrollState";
 
 // --- Temp message coordination ---
 // Coordinates between HTTP onSuccess and WebSocket handleNewMessage
 // to prevent race conditions (duplicate messages, temp message leaks).
-interface PendingTemp {
-  channelId: string;
-  senderId: string;
-  content: string;
-}
+// Uses clientMsgId for precise matching instead of content-based matching.
 
-const pendingTempMessages = new Map<string, PendingTemp>();
+// Map: clientMsgId -> tempId (for matching WS messages to optimistic messages)
+const pendingByClientMsgId = new Map<string, string>();
+// Set of server message IDs already resolved by WebSocket (so onSuccess can skip)
 const resolvedServerIds = new Set<string>();
 
-function findPendingTempId(
-  channelId: string,
-  senderId: string,
-  content: string,
-): string | undefined {
-  for (const [tempId, p] of pendingTempMessages) {
-    if (
-      p.channelId === channelId &&
-      p.senderId === senderId &&
-      p.content === content
-    ) {
-      return tempId;
-    }
-  }
-  return undefined;
+function findPendingTempId(clientMsgId?: string | null): string | undefined {
+  if (!clientMsgId) return undefined;
+  return pendingByClientMsgId.get(clientMsgId);
 }
 
 /**
@@ -282,15 +269,13 @@ export function useMessages(channelId: string | undefined) {
           page.some((msg) => msg.id === message.id),
         );
 
-        // Use coordination map for precise tempId lookup instead of content-scanning cache
-        const matchedTempId = message.senderId
-          ? findPendingTempId(channelId, message.senderId, message.content)
-          : undefined;
+        // Use clientMsgId for precise tempId lookup
+        const matchedTempId = findPendingTempId(message.clientMsgId);
 
         if (exists) {
           // Server message exists - clean up any lingering temp duplicate
           if (!matchedTempId) return old;
-          pendingTempMessages.delete(matchedTempId);
+          pendingByClientMsgId.delete(message.clientMsgId!);
           return {
             ...old,
             pages: old.pages.map((page: Message[]) =>
@@ -303,7 +288,7 @@ export function useMessages(channelId: string | undefined) {
         if (matchedTempId) {
           // Record that WS handled this server message so onSuccess can skip
           resolvedServerIds.add(message.id);
-          pendingTempMessages.delete(matchedTempId);
+          pendingByClientMsgId.delete(message.clientMsgId!);
           setTimeout(() => resolvedServerIds.delete(message.id), 30000);
           return {
             ...old,
@@ -321,6 +306,9 @@ export function useMessages(channelId: string | undefined) {
             : [[message]],
         };
       });
+
+      // Notify channel scroll state machine about the new message
+      useChannelScrollStore.getState().send(channelId, { type: "NEW_MESSAGE" });
     };
 
     const handleMessageUpdated = (message: Message) => {
@@ -709,6 +697,689 @@ export function useMessages(channelId: string | undefined) {
 }
 
 /**
+ * Hook to fetch channel messages with bidirectional loading support.
+ * Supports anchoring to a specific message (around mode) for unread/search jump.
+ */
+export function useChannelMessages(
+  channelId: string | undefined,
+  options?: { anchorMessageId?: string },
+) {
+  const queryClient = useQueryClient();
+  const isAnchored = !!options?.anchorMessageId;
+
+  const query = useInfiniteQuery({
+    queryKey: ["messages", channelId, options?.anchorMessageId ?? "latest"],
+    queryFn: async ({ pageParam }) => {
+      // Paginated loading (older or newer)
+      if (pageParam) {
+        return imApi.messages.getMessagesPaginated(channelId!, {
+          limit: 50,
+          ...(pageParam.direction === "older"
+            ? { before: pageParam.cursor }
+            : { after: pageParam.cursor }),
+        });
+      }
+      // Initial load
+      if (isAnchored) {
+        return imApi.messages.getMessagesPaginated(channelId!, {
+          limit: 50,
+          around: options!.anchorMessageId,
+        });
+      }
+      return imApi.messages.getMessagesPaginated(channelId!, { limit: 50 });
+    },
+    getNextPageParam: (lastPage) => {
+      // "next" = older messages (scroll up)
+      if (!lastPage.hasOlder) return undefined;
+      const messages = lastPage.messages;
+      // Messages are in DESC order, last element is oldest
+      const oldest = messages[messages.length - 1];
+      return oldest
+        ? { direction: "older" as const, cursor: oldest.id }
+        : undefined;
+    },
+    getPreviousPageParam: (firstPage) => {
+      // "previous" = newer messages (scroll down, only for anchored mode)
+      if (!firstPage.hasNewer) return undefined;
+      const messages = firstPage.messages;
+      // Messages are in DESC order, first element is newest
+      const newest = messages[0];
+      return newest
+        ? { direction: "newer" as const, cursor: newest.id }
+        : undefined;
+    },
+    initialPageParam: undefined as
+      | { direction: "older" | "newer"; cursor: string }
+      | undefined,
+    enabled: !!channelId,
+  });
+
+  // Listen for real-time updates
+  useEffect(() => {
+    if (!channelId) return;
+
+    wsService.joinChannel(channelId);
+
+    const msgQueryKey = [
+      "messages",
+      channelId,
+      options?.anchorMessageId ?? "latest",
+    ];
+
+    const handleNewMessage = (message: Message) => {
+      if (message.channelId !== channelId) return;
+
+      // Thread replies - delegate to thread handling
+      if (message.parentId) {
+        handleThreadReply(message, channelId, queryClient);
+        return;
+      }
+
+      queryClient.setQueryData(msgQueryKey, (old: any) => {
+        if (!old)
+          return {
+            pages: [{ messages: [message], hasOlder: false, hasNewer: false }],
+            pageParams: [undefined],
+          };
+
+        // Check if message already exists
+        const exists = old.pages.some((page: any) =>
+          page.messages.some((msg: Message) => msg.id === message.id),
+        );
+
+        const matchedTempId = findPendingTempId(message.clientMsgId);
+
+        if (exists) {
+          if (!matchedTempId) return old;
+          pendingByClientMsgId.delete(message.clientMsgId!);
+          return {
+            ...old,
+            pages: old.pages.map((page: any) => ({
+              ...page,
+              messages: page.messages.filter(
+                (msg: Message) => msg.id !== matchedTempId,
+              ),
+            })),
+          };
+        }
+
+        if (matchedTempId) {
+          resolvedServerIds.add(message.id);
+          pendingByClientMsgId.delete(message.clientMsgId!);
+          setTimeout(() => resolvedServerIds.delete(message.id), 30000);
+          return {
+            ...old,
+            pages: old.pages.map((page: any) => ({
+              ...page,
+              messages: page.messages.map((msg: Message) =>
+                msg.id === matchedTempId ? message : msg,
+              ),
+            })),
+          };
+        }
+
+        // New message from someone else - prepend to first page
+        return {
+          ...old,
+          pages: [
+            {
+              ...old.pages[0],
+              messages: [message, ...old.pages[0].messages],
+            },
+            ...old.pages.slice(1),
+          ],
+        };
+      });
+
+      // Notify scroll state machine
+      useChannelScrollStore.getState().send(channelId, { type: "NEW_MESSAGE" });
+    };
+
+    const handleMessageUpdated = (message: Message) => {
+      if (message.channelId !== channelId) return;
+      queryClient.setQueryData(msgQueryKey, (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page: any) => ({
+            ...page,
+            messages: page.messages.map((msg: Message) =>
+              msg.id === message.id ? message : msg,
+            ),
+          })),
+        };
+      });
+    };
+
+    const handleMessageDeleted = ({ messageId }: { messageId: string }) => {
+      queryClient.setQueryData(msgQueryKey, (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page: any) => ({
+            ...page,
+            messages: page.messages.map((msg: Message) =>
+              msg.id === messageId ? { ...msg, isDeleted: true } : msg,
+            ),
+          })),
+        };
+      });
+    };
+
+    // Streaming event handlers
+    const handleStreamingStart = (event: StreamingStartEvent) => {
+      if (event.channelId !== channelId) return;
+      useStreamingStore.getState().startStream(event);
+      if (event.parentId) {
+        const threadState = useThreadStore.getState();
+        if (
+          threadState.primaryThread.isOpen &&
+          threadState.primaryThread.rootMessageId &&
+          threadState.primaryThread.rootMessageId !== event.parentId
+        ) {
+          autoOpenBotSecondaryThread(
+            event.parentId,
+            threadState.primaryThread.rootMessageId,
+            channelId,
+            queryClient,
+          );
+        } else {
+          autoOpenBotThread(event.parentId, channelId, queryClient);
+        }
+      }
+    };
+
+    const ensureStream = (event: {
+      streamId: string;
+      channelId: string;
+      senderId: string;
+    }) => {
+      if (!useStreamingStore.getState().streams.has(event.streamId)) {
+        useStreamingStore.getState().startStream({
+          streamId: event.streamId,
+          channelId: event.channelId,
+          senderId: event.senderId,
+          startedAt: Date.now(),
+        });
+      }
+    };
+
+    const handleStreamingDelta = (event: StreamingContentEvent) => {
+      if (event.channelId !== channelId) return;
+      ensureStream(event);
+      useStreamingStore
+        .getState()
+        .setStreamContent(event.streamId, event.content);
+    };
+
+    const handleStreamingThinkingDelta = (
+      event: StreamingThinkingContentEvent,
+    ) => {
+      if (event.channelId !== channelId) return;
+      ensureStream(event);
+      useStreamingStore
+        .getState()
+        .setThinkingContent(event.streamId, event.content);
+    };
+
+    const handleStreamingEnd = (event: StreamingEndEvent) => {
+      if (event.channelId !== channelId) return;
+      useStreamingStore.getState().endStream(event.streamId);
+      if (event.message) {
+        const msg = event.message as Message;
+        if (!msg.parentId) {
+          queryClient.setQueryData(msgQueryKey, (old: any) => {
+            if (!old)
+              return {
+                pages: [{ messages: [msg], hasOlder: false, hasNewer: false }],
+                pageParams: [undefined],
+              };
+            const exists = old.pages.some((page: any) =>
+              page.messages.some((m: Message) => m.id === msg.id),
+            );
+            if (exists) return old;
+            return {
+              ...old,
+              pages: [
+                { ...old.pages[0], messages: [msg, ...old.pages[0].messages] },
+                ...old.pages.slice(1),
+              ],
+            };
+          });
+        } else {
+          const rootId = msg.rootId || msg.parentId;
+          queryClient.invalidateQueries({
+            queryKey: ["thread", rootId],
+            refetchType: "all",
+          });
+        }
+      }
+    };
+
+    const handleStreamingAbort = (event: StreamingAbortEvent) => {
+      if (event.channelId !== channelId) return;
+      useStreamingStore.getState().abortStream(event.streamId);
+    };
+
+    // Reaction handlers
+    const handleReactionAdded = (event: ReactionAddedEvent) => {
+      const newReaction = {
+        id: `${event.userId}-${event.emoji}`,
+        messageId: event.messageId,
+        userId: event.userId,
+        emoji: event.emoji,
+        createdAt: new Date().toISOString(),
+      };
+      // Update messages cache
+      queryClient.setQueryData(msgQueryKey, (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page: any) => ({
+            ...page,
+            messages: page.messages.map((msg: Message) => {
+              if (msg.id !== event.messageId) return msg;
+              const existing = msg.reactions || [];
+              if (
+                existing.some(
+                  (r) => r.userId === event.userId && r.emoji === event.emoji,
+                )
+              )
+                return msg;
+              return { ...msg, reactions: [...existing, newReaction] };
+            }),
+          })),
+        };
+      });
+      // Update thread caches
+      const threadState = useThreadStore.getState();
+      if (
+        threadState.primaryThread.isOpen &&
+        threadState.primaryThread.rootMessageId
+      ) {
+        const threadKey = ["thread", threadState.primaryThread.rootMessageId];
+        queryClient.setQueryData(threadKey, (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: any) => ({
+              ...page,
+              replies: page.replies.map((reply: any) => {
+                if (reply.id !== event.messageId) return reply;
+                const existing = reply.reactions || [];
+                if (
+                  existing.some(
+                    (r: any) =>
+                      r.userId === event.userId && r.emoji === event.emoji,
+                  )
+                )
+                  return reply;
+                return { ...reply, reactions: [...existing, newReaction] };
+              }),
+            })),
+          };
+        });
+      }
+      if (
+        threadState.secondaryThread.isOpen &&
+        threadState.secondaryThread.rootMessageId
+      ) {
+        const subKey = [
+          "subReplies",
+          threadState.secondaryThread.rootMessageId,
+        ];
+        queryClient.setQueryData(subKey, (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: any) => ({
+              ...page,
+              replies: page.replies.map((reply: any) => {
+                if (reply.id !== event.messageId) return reply;
+                const existing = reply.reactions || [];
+                if (
+                  existing.some(
+                    (r: any) =>
+                      r.userId === event.userId && r.emoji === event.emoji,
+                  )
+                )
+                  return reply;
+                return { ...reply, reactions: [...existing, newReaction] };
+              }),
+            })),
+          };
+        });
+      }
+    };
+
+    const handleReactionRemoved = (event: ReactionRemovedEvent) => {
+      const filterReaction = (reactions: any[]) =>
+        reactions.filter(
+          (r: any) => !(r.userId === event.userId && r.emoji === event.emoji),
+        );
+      queryClient.setQueryData(msgQueryKey, (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page: any) => ({
+            ...page,
+            messages: page.messages.map((msg: Message) => {
+              if (msg.id !== event.messageId) return msg;
+              return { ...msg, reactions: filterReaction(msg.reactions || []) };
+            }),
+          })),
+        };
+      });
+      const threadState = useThreadStore.getState();
+      if (
+        threadState.primaryThread.isOpen &&
+        threadState.primaryThread.rootMessageId
+      ) {
+        const threadKey = ["thread", threadState.primaryThread.rootMessageId];
+        queryClient.setQueryData(threadKey, (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: any) => ({
+              ...page,
+              replies: page.replies.map((reply: any) => {
+                if (reply.id !== event.messageId) return reply;
+                return {
+                  ...reply,
+                  reactions: filterReaction(reply.reactions || []),
+                };
+              }),
+            })),
+          };
+        });
+      }
+      if (
+        threadState.secondaryThread.isOpen &&
+        threadState.secondaryThread.rootMessageId
+      ) {
+        const subKey = [
+          "subReplies",
+          threadState.secondaryThread.rootMessageId,
+        ];
+        queryClient.setQueryData(subKey, (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: any) => ({
+              ...page,
+              replies: page.replies.map((reply: any) => {
+                if (reply.id !== event.messageId) return reply;
+                return {
+                  ...reply,
+                  reactions: filterReaction(reply.reactions || []),
+                };
+              }),
+            })),
+          };
+        });
+      }
+    };
+
+    wsService.onNewMessage(handleNewMessage);
+    wsService.onMessageUpdated(handleMessageUpdated);
+    wsService.onMessageDeleted(handleMessageDeleted);
+    wsService.onStreamingStart(handleStreamingStart);
+    wsService.onStreamingContent(handleStreamingDelta);
+    wsService.onStreamingThinkingContent(handleStreamingThinkingDelta);
+    wsService.onStreamingEnd(handleStreamingEnd);
+    wsService.onStreamingAbort(handleStreamingAbort);
+    wsService.onReactionAdded(handleReactionAdded);
+    wsService.onReactionRemoved(handleReactionRemoved);
+
+    return () => {
+      wsService.off("new_message", handleNewMessage);
+      wsService.off("message_updated", handleMessageUpdated);
+      wsService.off("message_deleted", handleMessageDeleted);
+      wsService.off("streaming_start", handleStreamingStart);
+      wsService.off("streaming_content", handleStreamingDelta);
+      wsService.off("streaming_thinking_content", handleStreamingThinkingDelta);
+      wsService.off("streaming_end", handleStreamingEnd);
+      wsService.off("streaming_abort", handleStreamingAbort);
+      wsService.off("reaction_added", handleReactionAdded);
+      wsService.off("reaction_removed", handleReactionRemoved);
+    };
+  }, [channelId, queryClient, options?.anchorMessageId]);
+
+  return query;
+}
+
+// Extract thread reply handling into a shared helper
+function handleThreadReply(
+  message: Message,
+  channelId: string,
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
+  const rootId = message.rootId || message.parentId!;
+  const parentId = message.parentId!;
+  const threadState = useThreadStore.getState();
+  const scrollStateStore = useThreadScrollState.getState();
+
+  const isPrimaryThreadOpen =
+    threadState.primaryThread.isOpen &&
+    threadState.primaryThread.rootMessageId === rootId;
+  const isSecondaryThreadOpen =
+    threadState.secondaryThread.isOpen &&
+    threadState.secondaryThread.rootMessageId === parentId;
+  const isSubReply = parentId !== rootId;
+  const isMessageForSecondaryThread = isSecondaryThreadOpen;
+
+  if (isPrimaryThreadOpen && !isMessageForSecondaryThread) {
+    if (isSubReply) {
+      useThreadStore.getState().incrementUnreadSubReplyCount(parentId);
+      queryClient.invalidateQueries({
+        queryKey: ["thread", rootId],
+        refetchType: "all",
+      });
+    } else {
+      const threadScrollState = scrollStateStore.getThreadState(rootId);
+      const currentScrollState = threadScrollState.state;
+      scrollStateStore.send(rootId, { type: "NEW_MESSAGE" });
+      if (currentScrollState === "idle") {
+        queryClient.invalidateQueries({
+          queryKey: ["thread", rootId],
+          refetchType: "all",
+        });
+      }
+    }
+  }
+
+  if (isSecondaryThreadOpen) {
+    const secondaryRootId = threadState.secondaryThread.rootMessageId!;
+    const threadScrollState = scrollStateStore.getThreadState(secondaryRootId);
+    const currentScrollState = threadScrollState.state;
+    scrollStateStore.send(secondaryRootId, { type: "NEW_MESSAGE" });
+    if (currentScrollState === "idle") {
+      queryClient.invalidateQueries({
+        queryKey: ["subReplies", secondaryRootId],
+        refetchType: "all",
+      });
+    }
+  }
+
+  if (!isPrimaryThreadOpen && !isSecondaryThreadOpen) {
+    queryClient.invalidateQueries({
+      queryKey: ["thread", rootId],
+      refetchType: "all",
+    });
+  }
+
+  // Auto-open thread panel for bot replies
+  if (message.sender?.userType === "bot") {
+    if (isSubReply) {
+      autoOpenBotSecondaryThread(parentId, rootId, channelId, queryClient);
+    } else {
+      autoOpenBotThread(rootId, channelId, queryClient);
+    }
+  }
+
+  // Update sub-reply counts in thread cache
+  if (isSubReply) {
+    queryClient.setQueryData(["thread", rootId], (old: any) => {
+      if (!old) return old;
+      return {
+        ...old,
+        pages: old.pages.map((page: any) => ({
+          ...page,
+          replies: page.replies.map((reply: any) => {
+            if (reply.id === parentId) {
+              let updatedRepliers = [...(reply.lastRepliers || [])];
+              if (message.sender) {
+                const newReplier = {
+                  id: message.sender.id,
+                  username: message.sender.username,
+                  displayName: message.sender.displayName ?? null,
+                  avatarUrl: message.sender.avatarUrl ?? null,
+                  userType: message.sender.userType ?? "human",
+                };
+                updatedRepliers = updatedRepliers.filter(
+                  (r: any) => r.id !== newReplier.id,
+                );
+                updatedRepliers.unshift(newReplier);
+                updatedRepliers = updatedRepliers.slice(0, 5);
+              }
+              return {
+                ...reply,
+                subReplyCount: (reply.subReplyCount || 0) + 1,
+                replyCount: (reply.replyCount || 0) + 1,
+                lastRepliers: updatedRepliers,
+                lastReplyAt: message.createdAt,
+              };
+            }
+            return reply;
+          }),
+        })),
+      };
+    });
+  }
+
+  // Update root message replyCount in main list
+  updateRootMessageReplyCount(message, rootId, channelId, queryClient);
+}
+
+// Update root message's replyCount, lastRepliers, lastReplyAt in main message list
+function updateRootMessageReplyCount(
+  message: Message,
+  rootId: string,
+  channelId: string,
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
+  queryClient.setQueriesData(
+    { queryKey: ["messages", channelId] },
+    (old: any) => {
+      if (!old) return old;
+      return {
+        ...old,
+        pages: old.pages.map((page: any) =>
+          setMessages(
+            page,
+            getMessages(page).map((msg: Message) => {
+              if (msg.id === rootId) {
+                let updatedRepliers = [...(msg.lastRepliers || [])];
+                if (message.sender) {
+                  const newReplier = {
+                    id: message.sender.id,
+                    username: message.sender.username,
+                    displayName: message.sender.displayName ?? null,
+                    avatarUrl: message.sender.avatarUrl ?? null,
+                    userType: message.sender.userType ?? "human",
+                  };
+                  updatedRepliers = updatedRepliers.filter(
+                    (r) => r.id !== newReplier.id,
+                  );
+                  updatedRepliers.unshift(newReplier);
+                  updatedRepliers = updatedRepliers.slice(0, 5);
+                }
+                return {
+                  ...msg,
+                  replyCount: (msg.replyCount || 0) + 1,
+                  lastRepliers: updatedRepliers,
+                  lastReplyAt: message.createdAt,
+                };
+              }
+              return msg;
+            }),
+          ),
+        ),
+      };
+    },
+  );
+}
+
+// Auto-open thread panel for bot thread replies
+function autoOpenBotThread(
+  rootId: string,
+  channelId: string,
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
+  const threadState = useThreadStore.getState();
+  if (threadState.primaryThread.rootMessageId === rootId) return;
+
+  const currentUserId = useAppStore.getState().user?.id;
+  if (!currentUserId) return;
+
+  // Search across all message queries for this channel
+  const queries = queryClient
+    .getQueryCache()
+    .findAll({ queryKey: ["messages", channelId] });
+  for (const query of queries) {
+    const data = query.state.data as any;
+    if (!data?.pages) continue;
+    for (const page of data.pages) {
+      const msgs = getMessages(page);
+      const parentMsg = msgs.find((m: Message) => m.id === rootId);
+      if (parentMsg?.senderId === currentUserId) {
+        threadState.openPrimaryThread(rootId);
+        return;
+      }
+    }
+  }
+}
+
+// Auto-open secondary thread for bot sub-replies
+function autoOpenBotSecondaryThread(
+  parentId: string,
+  rootId: string,
+  _channelId: string,
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
+  const threadState = useThreadStore.getState();
+  if (
+    !threadState.primaryThread.isOpen ||
+    threadState.primaryThread.rootMessageId !== rootId
+  )
+    return;
+  if (threadState.secondaryThread.rootMessageId === parentId) return;
+
+  const currentUserId = useAppStore.getState().user?.id;
+  if (!currentUserId) return;
+
+  const threadData = queryClient.getQueryData(["thread", rootId]) as any;
+  if (!threadData) return;
+
+  const parentMsg = threadData.pages
+    ?.flatMap((page: any) => page.replies)
+    ?.find((r: any) => r.id === parentId);
+  if (parentMsg?.senderId === currentUserId) {
+    threadState.openSecondaryThread(parentId);
+  }
+}
+
+// --- Cache format helpers ---
+// Support both old (Message[][]) and new (PaginatedMessagesResponse[]) page formats.
+// Old format: each page is Message[]; new format: each page is { messages: Message[], hasOlder, hasNewer }
+function getMessages(page: any): Message[] {
+  return Array.isArray(page) ? page : page.messages;
+}
+function setMessages(page: any, messages: Message[]): any {
+  return Array.isArray(page) ? messages : { ...page, messages };
+}
+
+/**
  * Hook to send a message with optimistic updates
  */
 export function useSendMessage(channelId: string) {
@@ -732,20 +1403,21 @@ export function useSendMessage(channelId: string) {
       // Get current user from app store (static import eliminates async gap)
       const currentUser = useAppStore.getState().user;
 
-      // Generate a temporary ID for the optimistic message
+      // Generate a temporary ID and clientMsgId for the optimistic message
       const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+      const clientMsgId = crypto.randomUUID();
 
-      // Register for WS coordination before any async gap
-      pendingTempMessages.set(tempId, {
-        channelId,
-        senderId: currentUser?.id || "",
-        content: newMessageData.content,
-      });
-      setTimeout(() => pendingTempMessages.delete(tempId), 60000);
+      // Register for WS coordination using clientMsgId
+      pendingByClientMsgId.set(clientMsgId, tempId);
+      setTimeout(() => pendingByClientMsgId.delete(clientMsgId), 60000);
+
+      // Attach clientMsgId to the request data so it's sent to the server
+      newMessageData.clientMsgId = clientMsgId;
 
       // Create optimistic message with 'sending' status
       const optimisticMessage: Message = {
         id: tempId,
+        clientMsgId,
         channelId,
         senderId: currentUser?.id || "",
         content: newMessageData.content,
@@ -787,15 +1459,33 @@ export function useSendMessage(channelId: string) {
       };
 
       // Optimistically add the message to the cache
-      queryClient.setQueryData(["messages", channelId], (old: any) => {
-        if (!old)
-          return { pages: [[optimisticMessage]], pageParams: [undefined] };
+      queryClient.setQueriesData(
+        { queryKey: ["messages", channelId] },
+        (old: any) => {
+          if (!old)
+            return {
+              pages: [
+                {
+                  messages: [optimisticMessage],
+                  hasOlder: false,
+                  hasNewer: false,
+                },
+              ],
+              pageParams: [undefined],
+            };
 
-        return {
-          ...old,
-          pages: [[optimisticMessage, ...old.pages[0]], ...old.pages.slice(1)],
-        };
-      });
+          return {
+            ...old,
+            pages: [
+              setMessages(old.pages[0], [
+                optimisticMessage,
+                ...getMessages(old.pages[0]),
+              ]),
+              ...old.pages.slice(1),
+            ],
+          };
+        },
+      );
 
       // Return context for rollback and replacement
       return { previousMessages, tempId };
@@ -803,95 +1493,130 @@ export function useSendMessage(channelId: string) {
 
     onSuccess: (serverMessage, _, context) => {
       // Clean up pending tracking
-      if (context?.tempId) {
-        pendingTempMessages.delete(context.tempId);
+      if (serverMessage.clientMsgId) {
+        pendingByClientMsgId.delete(serverMessage.clientMsgId);
       }
 
       // If WebSocket already handled this message, just ensure no lingering temp
       if (resolvedServerIds.has(serverMessage.id)) {
         resolvedServerIds.delete(serverMessage.id);
-        queryClient.setQueryData(["messages", channelId], (old: any) => {
-          if (!old) return old;
-          const hasTempMsg = old.pages.some((page: Message[]) =>
-            page.some((msg) => msg.id === context?.tempId),
-          );
-          if (!hasTempMsg) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page: Message[]) =>
-              page.filter((msg) => msg.id !== context?.tempId),
-            ),
-          };
-        });
+        queryClient.setQueriesData(
+          { queryKey: ["messages", channelId] },
+          (old: any) => {
+            if (!old) return old;
+            const hasTempMsg = old.pages.some((page: any) =>
+              getMessages(page).some(
+                (msg: Message) => msg.id === context?.tempId,
+              ),
+            );
+            if (!hasTempMsg) return old;
+            return {
+              ...old,
+              pages: old.pages.map((page: any) =>
+                setMessages(
+                  page,
+                  getMessages(page).filter(
+                    (msg: Message) => msg.id !== context?.tempId,
+                  ),
+                ),
+              ),
+            };
+          },
+        );
         queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
         return;
       }
 
       // Normal path: replace the optimistic message with the real one from server
-      queryClient.setQueryData(["messages", channelId], (old: any) => {
-        if (!old) return { pages: [[serverMessage]], pageParams: [undefined] };
+      queryClient.setQueriesData(
+        { queryKey: ["messages", channelId] },
+        (old: any) => {
+          if (!old)
+            return {
+              pages: [
+                { messages: [serverMessage], hasOlder: false, hasNewer: false },
+              ],
+              pageParams: [undefined],
+            };
 
-        const serverMessageExists = old.pages.some((page: Message[]) =>
-          page.some((msg: Message) => msg.id === serverMessage.id),
-        );
+          const serverMessageExists = old.pages.some((page: any) =>
+            getMessages(page).some(
+              (msg: Message) => msg.id === serverMessage.id,
+            ),
+          );
 
-        let tempFound = false;
-        const updatedPages = old.pages.map((page: Message[]) => {
-          const tempIndex = page.findIndex((msg) => msg.id === context?.tempId);
+          let tempFound = false;
+          const updatedPages = old.pages.map((page: any) => {
+            const msgs = getMessages(page);
+            const tempIndex = msgs.findIndex(
+              (msg: Message) => msg.id === context?.tempId,
+            );
 
-          if (tempIndex !== -1) {
-            tempFound = true;
-            if (serverMessageExists) {
-              return page.filter((msg) => msg.id !== context?.tempId);
-            } else {
-              const newPage = [...page];
-              newPage[tempIndex] = {
-                ...serverMessage,
-                sendStatus: undefined,
-                _retryData: undefined,
-              };
-              return newPage;
+            if (tempIndex !== -1) {
+              tempFound = true;
+              if (serverMessageExists) {
+                return setMessages(
+                  page,
+                  msgs.filter((msg: Message) => msg.id !== context?.tempId),
+                );
+              } else {
+                const newMsgs = [...msgs];
+                newMsgs[tempIndex] = {
+                  ...serverMessage,
+                  sendStatus: undefined,
+                  _retryData: undefined,
+                };
+                return setMessages(page, newMsgs);
+              }
             }
+            return page;
+          });
+
+          if (!tempFound && !serverMessageExists) {
+            updatedPages[0] = setMessages(updatedPages[0], [
+              serverMessage,
+              ...getMessages(updatedPages[0]),
+            ]);
           }
-          return page;
-        });
 
-        if (!tempFound && !serverMessageExists) {
-          updatedPages[0] = [serverMessage, ...updatedPages[0]];
-        }
-
-        return { ...old, pages: updatedPages };
-      });
+          return { ...old, pages: updatedPages };
+        },
+      );
 
       // Invalidate channels to update unread counts
       queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
     },
 
     onError: (_err, variables, context) => {
-      if (context?.tempId) {
+      if (variables.clientMsgId) {
         // Clean up pending tracking
-        pendingTempMessages.delete(context.tempId);
+        pendingByClientMsgId.delete(variables.clientMsgId);
       }
       // Mark the optimistic message as failed instead of rolling back
       if (context?.tempId) {
-        queryClient.setQueryData(["messages", channelId], (old: any) => {
-          if (!old) return old;
-
-          return {
-            ...old,
-            pages: old.pages.map((page: Message[]) =>
-              page.map((msg) =>
-                msg.id === context.tempId
-                  ? {
-                      ...msg,
-                      sendStatus: "failed" as MessageSendStatus,
-                      _retryData: variables,
-                    }
-                  : msg,
+        queryClient.setQueriesData(
+          { queryKey: ["messages", channelId] },
+          (old: any) => {
+            if (!old) return old;
+            return {
+              ...old,
+              pages: old.pages.map((page: any) =>
+                setMessages(
+                  page,
+                  getMessages(page).map((msg: Message) =>
+                    msg.id === context.tempId
+                      ? {
+                          ...msg,
+                          sendStatus: "failed" as MessageSendStatus,
+                          _retryData: variables,
+                        }
+                      : msg,
+                  ),
+                ),
               ),
-            ),
-          };
-        });
+            };
+          },
+        );
       }
     },
   });
@@ -915,119 +1640,152 @@ export function useRetryMessage(channelId: string) {
     },
 
     onMutate: async ({ tempId, retryData }) => {
-      // Re-register for WS coordination
-      const currentUser = useAppStore.getState().user;
-      pendingTempMessages.set(tempId, {
-        channelId,
-        senderId: currentUser?.id || "",
-        content: retryData.content,
-      });
-      setTimeout(() => pendingTempMessages.delete(tempId), 60000);
+      const clientMsgId = crypto.randomUUID();
+      retryData.clientMsgId = clientMsgId;
+      pendingByClientMsgId.set(clientMsgId, tempId);
+      setTimeout(() => pendingByClientMsgId.delete(clientMsgId), 60000);
 
-      // Mark message as sending again
-      queryClient.setQueryData(["messages", channelId], (old: any) => {
-        if (!old) return old;
-
-        return {
-          ...old,
-          pages: old.pages.map((page: Message[]) =>
-            page.map((msg) =>
-              msg.id === tempId
-                ? { ...msg, sendStatus: "sending" as MessageSendStatus }
-                : msg,
+      queryClient.setQueriesData(
+        { queryKey: ["messages", channelId] },
+        (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: any) =>
+              setMessages(
+                page,
+                getMessages(page).map((msg: Message) =>
+                  msg.id === tempId
+                    ? {
+                        ...msg,
+                        clientMsgId,
+                        sendStatus: "sending" as MessageSendStatus,
+                      }
+                    : msg,
+                ),
+              ),
             ),
-          ),
-        };
-      });
+          };
+        },
+      );
 
-      return { tempId };
+      return { tempId, clientMsgId };
     },
 
     onSuccess: (serverMessage, { tempId }) => {
-      // Clean up pending tracking
-      pendingTempMessages.delete(tempId);
+      if (serverMessage.clientMsgId) {
+        pendingByClientMsgId.delete(serverMessage.clientMsgId);
+      }
 
-      // If WebSocket already handled this message, just ensure no lingering temp
       if (resolvedServerIds.has(serverMessage.id)) {
         resolvedServerIds.delete(serverMessage.id);
-        queryClient.setQueryData(["messages", channelId], (old: any) => {
-          if (!old) return old;
-          const hasTempMsg = old.pages.some((page: Message[]) =>
-            page.some((msg) => msg.id === tempId),
-          );
-          if (!hasTempMsg) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page: Message[]) =>
-              page.filter((msg) => msg.id !== tempId),
-            ),
-          };
-        });
+        queryClient.setQueriesData(
+          { queryKey: ["messages", channelId] },
+          (old: any) => {
+            if (!old) return old;
+            const hasTempMsg = old.pages.some((page: any) =>
+              getMessages(page).some((msg: Message) => msg.id === tempId),
+            );
+            if (!hasTempMsg) return old;
+            return {
+              ...old,
+              pages: old.pages.map((page: any) =>
+                setMessages(
+                  page,
+                  getMessages(page).filter((msg: Message) => msg.id !== tempId),
+                ),
+              ),
+            };
+          },
+        );
         queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
         return;
       }
 
-      // Normal path: replace the failed message with the real one from server
-      queryClient.setQueryData(["messages", channelId], (old: any) => {
-        if (!old) return { pages: [[serverMessage]], pageParams: [undefined] };
+      queryClient.setQueriesData(
+        { queryKey: ["messages", channelId] },
+        (old: any) => {
+          if (!old)
+            return {
+              pages: [
+                { messages: [serverMessage], hasOlder: false, hasNewer: false },
+              ],
+              pageParams: [undefined],
+            };
 
-        const serverMessageExists = old.pages.some((page: Message[]) =>
-          page.some((msg: Message) => msg.id === serverMessage.id),
-        );
+          const serverMessageExists = old.pages.some((page: any) =>
+            getMessages(page).some(
+              (msg: Message) => msg.id === serverMessage.id,
+            ),
+          );
 
-        let tempFound = false;
-        const updatedPages = old.pages.map((page: Message[]) => {
-          const tempIndex = page.findIndex((msg) => msg.id === tempId);
-
-          if (tempIndex !== -1) {
-            tempFound = true;
-            if (serverMessageExists) {
-              return page.filter((msg) => msg.id !== tempId);
-            } else {
-              const newPage = [...page];
-              newPage[tempIndex] = {
-                ...serverMessage,
-                sendStatus: undefined,
-                _retryData: undefined,
-              };
-              return newPage;
+          let tempFound = false;
+          const updatedPages = old.pages.map((page: any) => {
+            const msgs = getMessages(page);
+            const tempIndex = msgs.findIndex(
+              (msg: Message) => msg.id === tempId,
+            );
+            if (tempIndex !== -1) {
+              tempFound = true;
+              if (serverMessageExists) {
+                return setMessages(
+                  page,
+                  msgs.filter((msg: Message) => msg.id !== tempId),
+                );
+              } else {
+                const newMsgs = [...msgs];
+                newMsgs[tempIndex] = {
+                  ...serverMessage,
+                  sendStatus: undefined,
+                  _retryData: undefined,
+                };
+                return setMessages(page, newMsgs);
+              }
             }
+            return page;
+          });
+
+          if (!tempFound && !serverMessageExists) {
+            updatedPages[0] = setMessages(updatedPages[0], [
+              serverMessage,
+              ...getMessages(updatedPages[0]),
+            ]);
           }
-          return page;
-        });
 
-        if (!tempFound && !serverMessageExists) {
-          updatedPages[0] = [serverMessage, ...updatedPages[0]];
-        }
-
-        return { ...old, pages: updatedPages };
-      });
+          return { ...old, pages: updatedPages };
+        },
+      );
 
       queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
     },
 
     onError: (_err, { tempId, retryData }) => {
-      // Clean up pending tracking
-      pendingTempMessages.delete(tempId);
-      // Mark back as failed
-      queryClient.setQueryData(["messages", channelId], (old: any) => {
-        if (!old) return old;
-
-        return {
-          ...old,
-          pages: old.pages.map((page: Message[]) =>
-            page.map((msg) =>
-              msg.id === tempId
-                ? {
-                    ...msg,
-                    sendStatus: "failed" as MessageSendStatus,
-                    _retryData: retryData,
-                  }
-                : msg,
+      if (retryData.clientMsgId) {
+        pendingByClientMsgId.delete(retryData.clientMsgId);
+      }
+      queryClient.setQueriesData(
+        { queryKey: ["messages", channelId] },
+        (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: any) =>
+              setMessages(
+                page,
+                getMessages(page).map((msg: Message) =>
+                  msg.id === tempId
+                    ? {
+                        ...msg,
+                        sendStatus: "failed" as MessageSendStatus,
+                        _retryData: retryData,
+                      }
+                    : msg,
+                ),
+              ),
             ),
-          ),
-        };
-      });
+          };
+        },
+      );
     },
   });
 }
@@ -1039,16 +1797,21 @@ export function useRemoveFailedMessage(channelId: string) {
   const queryClient = useQueryClient();
 
   return (tempId: string) => {
-    queryClient.setQueryData(["messages", channelId], (old: any) => {
-      if (!old) return old;
-
-      return {
-        ...old,
-        pages: old.pages.map((page: Message[]) =>
-          page.filter((msg) => msg.id !== tempId),
-        ),
-      };
-    });
+    queryClient.setQueriesData(
+      { queryKey: ["messages", channelId] },
+      (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page: any) =>
+            setMessages(
+              page,
+              getMessages(page).filter((msg: Message) => msg.id !== tempId),
+            ),
+          ),
+        };
+      },
+    );
   };
 }
 
@@ -1098,37 +1861,43 @@ export function useAddReaction(channelId?: string) {
       if (!channelId || !currentUser) return;
       await queryClient.cancelQueries({ queryKey: ["messages", channelId] });
 
-      queryClient.setQueryData(["messages", channelId], (old: any) => {
-        if (!old) return old;
-        return {
-          ...old,
-          pages: old.pages.map((page: Message[]) =>
-            page.map((msg) => {
-              if (msg.id !== messageId) return msg;
-              const existing = msg.reactions || [];
-              if (
-                existing.some(
-                  (r) => r.userId === currentUser.id && r.emoji === emoji,
-                )
-              )
-                return msg;
-              return {
-                ...msg,
-                reactions: [
-                  ...existing,
-                  {
-                    id: `optimistic-${currentUser.id}-${emoji}`,
-                    messageId,
-                    userId: currentUser.id,
-                    emoji,
-                    createdAt: new Date().toISOString(),
-                  },
-                ],
-              };
-            }),
-          ),
-        };
-      });
+      queryClient.setQueriesData(
+        { queryKey: ["messages", channelId] },
+        (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: any) =>
+              setMessages(
+                page,
+                getMessages(page).map((msg: Message) => {
+                  if (msg.id !== messageId) return msg;
+                  const existing = msg.reactions || [];
+                  if (
+                    existing.some(
+                      (r) => r.userId === currentUser.id && r.emoji === emoji,
+                    )
+                  )
+                    return msg;
+                  return {
+                    ...msg,
+                    reactions: [
+                      ...existing,
+                      {
+                        id: `optimistic-${currentUser.id}-${emoji}`,
+                        messageId,
+                        userId: currentUser.id,
+                        emoji,
+                        createdAt: new Date().toISOString(),
+                      },
+                    ],
+                  };
+                }),
+              ),
+            ),
+          };
+        },
+      );
     },
   });
 }
@@ -1155,24 +1924,30 @@ export function useRemoveReaction(channelId?: string) {
       if (!channelId || !currentUser) return;
       await queryClient.cancelQueries({ queryKey: ["messages", channelId] });
 
-      queryClient.setQueryData(["messages", channelId], (old: any) => {
-        if (!old) return old;
-        return {
-          ...old,
-          pages: old.pages.map((page: Message[]) =>
-            page.map((msg) => {
-              if (msg.id !== messageId) return msg;
-              return {
-                ...msg,
-                reactions: (msg.reactions || []).filter(
-                  (r: any) =>
-                    !(r.userId === currentUser.id && r.emoji === emoji),
-                ),
-              };
-            }),
-          ),
-        };
-      });
+      queryClient.setQueriesData(
+        { queryKey: ["messages", channelId] },
+        (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: any) =>
+              setMessages(
+                page,
+                getMessages(page).map((msg: Message) => {
+                  if (msg.id !== messageId) return msg;
+                  return {
+                    ...msg,
+                    reactions: (msg.reactions || []).filter(
+                      (r: any) =>
+                        !(r.userId === currentUser.id && r.emoji === emoji),
+                    ),
+                  };
+                }),
+              ),
+            ),
+          };
+        },
+      );
     },
   });
 }

@@ -39,6 +39,7 @@ export interface ChannelResponse {
 
 export interface ChannelWithUnread extends ChannelResponse {
   unreadCount: number;
+  lastReadMessageId: string | null;
   otherUser?: {
     id: string;
     username: string;
@@ -426,6 +427,7 @@ export class ChannelsService {
           sql<number>`COALESCE(${schema.userChannelReadStatus.unreadCount}, 0)`.as(
             'unread_count',
           ),
+        lastReadMessageId: schema.userChannelReadStatus.lastReadMessageId,
       })
       .from(schema.channelMembers)
       .innerJoin(

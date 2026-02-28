@@ -11,7 +11,10 @@ import {
   eq,
   and,
   desc,
+  asc,
   lt,
+  gt,
+  gte,
   sql,
   isNull,
   inArray,
@@ -48,6 +51,7 @@ export interface MessageReactionResponse {
 
 export interface MessageResponse {
   id: string;
+  clientMsgId: string | null;
   channelId: string;
   senderId: string | null;
   parentId: string | null;
@@ -66,6 +70,12 @@ export interface MessageResponse {
   lastRepliers: MessageSender[];
   lastReplyAt: Date | null;
   metadata?: Record<string, unknown> | null;
+}
+
+export interface PaginatedMessagesResponse {
+  messages: MessageResponse[];
+  hasOlder: boolean;
+  hasNewer: boolean;
 }
 
 // Thread response types for nested replies (max 2 levels)
@@ -205,6 +215,7 @@ export class MessagesService {
 
     return {
       id: message.id,
+      clientMsgId: message.clientMsgId ?? null,
       channelId: message.channelId,
       senderId: message.senderId,
       parentId: message.parentId,
@@ -396,6 +407,7 @@ export class MessagesService {
     messages.forEach((message) => {
       result.set(message.id, {
         id: message.id,
+        clientMsgId: message.clientMsgId ?? null,
         channelId: message.channelId,
         senderId: message.senderId,
         parentId: message.parentId,
@@ -468,9 +480,151 @@ export class MessagesService {
     }
 
     const messageList = await query;
-    return Promise.all(
-      messageList.map((m) => this.getMessageWithDetails(m.id)),
+    const detailsMap = await this.getMessagesWithDetailsBatch(messageList);
+    return messageList
+      .map((m) => detailsMap.get(m.id))
+      .filter((m): m is MessageResponse => !!m);
+  }
+
+  /**
+   * Get channel messages with bidirectional pagination support.
+   * Supports three cursor modes:
+   * - before: messages older than cursor (existing behavior)
+   * - after: messages newer than cursor
+   * - around: messages surrounding the cursor (for jump-to-message)
+   * Returns hasOlder/hasNewer flags for bidirectional infinite scroll.
+   */
+  async getChannelMessagesPaginated(
+    channelId: string,
+    limit: number,
+    cursors: { before?: string; after?: string; around?: string },
+  ): Promise<PaginatedMessagesResponse> {
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    const baseConditions = and(
+      eq(schema.messages.channelId, channelId),
+      eq(schema.messages.isDeleted, false),
+      isNull(schema.messages.parentId),
     );
+
+    // Helper to resolve a message ID to its createdAt timestamp
+    const resolveTimestamp = async (
+      messageId: string,
+    ): Promise<Date | null> => {
+      if (!messageId || !uuidRegex.test(messageId)) return null;
+      const [row] = await this.db
+        .select({ createdAt: schema.messages.createdAt })
+        .from(schema.messages)
+        .where(eq(schema.messages.id, messageId))
+        .limit(1);
+      return row?.createdAt ?? null;
+    };
+
+    // --- around mode ---
+    if (cursors.around) {
+      const anchorTime = await resolveTimestamp(cursors.around);
+      if (!anchorTime) {
+        // Anchor message not found, fall back to latest
+        return this.getChannelMessagesPaginated(channelId, limit, {});
+      }
+
+      const halfBefore = Math.floor(limit / 2);
+      const halfAfter = Math.ceil(limit / 2);
+
+      // Older: createdAt < anchorTime (DESC)
+      const olderRows = await this.db
+        .select()
+        .from(schema.messages)
+        .where(and(baseConditions, lt(schema.messages.createdAt, anchorTime)))
+        .orderBy(desc(schema.messages.createdAt))
+        .limit(halfBefore + 1);
+
+      // Newer or equal: createdAt >= anchorTime (ASC)
+      const newerRows = await this.db
+        .select()
+        .from(schema.messages)
+        .where(and(baseConditions, gte(schema.messages.createdAt, anchorTime)))
+        .orderBy(asc(schema.messages.createdAt))
+        .limit(halfAfter + 1);
+
+      const hasOlder = olderRows.length > halfBefore;
+      const hasNewer = newerRows.length > halfAfter;
+
+      const olderTrimmed = olderRows.slice(0, halfBefore);
+      const newerTrimmed = newerRows.slice(0, halfAfter);
+
+      // Combine: older (reversed to ASC) + newer, then sort DESC for client
+      const combined = [...olderTrimmed, ...newerTrimmed].sort(
+        (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+      );
+
+      const detailsMap = await this.getMessagesWithDetailsBatch(combined);
+      const messages = combined
+        .map((m) => detailsMap.get(m.id))
+        .filter((m): m is MessageResponse => !!m);
+
+      return { messages, hasOlder, hasNewer };
+    }
+
+    // --- after mode ---
+    if (cursors.after) {
+      const afterTime = await resolveTimestamp(cursors.after);
+      if (!afterTime) {
+        return { messages: [], hasOlder: true, hasNewer: false };
+      }
+
+      const rows = await this.db
+        .select()
+        .from(schema.messages)
+        .where(and(baseConditions, gt(schema.messages.createdAt, afterTime)))
+        .orderBy(asc(schema.messages.createdAt))
+        .limit(limit + 1);
+
+      const hasNewer = rows.length > limit;
+      const trimmed = rows.slice(0, limit);
+      // Sort DESC for consistent client ordering
+      trimmed.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+      const detailsMap = await this.getMessagesWithDetailsBatch(trimmed);
+      const messages = trimmed
+        .map((m) => detailsMap.get(m.id))
+        .filter((m): m is MessageResponse => !!m);
+
+      return { messages, hasOlder: true, hasNewer };
+    }
+
+    // --- before mode (or no cursor = latest) ---
+    let conditions = baseConditions;
+    let hasCursor = false;
+
+    if (cursors.before) {
+      const beforeTime = await resolveTimestamp(cursors.before);
+      if (beforeTime) {
+        conditions = and(
+          baseConditions,
+          lt(schema.messages.createdAt, beforeTime),
+        );
+        hasCursor = true;
+      }
+    }
+
+    const rows = await this.db
+      .select()
+      .from(schema.messages)
+      .where(conditions)
+      .orderBy(desc(schema.messages.createdAt))
+      .limit(limit + 1);
+
+    const hasOlder = rows.length > limit;
+    const trimmed = rows.slice(0, limit);
+
+    const detailsMap = await this.getMessagesWithDetailsBatch(trimmed);
+    const messages = trimmed
+      .map((m) => detailsMap.get(m.id))
+      .filter((m): m is MessageResponse => !!m);
+
+    return { messages, hasOlder, hasNewer: hasCursor };
   }
 
   /**

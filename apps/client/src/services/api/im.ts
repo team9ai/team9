@@ -16,6 +16,7 @@ import type {
   AddReactionDto,
   UpdateUserStatusDto,
   GetMessagesParams,
+  PaginatedMessagesResponse,
   SearchUsersParams,
   PublicChannelPreview,
   ThreadResponse,
@@ -166,6 +167,27 @@ export const messagesApi = {
       { params },
     );
     return response.data;
+  },
+
+  // Get channel messages with pagination metadata (supports after/around cursors)
+  // Server returns flat Message[] when no after/around param; normalize to PaginatedMessagesResponse
+  getMessagesPaginated: async (
+    channelId: string,
+    params?: GetMessagesParams,
+  ): Promise<PaginatedMessagesResponse> => {
+    const response = await http.get(`/v1/im/channels/${channelId}/messages`, {
+      params,
+    });
+    const data = response.data;
+    // Server returns flat array for backward compatibility when no after/around cursor
+    if (Array.isArray(data)) {
+      return {
+        messages: data as Message[],
+        hasOlder: data.length >= (params?.limit ?? 50),
+        hasNewer: false,
+      };
+    }
+    return data as PaginatedMessagesResponse;
   },
 
   // Send message to channel

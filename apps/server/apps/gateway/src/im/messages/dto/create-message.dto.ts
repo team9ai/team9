@@ -28,6 +28,11 @@ export class AttachmentDto {
 
 export class CreateMessageDto {
   @IsString()
+  @IsOptional()
+  @MaxLength(64)
+  clientMsgId?: string;
+
+  @IsString()
   @MaxLength(10000)
   content: string;
 

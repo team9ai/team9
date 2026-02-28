@@ -92,6 +92,7 @@ export interface MessageReaction {
 export interface Message {
   id: string;
   channelId: string;
+  clientMsgId?: string;
   senderId: string | null;
   parentId?: string;
   rootId?: string;
@@ -180,6 +181,7 @@ export interface AttachmentDto {
 
 export interface CreateMessageDto {
   content: string;
+  clientMsgId?: string;
   parentId?: string;
   attachments?: AttachmentDto[];
 }
@@ -214,6 +216,14 @@ export interface UpdateUserStatusDto {
 export interface GetMessagesParams {
   limit?: number;
   before?: string;
+  after?: string;
+  around?: string;
+}
+
+export interface PaginatedMessagesResponse {
+  messages: Message[];
+  hasOlder: boolean;
+  hasNewer: boolean;
 }
 
 export interface SearchUsersParams {

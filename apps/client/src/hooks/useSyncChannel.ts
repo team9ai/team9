@@ -74,36 +74,48 @@ export function useSyncChannel(channelId: string | undefined) {
 
     if (convertedMessages.length === 0) return;
 
-    // Merge into the messages query cache (only root messages)
-    queryClient.setQueryData(["messages", channelId], (old: any) => {
-      if (!old) {
-        // No existing data, create new structure
+    // Merge into all messages query caches for this channel (handles both old and new key formats)
+    queryClient.setQueriesData(
+      { queryKey: ["messages", channelId] },
+      (old: any) => {
+        if (!old) {
+          return {
+            pages: [
+              { messages: convertedMessages, hasOlder: false, hasNewer: false },
+            ],
+            pageParams: [undefined],
+          };
+        }
+
+        // Get all existing message IDs for deduplication (supports both page formats)
+        const existingIds = new Set<string>();
+        old.pages.forEach((page: any) => {
+          const msgs: Message[] = Array.isArray(page) ? page : page.messages;
+          msgs.forEach((msg) => existingIds.add(msg.id));
+        });
+
+        const newMessages = convertedMessages.filter(
+          (msg) => !existingIds.has(msg.id),
+        );
+
+        if (newMessages.length === 0) return old;
+
+        // Prepend new messages to the first page (format-agnostic)
+        const firstPage = old.pages[0];
+        const firstPageMsgs: Message[] = Array.isArray(firstPage)
+          ? firstPage
+          : firstPage.messages;
+        const updatedFirstPage = Array.isArray(firstPage)
+          ? [...newMessages, ...firstPageMsgs]
+          : { ...firstPage, messages: [...newMessages, ...firstPageMsgs] };
+
         return {
-          pages: [convertedMessages],
-          pageParams: [undefined],
+          ...old,
+          pages: [updatedFirstPage, ...old.pages.slice(1)],
         };
-      }
-
-      // Get all existing message IDs for deduplication
-      const existingIds = new Set<string>();
-      old.pages.forEach((page: Message[]) => {
-        page.forEach((msg) => existingIds.add(msg.id));
-      });
-
-      // Filter out already existing messages
-      const newMessages = convertedMessages.filter(
-        (msg) => !existingIds.has(msg.id),
-      );
-
-      if (newMessages.length === 0) return old;
-
-      // Prepend new messages to the first page (newest messages)
-      return {
-        ...old,
-        pages: [[...newMessages, ...old.pages[0]], ...old.pages.slice(1)],
-      };
-    });
+      },
+    );
   }, [query.data, channelId, queryClient]);
 
-  return query;
+  return { ...query, hasMoreUnsynced: query.data?.hasMore ?? false };
 }
