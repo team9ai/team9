@@ -132,8 +132,13 @@ export function ChannelView({
   }, [isBotDm, memberChannel]);
 
   // OpenClaw instance status for bot DM channels (to detect stopped instances)
-  const { isInstanceStopped, canStart, startInstance, isStarting } =
-    useOpenClawBotInstanceStatus(isBotDm ? botDmUserId : null);
+  const {
+    isInstanceStopped,
+    isInstanceStarting,
+    canStart,
+    startInstance,
+    isStarting,
+  } = useOpenClawBotInstanceStatus(isBotDm ? botDmUserId : null);
 
   // Clear thinking state when channel changes
   useEffect(() => {
@@ -272,11 +277,12 @@ export function ChannelView({
           />
         )}
 
-        {isInstanceStopped && (
+        {(isInstanceStopped || isInstanceStarting) && (
           <BotInstanceStoppedBanner
             onStart={startInstance}
             isStarting={isStarting}
             canStart={canStart}
+            isInstanceStarting={isInstanceStarting}
           />
         )}
 
@@ -289,7 +295,12 @@ export function ChannelView({
           <MessageInput
             channelId={channelId}
             onSend={handleSendMessage}
-            disabled={sendMessage.isPending || showOverlay || isInstanceStopped}
+            disabled={
+              sendMessage.isPending ||
+              showOverlay ||
+              isInstanceStopped ||
+              isInstanceStarting
+            }
             initialDraft={initialDraft}
           />
         )}

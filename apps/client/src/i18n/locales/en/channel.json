@@ -77,5 +77,6 @@
   "botInstanceStoppedMessage": "The bot's instance is currently stopped. Start it to resume chatting.",
   "botInstanceStoppedMemberMessage": "The bot's instance is currently stopped. Please contact a workspace admin to start it.",
   "botInstanceStart": "Start",
-  "botInstanceStarting": "Starting..."
+  "botInstanceStarting": "Starting...",
+  "botInstanceStartingMessage": "The bot's instance is starting up, please wait a moment..."
 }

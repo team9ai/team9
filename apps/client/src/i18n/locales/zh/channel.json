@@ -77,5 +77,6 @@
   "botInstanceStoppedMessage": "机器人实例当前已停止，请启动实例以恢复聊天。",
   "botInstanceStoppedMemberMessage": "机器人实例当前已停止，请联系工作区管理员启动实例以恢复聊天。",
   "botInstanceStart": "启动",
-  "botInstanceStarting": "启动中..."
+  "botInstanceStarting": "启动中...",
+  "botInstanceStartingMessage": "机器人实例正在启动中，请稍候..."
 }

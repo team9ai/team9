@@ -1,8 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import { useCurrentWorkspaceRole } from "@/hooks/useWorkspace";
+import { useIsUserOnline } from "@/hooks/useIMUsers";
 
 /**
  * Resolves the OpenClaw instance status for a given bot user ID.
@@ -12,6 +13,17 @@ export function useOpenClawBotInstanceStatus(botUserId: string | null) {
   const workspaceId = useSelectedWorkspaceId();
   const queryClient = useQueryClient();
   const { isOwnerOrAdmin } = useCurrentWorkspaceRole();
+  const isBotOnline = useIsUserOnline(botUserId ?? undefined);
+
+  // Track whether a start was requested, cleared when bot comes online
+  const [startRequested, setStartRequested] = useState(false);
+
+  // Clear startRequested once bot comes online
+  useEffect(() => {
+    if (startRequested && isBotOnline) {
+      setStartRequested(false);
+    }
+  }, [startRequested, isBotOnline]);
 
   const { data: installedApps } = useQuery({
     queryKey: ["installed-applications", workspaceId],
@@ -48,11 +60,16 @@ export function useOpenClawBotInstanceStatus(botUserId: string | null) {
 
   const startMutation = useMutation({
     mutationFn: () => api.applications.openClawAction(appId!, "start"),
-    onSuccess: () =>
+    onSuccess: () => {
+      setStartRequested(true);
       queryClient.invalidateQueries({
         queryKey: ["openclaw-status", workspaceId, appId],
-      }),
+      });
+    },
   });
+
+  const isInstanceStarting =
+    startMutation.isPending || (startRequested && !isBotOnline);
 
   return {
     instanceStatus,
@@ -61,7 +78,9 @@ export function useOpenClawBotInstanceStatus(botUserId: string | null) {
       isOpenClawBot &&
       !!instanceStatus &&
       instanceStatus.status !== "running" &&
-      instanceStatus.status !== "creating",
+      instanceStatus.status !== "creating" &&
+      !isInstanceStarting,
+    isInstanceStarting,
     isOpenClawBot,
     canStart: isOwnerOrAdmin,
     startInstance: () => startMutation.mutate(),
