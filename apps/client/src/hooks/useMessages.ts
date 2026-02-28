@@ -188,6 +188,50 @@ export function useMessages(channelId: string | undefined) {
           }
         }
 
+        // For sub-replies, update the parent reply's subReplyCount/replyCount
+        // in the thread cache so the ThreadReplyIndicator updates in real-time
+        if (isSubReply) {
+          queryClient.setQueryData(["thread", rootId], (old: any) => {
+            if (!old) return old;
+
+            return {
+              ...old,
+              pages: old.pages.map((page: any) => ({
+                ...page,
+                replies: page.replies.map((reply: any) => {
+                  if (reply.id === parentId) {
+                    // Build updated lastRepliers for the parent reply
+                    let updatedRepliers = [...(reply.lastRepliers || [])];
+                    if (message.sender) {
+                      const newReplier = {
+                        id: message.sender.id,
+                        username: message.sender.username,
+                        displayName: message.sender.displayName ?? null,
+                        avatarUrl: message.sender.avatarUrl ?? null,
+                        userType: message.sender.userType ?? "human",
+                      };
+                      updatedRepliers = updatedRepliers.filter(
+                        (r: any) => r.id !== newReplier.id,
+                      );
+                      updatedRepliers.unshift(newReplier);
+                      updatedRepliers = updatedRepliers.slice(0, 5);
+                    }
+
+                    return {
+                      ...reply,
+                      subReplyCount: (reply.subReplyCount || 0) + 1,
+                      replyCount: (reply.replyCount || 0) + 1,
+                      lastRepliers: updatedRepliers,
+                      lastReplyAt: message.createdAt,
+                    };
+                  }
+                  return reply;
+                }),
+              })),
+            };
+          });
+        }
+
         // Update the parent message's replyCount, lastRepliers, and lastReplyAt in the main list
         queryClient.setQueryData(["messages", channelId], (old: any) => {
           if (!old) return old;
