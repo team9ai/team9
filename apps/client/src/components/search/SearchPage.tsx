@@ -17,6 +17,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { OnlineStatusDot } from "@/components/ui/online-status-dot";
 import { useSearch } from "@/hooks/useSearch";
 import { useCreateDirectChannel, useChannels } from "@/hooks/useChannels";
 import { useWorkspaceMembers } from "@/hooks/useWorkspace";
@@ -409,13 +410,10 @@ export function SearchPage({
                           {(item.data.displayName ||
                             item.data.username)?.[0]?.toUpperCase() || "?"}
                         </div>
-                        <div
-                          className={cn(
-                            "absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background",
-                            item.data.status === "online"
-                              ? "bg-success"
-                              : "bg-muted-foreground",
-                          )}
+                        <OnlineStatusDot
+                          userId={item.data.id}
+                          showOffline
+                          className="absolute bottom-0 right-0 h-3 w-3 border-2 border-background"
                         />
                       </div>
                       <div className="flex-1 min-w-0">

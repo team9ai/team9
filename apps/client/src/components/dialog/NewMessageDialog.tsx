@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { OnlineStatusDot } from "@/components/ui/online-status-dot";
 import { useSearchUsers } from "@/hooks/useIMUsers";
 import { useCreateDirectChannel } from "@/hooks/useChannels";
 import type { IMUser } from "@/types/im";
@@ -112,9 +113,7 @@ export function NewMessageDialog({ isOpen, onClose }: NewMessageDialogProps) {
                         @{user.username}
                       </p>
                     </div>
-                    {user.status === "online" && (
-                      <div className="w-2 h-2 bg-success rounded-full" />
-                    )}
+                    <OnlineStatusDot userId={user.id} className="w-2 h-2" />
                   </button>
                 ))}
               </div>

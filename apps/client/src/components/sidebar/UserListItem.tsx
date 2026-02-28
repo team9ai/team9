@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "@tanstack/react-router";
+import { useIsUserOnline } from "@/hooks/useIMUsers";
 
 export interface UserListItemProps {
   /** Display name */
@@ -11,8 +12,8 @@ export interface UserListItemProps {
   avatar: string;
   /** Avatar image URL */
   avatarUrl?: string;
-  /** Whether user is online */
-  isOnline?: boolean;
+  /** User ID for real-time online status detection */
+  userId?: string;
   /** Whether this item is selected */
   isSelected?: boolean;
   /** Unread message count */
@@ -41,7 +42,7 @@ export function UserListItem({
   name,
   avatar,
   avatarUrl,
-  isOnline = false,
+  userId,
   isSelected = false,
   unreadCount = 0,
   subtitle,
@@ -52,6 +53,7 @@ export function UserListItem({
   avatarSize = "default",
   isBot = false,
 }: UserListItemProps) {
+  const isOnline = useIsUserOnline(userId);
   const avatarSizeClass = avatarSize === "sm" ? "w-6 h-6" : "w-8 h-8";
   const avatarTextClass = avatarSize === "sm" ? "text-xs" : "text-sm";
   const onlineIndicatorSize = avatarSize === "sm" ? "w-2.5 h-2.5" : "w-3 h-3";
