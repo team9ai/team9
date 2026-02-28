@@ -359,6 +359,7 @@ export class ChannelsService {
       return {
         ...channel,
         unreadCount: 0, // Not calculated for single channel view
+        lastReadMessageId: null,
         otherUser: otherUser
           ? {
               id: otherUser.userId,
@@ -375,6 +376,7 @@ export class ChannelsService {
     return {
       ...channel,
       unreadCount: 0,
+      lastReadMessageId: null,
     };
   }
 
