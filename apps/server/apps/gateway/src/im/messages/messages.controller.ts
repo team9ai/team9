@@ -60,6 +60,8 @@ export class MessagesController {
     @Query('limit') limit?: string,
     @Query('before') before?: string,
   ): Promise<MessageResponse[]> {
+    const t0 = Date.now();
+
     const isMember = await this.channelsService.isMember(channelId, userId);
     if (!isMember) {
       // Allow non-members to read public channel messages (read-only preview)
@@ -68,11 +70,22 @@ export class MessagesController {
         throw new ForbiddenException('Access denied');
       }
     }
-    return this.messagesService.getChannelMessages(
+
+    const parsedLimit = limit ? parseInt(limit, 10) : 50;
+    const result = await this.messagesService.getChannelMessages(
       channelId,
-      limit ? parseInt(limit, 10) : 50,
+      parsedLimit,
       before,
     );
+
+    const total = Date.now() - t0;
+    if (total > 1000) {
+      this.logger.warn(
+        `[getChannelMessages] SLOW channel=${channelId} count=${result.length} total=${total}ms`,
+      );
+    }
+
+    return result;
   }
 
   @Post('channels/:channelId/messages')
@@ -81,7 +94,11 @@ export class MessagesController {
     @Param('channelId') channelId: string,
     @Body() dto: CreateMessageDto,
   ): Promise<MessageResponse> {
+    const t0 = Date.now();
+
     const isMember = await this.channelsService.isMember(channelId, userId);
+    const t1 = Date.now();
+
     if (!isMember) {
       throw new ForbiddenException('Access denied');
     }
@@ -90,6 +107,7 @@ export class MessagesController {
 
     // Get workspaceId (tenantId) from channel for message context
     const channel = await this.channelsService.findById(channelId);
+    const t2 = Date.now();
     const workspaceId = channel?.tenantId ?? undefined;
 
     // Determine message type based on attachments
@@ -107,11 +125,13 @@ export class MessagesController {
       attachments: dto.attachments,
       metadata: dto.metadata,
     });
+    const t3 = Date.now();
 
     // Fetch the full message details for response
     const message = await this.messagesService.getMessageWithDetails(
       result.msgId,
     );
+    const t4 = Date.now();
 
     // Immediately broadcast to online users via Socket.io Redis Adapter
     // Skip broadcast when the message is part of a streaming session (bot will
@@ -150,7 +170,17 @@ export class MessagesController {
       );
     }
 
-    this.logger.debug(`Message ${result.msgId} persisted and broadcast (gRPC)`);
+    const total = Date.now() - t0;
+    const timing = `isMember=${t1 - t0}ms findById=${t2 - t1}ms gRPC=${t3 - t2}ms getDetails=${t4 - t3}ms total=${total}ms`;
+    if (total > 1000) {
+      this.logger.warn(
+        `[createMessage] SLOW channel=${channelId} msgId=${result.msgId} ${timing}`,
+      );
+    } else {
+      this.logger.debug(
+        `[createMessage] channel=${channelId} msgId=${result.msgId} ${timing}`,
+      );
+    }
 
     // Emit event for search indexing
     this.eventEmitter.emit('message.created', {
