@@ -295,12 +295,7 @@ export function ChannelView({
           <MessageInput
             channelId={channelId}
             onSend={handleSendMessage}
-            disabled={
-              sendMessage.isPending ||
-              showOverlay ||
-              isInstanceStopped ||
-              isInstanceStarting
-            }
+            disabled={sendMessage.isPending || showOverlay}
             initialDraft={initialDraft}
           />
         )}
