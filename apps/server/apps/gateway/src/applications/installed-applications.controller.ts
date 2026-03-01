@@ -165,7 +165,17 @@ export class InstalledApplicationsController {
         'No instance configured for this application',
       );
     }
-    const instance = await this.openclawService.getInstance(instancesId);
+    let instance: Awaited<ReturnType<OpenclawService['getInstance']>>;
+    try {
+      instance = await this.openclawService.getInstance(instancesId);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'TimeoutError') {
+        throw new ServiceUnavailableException(
+          'OpenClaw control plane is not responding',
+        );
+      }
+      throw error;
+    }
     if (!instance) {
       throw new NotFoundException('OpenClaw instance not found');
     }

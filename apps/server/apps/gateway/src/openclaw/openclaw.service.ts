@@ -136,6 +136,8 @@ export class OpenclawService {
       const res = await this.request<{ instance: Instance }>(
         'GET',
         `/api/instances/${id}`,
+        undefined,
+        15000,
       );
       return res.instance;
     } catch (error) {
