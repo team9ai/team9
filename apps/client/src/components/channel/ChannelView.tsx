@@ -131,10 +131,11 @@ export function ChannelView({
     return membership?.role || "member";
   }, [members, currentUser]);
 
-  const mainChatRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isSnapped, setIsSnapped] = useState(false);
 
-  const hasThreadOpen = primaryThread.isOpen || secondaryThread.isOpen;
+  const threadPanelCount =
+    (primaryThread.isOpen ? 1 : 0) + (secondaryThread.isOpen ? 1 : 0);
 
   // Bot thinking indicator state (local)
   const [thinkingBotIds, setThinkingBotIds] = useState<string[]>([]);
@@ -243,24 +244,28 @@ export function ChannelView({
     }
   }, [channelId, latestMessageId, messagesLoading, isPreviewMode]);
 
-  // Monitor main chat area width for snap mode
+  // Monitor outer container width and calculate whether snap mode is needed
+  // We observe the outer flex container (never hidden) rather than the main chat
+  // div (which becomes hidden in snap mode and would stop firing ResizeObserver).
   useEffect(() => {
-    const el = mainChatRef.current;
-    if (!el || !hasThreadOpen) {
+    const el = containerRef.current;
+    if (!el || threadPanelCount === 0) {
       setIsSnapped(false);
       return;
     }
 
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        const width = entry.contentRect.width;
-        setIsSnapped(width < 400);
+        const containerWidth = entry.contentRect.width;
+        // Calculate what main chat width would be if not snapped (420px per panel)
+        const mainChatWidth = containerWidth - threadPanelCount * 420;
+        setIsSnapped(mainChatWidth < 400);
       }
     });
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [hasThreadOpen]);
+  }, [threadPanelCount]);
 
   const handleBackToChannel = useCallback(() => {
     closePrimaryThread();
@@ -294,10 +299,9 @@ export function ChannelView({
   }
 
   return (
-    <div className="h-full flex">
+    <div ref={containerRef} className="h-full flex">
       {/* Main channel content */}
       <div
-        ref={mainChatRef}
         className={`flex-1 flex flex-col min-w-0 ${isSnapped ? "hidden" : ""}`}
       >
         <ChannelHeader channel={channel} currentUserRole={currentUserRole} />
