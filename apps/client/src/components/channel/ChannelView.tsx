@@ -257,8 +257,8 @@ export function ChannelView({
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const containerWidth = entry.contentRect.width;
-        // Calculate what main chat width would be if not snapped (420px per panel)
-        const mainChatWidth = containerWidth - threadPanelCount * 420;
+        // Calculate what main chat width would be if not snapped (452px per panel)
+        const mainChatWidth = containerWidth - threadPanelCount * 452;
         setIsSnapped(mainChatWidth < 400);
       }
     });
