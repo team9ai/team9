@@ -16,6 +16,7 @@ import { UserProfileCard } from "./UserProfileCard";
 import { CodeBlock } from "./CodeBlock";
 import { ImagePreviewDialog } from "./ImagePreviewDialog";
 import { useCreateDirectChannel } from "@/hooks/useChannels";
+import { SelectionCopyPopup } from "./SelectionCopyPopup";
 
 interface MessageContentProps {
   content: string;
@@ -341,12 +342,51 @@ function MarkdownCodeRenderer({ className, children, node, ...props }: any) {
  */
 export function MessageContent({ content, className }: MessageContentProps) {
   const isHtml = HTML_TAG_PATTERN.test(content);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [selectionState, setSelectionState] = useState<{
+    rect: DOMRect;
+    text: string;
+  } | null>(null);
 
-  if (isHtml) {
-    return <HtmlMessageContent content={content} className={className} />;
-  }
+  const handleMouseUp = useCallback(() => {
+    // Small delay to let browser finalize selection
+    setTimeout(() => {
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed || !selection.toString().trim()) {
+        return;
+      }
 
-  return <MarkdownMessageContent content={content} className={className} />;
+      // Verify selection is within this message container
+      const range = selection.getRangeAt(0);
+      if (!wrapperRef.current?.contains(range.commonAncestorContainer)) {
+        return;
+      }
+
+      const rect = range.getBoundingClientRect();
+      setSelectionState({ rect, text: selection.toString() });
+    }, 10);
+  }, []);
+
+  const handleDismiss = useCallback(() => {
+    setSelectionState(null);
+  }, []);
+
+  return (
+    <div ref={wrapperRef} onMouseUp={handleMouseUp}>
+      {isHtml ? (
+        <HtmlMessageContent content={content} className={className} />
+      ) : (
+        <MarkdownMessageContent content={content} className={className} />
+      )}
+      {selectionState && (
+        <SelectionCopyPopup
+          anchorRect={selectionState.rect}
+          selectedText={selectionState.text}
+          onDismiss={handleDismiss}
+        />
+      )}
+    </div>
+  );
 }
 
 function escapeHtml(text: string): string {
