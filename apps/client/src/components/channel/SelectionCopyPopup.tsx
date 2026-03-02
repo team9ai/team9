@@ -16,16 +16,21 @@ export function SelectionCopyPopup({
   const [copied, setCopied] = useState(false);
   const popupRef = useRef<HTMLDivElement>(null);
 
-  const top = anchorRect.top + window.scrollY - 40;
-  const left = anchorRect.left + window.scrollX + anchorRect.width / 2;
+  const top = anchorRect.top - 8;
+  const left = anchorRect.left + anchorRect.width / 2;
 
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(selectedText).then(() => {
-      setCopied(true);
-      setTimeout(() => {
+    navigator.clipboard
+      .writeText(selectedText)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => {
+          onDismiss();
+        }, 1500);
+      })
+      .catch(() => {
         onDismiss();
-      }, 1500);
-    });
+      });
   }, [selectedText, onDismiss]);
 
   // Dismiss on mousedown outside popup
