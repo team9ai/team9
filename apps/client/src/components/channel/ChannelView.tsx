@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useChannelMessages, useSendMessage } from "@/hooks/useMessages";
 import { useSyncChannel } from "@/hooks/useSyncChannel";
 import {
@@ -131,6 +131,11 @@ export function ChannelView({
     return membership?.role || "member";
   }, [members, currentUser]);
 
+  const mainChatRef = useRef<HTMLDivElement>(null);
+  const [isSnapped, setIsSnapped] = useState(false);
+
+  const hasThreadOpen = primaryThread.isOpen || secondaryThread.isOpen;
+
   // Bot thinking indicator state (local)
   const [thinkingBotIds, setThinkingBotIds] = useState<string[]>([]);
   // Determine if this is a bot DM channel
@@ -238,6 +243,29 @@ export function ChannelView({
     }
   }, [channelId, latestMessageId, messagesLoading, isPreviewMode]);
 
+  // Monitor main chat area width for snap mode
+  useEffect(() => {
+    const el = mainChatRef.current;
+    if (!el || !hasThreadOpen) {
+      setIsSnapped(false);
+      return;
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const width = entry.contentRect.width;
+        setIsSnapped(width < 400);
+      }
+    });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasThreadOpen]);
+
+  const handleBackToChannel = useCallback(() => {
+    closePrimaryThread();
+  }, [closePrimaryThread]);
+
   const handleSendMessage = async (
     content: string,
     attachments?: AttachmentDto[],
@@ -268,7 +296,10 @@ export function ChannelView({
   return (
     <div className="h-full flex">
       {/* Main channel content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div
+        ref={mainChatRef}
+        className={`flex-1 flex flex-col min-w-0 ${isSnapped ? "hidden" : ""}`}
+      >
         <ChannelHeader channel={channel} currentUserRole={currentUserRole} />
 
         {showOverlay ? (
@@ -338,6 +369,8 @@ export function ChannelView({
             level="primary"
             rootMessageId={primaryThread.rootMessageId}
             highlightMessageId={initialThreadId ? initialMessageId : undefined}
+            isSnapped={isSnapped}
+            onBackToChannel={handleBackToChannel}
           />
         )}
       {channel?.type !== "direct" &&
@@ -346,6 +379,8 @@ export function ChannelView({
           <ThreadPanel
             level="secondary"
             rootMessageId={secondaryThread.rootMessageId}
+            isSnapped={isSnapped}
+            onBackToChannel={handleBackToChannel}
           />
         )}
     </div>
