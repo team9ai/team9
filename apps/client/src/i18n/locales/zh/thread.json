@@ -10,5 +10,6 @@
   "loadMore": "加载更多回复",
   "loadingMore": "加载中...",
   "newMessages": "{{count}} 条新消息",
-  "lastReply": "最后回复 {{time}}"
+  "lastReply": "最后回复 {{time}}",
+  "backToChannel": "返回频道"
 }

@@ -13,5 +13,6 @@
   "loadingMore": "Loading...",
   "newMessages": "{{count}} new message",
   "newMessages_other": "{{count}} new messages",
-  "lastReply": "Last reply {{time}}"
+  "lastReply": "Last reply {{time}}",
+  "backToChannel": "Back to channel"
 }

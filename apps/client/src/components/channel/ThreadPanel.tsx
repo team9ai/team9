@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect, useState, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { X, MessageSquare, Loader2, ArrowDown } from "lucide-react";
+import { X, MessageSquare, Loader2, ArrowDown, ArrowLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -38,12 +38,16 @@ interface ThreadPanelProps {
   rootMessageId: string;
   // Target message ID to scroll to and highlight in thread
   highlightMessageId?: string;
+  isSnapped?: boolean;
+  onBackToChannel?: () => void;
 }
 
 export function ThreadPanel({
   level,
   rootMessageId,
   highlightMessageId,
+  isSnapped = false,
+  onBackToChannel,
 }: ThreadPanelProps) {
   const { t } = useTranslation("thread");
   const {
@@ -277,10 +281,22 @@ export function ThreadPanel({
   };
 
   return (
-    <div className="w-105 border-l bg-background flex flex-col h-full">
+    <div
+      className={`${isSnapped ? "flex-1" : "w-105"} border-l bg-background flex flex-col h-full transition-all duration-200`}
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b">
         <div className="flex items-center gap-2">
+          {isSnapped && onBackToChannel && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onBackToChannel}
+              className="mr-1"
+            >
+              <ArrowLeft size={20} />
+            </Button>
+          )}
           <MessageSquare size={20} className="text-muted-foreground" />
           <h2 className="font-semibold">{t("title")}</h2>
         </div>
