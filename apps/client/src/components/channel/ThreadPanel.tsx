@@ -20,6 +20,7 @@ import { MessageItem } from "./MessageItem";
 import { MessageInput } from "./MessageInput";
 import { StreamingMessageItem } from "./StreamingMessageItem";
 import { BotThinkingIndicator } from "./BotThinkingIndicator";
+import { ResizeHandle } from "./ResizeHandle";
 import type { ThreadReply, AttachmentDto, Message } from "@/types/im";
 
 // Extract mentioned bot user IDs from message HTML content
@@ -40,6 +41,8 @@ interface ThreadPanelProps {
   highlightMessageId?: string;
   isSnapped?: boolean;
   onBackToChannel?: () => void;
+  width?: number;
+  onWidthChange?: (width: number) => void;
 }
 
 export function ThreadPanel({
@@ -48,6 +51,8 @@ export function ThreadPanel({
   highlightMessageId,
   isSnapped = false,
   onBackToChannel,
+  width = 452,
+  onWidthChange,
 }: ThreadPanelProps) {
   const { t } = useTranslation("thread");
   const {
@@ -282,8 +287,12 @@ export function ThreadPanel({
 
   return (
     <div
-      className={`${isSnapped ? "flex-1" : "w-113"} border-l bg-background flex flex-col h-full transition-all duration-200`}
+      className={`${isSnapped ? "flex-1" : ""} border-l bg-background flex flex-col h-full relative`}
+      style={isSnapped ? undefined : { width: `${width}px` }}
     >
+      {!isSnapped && onWidthChange && (
+        <ResizeHandle width={width} onWidthChange={onWidthChange} />
+      )}
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b">
         <div className="flex items-center gap-2">

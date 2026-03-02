@@ -133,6 +133,9 @@ export function ChannelView({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [isSnapped, setIsSnapped] = useState(false);
+  const [threadPanelWidth, setThreadPanelWidth] = useState(452);
+  const threadPanelWidthRef = useRef(threadPanelWidth);
+  threadPanelWidthRef.current = threadPanelWidth;
 
   const threadPanelCount =
     (primaryThread.isOpen ? 1 : 0) + (secondaryThread.isOpen ? 1 : 0);
@@ -257,8 +260,8 @@ export function ChannelView({
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const containerWidth = entry.contentRect.width;
-        // Calculate what main chat width would be if not snapped (452px per panel)
-        const mainChatWidth = containerWidth - threadPanelCount * 452;
+        const mainChatWidth =
+          containerWidth - threadPanelCount * threadPanelWidthRef.current;
         setIsSnapped(mainChatWidth < 400);
       }
     });
@@ -375,6 +378,8 @@ export function ChannelView({
             highlightMessageId={initialThreadId ? initialMessageId : undefined}
             isSnapped={isSnapped}
             onBackToChannel={handleBackToChannel}
+            width={threadPanelWidth}
+            onWidthChange={setThreadPanelWidth}
           />
         )}
       {channel?.type !== "direct" &&
@@ -385,6 +390,8 @@ export function ChannelView({
             rootMessageId={secondaryThread.rootMessageId}
             isSnapped={isSnapped}
             onBackToChannel={handleBackToChannel}
+            width={threadPanelWidth}
+            onWidthChange={setThreadPanelWidth}
           />
         )}
     </div>
