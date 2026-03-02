@@ -214,7 +214,13 @@ export class ChannelsController {
     @Body() dto: AddMemberDto,
   ): Promise<{ success: boolean }> {
     const role = await this.channelsService.getMemberRole(channelId, userId);
-    if (!role || !['owner', 'admin'].includes(role)) {
+    if (!role) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    // Any channel member can invite bots; only owner/admin can invite humans
+    const targetIsBot = await this.channelsService.isBot(dto.userId);
+    if (!targetIsBot && !['owner', 'admin'].includes(role)) {
       throw new ForbiddenException('Insufficient permissions');
     }
     await this.channelsService.addMember(

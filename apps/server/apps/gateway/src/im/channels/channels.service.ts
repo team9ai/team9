@@ -596,6 +596,15 @@ export class ChannelsService {
     return role !== null;
   }
 
+  async isBot(userId: string): Promise<boolean> {
+    const [user] = await this.db
+      .select({ userType: schema.users.userType })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+    return user?.userType === 'bot';
+  }
+
   async getChannelMembers(channelId: string): Promise<ChannelMemberResponse[]> {
     const result = await this.db
       .select({
