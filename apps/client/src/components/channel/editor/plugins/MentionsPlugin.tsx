@@ -45,7 +45,7 @@ const VALID_CHARS = `[^${TRIGGERS}${PUNCTUATION}\\s]`;
 const LENGTH_LIMIT = 75;
 
 const MentionRegex = new RegExp(
-  `(^|\\s|\\()([${TRIGGERS}]((?:${VALID_CHARS}){0,${LENGTH_LIMIT}}))$`,
+  `(^|\\s|\\(|[^\\x00-\\x7F])([${TRIGGERS}]((?:${VALID_CHARS}){0,${LENGTH_LIMIT}}))$`,
 );
 
 function useMentionLookupService(mentionString: string | null) {
