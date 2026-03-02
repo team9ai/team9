@@ -282,7 +282,7 @@ export function ThreadPanel({
 
   return (
     <div
-      className={`${isSnapped ? "flex-1" : "w-105"} border-l bg-background flex flex-col h-full transition-all duration-200`}
+      className={`${isSnapped ? "flex-1" : "w-113"} border-l bg-background flex flex-col h-full transition-all duration-200`}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b">
