@@ -46,7 +46,7 @@ export function ConnectionStatus() {
   return (
     <div className="bg-yellow-500/90 text-white text-xs text-center py-1 px-3 flex items-center justify-center gap-1.5">
       <WifiOff className="h-3 w-3" />
-      <span>Reconnecting…</span>
+      <span>Reconnecting… Wait a moment or Refresh</span>
     </div>
   );
 }
