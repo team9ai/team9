@@ -38,17 +38,20 @@ import {
 
 type EventCallback = (...args: any[]) => void;
 
+export type ConnectionStatus = "connected" | "disconnected" | "reconnecting";
+type ConnectionChangeCallback = (status: ConnectionStatus) => void;
+
 class WebSocketService {
   private socket: Socket | null = null;
   private isConnecting = false;
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectDelay = 1000;
   // Queue for channels to join when connection is established
   private pendingChannelJoins: Set<string> = new Set();
   // Queue for event listeners to register when connection is established
   private pendingListeners: Array<{ event: string; callback: EventCallback }> =
     [];
+  // Connection status observers
+  private connectionChangeCallbacks: Set<ConnectionChangeCallback> = new Set();
+  private _connectionStatus: ConnectionStatus = "disconnected";
 
   constructor() {
     // Auto-connect if token exists
@@ -56,10 +59,24 @@ class WebSocketService {
       this.connect();
     }
 
-    // Listen for browser online event to refresh data after network recovery
     if (typeof window !== "undefined") {
+      // Reconnect or refresh when browser comes back online
       window.addEventListener("online", () => {
-        this.refreshQueriesAfterReconnect();
+        if (!this.socket?.connected) {
+          this.connect();
+        } else {
+          this.refreshQueriesAfterReconnect();
+        }
+      });
+
+      // Reconnect or refresh when tab becomes visible again
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState !== "visible") return;
+        if (!this.socket?.connected) {
+          this.connect();
+        } else {
+          this.refreshQueriesAfterReconnect();
+        }
       });
     }
   }
@@ -96,8 +113,9 @@ class WebSocketService {
       auth: { token },
       transports: ["websocket", "polling"],
       reconnection: true,
-      reconnectionAttempts: this.maxReconnectAttempts,
-      reconnectionDelay: this.reconnectDelay,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 30000,
     });
 
     this.setupEventHandlers();
@@ -109,7 +127,7 @@ class WebSocketService {
     this.socket.on("connect", () => {
       console.log("[WS] Connected successfully");
       this.isConnecting = false;
-      this.reconnectAttempts = 0;
+      this.setConnectionStatus("connected");
       Sentry.addBreadcrumb({
         category: "websocket",
         message: "WebSocket connected",
@@ -124,6 +142,7 @@ class WebSocketService {
     this.socket.on("disconnect", (reason) => {
       console.log("[WS] Disconnected:", reason);
       this.isConnecting = false;
+      this.setConnectionStatus("reconnecting");
       Sentry.addBreadcrumb({
         category: "websocket",
         message: `WebSocket disconnected: ${reason}`,
@@ -134,7 +153,6 @@ class WebSocketService {
     this.socket.on("connect_error", (error) => {
       console.error("[WS] Connection error:", error);
       this.isConnecting = false;
-      this.reconnectAttempts++;
       Sentry.captureException(error, {
         tags: { type: "websocket", event: "connect_error" },
       });
@@ -161,17 +179,8 @@ class WebSocketService {
     });
 
     this.socket.on("reconnect", () => {
-      this.reconnectAttempts = 0;
       // Also refresh on reconnect in case authenticated event doesn't fire
       this.refreshQueriesAfterReconnect();
-    });
-
-    this.socket.on("reconnect_failed", () => {
-      console.error("[WS] Reconnection failed after max attempts");
-      Sentry.captureException(
-        new Error("WebSocket reconnection failed after max attempts"),
-        { tags: { type: "websocket", event: "reconnect_failed" } },
-      );
     });
   }
 
@@ -181,11 +190,35 @@ class WebSocketService {
       this.socket.disconnect();
       this.socket = null;
       this.isConnecting = false;
+      this.setConnectionStatus("disconnected");
     }
   }
 
   isConnected(): boolean {
     return this.socket?.connected ?? false;
+  }
+
+  get connectionStatus(): ConnectionStatus {
+    return this._connectionStatus;
+  }
+
+  private setConnectionStatus(status: ConnectionStatus): void {
+    if (this._connectionStatus === status) return;
+    this._connectionStatus = status;
+    for (const cb of this.connectionChangeCallbacks) {
+      try {
+        cb(status);
+      } catch {
+        // ignore callback errors
+      }
+    }
+  }
+
+  onConnectionChange(callback: ConnectionChangeCallback): () => void {
+    this.connectionChangeCallbacks.add(callback);
+    return () => {
+      this.connectionChangeCallbacks.delete(callback);
+    };
   }
 
   private refreshQueriesAfterReconnect(): void {

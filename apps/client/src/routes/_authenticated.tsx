@@ -7,6 +7,7 @@ import {
 import { MainSidebar } from "@/components/layout/MainSidebar";
 import { DynamicSubSidebar } from "@/components/layout/DynamicSubSidebar";
 import { GlobalTopBar } from "@/components/layout/GlobalTopBar";
+import { ConnectionStatus } from "@/components/layout/ConnectionStatus";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useWebSocketEvents } from "@/hooks/useWebSocketEvents";
 import { useEffect } from "react";
@@ -102,6 +103,7 @@ function AuthenticatedLayout() {
     <div className="flex flex-col h-screen overflow-hidden">
       {/* Global top bar with search */}
       <GlobalTopBar />
+      <ConnectionStatus />
 
       {/* Main content area with sidebars */}
       <div className="flex flex-1 overflow-hidden">
