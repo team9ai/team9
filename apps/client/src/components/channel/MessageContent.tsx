@@ -348,6 +348,18 @@ export function MessageContent({ content, className }: MessageContentProps) {
     text: string;
   } | null>(null);
 
+  // Memoize content element so selectionState changes don't re-render
+  // the inner content components (which would destroy DOM and clear selection)
+  const contentElement = useMemo(
+    () =>
+      isHtml ? (
+        <HtmlMessageContent content={content} className={className} />
+      ) : (
+        <MarkdownMessageContent content={content} className={className} />
+      ),
+    [isHtml, content, className],
+  );
+
   const handleMouseUp = useCallback(() => {
     // Small delay to let browser finalize selection
     setTimeout(() => {
@@ -373,11 +385,7 @@ export function MessageContent({ content, className }: MessageContentProps) {
 
   return (
     <div ref={wrapperRef} onMouseUp={handleMouseUp}>
-      {isHtml ? (
-        <HtmlMessageContent content={content} className={className} />
-      ) : (
-        <MarkdownMessageContent content={content} className={className} />
-      )}
+      {contentElement}
       {selectionState && (
         <SelectionCopyPopup
           anchorRect={selectionState.rect}
