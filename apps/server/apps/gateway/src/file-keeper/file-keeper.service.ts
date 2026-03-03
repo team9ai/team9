@@ -57,14 +57,23 @@ export class FileKeeperService {
 
     const workspaces = new Map<string, FileKeeperDirEntry>();
 
-    // 1. Scan .openclaw/ root for workspace-{name} sibling directories
-    try {
-      const rootResult = await this.request<FileKeeperListResponse>(
+    // Fetch both directory listings in parallel
+    const [rootSettled, wsSettled] = await Promise.allSettled([
+      this.request<FileKeeperListResponse>(
         'GET',
         `/api/instances/${instanceId}/data-dir?path=.`,
         instanceId,
-      );
-      for (const entry of rootResult.entries) {
+      ),
+      this.request<FileKeeperListResponse>(
+        'GET',
+        `/api/instances/${instanceId}/data-dir?path=workspace`,
+        instanceId,
+      ),
+    ]);
+
+    // 1. Process .openclaw/ root for workspace-{name} sibling directories
+    if (rootSettled.status === 'fulfilled') {
+      for (const entry of rootSettled.value.entries) {
         if (entry.type === 'directory' && entry.name.startsWith('workspace-')) {
           const name = entry.name.slice('workspace-'.length);
           if (name) {
@@ -72,7 +81,8 @@ export class FileKeeperService {
           }
         }
       }
-    } catch (error) {
+    } else {
+      const error = rootSettled.reason;
       if (!(error instanceof Error && error.message.includes('404'))) {
         this.logger.warn(
           `Failed to scan root for instance ${instanceId}: ${error}`,
@@ -80,15 +90,11 @@ export class FileKeeperService {
       }
     }
 
-    // 2. Scan .openclaw/workspace/ for subdirectory workspaces and default workspace
-    try {
-      const result = await this.request<FileKeeperListResponse>(
-        'GET',
-        `/api/instances/${instanceId}/data-dir?path=workspace`,
-        instanceId,
+    // 2. Process .openclaw/workspace/ for subdirectory workspaces and default workspace
+    if (wsSettled.status === 'fulfilled') {
+      const directories = wsSettled.value.entries.filter(
+        (e) => e.type === 'directory',
       );
-
-      const directories = result.entries.filter((e) => e.type === 'directory');
 
       // Add subdirectory workspaces (only if not already found as sibling)
       for (const dir of directories) {
@@ -98,10 +104,10 @@ export class FileKeeperService {
       }
 
       // Detect default workspace (files directly in workspace/ with no subdirectories)
-      if (directories.length === 0 && result.entries.length > 0) {
-        const latestModified = result.entries.reduce((latest, e) => {
+      if (directories.length === 0 && wsSettled.value.entries.length > 0) {
+        const latestModified = wsSettled.value.entries.reduce((latest, e) => {
           return e.modified > latest ? e.modified : latest;
-        }, result.entries[0].modified);
+        }, wsSettled.value.entries[0].modified);
 
         if (!workspaces.has('default')) {
           workspaces.set('default', {
@@ -111,12 +117,17 @@ export class FileKeeperService {
           });
         }
       }
-    } catch (error) {
+    } else {
+      const error = wsSettled.reason;
       if (!(error instanceof Error && error.message.includes('404'))) {
         this.logger.warn(
           `Failed to list workspaces for instance ${instanceId}: ${error}`,
         );
       }
+    }
+
+    if (workspaces.size === 0) {
+      this.logger.debug(`No workspaces found for instance ${instanceId}`);
     }
 
     return Array.from(workspaces.values());
