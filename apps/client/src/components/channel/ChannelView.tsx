@@ -336,6 +336,7 @@ export function ChannelView({
               hasMore={hasNextPage}
               highlightMessageId={initialMessageId}
               channelId={channelId}
+              channelType={channel?.type}
               readOnly={isPreviewMode}
               thinkingBotIds={thinkingBotIds}
               members={members}

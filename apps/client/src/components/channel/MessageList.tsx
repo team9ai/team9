@@ -9,7 +9,7 @@ import {
 import { Loader2 } from "lucide-react";
 import type { Message, ChannelMember } from "@/types/im";
 import { useCurrentUser } from "@/hooks/useAuth";
-import { useChannel, useChannelMembers } from "@/hooks/useChannels";
+import { useChannelMembers } from "@/hooks/useChannels";
 import { useThreadStore } from "@/hooks/useThread";
 import {
   useDeleteMessage,
@@ -35,6 +35,8 @@ interface MessageListProps {
   highlightMessageId?: string;
   // Channel ID for retry failed messages
   channelId: string;
+  // Channel type for conditional rendering (thread replies, empty state, etc.)
+  channelType?: string;
   // Read-only mode for non-members previewing public channels
   readOnly?: boolean;
   // Bot thinking indicator
@@ -57,6 +59,7 @@ export function MessageList({
   hasMore,
   highlightMessageId,
   channelId,
+  channelType,
   readOnly = false,
   thinkingBotIds = [],
   members = [],
@@ -187,6 +190,7 @@ export function MessageList({
             onReplyCountClick={() => openThread(message.id)}
             isHighlighted={isHighlighted}
             channelId={channelId}
+            isDirect={channelType === "direct"}
           />
         </div>
       );
@@ -197,6 +201,7 @@ export function MessageList({
       currentUser?.id,
       openThread,
       channelId,
+      channelType,
       firstUnreadIndex,
       chronoMessages.length,
     ],
@@ -210,7 +215,13 @@ export function MessageList({
     );
   }
   if (messages.length === 0) {
-    return <EmptyMessageState channelId={channelId} readOnly={readOnly} />;
+    return (
+      <EmptyMessageState
+        channelId={channelId}
+        readOnly={readOnly}
+        isPublic={channelType === "public"}
+      />
+    );
   }
 
   return (
@@ -270,6 +281,7 @@ function ChannelMessageItem({
   onReplyCountClick,
   isHighlighted,
   channelId,
+  isDirect,
 }: {
   message: Message;
   currentUserId?: string;
@@ -277,9 +289,8 @@ function ChannelMessageItem({
   onReplyCountClick?: () => void;
   isHighlighted?: boolean;
   channelId: string;
+  isDirect: boolean;
 }) {
-  const { data: channel } = useChannel(channelId);
-  const isDirect = channel?.type === "direct";
   const openThread = useThreadStore((state) => state.openThread);
   const deleteMessage = useDeleteMessage();
   const retryMessage = useRetryMessage(channelId);
@@ -389,12 +400,13 @@ function StreamingMessages({
 function EmptyMessageState({
   channelId,
   readOnly,
+  isPublic,
 }: {
   channelId: string;
   readOnly: boolean;
+  isPublic: boolean;
 }) {
   const { t } = useTranslation("channel");
-  const { data: channel } = useChannel(channelId);
   const { data: members = [] } = useChannelMembers(
     readOnly ? undefined : channelId,
   );
@@ -403,8 +415,6 @@ function EmptyMessageState({
     () => members.filter((m) => m.user?.userType === "bot"),
     [members],
   );
-
-  const isPublic = channel?.type === "public";
 
   const botName =
     botMembers[0]?.user?.displayName || botMembers[0]?.user?.username || "Bot";

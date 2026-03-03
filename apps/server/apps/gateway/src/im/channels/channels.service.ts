@@ -21,6 +21,8 @@ import {
   UpdateChannelDto,
   UpdateMemberDto,
 } from './dto/index.js';
+import { RedisService } from '@team9/redis';
+import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
 
 export interface ChannelResponse {
   id: string;
@@ -73,6 +75,7 @@ export class ChannelsService {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
+    private readonly redis: RedisService,
   ) {}
 
   async create(
@@ -255,13 +258,19 @@ export class ChannelsService {
   }
 
   async findById(id: string): Promise<ChannelResponse | null> {
-    const [channel] = await this.db
-      .select()
-      .from(schema.channels)
-      .where(eq(schema.channels.id, id))
-      .limit(1);
+    return this.redis.getOrSet(
+      REDIS_KEYS.CHANNEL_CACHE(id),
+      async () => {
+        const [channel] = await this.db
+          .select()
+          .from(schema.channels)
+          .where(eq(schema.channels.id, id))
+          .limit(1);
 
-    return channel || null;
+        return channel || null;
+      },
+      120,
+    );
   }
 
   async findByNameAndTenant(
@@ -404,6 +413,8 @@ export class ChannelsService {
       throw new NotFoundException('Channel not found');
     }
 
+    await this.redis.invalidate(REDIS_KEYS.CHANNEL_CACHE(id));
+
     return channel;
   }
 
@@ -544,6 +555,10 @@ export class ChannelsService {
         role,
       });
     }
+
+    await this.redis.invalidate(
+      REDIS_KEYS.CHANNEL_MEMBER_ROLE(channelId, userId),
+    );
   }
 
   async removeMember(
@@ -570,25 +585,35 @@ export class ChannelsService {
           isNull(schema.channelMembers.leftAt),
         ),
       );
+
+    await this.redis.invalidate(
+      REDIS_KEYS.CHANNEL_MEMBER_ROLE(channelId, userId),
+    );
   }
 
   async getMemberRole(
     channelId: string,
     userId: string,
   ): Promise<'owner' | 'admin' | 'member' | null> {
-    const [member] = await this.db
-      .select({ role: schema.channelMembers.role })
-      .from(schema.channelMembers)
-      .where(
-        and(
-          eq(schema.channelMembers.channelId, channelId),
-          eq(schema.channelMembers.userId, userId),
-          isNull(schema.channelMembers.leftAt),
-        ),
-      )
-      .limit(1);
+    return this.redis.getOrSet(
+      REDIS_KEYS.CHANNEL_MEMBER_ROLE(channelId, userId),
+      async () => {
+        const [member] = await this.db
+          .select({ role: schema.channelMembers.role })
+          .from(schema.channelMembers)
+          .where(
+            and(
+              eq(schema.channelMembers.channelId, channelId),
+              eq(schema.channelMembers.userId, userId),
+              isNull(schema.channelMembers.leftAt),
+            ),
+          )
+          .limit(1);
 
-    return member?.role || null;
+        return member?.role || null;
+      },
+      120,
+    );
   }
 
   async isMember(channelId: string, userId: string): Promise<boolean> {
@@ -663,6 +688,12 @@ export class ChannelsService {
           isNull(schema.channelMembers.leftAt),
         ),
       );
+
+    if (dto.role) {
+      await this.redis.invalidate(
+        REDIS_KEYS.CHANNEL_MEMBER_ROLE(channelId, userId),
+      );
+    }
   }
 
   async getChannelMemberIds(channelId: string): Promise<string[]> {
@@ -712,6 +743,8 @@ export class ChannelsService {
       .where(eq(schema.channels.id, channelId))
       .returning();
 
+    await this.redis.invalidate(REDIS_KEYS.CHANNEL_CACHE(channelId));
+
     return updated;
   }
 
@@ -739,6 +772,8 @@ export class ChannelsService {
     if (!updated) {
       throw new NotFoundException('Channel not found');
     }
+
+    await this.redis.invalidate(REDIS_KEYS.CHANNEL_CACHE(channelId));
 
     return updated;
   }
@@ -775,6 +810,8 @@ export class ChannelsService {
     await this.db
       .delete(schema.channels)
       .where(eq(schema.channels.id, channelId));
+
+    await this.redis.invalidate(REDIS_KEYS.CHANNEL_CACHE(channelId));
   }
 
   /**
