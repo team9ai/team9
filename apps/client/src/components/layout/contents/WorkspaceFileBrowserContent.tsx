@@ -36,6 +36,36 @@ interface CuboneFile {
   size?: number;
 }
 
+function getClipboardFiles(clipboardData: DataTransfer | null): File[] {
+  if (!clipboardData) return [];
+
+  const directFiles = Array.from(clipboardData.files);
+  if (directFiles.length > 0) return directFiles;
+
+  return Array.from(clipboardData.items)
+    .filter((item) => item.kind === "file")
+    .map((item) => item.getAsFile())
+    .filter((file): file is File => file !== null);
+}
+
+function withFallbackFileName(file: File, index: number): File {
+  if (file.name.trim().length > 0) return file;
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const ext = file.type.split("/")[1] || "bin";
+  return new File([file], `pasted-file-${timestamp}-${index + 1}.${ext}`, {
+    type: file.type || "application/octet-stream",
+    lastModified: file.lastModified || Date.now(),
+  });
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return !!target.closest(
+    'input, textarea, [contenteditable="true"], [role="textbox"]',
+  );
+}
+
 function toFileManagerFiles(
   entries: FileKeeperDirEntry[],
   currentPath: string,
@@ -268,6 +298,37 @@ export function WorkspaceFileBrowserContent({
     },
   });
 
+  const clipboardUploadMutation = useMutation({
+    mutationFn: async (clipboardFiles: File[]) => {
+      const token = getToken();
+      const targetDir =
+        currentPath === "." || currentPath === "" ? "" : currentPath;
+      const filesToUpload = clipboardFiles.map((file, index) =>
+        withFallbackFileName(file, index),
+      );
+
+      await Promise.all(
+        filesToUpload.map((file) => {
+          const destinationPath = targetDir
+            ? `${targetDir}/${file.name}`
+            : file.name;
+          return api.applications.uploadWorkspaceFile(
+            token,
+            workspaceName,
+            destinationPath,
+            file,
+          );
+        }),
+      );
+    },
+    onSuccess: invalidateFiles,
+    onError: (error) => {
+      console.error("Failed to upload pasted files:", error);
+    },
+  });
+  const { mutate: uploadClipboardFiles, isPending: isClipboardUploadPending } =
+    clipboardUploadMutation;
+
   const isLoading = tokenLoading || filesLoading;
 
   // Make the drop zone clickable to trigger file picker (event delegation
@@ -282,6 +343,26 @@ export function WorkspaceFileBrowserContent({
     document.addEventListener("click", handleClick);
     return () => document.removeEventListener("click", handleClick);
   }, []);
+
+  // Upload files from system clipboard with Ctrl/Cmd+V.
+  useEffect(() => {
+    if (!tokenData || openFile) return;
+
+    const handlePaste = (e: ClipboardEvent) => {
+      if (isEditableTarget(e.target)) return;
+
+      const clipboardFiles = getClipboardFiles(e.clipboardData);
+      if (clipboardFiles.length === 0 || isClipboardUploadPending) {
+        return;
+      }
+
+      e.preventDefault();
+      uploadClipboardFiles(clipboardFiles);
+    };
+
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+  }, [tokenData, openFile, isClipboardUploadPending, uploadClipboardFiles]);
 
   return (
     <main className="h-full flex flex-col bg-background">
@@ -344,7 +425,8 @@ export function WorkspaceFileBrowserContent({
                   createFolderMutation.isPending ||
                   renameMutation.isPending ||
                   pasteMutation.isPending ||
-                  downloadMutation.isPending
+                  downloadMutation.isPending ||
+                  isClipboardUploadPending
                 }
                 layout="list"
                 height={embedded ? "100%" : "calc(100vh - 56px)"}
