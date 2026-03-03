@@ -288,11 +288,6 @@ function ChannelMessageItem({
   const removeReaction = useRemoveReaction(channelId);
 
   // Context menu handlers
-  const handleReply = () => {
-    console.log("Reply to message:", message.id);
-    // TODO: Implement reply functionality
-  };
-
   const handleReplyInThread = isDirect
     ? undefined
     : () => {
@@ -341,7 +336,6 @@ function ChannelMessageItem({
       showReplyCount={!isDirect && showReplyCount}
       onReplyCountClick={isDirect ? undefined : onReplyCountClick}
       isHighlighted={isHighlighted}
-      onReply={isDirect ? undefined : handleReply}
       onReplyInThread={handleReplyInThread ?? undefined}
       onEdit={handleEdit}
       onDelete={handleDelete}

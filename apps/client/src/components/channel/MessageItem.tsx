@@ -31,7 +31,6 @@ export interface MessageItemProps {
   /** Highlight this message (e.g., from deep link navigation) */
   isHighlighted?: boolean;
   /** Context menu handlers */
-  onReply?: () => void;
   onReplyInThread?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
@@ -55,7 +54,6 @@ export function MessageItem({
   onReplyCountClick,
   unreadSubReplyCount,
   isHighlighted = false,
-  onReply,
   onReplyInThread,
   onEdit,
   onDelete,
@@ -255,7 +253,6 @@ export function MessageItem({
     <MessageContextMenu
       message={message}
       isOwnMessage={isOwnMessage}
-      onReply={onReply}
       onReplyInThread={onReplyInThread}
       onEdit={isOwnMessage ? onEdit : undefined}
       onDelete={isOwnMessage ? onDelete : undefined}

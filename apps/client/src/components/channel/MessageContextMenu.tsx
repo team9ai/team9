@@ -7,22 +7,13 @@ import {
   ContextMenuShortcut,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import {
-  MessageSquare,
-  Reply,
-  Link,
-  Copy,
-  Pin,
-  Trash2,
-  Pencil,
-} from "lucide-react";
+import { MessageSquare, Link, Copy, Pin, Trash2, Pencil } from "lucide-react";
 import type { Message } from "@/types/im";
 
 interface MessageContextMenuProps {
   children: React.ReactNode;
   message: Message;
   isOwnMessage: boolean;
-  onReply?: () => void;
   onReplyInThread?: () => void;
   onCopyMessage?: () => void;
   onCopyLink?: () => void;
@@ -35,7 +26,6 @@ export function MessageContextMenu({
   children,
   message,
   isOwnMessage,
-  onReply,
   onReplyInThread,
   onCopyMessage,
   onCopyLink,
@@ -64,13 +54,6 @@ export function MessageContextMenu({
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-56">
         {/* Reply actions */}
-        {onReply && (
-          <ContextMenuItem onClick={onReply}>
-            <Reply className="mr-2 h-4 w-4" />
-            {t("reply")}
-            <ContextMenuShortcut>R</ContextMenuShortcut>
-          </ContextMenuItem>
-        )}
         {onReplyInThread && (
           <ContextMenuItem onClick={onReplyInThread}>
             <MessageSquare className="mr-2 h-4 w-4" />
