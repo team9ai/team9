@@ -9,6 +9,7 @@ import {
   Body,
   Inject,
   UseGuards,
+  Logger,
   NotFoundException,
   BadRequestException,
   ConflictException,
@@ -46,6 +47,8 @@ import { BotService } from '../bot/bot.service.js';
 })
 @UseGuards(AuthGuard, WorkspaceGuard)
 export class InstalledApplicationsController {
+  private readonly logger = new Logger(InstalledApplicationsController.name);
+
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
@@ -172,6 +175,16 @@ export class InstalledApplicationsController {
       if (error instanceof DOMException && error.name === 'TimeoutError') {
         throw new ServiceUnavailableException(
           'OpenClaw control plane is not responding',
+        );
+      }
+      if (
+        error instanceof Error &&
+        (error.message.includes('504') ||
+          error.message.includes('502') ||
+          error.message.includes('503'))
+      ) {
+        throw new ServiceUnavailableException(
+          'OpenClaw control plane is temporarily unavailable',
         );
       }
       throw error;
@@ -515,7 +528,12 @@ export class InstalledApplicationsController {
     }
 
     // 0. Check instance is reachable before creating anything
+    const t0 = Date.now();
     const instance = await this.openclawService.getInstance(instancesId);
+    const t1 = Date.now();
+    this.logger.log(
+      `createOpenClawAgent: getInstance took ${t1 - t0}ms (instance=${instancesId}, status=${instance?.status})`,
+    );
     if (!instance || instance.status !== 'running') {
       throw new ServiceUnavailableException(
         `OpenClaw instance is not running (status: ${instance?.status ?? 'not found'})`,
@@ -532,6 +550,10 @@ export class InstalledApplicationsController {
       generateToken: true,
       mentorId: userId,
     });
+    const t2 = Date.now();
+    this.logger.log(
+      `createOpenClawAgent: createWorkspaceBot took ${t2 - t1}ms (botId=${bot.botId})`,
+    );
 
     // 2. Create agent on OpenClaw control plane with dedicated workspace
     // Pass full absolute path so the daemon creates the workspace at the
@@ -544,14 +566,28 @@ export class InstalledApplicationsController {
         workspace: `/data/.openclaw/workspace/${workspaceName}`,
         team9_token: accessToken!,
       });
+      const t3 = Date.now();
+      this.logger.log(
+        `createOpenClawAgent: createAgent took ${t3 - t2}ms, total ${t3 - t0}ms (instance=${instancesId})`,
+      );
     } catch (error) {
+      const t3 = Date.now();
+      this.logger.error(
+        `createOpenClawAgent: createAgent FAILED after ${t3 - t2}ms, total ${t3 - t0}ms (instance=${instancesId}, error=${error instanceof Error ? error.message : error})`,
+      );
       // Rollback: delete the bot we just created
       await this.botService.deleteBotAndCleanup(bot.botId);
       throw error;
     }
 
-    if (!agent?.agent_id) {
+    // Daemon may return "agentId" (camelCase) or "agent_id" (snake_case)
+    const agentId = agent?.agentId ?? agent?.agent_id;
+
+    if (!agentId) {
       // Agent creation returned empty — rollback the bot
+      this.logger.error(
+        `createOpenClawAgent: no agentId in response. Raw response: ${JSON.stringify(agent)}`,
+      );
       await this.botService.deleteBotAndCleanup(bot.botId);
       throw new ServiceUnavailableException(
         'Failed to create agent on OpenClaw instance (no agent_id returned)',
@@ -562,7 +598,7 @@ export class InstalledApplicationsController {
     // Frontend uses the name to build file-keeper URLs via workspace-dir/{name}
     await this.botService.updateBotExtra(bot.botId, {
       openclaw: {
-        agentId: agent?.agent_id,
+        agentId,
         workspace: workspaceName,
       },
     });
@@ -577,7 +613,7 @@ export class InstalledApplicationsController {
 
     return {
       botId: bot.botId,
-      agentId: agent?.agent_id ?? null,
+      agentId: agentId ?? null,
       displayName: bot.displayName,
       mentorId: userId,
     };

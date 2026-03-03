@@ -23,7 +23,8 @@ export interface CreateAgentRequest {
 }
 
 export interface AgentInfo {
-  agent_id: string;
+  agent_id?: string;
+  agentId?: string;
   name: string;
   workspace?: string;
   model?: string;
@@ -560,25 +561,52 @@ export class OpenclawService {
       headers['Authorization'] = `Bearer ${this.authToken}`;
     }
 
-    const res = await fetch(url, {
-      method,
-      headers,
-      signal: AbortSignal.timeout(timeoutMs),
-      ...(body !== undefined && { body: JSON.stringify(body) }),
-    });
+    const startTime = Date.now();
+    try {
+      const res = await fetch(url, {
+        method,
+        headers,
+        signal: AbortSignal.timeout(timeoutMs),
+        ...(body !== undefined && { body: JSON.stringify(body) }),
+      });
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(
-        `OpenClaw API error: ${method} ${path} responded ${res.status} — ${text}`,
+      const elapsed = Date.now() - startTime;
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        this.logger.error(
+          `OpenClaw API error: ${method} ${path} responded ${res.status} in ${elapsed}ms — ${text}`,
+        );
+        throw new Error(
+          `OpenClaw API error: ${method} ${path} responded ${res.status} — ${text}`,
+        );
+      }
+
+      this.logger.debug(
+        `OpenClaw API: ${method} ${path} → ${res.status} in ${elapsed}ms`,
       );
-    }
 
-    // DELETE / start / stop may return 204 No Content
-    if (res.status === 204 || res.headers.get('content-length') === '0') {
-      return undefined as unknown as T;
-    }
+      // DELETE / start / stop may return 204 No Content
+      if (res.status === 204 || res.headers.get('content-length') === '0') {
+        return undefined as unknown as T;
+      }
 
-    return (await res.json()) as T;
+      return (await res.json()) as T;
+    } catch (error) {
+      const elapsed = Date.now() - startTime;
+      if (error instanceof Error && error.name === 'TimeoutError') {
+        this.logger.error(
+          `OpenClaw API timeout: ${method} ${path} after ${elapsed}ms (limit: ${timeoutMs}ms)`,
+        );
+      } else if (
+        error instanceof Error &&
+        !error.message.startsWith('OpenClaw API error')
+      ) {
+        this.logger.error(
+          `OpenClaw API fetch failed: ${method} ${path} after ${elapsed}ms — ${error.message}`,
+        );
+      }
+      throw error;
+    }
   }
 }
