@@ -42,8 +42,14 @@ export type ConnectionStatus = "connected" | "disconnected" | "reconnecting";
 type ConnectionChangeCallback = (status: ConnectionStatus) => void;
 
 class WebSocketService {
+  private static readonly BASE_AUTH_RETRY_DELAY_MS = 1000;
+  private static readonly MAX_AUTH_RETRY_DELAY_MS = 30000;
+  private static readonly MAX_AUTH_RETRIES = 8;
+
   private socket: Socket | null = null;
   private isConnecting = false;
+  private authErrorRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  private authErrorRetryCount = 0;
   // Queue for channels to join when connection is established
   private pendingChannelJoins: Set<string> = new Set();
   // Queue for event listeners to register when connection is established
@@ -98,10 +104,12 @@ class WebSocketService {
     const token = this.getAuthToken();
     if (!token) {
       console.error("[WS] No auth token available");
+      this.setConnectionStatus("disconnected");
       return;
     }
 
     this.isConnecting = true;
+    this.setConnectionStatus("reconnecting");
 
     // Remove /api suffix from baseURL for WebSocket connection
     let baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
@@ -110,7 +118,10 @@ class WebSocketService {
     console.log("[WS] Connecting to:", `${baseURL}/im`);
 
     this.socket = io(`${baseURL}/im`, {
-      auth: { token },
+      // Always use latest token on each (re)connect attempt.
+      auth: (cb) => {
+        cb({ token: this.getAuthToken() });
+      },
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionAttempts: Infinity,
@@ -127,6 +138,11 @@ class WebSocketService {
     this.socket.on("connect", () => {
       console.log("[WS] Connected successfully");
       this.isConnecting = false;
+      if (this.authErrorRetryTimer) {
+        clearTimeout(this.authErrorRetryTimer);
+        this.authErrorRetryTimer = null;
+      }
+      this.authErrorRetryCount = 0;
       this.setConnectionStatus("connected");
       Sentry.addBreadcrumb({
         category: "websocket",
@@ -153,6 +169,7 @@ class WebSocketService {
     this.socket.on("connect_error", (error) => {
       console.error("[WS] Connection error:", error);
       this.isConnecting = false;
+      this.setConnectionStatus("reconnecting");
       Sentry.captureException(error, {
         tags: { type: "websocket", event: "connect_error" },
       });
@@ -175,7 +192,38 @@ class WebSocketService {
         new Error(`WebSocket auth error: ${JSON.stringify(error)}`),
         { tags: { type: "websocket", event: "auth_error" } },
       );
-      this.disconnect();
+      // Server disconnected this socket for auth failure. Close local socket and
+      // retry shortly, so a freshly refreshed token can be picked up.
+      if (this.socket) {
+        this.socket.disconnect();
+        this.socket = null;
+      }
+      this.isConnecting = false;
+      this.authErrorRetryCount++;
+      if (this.authErrorRetryCount > WebSocketService.MAX_AUTH_RETRIES) {
+        console.error("[WS] Max auth retries reached, giving up");
+        this.authErrorRetryCount = 0;
+        this.setConnectionStatus("disconnected");
+        return;
+      }
+      this.setConnectionStatus("reconnecting");
+      if (this.authErrorRetryTimer) {
+        clearTimeout(this.authErrorRetryTimer);
+      }
+      const retryDelay = Math.min(
+        WebSocketService.BASE_AUTH_RETRY_DELAY_MS *
+          2 ** (this.authErrorRetryCount - 1),
+        WebSocketService.MAX_AUTH_RETRY_DELAY_MS,
+      );
+      console.warn(
+        `[WS] Auth retry #${this.authErrorRetryCount}, retrying in ${Math.round(retryDelay / 1000)}s`,
+      );
+      this.authErrorRetryTimer = setTimeout(() => {
+        this.authErrorRetryTimer = null;
+        if (!this.socket?.connected && this.hasAuthToken()) {
+          this.connect();
+        }
+      }, retryDelay);
     });
 
     this.socket.on("reconnect", () => {
@@ -185,13 +233,18 @@ class WebSocketService {
   }
 
   disconnect(): void {
+    if (this.authErrorRetryTimer) {
+      clearTimeout(this.authErrorRetryTimer);
+      this.authErrorRetryTimer = null;
+    }
     if (this.socket) {
       console.log("[WS] Disconnecting...");
       this.socket.disconnect();
       this.socket = null;
-      this.isConnecting = false;
-      this.setConnectionStatus("disconnected");
     }
+    this.isConnecting = false;
+    this.authErrorRetryCount = 0;
+    this.setConnectionStatus("disconnected");
   }
 
   isConnected(): boolean {
