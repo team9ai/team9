@@ -229,7 +229,7 @@ export function MessageList({
         atBottomStateChange={handleAtBottomStateChange}
         atBottomThreshold={150}
         increaseViewportBy={{ top: 300, bottom: 100 }}
-        className="px-4"
+        className="px-4 overflow-x-hidden"
         components={{
           Header: () =>
             hasMore && isLoading ? (

@@ -194,7 +194,7 @@ export function MessageItem({
           />
         )}
         {hasContent && (
-          <div className="w-fit max-w-full">
+          <div className="channel-message-content">
             <MessageContent
               content={message.content}
               className="text-sm whitespace-pre-wrap break-words"
