@@ -557,13 +557,13 @@ export class InstalledApplicationsController {
 
     // 2. Create agent on OpenClaw control plane with dedicated workspace
     // Pass full absolute path so the daemon creates the workspace at the
-    // location file-keeper expects: .openclaw/workspace/{name}/
+    // location file-keeper expects: .openclaw/workspace-{name}/
     const workspaceName = bot.botId;
     let agent: Awaited<ReturnType<OpenclawService['createAgent']>>;
     try {
       agent = await this.openclawService.createAgent(instancesId, {
         name: displayName,
-        workspace: `/data/.openclaw/workspace/${workspaceName}`,
+        workspace: `/data/.openclaw/workspace-${workspaceName}`,
         team9_token: accessToken!,
       });
       const t3 = Date.now();
