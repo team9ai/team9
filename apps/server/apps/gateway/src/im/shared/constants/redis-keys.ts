@@ -8,6 +8,9 @@ export const REDIS_KEYS = {
   SOCKET_USER: (socketId: string) => `im:socket:${socketId}`,
 
   // Channel related
+  CHANNEL_CACHE: (channelId: string) => `im:channel:${channelId}`,
+  CHANNEL_MEMBER_ROLE: (channelId: string, userId: string) =>
+    `im:channel_role:${channelId}:${userId}`,
   CHANNEL_MEMBERS: (channelId: string) => `im:channel_members:${channelId}`,
   CHANNEL_TYPING: (channelId: string) => `im:typing:${channelId}`,
 
