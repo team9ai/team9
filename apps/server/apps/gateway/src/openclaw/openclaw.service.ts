@@ -201,7 +201,7 @@ export class OpenclawService {
       'POST',
       `/api/instances/${instanceId}/agents`,
       req,
-      35000, // daemon command has 30s timeout on control plane
+      120000, // 60s control-plane timeout + margin for connection-pool queuing
     );
   }
 
