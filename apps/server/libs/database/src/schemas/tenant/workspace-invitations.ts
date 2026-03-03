@@ -5,28 +5,33 @@ import {
   integer,
   timestamp,
   boolean,
+  index,
 } from 'drizzle-orm/pg-core';
 import { tenants } from './tenants.js';
 import { users } from '../im/users.js';
 import { tenantRoleEnum } from './tenant-members.js';
 
-export const workspaceInvitations = pgTable('workspace_invitations', {
-  id: uuid('id').primaryKey().notNull(),
-  tenantId: uuid('tenant_id')
-    .references(() => tenants.id, { onDelete: 'cascade' })
-    .notNull(),
-  code: varchar('code', { length: 32 }).unique().notNull(),
-  createdBy: uuid('created_by').references(() => users.id, {
-    onDelete: 'set null',
-  }),
-  role: tenantRoleEnum('role').default('member').notNull(),
-  maxUses: integer('max_uses'), // null = unlimited
-  usedCount: integer('used_count').default(0).notNull(),
-  expiresAt: timestamp('expires_at'),
-  isActive: boolean('is_active').default(true).notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+export const workspaceInvitations = pgTable(
+  'workspace_invitations',
+  {
+    id: uuid('id').primaryKey().notNull(),
+    tenantId: uuid('tenant_id')
+      .references(() => tenants.id, { onDelete: 'cascade' })
+      .notNull(),
+    code: varchar('code', { length: 32 }).unique().notNull(),
+    createdBy: uuid('created_by').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    role: tenantRoleEnum('role').default('member').notNull(),
+    maxUses: integer('max_uses'), // null = unlimited
+    usedCount: integer('used_count').default(0).notNull(),
+    expiresAt: timestamp('expires_at'),
+    isActive: boolean('is_active').default(true).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [index('idx_workspace_invitations_tenant_id').on(table.tenantId)],
+);
 
 export const invitationUsage = pgTable('invitation_usage', {
   id: uuid('id').primaryKey().notNull(),

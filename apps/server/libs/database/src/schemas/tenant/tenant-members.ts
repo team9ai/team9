@@ -1,4 +1,11 @@
-import { pgTable, uuid, timestamp, pgEnum, unique } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  timestamp,
+  pgEnum,
+  unique,
+  index,
+} from 'drizzle-orm/pg-core';
 import { tenants } from './tenants.js';
 import { users } from '../im/users.js';
 
@@ -24,7 +31,10 @@ export const tenantMembers = pgTable(
     leftAt: timestamp('left_at'),
     invitedBy: uuid('invited_by').references(() => users.id),
   },
-  (table) => [unique('unique_tenant_user').on(table.tenantId, table.userId)],
+  (table) => [
+    unique('unique_tenant_user').on(table.tenantId, table.userId),
+    index('idx_tenant_members_user_id').on(table.userId),
+  ],
 );
 
 export type TenantMember = typeof tenantMembers.$inferSelect;

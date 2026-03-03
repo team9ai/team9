@@ -5,6 +5,7 @@ import {
   pgEnum,
   boolean,
   unique,
+  index,
 } from 'drizzle-orm/pg-core';
 import { users } from './users.js';
 import { channels } from './channels.js';
@@ -33,7 +34,10 @@ export const channelMembers = pgTable(
     joinedAt: timestamp('joined_at').defaultNow().notNull(),
     leftAt: timestamp('left_at'),
   },
-  (table) => [unique('unique_channel_user').on(table.channelId, table.userId)],
+  (table) => [
+    unique('unique_channel_user').on(table.channelId, table.userId),
+    index('idx_channel_members_user_id').on(table.userId),
+  ],
 );
 
 export type ChannelMember = typeof channelMembers.$inferSelect;

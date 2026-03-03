@@ -89,7 +89,10 @@ export const bots = pgTable(
     index('idx_bots_owner_id').on(table.ownerId),
     index('idx_bots_mentor_id').on(table.mentorId),
     index('idx_bots_installed_application_id').on(table.installedApplicationId),
-    index('idx_bots_access_token').on(table.accessToken),
+    index('idx_bots_access_token').using(
+      'btree',
+      table.accessToken.op('text_pattern_ops'),
+    ),
   ],
 );
 

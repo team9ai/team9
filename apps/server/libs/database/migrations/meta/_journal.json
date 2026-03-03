@@ -134,6 +134,20 @@
       "when": 1771870577620,
       "tag": "0018_loose_trish_tilby",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1772555003346,
+      "tag": "0019_fast_network",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1772555696616,
+      "tag": "0020_vengeful_maddog",
+      "breakpoints": true
     }
   ]
 }
