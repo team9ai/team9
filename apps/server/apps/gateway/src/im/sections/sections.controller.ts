@@ -46,7 +46,7 @@ export class SectionsController {
   }
 
   @Post()
-  @WorkspaceRoles('owner', 'admin')
+  @WorkspaceRoles('member')
   async createSection(
     @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string | undefined,
@@ -61,7 +61,7 @@ export class SectionsController {
   }
 
   @Patch(':id')
-  @WorkspaceRoles('owner', 'admin')
+  @WorkspaceRoles('member')
   async updateSection(
     @CurrentUser('sub') userId: string,
     @Param('id') sectionId: string,
@@ -71,7 +71,7 @@ export class SectionsController {
   }
 
   @Delete(':id')
-  @WorkspaceRoles('owner', 'admin')
+  @WorkspaceRoles('member')
   async deleteSection(
     @CurrentUser('sub') userId: string,
     @Param('id') sectionId: string,
@@ -81,7 +81,7 @@ export class SectionsController {
   }
 
   @Patch('reorder')
-  @WorkspaceRoles('owner', 'admin')
+  @WorkspaceRoles('member')
   async reorderSections(
     @CurrentTenantId() tenantId: string | undefined,
     @Body() dto: ReorderSectionsDto,
@@ -99,7 +99,7 @@ export class ChannelSectionController {
   constructor(private readonly sectionsService: SectionsService) {}
 
   @Patch(':id/move')
-  @WorkspaceRoles('owner', 'admin')
+  @WorkspaceRoles('member')
   async moveChannel(
     @CurrentUser('sub') userId: string,
     @Param('id') channelId: string,

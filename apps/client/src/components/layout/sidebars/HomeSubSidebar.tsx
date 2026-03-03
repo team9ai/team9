@@ -40,10 +40,7 @@ import {
   useMoveChannel,
   useDeleteSection,
 } from "@/hooks/useSections";
-import {
-  useCurrentWorkspaceRole,
-  useUserWorkspaces,
-} from "@/hooks/useWorkspace";
+import { useUserWorkspaces } from "@/hooks/useWorkspace";
 import { useSelectedWorkspaceId } from "@/stores";
 import { Link, useParams } from "@tanstack/react-router";
 import { NewMessageDialog } from "@/components/dialog/NewMessageDialog";
@@ -225,12 +222,7 @@ export function HomeSubSidebar() {
   const { data: allPublicChannels = [], isLoading: isLoadingPublic } =
     usePublicChannels();
   const { data: sections = [] } = useSections();
-  const { isOwnerOrAdmin } = useCurrentWorkspaceRole();
-  const moveChannel = useMoveChannel((error: any) => {
-    if (error?.response?.status === 403) {
-      alert(tNav("insufficientPermissions"));
-    }
-  });
+  const moveChannel = useMoveChannel();
   const deleteSection = useDeleteSection();
   const params = useParams({ strict: false });
   const selectedChannelId = (params as { channelId?: string }).channelId;
@@ -272,12 +264,6 @@ export function HomeSubSidebar() {
     setActiveId(null);
 
     if (!over || active.id === over.id) return;
-
-    // Check permission
-    if (!isOwnerOrAdmin) {
-      alert(tNav("insufficientPermissions"));
-      return;
-    }
 
     const channelId = active.id as string;
     const overId = over.id as string;
@@ -450,66 +436,64 @@ export function HomeSubSidebar() {
                       )}
                       <span className="truncate">{section.name}</span>
                     </Button>
-                    {isOwnerOrAdmin && (
-                      <AlertDialog>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 shrink-0 text-nav-foreground-subtle hover:text-nav-foreground hover:bg-nav-hover focus-visible:ring-0 focus-visible:ring-offset-0"
-                            >
-                              <Plus size={14} />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-40">
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setCreateChannelSectionId(section.id);
-                                setIsCreateChannelOpen(true);
-                              }}
-                            >
-                              <Hash size={16} className="mr-2" />
-                              {tNav("createChannel")}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => setIsCreateSectionOpen(true)}
-                            >
-                              <FolderPlus size={16} className="mr-2" />
-                              {tNav("createSection")}
-                            </DropdownMenuItem>
-                            <AlertDialogTrigger asChild>
-                              <DropdownMenuItem className="text-destructive focus:text-destructive">
-                                <Trash2 size={16} className="mr-2" />
-                                {tNav("deleteSection")}
-                              </DropdownMenuItem>
-                            </AlertDialogTrigger>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>
+                    <AlertDialog>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 shrink-0 text-nav-foreground-subtle hover:text-nav-foreground hover:bg-nav-hover focus-visible:ring-0 focus-visible:ring-offset-0"
+                          >
+                            <Plus size={14} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-40">
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setCreateChannelSectionId(section.id);
+                              setIsCreateChannelOpen(true);
+                            }}
+                          >
+                            <Hash size={16} className="mr-2" />
+                            {tNav("createChannel")}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => setIsCreateSectionOpen(true)}
+                          >
+                            <FolderPlus size={16} className="mr-2" />
+                            {tNav("createSection")}
+                          </DropdownMenuItem>
+                          <AlertDialogTrigger asChild>
+                            <DropdownMenuItem className="text-destructive focus:text-destructive">
+                              <Trash2 size={16} className="mr-2" />
                               {tNav("deleteSection")}
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                              {tNav("deleteSectionConfirm", {
-                                name: section.name,
-                              })}
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>
-                              {tNav("cancel")}
-                            </AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => deleteSection.mutate(section.id)}
-                            >
-                              {tNav("deleteSection")}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    )}
+                            </DropdownMenuItem>
+                          </AlertDialogTrigger>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>
+                            {tNav("deleteSection")}
+                          </AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {tNav("deleteSectionConfirm", {
+                              name: section.name,
+                            })}
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>
+                            {tNav("cancel")}
+                          </AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => deleteSection.mutate(section.id)}
+                          >
+                            {tNav("deleteSection")}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                   {isSectionExpanded && !isSectionEmpty && (
                     <div className="ml-2 mt-1 space-y-0.5">
@@ -524,7 +508,7 @@ export function HomeSubSidebar() {
                             channel={channel}
                             isSelected={selectedChannelId === channel.id}
                             isDragging={activeId === channel.id}
-                            canDrag={isOwnerOrAdmin}
+                            canDrag={true}
                           />
                         ))
                       )}
@@ -569,14 +553,12 @@ export function HomeSubSidebar() {
                       <Hash size={16} className="mr-2" />
                       {tNav("createChannel")}
                     </DropdownMenuItem>
-                    {isOwnerOrAdmin && (
-                      <DropdownMenuItem
-                        onClick={() => setIsCreateSectionOpen(true)}
-                      >
-                        <FolderPlus size={16} className="mr-2" />
-                        {tNav("createSection")}
-                      </DropdownMenuItem>
-                    )}
+                    <DropdownMenuItem
+                      onClick={() => setIsCreateSectionOpen(true)}
+                    >
+                      <FolderPlus size={16} className="mr-2" />
+                      {tNav("createSection")}
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -602,7 +584,7 @@ export function HomeSubSidebar() {
                           channel={channel}
                           isSelected={selectedChannelId === channel.id}
                           isDragging={activeId === channel.id}
-                          canDrag={isOwnerOrAdmin}
+                          canDrag={true}
                         />
                       ))
                     )}
