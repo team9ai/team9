@@ -33,7 +33,7 @@ export function useChannel(channelId: string | undefined) {
     queryKey: ["channels", channelId],
     queryFn: () => imApi.channels.getChannel(channelId!),
     enabled: !!channelId,
-    staleTime: 30000,
+    staleTime: Infinity,
     // Don't retry on 403 (user is not a member)
     retry: false,
   });

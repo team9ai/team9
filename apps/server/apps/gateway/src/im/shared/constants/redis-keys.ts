@@ -12,6 +12,8 @@ export const REDIS_KEYS = {
   CHANNEL_MEMBER_ROLE: (channelId: string, userId: string) =>
     `im:channel_role:${channelId}:${userId}`,
   CHANNEL_MEMBERS: (channelId: string) => `im:channel_members:${channelId}`,
+  CHANNEL_DM_OTHER_USER: (channelId: string, userId: string) =>
+    `im:channel_dm_other:${channelId}:${userId}`,
   CHANNEL_TYPING: (channelId: string) => `im:typing:${channelId}`,
 
   // Message related

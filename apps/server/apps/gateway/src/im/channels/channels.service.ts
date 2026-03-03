@@ -342,43 +342,13 @@ export class ChannelsService {
 
     // For direct channels, fetch the other user's information
     if (channel.type === 'direct' && userId) {
-      const members = await this.db
-        .select({
-          userId: schema.channelMembers.userId,
-          username: schema.users.username,
-          displayName: schema.users.displayName,
-          avatarUrl: schema.users.avatarUrl,
-          status: schema.users.status,
-          userType: schema.users.userType,
-        })
-        .from(schema.channelMembers)
-        .innerJoin(
-          schema.users,
-          eq(schema.users.id, schema.channelMembers.userId),
-        )
-        .where(
-          and(
-            eq(schema.channelMembers.channelId, id),
-            isNull(schema.channelMembers.leftAt),
-          ),
-        );
-
-      const otherUser = members.find((m) => m.userId !== userId);
+      const otherUser = await this.getDmOtherUser(id, userId);
 
       return {
         ...channel,
         unreadCount: 0, // Not calculated for single channel view
         lastReadMessageId: null,
-        otherUser: otherUser
-          ? {
-              id: otherUser.userId,
-              username: otherUser.username,
-              displayName: otherUser.displayName,
-              avatarUrl: otherUser.avatarUrl,
-              status: otherUser.status,
-              userType: otherUser.userType,
-            }
-          : undefined,
+        otherUser: otherUser || undefined,
       };
     }
 
@@ -465,53 +435,123 @@ export class ChannelsService {
         ),
       );
 
-    // For direct channels, fetch the other user's information
-    const channelsWithUsers = await Promise.all(
-      result.map(async (channel) => {
-        if (channel.type === 'direct') {
-          // Find the other user in this direct channel
-          const members = await this.db
-            .select({
-              userId: schema.channelMembers.userId,
-              username: schema.users.username,
-              displayName: schema.users.displayName,
-              avatarUrl: schema.users.avatarUrl,
-              status: schema.users.status,
-              userType: schema.users.userType,
-            })
-            .from(schema.channelMembers)
-            .innerJoin(
-              schema.users,
-              eq(schema.users.id, schema.channelMembers.userId),
-            )
-            .where(
-              and(
-                eq(schema.channelMembers.channelId, channel.id),
-                isNull(schema.channelMembers.leftAt),
-              ),
-            );
+    // For direct channels, batch-fetch all "other user" info in a single query
+    const directChannelIds = result
+      .filter((ch) => ch.type === 'direct')
+      .map((ch) => ch.id);
 
-          const otherUser = members.find((m) => m.userId !== userId);
+    const otherUserMap = new Map<
+      string,
+      {
+        id: string;
+        username: string;
+        displayName: string | null;
+        avatarUrl: string | null;
+        status: 'online' | 'offline' | 'away' | 'busy';
+        userType: 'human' | 'bot' | 'system';
+      }
+    >();
 
-          return {
-            ...channel,
-            otherUser: otherUser
-              ? {
-                  id: otherUser.userId,
-                  username: otherUser.username,
-                  displayName: otherUser.displayName,
-                  avatarUrl: otherUser.avatarUrl,
-                  status: otherUser.status,
-                  userType: otherUser.userType,
-                }
-              : undefined,
-          };
+    if (directChannelIds.length > 0) {
+      const allMembers = await this.db
+        .select({
+          channelId: schema.channelMembers.channelId,
+          userId: schema.channelMembers.userId,
+          username: schema.users.username,
+          displayName: schema.users.displayName,
+          avatarUrl: schema.users.avatarUrl,
+          status: schema.users.status,
+          userType: schema.users.userType,
+        })
+        .from(schema.channelMembers)
+        .innerJoin(
+          schema.users,
+          eq(schema.users.id, schema.channelMembers.userId),
+        )
+        .where(
+          and(
+            inArray(schema.channelMembers.channelId, directChannelIds),
+            isNull(schema.channelMembers.leftAt),
+          ),
+        );
+
+      for (const member of allMembers) {
+        if (member.userId !== userId) {
+          otherUserMap.set(member.channelId, {
+            id: member.userId,
+            username: member.username,
+            displayName: member.displayName,
+            avatarUrl: member.avatarUrl,
+            status: member.status,
+            userType: member.userType,
+          });
         }
-        return channel;
-      }),
-    );
+      }
+    }
 
-    return channelsWithUsers;
+    return result.map((channel) => {
+      if (channel.type === 'direct') {
+        return {
+          ...channel,
+          otherUser: otherUserMap.get(channel.id),
+        };
+      }
+      return channel;
+    });
+  }
+
+  /**
+   * Get the "other user" in a direct channel, with Redis cache.
+   */
+  private async getDmOtherUser(
+    channelId: string,
+    userId: string,
+  ): Promise<{
+    id: string;
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+    status: 'online' | 'offline' | 'away' | 'busy';
+    userType: 'human' | 'bot' | 'system';
+  } | null> {
+    return this.redis.getOrSet(
+      REDIS_KEYS.CHANNEL_DM_OTHER_USER(channelId, userId),
+      async () => {
+        const members = await this.db
+          .select({
+            userId: schema.channelMembers.userId,
+            username: schema.users.username,
+            displayName: schema.users.displayName,
+            avatarUrl: schema.users.avatarUrl,
+            status: schema.users.status,
+            userType: schema.users.userType,
+          })
+          .from(schema.channelMembers)
+          .innerJoin(
+            schema.users,
+            eq(schema.users.id, schema.channelMembers.userId),
+          )
+          .where(
+            and(
+              eq(schema.channelMembers.channelId, channelId),
+              isNull(schema.channelMembers.leftAt),
+            ),
+          );
+
+        const otherUser = members.find((m) => m.userId !== userId);
+        if (!otherUser) return null;
+
+        return {
+          id: otherUser.userId,
+          username: otherUser.username,
+          displayName: otherUser.displayName,
+          avatarUrl: otherUser.avatarUrl,
+          status: otherUser.status,
+          userType: otherUser.userType,
+        };
+      },
+      120,
+    );
   }
 
   async addMember(
