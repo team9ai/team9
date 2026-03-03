@@ -5,6 +5,8 @@ import { REDIS_CLIENT } from './redis.constants.js';
 @Injectable()
 export class RedisService {
   private readonly NULL_MARKER = '__CACHE_NULL__';
+  // Singleflight: prevent cache stampede by deduplicating concurrent DB calls for the same key
+  private readonly inflight = new Map<string, Promise<any>>();
 
   constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
 
@@ -25,6 +27,26 @@ export class RedisService {
       return fn();
     }
 
+    // Singleflight: if another request is already fetching this key, wait for it
+    const existing = this.inflight.get(key);
+    if (existing) {
+      return existing as Promise<T | null>;
+    }
+
+    const promise = this.fetchAndCache<T>(key, fn, ttlSeconds);
+    this.inflight.set(key, promise);
+    try {
+      return await promise;
+    } finally {
+      this.inflight.delete(key);
+    }
+  }
+
+  private async fetchAndCache<T>(
+    key: string,
+    fn: () => Promise<T | null>,
+    ttlSeconds: number,
+  ): Promise<T | null> {
     const result = await fn();
 
     try {

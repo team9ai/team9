@@ -31,7 +31,8 @@ import { env } from '@team9/shared';
           database,
           username: user,
           password, // Password is passed directly, no encoding needed
-          max: 10,
+          max: 30,
+          idle_timeout: 20,
           connect_timeout: 10,
           max_lifetime: 60 * 30,
         });
