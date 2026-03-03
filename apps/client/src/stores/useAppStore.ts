@@ -20,6 +20,17 @@ export type SidebarSection =
   | "application"
   | "more";
 
+export const ALL_SIDEBAR_SECTIONS: SidebarSection[] = [
+  "home",
+  "messages",
+  "activity",
+  "files",
+  "aiStaff",
+  "library",
+  "application",
+  "more",
+];
+
 // Default paths for each sidebar section
 export const DEFAULT_SECTION_PATHS: Record<SidebarSection, string> = {
   home: "/channels",
@@ -33,6 +44,11 @@ export const DEFAULT_SECTION_PATHS: Record<SidebarSection, string> = {
 };
 
 type SectionPaths = Record<SidebarSection, string | null>;
+
+const createEmptySectionPaths = (): SectionPaths =>
+  Object.fromEntries(
+    ALL_SIDEBAR_SECTIONS.map((section) => [section, null]),
+  ) as SectionPaths;
 
 /**
  * Determines which section a path belongs to.
@@ -66,6 +82,7 @@ interface AppState {
   setLoading: (loading: boolean) => void;
   setLastVisitedPath: (section: SidebarSection, path: string | null) => void;
   setActiveSidebar: (sidebar: SidebarSection) => void;
+  resetNavigationForWorkspaceEntry: () => void;
   toggleSidebarCollapsed: () => void;
   reset: () => void;
 }
@@ -75,16 +92,7 @@ const initialState = {
   user: null,
   theme: "light" as const,
   isLoading: false,
-  lastVisitedPaths: {
-    home: null,
-    messages: null,
-    activity: null,
-    files: null,
-    aiStaff: null,
-    library: null,
-    application: null,
-    more: null,
-  } as SectionPaths,
+  lastVisitedPaths: createEmptySectionPaths(),
   activeSidebar: "home" as SidebarSection,
   sidebarCollapsed: false,
 };
@@ -123,6 +131,16 @@ export const useAppStore = create<AppState>()(
 
         setActiveSidebar: (activeSidebar) =>
           set({ activeSidebar }, false, "setActiveSidebar"),
+
+        resetNavigationForWorkspaceEntry: () =>
+          set(
+            {
+              activeSidebar: "home",
+              lastVisitedPaths: createEmptySectionPaths(),
+            },
+            false,
+            "resetNavigationForWorkspaceEntry",
+          ),
 
         toggleSidebarCollapsed: () =>
           set(
@@ -175,6 +193,8 @@ export const appActions = {
     useAppStore.getState().setLastVisitedPath(section, path),
   setActiveSidebar: (sidebar: SidebarSection) =>
     useAppStore.getState().setActiveSidebar(sidebar),
+  resetNavigationForWorkspaceEntry: () =>
+    useAppStore.getState().resetNavigationForWorkspaceEntry(),
   toggleSidebarCollapsed: () => useAppStore.getState().toggleSidebarCollapsed(),
   reset: () => useAppStore.getState().reset(),
 };

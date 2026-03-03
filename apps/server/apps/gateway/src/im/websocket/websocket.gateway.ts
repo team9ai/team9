@@ -334,54 +334,58 @@ export class WebsocketGateway
         this.clusterNodeService.decrementConnections();
       }
 
-      if (socketClient.isBot) {
-        this.logger.log(
-          `[WS] Bot ${socketClient.userId} disconnected, cleaning up streams and setting offline`,
+      // Check if user has other active device sessions (new architecture)
+      let hasActiveSessions = false;
+      if (this.sessionService) {
+        hasActiveSessions = await this.sessionService.hasActiveDeviceSessions(
+          socketClient.userId,
         );
-        // Abort any active streaming sessions for this bot
-        await this.cleanupBotStreams(socketClient.userId);
-
-        // Set bot offline and broadcast — bots are single-connection, always go offline on disconnect
-        await this.usersService.setOffline(socketClient.userId);
-
-        const workspaceIds =
-          await this.workspaceService.getWorkspaceIdsByUserId(
-            socketClient.userId,
-          );
-
-        for (const workspaceId of workspaceIds) {
-          this.server
-            .to(`workspace:${workspaceId}`)
-            .emit(WS_EVENTS.USER.OFFLINE, {
-              userId: socketClient.userId,
-              workspaceId,
-            });
-        }
-
         this.logger.log(
-          `[WS] Bot ${socketClient.userId} is now offline, broadcasted to ${workspaceIds.length} workspaces`,
+          `[WS] User ${socketClient.userId} hasActiveSessions=${hasActiveSessions} (sessionService)`,
         );
       } else {
-        // Check if user has other active device sessions (new architecture)
-        let hasActiveSessions = false;
-        if (this.sessionService) {
-          hasActiveSessions = await this.sessionService.hasActiveDeviceSessions(
-            socketClient.userId,
-          );
+        // Fallback to legacy check
+        const remainingSockets = await this.redisService.smembers(
+          REDIS_KEYS.USER_SOCKETS(socketClient.userId),
+        );
+        hasActiveSessions = remainingSockets.length > 0;
+        this.logger.log(
+          `[WS] User ${socketClient.userId} hasActiveSessions=${hasActiveSessions} (legacy, remainingSockets=${remainingSockets.length})`,
+        );
+      }
+
+      if (socketClient.isBot) {
+        if (!hasActiveSessions) {
           this.logger.log(
-            `[WS] User ${socketClient.userId} hasActiveSessions=${hasActiveSessions} (sessionService)`,
+            `[WS] Bot ${socketClient.userId} disconnected, cleaning up streams and setting offline`,
+          );
+          // Abort active streaming sessions only when the bot truly goes offline.
+          await this.cleanupBotStreams(socketClient.userId);
+          await this.usersService.setOffline(socketClient.userId);
+
+          const workspaceIds =
+            await this.workspaceService.getWorkspaceIdsByUserId(
+              socketClient.userId,
+            );
+
+          for (const workspaceId of workspaceIds) {
+            this.server
+              .to(`workspace:${workspaceId}`)
+              .emit(WS_EVENTS.USER.OFFLINE, {
+                userId: socketClient.userId,
+                workspaceId,
+              });
+          }
+
+          this.logger.log(
+            `[WS] Bot ${socketClient.userId} is now offline, broadcasted to ${workspaceIds.length} workspaces`,
           );
         } else {
-          // Fallback to legacy check
-          const remainingSockets = await this.redisService.smembers(
-            REDIS_KEYS.USER_SOCKETS(socketClient.userId),
-          );
-          hasActiveSessions = remainingSockets.length > 0;
           this.logger.log(
-            `[WS] User ${socketClient.userId} hasActiveSessions=${hasActiveSessions} (legacy, remainingSockets=${remainingSockets.length})`,
+            `[WS] Bot ${socketClient.userId} still has active sessions, NOT setting offline`,
           );
         }
-
+      } else {
         if (!hasActiveSessions) {
           // User has no more connections on any device, set offline
           this.logger.log(

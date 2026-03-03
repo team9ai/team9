@@ -5,7 +5,7 @@ import { useVerifyEmail } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
 import workspaceApi from "@/services/api/workspace";
-import { workspaceActions } from "@/stores";
+import { workspaceActions, appActions } from "@/stores";
 
 type VerifyEmailSearch = {
   token?: string;
@@ -46,6 +46,7 @@ function VerifyEmail() {
       try {
         await verifyEmail.mutateAsync(token);
         setStatus("success");
+        let joinedFromInvite = false;
 
         // Auto-accept pending invitation after successful verification
         const pendingInviteCode = localStorage.getItem("pending_invite_code");
@@ -54,6 +55,8 @@ function VerifyEmail() {
             const result =
               await workspaceApi.acceptInvitation(pendingInviteCode);
             workspaceActions.setSelectedWorkspaceId(result.workspace.id);
+            appActions.resetNavigationForWorkspaceEntry();
+            joinedFromInvite = true;
           } catch {
             // Fail silently — user can revisit the invite link later
           } finally {
@@ -63,7 +66,10 @@ function VerifyEmail() {
 
         // Redirect to home after 3 seconds
         setTimeout(() => {
-          navigate({ to: "/" });
+          navigate({
+            to: joinedFromInvite ? "/channels" : "/",
+            replace: true,
+          });
         }, 3000);
       } catch (err: any) {
         setStatus("error");

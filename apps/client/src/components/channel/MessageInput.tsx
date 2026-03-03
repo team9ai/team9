@@ -96,36 +96,36 @@ export function MessageInput({
     [addFiles],
   );
 
-  // Handle paste for images
+  // Handle paste for files (images, documents, etc.)
   const handlePaste = useCallback(
     (e: ClipboardEvent) => {
       const items = e.clipboardData?.items;
       if (!items) return;
 
-      const imageFiles: File[] = [];
+      const pastedFiles: File[] = [];
       for (const item of items) {
-        if (item.type.startsWith("image/")) {
+        if (item.kind === "file") {
           const file = item.getAsFile();
           if (file) {
-            // Create a new file with a proper name
-            const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-            const extension = file.type.split("/")[1] || "png";
-            const namedFile = new File(
-              [file],
-              `screenshot-${timestamp}.${extension}`,
-              {
-                type: file.type,
-              },
-            );
-            imageFiles.push(namedFile);
+            // Pasted screenshots often lack a meaningful name — generate one
+            if (!file.name || file.name.trim().length === 0) {
+              const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+              const extension = file.type.split("/")[1] || "bin";
+              pastedFiles.push(
+                new File([file], `pasted-${timestamp}.${extension}`, {
+                  type: file.type,
+                }),
+              );
+            } else {
+              pastedFiles.push(file);
+            }
           }
         }
       }
 
-      if (imageFiles.length > 0) {
-        // Create a FileList-like object
+      if (pastedFiles.length > 0) {
         const dataTransfer = new DataTransfer();
-        imageFiles.forEach((file) => dataTransfer.items.add(file));
+        pastedFiles.forEach((file) => dataTransfer.items.add(file));
         addFiles(dataTransfer.files);
       }
     },

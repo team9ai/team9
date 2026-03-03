@@ -556,6 +556,20 @@
   white-space: pre;
 }
 
+/* Channel message layout guardrails */
+.channel-message-content {
+  width: 100%;
+  min-width: 0;
+  padding-right: 1rem;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 768px) {
+  .channel-message-content {
+    padding-right: 0.5rem;
+  }
+}
+
 /* Markdown message content */
 .markdown-message-content {
   line-height: 1.25;

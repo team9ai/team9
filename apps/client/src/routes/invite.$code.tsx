@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import workspaceApi from "@/services/api/workspace";
-import { workspaceActions } from "@/stores";
+import { workspaceActions, appActions } from "@/stores";
 import { useState, useEffect, useRef } from "react";
 
 export const Route = createFileRoute("/invite/$code")({
@@ -39,8 +39,9 @@ function InvitePage() {
     mutationFn: () => workspaceApi.acceptInvitation(code),
     onSuccess: async (data) => {
       workspaceActions.setSelectedWorkspaceId(data.workspace.id);
+      appActions.resetNavigationForWorkspaceEntry();
       await queryClient.invalidateQueries({ queryKey: ["user-workspaces"] });
-      navigate({ to: "/" });
+      navigate({ to: "/channels", replace: true });
     },
     onError: (error: any) => {
       console.error("Failed to accept invitation:", error);

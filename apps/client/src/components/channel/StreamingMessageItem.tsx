@@ -54,7 +54,7 @@ export const StreamingMessageItem = memo(function StreamingMessageItem({
 
         {/* Streaming text content */}
         {stream.content ? (
-          <div className="w-fit max-w-full">
+          <div className="channel-message-content w-full min-w-0">
             <MessageContent
               content={stream.content}
               className="text-sm whitespace-pre-wrap break-words"
