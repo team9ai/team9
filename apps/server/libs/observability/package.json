@@ -28,8 +28,10 @@
     "@opentelemetry/instrumentation-nestjs-core": "^0.44.0",
     "@opentelemetry/instrumentation-socket.io": "^0.46.0",
     "@opentelemetry/resources": "^1.30.0",
-    "@opentelemetry/semantic-conventions": "^1.30.0",
-    "@nestjs/common": "^11.0.1"
+    "@opentelemetry/semantic-conventions": "^1.30.0"
+  },
+  "peerDependencies": {
+    "@nestjs/common": "^11.0.0"
   },
   "devDependencies": {
     "typescript": "^5.7.3"
