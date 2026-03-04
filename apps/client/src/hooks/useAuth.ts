@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Sentry from "@sentry/react";
+import { invoke } from "@tauri-apps/api/core";
 import api, {
   type LoginRequest,
   type RegisterRequest,
@@ -96,6 +97,12 @@ export const useLogout = () => {
 
       // Clear sessionStorage flags
       sessionStorage.removeItem("app_initialized");
+
+      // Stop aHand daemon on logout (desktop app only).
+      // Use __TAURI_INTERNALS__ for Tauri v2 detection (v1 used __TAURI__).
+      if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
+        invoke("ahand_stop").catch(() => {});
+      }
     },
   });
 };

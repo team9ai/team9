@@ -10,6 +10,7 @@ import { GlobalTopBar } from "@/components/layout/GlobalTopBar";
 import { ConnectionStatus } from "@/components/layout/ConnectionStatus";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useWebSocketEvents } from "@/hooks/useWebSocketEvents";
+import { useAHandAutoConnect } from "@/hooks/useAHandAutoConnect";
 import { useEffect } from "react";
 import {
   appActions,
@@ -76,6 +77,9 @@ export const Route = createFileRoute("/_authenticated")({
 
 function AuthenticatedLayout() {
   const location = useLocation();
+
+  // Auto-start aHand daemon on login (desktop app only, no-op in browser).
+  useAHandAutoConnect();
 
   // Initialize WebSocket connection
   useWebSocket();
