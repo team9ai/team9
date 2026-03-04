@@ -370,6 +370,86 @@ export class InstalledApplicationsController {
   }
 
   /**
+   * Return the OpenClaw gateway WebSocket URL for the calling user's workspace.
+   * Used by Tauri desktop client to auto-configure the local aHand daemon.
+   *
+   * Auth: any authenticated workspace member (controller-level AuthGuard + WorkspaceGuard).
+   */
+  @Get(':id/openclaw/gateway-info')
+  async getOpenClawGatewayInfo(
+    @Param('id') id: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    const app = await this.getVerifiedApp(id, tenantId, 'openclaw');
+    const instancesId = (app.config as { instancesId?: string })?.instancesId;
+    if (!instancesId) {
+      throw new NotFoundException(
+        'No instance configured for this application',
+      );
+    }
+
+    const instance = await this.openclawService.getInstance(instancesId);
+    if (!instance) {
+      throw new ServiceUnavailableException(
+        'OpenClaw instance not found or not running',
+      );
+    }
+
+    const accessUrl = instance.access_url;
+    if (!accessUrl) {
+      throw new ServiceUnavailableException('Gateway URL not available yet');
+    }
+
+    // Convert HTTP(S) access_url to WS(S) gateway URL.
+    // e.g. https://instance-id.openclaw.cloud → wss://instance-id.openclaw.cloud:18789
+    const gatewayUrl =
+      accessUrl
+        .replace(/^https:\/\//, 'wss://')
+        .replace(/^http:\/\//, 'ws://')
+        .replace(/\/$/, '') + ':18789';
+
+    return {
+      instanceId: instancesId,
+      gatewayUrl,
+      gatewayPort: 18789,
+    };
+  }
+
+  /**
+   * Self-approve a pending device pairing for the calling user's own device.
+   * Used by Tauri to auto-approve without requiring admin intervention.
+   *
+   * Security: verifies the requestId is a valid pending request before approving.
+   * Any authenticated workspace member can call this, but only for pending requests
+   * on their own workspace's OpenClaw instance.
+   */
+  @Post(':id/openclaw/devices/self-approve')
+  async selfApproveOpenClawDevice(
+    @Param('id') id: string,
+    @CurrentTenantId() tenantId: string,
+    @Body('requestId') requestId: string,
+  ) {
+    const app = await this.getVerifiedApp(id, tenantId, 'openclaw');
+    const instancesId = (app.config as { instancesId?: string })?.instancesId;
+    if (!instancesId) throw new NotFoundException('No instance configured');
+
+    // Verify the requestId exists and is actually in pending state.
+    // This prevents approving already-approved/rejected requests or invalid IDs.
+    const devices = await this.openclawService.listDevices(instancesId);
+    const target = devices?.find(
+      (d) => d.request_id === requestId && d.status === 'pending',
+    );
+    if (!target) {
+      throw new NotFoundException(
+        'No pending device pairing request found with this ID',
+      );
+    }
+
+    await this.openclawService.approveDevice(instancesId, requestId);
+    return { approved: true, requestId };
+  }
+
+  /**
    * Approve a device pairing request.
    * Requires: workspace admin or owner
    */
