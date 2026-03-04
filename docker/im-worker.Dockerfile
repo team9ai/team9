@@ -30,6 +30,7 @@ COPY apps/server/libs/rabbitmq/package.json ./apps/server/libs/rabbitmq/
 COPY apps/server/libs/ai-client/package.json ./apps/server/libs/ai-client/
 COPY apps/server/libs/storage/package.json ./apps/server/libs/storage/
 COPY apps/server/libs/email/package.json ./apps/server/libs/email/
+COPY apps/server/libs/observability/package.json ./apps/server/libs/observability/
 
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
