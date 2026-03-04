@@ -59,6 +59,8 @@ export interface Instance {
   custom_env?: Record<string, string>;
   tunnel_id?: string;
   volume_id?: string;
+  efs_filesystem_id?: string;
+  file_keeper_domain?: string;
   dns_record_id?: string;
   access_url: string;
   created_at: string;

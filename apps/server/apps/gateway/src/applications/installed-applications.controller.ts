@@ -436,7 +436,11 @@ export class InstalledApplicationsController {
         'No instance configured for this application',
       );
     }
-    const workspaces = await this.fileKeeperService.listWorkspaces(instancesId);
+    const fkBaseUrl = await this.getFileKeeperBaseUrl(instancesId);
+    const workspaces = await this.fileKeeperService.listWorkspaces(
+      instancesId,
+      fkBaseUrl,
+    );
     return {
       instanceId: instancesId,
       workspaces: workspaces.map((w) => ({
@@ -462,10 +466,12 @@ export class InstalledApplicationsController {
         'No instance configured for this application',
       );
     }
-    return this.fileKeeperService.issueToken(instancesId, [
-      'workspace-dir',
-      'data-dir',
-    ]);
+    const fkBaseUrl = await this.getFileKeeperBaseUrl(instancesId);
+    return this.fileKeeperService.issueToken(
+      instancesId,
+      ['workspace-dir', 'data-dir'],
+      fkBaseUrl,
+    );
   }
 
   // ── OpenClaw Agent CRUD ─────────────────────────────────────────
@@ -690,6 +696,16 @@ export class InstalledApplicationsController {
       )
       .limit(1);
     return member?.role === 'admin' || member?.role === 'owner';
+  }
+
+  private async getFileKeeperBaseUrl(
+    instancesId: string,
+  ): Promise<string | undefined> {
+    const instance = await this.openclawService.getInstance(instancesId);
+    if (instance?.file_keeper_domain) {
+      return `https://${instance.file_keeper_domain}`;
+    }
+    return undefined; // falls back to FILE_KEEPER_BASE_URL in service
   }
 
   /**

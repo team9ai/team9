@@ -49,8 +49,12 @@ export class FileKeeperService {
    *
    * Also detects the "default" workspace (files directly in .openclaw/workspace/).
    */
-  async listWorkspaces(instanceId: string): Promise<FileKeeperDirEntry[]> {
-    if (!this.isConfigured()) {
+  async listWorkspaces(
+    instanceId: string,
+    baseUrl?: string,
+  ): Promise<FileKeeperDirEntry[]> {
+    const resolvedBaseUrl = baseUrl || this.baseUrl;
+    if (!resolvedBaseUrl || !this.jwtSecret) {
       this.logger.debug('File-Keeper not configured, skipping listWorkspaces');
       return [];
     }
@@ -63,11 +67,15 @@ export class FileKeeperService {
         'GET',
         `/api/instances/${instanceId}/data-dir?path=.`,
         instanceId,
+        undefined,
+        resolvedBaseUrl,
       ),
       this.request<FileKeeperListResponse>(
         'GET',
         `/api/instances/${instanceId}/data-dir?path=workspace`,
         instanceId,
+        undefined,
+        resolvedBaseUrl,
       ),
     ]);
 
@@ -140,15 +148,17 @@ export class FileKeeperService {
   issueToken(
     instanceId: string,
     scopes: string[] = ['workspace-dir'],
+    baseUrl?: string,
   ): { token: string; baseUrl: string; instanceId: string; expiresAt: string } {
-    if (!this.isConfigured()) {
+    const resolvedBaseUrl = baseUrl || this.baseUrl;
+    if (!resolvedBaseUrl || !this.jwtSecret) {
       throw new Error('File-Keeper is not configured');
     }
     const token = this.signToken(instanceId, scopes);
     const expiresAt = new Date(Date.now() + 3600 * 1000).toISOString();
     return {
       token,
-      baseUrl: this.baseUrl!,
+      baseUrl: resolvedBaseUrl,
       instanceId,
       expiresAt,
     };
@@ -192,8 +202,9 @@ export class FileKeeperService {
     path: string,
     instanceId: string,
     scopes?: string[],
+    baseUrl?: string,
   ): Promise<T> {
-    const url = `${this.baseUrl}${path}`;
+    const url = `${baseUrl || this.baseUrl}${path}`;
     const token = this.signToken(instanceId, scopes);
 
     const res = await fetch(url, {
