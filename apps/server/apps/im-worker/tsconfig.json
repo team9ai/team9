@@ -7,7 +7,8 @@
       "@team9/database": ["../../libs/database/src"],
       "@team9/shared": ["../../libs/shared/src"],
       "@team9/redis": ["../../libs/redis/src"],
-      "@team9/rabbitmq": ["../../libs/rabbitmq/src"]
+      "@team9/rabbitmq": ["../../libs/rabbitmq/src"],
+      "@team9/observability": ["../../libs/observability/src"]
     }
   },
   "include": ["src/**/*"],
