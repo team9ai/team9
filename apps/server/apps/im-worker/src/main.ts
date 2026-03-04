@@ -1,4 +1,5 @@
 import './instrument.js'; // Initialize Sentry before any other imports
+import './otel.js'; // Initialize OpenTelemetry
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
@@ -10,6 +11,12 @@ async function bootstrap() {
 
   // Create gRPC-only application
   const app = await NestFactory.create(AppModule);
+
+  // Use OTel logger when observability is enabled
+  if (process.env.OTEL_ENABLED === 'true') {
+    const { OtelLogger } = await import('@team9/observability');
+    app.useLogger(new OtelLogger());
+  }
 
   // Configure gRPC microservice on port 3001
   const grpcPort = process.env.IM_WORKER_PORT ?? 3001;

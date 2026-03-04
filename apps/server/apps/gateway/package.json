@@ -43,6 +43,7 @@
     "@team9/rabbitmq": "workspace:*",
     "@team9/redis": "workspace:*",
     "@team9/shared": "workspace:*",
+    "@team9/observability": "workspace:*",
     "@team9/storage": "workspace:*",
     "axios": "^1.13.2",
     "bcrypt": "^6.0.0",

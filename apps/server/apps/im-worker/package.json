@@ -23,6 +23,7 @@
     "@sentry/nestjs": "^10.40.0",
     "@sentry/profiling-node": "^10.40.0",
     "@team9/database": "workspace:*",
+    "@team9/observability": "workspace:*",
     "@team9/rabbitmq": "workspace:*",
     "@team9/redis": "workspace:*",
     "@team9/shared": "workspace:*",

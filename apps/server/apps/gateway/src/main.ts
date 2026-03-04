@@ -1,5 +1,6 @@
 import './load-env.js'; // Load environment variables first
 import './instrument.js'; // Initialize Sentry before any other imports
+import './otel.js'; // Initialize OpenTelemetry
 import { NestFactory } from '@nestjs/core';
 import { VersioningType, Logger } from '@nestjs/common';
 import { AppModule } from './app.module.js';
@@ -9,6 +10,13 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
   const app = await NestFactory.create(AppModule);
+
+  // Use OTel logger when observability is enabled
+  if (process.env.OTEL_ENABLED === 'true') {
+    const { OtelLogger } = await import('@team9/observability');
+    app.useLogger(new OtelLogger());
+  }
+
   app.enableCors();
   app.setGlobalPrefix('api');
   app.enableVersioning({
