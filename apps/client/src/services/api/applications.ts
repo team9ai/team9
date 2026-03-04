@@ -241,6 +241,31 @@ export const applicationsApi = {
     );
   },
 
+  getOpenClawGatewayInfo: async (
+    installedAppId: string,
+  ): Promise<{
+    instanceId: string;
+    gatewayUrl: string;
+    gatewayPort: number;
+  }> => {
+    const response = await http.get<{
+      instanceId: string;
+      gatewayUrl: string;
+      gatewayPort: number;
+    }>(`/v1/installed-applications/${installedAppId}/openclaw/gateway-info`);
+    return response.data;
+  },
+
+  selfApproveOpenClawDevice: async (
+    installedAppId: string,
+    requestId: string,
+  ): Promise<void> => {
+    await http.post(
+      `/v1/installed-applications/${installedAppId}/openclaw/devices/self-approve`,
+      { requestId },
+    );
+  },
+
   openClawAction: async (
     installedAppId: string,
     action: "start" | "stop" | "restart",
