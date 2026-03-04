@@ -273,7 +273,12 @@ export const applicationsApi = {
 
   createOpenClawAgent: async (
     installedAppId: string,
-    data: { displayName: string; username?: string; description?: string },
+    data: {
+      displayName: string;
+      username?: string;
+      description?: string;
+      agentSlug?: string;
+    },
   ): Promise<{
     botId: string;
     agentId: string | null;

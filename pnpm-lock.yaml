@@ -206,6 +206,9 @@ importers:
       tailwindcss:
         specifier: ^4.1.18
         version: 4.1.18
+      transliteration:
+        specifier: ^2.6.0
+        version: 2.6.0
       zustand:
         specifier: ^5.0.9
         version: 5.0.9(@types/react@19.2.7)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3))
@@ -490,6 +493,9 @@ importers:
       "@team9/email":
         specifier: workspace:*
         version: file:apps/server/libs/email(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)
+      "@team9/observability":
+        specifier: workspace:*
+        version: link:../../libs/observability
       "@team9/rabbitmq":
         specifier: workspace:*
         version: link:../../libs/rabbitmq
@@ -597,6 +603,9 @@ importers:
       "@team9/database":
         specifier: workspace:*
         version: link:../../libs/database
+      "@team9/observability":
+        specifier: workspace:*
+        version: link:../../libs/observability
       "@team9/rabbitmq":
         specifier: workspace:*
         version: link:../../libs/rabbitmq
@@ -754,7 +763,7 @@ importers:
   apps/server/libs/observability:
     dependencies:
       "@nestjs/common":
-        specifier: ^11.0.1
+        specifier: ^11.0.0
         version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
       "@opentelemetry/api":
         specifier: ^1.9.0

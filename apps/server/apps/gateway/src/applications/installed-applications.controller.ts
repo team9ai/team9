@@ -14,6 +14,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  GatewayTimeoutException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { AuthGuard, CurrentUser } from '@team9/auth';
@@ -40,6 +41,7 @@ import { ApplicationsService } from './applications.service.js';
 import { OpenclawService } from '../openclaw/openclaw.service.js';
 import { FileKeeperService } from '../file-keeper/file-keeper.service.js';
 import { BotService } from '../bot/bot.service.js';
+import { generateSlug, generateShortId } from '../common/utils/slug.util.js';
 
 @Controller({
   path: 'installed-applications',
@@ -503,7 +505,12 @@ export class InstalledApplicationsController {
     @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string,
     @Body()
-    body: { displayName: string; username?: string; description?: string },
+    body: {
+      displayName: string;
+      username?: string;
+      description?: string;
+      agentSlug?: string;
+    },
   ) {
     const app = await this.getVerifiedApp(id, tenantId, 'openclaw');
     const instancesId = (app.config as { instancesId?: string })?.instancesId;
@@ -565,16 +572,22 @@ export class InstalledApplicationsController {
     // Pass full absolute path so the daemon creates the workspace at the
     // location file-keeper expects: .openclaw/workspace-{name}/
     const workspaceName = bot.botId;
+    // Use transliteration slug + random suffix as agent name so the CLI's
+    // normalizeAgentId won't strip non-ASCII characters (Chinese, Japanese, etc.)
+    // and the random suffix prevents collisions between similar names.
+    // Frontend may pass a pre-computed slug for consistency with the UI preview.
+    const slugBase = body.agentSlug?.trim() || generateSlug(displayName, 40);
+    const agentSlug = `${slugBase}-${generateShortId(4)}`;
     let agent: Awaited<ReturnType<OpenclawService['createAgent']>>;
     try {
       agent = await this.openclawService.createAgent(instancesId, {
-        name: displayName,
+        name: agentSlug,
         workspace: `/data/.openclaw/workspace-${workspaceName}`,
         team9_token: accessToken!,
       });
       const t3 = Date.now();
       this.logger.log(
-        `createOpenClawAgent: createAgent took ${t3 - t2}ms, total ${t3 - t0}ms (instance=${instancesId})`,
+        `createOpenClawAgent: createAgent took ${t3 - t2}ms, total ${t3 - t0}ms (instance=${instancesId}, slug=${agentSlug})`,
       );
     } catch (error) {
       const t3 = Date.now();
@@ -583,7 +596,26 @@ export class InstalledApplicationsController {
       );
       // Rollback: delete the bot we just created
       await this.botService.deleteBotAndCleanup(bot.botId);
-      throw error;
+
+      if (error instanceof DOMException && error.name === 'TimeoutError') {
+        throw new GatewayTimeoutException('Agent creation timed out');
+      }
+      if (error instanceof Error) {
+        // Control-plane returned 400 (CLI error like "agent already exists")
+        if (error.message.includes('responded 400')) {
+          const reason = error.message.split('— ').pop() || error.message;
+          throw new BadRequestException(reason.trim());
+        }
+        // Control-plane unreachable
+        if (/responded (502|503|504)/.test(error.message)) {
+          throw new ServiceUnavailableException(
+            'OpenClaw control plane is temporarily unavailable',
+          );
+        }
+      }
+      throw new ServiceUnavailableException(
+        'Failed to create agent on OpenClaw instance',
+      );
     }
 
     // Daemon may return "agentId" (camelCase) or "agent_id" (snake_case)
