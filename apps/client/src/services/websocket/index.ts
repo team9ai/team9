@@ -237,6 +237,10 @@ class WebSocketService {
       clearTimeout(this.authErrorRetryTimer);
       this.authErrorRetryTimer = null;
     }
+    if (this.refreshQueryTimer) {
+      clearTimeout(this.refreshQueryTimer);
+      this.refreshQueryTimer = null;
+    }
     if (this.socket) {
       console.log("[WS] Disconnecting...");
       this.socket.disconnect();
@@ -274,12 +278,19 @@ class WebSocketService {
     };
   }
 
+  private refreshQueryTimer: ReturnType<typeof setTimeout> | null = null;
+
   private refreshQueriesAfterReconnect(): void {
-    // Force refetch active queries to get latest data including offline messages
-    queryClient.refetchQueries({ queryKey: ["channels"], type: "active" });
-    queryClient.refetchQueries({ queryKey: ["messages"], type: "active" });
-    // Also refetch online users to get current status
-    queryClient.refetchQueries({ queryKey: ["im-users", "online"] });
+    // Debounce: both `authenticated` and `reconnect` events can fire in quick
+    // succession, and visibilitychange / online handlers may also call this.
+    // A single refetch after the dust settles is sufficient.
+    if (this.refreshQueryTimer) clearTimeout(this.refreshQueryTimer);
+    this.refreshQueryTimer = setTimeout(() => {
+      this.refreshQueryTimer = null;
+      queryClient.refetchQueries({ queryKey: ["channels"], type: "active" });
+      queryClient.refetchQueries({ queryKey: ["messages"], type: "active" });
+      queryClient.refetchQueries({ queryKey: ["im-users", "online"] });
+    }, 500);
   }
 
   private processPendingJoins(): void {

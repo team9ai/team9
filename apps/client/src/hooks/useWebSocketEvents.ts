@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import wsService from "@/services/websocket";
 import type { ChannelWithUnread, Message } from "@/types/im";
@@ -45,11 +45,21 @@ export function useWebSocketEvents() {
 
     // ==================== Channel Events ====================
 
+    // Debounce channel invalidation to prevent request storms.
+    // After reconnection the server may push many channel lifecycle events
+    // (channel_joined, channel_created, etc.) in rapid succession. Without
+    // debouncing, each event triggers a separate HTTP refetch which can
+    // overwhelm the browser (ERR_INSUFFICIENT_RESOURCES).
+    let channelInvalidateTimer: ReturnType<typeof setTimeout> | null = null;
     const invalidateChannels = () => {
-      queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
-      queryClient.invalidateQueries({
-        queryKey: ["publicChannels", workspaceId],
-      });
+      if (channelInvalidateTimer) clearTimeout(channelInvalidateTimer);
+      channelInvalidateTimer = setTimeout(() => {
+        channelInvalidateTimer = null;
+        queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
+        queryClient.invalidateQueries({
+          queryKey: ["publicChannels", workspaceId],
+        });
+      }, 500);
     };
 
     // Handle new message - immediately increment unread count
@@ -239,6 +249,11 @@ export function useWebSocketEvents() {
     // ==================== Cleanup ====================
 
     return () => {
+      // Clear debounce timer
+      if (channelInvalidateTimer) {
+        clearTimeout(channelInvalidateTimer);
+      }
+
       // Channel events
       wsService.off("channel_joined", invalidateChannels);
       wsService.off("channel_left", invalidateChannels);
