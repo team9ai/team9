@@ -8,6 +8,7 @@ on:
 
 env:
   RUST_BACKTRACE: 1
+  AHAND_VERSION: rust-v0.1.2
 
 jobs:
   build:
@@ -19,10 +20,14 @@ jobs:
             os: macos-latest
             build-script: build:client:mac
             artifact-path: apps/client/src-tauri/target/release/bundle/dmg/*.dmg
+            ahand-binary: ahandd-darwin-arm64
+            tauri-binary-name: ahandd-aarch64-apple-darwin
           - platform: windows
             os: windows-latest
             build-script: build:client:windows
             artifact-path: apps/client/src-tauri/target/release/bundle/nsis/*.exe
+            ahand-binary: ahandd-windows-x64.exe
+            tauri-binary-name: ahandd-x86_64-pc-windows-msvc.exe
 
     runs-on: ${{ matrix.os }}
 
@@ -71,6 +76,20 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install && pnpm -C apps/client install
+
+      - name: Download aHand daemon
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          mkdir -p apps/client/src-tauri/binaries
+          gh release download "$AHAND_VERSION" \
+            --repo team9ai/aHand \
+            --pattern "${{ matrix.ahand-binary }}" \
+            --dir apps/client/src-tauri/binaries/
+          mv "apps/client/src-tauri/binaries/${{ matrix.ahand-binary }}" \
+             "apps/client/src-tauri/binaries/${{ matrix.tauri-binary-name }}"
+          chmod +x "apps/client/src-tauri/binaries/${{ matrix.tauri-binary-name }}" 2>/dev/null || true
 
       - name: Write .env.production
         run: |

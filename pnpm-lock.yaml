@@ -141,8 +141,8 @@ importers:
         specifier: ^1.141.7
         version: 1.143.11(@tanstack/react-router@1.143.11(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(vite@7.3.0(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))(webpack@5.103.0(@swc/core@1.15.7))
       "@tauri-apps/api":
-        specifier: ^2
-        version: 2.9.1
+        specifier: ^2.10.1
+        version: 2.10.1
       "@tauri-apps/plugin-deep-link":
         specifier: ^2.4.7
         version: 2.4.7
@@ -5958,12 +5958,6 @@ packages:
     resolution:
       {
         integrity: sha512-hKL/jWf293UDSUN09rR69hrToyIXBb8CjGaWC7gfinvnQrBVvnLr08FeFi38gxtugAVyVcTa5/FD/Xnkb1siBw==,
-      }
-
-  "@tauri-apps/api@2.9.1":
-    resolution:
-      {
-        integrity: sha512-IGlhP6EivjXHepbBic618GOmiWe4URJiIeZFlB7x3czM0yDHHYviH1Xvoiv4FefdkQtn6v7TuwWCRfOGdnVUGw==,
       }
 
   "@tauri-apps/cli-darwin-arm64@2.9.6":
@@ -16858,8 +16852,6 @@ snapshots:
 
   "@tauri-apps/api@2.10.1": {}
 
-  "@tauri-apps/api@2.9.1": {}
-
   "@tauri-apps/cli-darwin-arm64@2.9.6":
     optional: true
 
@@ -16913,7 +16905,7 @@ snapshots:
 
   "@tauri-apps/plugin-opener@2.5.2":
     dependencies:
-      "@tauri-apps/api": 2.9.1
+      "@tauri-apps/api": 2.10.1
 
   "@team9/email@file:apps/server/libs/email(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)":
     dependencies:
