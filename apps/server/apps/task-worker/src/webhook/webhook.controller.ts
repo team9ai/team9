@@ -3,9 +3,12 @@ import {
   Post,
   Body,
   Inject,
+  Headers,
   Logger,
   HttpCode,
+  ForbiddenException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   DATABASE_CONNECTION,
   eq,
@@ -21,15 +24,25 @@ interface TaskcastTimeoutPayload {
 @Controller('webhooks/taskcast')
 export class WebhookController {
   private readonly logger = new Logger(WebhookController.name);
+  private readonly webhookSecret: string | undefined;
 
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
-  ) {}
+    configService: ConfigService,
+  ) {
+    this.webhookSecret = configService.get<string>('TASKCAST_WEBHOOK_SECRET');
+  }
 
   @Post('timeout')
   @HttpCode(200)
-  async handleTimeout(@Body() payload: TaskcastTimeoutPayload): Promise<void> {
+  async handleTimeout(
+    @Body() payload: TaskcastTimeoutPayload,
+    @Headers('x-webhook-secret') secret?: string,
+  ): Promise<void> {
+    if (this.webhookSecret && secret !== this.webhookSecret) {
+      throw new ForbiddenException('Invalid webhook secret');
+    }
     const { taskId } = payload;
 
     this.logger.warn(`Received timeout webhook for task ${taskId}`);

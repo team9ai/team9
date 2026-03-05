@@ -1,5 +1,6 @@
 import { Module, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { join } from 'path';
 import { DatabaseModule } from '@team9/database';
 import { RedisModule } from '@team9/redis';
@@ -19,6 +20,7 @@ import { WebhookModule } from './webhook/webhook.module.js';
         join(process.cwd(), '.env'),
       ],
     }),
+    ScheduleModule.forRoot(),
     DatabaseModule,
     RedisModule,
     RabbitmqModule,
