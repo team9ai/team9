@@ -165,10 +165,40 @@ export class ExecutorService {
           `Execution ${executionId} (v${nextVersion}) delegated to ${bot.type} strategy`,
         );
       } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        const errorStack = error instanceof Error ? error.stack : undefined;
+
         this.logger.error(
-          `Strategy execution failed for task ${taskId}: ${error}`,
+          `Strategy execution failed for task ${taskId}: ${errorMessage}`,
+          errorStack,
         );
-        // TODO: Update execution record with error status
+
+        const now = new Date();
+
+        // Update execution record with failed status and error details
+        await this.db
+          .update(schema.agentTaskExecutions)
+          .set({
+            status: 'failed',
+            completedAt: now,
+            error: {
+              message: errorMessage,
+              details: errorStack,
+            },
+          })
+          .where(eq(schema.agentTaskExecutions.id, executionId));
+
+        // Update task status to failed
+        await this.db
+          .update(schema.agentTasks)
+          .set({
+            status: 'failed',
+            updatedAt: now,
+          })
+          .where(eq(schema.agentTasks.id, taskId));
+
+        return;
       }
     } else {
       this.logger.warn(

@@ -7,6 +7,8 @@ import { RabbitmqModule } from '@team9/rabbitmq';
 import { ExecutorModule } from './executor/executor.module.js';
 import { ConsumerModule } from './consumer/consumer.module.js';
 import { SchedulerModule } from './scheduler/scheduler.module.js';
+import { TimeoutModule } from './timeout/timeout.module.js';
+import { WebhookModule } from './webhook/webhook.module.js';
 
 @Module({
   imports: [
@@ -23,6 +25,8 @@ import { SchedulerModule } from './scheduler/scheduler.module.js';
     ExecutorModule,
     ConsumerModule,
     SchedulerModule,
+    TimeoutModule,
+    WebhookModule,
   ],
 })
 export class AppModule implements OnModuleInit {
