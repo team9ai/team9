@@ -17,7 +17,14 @@ import type {
 } from '@team9/database/schemas';
 import { CurrentTenantId } from '../common/decorators/current-tenant.decorator.js';
 import { TasksService } from './tasks.service.js';
-import { CreateTaskDto, UpdateTaskDto } from './dto/index.js';
+import {
+  CreateTaskDto,
+  UpdateTaskDto,
+  StartTaskDto,
+  ResumeTaskDto,
+  StopTaskDto,
+  ResolveInterventionDto,
+} from './dto/index.js';
 
 @Controller({
   path: 'tasks',
@@ -92,5 +99,60 @@ export class TasksController {
   @Get(':id/interventions')
   async getInterventions(@Param('id', ParseUUIDPipe) id: string) {
     return this.tasksService.getInterventions(id);
+  }
+
+  // ── Task Control ──────────────────────────────────────────────
+
+  @Post(':id/start')
+  async start(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('sub') userId: string,
+    @Body() dto: StartTaskDto,
+  ) {
+    return this.tasksService.start(id, userId, dto);
+  }
+
+  @Post(':id/pause')
+  async pause(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.tasksService.pause(id, userId);
+  }
+
+  @Post(':id/resume')
+  async resume(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('sub') userId: string,
+    @Body() dto: ResumeTaskDto,
+  ) {
+    return this.tasksService.resume(id, userId, dto);
+  }
+
+  @Post(':id/stop')
+  async stop(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('sub') userId: string,
+    @Body() dto: StopTaskDto,
+  ) {
+    return this.tasksService.stop(id, userId, dto);
+  }
+
+  @Post(':id/restart')
+  async restart(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return this.tasksService.restart(id, userId);
+  }
+
+  @Post(':id/interventions/:intId/resolve')
+  async resolveIntervention(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('intId', ParseUUIDPipe) intId: string,
+    @CurrentUser('sub') userId: string,
+    @Body() dto: ResolveInterventionDto,
+  ) {
+    return this.tasksService.resolveIntervention(id, intId, userId, dto);
   }
 }
