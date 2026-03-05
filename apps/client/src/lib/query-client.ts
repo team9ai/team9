@@ -7,7 +7,7 @@ export const queryClient = new QueryClient({
       gcTime: 1000 * 60 * 10, // 10 minutes (formerly cacheTime)
       retry: 1,
       refetchOnWindowFocus: false,
-      refetchOnReconnect: true,
+      refetchOnReconnect: false, // Handled manually by WebSocket service's refreshQueriesAfterReconnect()
     },
     mutations: {
       retry: 0,

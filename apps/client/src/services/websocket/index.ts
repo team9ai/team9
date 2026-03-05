@@ -108,6 +108,16 @@ class WebSocketService {
       return;
     }
 
+    // Clean up any existing socket that may be in a disconnected-but-reconnecting
+    // state. Without this, the old socket (with reconnection: true) keeps
+    // auto-reconnecting in the background as an orphan, each reconnection
+    // independently triggering refreshQueriesAfterReconnect().
+    if (this.socket) {
+      this.socket.removeAllListeners();
+      this.socket.disconnect();
+      this.socket = null;
+    }
+
     this.isConnecting = true;
     this.setConnectionStatus("reconnecting");
 
@@ -283,13 +293,22 @@ class WebSocketService {
   private refreshQueriesAfterReconnect(): void {
     // Debounce: both `authenticated` and `reconnect` events can fire in quick
     // succession, and visibilitychange / online handlers may also call this.
-    // A single refetch after the dust settles is sufficient.
+    // A single refresh after the dust settles is sufficient.
     if (this.refreshQueryTimer) clearTimeout(this.refreshQueryTimer);
     this.refreshQueryTimer = setTimeout(() => {
       this.refreshQueryTimer = null;
-      queryClient.refetchQueries({ queryKey: ["channels"], type: "active" });
-      queryClient.refetchQueries({ queryKey: ["messages"], type: "active" });
-      queryClient.refetchQueries({ queryKey: ["im-users", "online"] });
+      // Use invalidateQueries (mark stale → refetch if active) instead of
+      // refetchQueries (force refetch). This lets React Query deduplicate
+      // with concurrent invalidateChannels() calls from useWebSocketEvents.
+      queryClient.invalidateQueries({ queryKey: ["channels"], type: "active" });
+      queryClient.invalidateQueries({
+        queryKey: ["publicChannels"],
+        type: "active",
+      });
+      queryClient.invalidateQueries({ queryKey: ["messages"], type: "active" });
+      queryClient.invalidateQueries({
+        queryKey: ["im-users", "online"],
+      });
     }, 500);
   }
 
