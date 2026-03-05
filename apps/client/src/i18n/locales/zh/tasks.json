@@ -21,6 +21,31 @@
     "completed": "已完成",
     "failed": "失败"
   },
+  "schedule": {
+    "type": "定时设置",
+    "types": {
+      "once": "单次执行",
+      "recurring": "周期执行"
+    },
+    "frequency": "频率",
+    "frequencies": {
+      "daily": "每天",
+      "weekly": "每周",
+      "monthly": "每月"
+    },
+    "time": "时间",
+    "dayOfWeek": "星期",
+    "dayOfMonth": "日期",
+    "days": {
+      "0": "日",
+      "1": "一",
+      "2": "二",
+      "3": "三",
+      "4": "四",
+      "5": "五",
+      "6": "六"
+    }
+  },
   "detail": {
     "title": "任务详情",
     "loadError": "加载任务详情失败",
@@ -37,6 +62,7 @@
     "pastInterventions": "历史干预",
     "interventionResolved": "已处理",
     "interventionExpired": "已过期",
-    "interventionPlaceholder": "输入自定义回复..."
+    "interventionPlaceholder": "输入自定义回复...",
+    "messageInputPlaceholder": "向此任务发送消息..."
   }
 }

@@ -21,6 +21,31 @@
     "completed": "Completed",
     "failed": "Failed"
   },
+  "schedule": {
+    "type": "Schedule",
+    "types": {
+      "once": "One-time",
+      "recurring": "Recurring"
+    },
+    "frequency": "Frequency",
+    "frequencies": {
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "monthly": "Monthly"
+    },
+    "time": "Time",
+    "dayOfWeek": "Day of week",
+    "dayOfMonth": "Day of month",
+    "days": {
+      "0": "Sun",
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri",
+      "6": "Sat"
+    }
+  },
   "detail": {
     "title": "Task Details",
     "loadError": "Failed to load task details",
@@ -37,6 +62,7 @@
     "pastInterventions": "Past Interventions",
     "interventionResolved": "Resolved",
     "interventionExpired": "Expired",
-    "interventionPlaceholder": "Type a custom response..."
+    "interventionPlaceholder": "Type a custom response...",
+    "messageInputPlaceholder": "Send a message to this task..."
   }
 }
