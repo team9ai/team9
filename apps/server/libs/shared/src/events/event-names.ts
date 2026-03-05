@@ -205,6 +205,17 @@ export const WS_EVENTS = {
     MESSAGE_RETRY: 'message_retry',
   },
 
+  // ==================== Task Events ====================
+  /**
+   * Task execution and status events
+   */
+  TASK: {
+    /** Task status changed - broadcast by server */
+    STATUS_CHANGED: 'task:status_changed',
+    /** Task execution created - broadcast by server */
+    EXECUTION_CREATED: 'task:execution_created',
+  },
+
   // ==================== AI Streaming (Bot) ====================
   /**
    * AI bot streaming message events.
@@ -241,4 +252,5 @@ export type WsEventName =
   | (typeof WS_EVENTS.SYSTEM)[keyof typeof WS_EVENTS.SYSTEM]
   | (typeof WS_EVENTS.SESSION)[keyof typeof WS_EVENTS.SESSION]
   | (typeof WS_EVENTS.SYNC)[keyof typeof WS_EVENTS.SYNC]
+  | (typeof WS_EVENTS.TASK)[keyof typeof WS_EVENTS.TASK]
   | (typeof WS_EVENTS.STREAMING)[keyof typeof WS_EVENTS.STREAMING];

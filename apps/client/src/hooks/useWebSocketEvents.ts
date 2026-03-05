@@ -10,6 +10,8 @@ import type {
   NotificationNewEvent,
   NotificationCountsUpdatedEvent,
   NotificationReadEvent,
+  TaskStatusChangedEvent,
+  TaskExecutionCreatedEvent,
 } from "@/types/ws-events";
 import { useSelectedWorkspaceId, useUser } from "@/stores";
 import {
@@ -222,6 +224,18 @@ export function useWebSocketEvents() {
       notificationActions.markAsRead(event.notificationIds);
     };
 
+    // ==================== Task Events ====================
+
+    const handleTaskStatusChanged = (event: TaskStatusChangedEvent) => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["task", event.taskId] });
+    };
+
+    const handleTaskExecutionCreated = (event: TaskExecutionCreatedEvent) => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["task", event.taskId] });
+    };
+
     // ==================== Register All Listeners ====================
 
     // Channel lifecycle events
@@ -245,6 +259,10 @@ export function useWebSocketEvents() {
     wsService.onNotificationCountsUpdated(handleNotificationCountsUpdated);
     wsService.onNotificationNew(handleNotificationNew);
     wsService.onNotificationRead(handleNotificationRead);
+
+    // Task events
+    wsService.onTaskStatusChanged(handleTaskStatusChanged);
+    wsService.onTaskExecutionCreated(handleTaskExecutionCreated);
 
     // ==================== Cleanup ====================
 
@@ -275,6 +293,10 @@ export function useWebSocketEvents() {
       wsService.offNotificationCountsUpdated(handleNotificationCountsUpdated);
       wsService.offNotificationNew(handleNotificationNew);
       wsService.offNotificationRead(handleNotificationRead);
+
+      // Task events
+      wsService.offTaskStatusChanged(handleTaskStatusChanged);
+      wsService.offTaskExecutionCreated(handleTaskExecutionCreated);
     };
   }, [queryClient, workspaceId, currentUser?.id]);
 }

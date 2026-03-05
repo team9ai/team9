@@ -31,5 +31,8 @@ export * from './system.events.js';
 // Notification events
 export * from './notification.events.js';
 
+// Task events
+export * from './task.events.js';
+
 // Streaming events (AI bot)
 export * from './streaming.events.js';

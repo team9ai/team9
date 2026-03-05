@@ -29,6 +29,8 @@ import {
   type NotificationNewEvent,
   type NotificationCountsUpdatedEvent,
   type NotificationReadEvent,
+  type TaskStatusChangedEvent,
+  type TaskExecutionCreatedEvent,
   type StreamingStartEvent,
   type StreamingContentEvent,
   type StreamingThinkingContentEvent,
@@ -529,6 +531,29 @@ class WebSocketService {
 
   offNotificationRead(callback: (event: NotificationReadEvent) => void): void {
     this.off(WS_EVENTS.NOTIFICATION.READ, callback);
+  }
+
+  // Task events
+  onTaskStatusChanged(callback: (event: TaskStatusChangedEvent) => void): void {
+    this.on(WS_EVENTS.TASK.STATUS_CHANGED, callback);
+  }
+
+  onTaskExecutionCreated(
+    callback: (event: TaskExecutionCreatedEvent) => void,
+  ): void {
+    this.on(WS_EVENTS.TASK.EXECUTION_CREATED, callback);
+  }
+
+  offTaskStatusChanged(
+    callback: (event: TaskStatusChangedEvent) => void,
+  ): void {
+    this.off(WS_EVENTS.TASK.STATUS_CHANGED, callback);
+  }
+
+  offTaskExecutionCreated(
+    callback: (event: TaskExecutionCreatedEvent) => void,
+  ): void {
+    this.off(WS_EVENTS.TASK.EXECUTION_CREATED, callback);
   }
 
   // Streaming events (AI bot)
