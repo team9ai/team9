@@ -14,5 +14,29 @@
     "failed": "失败",
     "stopped": "已停止",
     "timeout": "已超时"
+  },
+  "stepStatus": {
+    "pending": "待执行",
+    "in_progress": "执行中",
+    "completed": "已完成",
+    "failed": "失败"
+  },
+  "detail": {
+    "title": "任务详情",
+    "loadError": "加载任务详情失败",
+    "start": "开始",
+    "pause": "暂停",
+    "resume": "继续",
+    "stop": "停止",
+    "restart": "重新开始",
+    "steps": "步骤",
+    "noSteps": "暂无步骤",
+    "deliverables": "交付物",
+    "noDeliverables": "暂无交付物",
+    "pendingInterventions": "需要操作",
+    "pastInterventions": "历史干预",
+    "interventionResolved": "已处理",
+    "interventionExpired": "已过期",
+    "interventionPlaceholder": "输入自定义回复..."
   }
 }

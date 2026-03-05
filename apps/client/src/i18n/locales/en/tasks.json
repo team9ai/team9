@@ -14,5 +14,29 @@
     "failed": "Failed",
     "stopped": "Stopped",
     "timeout": "Timeout"
+  },
+  "stepStatus": {
+    "pending": "Pending",
+    "in_progress": "In progress",
+    "completed": "Completed",
+    "failed": "Failed"
+  },
+  "detail": {
+    "title": "Task Details",
+    "loadError": "Failed to load task details",
+    "start": "Start",
+    "pause": "Pause",
+    "resume": "Resume",
+    "stop": "Stop",
+    "restart": "Restart",
+    "steps": "Steps",
+    "noSteps": "No steps yet",
+    "deliverables": "Deliverables",
+    "noDeliverables": "No deliverables yet",
+    "pendingInterventions": "Action Required",
+    "pastInterventions": "Past Interventions",
+    "interventionResolved": "Resolved",
+    "interventionExpired": "Expired",
+    "interventionPlaceholder": "Type a custom response..."
   }
 }
