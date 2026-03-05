@@ -36,6 +36,7 @@ import { OpenclawModule } from './openclaw/openclaw.module.js';
 import { FileKeeperModule } from './file-keeper/file-keeper.module.js';
 import { ApplicationsModule } from './applications/applications.module.js';
 import { DocumentsModule } from './documents/documents.module.js';
+import { TasksModule } from './tasks/tasks.module.js';
 import { SentryUserInterceptor } from './common/interceptors/sentry-user.interceptor.js';
 
 @Module({
@@ -69,6 +70,7 @@ import { SentryUserInterceptor } from './common/interceptors/sentry-user.interce
     NotificationModule,
     SearchModule,
     DocumentsModule,
+    TasksModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
