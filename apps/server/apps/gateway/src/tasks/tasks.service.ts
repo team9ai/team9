@@ -3,6 +3,8 @@ import {
   Inject,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { v7 as uuidv7 } from 'uuid';
 import {
@@ -18,9 +20,18 @@ import type {
   AgentTaskStatus,
   AgentTaskScheduleType,
 } from '@team9/database/schemas';
+import {
+  AmqpConnection,
+  RABBITMQ_EXCHANGES,
+  RABBITMQ_ROUTING_KEYS,
+} from '@team9/rabbitmq';
 import { DocumentsService } from '../documents/documents.service.js';
 import type { CreateTaskDto } from './dto/create-task.dto.js';
 import type { UpdateTaskDto } from './dto/update-task.dto.js';
+import type { StartTaskDto } from './dto/task-control.dto.js';
+import type { ResumeTaskDto } from './dto/task-control.dto.js';
+import type { StopTaskDto } from './dto/task-control.dto.js';
+import type { ResolveInterventionDto } from './dto/resolve-intervention.dto.js';
 
 // ── Filter types ────────────────────────────────────────────────────
 
@@ -34,10 +45,13 @@ export interface TaskListFilters {
 
 @Injectable()
 export class TasksService {
+  private readonly logger = new Logger(TasksService.name);
+
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly documentsService: DocumentsService,
+    private readonly amqpConnection: AmqpConnection,
   ) {}
 
   // ── CRUD ────────────────────────────────────────────────────────
@@ -276,6 +290,142 @@ export class TasksService {
     return interventions;
   }
 
+  // ── Task Control ──────────────────────────────────────────────
+
+  async start(taskId: string, userId: string, dto: StartTaskDto) {
+    const task = await this.getTaskOrThrow(taskId);
+    this.validateStatusTransition(task.status, 'start');
+
+    await this.publishTaskCommand({
+      type: 'start',
+      taskId,
+      userId,
+      message: dto.message,
+    });
+
+    return { success: true };
+  }
+
+  async pause(taskId: string, userId: string) {
+    const task = await this.getTaskOrThrow(taskId);
+    this.validateStatusTransition(task.status, 'pause');
+
+    await this.publishTaskCommand({
+      type: 'pause',
+      taskId,
+      userId,
+    });
+
+    return { success: true };
+  }
+
+  async resume(taskId: string, userId: string, dto: ResumeTaskDto) {
+    const task = await this.getTaskOrThrow(taskId);
+    this.validateStatusTransition(task.status, 'resume');
+
+    await this.publishTaskCommand({
+      type: 'resume',
+      taskId,
+      userId,
+      message: dto.message,
+    });
+
+    return { success: true };
+  }
+
+  async stop(taskId: string, userId: string, dto: StopTaskDto) {
+    const task = await this.getTaskOrThrow(taskId);
+    this.validateStatusTransition(task.status, 'stop');
+
+    await this.publishTaskCommand({
+      type: 'stop',
+      taskId,
+      userId,
+      message: dto.reason,
+    });
+
+    return { success: true };
+  }
+
+  async restart(taskId: string, userId: string) {
+    const task = await this.getTaskOrThrow(taskId);
+    this.validateStatusTransition(task.status, 'restart');
+
+    await this.publishTaskCommand({
+      type: 'restart',
+      taskId,
+      userId,
+    });
+
+    return { success: true };
+  }
+
+  // ── Intervention Resolution ──────────────────────────────────
+
+  async resolveIntervention(
+    taskId: string,
+    interventionId: string,
+    userId: string,
+    dto: ResolveInterventionDto,
+  ) {
+    await this.getTaskOrThrow(taskId);
+
+    const [intervention] = await this.db
+      .select()
+      .from(schema.agentTaskInterventions)
+      .where(
+        and(
+          eq(schema.agentTaskInterventions.id, interventionId),
+          eq(schema.agentTaskInterventions.taskId, taskId),
+        ),
+      )
+      .limit(1);
+
+    if (!intervention) {
+      throw new NotFoundException('Intervention not found');
+    }
+
+    if (intervention.status !== 'pending') {
+      throw new BadRequestException(
+        `Intervention is already ${intervention.status}`,
+      );
+    }
+
+    // Update the intervention
+    const [updated] = await this.db
+      .update(schema.agentTaskInterventions)
+      .set({
+        status: 'resolved',
+        resolvedBy: userId,
+        resolvedAt: new Date(),
+        response: { action: dto.action, message: dto.message },
+      })
+      .where(eq(schema.agentTaskInterventions.id, interventionId))
+      .returning();
+
+    // Update task status back to in_progress
+    await this.db
+      .update(schema.agentTasks)
+      .set({ status: 'in_progress', updatedAt: new Date() })
+      .where(eq(schema.agentTasks.id, taskId));
+
+    // Update execution status back to in_progress
+    await this.db
+      .update(schema.agentTaskExecutions)
+      .set({ status: 'in_progress' })
+      .where(eq(schema.agentTaskExecutions.id, intervention.executionId));
+
+    // Publish resume command via RabbitMQ
+    await this.publishTaskCommand({
+      type: 'resume',
+      taskId,
+      userId,
+      message: `Intervention resolved: ${dto.action}${dto.message ? ` - ${dto.message}` : ''}`,
+    });
+
+    return updated;
+  }
+
   // ── Internal helpers ────────────────────────────────────────────
 
   private async getTaskOrThrow(id: string): Promise<schema.AgentTask> {
@@ -297,6 +447,43 @@ export class TasksService {
       throw new ForbiddenException(
         'You do not have permission to perform this action',
       );
+    }
+  }
+
+  private validateStatusTransition(currentStatus: string, action: string) {
+    const allowed: Record<string, string[]> = {
+      start: ['upcoming'],
+      pause: ['in_progress'],
+      resume: ['paused', 'stopped'],
+      stop: ['in_progress', 'paused', 'pending_action'],
+      restart: ['completed', 'failed', 'timeout', 'stopped'],
+    };
+    if (!allowed[action]?.includes(currentStatus)) {
+      throw new BadRequestException(
+        `Cannot ${action} task in ${currentStatus} status`,
+      );
+    }
+  }
+
+  private async publishTaskCommand(command: {
+    type: string;
+    taskId: string;
+    userId: string;
+    message?: string;
+  }): Promise<void> {
+    try {
+      await this.amqpConnection.publish(
+        RABBITMQ_EXCHANGES.TASK_COMMANDS,
+        RABBITMQ_ROUTING_KEYS.TASK_COMMAND,
+        command,
+        { persistent: true },
+      );
+      this.logger.debug(
+        `Published task command: ${command.type} for task ${command.taskId}`,
+      );
+    } catch (error) {
+      this.logger.error(`Failed to publish task command: ${error}`);
+      throw error;
     }
   }
 }
