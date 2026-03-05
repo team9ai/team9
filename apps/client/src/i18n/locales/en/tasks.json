@@ -63,6 +63,28 @@
     "interventionResolved": "Resolved",
     "interventionExpired": "Expired",
     "interventionPlaceholder": "Type a custom response...",
-    "messageInputPlaceholder": "Send a message to this task..."
+    "messageInputPlaceholder": "Send a message to this task...",
+    "finishedBanner": {
+      "completed": "Task completed successfully",
+      "failed": "Task failed",
+      "timeout": "Task timed out",
+      "stopped": "Task was stopped",
+      "in_progress": "",
+      "upcoming": "",
+      "paused": "",
+      "pending_action": ""
+    },
+    "completedAt": "Finished at {{time}}",
+    "duration": "Duration: {{duration}}",
+    "tokenUsage": "{{tokens}} tokens used",
+    "tokenCount": "{{count}} tokens",
+    "error": "Error",
+    "errorWithCode": "Error ({{code}})",
+    "versionHistory": {
+      "title": "Document Versions",
+      "loadError": "Failed to load version history",
+      "noVersions": "No versions yet",
+      "versionLabel": "Version {{version}}"
+    }
   }
 }

@@ -9,6 +9,12 @@ import {
   Square,
   RotateCcw,
   PlayCircle,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Ban,
+  AlertTriangle,
+  Coins,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +24,7 @@ import { tasksApi } from "@/services/api/tasks";
 import { TaskStepTimeline } from "./TaskStepTimeline";
 import { TaskInterventionCard } from "./TaskInterventionCard";
 import { TaskDeliverableList } from "./TaskDeliverableList";
+import { DocumentVersionHistory } from "./DocumentVersionHistory";
 import { MessageInput } from "@/components/channel/MessageInput";
 import { useSendMessage } from "@/hooks/useMessages";
 import type { AgentTaskStatus } from "@/types/task";
@@ -41,6 +48,83 @@ const STATUS_BADGE_VARIANT: Record<
   stopped: "outline",
   timeout: "destructive",
 };
+
+const FINISHED_STATUSES: AgentTaskStatus[] = [
+  "completed",
+  "failed",
+  "stopped",
+  "timeout",
+];
+
+function isFinishedStatus(status: AgentTaskStatus): boolean {
+  return FINISHED_STATUSES.includes(status);
+}
+
+/**
+ * Format a duration in milliseconds to a human-readable string.
+ * Examples: "2h 15m", "45s", "1d 3h", "120ms"
+ */
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) {
+    const remainingHours = hours % 24;
+    return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`;
+  }
+  if (hours > 0) {
+    const remainingMinutes = minutes % 60;
+    return remainingMinutes > 0
+      ? `${hours}h ${remainingMinutes}m`
+      : `${hours}h`;
+  }
+  if (minutes > 0) {
+    const remainingSeconds = seconds % 60;
+    return remainingSeconds > 0
+      ? `${minutes}m ${remainingSeconds}s`
+      : `${minutes}m`;
+  }
+  return `${seconds}s`;
+}
+
+function getFinishedBannerConfig(status: AgentTaskStatus) {
+  switch (status) {
+    case "completed":
+      return {
+        icon: CheckCircle2,
+        bgClass: "bg-green-500/10 border-green-500/20",
+        textClass: "text-green-600 dark:text-green-400",
+        iconClass: "text-green-500",
+      };
+    case "failed":
+      return {
+        icon: XCircle,
+        bgClass: "bg-red-500/10 border-red-500/20",
+        textClass: "text-red-600 dark:text-red-400",
+        iconClass: "text-red-500",
+      };
+    case "timeout":
+      return {
+        icon: Clock,
+        bgClass: "bg-orange-500/10 border-orange-500/20",
+        textClass: "text-orange-600 dark:text-orange-400",
+        iconClass: "text-orange-500",
+      };
+    case "stopped":
+      return {
+        icon: Ban,
+        bgClass: "bg-gray-500/10 border-gray-500/20",
+        textClass: "text-gray-600 dark:text-gray-400",
+        iconClass: "text-gray-500",
+      };
+    default:
+      return null;
+  }
+}
 
 export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
   const { t } = useTranslation("tasks");
@@ -169,6 +253,14 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
                     v{execution.version}
                   </span>
                 )}
+                {execution && execution.tokenUsage > 0 && (
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <Coins size={12} />
+                    {t("detail.tokenCount", {
+                      count: execution.tokenUsage,
+                    })}
+                  </span>
+                )}
               </div>
               <h2 className="text-base font-semibold leading-tight">
                 {task.title}
@@ -179,6 +271,72 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
                 </p>
               )}
             </div>
+
+            {/* Finished state banner */}
+            {isFinishedStatus(task.status) &&
+              (() => {
+                const config = getFinishedBannerConfig(task.status);
+                if (!config) return null;
+                const BannerIcon = config.icon;
+                return (
+                  <div
+                    className={`flex items-start gap-3 rounded-lg border p-3 ${config.bgClass}`}
+                  >
+                    <BannerIcon
+                      size={18}
+                      className={`shrink-0 mt-0.5 ${config.iconClass}`}
+                    />
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <p className={`text-sm font-medium ${config.textClass}`}>
+                        {t(`detail.finishedBanner.${task.status}`)}
+                      </p>
+
+                      {/* Completion time */}
+                      {execution?.completedAt && (
+                        <p className="text-xs text-muted-foreground">
+                          {t("detail.completedAt", {
+                            time: new Date(
+                              execution.completedAt,
+                            ).toLocaleString(),
+                          })}
+                        </p>
+                      )}
+
+                      {/* Duration */}
+                      {execution?.duration != null &&
+                        execution.duration > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            {t("detail.duration", {
+                              duration: formatDuration(execution.duration),
+                            })}
+                          </p>
+                        )}
+
+                      {/* Error details for failed / timeout */}
+                      {execution?.error && (
+                        <div className="mt-2 rounded-md bg-background/50 border border-border p-2">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <AlertTriangle
+                              size={12}
+                              className="text-muted-foreground shrink-0"
+                            />
+                            <span className="text-xs font-medium text-muted-foreground">
+                              {execution.error.code
+                                ? t("detail.errorWithCode", {
+                                    code: execution.error.code,
+                                  })
+                                : t("detail.error")}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground break-words">
+                            {execution.error.message}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
 
             {/* Control buttons */}
             <div className="flex flex-wrap gap-2">
@@ -298,6 +456,19 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
               </h4>
               <TaskDeliverableList deliverables={deliverables} />
             </div>
+
+            {/* Document version history */}
+            {task.documentId && (
+              <>
+                <Separator />
+                <div className="space-y-2">
+                  <h4 className="text-sm font-semibold">
+                    {t("detail.versionHistory.title")}
+                  </h4>
+                  <DocumentVersionHistory documentId={task.documentId} />
+                </div>
+              </>
+            )}
 
             {/* Past interventions */}
             {resolvedInterventions.length > 0 && (
