@@ -132,11 +132,16 @@ class WebSocketService {
       auth: (cb) => {
         cb({ token: this.getAuthToken() });
       },
-      transports: ["websocket", "polling"],
+      // Use default order: establish connection via HTTP polling first (more
+      // reliable through proxies/firewalls), then upgrade to WebSocket.
+      // Starting with "websocket" caused intermittent timeouts when the WS
+      // upgrade was blocked by the network while regular HTTP worked fine.
+      transports: ["polling", "websocket"],
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 30000,
+      timeout: 20000,
     });
 
     this.setupEventHandlers();
