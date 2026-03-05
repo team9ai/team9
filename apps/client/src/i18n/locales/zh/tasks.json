@@ -63,6 +63,28 @@
     "interventionResolved": "已处理",
     "interventionExpired": "已过期",
     "interventionPlaceholder": "输入自定义回复...",
-    "messageInputPlaceholder": "向此任务发送消息..."
+    "messageInputPlaceholder": "向此任务发送消息...",
+    "finishedBanner": {
+      "completed": "任务已成功完成",
+      "failed": "任务执行失败",
+      "timeout": "任务执行超时",
+      "stopped": "任务已被停止",
+      "in_progress": "",
+      "upcoming": "",
+      "paused": "",
+      "pending_action": ""
+    },
+    "completedAt": "完成于 {{time}}",
+    "duration": "耗时：{{duration}}",
+    "tokenUsage": "消耗 {{tokens}} 个 Token",
+    "tokenCount": "{{count}} 个 Token",
+    "error": "错误",
+    "errorWithCode": "错误 ({{code}})",
+    "versionHistory": {
+      "title": "文档版本",
+      "loadError": "加载版本历史失败",
+      "noVersions": "暂无版本",
+      "versionLabel": "版本 {{version}}"
+    }
   }
 }
