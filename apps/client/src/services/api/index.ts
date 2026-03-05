@@ -186,6 +186,7 @@ import notificationApi from "./notification";
 import searchApi from "./search";
 import applicationsApi from "./applications";
 import documentsApi from "./documents";
+import tasksApi from "./tasks";
 
 export const api = {
   auth: authApi,
@@ -196,6 +197,7 @@ export const api = {
   search: searchApi,
   applications: applicationsApi,
   documents: documentsApi,
+  tasks: tasksApi,
 };
 
 export default api;
