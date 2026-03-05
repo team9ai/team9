@@ -9,6 +9,7 @@
     "dev:desktop": "pnpm -C apps/client dev:desktop",
     "dev:server": "pnpm -C apps/server dev",
     "dev:im-worker": "pnpm -C apps/server dev:im-worker",
+    "dev:task-worker": "pnpm -C apps/server dev:task-worker",
     "dev:server:all": "concurrently \"pnpm dev:server\" \"pnpm dev:im-worker\"",
     "dev": "concurrently \"pnpm dev:server\" \"pnpm dev:im-worker\" \"pnpm dev:client\"",
     "build:client": "pnpm -C apps/client build",
