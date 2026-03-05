@@ -120,6 +120,10 @@ export class ExecutorService {
 
     if (!bot) {
       this.logger.error(`Bot not found: ${task.botId}`);
+      await this.markExecutionFailed(executionId, taskId, {
+        code: 'BOT_NOT_FOUND',
+        message: `Bot ${task.botId} not found`,
+      });
       return;
     }
 
@@ -201,14 +205,42 @@ export class ExecutorService {
         return;
       }
     } else {
-      this.logger.warn(
-        `No strategy registered for bot type "${bot.type}", skipping delegation`,
-      );
+      this.logger.error(`No strategy registered for bot type "${bot.type}"`);
+      await this.markExecutionFailed(executionId, taskId, {
+        code: 'NO_STRATEGY',
+        message: `No execution strategy registered for bot type "${bot.type}"`,
+      });
+      return;
     }
 
     // ── 9. Log completion ─────────────────────────────────────────────
     this.logger.log(
       `Execution ${executionId} (v${nextVersion}) initiated for task ${taskId}`,
     );
+  }
+
+  private async markExecutionFailed(
+    executionId: string,
+    taskId: string,
+    error: { code: string; message: string },
+  ): Promise<void> {
+    const now = new Date();
+
+    await this.db
+      .update(schema.agentTaskExecutions)
+      .set({
+        status: 'failed',
+        completedAt: now,
+        error,
+      })
+      .where(eq(schema.agentTaskExecutions.id, executionId));
+
+    await this.db
+      .update(schema.agentTasks)
+      .set({
+        status: 'failed',
+        updatedAt: now,
+      })
+      .where(eq(schema.agentTasks.id, taskId));
   }
 }

@@ -99,7 +99,7 @@ export class TaskBotService {
     // Sum all step token usage and update execution total
     const [result] = await this.db
       .select({
-        total: sql<number>`COALESCE(SUM(${schema.agentTaskSteps.tokenUsage}), 0)`,
+        total: sql<number>`COALESCE(SUM(${schema.agentTaskSteps.tokenUsage}), 0)::integer`,
       })
       .from(schema.agentTaskSteps)
       .where(eq(schema.agentTaskSteps.executionId, execution.id));
@@ -272,7 +272,7 @@ export class TaskBotService {
 
   // ── Get task document ────────────────────────────────────────────
 
-  async getTaskDocument(taskId: string) {
+  async getTaskDocument(taskId: string, botUserId: string) {
     const [task] = await this.db
       .select()
       .from(schema.agentTasks)
@@ -281,6 +281,17 @@ export class TaskBotService {
 
     if (!task) {
       throw new NotFoundException('Task not found');
+    }
+
+    // Verify bot ownership
+    const [bot] = await this.db
+      .select({ userId: schema.bots.userId })
+      .from(schema.bots)
+      .where(eq(schema.bots.id, task.botId))
+      .limit(1);
+
+    if (!bot || bot.userId !== botUserId) {
+      throw new ForbiddenException('Bot does not own this task');
     }
 
     if (!task.documentId) {

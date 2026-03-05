@@ -10,7 +10,12 @@ import {
 } from '@nestjs/common';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import { TaskBotService } from './task-bot.service.js';
-import { ReportStepsDto, CreateInterventionDto } from './dto/index.js';
+import {
+  ReportStepsDto,
+  CreateInterventionDto,
+  UpdateStatusDto,
+  AddDeliverableDto,
+} from './dto/index.js';
 
 @Controller({
   path: 'bot/tasks',
@@ -32,15 +37,14 @@ export class TaskBotController {
   @Patch(':id/status')
   async updateStatus(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body()
-    body: { status: string; error?: { code?: string; message: string } },
+    @Body() dto: UpdateStatusDto,
     @CurrentUser('sub') botUserId: string,
   ) {
     return this.taskBotService.updateStatus(
       id,
       botUserId,
-      body.status,
-      body.error,
+      dto.status,
+      dto.error,
     );
   }
 
@@ -56,16 +60,10 @@ export class TaskBotController {
   @Post(':id/deliverables')
   async addDeliverable(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body()
-    body: {
-      fileName: string;
-      fileSize?: number;
-      mimeType?: string;
-      fileUrl: string;
-    },
+    @Body() dto: AddDeliverableDto,
     @CurrentUser('sub') botUserId: string,
   ) {
-    return this.taskBotService.addDeliverable(id, botUserId, body);
+    return this.taskBotService.addDeliverable(id, botUserId, dto);
   }
 
   @Get(':id/document')
@@ -73,6 +71,6 @@ export class TaskBotController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('sub') botUserId: string,
   ) {
-    return this.taskBotService.getTaskDocument(id);
+    return this.taskBotService.getTaskDocument(id, botUserId);
   }
 }

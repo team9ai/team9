@@ -54,8 +54,11 @@ export class TasksController {
   }
 
   @Get(':id')
-  async getById(@Param('id', ParseUUIDPipe) id: string) {
-    return this.tasksService.getById(id);
+  async getById(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    return this.tasksService.getById(id, tenantId);
   }
 
   @Patch(':id')
@@ -63,42 +66,52 @@ export class TasksController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateTaskDto,
     @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
   ) {
-    return this.tasksService.update(id, dto, userId);
+    return this.tasksService.update(id, dto, userId, tenantId);
   }
 
   @Delete(':id')
   async delete(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
   ) {
-    return this.tasksService.delete(id, userId);
+    return this.tasksService.delete(id, userId, tenantId);
   }
 
   @Get(':id/executions')
-  async getExecutions(@Param('id', ParseUUIDPipe) id: string) {
-    return this.tasksService.getExecutions(id);
+  async getExecutions(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    return this.tasksService.getExecutions(id, tenantId);
   }
 
   @Get(':id/executions/:execId')
   async getExecution(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('execId', ParseUUIDPipe) execId: string,
+    @CurrentTenantId() tenantId: string,
   ) {
-    return this.tasksService.getExecution(id, execId);
+    return this.tasksService.getExecution(id, execId, tenantId);
   }
 
   @Get(':id/deliverables')
   async getDeliverables(
     @Param('id', ParseUUIDPipe) id: string,
+    @CurrentTenantId() tenantId: string,
     @Query('executionId') executionId?: string,
   ) {
-    return this.tasksService.getDeliverables(id, executionId);
+    return this.tasksService.getDeliverables(id, executionId, tenantId);
   }
 
   @Get(':id/interventions')
-  async getInterventions(@Param('id', ParseUUIDPipe) id: string) {
-    return this.tasksService.getInterventions(id);
+  async getInterventions(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    return this.tasksService.getInterventions(id, tenantId);
   }
 
   // ── Task Control ──────────────────────────────────────────────
@@ -107,43 +120,48 @@ export class TasksController {
   async start(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
     @Body() dto: StartTaskDto,
   ) {
-    return this.tasksService.start(id, userId, dto);
+    return this.tasksService.start(id, userId, tenantId, dto);
   }
 
   @Post(':id/pause')
   async pause(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
   ) {
-    return this.tasksService.pause(id, userId);
+    return this.tasksService.pause(id, userId, tenantId);
   }
 
   @Post(':id/resume')
   async resume(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
     @Body() dto: ResumeTaskDto,
   ) {
-    return this.tasksService.resume(id, userId, dto);
+    return this.tasksService.resume(id, userId, tenantId, dto);
   }
 
   @Post(':id/stop')
   async stop(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
     @Body() dto: StopTaskDto,
   ) {
-    return this.tasksService.stop(id, userId, dto);
+    return this.tasksService.stop(id, userId, tenantId, dto);
   }
 
   @Post(':id/restart')
   async restart(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
   ) {
-    return this.tasksService.restart(id, userId);
+    return this.tasksService.restart(id, userId, tenantId);
   }
 
   @Post(':id/interventions/:intId/resolve')
@@ -151,8 +169,15 @@ export class TasksController {
     @Param('id', ParseUUIDPipe) id: string,
     @Param('intId', ParseUUIDPipe) intId: string,
     @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
     @Body() dto: ResolveInterventionDto,
   ) {
-    return this.tasksService.resolveIntervention(id, intId, userId, dto);
+    return this.tasksService.resolveIntervention(
+      id,
+      intId,
+      userId,
+      tenantId,
+      dto,
+    );
   }
 }
