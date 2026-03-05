@@ -10,11 +10,15 @@ import {
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import type { ScheduleConfig } from '@team9/database/schemas';
+import { RedisService } from '@team9/redis';
 import { ExecutorService } from '../executor/executor.service.js';
 
 /** Statuses that should NOT be picked up by the scheduler. */
 const EXCLUDED_STATUSES: (typeof schema.agentTaskStatusEnum.enumValues)[number][] =
   ['stopped', 'paused', 'in_progress', 'pending_action'];
+
+const SCHEDULER_LOCK_KEY = 'task-scheduler:scan-lock';
+const SCHEDULER_LOCK_TTL = 25; // seconds — shorter than the 30s interval
 
 @Injectable()
 export class SchedulerService {
@@ -24,13 +28,29 @@ export class SchedulerService {
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly executor: ExecutorService,
+    private readonly redis: RedisService,
   ) {}
 
   /**
    * Runs every 30 seconds to find recurring tasks that are due for execution.
+   * Uses a Redis lock to prevent duplicate execution across multiple instances.
    */
   @Interval(30_000)
   async scanRecurringTasks(): Promise<void> {
+    const acquired = await this.acquireLock();
+    if (!acquired) {
+      this.logger.debug('Another instance holds the scheduler lock, skipping');
+      return;
+    }
+
+    try {
+      await this.doScan();
+    } finally {
+      await this.releaseLock();
+    }
+  }
+
+  private async doScan(): Promise<void> {
     const now = new Date();
 
     const dueTasks = await this.db
@@ -80,6 +100,37 @@ export class SchedulerService {
       }
     }
   }
+
+  private lockValue = `${process.pid}-${Date.now()}`;
+
+  private async acquireLock(): Promise<boolean> {
+    const client = this.redis.getClient();
+    const result = await client.set(
+      SCHEDULER_LOCK_KEY,
+      this.lockValue,
+      'EX',
+      SCHEDULER_LOCK_TTL,
+      'NX',
+    );
+    return result === 'OK';
+  }
+
+  private async releaseLock(): Promise<void> {
+    // Only release if we still own the lock (Lua script for atomicity)
+    const client = this.redis.getClient();
+    const script = `
+      if redis.call("get", KEYS[1]) == ARGV[1] then
+        return redis.call("del", KEYS[1])
+      else
+        return 0
+      end
+    `;
+    try {
+      await client.eval(script, 1, SCHEDULER_LOCK_KEY, this.lockValue);
+    } catch (error) {
+      this.logger.warn(`Failed to release scheduler lock: ${error}`);
+    }
+  }
 }
 
 // ── Helper ──────────────────────────────────────────────────────────────
@@ -92,6 +143,9 @@ export class SchedulerService {
  *  - weekly  — runs every week on `config.dayOfWeek` (0 = Sunday) at `config.time`
  *  - monthly — runs every month on `config.dayOfMonth` (1-31) at `config.time`
  *
+ * When `config.timezone` is set (IANA timezone, e.g. "Asia/Shanghai"),
+ * the time is interpreted in that timezone and the returned Date is UTC.
+ *
  * Returns `null` if the config is missing or has an unsupported frequency.
  */
 export function calculateNextRunAt(config?: ScheduleConfig): Date | null {
@@ -99,18 +153,19 @@ export function calculateNextRunAt(config?: ScheduleConfig): Date | null {
     return null;
   }
 
+  const tz = config.timezone || undefined;
   const now = new Date();
   const [hours, minutes] = parseTime(config.time);
 
   switch (config.frequency) {
     case 'daily':
-      return nextDaily(now, hours, minutes);
+      return nextDaily(now, hours, minutes, tz);
 
     case 'weekly':
-      return nextWeekly(now, hours, minutes, config.dayOfWeek ?? 1);
+      return nextWeekly(now, hours, minutes, config.dayOfWeek ?? 1, tz);
 
     case 'monthly':
-      return nextMonthly(now, hours, minutes, config.dayOfMonth ?? 1);
+      return nextMonthly(now, hours, minutes, config.dayOfMonth ?? 1, tz);
 
     default:
       return null;
@@ -129,15 +184,127 @@ function parseTime(time?: string): [number, number] {
 }
 
 /**
+ * Get the UTC offset in minutes for a given IANA timezone at a specific date.
+ * Uses the Intl API (no external deps). Returns 0 for invalid timezones.
+ */
+function getTimezoneOffsetMinutes(date: Date, tz: string): number {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+    const parts = formatter.formatToParts(date);
+    const get = (type: string) =>
+      parseInt(parts.find((p) => p.type === type)!.value, 10);
+
+    const tzDate = new Date(
+      get('year'),
+      get('month') - 1,
+      get('day'),
+      get('hour'),
+      get('minute'),
+      get('second'),
+    );
+    // Difference = how far the tz local time is ahead of UTC
+    return Math.round((tzDate.getTime() - date.getTime()) / 60_000);
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Build a UTC Date for a target local time in a given timezone.
+ * If no timezone is provided, uses the server's local time.
+ */
+function buildDateInTz(
+  year: number,
+  month: number,
+  day: number,
+  hours: number,
+  minutes: number,
+  tz?: string,
+): Date {
+  if (!tz) {
+    const d = new Date(year, month, day, hours, minutes, 0, 0);
+    return d;
+  }
+  // Construct as if UTC, then subtract the tz offset to get real UTC
+  const utcGuess = new Date(Date.UTC(year, month, day, hours, minutes, 0, 0));
+  const offset = getTimezoneOffsetMinutes(utcGuess, tz);
+  return new Date(utcGuess.getTime() - offset * 60_000);
+}
+
+/**
+ * Get "now" components in either a specific timezone or server-local.
+ */
+function nowInTz(
+  now: Date,
+  tz?: string,
+): { year: number; month: number; day: number; weekday: number } {
+  if (!tz) {
+    return {
+      year: now.getFullYear(),
+      month: now.getMonth(),
+      day: now.getDate(),
+      weekday: now.getDay(),
+    };
+  }
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    weekday: 'short',
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(now);
+  const get = (type: string) => parts.find((p) => p.type === type)!.value;
+  const weekdayMap: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+  return {
+    year: parseInt(get('year'), 10),
+    month: parseInt(get('month'), 10) - 1,
+    day: parseInt(get('day'), 10),
+    weekday: weekdayMap[get('weekday')] ?? 0,
+  };
+}
+
+/**
  * Next daily occurrence at the given time.
  * If today's slot has already passed, schedule for tomorrow.
  */
-function nextDaily(now: Date, hours: number, minutes: number): Date {
-  const next = new Date(now);
-  next.setHours(hours, minutes, 0, 0);
+function nextDaily(
+  now: Date,
+  hours: number,
+  minutes: number,
+  tz?: string,
+): Date {
+  const n = nowInTz(now, tz);
+  const next = buildDateInTz(n.year, n.month, n.day, hours, minutes, tz);
 
   if (next <= now) {
-    next.setDate(next.getDate() + 1);
+    const tomorrow = buildDateInTz(
+      n.year,
+      n.month,
+      n.day + 1,
+      hours,
+      minutes,
+      tz,
+    );
+    return tomorrow;
   }
 
   return next;
@@ -151,21 +318,33 @@ function nextWeekly(
   hours: number,
   minutes: number,
   dayOfWeek: number,
+  tz?: string,
 ): Date {
-  const next = new Date(now);
-  next.setHours(hours, minutes, 0, 0);
+  const n = nowInTz(now, tz);
+  let daysUntil = (dayOfWeek - n.weekday + 7) % 7;
 
-  // Calculate days until the target day of the week
-  const currentDay = next.getDay();
-  let daysUntil = (dayOfWeek - currentDay + 7) % 7;
+  const candidate = buildDateInTz(
+    n.year,
+    n.month,
+    n.day + daysUntil,
+    hours,
+    minutes,
+    tz,
+  );
 
-  // If it's the same day but the time has passed, schedule for next week
-  if (daysUntil === 0 && next <= now) {
+  if (daysUntil === 0 && candidate <= now) {
     daysUntil = 7;
+    return buildDateInTz(
+      n.year,
+      n.month,
+      n.day + daysUntil,
+      hours,
+      minutes,
+      tz,
+    );
   }
 
-  next.setDate(next.getDate() + daysUntil);
-  return next;
+  return candidate;
 }
 
 /**
@@ -177,27 +356,29 @@ function nextMonthly(
   hours: number,
   minutes: number,
   dayOfMonth: number,
+  tz?: string,
 ): Date {
-  const next = new Date(now);
-  next.setHours(hours, minutes, 0, 0);
+  const n = nowInTz(now, tz);
 
   // Try this month first
-  const lastDayThisMonth = new Date(
-    next.getFullYear(),
-    next.getMonth() + 1,
-    0,
-  ).getDate();
-  next.setDate(Math.min(dayOfMonth, lastDayThisMonth));
+  const lastDayThisMonth = new Date(n.year, n.month + 1, 0).getDate();
+  const clampedDay = Math.min(dayOfMonth, lastDayThisMonth);
+  const next = buildDateInTz(n.year, n.month, clampedDay, hours, minutes, tz);
 
   if (next <= now) {
     // Move to next month
-    next.setMonth(next.getMonth() + 1);
-    const lastDayNextMonth = new Date(
-      next.getFullYear(),
-      next.getMonth() + 1,
-      0,
-    ).getDate();
-    next.setDate(Math.min(dayOfMonth, lastDayNextMonth));
+    const nextMonth = n.month + 1;
+    const nextYear = n.year;
+    const lastDayNextMonth = new Date(nextYear, nextMonth + 1, 0).getDate();
+    const clampedNextDay = Math.min(dayOfMonth, lastDayNextMonth);
+    return buildDateInTz(
+      nextYear,
+      nextMonth,
+      clampedNextDay,
+      hours,
+      minutes,
+      tz,
+    );
   }
 
   return next;

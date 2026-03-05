@@ -3,6 +3,10 @@ import {
   IsOptional,
   IsUUID,
   IsIn,
+  IsInt,
+  Min,
+  Max,
+  Matches,
   MaxLength,
   ValidateNested,
 } from 'class-validator';
@@ -13,11 +17,13 @@ import type {
 } from '@team9/database/schemas';
 
 export class ScheduleConfigDto implements ScheduleConfig {
-  @IsString()
+  @IsIn(['daily', 'weekly', 'monthly'] as const)
   @IsOptional()
   frequency?: string;
 
-  @IsString()
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, {
+    message: 'time must be in HH:mm format',
+  })
   @IsOptional()
   time?: string;
 
@@ -25,9 +31,15 @@ export class ScheduleConfigDto implements ScheduleConfig {
   @IsOptional()
   timezone?: string;
 
+  @IsInt()
+  @Min(0)
+  @Max(6)
   @IsOptional()
   dayOfWeek?: number;
 
+  @IsInt()
+  @Min(1)
+  @Max(31)
   @IsOptional()
   dayOfMonth?: number;
 
