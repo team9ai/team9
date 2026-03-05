@@ -29,6 +29,13 @@
       "csp": null
     }
   },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["team9"]
+      }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",

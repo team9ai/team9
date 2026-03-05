@@ -66,6 +66,9 @@ export class AuthService {
   private readonly LOGIN_SESSION_BY_USER_PREFIX = 'im:login_session_by_user:';
   private readonly LOGIN_SESSION_TTL = 1800; // 30 minutes
   private readonly LOGIN_SESSION_RESULT_TTL = 300; // 5 minutes
+  private readonly POLL_LOGIN_RATE_PREFIX = 'im:poll_login_rate:';
+  private readonly POLL_LOGIN_RATE_LIMIT = 30; // max requests per minute
+  private readonly POLL_LOGIN_RATE_TTL = 60; // 60 seconds
 
   constructor(
     @Inject(DATABASE_CONNECTION)
@@ -316,9 +319,7 @@ export class AuthService {
     };
   }
 
-  async resendVerificationEmail(
-    email: string,
-  ): Promise<{
+  async resendVerificationEmail(email: string): Promise<{
     message: string;
     loginSessionId: string;
     verificationLink?: string;
@@ -731,6 +732,50 @@ export class AuthService {
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
     };
+  }
+
+  async createLoginSession(userId: string): Promise<string> {
+    const sessionId = crypto.randomBytes(16).toString('hex');
+    await this.redisService.set(
+      `${this.LOGIN_SESSION_PREFIX}${sessionId}`,
+      JSON.stringify({ status: 'pending' }),
+      this.LOGIN_SESSION_TTL,
+    );
+    await this.redisService.set(
+      `${this.LOGIN_SESSION_BY_USER_PREFIX}${userId}`,
+      sessionId,
+      this.LOGIN_SESSION_TTL,
+    );
+    return sessionId;
+  }
+
+  async pollLogin(sessionId: string, ip: string) {
+    // IP-based rate limiting: max 30 requests per minute
+    const rateLimitKey = `${this.POLL_LOGIN_RATE_PREFIX}${ip}`;
+    const count = await this.redisService.incr(rateLimitKey);
+    if (count === 1) {
+      await this.redisService.expire(rateLimitKey, this.POLL_LOGIN_RATE_TTL);
+    }
+    if (count > this.POLL_LOGIN_RATE_LIMIT) {
+      throw new BadRequestException(
+        'Too many poll requests. Please slow down.',
+      );
+    }
+
+    const data = await this.redisService.get(
+      `${this.LOGIN_SESSION_PREFIX}${sessionId}`,
+    );
+    if (!data) {
+      throw new NotFoundException('Login session not found or expired');
+    }
+    const result = JSON.parse(data);
+
+    // One-time consumption: delete key after returning verified result
+    if (result.status === 'verified') {
+      await this.redisService.del(`${this.LOGIN_SESSION_PREFIX}${sessionId}`);
+    }
+
+    return result;
   }
 
   // Cleanup expired tokens (can be called by a cron job)

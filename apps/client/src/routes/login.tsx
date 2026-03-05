@@ -1,7 +1,12 @@
 import { useState, useEffect } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useLogin, useCurrentUser, useGoogleAuth } from "@/hooks/useAuth";
+import {
+  useLogin,
+  useCurrentUser,
+  useGoogleAuth,
+  useLoginPolling,
+} from "@/hooks/useAuth";
 import { GoogleLogin } from "@react-oauth/google";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -87,15 +92,27 @@ function LoginLinkSentView({
   email,
   invite,
   verificationLink,
+  loginSessionId,
 }: {
   email: string;
   invite?: string;
   /** Dev mode: direct verification link (skips email) */
   verificationLink?: string;
+  loginSessionId: string | null;
 }) {
   const { t } = useTranslation("auth");
+  const navigate = useNavigate();
   const login = useLogin();
   const [countdown, setCountdown] = useState(60);
+
+  // Poll for login session completion (cross-device login)
+  useLoginPolling(loginSessionId, () => {
+    if (invite) {
+      navigate({ to: "/invite/$code", params: { code: invite } });
+    } else {
+      navigate({ to: "/" });
+    }
+  });
 
   useEffect(() => {
     if (countdown > 0) {
@@ -201,6 +218,7 @@ function Login() {
   const [verificationLink, setVerificationLink] = useState<
     string | undefined
   >();
+  const [loginSessionId, setLoginSessionId] = useState<string | null>(null);
 
   const navigate = useNavigate();
   const { redirect, invite } = Route.useSearch();
@@ -232,6 +250,7 @@ function Login() {
       const result = await login.mutateAsync({ email });
       setSentEmail(email);
       setVerificationLink(result.verificationLink);
+      setLoginSessionId(result.loginSessionId);
       setLinkSent(true);
     } catch (err: any) {
       const errorMessage =
@@ -271,6 +290,7 @@ function Login() {
         email={sentEmail}
         invite={invite}
         verificationLink={verificationLink}
+        loginSessionId={loginSessionId}
       />
     );
   }

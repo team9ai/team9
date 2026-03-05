@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Get,
   Query,
+  Req,
 } from '@nestjs/common';
 import { AuthService } from './auth.service.js';
 import type {
@@ -51,8 +52,9 @@ export class AuthController {
   }
 
   @Get('poll-login')
-  async pollLogin(@Query() dto: PollLoginDto) {
-    return this.authService.pollLogin(dto.sessionId);
+  async pollLogin(@Query() dto: PollLoginDto, @Req() req: any) {
+    const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+    return this.authService.pollLogin(dto.sessionId, ip);
   }
 
   @Post('google')

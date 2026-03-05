@@ -34,6 +34,7 @@ fn ahand_get_node_id() -> String {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
             ahand_start,
             ahand_stop,

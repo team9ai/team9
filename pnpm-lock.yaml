@@ -143,6 +143,9 @@ importers:
       "@tauri-apps/api":
         specifier: ^2
         version: 2.9.1
+      "@tauri-apps/plugin-deep-link":
+        specifier: ^2.4.7
+        version: 2.4.7
       "@tauri-apps/plugin-opener":
         specifier: ^2
         version: 2.5.2
@@ -807,6 +810,73 @@ importers:
         specifier: workspace:*
         version: link:../shared
     devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.8.3
+
+  enterprise/libs/analytics:
+    dependencies:
+      "@nestjs/common":
+        specifier: ^11.0.0
+        version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      "@nestjs/core":
+        specifier: ^11.0.0
+        version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+    devDependencies:
+      "@types/node":
+        specifier: ^22.0.0
+        version: 22.19.3
+      typescript:
+        specifier: ^5.7.3
+        version: 5.8.3
+
+  enterprise/libs/audit:
+    dependencies:
+      "@nestjs/common":
+        specifier: ^11.0.0
+        version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      "@nestjs/core":
+        specifier: ^11.0.0
+        version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      uuid:
+        specifier: ^11.0.0
+        version: 11.1.0
+    devDependencies:
+      "@types/node":
+        specifier: ^22.0.0
+        version: 22.19.3
+      typescript:
+        specifier: ^5.7.3
+        version: 5.8.3
+
+  enterprise/libs/license:
+    dependencies:
+      "@nestjs/common":
+        specifier: ^11.0.0
+        version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      "@nestjs/core":
+        specifier: ^11.0.0
+        version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+    devDependencies:
+      "@types/node":
+        specifier: ^22.0.0
+        version: 22.19.3
+      typescript:
+        specifier: ^5.7.3
+        version: 5.8.3
+
+  enterprise/libs/sso:
+    dependencies:
+      "@nestjs/common":
+        specifier: ^11.0.0
+        version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      "@nestjs/core":
+        specifier: ^11.0.0
+        version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+    devDependencies:
+      "@types/node":
+        specifier: ^22.0.0
+        version: 22.19.3
       typescript:
         specifier: ^5.7.3
         version: 5.8.3
@@ -5884,6 +5954,12 @@ packages:
       }
     engines: { node: ">=12" }
 
+  "@tauri-apps/api@2.10.1":
+    resolution:
+      {
+        integrity: sha512-hKL/jWf293UDSUN09rR69hrToyIXBb8CjGaWC7gfinvnQrBVvnLr08FeFi38gxtugAVyVcTa5/FD/Xnkb1siBw==,
+      }
+
   "@tauri-apps/api@2.9.1":
     resolution:
       {
@@ -5996,6 +6072,12 @@ packages:
       }
     engines: { node: ">= 10" }
     hasBin: true
+
+  "@tauri-apps/plugin-deep-link@2.4.7":
+    resolution:
+      {
+        integrity: sha512-K0FQlLM6BoV7Ws2xfkh+Tnwi5VZVdkI4Vw/3AGLSf0Xvu2y86AMBzd9w/SpzKhw9ai2B6ES8di/OoGDCExkOzg==,
+      }
 
   "@tauri-apps/plugin-opener@2.5.2":
     resolution:
@@ -12592,6 +12674,13 @@ packages:
       }
     engines: { node: ">= 0.4.0" }
 
+  uuid@11.1.0:
+    resolution:
+      {
+        integrity: sha512-0/A9rDy9P7cJ+8w1c9WD9V//9Wj15Ce2MPz8Ri6032usz+NfePxx5AcN3bN+r6ZL6jEo066/yNYB3tn4pQEx+A==,
+      }
+    hasBin: true
+
   uuid@13.0.0:
     resolution:
       {
@@ -16767,6 +16856,8 @@ snapshots:
 
   "@tanstack/virtual-file-routes@1.141.0": {}
 
+  "@tauri-apps/api@2.10.1": {}
+
   "@tauri-apps/api@2.9.1": {}
 
   "@tauri-apps/cli-darwin-arm64@2.9.6":
@@ -16815,6 +16906,10 @@ snapshots:
       "@tauri-apps/cli-win32-arm64-msvc": 2.9.6
       "@tauri-apps/cli-win32-ia32-msvc": 2.9.6
       "@tauri-apps/cli-win32-x64-msvc": 2.9.6
+
+  "@tauri-apps/plugin-deep-link@2.4.7":
+    dependencies:
+      "@tauri-apps/api": 2.10.1
 
   "@tauri-apps/plugin-opener@2.5.2":
     dependencies:
@@ -21205,6 +21300,8 @@ snapshots:
   util-deprecate@1.0.2: {}
 
   utils-merge@1.0.1: {}
+
+  uuid@11.1.0: {}
 
   uuid@13.0.0: {}
 
