@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, OnModuleInit } from '@nestjs/common';
 import { DatabaseModule } from '@team9/database';
 import { ExecutorService } from './executor.service.js';
 import { OpenclawStrategy } from './strategies/openclaw.strategy.js';
@@ -8,4 +8,13 @@ import { OpenclawStrategy } from './strategies/openclaw.strategy.js';
   providers: [ExecutorService, OpenclawStrategy],
   exports: [ExecutorService],
 })
-export class ExecutorModule {}
+export class ExecutorModule implements OnModuleInit {
+  constructor(
+    private readonly executorService: ExecutorService,
+    private readonly openclawStrategy: OpenclawStrategy,
+  ) {}
+
+  onModuleInit() {
+    this.executorService.registerStrategy('system', this.openclawStrategy);
+  }
+}

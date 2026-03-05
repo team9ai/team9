@@ -465,7 +465,7 @@ export class TasksService {
     const allowed: Record<string, string[]> = {
       start: ['upcoming'],
       pause: ['in_progress'],
-      resume: ['paused', 'stopped'],
+      resume: ['paused'],
       stop: ['in_progress', 'paused', 'pending_action'],
       restart: ['completed', 'failed', 'timeout', 'stopped'],
     };

@@ -61,14 +61,13 @@ function isFinishedStatus(status: AgentTaskStatus): boolean {
 }
 
 /**
- * Format a duration in milliseconds to a human-readable string.
- * Examples: "2h 15m", "45s", "1d 3h", "120ms"
+ * Format a duration in seconds to a human-readable string.
+ * Examples: "2h 15m", "45s", "1d 3h"
  */
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${Math.round(ms)}ms`;
+function formatDuration(totalSeconds: number): string {
+  if (totalSeconds < 60) return `${totalSeconds}s`;
 
-  const seconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(seconds / 60);
+  const minutes = Math.floor(totalSeconds / 60);
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
 
@@ -82,13 +81,10 @@ function formatDuration(ms: number): string {
       ? `${hours}h ${remainingMinutes}m`
       : `${hours}h`;
   }
-  if (minutes > 0) {
-    const remainingSeconds = seconds % 60;
-    return remainingSeconds > 0
-      ? `${minutes}m ${remainingSeconds}s`
-      : `${minutes}m`;
-  }
-  return `${seconds}s`;
+  const remainingSeconds = totalSeconds % 60;
+  return remainingSeconds > 0
+    ? `${minutes}m ${remainingSeconds}s`
+    : `${minutes}m`;
 }
 
 function getFinishedBannerConfig(status: AgentTaskStatus) {

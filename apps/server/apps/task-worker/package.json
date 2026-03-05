@@ -21,6 +21,7 @@
     "@team9/database": "workspace:*",
     "@team9/rabbitmq": "workspace:*",
     "@team9/redis": "workspace:*",
+    "@nestjs/schedule": "^6.1.1",
     "@team9/shared": "workspace:*",
     "dotenv": "^17.2.3",
     "reflect-metadata": "^0.2.2",

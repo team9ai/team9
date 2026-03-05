@@ -2,6 +2,7 @@ import {
   Injectable,
   Inject,
   NotFoundException,
+  ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
 import { v7 as uuidv7 } from 'uuid';
@@ -14,6 +15,9 @@ import {
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
+import { WS_EVENTS } from '@team9/shared';
+import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
+import type { WebsocketGateway } from '../im/websocket/websocket.gateway.js';
 import type { ReportStepsDto } from './dto/report-steps.dto.js';
 import type { CreateInterventionDto } from './dto/create-intervention.dto.js';
 
@@ -24,12 +28,14 @@ export class TaskBotService {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
+    @Inject(WEBSOCKET_GATEWAY)
+    private readonly wsGateway: WebsocketGateway,
   ) {}
 
   // ── Report step progress ─────────────────────────────────────────
 
   async reportSteps(taskId: string, botUserId: string, dto: ReportStepsDto) {
-    const { execution } = await this.getActiveExecution(taskId);
+    const { execution } = await this.getActiveExecution(taskId, botUserId);
 
     for (const step of dto.steps) {
       // Check if a step already exists for this execution + orderIndex
@@ -121,7 +127,10 @@ export class TaskBotService {
     status: string,
     error?: { code?: string; message: string },
   ) {
-    const { task, execution } = await this.getActiveExecution(taskId);
+    const { task, execution } = await this.getActiveExecution(
+      taskId,
+      botUserId,
+    );
 
     const validTerminalStatuses = ['completed', 'failed', 'timeout'];
     if (!validTerminalStatuses.includes(status)) {
@@ -164,6 +173,18 @@ export class TaskBotService {
       .where(eq(schema.agentTasks.id, taskId))
       .returning();
 
+    // Emit WebSocket event to workspace
+    await this.wsGateway.broadcastToWorkspace(
+      task.tenantId,
+      WS_EVENTS.TASK.STATUS_CHANGED,
+      {
+        taskId,
+        executionId: execution.id,
+        status,
+        previousStatus: task.status,
+      },
+    );
+
     return { task: updatedTask, execution: updatedExecution };
   }
 
@@ -174,7 +195,10 @@ export class TaskBotService {
     botUserId: string,
     dto: CreateInterventionDto,
   ) {
-    const { task, execution } = await this.getActiveExecution(taskId);
+    const { task, execution } = await this.getActiveExecution(
+      taskId,
+      botUserId,
+    );
 
     const interventionId = uuidv7();
 
@@ -199,6 +223,18 @@ export class TaskBotService {
       })
       .where(eq(schema.agentTasks.id, taskId));
 
+    // Emit WebSocket event
+    await this.wsGateway.broadcastToWorkspace(
+      task.tenantId,
+      WS_EVENTS.TASK.STATUS_CHANGED,
+      {
+        taskId,
+        executionId: execution.id,
+        status: 'pending_action',
+        previousStatus: task.status,
+      },
+    );
+
     return intervention;
   }
 
@@ -214,7 +250,7 @@ export class TaskBotService {
       fileUrl: string;
     },
   ) {
-    const { execution } = await this.getActiveExecution(taskId);
+    const { execution } = await this.getActiveExecution(taskId, botUserId);
 
     const deliverableId = uuidv7();
 
@@ -297,7 +333,7 @@ export class TaskBotService {
 
   // ── Private helpers ──────────────────────────────────────────────
 
-  private async getActiveExecution(taskId: string) {
+  private async getActiveExecution(taskId: string, botUserId?: string) {
     const [task] = await this.db
       .select()
       .from(schema.agentTasks)
@@ -306,6 +342,19 @@ export class TaskBotService {
 
     if (!task) {
       throw new NotFoundException('Task not found');
+    }
+
+    // Verify bot ownership: the authenticated bot's shadow userId must match
+    if (botUserId) {
+      const [bot] = await this.db
+        .select({ userId: schema.bots.userId })
+        .from(schema.bots)
+        .where(eq(schema.bots.id, task.botId))
+        .limit(1);
+
+      if (!bot || bot.userId !== botUserId) {
+        throw new ForbiddenException('Bot does not own this task');
+      }
     }
 
     if (!task.currentExecutionId) {
