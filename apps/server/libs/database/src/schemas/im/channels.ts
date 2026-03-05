@@ -17,6 +17,7 @@ export const channelTypeEnum = pgEnum('channel_type', [
   'direct',
   'public',
   'private',
+  'task',
 ]);
 
 export const channels = pgTable(
