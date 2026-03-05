@@ -54,3 +54,6 @@ apps/client/src-tauri/target/
 license.key
 
 CLAUDE.local.md
+
+node_modules/
+**/node_modules/

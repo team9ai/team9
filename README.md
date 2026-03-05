@@ -62,11 +62,22 @@ _Works great for solo power users too._
 
 > We're in early stage and actively shipping new features. Stay tuned!
 
-- [ ] OpenClaw App Management
-- [ ] OpenClaw Config Panel
-- [ ] Create & manage multiple bots
-- [ ] Bot workflow visualization
-- [ ] Local computer control
+- [x] OpenClaw App Management
+- [x] OpenClaw Config Panel
+- [x] Create & manage multiple bots
+- [x] Create your own AI Staff
+- [ ] Let AI Staff work on your computer _(in progress)_
+- [ ] Bot workflow visualization _(in progress)_
+- [ ] Local computer control _(in progress)_
+- [ ] Big Tool Update: More useful tools added _(in progress)_
+- [ ] New UI: Simpler and more beautiful _(designed & dev pending)_
+- [ ] Desktop App (Mac & Windows)
+- [ ] Google Workspace & Gmail Integration
+- [ ] WhatsApp, Telegram & Feishu Integration
+- [ ] Scheduled Tasks
+- [ ] Skills
+- [ ] Model Switching
+- [ ] Open-source self-hosted deployment _(26 Q3-Q4)_
 
 ## Quick Start
 

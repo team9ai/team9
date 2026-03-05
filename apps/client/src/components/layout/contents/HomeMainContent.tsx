@@ -2,7 +2,6 @@ import {
   Map,
   Bot,
   UserPlus,
-  Hash,
   MessageSquare,
   Loader2,
   X,
@@ -122,6 +121,11 @@ export function HomeMainContent() {
       title: "Deep Research",
       prompt: "Deep Research, What are OpenClaw and Moltbook?",
     },
+    {
+      title: "Nano Banana Pro",
+      prompt:
+        "Generate an image of a cute robot mascot waving hello in a futuristic office, cartoon style",
+    },
   ];
 
   const workspaceName = currentWorkspace?.name || "Workspace";
@@ -209,7 +213,6 @@ export function HomeMainContent() {
                       </div>
                     ))}
                     {[
-                      "Nano Banana Pro",
                       "Stock API",
                       "Youtube Reader",
                       "Veo 3.1",
@@ -307,22 +310,22 @@ export function HomeMainContent() {
                 <CardContent className="p-5 flex flex-col h-full">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Hash size={16} className="text-primary" />
+                      <Bot size={16} className="text-primary" />
                     </div>
                     <h3 className="font-semibold text-base">
-                      {t("navigation:createFirstChannel")}
+                      {t("navigation:createOwnAIStaff")}
                     </h3>
                   </div>
                   <p className="text-sm text-muted-foreground mb-4">
-                    {t("navigation:createChannelDescription")}
+                    {t("navigation:aiStaffDescription")}
                   </p>
                   <div className="mt-auto text-center">
                     <Button
                       size="sm"
                       className="bg-info hover:bg-info/90 text-primary-foreground rounded-lg px-6 cursor-pointer"
-                      onClick={() => setIsCreateChannelOpen(true)}
+                      onClick={() => navigate({ to: "/ai-staff" })}
                     >
-                      {t("navigation:createChannel")}
+                      {t("navigation:createAIStaff")}
                     </Button>
                   </div>
                 </CardContent>
@@ -378,32 +381,160 @@ export function HomeMainContent() {
                       {t("weeklyRoadmap")}
                     </h3>
                   </div>
-                  <ul className="grid grid-cols-2 gap-x-6 gap-y-3">
-                    <li className="flex items-start gap-2.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-info shrink-0 mt-2" />
-                      <span className="text-sm text-foreground">
+                  <ul className="grid grid-cols-1 gap-y-3">
+                    <li className="flex items-center gap-2.5">
+                      <span
+                        title="Done"
+                        className="w-4 h-4 rounded-full bg-green-500 shrink-0 flex items-center justify-center cursor-help"
+                      >
+                        <svg
+                          width="10"
+                          height="10"
+                          viewBox="0 0 10 10"
+                          fill="none"
+                        >
+                          <path
+                            d="M2 5.5L4 7.5L8 3"
+                            stroke="white"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </span>
+                      <span className="text-sm text-foreground line-through text-muted-foreground">
                         {t("roadmapCreateAIStaff")}
                       </span>
                     </li>
-                    <li className="flex items-start gap-2.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-info shrink-0 mt-2" />
+                    <li className="flex items-center gap-2.5">
+                      <span
+                        title="In Progress"
+                        className="w-4 h-4 rounded-full bg-info shrink-0 animate-pulse cursor-help"
+                      />
                       <span className="text-sm text-foreground">
                         {t("roadmapAIStaffOnComputer")}
                       </span>
                     </li>
-                    <li className="flex items-start gap-2.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-info shrink-0 mt-2" />
+                    <li className="flex items-center gap-2.5">
+                      <span
+                        title="In Progress"
+                        className="w-4 h-4 rounded-full bg-info shrink-0 animate-pulse cursor-help"
+                      />
                       <span className="text-sm text-foreground">
                         {t("roadmapBigToolUpdate")}
                       </span>
                     </li>
-                    <li className="flex items-start gap-2.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-info shrink-0 mt-2" />
+                    <li className="flex items-center gap-2.5">
+                      <span
+                        title="Designed"
+                        className="w-4 h-4 rounded-full bg-amber-400 shrink-0 flex items-center justify-center cursor-help"
+                      >
+                        <svg
+                          width="10"
+                          height="10"
+                          viewBox="0 0 10 10"
+                          fill="none"
+                        >
+                          <circle cx="5" cy="5" r="2" fill="white" />
+                        </svg>
+                      </span>
                       <span className="text-sm text-foreground">
                         {t("roadmapNewUI")}
                       </span>
                     </li>
+                    <li className="flex items-center gap-2.5">
+                      <span
+                        title="Planned"
+                        className="w-4 h-4 rounded-full bg-muted-foreground/30 shrink-0 flex items-center justify-center cursor-help"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        {t("roadmapDesktopApp")}
+                      </span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <span
+                        title="Planned"
+                        className="w-4 h-4 rounded-full bg-muted-foreground/30 shrink-0 flex items-center justify-center cursor-help"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        {t("roadmapGoogleWorkspace")}
+                      </span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <span
+                        title="Planned"
+                        className="w-4 h-4 rounded-full bg-muted-foreground/30 shrink-0 flex items-center justify-center cursor-help"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        {t("roadmapMessagingIntegration")}
+                      </span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <span
+                        title="Planned"
+                        className="w-4 h-4 rounded-full bg-muted-foreground/30 shrink-0 flex items-center justify-center cursor-help"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        {t("roadmapScheduledTasks")}
+                      </span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <span
+                        title="Planned"
+                        className="w-4 h-4 rounded-full bg-muted-foreground/30 shrink-0 flex items-center justify-center cursor-help"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        {t("roadmapSkills")}
+                      </span>
+                    </li>
+                    <li className="flex items-center gap-2.5">
+                      <span
+                        title="Planned"
+                        className="w-4 h-4 rounded-full bg-muted-foreground/30 shrink-0 flex items-center justify-center cursor-help"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground" />
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        {t("roadmapModelSwitching")}
+                      </span>
+                    </li>
                   </ul>
+                  <div className="flex items-center gap-4 mt-4 pt-3 border-t border-border">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-3 h-3 rounded-full bg-green-500 shrink-0" />
+                      <span className="text-xs text-muted-foreground">
+                        Done
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-3 h-3 rounded-full bg-info shrink-0" />
+                      <span className="text-xs text-muted-foreground">
+                        In Progress
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-3 h-3 rounded-full bg-amber-400 shrink-0" />
+                      <span className="text-xs text-muted-foreground">
+                        Designed
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-3 h-3 rounded-full bg-muted-foreground/30 shrink-0" />
+                      <span className="text-xs text-muted-foreground">
+                        Planned
+                      </span>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
