@@ -5,6 +5,7 @@ import { DatabaseModule } from '@team9/database';
 import { RedisModule } from '@team9/redis';
 import { RabbitmqModule } from '@team9/rabbitmq';
 import { ExecutorModule } from './executor/executor.module.js';
+import { ConsumerModule } from './consumer/consumer.module.js';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { ExecutorModule } from './executor/executor.module.js';
     RedisModule,
     RabbitmqModule,
     ExecutorModule,
+    ConsumerModule,
   ],
 })
 export class AppModule implements OnModuleInit {
