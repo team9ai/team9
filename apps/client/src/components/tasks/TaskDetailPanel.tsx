@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
@@ -18,7 +18,10 @@ import { tasksApi } from "@/services/api/tasks";
 import { TaskStepTimeline } from "./TaskStepTimeline";
 import { TaskInterventionCard } from "./TaskInterventionCard";
 import { TaskDeliverableList } from "./TaskDeliverableList";
+import { MessageInput } from "@/components/channel/MessageInput";
+import { useSendMessage } from "@/hooks/useMessages";
 import type { AgentTaskStatus } from "@/types/task";
+import type { AttachmentDto } from "@/types/im";
 
 interface TaskDetailPanelProps {
   taskId: string;
@@ -94,6 +97,17 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
 
   // Derive execution data
   const execution = task?.currentExecution?.execution ?? null;
+  const executionChannelId = execution?.channelId ?? undefined;
+
+  // Send message to the task execution channel
+  const sendMessage = useSendMessage(executionChannelId ?? "");
+  const handleSendMessage = useCallback(
+    async (content: string, attachments?: AttachmentDto[]) => {
+      if (!content.trim() && (!attachments || attachments.length === 0)) return;
+      await sendMessage.mutateAsync({ content, attachments });
+    },
+    [sendMessage],
+  );
   const steps = task?.currentExecution?.steps ?? [];
   const interventions = task?.currentExecution?.interventions ?? [];
   const deliverables = task?.currentExecution?.deliverables ?? [];
@@ -305,6 +319,19 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
             )}
           </div>
         </ScrollArea>
+      )}
+
+      {/* Message input for the task execution channel */}
+      {executionChannelId && (
+        <div className="border-t shrink-0">
+          <MessageInput
+            channelId={executionChannelId}
+            onSend={handleSendMessage}
+            disabled={sendMessage.isPending}
+            compact
+            placeholder={t("detail.messageInputPlaceholder")}
+          />
+        </div>
       )}
     </div>
   );
