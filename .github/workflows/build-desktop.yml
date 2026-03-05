@@ -80,7 +80,7 @@ jobs:
       - name: Download aHand daemon
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p apps/client/src-tauri/binaries
           gh release download "$AHAND_VERSION" \
