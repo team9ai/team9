@@ -4,6 +4,7 @@ import { join } from 'path';
 import { DatabaseModule } from '@team9/database';
 import { RedisModule } from '@team9/redis';
 import { RabbitmqModule } from '@team9/rabbitmq';
+import { ExecutorModule } from './executor/executor.module.js';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { RabbitmqModule } from '@team9/rabbitmq';
     DatabaseModule,
     RedisModule,
     RabbitmqModule,
+    ExecutorModule,
   ],
 })
 export class AppModule implements OnModuleInit {
