@@ -1,0 +1,18 @@
+{
+  "tabs": {
+    "active": "进行中",
+    "upcoming": "即将开始",
+    "finished": "已完成"
+  },
+  "noTasks": "暂无任务",
+  "status": {
+    "in_progress": "进行中",
+    "upcoming": "即将开始",
+    "paused": "已暂停",
+    "pending_action": "待处理",
+    "completed": "已完成",
+    "failed": "失败",
+    "stopped": "已停止",
+    "timeout": "已超时"
+  }
+}
