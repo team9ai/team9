@@ -29,7 +29,7 @@ export interface ChannelResponse {
   tenantId: string | null;
   name: string | null;
   description: string | null;
-  type: 'direct' | 'public' | 'private';
+  type: 'direct' | 'public' | 'private' | 'task';
   avatarUrl: string | null;
   createdBy: string | null;
   sectionId: string | null;
