@@ -183,10 +183,11 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
   const sendMessage = useSendMessage(executionChannelId ?? "");
   const handleSendMessage = useCallback(
     async (content: string, attachments?: AttachmentDto[]) => {
+      if (!executionChannelId) return;
       if (!content.trim() && (!attachments || attachments.length === 0)) return;
       await sendMessage.mutateAsync({ content, attachments });
     },
-    [sendMessage],
+    [sendMessage, executionChannelId],
   );
   const steps = task?.currentExecution?.steps ?? [];
   const interventions = task?.currentExecution?.interventions ?? [];
