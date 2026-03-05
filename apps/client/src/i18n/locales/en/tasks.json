@@ -1,0 +1,18 @@
+{
+  "tabs": {
+    "active": "In progress",
+    "upcoming": "Upcoming",
+    "finished": "Finished"
+  },
+  "noTasks": "No tasks",
+  "status": {
+    "in_progress": "In progress",
+    "upcoming": "Upcoming",
+    "paused": "Paused",
+    "pending_action": "Pending action",
+    "completed": "Completed",
+    "failed": "Failed",
+    "stopped": "Stopped",
+    "timeout": "Timeout"
+  }
+}
