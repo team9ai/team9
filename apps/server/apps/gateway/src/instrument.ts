@@ -7,7 +7,7 @@ Sentry.init({
   dsn,
   environment: process.env.NODE_ENV || 'development',
   enabled: !!dsn,
-  tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.2 : 1.0,
+  tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.05 : 1.0,
   profilesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
   integrations: [nodeProfilingIntegration()],
   serverName: 'gateway',

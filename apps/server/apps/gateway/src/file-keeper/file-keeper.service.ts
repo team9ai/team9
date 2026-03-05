@@ -42,60 +42,103 @@ export class FileKeeperService {
 
   /**
    * List workspace directories for an instance.
-   * Calls GET /api/instances/{instanceId}/data-dir?path=workspace
-   * Returns directory entries (each directory = one workspace).
-   * If the workspace directory contains files directly (no subdirectories),
-   * it is treated as a single "default" workspace.
+   *
+   * Discovers workspaces in two formats:
+   * 1. Sibling directories: .openclaw/workspace-{name}/ (preferred, new format)
+   * 2. Subdirectories: .openclaw/workspace/{name}/ (legacy format)
+   *
+   * Also detects the "default" workspace (files directly in .openclaw/workspace/).
    */
-  async listWorkspaces(instanceId: string): Promise<FileKeeperDirEntry[]> {
-    if (!this.isConfigured()) {
+  async listWorkspaces(
+    instanceId: string,
+    baseUrl?: string,
+  ): Promise<FileKeeperDirEntry[]> {
+    const resolvedBaseUrl = baseUrl || this.baseUrl;
+    if (!resolvedBaseUrl || !this.jwtSecret) {
       this.logger.debug('File-Keeper not configured, skipping listWorkspaces');
       return [];
     }
 
-    try {
-      const result = await this.request<FileKeeperListResponse>(
+    const workspaces = new Map<string, FileKeeperDirEntry>();
+
+    // Fetch both directory listings in parallel
+    const [rootSettled, wsSettled] = await Promise.allSettled([
+      this.request<FileKeeperListResponse>(
+        'GET',
+        `/api/instances/${instanceId}/data-dir?path=.`,
+        instanceId,
+        undefined,
+        resolvedBaseUrl,
+      ),
+      this.request<FileKeeperListResponse>(
         'GET',
         `/api/instances/${instanceId}/data-dir?path=workspace`,
         instanceId,
+        undefined,
+        resolvedBaseUrl,
+      ),
+    ]);
+
+    // 1. Process .openclaw/ root for workspace-{name} sibling directories
+    if (rootSettled.status === 'fulfilled') {
+      for (const entry of rootSettled.value.entries) {
+        if (entry.type === 'directory' && entry.name.startsWith('workspace-')) {
+          const name = entry.name.slice('workspace-'.length);
+          if (name) {
+            workspaces.set(name, { ...entry, name });
+          }
+        }
+      }
+    } else {
+      const error = rootSettled.reason;
+      if (!(error instanceof Error && error.message.includes('404'))) {
+        this.logger.warn(
+          `Failed to scan root for instance ${instanceId}: ${error}`,
+        );
+      }
+    }
+
+    // 2. Process .openclaw/workspace/ for subdirectory workspaces and default workspace
+    if (wsSettled.status === 'fulfilled') {
+      const directories = wsSettled.value.entries.filter(
+        (e) => e.type === 'directory',
       );
 
-      const directories = result.entries.filter((e) => e.type === 'directory');
-
-      // If workspace/ has subdirectories, each is a named workspace
-      if (directories.length > 0) {
-        return directories;
+      // Add subdirectory workspaces (only if not already found as sibling)
+      for (const dir of directories) {
+        if (!workspaces.has(dir.name)) {
+          workspaces.set(dir.name, dir);
+        }
       }
 
-      // If workspace/ has files but no subdirectories, the OpenClaw daemon
-      // stores the default workspace content directly in workspace/
-      if (result.entries.length > 0) {
-        // Find the most recent modification time among entries
-        const latestModified = result.entries.reduce((latest, e) => {
+      // Detect default workspace (files directly in workspace/ with no subdirectories)
+      if (directories.length === 0 && wsSettled.value.entries.length > 0) {
+        const latestModified = wsSettled.value.entries.reduce((latest, e) => {
           return e.modified > latest ? e.modified : latest;
-        }, result.entries[0].modified);
+        }, wsSettled.value.entries[0].modified);
 
-        return [
-          {
+        if (!workspaces.has('default')) {
+          workspaces.set('default', {
             name: 'default',
             type: 'directory' as const,
             modified: latestModified,
-          },
-        ];
+          });
+        }
       }
-
-      return [];
-    } catch (error) {
-      // 404 = workspace directory doesn't exist yet (new instance)
-      if (error instanceof Error && error.message.includes('404')) {
-        this.logger.debug(`No workspace directory for instance ${instanceId}`);
-        return [];
+    } else {
+      const error = wsSettled.reason;
+      if (!(error instanceof Error && error.message.includes('404'))) {
+        this.logger.warn(
+          `Failed to list workspaces for instance ${instanceId}: ${error}`,
+        );
       }
-      this.logger.warn(
-        `Failed to list workspaces for instance ${instanceId}: ${error}`,
-      );
-      return [];
     }
+
+    if (workspaces.size === 0) {
+      this.logger.debug(`No workspaces found for instance ${instanceId}`);
+    }
+
+    return Array.from(workspaces.values());
   }
 
   /**
@@ -105,15 +148,17 @@ export class FileKeeperService {
   issueToken(
     instanceId: string,
     scopes: string[] = ['workspace-dir'],
+    baseUrl?: string,
   ): { token: string; baseUrl: string; instanceId: string; expiresAt: string } {
-    if (!this.isConfigured()) {
+    const resolvedBaseUrl = baseUrl || this.baseUrl;
+    if (!resolvedBaseUrl || !this.jwtSecret) {
       throw new Error('File-Keeper is not configured');
     }
     const token = this.signToken(instanceId, scopes);
     const expiresAt = new Date(Date.now() + 3600 * 1000).toISOString();
     return {
       token,
-      baseUrl: this.baseUrl!,
+      baseUrl: resolvedBaseUrl,
       instanceId,
       expiresAt,
     };
@@ -157,8 +202,9 @@ export class FileKeeperService {
     path: string,
     instanceId: string,
     scopes?: string[],
+    baseUrl?: string,
   ): Promise<T> {
-    const url = `${this.baseUrl}${path}`;
+    const url = `${baseUrl || this.baseUrl}${path}`;
     const token = this.signToken(instanceId, scopes);
 
     const res = await fetch(url, {

@@ -45,6 +45,7 @@ import { HeartbeatService } from '../../cluster/heartbeat/heartbeat.service.js';
 import { ZombieCleanerService } from '../../cluster/heartbeat/zombie-cleaner.service.js';
 import { ConnectionService } from '../../cluster/connection/connection.service.js';
 import { SocketRedisAdapterService } from '../../cluster/adapter/socket-redis-adapter.service.js';
+import { appMetrics } from '@team9/observability';
 
 @WebSocketGateway({
   cors: {
@@ -288,6 +289,9 @@ export class WebsocketGateway
       // When user opens a channel, client calls GET /v1/im/sync/channel/:channelId
       // This approach reduces database pressure and supports multi-device better
 
+      appMetrics.wsConnections.add(1);
+      appMetrics.onlineUsers.add(1);
+
       client.emit(WS_EVENTS.AUTH.AUTHENTICATED, { userId: payload.sub });
       this.logger.log(
         `Client authenticated: ${client.id} (user: ${payload.sub})`,
@@ -309,6 +313,8 @@ export class WebsocketGateway
     );
 
     if (socketClient.userId) {
+      appMetrics.wsConnections.add(-1);
+
       // Remove socket mapping (legacy)
       await this.redisService.del(REDIS_KEYS.SOCKET_USER(client.id));
       await this.redisService.srem(
@@ -356,6 +362,7 @@ export class WebsocketGateway
 
       if (socketClient.isBot) {
         if (!hasActiveSessions) {
+          appMetrics.onlineUsers.add(-1);
           this.logger.log(
             `[WS] Bot ${socketClient.userId} disconnected, cleaning up streams and setting offline`,
           );
@@ -387,6 +394,7 @@ export class WebsocketGateway
         }
       } else {
         if (!hasActiveSessions) {
+          appMetrics.onlineUsers.add(-1);
           // User has no more connections on any device, set offline
           this.logger.log(
             `[WS] Setting user ${socketClient.userId} offline and broadcasting`,
@@ -974,6 +982,7 @@ export class WebsocketGateway
       this.server
         .to(`channel:${data.channelId}`)
         .emit(WS_EVENTS.MESSAGE.NEW, data.message);
+      appMetrics.messagesTotal.add(1);
     }
 
     return { success: true };

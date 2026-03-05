@@ -23,7 +23,8 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { slugify } from "transliteration";
 import { api } from "@/services/api";
 import type {
   InstalledApplication,
@@ -220,13 +221,26 @@ function CreateAgentDialog({
     };
   }, [username]);
 
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const agentSlugPreview = useMemo(() => {
+    const trimmed = displayName.trim();
+    if (!trimmed) return "";
+    return slugify(trimmed, { lowercase: true, separator: "-" })
+      .replace(/^-+|-+$/g, "")
+      .substring(0, 40);
+  }, [displayName]);
+
   const createMutation = useMutation({
-    mutationFn: () =>
-      api.applications.createOpenClawAgent(selectedAppId, {
+    mutationFn: () => {
+      setCreateError(null);
+      return api.applications.createOpenClawAgent(selectedAppId, {
         displayName: displayName.trim(),
         username: username.trim() || undefined,
         description: description.trim() || undefined,
-      }),
+        agentSlug: agentSlugPreview || undefined,
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["openclaw-bots", workspaceId, selectedAppId],
@@ -234,8 +248,16 @@ function CreateAgentDialog({
       setDisplayName("");
       setUsername("");
       setDescription("");
+      setCreateError(null);
       setUsernameStatus("idle");
       onOpenChange(false);
+    },
+    onError: (error: any) => {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Failed to create agent";
+      setCreateError(message);
     },
   });
 
@@ -283,6 +305,12 @@ function CreateAgentDialog({
                 }
               }}
             />
+            {agentSlugPreview &&
+              agentSlugPreview !== displayName.trim().toLowerCase() && (
+                <p className="text-xs text-muted-foreground">
+                  Agent ID: {agentSlugPreview}
+                </p>
+              )}
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">
@@ -341,6 +369,9 @@ function CreateAgentDialog({
             />
           </div>
         </div>
+        {createError && (
+          <p className="text-sm text-destructive">{createError}</p>
+        )}
         <DialogFooter>
           <Button onClick={() => createMutation.mutate()} disabled={!canSubmit}>
             {createMutation.isPending ? (
