@@ -12,6 +12,7 @@ import {
   eq,
   and,
   desc,
+  sql,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -105,13 +106,23 @@ export class TasksService {
       conditions.push(eq(schema.agentTasks.scheduleType, filters.scheduleType));
     }
 
-    const tasks = await this.db
-      .select()
+    const rows = await this.db
+      .select({
+        task: schema.agentTasks,
+        executionTokenUsage: schema.agentTaskExecutions.tokenUsage,
+      })
       .from(schema.agentTasks)
+      .leftJoin(
+        schema.agentTaskExecutions,
+        eq(schema.agentTasks.currentExecutionId, schema.agentTaskExecutions.id),
+      )
       .where(and(...conditions))
       .orderBy(desc(schema.agentTasks.createdAt));
 
-    return tasks;
+    return rows.map((row) => ({
+      ...row.task,
+      tokenUsage: row.executionTokenUsage ?? 0,
+    }));
   }
 
   async getById(taskId: string) {

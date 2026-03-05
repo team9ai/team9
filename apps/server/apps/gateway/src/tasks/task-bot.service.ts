@@ -10,6 +10,7 @@ import {
   eq,
   and,
   desc,
+  sql,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -88,6 +89,19 @@ export class TaskBotService {
         });
       }
     }
+
+    // Sum all step token usage and update execution total
+    const [result] = await this.db
+      .select({
+        total: sql<number>`COALESCE(SUM(${schema.agentTaskSteps.tokenUsage}), 0)`,
+      })
+      .from(schema.agentTaskSteps)
+      .where(eq(schema.agentTaskSteps.executionId, execution.id));
+
+    await this.db
+      .update(schema.agentTaskExecutions)
+      .set({ tokenUsage: result.total })
+      .where(eq(schema.agentTaskExecutions.id, execution.id));
 
     // Return updated steps
     const steps = await this.db

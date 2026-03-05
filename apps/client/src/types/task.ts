@@ -64,6 +64,8 @@ export interface AgentTask {
   nextRunAt: string | null;
   documentId: string | null;
   currentExecutionId: string | null;
+  /** Token usage from the current execution (included in list responses) */
+  tokenUsage?: number;
   createdAt: string;
   updatedAt: string;
 }
