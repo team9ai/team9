@@ -108,6 +108,12 @@ export const WS_EVENTS = {
     READ: "notification_read",
   },
 
+  // Task events
+  TASK: {
+    STATUS_CHANGED: "task:status_changed",
+    EXECUTION_CREATED: "task:execution_created",
+  },
+
   // AI Streaming (Bot)
   STREAMING: {
     START: "streaming_start",
@@ -467,6 +473,30 @@ export interface NotificationReadEvent {
   readAt: string;
 }
 
+// ==================== Task Event Types ====================
+
+/** Task status changed event */
+export interface TaskStatusChangedEvent {
+  taskId: string;
+  executionId: string;
+  status: string;
+  previousStatus: string;
+}
+
+/** Task execution created event */
+export interface TaskExecutionCreatedEvent {
+  taskId: string;
+  execution: {
+    id: string;
+    version: number;
+    status: string;
+    channelId: string | null;
+    taskcastTaskId: string | null;
+    startedAt: string | null;
+    createdAt: string;
+  };
+}
+
 // ==================== Streaming Event Types (AI Bot) ====================
 
 /** Streaming start - bot begins generating a response */
@@ -561,6 +591,9 @@ export interface ServerToClientEvents {
   notification_new: NotificationNewEvent;
   notification_counts_updated: NotificationCountsUpdatedEvent;
   notification_read: NotificationReadEvent;
+  // Task
+  "task:status_changed": TaskStatusChangedEvent;
+  "task:execution_created": TaskExecutionCreatedEvent;
   // Streaming (AI bot)
   streaming_start: StreamingStartEvent;
   streaming_content: StreamingContentEvent;
