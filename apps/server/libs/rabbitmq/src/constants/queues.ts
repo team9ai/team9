@@ -2,6 +2,7 @@ export const RABBITMQ_EXCHANGES = {
   WORKSPACE_EVENTS: 'workspace.events',
   NOTIFICATION_EVENTS: 'notification.events',
   NOTIFICATION_DELIVERY: 'notification.delivery',
+  TASK_COMMANDS: 'task-commands',
 } as const;
 
 export const RABBITMQ_QUEUES = {
@@ -10,6 +11,8 @@ export const RABBITMQ_QUEUES = {
   NOTIFICATION_TASKS: 'notification.tasks',
   // Notification delivery queue (consumed by Gateway for WebSocket push)
   NOTIFICATION_DELIVERY: 'notification.delivery',
+  // Task command queue (consumed by task-worker)
+  TASK_WORKER_COMMANDS: 'task-worker-commands',
 } as const;
 
 export const RABBITMQ_ROUTING_KEYS = {
@@ -26,4 +29,6 @@ export const RABBITMQ_ROUTING_KEYS = {
   DELIVERY_NEW: 'delivery.new',
   DELIVERY_COUNTS: 'delivery.counts',
   DELIVERY_READ: 'delivery.read',
+  // Task command routing key (for task-worker processing)
+  TASK_COMMAND: 'task.command',
 } as const;

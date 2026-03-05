@@ -78,6 +78,14 @@ import { RABBITMQ_EXCHANGES } from './constants/queues.js';
               type: 'topic',
               options: { durable: true },
             },
+
+            // ========== Task Exchanges ==========
+            // Task commands: Gateway -> task-worker (for task execution)
+            {
+              name: RABBITMQ_EXCHANGES.TASK_COMMANDS,
+              type: 'direct',
+              options: { durable: true },
+            },
           ],
         };
       },
