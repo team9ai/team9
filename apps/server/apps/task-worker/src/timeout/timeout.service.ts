@@ -52,14 +52,27 @@ export class TimeoutService {
 
     for (const execution of staleExecutions) {
       try {
-        // Update execution status to timeout
-        await this.db
+        // Update execution status to timeout (only if still in_progress)
+        const [updated] = await this.db
           .update(schema.agentTaskExecutions)
           .set({
             status: 'timeout',
             completedAt: now,
           })
-          .where(eq(schema.agentTaskExecutions.id, execution.id));
+          .where(
+            and(
+              eq(schema.agentTaskExecutions.id, execution.id),
+              eq(schema.agentTaskExecutions.status, 'in_progress'),
+            ),
+          )
+          .returning();
+
+        if (!updated) {
+          this.logger.debug(
+            `Execution ${execution.id} already transitioned, skipping timeout`,
+          );
+          continue;
+        }
 
         // Update the parent task status to timeout
         await this.db
@@ -68,7 +81,12 @@ export class TimeoutService {
             status: 'timeout',
             updatedAt: now,
           })
-          .where(eq(schema.agentTasks.id, execution.taskId));
+          .where(
+            and(
+              eq(schema.agentTasks.id, execution.taskId),
+              eq(schema.agentTasks.status, 'in_progress'),
+            ),
+          );
 
         this.logger.warn(
           `Execution ${execution.id} for task ${execution.taskId} marked as timeout (started at ${execution.startedAt?.toISOString()})`,
