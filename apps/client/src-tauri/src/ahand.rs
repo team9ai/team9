@@ -129,13 +129,14 @@ fn parse_gateway_url(url: &str) -> (String, u16, bool) {
         .trim_start_matches("ws://");
 
     // Strip path and query (e.g. "host.example.com/?token=abc" → "host.example.com")
-    let authority = without_scheme
+    let without_path = without_scheme
         .split_once('/')
         .map(|(a, _)| a)
-        .unwrap_or(without_scheme)
+        .unwrap_or(without_scheme);
+    let authority = without_path
         .split_once('?')
         .map(|(a, _)| a)
-        .unwrap_or(without_scheme);
+        .unwrap_or(without_path);
 
     if let Some((host, port_str)) = authority.rsplit_once(':') {
         let port = port_str.parse().unwrap_or(18789);
