@@ -17,6 +17,9 @@ export function initOtel(serviceName: string): void {
     return;
   }
 
+  // Opt in to stable HTTP semantic conventions to get http.route in metrics
+  process.env.OTEL_SEMCONV_STABILITY_OPT_IN = 'http';
+
   const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
   const token = process.env.GRAFANA_CLOUD_TOKEN;
 
