@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type { Channel, ChannelWithUnread, ChannelMember } from "@/types/im";
 import wsService from "@/services/websocket";
 import type { UserOnlineEvent } from "@/types/ws-events";
+import { useIsUserOnline } from "@/hooks/useIMUsers";
 
 // Total bot startup time in seconds
 const BOT_STARTUP_DURATION = 150;
@@ -38,6 +39,7 @@ export function useBotStartupCountdown({
 
   const botUserId = botMember?.user?.id ?? null;
   const botCreatedAt = botMember?.user?.createdAt ?? null;
+  const isBotOnline = useIsUserOnline(botUserId ?? undefined);
 
   const getInitialRemaining = useCallback((): number => {
     if (!botCreatedAt) return 0;
@@ -64,14 +66,14 @@ export function useBotStartupCountdown({
     }
 
     const remaining = getInitialRemaining();
-    if (remaining <= 0) {
+    if (remaining <= 0 || isBotOnline) {
       setPhase("chatting");
       setRemainingSeconds(0);
     } else {
       setPhase("countdown");
       setRemainingSeconds(remaining);
     }
-  }, [isBotDm, botCreatedAt, getInitialRemaining]);
+  }, [isBotDm, botCreatedAt, getInitialRemaining, isBotOnline]);
 
   // Run the countdown timer
   useEffect(() => {

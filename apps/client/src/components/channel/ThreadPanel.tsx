@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect, useState, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { X, MessageSquare, Loader2, ArrowDown, ArrowLeft } from "lucide-react";
+import { X, Loader2, ArrowDown, ArrowLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -291,52 +291,55 @@ export function ThreadPanel({
       style={isSnapped ? undefined : { width: `${width}px` }}
     >
       {!isSnapped && onWidthChange && (
-        <ResizeHandle width={width} onWidthChange={onWidthChange} />
+        <ResizeHandle
+          width={width}
+          onWidthChange={onWidthChange}
+          maxWidth={1000}
+        />
       )}
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b">
-        <div className="flex items-center gap-2">
-          {isSnapped && onBackToChannel && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onBackToChannel}
-              className="mr-1"
-            >
-              <ArrowLeft size={20} />
-            </Button>
-          )}
-          <MessageSquare size={20} className="text-muted-foreground" />
-          <h2 className="font-semibold">{t("title")}</h2>
-        </div>
-        <Button variant="ghost" size="icon" onClick={closeThread}>
-          <X size={20} />
-        </Button>
-      </div>
-
       {isLoading ? (
         <div className="flex-1 flex items-center justify-center">
           <p className="text-muted-foreground">{t("loading")}</p>
         </div>
       ) : threadData ? (
         <>
-          {/* Root message */}
-          <div className="px-4 py-3 border-b bg-muted max-h-48 overflow-y-auto">
-            <MessageItem
-              message={threadData.rootMessage}
-              currentUserId={currentUser?.id}
-              compact
-              isRootMessage
-            />
-            <div className="mt-2 text-xs text-muted-foreground">
-              {t("repliesCount", { count: threadData.totalReplyCount })}
-            </div>
-          </div>
-
           {/* Replies container with relative positioning for the indicator */}
           <div className="flex-1 min-h-0 relative">
+            {/* Floating toolbar */}
+            <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+              {isSnapped && onBackToChannel && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onBackToChannel}
+                  className="h-8 w-8 bg-background/80 backdrop-blur-sm shadow-sm"
+                >
+                  <ArrowLeft size={16} />
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={closeThread}
+                className="h-8 w-8 bg-background/80 backdrop-blur-sm shadow-sm"
+              >
+                <X size={16} />
+              </Button>
+            </div>
+
             <ScrollArea ref={scrollAreaRef} className="h-full">
               <div className="px-4 py-4 space-y-1">
+                {/* Root message as scrollable MessageItem */}
+                <MessageItem
+                  message={threadData.rootMessage}
+                  currentUserId={currentUser?.id}
+                  compact
+                  isRootMessage
+                />
+                <div className="mb-2 text-xs text-muted-foreground">
+                  {t("repliesCount", { count: threadData.totalReplyCount })}
+                </div>
+                <div className="border-b mb-2" />
                 {threadData.replies.map((reply: ThreadReply) => (
                   <ThreadReplyItem
                     key={reply.id}
