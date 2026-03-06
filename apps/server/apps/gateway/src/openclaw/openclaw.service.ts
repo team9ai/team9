@@ -288,12 +288,14 @@ export class OpenclawService {
    */
   async listDevices(instanceId: string): Promise<DeviceInfo[] | null> {
     if (!this.isConfigured()) return null;
-    const res = await this.request<RawDeviceList>(
+    // Control plane wraps hive-daemon response as { devices: { pending, paired } }
+    const res = await this.request<{ devices: RawDeviceList }>(
       'GET',
       `/api/instances/${instanceId}/devices`,
     );
+    const list = res.devices ?? {};
     const result: DeviceInfo[] = [];
-    for (const d of res.pending ?? []) {
+    for (const d of list.pending ?? []) {
       result.push({
         ...d,
         request_id: d.requestId,
@@ -302,7 +304,7 @@ export class OpenclawService {
         status: 'pending',
       });
     }
-    for (const d of res.paired ?? []) {
+    for (const d of list.paired ?? []) {
       result.push({
         ...d,
         request_id: d.deviceId,
