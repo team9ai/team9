@@ -82,24 +82,34 @@ async function pollForPairing(installedAppId: string): Promise<void> {
   console.log("[aHand] polling for pairing request (15x 2s)...");
 
   let approved = false;
-  for (let i = 0; i < 15; i++) {
-    const devices = await applicationsApi.getOpenClawDevices(installedAppId);
-    console.log(`[aHand] poll ${i + 1}/15: devices =`, JSON.stringify(devices));
-    const pending = devices.find((d) => d.status === "pending");
-    if (pending) {
+  try {
+    for (let i = 0; i < 15; i++) {
+      const devices = await applicationsApi.getOpenClawDevices(installedAppId);
       console.log(
-        "[aHand] found pending device, approving:",
-        pending.request_id,
+        `[aHand] poll ${i + 1}/15: devices =`,
+        JSON.stringify(devices),
       );
-      await applicationsApi.selfApproveOpenClawDevice(
-        installedAppId,
-        pending.request_id,
-      );
-      console.info("[aHand] device pairing auto-approved:", pending.request_id);
-      approved = true;
-      break;
+      const pending = devices.find((d) => d.status === "pending");
+      if (pending) {
+        console.log(
+          "[aHand] found pending device, approving:",
+          pending.request_id,
+        );
+        await applicationsApi.selfApproveOpenClawDevice(
+          installedAppId,
+          pending.request_id,
+        );
+        console.info(
+          "[aHand] device pairing auto-approved:",
+          pending.request_id,
+        );
+        approved = true;
+        break;
+      }
+      await new Promise<void>((r) => setTimeout(r, 2000));
     }
-    await new Promise<void>((r) => setTimeout(r, 2000));
+  } catch (err) {
+    console.warn("[aHand] polling error:", err);
   }
 
   setRetryState(approved ? "idle" : "timeout");
