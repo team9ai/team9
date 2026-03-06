@@ -48,7 +48,9 @@ async function findOpenClawAppId(): Promise<string | null> {
 async function startLocalDevice(): Promise<void> {
   try {
     // 1. Find the OpenClaw installed app in this workspace.
+    console.log("[aHand] step 1: looking for OpenClaw app...");
     const installedAppId = await findOpenClawAppId();
+    console.log("[aHand] step 1 result: installedAppId =", installedAppId);
     if (!installedAppId) {
       console.info(
         "[aHand] No active OpenClaw app found in this workspace — skipping",
@@ -57,28 +59,51 @@ async function startLocalDevice(): Promise<void> {
     }
 
     // 2. Get gateway URL from Team9 API.
+    console.log("[aHand] step 2: fetching gateway info...");
     const info = await applicationsApi.getOpenClawGatewayInfo(installedAppId);
+    console.log("[aHand] step 2 result: gatewayUrl =", info.gatewayUrl);
 
     // 3. Get the stable node ID for this device (persisted across restarts).
+    console.log("[aHand] step 3: getting node ID...");
     const nodeId = await invoke<string>("ahand_get_node_id");
+    console.log("[aHand] step 3 result: nodeId =", nodeId);
 
-    // 4. Start the daemon.
+    // 4. Extract gateway auth token from the URL query string.
+    //    The server appends :18789 after the token, so stop at ':'.
+    const tokenMatch = info.gatewayUrl.match(/[?&]token=([^:/?&#]+)/);
+    const authToken = tokenMatch ? tokenMatch[1] : null;
+    console.log(
+      "[aHand] step 4: authToken =",
+      authToken ? `${authToken.slice(0, 8)}...` : null,
+    );
+
+    // 5. Start the daemon.
+    console.log("[aHand] step 5: invoking ahand_start...");
     await invoke("ahand_start", {
       gatewayUrl: info.gatewayUrl,
-      authToken: null,
+      authToken,
       nodeId,
     });
-    console.info("[aHand] daemon started, connecting to", info.gatewayUrl);
+    console.info("[aHand] step 5 done: daemon started");
 
-    // 5. Poll for a pending pairing request (up to 30s) and auto-approve.
+    // 6. Poll for a pending pairing request (up to 30s) and auto-approve.
     //    If the device was already approved in a previous session, no pending
     //    request will appear — that is expected and not an error.
+    console.log("[aHand] step 6: polling for pairing request (15x 2s)...");
     let approved = false;
     for (let i = 0; i < 15; i++) {
       await new Promise<void>((r) => setTimeout(r, 2000));
       const devices = await applicationsApi.getOpenClawDevices(installedAppId);
+      console.log(
+        `[aHand] poll ${i + 1}/15: devices =`,
+        JSON.stringify(devices),
+      );
       const pending = devices.find((d) => d.status === "pending");
       if (pending) {
+        console.log(
+          "[aHand] found pending device, approving:",
+          pending.request_id,
+        );
         await applicationsApi.selfApproveOpenClawDevice(
           installedAppId,
           pending.request_id,

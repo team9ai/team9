@@ -138,12 +138,17 @@ fn parse_gateway_url(url: &str) -> (String, u16, bool) {
         .map(|(a, _)| a)
         .unwrap_or(without_path);
 
+    // Default port: use standard WebSocket ports when no explicit port is given.
+    // Cloud deployments (wss://) route through a TLS proxy (e.g. Traefik) on
+    // port 443; local deployments that need 18789 supply it explicitly in the URL.
+    let default_port: u16 = if tls { 443 } else { 18789 };
+
     if let Some((host, port_str)) = authority.rsplit_once(':') {
-        let port = port_str.parse().unwrap_or(18789);
+        let port = port_str.parse().unwrap_or(default_port);
         return (host.to_string(), port, tls);
     }
 
-    (authority.to_string(), 18789, tls)
+    (authority.to_string(), default_port, tls)
 }
 
 /// Start aHand daemon in openclaw-gateway mode.
