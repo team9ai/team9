@@ -30,6 +30,15 @@ fn ahand_get_node_id() -> String {
     ahand::get_or_create_node_id()
 }
 
+/// Returns the cryptographic device ID (SHA256 of Ed25519 public key) stored
+/// in ~/.ahand/device-identity.json. This matches the `deviceId` field in the
+/// OpenClaw gateway's paired device list, enabling precise approval checks.
+/// Returns None if the daemon has never run on this machine.
+#[tauri::command]
+fn ahand_get_device_id() -> Option<String> {
+    ahand::get_crypto_device_id()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -40,6 +49,7 @@ pub fn run() {
             ahand_stop,
             ahand_is_running,
             ahand_get_node_id,
+            ahand_get_device_id,
         ])
         .on_window_event(|_win, event| {
             if let tauri::WindowEvent::Destroyed = event {

@@ -106,9 +106,12 @@ export interface OpenClawBotInfo {
 
 // OpenClaw device pairing types
 export interface OpenClawDeviceInfo {
+  // For pending: the pairing request ID. For approved: the device ID.
   request_id: string;
+  // The cryptographic device ID (SHA256 of Ed25519 public key).
+  deviceId?: string;
   name?: string;
-  status: string;
+  status: "pending" | "approved";
   [key: string]: any;
 }
 
