@@ -128,12 +128,21 @@ fn parse_gateway_url(url: &str) -> (String, u16, bool) {
         .trim_start_matches("wss://")
         .trim_start_matches("ws://");
 
-    if let Some((host, port_str)) = without_scheme.rsplit_once(':') {
+    // Strip path and query (e.g. "host.example.com/?token=abc" → "host.example.com")
+    let authority = without_scheme
+        .split_once('/')
+        .map(|(a, _)| a)
+        .unwrap_or(without_scheme)
+        .split_once('?')
+        .map(|(a, _)| a)
+        .unwrap_or(without_scheme);
+
+    if let Some((host, port_str)) = authority.rsplit_once(':') {
         let port = port_str.parse().unwrap_or(18789);
         return (host.to_string(), port, tls);
     }
 
-    (without_scheme.to_string(), 18789, tls)
+    (authority.to_string(), 18789, tls)
 }
 
 /// Start aHand daemon in openclaw-gateway mode.
