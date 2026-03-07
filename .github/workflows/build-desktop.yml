@@ -8,7 +8,6 @@ on:
 
 env:
   RUST_BACKTRACE: 1
-  AHAND_VERSION: rust-v0.1.2
 
 jobs:
   build:
@@ -83,6 +82,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p apps/client/src-tauri/binaries
+          AHAND_VERSION=$(gh release list --repo team9ai/aHand --limit 1 --json tagName --jq '.[0].tagName')
+          echo "Downloading aHand $AHAND_VERSION"
           gh release download "$AHAND_VERSION" \
             --repo team9ai/aHand \
             --pattern "${{ matrix.ahand-binary }}" \
