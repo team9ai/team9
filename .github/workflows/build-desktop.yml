@@ -11,24 +11,7 @@ env:
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: macos
-            os: macos-latest
-            build-script: build:client:mac
-            artifact-path: apps/client/src-tauri/target/release/bundle/dmg/*.dmg
-            ahand-binary: ahandd-darwin-arm64
-            tauri-binary-name: ahandd-aarch64-apple-darwin
-          - platform: windows
-            os: windows-latest
-            build-script: build:client:windows
-            artifact-path: apps/client/src-tauri/target/release/bundle/nsis/*.exe
-            ahand-binary: ahandd-windows-x64.exe
-            tauri-binary-name: ahandd-x86_64-pc-windows-msvc.exe
-
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-latest
 
     steps:
       - name: Checkout
@@ -86,11 +69,11 @@ jobs:
           echo "Downloading aHand $AHAND_VERSION"
           gh release download "$AHAND_VERSION" \
             --repo team9ai/aHand \
-            --pattern "${{ matrix.ahand-binary }}" \
+            --pattern "ahandd-darwin-arm64" \
             --dir apps/client/src-tauri/binaries/
-          mv "apps/client/src-tauri/binaries/${{ matrix.ahand-binary }}" \
-             "apps/client/src-tauri/binaries/${{ matrix.tauri-binary-name }}"
-          chmod +x "apps/client/src-tauri/binaries/${{ matrix.tauri-binary-name }}" 2>/dev/null || true
+          mv "apps/client/src-tauri/binaries/ahandd-darwin-arm64" \
+             "apps/client/src-tauri/binaries/ahandd-aarch64-apple-darwin"
+          chmod +x "apps/client/src-tauri/binaries/ahandd-aarch64-apple-darwin"
 
       - name: Write .env.production
         run: |
@@ -102,11 +85,30 @@ jobs:
         shell: bash
 
       - name: Build desktop app
-        run: pnpm ${{ matrix.build-script }}
+        run: pnpm build:client:mac
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: team9-${{ matrix.platform }}-${{ steps.env.outputs.tag }}
-          path: ${{ matrix.artifact-path }}
+          name: team9-macos-${{ steps.env.outputs.tag }}
+          path: apps/client/src-tauri/target/release/bundle/dmg/*.dmg
           if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: artifacts/*
+          generate_release_notes: true
