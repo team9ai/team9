@@ -1,6 +1,7 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { applicationsApi } from "../services/api/applications.js";
+import { checkBrowserReady } from "./useBrowserInit.js";
 
 /**
  * Automatically starts the aHand daemon after the user logs into the desktop app.
@@ -155,6 +156,9 @@ async function startLocalDevice(): Promise<void> {
       nodeId,
     });
     console.info("[aHand] step 5 done: daemon started");
+
+    // 5b. Check browser automation dependencies.
+    await checkBrowserReady();
 
     // 6. Poll for a pending pairing request (up to 30s) and auto-approve.
     //    If polling times out, user can click retry in the UI.

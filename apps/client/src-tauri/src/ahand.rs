@@ -115,7 +115,10 @@ gateway_host = "{host}"
 gateway_port = {port}
 gateway_tls = {tls}
 node_id = "{node_id}"
-{auth_line}"#
+{auth_line}
+[browser]
+enabled = true
+"#
     );
 
     std::fs::write(&path, content)?;
@@ -161,6 +164,12 @@ pub fn start(gateway_url: &str, auth_token: Option<&str>, node_id: &str) -> Resu
 
     write_config(gateway_url, auth_token, node_id).map_err(|e| e.to_string())?;
 
+    // Auto-install browser dependencies if not ready.
+    if !browser_is_ready() {
+        eprintln!("[ahand] Browser dependencies not found, running browser-init...");
+        let _ = Command::new(&binary).arg("browser-init").status();
+    }
+
     let config_path = dirs::home_dir()
         .unwrap()
         .join(".ahand")
@@ -205,4 +214,33 @@ pub fn get_crypto_device_id() -> Option<String> {
     let content = std::fs::read_to_string(path).ok()?;
     let v: serde_json::Value = serde_json::from_str(&content).ok()?;
     v["deviceId"].as_str().map(|s| s.to_string())
+}
+
+/// Run `ahandd browser-init` to install browser automation dependencies.
+pub fn browser_init(force: bool) -> Result<(), String> {
+    let binary = find_binary()
+        .ok_or_else(|| "aHand is not installed. Please install it first.".to_string())?;
+
+    let mut cmd = Command::new(&binary);
+    cmd.arg("browser-init");
+    if force {
+        cmd.arg("--force");
+    }
+
+    let status = cmd.status().map_err(|e| format!("failed to run ahandd browser-init: {e}"))?;
+    if !status.success() {
+        return Err("browser-init failed".to_string());
+    }
+    Ok(())
+}
+
+/// Check if browser automation dependencies are installed.
+pub fn browser_is_ready() -> bool {
+    let home = match dirs::home_dir() {
+        Some(h) => h,
+        None => return false,
+    };
+    let ahand = home.join(".ahand");
+    ahand.join("bin").join("agent-browser").exists()
+        && ahand.join("browser").join("dist").join("daemon.js").exists()
 }

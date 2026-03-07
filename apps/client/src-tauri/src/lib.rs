@@ -39,6 +39,18 @@ fn ahand_get_device_id() -> Option<String> {
     ahand::get_crypto_device_id()
 }
 
+/// Install browser automation dependencies via ahandd browser-init.
+#[tauri::command]
+fn ahand_browser_init(force: bool) -> Result<(), String> {
+    ahand::browser_init(force)
+}
+
+/// Check if browser automation dependencies are installed.
+#[tauri::command]
+fn ahand_browser_is_ready() -> bool {
+    ahand::browser_is_ready()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -50,6 +62,8 @@ pub fn run() {
             ahand_is_running,
             ahand_get_node_id,
             ahand_get_device_id,
+            ahand_browser_init,
+            ahand_browser_is_ready,
         ])
         .on_window_event(|_win, event| {
             if let tauri::WindowEvent::Destroyed = event {
