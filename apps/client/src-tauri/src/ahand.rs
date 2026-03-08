@@ -11,7 +11,8 @@
 //! node_id is reused across restarts. If the device was previously approved
 //! by the OpenClaw gateway, it will reconnect without needing re-approval.
 
-use std::process::{Child, Command};
+use std::io::{BufRead, BufReader};
+use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 
 static DAEMON: Mutex<Option<Child>> = Mutex::new(None);
@@ -28,6 +29,7 @@ fn find_binary() -> Option<std::path::PathBuf> {
         if let Some(dir) = exe.parent() {
             let p = dir.join("ahandd");
             if p.exists() {
+                ensure_executable(&p);
                 return Some(p);
             }
         }
@@ -49,6 +51,22 @@ fn find_binary() -> Option<std::path::PathBuf> {
         })
     })
 }
+
+/// Ensure a binary file has execute permission (macOS/Linux).
+/// Tauri sidecar copies may lose the +x bit during build.
+#[cfg(unix)]
+fn ensure_executable(path: &std::path::Path) {
+    use std::os::unix::fs::PermissionsExt;
+    if let Ok(meta) = std::fs::metadata(path) {
+        let mode = meta.permissions().mode();
+        if mode & 0o111 == 0 {
+            let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode | 0o755));
+        }
+    }
+}
+
+#[cfg(not(unix))]
+fn ensure_executable(_path: &std::path::Path) {}
 
 /// Get or create a stable device ID stored in ~/.ahand/team9-device-id.
 /// Reusing the same node_id allows the gateway to recognize a previously
@@ -185,6 +203,36 @@ pub fn start(gateway_url: &str, auth_token: Option<&str>, node_id: &str) -> Resu
     Ok(())
 }
 
+/// Start aHand daemon in openclaw-gateway mode WITHOUT auto-installing
+/// browser dependencies. The caller is responsible for running browser-init
+/// separately (e.g. via `browser_init_with_progress`).
+pub fn start_daemon_only(
+    gateway_url: &str,
+    auth_token: Option<&str>,
+    node_id: &str,
+) -> Result<(), String> {
+    stop(); // kill any previous managed instance
+
+    let binary = find_binary()
+        .ok_or_else(|| "aHand is not installed. Please install it first.".to_string())?;
+
+    write_config(gateway_url, auth_token, node_id).map_err(|e| e.to_string())?;
+
+    let config_path = dirs::home_dir()
+        .unwrap()
+        .join(".ahand")
+        .join("config.toml");
+
+    let child = Command::new(&binary)
+        .arg("--config")
+        .arg(&config_path)
+        .spawn()
+        .map_err(|e| format!("failed to spawn ahandd: {e}"))?;
+
+    *DAEMON.lock().unwrap() = Some(child);
+    Ok(())
+}
+
 /// Stop the daemon if we started it.
 pub fn stop() {
     if let Some(mut child) = DAEMON.lock().unwrap().take() {
@@ -235,12 +283,138 @@ pub fn browser_init(force: bool) -> Result<(), String> {
 }
 
 /// Check if browser automation dependencies are installed.
+///
+/// Verifies the artifacts that browser-init creates AND that are needed at
+/// runtime.  `env.sh` is intentionally excluded — nothing reads it at runtime.
+/// Chrome/Chromium detection is also excluded because it requires the same
+/// multi-path probing logic as browser-init itself; a missing browser will
+/// surface as a clear runtime error rather than a silent skip.
 pub fn browser_is_ready() -> bool {
     let home = match dirs::home_dir() {
         Some(h) => h,
         None => return false,
     };
     let ahand = home.join(".ahand");
-    ahand.join("bin").join("agent-browser").exists()
-        && ahand.join("browser").join("dist").join("daemon.js").exists()
+
+    // Core binaries
+    let has_agent_browser = ahand.join("bin").join("agent-browser").exists();
+    let has_daemon_js = ahand.join("browser").join("dist").join("daemon.js").exists();
+
+    // IPC socket directory (agent-browser ↔ daemon.js communication)
+    let has_sockets = ahand.join("browser").join("sockets").exists();
+
+    // Node.js — daemon.js requires it.  Accept either local install or system node.
+    let has_local_node = ahand.join("node").join("bin").join("node").exists();
+    let has_system_node = std::env::var("PATH")
+        .unwrap_or_default()
+        .split(':')
+        .any(|dir| std::path::Path::new(dir).join("node").exists());
+
+    has_agent_browser && has_daemon_js && has_sockets && (has_local_node || has_system_node)
+}
+
+/// Map [N/6] step markers to step IDs used by the frontend.
+const BROWSER_STEP_MAP: &[(u32, &str)] = &[
+    (1, "browser-node"),
+    (2, "browser-cli"),
+    (3, "browser-daemon"),
+    (4, "browser-socket"),
+    (5, "browser-chromium"),
+    (6, "browser-config"),
+];
+
+/// Parse a `[N/6]` marker from a line of stdout.
+/// Returns the step number N if found.
+fn parse_step_marker(line: &str) -> Option<u32> {
+    let trimmed = line.trim_start();
+    if !trimmed.starts_with('[') {
+        return None;
+    }
+    let slash_pos = trimmed.find('/')?;
+    // Extract the number between '[' and '/'
+    let num_str = &trimmed[1..slash_pos];
+    num_str.parse::<u32>().ok()
+}
+
+/// Look up the step ID for a given step number.
+fn step_id_for(n: u32) -> Option<&'static str> {
+    BROWSER_STEP_MAP
+        .iter()
+        .find(|(num, _)| *num == n)
+        .map(|(_, id)| *id)
+}
+
+/// Run `ahandd browser-init` and emit progress events to the frontend.
+///
+/// Parses `[N/6]` markers from stdout to track which installation step
+/// is currently running, emitting `ahand-setup-step` events with
+/// `{ "step": "<id>", "status": "running"|"completed" }` payloads.
+pub fn browser_init_with_progress(app: &tauri::AppHandle) -> Result<(), String> {
+    use tauri::Emitter;
+
+    let binary = find_binary()
+        .ok_or_else(|| "aHand is not installed. Please install it first.".to_string())?;
+
+    let mut child = Command::new(&binary)
+        .arg("browser-init")
+        .stdout(Stdio::piped())
+        // Inherit stderr to avoid pipe deadlock: if stderr is piped but
+        // never read, the child blocks once the OS pipe buffer fills,
+        // which in turn blocks our stdout read loop → deadlock.
+        .stderr(Stdio::inherit())
+        .spawn()
+        .map_err(|e| format!("failed to run ahandd browser-init: {e}"))?;
+
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "failed to capture stdout".to_string())?;
+
+    let reader = BufReader::new(stdout);
+    let mut current_step: Option<&str> = None;
+    let mut last_line = String::new();
+
+    for line in reader.lines() {
+        let line = line.map_err(|e| format!("read error: {e}"))?;
+
+        if let Some(n) = parse_step_marker(&line) {
+            if let Some(step_id) = step_id_for(n) {
+                // Mark the previous step as completed
+                if let Some(prev) = current_step {
+                    let _ = app.emit(
+                        "ahand-setup-step",
+                        serde_json::json!({ "step": prev, "status": "completed" }),
+                    );
+                }
+                // Mark the new step as running
+                let _ = app.emit(
+                    "ahand-setup-step",
+                    serde_json::json!({ "step": step_id, "status": "running" }),
+                );
+                current_step = Some(step_id);
+            }
+        }
+        last_line = line;
+    }
+
+    let status = child.wait().map_err(|e| format!("wait error: {e}"))?;
+
+    if !status.success() {
+        let detail = if last_line.is_empty() {
+            String::new()
+        } else {
+            format!(": {last_line}")
+        };
+        return Err(format!("browser-init failed{detail}"));
+    }
+
+    // Mark the last step as completed on success
+    if let Some(last) = current_step {
+        let _ = app.emit(
+            "ahand-setup-step",
+            serde_json::json!({ "step": last, "status": "completed" }),
+        );
+    }
+
+    Ok(())
 }

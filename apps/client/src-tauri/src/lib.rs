@@ -39,10 +39,28 @@ fn ahand_get_device_id() -> Option<String> {
     ahand::get_crypto_device_id()
 }
 
+/// Start aHand daemon without auto-installing browser dependencies.
+/// Used when the frontend manages browser setup separately.
+#[tauri::command]
+fn ahand_start_daemon_only(
+    gateway_url: String,
+    auth_token: Option<String>,
+    node_id: String,
+) -> Result<(), String> {
+    ahand::start_daemon_only(&gateway_url, auth_token.as_deref(), &node_id)
+}
+
 /// Install browser automation dependencies via ahandd browser-init.
 #[tauri::command]
 fn ahand_browser_init(force: bool) -> Result<(), String> {
     ahand::browser_init(force)
+}
+
+/// Install browser automation dependencies with step-by-step progress events.
+/// Emits `ahand-setup-step` events to the frontend as each step completes.
+#[tauri::command]
+fn ahand_browser_init_with_progress(app: tauri::AppHandle) -> Result<(), String> {
+    ahand::browser_init_with_progress(&app)
 }
 
 /// Check if browser automation dependencies are installed.
@@ -58,11 +76,13 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
             ahand_start,
+            ahand_start_daemon_only,
             ahand_stop,
             ahand_is_running,
             ahand_get_node_id,
             ahand_get_device_id,
             ahand_browser_init,
+            ahand_browser_init_with_progress,
             ahand_browser_is_ready,
         ])
         .on_window_event(|_win, event| {

@@ -10,7 +10,7 @@ import { GlobalTopBar } from "@/components/layout/GlobalTopBar";
 import { ConnectionStatus } from "@/components/layout/ConnectionStatus";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useWebSocketEvents } from "@/hooks/useWebSocketEvents";
-import { useAHandAutoConnect } from "@/hooks/useAHandAutoConnect";
+import { useAHandSetupStore } from "@/stores/useAHandSetupStore";
 import { useEffect } from "react";
 import {
   appActions,
@@ -78,8 +78,26 @@ export const Route = createFileRoute("/_authenticated")({
 function AuthenticatedLayout() {
   const location = useLocation();
 
-  // Auto-start aHand daemon on login (desktop app only, no-op in browser).
-  useAHandAutoConnect();
+  // Auto-start aHand setup on login (desktop app only).
+  const ahandRun = useAHandSetupStore((s) => s.run);
+  const ahandOpenDialog = useAHandSetupStore((s) => s.openDialog);
+  const ahandHasRun = useAHandSetupStore((s) => s.hasRun);
+
+  useEffect(() => {
+    const isTauri =
+      typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+    if (ahandHasRun || !isTauri) return;
+
+    ahandOpenDialog();
+    void ahandRun();
+
+    // Stop daemon when authenticated layout unmounts (user logs out).
+    return () => {
+      import("@tauri-apps/api/core").then(({ invoke }) => {
+        invoke("ahand_stop").catch(() => {});
+      });
+    };
+  }, [ahandRun, ahandOpenDialog, ahandHasRun]);
 
   // Initialize WebSocket connection
   useWebSocket();
