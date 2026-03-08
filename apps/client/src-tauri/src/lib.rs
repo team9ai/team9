@@ -30,6 +30,16 @@ fn ahand_get_node_id() -> String {
     ahand::get_or_create_node_id()
 }
 
+/// Toggle WebView DevTools (works in both debug and release builds).
+#[tauri::command]
+fn toggle_devtools(window: tauri::WebviewWindow) {
+    if window.is_devtools_open() {
+        window.close_devtools();
+    } else {
+        window.open_devtools();
+    }
+}
+
 /// Returns the cryptographic device ID (SHA256 of Ed25519 public key) stored
 /// in ~/.ahand/device-identity.json. This matches the `deviceId` field in the
 /// OpenClaw gateway's paired device list, enabling precise approval checks.
@@ -75,6 +85,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
+            toggle_devtools,
             ahand_start,
             ahand_start_daemon_only,
             ahand_stop,
