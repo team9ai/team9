@@ -4,6 +4,7 @@ import type {
   ChannelWithUnread,
   ChannelMember,
   Message,
+  MessageReaction,
   IMUser,
   CreateChannelDto,
   UpdateChannelDto,
@@ -26,6 +27,42 @@ import type {
   SyncMessagesResponse,
   SyncAckDto,
 } from "@/types/im";
+
+// Backend returns aggregated reactions: { emoji, count, userIds[] }
+// Frontend expects individual reactions: { id, messageId, userId, emoji, createdAt }
+interface AggregatedReaction {
+  emoji: string;
+  count: number;
+  userIds: string[];
+}
+
+function normalizeReactions(
+  messageId: string,
+  reactions: any[],
+): MessageReaction[] {
+  if (!reactions || reactions.length === 0) return [];
+  // Already in individual format (from optimistic updates / WS events)
+  if (reactions[0]?.userId && !reactions[0]?.userIds) return reactions;
+  // Convert aggregated → individual
+  return (reactions as AggregatedReaction[]).flatMap((r) =>
+    r.userIds.map((userId) => ({
+      id: `${messageId}-${userId}-${r.emoji}`,
+      messageId,
+      userId,
+      emoji: r.emoji,
+      createdAt: new Date().toISOString(),
+    })),
+  );
+}
+
+function normalizeMessage(msg: Message): Message {
+  if (!msg.reactions) return msg;
+  return { ...msg, reactions: normalizeReactions(msg.id, msg.reactions) };
+}
+
+function normalizeMessages(messages: Message[]): Message[] {
+  return messages.map(normalizeMessage);
+}
 
 // Channels API
 export const channelsApi = {
@@ -166,7 +203,7 @@ export const messagesApi = {
       `/v1/im/channels/${channelId}/messages`,
       { params },
     );
-    return response.data;
+    return normalizeMessages(response.data);
   },
 
   // Get channel messages with pagination metadata (supports after/around cursors)
@@ -182,12 +219,13 @@ export const messagesApi = {
     // Server returns flat array for backward compatibility when no after/around cursor
     if (Array.isArray(data)) {
       return {
-        messages: data as Message[],
+        messages: normalizeMessages(data as Message[]),
         hasOlder: data.length >= (params?.limit ?? 50),
         hasNewer: false,
       };
     }
-    return data as PaginatedMessagesResponse;
+    const paginated = data as PaginatedMessagesResponse;
+    return { ...paginated, messages: normalizeMessages(paginated.messages) };
   },
 
   // Send message to channel
@@ -199,13 +237,13 @@ export const messagesApi = {
       `/v1/im/channels/${channelId}/messages`,
       data,
     );
-    return response.data;
+    return normalizeMessage(response.data);
   },
 
   // Get specific message
   getMessage: async (messageId: string): Promise<Message> => {
     const response = await http.get<Message>(`/v1/im/messages/${messageId}`);
-    return response.data;
+    return normalizeMessage(response.data);
   },
 
   // Update message
@@ -217,7 +255,7 @@ export const messagesApi = {
       `/v1/im/messages/${messageId}`,
       data,
     );
-    return response.data;
+    return normalizeMessage(response.data);
   },
 
   // Delete message
@@ -234,7 +272,16 @@ export const messagesApi = {
       `/v1/im/messages/${messageId}/thread`,
       { params },
     );
-    return response.data;
+    const data = response.data;
+    return {
+      ...data,
+      rootMessage: normalizeMessage(data.rootMessage),
+      replies: data.replies.map((r) => ({
+        ...normalizeMessage(r),
+        subReplies: normalizeMessages(r.subReplies),
+        subReplyCount: r.subReplyCount,
+      })),
+    };
   },
 
   // Get sub-replies for a first-level reply (supports cursor-based pagination)
@@ -246,7 +293,10 @@ export const messagesApi = {
       `/v1/im/messages/${messageId}/sub-replies`,
       { params },
     );
-    return response.data;
+    return {
+      ...response.data,
+      replies: normalizeMessages(response.data.replies),
+    };
   },
 
   // Get pinned messages
@@ -254,7 +304,7 @@ export const messagesApi = {
     const response = await http.get<Message[]>(
       `/v1/im/channels/${channelId}/pinned`,
     );
-    return response.data;
+    return normalizeMessages(response.data);
   },
 
   // Pin message

@@ -236,6 +236,7 @@ export function MessageItem({
           <MessageReactions
             reactions={message.reactions!}
             currentUserId={currentUserId}
+            channelId={message.channelId}
             onAddReaction={onAddReaction}
             onRemoveReaction={onRemoveReaction}
           />
