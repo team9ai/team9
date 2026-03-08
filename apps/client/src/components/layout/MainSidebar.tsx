@@ -50,7 +50,6 @@ import { useNotificationCounts } from "@/hooks/useNotifications";
 import { useChannelsByType } from "@/hooks/useChannels";
 import { NotificationBadge } from "@/components/ui/badge";
 import { CreateWorkspaceDialog } from "@/components/dialog/CreateWorkspaceDialog";
-import { LocalDeviceStatus } from "@/components/layout/LocalDeviceStatus";
 import type { UserStatus } from "@/types/im";
 
 // Navigation items with i18n keys
@@ -492,9 +491,6 @@ export function MainSidebar() {
               </nav>
             )}
           </div>
-
-          {/* Local device connection status (desktop app only) */}
-          <LocalDeviceStatus />
 
           {/* User Avatar at Bottom */}
           <div className="shrink-0 py-4">

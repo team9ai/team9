@@ -24,6 +24,7 @@ import {
   useSidebarCollapsed,
   appActions,
 } from "@/stores";
+import { LocalDeviceStatus } from "./LocalDeviceStatus";
 import { useUserWorkspaces } from "@/hooks/useWorkspace";
 import { useDebouncedQuickSearch } from "@/hooks/useSearch";
 import { QuickSearchResults } from "@/components/search/QuickSearchResults";
@@ -213,15 +214,10 @@ export function GlobalTopBar() {
         </div>
       </div>
 
-      {/* Right section - User avatar */}
-      {/* <div className="flex items-center">
-        <Avatar className="h-7 w-7 cursor-pointer">
-          <AvatarImage src={user?.avatarUrl || undefined} />
-          <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-            {user?.name?.[0] || "U"}
-          </AvatarFallback>
-        </Avatar>
-      </div> */}
+      {/* Right section - Local device status */}
+      <div className="flex items-center">
+        <LocalDeviceStatus />
+      </div>
     </header>
   );
 }
