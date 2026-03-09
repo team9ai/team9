@@ -67,8 +67,6 @@
   },
   "detail": {
     "title": "任务详情",
-    "document": "文档",
-    "noDocument": "暂无内容",
     "loadError": "加载任务详情失败",
     "start": "开始",
     "pause": "暂停",
@@ -105,11 +103,36 @@
     "tokenCount": "{{count}} 个 Token",
     "error": "错误",
     "errorWithCode": "错误 ({{code}})",
-    "versionHistory": {
-      "title": "文档版本",
-      "loadError": "加载版本历史失败",
-      "noVersions": "暂无版本",
-      "versionLabel": "版本 {{version}}"
+    "document": {
+      "save": "保存",
+      "saving": "保存中...",
+      "unsavedChanges": "有未保存的修改",
+      "viewingVersion": "正在查看版本 {{version}}",
+      "backToCurrent": "返回当前版本",
+      "currentLabel": "版本 {{version}}（当前）",
+      "versionLabel": "版本 {{version}} — {{time}}",
+      "discardTitle": "未保存的修改",
+      "discardMessage": "你有未保存的修改，确定放弃吗？",
+      "discardConfirm": "放弃",
+      "discardCancel": "继续编辑",
+      "saveSummaryPlaceholder": "描述你的修改（可选）...",
+      "placeholder": "开始编写...",
+      "createPlaceholder": "开始编写以创建文档...",
+      "suggestions": {
+        "title": "AI 建议",
+        "count": "AI 建议 ({{count}})",
+        "view": "查看",
+        "approve": "采纳",
+        "reject": "拒绝",
+        "current": "当前内容",
+        "suggested": "建议内容",
+        "outdated": "此建议基于旧版本",
+        "empty": "暂无待处理建议"
+      },
+      "versionHistory": {
+        "loadError": "加载版本失败",
+        "noVersions": "暂无版本"
+      }
     }
   },
   "triggers": {
@@ -193,6 +216,17 @@
     "triggeredBy": "触发者：{{user}}",
     "messageFrom": "消息来自 {{user}}",
     "retryOf": "重试 v{{version}}"
+  },
+  "timeline": {
+    "empty": "暂无活动",
+    "statusChange": {
+      "started": "任务已开始",
+      "completed": "任务已完成",
+      "failed": "任务执行失败",
+      "stopped": "任务已停止",
+      "timeout": "任务执行超时",
+      "paused": "任务已暂停"
+    }
   },
   "manualTrigger": {
     "title": "启动任务",
