@@ -57,7 +57,9 @@ function StepRow({ step }: { step: SetupStep }) {
         )}
       </div>
       {step.status === "error" && step.error && (
-        <p className="pl-6 text-xs text-red-400">{step.error}</p>
+        <div className="pl-6 text-xs text-red-400 whitespace-pre-line">
+          {step.error}
+        </div>
       )}
     </div>
   );

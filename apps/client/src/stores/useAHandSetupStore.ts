@@ -117,42 +117,113 @@ type StepHandler = (ctx: StepContext) => Promise<void>;
 
 const stepHandlers: Record<string, StepHandler> = {
   "find-app": async (ctx) => {
-    const apps = await applicationsApi.getInstalledApplications();
+    let apps;
+    try {
+      apps = await applicationsApi.getInstalledApplications();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to fetch installed applications: ${msg}`);
+    }
     const openclawApp = apps.find(
       (app) => app.applicationId === "openclaw" && app.isActive,
     );
     if (!openclawApp) {
-      throw new Error("No active OpenClaw app found in this workspace");
+      const inactive = apps.find((app) => app.applicationId === "openclaw");
+      if (inactive) {
+        throw new Error(
+          `OpenClaw app is installed but not active (status: ${inactive.status}). Please activate it first.`,
+        );
+      }
+      throw new Error(
+        "No OpenClaw app found in this workspace. Please install OpenClaw first.",
+      );
     }
     ctx.appId = openclawApp.id;
   },
 
   "gateway-info": async (ctx) => {
-    if (!ctx.appId) throw new Error("Missing app ID");
-    const info = await applicationsApi.getOpenClawGatewayInfo(ctx.appId);
+    if (!ctx.appId) throw new Error("Missing app ID from previous step");
+    let info;
+    try {
+      info = await applicationsApi.getOpenClawGatewayInfo(ctx.appId);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("404") || msg.includes("Not Found")) {
+        throw new Error(
+          "No OpenClaw instance configured. The instance may not have been provisioned yet.",
+        );
+      }
+      if (msg.includes("503") || msg.includes("Service Unavailable")) {
+        throw new Error(
+          "OpenClaw instance is not running. Please start it from the admin panel.",
+        );
+      }
+      throw new Error(`Failed to get gateway info: ${msg}`);
+    }
+    if (!info.gatewayUrl) {
+      throw new Error(
+        "Gateway URL is empty. The OpenClaw instance may still be starting up.",
+      );
+    }
     ctx.gatewayUrl = info.gatewayUrl;
     // Extract auth token from URL query param. The server appends :port after token.
     const tokenMatch = info.gatewayUrl.match(/[?&]token=([^:/?&#]+)/);
     ctx.authToken = tokenMatch ? tokenMatch[1] : undefined;
+    if (!ctx.authToken) {
+      console.warn(
+        "[ahand-setup] No auth token found in gateway URL — daemon may fail to authenticate.",
+        info.gatewayUrl,
+      );
+    }
   },
 
   "node-id": async (ctx) => {
-    ctx.nodeId = await invoke<string>("ahand_get_node_id");
+    try {
+      ctx.nodeId = await invoke<string>("ahand_get_node_id");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `Failed to get or create device node ID. Check ~/.ahand/ directory permissions: ${msg}`,
+      );
+    }
   },
 
   "start-daemon": async (ctx) => {
     if (!ctx.gatewayUrl || !ctx.nodeId) {
-      throw new Error("Missing daemon startup parameters");
+      throw new Error(
+        `Missing daemon startup parameters (gatewayUrl: ${ctx.gatewayUrl ? "ok" : "missing"}, nodeId: ${ctx.nodeId ? "ok" : "missing"})`,
+      );
     }
-    await invoke("ahand_start_daemon_only", {
-      gatewayUrl: ctx.gatewayUrl,
-      authToken: ctx.authToken ?? null,
-      nodeId: ctx.nodeId,
-    });
+    try {
+      await invoke("ahand_start_daemon_only", {
+        gatewayUrl: ctx.gatewayUrl,
+        authToken: ctx.authToken ?? null,
+        nodeId: ctx.nodeId,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("not installed")) {
+        throw new Error(
+          "aHand daemon (ahandd) not found. Checked: app sidecar, ~/.ahand/bin/, and PATH.",
+        );
+      }
+      if (msg.includes("spawn")) {
+        throw new Error(`Failed to start daemon process: ${msg}`);
+      }
+      throw new Error(`Daemon startup failed: ${msg}`);
+    }
+    // Brief health check — wait a moment then verify the process didn't crash immediately
+    await new Promise<void>((r) => setTimeout(r, 500));
+    const alive = await invoke<boolean>("ahand_is_running").catch(() => false);
+    if (!alive) {
+      throw new Error(
+        "Daemon process exited immediately after starting. Check ~/.ahand/config.toml and gateway URL.",
+      );
+    }
   },
 
   "device-pairing": async (ctx) => {
-    if (!ctx.appId) throw new Error("Missing app ID");
+    if (!ctx.appId) throw new Error("Missing app ID from previous step");
 
     // Read the local cryptographic device ID so we can detect if it's
     // already approved without needing a new pending request.
@@ -165,19 +236,46 @@ const stepHandlers: Record<string, StepHandler> = {
 
     const maxAttempts = 15;
     const intervalMs = 2000;
+    let deviceIdAcquiredAt = localDeviceId ? 0 : -1;
+    let lastApiError: string | null = null;
 
     for (let i = 0; i < maxAttempts; i++) {
+      // Check daemon is still alive — if it crashed, pairing will never succeed
+      const alive = await invoke<boolean>("ahand_is_running").catch(
+        () => false,
+      );
+      if (!alive) {
+        throw new Error(
+          "Daemon process has exited. It may have crashed due to invalid config or network issues. Check ~/.ahand/config.toml.",
+        );
+      }
+
       // Re-read device ID if we didn't get it initially (daemon may
       // have generated it after starting).
       if (!localDeviceId) {
         try {
           localDeviceId = await invoke<string | null>("ahand_get_device_id");
+          if (localDeviceId) deviceIdAcquiredAt = i;
         } catch {
-          // ignore
+          // ignore — daemon may still be generating the identity file
         }
       }
 
-      const devices = await applicationsApi.getOpenClawDevices(ctx.appId);
+      let devices;
+      try {
+        devices = await applicationsApi.getOpenClawDevices(ctx.appId);
+        lastApiError = null;
+      } catch (err) {
+        lastApiError = err instanceof Error ? err.message : String(err);
+        // Keep retrying — transient API errors shouldn't abort immediately
+        if (i < maxAttempts - 1) {
+          await new Promise<void>((r) => setTimeout(r, intervalMs));
+          continue;
+        }
+        throw new Error(
+          `Failed to fetch device list from server: ${lastApiError}`,
+        );
+      }
 
       // Check if this device is already approved (e.g. from a previous session).
       if (localDeviceId) {
@@ -197,32 +295,75 @@ const stepHandlers: Record<string, StepHandler> = {
           (d) => d.deviceId === localDeviceId && d.status === "pending",
         );
         if (pending) {
-          await applicationsApi.selfApproveOpenClawDevice(
-            ctx.appId,
-            pending.request_id,
-          );
-          return;
+          try {
+            await applicationsApi.selfApproveOpenClawDevice(
+              ctx.appId,
+              pending.request_id,
+            );
+            return;
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            throw new Error(
+              `Found pending request but auto-approve failed: ${msg}`,
+            );
+          }
         }
       }
       if (i < maxAttempts - 1) {
         await new Promise<void>((r) => setTimeout(r, intervalMs));
       }
     }
-    throw new Error(
-      "Pairing timed out. Please ensure the OpenClaw instance is running.",
-    );
+
+    // Build a detailed timeout error based on what we observed
+    const details: string[] = [];
+    if (deviceIdAcquiredAt < 0) {
+      details.push(
+        "Device identity was never generated — daemon may not have connected to the gateway.",
+      );
+      if (!ctx.authToken) {
+        details.push(
+          "No auth token was found in the gateway URL — the daemon cannot authenticate.",
+        );
+      }
+    } else {
+      details.push(
+        `Device ID acquired (attempt ${deviceIdAcquiredAt + 1}/${maxAttempts}), but no matching pairing request appeared on the gateway.`,
+      );
+      details.push(
+        "The daemon may be failing WebSocket authentication, or the gateway rejected the connection.",
+      );
+    }
+    if (lastApiError) {
+      details.push(`Last API error: ${lastApiError}`);
+    }
+    throw new Error(`Pairing timed out.\n${details.join("\n")}`);
   },
 
   "restart-daemon": async (ctx) => {
     if (!ctx.gatewayUrl || !ctx.nodeId) {
-      throw new Error("Missing daemon startup parameters");
+      throw new Error(
+        `Missing daemon startup parameters (gatewayUrl: ${ctx.gatewayUrl ? "ok" : "missing"}, nodeId: ${ctx.nodeId ? "ok" : "missing"})`,
+      );
     }
     // Restart the daemon so it picks up browser dependencies and auto_accept mode
-    await invoke("ahand_start_daemon_only", {
-      gatewayUrl: ctx.gatewayUrl,
-      authToken: ctx.authToken ?? null,
-      nodeId: ctx.nodeId,
-    });
+    try {
+      await invoke("ahand_start_daemon_only", {
+        gatewayUrl: ctx.gatewayUrl,
+        authToken: ctx.authToken ?? null,
+        nodeId: ctx.nodeId,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`Daemon restart failed: ${msg}`);
+    }
+    // Brief health check
+    await new Promise<void>((r) => setTimeout(r, 500));
+    const alive = await invoke<boolean>("ahand_is_running").catch(() => false);
+    if (!alive) {
+      throw new Error(
+        "Daemon exited immediately after restart. The process may have crashed.",
+      );
+    }
   },
 
   "verify-connection": async (ctx) => {
