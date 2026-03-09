@@ -29,6 +29,10 @@ function StepIcon({ status }: { status: StepStatus }) {
 // Renders a single setup step with icon, label, optional retry button, and error message
 function StepRow({ step }: { step: SetupStep }) {
   const retryFrom = useAHandSetupStore((s) => s.retryFrom);
+  const botCountdown = useAHandSetupStore((s) => s.botCountdown);
+
+  const showCountdown =
+    step.id === "wait-for-bot" && step.status === "running" && botCountdown > 0;
 
   return (
     <div>
@@ -45,6 +49,11 @@ function StepRow({ step }: { step: SetupStep }) {
         >
           {step.label}
         </span>
+        {showCountdown && (
+          <span className="ml-auto text-sm font-bold tabular-nums text-primary">
+            {botCountdown}s
+          </span>
+        )}
         {step.status === "error" && (
           <Button
             variant="ghost"

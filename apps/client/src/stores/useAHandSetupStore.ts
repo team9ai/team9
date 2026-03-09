@@ -3,6 +3,7 @@ import { devtools } from "zustand/middleware";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { applicationsApi } from "../services/api/applications.js";
+import wsService from "../services/websocket/index.js";
 
 const isTauriApp = () =>
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -35,6 +36,12 @@ const createInitialSteps = (): SetupStep[] => [
     id: "find-app",
     group: "ahand",
     label: "Find OpenClaw app",
+    status: "pending",
+  },
+  {
+    id: "wait-for-bot",
+    group: "ahand",
+    label: "Wait for bot instance",
     status: "pending",
   },
   {
@@ -139,6 +146,93 @@ const stepHandlers: Record<string, StepHandler> = {
       );
     }
     ctx.appId = openclawApp.id;
+  },
+
+  "wait-for-bot": async (ctx) => {
+    if (!ctx.appId) throw new Error("Missing app ID from previous step");
+
+    const BOT_STARTUP_DURATION = 150;
+    const POLL_INTERVAL_MS = 5000;
+
+    // Check if already running
+    try {
+      const status = await applicationsApi.getOpenClawStatus(ctx.appId);
+      if (status.status === "running") {
+        return;
+      }
+    } catch {
+      // Instance may not exist yet — proceed to wait
+    }
+
+    // Try to get bot userId for WebSocket early-exit
+    let botUserId: string | null = null;
+    try {
+      const bots = await applicationsApi.getOpenClawBots(ctx.appId);
+      botUserId = bots[0]?.userId ?? null;
+    } catch {
+      // Bots may not be available yet
+    }
+
+    const store = useAHandSetupStore.getState;
+
+    return new Promise<void>((resolve, reject) => {
+      let remaining = BOT_STARTUP_DURATION;
+      let settled = false;
+      store().setBotCountdown(remaining);
+
+      const countdownTimer = setInterval(() => {
+        remaining -= 1;
+        store().setBotCountdown(remaining);
+        if (remaining <= 0) {
+          cleanup();
+          reject(
+            new Error(
+              "Bot instance did not start within the expected time. Please retry.",
+            ),
+          );
+        }
+      }, 1000);
+
+      const pollTimer = setInterval(async () => {
+        try {
+          const status = await applicationsApi.getOpenClawStatus(ctx.appId!);
+          if (status.status === "running") {
+            cleanup();
+            resolve();
+          }
+        } catch {
+          // Keep polling
+        }
+      }, POLL_INTERVAL_MS);
+
+      const handleUserOnline = (event: { userId: string }) => {
+        if (botUserId && event.userId === botUserId) {
+          cleanup();
+          resolve();
+        }
+      };
+      if (botUserId) {
+        wsService.onUserOnline(handleUserOnline);
+      }
+
+      function cleanup() {
+        if (settled) return;
+        settled = true;
+        abortWaitForBot = null;
+        clearInterval(countdownTimer);
+        clearInterval(pollTimer);
+        store().setBotCountdown(0);
+        if (botUserId) {
+          wsService.off("user_online", handleUserOnline);
+        }
+      }
+
+      // Expose cleanup for external abort (e.g. reset on workspace switch)
+      abortWaitForBot = () => {
+        cleanup();
+        reject(new Error("Aborted"));
+      };
+    });
   },
 
   "gateway-info": async (ctx) => {
@@ -426,6 +520,7 @@ const stepHandlers: Record<string, StepHandler> = {
 // --- Tauri event listener for browser-init step progress ---
 
 let unlisten: UnlistenFn | null = null;
+let abortWaitForBot: (() => void) | null = null;
 
 async function setupBrowserInitEventListener(): Promise<void> {
   if (!isTauriApp() || unlisten) return;
@@ -450,10 +545,12 @@ interface AHandSetupState {
   isRunning: boolean;
   hasRun: boolean;
   stepContext: StepContext;
+  botCountdown: number;
   /** Incremented on reset to abort any in-flight run(). */
   _runGeneration: number;
 
   // Actions
+  setBotCountdown: (seconds: number) => void;
   reset: () => void;
   openDialog: () => void;
   closeDialog: () => void;
@@ -470,9 +567,18 @@ export const useAHandSetupStore = create<AHandSetupState>()(
       isRunning: false,
       hasRun: false,
       stepContext: {},
+      botCountdown: 0,
       _runGeneration: 0,
 
+      setBotCountdown: (seconds) =>
+        set({ botCountdown: seconds }, false, "setBotCountdown"),
+
       reset: () => {
+        // Abort in-flight wait-for-bot if running
+        if (abortWaitForBot) {
+          abortWaitForBot();
+          abortWaitForBot = null;
+        }
         // Clean up browser event listener
         if (unlisten) {
           unlisten();
@@ -484,6 +590,7 @@ export const useAHandSetupStore = create<AHandSetupState>()(
             isRunning: false,
             hasRun: false,
             stepContext: {},
+            botCountdown: 0,
             dialogOpen: false,
             _runGeneration: s._runGeneration + 1,
           }),
