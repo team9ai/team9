@@ -67,8 +67,6 @@
   },
   "detail": {
     "title": "Task Details",
-    "document": "Document",
-    "noDocument": "No content",
     "loadError": "Failed to load task details",
     "start": "Start",
     "pause": "Pause",
@@ -105,11 +103,36 @@
     "tokenCount": "{{count}} tokens",
     "error": "Error",
     "errorWithCode": "Error ({{code}})",
-    "versionHistory": {
-      "title": "Document Versions",
-      "loadError": "Failed to load version history",
-      "noVersions": "No versions yet",
-      "versionLabel": "Version {{version}}"
+    "document": {
+      "save": "Save",
+      "saving": "Saving...",
+      "unsavedChanges": "Unsaved changes",
+      "viewingVersion": "Viewing version {{version}}",
+      "backToCurrent": "Back to current",
+      "currentLabel": "Version {{version}} (current)",
+      "versionLabel": "Version {{version}} — {{time}}",
+      "discardTitle": "Unsaved changes",
+      "discardMessage": "You have unsaved changes. Discard them?",
+      "discardConfirm": "Discard",
+      "discardCancel": "Keep editing",
+      "saveSummaryPlaceholder": "Describe your changes (optional)...",
+      "placeholder": "Start writing...",
+      "createPlaceholder": "Start writing to create a document...",
+      "suggestions": {
+        "title": "AI Suggestions",
+        "count": "AI Suggestions ({{count}})",
+        "view": "View",
+        "approve": "Approve",
+        "reject": "Reject",
+        "current": "Current",
+        "suggested": "Suggested",
+        "outdated": "This suggestion is based on an older version",
+        "empty": "No pending suggestions"
+      },
+      "versionHistory": {
+        "loadError": "Failed to load versions",
+        "noVersions": "No versions yet"
+      }
     }
   },
   "triggers": {
@@ -193,6 +216,17 @@
     "triggeredBy": "Triggered by {{user}}",
     "messageFrom": "Message from {{user}}",
     "retryOf": "Retry of v{{version}}"
+  },
+  "timeline": {
+    "empty": "No activity yet",
+    "statusChange": {
+      "started": "Task started",
+      "completed": "Task completed",
+      "failed": "Task failed",
+      "stopped": "Task stopped",
+      "timeout": "Task timed out",
+      "paused": "Task paused"
+    }
   },
   "manualTrigger": {
     "title": "Start Task",
