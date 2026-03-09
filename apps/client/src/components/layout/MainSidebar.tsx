@@ -13,6 +13,7 @@ import {
   Plus,
   Bot,
   ListChecks,
+  Box,
   Library,
   LayoutGrid,
 } from "lucide-react";
@@ -63,6 +64,7 @@ const navigationItems = [
   // { id: "files", labelKey: "files" as const, icon: FileText },
   { id: "aiStaff", labelKey: "aiStaff" as const, icon: Bot },
   { id: "tasks", labelKey: "tasks" as const, icon: ListChecks },
+  { id: "resources", labelKey: "resources" as const, icon: Box },
   { id: "library", labelKey: "library" as const, icon: Library },
   { id: "application", labelKey: "application" as const, icon: LayoutGrid },
   { id: "more", labelKey: "more" as const, icon: MoreHorizontal },

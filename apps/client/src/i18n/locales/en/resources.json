@@ -1,0 +1,75 @@
+{
+  "title": "Resources",
+  "tabs": {
+    "all": "All",
+    "agent_computer": "Agent Computer",
+    "api": "API"
+  },
+  "noResources": "No resources yet",
+  "status": {
+    "online": "Online",
+    "offline": "Offline",
+    "error": "Error",
+    "configuring": "Configuring"
+  },
+  "type": {
+    "agent_computer": "Agent Computer",
+    "api": "API"
+  },
+  "connectionType": {
+    "ahand": "Ahand",
+    "ssh": "SSH",
+    "cloud": "Cloud"
+  },
+  "create": {
+    "title": "Add Resource",
+    "selectType": "Resource Type",
+    "name": "Name",
+    "namePlaceholder": "Enter resource name",
+    "description": "Description",
+    "descriptionPlaceholder": "Optional description",
+    "connectionType": "Connection Type",
+    "host": "Host",
+    "hostPlaceholder": "e.g. 192.168.1.100",
+    "port": "Port",
+    "provider": "Provider",
+    "providerPlaceholder": "e.g. openai, google, custom",
+    "apiKey": "API Key",
+    "apiKeyPlaceholder": "Enter API key",
+    "baseUrl": "Base URL",
+    "baseUrlPlaceholder": "Optional custom base URL",
+    "model": "Model",
+    "modelPlaceholder": "e.g. gpt-4, claude-3",
+    "submit": "Create",
+    "cancel": "Cancel"
+  },
+  "detail": {
+    "title": "Resource Details",
+    "loadError": "Failed to load resource",
+    "basicInfo": "Basic Info",
+    "authorizations": "Authorizations",
+    "noAuthorizations": "No authorizations yet",
+    "addAuthorization": "Add",
+    "usageLogs": "Usage Logs",
+    "noUsageLogs": "No usage logs yet",
+    "delete": "Delete",
+    "deleteConfirm": "Are you sure you want to delete this resource?",
+    "lastHeartbeat": "Last heartbeat: {{time}}",
+    "authCount": "{{count}} authorized",
+    "maskedKey": "{{prefix}}...{{suffix}}",
+    "granteeType": {
+      "user": "User",
+      "task": "Task"
+    },
+    "permissionLevel": {
+      "full": "Full Access",
+      "readonly": "Read Only"
+    }
+  },
+  "actions": {
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "api_call": "API Call",
+    "error": "Error"
+  }
+}

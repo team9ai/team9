@@ -155,6 +155,13 @@
       "when": 1773065836427,
       "tag": "0021_normal_ben_grimm",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1773071150921,
+      "tag": "0022_pale_sphinx",
+      "breakpoints": true
     }
   ]
 }

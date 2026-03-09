@@ -1,0 +1,75 @@
+{
+  "title": "资源",
+  "tabs": {
+    "all": "全部",
+    "agent_computer": "Agent 计算机",
+    "api": "API"
+  },
+  "noResources": "暂无资源",
+  "status": {
+    "online": "在线",
+    "offline": "离线",
+    "error": "错误",
+    "configuring": "配置中"
+  },
+  "type": {
+    "agent_computer": "Agent 计算机",
+    "api": "API"
+  },
+  "connectionType": {
+    "ahand": "Ahand",
+    "ssh": "SSH",
+    "cloud": "Cloud"
+  },
+  "create": {
+    "title": "添加资源",
+    "selectType": "资源类型",
+    "name": "名称",
+    "namePlaceholder": "输入资源名称",
+    "description": "描述",
+    "descriptionPlaceholder": "可选描述",
+    "connectionType": "连接方式",
+    "host": "主机",
+    "hostPlaceholder": "例如 192.168.1.100",
+    "port": "端口",
+    "provider": "服务商",
+    "providerPlaceholder": "例如 openai, google, custom",
+    "apiKey": "API Key",
+    "apiKeyPlaceholder": "输入 API Key",
+    "baseUrl": "Base URL",
+    "baseUrlPlaceholder": "可选自定义 Base URL",
+    "model": "模型",
+    "modelPlaceholder": "例如 gpt-4, claude-3",
+    "submit": "创建",
+    "cancel": "取消"
+  },
+  "detail": {
+    "title": "资源详情",
+    "loadError": "加载资源失败",
+    "basicInfo": "基本信息",
+    "authorizations": "授权",
+    "noAuthorizations": "暂无授权",
+    "addAuthorization": "添加",
+    "usageLogs": "使用记录",
+    "noUsageLogs": "暂无使用记录",
+    "delete": "删除",
+    "deleteConfirm": "确定要删除这个资源吗？",
+    "lastHeartbeat": "最后心跳: {{time}}",
+    "authCount": "{{count}} 个授权",
+    "maskedKey": "{{prefix}}...{{suffix}}",
+    "granteeType": {
+      "user": "用户",
+      "task": "任务"
+    },
+    "permissionLevel": {
+      "full": "完全访问",
+      "readonly": "只读"
+    }
+  },
+  "actions": {
+    "connect": "连接",
+    "disconnect": "断开",
+    "api_call": "API 调用",
+    "error": "错误"
+  }
+}
