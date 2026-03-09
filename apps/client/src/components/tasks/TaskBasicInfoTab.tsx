@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
@@ -32,6 +32,7 @@ import type { OpenClawBotInfo } from "@/services/api/applications";
 import { TaskStepTimeline } from "./TaskStepTimeline";
 import { TaskInterventionCard } from "./TaskInterventionCard";
 import { TaskDeliverableList } from "./TaskDeliverableList";
+import { ManualTriggerDialog } from "./ManualTriggerDialog";
 import type { AgentTaskDetail, AgentTaskStatus } from "@/types/task";
 
 interface TaskBasicInfoTabProps {
@@ -133,13 +134,10 @@ export function TaskBasicInfoTab({ task, onClose }: TaskBasicInfoTabProps) {
   const queryClient = useQueryClient();
   const taskId = task.id;
 
-  // Control mutations
-  const startMutation = useMutation({
-    mutationFn: () => tasksApi.start(taskId),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["task", taskId] }),
-  });
+  // Manual trigger dialog state
+  const [showStartDialog, setShowStartDialog] = useState(false);
 
+  // Control mutations
   const pauseMutation = useMutation({
     mutationFn: () => tasksApi.pause(taskId),
     onSuccess: () =>
@@ -181,7 +179,6 @@ export function TaskBasicInfoTab({ task, onClose }: TaskBasicInfoTabProps) {
   });
 
   const isMutating =
-    startMutation.isPending ||
     pauseMutation.isPending ||
     resumeMutation.isPending ||
     stopMutation.isPending ||
@@ -228,9 +225,8 @@ export function TaskBasicInfoTab({ task, onClose }: TaskBasicInfoTabProps) {
     [interventions],
   );
 
-  // Placeholder for Task 10: ManualTriggerDialog will replace this direct mutation
   const handleStartTask = () => {
-    startMutation.mutate();
+    setShowStartDialog(true);
   };
 
   return (
@@ -512,6 +508,12 @@ export function TaskBasicInfoTab({ task, onClose }: TaskBasicInfoTabProps) {
           </div>
         </>
       )}
+
+      <ManualTriggerDialog
+        taskId={task.id}
+        isOpen={showStartDialog}
+        onClose={() => setShowStartDialog(false)}
+      />
     </div>
   );
 }
