@@ -21,7 +21,7 @@ import { TriggersService } from './triggers.service.js';
 import {
   CreateTaskDto,
   UpdateTaskDto,
-  StartTaskDto,
+  StartTaskNewDto,
   ResumeTaskDto,
   StopTaskDto,
   ResolveInterventionDto,
@@ -128,7 +128,7 @@ export class TasksController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string,
-    @Body() dto: StartTaskDto,
+    @Body() dto: StartTaskNewDto,
   ) {
     return this.tasksService.start(id, userId, tenantId, dto);
   }
