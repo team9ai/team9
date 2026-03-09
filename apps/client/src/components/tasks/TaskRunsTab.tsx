@@ -9,6 +9,7 @@ import type { AgentTaskStatus } from "@/types/task";
 
 interface TaskRunsTabProps {
   taskId: string;
+  onViewingChannelChange?: (channelId: string | null) => void;
 }
 
 const STATUS_BADGE_VARIANT: Record<
@@ -25,7 +26,10 @@ const STATUS_BADGE_VARIANT: Record<
   timeout: "destructive",
 };
 
-export function TaskRunsTab({ taskId }: TaskRunsTabProps) {
+export function TaskRunsTab({
+  taskId,
+  onViewingChannelChange,
+}: TaskRunsTabProps) {
   const { t } = useTranslation("tasks");
 
   const { data: executions = [], isLoading } = useQuery({
@@ -42,6 +46,7 @@ export function TaskRunsTab({ taskId }: TaskRunsTabProps) {
         taskId={taskId}
         executionId={selectedExecId}
         onBack={() => setSelectedExecId(null)}
+        onChannelChange={onViewingChannelChange}
       />
     );
   }

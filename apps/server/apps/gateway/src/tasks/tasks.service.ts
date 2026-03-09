@@ -276,6 +276,96 @@ export class TasksService {
     return { ...execution, steps, deliverables, interventions };
   }
 
+  async getExecutionEntries(
+    taskId: string,
+    executionId: string,
+    tenantId: string,
+  ) {
+    await this.getTaskOrThrow(taskId, tenantId);
+
+    const [execution] = await this.db
+      .select()
+      .from(schema.agentTaskExecutions)
+      .where(
+        and(
+          eq(schema.agentTaskExecutions.id, executionId),
+          eq(schema.agentTaskExecutions.taskId, taskId),
+        ),
+      )
+      .limit(1);
+
+    if (!execution) {
+      throw new NotFoundException('Execution not found');
+    }
+
+    const [steps, interventions, deliverables] = await Promise.all([
+      this.db
+        .select()
+        .from(schema.agentTaskSteps)
+        .where(eq(schema.agentTaskSteps.executionId, executionId)),
+      this.db
+        .select()
+        .from(schema.agentTaskInterventions)
+        .where(eq(schema.agentTaskInterventions.executionId, executionId)),
+      this.db
+        .select()
+        .from(schema.agentTaskDeliverables)
+        .where(eq(schema.agentTaskDeliverables.executionId, executionId)),
+    ]);
+
+    // Merge into a unified timeline sorted by createdAt
+    type Entry =
+      | { type: 'step'; data: (typeof steps)[0]; at: Date }
+      | { type: 'intervention'; data: (typeof interventions)[0]; at: Date }
+      | { type: 'deliverable'; data: (typeof deliverables)[0]; at: Date }
+      | {
+          type: 'status_change';
+          data: { status: string; at: string };
+          at: Date;
+        };
+
+    const entries: Entry[] = [
+      ...steps.map((s) => ({
+        type: 'step' as const,
+        data: s,
+        at: s.createdAt ?? new Date(0),
+      })),
+      ...interventions.map((i) => ({
+        type: 'intervention' as const,
+        data: i,
+        at: i.createdAt ?? new Date(0),
+      })),
+      ...deliverables.map((d) => ({
+        type: 'deliverable' as const,
+        data: d,
+        at: d.createdAt ?? new Date(0),
+      })),
+    ];
+
+    // Synthesize status_change entries from execution timestamps
+    if (execution.startedAt) {
+      entries.push({
+        type: 'status_change',
+        data: { status: 'started', at: execution.startedAt.toISOString() },
+        at: execution.startedAt,
+      });
+    }
+    if (execution.completedAt) {
+      entries.push({
+        type: 'status_change',
+        data: {
+          status: execution.status,
+          at: execution.completedAt.toISOString(),
+        },
+        at: execution.completedAt,
+      });
+    }
+
+    entries.sort((a, b) => a.at.getTime() - b.at.getTime());
+
+    return entries.map(({ type, data }) => ({ type, data }));
+  }
+
   // ── Deliverables ────────────────────────────────────────────────
 
   async getDeliverables(

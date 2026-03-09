@@ -9,6 +9,7 @@ import type {
   AgentTaskStatus,
   AgentTaskScheduleType,
   AgentTaskTrigger,
+  ExecutionEntry,
   CreateTaskDto,
   UpdateTaskDto,
   ResolveInterventionDto,
@@ -153,6 +154,16 @@ export const tasksApi = {
 
   deleteTrigger: async (taskId: string, triggerId: string): Promise<void> => {
     await http.delete(`/v1/tasks/${taskId}/triggers/${triggerId}`);
+  },
+
+  getExecutionEntries: async (
+    id: string,
+    execId: string,
+  ): Promise<ExecutionEntry[]> => {
+    const response = await http.get<ExecutionEntry[]>(
+      `/v1/tasks/${id}/executions/${execId}/entries`,
+    );
+    return response.data;
   },
 
   // Retry

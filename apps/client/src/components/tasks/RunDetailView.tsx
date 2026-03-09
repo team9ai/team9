@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ChevronLeft, Loader2, RotateCcw } from "lucide-react";
@@ -7,9 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { tasksApi } from "@/services/api/tasks";
-import { TaskStepTimeline } from "./TaskStepTimeline";
-import { TaskInterventionCard } from "./TaskInterventionCard";
-import { TaskDeliverableList } from "./TaskDeliverableList";
+import { ExecutionTimeline } from "./ExecutionTimeline";
 import type { AgentTaskStatus, TriggerContext } from "@/types/task";
 
 const STATUS_BADGE_VARIANT: Record<
@@ -32,21 +30,45 @@ interface RunDetailViewProps {
   taskId: string;
   executionId: string;
   onBack: () => void;
+  onChannelChange?: (channelId: string | null) => void;
 }
+
+const ACTIVE_STATUSES: AgentTaskStatus[] = [
+  "in_progress",
+  "pending_action",
+  "paused",
+];
 
 export function RunDetailView({
   taskId,
   executionId,
   onBack,
+  onChannelChange,
 }: RunDetailViewProps) {
   const { t } = useTranslation("tasks");
   const queryClient = useQueryClient();
   const [showRetryForm, setShowRetryForm] = useState(false);
   const [retryNotes, setRetryNotes] = useState("");
 
-  const { data: execution, isLoading } = useQuery({
+  const { data: execution, isLoading: execLoading } = useQuery({
     queryKey: ["task-execution", taskId, executionId],
     queryFn: () => tasksApi.getExecution(taskId, executionId),
+    refetchInterval: 5000,
+  });
+
+  // Notify parent of this run's channelId for the message input
+  const channelId = execution?.channelId ?? null;
+  const isActive = execution
+    ? ACTIVE_STATUSES.includes(execution.status)
+    : false;
+  useEffect(() => {
+    onChannelChange?.(isActive ? channelId : null);
+    return () => onChannelChange?.(null);
+  }, [channelId, isActive, onChannelChange]);
+
+  const { data: entries = [] } = useQuery({
+    queryKey: ["task-execution-entries", taskId, executionId],
+    queryFn: () => tasksApi.getExecutionEntries(taskId, executionId),
     refetchInterval: 5000,
   });
 
@@ -67,7 +89,7 @@ export function RunDetailView({
     },
   });
 
-  if (isLoading || !execution) {
+  if (execLoading || !execution) {
     return (
       <div className="flex justify-center p-4">
         <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
@@ -76,7 +98,6 @@ export function RunDetailView({
   }
 
   const triggerCtx = execution.triggerContext as TriggerContext | null;
-  const { steps = [], interventions = [], deliverables = [] } = execution;
   const canRetry = RETRIABLE_STATUSES.includes(execution.status);
 
   return (
@@ -159,38 +180,8 @@ export function RunDetailView({
 
       <Separator />
 
-      {/* Steps */}
-      <div className="space-y-2">
-        <h4 className="text-sm font-semibold">{t("detail.steps")}</h4>
-        <TaskStepTimeline steps={steps} />
-      </div>
-
-      {/* Interventions */}
-      {interventions.length > 0 && (
-        <>
-          <Separator />
-          <div className="space-y-2">
-            <h4 className="text-sm font-semibold">
-              {t("detail.pastInterventions")}
-            </h4>
-            {interventions.map((intervention) => (
-              <TaskInterventionCard
-                key={intervention.id}
-                intervention={intervention}
-                taskId={taskId}
-              />
-            ))}
-          </div>
-        </>
-      )}
-
-      <Separator />
-
-      {/* Deliverables */}
-      <div className="space-y-2">
-        <h4 className="text-sm font-semibold">{t("detail.deliverables")}</h4>
-        <TaskDeliverableList deliverables={deliverables} />
-      </div>
+      {/* Unified timeline */}
+      <ExecutionTimeline entries={entries} taskId={taskId} />
 
       {/* Retry */}
       {canRetry && (

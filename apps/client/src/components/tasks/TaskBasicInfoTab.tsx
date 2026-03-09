@@ -29,10 +29,10 @@ import { tasksApi } from "@/services/api/tasks";
 import { api } from "@/services/api";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import type { OpenClawBotInfo } from "@/services/api/applications";
-import { TaskStepTimeline } from "./TaskStepTimeline";
 import { TaskInterventionCard } from "./TaskInterventionCard";
-import { TaskDeliverableList } from "./TaskDeliverableList";
+import { ExecutionTimeline } from "./ExecutionTimeline";
 import { ManualTriggerDialog } from "./ManualTriggerDialog";
+import { TaskTriggersTab } from "./TaskTriggersTab";
 import type { AgentTaskDetail, AgentTaskStatus } from "@/types/task";
 
 interface TaskBasicInfoTabProps {
@@ -210,9 +210,7 @@ export function TaskBasicInfoTab({ task, onClose }: TaskBasicInfoTabProps) {
 
   // Derive execution data
   const execution = task.currentExecution?.execution ?? null;
-  const steps = task.currentExecution?.steps ?? [];
   const interventions = task.currentExecution?.interventions ?? [];
-  const deliverables = task.currentExecution?.deliverables ?? [];
 
   // Pending interventions shown prominently at the top
   const pendingInterventions = useMemo(
@@ -220,10 +218,13 @@ export function TaskBasicInfoTab({ task, onClose }: TaskBasicInfoTabProps) {
     [interventions],
   );
 
-  const resolvedInterventions = useMemo(
-    () => interventions.filter((i) => i.status !== "pending"),
-    [interventions],
-  );
+  // Fetch unified timeline entries for the current execution
+  const { data: entries = [] } = useQuery({
+    queryKey: ["task-execution-entries", taskId, execution?.id],
+    queryFn: () => tasksApi.getExecutionEntries(taskId, execution!.id),
+    enabled: !!execution,
+    refetchInterval: 5000,
+  });
 
   const handleStartTask = () => {
     setShowStartDialog(true);
@@ -459,53 +460,33 @@ export function TaskBasicInfoTab({ task, onClose }: TaskBasicInfoTabProps) {
 
       <Separator />
 
-      {/* Pending interventions (prominently shown) */}
-      {pendingInterventions.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="text-sm font-semibold text-orange-500">
-            {t("detail.pendingInterventions")}
-          </h4>
-          {pendingInterventions.map((intervention) => (
-            <TaskInterventionCard
-              key={intervention.id}
-              intervention={intervention}
-              taskId={taskId}
-            />
-          ))}
-          <Separator />
-        </div>
-      )}
+      {/* Triggers — full CRUD inline */}
+      <TaskTriggersTab taskId={taskId} />
 
-      {/* Steps timeline */}
-      <div className="space-y-2">
-        <h4 className="text-sm font-semibold">{t("detail.steps")}</h4>
-        <TaskStepTimeline steps={steps} />
-      </div>
-
-      <Separator />
-
-      {/* Deliverables */}
-      <div className="space-y-2">
-        <h4 className="text-sm font-semibold">{t("detail.deliverables")}</h4>
-        <TaskDeliverableList deliverables={deliverables} />
-      </div>
-
-      {/* Past interventions */}
-      {resolvedInterventions.length > 0 && (
+      {/* Execution timeline — only shown when there's an active/completed execution */}
+      {execution && (
         <>
           <Separator />
-          <div className="space-y-2">
-            <h4 className="text-sm font-semibold">
-              {t("detail.pastInterventions")}
-            </h4>
-            {resolvedInterventions.map((intervention) => (
-              <TaskInterventionCard
-                key={intervention.id}
-                intervention={intervention}
-                taskId={taskId}
-              />
-            ))}
-          </div>
+
+          {/* Pending interventions (prominently at top) */}
+          {pendingInterventions.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-sm font-semibold text-orange-500">
+                {t("detail.pendingInterventions")}
+              </h4>
+              {pendingInterventions.map((intervention) => (
+                <TaskInterventionCard
+                  key={intervention.id}
+                  intervention={intervention}
+                  taskId={taskId}
+                />
+              ))}
+              <Separator />
+            </div>
+          )}
+
+          {/* Unified timeline */}
+          <ExecutionTimeline entries={entries} taskId={taskId} />
         </>
       )}
 
