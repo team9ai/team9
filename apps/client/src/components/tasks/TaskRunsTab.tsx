@@ -2,9 +2,9 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { tasksApi } from "@/services/api/tasks";
+import { RunDetailView } from "./RunDetailView";
 import type { AgentTaskStatus } from "@/types/task";
 
 interface TaskRunsTabProps {
@@ -37,20 +37,12 @@ export function TaskRunsTab({ taskId }: TaskRunsTabProps) {
   const [selectedExecId, setSelectedExecId] = useState<string | null>(null);
 
   if (selectedExecId) {
-    // RunDetailView will be created in Task 9 — for now just show a placeholder
     return (
-      <div className="p-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setSelectedExecId(null)}
-        >
-          {t("runs.back")}
-        </Button>
-        <p className="text-sm text-muted-foreground mt-2">
-          Run detail view (coming soon)
-        </p>
-      </div>
+      <RunDetailView
+        taskId={taskId}
+        executionId={selectedExecId}
+        onBack={() => setSelectedExecId(null)}
+      />
     );
   }
 
