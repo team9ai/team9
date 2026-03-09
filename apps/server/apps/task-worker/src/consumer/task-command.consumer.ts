@@ -10,10 +10,13 @@ import { MQ_EXCHANGES } from '@team9/shared';
 import { ExecutorService } from '../executor/executor.service.js';
 
 export interface TaskCommand {
-  type: 'start' | 'pause' | 'resume' | 'stop' | 'restart';
+  type: 'start' | 'pause' | 'resume' | 'stop' | 'restart' | 'retry';
   taskId: string;
   userId: string;
   message?: string;
+  notes?: string;
+  triggerId?: string;
+  sourceExecutionId?: string;
 }
 
 /**
@@ -51,7 +54,27 @@ export class TaskCommandConsumer {
       switch (command.type) {
         case 'start':
         case 'restart':
-          await this.executor.triggerExecution(command.taskId);
+          await this.executor.triggerExecution(command.taskId, {
+            triggerId: command.triggerId,
+            triggerType: 'manual',
+            triggerContext: {
+              triggeredAt: new Date().toISOString(),
+              triggeredBy: command.userId,
+              notes: command.notes,
+            },
+          });
+          break;
+        case 'retry':
+          await this.executor.triggerExecution(command.taskId, {
+            triggerType: 'retry',
+            triggerContext: {
+              triggeredAt: new Date().toISOString(),
+              triggeredBy: command.userId,
+              notes: command.notes,
+              originalExecutionId: command.sourceExecutionId ?? '',
+            },
+            sourceExecutionId: command.sourceExecutionId,
+          });
           break;
         case 'pause':
           // TODO: delegate to executor.pauseExecution
