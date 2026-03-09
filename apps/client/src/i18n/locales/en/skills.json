@@ -1,0 +1,88 @@
+{
+  "title": "Skills",
+  "description": "Shared agent skills for your workspace",
+  "empty": "No skills yet",
+  "emptyDescription": "Create your first skill to get started",
+  "tabs": {
+    "all": "All",
+    "claudeCodeSkill": "Claude Code Skill",
+    "promptTemplate": "Prompt Template",
+    "general": "General"
+  },
+  "create": {
+    "title": "Create Skill",
+    "method": "Creation Method",
+    "blank": "Blank",
+    "blankDescription": "Start with an empty skill",
+    "template": "From Template",
+    "templateDescription": "Start from a preset template",
+    "upload": "Upload Files",
+    "uploadDescription": "Import files from your computer",
+    "name": "Name",
+    "namePlaceholder": "Enter skill name",
+    "description": "Description",
+    "descriptionPlaceholder": "What does this skill do?",
+    "type": "Type",
+    "selectType": "Select type",
+    "files": "Files",
+    "dragDrop": "Drag & drop files here, or click to browse",
+    "creating": "Creating...",
+    "cancel": "Cancel",
+    "next": "Next",
+    "back": "Back",
+    "create": "Create"
+  },
+  "detail": {
+    "files": "Files",
+    "versions": "Versions",
+    "loadError": "Failed to load skill",
+    "noFiles": "No files yet",
+    "uploadFile": "Upload File",
+    "newFile": "New File",
+    "newFileName": "File name",
+    "newFilePlaceholder": "e.g., skill.md",
+    "save": "Save",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteConfirm": "Are you sure you want to delete this skill?",
+    "backToList": "Back to Skills",
+    "fileCount": "{{count}} files",
+    "rename": "Rename",
+    "selectFile": "Select a file to view",
+    "review": "Review"
+  },
+  "version": {
+    "current": "Current",
+    "version": "v{{version}}",
+    "publishedBy": "Published by {{name}}",
+    "suggestedBy": "Suggested by {{name}}",
+    "approve": "Approve",
+    "reject": "Reject",
+    "pendingSuggestion": "AI suggested changes",
+    "pendingSuggestionDescription": "Review the proposed changes below",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "noVersions": "No versions yet",
+    "saveVersion": "Save as New Version",
+    "versionMessage": "Version description",
+    "versionMessagePlaceholder": "What changed?"
+  },
+  "status": {
+    "published": "Published",
+    "suggested": "Suggested",
+    "rejected": "Rejected",
+    "draft": "Draft"
+  },
+  "type": {
+    "claude_code_skill": "Claude Code Skill",
+    "prompt_template": "Prompt Template",
+    "general": "General"
+  },
+  "template": {
+    "selectTemplate": "Select Template",
+    "claudeCodeSkill": "Claude Code Skill",
+    "claudeCodeSkillDescription": "Markdown skill with frontmatter for Claude Code",
+    "promptTemplate": "Prompt Template",
+    "promptTemplateDescription": "Reusable prompt with variable placeholders"
+  }
+}

@@ -209,6 +209,7 @@ import applicationsApi from "./applications";
 import documentsApi from "./documents";
 import tasksApi from "./tasks";
 import resourcesApi from "./resources";
+import skillsApi from "./skills";
 
 export const api = {
   auth: authApi,
@@ -221,6 +222,7 @@ export const api = {
   documents: documentsApi,
   tasks: tasksApi,
   resources: resourcesApi,
+  skills: skillsApi,
 };
 
 export default api;

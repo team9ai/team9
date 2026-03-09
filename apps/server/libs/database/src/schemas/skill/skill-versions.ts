@@ -32,7 +32,7 @@ export const skillVersions = pgTable(
       .notNull(),
     version: integer('version').notNull(),
     message: varchar('message', { length: 255 }),
-    status: skillVersionStatusEnum('status').default('published').notNull(),
+    status: skillVersionStatusEnum('status').default('draft').notNull(),
     fileManifest: jsonb('file_manifest')
       .$type<SkillFileManifestEntry[]>()
       .default([])

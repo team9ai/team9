@@ -17,6 +17,7 @@ export type SidebarSection =
   | "files"
   | "aiStaff"
   | "tasks"
+  | "skills"
   | "resources"
   | "library"
   | "application"
@@ -29,6 +30,7 @@ export const ALL_SIDEBAR_SECTIONS: SidebarSection[] = [
   "files",
   "aiStaff",
   "tasks",
+  "skills",
   "resources",
   "library",
   "application",
@@ -43,6 +45,7 @@ export const DEFAULT_SECTION_PATHS: Record<SidebarSection, string> = {
   files: "/files",
   aiStaff: "/ai-staff",
   tasks: "/tasks",
+  skills: "/skills",
   resources: "/resources",
   library: "/library",
   application: "/application",
@@ -66,6 +69,7 @@ export function getSectionFromPath(pathname: string): SidebarSection {
   if (pathname.startsWith("/files")) return "files";
   if (pathname.startsWith("/ai-staff")) return "aiStaff";
   if (pathname.startsWith("/tasks")) return "tasks";
+  if (pathname.startsWith("/skills")) return "skills";
   if (pathname.startsWith("/resources")) return "resources";
   if (pathname.startsWith("/library")) return "library";
   if (pathname.startsWith("/application")) return "application";

@@ -16,6 +16,7 @@ import {
   Box,
   Library,
   LayoutGrid,
+  Sparkles,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
@@ -64,6 +65,7 @@ const navigationItems = [
   // { id: "files", labelKey: "files" as const, icon: FileText },
   { id: "aiStaff", labelKey: "aiStaff" as const, icon: Bot },
   { id: "tasks", labelKey: "tasks" as const, icon: ListChecks },
+  { id: "skills", labelKey: "skills" as const, icon: Sparkles },
   { id: "resources", labelKey: "resources" as const, icon: Box },
   { id: "library", labelKey: "library" as const, icon: Library },
   { id: "application", labelKey: "application" as const, icon: LayoutGrid },
