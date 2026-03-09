@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Save, Loader2, AlertTriangle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -142,17 +143,26 @@ export function TaskDocumentTab({ task }: TaskDocumentTabProps) {
   // ── Loading state ───────────────────────────────────────
   if (docLoading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-8 flex-1" />
+          <Skeleton className="h-8 w-16" />
+        </div>
+        <Skeleton className="h-[120px] w-full" />
       </div>
     );
   }
 
   // ── No document yet ─────────────────────────────────────
+  // Note: In practice, tasks always have a documentId (created by backend).
+  // This fallback is a safety net for edge cases.
   if (!documentId) {
     return (
       <div className="space-y-3">
-        <DocumentEditor placeholder={t("detail.document.createPlaceholder")} />
+        <DocumentEditor
+          placeholder={t("detail.document.createPlaceholder")}
+          onChange={handleEditorChange}
+        />
       </div>
     );
   }
