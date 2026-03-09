@@ -157,7 +157,19 @@
       "channel": "Channel",
       "selectChannel": "Select channel..."
     },
-    "deleteConfirm": "Delete this trigger?"
+    "deleteConfirm": "Delete this trigger?",
+    "addTitle": "Add Trigger",
+    "selectType": "Select trigger type",
+    "configureTitle": "Configure {{type}}",
+    "back": "Back",
+    "create": "Create",
+    "manualNoConfig": "Manual triggers don't need configuration. Just create and trigger manually.",
+    "typeDesc": {
+      "manual": "Trigger on demand",
+      "interval": "Run at fixed intervals",
+      "schedule": "Run on a schedule",
+      "channel_message": "Run when a message is sent"
+    }
   },
   "runs": {
     "title": "Runs",
