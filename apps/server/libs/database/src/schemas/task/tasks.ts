@@ -53,9 +53,7 @@ export const agentTasks = pgTable(
       .references(() => tenants.id, { onDelete: 'cascade' })
       .notNull(),
 
-    botId: uuid('bot_id')
-      .references(() => bots.id, { onDelete: 'cascade' })
-      .notNull(),
+    botId: uuid('bot_id').references(() => bots.id, { onDelete: 'cascade' }),
 
     creatorId: uuid('creator_id')
       .references(() => users.id)

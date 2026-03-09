@@ -148,6 +148,13 @@
       "when": 1772555696616,
       "tag": "0020_vengeful_maddog",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1773065836427,
+      "tag": "0021_normal_ben_grimm",
+      "breakpoints": true
     }
   ]
 }

@@ -54,7 +54,7 @@ export interface InterventionResponse {
 export interface AgentTask {
   id: string;
   tenantId: string;
-  botId: string;
+  botId: string | null;
   creatorId: string;
   title: string;
   description: string | null;
@@ -140,7 +140,7 @@ export interface AgentTaskDetail extends AgentTask {
 
 export interface CreateTaskDto {
   title: string;
-  botId: string;
+  botId?: string;
   description?: string;
   scheduleType?: AgentTaskScheduleType;
   scheduleConfig?: ScheduleConfig;

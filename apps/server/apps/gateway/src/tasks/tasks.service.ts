@@ -80,7 +80,7 @@ export class TasksService {
       .values({
         id: taskId,
         tenantId,
-        botId: dto.botId,
+        botId: dto.botId ?? null,
         creatorId: userId,
         title: dto.title,
         description: dto.description ?? null,
@@ -323,6 +323,11 @@ export class TasksService {
     dto: StartTaskDto,
   ) {
     const task = await this.getTaskOrThrow(taskId, tenantId);
+    if (!task.botId) {
+      throw new BadRequestException(
+        'Cannot start task without an assigned bot',
+      );
+    }
     this.validateStatusTransition(task.status, 'start');
 
     await this.publishTaskCommand({

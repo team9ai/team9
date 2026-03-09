@@ -1,10 +1,25 @@
 {
   "tabs": {
+    "all": "All",
     "active": "In progress",
     "upcoming": "Upcoming",
     "finished": "Finished"
   },
   "noTasks": "No tasks",
+  "create": {
+    "title": "New Task",
+    "description": "Create a task for an AI staff member to execute.",
+    "taskName": "Title",
+    "taskNamePlaceholder": "What should be done?",
+    "bot": "AI Staff",
+    "botPlaceholder": "Select AI staff...",
+    "noBot": "None (assign later)",
+    "document": "Document (optional)",
+    "documentPlaceholder": "Provide context or instructions...",
+    "cancel": "Cancel",
+    "submit": "Create",
+    "errorGeneric": "Failed to create task"
+  },
   "status": {
     "in_progress": "In progress",
     "upcoming": "Upcoming",
