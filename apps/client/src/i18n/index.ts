@@ -12,6 +12,7 @@ import zhThread from "./locales/zh/thread.json";
 import zhWorkspace from "./locales/zh/workspace.json";
 import zhTasks from "./locales/zh/tasks.json";
 import zhResources from "./locales/zh/resources.json";
+import zhSkills from "./locales/zh/skills.json";
 
 import enCommon from "./locales/en/common.json";
 import enAuth from "./locales/en/auth.json";
@@ -23,6 +24,7 @@ import enThread from "./locales/en/thread.json";
 import enWorkspace from "./locales/en/workspace.json";
 import enTasks from "./locales/en/tasks.json";
 import enResources from "./locales/en/resources.json";
+import enSkills from "./locales/en/skills.json";
 
 export const resources = {
   zh: {
@@ -36,6 +38,7 @@ export const resources = {
     workspace: zhWorkspace,
     tasks: zhTasks,
     resources: zhResources,
+    skills: zhSkills,
   },
   en: {
     common: enCommon,
@@ -48,6 +51,7 @@ export const resources = {
     workspace: enWorkspace,
     tasks: enTasks,
     resources: enResources,
+    skills: enSkills,
   },
 };
 
@@ -75,6 +79,7 @@ i18n
       "workspace",
       "tasks",
       "resources",
+      "skills",
     ],
     interpolation: {
       escapeValue: false,

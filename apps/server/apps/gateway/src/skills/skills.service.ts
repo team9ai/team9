@@ -10,6 +10,7 @@ import {
   eq,
   and,
   desc,
+  inArray,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -68,11 +69,34 @@ export class SkillsService {
     const conditions = [eq(schema.skills.tenantId, tenantId)];
     if (type) conditions.push(eq(schema.skills.type, type));
 
-    return this.db
+    const skills = await this.db
       .select()
       .from(schema.skills)
       .where(and(...conditions))
       .orderBy(desc(schema.skills.createdAt));
+
+    if (skills.length === 0) return [];
+
+    const skillIds = skills.map((s) => s.id);
+    const suggestions = await this.db
+      .select({ skillId: schema.skillVersions.skillId })
+      .from(schema.skillVersions)
+      .where(
+        and(
+          inArray(schema.skillVersions.skillId, skillIds),
+          eq(schema.skillVersions.status, 'suggested'),
+        ),
+      );
+
+    const countMap = new Map<string, number>();
+    for (const s of suggestions) {
+      countMap.set(s.skillId, (countMap.get(s.skillId) ?? 0) + 1);
+    }
+
+    return skills.map((s) => ({
+      ...s,
+      pendingSuggestionsCount: countMap.get(s.id) ?? 0,
+    }));
   }
 
   async getById(skillId: string, tenantId: string) {
@@ -97,11 +121,10 @@ export class SkillsService {
         currentVersionInfo = version;
         const fileIds = version.fileManifest.map((f) => f.fileId);
         if (fileIds.length > 0) {
-          const allFiles = await this.db
+          files = await this.db
             .select()
             .from(schema.skillFiles)
-            .where(eq(schema.skillFiles.skillId, skillId));
-          files = allFiles.filter((f) => fileIds.includes(f.id));
+            .where(inArray(schema.skillFiles.id, fileIds));
         }
       }
     }
@@ -176,11 +199,10 @@ export class SkillsService {
     const fileIds = versionRow.fileManifest.map((f) => f.fileId);
     let files: SkillFile[] = [];
     if (fileIds.length > 0) {
-      const allFiles = await this.db
+      files = await this.db
         .select()
         .from(schema.skillFiles)
-        .where(eq(schema.skillFiles.skillId, skillId));
-      files = allFiles.filter((f) => fileIds.includes(f.id));
+        .where(inArray(schema.skillFiles.id, fileIds));
     }
 
     return { ...versionRow, files };
