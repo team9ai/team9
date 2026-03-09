@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { eq } from 'drizzle-orm';
-import { v4 as uuidv4 } from 'uuid';
+import { v7 as uuidv7 } from 'uuid';
 import * as schema from '../schemas/index.js';
 
 /**
@@ -83,7 +83,7 @@ async function migrateTaskTriggers() {
 
         // Always create a manual trigger
         await db.insert(schema.agentTaskTriggers).values({
-          id: uuidv4(),
+          id: uuidv7(),
           taskId: task.id,
           type: 'manual',
           config: {},
@@ -109,7 +109,7 @@ async function migrateTaskTriggers() {
           }
 
           await db.insert(schema.agentTaskTriggers).values({
-            id: uuidv4(),
+            id: uuidv7(),
             taskId: task.id,
             type: 'schedule',
             config: schedTriggerConfig as schema.ScheduleTriggerConfig,

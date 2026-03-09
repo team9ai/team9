@@ -69,6 +69,11 @@ export class ExecutorService {
 
     this.logger.log(`Starting execution for task ${taskId} ("${task.title}")`);
 
+    if (!task.botId) {
+      this.logger.error(`Task ${taskId} has no bot assigned, cannot execute`);
+      return;
+    }
+
     // ── 2. Determine next version number ──────────────────────────────
     const [lastExecution] = await this.db
       .select({ version: schema.agentTaskExecutions.version })

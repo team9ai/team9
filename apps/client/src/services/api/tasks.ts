@@ -3,6 +3,7 @@ import type {
   AgentTask,
   AgentTaskDetail,
   AgentTaskExecution,
+  AgentTaskExecutionDetail,
   AgentTaskDeliverable,
   AgentTaskIntervention,
   AgentTaskStatus,
@@ -83,8 +84,8 @@ export const tasksApi = {
   getExecution: async (
     id: string,
     execId: string,
-  ): Promise<AgentTaskExecution> => {
-    const response = await http.get<AgentTaskExecution>(
+  ): Promise<AgentTaskExecutionDetail> => {
+    const response = await http.get<AgentTaskExecutionDetail>(
       `/v1/tasks/${id}/executions/${execId}`,
     );
     return response.data;

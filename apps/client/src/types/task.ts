@@ -93,6 +93,13 @@ export interface AgentTaskExecution {
   createdAt: string;
 }
 
+/** Execution with nested steps, interventions, and deliverables (getExecution response) */
+export interface AgentTaskExecutionDetail extends AgentTaskExecution {
+  steps: AgentTaskStep[];
+  interventions: AgentTaskIntervention[];
+  deliverables: AgentTaskDeliverable[];
+}
+
 export interface AgentTaskStep {
   id: string;
   executionId: string;

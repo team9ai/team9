@@ -95,7 +95,7 @@ export function TaskTriggersTab({ taskId }: TaskTriggersTabProps) {
             configSummary = t("triggers.types.manual");
             break;
           case "interval": {
-            const value = (config.value as number) ?? 1;
+            const value = (config.every as number) ?? 1;
             const unit = (config.unit as string) ?? "hours";
             const INTERVAL_UNIT_KEYS = {
               minutes: "triggers.interval.units.minutes",

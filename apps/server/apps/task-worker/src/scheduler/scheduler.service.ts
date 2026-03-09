@@ -206,6 +206,9 @@ export function calculateNextRunAt(config?: ScheduleConfig): Date | null {
     case 'monthly':
       return nextMonthly(now, hours, minutes, config.dayOfMonth ?? 1, tz);
 
+    case 'yearly':
+      return nextYearly(now, hours, minutes, config.dayOfMonth ?? 1, tz);
+
     default:
       return null;
   }
@@ -424,6 +427,27 @@ function nextMonthly(
 }
 
 /**
+ * Next yearly occurrence on the same month/day at the given time.
+ * Uses dayOfMonth for the day; month is preserved from the current date.
+ */
+function nextYearly(
+  now: Date,
+  hours: number,
+  minutes: number,
+  dayOfMonth: number,
+  tz?: string,
+): Date {
+  const n = nowInTz(now, tz);
+  const next = buildDateInTz(n.year, n.month, dayOfMonth, hours, minutes, tz);
+
+  if (next <= now) {
+    return buildDateInTz(n.year + 1, n.month, dayOfMonth, hours, minutes, tz);
+  }
+
+  return next;
+}
+
+/**
  * Next weekday (Mon-Fri) occurrence at the given time.
  * Skips Saturday and Sunday.
  */
@@ -445,9 +469,9 @@ function nextWeekday(
       tz,
     );
     if (candidate <= now) continue;
-    // Check if it's a weekday (Mon-Fri = 1-5)
-    const dayOfWeek = candidate.getDay();
-    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+    // Check weekday in the target timezone, not UTC
+    const candidateTz = nowInTz(candidate, tz);
+    if (candidateTz.weekday >= 1 && candidateTz.weekday <= 5) {
       return candidate;
     }
   }

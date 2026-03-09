@@ -15,6 +15,7 @@ import {
   UpstreamMessage,
   PostBroadcastTask,
 } from '@team9/shared';
+import { RABBITMQ_EXCHANGES } from '../constants/queues.js';
 
 /**
  * Gateway MQ Service - handles RabbitMQ communication for Gateway nodes
@@ -276,5 +277,21 @@ export class GatewayMQService implements OnModuleInit, OnModuleDestroy {
    */
   isReady(): boolean {
     return this.isInitialized;
+  }
+
+  /**
+   * Publish a workspace event to the workspace.events exchange.
+   * Used by channel-message triggers and other cross-service event consumers.
+   */
+  async publishWorkspaceEvent(
+    routingKey: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    await this.amqpConnection.publish(
+      RABBITMQ_EXCHANGES.WORKSPACE_EVENTS,
+      routingKey,
+      payload,
+      { persistent: true, timestamp: Date.now() },
+    );
   }
 }
