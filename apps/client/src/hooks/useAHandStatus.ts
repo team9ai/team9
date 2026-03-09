@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { applicationsApi } from "../services/api/applications.js";
+import { useSelectedWorkspaceId } from "../stores/useWorkspaceStore.js";
 
 export type AHandStatus =
   | "not-desktop" // Not running inside Tauri desktop app
@@ -34,6 +35,7 @@ async function findOpenClawAppId(): Promise<string | null> {
  */
 export function useAHandStatus(): AHandStatus {
   const [status, setStatus] = useState<AHandStatus>("not-desktop");
+  const workspaceId = useSelectedWorkspaceId();
 
   // Cache API lookups across poll intervals to avoid redundant network calls.
   // undefined = not yet fetched / last attempt failed (will retry).
@@ -44,6 +46,11 @@ export function useAHandStatus(): AHandStatus {
 
   useEffect(() => {
     if (!isTauriApp()) return;
+
+    // Reset cached appId when workspace changes — each workspace may have
+    // a different (or no) OpenClaw app installed. deviceId is machine-local
+    // and stays stable across workspaces.
+    appIdRef.current = undefined;
 
     setStatus("no-daemon");
 
@@ -128,7 +135,7 @@ export function useAHandStatus(): AHandStatus {
       clearInterval(fastId);
       clearInterval(slowId);
     };
-  }, []);
+  }, [workspaceId]);
 
   return status;
 }

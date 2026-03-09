@@ -47,6 +47,7 @@ import { useEffect, useRef, useState } from "react";
 import { useCurrentUser, useLogout } from "@/hooks/useAuth";
 import { useUpdateStatus, useOnlineUsers } from "@/hooks/useIMUsers";
 import { useNotificationCounts } from "@/hooks/useNotifications";
+import { useAHandSetupStore } from "@/stores/useAHandSetupStore";
 import { useChannelsByType } from "@/hooks/useChannels";
 import { useDevtools } from "@/hooks/useDevtools";
 import { NotificationBadge } from "@/components/ui/badge";
@@ -242,6 +243,9 @@ export function MainSidebar() {
       for (const section of sections) {
         appActions.setLastVisitedPath(section, null);
       }
+
+      // Reset aHand setup state so it re-runs for the new workspace
+      useAHandSetupStore.getState().reset();
 
       // Navigate to home when switching workspace
       navigate({ to: "/" });

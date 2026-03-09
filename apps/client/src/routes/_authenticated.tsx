@@ -90,14 +90,21 @@ function AuthenticatedLayout() {
 
     ahandOpenDialog();
     void ahandRun();
+  }, [ahandRun, ahandOpenDialog, ahandHasRun]);
 
-    // Stop daemon when authenticated layout unmounts (user logs out).
+  // Stop daemon when authenticated layout unmounts (user logs out).
+  // Separate effect so it only runs on unmount, not on workspace switches.
+  useEffect(() => {
+    const isTauri =
+      typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+    if (!isTauri) return;
+
     return () => {
       import("@tauri-apps/api/core").then(({ invoke }) => {
         invoke("ahand_stop").catch(() => {});
       });
     };
-  }, [ahandRun, ahandOpenDialog, ahandHasRun]);
+  }, []);
 
   // Initialize WebSocket connection
   useWebSocket();

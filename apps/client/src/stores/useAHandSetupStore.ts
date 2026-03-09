@@ -309,8 +309,11 @@ interface AHandSetupState {
   isRunning: boolean;
   hasRun: boolean;
   stepContext: StepContext;
+  /** Incremented on reset to abort any in-flight run(). */
+  _runGeneration: number;
 
   // Actions
+  reset: () => void;
   openDialog: () => void;
   closeDialog: () => void;
   setStepStatus: (stepId: string, status: StepStatus, error?: string) => void;
@@ -326,6 +329,27 @@ export const useAHandSetupStore = create<AHandSetupState>()(
       isRunning: false,
       hasRun: false,
       stepContext: {},
+      _runGeneration: 0,
+
+      reset: () => {
+        // Clean up browser event listener
+        if (unlisten) {
+          unlisten();
+          unlisten = null;
+        }
+        set(
+          (s) => ({
+            steps: createInitialSteps(),
+            isRunning: false,
+            hasRun: false,
+            stepContext: {},
+            dialogOpen: false,
+            _runGeneration: s._runGeneration + 1,
+          }),
+          false,
+          "reset",
+        );
+      },
 
       openDialog: () => set({ dialogOpen: true }, false, "openDialog"),
 
@@ -346,11 +370,17 @@ export const useAHandSetupStore = create<AHandSetupState>()(
         const state = get();
         if (state.isRunning) return;
 
+        const generation = state._runGeneration;
+        const isStale = () => get()._runGeneration !== generation;
+
         set({ isRunning: true, hasRun: true }, false, "run/start");
 
         const ctx: StepContext = { ...get().stepContext };
 
         for (const step of get().steps) {
+          // Abort if reset() was called (workspace switch).
+          if (isStale()) return;
+
           // Skip already completed steps
           if (step.status === "completed") continue;
 
@@ -361,9 +391,13 @@ export const useAHandSetupStore = create<AHandSetupState>()(
             get().setStepStatus(step.id, "running");
             try {
               await handler(ctx);
+              // Abort if reset() was called while handler was running.
+              if (isStale()) return;
               set({ stepContext: { ...ctx } }, false, "run/updateContext");
               get().setStepStatus(step.id, "completed");
             } catch (err) {
+              // Abort silently if reset during handler execution.
+              if (isStale()) return;
               const message = err instanceof Error ? err.message : String(err);
               get().setStepStatus(step.id, "error", message);
               set({ isRunning: false }, false, "run/error");
@@ -397,6 +431,7 @@ export const useAHandSetupStore = create<AHandSetupState>()(
               // Ensure the event listener is set up before starting the command
               await setupBrowserInitEventListener();
               await invoke("ahand_browser_init_with_progress");
+              if (isStale()) return;
               // After the invoke resolves, mark any remaining browser steps
               // that are still "running" as completed.
               set(
@@ -411,6 +446,7 @@ export const useAHandSetupStore = create<AHandSetupState>()(
                 "run/browser-batch-done",
               );
             } catch (err) {
+              if (isStale()) return;
               const message = err instanceof Error ? err.message : String(err);
               // Find the first non-completed browser step and mark it as error
               const currentSteps = get().steps;
