@@ -25,6 +25,14 @@ export default defineConfig(async () => ({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
+  // Exclude @lexical/code from dep pre-bundling. esbuild's code splitting
+  // breaks Prism.js language component execution order: it puts prism-objectivec
+  // (which extends "c") in a chunk that runs before prism-c is loaded.
+  // Serving @lexical/code as original ESM preserves correct import ordering.
+  optimizeDeps: {
+    exclude: ["@lexical/code"],
+  },
+
   build: {
     sourcemap: true,
     rollupOptions: {
