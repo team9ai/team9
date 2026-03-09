@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
@@ -14,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { tasksApi } from "@/services/api/tasks";
 import type { AgentTaskTriggerType } from "@/types/task";
+import { AddTriggerDialog } from "./AddTriggerDialog";
 
 interface TaskTriggersTabProps {
   taskId: string;
@@ -42,6 +44,7 @@ function formatCountdown(targetDate: string): string {
 export function TaskTriggersTab({ taskId }: TaskTriggersTabProps) {
   const { t } = useTranslation("tasks");
   const queryClient = useQueryClient();
+  const [showAddDialog, setShowAddDialog] = useState(false);
 
   const { data: triggers = [], isLoading } = useQuery({
     queryKey: ["task-triggers", taskId],
@@ -214,11 +217,21 @@ export function TaskTriggersTab({ taskId }: TaskTriggersTabProps) {
         );
       })}
 
-      {/* Add Trigger button — placeholder, will be wired to AddTriggerDialog in Task 11 */}
-      <Button variant="outline" size="sm" className="w-full" disabled>
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full"
+        onClick={() => setShowAddDialog(true)}
+      >
         <Plus size={14} />
         {t("triggers.add")}
       </Button>
+
+      <AddTriggerDialog
+        taskId={taskId}
+        isOpen={showAddDialog}
+        onClose={() => setShowAddDialog(false)}
+      />
     </div>
   );
 }

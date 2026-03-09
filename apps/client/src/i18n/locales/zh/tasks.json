@@ -157,7 +157,19 @@
       "channel": "频道",
       "selectChannel": "选择频道..."
     },
-    "deleteConfirm": "确定删除此触发器？"
+    "deleteConfirm": "确定删除此触发器？",
+    "addTitle": "添加触发器",
+    "selectType": "选择触发器类型",
+    "configureTitle": "配置{{type}}",
+    "back": "返回",
+    "create": "创建",
+    "manualNoConfig": "手动触发器无需配置，创建后可随时手动触发。",
+    "typeDesc": {
+      "manual": "按需手动触发",
+      "interval": "按固定间隔运行",
+      "schedule": "按计划定时运行",
+      "channel_message": "收到消息时运行"
+    }
   },
   "runs": {
     "title": "运行记录",
