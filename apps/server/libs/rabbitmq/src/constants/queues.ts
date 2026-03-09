@@ -13,6 +13,8 @@ export const RABBITMQ_QUEUES = {
   NOTIFICATION_DELIVERY: 'notification.delivery',
   // Task command queue (consumed by task-worker)
   TASK_WORKER_COMMANDS: 'task-worker-commands',
+  // Task worker message events queue (consumed by task-worker for channel-message triggers)
+  TASK_WORKER_MESSAGE_EVENTS: 'task-worker-message-events',
 } as const;
 
 export const RABBITMQ_ROUTING_KEYS = {
@@ -31,4 +33,6 @@ export const RABBITMQ_ROUTING_KEYS = {
   DELIVERY_READ: 'delivery.read',
   // Task command routing key (for task-worker processing)
   TASK_COMMAND: 'task.command',
+  // Message created event (for channel-message triggers)
+  MESSAGE_CREATED: 'message.created',
 } as const;
