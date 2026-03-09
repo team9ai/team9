@@ -1,4 +1,9 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { DATABASE_CONNECTION, eq, sql } from '@team9/database';
 import type { PostgresJsDatabase } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -648,12 +653,19 @@ export class OpenclawService {
         this.logger.error(
           `OpenClaw API timeout: ${method} ${path} after ${elapsed}ms (limit: ${timeoutMs}ms)`,
         );
-      } else if (
+        throw new ServiceUnavailableException(
+          'OpenClaw control plane is not responding',
+        );
+      }
+      if (
         error instanceof Error &&
         !error.message.startsWith('OpenClaw API error')
       ) {
         this.logger.error(
           `OpenClaw API fetch failed: ${method} ${path} after ${elapsed}ms — ${error.message}`,
+        );
+        throw new ServiceUnavailableException(
+          'OpenClaw control plane is unreachable',
         );
       }
       throw error;
