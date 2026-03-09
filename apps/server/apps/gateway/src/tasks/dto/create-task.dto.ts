@@ -15,6 +15,7 @@ import type {
   ScheduleConfig,
   AgentTaskScheduleType,
 } from '@team9/database/schemas';
+import { CreateTriggerDto } from './trigger.dto.js';
 
 export class ScheduleConfigDto implements ScheduleConfig {
   @IsIn(['daily', 'weekly', 'monthly'] as const)
@@ -73,4 +74,9 @@ export class CreateTaskDto {
   @IsString()
   @IsOptional()
   documentContent?: string;
+
+  @ValidateNested({ each: true })
+  @Type(() => CreateTriggerDto)
+  @IsOptional()
+  triggers?: CreateTriggerDto[];
 }
