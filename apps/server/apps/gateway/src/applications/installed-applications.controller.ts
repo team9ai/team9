@@ -14,7 +14,6 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
-  GatewayTimeoutException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { AuthGuard, CurrentUser } from '@team9/auth';
@@ -170,27 +169,7 @@ export class InstalledApplicationsController {
         'No instance configured for this application',
       );
     }
-    let instance: Awaited<ReturnType<OpenclawService['getInstance']>>;
-    try {
-      instance = await this.openclawService.getInstance(instancesId);
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'TimeoutError') {
-        throw new ServiceUnavailableException(
-          'OpenClaw control plane is not responding',
-        );
-      }
-      if (
-        error instanceof Error &&
-        (error.message.includes('504') ||
-          error.message.includes('502') ||
-          error.message.includes('503'))
-      ) {
-        throw new ServiceUnavailableException(
-          'OpenClaw control plane is temporarily unavailable',
-        );
-      }
-      throw error;
-    }
+    const instance = await this.openclawService.getInstance(instancesId);
     if (!instance) {
       throw new NotFoundException('OpenClaw instance not found');
     }
@@ -677,20 +656,15 @@ export class InstalledApplicationsController {
       // Rollback: delete the bot we just created
       await this.botService.deleteBotAndCleanup(bot.botId);
 
-      if (error instanceof DOMException && error.name === 'TimeoutError') {
-        throw new GatewayTimeoutException('Agent creation timed out');
+      // ServiceUnavailableException from OpenclawService (network/timeout) — re-throw as-is
+      if (error instanceof ServiceUnavailableException) {
+        throw error;
       }
       if (error instanceof Error) {
         // Control-plane returned 400 (CLI error like "agent already exists")
         if (error.message.includes('responded 400')) {
           const reason = error.message.split('— ').pop() || error.message;
           throw new BadRequestException(reason.trim());
-        }
-        // Control-plane unreachable
-        if (/responded (502|503|504)/.test(error.message)) {
-          throw new ServiceUnavailableException(
-            'OpenClaw control plane is temporarily unavailable',
-          );
         }
       }
       throw new ServiceUnavailableException(
