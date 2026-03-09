@@ -1,20 +1,28 @@
 import { useMemo, useState } from "react";
-import { Loader2, Box } from "lucide-react";
+import { Loader2, Box, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { resourcesApi } from "@/services/api/resources";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { ResourceCard } from "./ResourceCard";
 import { ResourceDetailPanel } from "./ResourceDetailPanel";
+
+interface ResourceListProps {
+  selectedResourceId: string | null;
+  onSelectResource: (id: string | null) => void;
+  onCreateClick?: () => void;
+}
 
 const TAB_KEYS = ["all", "agent_computer", "api"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
 
-export function ResourceList() {
+export function ResourceList({
+  selectedResourceId,
+  onSelectResource,
+  onCreateClick,
+}: ResourceListProps) {
   const [tab, setTab] = useState<TabKey>("all");
-  const [selectedResourceId, setSelectedResourceId] = useState<string | null>(
-    null,
-  );
   const { t } = useTranslation("resources");
 
   const { data: allResources = [], isLoading } = useQuery({
@@ -62,9 +70,15 @@ export function ResourceList() {
         )}
 
         {!isLoading && resources.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-8 gap-2">
+          <div className="flex flex-col items-center justify-center py-8 gap-3">
             <Box size={24} className="text-muted-foreground/50" />
             <p className="text-sm text-muted-foreground">{t("noResources")}</p>
+            {onCreateClick && (
+              <Button size="sm" variant="outline" onClick={onCreateClick}>
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                {t("create.title")}
+              </Button>
+            )}
           </div>
         )}
 
@@ -74,7 +88,7 @@ export function ResourceList() {
               <ResourceCard
                 key={resource.id}
                 resource={resource}
-                onClick={() => setSelectedResourceId(resource.id)}
+                onClick={() => onSelectResource(resource.id)}
               />
             ))}
           </div>
@@ -85,7 +99,7 @@ export function ResourceList() {
       {selectedResourceId && (
         <ResourceDetailPanel
           resourceId={selectedResourceId}
-          onClose={() => setSelectedResourceId(null)}
+          onClose={() => onSelectResource(null)}
         />
       )}
     </div>

@@ -26,11 +26,13 @@ import type { ResourceType } from "@/types/resource";
 interface CreateResourceDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  onCreated?: (id: string) => void;
 }
 
 export function CreateResourceDialog({
   isOpen,
   onClose,
+  onCreated,
 }: CreateResourceDialogProps) {
   const { t } = useTranslation("resources");
   const queryClient = useQueryClient();
@@ -54,8 +56,9 @@ export function CreateResourceDialog({
 
   const createMutation = useMutation({
     mutationFn: resourcesApi.create,
-    onSuccess: () => {
+    onSuccess: (resource) => {
       queryClient.invalidateQueries({ queryKey: ["resources"] });
+      onCreated?.(resource.id);
       handleClose();
     },
   });
@@ -241,7 +244,8 @@ export function CreateResourceDialog({
 
           {createMutation.isError && (
             <p className="text-sm text-destructive">
-              {(createMutation.error as Error)?.message || t("create.title")}
+              {(createMutation.error as Error)?.message ||
+                t("detail.loadError")}
             </p>
           )}
         </div>

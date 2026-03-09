@@ -12,6 +12,9 @@ export const Route = createFileRoute("/_authenticated/resources/")({
 
 function ResourcesPage() {
   const [showCreate, setShowCreate] = useState(false);
+  const [selectedResourceId, setSelectedResourceId] = useState<string | null>(
+    null,
+  );
   const { t } = useTranslation("resources");
 
   return (
@@ -23,11 +26,16 @@ function ResourcesPage() {
         </Button>
       </div>
       <div className="flex-1 min-h-0">
-        <ResourceList />
+        <ResourceList
+          selectedResourceId={selectedResourceId}
+          onSelectResource={setSelectedResourceId}
+          onCreateClick={() => setShowCreate(true)}
+        />
       </div>
       <CreateResourceDialog
         isOpen={showCreate}
         onClose={() => setShowCreate(false)}
+        onCreated={(id) => setSelectedResourceId(id)}
       />
     </div>
   );
