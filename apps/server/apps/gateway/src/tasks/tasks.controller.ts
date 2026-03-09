@@ -17,6 +17,7 @@ import type {
 } from '@team9/database/schemas';
 import { CurrentTenantId } from '../common/decorators/current-tenant.decorator.js';
 import { TasksService } from './tasks.service.js';
+import { TriggersService } from './triggers.service.js';
 import {
   CreateTaskDto,
   UpdateTaskDto,
@@ -24,6 +25,9 @@ import {
   ResumeTaskDto,
   StopTaskDto,
   ResolveInterventionDto,
+  CreateTriggerDto,
+  UpdateTriggerDto,
+  RetryExecutionDto,
 } from './dto/index.js';
 
 @Controller({
@@ -32,7 +36,10 @@ import {
 })
 @UseGuards(AuthGuard)
 export class TasksController {
-  constructor(private readonly tasksService: TasksService) {}
+  constructor(
+    private readonly tasksService: TasksService,
+    private readonly triggersService: TriggersService,
+  ) {}
 
   @Post()
   async create(
@@ -179,5 +186,55 @@ export class TasksController {
       tenantId,
       dto,
     );
+  }
+
+  // ── Trigger CRUD ──────────────────────────────────────────────
+
+  @Post(':taskId/triggers')
+  async createTrigger(
+    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Body() dto: CreateTriggerDto,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    return this.triggersService.create(taskId, dto, tenantId);
+  }
+
+  @Get(':taskId/triggers')
+  async listTriggers(
+    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    return this.triggersService.listByTask(taskId, tenantId);
+  }
+
+  @Patch(':taskId/triggers/:triggerId')
+  async updateTrigger(
+    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Param('triggerId', ParseUUIDPipe) triggerId: string,
+    @Body() dto: UpdateTriggerDto,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    return this.triggersService.update(triggerId, dto, tenantId);
+  }
+
+  @Delete(':taskId/triggers/:triggerId')
+  async deleteTrigger(
+    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Param('triggerId', ParseUUIDPipe) triggerId: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    return this.triggersService.delete(triggerId, tenantId);
+  }
+
+  // ── Retry ──────────────────────────────────────────────────────
+
+  @Post(':id/retry')
+  async retry(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
+    @Body() dto: RetryExecutionDto,
+  ) {
+    return this.tasksService.retry(id, dto, userId, tenantId);
   }
 }

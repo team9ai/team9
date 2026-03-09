@@ -7,11 +7,12 @@ import { TasksService } from './tasks.service.js';
 import { TaskBotController } from './task-bot.controller.js';
 import { TaskBotService } from './task-bot.service.js';
 import { TaskCastService } from './taskcast.service.js';
+import { TriggersService } from './triggers.service.js';
 
 @Module({
   imports: [AuthModule, DocumentsModule, forwardRef(() => WebsocketModule)],
   controllers: [TasksController, TaskBotController],
-  providers: [TasksService, TaskBotService, TaskCastService],
-  exports: [TasksService, TaskCastService],
+  providers: [TasksService, TaskBotService, TaskCastService, TriggersService],
+  exports: [TasksService, TaskCastService, TriggersService],
 })
 export class TasksModule {}
