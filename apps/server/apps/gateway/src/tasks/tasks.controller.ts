@@ -104,6 +104,15 @@ export class TasksController {
     return this.tasksService.getExecution(id, execId, tenantId);
   }
 
+  @Get(':id/executions/:execId/entries')
+  async getExecutionEntries(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('execId', ParseUUIDPipe) execId: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    return this.tasksService.getExecutionEntries(id, execId, tenantId);
+  }
+
   @Get(':id/deliverables')
   async getDeliverables(
     @Param('id', ParseUUIDPipe) id: string,

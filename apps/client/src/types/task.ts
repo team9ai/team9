@@ -100,6 +100,21 @@ export interface AgentTaskExecutionDetail extends AgentTaskExecution {
   deliverables: AgentTaskDeliverable[];
 }
 
+// ── Unified execution entry (timeline) ─────────────────────────────
+
+export interface StatusChangeData {
+  status: string;
+  at: string;
+}
+
+export type ExecutionEntry =
+  | { type: "step"; data: AgentTaskStep }
+  | { type: "intervention"; data: AgentTaskIntervention }
+  | { type: "deliverable"; data: AgentTaskDeliverable }
+  | { type: "status_change"; data: StatusChangeData };
+
+// ── Entity interfaces (continued) ──────────────────────────────────
+
 export interface AgentTaskStep {
   id: string;
   executionId: string;
