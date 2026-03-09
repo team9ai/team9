@@ -4,6 +4,7 @@ import { agentTaskExecutions } from './task-executions.js';
 import { agentTaskSteps } from './task-steps.js';
 import { agentTaskDeliverables } from './task-deliverables.js';
 import { agentTaskInterventions } from './task-interventions.js';
+import { agentTaskTriggers } from './task-triggers.js';
 import { tenants } from '../tenant/tenants.js';
 import { bots } from '../im/bots.js';
 import { users } from '../im/users.js';
@@ -35,6 +36,7 @@ export const agentTasksRelations = relations(agentTasks, ({ one, many }) => ({
     relationName: 'taskCurrentExecution',
   }),
   executions: many(agentTaskExecutions),
+  triggers: many(agentTaskTriggers),
 }));
 
 // ── agentTaskExecutions ─────────────────────────────────────────────
@@ -105,6 +107,18 @@ export const agentTaskInterventionsRelations = relations(
     resolvedByUser: one(users, {
       fields: [agentTaskInterventions.resolvedBy],
       references: [users.id],
+    }),
+  }),
+);
+
+// ── agentTaskTriggers ─────────────────────────────────────────────
+
+export const agentTaskTriggersRelations = relations(
+  agentTaskTriggers,
+  ({ one }) => ({
+    task: one(agentTasks, {
+      fields: [agentTaskTriggers.taskId],
+      references: [agentTasks.id],
     }),
   }),
 );
