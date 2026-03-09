@@ -11,7 +11,7 @@ import { useNavigate } from "@tanstack/react-router";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import linkifyHtml from "linkify-html";
-import Prism from "prismjs";
+import Prism from "@/lib/prism";
 import { UserProfileCard } from "./UserProfileCard";
 import { CodeBlock } from "./CodeBlock";
 import { ImagePreviewDialog } from "./ImagePreviewDialog";
