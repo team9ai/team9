@@ -1,3 +1,4 @@
+/** @deprecated Replaced by the trigger system (AddTriggerDialog). Safe to delete. */
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";

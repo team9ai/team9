@@ -63,11 +63,13 @@ export const agentTasks = pgTable(
     description: text('description'),
 
     status: agentTaskStatusEnum('status').default('upcoming').notNull(),
+    /** @deprecated Use agent_task__triggers table instead */
     scheduleType: agentTaskScheduleTypeEnum('schedule_type')
       .default('once')
       .notNull(),
+    /** @deprecated Use agent_task__triggers table instead */
     scheduleConfig: jsonb('schedule_config').$type<ScheduleConfig>(),
-
+    /** @deprecated Use agent_task__triggers.next_run_at instead */
     nextRunAt: timestamp('next_run_at'),
 
     documentId: uuid('document_id').references(() => documents.id),

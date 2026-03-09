@@ -59,8 +59,11 @@ export interface AgentTask {
   title: string;
   description: string | null;
   status: AgentTaskStatus;
+  /** @deprecated Use triggers table instead */
   scheduleType: AgentTaskScheduleType;
+  /** @deprecated Use triggers table instead */
   scheduleConfig: ScheduleConfig | null;
+  /** @deprecated Use triggers table instead */
   nextRunAt: string | null;
   documentId: string | null;
   currentExecutionId: string | null;
@@ -147,7 +150,9 @@ export interface CreateTaskDto {
   title: string;
   botId?: string;
   description?: string;
+  /** @deprecated Use triggers field instead */
   scheduleType?: AgentTaskScheduleType;
+  /** @deprecated Use triggers field instead */
   scheduleConfig?: ScheduleConfig;
   documentContent?: string;
   triggers?: CreateTriggerDto[];
@@ -157,7 +162,9 @@ export interface UpdateTaskDto {
   title?: string;
   botId?: string | null;
   description?: string;
+  /** @deprecated Use trigger CRUD API instead */
   scheduleType?: AgentTaskScheduleType;
+  /** @deprecated Use trigger CRUD API instead */
   scheduleConfig?: ScheduleConfig;
 }
 
