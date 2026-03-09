@@ -10,13 +10,7 @@ import { tasksApi } from "@/services/api/tasks";
 import { TaskStepTimeline } from "./TaskStepTimeline";
 import { TaskInterventionCard } from "./TaskInterventionCard";
 import { TaskDeliverableList } from "./TaskDeliverableList";
-import type {
-  AgentTaskStatus,
-  AgentTaskStep,
-  AgentTaskIntervention,
-  AgentTaskDeliverable,
-  TriggerContext,
-} from "@/types/task";
+import type { AgentTaskStatus, TriggerContext } from "@/types/task";
 
 const STATUS_BADGE_VARIANT: Record<
   AgentTaskStatus,
@@ -82,12 +76,7 @@ export function RunDetailView({
   }
 
   const triggerCtx = execution.triggerContext as TriggerContext | null;
-  // The getExecution endpoint returns nested properties alongside the execution
-  const steps = ((execution as any).steps ?? []) as AgentTaskStep[];
-  const interventions = ((execution as any).interventions ??
-    []) as AgentTaskIntervention[];
-  const deliverables = ((execution as any).deliverables ??
-    []) as AgentTaskDeliverable[];
+  const { steps = [], interventions = [], deliverables = [] } = execution;
   const canRetry = RETRIABLE_STATUSES.includes(execution.status);
 
   return (

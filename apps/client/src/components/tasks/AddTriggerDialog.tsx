@@ -124,7 +124,7 @@ export function AddTriggerDialog({
           config = {};
           break;
         case "interval":
-          config = { value: intervalValue, unit: intervalUnit };
+          config = { every: intervalValue, unit: intervalUnit };
           break;
         case "schedule": {
           config = {

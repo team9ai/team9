@@ -176,7 +176,7 @@ export function CreateTaskDialog({ isOpen, onClose }: CreateTaskDialogProps) {
         config = {};
         break;
       case "interval":
-        config = { value: intervalValue, unit: intervalUnit };
+        config = { every: intervalValue, unit: intervalUnit };
         break;
       case "schedule":
         config = {
@@ -211,7 +211,7 @@ export function CreateTaskDialog({ isOpen, onClose }: CreateTaskDialogProps) {
       case "manual":
         return t("triggers.types.manual");
       case "interval":
-        return `${t("triggers.interval.every")} ${config.value ?? 1} ${t(`triggers.interval.units.${(config.unit as string) ?? "hours"}` as never)}`;
+        return `${t("triggers.interval.every")} ${config.every ?? 1} ${t(`triggers.interval.units.${(config.unit as string) ?? "hours"}` as never)}`;
       case "schedule":
         return `${t(`triggers.schedule.frequencies.${(config.frequency as string) ?? "daily"}` as never)} ${t("triggers.schedule.time")} ${(config.time as string) ?? ""}`;
       case "channel_message":

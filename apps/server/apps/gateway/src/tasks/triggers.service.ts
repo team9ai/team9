@@ -1,4 +1,10 @@
-import { Injectable, Inject, NotFoundException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Inject,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
 import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
@@ -21,6 +27,9 @@ export class TriggersService {
   async create(taskId: string, dto: CreateTriggerDto, tenantId: string) {
     // Verify task exists and belongs to tenant
     await this.getTaskOrThrow(taskId, tenantId);
+
+    // Validate config based on trigger type
+    this.validateConfig(dto.type, dto.config);
 
     const triggerId = uuidv7();
     const now = new Date();
@@ -157,6 +166,65 @@ export class TriggersService {
       throw new NotFoundException('Trigger not found');
     }
     return trigger.trigger;
+  }
+
+  private validateConfig(type: string, config?: Record<string, unknown>): void {
+    if (type === 'manual') return; // No config needed
+
+    if (!config) {
+      throw new BadRequestException(`Config is required for ${type} triggers`);
+    }
+
+    if (type === 'interval') {
+      if (typeof config.every !== 'number' || config.every < 1) {
+        throw new BadRequestException(
+          'Interval trigger config requires "every" (positive integer)',
+        );
+      }
+      const validUnits = [
+        'minutes',
+        'hours',
+        'days',
+        'weeks',
+        'months',
+        'years',
+      ];
+      if (!validUnits.includes(config.unit as string)) {
+        throw new BadRequestException(
+          `Interval trigger config requires "unit" (${validUnits.join(', ')})`,
+        );
+      }
+    }
+
+    if (type === 'schedule') {
+      const validFreqs = ['daily', 'weekly', 'monthly', 'yearly', 'weekdays'];
+      if (!validFreqs.includes(config.frequency as string)) {
+        throw new BadRequestException(
+          `Schedule trigger config requires "frequency" (${validFreqs.join(', ')})`,
+        );
+      }
+      if (
+        typeof config.time !== 'string' ||
+        !/^\d{2}:\d{2}$/.test(config.time)
+      ) {
+        throw new BadRequestException(
+          'Schedule trigger config requires "time" in HH:mm format',
+        );
+      }
+      if (typeof config.timezone !== 'string' || !config.timezone) {
+        throw new BadRequestException(
+          'Schedule trigger config requires "timezone"',
+        );
+      }
+    }
+
+    if (type === 'channel_message') {
+      if (typeof config.channelId !== 'string' || !config.channelId) {
+        throw new BadRequestException(
+          'Channel message trigger config requires "channelId"',
+        );
+      }
+    }
   }
 
   private calculateInitialNextRunAt(

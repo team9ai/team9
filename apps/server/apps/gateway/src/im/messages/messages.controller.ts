@@ -29,7 +29,7 @@ import {
   AddReactionDto,
 } from './dto/index.js';
 import { AuthGuard, CurrentUser } from '@team9/auth';
-import { GatewayMQService } from '@team9/rabbitmq';
+import { GatewayMQService, RABBITMQ_ROUTING_KEYS } from '@team9/rabbitmq';
 import type { PostBroadcastTask } from '@team9/shared';
 import { ChannelsService } from '../channels/channels.service.js';
 import { WebsocketGateway } from '../websocket/websocket.gateway.js';
@@ -215,6 +215,20 @@ export class MessagesController {
           }
         : undefined,
     });
+
+    // Publish to RabbitMQ for channel-message triggers (task-worker)
+    if (this.gatewayMQService) {
+      this.gatewayMQService
+        .publishWorkspaceEvent(RABBITMQ_ROUTING_KEYS.MESSAGE_CREATED, {
+          channelId: message.channelId,
+          messageId: message.id,
+          content: message.content,
+          senderId: message.senderId,
+        })
+        .catch((err) => {
+          this.logger.warn(`Failed to publish message.created event: ${err}`);
+        });
+    }
 
     return message;
   }
