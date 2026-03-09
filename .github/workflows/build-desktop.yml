@@ -91,7 +91,7 @@ jobs:
         shell: bash
 
       - name: Build desktop app
-        run: pnpm build:client:mac -- --target universal-apple-darwin
+        run: pnpm -C apps/client tauri build --target universal-apple-darwin
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_WINREY_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_WINREY_CERTIFICATE_PASSWORD }}
