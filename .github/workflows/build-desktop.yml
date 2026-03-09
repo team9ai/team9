@@ -78,8 +78,13 @@ jobs:
              "apps/client/src-tauri/binaries/ahandd-aarch64-apple-darwin"
           mv "apps/client/src-tauri/binaries/ahandd-darwin-x64" \
              "apps/client/src-tauri/binaries/ahandd-x86_64-apple-darwin"
+          lipo -create \
+            "apps/client/src-tauri/binaries/ahandd-aarch64-apple-darwin" \
+            "apps/client/src-tauri/binaries/ahandd-x86_64-apple-darwin" \
+            -output "apps/client/src-tauri/binaries/ahandd-universal-apple-darwin"
           chmod +x "apps/client/src-tauri/binaries/ahandd-aarch64-apple-darwin"
           chmod +x "apps/client/src-tauri/binaries/ahandd-x86_64-apple-darwin"
+          chmod +x "apps/client/src-tauri/binaries/ahandd-universal-apple-darwin"
 
       - name: Write .env.production
         run: |
