@@ -150,12 +150,18 @@ importers:
       '@tauri-apps/plugin-opener':
         specifier: ^2
         version: 2.5.2
+      "@types/diff":
+        specifier: ^8.0.0
+        version: 8.0.0
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      diff:
+        specifier: ^8.0.3
+        version: 8.0.3
       i18next:
         specifier: ^25.0.1
         version: 25.7.4(typescript@5.8.3)
