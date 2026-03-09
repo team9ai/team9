@@ -37,6 +37,7 @@ import { FileKeeperModule } from './file-keeper/file-keeper.module.js';
 import { ApplicationsModule } from './applications/applications.module.js';
 import { DocumentsModule } from './documents/documents.module.js';
 import { TasksModule } from './tasks/tasks.module.js';
+import { ResourcesModule } from './resources/resources.module.js';
 import { SentryUserInterceptor } from './common/interceptors/sentry-user.interceptor.js';
 
 @Module({
@@ -71,6 +72,7 @@ import { SentryUserInterceptor } from './common/interceptors/sentry-user.interce
     SearchModule,
     DocumentsModule,
     TasksModule,
+    ResourcesModule,
   ],
   controllers: [AppController, HealthController],
   providers: [

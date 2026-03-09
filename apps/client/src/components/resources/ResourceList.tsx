@@ -1,0 +1,93 @@
+import { useMemo, useState } from "react";
+import { Loader2, Box } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import { resourcesApi } from "@/services/api/resources";
+import { cn } from "@/lib/utils";
+import { ResourceCard } from "./ResourceCard";
+import { ResourceDetailPanel } from "./ResourceDetailPanel";
+
+const TAB_KEYS = ["all", "agent_computer", "api"] as const;
+type TabKey = (typeof TAB_KEYS)[number];
+
+export function ResourceList() {
+  const [tab, setTab] = useState<TabKey>("all");
+  const [selectedResourceId, setSelectedResourceId] = useState<string | null>(
+    null,
+  );
+  const { t } = useTranslation("resources");
+
+  const { data: allResources = [], isLoading } = useQuery({
+    queryKey: ["resources"],
+    queryFn: () => resourcesApi.list(),
+  });
+
+  const resources = useMemo(
+    () =>
+      tab === "all" ? allResources : allResources.filter((r) => r.type === tab),
+    [allResources, tab],
+  );
+
+  return (
+    <div className="flex h-full">
+      <div className="flex flex-col flex-1 min-w-0 h-full">
+        {/* Filter tabs */}
+        <div
+          className="flex gap-1 px-3 py-2 border-b border-border"
+          role="tablist"
+        >
+          {TAB_KEYS.map((key) => (
+            <button
+              key={key}
+              role="tab"
+              aria-selected={tab === key}
+              onClick={() => setTab(key)}
+              className={cn(
+                "px-2.5 py-1 rounded text-xs font-medium transition-colors",
+                tab === key
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent",
+              )}
+            >
+              {t(`tabs.${key}`)}
+            </button>
+          ))}
+        </div>
+
+        {/* Resource grid */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+          </div>
+        )}
+
+        {!isLoading && resources.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-8 gap-2">
+            <Box size={24} className="text-muted-foreground/50" />
+            <p className="text-sm text-muted-foreground">{t("noResources")}</p>
+          </div>
+        )}
+
+        {!isLoading && resources.length > 0 && (
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            {resources.map((resource) => (
+              <ResourceCard
+                key={resource.id}
+                resource={resource}
+                onClick={() => setSelectedResourceId(resource.id)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Detail panel */}
+      {selectedResourceId && (
+        <ResourceDetailPanel
+          resourceId={selectedResourceId}
+          onClose={() => setSelectedResourceId(null)}
+        />
+      )}
+    </div>
+  );
+}
