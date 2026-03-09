@@ -5,3 +5,4 @@ export * from './tracker/index.js';
 export * from './document/index.js';
 export * from './task/index.js';
 export * from './resource/index.js';
+export * from './skill/index.js';

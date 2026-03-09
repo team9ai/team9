@@ -38,6 +38,7 @@ import { ApplicationsModule } from './applications/applications.module.js';
 import { DocumentsModule } from './documents/documents.module.js';
 import { TasksModule } from './tasks/tasks.module.js';
 import { ResourcesModule } from './resources/resources.module.js';
+import { SkillsModule } from './skills/skills.module.js';
 import { SentryUserInterceptor } from './common/interceptors/sentry-user.interceptor.js';
 
 @Module({
@@ -73,6 +74,7 @@ import { SentryUserInterceptor } from './common/interceptors/sentry-user.interce
     DocumentsModule,
     TasksModule,
     ResourcesModule,
+    SkillsModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
