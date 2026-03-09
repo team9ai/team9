@@ -188,19 +188,21 @@ const stepHandlers: Record<string, StepHandler> = {
       }
 
       // Look for a pending pairing request to auto-approve.
-      // Prefer matching by deviceId to avoid accidentally approving a
-      // different machine's request when multiple devices pair concurrently.
-      const pending = localDeviceId
-        ? devices.find(
-            (d) => d.deviceId === localDeviceId && d.status === "pending",
-          )
-        : devices.find((d) => d.status === "pending");
-      if (pending) {
-        await applicationsApi.selfApproveOpenClawDevice(
-          ctx.appId,
-          pending.request_id,
+      // Only match by deviceId to avoid accidentally approving a different
+      // machine's request when multiple devices pair concurrently.
+      // If localDeviceId is not yet available, keep retrying — the daemon
+      // may still be generating the identity file.
+      if (localDeviceId) {
+        const pending = devices.find(
+          (d) => d.deviceId === localDeviceId && d.status === "pending",
         );
-        return;
+        if (pending) {
+          await applicationsApi.selfApproveOpenClawDevice(
+            ctx.appId,
+            pending.request_id,
+          );
+          return;
+        }
       }
       if (i < maxAttempts - 1) {
         await new Promise<void>((r) => setTimeout(r, intervalMs));
@@ -251,17 +253,25 @@ const stepHandlers: Record<string, StepHandler> = {
     const intervalMs = 1500;
 
     for (let i = 0; i < maxAttempts; i++) {
-      const devices = await applicationsApi.getOpenClawDevices(ctx.appId);
+      // Re-read device ID if we didn't get it — daemon restart may have
+      // regenerated the identity file.
+      if (!localDeviceId) {
+        try {
+          localDeviceId = await invoke<string | null>("ahand_get_device_id");
+        } catch {
+          // ignore — retry next iteration
+        }
+      }
+
       if (localDeviceId) {
+        const devices = await applicationsApi.getOpenClawDevices(ctx.appId);
         const approved = devices.find(
           (d) => d.deviceId === localDeviceId && d.status === "approved",
         );
         if (approved) return;
-      } else {
-        // Fallback: any approved device means success
-        const approved = devices.find((d) => d.status === "approved");
-        if (approved) return;
       }
+      // If localDeviceId is still null, keep retrying instead of
+      // accepting any approved device (which could be a different machine).
       if (i < maxAttempts - 1) {
         await new Promise<void>((r) => setTimeout(r, intervalMs));
       }

@@ -243,10 +243,29 @@ pub fn stop() {
 }
 
 /// Is the daemon process currently alive?
+/// Uses `try_wait()` to detect processes that have exited/crashed, cleaning
+/// up the stored handle so subsequent calls return false.
 /// Note: true means the process exists, not necessarily that it is connected
 /// to the gateway. Check device status via Team9 API for actual connectivity.
 pub fn is_running() -> bool {
-    DAEMON.lock().unwrap().is_some()
+    let mut guard = DAEMON.lock().unwrap();
+    if let Some(child) = guard.as_mut() {
+        match child.try_wait() {
+            Ok(Some(_)) => {
+                // Process has exited — clean up the handle.
+                guard.take();
+                false
+            }
+            Ok(None) => true, // Still running.
+            Err(_) => {
+                // Cannot query status — assume dead.
+                guard.take();
+                false
+            }
+        }
+    } else {
+        false
+    }
 }
 
 /// Read the cryptographic device ID from ~/.ahand/device-identity.json.
