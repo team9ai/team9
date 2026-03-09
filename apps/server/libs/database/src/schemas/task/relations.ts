@@ -9,6 +9,7 @@ import { tenants } from '../tenant/tenants.js';
 import { bots } from '../im/bots.js';
 import { users } from '../im/users.js';
 import { documents } from '../document/documents.js';
+import { documentVersions } from '../document/document-versions.js';
 import { channels } from '../im/channels.js';
 
 // ── agentTasks ──────────────────────────────────────────────────────
@@ -51,6 +52,14 @@ export const agentTaskExecutionsRelations = relations(
     channel: one(channels, {
       fields: [agentTaskExecutions.channelId],
       references: [channels.id],
+    }),
+    trigger: one(agentTaskTriggers, {
+      fields: [agentTaskExecutions.triggerId],
+      references: [agentTaskTriggers.id],
+    }),
+    documentVersion: one(documentVersions, {
+      fields: [agentTaskExecutions.documentVersionId],
+      references: [documentVersions.id],
     }),
     steps: many(agentTaskSteps),
     deliverables: many(agentTaskDeliverables),
