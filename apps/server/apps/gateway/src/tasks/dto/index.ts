@@ -6,3 +6,4 @@ export * from './create-intervention.dto.js';
 export * from './resolve-intervention.dto.js';
 export * from './update-status.dto.js';
 export * from './add-deliverable.dto.js';
+export * from './trigger.dto.js';
