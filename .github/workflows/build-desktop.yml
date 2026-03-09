@@ -41,6 +41,9 @@ jobs:
             echo "env_name=development" >> $GITHUB_OUTPUT
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
+          # Extract semver from tag (strip leading v or dev prefix)
+          VERSION=$(echo "$TAG" | sed 's/^[a-zA-Z]*//')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -115,6 +118,11 @@ jobs:
             echo "VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL_DEV }}" > apps/client/.env.production
           fi
         shell: bash
+
+      - name: Set app version from tag
+        run: |
+          cd apps/client/src-tauri
+          jq '.version = "${{ steps.env.outputs.version }}"' tauri.conf.json > tauri.conf.tmp && mv tauri.conf.tmp tauri.conf.json
 
       - name: Build desktop app
         run: pnpm -C apps/client tauri build --target ${{ matrix.target }}
