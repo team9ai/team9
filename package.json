@@ -51,7 +51,8 @@
       ]
     },
     "onlyBuiltDependencies": [
-      "@nestjs/core"
+      "@nestjs/core",
+      "@sentry/cli"
     ]
   },
   "engines": {

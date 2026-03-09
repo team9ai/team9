@@ -134,16 +134,16 @@ class WebSocketService {
       auth: (cb) => {
         cb({ token: this.getAuthToken() });
       },
-      // Use default order: establish connection via HTTP polling first (more
-      // reliable through proxies/firewalls), then upgrade to WebSocket.
-      // Starting with "websocket" caused intermittent timeouts when the WS
-      // upgrade was blocked by the network while regular HTTP worked fine.
-      transports: ["polling", "websocket"],
+      // Start with WebSocket (direct connection, no session affinity needed).
+      // Polling fallback is available but polling→WebSocket upgrade fails
+      // behind CDN layers (Cloudflare/Fastly) that don't maintain session
+      // affinity across transports.
+      transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 30000,
-      timeout: 20000,
+      timeout: 10000,
     });
 
     this.setupEventHandlers();

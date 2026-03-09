@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Get,
   Query,
+  Req,
 } from '@nestjs/common';
 import { AuthService } from './auth.service.js';
 import type {
@@ -22,6 +23,7 @@ import {
   VerifyEmailDto,
   ResendVerificationDto,
   GoogleLoginDto,
+  PollLoginDto,
 } from './dto/index.js';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import type { JwtPayload } from '@team9/auth';
@@ -47,6 +49,12 @@ export class AuthController {
   @Get('verify-email')
   async verifyEmail(@Query() dto: VerifyEmailDto): Promise<AuthResponse> {
     return this.authService.verifyEmail(dto.token);
+  }
+
+  @Get('poll-login')
+  async pollLogin(@Query() dto: PollLoginDto, @Req() req: any) {
+    const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+    return this.authService.pollLogin(dto.sessionId, ip);
   }
 
   @Post('google')

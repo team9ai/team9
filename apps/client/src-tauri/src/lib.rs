@@ -1,14 +1,106 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+mod ahand;
+
+/// Start aHand daemon in openclaw-gateway mode.
+/// Called by the React frontend after obtaining the gateway URL from Team9 API.
 #[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+fn ahand_start(
+    gateway_url: String,
+    auth_token: Option<String>,
+    node_id: String,
+) -> Result<(), String> {
+    ahand::start(&gateway_url, auth_token.as_deref(), &node_id)
+}
+
+#[tauri::command]
+fn ahand_stop() {
+    ahand::stop();
+}
+
+/// Returns true if the daemon process is alive.
+/// Does NOT guarantee gateway connectivity — use Team9 API for that.
+#[tauri::command]
+fn ahand_is_running() -> bool {
+    ahand::is_running()
+}
+
+/// Returns the stable device ID for this machine.
+/// Used by the frontend to identify our pending pairing request.
+#[tauri::command]
+fn ahand_get_node_id() -> String {
+    ahand::get_or_create_node_id()
+}
+
+/// Toggle WebView DevTools (works in both debug and release builds).
+#[tauri::command]
+fn toggle_devtools(window: tauri::WebviewWindow) {
+    if window.is_devtools_open() {
+        window.close_devtools();
+    } else {
+        window.open_devtools();
+    }
+}
+
+/// Returns the cryptographic device ID (SHA256 of Ed25519 public key) stored
+/// in ~/.ahand/device-identity.json. This matches the `deviceId` field in the
+/// OpenClaw gateway's paired device list, enabling precise approval checks.
+/// Returns None if the daemon has never run on this machine.
+#[tauri::command]
+fn ahand_get_device_id() -> Option<String> {
+    ahand::get_crypto_device_id()
+}
+
+/// Start aHand daemon without auto-installing browser dependencies.
+/// Used when the frontend manages browser setup separately.
+#[tauri::command]
+fn ahand_start_daemon_only(
+    gateway_url: String,
+    auth_token: Option<String>,
+    node_id: String,
+) -> Result<(), String> {
+    ahand::start_daemon_only(&gateway_url, auth_token.as_deref(), &node_id)
+}
+
+/// Install browser automation dependencies via ahandd browser-init.
+#[tauri::command]
+fn ahand_browser_init(force: bool) -> Result<(), String> {
+    ahand::browser_init(force)
+}
+
+/// Install browser automation dependencies with step-by-step progress events.
+/// Emits `ahand-setup-step` events to the frontend as each step completes.
+#[tauri::command]
+fn ahand_browser_init_with_progress(app: tauri::AppHandle) -> Result<(), String> {
+    ahand::browser_init_with_progress(&app)
+}
+
+/// Check if browser automation dependencies are installed.
+#[tauri::command]
+fn ahand_browser_is_ready() -> bool {
+    ahand::browser_is_ready()
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .plugin(tauri_plugin_deep_link::init())
+        .invoke_handler(tauri::generate_handler![
+            toggle_devtools,
+            ahand_start,
+            ahand_start_daemon_only,
+            ahand_stop,
+            ahand_is_running,
+            ahand_get_node_id,
+            ahand_get_device_id,
+            ahand_browser_init,
+            ahand_browser_init_with_progress,
+            ahand_browser_is_ready,
+        ])
+        .on_window_event(|_win, event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                ahand::stop();
+            }
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

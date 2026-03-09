@@ -26,6 +26,7 @@ import type {
   SyncMessagesResponse,
   SyncAckDto,
 } from "@/types/im";
+import { normalizeMessage, normalizeMessages } from "./normalize-reactions";
 
 // Channels API
 export const channelsApi = {
@@ -166,7 +167,7 @@ export const messagesApi = {
       `/v1/im/channels/${channelId}/messages`,
       { params },
     );
-    return response.data;
+    return normalizeMessages(response.data);
   },
 
   // Get channel messages with pagination metadata (supports after/around cursors)
@@ -182,12 +183,13 @@ export const messagesApi = {
     // Server returns flat array for backward compatibility when no after/around cursor
     if (Array.isArray(data)) {
       return {
-        messages: data as Message[],
+        messages: normalizeMessages(data as Message[]),
         hasOlder: data.length >= (params?.limit ?? 50),
         hasNewer: false,
       };
     }
-    return data as PaginatedMessagesResponse;
+    const paginated = data as PaginatedMessagesResponse;
+    return { ...paginated, messages: normalizeMessages(paginated.messages) };
   },
 
   // Send message to channel
@@ -199,13 +201,13 @@ export const messagesApi = {
       `/v1/im/channels/${channelId}/messages`,
       data,
     );
-    return response.data;
+    return normalizeMessage(response.data);
   },
 
   // Get specific message
   getMessage: async (messageId: string): Promise<Message> => {
     const response = await http.get<Message>(`/v1/im/messages/${messageId}`);
-    return response.data;
+    return normalizeMessage(response.data);
   },
 
   // Update message
@@ -217,7 +219,7 @@ export const messagesApi = {
       `/v1/im/messages/${messageId}`,
       data,
     );
-    return response.data;
+    return normalizeMessage(response.data);
   },
 
   // Delete message
@@ -234,7 +236,16 @@ export const messagesApi = {
       `/v1/im/messages/${messageId}/thread`,
       { params },
     );
-    return response.data;
+    const data = response.data;
+    return {
+      ...data,
+      rootMessage: normalizeMessage(data.rootMessage),
+      replies: data.replies.map((r) => ({
+        ...normalizeMessage(r),
+        subReplies: normalizeMessages(r.subReplies),
+        subReplyCount: r.subReplyCount,
+      })),
+    };
   },
 
   // Get sub-replies for a first-level reply (supports cursor-based pagination)
@@ -246,7 +257,10 @@ export const messagesApi = {
       `/v1/im/messages/${messageId}/sub-replies`,
       { params },
     );
-    return response.data;
+    return {
+      ...response.data,
+      replies: normalizeMessages(response.data.replies),
+    };
   },
 
   // Get pinned messages
@@ -254,7 +268,7 @@ export const messagesApi = {
     const response = await http.get<Message[]>(
       `/v1/im/channels/${channelId}/pinned`,
     );
-    return response.data;
+    return normalizeMessages(response.data);
   },
 
   // Pin message

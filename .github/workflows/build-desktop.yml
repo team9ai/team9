@@ -15,16 +15,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos
-            os: macos-latest
-            build-script: build:client:mac
-            artifact-path: apps/client/src-tauri/target/release/bundle/dmg/*.dmg
-          - platform: windows
-            os: windows-latest
-            build-script: build:client:windows
-            artifact-path: apps/client/src-tauri/target/release/bundle/nsis/*.exe
+          - target: aarch64-apple-darwin
+            ahand-asset: ahandd-darwin-arm64
+            artifact-suffix: arm64
+          - target: x86_64-apple-darwin
+            ahand-asset: ahandd-darwin-x64
+            artifact-suffix: x64
+          - target: universal-apple-darwin
+            artifact-suffix: universal
 
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-latest
 
     steps:
       - name: Checkout
@@ -41,9 +41,14 @@ jobs:
             echo "env_name=development" >> $GITHUB_OUTPUT
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
+          # Extract semver from tag (strip leading v or dev prefix)
+          VERSION=$(echo "$TAG" | sed 's/^[a-zA-Z]*//')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
@@ -72,6 +77,39 @@ jobs:
       - name: Install dependencies
         run: pnpm install && pnpm -C apps/client install
 
+      - name: Download aHand daemon
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p apps/client/src-tauri/binaries
+          AHAND_VERSION=$(gh release list --repo team9ai/aHand --limit 1 --json tagName --jq '.[0].tagName')
+          echo "Downloading aHand $AHAND_VERSION"
+          if [ "${{ matrix.target }}" = "universal-apple-darwin" ]; then
+            gh release download "$AHAND_VERSION" \
+              --repo team9ai/aHand \
+              --pattern "ahandd-darwin-arm64" \
+              --pattern "ahandd-darwin-x64" \
+              --dir apps/client/src-tauri/binaries/
+            mv "apps/client/src-tauri/binaries/ahandd-darwin-arm64" \
+               "apps/client/src-tauri/binaries/ahandd-aarch64-apple-darwin"
+            mv "apps/client/src-tauri/binaries/ahandd-darwin-x64" \
+               "apps/client/src-tauri/binaries/ahandd-x86_64-apple-darwin"
+            lipo -create \
+              "apps/client/src-tauri/binaries/ahandd-aarch64-apple-darwin" \
+              "apps/client/src-tauri/binaries/ahandd-x86_64-apple-darwin" \
+              -output "apps/client/src-tauri/binaries/ahandd-universal-apple-darwin"
+            chmod +x apps/client/src-tauri/binaries/ahandd-*
+          else
+            gh release download "$AHAND_VERSION" \
+              --repo team9ai/aHand \
+              --pattern "${{ matrix.ahand-asset }}" \
+              --dir apps/client/src-tauri/binaries/
+            mv "apps/client/src-tauri/binaries/${{ matrix.ahand-asset }}" \
+               "apps/client/src-tauri/binaries/ahandd-${{ matrix.target }}"
+            chmod +x "apps/client/src-tauri/binaries/ahandd-${{ matrix.target }}"
+          fi
+
       - name: Write .env.production
         run: |
           if [ "${{ steps.env.outputs.env_name }}" = "production" ]; then
@@ -81,12 +119,43 @@ jobs:
           fi
         shell: bash
 
+      - name: Set app version from tag
+        run: |
+          cd apps/client/src-tauri
+          jq '.version = "${{ steps.env.outputs.version }}"' tauri.conf.json > tauri.conf.tmp && mv tauri.conf.tmp tauri.conf.json
+
       - name: Build desktop app
-        run: pnpm ${{ matrix.build-script }}
+        run: pnpm -C apps/client tauri build --target ${{ matrix.target }}
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_WINREY_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_WINREY_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_WINREY_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: team9-${{ matrix.platform }}-${{ steps.env.outputs.tag }}
-          path: ${{ matrix.artifact-path }}
+          name: team9-macos-${{ matrix.artifact-suffix }}-${{ steps.env.outputs.tag }}
+          path: apps/client/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
           if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: artifacts/*
+          generate_release_notes: true

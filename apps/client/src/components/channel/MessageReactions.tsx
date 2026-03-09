@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/tooltip";
 import { EmojiPicker } from "./editor/EmojiPicker";
 import { cn } from "@/lib/utils";
+import { useChannelMembers } from "@/hooks/useChannels";
 import type { MessageReaction } from "@/types/im";
 
 interface GroupedReaction {
@@ -25,6 +26,7 @@ interface GroupedReaction {
 interface MessageReactionsProps {
   reactions: MessageReaction[];
   currentUserId?: string;
+  channelId?: string;
   onAddReaction: (emoji: string) => void;
   onRemoveReaction: (emoji: string) => void;
 }
@@ -32,10 +34,24 @@ interface MessageReactionsProps {
 export function MessageReactions({
   reactions,
   currentUserId,
+  channelId,
   onAddReaction,
   onRemoveReaction,
 }: MessageReactionsProps) {
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const { data: members } = useChannelMembers(channelId);
+
+  // Build userId → displayName lookup from channel members
+  const userNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (!members) return map;
+    for (const m of members) {
+      if (m.user) {
+        map.set(m.userId, m.user.displayName || m.user.username);
+      }
+    }
+    return map;
+  }, [members]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, GroupedReaction>();
@@ -72,6 +88,14 @@ export function MessageReactions({
     setEmojiPickerOpen(false);
   };
 
+  const getTooltipText = (g: GroupedReaction) => {
+    const names = g.userIds
+      .map((id) => (id === currentUserId ? "You" : userNameMap.get(id)))
+      .filter(Boolean);
+    if (names.length === 0) return `${g.emoji} ${g.count}`;
+    return `${names.join(", ")} reacted with ${g.emoji}`;
+  };
+
   return (
     <TooltipProvider>
       <div className="flex flex-wrap items-center gap-1 mt-1">
@@ -92,7 +116,7 @@ export function MessageReactions({
               </button>
             </TooltipTrigger>
             <TooltipContent side="top" sideOffset={4}>
-              {g.emoji} {g.count}
+              {getTooltipText(g)}
             </TooltipContent>
           </Tooltip>
         ))}

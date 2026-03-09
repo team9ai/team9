@@ -25,6 +25,7 @@ export interface LoginRequest {
 export interface LoginResponse {
   message: string;
   email: string;
+  loginSessionId: string;
   /** Verification link returned in dev mode when DEV_SKIP_EMAIL_VERIFICATION=true */
   verificationLink?: string;
 }
@@ -47,8 +48,16 @@ export interface TokenPair {
 export interface RegisterResponse {
   message: string;
   email: string;
+  loginSessionId: string;
   /** Verification link returned in dev mode when DEV_SKIP_EMAIL_VERIFICATION=true */
   verificationLink?: string;
+}
+
+export interface PollLoginResponse {
+  status: "pending" | "verified";
+  accessToken?: string;
+  refreshToken?: string;
+  user?: User;
 }
 
 export interface PaginationParams {
@@ -107,11 +116,23 @@ export const authApi = {
 
   resendVerification: async (
     email: string,
-  ): Promise<{ message: string; verificationLink?: string }> => {
+  ): Promise<{
+    message: string;
+    loginSessionId: string;
+    verificationLink?: string;
+  }> => {
     const response = await http.post<{
       message: string;
+      loginSessionId: string;
       verificationLink?: string;
     }>("/v1/auth/resend-verification", { email });
+    return response.data;
+  },
+
+  pollLogin: async (sessionId: string): Promise<PollLoginResponse> => {
+    const response = await http.get<PollLoginResponse>(
+      `/v1/auth/poll-login?sessionId=${encodeURIComponent(sessionId)}`,
+    );
     return response.data;
   },
 

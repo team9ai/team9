@@ -29,6 +29,13 @@
       "csp": null
     }
   },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["team9"]
+      }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
@@ -38,6 +45,7 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "externalBin": ["binaries/ahandd"]
   }
 }

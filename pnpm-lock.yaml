@@ -141,8 +141,11 @@ importers:
         specifier: ^1.141.7
         version: 1.143.11(@tanstack/react-router@1.143.11(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(vite@7.3.0(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))(webpack@5.103.0(@swc/core@1.15.7))
       "@tauri-apps/api":
-        specifier: ^2
-        version: 2.9.1
+        specifier: ^2.10.1
+        version: 2.10.1
+      "@tauri-apps/plugin-deep-link":
+        specifier: ^2.4.7
+        version: 2.4.7
       "@tauri-apps/plugin-opener":
         specifier: ^2
         version: 2.5.2
@@ -252,6 +255,9 @@ importers:
       vite:
         specifier: ^7.0.4
         version: 7.3.0(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+      vitest:
+        specifier: ^4.0.18
+        version: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
 
   apps/server:
     dependencies:
@@ -569,7 +575,7 @@ importers:
         version: link:../../../../enterprise/libs/analytics
       "@team9/enterprise-audit":
         specifier: workspace:*
-        version: file:enterprise/libs/audit(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)(uuid@13.0.0)
+        version: link:../../../../enterprise/libs/audit
       "@team9/enterprise-license":
         specifier: workspace:*
         version: link:../../../../enterprise/libs/license
@@ -686,6 +692,9 @@ importers:
       "@nestjs/platform-express":
         specifier: ^11.0.1
         version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)
+      "@nestjs/schedule":
+        specifier: ^6.1.1
+        version: 6.1.1(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)
       "@team9/database":
         specifier: workspace:*
         version: link:../../libs/database
@@ -911,6 +920,51 @@ importers:
       typescript:
         specifier: ^5.7.3
         version: 5.8.3
+
+  enterprise/libs/analytics:
+    dependencies:
+      "@nestjs/common":
+        specifier: ^11.0.0
+        version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      "@nestjs/core":
+        specifier: ^11.0.0
+        version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+
+  enterprise/libs/audit:
+    dependencies:
+      "@nestjs/common":
+        specifier: ^11.0.0
+        version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      "@nestjs/core":
+        specifier: ^11.0.0
+        version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+
+  enterprise/libs/license:
+    dependencies:
+      "@nestjs/common":
+        specifier: ^11.0.0
+        version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      "@nestjs/core":
+        specifier: ^11.0.0
+        version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+
+  enterprise/libs/sso:
+    dependencies:
+      "@nestjs/common":
+        specifier: ^11.0.0
+        version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      "@nestjs/core":
+        specifier: ^11.0.0
+        version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+
+  enterprise/libs/tenant:
+    dependencies:
+      "@nestjs/common":
+        specifier: ^11.0.0
+        version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      "@nestjs/core":
+        specifier: ^11.0.0
+        version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
 
 packages:
   "@angular-devkit/core@19.2.17":
@@ -6224,6 +6278,12 @@ packages:
     peerDependencies:
       socket.io-adapter: ^2.5.4
 
+  "@standard-schema/spec@1.1.0":
+    resolution:
+      {
+        integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==,
+      }
+
   "@swc-node/core@1.14.1":
     resolution:
       {
@@ -6663,10 +6723,10 @@ packages:
       }
     engines: { node: ">=12" }
 
-  "@tauri-apps/api@2.9.1":
+  "@tauri-apps/api@2.10.1":
     resolution:
       {
-        integrity: sha512-IGlhP6EivjXHepbBic618GOmiWe4URJiIeZFlB7x3czM0yDHHYviH1Xvoiv4FefdkQtn6v7TuwWCRfOGdnVUGw==,
+        integrity: sha512-hKL/jWf293UDSUN09rR69hrToyIXBb8CjGaWC7gfinvnQrBVvnLr08FeFi38gxtugAVyVcTa5/FD/Xnkb1siBw==,
       }
 
   "@tauri-apps/cli-darwin-arm64@2.9.6":
@@ -6776,6 +6836,12 @@ packages:
     engines: { node: ">= 10" }
     hasBin: true
 
+  "@tauri-apps/plugin-deep-link@2.4.7":
+    resolution:
+      {
+        integrity: sha512-K0FQlLM6BoV7Ws2xfkh+Tnwi5VZVdkI4Vw/3AGLSf0Xvu2y86AMBzd9w/SpzKhw9ai2B6ES8di/OoGDCExkOzg==,
+      }
+
   "@tauri-apps/plugin-opener@2.5.2":
     resolution:
       {
@@ -6787,13 +6853,6 @@ packages:
     peerDependencies:
       "@nestjs/common": ^11.0.0
       "@nestjs/core": ^11.0.0
-
-  "@team9/enterprise-audit@file:enterprise/libs/audit":
-    resolution: { directory: enterprise/libs/audit, type: directory }
-    peerDependencies:
-      "@nestjs/common": ^11.0.0
-      "@nestjs/core": ^11.0.0
-      uuid: ^11.0.0
 
   "@team9/shared@file:apps/server/libs/shared":
     resolution: { directory: apps/server/libs/shared, type: directory }
@@ -6895,6 +6954,12 @@ packages:
         integrity: sha512-758fRH7umIMk5qt5ELmRMff4mLDlN+xyYzC+dkPTdKwbSkJFvz6xwyScrytPU0QIBbRRwbiE8/BIg8bpajerNQ==,
       }
 
+  "@types/chai@5.2.3":
+    resolution:
+      {
+        integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==,
+      }
+
   "@types/connect@3.4.38":
     resolution:
       {
@@ -6917,6 +6982,12 @@ packages:
     resolution:
       {
         integrity: sha512-vIChWdVG3LG1SMxEvI/AK+FWJthlrqlTu7fbrlywTkkaONwk/UAGaULXRlf8vkzFBLVm0zkMdCquhL5aOjhXPQ==,
+      }
+
+  "@types/deep-eql@4.0.2":
+    resolution:
+      {
+        integrity: sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw==,
       }
 
   "@types/diff@8.0.0":
@@ -7497,6 +7568,56 @@ packages:
     peerDependencies:
       vite: ^4.2.0 || ^5.0.0 || ^6.0.0 || ^7.0.0
 
+  "@vitest/expect@4.0.18":
+    resolution:
+      {
+        integrity: sha512-8sCWUyckXXYvx4opfzVY03EOiYVxyNrHS5QxX3DAIi5dpJAAkyJezHCP77VMX4HKA2LDT/Jpfo8i2r5BE3GnQQ==,
+      }
+
+  "@vitest/mocker@4.0.18":
+    resolution:
+      {
+        integrity: sha512-HhVd0MDnzzsgevnOWCBj5Otnzobjy5wLBe4EdeeFGv8luMsGcYqDuFRMcttKWZA5vVO8RFjexVovXvAM4JoJDQ==,
+      }
+    peerDependencies:
+      msw: ^2.4.9
+      vite: ^6.0.0 || ^7.0.0-0
+    peerDependenciesMeta:
+      msw:
+        optional: true
+      vite:
+        optional: true
+
+  "@vitest/pretty-format@4.0.18":
+    resolution:
+      {
+        integrity: sha512-P24GK3GulZWC5tz87ux0m8OADrQIUVDPIjjj65vBXYG17ZeU3qD7r+MNZ1RNv4l8CGU2vtTRqixrOi9fYk/yKw==,
+      }
+
+  "@vitest/runner@4.0.18":
+    resolution:
+      {
+        integrity: sha512-rpk9y12PGa22Jg6g5M3UVVnTS7+zycIGk9ZNGN+m6tZHKQb7jrP7/77WfZy13Y/EUDd52NDsLRQhYKtv7XfPQw==,
+      }
+
+  "@vitest/snapshot@4.0.18":
+    resolution:
+      {
+        integrity: sha512-PCiV0rcl7jKQjbgYqjtakly6T1uwv/5BQ9SwBLekVg/EaYeQFPiXcgrC2Y7vDMA8dM1SUEAEV82kgSQIlXNMvA==,
+      }
+
+  "@vitest/spy@4.0.18":
+    resolution:
+      {
+        integrity: sha512-cbQt3PTSD7P2OARdVW3qWER5EGq7PHlvE+QfzSC0lbwO+xnt7+XH06ZzFjFRgzUX//JmpxrCu92VdwvEPlWSNw==,
+      }
+
+  "@vitest/utils@4.0.18":
+    resolution:
+      {
+        integrity: sha512-msMRKLMVLWygpK3u2Hybgi4MNjcYJvwTb0Ru09+fOyCXIgT5raYP041DRRdiJiI3k/2U6SEbAETB3YtBrUkCFA==,
+      }
+
   "@webassemblyjs/ast@1.14.1":
     resolution:
       {
@@ -7846,6 +7967,13 @@ packages:
         integrity: sha512-BSHWgDSAiKs50o2Re8ppvp3seVHXSRM44cdSsT9FfNEUUZLOGWVCsiWaRPWM1Znn+mqZ1OfVZ3z3DWEzSp7hRA==,
       }
 
+  assertion-error@2.0.1:
+    resolution:
+      {
+        integrity: sha512-Izi8RQcffqCeNVgFigKli1ssklIbpHnCYc6AknXGYoB6grJqyeby7jv12JUQgmTAnIDnbck1uxksT4dzN3PWBA==,
+      }
+    engines: { node: ">=12" }
+
   ast-types@0.16.1:
     resolution:
       {
@@ -8120,6 +8248,13 @@ packages:
       {
         integrity: sha512-eyrF0jiFpY+3drT6383f1qhkbGsLSifNAjA61IUjZjmLCWjItY6LB9ft9YhoDgwfmclB2zhu51Lc7+95b8NRAg==,
       }
+
+  chai@6.2.2:
+    resolution:
+      {
+        integrity: sha512-NUPRluOfOiTKBKvWPtSD4PhFvWCqOi0BGStNWs57X9js7XGTprSmFoz5F0tWhR4WPjNeR9jXqdC7/UpSJTnlRg==,
+      }
+    engines: { node: ">=18" }
 
   chalk@4.1.2:
     resolution:
@@ -9178,6 +9313,12 @@ packages:
         integrity: sha512-hFtqIDZTIUZ9BXLb8y4pYGyk6+wekIivNVTcmvk8NoOh+VeRn5y6cEHzbURrWbfp1fIqdVipilzj+lfaadNZmg==,
       }
 
+  estree-walker@3.0.3:
+    resolution:
+      {
+        integrity: sha512-7RUKfXgSMMkzt6ZuXmqapOurLGPPfgj6l9uRZ7lRGolvk0y2yocc35LdcxKC5PQZdn2DMqioAQ2NoWcrTKmm6g==,
+      }
+
   esutils@2.0.3:
     resolution:
       {
@@ -9231,6 +9372,13 @@ packages:
         integrity: sha512-+I6B/IkJc1o/2tiURyz/ivu/O0nKNEArIUB5O7zBrlDVJr22SCLH3xTeEry428LvFhRzIA1g8izguxJ/gbNcVQ==,
       }
     engines: { node: ">= 0.8.0" }
+
+  expect-type@1.3.0:
+    resolution:
+      {
+        integrity: sha512-knvyeauYhqjOYvQ66MznSMs83wmHrCycNEN6Ao+2AeYEfxUIkuiVxdEa1qlGEPK+We3n0THiDciYSsCcgW/DoA==,
+      }
+    engines: { node: ">=12.0.0" }
 
   expect@30.2.0:
     resolution:
@@ -11569,6 +11717,12 @@ packages:
       }
     engines: { node: ">= 0.4" }
 
+  obug@2.1.1:
+    resolution:
+      {
+        integrity: sha512-uTqF9MuPraAQ+IsnPf366RG4cP9RtUi7MLO1N3KEc+wb0a6yKpeL0lmk2IB1jY5KHPAlTc6T/JRdC/YqxHNwkQ==,
+      }
+
   on-finished@2.4.1:
     resolution:
       {
@@ -12614,6 +12768,12 @@ packages:
       }
     engines: { node: ">= 0.4" }
 
+  siginfo@2.0.0:
+    resolution:
+      {
+        integrity: sha512-ybx0WO1/8bSBLEWXZvEd7gMW3Sn3JFlW3TvX1nREbDLRNQNaeNN8WK0meBwPdAaOI7TtRRRJn/Es1zhrrCHu7g==,
+      }
+
   signal-exit@3.0.7:
     resolution:
       {
@@ -12747,6 +12907,12 @@ packages:
       }
     engines: { node: ">=10" }
 
+  stackback@0.0.2:
+    resolution:
+      {
+        integrity: sha512-1XMJE5fQo1jGH6Y/7ebnwPOBEkIEnT4QF32d5R1+VXdXveM0IBMJt8zfaxX1P3QhVwrYe+576+jkANtSS2mBbw==,
+      }
+
   standard-as-callback@2.1.0:
     resolution:
       {
@@ -12759,6 +12925,12 @@ packages:
         integrity: sha512-DvEy55V3DB7uknRo+4iOGT5fP1slR8wQohVdknigZPMpMstaKJQWhwiYBACJE3Ul2pTnATihhBYnRhZQHGBiRw==,
       }
     engines: { node: ">= 0.8" }
+
+  std-env@3.10.0:
+    resolution:
+      {
+        integrity: sha512-5GS12FdOZNliM5mAOxFRg7Ir0pWz8MdpYm6AY6VPkGpbA7ZzmbzNcBJQ0GPvvyWgcY7QAhCgf9Uy89I03faLkg==,
+      }
 
   streamsearch@1.1.0:
     resolution:
@@ -13033,12 +13205,32 @@ packages:
         integrity: sha512-lBN9zLN/oAf68o3zNXYrdCt1kP8WsiGW8Oo2ka41b2IM5JL/S1CTyX1rW0mb/zSuJun0ZUrDxx4sqvYS2FWzPA==,
       }
 
+  tinybench@2.9.0:
+    resolution:
+      {
+        integrity: sha512-0+DUvqWMValLmha6lr4kD8iAMK1HzV0/aKnCtWb9v9641TnP/MFb7Pc2bxoxQjTXAErryXVgUOfv2YqNllqGeg==,
+      }
+
+  tinyexec@1.0.2:
+    resolution:
+      {
+        integrity: sha512-W/KYk+NFhkmsYpuHq5JykngiOCnxeVL8v8dFnqxSD8qEEdRfXk1SDM6JzNqcERbcGYj9tMrDQBYV9cjgnunFIg==,
+      }
+    engines: { node: ">=18" }
+
   tinyglobby@0.2.15:
     resolution:
       {
         integrity: sha512-j2Zq4NyQYG5XMST4cbs02Ak8iJUdxRM0XI5QyxXuZOzKOINmWurp3smXu3y5wDcJrptwpSjgXHzIQxR0omXljQ==,
       }
     engines: { node: ">=12.0.0" }
+
+  tinyrainbow@3.0.3:
+    resolution:
+      {
+        integrity: sha512-PSkbLUoxOFRzJYjjxHJt9xro7D+iilgMX/C9lawzVuYiIdcihh9DXmVibBe8lmcFrRi/VzlPjBxbN7rH24q8/Q==,
+      }
+    engines: { node: ">=14.0.0" }
 
   tmpl@1.0.5:
     resolution:
@@ -13575,6 +13767,43 @@ packages:
       yaml:
         optional: true
 
+  vitest@4.0.18:
+    resolution:
+      {
+        integrity: sha512-hOQuK7h0FGKgBAas7v0mSAsnvrIgAvWmRFjmzpJ7SwFHH3g1k2u37JtYwOwmEKhK6ZO3v9ggDBBm0La1LCK4uQ==,
+      }
+    engines: { node: ^20.0.0 || ^22.0.0 || >=24.0.0 }
+    hasBin: true
+    peerDependencies:
+      "@edge-runtime/vm": "*"
+      "@opentelemetry/api": ^1.9.0
+      "@types/node": ^20.0.0 || ^22.0.0 || >=24.0.0
+      "@vitest/browser-playwright": 4.0.18
+      "@vitest/browser-preview": 4.0.18
+      "@vitest/browser-webdriverio": 4.0.18
+      "@vitest/ui": 4.0.18
+      happy-dom: "*"
+      jsdom: "*"
+    peerDependenciesMeta:
+      "@edge-runtime/vm":
+        optional: true
+      "@opentelemetry/api":
+        optional: true
+      "@types/node":
+        optional: true
+      "@vitest/browser-playwright":
+        optional: true
+      "@vitest/browser-preview":
+        optional: true
+      "@vitest/browser-webdriverio":
+        optional: true
+      "@vitest/ui":
+        optional: true
+      happy-dom:
+        optional: true
+      jsdom:
+        optional: true
+
   void-elements@3.1.0:
     resolution:
       {
@@ -13667,6 +13896,14 @@ packages:
         integrity: sha512-GlaYyEb07DPxYCKhKzplCWBJtvxZcZMrL+4UkrTSJHHPyZU4mYYTv3qaOe77H7EODLSSopAUFAc6W8U4yqvscg==,
       }
     engines: { node: ^16.13.0 || >=18.0.0 }
+    hasBin: true
+
+  why-is-node-running@2.3.0:
+    resolution:
+      {
+        integrity: sha512-hUrmaWBdVDcxvYqnyh09zunKzROWjbZTiNy8dBEjkS7ehEDQibXJ7XvlmtbwuTclUiIyN+CyXQD4Vmko8fNm8w==,
+      }
+    engines: { node: ">=8" }
     hasBin: true
 
   word-wrap@1.2.5:
@@ -18052,6 +18289,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  "@standard-schema/spec@1.1.0": {}
+
   "@swc-node/core@1.14.1(@swc/core@1.15.7)(@swc/types@0.1.25)":
     dependencies:
       "@swc/core": 1.15.7
@@ -18335,7 +18574,7 @@ snapshots:
 
   "@tanstack/virtual-file-routes@1.141.0": {}
 
-  "@tauri-apps/api@2.9.1": {}
+  "@tauri-apps/api@2.10.1": {}
 
   "@tauri-apps/cli-darwin-arm64@2.9.6":
     optional: true
@@ -18384,9 +18623,13 @@ snapshots:
       "@tauri-apps/cli-win32-ia32-msvc": 2.9.6
       "@tauri-apps/cli-win32-x64-msvc": 2.9.6
 
+  "@tauri-apps/plugin-deep-link@2.4.7":
+    dependencies:
+      "@tauri-apps/api": 2.10.1
+
   "@tauri-apps/plugin-opener@2.5.2":
     dependencies:
-      "@tauri-apps/api": 2.9.1
+      "@tauri-apps/api": 2.10.1
 
   "@team9/email@file:apps/server/libs/email(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)":
     dependencies:
@@ -18397,13 +18640,6 @@ snapshots:
     transitivePeerDependencies:
       - react
       - react-dom
-
-  "@team9/enterprise-audit@file:enterprise/libs/audit(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)(uuid@13.0.0)":
-    dependencies:
-      "@nestjs/common": 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      "@nestjs/core": 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      uuid: 13.0.0
-    optional: true
 
   "@team9/shared@file:apps/server/libs/shared": {}
 
@@ -18469,6 +18705,11 @@ snapshots:
     dependencies:
       "@types/node": 22.19.3
 
+  "@types/chai@5.2.3":
+    dependencies:
+      "@types/deep-eql": 4.0.2
+      assertion-error: 2.0.1
+
   "@types/connect@3.4.38":
     dependencies:
       "@types/node": 22.19.3
@@ -18482,6 +18723,8 @@ snapshots:
   "@types/debug@4.1.12":
     dependencies:
       "@types/ms": 2.1.0
+
+  "@types/deep-eql@4.0.2": {}
 
   "@types/diff@8.0.0":
     dependencies:
@@ -18843,6 +19086,45 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  "@vitest/expect@4.0.18":
+    dependencies:
+      "@standard-schema/spec": 1.1.0
+      "@types/chai": 5.2.3
+      "@vitest/spy": 4.0.18
+      "@vitest/utils": 4.0.18
+      chai: 6.2.2
+      tinyrainbow: 3.0.3
+
+  "@vitest/mocker@4.0.18(vite@7.3.0(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))":
+    dependencies:
+      "@vitest/spy": 4.0.18
+      estree-walker: 3.0.3
+      magic-string: 0.30.21
+    optionalDependencies:
+      vite: 7.3.0(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+
+  "@vitest/pretty-format@4.0.18":
+    dependencies:
+      tinyrainbow: 3.0.3
+
+  "@vitest/runner@4.0.18":
+    dependencies:
+      "@vitest/utils": 4.0.18
+      pathe: 2.0.3
+
+  "@vitest/snapshot@4.0.18":
+    dependencies:
+      "@vitest/pretty-format": 4.0.18
+      magic-string: 0.30.21
+      pathe: 2.0.3
+
+  "@vitest/spy@4.0.18": {}
+
+  "@vitest/utils@4.0.18":
+    dependencies:
+      "@vitest/pretty-format": 4.0.18
+      tinyrainbow: 3.0.3
+
   "@webassemblyjs/ast@1.14.1":
     dependencies:
       "@webassemblyjs/helper-numbers": 1.13.2
@@ -19047,6 +19329,8 @@ snapshots:
 
   asap@2.0.6: {}
 
+  assertion-error@2.0.1: {}
+
   ast-types@0.16.1:
     dependencies:
       tslib: 2.8.1
@@ -19234,6 +19518,8 @@ snapshots:
   caniuse-lite@1.0.30001761: {}
 
   ccount@2.0.1: {}
+
+  chai@6.2.2: {}
 
   chalk@4.1.2:
     dependencies:
@@ -19838,6 +20124,10 @@ snapshots:
 
   estree-util-is-identifier-name@3.0.0: {}
 
+  estree-walker@3.0.3:
+    dependencies:
+      "@types/estree": 1.0.8
+
   esutils@2.0.3: {}
 
   etag@1.8.1: {}
@@ -19873,6 +20163,8 @@ snapshots:
       strip-final-newline: 3.0.0
 
   exit-x@0.2.2: {}
+
+  expect-type@1.3.0: {}
 
   expect@30.2.0:
     dependencies:
@@ -21593,6 +21885,8 @@ snapshots:
 
   object-inspect@1.13.4: {}
 
+  obug@2.1.1: {}
+
   on-finished@2.4.1:
     dependencies:
       ee-first: 1.1.1
@@ -22280,6 +22574,8 @@ snapshots:
       side-channel-map: 1.0.1
       side-channel-weakmap: 1.0.2
 
+  siginfo@2.0.0: {}
+
   signal-exit@3.0.7: {}
 
   signal-exit@4.1.0: {}
@@ -22383,9 +22679,13 @@ snapshots:
     dependencies:
       escape-string-regexp: 2.0.0
 
+  stackback@0.0.2: {}
+
   standard-as-callback@2.1.0: {}
 
   statuses@2.0.2: {}
+
+  std-env@3.10.0: {}
 
   streamsearch@1.1.0: {}
 
@@ -22554,10 +22854,16 @@ snapshots:
 
   tiny-warning@1.0.3: {}
 
+  tinybench@2.9.0: {}
+
+  tinyexec@1.0.2: {}
+
   tinyglobby@0.2.15:
     dependencies:
       fdir: 6.5.0(picomatch@4.0.3)
       picomatch: 4.0.3
+
+  tinyrainbow@3.0.3: {}
 
   tmpl@1.0.5: {}
 
@@ -22894,6 +23200,44 @@ snapshots:
       tsx: 4.21.0
       yaml: 2.8.2
 
+  vitest@4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2):
+    dependencies:
+      "@vitest/expect": 4.0.18
+      "@vitest/mocker": 4.0.18(vite@7.3.0(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      "@vitest/pretty-format": 4.0.18
+      "@vitest/runner": 4.0.18
+      "@vitest/snapshot": 4.0.18
+      "@vitest/spy": 4.0.18
+      "@vitest/utils": 4.0.18
+      es-module-lexer: 1.7.0
+      expect-type: 1.3.0
+      magic-string: 0.30.21
+      obug: 2.1.1
+      pathe: 2.0.3
+      picomatch: 4.0.3
+      std-env: 3.10.0
+      tinybench: 2.9.0
+      tinyexec: 1.0.2
+      tinyglobby: 0.2.15
+      tinyrainbow: 3.0.3
+      vite: 7.3.0(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+      why-is-node-running: 2.3.0
+    optionalDependencies:
+      "@opentelemetry/api": 1.9.0
+      "@types/node": 25.0.3
+    transitivePeerDependencies:
+      - jiti
+      - less
+      - lightningcss
+      - msw
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - terser
+      - tsx
+      - yaml
+
   void-elements@3.1.0: {}
 
   walker@1.0.8:
@@ -22997,6 +23341,11 @@ snapshots:
     dependencies:
       isexe: 3.1.1
     optional: true
+
+  why-is-node-running@2.3.0:
+    dependencies:
+      siginfo: 2.0.0
+      stackback: 0.0.2
 
   word-wrap@1.2.5: {}
 

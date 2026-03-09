@@ -4,3 +4,4 @@ export * from './refresh-token.dto.js';
 export * from './verify-email.dto.js';
 export * from './resend-verification.dto.js';
 export * from './google-login.dto.js';
+export * from './poll-login.dto.js';

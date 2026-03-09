@@ -43,6 +43,7 @@ export interface AuthResponse extends TokenPair {
 export interface RegisterResponse {
   message: string;
   email: string;
+  loginSessionId: string;
   /** Verification link returned in dev mode when DEV_SKIP_EMAIL_VERIFICATION=true */
   verificationLink?: string;
 }
@@ -50,6 +51,7 @@ export interface RegisterResponse {
 export interface LoginResponse {
   message: string;
   email: string;
+  loginSessionId: string;
   /** Verification link returned in dev mode when DEV_SKIP_EMAIL_VERIFICATION=true */
   verificationLink?: string;
 }
@@ -60,6 +62,13 @@ export class AuthService {
   private readonly VERIFICATION_RATE_LIMIT_PREFIX = 'im:verify_rate:';
   private readonly LOGIN_RATE_LIMIT_PREFIX = 'im:login_rate:';
   private readonly VERIFICATION_TOKEN_EXPIRY_HOURS = 24;
+  private readonly LOGIN_SESSION_PREFIX = 'im:login_session:';
+  private readonly LOGIN_SESSION_BY_USER_PREFIX = 'im:login_session_by_user:';
+  private readonly LOGIN_SESSION_TTL = 1800; // 30 minutes
+  private readonly LOGIN_SESSION_RESULT_TTL = 300; // 5 minutes
+  private readonly POLL_LOGIN_RATE_PREFIX = 'im:poll_login_rate:';
+  private readonly POLL_LOGIN_RATE_LIMIT = 30; // max requests per minute
+  private readonly POLL_LOGIN_RATE_TTL = 60; // 60 seconds
 
   constructor(
     @Inject(DATABASE_CONNECTION)
@@ -96,10 +105,13 @@ export class AuthService {
         user.username,
       );
 
+      const loginSessionId = await this.createLoginSession(user.id);
+
       return {
         message:
           'Registration successful. Please check your email to verify your account.',
         email: user.email,
+        loginSessionId,
         ...(env.DEV_SKIP_EMAIL_VERIFICATION && { verificationLink }),
       };
     }
@@ -144,10 +156,13 @@ export class AuthService {
       user.username,
     );
 
+    const loginSessionId = await this.createLoginSession(user.id);
+
     return {
       message:
         'Registration successful. Please check your email to verify your account.',
       email: user.email,
+      loginSessionId,
       // Include verification link in dev mode for easy testing
       ...(env.DEV_SKIP_EMAIL_VERIFICATION && { verificationLink }),
     };
@@ -267,6 +282,31 @@ export class AuthService {
     // Generate tokens and return AuthResponse
     const tokens = this.generateTokenPair(user);
 
+    // Write auth result to login session (enables polling-based login for desktop)
+    const sessionId = await this.redisService.get(
+      `${this.LOGIN_SESSION_BY_USER_PREFIX}${user.id}`,
+    );
+    if (sessionId) {
+      await this.redisService.set(
+        `${this.LOGIN_SESSION_PREFIX}${sessionId}`,
+        JSON.stringify({
+          status: 'verified',
+          ...tokens,
+          user: {
+            id: user.id,
+            email: user.email,
+            username: user.username,
+            displayName: user.displayName,
+            avatarUrl: user.avatarUrl,
+          },
+        }),
+        this.LOGIN_SESSION_RESULT_TTL,
+      );
+      await this.redisService.del(
+        `${this.LOGIN_SESSION_BY_USER_PREFIX}${user.id}`,
+      );
+    }
+
     return {
       ...tokens,
       user: {
@@ -279,9 +319,11 @@ export class AuthService {
     };
   }
 
-  async resendVerificationEmail(
-    email: string,
-  ): Promise<{ message: string; verificationLink?: string }> {
+  async resendVerificationEmail(email: string): Promise<{
+    message: string;
+    loginSessionId: string;
+    verificationLink?: string;
+  }> {
     // Rate limiting check using Redis
     const rateLimitKey = `${this.VERIFICATION_RATE_LIMIT_PREFIX}${email}`;
     const recentAttempt = await this.redisService.get(rateLimitKey);
@@ -303,6 +345,7 @@ export class AuthService {
       // Return success even if user doesn't exist (security - don't reveal user existence)
       return {
         message: 'If the email exists, a verification email has been sent.',
+        loginSessionId: '',
       };
     }
 
@@ -325,8 +368,11 @@ export class AuthService {
     // Set rate limit (60 seconds)
     await this.redisService.set(rateLimitKey, '1', 60);
 
+    const loginSessionId = await this.createLoginSession(user.id);
+
     return {
       message: 'Verification email has been sent.',
+      loginSessionId,
       // Include verification link in dev mode for easy testing
       ...(env.DEV_SKIP_EMAIL_VERIFICATION && { verificationLink }),
     };
@@ -370,10 +416,12 @@ export class AuthService {
         user.email,
         user.username,
       );
+      const loginSessionId = await this.createLoginSession(user.id);
       return {
         message:
           'Your email is not verified yet. We have sent a verification email.',
         email: dto.email,
+        loginSessionId,
         // Include verification link in dev mode for easy testing
         ...(env.DEV_SKIP_EMAIL_VERIFICATION && { verificationLink }),
       };
@@ -394,9 +442,12 @@ export class AuthService {
     // Set rate limit (60 seconds)
     await this.redisService.set(rateLimitKey, '1', 60);
 
+    const loginSessionId = await this.createLoginSession(user.id);
+
     return {
       message: 'Login link has been sent to your email.',
       email: dto.email,
+      loginSessionId,
       // Include verification link in dev mode for easy testing
       ...(env.DEV_SKIP_EMAIL_VERIFICATION && { verificationLink }),
     };
@@ -681,6 +732,50 @@ export class AuthService {
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
     };
+  }
+
+  async createLoginSession(userId: string): Promise<string> {
+    const sessionId = crypto.randomBytes(16).toString('hex');
+    await this.redisService.set(
+      `${this.LOGIN_SESSION_PREFIX}${sessionId}`,
+      JSON.stringify({ status: 'pending' }),
+      this.LOGIN_SESSION_TTL,
+    );
+    await this.redisService.set(
+      `${this.LOGIN_SESSION_BY_USER_PREFIX}${userId}`,
+      sessionId,
+      this.LOGIN_SESSION_TTL,
+    );
+    return sessionId;
+  }
+
+  async pollLogin(sessionId: string, ip: string) {
+    // IP-based rate limiting: max 30 requests per minute
+    const rateLimitKey = `${this.POLL_LOGIN_RATE_PREFIX}${ip}`;
+    const count = await this.redisService.incr(rateLimitKey);
+    if (count === 1) {
+      await this.redisService.expire(rateLimitKey, this.POLL_LOGIN_RATE_TTL);
+    }
+    if (count > this.POLL_LOGIN_RATE_LIMIT) {
+      throw new BadRequestException(
+        'Too many poll requests. Please slow down.',
+      );
+    }
+
+    const data = await this.redisService.get(
+      `${this.LOGIN_SESSION_PREFIX}${sessionId}`,
+    );
+    if (!data) {
+      throw new NotFoundException('Login session not found or expired');
+    }
+    const result = JSON.parse(data);
+
+    // One-time consumption: delete key after returning verified result
+    if (result.status === 'verified') {
+      await this.redisService.del(`${this.LOGIN_SESSION_PREFIX}${sessionId}`);
+    }
+
+    return result;
   }
 
   // Cleanup expired tokens (can be called by a cron job)

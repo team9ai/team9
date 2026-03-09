@@ -42,10 +42,37 @@ export interface SetAgentIdentityRequest {
 
 // ── Device types ─────────────────────────────────────────────────────
 
+// Raw shapes returned by the hive-daemon via control plane
+interface RawPendingDevice {
+  requestId: string;
+  deviceId: string;
+  displayName?: string;
+  platform?: string;
+  ts: number;
+  [key: string]: any;
+}
+
+interface RawPairedDevice {
+  deviceId: string;
+  displayName?: string;
+  platform?: string;
+  approvedAtMs?: number;
+  createdAtMs?: number;
+  [key: string]: any;
+}
+
+interface RawDeviceList {
+  pending?: RawPendingDevice[];
+  paired?: RawPairedDevice[];
+}
+
 export interface DeviceInfo {
+  // For pending: the pairing request ID. For approved: the device ID.
   request_id: string;
+  // The cryptographic device ID (SHA256 of Ed25519 public key).
+  deviceId?: string;
   name?: string;
-  status: string;
+  status: 'pending' | 'approved';
   [key: string]: any;
 }
 
@@ -261,11 +288,32 @@ export class OpenclawService {
    */
   async listDevices(instanceId: string): Promise<DeviceInfo[] | null> {
     if (!this.isConfigured()) return null;
-    const res = await this.request<{ devices: DeviceInfo[] }>(
+    // Control plane wraps hive-daemon response as { devices: { pending, paired } }
+    const res = await this.request<{ devices: RawDeviceList }>(
       'GET',
       `/api/instances/${instanceId}/devices`,
     );
-    return res.devices;
+    const list = res.devices ?? {};
+    const result: DeviceInfo[] = [];
+    for (const d of list.pending ?? []) {
+      result.push({
+        ...d,
+        request_id: d.requestId,
+        deviceId: d.deviceId,
+        name: d.displayName,
+        status: 'pending',
+      });
+    }
+    for (const d of list.paired ?? []) {
+      result.push({
+        ...d,
+        request_id: d.deviceId,
+        deviceId: d.deviceId,
+        name: d.displayName,
+        status: 'approved',
+      });
+    }
+    return result;
   }
 
   /**
