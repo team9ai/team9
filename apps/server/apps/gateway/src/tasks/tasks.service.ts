@@ -27,12 +27,15 @@ import {
   RABBITMQ_ROUTING_KEYS,
 } from '@team9/rabbitmq';
 import { DocumentsService } from '../documents/documents.service.js';
+import { TriggersService } from './triggers.service.js';
 import type { CreateTaskDto } from './dto/create-task.dto.js';
 import type { UpdateTaskDto } from './dto/update-task.dto.js';
 import type { StartTaskDto } from './dto/task-control.dto.js';
+import type { StartTaskNewDto } from './dto/trigger.dto.js';
 import type { ResumeTaskDto } from './dto/task-control.dto.js';
 import type { StopTaskDto } from './dto/task-control.dto.js';
 import type { ResolveInterventionDto } from './dto/resolve-intervention.dto.js';
+import type { RetryExecutionDto } from './dto/trigger.dto.js';
 
 // ── Filter types ────────────────────────────────────────────────────
 
@@ -53,6 +56,7 @@ export class TasksService {
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly documentsService: DocumentsService,
     private readonly amqpConnection: AmqpConnection,
+    private readonly triggersService: TriggersService,
   ) {}
 
   // ── CRUD ────────────────────────────────────────────────────────
@@ -60,20 +64,17 @@ export class TasksService {
   async create(dto: CreateTaskDto, userId: string, tenantId: string) {
     const taskId = uuidv7();
 
-    // Optionally create a linked document
-    let documentId: string | undefined;
-    if (dto.documentContent !== undefined) {
-      const doc = await this.documentsService.create(
-        {
-          documentType: 'task',
-          content: dto.documentContent,
-          title: dto.title,
-        },
-        { type: 'user', id: userId },
-        tenantId,
-      );
-      documentId = doc.id;
-    }
+    // Always create a linked document for the task
+    const doc = await this.documentsService.create(
+      {
+        documentType: 'task',
+        content: dto.documentContent ?? '',
+        title: dto.title,
+      },
+      { type: 'user', id: userId },
+      tenantId,
+    );
+    const documentId = doc.id;
 
     const [task] = await this.db
       .insert(schema.agentTasks)
@@ -86,9 +87,13 @@ export class TasksService {
         description: dto.description ?? null,
         scheduleType: dto.scheduleType ?? 'once',
         scheduleConfig: (dto.scheduleConfig as ScheduleConfig) ?? null,
-        documentId: documentId ?? null,
+        documentId,
       })
       .returning();
+
+    if (dto.triggers?.length) {
+      await this.triggersService.createBatch(taskId, dto.triggers, tenantId);
+    }
 
     return task;
   }
@@ -181,6 +186,7 @@ export class TasksService {
     };
 
     if (dto.title !== undefined) updateData.title = dto.title;
+    if (dto.botId !== undefined) updateData.botId = dto.botId;
     if (dto.description !== undefined) updateData.description = dto.description;
     if (dto.scheduleType !== undefined)
       updateData.scheduleType = dto.scheduleType;
@@ -320,7 +326,7 @@ export class TasksService {
     taskId: string,
     userId: string,
     tenantId: string,
-    dto: StartTaskDto,
+    dto: StartTaskDto | StartTaskNewDto,
   ) {
     const task = await this.getTaskOrThrow(taskId, tenantId);
     if (!task.botId) {
@@ -335,6 +341,8 @@ export class TasksService {
       taskId,
       userId,
       message: dto.message,
+      notes: 'notes' in dto ? dto.notes : undefined,
+      triggerId: 'triggerId' in dto ? dto.triggerId : undefined,
     });
 
     return { success: true };
@@ -399,6 +407,57 @@ export class TasksService {
       type: 'restart',
       taskId,
       userId,
+    });
+
+    return { success: true };
+  }
+
+  // ── Retry ───────────────────────────────────────────────────
+
+  async retry(
+    taskId: string,
+    dto: RetryExecutionDto,
+    userId: string,
+    tenantId: string,
+  ) {
+    const task = await this.getTaskOrThrow(taskId, tenantId);
+
+    // Find the source execution
+    const [sourceExec] = await this.db
+      .select()
+      .from(schema.agentTaskExecutions)
+      .where(
+        and(
+          eq(schema.agentTaskExecutions.id, dto.executionId),
+          eq(schema.agentTaskExecutions.taskId, taskId),
+        ),
+      )
+      .limit(1);
+
+    if (!sourceExec) {
+      throw new NotFoundException('Execution not found');
+    }
+
+    // Source execution must be in a terminal state
+    const terminalStatuses = ['completed', 'failed', 'timeout', 'stopped'];
+    if (!terminalStatuses.includes(sourceExec.status)) {
+      throw new BadRequestException(
+        `Cannot retry execution in ${sourceExec.status} status`,
+      );
+    }
+
+    if (!task.botId) {
+      throw new BadRequestException(
+        'Cannot retry task without an assigned bot',
+      );
+    }
+
+    await this.publishTaskCommand({
+      type: 'retry',
+      taskId,
+      userId,
+      notes: dto.notes,
+      sourceExecutionId: dto.executionId,
     });
 
     return { success: true };
@@ -535,6 +594,9 @@ export class TasksService {
     taskId: string;
     userId: string;
     message?: string;
+    notes?: string;
+    triggerId?: string;
+    sourceExecutionId?: string;
   }): Promise<void> {
     try {
       await this.amqpConnection.publish(
