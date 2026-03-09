@@ -71,6 +71,7 @@ export function AHandSetupDialog() {
 
   const ahandSteps = steps.filter((s) => s.group === "ahand");
   const browserSteps = steps.filter((s) => s.group === "browser");
+  const activationSteps = steps.filter((s) => s.group === "activation");
 
   return (
     <Dialog
@@ -102,6 +103,16 @@ export function AHandSetupDialog() {
               Browser Components
             </h4>
             {browserSteps.map((step) => (
+              <StepRow key={step.id} step={step} />
+            ))}
+          </div>
+
+          {/* Activation group */}
+          <div className="flex flex-col gap-2">
+            <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Activation
+            </h4>
+            {activationSteps.map((step) => (
               <StepRow key={step.id} step={step} />
             ))}
           </div>

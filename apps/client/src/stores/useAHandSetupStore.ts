@@ -9,7 +9,7 @@ const isTauriApp = () =>
 
 // --- Types ---
 
-export type StepGroup = "ahand" | "browser";
+export type StepGroup = "ahand" | "browser" | "activation";
 export type StepStatus = "pending" | "running" | "completed" | "error";
 
 export interface SetupStep {
@@ -95,6 +95,18 @@ const createInitialSteps = (): SetupStep[] => [
     id: "browser-config",
     group: "browser",
     label: "Generate runtime config",
+    status: "pending",
+  },
+  {
+    id: "restart-daemon",
+    group: "activation",
+    label: "Restart daemon",
+    status: "pending",
+  },
+  {
+    id: "verify-connection",
+    group: "activation",
+    label: "Verify connection",
     status: "pending",
   },
 ];
@@ -198,6 +210,66 @@ const stepHandlers: Record<string, StepHandler> = {
       "Pairing timed out. Please ensure the OpenClaw instance is running.",
     );
   },
+
+  "restart-daemon": async (ctx) => {
+    if (!ctx.gatewayUrl || !ctx.nodeId) {
+      throw new Error("Missing daemon startup parameters");
+    }
+    // Restart the daemon so it picks up browser dependencies and auto_accept mode
+    await invoke("ahand_start_daemon_only", {
+      gatewayUrl: ctx.gatewayUrl,
+      authToken: ctx.authToken ?? null,
+      nodeId: ctx.nodeId,
+    });
+  },
+
+  "verify-connection": async (ctx) => {
+    // 1. Check daemon is running
+    const running = await invoke<boolean>("ahand_is_running");
+    if (!running) {
+      throw new Error("Daemon is not running after restart");
+    }
+
+    // 2. Check browser dependencies are ready
+    const browserReady = await invoke<boolean>("ahand_browser_is_ready");
+    if (!browserReady) {
+      throw new Error("Browser dependencies are not ready");
+    }
+
+    // 3. Verify device is still approved (daemon restart triggers reconnect,
+    //    may take a moment for the gateway to see the device again)
+    if (!ctx.appId) throw new Error("Missing app ID");
+
+    let localDeviceId: string | null = null;
+    try {
+      localDeviceId = await invoke<string | null>("ahand_get_device_id");
+    } catch {
+      // ignore
+    }
+
+    const maxAttempts = 10;
+    const intervalMs = 1500;
+
+    for (let i = 0; i < maxAttempts; i++) {
+      const devices = await applicationsApi.getOpenClawDevices(ctx.appId);
+      if (localDeviceId) {
+        const approved = devices.find(
+          (d) => d.deviceId === localDeviceId && d.status === "approved",
+        );
+        if (approved) return;
+      } else {
+        // Fallback: any approved device means success
+        const approved = devices.find((d) => d.status === "approved");
+        if (approved) return;
+      }
+      if (i < maxAttempts - 1) {
+        await new Promise<void>((r) => setTimeout(r, intervalMs));
+      }
+    }
+    throw new Error(
+      "Device not recognized by gateway after restart. Please retry.",
+    );
+  },
 };
 
 // --- Tauri event listener for browser-init step progress ---
@@ -275,7 +347,7 @@ export const useAHandSetupStore = create<AHandSetupState>()(
           const handler = stepHandlers[step.id];
 
           if (handler) {
-            // ahand group steps — execute the handler
+            // Steps with handlers (ahand + activation groups)
             get().setStepStatus(step.id, "running");
             try {
               await handler(ctx);
@@ -305,7 +377,7 @@ export const useAHandSetupStore = create<AHandSetupState>()(
                 false,
                 "run/browser-cached",
               );
-              break;
+              continue;
             }
 
             // Not ready — kick off batch init and let Tauri events
@@ -355,8 +427,8 @@ export const useAHandSetupStore = create<AHandSetupState>()(
               );
               return;
             }
-            // All browser steps handled as a batch — break out of the loop
-            break;
+            // All browser steps handled as a batch — continue to activation steps
+            continue;
           }
         }
 
