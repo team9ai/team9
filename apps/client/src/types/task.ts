@@ -78,6 +78,11 @@ export interface AgentTaskExecution {
   channelId: string | null;
   taskcastTaskId: string | null;
   tokenUsage: number;
+  triggerId: string | null;
+  triggerType: string | null;
+  triggerContext: TriggerContext | null;
+  documentVersionId: string | null;
+  sourceExecutionId: string | null;
   startedAt: string | null;
   completedAt: string | null;
   duration: number | null;
@@ -145,10 +150,12 @@ export interface CreateTaskDto {
   scheduleType?: AgentTaskScheduleType;
   scheduleConfig?: ScheduleConfig;
   documentContent?: string;
+  triggers?: CreateTriggerDto[];
 }
 
 export interface UpdateTaskDto {
   title?: string;
+  botId?: string | null;
   description?: string;
   scheduleType?: AgentTaskScheduleType;
   scheduleConfig?: ScheduleConfig;
@@ -157,4 +164,77 @@ export interface UpdateTaskDto {
 export interface ResolveInterventionDto {
   action: string;
   message?: string;
+}
+
+// ── Trigger types ──────────────────────────────────────────────────
+
+export type AgentTaskTriggerType =
+  | "manual"
+  | "interval"
+  | "schedule"
+  | "channel_message";
+
+export interface AgentTaskTrigger {
+  id: string;
+  taskId: string;
+  type: AgentTaskTriggerType;
+  config: Record<string, unknown> | null;
+  enabled: boolean;
+  nextRunAt: string | null;
+  lastRunAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── Trigger context types ──────────────────────────────────────────
+
+export interface ManualTriggerContext {
+  triggeredAt: string;
+  triggeredBy: string;
+  notes?: string;
+}
+
+export interface ScheduleTriggerContext {
+  triggeredAt: string;
+  scheduledAt: string;
+}
+
+export interface ChannelMessageTriggerContext {
+  triggeredAt: string;
+  channelId: string;
+  messageId: string;
+  messageContent?: string;
+  senderId: string;
+}
+
+export interface RetryTriggerContext {
+  triggeredAt: string;
+  triggeredBy: string;
+  notes?: string;
+  originalExecutionId: string;
+  originalFailReason?: string;
+}
+
+export type TriggerContext =
+  | ManualTriggerContext
+  | ScheduleTriggerContext
+  | ChannelMessageTriggerContext
+  | RetryTriggerContext;
+
+// ── Trigger DTOs ───────────────────────────────────────────────────
+
+export interface CreateTriggerDto {
+  type: AgentTaskTriggerType;
+  config?: Record<string, unknown>;
+  enabled?: boolean;
+}
+
+export interface UpdateTriggerDto {
+  config?: Record<string, unknown>;
+  enabled?: boolean;
+}
+
+export interface RetryExecutionDto {
+  executionId: string;
+  notes?: string;
 }

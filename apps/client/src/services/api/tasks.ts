@@ -7,9 +7,13 @@ import type {
   AgentTaskIntervention,
   AgentTaskStatus,
   AgentTaskScheduleType,
+  AgentTaskTrigger,
   CreateTaskDto,
   UpdateTaskDto,
   ResolveInterventionDto,
+  CreateTriggerDto,
+  UpdateTriggerDto,
+  RetryExecutionDto,
 } from "@/types/task";
 
 export interface TaskListParams {
@@ -45,8 +49,11 @@ export const tasksApi = {
     await http.delete(`/v1/tasks/${id}`);
   },
 
-  start: async (id: string, message?: string): Promise<void> => {
-    await http.post(`/v1/tasks/${id}/start`, message ? { message } : {});
+  start: async (
+    id: string,
+    opts?: { notes?: string; triggerId?: string; message?: string },
+  ): Promise<void> => {
+    await http.post(`/v1/tasks/${id}/start`, opts ?? {});
   },
 
   pause: async (id: string): Promise<void> => {
@@ -109,6 +116,46 @@ export const tasksApi = {
       `/v1/tasks/${taskId}/interventions/${interventionId}/resolve`,
       dto,
     );
+  },
+
+  // Trigger CRUD
+  createTrigger: async (
+    taskId: string,
+    dto: CreateTriggerDto,
+  ): Promise<AgentTaskTrigger> => {
+    const response = await http.post<AgentTaskTrigger>(
+      `/v1/tasks/${taskId}/triggers`,
+      dto,
+    );
+    return response.data;
+  },
+
+  listTriggers: async (taskId: string): Promise<AgentTaskTrigger[]> => {
+    const response = await http.get<AgentTaskTrigger[]>(
+      `/v1/tasks/${taskId}/triggers`,
+    );
+    return response.data;
+  },
+
+  updateTrigger: async (
+    taskId: string,
+    triggerId: string,
+    dto: UpdateTriggerDto,
+  ): Promise<AgentTaskTrigger> => {
+    const response = await http.patch<AgentTaskTrigger>(
+      `/v1/tasks/${taskId}/triggers/${triggerId}`,
+      dto,
+    );
+    return response.data;
+  },
+
+  deleteTrigger: async (taskId: string, triggerId: string): Promise<void> => {
+    await http.delete(`/v1/tasks/${taskId}/triggers/${triggerId}`);
+  },
+
+  // Retry
+  retry: async (taskId: string, dto: RetryExecutionDto): Promise<void> => {
+    await http.post(`/v1/tasks/${taskId}/retry`, dto);
   },
 };
 
