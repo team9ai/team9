@@ -5,6 +5,7 @@ import {
   eq,
   and,
   lte,
+  inArray,
   notInArray,
   type PostgresJsDatabase,
 } from '@team9/database';
@@ -53,52 +54,87 @@ export class SchedulerService {
   private async doScan(): Promise<void> {
     const now = new Date();
 
-    const dueTasks = await this.db
-      .select()
-      .from(schema.agentTasks)
+    const dueTriggers = await this.db
+      .select({
+        trigger: schema.agentTaskTriggers,
+        taskStatus: schema.agentTasks.status,
+      })
+      .from(schema.agentTaskTriggers)
+      .innerJoin(
+        schema.agentTasks,
+        eq(schema.agentTaskTriggers.taskId, schema.agentTasks.id),
+      )
       .where(
         and(
-          eq(schema.agentTasks.scheduleType, 'recurring'),
-          lte(schema.agentTasks.nextRunAt, now),
+          eq(schema.agentTaskTriggers.enabled, true),
+          inArray(schema.agentTaskTriggers.type, ['interval', 'schedule']),
+          lte(schema.agentTaskTriggers.nextRunAt, now),
           notInArray(schema.agentTasks.status, EXCLUDED_STATUSES),
         ),
       );
 
-    if (dueTasks.length === 0) {
+    if (dueTriggers.length === 0) {
       return;
     }
 
-    this.logger.log(
-      `Found ${dueTasks.length} recurring task(s) due for execution`,
-    );
+    this.logger.log(`Found ${dueTriggers.length} trigger(s) due for execution`);
 
-    for (const task of dueTasks) {
+    for (const { trigger } of dueTriggers) {
       try {
-        await this.executor.triggerExecution(task.id);
+        const triggerContext = {
+          triggeredAt: new Date().toISOString(),
+          scheduledAt:
+            trigger.nextRunAt?.toISOString() ?? new Date().toISOString(),
+        };
 
-        // Calculate and persist the next run time
-        const nextRunAt = calculateNextRunAt(task.scheduleConfig ?? undefined);
+        await this.executor.triggerExecution(trigger.taskId, {
+          triggerId: trigger.id,
+          triggerType: trigger.type,
+          triggerContext,
+        });
+
+        // Calculate and persist the next run time based on trigger type and config
+        const nextRunAt = this.calculateNextRunForTrigger(trigger);
+
+        await this.db
+          .update(schema.agentTaskTriggers)
+          .set({
+            nextRunAt,
+            lastRunAt: now,
+            updatedAt: now,
+          })
+          .where(eq(schema.agentTaskTriggers.id, trigger.id));
 
         if (nextRunAt) {
-          await this.db
-            .update(schema.agentTasks)
-            .set({ nextRunAt, updatedAt: new Date() })
-            .where(eq(schema.agentTasks.id, task.id));
-
           this.logger.log(
-            `Task ${task.id} next run scheduled for ${nextRunAt.toISOString()}`,
-          );
-        } else {
-          this.logger.warn(
-            `Task ${task.id} has no valid schedule config; cannot compute next run`,
+            `Trigger ${trigger.id} next run scheduled for ${nextRunAt.toISOString()}`,
           );
         }
       } catch (error) {
         this.logger.error(
-          `Failed to trigger execution for task ${task.id}: ${error}`,
+          `Failed to trigger execution for trigger ${trigger.id}: ${error}`,
         );
       }
     }
+  }
+
+  private calculateNextRunForTrigger(
+    trigger: schema.AgentTaskTrigger,
+  ): Date | null {
+    const config = trigger.config as Record<string, unknown> | null;
+    if (!config) return null;
+
+    if (trigger.type === 'interval') {
+      return calculateNextRunAtForInterval(
+        config as { every: number; unit: string },
+      );
+    }
+
+    if (trigger.type === 'schedule') {
+      return calculateNextRunAt(config as ScheduleConfig);
+    }
+
+    return null;
   }
 
   private lockValue = `${process.pid}-${Date.now()}`;
@@ -163,6 +199,9 @@ export function calculateNextRunAt(config?: ScheduleConfig): Date | null {
 
     case 'weekly':
       return nextWeekly(now, hours, minutes, config.dayOfWeek ?? 1, tz);
+
+    case 'weekdays':
+      return nextWeekday(now, hours, minutes, tz);
 
     case 'monthly':
       return nextMonthly(now, hours, minutes, config.dayOfMonth ?? 1, tz);
@@ -382,4 +421,72 @@ function nextMonthly(
   }
 
   return next;
+}
+
+/**
+ * Next weekday (Mon-Fri) occurrence at the given time.
+ * Skips Saturday and Sunday.
+ */
+function nextWeekday(
+  now: Date,
+  hours: number,
+  minutes: number,
+  tz?: string,
+): Date {
+  const n = nowInTz(now, tz);
+  // Start from today
+  for (let daysAhead = 0; daysAhead <= 7; daysAhead++) {
+    const candidate = buildDateInTz(
+      n.year,
+      n.month,
+      n.day + daysAhead,
+      hours,
+      minutes,
+      tz,
+    );
+    if (candidate <= now) continue;
+    // Check if it's a weekday (Mon-Fri = 1-5)
+    const dayOfWeek = candidate.getDay();
+    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+      return candidate;
+    }
+  }
+  // Fallback: next Monday
+  const daysUntilMonday = (1 - n.weekday + 7) % 7 || 7;
+  return buildDateInTz(
+    n.year,
+    n.month,
+    n.day + daysUntilMonday,
+    hours,
+    minutes,
+    tz,
+  );
+}
+
+function calculateNextRunAtForInterval(config: {
+  every: number;
+  unit: string;
+}): Date {
+  const now = new Date();
+  const ms = intervalToMs(config.every, config.unit);
+  return new Date(now.getTime() + ms);
+}
+
+function intervalToMs(every: number, unit: string): number {
+  switch (unit) {
+    case 'minutes':
+      return every * 60_000;
+    case 'hours':
+      return every * 3_600_000;
+    case 'days':
+      return every * 86_400_000;
+    case 'weeks':
+      return every * 604_800_000;
+    case 'months':
+      return every * 30 * 86_400_000;
+    case 'years':
+      return every * 365 * 86_400_000;
+    default:
+      return every * 86_400_000;
+  }
 }

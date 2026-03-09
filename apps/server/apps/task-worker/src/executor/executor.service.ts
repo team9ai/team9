@@ -38,13 +38,23 @@ export class ExecutorService {
    * 1. Load task from DB
    * 2. Determine next version number
    * 3. Create task channel (type='task')
-   * 4. Create execution record in DB
-   * 5. Update task status to in_progress
-   * 6. Look up bot's shadow userId from bots table
-   * 7. Delegate to strategy (TODO markers for now)
-   * 8. Log completion
+   * 4. Fetch document content (if linked)
+   * 5. Create execution record in DB
+   * 6. Update task status to in_progress
+   * 7. Look up bot's shadow userId from bots table
+   * 8. Delegate to strategy
+   * 9. Log completion
    */
-  async triggerExecution(taskId: string): Promise<void> {
+  async triggerExecution(
+    taskId: string,
+    opts?: {
+      triggerId?: string;
+      triggerType?: string;
+      triggerContext?: Record<string, unknown>;
+      sourceExecutionId?: string;
+      documentVersionId?: string;
+    },
+  ): Promise<void> {
     // ── 1. Load task ──────────────────────────────────────────────────
     const [task] = await this.db
       .select()
@@ -87,7 +97,33 @@ export class ExecutorService {
       role: 'owner',
     });
 
-    // ── 4. Create execution record ────────────────────────────────────
+    // ── 4. Fetch document content (if linked) ─────────────────────────
+    let documentContent: string | undefined;
+    let documentVersionId: string | undefined;
+    if (task.documentId) {
+      const [docVersion] = await this.db
+        .select({
+          content: schema.documentVersions.content,
+          versionId: schema.documentVersions.id,
+        })
+        .from(schema.documents)
+        .innerJoin(
+          schema.documentVersions,
+          eq(schema.documentVersions.id, schema.documents.currentVersionId),
+        )
+        .where(eq(schema.documents.id, task.documentId))
+        .limit(1);
+
+      documentContent = docVersion?.content;
+      documentVersionId = docVersion?.versionId;
+    }
+
+    // If a specific documentVersionId was provided (e.g. retry case), use it instead
+    if (opts?.documentVersionId) {
+      documentVersionId = opts.documentVersionId;
+    }
+
+    // ── 5. Create execution record ────────────────────────────────────
     const executionId = uuidv7();
     const taskcastTaskId = uuidv7(); // Placeholder — will be replaced by external system ID
 
@@ -98,10 +134,16 @@ export class ExecutorService {
       status: 'in_progress',
       channelId,
       taskcastTaskId,
+      triggerId: opts?.triggerId ?? null,
+      triggerType: opts?.triggerType ?? null,
+      triggerContext:
+        (opts?.triggerContext as unknown as schema.TriggerContext) ?? null,
+      documentVersionId: documentVersionId ?? null,
+      sourceExecutionId: opts?.sourceExecutionId ?? null,
       startedAt: new Date(),
     });
 
-    // ── 5. Update task status to in_progress ──────────────────────────
+    // ── 6. Update task status to in_progress ──────────────────────────
     await this.db
       .update(schema.agentTasks)
       .set({
@@ -111,7 +153,7 @@ export class ExecutorService {
       })
       .where(eq(schema.agentTasks.id, taskId));
 
-    // ── 6. Look up bot's shadow userId ────────────────────────────────
+    // ── 7. Look up bot's shadow userId ────────────────────────────────
     const [bot] = await this.db
       .select({ userId: schema.bots.userId, type: schema.bots.type })
       .from(schema.bots)
@@ -134,22 +176,6 @@ export class ExecutorService {
       userId: bot.userId,
       role: 'member',
     });
-
-    // ── 7. Fetch document content (if linked) ─────────────────────────
-    let documentContent: string | undefined;
-    if (task.documentId) {
-      const [docVersion] = await this.db
-        .select({ content: schema.documentVersions.content })
-        .from(schema.documents)
-        .innerJoin(
-          schema.documentVersions,
-          eq(schema.documentVersions.id, schema.documents.currentVersionId),
-        )
-        .where(eq(schema.documents.id, task.documentId))
-        .limit(1);
-
-      documentContent = docVersion?.content;
-    }
 
     // ── 8. Delegate to strategy ───────────────────────────────────────
     const strategy = this.strategies.get(bot.type);
@@ -213,7 +239,7 @@ export class ExecutorService {
       return;
     }
 
-    // ── 9. Log completion ─────────────────────────────────────────────
+    // ── 9. Log completion ──────────────────────────────────────────────
     this.logger.log(
       `Execution ${executionId} (v${nextVersion}) initiated for task ${taskId}`,
     );
