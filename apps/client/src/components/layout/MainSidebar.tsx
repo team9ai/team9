@@ -48,6 +48,7 @@ import { useCurrentUser, useLogout } from "@/hooks/useAuth";
 import { useUpdateStatus, useOnlineUsers } from "@/hooks/useIMUsers";
 import { useNotificationCounts } from "@/hooks/useNotifications";
 import { useChannelsByType } from "@/hooks/useChannels";
+import { useDevtools } from "@/hooks/useDevtools";
 import { NotificationBadge } from "@/components/ui/badge";
 import { CreateWorkspaceDialog } from "@/components/dialog/CreateWorkspaceDialog";
 import type { UserStatus } from "@/types/im";
@@ -99,6 +100,7 @@ export function MainSidebar() {
   const { data: onlineUsers = {} } = useOnlineUsers();
   const { data: notificationCounts } = useNotificationCounts();
   const { directChannels = [] } = useChannelsByType();
+  const { handleTap: devtoolsTap, message: devtoolsMessage } = useDevtools();
 
   // Activity count excludes dm_received notifications (those are shown on Messages)
   const activityUnreadCount =
@@ -521,13 +523,23 @@ export function MainSidebar() {
                 {/* User Info Header */}
                 <div className="p-4">
                   <div className="flex items-center gap-3">
-                    <Avatar className="w-12 h-12">
-                      <AvatarFallback className="bg-primary text-primary-foreground text-lg font-medium">
-                        {currentUser?.displayName?.[0] ||
-                          currentUser?.username?.[0]?.toUpperCase() ||
-                          "U"}
-                      </AvatarFallback>
-                    </Avatar>
+                    <div className="relative">
+                      <Avatar
+                        className="w-12 h-12 cursor-pointer"
+                        onClick={devtoolsTap}
+                      >
+                        <AvatarFallback className="bg-primary text-primary-foreground text-lg font-medium">
+                          {currentUser?.displayName?.[0] ||
+                            currentUser?.username?.[0]?.toUpperCase() ||
+                            "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                      {devtoolsMessage && (
+                        <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 whitespace-nowrap rounded bg-foreground px-2 py-1 text-xs text-background shadow-md animate-in fade-in zoom-in-95 duration-150">
+                          {devtoolsMessage}
+                        </div>
+                      )}
+                    </div>
                     <div>
                       <p className="font-semibold text-sm">
                         {currentUser?.displayName ||

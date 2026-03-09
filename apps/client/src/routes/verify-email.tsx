@@ -31,6 +31,17 @@ function VerifyEmail() {
   const [errorMessage, setErrorMessage] = useState("");
   const verifiedRef = useRef(false);
 
+  // Prevent token leakage via HTTP Referrer header
+  useEffect(() => {
+    const meta = document.createElement("meta");
+    meta.name = "referrer";
+    meta.content = "no-referrer";
+    document.head.appendChild(meta);
+    return () => {
+      document.head.removeChild(meta);
+    };
+  }, []);
+
   useEffect(() => {
     if (!token) {
       setStatus("error");
@@ -62,6 +73,14 @@ function VerifyEmail() {
           } finally {
             localStorage.removeItem("pending_invite_code");
           }
+        }
+
+        // Try to wake up the desktop client via deep link.
+        // No sensitive data in the URL — the desktop app polls for tokens.
+        try {
+          window.location.href = "team9://auth-complete";
+        } catch {
+          // Deep link not handled, continue in browser
         }
 
         // Redirect to home after 3 seconds

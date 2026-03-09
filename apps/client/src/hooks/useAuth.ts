@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Sentry from "@sentry/react";
+import { invoke } from "@tauri-apps/api/core";
 import api, {
   type LoginRequest,
   type RegisterRequest,
@@ -76,6 +77,46 @@ export const useResendVerification = () => {
   });
 };
 
+export const useLoginPolling = (
+  sessionId: string | null,
+  onSuccess: (data: {
+    user: User;
+    accessToken: string;
+    refreshToken: string;
+  }) => void,
+) => {
+  return useQuery({
+    queryKey: ["loginPolling", sessionId],
+    queryFn: async () => {
+      const result = await api.auth.pollLogin(sessionId!);
+      if (
+        result.status === "verified" &&
+        result.accessToken &&
+        result.refreshToken &&
+        result.user
+      ) {
+        // Store tokens
+        localStorage.setItem("auth_token", result.accessToken);
+        localStorage.setItem("refresh_token", result.refreshToken);
+        syncUserToStore(result.user);
+        onSuccess({
+          user: result.user,
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
+        });
+      }
+      return result;
+    },
+    enabled: !!sessionId,
+    refetchInterval: (query) => {
+      // Stop polling once verified
+      if (query.state.data?.status === "verified") return false;
+      return 3000; // Poll every 3 seconds
+    },
+    retry: false,
+  });
+};
+
 export const useLogout = () => {
   const queryClient = useQueryClient();
 
@@ -96,6 +137,12 @@ export const useLogout = () => {
 
       // Clear sessionStorage flags
       sessionStorage.removeItem("app_initialized");
+
+      // Stop aHand daemon on logout (desktop app only).
+      // Use __TAURI_INTERNALS__ for Tauri v2 detection (v1 used __TAURI__).
+      if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
+        invoke("ahand_stop").catch(() => {});
+      }
     },
   });
 };

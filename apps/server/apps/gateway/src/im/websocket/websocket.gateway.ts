@@ -521,6 +521,12 @@ export class WebsocketGateway
   ) {
     const socketClient = client as SocketWithUser;
     const { channelId } = data;
+    const roomName = `channel:${channelId}`;
+
+    // Already in the room (e.g. auto-joined on connect) — skip DB query and broadcast
+    if (client.rooms.has(roomName)) {
+      return { success: true };
+    }
 
     const isMember = await this.channelsService.isMember(
       channelId,
@@ -534,11 +540,11 @@ export class WebsocketGateway
       }
     }
 
-    void client.join(`channel:${channelId}`);
+    void client.join(roomName);
 
     // Only broadcast join event for actual members
     if (isMember) {
-      client.to(`channel:${channelId}`).emit(WS_EVENTS.CHANNEL.JOINED, {
+      client.to(roomName).emit(WS_EVENTS.CHANNEL.JOINED, {
         channelId,
         userId: socketClient.userId,
         username: socketClient.username,

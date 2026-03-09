@@ -45,6 +45,9 @@ apps/client/src-tauri/target/
 .agents/
 .claude/
 
+# Git worktrees
+.worktrees/
+
 # Enterprise (when using submodule, this is handled by git automatically)
 # Only ignore if developing locally without submodule setup
 # enterprise/
@@ -54,3 +57,6 @@ apps/client/src-tauri/target/
 license.key
 
 CLAUDE.local.md
+
+node_modules/
+**/node_modules/

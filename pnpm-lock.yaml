@@ -141,8 +141,11 @@ importers:
         specifier: ^1.141.7
         version: 1.143.11(@tanstack/react-router@1.143.11(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(vite@7.3.0(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))(webpack@5.103.0(@swc/core@1.15.7))
       "@tauri-apps/api":
-        specifier: ^2
-        version: 2.9.1
+        specifier: ^2.10.1
+        version: 2.10.1
+      "@tauri-apps/plugin-deep-link":
+        specifier: ^2.4.7
+        version: 2.4.7
       "@tauri-apps/plugin-opener":
         specifier: ^2
         version: 2.5.2
@@ -566,7 +569,7 @@ importers:
         version: link:../../../../enterprise/libs/analytics
       "@team9/enterprise-audit":
         specifier: workspace:*
-        version: link:../../../../enterprise/libs/audit
+        version: file:enterprise/libs/audit(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)(uuid@13.0.0)
       "@team9/enterprise-license":
         specifier: workspace:*
         version: link:../../../../enterprise/libs/license
@@ -877,6 +880,13 @@ importers:
       "@nestjs/core":
         specifier: ^11.0.0
         version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+    devDependencies:
+      "@types/node":
+        specifier: ^22.0.0
+        version: 22.19.3
+      typescript:
+        specifier: ^5.7.3
+        version: 5.8.3
 
   enterprise/libs/audit:
     dependencies:
@@ -886,6 +896,16 @@ importers:
       "@nestjs/core":
         specifier: ^11.0.0
         version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      uuid:
+        specifier: ^11.0.0
+        version: 11.1.0
+    devDependencies:
+      "@types/node":
+        specifier: ^22.0.0
+        version: 22.19.3
+      typescript:
+        specifier: ^5.7.3
+        version: 5.8.3
 
   enterprise/libs/license:
     dependencies:
@@ -895,6 +915,13 @@ importers:
       "@nestjs/core":
         specifier: ^11.0.0
         version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+    devDependencies:
+      "@types/node":
+        specifier: ^22.0.0
+        version: 22.19.3
+      typescript:
+        specifier: ^5.7.3
+        version: 5.8.3
 
   enterprise/libs/sso:
     dependencies:
@@ -904,6 +931,13 @@ importers:
       "@nestjs/core":
         specifier: ^11.0.0
         version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+    devDependencies:
+      "@types/node":
+        specifier: ^22.0.0
+        version: 22.19.3
+      typescript:
+        specifier: ^5.7.3
+        version: 5.8.3
 
   enterprise/libs/tenant:
     dependencies:
@@ -6656,10 +6690,10 @@ packages:
       }
     engines: { node: ">=12" }
 
-  "@tauri-apps/api@2.9.1":
+  "@tauri-apps/api@2.10.1":
     resolution:
       {
-        integrity: sha512-IGlhP6EivjXHepbBic618GOmiWe4URJiIeZFlB7x3czM0yDHHYviH1Xvoiv4FefdkQtn6v7TuwWCRfOGdnVUGw==,
+        integrity: sha512-hKL/jWf293UDSUN09rR69hrToyIXBb8CjGaWC7gfinvnQrBVvnLr08FeFi38gxtugAVyVcTa5/FD/Xnkb1siBw==,
       }
 
   "@tauri-apps/cli-darwin-arm64@2.9.6":
@@ -6769,6 +6803,12 @@ packages:
     engines: { node: ">= 10" }
     hasBin: true
 
+  "@tauri-apps/plugin-deep-link@2.4.7":
+    resolution:
+      {
+        integrity: sha512-K0FQlLM6BoV7Ws2xfkh+Tnwi5VZVdkI4Vw/3AGLSf0Xvu2y86AMBzd9w/SpzKhw9ai2B6ES8di/OoGDCExkOzg==,
+      }
+
   "@tauri-apps/plugin-opener@2.5.2":
     resolution:
       {
@@ -6780,6 +6820,13 @@ packages:
     peerDependencies:
       "@nestjs/common": ^11.0.0
       "@nestjs/core": ^11.0.0
+
+  "@team9/enterprise-audit@file:enterprise/libs/audit":
+    resolution: { directory: enterprise/libs/audit, type: directory }
+    peerDependencies:
+      "@nestjs/common": ^11.0.0
+      "@nestjs/core": ^11.0.0
+      uuid: ^11.0.0
 
   "@team9/shared@file:apps/server/libs/shared":
     resolution: { directory: apps/server/libs/shared, type: directory }
@@ -13445,6 +13492,13 @@ packages:
       }
     engines: { node: ">= 0.4.0" }
 
+  uuid@11.1.0:
+    resolution:
+      {
+        integrity: sha512-0/A9rDy9P7cJ+8w1c9WD9V//9Wj15Ce2MPz8Ri6032usz+NfePxx5AcN3bN+r6ZL6jEo066/yNYB3tn4pQEx+A==,
+      }
+    hasBin: true
+
   uuid@13.0.0:
     resolution:
       {
@@ -18295,7 +18349,7 @@ snapshots:
 
   "@tanstack/virtual-file-routes@1.141.0": {}
 
-  "@tauri-apps/api@2.9.1": {}
+  "@tauri-apps/api@2.10.1": {}
 
   "@tauri-apps/cli-darwin-arm64@2.9.6":
     optional: true
@@ -18344,9 +18398,13 @@ snapshots:
       "@tauri-apps/cli-win32-ia32-msvc": 2.9.6
       "@tauri-apps/cli-win32-x64-msvc": 2.9.6
 
+  "@tauri-apps/plugin-deep-link@2.4.7":
+    dependencies:
+      "@tauri-apps/api": 2.10.1
+
   "@tauri-apps/plugin-opener@2.5.2":
     dependencies:
-      "@tauri-apps/api": 2.9.1
+      "@tauri-apps/api": 2.10.1
 
   "@team9/email@file:apps/server/libs/email(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)":
     dependencies:
@@ -18357,6 +18415,13 @@ snapshots:
     transitivePeerDependencies:
       - react
       - react-dom
+
+  "@team9/enterprise-audit@file:enterprise/libs/audit(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)(uuid@13.0.0)":
+    dependencies:
+      "@nestjs/common": 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      "@nestjs/core": 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      uuid: 13.0.0
+    optional: true
 
   "@team9/shared@file:apps/server/libs/shared": {}
 
@@ -18420,7 +18485,7 @@ snapshots:
 
   "@types/bunyan@1.8.11":
     dependencies:
-      "@types/node": 25.0.3
+      "@types/node": 22.19.3
 
   "@types/connect@3.4.38":
     dependencies:
@@ -18503,7 +18568,7 @@ snapshots:
 
   "@types/memcached@2.2.10":
     dependencies:
-      "@types/node": 25.0.3
+      "@types/node": 22.19.3
 
   "@types/methods@1.1.4": {}
 
@@ -18511,7 +18576,7 @@ snapshots:
 
   "@types/mysql@2.15.26":
     dependencies:
-      "@types/node": 25.0.3
+      "@types/node": 22.19.3
 
   "@types/mysql@2.15.27":
     dependencies:
@@ -18561,7 +18626,7 @@ snapshots:
 
   "@types/pg@8.6.1":
     dependencies:
-      "@types/node": 25.0.3
+      "@types/node": 22.19.3
       pg-protocol: 1.10.3
       pg-types: 2.2.0
 
@@ -22793,6 +22858,8 @@ snapshots:
   util-deprecate@1.0.2: {}
 
   utils-merge@1.0.1: {}
+
+  uuid@11.1.0: {}
 
   uuid@13.0.0: {}
 

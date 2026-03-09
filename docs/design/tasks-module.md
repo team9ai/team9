@@ -19,11 +19,9 @@ Each Bot (currently OpenClaw-backed) appears in the UI with a "Task List" tab al
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Task**           | A work unit assigned to a Bot, with a complete lifecycle                                                                                           |
 | **Task Execution** | A single run of a task (version). Recurring tasks generate multiple executions                                                                     |
-| **Task Step**      | A sub-step within an execution, created and advanced by the Bot                                                                                    |
+| **Task Entry**     | A timeline entry during execution, including steps, interventions, deliverables, etc., stored in a unified table                                   |
 | **Task Channel**   | A dedicated virtual IM channel for each execution (new `task` channel type), enabling user-bot communication in the context of a specific task run |
-| **Document**       | A versioned Markdown document attached to a task, providing detailed instructions for the agent                                                    |
-| **Deliverable**    | Output files produced by task execution (images, docx, pptx, etc.)                                                                                 |
-| **Intervention**   | A human-in-the-loop approval/confirmation request raised by the Bot during execution                                                               |
+| **Document**       | A versioned Markdown document attached to a task, auto-created with the task, providing detailed instructions for the agent                        |
 
 ## 3. Task Lifecycle
 
@@ -131,56 +129,56 @@ Each Bot (currently OpenClaw-backed) appears in the UI with a "Task List" tab al
 
 ## 5. Data Model
 
-### 5.1 `task_tasks` - Task Main Table
+### 5.1 `agent_task__tasks` - Task Main Table
 
 ```sql
-CREATE TABLE task_tasks (
+CREATE TABLE agent_task__tasks (
     id              UUID PRIMARY KEY,
     tenant_id       UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     bot_id          UUID NOT NULL REFERENCES im_bots(id) ON DELETE CASCADE,
     creator_id      UUID NOT NULL REFERENCES im_users(id),
     title           VARCHAR(500) NOT NULL,
     description     TEXT,                          -- brief description (separate from document)
-    status          task_status NOT NULL DEFAULT 'upcoming',
-    schedule_type   task_schedule_type NOT NULL DEFAULT 'once',  -- 'once' | 'recurring'
+    status          agent_task__status NOT NULL DEFAULT 'upcoming',
+    schedule_type   agent_task__schedule_type NOT NULL DEFAULT 'once',  -- 'once' | 'recurring'
     schedule_config JSONB,                         -- { frequency: 'daily', time: '09:00', timezone: 'Asia/Shanghai' } or cron
     next_run_at     TIMESTAMP,                     -- next scheduled execution time (for task-worker scanning)
-    document_id     UUID REFERENCES documents(id), -- associated task document
+    document_id     UUID REFERENCES documents(id), -- associated task document (auto-created with task)
     current_execution_id UUID,                     -- FK to current/latest execution (denormalized for fast query)
     created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 -- Indexes
-CREATE INDEX idx_task_tasks_tenant_id ON task_tasks(tenant_id);
-CREATE INDEX idx_task_tasks_bot_id ON task_tasks(bot_id);
-CREATE INDEX idx_task_tasks_creator_id ON task_tasks(creator_id);
-CREATE INDEX idx_task_tasks_status ON task_tasks(status);
-CREATE INDEX idx_task_tasks_next_run_at ON task_tasks(next_run_at);
-CREATE INDEX idx_task_tasks_tenant_status ON task_tasks(tenant_id, status);
+CREATE INDEX idx_agent_task__tasks_tenant_id ON agent_task__tasks(tenant_id);
+CREATE INDEX idx_agent_task__tasks_bot_id ON agent_task__tasks(bot_id);
+CREATE INDEX idx_agent_task__tasks_creator_id ON agent_task__tasks(creator_id);
+CREATE INDEX idx_agent_task__tasks_status ON agent_task__tasks(status);
+CREATE INDEX idx_agent_task__tasks_next_run_at ON agent_task__tasks(next_run_at);
+CREATE INDEX idx_agent_task__tasks_tenant_status ON agent_task__tasks(tenant_id, status);
 ```
 
 **Enums:**
 
 ```sql
-CREATE TYPE task_status AS ENUM (
+CREATE TYPE agent_task__status AS ENUM (
     'upcoming', 'in_progress', 'paused', 'pending_action',
     'completed', 'failed', 'stopped', 'timeout'
 );
 
-CREATE TYPE task_schedule_type AS ENUM ('once', 'recurring');
+CREATE TYPE agent_task__schedule_type AS ENUM ('once', 'recurring');
 ```
 
-### 5.2 `task_executions` - Execution Records (Versions)
+### 5.2 `agent_task__executions` - Execution Records (Versions)
 
 Each trigger (manual or scheduled) creates one execution record with a dedicated task channel.
 
 ```sql
-CREATE TABLE task_executions (
+CREATE TABLE agent_task__executions (
     id              UUID PRIMARY KEY,
-    task_id         UUID NOT NULL REFERENCES task_tasks(id) ON DELETE CASCADE,
+    task_id         UUID NOT NULL REFERENCES agent_task__tasks(id) ON DELETE CASCADE,
     version         INTEGER NOT NULL,              -- execution version (1, 2, 3...)
-    status          task_status NOT NULL DEFAULT 'in_progress',
+    status          agent_task__status NOT NULL DEFAULT 'in_progress',
     channel_id      UUID REFERENCES im_channels(id), -- dedicated virtual channel for this execution
     token_usage     INTEGER NOT NULL DEFAULT 0,
     started_at      TIMESTAMP,
@@ -190,21 +188,21 @@ CREATE TABLE task_executions (
     created_at      TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_task_executions_task_id ON task_executions(task_id);
-CREATE INDEX idx_task_executions_status ON task_executions(status);
-CREATE INDEX idx_task_executions_task_version ON task_executions(task_id, version);
+CREATE INDEX idx_agent_task__executions_task_id ON agent_task__executions(task_id);
+CREATE INDEX idx_agent_task__executions_status ON agent_task__executions(status);
+CREATE INDEX idx_agent_task__executions_task_version ON agent_task__executions(task_id, version);
 ```
 
-### 5.3 `task_steps` - Execution Steps
+### 5.3 `agent_task__steps` - Execution Steps
 
 ```sql
-CREATE TABLE task_steps (
+CREATE TABLE agent_task__steps (
     id              UUID PRIMARY KEY,
-    execution_id    UUID NOT NULL REFERENCES task_executions(id) ON DELETE CASCADE,
-    task_id         UUID NOT NULL REFERENCES task_tasks(id) ON DELETE CASCADE,  -- denormalized
+    execution_id    UUID NOT NULL REFERENCES agent_task__executions(id) ON DELETE CASCADE,
+    task_id         UUID NOT NULL REFERENCES agent_task__tasks(id) ON DELETE CASCADE,  -- denormalized
     order_index     INTEGER NOT NULL,
     title           VARCHAR(500) NOT NULL,
-    status          task_step_status NOT NULL DEFAULT 'pending',
+    status          agent_task__step_status NOT NULL DEFAULT 'pending',
     token_usage     INTEGER NOT NULL DEFAULT 0,
     duration        INTEGER,                       -- seconds
     started_at      TIMESTAMP,
@@ -212,19 +210,19 @@ CREATE TABLE task_steps (
     created_at      TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
-CREATE TYPE task_step_status AS ENUM ('pending', 'in_progress', 'completed', 'failed');
+CREATE TYPE agent_task__step_status AS ENUM ('pending', 'in_progress', 'completed', 'failed');
 
-CREATE INDEX idx_task_steps_execution_id ON task_steps(execution_id);
-CREATE INDEX idx_task_steps_task_id ON task_steps(task_id);
+CREATE INDEX idx_agent_task__steps_execution_id ON agent_task__steps(execution_id);
+CREATE INDEX idx_agent_task__steps_task_id ON agent_task__steps(task_id);
 ```
 
-### 5.4 `task_deliverables` - Deliverables
+### 5.4 `agent_task__deliverables` - Deliverables
 
 ```sql
-CREATE TABLE task_deliverables (
+CREATE TABLE agent_task__deliverables (
     id              UUID PRIMARY KEY,
-    execution_id    UUID NOT NULL REFERENCES task_executions(id) ON DELETE CASCADE,
-    task_id         UUID NOT NULL REFERENCES task_tasks(id) ON DELETE CASCADE,  -- denormalized
+    execution_id    UUID NOT NULL REFERENCES agent_task__executions(id) ON DELETE CASCADE,
+    task_id         UUID NOT NULL REFERENCES agent_task__tasks(id) ON DELETE CASCADE,  -- denormalized
     file_name       VARCHAR(500) NOT NULL,
     file_size       BIGINT,                        -- bytes
     mime_type       VARCHAR(128),
@@ -232,33 +230,33 @@ CREATE TABLE task_deliverables (
     created_at      TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_task_deliverables_execution_id ON task_deliverables(execution_id);
-CREATE INDEX idx_task_deliverables_task_id ON task_deliverables(task_id);
+CREATE INDEX idx_agent_task__deliverables_execution_id ON agent_task__deliverables(execution_id);
+CREATE INDEX idx_agent_task__deliverables_task_id ON agent_task__deliverables(task_id);
 ```
 
-### 5.5 `task_interventions` - Human Intervention Requests
+### 5.5 `agent_task__interventions` - Human Intervention Requests
 
 ```sql
-CREATE TABLE task_interventions (
+CREATE TABLE agent_task__interventions (
     id              UUID PRIMARY KEY,
-    execution_id    UUID NOT NULL REFERENCES task_executions(id) ON DELETE CASCADE,
-    task_id         UUID NOT NULL REFERENCES task_tasks(id) ON DELETE CASCADE,  -- denormalized
-    step_id         UUID REFERENCES task_steps(id),
+    execution_id    UUID NOT NULL REFERENCES agent_task__executions(id) ON DELETE CASCADE,
+    task_id         UUID NOT NULL REFERENCES agent_task__tasks(id) ON DELETE CASCADE,  -- denormalized
+    step_id         UUID REFERENCES agent_task__steps(id),
     prompt          TEXT NOT NULL,                  -- message shown to user
     actions         JSONB NOT NULL,                 -- [{ label: string, value: string }]
     response        JSONB,                          -- user's response { action: string, message?: string }
-    status          intervention_status NOT NULL DEFAULT 'pending',
+    status          agent_task__intervention_status NOT NULL DEFAULT 'pending',
     resolved_by     UUID REFERENCES im_users(id),
     resolved_at     TIMESTAMP,
     expires_at      TIMESTAMP,                     -- optional expiry
     created_at      TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
-CREATE TYPE intervention_status AS ENUM ('pending', 'resolved', 'expired');
+CREATE TYPE agent_task__intervention_status AS ENUM ('pending', 'resolved', 'expired');
 
-CREATE INDEX idx_task_interventions_execution_id ON task_interventions(execution_id);
-CREATE INDEX idx_task_interventions_task_id ON task_interventions(task_id);
-CREATE INDEX idx_task_interventions_status ON task_interventions(status);
+CREATE INDEX idx_agent_task__interventions_execution_id ON agent_task__interventions(execution_id);
+CREATE INDEX idx_agent_task__interventions_task_id ON agent_task__interventions(task_id);
+CREATE INDEX idx_agent_task__interventions_status ON agent_task__interventions(status);
 ```
 
 ### 5.6 Document System (`schemas/document/`)
@@ -459,12 +457,12 @@ apps/server/apps/task-worker/
 
 ```
 Every 30 seconds:
-  1. SELECT * FROM task_tasks
+  1. SELECT * FROM agent_task__tasks
      WHERE schedule_type = 'recurring'
        AND next_run_at <= NOW()
        AND status NOT IN ('stopped', 'paused')
   2. For each task:
-     a. Create task_execution (version = max(version) + 1)
+     a. Create agent_task__executions record (version = max(version) + 1)
      b. Create task channel (type = 'task', members = [creator, bot])
      c. Trigger execution via OpenClaw API
      d. Update task: status = 'in_progress', current_execution_id, next_run_at = calculate_next(scheduleConfig)
@@ -474,7 +472,7 @@ Every 30 seconds:
 
 ```
 Every 60 seconds:
-  1. SELECT * FROM task_executions
+  1. SELECT * FROM agent_task__executions
      WHERE status = 'in_progress'
        AND started_at + interval '24 hours' < NOW()   -- configurable per task
   2. For each timed-out execution:
@@ -489,7 +487,7 @@ Every 60 seconds:
 ```
 Trigger (manual or scheduled)
   │
-  ├─ 1. Create task_execution record
+  ├─ 1. Create agent_task__executions record
   ├─ 2. Create task channel (im_channels type='task')
   ├─ 3. Add members to channel (creator + bot)
   ├─ 4. Update task.status = 'in_progress', task.current_execution_id
@@ -649,17 +647,17 @@ When a recurring task is created or an execution completes, `next_run_at` is rec
 
 ## 11. Relationship to Existing Systems
 
-| Existing Component    | Relationship                                                                                                                                                     |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tracker_tasks` table | Existing generic task tracker. Tasks module uses **separate tables** (`task_*`) due to different semantics. `tracker_tasks` remains for other internal tracking. |
-| `im_bots`             | Task executor, linked via `task_tasks.bot_id`                                                                                                                    |
-| `im_channels`         | Extended with `task` channel type for per-execution communication                                                                                                |
-| `im_users`            | Task creator, linked via `task_tasks.creator_id`                                                                                                                 |
-| `im-worker`           | Unchanged. Task scheduling handled by new `task-worker` service                                                                                                  |
-| WebSocket Gateway     | Reuse existing Socket.io infra, add `task:*` events                                                                                                              |
-| File module / Storage | Deliverables stored via existing storage infrastructure                                                                                                          |
-| OpenClaw module       | `task-worker` calls OpenClaw API to trigger agent execution                                                                                                      |
-| Bot Access Token      | Bot API endpoints authenticated via existing `t9bot_` token mechanism                                                                                            |
+| Existing Component    | Relationship                                                                                                                                                            |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tracker_tasks` table | Existing generic task tracker. Tasks module uses **separate tables** (`agent_task__*`) due to different semantics. `tracker_tasks` remains for other internal tracking. |
+| `im_bots`             | Task executor, linked via `agent_task__tasks.bot_id`                                                                                                                    |
+| `im_channels`         | Extended with `task` channel type for per-execution communication                                                                                                       |
+| `im_users`            | Task creator, linked via `agent_task__tasks.creator_id`                                                                                                                 |
+| `im-worker`           | Unchanged. Task scheduling handled by new `task-worker` service                                                                                                         |
+| WebSocket Gateway     | Reuse existing Socket.io infra, add `task:*` events                                                                                                                     |
+| File module / Storage | Deliverables stored via existing storage infrastructure                                                                                                                 |
+| OpenClaw module       | `task-worker` calls OpenClaw API to trigger agent execution                                                                                                             |
+| Bot Access Token      | Bot API endpoints authenticated via existing `t9bot_` token mechanism                                                                                                   |
 
 ## 12. Gateway Module Structure
 

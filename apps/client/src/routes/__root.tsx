@@ -1,6 +1,7 @@
 import { createRootRoute, Outlet } from "@tanstack/react-router";
 import { lazy } from "react";
 import { useThemeEffect } from "@/hooks/useTheme";
+import { useDeepLink } from "@/hooks/useDeepLink";
 
 const TanStackRouterDevtools = import.meta.env.PROD
   ? () => null
@@ -20,6 +21,7 @@ const ReactQueryDevtools = import.meta.env.PROD
 
 function RootComponent() {
   useThemeEffect();
+  useDeepLink();
 
   return (
     <>
