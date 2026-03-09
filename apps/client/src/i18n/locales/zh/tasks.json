@@ -1,10 +1,25 @@
 {
   "tabs": {
+    "all": "全部",
     "active": "进行中",
     "upcoming": "即将开始",
     "finished": "已完成"
   },
   "noTasks": "暂无任务",
+  "create": {
+    "title": "新建任务",
+    "description": "创建一个任务，交给 AI 员工执行。",
+    "taskName": "标题",
+    "taskNamePlaceholder": "需要完成什么？",
+    "bot": "AI 员工",
+    "botPlaceholder": "选择 AI 员工...",
+    "noBot": "暂不指定（稍后分配）",
+    "document": "文档（可选）",
+    "documentPlaceholder": "提供上下文或说明...",
+    "cancel": "取消",
+    "submit": "创建",
+    "errorGeneric": "创建任务失败"
+  },
   "status": {
     "in_progress": "进行中",
     "upcoming": "即将开始",

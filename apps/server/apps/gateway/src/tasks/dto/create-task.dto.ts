@@ -54,7 +54,8 @@ export class CreateTaskDto {
   title: string;
 
   @IsUUID()
-  botId: string;
+  @IsOptional()
+  botId?: string;
 
   @IsString()
   @IsOptional()

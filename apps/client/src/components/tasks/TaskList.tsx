@@ -14,7 +14,7 @@ const STATUS_GROUPS: Record<string, AgentTaskStatus[]> = {
   finished: ["completed", "failed", "stopped", "timeout"],
 };
 
-const TAB_KEYS = ["active", "upcoming", "finished"] as const;
+const TAB_KEYS = ["all", "active", "upcoming", "finished"] as const;
 
 type TabKey = (typeof TAB_KEYS)[number];
 
@@ -23,7 +23,7 @@ interface TaskListProps {
 }
 
 export function TaskList({ botId }: TaskListProps) {
-  const [tab, setTab] = useState<TabKey>("active");
+  const [tab, setTab] = useState<TabKey>("all");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const { t } = useTranslation("tasks");
 
@@ -33,7 +33,10 @@ export function TaskList({ botId }: TaskListProps) {
   });
 
   const tasks = useMemo(
-    () => allTasks.filter((task) => STATUS_GROUPS[tab].includes(task.status)),
+    () =>
+      tab === "all"
+        ? allTasks
+        : allTasks.filter((task) => STATUS_GROUPS[tab].includes(task.status)),
     [allTasks, tab],
   );
 
