@@ -9,9 +9,44 @@ import {
   unique,
 } from 'drizzle-orm/pg-core';
 import { agentTasks, agentTaskStatusEnum } from './tasks.js';
+import { agentTaskTriggers } from './task-triggers.js';
 import { channels } from '../im/channels.js';
+import { documentVersions } from '../document/document-versions.js';
 
 // ── Types ───────────────────────────────────────────────────────────
+
+export interface ManualTriggerContext {
+  triggeredAt: string;
+  triggeredBy: string;
+  notes?: string;
+}
+
+export interface ScheduleTriggerContext {
+  triggeredAt: string;
+  scheduledAt: string;
+}
+
+export interface ChannelMessageTriggerContext {
+  triggeredAt: string;
+  channelId: string;
+  messageId: string;
+  messageContent?: string;
+  senderId: string;
+}
+
+export interface RetryTriggerContext {
+  triggeredAt: string;
+  triggeredBy: string;
+  notes?: string;
+  originalExecutionId: string;
+  originalFailReason?: string;
+}
+
+export type TriggerContext =
+  | ManualTriggerContext
+  | ScheduleTriggerContext
+  | ChannelMessageTriggerContext
+  | RetryTriggerContext;
 
 export interface ExecutionError {
   code?: string;
@@ -45,6 +80,14 @@ export const agentTaskExecutions = pgTable(
     duration: integer('duration'),
 
     error: jsonb('error').$type<ExecutionError>(),
+
+    triggerId: uuid('trigger_id').references(() => agentTaskTriggers.id),
+    triggerType: varchar('trigger_type', { length: 32 }),
+    triggerContext: jsonb('trigger_context').$type<TriggerContext>(),
+    documentVersionId: uuid('document_version_id').references(
+      () => documentVersions.id,
+    ),
+    sourceExecutionId: uuid('source_execution_id'),
 
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
