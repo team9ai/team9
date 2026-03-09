@@ -2,6 +2,7 @@ import {
   IsString,
   IsOptional,
   IsIn,
+  IsUUID,
   MaxLength,
   ValidateNested,
 } from 'class-validator';
@@ -15,14 +16,20 @@ export class UpdateTaskDto {
   @IsOptional()
   title?: string;
 
+  @IsUUID()
+  @IsOptional()
+  botId?: string | null;
+
   @IsString()
   @IsOptional()
   description?: string;
 
+  /** @deprecated Use trigger CRUD API instead */
   @IsIn(['once', 'recurring'] as const)
   @IsOptional()
   scheduleType?: AgentTaskScheduleType;
 
+  /** @deprecated Use trigger CRUD API instead */
   @ValidateNested()
   @Type(() => ScheduleConfigDto)
   @IsOptional()

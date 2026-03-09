@@ -19,6 +19,7 @@ import type {
 export interface TaskListParams {
   botId?: string;
   status?: AgentTaskStatus;
+  /** @deprecated Use trigger-based filtering instead */
   scheduleType?: AgentTaskScheduleType;
 }
 
