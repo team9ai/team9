@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState, useCallback, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { X, Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,9 +7,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { tasksApi } from "@/services/api/tasks";
+import { useAppStore } from "@/stores";
 import { TaskBasicInfoTab } from "./TaskBasicInfoTab";
 import { TaskDocumentTab } from "./TaskDocumentTab";
 import { TaskRunsTab } from "./TaskRunsTab";
+import type { TimelineUserMessage } from "./ExecutionTimeline";
 import type { AgentTaskStatus } from "@/types/task";
 
 const ACTIVE_STATUSES: AgentTaskStatus[] = [
@@ -37,26 +39,45 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
     refetchInterval: 5000, // Poll while panel is open
   });
 
-  // Track whether we're viewing an active run (for showing message input)
+  // Track active tab & whether viewing an active run
+  const [activeTab, setActiveTab] = useState("info");
   const [viewingActiveRun, setViewingActiveRun] = useState(false);
 
-  // Show message input when task itself is active or viewing an active run
+  // Show message input only when a timeline is visible:
+  // - Info tab: task has an active execution
+  // - Runs tab: viewing a specific active run
   const taskIsActive = task ? ACTIVE_STATUSES.includes(task.status) : false;
-  const showMessageInput = taskIsActive || viewingActiveRun;
+  const hasExecution = !!task?.currentExecution;
+  const showMessageInput =
+    (activeTab === "info" && taskIsActive && hasExecution) ||
+    (activeTab === "runs" && viewingActiveRun);
 
-  // Message input state
+  // Message input state (demo: fake send, appends to timeline)
+  const user = useAppStore((s) => s.user);
   const [message, setMessage] = useState("");
-  const sendMutation = useMutation({
-    mutationFn: (content: string) => tasksApi.resume(taskId, content),
-  });
-
+  const [sentMessages, setSentMessages] = useState<TimelineUserMessage[]>([]);
+  const sendingRef = useRef(false);
   const handleSend = useCallback(() => {
+    if (sendingRef.current) return;
     const trimmed = message.trim();
-    if (!trimmed || sendMutation.isPending) return;
-    sendMutation.mutate(trimmed, {
-      onSuccess: () => setMessage(""),
-    });
-  }, [message, sendMutation, taskId]);
+    if (!trimmed) return;
+    sendingRef.current = true;
+    setSentMessages((prev) => [
+      ...prev,
+      {
+        text: trimmed,
+        senderName: user?.name ?? "You",
+        senderAvatarUrl: user?.avatarUrl,
+        role: "Mentor",
+        sentAt: new Date().toISOString(),
+      },
+    ]);
+    setMessage("");
+    // Reset guard after current event loop
+    setTimeout(() => {
+      sendingRef.current = false;
+    }, 0);
+  }, [message, user]);
 
   return (
     <div className="border-l bg-background flex flex-col h-full w-[400px]">
@@ -87,6 +108,7 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
         <Tabs
           defaultValue="info"
           className="flex-1 flex flex-col overflow-hidden"
+          onValueChange={setActiveTab}
         >
           <TabsList className="mx-4 mt-2 shrink-0">
             <TabsTrigger value="info">{t("tabs.info")}</TabsTrigger>
@@ -95,7 +117,11 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
           </TabsList>
           <ScrollArea className="flex-1 min-h-0">
             <TabsContent value="info" className="p-4 mt-0">
-              <TaskBasicInfoTab task={task} onClose={onClose} />
+              <TaskBasicInfoTab
+                task={task}
+                onClose={onClose}
+                userMessages={sentMessages}
+              />
             </TabsContent>
             <TabsContent value="document" className="p-4 mt-0">
               <TaskDocumentTab task={task} />
@@ -106,6 +132,7 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
                 onViewingChannelChange={(ch) =>
                   setViewingActiveRun(ch !== null)
                 }
+                userMessages={sentMessages}
               />
             </TabsContent>
           </ScrollArea>
@@ -131,13 +158,9 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
           <Button
             size="icon-sm"
             onClick={handleSend}
-            disabled={!message.trim() || sendMutation.isPending}
+            disabled={!message.trim()}
           >
-            {sendMutation.isPending ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Send className="w-4 h-4" />
-            )}
+            <Send className="w-4 h-4" />
           </Button>
         </div>
       )}

@@ -162,6 +162,13 @@
       "when": 1773071150921,
       "tag": "0022_pale_sphinx",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1773079252292,
+      "tag": "0023_nasty_swarm",
+      "breakpoints": true
     }
   ]
 }

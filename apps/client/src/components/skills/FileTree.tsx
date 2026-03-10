@@ -5,6 +5,7 @@ import {
   FolderOpen,
   ChevronRight,
   Plus,
+  Upload,
   Trash2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -57,6 +58,7 @@ interface FileTreeProps {
   selectedPath: string | null;
   onSelectFile: (path: string) => void;
   onNewFile?: () => void;
+  onUploadFiles?: (files: { path: string; content: string }[]) => void;
   onDeleteFile?: (path: string) => void;
   readOnly?: boolean;
 }
@@ -66,24 +68,61 @@ export function FileTree({
   selectedPath,
   onSelectFile,
   onNewFile,
+  onUploadFiles,
   onDeleteFile,
   readOnly,
 }: FileTreeProps) {
   const { t } = useTranslation("skills");
   const tree = useMemo(() => buildTree(files), [files]);
 
+  function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0 || !onUploadFiles) return;
+
+    const promises = Array.from(fileList).map(
+      (file) =>
+        new Promise<{ path: string; content: string }>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () =>
+            resolve({ path: file.name, content: reader.result as string });
+          reader.readAsText(file);
+        }),
+    );
+
+    Promise.all(promises).then((results) => {
+      onUploadFiles(results);
+    });
+
+    // Reset input so the same file can be re-uploaded
+    e.target.value = "";
+  }
+
   return (
     <div className="flex flex-col h-full">
-      {!readOnly && onNewFile && (
-        <div className="p-2 border-b border-border">
-          <button
-            type="button"
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full px-2 py-1 rounded hover:bg-accent"
-            onClick={onNewFile}
-          >
-            <Plus size={14} />
-            <span>{t("detail.newFile")}</span>
-          </button>
+      {!readOnly && (onNewFile || onUploadFiles) && (
+        <div className="p-2 border-b border-border space-y-0.5">
+          {onNewFile && (
+            <button
+              type="button"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full px-2 py-1 rounded hover:bg-accent"
+              onClick={onNewFile}
+            >
+              <Plus size={14} />
+              <span>{t("detail.newFile")}</span>
+            </button>
+          )}
+          {onUploadFiles && (
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full px-2 py-1 rounded hover:bg-accent cursor-pointer">
+              <Upload size={14} />
+              <span>{t("detail.uploadFile")}</span>
+              <input
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handleUpload}
+              />
+            </label>
+          )}
         </div>
       )}
       <div className="flex-1 overflow-y-auto p-1">

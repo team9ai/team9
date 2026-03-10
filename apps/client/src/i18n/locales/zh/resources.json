@@ -66,6 +66,10 @@
       "readonly": "只读"
     }
   },
+  "edit": {
+    "save": "保存",
+    "cancel": "取消"
+  },
   "actions": {
     "connect": "连接",
     "disconnect": "断开",

@@ -8,14 +8,24 @@ import {
   FileDown,
   Play,
   Flag,
+  User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ExecutionEntry, AgentTaskStepStatus } from "@/types/task";
 import { TaskInterventionCard } from "./TaskInterventionCard";
 
+export interface TimelineUserMessage {
+  text: string;
+  senderName: string;
+  senderAvatarUrl?: string;
+  role?: string; // e.g. "Mentor"
+  sentAt: string; // ISO string
+}
+
 interface ExecutionTimelineProps {
   entries: ExecutionEntry[];
   taskId: string;
+  userMessages?: TimelineUserMessage[];
 }
 
 // ── Icon helpers ───────────────────────────────────────────────────
@@ -124,10 +134,16 @@ function formatDuration(totalSeconds: number): string {
 
 // ── Main component ─────────────────────────────────────────────────
 
-export function ExecutionTimeline({ entries, taskId }: ExecutionTimelineProps) {
+export function ExecutionTimeline({
+  entries,
+  taskId,
+  userMessages = [],
+}: ExecutionTimelineProps) {
   const { t } = useTranslation("tasks");
 
-  if (entries.length === 0) {
+  const totalItems = entries.length + userMessages.length;
+
+  if (totalItems === 0) {
     return (
       <p className="text-sm text-muted-foreground">{t("timeline.empty")}</p>
     );
@@ -136,7 +152,7 @@ export function ExecutionTimeline({ entries, taskId }: ExecutionTimelineProps) {
   return (
     <div className="relative space-y-0">
       {entries.map((entry, idx) => {
-        const isLast = idx === entries.length - 1;
+        const isLast = idx === entries.length - 1 && userMessages.length === 0;
 
         return (
           <div key={entryKey(entry, idx)} className="flex gap-3 relative">
@@ -170,6 +186,43 @@ export function ExecutionTimeline({ entries, taskId }: ExecutionTimelineProps) {
                 <DeliverableEntry entry={entry} />
               )}
               {entry.type === "status_change" && <StatusEntry entry={entry} />}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* User-sent messages */}
+      {userMessages.map((msg, idx) => {
+        const isLast = idx === userMessages.length - 1;
+        return (
+          <div key={`user-msg-${idx}`} className="flex gap-3 relative">
+            {!isLast && (
+              <div className="absolute left-3 top-6 w-px h-[calc(100%-6px)] bg-border" />
+            )}
+            <div className="relative z-10 shrink-0">
+              {msg.senderAvatarUrl ? (
+                <img
+                  src={msg.senderAvatarUrl}
+                  alt={msg.senderName}
+                  className="w-6 h-6 rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/15 text-primary">
+                  <User size={14} />
+                </div>
+              )}
+            </div>
+            <div className={cn("flex-1 min-w-0", !isLast && "pb-4")}>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium">{msg.senderName}</span>
+                {msg.role && (
+                  <span className="text-xs text-primary/70 font-medium">
+                    {msg.role}
+                  </span>
+                )}
+                <EntryTime iso={msg.sentAt} />
+              </div>
+              <p className="text-sm mt-0.5">{msg.text}</p>
             </div>
           </div>
         );
