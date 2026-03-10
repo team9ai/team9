@@ -116,6 +116,16 @@ export function SkillDetailPage() {
     setNewFileName("");
   }
 
+  function handleUploadFiles(uploaded: { path: string; content: string }[]) {
+    setEditedFiles((prev) => {
+      const next = new Map(prev);
+      for (const f of uploaded) next.set(f.path, f.content);
+      return next;
+    });
+    // Select the first uploaded file
+    if (uploaded.length > 0) setSelectedPath(uploaded[0].path);
+  }
+
   function handleDeleteFile(path: string) {
     if (!skill) return;
     if (selectedPath === path) {
@@ -316,6 +326,7 @@ export function SkillDetailPage() {
               onNewFile={
                 !isViewingHistory ? () => setShowNewFile(true) : undefined
               }
+              onUploadFiles={!isViewingHistory ? handleUploadFiles : undefined}
               onDeleteFile={!isViewingHistory ? handleDeleteFile : undefined}
               readOnly={isViewingHistory}
             />

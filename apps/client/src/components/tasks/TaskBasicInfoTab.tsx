@@ -30,7 +30,10 @@ import { api } from "@/services/api";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import type { OpenClawBotInfo } from "@/services/api/applications";
 import { TaskInterventionCard } from "./TaskInterventionCard";
-import { ExecutionTimeline } from "./ExecutionTimeline";
+import {
+  ExecutionTimeline,
+  type TimelineUserMessage,
+} from "./ExecutionTimeline";
 import { ManualTriggerDialog } from "./ManualTriggerDialog";
 import { TaskTriggersTab } from "./TaskTriggersTab";
 import type { AgentTaskDetail, AgentTaskStatus } from "@/types/task";
@@ -38,6 +41,7 @@ import type { AgentTaskDetail, AgentTaskStatus } from "@/types/task";
 interface TaskBasicInfoTabProps {
   task: AgentTaskDetail;
   onClose: () => void;
+  userMessages?: TimelineUserMessage[];
 }
 
 const STATUS_BADGE_VARIANT: Record<
@@ -129,7 +133,11 @@ function getFinishedBannerConfig(status: AgentTaskStatus) {
 
 export { STATUS_BADGE_VARIANT };
 
-export function TaskBasicInfoTab({ task, onClose }: TaskBasicInfoTabProps) {
+export function TaskBasicInfoTab({
+  task,
+  onClose,
+  userMessages,
+}: TaskBasicInfoTabProps) {
   const { t } = useTranslation("tasks");
   const queryClient = useQueryClient();
   const taskId = task.id;
@@ -486,7 +494,11 @@ export function TaskBasicInfoTab({ task, onClose }: TaskBasicInfoTabProps) {
           )}
 
           {/* Unified timeline */}
-          <ExecutionTimeline entries={entries} taskId={taskId} />
+          <ExecutionTimeline
+            entries={entries}
+            taskId={taskId}
+            userMessages={userMessages}
+          />
         </>
       )}
 

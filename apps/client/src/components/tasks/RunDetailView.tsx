@@ -7,7 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { tasksApi } from "@/services/api/tasks";
-import { ExecutionTimeline } from "./ExecutionTimeline";
+import {
+  ExecutionTimeline,
+  type TimelineUserMessage,
+} from "./ExecutionTimeline";
 import type { AgentTaskStatus, TriggerContext } from "@/types/task";
 
 const STATUS_BADGE_VARIANT: Record<
@@ -31,6 +34,7 @@ interface RunDetailViewProps {
   executionId: string;
   onBack: () => void;
   onChannelChange?: (channelId: string | null) => void;
+  userMessages?: TimelineUserMessage[];
 }
 
 const ACTIVE_STATUSES: AgentTaskStatus[] = [
@@ -44,6 +48,7 @@ export function RunDetailView({
   executionId,
   onBack,
   onChannelChange,
+  userMessages,
 }: RunDetailViewProps) {
   const { t } = useTranslation("tasks");
   const queryClient = useQueryClient();
@@ -181,7 +186,11 @@ export function RunDetailView({
       <Separator />
 
       {/* Unified timeline */}
-      <ExecutionTimeline entries={entries} taskId={taskId} />
+      <ExecutionTimeline
+        entries={entries}
+        taskId={taskId}
+        userMessages={userMessages}
+      />
 
       {/* Retry */}
       {canRetry && (

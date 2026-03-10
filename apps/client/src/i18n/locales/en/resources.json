@@ -66,6 +66,10 @@
       "readonly": "Read Only"
     }
   },
+  "edit": {
+    "save": "Save",
+    "cancel": "Cancel"
+  },
   "actions": {
     "connect": "Connect",
     "disconnect": "Disconnect",

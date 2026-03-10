@@ -6,10 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { tasksApi } from "@/services/api/tasks";
 import { RunDetailView } from "./RunDetailView";
 import type { AgentTaskStatus } from "@/types/task";
+import type { TimelineUserMessage } from "./ExecutionTimeline";
 
 interface TaskRunsTabProps {
   taskId: string;
   onViewingChannelChange?: (channelId: string | null) => void;
+  userMessages?: TimelineUserMessage[];
 }
 
 const STATUS_BADGE_VARIANT: Record<
@@ -29,6 +31,7 @@ const STATUS_BADGE_VARIANT: Record<
 export function TaskRunsTab({
   taskId,
   onViewingChannelChange,
+  userMessages,
 }: TaskRunsTabProps) {
   const { t } = useTranslation("tasks");
 
@@ -47,6 +50,7 @@ export function TaskRunsTab({
         executionId={selectedExecId}
         onBack={() => setSelectedExecId(null)}
         onChannelChange={onViewingChannelChange}
+        userMessages={userMessages}
       />
     );
   }
