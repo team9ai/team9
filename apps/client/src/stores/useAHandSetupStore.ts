@@ -135,11 +135,26 @@ const stepHandlers: Record<string, StepHandler> = {
       (app) => app.applicationId === "openclaw" && app.isActive,
     );
     if (!openclawApp) {
-      const inactive = apps.find((app) => app.applicationId === "openclaw");
-      if (inactive) {
-        throw new Error(
-          `OpenClaw app is installed but not active (status: ${inactive.status}). Please activate it first.`,
-        );
+      const existing = apps.find((app) => app.applicationId === "openclaw");
+      if (existing) {
+        switch (existing.status) {
+          case "inactive":
+            throw new Error(
+              "OpenClaw app is installed but inactive. Please activate it first.",
+            );
+          case "pending":
+            throw new Error(
+              "OpenClaw app is still being set up. Please wait for the installation to complete.",
+            );
+          case "error":
+            throw new Error(
+              "OpenClaw app is in an error state. Please check the application settings or reinstall it.",
+            );
+          default:
+            throw new Error(
+              `OpenClaw app found but not usable (status: ${existing.status}, isActive: ${existing.isActive}).`,
+            );
+        }
       }
       throw new Error(
         "No OpenClaw app found in this workspace. Please install OpenClaw first.",
@@ -154,14 +169,28 @@ const stepHandlers: Record<string, StepHandler> = {
     const BOT_STARTUP_DURATION = 150;
     const POLL_INTERVAL_MS = 5000;
 
-    // Check if already running
+    // Check current instance status
     try {
       const status = await applicationsApi.getOpenClawStatus(ctx.appId);
-      if (status.status === "running") {
-        return;
+      console.log(
+        `==============Initial OpenClaw status===========: ${status.status}`,
+      );
+      switch (status.status) {
+        case "running":
+          return;
+        case "stopped":
+          throw new Error(
+            "OpenClaw instance is stopped. Please start it from the admin panel.",
+          );
+        case "error":
+          throw new Error(
+            "OpenClaw instance is in an error state. Please check the instance logs or restart it.",
+          );
+        // "creating" — proceed to wait
       }
-    } catch {
-      // Instance may not exist yet — proceed to wait
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to check OpenClaw instance status: ${msg}`);
     }
 
     // Try to get bot userId for WebSocket early-exit
@@ -196,9 +225,28 @@ const stepHandlers: Record<string, StepHandler> = {
       const pollTimer = setInterval(async () => {
         try {
           const status = await applicationsApi.getOpenClawStatus(ctx.appId!);
-          if (status.status === "running") {
-            cleanup();
-            resolve();
+          switch (status.status) {
+            case "running":
+              cleanup();
+              resolve();
+              return;
+            case "stopped":
+              cleanup();
+              reject(
+                new Error(
+                  "OpenClaw instance is stopped. Please start it from the admin panel.",
+                ),
+              );
+              return;
+            case "error":
+              cleanup();
+              reject(
+                new Error(
+                  "OpenClaw instance is in an error state. Please check the instance logs or restart it.",
+                ),
+              );
+              return;
+            // "creating" — keep polling
           }
         } catch {
           // Keep polling
