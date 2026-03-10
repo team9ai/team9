@@ -11,6 +11,7 @@ import { ConnectionStatus } from "@/components/layout/ConnectionStatus";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useWebSocketEvents } from "@/hooks/useWebSocketEvents";
 import { useAHandSetupStore } from "@/stores/useAHandSetupStore";
+import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
 import { useEffect } from "react";
 import {
   appActions,
@@ -79,18 +80,21 @@ function AuthenticatedLayout() {
   const location = useLocation();
 
   // Auto-start aHand setup on login (desktop app only).
+  // Wait for selectedWorkspaceId to be hydrated before running, otherwise
+  // API requests will lack the X-Tenant-Id header and fail with 403.
   const ahandRun = useAHandSetupStore((s) => s.run);
   const ahandOpenDialog = useAHandSetupStore((s) => s.openDialog);
   const ahandHasRun = useAHandSetupStore((s) => s.hasRun);
+  const selectedWorkspaceId = useWorkspaceStore((s) => s.selectedWorkspaceId);
 
   useEffect(() => {
     const isTauri =
       typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-    if (ahandHasRun || !isTauri) return;
+    if (ahandHasRun || !isTauri || !selectedWorkspaceId) return;
 
     ahandOpenDialog();
     void ahandRun();
-  }, [ahandRun, ahandOpenDialog, ahandHasRun]);
+  }, [ahandRun, ahandOpenDialog, ahandHasRun, selectedWorkspaceId]);
 
   // Stop daemon when authenticated layout unmounts (user logs out).
   // Separate effect so it only runs on unmount, not on workspace switches.

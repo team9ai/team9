@@ -17,6 +17,54 @@ use std::sync::Mutex;
 
 static DAEMON: Mutex<Option<Child>> = Mutex::new(None);
 
+/// Build an augmented PATH that includes common Node.js installation directories.
+///
+/// macOS GUI apps (like Tauri) inherit a minimal PATH (typically just
+/// `/usr/bin:/bin:/usr/sbin:/sbin`), missing Homebrew, nvm, volta, fnm, etc.
+/// This function prepends those common paths so that child processes (ahandd)
+/// and our own checks can find the system Node.js.
+fn augmented_path() -> String {
+    let base = std::env::var("PATH").unwrap_or_default();
+    let home = dirs::home_dir().unwrap_or_default();
+    let mut extra: Vec<String> = Vec::new();
+
+    // Homebrew (Apple Silicon + Intel)
+    extra.push("/opt/homebrew/bin".into());
+    extra.push("/usr/local/bin".into());
+
+    // nvm
+    let nvm_dir = home.join(".nvm").join("versions").join("node");
+    if let Ok(entries) = std::fs::read_dir(&nvm_dir) {
+        for entry in entries.flatten() {
+            let bin = entry.path().join("bin");
+            if bin.exists() {
+                extra.push(bin.to_string_lossy().into_owned());
+            }
+        }
+    }
+
+    // volta
+    let volta_bin = home.join(".volta").join("bin");
+    if volta_bin.exists() {
+        extra.push(volta_bin.to_string_lossy().into_owned());
+    }
+
+    // fnm
+    let fnm_bin = home.join(".fnm").join("aliases").join("default").join("bin");
+    if fnm_bin.exists() {
+        extra.push(fnm_bin.to_string_lossy().into_owned());
+    }
+
+    // Local ahand node
+    let ahand_node = home.join(".ahand").join("node").join("bin");
+    if ahand_node.exists() {
+        extra.push(ahand_node.to_string_lossy().into_owned());
+    }
+
+    extra.push(base);
+    extra.join(":")
+}
+
 /// Locate the aHand binary.
 ///
 /// Search order:
@@ -186,7 +234,7 @@ pub fn start(gateway_url: &str, auth_token: Option<&str>, node_id: &str) -> Resu
     // Auto-install browser dependencies if not ready.
     if !browser_is_ready() {
         eprintln!("[ahand] Browser dependencies not found, running browser-init...");
-        let _ = Command::new(&binary).arg("browser-init").status();
+        let _ = Command::new(&binary).arg("browser-init").env("PATH", augmented_path()).status();
     }
 
     let config_path = dirs::home_dir()
@@ -291,6 +339,7 @@ pub fn browser_init(force: bool) -> Result<(), String> {
 
     let mut cmd = Command::new(&binary);
     cmd.arg("browser-init");
+    cmd.env("PATH", augmented_path());
     if force {
         cmd.arg("--force");
     }
@@ -324,9 +373,10 @@ pub fn browser_is_ready() -> bool {
     let has_sockets = ahand.join("browser").join("sockets").exists();
 
     // Node.js — daemon.js requires it.  Accept either local install or system node.
+    // Use augmented_path() to include Homebrew, nvm, volta, etc. that macOS GUI
+    // apps normally don't see.
     let has_local_node = ahand.join("node").join("bin").join("node").exists();
-    let has_system_node = std::env::var("PATH")
-        .unwrap_or_default()
+    let has_system_node = augmented_path()
         .split(':')
         .any(|dir| std::path::Path::new(dir).join("node").exists());
 
@@ -382,6 +432,9 @@ pub fn browser_init_with_progress(app: &tauri::AppHandle) -> Result<(), String> 
         // never read, the child blocks once the OS pipe buffer fills,
         // which in turn blocks our stdout read loop → deadlock.
         .stderr(Stdio::inherit())
+        // Inject augmented PATH so ahandd can find system Node.js installed
+        // via Homebrew, nvm, volta, etc. (macOS GUI apps have a minimal PATH).
+        .env("PATH", augmented_path())
         .spawn()
         .map_err(|e| format!("failed to run ahandd browser-init: {e}"))?;
 
@@ -420,12 +473,28 @@ pub fn browser_init_with_progress(app: &tauri::AppHandle) -> Result<(), String> 
     let status = child.wait().map_err(|e| format!("wait error: {e}"))?;
 
     if !status.success() {
-        let detail = if last_line.is_empty() {
-            String::new()
+        let exit_code = status.code().map(|c| c.to_string()).unwrap_or_else(|| "signal".into());
+        let detail = if !last_line.is_empty() {
+            last_line
         } else {
-            format!(": {last_line}")
+            // Fallback: provide actionable guidance based on which step was running
+            match current_step {
+                Some("browser-node") => format!(
+                    "Node.js check failed. Please install Node.js >= 20 manually \
+                     (e.g. `brew install node`) and retry."
+                ),
+                Some("browser-cli") => "Failed to download agent-browser CLI. Check your network connection.".into(),
+                Some("browser-daemon") => "Failed to download daemon bundle. Check your network connection.".into(),
+                Some("browser-socket") => format!(
+                    "Failed to create socket directory at ~/.ahand/browser/sockets. \
+                     Check directory permissions."
+                ),
+                Some("browser-chromium") => "Failed to detect or install a browser. Please install Google Chrome and retry.".into(),
+                Some("browser-config") => "Failed to generate runtime config. Check ~/.ahand/ directory permissions.".into(),
+                _ => "browser-init exited unexpectedly. Run `ahandd browser-init` in terminal for details.".into(),
+            }
         };
-        return Err(format!("browser-init failed{detail}"));
+        return Err(format!("browser-init failed (exit {exit_code}): {detail}"));
     }
 
     // Mark the last step as completed on success
