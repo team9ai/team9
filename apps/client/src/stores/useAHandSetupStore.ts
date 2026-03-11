@@ -77,31 +77,7 @@ const createInitialSteps = (): SetupStep[] => [
   {
     id: "browser-cli",
     group: "browser",
-    label: "Download CLI tool",
-    status: "pending",
-  },
-  {
-    id: "browser-daemon",
-    group: "browser",
-    label: "Download daemon bundle",
-    status: "pending",
-  },
-  {
-    id: "browser-socket",
-    group: "browser",
-    label: "Create socket directory",
-    status: "pending",
-  },
-  {
-    id: "browser-chromium",
-    group: "browser",
-    label: "Detect browser",
-    status: "pending",
-  },
-  {
-    id: "browser-config",
-    group: "browser",
-    label: "Generate runtime config",
+    label: "Install playwright-cli",
     status: "pending",
   },
   {

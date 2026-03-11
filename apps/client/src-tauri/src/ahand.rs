@@ -185,6 +185,7 @@ node_id = "{node_id}"
 {auth_line}
 [browser]
 enabled = true
+headed = true
 "#
     );
 
@@ -353,11 +354,10 @@ pub fn browser_init(force: bool) -> Result<(), String> {
 
 /// Check if browser automation dependencies are installed.
 ///
-/// Verifies the artifacts that browser-init creates AND that are needed at
-/// runtime.  `env.sh` is intentionally excluded — nothing reads it at runtime.
-/// Chrome/Chromium detection is also excluded because it requires the same
-/// multi-path probing logic as browser-init itself; a missing browser will
-/// surface as a clear runtime error rather than a silent skip.
+/// Verifies that playwright-cli is available (the only runtime dependency
+/// installed by browser-init). Chrome/Chromium detection is excluded because
+/// it requires the same multi-path probing logic as browser-init itself;
+/// a missing browser will surface as a clear runtime error.
 pub fn browser_is_ready() -> bool {
     let home = match dirs::home_dir() {
         Some(h) => h,
@@ -365,35 +365,24 @@ pub fn browser_is_ready() -> bool {
     };
     let ahand = home.join(".ahand");
 
-    // Core binaries
-    let has_agent_browser = ahand.join("bin").join("agent-browser").exists();
-    let has_daemon_js = ahand.join("browser").join("dist").join("daemon.js").exists();
-
-    // IPC socket directory (agent-browser ↔ daemon.js communication)
-    let has_sockets = ahand.join("browser").join("sockets").exists();
-
-    // Node.js — daemon.js requires it.  Accept either local install or system node.
-    // Use augmented_path() to include Homebrew, nvm, volta, etc. that macOS GUI
-    // apps normally don't see.
-    let has_local_node = ahand.join("node").join("bin").join("node").exists();
-    let has_system_node = augmented_path()
+    // playwright-cli binary — installed by `npm install -g @playwright/cli`.
+    // Check both the aHand-managed prefix and augmented PATH (system npm may
+    // install to nvm/volta/Homebrew global bin instead of ~/.ahand/node/bin/).
+    let has_local_cli = ahand.join("node").join("bin").join("playwright-cli").exists();
+    let has_system_cli = augmented_path()
         .split(':')
-        .any(|dir| std::path::Path::new(dir).join("node").exists());
+        .any(|dir| std::path::Path::new(dir).join("playwright-cli").exists());
 
-    has_agent_browser && has_daemon_js && has_sockets && (has_local_node || has_system_node)
+    has_local_cli || has_system_cli
 }
 
-/// Map [N/6] step markers to step IDs used by the frontend.
+/// Map [N/2] step markers to step IDs used by the frontend.
 const BROWSER_STEP_MAP: &[(u32, &str)] = &[
     (1, "browser-node"),
     (2, "browser-cli"),
-    (3, "browser-daemon"),
-    (4, "browser-socket"),
-    (5, "browser-chromium"),
-    (6, "browser-config"),
 ];
 
-/// Parse a `[N/6]` marker from a line of stdout.
+/// Parse a `[N/2]` marker from a line of stdout.
 /// Returns the step number N if found.
 fn parse_step_marker(line: &str) -> Option<u32> {
     let trimmed = line.trim_start();
@@ -416,7 +405,7 @@ fn step_id_for(n: u32) -> Option<&'static str> {
 
 /// Run `ahandd browser-init` and emit progress events to the frontend.
 ///
-/// Parses `[N/6]` markers from stdout to track which installation step
+/// Parses `[N/2]` markers from stdout to track which installation step
 /// is currently running, emitting `ahand-setup-step` events with
 /// `{ "step": "<id>", "status": "running"|"completed" }` payloads.
 pub fn browser_init_with_progress(app: &tauri::AppHandle) -> Result<(), String> {
@@ -483,14 +472,7 @@ pub fn browser_init_with_progress(app: &tauri::AppHandle) -> Result<(), String> 
                     "Node.js check failed. Please install Node.js >= 20 manually \
                      (e.g. `brew install node`) and retry."
                 ),
-                Some("browser-cli") => "Failed to download agent-browser CLI. Check your network connection.".into(),
-                Some("browser-daemon") => "Failed to download daemon bundle. Check your network connection.".into(),
-                Some("browser-socket") => format!(
-                    "Failed to create socket directory at ~/.ahand/browser/sockets. \
-                     Check directory permissions."
-                ),
-                Some("browser-chromium") => "Failed to detect or install a browser. Please install Google Chrome and retry.".into(),
-                Some("browser-config") => "Failed to generate runtime config. Check ~/.ahand/ directory permissions.".into(),
+                Some("browser-cli") => "Failed to install playwright-cli. Check your network connection.".into(),
                 _ => "browser-init exited unexpectedly. Run `ahandd browser-init` in terminal for details.".into(),
             }
         };
