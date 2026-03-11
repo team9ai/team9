@@ -365,15 +365,15 @@ pub fn browser_is_ready() -> bool {
     };
     let ahand = home.join(".ahand");
 
-    // playwright-cli binary — installed by `npm install -g @playwright/cli`.
-    // Check both the aHand-managed prefix and augmented PATH (system npm may
-    // install to nvm/volta/Homebrew global bin instead of ~/.ahand/node/bin/).
+    // playwright-cli binary — installed to ~/.ahand/node/bin/ by browser-init.
+    // Also check augmented PATH as a fallback for manual installations.
     let has_local_cli = ahand.join("node").join("bin").join("playwright-cli").exists();
-    let has_system_cli = augmented_path()
+    if has_local_cli {
+        return true;
+    }
+    augmented_path()
         .split(':')
-        .any(|dir| std::path::Path::new(dir).join("playwright-cli").exists());
-
-    has_local_cli || has_system_cli
+        .any(|dir| std::path::Path::new(dir).join("playwright-cli").exists())
 }
 
 /// Map [N/2] step markers to step IDs used by the frontend.
@@ -417,10 +417,7 @@ pub fn browser_init_with_progress(app: &tauri::AppHandle) -> Result<(), String> 
     let mut child = Command::new(&binary)
         .arg("browser-init")
         .stdout(Stdio::piped())
-        // Inherit stderr to avoid pipe deadlock: if stderr is piped but
-        // never read, the child blocks once the OS pipe buffer fills,
-        // which in turn blocks our stdout read loop → deadlock.
-        .stderr(Stdio::inherit())
+        .stderr(Stdio::piped())
         // Inject augmented PATH so ahandd can find system Node.js installed
         // via Homebrew, nvm, volta, etc. (macOS GUI apps have a minimal PATH).
         .env("PATH", augmented_path())
@@ -432,9 +429,27 @@ pub fn browser_init_with_progress(app: &tauri::AppHandle) -> Result<(), String> 
         .take()
         .ok_or_else(|| "failed to capture stdout".to_string())?;
 
+    // Read stderr in a separate thread to avoid pipe deadlock.
+    let stderr_handle = {
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| "failed to capture stderr".to_string())?;
+        std::thread::spawn(move || {
+            let reader = BufReader::new(stderr);
+            let mut lines = Vec::new();
+            for line in reader.lines() {
+                if let Ok(line) = line {
+                    eprintln!("[ahandd] {line}");
+                    lines.push(line);
+                }
+            }
+            lines
+        })
+    };
+
     let reader = BufReader::new(stdout);
     let mut current_step: Option<&str> = None;
-    let mut last_line = String::new();
 
     for line in reader.lines() {
         let line = line.map_err(|e| format!("read error: {e}"))?;
@@ -456,26 +471,31 @@ pub fn browser_init_with_progress(app: &tauri::AppHandle) -> Result<(), String> 
                 current_step = Some(step_id);
             }
         }
-        last_line = line;
     }
 
     let status = child.wait().map_err(|e| format!("wait error: {e}"))?;
+    let stderr_lines = stderr_handle.join().unwrap_or_default();
 
     if !status.success() {
         let exit_code = status.code().map(|c| c.to_string()).unwrap_or_else(|| "signal".into());
-        let detail = if !last_line.is_empty() {
-            last_line
-        } else {
-            // Fallback: provide actionable guidance based on which step was running
-            match current_step {
-                Some("browser-node") => format!(
-                    "Node.js check failed. Please install Node.js >= 20 manually \
-                     (e.g. `brew install node`) and retry."
-                ),
-                Some("browser-cli") => "Failed to install playwright-cli. Check your network connection.".into(),
-                _ => "browser-init exited unexpectedly. Run `ahandd browser-init` in terminal for details.".into(),
-            }
-        };
+        // Use the last non-empty stderr line as detail (contains the anyhow error message)
+        let detail = stderr_lines
+            .iter()
+            .rev()
+            .find(|l| !l.trim().is_empty())
+            .cloned()
+            .unwrap_or_else(|| {
+                // Fallback: provide actionable guidance based on which step was running
+                match current_step {
+                    Some("browser-node") =>
+                        "Node.js check failed. Please install Node.js >= 20 manually \
+                         (e.g. `brew install node`) and retry.".into(),
+                    Some("browser-cli") =>
+                        "Failed to install playwright-cli. Check your network connection.".into(),
+                    _ =>
+                        "browser-init exited unexpectedly. Run `ahandd browser-init` in terminal for details.".into(),
+                }
+            });
         return Err(format!("browser-init failed (exit {exit_code}): {detail}"));
     }
 
