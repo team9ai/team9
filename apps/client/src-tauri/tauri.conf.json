@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "team9-client",
+  "productName": "Team9",
   "version": "0.1.0",
   "identifier": "com.weight-wave.team9-client",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "team9-client",
+        "title": "Team9",
         "width": 1280,
         "height": 800,
         "minWidth": 375,
@@ -46,6 +46,23 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/ahandd"]
+    "externalBin": ["binaries/ahandd"],
+    "macOS": {
+      "dmg": {
+        "background": "icons/dmg-background.png",
+        "windowSize": {
+          "width": 920,
+          "height": 640
+        },
+        "appPosition": {
+          "x": 250,
+          "y": 280
+        },
+        "applicationFolderPosition": {
+          "x": 670,
+          "y": 280
+        }
+      }
+    }
   }
 }
