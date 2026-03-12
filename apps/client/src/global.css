@@ -575,9 +575,13 @@
   line-height: 1.25;
   overflow-wrap: break-word;
   word-break: break-word;
+  /* Prevent inherited pre-wrap from rendering inter-tag newlines as blank lines */
+  white-space: normal;
 
   p {
     margin: 0;
+    /* Keep single-line breaks for plain text messages */
+    white-space: pre-wrap;
   }
 
   p + p {
