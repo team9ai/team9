@@ -751,6 +751,18 @@ export const useAHandSetupStore = create<AHandSetupState>()(
         }
 
         set({ isRunning: false }, false, "run/done");
+
+        // Auto-close the dialog after a brief delay so the user can see
+        // all steps marked as completed before the dialog disappears.
+        const allCompleted = get().steps.every((s) => s.status === "completed");
+        if (allCompleted) {
+          setTimeout(() => {
+            // Guard against reset() having been called during the delay.
+            if (!isStale()) {
+              get().closeDialog();
+            }
+          }, 1500);
+        }
       },
 
       retryFrom: async (stepId) => {
