@@ -575,6 +575,7 @@
   line-height: 1.25;
   overflow-wrap: break-word;
   word-break: break-word;
+  --markdown-line-gap: calc(1em * 1.25);
   /* Prevent inherited pre-wrap from rendering inter-tag newlines as blank lines */
   white-space: normal;
 
@@ -585,7 +586,7 @@
   }
 
   p + p {
-    margin-top: 0.1rem;
+    margin-top: var(--markdown-line-gap);
   }
 
   strong {
@@ -598,7 +599,7 @@
 
   ul,
   ol {
-    margin: 0.25rem 0;
+    margin: 0.35rem 0;
     padding-left: 1.25rem;
   }
 
@@ -611,11 +612,20 @@
   }
 
   li {
-    margin: 0.15rem 0;
+    margin: 0.1rem 0;
+  }
+
+  li + li {
+    margin-top: 0.2rem;
   }
 
   li > p {
     margin: 0;
+  }
+
+  /* Loose-list items (<li><p>...</p></li>): keep visible blank line feel, but controlled */
+  li:has(> p) + li:has(> p) {
+    margin-top: var(--markdown-line-gap);
   }
 
   blockquote {
