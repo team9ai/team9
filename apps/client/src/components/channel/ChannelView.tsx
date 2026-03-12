@@ -270,10 +270,6 @@ export function ChannelView({
     return () => observer.disconnect();
   }, [threadPanelCount]);
 
-  const handleBackToChannel = useCallback(() => {
-    closePrimaryThread();
-  }, [closePrimaryThread]);
-
   const handleSendMessage = async (
     content: string,
     attachments?: AttachmentDto[],
@@ -378,7 +374,6 @@ export function ChannelView({
             rootMessageId={primaryThread.rootMessageId}
             highlightMessageId={initialThreadId ? initialMessageId : undefined}
             isSnapped={isSnapped}
-            onBackToChannel={handleBackToChannel}
             width={threadPanelWidth}
             onWidthChange={setThreadPanelWidth}
           />
@@ -390,7 +385,6 @@ export function ChannelView({
             level="secondary"
             rootMessageId={secondaryThread.rootMessageId}
             isSnapped={isSnapped}
-            onBackToChannel={handleBackToChannel}
             width={threadPanelWidth}
             onWidthChange={setThreadPanelWidth}
           />

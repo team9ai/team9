@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect, useState, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { X, Loader2, ArrowDown, ArrowLeft } from "lucide-react";
+import { X, Loader2, ArrowDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -40,7 +40,6 @@ interface ThreadPanelProps {
   // Target message ID to scroll to and highlight in thread
   highlightMessageId?: string;
   isSnapped?: boolean;
-  onBackToChannel?: () => void;
   width?: number;
   onWidthChange?: (width: number) => void;
 }
@@ -50,7 +49,6 @@ export function ThreadPanel({
   rootMessageId,
   highlightMessageId,
   isSnapped = false,
-  onBackToChannel,
   width = 640,
   onWidthChange,
 }: ThreadPanelProps) {
@@ -307,16 +305,6 @@ export function ThreadPanel({
           <div className="flex-1 min-h-0 relative">
             {/* Floating toolbar */}
             <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
-              {isSnapped && onBackToChannel && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={onBackToChannel}
-                  className="h-8 w-8 bg-background/80 backdrop-blur-sm shadow-sm"
-                >
-                  <ArrowLeft size={16} />
-                </Button>
-              )}
               <Button
                 variant="ghost"
                 size="icon"
