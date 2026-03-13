@@ -112,7 +112,8 @@ async function migrateTaskTriggers() {
             id: uuidv7(),
             taskId: task.id,
             type: 'schedule',
-            config: schedTriggerConfig as schema.ScheduleTriggerConfig,
+            config:
+              schedTriggerConfig as unknown as schema.ScheduleTriggerConfig,
             enabled: true,
             nextRunAt: task.nextRunAt ?? null,
             createdAt: now,

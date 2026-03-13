@@ -284,10 +284,13 @@ export class TaskBotService {
     }
 
     // Verify bot ownership
+    if (!task.botId) {
+      throw new ForbiddenException('Task has no associated bot');
+    }
     const [bot] = await this.db
       .select({ userId: schema.bots.userId })
       .from(schema.bots)
-      .where(eq(schema.bots.id, task.botId))
+      .where(eq(schema.bots.id, task.botId!))
       .limit(1);
 
     if (!bot || bot.userId !== botUserId) {
@@ -356,11 +359,11 @@ export class TaskBotService {
     }
 
     // Verify bot ownership: the authenticated bot's shadow userId must match
-    if (botUserId) {
+    if (botUserId && task.botId) {
       const [bot] = await this.db
         .select({ userId: schema.bots.userId })
         .from(schema.bots)
-        .where(eq(schema.bots.id, task.botId))
+        .where(eq(schema.bots.id, task.botId!))
         .limit(1);
 
       if (!bot || bot.userId !== botUserId) {
