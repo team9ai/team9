@@ -66,6 +66,13 @@
       "readonly": "Read Only"
     }
   },
+  "auth": {
+    "granteeType": "Grantee Type",
+    "granteeId": "Grantee ID",
+    "granteeIdPlaceholder": "Enter user or task ID",
+    "permissionLevel": "Permission",
+    "grant": "Grant Access"
+  },
   "edit": {
     "save": "Save",
     "cancel": "Cancel"
