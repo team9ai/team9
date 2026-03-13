@@ -139,11 +139,6 @@ export const env = {
     return process.env.APP_ENV || process.env.NODE_ENV || 'development';
   },
 
-  // Task Tracker Service
-  get TASK_TRACKER_PORT() {
-    return parseInt(process.env.TASK_TRACKER_PORT || '3002', 10);
-  },
-
   // System Bot Configuration (optional)
   // If configured, this bot account will be automatically added to all new workspaces
   get SYSTEM_BOT_EMAIL() {
