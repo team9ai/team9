@@ -31,6 +31,10 @@ interface MessageListProps {
   isLoading: boolean;
   onLoadMore: () => void;
   hasMore?: boolean;
+  // Load newer messages (for anchored/unread mode)
+  onLoadNewer?: () => void;
+  hasNewer?: boolean;
+  isLoadingNewer?: boolean;
   // Target message ID to scroll to and highlight
   highlightMessageId?: string;
   // Channel ID for retry failed messages
@@ -57,6 +61,9 @@ export function MessageList({
   isLoading,
   onLoadMore,
   hasMore,
+  onLoadNewer,
+  hasNewer,
+  isLoadingNewer,
   highlightMessageId,
   channelId,
   channelType,
@@ -88,8 +95,44 @@ export function MessageList({
   // Messages come in DESC order (newest first), reverse to chronological for Virtuoso
   const chronoMessages = useMemo(() => [...messages].reverse(), [messages]);
 
-  // firstItemIndex shifts to support prepending older messages
-  const firstItemIndex = START_INDEX - chronoMessages.length;
+  // Stable firstItemIndex: only decreases when older messages are prepended (loaded
+  // via infinite scroll at the top), NOT when new messages are appended at the bottom.
+  // Without this, Virtuoso misinterprets appended messages as prepended items and
+  // incorrectly adjusts the scroll offset, which can push the viewport to a blank area.
+  const firstItemIndexRef = useRef(START_INDEX - chronoMessages.length);
+  const prevFirstMsgIdRef = useRef<string | undefined>(chronoMessages[0]?.id);
+
+  // Detect prepends vs appends by tracking the first (oldest) message ID.
+  // - If the first ID changed, older messages were loaded → decrease firstItemIndex
+  // - If the first ID is the same, new messages were appended → keep firstItemIndex
+  // This runs during render (not in useEffect) so Virtuoso sees the correct value
+  // on the same render pass that data changes.
+  if (chronoMessages.length > 0) {
+    const currentFirstId = chronoMessages[0]?.id;
+    if (prevFirstMsgIdRef.current === undefined) {
+      // Initial load
+      firstItemIndexRef.current = START_INDEX - chronoMessages.length;
+    } else if (currentFirstId !== prevFirstMsgIdRef.current) {
+      // First message changed → older messages were prepended at the top
+      const prevIdx = chronoMessages.findIndex(
+        (m) => m.id === prevFirstMsgIdRef.current,
+      );
+      if (prevIdx > 0) {
+        firstItemIndexRef.current -= prevIdx;
+      } else {
+        // Previous first message not found → data was fully reset
+        firstItemIndexRef.current = START_INDEX - chronoMessages.length;
+      }
+    }
+    // Else: first message unchanged → append only → firstItemIndex stays the same
+    prevFirstMsgIdRef.current = currentFirstId;
+  } else {
+    // Empty list reset
+    firstItemIndexRef.current = START_INDEX;
+    prevFirstMsgIdRef.current = undefined;
+  }
+
+  const firstItemIndex = firstItemIndexRef.current;
 
   // Find the index of the first unread message (message right after lastReadMessageId)
   const firstUnreadIndex = useMemo(() => {
@@ -122,6 +165,13 @@ export function MessageList({
       onLoadMore();
     }
   }, [hasMore, isLoading, onLoadMore, channelId, scrollStore]);
+
+  // Load newer messages when scrolling to bottom (anchored mode)
+  const handleEndReached = useCallback(() => {
+    if (hasNewer && !isLoadingNewer && onLoadNewer) {
+      onLoadNewer();
+    }
+  }, [hasNewer, isLoadingNewer, onLoadNewer]);
 
   // Track bottom state changes
   const handleAtBottomStateChange = useCallback(
@@ -161,7 +211,7 @@ export function MessageList({
         !message.parentId && message.replyCount && message.replyCount > 0;
       const isHighlighted = highlightMessageId === message.id;
       // Show unread divider before the first unread message
-      const chronoIndex = index - (START_INDEX - chronoMessages.length);
+      const chronoIndex = index - firstItemIndex;
       const showUnreadDivider =
         firstUnreadIndex >= 0 && chronoIndex === firstUnreadIndex;
 
@@ -203,7 +253,7 @@ export function MessageList({
       channelId,
       channelType,
       firstUnreadIndex,
-      chronoMessages.length,
+      firstItemIndex,
     ],
   );
 
@@ -236,6 +286,7 @@ export function MessageList({
         restoreStateFrom={savedSnapshot.current ?? undefined}
         itemContent={itemContent}
         startReached={handleStartReached}
+        endReached={handleEndReached}
         followOutput={handleFollowOutput}
         atBottomStateChange={handleAtBottomStateChange}
         atBottomThreshold={150}
@@ -253,11 +304,20 @@ export function MessageList({
             ) : null,
           Footer: () => (
             <div className="py-2">
-              <StreamingMessages
-                channelId={channelId}
-                members={members}
-                thinkingBotIds={thinkingBotIds}
-              />
+              {hasNewer && isLoadingNewer ? (
+                <div className="py-4 flex justify-center">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Loading newer messages...</span>
+                  </div>
+                </div>
+              ) : (
+                <StreamingMessages
+                  channelId={channelId}
+                  members={members}
+                  thinkingBotIds={thinkingBotIds}
+                />
+              )}
             </div>
           ),
         }}
