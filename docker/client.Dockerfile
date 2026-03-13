@@ -14,7 +14,6 @@ COPY apps/client/package.json ./apps/client/
 COPY apps/server/package.json ./apps/server/
 COPY apps/server/apps/gateway/package.json ./apps/server/apps/gateway/
 COPY apps/server/apps/im-worker/package.json ./apps/server/apps/im-worker/
-COPY apps/server/apps/task-tracker/package.json ./apps/server/apps/task-tracker/
 COPY apps/server/libs/auth/package.json ./apps/server/libs/auth/
 COPY apps/server/libs/database/package.json ./apps/server/libs/database/
 COPY apps/server/libs/shared/package.json ./apps/server/libs/shared/
