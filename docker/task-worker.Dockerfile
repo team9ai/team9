@@ -1,0 +1,80 @@
+# ============================================
+# Team9 Task Worker Service
+# ============================================
+# Background service for task execution orchestration,
+# scheduling, and RabbitMQ command processing.
+#
+# Usage:
+#   docker build -f docker/task-worker.Dockerfile -t team9-task-worker .
+# ============================================
+
+FROM node:20-alpine AS base
+RUN corepack enable && corepack prepare pnpm@10.13.1 --activate
+RUN apk add --no-cache libc6-compat
+
+# ============================================
+# Stage: Dependencies
+# ============================================
+FROM base AS deps
+WORKDIR /app
+
+ENV NODE_ENV=development
+
+# Copy workspace config
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc ./
+
+# Copy all package.json files for workspace resolution
+COPY apps/server/package.json ./apps/server/
+COPY apps/server/apps/gateway/package.json ./apps/server/apps/gateway/
+COPY apps/server/apps/im-worker/package.json ./apps/server/apps/im-worker/
+COPY apps/server/apps/task-tracker/package.json ./apps/server/apps/task-tracker/
+COPY apps/server/apps/task-worker/package.json ./apps/server/apps/task-worker/
+COPY apps/server/libs/auth/package.json ./apps/server/libs/auth/
+COPY apps/server/libs/database/package.json ./apps/server/libs/database/
+COPY apps/server/libs/shared/package.json ./apps/server/libs/shared/
+COPY apps/server/libs/redis/package.json ./apps/server/libs/redis/
+COPY apps/server/libs/rabbitmq/package.json ./apps/server/libs/rabbitmq/
+COPY apps/server/libs/ai-client/package.json ./apps/server/libs/ai-client/
+COPY apps/server/libs/storage/package.json ./apps/server/libs/storage/
+COPY apps/server/libs/email/package.json ./apps/server/libs/email/
+
+RUN pnpm install --frozen-lockfile --ignore-scripts
+
+# ============================================
+# Stage: Builder
+# ============================================
+FROM deps AS builder
+WORKDIR /app
+
+# Copy source code
+COPY apps/server ./apps/server
+
+# Reinstall to create symlinks, ignore scripts to avoid husky
+RUN pnpm install --frozen-lockfile --ignore-scripts
+
+# Clean tsbuildinfo and build
+RUN find apps/server -name "*.tsbuildinfo" -delete && \
+    pnpm --filter '@team9/*' --filter '!@team9/server' build
+
+# Use pnpm deploy to create a standalone deployment
+RUN pnpm --filter @team9/task-worker deploy --prod /app/deploy
+
+# ============================================
+# Stage: Runner
+# ============================================
+FROM node:20-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nestjs
+
+# Copy deployed app (pnpm deploy now includes workspace packages with dist)
+COPY --from=builder --chown=nestjs:nodejs /app/deploy ./
+
+USER nestjs
+
+EXPOSE 3002
+
+CMD ["node", "dist/main.js"]
