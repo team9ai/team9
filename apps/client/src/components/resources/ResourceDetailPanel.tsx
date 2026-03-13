@@ -12,6 +12,7 @@ import {
   ListChecks,
   Pencil,
   Check,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +21,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -34,6 +40,7 @@ import type {
   ResourceUsageLog,
   ResourceStatus,
   Resource,
+  AuthorizeResourceDto,
 } from "@/types/resource";
 
 interface ResourceDetailPanelProps {
@@ -150,6 +157,37 @@ export function ResourceDetailPanel({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["resources"] });
       onClose();
+    },
+  });
+
+  const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
+  const [authForm, setAuthForm] = useState<AuthorizeResourceDto>({
+    granteeType: "user",
+    granteeId: "",
+    permissions: { level: "full" },
+  });
+
+  const authorizeMutation = useMutation({
+    mutationFn: (dto: AuthorizeResourceDto) =>
+      resourcesApi.authorize(resourceId, dto),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["resource", resourceId] });
+      queryClient.invalidateQueries({ queryKey: ["resources"] });
+      setAuthPopoverOpen(false);
+      setAuthForm({
+        granteeType: "user",
+        granteeId: "",
+        permissions: { level: "full" },
+      });
+    },
+  });
+
+  const revokeMutation = useMutation({
+    mutationFn: (dto: { granteeType: string; granteeId: string }) =>
+      resourcesApi.revoke(resourceId, dto),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["resource", resourceId] });
+      queryClient.invalidateQueries({ queryKey: ["resources"] });
     },
   });
 
@@ -535,9 +573,120 @@ export function ResourceDetailPanel({
 
             {/* Authorizations */}
             <div className="space-y-2">
-              <h4 className="text-sm font-semibold">
-                {t("detail.authorizations")}
-              </h4>
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold">
+                  {t("detail.authorizations")}
+                </h4>
+                <Popover
+                  open={authPopoverOpen}
+                  onOpenChange={(open) => {
+                    setAuthPopoverOpen(open);
+                    if (!open) {
+                      setAuthForm({
+                        granteeType: "user",
+                        granteeId: "",
+                        permissions: { level: "full" },
+                      });
+                      authorizeMutation.reset();
+                    }
+                  }}
+                >
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="icon-sm">
+                      <Plus size={14} />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 space-y-3" align="end">
+                    <p className="text-sm font-medium">
+                      {t("detail.addAuthorization")}
+                    </p>
+                    <div className="space-y-1">
+                      <Label className="text-xs">{t("auth.granteeType")}</Label>
+                      <Select
+                        value={authForm.granteeType}
+                        onValueChange={(v) =>
+                          setAuthForm({
+                            ...authForm,
+                            granteeType: v as "user" | "task",
+                          })
+                        }
+                      >
+                        <SelectTrigger className="h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="user">
+                            {t("detail.granteeType.user")}
+                          </SelectItem>
+                          <SelectItem value="task">
+                            {t("detail.granteeType.task")}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">{t("auth.granteeId")}</Label>
+                      <Input
+                        className="h-8"
+                        value={authForm.granteeId}
+                        onChange={(e) =>
+                          setAuthForm({
+                            ...authForm,
+                            granteeId: e.target.value,
+                          })
+                        }
+                        placeholder={t("auth.granteeIdPlaceholder")}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">
+                        {t("auth.permissionLevel")}
+                      </Label>
+                      <Select
+                        value={authForm.permissions?.level ?? "full"}
+                        onValueChange={(v) =>
+                          setAuthForm({
+                            ...authForm,
+                            permissions: { level: v as "full" | "readonly" },
+                          })
+                        }
+                      >
+                        <SelectTrigger className="h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="full">
+                            {t("detail.permissionLevel.full")}
+                          </SelectItem>
+                          <SelectItem value="readonly">
+                            {t("detail.permissionLevel.readonly")}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {authorizeMutation.isError && (
+                      <p className="text-xs text-destructive">
+                        {(authorizeMutation.error as Error)?.message ||
+                          t("detail.loadError")}
+                      </p>
+                    )}
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      disabled={
+                        !authForm.granteeId.trim() ||
+                        authorizeMutation.isPending
+                      }
+                      onClick={() => authorizeMutation.mutate(authForm)}
+                    >
+                      {authorizeMutation.isPending && (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                      )}
+                      {t("auth.grant")}
+                    </Button>
+                  </PopoverContent>
+                </Popover>
+              </div>
               {(!resource.authorizations ||
                 resource.authorizations.length === 0) && (
                 <p className="text-xs text-muted-foreground">
@@ -547,20 +696,40 @@ export function ResourceDetailPanel({
               {resource.authorizations?.map((auth) => (
                 <div
                   key={`${auth.granteeType}-${auth.granteeId}`}
-                  className="flex items-center gap-2 text-xs p-2 rounded border border-border"
+                  className="flex items-center gap-2 text-xs p-2 rounded border border-border group"
                 >
                   {auth.granteeType === "user" ? (
-                    <User size={12} className="text-muted-foreground" />
+                    <User
+                      size={12}
+                      className="text-muted-foreground shrink-0"
+                    />
                   ) : (
-                    <ListChecks size={12} className="text-muted-foreground" />
+                    <ListChecks
+                      size={12}
+                      className="text-muted-foreground shrink-0"
+                    />
                   )}
                   <span className="flex-1 truncate">
                     {t(`detail.granteeType.${auth.granteeType}`)}:{" "}
                     {auth.granteeId.slice(0, 8)}...
                   </span>
-                  <Badge variant="outline" className="text-xs">
+                  <Badge variant="outline" className="text-xs shrink-0">
                     {t(`detail.permissionLevel.${auth.permissions.level}`)}
                   </Badge>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="opacity-0 group-hover:opacity-100 shrink-0 text-muted-foreground hover:text-destructive"
+                    disabled={revokeMutation.isPending}
+                    onClick={() =>
+                      revokeMutation.mutate({
+                        granteeType: auth.granteeType,
+                        granteeId: auth.granteeId,
+                      })
+                    }
+                  >
+                    <X size={12} />
+                  </Button>
                 </div>
               ))}
             </div>

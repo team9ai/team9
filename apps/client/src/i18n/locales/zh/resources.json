@@ -66,6 +66,13 @@
       "readonly": "只读"
     }
   },
+  "auth": {
+    "granteeType": "授权对象类型",
+    "granteeId": "授权对象 ID",
+    "granteeIdPlaceholder": "输入用户或任务 ID",
+    "permissionLevel": "权限等级",
+    "grant": "授予权限"
+  },
   "edit": {
     "save": "保存",
     "cancel": "取消"
