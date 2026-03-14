@@ -4,7 +4,7 @@ export interface ExecutionContext {
   botId: string;
   channelId: string;
   documentContent?: string;
-  taskcastTaskId: string;
+  taskcastTaskId: string | null;
 }
 
 export interface ExecutionStrategy {

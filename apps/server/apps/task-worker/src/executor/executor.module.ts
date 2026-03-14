@@ -2,9 +2,10 @@ import { Module, OnModuleInit } from '@nestjs/common';
 import { DatabaseModule } from '@team9/database';
 import { ExecutorService } from './executor.service.js';
 import { OpenclawStrategy } from './strategies/openclaw.strategy.js';
+import { TaskCastModule } from '../taskcast/taskcast.module.js';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, TaskCastModule],
   providers: [ExecutorService, OpenclawStrategy],
   exports: [ExecutorService],
 })

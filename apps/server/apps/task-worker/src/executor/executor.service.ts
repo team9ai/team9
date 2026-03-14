@@ -13,6 +13,7 @@ import type {
   ExecutionContext,
   ExecutionStrategy,
 } from './execution-strategy.interface.js';
+import { TaskCastClient } from '../taskcast/taskcast.client.js';
 
 @Injectable()
 export class ExecutorService {
@@ -22,6 +23,7 @@ export class ExecutorService {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
+    private readonly taskCastClient: TaskCastClient,
   ) {}
 
   /**
@@ -130,7 +132,13 @@ export class ExecutorService {
 
     // ── 5. Create execution record ────────────────────────────────────
     const executionId = uuidv7();
-    const taskcastTaskId = uuidv7(); // Placeholder — will be replaced by external system ID
+    const taskcastTaskId = await this.taskCastClient.createTask({
+      taskId,
+      executionId,
+      botId: task.botId,
+      tenantId: task.tenantId,
+      ttl: 86400,
+    });
 
     await this.db.insert(schema.agentTaskExecutions).values({
       id: executionId,
