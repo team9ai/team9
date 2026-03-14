@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { tasksApi } from "@/services/api/tasks";
 import { useAppStore } from "@/stores";
+import { useExecutionStream } from "@/hooks/useExecutionStream";
 import { TaskBasicInfoTab } from "./TaskBasicInfoTab";
 import { TaskDocumentTab } from "./TaskDocumentTab";
 import { TaskRunsTab } from "./TaskRunsTab";
@@ -36,7 +37,9 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
   } = useQuery({
     queryKey: ["task", taskId],
     queryFn: () => tasksApi.getById(taskId),
-    refetchInterval: 5000, // Poll while panel is open
+    refetchInterval: task?.currentExecution?.execution.taskcastTaskId
+      ? 30000
+      : 5000,
   });
 
   // Track active tab & whether viewing an active run
@@ -47,6 +50,15 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
   // - Info tab: task has an active execution
   // - Runs tab: viewing a specific active run
   const taskIsActive = task ? ACTIVE_STATUSES.includes(task.status) : false;
+
+  // SSE for real-time execution progress
+  useExecutionStream(
+    taskId,
+    task?.currentExecution?.execution.id,
+    task?.currentExecution?.execution.taskcastTaskId,
+    taskIsActive,
+  );
+
   const hasExecution = !!task?.currentExecution;
   const showMessageInput =
     (activeTab === "info" && taskIsActive && hasExecution) ||
