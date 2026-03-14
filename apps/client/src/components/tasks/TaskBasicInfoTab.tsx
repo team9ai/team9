@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { tasksApi } from "@/services/api/tasks";
 import { api } from "@/services/api";
+import { useExecutionStream } from "@/hooks/useExecutionStream";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import type { OpenClawBotInfo } from "@/services/api/applications";
 import { TaskInterventionCard } from "./TaskInterventionCard";
@@ -231,8 +232,17 @@ export function TaskBasicInfoTab({
     queryKey: ["task-execution-entries", taskId, execution?.id],
     queryFn: () => tasksApi.getExecutionEntries(taskId, execution!.id),
     enabled: !!execution,
-    refetchInterval: 5000,
+    refetchInterval: execution?.taskcastTaskId ? 30000 : 5000,
   });
+
+  // SSE for real-time entries updates
+  useExecutionStream(
+    taskId,
+    execution?.id,
+    execution?.taskcastTaskId,
+    !!execution &&
+      ["in_progress", "pending_action", "paused"].includes(task.status),
+  );
 
   const handleStartTask = () => {
     setShowStartDialog(true);
