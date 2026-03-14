@@ -6,6 +6,8 @@
 
 **Architecture:** Gateway and task-worker both use `@taskcast/server-sdk` to communicate with a deployed TaskCast Rust instance over internal network. Gateway proxies SSE streams to the frontend. Frontend receives SSE events and invalidates React Query caches instead of 5s polling.
 
+**Key optimization — Deterministic TaskCast IDs:** All TaskCast task IDs follow the pattern `agent_task_exec_${executionId}`. This allows any service to compute the TaskCast ID from the execution ID without querying the DB. The `taskcastTaskId` column still stores the value for reference and as a boolean indicator of whether TaskCast was successfully set up.
+
 **Tech Stack:** NestJS, `@taskcast/server-sdk`, `@taskcast/client`, React, TanStack React Query, SSE (EventSource)
 
 ---
@@ -93,6 +95,10 @@ export class TaskCastService {
     });
   }
 
+  /**
+   * Deterministic ID: `agent_task_exec_${executionId}`.
+   * This lets all services compute the TaskCast ID without DB lookups.
+   */
   async createTask(params: {
     taskId: string;
     executionId: string;
@@ -100,8 +106,10 @@ export class TaskCastService {
     tenantId: string;
     ttl?: number;
   }): Promise<string | null> {
+    const deterministicId = TaskCastService.taskcastId(params.executionId);
     try {
       const task = await this.client.createTask({
+        id: deterministicId,
         type: `agent_task.${params.taskId}`,
         ttl: params.ttl ?? 86400,
         metadata: {
@@ -116,6 +124,11 @@ export class TaskCastService {
       this.logger.error(`Failed to create TaskCast task: ${error}`);
       return null;
     }
+  }
+
+  /** Compute the deterministic TaskCast task ID from an execution ID. */
+  static taskcastId(executionId: string): string {
+    return `agent_task_exec_${executionId}`;
   }
 
   async transitionStatus(
@@ -209,6 +222,10 @@ export class TaskCastClient {
     });
   }
 
+  /**
+   * Deterministic ID: `agent_task_exec_${executionId}`.
+   * This lets all services compute the TaskCast ID without DB lookups.
+   */
   async createTask(params: {
     taskId: string;
     executionId: string;
@@ -216,8 +233,10 @@ export class TaskCastClient {
     tenantId: string;
     ttl?: number;
   }): Promise<string | null> {
+    const deterministicId = `agent_task_exec_${params.executionId}`;
     try {
       const task = await this.client.createTask({
+        id: deterministicId,
         type: `agent_task.${params.taskId}`,
         ttl: params.ttl ?? 86400,
         metadata: {
@@ -510,96 +529,66 @@ import { TaskCastService } from "./taskcast.service.js";
   ) {}
 ```
 
-- [ ] **Step 2: Add helper to get taskcastTaskId from a known executionId**
+- [ ] **Step 2: Add TaskCast transition to pause()**
 
-Add this private helper method near the other private helpers (after `getTaskOrThrow`, around line 660):
-
-```typescript
-  private async getTaskcastTaskId(
-    currentExecutionId: string | null,
-  ): Promise<string | null> {
-    if (!currentExecutionId) return null;
-
-    const [execution] = await this.db
-      .select({ taskcastTaskId: schema.agentTaskExecutions.taskcastTaskId })
-      .from(schema.agentTaskExecutions)
-      .where(eq(schema.agentTaskExecutions.id, currentExecutionId))
-      .limit(1);
-
-    return execution?.taskcastTaskId ?? null;
-  }
-```
-
-This accepts the `currentExecutionId` from the already-loaded task (via `getTaskOrThrow`), avoiding a redundant task query.
-
-- [ ] **Step 3: Add TaskCast transition to pause()**
+With deterministic IDs, we compute `agent_task_exec_${currentExecutionId}` instead of querying the DB. Import `TaskCastService` (already done in Step 1) provides the static helper.
 
 In the `pause()` method (lines 441-452), add after `publishTaskCommand` and before `return`. Note `task` is already loaded by `getTaskOrThrow` earlier in this method:
 
 ```typescript
-// Sync paused status to TaskCast
-const tcId = await this.getTaskcastTaskId(task.currentExecutionId);
-if (tcId) {
+// Sync paused status to TaskCast (deterministic ID — no DB lookup)
+if (task.currentExecutionId) {
+  const tcId = TaskCastService.taskcastId(task.currentExecutionId);
   await this.taskCastService.transitionStatus(tcId, "paused");
 }
 ```
 
-- [ ] **Step 4: Add TaskCast transition to resume()**
+- [ ] **Step 3: Add TaskCast transition to resume()**
 
 In the `resume()` method (lines 454-471), add after `publishTaskCommand` and before `return`:
 
 ```typescript
-// Sync running status to TaskCast
-const tcId = await this.getTaskcastTaskId(task.currentExecutionId);
-if (tcId) {
+// Sync running status to TaskCast (deterministic ID — no DB lookup)
+if (task.currentExecutionId) {
+  const tcId = TaskCastService.taskcastId(task.currentExecutionId);
   await this.taskCastService.transitionStatus(tcId, "in_progress");
 }
 ```
 
-- [ ] **Step 5: Add TaskCast transition to stop()**
+- [ ] **Step 4: Add TaskCast transition to stop()**
 
 In the `stop()` method (lines 473-490), add after `publishTaskCommand` and before `return`:
 
 ```typescript
-// Sync cancelled status to TaskCast
-const tcId = await this.getTaskcastTaskId(task.currentExecutionId);
-if (tcId) {
+// Sync cancelled status to TaskCast (deterministic ID — no DB lookup)
+if (task.currentExecutionId) {
+  const tcId = TaskCastService.taskcastId(task.currentExecutionId);
   await this.taskCastService.transitionStatus(tcId, "stopped");
 }
 ```
 
-- [ ] **Step 6: Add TaskCast transition to resolveIntervention()**
+- [ ] **Step 5: Add TaskCast transition to resolveIntervention()**
 
-In `resolveIntervention()` (lines 558-633), after the execution status update back to `in_progress` (line 622) and before `publishTaskCommand`:
+In `resolveIntervention()` (lines 558-633), after the execution status update back to `in_progress` (line 622) and before `publishTaskCommand`. With deterministic IDs, we compute the TaskCast ID from `intervention.executionId` directly — no DB lookup needed:
 
 ```typescript
-// Sync running status to TaskCast (unblock)
-const [resolvedExecution] = await this.db
-  .select({ taskcastTaskId: schema.agentTaskExecutions.taskcastTaskId })
-  .from(schema.agentTaskExecutions)
-  .where(eq(schema.agentTaskExecutions.id, intervention.executionId))
-  .limit(1);
-
-if (resolvedExecution?.taskcastTaskId) {
-  await this.taskCastService.transitionStatus(
-    resolvedExecution.taskcastTaskId,
-    "in_progress",
-  );
-  await this.taskCastService.publishEvent(resolvedExecution.taskcastTaskId, {
-    type: "intervention",
-    data: {
-      intervention: {
-        ...updated,
-        status: "resolved",
-      },
+// Sync running status to TaskCast (unblock) — deterministic ID, no DB lookup
+const tcId = TaskCastService.taskcastId(intervention.executionId);
+await this.taskCastService.transitionStatus(tcId, "in_progress");
+await this.taskCastService.publishEvent(tcId, {
+  type: "intervention",
+  data: {
+    intervention: {
+      ...updated,
+      status: "resolved",
     },
-    seriesId: `intervention:${interventionId}`,
-    seriesMode: "latest",
-  });
-}
+  },
+  seriesId: `intervention:${interventionId}`,
+  seriesMode: "latest",
+});
 ```
 
-- [ ] **Step 7: Verify compilation**
+- [ ] **Step 6: Verify compilation**
 
 ```bash
 cd /Users/winrey/Projects/weightwave/team9
@@ -608,7 +597,7 @@ pnpm --filter @team9/gateway build
 
 Expected: BUILD SUCCESS.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add apps/server/apps/gateway/src/tasks/tasks.service.ts
@@ -617,19 +606,21 @@ git commit -m "feat(tasks): integrate TaskCastService into TasksService for paus
 
 ---
 
-### Task 6: Update WebhookController to look up by taskcastTaskId
+### Task 6: Update WebhookController to parse executionId from deterministic TaskCast ID
 
 **Files:**
 
 - Modify: `apps/server/apps/task-worker/src/webhook/webhook.controller.ts`
 
-Currently, the timeout webhook receives `payload.taskId` which is the TaskCast task ID (not Team9's task ID). We need to look up the execution by `taskcastTaskId` first.
+The timeout webhook receives `payload.taskId` which is the deterministic TaskCast task ID (`agent_task_exec_${execId}`). We parse the execution ID from the prefix — no DB lookup needed to find the execution.
 
 - [ ] **Step 1: Update the handleTimeout method**
 
 In `apps/server/apps/task-worker/src/webhook/webhook.controller.ts`, replace the `handleTimeout` method body (lines 39-87):
 
 ```typescript
+  private static readonly TASKCAST_ID_PREFIX = 'agent_task_exec_';
+
   @Post('timeout')
   @HttpCode(200)
   async handleTimeout(
@@ -643,17 +634,22 @@ In `apps/server/apps/task-worker/src/webhook/webhook.controller.ts`, replace the
 
     this.logger.warn(`Received timeout webhook for TaskCast task ${taskcastId}`);
 
-    // Look up execution by taskcastTaskId
+    // Parse execution ID from deterministic TaskCast ID (agent_task_exec_{execId})
+    if (!taskcastId.startsWith(WebhookController.TASKCAST_ID_PREFIX)) {
+      this.logger.error(`Unexpected TaskCast ID format: ${taskcastId}`);
+      return;
+    }
+    const executionId = taskcastId.slice(WebhookController.TASKCAST_ID_PREFIX.length);
+
+    // Verify execution exists and get its taskId
     const [execution] = await this.db
-      .select()
+      .select({ id: schema.agentTaskExecutions.id, taskId: schema.agentTaskExecutions.taskId })
       .from(schema.agentTaskExecutions)
-      .where(eq(schema.agentTaskExecutions.taskcastTaskId, taskcastId))
+      .where(eq(schema.agentTaskExecutions.id, executionId))
       .limit(1);
 
     if (!execution) {
-      this.logger.error(
-        `Execution not found for TaskCast task: ${taskcastId}`,
-      );
+      this.logger.error(`Execution not found: ${executionId}`);
       return;
     }
 
@@ -666,7 +662,7 @@ In `apps/server/apps/task-worker/src/webhook/webhook.controller.ts`, replace the
         status: 'timeout',
         completedAt: now,
       })
-      .where(eq(schema.agentTaskExecutions.id, execution.id));
+      .where(eq(schema.agentTaskExecutions.id, executionId));
 
     // Update task status to timeout
     await this.db
@@ -678,7 +674,7 @@ In `apps/server/apps/task-worker/src/webhook/webhook.controller.ts`, replace the
       .where(eq(schema.agentTasks.id, execution.taskId));
 
     this.logger.warn(
-      `Task ${execution.taskId} and execution ${execution.id} marked as timeout via webhook`,
+      `Task ${execution.taskId} and execution ${executionId} marked as timeout via webhook`,
     );
   }
 ```
@@ -696,7 +692,7 @@ Expected: BUILD SUCCESS.
 
 ```bash
 git add apps/server/apps/task-worker/src/webhook/webhook.controller.ts
-git commit -m "fix(webhook): look up execution by taskcastTaskId instead of Team9 task ID"
+git commit -m "fix(webhook): parse executionId from deterministic TaskCast ID prefix"
 ```
 
 ---
@@ -782,12 +778,12 @@ export class TasksStreamController {
       return;
     }
 
-    // ── Look up execution + task to get taskcastTaskId and tenantId ──
+    // ── Deterministic TaskCast ID — no DB lookup for taskcastTaskId ──
+    const taskcastTaskId = `agent_task_exec_${execId}`;
+
+    // ── Verify execution exists and belongs to this task ──
     const [execution] = await this.db
-      .select({
-        taskcastTaskId: schema.agentTaskExecutions.taskcastTaskId,
-        taskId: schema.agentTaskExecutions.taskId,
-      })
+      .select({ id: schema.agentTaskExecutions.id })
       .from(schema.agentTaskExecutions)
       .where(
         and(
@@ -797,10 +793,8 @@ export class TasksStreamController {
       )
       .limit(1);
 
-    if (!execution?.taskcastTaskId) {
-      throw new NotFoundException(
-        "Execution not found or has no TaskCast tracking",
-      );
+    if (!execution) {
+      throw new NotFoundException("Execution not found");
     }
 
     // ── Verify user belongs to the task's workspace ──
@@ -829,7 +823,7 @@ export class TasksStreamController {
     }
 
     // ── Proxy SSE from TaskCast ──
-    const upstream = `${this.taskcastUrl}/tasks/${execution.taskcastTaskId}/events/stream`;
+    const upstream = `${this.taskcastUrl}/tasks/${taskcastTaskId}/events/stream`;
     const headers: Record<string, string> = {
       Accept: "text/event-stream",
     };
@@ -974,7 +968,7 @@ git commit -m "chore: add @taskcast/client to frontend"
 
 - Create: `apps/client/src/hooks/useExecutionStream.ts`
 
-This hook opens an SSE connection through the gateway proxy. On events, it invalidates React Query caches to trigger refetches. The hook is a no-op when `taskcastTaskId` is null (legacy executions or TaskCast failure).
+This hook opens an SSE connection through the gateway proxy. On events, it invalidates React Query caches to trigger refetches. The hook is a no-op when `taskcastTaskId` is null (legacy executions or TaskCast failure). With deterministic IDs, the SSE proxy computes the TaskCast ID server-side from the execId — the frontend doesn't need to know it.
 
 - [ ] **Step 1: Create useExecutionStream.ts**
 
@@ -991,8 +985,9 @@ const API_BASE_URL =
  * Opens an SSE connection to the TaskCast proxy for a specific execution.
  * Invalidates React Query caches when events arrive.
  *
- * Falls back gracefully: if taskcastTaskId is null, no SSE connection is opened
- * and the caller should keep polling enabled.
+ * `taskcastTaskId` is used as a boolean gate — if null/undefined, TaskCast
+ * was not set up for this execution and no SSE connection is opened.
+ * The actual TaskCast ID is computed server-side from the execId (deterministic).
  */
 export function useExecutionStream(
   taskId: string,
