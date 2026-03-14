@@ -4,6 +4,7 @@ import { env } from '@team9/shared';
 import { emailVerificationTemplate } from './templates/email-verification.template.js';
 import { passwordResetTemplate } from './templates/password-reset.template.js';
 import { magicLoginTemplate } from './templates/magic-login.template.js';
+import { verificationCodeTemplate } from './templates/verification-code.template.js';
 
 export interface SendEmailOptions {
   to: string;
@@ -79,6 +80,31 @@ export class EmailService {
     return this.send({
       to: email,
       subject: 'Sign in to Team9',
+      html,
+      text,
+    });
+  }
+
+  async sendVerificationCodeEmail(
+    email: string,
+    code: string,
+    expiresInMinutes: number = 10,
+  ): Promise<boolean> {
+    if (!this.isEnabled()) {
+      this.logger.warn(
+        'Email service not configured, skipping verification code email',
+      );
+      return false;
+    }
+
+    const { html, text } = verificationCodeTemplate({
+      code,
+      expiresInMinutes,
+    });
+
+    return this.send({
+      to: email,
+      subject: `${code} is your Team9 verification code`,
       html,
       text,
     });

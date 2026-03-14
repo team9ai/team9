@@ -60,6 +60,38 @@ export interface PollLoginResponse {
   user?: User;
 }
 
+// --- New unified auth flow types ---
+export interface AuthStartRequest {
+  email: string;
+  displayName?: string;
+}
+
+export interface AuthStartResponse {
+  action: "code_sent" | "need_display_name";
+  email: string;
+  challengeId?: string;
+  expiresInSeconds?: number;
+  /** Verification code returned in dev mode */
+  verificationCode?: string;
+}
+
+export interface VerifyCodeRequest {
+  email: string;
+  challengeId: string;
+  code: string;
+}
+
+export interface DesktopSessionResponse {
+  sessionId: string;
+  pairCode: string;
+  expiresInSeconds: number;
+}
+
+export interface CompleteDesktopSessionRequest {
+  sessionId: string;
+  pairCode: string;
+}
+
 export interface PaginationParams {
   page?: number;
   pageSize?: number;
@@ -73,6 +105,41 @@ export interface PaginatedResponse<T> {
 }
 
 export const authApi = {
+  // --- New unified auth flow ---
+  authStart: async (data: AuthStartRequest): Promise<AuthStartResponse> => {
+    const response = await http.post<AuthStartResponse>("/v1/auth/start", data);
+    return response.data;
+  },
+
+  verifyCode: async (data: VerifyCodeRequest): Promise<AuthResponse> => {
+    const response = await http.post<AuthResponse>(
+      "/v1/auth/verify-code",
+      data,
+    );
+    const authData = response.data;
+    localStorage.setItem("auth_token", authData.accessToken);
+    localStorage.setItem("refresh_token", authData.refreshToken);
+    return authData;
+  },
+
+  createDesktopSession: async (): Promise<DesktopSessionResponse> => {
+    const response = await http.post<DesktopSessionResponse>(
+      "/v1/auth/create-desktop-session",
+    );
+    return response.data;
+  },
+
+  completeDesktopSession: async (
+    data: CompleteDesktopSessionRequest,
+  ): Promise<{ success: boolean }> => {
+    const response = await http.post<{ success: boolean }>(
+      "/v1/auth/complete-desktop-session",
+      data,
+    );
+    return response.data;
+  },
+
+  // --- Legacy endpoints ---
   login: async (data: LoginRequest): Promise<LoginResponse> => {
     const response = await http.post<LoginResponse>("/v1/auth/login", data);
     return response.data;

@@ -8,6 +8,7 @@
       "@team9/database": ["../../libs/database/src"],
       "@team9/shared": ["../../libs/shared/src"],
       "@team9/redis": ["../../libs/redis/src"],
+      "@team9/email": ["../../libs/email/src"],
       "@team9/ai-client": ["../../libs/ai-client/src"],
       "@team9/rabbitmq": ["../../libs/rabbitmq/src"],
       "@team9/storage": ["../../libs/storage/src"],

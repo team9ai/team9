@@ -15,6 +15,8 @@ import type {
   TokenPair,
   RegisterResponse,
   LoginResponse,
+  AuthStartResponse,
+  DesktopSessionResponse,
 } from './auth.service.js';
 import {
   RegisterDto,
@@ -24,6 +26,9 @@ import {
   ResendVerificationDto,
   GoogleLoginDto,
   PollLoginDto,
+  AuthStartDto,
+  VerifyCodeDto,
+  CompleteDesktopSessionDto,
 } from './dto/index.js';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import type { JwtPayload } from '@team9/auth';
@@ -34,6 +39,39 @@ import type { JwtPayload } from '@team9/auth';
 })
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  // --- New unified auth flow ---
+
+  @Post('start')
+  @HttpCode(HttpStatus.OK)
+  async authStart(@Body() dto: AuthStartDto): Promise<AuthStartResponse> {
+    return this.authService.authStart(dto);
+  }
+
+  @Post('verify-code')
+  @HttpCode(HttpStatus.OK)
+  async verifyCode(@Body() dto: VerifyCodeDto): Promise<AuthResponse> {
+    return this.authService.verifyCode(dto);
+  }
+
+  @Post('create-desktop-session')
+  @HttpCode(HttpStatus.CREATED)
+  async createDesktopSession(@Req() req: any): Promise<DesktopSessionResponse> {
+    const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+    return this.authService.createDesktopSession(ip);
+  }
+
+  @Post('complete-desktop-session')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async completeDesktopSession(
+    @Body() dto: CompleteDesktopSessionDto,
+    @CurrentUser('sub') userId: string,
+  ): Promise<{ success: boolean }> {
+    return this.authService.completeDesktopSession(dto, userId);
+  }
+
+  // --- Legacy endpoints (kept for backward compatibility) ---
 
   @Post('register')
   async register(@Body() dto: RegisterDto): Promise<RegisterResponse> {
