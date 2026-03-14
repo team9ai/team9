@@ -20,6 +20,7 @@ import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
 import type { WebsocketGateway } from '../im/websocket/websocket.gateway.js';
 import type { ReportStepsDto } from './dto/report-steps.dto.js';
 import type { CreateInterventionDto } from './dto/create-intervention.dto.js';
+import { TaskCastService } from './taskcast.service.js';
 
 // ── Service ─────────────────────────────────────────────────────────
 
@@ -30,6 +31,7 @@ export class TaskBotService {
     private readonly db: PostgresJsDatabase<typeof schema>,
     @Inject(WEBSOCKET_GATEWAY)
     private readonly wsGateway: WebsocketGateway,
+    private readonly taskCastService: TaskCastService,
   ) {}
 
   // ── Report step progress ─────────────────────────────────────────
@@ -116,6 +118,16 @@ export class TaskBotService {
       .where(eq(schema.agentTaskSteps.executionId, execution.id))
       .orderBy(schema.agentTaskSteps.orderIndex);
 
+    // Publish step progress to TaskCast
+    if (execution.taskcastTaskId) {
+      await this.taskCastService.publishEvent(execution.taskcastTaskId, {
+        type: 'step',
+        data: { steps },
+        seriesId: 'steps',
+        seriesMode: 'latest',
+      });
+    }
+
     return steps;
   }
 
@@ -185,6 +197,14 @@ export class TaskBotService {
       },
     );
 
+    // Sync status to TaskCast
+    if (execution.taskcastTaskId) {
+      await this.taskCastService.transitionStatus(
+        execution.taskcastTaskId,
+        status,
+      );
+    }
+
     return { task: updatedTask, execution: updatedExecution };
   }
 
@@ -235,6 +255,20 @@ export class TaskBotService {
       },
     );
 
+    // Sync blocked status + intervention event to TaskCast
+    if (execution.taskcastTaskId) {
+      await this.taskCastService.transitionStatus(
+        execution.taskcastTaskId,
+        'pending_action',
+      );
+      await this.taskCastService.publishEvent(execution.taskcastTaskId, {
+        type: 'intervention',
+        data: { intervention },
+        seriesId: `intervention:${intervention.id}`,
+        seriesMode: 'latest',
+      });
+    }
+
     return intervention;
   }
 
@@ -266,6 +300,14 @@ export class TaskBotService {
         fileUrl: data.fileUrl,
       })
       .returning();
+
+    // Publish deliverable event to TaskCast
+    if (execution.taskcastTaskId) {
+      await this.taskCastService.publishEvent(execution.taskcastTaskId, {
+        type: 'deliverable',
+        data: { deliverable },
+      });
+    }
 
     return deliverable;
   }
