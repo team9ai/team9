@@ -488,6 +488,57 @@ describe('AuthService', () => {
     });
   });
 
+  // ── generateUniqueUsername ───────────────────────────────────────
+
+  describe('generateUniqueUsername', () => {
+    const callGenerate = (input: string, email?: string) =>
+      (service as any).generateUniqueUsername(input, email);
+
+    it('should transliterate Chinese characters', async () => {
+      db.limit.mockResolvedValue([]); // no collision
+      const result = await callGenerate('张三', 'zhangsan@test.com');
+      expect(result).toBe('zhang_san');
+    });
+
+    it('should handle Latin input directly', async () => {
+      db.limit.mockResolvedValue([]);
+      const result = await callGenerate('Alice Smith');
+      expect(result).toBe('alice_smith');
+    });
+
+    it('should fall back to email prefix when transliteration produces < 3 chars', async () => {
+      db.limit.mockResolvedValue([]);
+      // Single rare character that may not transliterate well
+      const result = await callGenerate('꧁꧂', 'cooluser@test.com');
+      expect(result).toBe('cooluser');
+    });
+
+    it('should extract email prefix when input is an email', async () => {
+      db.limit.mockResolvedValue([]);
+      const result = await callGenerate('user@example.com');
+      expect(result).toBe('user');
+    });
+
+    it('should append random suffix on collision', async () => {
+      // First call: base check → collision. Second call: suffixed → no collision
+      let callCount = 0;
+      db.limit.mockImplementation((() => {
+        callCount++;
+        if (callCount === 1) return Promise.resolve([USER_ROW]); // collision
+        return Promise.resolve([]); // no collision
+      }) as any);
+
+      const result = await callGenerate('alice');
+      expect(result).toMatch(/^alice_\d{4}$/);
+    });
+
+    it('should pad to minimum 3 characters', async () => {
+      db.limit.mockResolvedValue([]);
+      const result = await callGenerate('ab');
+      expect(result.length).toBeGreaterThanOrEqual(3);
+    });
+  });
+
   // ── pollLogin ─────────────────────────────────────────────────────
 
   describe('pollLogin', () => {

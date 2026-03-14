@@ -22,6 +22,7 @@ import { RedisService } from '@team9/redis';
 import { EmailService } from '@team9/email';
 import { env } from '@team9/shared';
 import type { JwtPayload } from '@team9/auth';
+import { slugify } from 'transliteration';
 import {
   RegisterDto,
   LoginDto,
@@ -556,7 +557,7 @@ export class AuthService {
     }
 
     // New user — auto-register (prefer Google display name for username)
-    const username = await this.generateUniqueUsername(name || email);
+    const username = await this.generateUniqueUsername(name || email, email);
     const userId = uuidv7();
 
     const [user] = await this.db
@@ -593,14 +594,26 @@ export class AuthService {
     };
   }
 
-  private async generateUniqueUsername(input: string): Promise<string> {
-    // If input looks like an email, use the prefix; otherwise use the full string
+  private async generateUniqueUsername(
+    input: string,
+    email?: string,
+  ): Promise<string> {
+    // If input looks like an email, use the prefix; otherwise transliterate and slugify
     const raw = input.includes('@') ? input.split('@')[0] : input;
-    let base = raw
-      .toLowerCase()
-      .replace(/[^a-z0-9_]/g, '_')
+    let base = slugify(raw, { separator: '_', lowercase: true })
+      .replace(/[^a-z0-9_]/g, '')
       .replace(/_+/g, '_')
       .replace(/^_|_$/g, '');
+
+    // If transliteration produced nothing useful, fall back to email prefix
+    if (base.length < 3 && email) {
+      const emailPrefix = email.split('@')[0];
+      base = emailPrefix
+        .toLowerCase()
+        .replace(/[^a-z0-9_]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '');
+    }
 
     // Ensure minimum 3 characters
     if (base.length < 3) {
@@ -1040,7 +1053,7 @@ export class AuthService {
       };
     }
 
-    const username = await this.generateUniqueUsername(displayName);
+    const username = await this.generateUniqueUsername(displayName, email);
     const userId = uuidv7();
 
     const [user] = await this.db
