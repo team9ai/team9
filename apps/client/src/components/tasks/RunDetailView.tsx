@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { tasksApi } from "@/services/api/tasks";
+import { useExecutionStream } from "@/hooks/useExecutionStream";
 import {
   ExecutionTimeline,
   type TimelineUserMessage,
@@ -58,7 +59,7 @@ export function RunDetailView({
   const { data: execution, isLoading: execLoading } = useQuery({
     queryKey: ["task-execution", taskId, executionId],
     queryFn: () => tasksApi.getExecution(taskId, executionId),
-    refetchInterval: 5000,
+    refetchInterval: execution?.taskcastTaskId ? 30000 : 5000,
   });
 
   // Notify parent of this run's channelId for the message input
@@ -66,6 +67,9 @@ export function RunDetailView({
   const isActive = execution
     ? ACTIVE_STATUSES.includes(execution.status)
     : false;
+
+  useExecutionStream(taskId, executionId, execution?.taskcastTaskId, isActive);
+
   useEffect(() => {
     onChannelChange?.(isActive ? channelId : null);
     return () => onChannelChange?.(null);
@@ -74,7 +78,7 @@ export function RunDetailView({
   const { data: entries = [] } = useQuery({
     queryKey: ["task-execution-entries", taskId, executionId],
     queryFn: () => tasksApi.getExecutionEntries(taskId, executionId),
-    refetchInterval: 5000,
+    refetchInterval: execution?.taskcastTaskId ? 30000 : 5000,
   });
 
   const retryMutation = useMutation({
