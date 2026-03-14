@@ -126,43 +126,21 @@ function DesktopLoginView() {
     localStorage.removeItem("pending_desktop_session_id");
   };
 
-  // Waiting state (after clicking sign in)
-  if (sessionId) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="w-full max-w-100 px-4">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-foreground mb-2">Team9</h1>
-          </div>
-          <div className="bg-background border border-border rounded-lg shadow-sm p-8 text-center">
-            {sessionExpired ? (
-              <>
-                <Monitor className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-                <h2 className="text-xl font-semibold mb-2">
-                  {t("sessionExpired")}
-                </h2>
-                <Button onClick={handleRetry} className="w-full mt-4">
-                  {t("signInWithBrowser")}
-                </Button>
-              </>
-            ) : (
-              <>
-                <Loader2 className="w-12 h-12 mx-auto text-primary animate-spin mb-4" />
-                <h2 className="text-lg font-semibold mb-2">
-                  {t("waitingForAuth")}
-                </h2>
-                <p className="text-muted-foreground text-sm">
-                  {t("completeBrowserAuth")}
-                </p>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const handleOpenBrowser = async () => {
+    // If session expired or no session, create a new one
+    if (!sessionId || sessionExpired) {
+      await handleSignInWithBrowser();
+      return;
+    }
+    // Re-open browser with existing session
+    const appUrl = import.meta.env.VITE_APP_URL;
+    if (appUrl) {
+      const { openUrl } = await import("@tauri-apps/plugin-opener");
+      const url = `${appUrl}/login?desktopSessionId=${sessionId}`;
+      await openUrl(url);
+    }
+  };
 
-  // Initial landing page
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-full max-w-100 px-4">
@@ -174,7 +152,7 @@ function DesktopLoginView() {
         </div>
         <div className="bg-background border border-border rounded-lg shadow-sm p-8">
           <Button
-            onClick={handleSignInWithBrowser}
+            onClick={handleOpenBrowser}
             disabled={createSession.isPending}
             className="w-full h-12 text-base font-semibold"
           >
@@ -183,7 +161,7 @@ function DesktopLoginView() {
             ) : (
               <Monitor className="w-5 h-5 mr-2" />
             )}
-            {t("signInWithBrowser")}
+            {t("accessToTeam9")}
           </Button>
           <p className="text-center text-sm text-muted-foreground mt-4">
             {t("openBrowserHint")}
@@ -242,11 +220,9 @@ function WebLoginView() {
         } catch {
           // Desktop session may have expired, continue normally
         }
-        try {
-          window.location.href = `team9://auth-complete?sessionId=${desktopSessionId}`;
-        } catch {
-          // Deeplink not handled
-        }
+        // Show intermediate page instead of auto-redirecting
+        setAuthState("authenticated");
+        return;
       }
 
       if (invite) {
@@ -272,21 +248,17 @@ function WebLoginView() {
     // Mark that auth was completed in this session so the useEffect doesn't double-fire
     authCompletedInSession.current = true;
 
-    // Complete desktop session if applicable
+    // If this is a desktop session flow, complete session and show intermediate page
     if (desktopSessionId) {
       try {
         await completeDesktop.mutateAsync({
           sessionId: desktopSessionId,
         });
-        // Only trigger deeplink on successful completion
-        try {
-          window.location.href = `team9://auth-complete?sessionId=${desktopSessionId}`;
-        } catch {
-          // Deeplink not handled
-        }
       } catch {
-        // Desktop session failed/expired, continue to web navigation
+        // Desktop session failed/expired
       }
+      setAuthState("authenticated");
+      return;
     }
 
     if (invite) {
@@ -295,6 +267,21 @@ function WebLoginView() {
       navigate({ to: redirect || "/" });
     }
   };
+
+  const handleContinueInBrowser = () => {
+    if (invite) {
+      navigate({ to: "/invite/$code", params: { code: invite } });
+    } else {
+      navigate({ to: redirect || "/" });
+    }
+  };
+
+  // Auto-trigger deeplink when authenticated with desktop session
+  useEffect(() => {
+    if (authState === "authenticated" && desktopSessionId) {
+      window.location.href = `team9://auth-complete?sessionId=${desktopSessionId}`;
+    }
+  }, [authState, desktopSessionId]);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -411,6 +398,35 @@ function WebLoginView() {
                 {t("signingIn")}
               </p>
             </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Desktop session intermediate page — shown after auth completes in browser
+  if (authState === "authenticated" && desktopSessionId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-full max-w-100 px-4">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-foreground mb-2">Team9</h1>
+          </div>
+          <div className="bg-background border border-border rounded-lg shadow-sm p-8 text-center">
+            <Monitor className="w-16 h-16 mx-auto text-primary mb-4" />
+            <p className="text-muted-foreground mb-6">
+              {t("clickOpenDesktopApp")}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {t("notWorkingHint")}{" "}
+              <button
+                type="button"
+                onClick={handleContinueInBrowser}
+                className="text-primary hover:underline"
+              >
+                {t("useInBrowser")}
+              </button>
+            </p>
           </div>
         </div>
       </div>
