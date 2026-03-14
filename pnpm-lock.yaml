@@ -496,6 +496,9 @@ importers:
       "@socket.io/redis-adapter":
         specifier: ^8.3.0
         version: 8.3.0(socket.io-adapter@2.5.6)
+      "@taskcast/server-sdk":
+        specifier: ^1.1.0
+        version: 1.1.0(@taskcast/core@1.1.0)
       "@team9/ai-client":
         specifier: workspace:*
         version: link:../../libs/ai-client
@@ -661,6 +664,9 @@ importers:
       "@nestjs/schedule":
         specifier: ^6.1.1
         version: 6.1.1(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)
+      "@taskcast/server-sdk":
+        specifier: ^1.1.0
+        version: 1.1.0(@taskcast/core@1.1.0)
       "@team9/database":
         specifier: workspace:*
         version: link:../../libs/database
@@ -6692,6 +6698,20 @@ packages:
       }
     engines: { node: ">=12" }
 
+  "@taskcast/core@1.1.0":
+    resolution:
+      {
+        integrity: sha512-OCN7dMRNL9VsvHW7IB4HeNmX4mJ4HeGSN50TfgfWwEhDbuv54w0ZKlVe9pQYRzBCDNsqZ5LA5f4A1+tUgRbRyg==,
+      }
+
+  "@taskcast/server-sdk@1.1.0":
+    resolution:
+      {
+        integrity: sha512-+t7H6NhcyGzLt+CxtNZ4K2jlqR56TTI6H6v+qqj/Fd0HbkmCL6UQ/s0W5b+f/aCoh8tYcpJvAuvd2wqaHUc86Q==,
+      }
+    peerDependencies:
+      "@taskcast/core": ^1.1.0
+
   "@tauri-apps/api@2.10.1":
     resolution:
       {
@@ -10627,6 +10647,12 @@ packages:
         integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==,
       }
 
+  layerr@3.0.0:
+    resolution:
+      {
+        integrity: sha512-tv754Ki2dXpPVApOrjTyRo4/QegVb9eVFq4mjqp4+NM5NaX7syQvN5BBNfV/ZpAHCEHV24XdUVrBAoka4jt3pA==,
+      }
+
   leac@0.6.0:
     resolution:
       {
@@ -13489,6 +13515,13 @@ packages:
         integrity: sha512-rvKSBiC5zqCCiDZ9kAOszZcDvdAHwwIKJG33Ykj43OKcWsnmcBRL09YTU4nOeHZ8Y2a7l1MgTd08SBe9A8Qj6A==,
       }
     engines: { node: ">=18" }
+
+  ulidx@2.4.1:
+    resolution:
+      {
+        integrity: sha512-xY7c8LPyzvhvew0Fn+Ek3wBC9STZAuDI/Y5andCKi9AX6/jvfaX45PhsDX8oxgPL0YFp0Jhr8qWMbS/p9375Xg==,
+      }
+    engines: { node: ">=16" }
 
   undici-types@6.21.0:
     resolution:
@@ -18543,6 +18576,16 @@ snapshots:
 
   "@tanstack/virtual-file-routes@1.141.0": {}
 
+  "@taskcast/core@1.1.0":
+    dependencies:
+      js-yaml: 4.1.1
+      ulidx: 2.4.1
+      zod: 3.25.76
+
+  "@taskcast/server-sdk@1.1.0(@taskcast/core@1.1.0)":
+    dependencies:
+      "@taskcast/core": 1.1.0
+
   "@tauri-apps/api@2.10.1": {}
 
   "@tauri-apps/cli-darwin-arm64@2.9.6":
@@ -21150,6 +21193,8 @@ snapshots:
     dependencies:
       json-buffer: 3.0.1
 
+  layerr@3.0.0: {}
+
   leac@0.6.0: {}
 
   leven@3.1.0: {}
@@ -23012,6 +23057,10 @@ snapshots:
       "@lukeed/csprng": 1.1.0
 
   uint8array-extras@1.5.0: {}
+
+  ulidx@2.4.1:
+    dependencies:
+      layerr: 3.0.0
 
   undici-types@6.21.0: {}
 
