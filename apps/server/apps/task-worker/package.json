@@ -9,7 +9,7 @@
     "start:dev": "node --loader @swc-node/register/esm --watch src/main.ts",
     "start:debug": "node --inspect --loader @swc-node/register/esm src/main.ts",
     "start:prod": "node dist/main.js",
-    "test": "jest",
+    "test": "NODE_OPTIONS='--experimental-vm-modules' jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage"
   },
@@ -30,6 +30,11 @@
     "uuid": "^13.0.0"
   },
   "devDependencies": {
+    "@jest/globals": "^30.2.0",
+    "@nestjs/testing": "^11.1.10",
+    "@types/jest": "^30.0.0",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.6",
     "typescript": "^5.7.3"
   }
 }
