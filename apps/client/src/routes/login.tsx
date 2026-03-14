@@ -15,7 +15,7 @@ import { GoogleLogin } from "@react-oauth/google";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Mail, Loader2, Monitor, Users } from "lucide-react";
+import { Mail, Loader2, Monitor, Users, ArrowLeft } from "lucide-react";
 
 const IS_TAURI =
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -244,6 +244,35 @@ function WebLoginView() {
     }
   }, [countdown]);
 
+  // Auto-verify when code reaches 6 digits
+  useEffect(() => {
+    if (
+      code.length === 6 &&
+      challengeId &&
+      authState === "code_sent" &&
+      !verifyCode.isPending
+    ) {
+      const doVerify = async () => {
+        setError("");
+        try {
+          setAuthState("verifying_code");
+          await verifyCode.mutateAsync({ email, challengeId, code });
+          setAuthState("authenticated");
+          await navigateAfterAuth();
+        } catch (err: any) {
+          setAuthState("code_sent");
+          const errorMessage =
+            err?.response?.data?.message ||
+            err?.message ||
+            t("verificationFailed");
+          setError(errorMessage);
+        }
+      };
+      doVerify();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code]);
+
   const navigateAfterAuth = async () => {
     // Mark that auth was completed in this session so the useEffect doesn't double-fire
     authCompletedInSession.current = true;
@@ -446,6 +475,14 @@ function WebLoginView() {
           </div>
 
           <div className="bg-background border border-border rounded-lg shadow-sm p-8">
+            <button
+              type="button"
+              onClick={handleChangeEmail}
+              className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4 -mt-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              {t("back")}
+            </button>
             <div className="text-center mb-6">
               <Mail className="w-12 h-12 mx-auto text-primary mb-3" />
               <p className="text-muted-foreground">
