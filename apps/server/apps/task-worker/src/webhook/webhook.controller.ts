@@ -23,6 +23,7 @@ interface TaskcastTimeoutPayload {
 
 @Controller('webhooks/taskcast')
 export class WebhookController {
+  private static readonly TASKCAST_ID_PREFIX = 'agent_task_exec_';
   private readonly logger = new Logger(WebhookController.name);
   private readonly webhookSecret: string | undefined;
 
@@ -43,34 +44,46 @@ export class WebhookController {
     if (this.webhookSecret && secret !== this.webhookSecret) {
       throw new ForbiddenException('Invalid webhook secret');
     }
-    const { taskId } = payload;
+    const { taskId: taskcastId } = payload;
 
-    this.logger.warn(`Received timeout webhook for task ${taskId}`);
+    this.logger.warn(
+      `Received timeout webhook for TaskCast task ${taskcastId}`,
+    );
 
-    // Find the current in-progress execution for this task
-    const [task] = await this.db
-      .select()
-      .from(schema.agentTasks)
-      .where(eq(schema.agentTasks.id, taskId))
+    // Parse execution ID from deterministic TaskCast ID (agent_task_exec_{execId})
+    if (!taskcastId.startsWith(WebhookController.TASKCAST_ID_PREFIX)) {
+      this.logger.error(`Unexpected TaskCast ID format: ${taskcastId}`);
+      return;
+    }
+    const executionId = taskcastId.slice(
+      WebhookController.TASKCAST_ID_PREFIX.length,
+    );
+
+    // Verify execution exists and get its taskId
+    const [execution] = await this.db
+      .select({
+        id: schema.agentTaskExecutions.id,
+        taskId: schema.agentTaskExecutions.taskId,
+      })
+      .from(schema.agentTaskExecutions)
+      .where(eq(schema.agentTaskExecutions.id, executionId))
       .limit(1);
 
-    if (!task) {
-      this.logger.error(`Task not found for timeout webhook: ${taskId}`);
+    if (!execution) {
+      this.logger.error(`Execution not found: ${executionId}`);
       return;
     }
 
     const now = new Date();
 
-    // Update execution status if there is a current execution
-    if (task.currentExecutionId) {
-      await this.db
-        .update(schema.agentTaskExecutions)
-        .set({
-          status: 'timeout',
-          completedAt: now,
-        })
-        .where(eq(schema.agentTaskExecutions.id, task.currentExecutionId));
-    }
+    // Update execution status
+    await this.db
+      .update(schema.agentTaskExecutions)
+      .set({
+        status: 'timeout',
+        completedAt: now,
+      })
+      .where(eq(schema.agentTaskExecutions.id, executionId));
 
     // Update task status to timeout
     await this.db
@@ -79,10 +92,10 @@ export class WebhookController {
         status: 'timeout',
         updatedAt: now,
       })
-      .where(eq(schema.agentTasks.id, taskId));
+      .where(eq(schema.agentTasks.id, execution.taskId));
 
     this.logger.warn(
-      `Task ${taskId} and execution ${task.currentExecutionId} marked as timeout via webhook`,
+      `Task ${execution.taskId} and execution ${executionId} marked as timeout via webhook`,
     );
   }
 }
