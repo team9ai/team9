@@ -212,7 +212,6 @@ describe('AuthController (integration)', () => {
     it('should return 201 with session data', async () => {
       authService.createDesktopSession.mockResolvedValue({
         sessionId: 's-1',
-        pairCode: 'ABCD-12',
         expiresInSeconds: 1800,
       });
 
@@ -221,7 +220,7 @@ describe('AuthController (integration)', () => {
         .expect(201);
 
       expect(res.body.sessionId).toBe('s-1');
-      expect(res.body.pairCode).toBe('ABCD-12');
+      expect(res.body.expiresInSeconds).toBe(1800);
       // Should pass IP to service
       expect(authService.createDesktopSession).toHaveBeenCalledWith(
         expect.any(String),
@@ -237,13 +236,13 @@ describe('AuthController (integration)', () => {
 
       const res = await request(app.getHttpServer())
         .post('/api/v1/auth/complete-desktop-session')
-        .send({ sessionId: 's-1', pairCode: 'ABCD-12' })
+        .send({ sessionId: 's-1' })
         .expect(200);
 
       expect(res.body.success).toBe(true);
       // Should pass userId from JWT
       expect(authService.completeDesktopSession).toHaveBeenCalledWith(
-        { sessionId: 's-1', pairCode: 'ABCD-12' },
+        { sessionId: 's-1' },
         'user-uuid',
       );
     });
@@ -251,25 +250,16 @@ describe('AuthController (integration)', () => {
     it('should reject missing sessionId with 400', async () => {
       await request(app.getHttpServer())
         .post('/api/v1/auth/complete-desktop-session')
-        .send({ pairCode: 'ABCD-12' })
+        .send({})
         .expect(400);
 
       expect(authService.completeDesktopSession).not.toHaveBeenCalled();
     });
 
-    it('should reject missing pairCode with 400', async () => {
+    it('should reject empty sessionId with 400', async () => {
       await request(app.getHttpServer())
         .post('/api/v1/auth/complete-desktop-session')
-        .send({ sessionId: 's-1' })
-        .expect(400);
-
-      expect(authService.completeDesktopSession).not.toHaveBeenCalled();
-    });
-
-    it('should reject empty strings with 400', async () => {
-      await request(app.getHttpServer())
-        .post('/api/v1/auth/complete-desktop-session')
-        .send({ sessionId: '', pairCode: '' })
+        .send({ sessionId: '' })
         .expect(400);
 
       expect(authService.completeDesktopSession).not.toHaveBeenCalled();

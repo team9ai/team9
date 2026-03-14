@@ -74,7 +74,6 @@ export interface AuthStartResponse {
 
 export interface DesktopSessionResponse {
   sessionId: string;
-  pairCode: string;
   expiresInSeconds: number;
 }
 
@@ -103,7 +102,6 @@ export class AuthService {
   private readonly AUTH_CHALLENGE_PREFIX = 'im:auth_challenge:';
   private readonly AUTH_CHALLENGE_TTL = 600; // 10 minutes
   private readonly AUTH_CHALLENGE_MAX_ATTEMPTS = 5;
-  private readonly PAIR_CODE_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   private readonly DESKTOP_SESSION_RATE_PREFIX = 'im:desktop_session_rate:';
   private readonly DESKTOP_SESSION_RATE_LIMIT = 10; // max 10 sessions per minute per IP
   private readonly DESKTOP_SESSION_RATE_TTL = 60;
@@ -1096,17 +1094,15 @@ export class AuthService {
     }
 
     const sessionId = crypto.randomBytes(16).toString('hex');
-    const pairCode = this.generatePairCode();
 
     await this.redisService.set(
       `${this.LOGIN_SESSION_PREFIX}${sessionId}`,
-      JSON.stringify({ status: 'pending', pairCode }),
+      JSON.stringify({ status: 'pending' }),
       this.LOGIN_SESSION_TTL,
     );
 
     return {
       sessionId,
-      pairCode,
       expiresInSeconds: this.LOGIN_SESSION_TTL,
     };
   }
@@ -1126,10 +1122,6 @@ export class AuthService {
 
     if (session.status !== 'pending') {
       throw new BadRequestException('Desktop session has already been used');
-    }
-
-    if (session.pairCode !== dto.pairCode) {
-      throw new BadRequestException('Invalid pair code');
     }
 
     // Get user and generate tokens for desktop
@@ -1162,17 +1154,6 @@ export class AuthService {
     );
 
     return { success: true };
-  }
-
-  private generatePairCode(): string {
-    const chars = this.PAIR_CODE_CHARSET;
-    let code = '';
-    const bytes = crypto.randomBytes(6);
-    // XXXX-XX format
-    for (let i = 0; i < 6; i++) {
-      code += chars[bytes[i] % chars.length];
-    }
-    return `${code.slice(0, 4)}-${code.slice(4)}`;
   }
 
   // Cleanup expired tokens (can be called by a cron job)

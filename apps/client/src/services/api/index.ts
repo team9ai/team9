@@ -83,13 +83,11 @@ export interface VerifyCodeRequest {
 
 export interface DesktopSessionResponse {
   sessionId: string;
-  pairCode: string;
   expiresInSeconds: number;
 }
 
 export interface CompleteDesktopSessionRequest {
   sessionId: string;
-  pairCode: string;
 }
 
 export interface PaginationParams {

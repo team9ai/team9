@@ -416,11 +416,10 @@ describe('AuthService', () => {
   // ── createDesktopSession ──────────────────────────────────────────
 
   describe('createDesktopSession', () => {
-    it('should create a session with pair code', async () => {
+    it('should create a session', async () => {
       const result = await service.createDesktopSession('127.0.0.1');
 
       expect(result.sessionId).toBeDefined();
-      expect(result.pairCode).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{2}$/);
       expect(result.expiresInSeconds).toBe(1800);
       // Should store session in Redis
       expect(redisService.set).toHaveBeenCalledWith(
@@ -442,13 +441,13 @@ describe('AuthService', () => {
   // ── completeDesktopSession ────────────────────────────────────────
 
   describe('completeDesktopSession', () => {
-    it('should complete session with matching pair code', async () => {
-      const session = { status: 'pending', pairCode: 'ABCD-12' };
+    it('should complete pending session', async () => {
+      const session = { status: 'pending' };
       redisService.get.mockResolvedValue(JSON.stringify(session));
       db.limit.mockResolvedValue([USER_ROW]);
 
       const result = await service.completeDesktopSession(
-        { sessionId: 'session-1', pairCode: 'ABCD-12' },
+        { sessionId: 'session-1' },
         'user-uuid',
       );
 
@@ -465,47 +464,26 @@ describe('AuthService', () => {
       redisService.get.mockResolvedValue(null);
 
       await expect(
-        service.completeDesktopSession(
-          { sessionId: 'gone', pairCode: 'ABCD-12' },
-          'user-uuid',
-        ),
+        service.completeDesktopSession({ sessionId: 'gone' }, 'user-uuid'),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('should reject already-used session', async () => {
-      const session = { status: 'verified', pairCode: 'ABCD-12' };
+      const session = { status: 'verified' };
       redisService.get.mockResolvedValue(JSON.stringify(session));
 
       await expect(
-        service.completeDesktopSession(
-          { sessionId: 'session-1', pairCode: 'ABCD-12' },
-          'user-uuid',
-        ),
+        service.completeDesktopSession({ sessionId: 'session-1' }, 'user-uuid'),
       ).rejects.toThrow('Desktop session has already been used');
     });
 
-    it('should reject wrong pair code', async () => {
-      const session = { status: 'pending', pairCode: 'ABCD-12' };
-      redisService.get.mockResolvedValue(JSON.stringify(session));
-
-      await expect(
-        service.completeDesktopSession(
-          { sessionId: 'session-1', pairCode: 'WRONG-99' },
-          'user-uuid',
-        ),
-      ).rejects.toThrow('Invalid pair code');
-    });
-
     it('should reject if user not found', async () => {
-      const session = { status: 'pending', pairCode: 'ABCD-12' };
+      const session = { status: 'pending' };
       redisService.get.mockResolvedValue(JSON.stringify(session));
       db.limit.mockResolvedValue([]); // user not found
 
       await expect(
-        service.completeDesktopSession(
-          { sessionId: 'session-1', pairCode: 'ABCD-12' },
-          'user-uuid',
-        ),
+        service.completeDesktopSession({ sessionId: 'session-1' }, 'user-uuid'),
       ).rejects.toThrow(NotFoundException);
     });
   });

@@ -29,7 +29,6 @@ type LoginSearch = {
   redirect?: string;
   invite?: string;
   desktopSessionId?: string;
-  pairCode?: string;
 };
 
 function LoginPending() {
@@ -64,7 +63,6 @@ export const Route = createFileRoute("/login")({
       redirect: (search.redirect as string) || "/",
       invite: (search.invite as string) || undefined,
       desktopSessionId: (search.desktopSessionId as string) || undefined,
-      pairCode: (search.pairCode as string) || undefined,
     };
   },
 });
@@ -76,16 +74,13 @@ function DesktopLoginView() {
   const navigate = useNavigate();
   const createSession = useCreateDesktopSession();
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [pairCode, setPairCode] = useState<string | null>(null);
   const [sessionExpired, setSessionExpired] = useState(false);
 
   // Cold-start recovery: check localStorage for pending desktop session
   useEffect(() => {
     const pendingSessionId = localStorage.getItem("pending_desktop_session_id");
-    const pendingPairCode = localStorage.getItem("pending_desktop_pair_code");
-    if (pendingSessionId && pendingPairCode) {
+    if (pendingSessionId) {
       setSessionId(pendingSessionId);
-      setPairCode(pendingPairCode);
     }
   }, []);
 
@@ -95,14 +90,12 @@ function DesktopLoginView() {
     () => {
       // Clear pending state
       localStorage.removeItem("pending_desktop_session_id");
-      localStorage.removeItem("pending_desktop_pair_code");
       navigate({ to: "/" });
     },
     () => {
       // Session expired or not found
       setSessionExpired(true);
       localStorage.removeItem("pending_desktop_session_id");
-      localStorage.removeItem("pending_desktop_pair_code");
     },
   );
 
@@ -111,17 +104,15 @@ function DesktopLoginView() {
     try {
       const result = await createSession.mutateAsync();
       setSessionId(result.sessionId);
-      setPairCode(result.pairCode);
 
       // Persist for cold-start recovery
       localStorage.setItem("pending_desktop_session_id", result.sessionId);
-      localStorage.setItem("pending_desktop_pair_code", result.pairCode);
 
       // Open system browser
       const appUrl = import.meta.env.VITE_APP_URL;
       if (appUrl) {
         const { openUrl } = await import("@tauri-apps/plugin-opener");
-        const url = `${appUrl}/login?desktopSessionId=${result.sessionId}&pairCode=${result.pairCode}`;
+        const url = `${appUrl}/login?desktopSessionId=${result.sessionId}`;
         await openUrl(url);
       }
     } catch {
@@ -131,14 +122,12 @@ function DesktopLoginView() {
 
   const handleRetry = () => {
     setSessionId(null);
-    setPairCode(null);
     setSessionExpired(false);
     localStorage.removeItem("pending_desktop_session_id");
-    localStorage.removeItem("pending_desktop_pair_code");
   };
 
   // Waiting state (after clicking sign in)
-  if (sessionId && pairCode) {
+  if (sessionId) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="w-full max-w-100 px-4">
@@ -162,17 +151,9 @@ function DesktopLoginView() {
                 <h2 className="text-lg font-semibold mb-2">
                   {t("waitingForAuth")}
                 </h2>
-                <p className="text-muted-foreground text-sm mb-4">
+                <p className="text-muted-foreground text-sm">
                   {t("completeBrowserAuth")}
                 </p>
-                <div className="inline-block bg-muted px-6 py-3 rounded-lg">
-                  <p className="text-xs text-muted-foreground mb-1">
-                    {t("pairCodeLabel")}
-                  </p>
-                  <p className="text-2xl font-mono font-bold tracking-wider">
-                    {pairCode}
-                  </p>
-                </div>
               </>
             )}
           </div>
@@ -227,7 +208,7 @@ const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 function WebLoginView() {
   const { t } = useTranslation("auth");
   const navigate = useNavigate();
-  const { redirect, invite, desktopSessionId, pairCode } = Route.useSearch();
+  const { redirect, invite, desktopSessionId } = Route.useSearch();
 
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -253,11 +234,10 @@ function WebLoginView() {
     if (!currentUser || isLoading || authCompletedInSession.current) return;
 
     const completeAndRedirect = async () => {
-      if (desktopSessionId && pairCode) {
+      if (desktopSessionId) {
         try {
           await completeDesktop.mutateAsync({
             sessionId: desktopSessionId,
-            pairCode,
           });
         } catch {
           // Desktop session may have expired, continue normally
@@ -293,11 +273,10 @@ function WebLoginView() {
     authCompletedInSession.current = true;
 
     // Complete desktop session if applicable
-    if (desktopSessionId && pairCode) {
+    if (desktopSessionId) {
       try {
         await completeDesktop.mutateAsync({
           sessionId: desktopSessionId,
-          pairCode,
         });
         // Only trigger deeplink on successful completion
         try {
@@ -450,15 +429,6 @@ function WebLoginView() {
             </p>
           </div>
 
-          {/* Desktop session banner */}
-          {desktopSessionId && pairCode && (
-            <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 mb-4 text-center">
-              <p className="text-sm text-primary font-medium">
-                {t("signingInToDesktop")} {pairCode}
-              </p>
-            </div>
-          )}
-
           <div className="bg-background border border-border rounded-lg shadow-sm p-8">
             <div className="text-center mb-6">
               <Mail className="w-12 h-12 mx-auto text-primary mb-3" />
@@ -596,15 +566,6 @@ function WebLoginView() {
                 {t("invitedBy", { name: invitationInfo.invitedBy })}
               </p>
             )}
-          </div>
-        )}
-
-        {/* Desktop session banner */}
-        {desktopSessionId && pairCode && (
-          <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 mb-4 text-center">
-            <p className="text-sm text-primary font-medium">
-              {t("signingInToDesktop")} {pairCode}
-            </p>
           </div>
         )}
 
