@@ -65,7 +65,7 @@ export const agentTaskExecutions = pgTable(
       .references(() => agentTasks.id, { onDelete: 'cascade' })
       .notNull(),
 
-    version: integer('version').notNull(),
+    taskVersion: integer('task_version').notNull(),
 
     status: agentTaskStatusEnum('status').default('in_progress').notNull(),
 
@@ -96,7 +96,7 @@ export const agentTaskExecutions = pgTable(
     index('idx_agent_task__executions_status').on(table.status),
     index('idx_agent_task__executions_task_version').on(
       table.taskId,
-      table.version,
+      table.taskVersion,
     ),
     unique('uq_agent_task__executions_taskcast').on(table.taskcastTaskId),
   ],

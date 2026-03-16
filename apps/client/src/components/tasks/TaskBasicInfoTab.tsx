@@ -261,7 +261,7 @@ export function TaskBasicInfoTab({
           </Badge>
           {execution && (
             <span className="text-xs text-muted-foreground">
-              v{execution.version}
+              v{execution.taskVersion}
             </span>
           )}
           {execution && execution.tokenUsage > 0 && (

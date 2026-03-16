@@ -65,6 +65,7 @@ export interface AgentTask {
   scheduleConfig: ScheduleConfig | null;
   /** @deprecated Use triggers table instead */
   nextRunAt: string | null;
+  version: number;
   documentId: string | null;
   currentExecutionId: string | null;
   /** Token usage from the current execution (included in list responses) */
@@ -76,7 +77,7 @@ export interface AgentTask {
 export interface AgentTaskExecution {
   id: string;
   taskId: string;
-  version: number;
+  taskVersion: number;
   status: AgentTaskStatus;
   channelId: string | null;
   taskcastTaskId: string | null;

@@ -117,9 +117,7 @@ export function RunDetailView({
         <Button variant="ghost" size="icon-sm" onClick={onBack}>
           <ChevronLeft size={16} />
         </Button>
-        <span className="text-sm font-medium">
-          {t("runs.version", { version: execution.version })}
-        </span>
+        <span className="text-sm font-medium">v{execution.taskVersion}</span>
         {execution.triggerType && (
           <Badge variant="outline" className="text-xs">
             {t(`runs.triggerType.${execution.triggerType}`)}

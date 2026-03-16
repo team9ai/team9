@@ -236,7 +236,7 @@ export class TasksService {
       .select()
       .from(schema.agentTaskExecutions)
       .where(eq(schema.agentTaskExecutions.taskId, taskId))
-      .orderBy(desc(schema.agentTaskExecutions.version));
+      .orderBy(desc(schema.agentTaskExecutions.createdAt));
 
     return executions;
   }

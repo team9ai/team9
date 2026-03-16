@@ -3,6 +3,7 @@ import {
   uuid,
   varchar,
   text,
+  integer,
   timestamp,
   jsonb,
   index,
@@ -71,6 +72,8 @@ export const agentTasks = pgTable(
     scheduleConfig: jsonb('schedule_config').$type<ScheduleConfig>(),
     /** @deprecated Use agent_task__triggers.next_run_at instead */
     nextRunAt: timestamp('next_run_at'),
+
+    version: integer('version').default(1).notNull(),
 
     documentId: uuid('document_id').references(() => documents.id),
 

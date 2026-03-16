@@ -4,8 +4,6 @@ import {
   DATABASE_CONNECTION,
   eq,
   and,
-  desc,
-  sql,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -38,14 +36,13 @@ export class ExecutorService {
    * Trigger a full execution lifecycle for the given task.
    *
    * 1. Load task from DB
-   * 2. Determine next version number
-   * 3. Create task channel (type='task')
-   * 4. Fetch document content (if linked)
-   * 5. Create execution record in DB
-   * 6. Update task status to in_progress
-   * 7. Look up bot's shadow userId from bots table
-   * 8. Delegate to strategy
-   * 9. Log completion
+   * 2. Create task channel (type='task')
+   * 3. Fetch document content (if linked)
+   * 4. Create execution record in DB (with task version snapshot)
+   * 5. Update task status to in_progress
+   * 6. Look up bot's shadow userId from bots table
+   * 7. Delegate to strategy
+   * 8. Log completion
    */
   async triggerExecution(
     taskId: string,
@@ -76,22 +73,12 @@ export class ExecutorService {
       return;
     }
 
-    // ── 2. Determine next version number ──────────────────────────────
-    const [lastExecution] = await this.db
-      .select({ version: schema.agentTaskExecutions.version })
-      .from(schema.agentTaskExecutions)
-      .where(eq(schema.agentTaskExecutions.taskId, taskId))
-      .orderBy(desc(schema.agentTaskExecutions.version))
-      .limit(1);
-
-    const nextVersion = (lastExecution?.version ?? 0) + 1;
-
-    // ── 3. Create task channel (type='task') ──────────────────────────
+    // ── 2. Create task channel (type='task') ──────────────────────────
     const channelId = uuidv7();
     await this.db.insert(schema.channels).values({
       id: channelId,
       tenantId: task.tenantId,
-      name: `task-${task.title.slice(0, 60).replace(/\s+/g, '-').toLowerCase()}-v${nextVersion}`,
+      name: `task-${task.title.slice(0, 60).replace(/\s+/g, '-').toLowerCase()}-${channelId.slice(-6)}`,
       type: 'task',
       createdBy: task.creatorId,
     });
@@ -143,7 +130,7 @@ export class ExecutorService {
     await this.db.insert(schema.agentTaskExecutions).values({
       id: executionId,
       taskId,
-      version: nextVersion,
+      taskVersion: task.version,
       status: 'in_progress',
       channelId,
       taskcastTaskId,
@@ -205,7 +192,7 @@ export class ExecutorService {
       try {
         await strategy.execute(context);
         this.logger.log(
-          `Execution ${executionId} (v${nextVersion}) delegated to ${bot.type} strategy`,
+          `Execution ${executionId} delegated to ${bot.type} strategy`,
         );
       } catch (error) {
         const errorMessage =
@@ -253,9 +240,7 @@ export class ExecutorService {
     }
 
     // ── 9. Log completion ──────────────────────────────────────────────
-    this.logger.log(
-      `Execution ${executionId} (v${nextVersion}) initiated for task ${taskId}`,
-    );
+    this.logger.log(`Execution ${executionId} initiated for task ${taskId}`);
   }
 
   private async markExecutionFailed(

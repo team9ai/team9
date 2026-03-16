@@ -10,6 +10,7 @@ import {
   eq,
   and,
   desc,
+  sql,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -275,6 +276,15 @@ export class DocumentsService {
         updatedAt: new Date(),
       })
       .where(eq(schema.documents.id, id));
+
+    // Bump version on any task linked to this document
+    await this.db
+      .update(schema.agentTasks)
+      .set({
+        version: sql`${schema.agentTasks.version} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.agentTasks.documentId, id));
 
     return {
       id: version.id,

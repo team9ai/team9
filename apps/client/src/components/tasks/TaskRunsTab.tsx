@@ -78,9 +78,7 @@ export function TaskRunsTab({
           className="w-full text-left p-3 rounded-md border border-border hover:bg-muted/50 transition-colors space-y-1"
         >
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-medium">
-              {t("runs.version", { version: exec.version })}
-            </span>
+            <span className="text-xs font-medium">v{exec.taskVersion}</span>
             {exec.triggerType && (
               <Badge variant="outline" className="text-xs">
                 {(() => {
