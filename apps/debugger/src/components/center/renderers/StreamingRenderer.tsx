@@ -1,5 +1,4 @@
 import type { DebugEvent } from "@/lib/types";
-import { useEventStore } from "@/stores/events";
 
 export function StreamingRenderer({ event }: { event: DebugEvent }) {
   const p = event.payload as Record<string, unknown> | undefined;
@@ -59,29 +58,4 @@ export function StreamingRenderer({ event }: { event: DebugEvent }) {
   }
 
   return null;
-}
-
-/** Aggregated streaming view — shows accumulated content for a streamId */
-export function StreamingAggregateRenderer({ streamId }: { streamId: string }) {
-  const events = useEventStore((s) => s.events);
-  const streamEvents = events.filter(
-    (e) => e.meta?.streamId === streamId && e.eventName === "streaming_content",
-  );
-
-  if (streamEvents.length === 0) return null;
-
-  const lastContent = streamEvents[streamEvents.length - 1];
-  const content = (lastContent.payload as Record<string, unknown>)
-    ?.content as string;
-
-  return (
-    <div className="bg-slate-950 rounded p-2 mt-1 border border-amber-500/20">
-      <div className="text-[10px] text-amber-400 mb-1">
-        Streaming ({streamEvents.length} chunks)
-      </div>
-      <div className="text-xs text-slate-300 break-words whitespace-pre-wrap">
-        {content}
-      </div>
-    </div>
-  );
 }

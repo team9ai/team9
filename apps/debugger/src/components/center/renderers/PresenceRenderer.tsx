@@ -14,9 +14,22 @@ export function PresenceRenderer({ event }: { event: DebugEvent }) {
       <span className="text-xs text-slate-400">{username} went offline</span>
     );
   }
-  if (event.eventName === "user_typing") {
+  if (event.eventName === "user_typing" || event.eventName === "typing_start") {
     return (
       <span className="text-xs text-purple-400">{username} is typing...</span>
+    );
+  }
+  if (event.eventName === "typing_stop") {
+    return (
+      <span className="text-xs text-slate-500">{username} stopped typing</span>
+    );
+  }
+  if (event.eventName === "user_status_changed") {
+    const status = (p?.status ?? "unknown") as string;
+    return (
+      <span className="text-xs text-amber-400">
+        {username} status: {status}
+      </span>
     );
   }
   return null;
