@@ -2,7 +2,7 @@ import { useRef, useCallback, useEffect, useState, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { X, Loader2, ArrowDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { Button } from "@/components/ui/button";
 import {
   useThreadPanelForLevel,
@@ -15,6 +15,7 @@ import {
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useChannelMembers } from "@/hooks/useChannels";
 import { useStreamingStore } from "@/stores/useStreamingStore";
+import type { StreamingMessage } from "@/stores/useStreamingStore";
 import wsService from "@/services/websocket";
 import { MessageItem } from "./MessageItem";
 import { MessageInput } from "./MessageInput";
@@ -44,6 +45,11 @@ interface ThreadPanelProps {
   onWidthChange?: (width: number) => void;
 }
 
+type ThreadListItem =
+  | { type: "reply"; reply: ThreadReply }
+  | { type: "stream"; stream: StreamingMessage }
+  | { type: "thinking"; key: string };
+
 export function ThreadPanel({
   level,
   rootMessageId,
@@ -60,7 +66,6 @@ export function ThreadPanel({
     isFetchingNextPage,
     canOpenNestedThread,
     // State machine
-    scrollState,
     newMessageCount,
     shouldShowNewMessageIndicator,
     isJumpingToLatest,
@@ -74,127 +79,131 @@ export function ThreadPanel({
   const { data: currentUser } = useCurrentUser();
   const sendReply = useSendThreadReply(rootMessageId, level);
 
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const hasScrolledToHighlight = useRef(false);
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(false);
 
-  // Track scroll position and notify state machine
-  const handleScroll = useCallback(() => {
-    const viewport = scrollAreaRef.current?.querySelector(
-      "[data-radix-scroll-area-viewport]",
-    );
-    if (!viewport) return;
+  // Channel ID and members for streaming/thinking indicators
+  const channelId = threadData?.rootMessage.channelId;
+  const { data: members = [] } = useChannelMembers(channelId);
 
-    const { scrollTop, scrollHeight, clientHeight } = viewport;
-    // Consider "at bottom" if within 100px of the bottom
-    const atBottom = scrollHeight - scrollTop - clientHeight < 100;
-    isAtBottomRef.current = atBottom;
+  // Bot thinking indicator state
+  const [thinkingBotIds, setThinkingBotIds] = useState<string[]>([]);
+  const thinkingBotIdsKey = thinkingBotIds.join("|");
 
-    // Notify state machine of scroll position change
-    handleScrollPositionChange(atBottom);
-  }, [handleScrollPositionChange]);
+  // Thread-specific streaming messages
+  const threadStreams = useStreamingStore(
+    useShallow((state) =>
+      Array.from(state.streams.values()).filter(
+        (s) => s.channelId === channelId && s.parentId === rootMessageId,
+      ),
+    ),
+  );
 
-  // Set up scroll listener
-  useEffect(() => {
-    const viewport = scrollAreaRef.current?.querySelector(
-      "[data-radix-scroll-area-viewport]",
-    );
-    if (!viewport) return;
+  const tailActivityKey = threadStreams
+    .map(
+      (s) =>
+        `${s.streamId}:${s.content.length}:${s.thinking.length}:${s.isThinking ? 1 : 0}`,
+    )
+    .join("|");
 
-    viewport.addEventListener("scroll", handleScroll);
-    return () => viewport.removeEventListener("scroll", handleScroll);
-  }, [handleScroll]);
+  // Build Virtuoso list data: replies + streaming + thinking
+  const threadListData = useMemo<ThreadListItem[]>(() => {
+    if (!threadData) return [];
 
-  // Check initial scroll position when thread data loads
-  // This confirms the user's position and transitions from initializing state
-  useEffect(() => {
-    if (!threadData || isLoading) return;
+    const items: ThreadListItem[] = threadData.replies.map((reply) => ({
+      type: "reply" as const,
+      reply,
+    }));
 
-    // Use requestAnimationFrame to ensure DOM has rendered
-    const rafId = requestAnimationFrame(() => {
-      // If we have a highlight target, scroll to it
-      if (highlightMessageId && !hasScrolledToHighlight.current) {
-        const targetElement = document.getElementById(
-          `message-${highlightMessageId}`,
-        );
-        if (targetElement) {
-          targetElement.scrollIntoView({
-            behavior: "instant",
-            block: "center",
-          });
-          hasScrolledToHighlight.current = true;
-          // Notify state machine we're browsing (not at bottom)
-          handleScrollPositionChange(false);
-          return;
-        }
-      }
-
-      const viewport = scrollAreaRef.current?.querySelector(
-        "[data-radix-scroll-area-viewport]",
+    if (threadStreams.length > 0) {
+      items.push(
+        ...threadStreams.map((stream) => ({
+          type: "stream" as const,
+          stream,
+        })),
       );
-      if (!viewport) return;
+    } else if (thinkingBotIds.length > 0) {
+      items.push({ type: "thinking", key: thinkingBotIdsKey });
+    }
 
-      const { scrollTop, scrollHeight, clientHeight } = viewport;
-      // Consider "at bottom" if within 100px of the bottom
-      const atBottom = scrollHeight - scrollTop - clientHeight < 100;
+    return items;
+  }, [threadData, threadStreams, thinkingBotIds.length, thinkingBotIdsKey]);
+
+  // Compute initial scroll position
+  const initialTopMostItemIndex = useMemo(() => {
+    if (!threadData) return 0;
+    if (highlightMessageId) {
+      const idx = threadData.replies.findIndex(
+        (r) => r.id === highlightMessageId,
+      );
+      if (idx >= 0) return idx;
+    }
+    return Math.max(0, threadListData.length - 1);
+  }, [highlightMessageId, threadData, threadListData.length]);
+
+  // Track bottom state and notify state machine
+  const handleAtBottomStateChange = useCallback(
+    (atBottom: boolean) => {
       isAtBottomRef.current = atBottom;
-
-      // Notify state machine of initial position
-      // This will transition from initializing to idle (if at bottom) or browsing (if not)
       handleScrollPositionChange(atBottom);
+    },
+    [handleScrollPositionChange],
+  );
+
+  // Auto-follow new messages when user is at bottom.
+  // Use "auto" (instant) so the scroll settles immediately and doesn't
+  // fight the pin-tall-message adjustment below.
+  const handleFollowOutput = useCallback((isAtBottom: boolean) => {
+    if (isAtBottom) return "auto" as const;
+    return false as const;
+  }, []);
+
+  // Smart auto-scroll: follow new content at the bottom, and when no active
+  // streams are running, pin tall messages to the top so the user sees the
+  // beginning (header + first lines) instead of the end.
+  useEffect(() => {
+    if (!isAtBottomRef.current) return;
+
+    const rafId = requestAnimationFrame(() => {
+      virtuosoRef.current?.autoscrollToBottom();
+
+      if (threadStreams.length === 0) {
+        requestAnimationFrame(() => {
+          if (!containerRef.current) return;
+
+          const viewportHeight = containerRef.current.clientHeight;
+          const items =
+            containerRef.current.querySelectorAll("[data-item-index]");
+          const lastItemEl = items[items.length - 1] as HTMLElement | null;
+          if (!lastItemEl) return;
+
+          const itemHeight = lastItemEl.getBoundingClientRect().height;
+          if (itemHeight > viewportHeight * 0.85) {
+            virtuosoRef.current?.scrollToIndex({
+              index: threadListData.length - 1,
+              align: "start",
+              behavior: "auto",
+            });
+          }
+        });
+      }
     });
 
     return () => cancelAnimationFrame(rafId);
-  }, [threadData, isLoading, handleScrollPositionChange, highlightMessageId]);
-
-  // Track previous replies count to detect new messages
-  const prevRepliesCountRef = useRef<number>(0);
-
-  // Auto-scroll to bottom when new messages arrive while in idle state
-  useEffect(() => {
-    if (!threadData || scrollState !== "idle") return;
-
-    const currentCount = threadData.replies.length;
-    const prevCount = prevRepliesCountRef.current;
-
-    // Update ref for next comparison
-    prevRepliesCountRef.current = currentCount;
-
-    // If count increased and we're in idle state, scroll to bottom
-    if (currentCount > prevCount && prevCount > 0) {
-      requestAnimationFrame(() => {
-        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-      });
-    }
-  }, [threadData, scrollState]);
+  }, [tailActivityKey, thinkingBotIdsKey, threadListData.length]);
 
   // Handle jumping to bottom when clicking new message indicator
   const handleJumpToBottom = useCallback(async () => {
     await jumpToLatest();
 
-    // Scroll to bottom after data loads
     setTimeout(() => {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      virtuosoRef.current?.scrollToIndex({
+        index: threadListData.length - 1,
+        behavior: "smooth",
+      });
     }, 100);
-  }, [jumpToLatest]);
-
-  // Bot thinking indicator state
-  const [thinkingBotIds, setThinkingBotIds] = useState<string[]>([]);
-  const thinkingBotIdsKey = thinkingBotIds.join("|");
-  const channelId = threadData?.rootMessage.channelId;
-  const threadFooterActivityKey = useStreamingStore((state) =>
-    Array.from(state.streams.values())
-      .filter(
-        (stream) =>
-          stream.channelId === channelId && stream.parentId === rootMessageId,
-      )
-      .map(
-        (stream) =>
-          `${stream.streamId}:${stream.content.length}:${stream.thinking.length}:${stream.isThinking ? 1 : 0}`,
-      )
-      .join("|"),
-  );
+  }, [jumpToLatest, threadListData.length]);
 
   // Determine bots actively participating in this thread:
   // 1. Root message sender is a bot (e.g. secondary thread replying to bot's message)
@@ -279,16 +288,6 @@ export function ThreadPanel({
     };
   }, [channelId, rootMessageId, thinkingBotIds.length]);
 
-  useEffect(() => {
-    if (!isAtBottomRef.current) return;
-
-    const rafId = requestAnimationFrame(() => {
-      bottomRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
-    });
-
-    return () => cancelAnimationFrame(rafId);
-  }, [thinkingBotIdsKey, threadFooterActivityKey]);
-
   // Handle send reply with optional attachments
   const handleSendReply = async (
     content: string,
@@ -309,6 +308,50 @@ export function ThreadPanel({
     await sendReply.mutateAsync({ content, attachments });
   };
 
+  // Render individual list items
+  const itemContent = useCallback(
+    (_index: number, item: ThreadListItem) => {
+      if (item.type === "stream") {
+        return (
+          <div className="py-0.5">
+            <StreamingMessageItem stream={item.stream} members={members} />
+          </div>
+        );
+      }
+
+      if (item.type === "thinking") {
+        return (
+          <BotThinkingIndicator
+            thinkingBotIds={thinkingBotIds}
+            members={members}
+          />
+        );
+      }
+
+      return (
+        <ThreadReplyItem
+          reply={item.reply}
+          currentUserId={currentUser?.id}
+          rootMessageId={rootMessageId}
+          level={level}
+          canOpenNestedThread={canOpenNestedThread}
+          onOpenNestedThread={openNestedThread}
+          isHighlighted={highlightMessageId === item.reply.id}
+        />
+      );
+    },
+    [
+      members,
+      thinkingBotIds,
+      currentUser?.id,
+      rootMessageId,
+      level,
+      canOpenNestedThread,
+      openNestedThread,
+      highlightMessageId,
+    ],
+  );
+
   return (
     <div
       className={`${isSnapped ? "flex-1" : ""} border-l bg-background flex flex-col h-full relative`}
@@ -327,8 +370,7 @@ export function ThreadPanel({
         </div>
       ) : threadData ? (
         <>
-          {/* Replies container with relative positioning for the indicator */}
-          <div className="flex-1 min-h-0 relative">
+          <div ref={containerRef} className="flex-1 min-h-0 relative">
             {/* Floating toolbar */}
             <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
               <Button
@@ -341,51 +383,49 @@ export function ThreadPanel({
               </Button>
             </div>
 
-            <ScrollArea ref={scrollAreaRef} className="h-full">
-              <div className="px-4 py-4 space-y-1">
-                {/* Root message as scrollable MessageItem */}
-                <MessageItem
-                  message={threadData.rootMessage}
-                  currentUserId={currentUser?.id}
-                  compact
-                  isRootMessage
-                />
-                <div className="mb-2 text-xs text-muted-foreground">
-                  {t("repliesCount", { count: threadData.totalReplyCount })}
-                </div>
-                <div className="border-b mb-2" />
-                {threadData.replies.map((reply: ThreadReply) => (
-                  <ThreadReplyItem
-                    key={reply.id}
-                    reply={reply}
-                    currentUserId={currentUser?.id}
-                    rootMessageId={rootMessageId}
-                    level={level}
-                    canOpenNestedThread={canOpenNestedThread}
-                    onOpenNestedThread={openNestedThread}
-                    isHighlighted={highlightMessageId === reply.id}
-                  />
-                ))}
-
-                {/* Streaming messages or bot thinking indicator */}
-                <ThreadStreamingMessages
-                  channelId={threadData.rootMessage.channelId}
-                  rootMessageId={rootMessageId}
-                  thinkingBotIds={thinkingBotIds}
-                />
-
-                {/* Loading indicator for infinite scroll */}
-                {isFetchingNextPage && (
-                  <div className="flex justify-center items-center py-3 gap-2 text-muted-foreground">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-sm">{t("loadingMore")}</span>
+            <Virtuoso
+              ref={virtuosoRef}
+              data={threadListData}
+              alignToBottom
+              initialTopMostItemIndex={initialTopMostItemIndex}
+              computeItemKey={(_index, item) => {
+                if (item.type === "reply") return item.reply.id;
+                if (item.type === "stream")
+                  return `stream-${item.stream.streamId}`;
+                return `thinking-${item.key}`;
+              }}
+              itemContent={itemContent}
+              followOutput={handleFollowOutput}
+              atBottomStateChange={handleAtBottomStateChange}
+              atBottomThreshold={100}
+              increaseViewportBy={{ top: 200, bottom: 100 }}
+              className="h-full px-4 overflow-x-hidden"
+              components={{
+                Header: () => (
+                  <div className="pt-4 space-y-1">
+                    <MessageItem
+                      message={threadData.rootMessage}
+                      currentUserId={currentUser?.id}
+                      compact
+                      isRootMessage
+                    />
+                    <div className="mb-2 text-xs text-muted-foreground">
+                      {t("repliesCount", {
+                        count: threadData.totalReplyCount,
+                      })}
+                    </div>
+                    <div className="border-b mb-2" />
                   </div>
-                )}
-
-                {/* Bottom anchor for scrolling */}
-                <div ref={bottomRef} />
-              </div>
-            </ScrollArea>
+                ),
+                Footer: () =>
+                  isFetchingNextPage ? (
+                    <div className="flex justify-center items-center py-3 gap-2 text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-sm">{t("loadingMore")}</span>
+                    </div>
+                  ) : null,
+              }}
+            />
 
             {/* New message indicator */}
             {shouldShowNewMessageIndicator && (
@@ -485,43 +525,5 @@ function ThreadReplyItem({
         onRemoveReaction={handleRemoveReaction}
       />
     </div>
-  );
-}
-
-// Show streaming messages within a thread, or fall back to bot thinking indicator
-function ThreadStreamingMessages({
-  channelId,
-  rootMessageId,
-  thinkingBotIds,
-}: {
-  channelId: string;
-  rootMessageId: string;
-  thinkingBotIds: string[];
-}) {
-  const { data: members = [] } = useChannelMembers(channelId);
-  const threadStreams = useStreamingStore(
-    useShallow((state) =>
-      Array.from(state.streams.values()).filter(
-        (s) => s.channelId === channelId && s.parentId === rootMessageId,
-      ),
-    ),
-  );
-
-  if (threadStreams.length > 0) {
-    return (
-      <>
-        {threadStreams.map((stream) => (
-          <StreamingMessageItem
-            key={stream.streamId}
-            stream={stream}
-            members={members}
-          />
-        ))}
-      </>
-    );
-  }
-
-  return (
-    <BotThinkingIndicator thinkingBotIds={thinkingBotIds} members={members} />
   );
 }
