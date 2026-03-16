@@ -5,6 +5,7 @@ import { ConnectionPanel } from "@/components/left/ConnectionPanel";
 import { ChannelList } from "@/components/left/ChannelList";
 import { BotInfo } from "@/components/left/BotInfo";
 import { EventStream } from "@/components/center/EventStream";
+import { ActionPanel } from "@/components/right/ActionPanel";
 
 function LeftPanel() {
   return (
@@ -15,10 +16,6 @@ function LeftPanel() {
       <BotInfo />
     </>
   );
-}
-
-function RightPlaceholder() {
-  return <div className="p-3 text-xs text-slate-500">Right panel</div>;
 }
 
 export function App() {
@@ -32,7 +29,7 @@ export function App() {
     <Layout
       left={<LeftPanel />}
       center={<EventStream />}
-      right={<RightPlaceholder />}
+      right={<ActionPanel />}
     />
   );
 }
