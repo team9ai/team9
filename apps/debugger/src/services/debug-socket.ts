@@ -9,6 +9,7 @@ import {
   extractStreamId,
   extractUserId,
 } from "@/lib/utils";
+import { getChannels } from "./api";
 
 let socket: Socket | null = null;
 
@@ -62,6 +63,24 @@ export function connect(serverUrl: string, token: string): void {
       connStore.setBotIdentity(payload.userId, payload.username ?? "unknown");
     }
     connStore.setStatus("connected");
+
+    // Auto-load channels after authentication
+    getChannels()
+      .then((channelsData) => {
+        if (Array.isArray(channelsData)) {
+          connStore.setChannels(
+            channelsData.map((ch: Record<string, unknown>) => ({
+              id: ch.id as string,
+              name: (ch.name as string) ?? "unnamed",
+              type: (ch.type as "direct" | "public" | "private") ?? "public",
+              memberCount: ch.memberCount as number | undefined,
+            })),
+          );
+        }
+      })
+      .catch((e) => {
+        console.warn("Failed to load channels:", e);
+      });
   });
 
   socket.on(WS_EVENTS.AUTH.AUTH_ERROR, (data: unknown) => {
