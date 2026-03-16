@@ -49,8 +49,11 @@ export async function sendMessage(
     body: JSON.stringify(body),
   });
 
-  const data = await res.json();
+  const data = await res
+    .json()
+    .catch(() => ({ error: "Failed to parse response" }));
   recordRestEvent("POST", path, body, data, res.status);
+  if (!res.ok) throw new Error(`${res.status}: ${JSON.stringify(data)}`);
   return data;
 }
 
@@ -59,7 +62,8 @@ export async function getChannels(): Promise<unknown> {
   const res = await fetch(`${getBaseUrl()}${path}`, {
     headers: getAuthHeaders(),
   });
-  const data = await res.json();
+  const data = await res.json().catch(() => []);
+  if (!res.ok) throw new Error(`${res.status}: ${JSON.stringify(data)}`);
   return data;
 }
 
@@ -68,6 +72,7 @@ export async function getUser(userId: string): Promise<unknown> {
   const res = await fetch(`${getBaseUrl()}${path}`, {
     headers: getAuthHeaders(),
   });
-  const data = await res.json();
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(`${res.status}: ${JSON.stringify(data)}`);
   return data;
 }

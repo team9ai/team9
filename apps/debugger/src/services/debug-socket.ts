@@ -9,9 +9,10 @@ import {
   extractStreamId,
   extractUserId,
 } from "@/lib/utils";
-import { getChannels } from "./api";
+import { getChannels, getUser } from "./api";
 
 let socket: Socket | null = null;
+let pingIntervalId: ReturnType<typeof setInterval> | null = null;
 
 function recordEvent(
   direction: "in" | "out",
@@ -58,11 +59,20 @@ export function connect(serverUrl: string, token: string): void {
 
   socket.on(WS_EVENTS.AUTH.AUTHENTICATED, (data: unknown) => {
     recordEvent("in", WS_EVENTS.AUTH.AUTHENTICATED, data);
-    const payload = data as { userId?: string; username?: string };
-    if (payload.userId) {
-      connStore.setBotIdentity(payload.userId, payload.username ?? "unknown");
-    }
+    const payload = data as { userId?: string };
     connStore.setStatus("connected");
+    if (payload.userId) {
+      connStore.setBotIdentity(payload.userId, "bot");
+      // Resolve username from user profile
+      getUser(payload.userId)
+        .then((user) => {
+          const u = user as Record<string, unknown> | null;
+          if (u?.username) {
+            connStore.setBotIdentity(payload.userId!, u.username as string);
+          }
+        })
+        .catch(() => {});
+    }
 
     // Auto-load channels after authentication
     getChannels()
@@ -114,17 +124,22 @@ export function connect(serverUrl: string, token: string): void {
   });
 
   // Latency measurement via ping with ack callback
-  setInterval(() => {
+  if (pingIntervalId) clearInterval(pingIntervalId);
+  pingIntervalId = setInterval(() => {
     if (socket?.connected) {
       const start = Date.now();
       socket.emit(WS_EVENTS.SYSTEM.PING, { timestamp: start }, () => {
-        connStore.setLatency(Date.now() - start);
+        useConnectionStore.getState().setLatency(Date.now() - start);
       });
     }
   }, 30000);
 }
 
 export function disconnect(): void {
+  if (pingIntervalId) {
+    clearInterval(pingIntervalId);
+    pingIntervalId = null;
+  }
   if (socket) {
     socket.disconnect();
     socket = null;

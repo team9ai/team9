@@ -32,7 +32,15 @@ export const useEventStore = create<EventStore>((set, get) => ({
   },
   selectedEventId: null,
 
-  addEvent: (event) => set((state) => ({ events: [...state.events, event] })),
+  addEvent: (event) =>
+    set((state) => {
+      const MAX_EVENTS = 10_000;
+      const events =
+        state.events.length >= MAX_EVENTS
+          ? [...state.events.slice(-MAX_EVENTS + 1), event]
+          : [...state.events, event];
+      return { events };
+    }),
 
   clearEvents: () => set({ events: [], selectedEventId: null }),
 
