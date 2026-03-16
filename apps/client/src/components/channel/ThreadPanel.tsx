@@ -77,6 +77,7 @@ export function ThreadPanel({
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const hasScrolledToHighlight = useRef(false);
+  const isAtBottomRef = useRef(false);
 
   // Track scroll position and notify state machine
   const handleScroll = useCallback(() => {
@@ -88,6 +89,7 @@ export function ThreadPanel({
     const { scrollTop, scrollHeight, clientHeight } = viewport;
     // Consider "at bottom" if within 100px of the bottom
     const atBottom = scrollHeight - scrollTop - clientHeight < 100;
+    isAtBottomRef.current = atBottom;
 
     // Notify state machine of scroll position change
     handleScrollPositionChange(atBottom);
@@ -136,6 +138,7 @@ export function ThreadPanel({
       const { scrollTop, scrollHeight, clientHeight } = viewport;
       // Consider "at bottom" if within 100px of the bottom
       const atBottom = scrollHeight - scrollTop - clientHeight < 100;
+      isAtBottomRef.current = atBottom;
 
       // Notify state machine of initial position
       // This will transition from initializing to idle (if at bottom) or browsing (if not)
@@ -178,7 +181,20 @@ export function ThreadPanel({
 
   // Bot thinking indicator state
   const [thinkingBotIds, setThinkingBotIds] = useState<string[]>([]);
+  const thinkingBotIdsKey = thinkingBotIds.join("|");
   const channelId = threadData?.rootMessage.channelId;
+  const threadFooterActivityKey = useStreamingStore((state) =>
+    Array.from(state.streams.values())
+      .filter(
+        (stream) =>
+          stream.channelId === channelId && stream.parentId === rootMessageId,
+      )
+      .map(
+        (stream) =>
+          `${stream.streamId}:${stream.content.length}:${stream.thinking.length}:${stream.isThinking ? 1 : 0}`,
+      )
+      .join("|"),
+  );
 
   // Determine bots actively participating in this thread:
   // 1. Root message sender is a bot (e.g. secondary thread replying to bot's message)
@@ -262,6 +278,16 @@ export function ThreadPanel({
       wsService.off("streaming_start", handleStreamingStart);
     };
   }, [channelId, rootMessageId, thinkingBotIds.length]);
+
+  useEffect(() => {
+    if (!isAtBottomRef.current) return;
+
+    const rafId = requestAnimationFrame(() => {
+      bottomRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+    });
+
+    return () => cancelAnimationFrame(rafId);
+  }, [thinkingBotIdsKey, threadFooterActivityKey]);
 
   // Handle send reply with optional attachments
   const handleSendReply = async (

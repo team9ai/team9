@@ -20,6 +20,7 @@ import {
 } from "@/hooks/useMessages";
 import { useChannelScrollStore } from "@/hooks/useChannelScrollState";
 import { useStreamingStore } from "@/stores/useStreamingStore";
+import type { StreamingMessage } from "@/stores/useStreamingStore";
 import { MessageItem } from "./MessageItem";
 import { StreamingMessageItem } from "./StreamingMessageItem";
 import { BotThinkingIndicator } from "./BotThinkingIndicator";
@@ -53,6 +54,11 @@ interface MessageListProps {
 // Large base index for prepending support via firstItemIndex
 const START_INDEX = 100_000;
 
+type ChannelListItem =
+  | { type: "message"; message: Message }
+  | { type: "stream"; stream: StreamingMessage }
+  | { type: "thinking"; key: string };
+
 // Per-channel scroll position snapshots for restoring on channel switch
 const scrollSnapshots = new Map<string, StateSnapshot>();
 
@@ -73,12 +79,27 @@ export function MessageList({
   lastReadMessageId,
 }: MessageListProps) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const isAtBottomRef = useRef(false);
   const { data: currentUser } = useCurrentUser();
   const openThread = useThreadStore((state) => state.openThread);
 
   const scrollStore = useChannelScrollStore();
   const scrollState = scrollStore.getChannelState(channelId);
   const showIndicator = scrollStore.shouldShowIndicator(channelId);
+  const channelStreams = useStreamingStore(
+    useShallow((state) =>
+      Array.from(state.streams.values()).filter(
+        (stream) => stream.channelId === channelId && !stream.parentId,
+      ),
+    ),
+  );
+  const thinkingBotIdsKey = thinkingBotIds.join("|");
+  const tailActivityKey = channelStreams
+    .map(
+      (stream) =>
+        `${stream.streamId}:${stream.content.length}:${stream.thinking.length}:${stream.isThinking ? 1 : 0}`,
+    )
+    .join("|");
 
   // Restore scroll position from previous visit
   const savedSnapshot = useRef(scrollSnapshots.get(channelId));
@@ -94,6 +115,33 @@ export function MessageList({
 
   // Messages come in DESC order (newest first), reverse to chronological for Virtuoso
   const chronoMessages = useMemo(() => [...messages].reverse(), [messages]);
+  const listData = useMemo<ChannelListItem[]>(() => {
+    const items: ChannelListItem[] = chronoMessages.map((message) => ({
+      type: "message",
+      message,
+    }));
+
+    if (channelStreams.length > 0) {
+      items.push(
+        ...channelStreams.map((stream) => ({
+          type: "stream" as const,
+          stream,
+        })),
+      );
+      return items;
+    }
+
+    if (thinkingBotIds.length > 0) {
+      items.push({ type: "thinking", key: thinkingBotIdsKey });
+    }
+
+    return items;
+  }, [
+    chronoMessages,
+    channelStreams,
+    thinkingBotIds.length,
+    thinkingBotIdsKey,
+  ]);
 
   // Stable firstItemIndex: only decreases when older messages are prepended (loaded
   // via infinite scroll at the top), NOT when new messages are appended at the bottom.
@@ -155,8 +203,8 @@ export function MessageList({
     // Scroll to the first unread message if available
     if (firstUnreadIndex >= 0) return firstUnreadIndex;
     // Default: scroll to bottom (latest message)
-    return chronoMessages.length - 1;
-  }, [highlightMessageId, chronoMessages, firstUnreadIndex]);
+    return listData.length - 1;
+  }, [highlightMessageId, chronoMessages, firstUnreadIndex, listData.length]);
 
   // Load older messages when scrolling to top
   const handleStartReached = useCallback(() => {
@@ -176,6 +224,7 @@ export function MessageList({
   // Track bottom state changes
   const handleAtBottomStateChange = useCallback(
     (atBottom: boolean) => {
+      isAtBottomRef.current = atBottom;
       if (atBottom) {
         scrollStore.send(channelId, { type: "SCROLL_TO_BOTTOM" });
       } else {
@@ -184,6 +233,16 @@ export function MessageList({
     },
     [channelId, scrollStore],
   );
+
+  useEffect(() => {
+    if (!isAtBottomRef.current) return;
+
+    const rafId = requestAnimationFrame(() => {
+      virtuosoRef.current?.autoscrollToBottom();
+    });
+
+    return () => cancelAnimationFrame(rafId);
+  }, [tailActivityKey, thinkingBotIdsKey]);
 
   // Auto-scroll behavior: only follow new messages when user is at bottom
   const handleFollowOutput = useCallback((isAtBottom: boolean) => {
@@ -195,18 +254,36 @@ export function MessageList({
   const handleJumpToLatest = useCallback(() => {
     scrollStore.send(channelId, { type: "JUMP_TO_LATEST" });
     virtuosoRef.current?.scrollToIndex({
-      index: chronoMessages.length - 1,
+      index: listData.length - 1,
       behavior: "smooth",
     });
     // Transition to idle after the scroll animation
     setTimeout(() => {
       scrollStore.send(channelId, { type: "REFRESH_COMPLETE" });
     }, 500);
-  }, [channelId, scrollStore, chronoMessages.length]);
+  }, [channelId, scrollStore, listData.length]);
 
   // Render individual message items
   const itemContent = useCallback(
-    (index: number, message: Message) => {
+    (index: number, item: ChannelListItem) => {
+      if (item.type === "stream") {
+        return (
+          <div className="py-2">
+            <StreamingMessageItem stream={item.stream} members={members} />
+          </div>
+        );
+      }
+
+      if (item.type === "thinking") {
+        return (
+          <BotThinkingIndicator
+            thinkingBotIds={thinkingBotIds}
+            members={members}
+          />
+        );
+      }
+
+      const message = item.message;
       const hasReplies =
         !message.parentId && message.replyCount && message.replyCount > 0;
       const isHighlighted = highlightMessageId === message.id;
@@ -254,6 +331,8 @@ export function MessageList({
       channelType,
       firstUnreadIndex,
       firstItemIndex,
+      members,
+      thinkingBotIds,
     ],
   );
 
@@ -278,12 +357,18 @@ export function MessageList({
     <div className="flex-1 min-h-0 relative">
       <Virtuoso
         ref={virtuosoRef}
-        data={chronoMessages}
+        data={listData}
         firstItemIndex={firstItemIndex}
+        alignToBottom
         initialTopMostItemIndex={
           savedSnapshot.current ? undefined : initialTopMostItemIndex
         }
         restoreStateFrom={savedSnapshot.current ?? undefined}
+        computeItemKey={(_index, item) => {
+          if (item.type === "message") return item.message.id;
+          if (item.type === "stream") return `stream-${item.stream.streamId}`;
+          return `thinking-${item.key}`;
+        }}
         itemContent={itemContent}
         startReached={handleStartReached}
         endReached={handleEndReached}
@@ -291,7 +376,7 @@ export function MessageList({
         atBottomStateChange={handleAtBottomStateChange}
         atBottomThreshold={150}
         increaseViewportBy={{ top: 300, bottom: 100 }}
-        className="px-4 overflow-x-hidden"
+        className="h-full px-4 overflow-x-hidden"
         components={{
           Header: () =>
             hasMore && isLoading ? (
@@ -302,24 +387,15 @@ export function MessageList({
                 </div>
               </div>
             ) : null,
-          Footer: () => (
-            <div className="py-2">
-              {hasNewer && isLoadingNewer ? (
-                <div className="py-4 flex justify-center">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Loading newer messages...</span>
-                  </div>
+          Footer: () =>
+            hasNewer && isLoadingNewer ? (
+              <div className="py-4 flex justify-center">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Loading newer messages...</span>
                 </div>
-              ) : (
-                <StreamingMessages
-                  channelId={channelId}
-                  members={members}
-                  thinkingBotIds={thinkingBotIds}
-                />
-              )}
-            </div>
-          ),
+              </div>
+            ) : null,
         }}
       />
 
@@ -416,43 +492,6 @@ function ChannelMessageItem({
       onAddReaction={handleAddReaction}
       onRemoveReaction={handleRemoveReaction}
     />
-  );
-}
-
-// Show streaming messages or fall back to bot thinking indicator
-function StreamingMessages({
-  channelId,
-  members,
-  thinkingBotIds,
-}: {
-  channelId: string;
-  members: ChannelMember[];
-  thinkingBotIds: string[];
-}) {
-  const channelStreams = useStreamingStore(
-    useShallow((state) =>
-      Array.from(state.streams.values()).filter(
-        (s) => s.channelId === channelId && !s.parentId,
-      ),
-    ),
-  );
-
-  if (channelStreams.length > 0) {
-    return (
-      <>
-        {channelStreams.map((stream) => (
-          <StreamingMessageItem
-            key={stream.streamId}
-            stream={stream}
-            members={members}
-          />
-        ))}
-      </>
-    );
-  }
-
-  return (
-    <BotThinkingIndicator thinkingBotIds={thinkingBotIds} members={members} />
   );
 }
 
