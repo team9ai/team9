@@ -4,6 +4,7 @@ import { useConnectionStore } from "@/stores/connection";
 import { ConnectionPanel } from "@/components/left/ConnectionPanel";
 import { ChannelList } from "@/components/left/ChannelList";
 import { BotInfo } from "@/components/left/BotInfo";
+import { EventStream } from "@/components/center/EventStream";
 
 function LeftPanel() {
   return (
@@ -16,13 +17,6 @@ function LeftPanel() {
   );
 }
 
-function CenterPlaceholder() {
-  return (
-    <div className="flex-1 flex items-center justify-center text-slate-500 text-sm">
-      Connect to a server to see events
-    </div>
-  );
-}
 function RightPlaceholder() {
   return <div className="p-3 text-xs text-slate-500">Right panel</div>;
 }
@@ -37,7 +31,7 @@ export function App() {
   return (
     <Layout
       left={<LeftPanel />}
-      center={<CenterPlaceholder />}
+      center={<EventStream />}
       right={<RightPlaceholder />}
     />
   );
