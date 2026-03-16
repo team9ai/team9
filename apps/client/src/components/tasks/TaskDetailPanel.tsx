@@ -37,9 +37,10 @@ export function TaskDetailPanel({ taskId, onClose }: TaskDetailPanelProps) {
   } = useQuery({
     queryKey: ["task", taskId],
     queryFn: () => tasksApi.getById(taskId),
-    refetchInterval: task?.currentExecution?.execution.taskcastTaskId
-      ? 30000
-      : 5000,
+    refetchInterval: (query) =>
+      query.state.data?.currentExecution?.execution.taskcastTaskId
+        ? 30000
+        : 5000,
   });
 
   // Track active tab & whether viewing an active run

@@ -17,5 +17,6 @@ export class ExecutorModule implements OnModuleInit {
 
   onModuleInit() {
     this.executorService.registerStrategy('system', this.openclawStrategy);
+    this.executorService.registerStrategy('custom', this.openclawStrategy);
   }
 }

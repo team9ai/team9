@@ -59,7 +59,8 @@ export function RunDetailView({
   const { data: execution, isLoading: execLoading } = useQuery({
     queryKey: ["task-execution", taskId, executionId],
     queryFn: () => tasksApi.getExecution(taskId, executionId),
-    refetchInterval: execution?.taskcastTaskId ? 30000 : 5000,
+    refetchInterval: (query) =>
+      query.state.data?.taskcastTaskId ? 30000 : 5000,
   });
 
   // Notify parent of this run's channelId for the message input
