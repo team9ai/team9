@@ -22,7 +22,15 @@ import { RedisService } from '@team9/redis';
 import { EmailService } from '@team9/email';
 import { env } from '@team9/shared';
 import type { JwtPayload } from '@team9/auth';
-import { RegisterDto, LoginDto, GoogleLoginDto } from './dto/index.js';
+import { slugify } from 'transliteration';
+import {
+  RegisterDto,
+  LoginDto,
+  GoogleLoginDto,
+  AuthStartDto,
+  VerifyCodeDto,
+  CompleteDesktopSessionDto,
+} from './dto/index.js';
 import { USER_EVENTS, type UserRegisteredEvent } from './events/user.events.js';
 
 export interface TokenPair {
@@ -56,6 +64,29 @@ export interface LoginResponse {
   verificationLink?: string;
 }
 
+export interface AuthStartResponse {
+  action: 'code_sent' | 'need_display_name';
+  email: string;
+  challengeId?: string;
+  expiresInSeconds?: number;
+  /** Verification code returned in dev mode when DEV_SKIP_EMAIL_VERIFICATION=true */
+  verificationCode?: string;
+}
+
+export interface DesktopSessionResponse {
+  sessionId: string;
+  expiresInSeconds: number;
+}
+
+interface AuthChallenge {
+  status: 'pending' | 'verified' | 'failed';
+  email: string;
+  codeHash: string;
+  attemptsRemaining: number;
+  flow: 'login' | 'verify_existing_user' | 'signup';
+  signupDisplayName?: string;
+}
+
 @Injectable()
 export class AuthService {
   private readonly TOKEN_BLACKLIST_PREFIX = 'im:token_blacklist:';
@@ -69,6 +100,12 @@ export class AuthService {
   private readonly POLL_LOGIN_RATE_PREFIX = 'im:poll_login_rate:';
   private readonly POLL_LOGIN_RATE_LIMIT = 30; // max requests per minute
   private readonly POLL_LOGIN_RATE_TTL = 60; // 60 seconds
+  private readonly AUTH_CHALLENGE_PREFIX = 'im:auth_challenge:';
+  private readonly AUTH_CHALLENGE_TTL = 600; // 10 minutes
+  private readonly AUTH_CHALLENGE_MAX_ATTEMPTS = 5;
+  private readonly DESKTOP_SESSION_RATE_PREFIX = 'im:desktop_session_rate:';
+  private readonly DESKTOP_SESSION_RATE_LIMIT = 10; // max 10 sessions per minute per IP
+  private readonly DESKTOP_SESSION_RATE_TTL = 60;
 
   constructor(
     @Inject(DATABASE_CONNECTION)
@@ -519,8 +556,8 @@ export class AuthService {
       };
     }
 
-    // New user — auto-register
-    const username = await this.generateUniqueUsername(email);
+    // New user — auto-register (prefer Google display name for username)
+    const username = await this.generateUniqueUsername(name || email, email);
     const userId = uuidv7();
 
     const [user] = await this.db
@@ -557,14 +594,26 @@ export class AuthService {
     };
   }
 
-  private async generateUniqueUsername(email: string): Promise<string> {
-    // Use email prefix as base username
-    const emailPrefix = email.split('@')[0];
-    let base = emailPrefix
-      .toLowerCase()
-      .replace(/[^a-z0-9_]/g, '_')
+  private async generateUniqueUsername(
+    input: string,
+    email?: string,
+  ): Promise<string> {
+    // If input looks like an email, use the prefix; otherwise transliterate and slugify
+    const raw = input.includes('@') ? input.split('@')[0] : input;
+    let base = slugify(raw, { separator: '_', lowercase: true })
+      .replace(/[^a-z0-9_]/g, '')
       .replace(/_+/g, '_')
       .replace(/^_|_$/g, '');
+
+    // If transliteration produced nothing useful, fall back to email prefix
+    if (base.length < 3 && email) {
+      const emailPrefix = email.split('@')[0];
+      base = emailPrefix
+        .toLowerCase()
+        .replace(/[^a-z0-9_]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '');
+    }
 
     // Ensure minimum 3 characters
     if (base.length < 3) {
@@ -776,6 +825,348 @@ export class AuthService {
     }
 
     return result;
+  }
+
+  // --- New code-based auth flow ---
+
+  async authStart(dto: AuthStartDto): Promise<AuthStartResponse> {
+    // Rate limiting
+    const rateLimitKey = `${this.LOGIN_RATE_LIMIT_PREFIX}${dto.email}`;
+    const recentAttempt = await this.redisService.get(rateLimitKey);
+    if (recentAttempt) {
+      throw new BadRequestException(
+        'Please wait before requesting another verification code',
+      );
+    }
+
+    const [existingUser] = await this.db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.email, dto.email))
+      .limit(1);
+
+    if (existingUser) {
+      // Existing user — check eligibility
+      if (existingUser.userType !== 'human') {
+        throw new UnauthorizedException('This account cannot log in');
+      }
+      if (!existingUser.isActive) {
+        throw new UnauthorizedException('Account is disabled');
+      }
+
+      const flow = existingUser.emailVerified
+        ? 'login'
+        : 'verify_existing_user';
+
+      const result = await this.createAuthChallenge(dto.email, flow);
+      await this.redisService.set(rateLimitKey, '1', 60);
+
+      return {
+        action: 'code_sent',
+        email: dto.email,
+        challengeId: result.challengeId,
+        expiresInSeconds: this.AUTH_CHALLENGE_TTL,
+        ...(env.DEV_SKIP_EMAIL_VERIFICATION && {
+          verificationCode: result.code,
+        }),
+      };
+    }
+
+    // New user — need display name first
+    if (!dto.displayName) {
+      return {
+        action: 'need_display_name',
+        email: dto.email,
+      };
+    }
+
+    // New user with display name — create signup challenge (don't create user yet)
+    const result = await this.createAuthChallenge(
+      dto.email,
+      'signup',
+      dto.displayName,
+    );
+    await this.redisService.set(rateLimitKey, '1', 60);
+
+    return {
+      action: 'code_sent',
+      email: dto.email,
+      challengeId: result.challengeId,
+      expiresInSeconds: this.AUTH_CHALLENGE_TTL,
+      ...(env.DEV_SKIP_EMAIL_VERIFICATION && {
+        verificationCode: result.code,
+      }),
+    };
+  }
+
+  private async createAuthChallenge(
+    email: string,
+    flow: AuthChallenge['flow'],
+    signupDisplayName?: string,
+  ): Promise<{ challengeId: string; code: string }> {
+    const challengeId = crypto.randomBytes(16).toString('hex');
+    // Generate 6-digit code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+
+    const challenge: AuthChallenge = {
+      status: 'pending',
+      email,
+      codeHash,
+      attemptsRemaining: this.AUTH_CHALLENGE_MAX_ATTEMPTS,
+      flow,
+      ...(signupDisplayName && { signupDisplayName }),
+    };
+
+    await this.redisService.set(
+      `${this.AUTH_CHALLENGE_PREFIX}${challengeId}`,
+      JSON.stringify(challenge),
+      this.AUTH_CHALLENGE_TTL,
+    );
+
+    // Send verification code email
+    if (!env.DEV_SKIP_EMAIL_VERIFICATION) {
+      await this.emailService.sendVerificationCodeEmail(email, code, 10);
+    }
+
+    return { challengeId, code };
+  }
+
+  async verifyCode(dto: VerifyCodeDto): Promise<AuthResponse> {
+    const challengeKey = `${this.AUTH_CHALLENGE_PREFIX}${dto.challengeId}`;
+    const raw = await this.redisService.get(challengeKey);
+
+    if (!raw) {
+      throw new BadRequestException(
+        'Verification challenge not found or expired',
+      );
+    }
+
+    const challenge: AuthChallenge = JSON.parse(raw);
+
+    if (challenge.status !== 'pending') {
+      throw new BadRequestException('Challenge has already been used');
+    }
+
+    if (challenge.email !== dto.email) {
+      throw new BadRequestException('Email mismatch');
+    }
+
+    if (challenge.attemptsRemaining <= 0) {
+      throw new BadRequestException(
+        'Too many failed attempts. Please request a new code.',
+      );
+    }
+
+    // Verify code
+    const inputHash = crypto
+      .createHash('sha256')
+      .update(dto.code)
+      .digest('hex');
+    if (inputHash !== challenge.codeHash) {
+      // Decrement attempts
+      challenge.attemptsRemaining--;
+      if (challenge.attemptsRemaining <= 0) {
+        challenge.status = 'failed';
+      }
+      await this.redisService.set(
+        challengeKey,
+        JSON.stringify(challenge),
+        this.AUTH_CHALLENGE_TTL,
+      );
+      throw new BadRequestException('Invalid verification code');
+    }
+
+    // Code is correct — mark as verified and consume
+    challenge.status = 'verified';
+    await this.redisService.set(
+      challengeKey,
+      JSON.stringify(challenge),
+      60, // keep briefly for idempotency
+    );
+
+    if (challenge.flow === 'signup') {
+      // Create user now
+      return this.completeSignup(challenge.email, challenge.signupDisplayName!);
+    }
+
+    // Login or verify existing user
+    const [user] = await this.db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.email, challenge.email))
+      .limit(1);
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Mark email as verified if needed
+    if (challenge.flow === 'verify_existing_user' && !user.emailVerified) {
+      await this.db
+        .update(schema.users)
+        .set({
+          emailVerified: true,
+          emailVerifiedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.users.id, user.id));
+    }
+
+    const tokens = this.generateTokenPair(user);
+    return {
+      ...tokens,
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        displayName: user.displayName,
+        avatarUrl: user.avatarUrl,
+      },
+    };
+  }
+
+  private async completeSignup(
+    email: string,
+    displayName: string,
+  ): Promise<AuthResponse> {
+    // Double-check email is still available
+    const [existing] = await this.db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.email, email))
+      .limit(1);
+
+    if (existing) {
+      // Race condition: user was created between start and verify-code
+      // Just log them in
+      const tokens = this.generateTokenPair(existing);
+      return {
+        ...tokens,
+        user: {
+          id: existing.id,
+          email: existing.email,
+          username: existing.username,
+          displayName: existing.displayName,
+          avatarUrl: existing.avatarUrl,
+        },
+      };
+    }
+
+    const username = await this.generateUniqueUsername(displayName, email);
+    const userId = uuidv7();
+
+    const [user] = await this.db
+      .insert(schema.users)
+      .values({
+        id: userId,
+        email,
+        username,
+        displayName,
+        emailVerified: true,
+        emailVerifiedAt: new Date(),
+      })
+      .returning();
+
+    this.eventEmitter.emit(USER_EVENTS.REGISTERED, {
+      userId: user.id,
+      displayName,
+    } satisfies UserRegisteredEvent);
+
+    this.eventEmitter.emit('user.created', { user });
+
+    const tokens = this.generateTokenPair(user);
+    return {
+      ...tokens,
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        displayName: user.displayName,
+        avatarUrl: user.avatarUrl,
+      },
+    };
+  }
+
+  // --- Desktop session ---
+
+  async createDesktopSession(ip: string): Promise<DesktopSessionResponse> {
+    // IP-based rate limiting
+    const rateLimitKey = `${this.DESKTOP_SESSION_RATE_PREFIX}${ip}`;
+    const count = await this.redisService.incr(rateLimitKey);
+    if (count === 1) {
+      await this.redisService.expire(
+        rateLimitKey,
+        this.DESKTOP_SESSION_RATE_TTL,
+      );
+    }
+    if (count > this.DESKTOP_SESSION_RATE_LIMIT) {
+      throw new BadRequestException(
+        'Too many desktop session requests. Please slow down.',
+      );
+    }
+
+    const sessionId = crypto.randomBytes(16).toString('hex');
+
+    await this.redisService.set(
+      `${this.LOGIN_SESSION_PREFIX}${sessionId}`,
+      JSON.stringify({ status: 'pending' }),
+      this.LOGIN_SESSION_TTL,
+    );
+
+    return {
+      sessionId,
+      expiresInSeconds: this.LOGIN_SESSION_TTL,
+    };
+  }
+
+  async completeDesktopSession(
+    dto: CompleteDesktopSessionDto,
+    userId: string,
+  ): Promise<{ success: boolean }> {
+    const sessionKey = `${this.LOGIN_SESSION_PREFIX}${dto.sessionId}`;
+    const raw = await this.redisService.get(sessionKey);
+
+    if (!raw) {
+      throw new NotFoundException('Desktop session not found or expired');
+    }
+
+    const session = JSON.parse(raw);
+
+    if (session.status !== 'pending') {
+      throw new BadRequestException('Desktop session has already been used');
+    }
+
+    // Get user and generate tokens for desktop
+    const [user] = await this.db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const tokens = this.generateTokenPair(user);
+
+    await this.redisService.set(
+      sessionKey,
+      JSON.stringify({
+        status: 'verified',
+        ...tokens,
+        user: {
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          displayName: user.displayName,
+          avatarUrl: user.avatarUrl,
+        },
+      }),
+      this.LOGIN_SESSION_RESULT_TTL,
+    );
+
+    return { success: true };
   }
 
   // Cleanup expired tokens (can be called by a cron job)

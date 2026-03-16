@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_authenticated")({
     const token = localStorage.getItem("auth_token");
     if (!token) {
       throw redirect({
-        to: "/register",
+        to: "/login",
         search: {
           redirect: location.href,
         },

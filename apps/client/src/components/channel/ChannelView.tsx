@@ -84,17 +84,22 @@ export function ChannelView({
     (state) => state.closePrimaryThread,
   );
 
+  // Track whether the initial thread from URL has already been consumed
+  const initialThreadConsumed = useRef(false);
+
   // Close thread panels when channel changes
   useEffect(() => {
     closePrimaryThread();
+    initialThreadConsumed.current = false;
   }, [channelId, closePrimaryThread]);
 
-  // Open thread panel from URL param on initial render
+  // Open thread panel from URL param (once per channel, not re-triggered on close)
   useEffect(() => {
-    if (initialThreadId && !primaryThread.isOpen) {
+    if (initialThreadId && !initialThreadConsumed.current) {
+      initialThreadConsumed.current = true;
       openPrimaryThread(initialThreadId);
     }
-  }, [initialThreadId, openPrimaryThread, primaryThread.isOpen]);
+  }, [initialThreadId, openPrimaryThread]);
 
   // Determine if we should anchor to the last read message (unread positioning)
   const unreadAnchor = useMemo(() => {
@@ -113,6 +118,9 @@ export function ChannelView({
     isFetchingNextPage,
     fetchNextPage,
     hasNextPage,
+    hasPreviousPage,
+    isFetchingPreviousPage,
+    fetchPreviousPage,
   } = useChannelMessages(channelId, { anchorMessageId: unreadAnchor });
   const sendMessage = useSendMessage(channelId);
   const markAsRead = useMarkAsRead();
@@ -229,8 +237,11 @@ export function ChannelView({
 
   // Auto-mark messages as read when viewing the channel or when new messages arrive
   // Skip for preview mode (non-members)
+  // In anchored mode, only mark as read when there are no newer pages to load,
+  // because messages[0] may not be the true latest message otherwise.
   useEffect(() => {
     if (isPreviewMode) return;
+    if (hasPreviousPage) return;
 
     // Only mark as read if the messageId is a valid UUID (not a temporary ID)
     // Temporary IDs (e.g., "temp-1234567890-abc123") are used for optimistic updates
@@ -245,11 +256,19 @@ export function ChannelView({
         messageId: latestMessageId,
       });
     }
-  }, [channelId, latestMessageId, messagesLoading, isPreviewMode]);
+  }, [
+    channelId,
+    latestMessageId,
+    messagesLoading,
+    isPreviewMode,
+    hasPreviousPage,
+  ]);
 
   // Monitor outer container width and calculate whether snap mode is needed
   // We observe the outer flex container (never hidden) rather than the main chat
   // div (which becomes hidden in snap mode and would stop firing ResizeObserver).
+  // Also recalculate when threadPanelWidth changes (ResizeObserver won't fire
+  // because the outer container size doesn't change when children resize).
   useEffect(() => {
     const el = containerRef.current;
     if (!el || threadPanelCount === 0) {
@@ -257,18 +276,20 @@ export function ChannelView({
       return;
     }
 
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const containerWidth = entry.contentRect.width;
-        const mainChatWidth =
-          containerWidth - threadPanelCount * threadPanelWidthRef.current;
-        setIsSnapped(mainChatWidth < 400);
-      }
-    });
+    const recalc = () => {
+      const containerWidth = el.getBoundingClientRect().width;
+      const mainChatWidth =
+        containerWidth - threadPanelCount * threadPanelWidthRef.current;
+      setIsSnapped(mainChatWidth < 400);
+    };
 
+    // Recalculate immediately for threadPanelWidth changes
+    recalc();
+
+    const observer = new ResizeObserver(() => recalc());
     observer.observe(el);
     return () => observer.disconnect();
-  }, [threadPanelCount]);
+  }, [threadPanelCount, threadPanelWidth]);
 
   const handleSendMessage = async (
     content: string,
@@ -278,7 +299,12 @@ export function ChannelView({
     if (!content.trim() && (!attachments || attachments.length === 0)) return;
 
     startBotThinking(content);
-    await sendMessage.mutateAsync({ content, attachments });
+    try {
+      await sendMessage.mutateAsync({ content, attachments });
+    } catch {
+      // Clear thinking indicators on send failure to avoid stale state
+      setThinkingBotIds([]);
+    }
   };
 
   if (channelLoading) {
@@ -330,6 +356,11 @@ export function ChannelView({
                 if (hasNextPage) fetchNextPage();
               }}
               hasMore={hasNextPage}
+              onLoadNewer={() => {
+                if (hasPreviousPage) fetchPreviousPage();
+              }}
+              hasNewer={hasPreviousPage}
+              isLoadingNewer={isFetchingPreviousPage}
               highlightMessageId={initialMessageId}
               channelId={channelId}
               channelType={channel?.type}

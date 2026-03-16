@@ -61,4 +61,6 @@ CLAUDE.local.md
 node_modules/
 **/node_modules/
 
+.superpowers
+
 tmp

@@ -2,7 +2,7 @@ import './load-env.js'; // Load environment variables first
 import './instrument.js'; // Initialize Sentry before any other imports
 import './otel.js'; // Initialize OpenTelemetry
 import { NestFactory } from '@nestjs/core';
-import { VersioningType, Logger } from '@nestjs/common';
+import { VersioningType, ValidationPipe, Logger } from '@nestjs/common';
 import { AppModule } from './app.module.js';
 import { SocketRedisAdapterService } from './cluster/adapter/socket-redis-adapter.service.js';
 import { WebsocketGateway } from './im/websocket/websocket.gateway.js';
@@ -18,6 +18,7 @@ async function bootstrap() {
   }
 
   app.enableCors();
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
   app.setGlobalPrefix('api');
   app.enableVersioning({
     type: VersioningType.URI,

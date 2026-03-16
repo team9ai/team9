@@ -1,79 +1,235 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
-  useLogin,
-  useCurrentUser,
+  useAuthStart,
+  useVerifyCode,
   useGoogleAuth,
+  useCurrentUser,
   useLoginPolling,
+  useCreateDesktopSession,
+  useCompleteDesktopSession,
 } from "@/hooks/useAuth";
+import { useInvitationInfo } from "@/hooks/useWorkspace";
 import { GoogleLogin } from "@react-oauth/google";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Mail, ExternalLink, Loader2 } from "lucide-react";
+import { Mail, Loader2, Monitor, Users, ArrowLeft } from "lucide-react";
+
+const IS_TAURI =
+  typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 const MAIL_QUICK_LINKS = [
   { name: "Gmail", url: "https://mail.google.com" },
   { name: "Outlook", url: "https://outlook.live.com" },
 ];
 
-function EmailQuickLinks() {
-  const { t } = useTranslation("auth");
+type LoginSearch = {
+  redirect?: string;
+  invite?: string;
+  desktopSessionId?: string;
+};
+
+// ─── Shared Layout ──────────────────────────────────────────────────────────
+
+function LoginLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="min-h-screen flex items-center justify-center"
+      style={{
+        background: [
+          "radial-gradient(ellipse 80% 60% at 50% -20%, oklch(from var(--primary) l c h / 12%), transparent)",
+          "radial-gradient(ellipse 60% 50% at 80% 80%, oklch(from var(--accent) l c h / 8%), transparent)",
+          "radial-gradient(ellipse 50% 40% at 10% 60%, oklch(from var(--primary) l c h / 6%), transparent)",
+          "var(--background)",
+        ].join(", "),
+      }}
+    >
+      <div className="w-full max-w-105 px-5">{children}</div>
+    </div>
+  );
+}
+
+function LogoBanner({ subtitle }: { subtitle?: string }) {
+  return (
+    <div className="flex flex-col items-center pt-2 pb-6 border-b border-border/40 mb-6">
+      <img
+        src="/whale.webp"
+        alt="Team9"
+        className="w-14 h-14 mb-3 transition-transform duration-300 hover:scale-105"
+        style={{
+          filter:
+            "drop-shadow(0 4px 12px oklch(from var(--primary) l c h / 20%))",
+        }}
+      />
+      <h1 className="text-2xl font-bold text-foreground tracking-tight">
+        Team9
+      </h1>
+      {subtitle && (
+        <p className="text-muted-foreground mt-1 text-sm">{subtitle}</p>
+      )}
+    </div>
+  );
+}
+
+function GlassCard({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`rounded-2xl p-8 ${className}`}
+      style={{
+        background: "oklch(from var(--background) l c h / 80%)",
+        backdropFilter: "blur(20px) saturate(1.2)",
+        WebkitBackdropFilter: "blur(20px) saturate(1.2)",
+        border: "1px solid oklch(from var(--border) l c h / 60%)",
+        boxShadow: [
+          "0 0 0 1px oklch(from var(--background) l c h / 40%)",
+          "0 4px 6px -1px oklch(from var(--foreground) l c h / 4%)",
+          "0 10px 30px -5px oklch(from var(--foreground) l c h / 8%)",
+        ].join(", "),
+        animation: "loginFadeIn 0.5s ease-out 0.1s both",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ─── Verification Code Input ────────────────────────────────────────────────
+
+function CodeInput({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  disabled?: boolean;
+}) {
+  const inputsRef = useRef<(HTMLInputElement | null)[]>([]);
+  const digits = Array.from({ length: 6 }, (_, i) => value[i] ?? "");
+
+  const focusInput = useCallback((index: number) => {
+    inputsRef.current[index]?.focus();
+  }, []);
+
+  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === "Backspace") {
+      e.preventDefault();
+      const arr = digits.slice();
+      if (arr[index]) {
+        arr[index] = "";
+      } else if (index > 0) {
+        arr[index - 1] = "";
+        focusInput(index - 1);
+      }
+      onChange(arr.join(""));
+    } else if (e.key === "ArrowLeft" && index > 0) {
+      focusInput(index - 1);
+    } else if (e.key === "ArrowRight" && index < 5) {
+      focusInput(index + 1);
+    }
+  };
+
+  const handleInput = (
+    index: number,
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const char = e.target.value.replace(/\D/g, "").slice(-1);
+    if (!char) return;
+    const arr = digits.slice();
+    arr[index] = char;
+    onChange(arr.join(""));
+    if (index < 5) focusInput(index + 1);
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pasted = e.clipboardData
+      .getData("text")
+      .replace(/\D/g, "")
+      .slice(0, 6);
+    if (pasted) {
+      onChange(pasted);
+      focusInput(Math.min(pasted.length, 5));
+    }
+  };
+
+  const digitStyle = (filled: boolean): React.CSSProperties => ({
+    width: "2.75rem",
+    height: "3.25rem",
+    textAlign: "center" as const,
+    fontSize: "1.5rem",
+    fontWeight: 600,
+    fontFamily: '"SF Mono", "Fira Code", monospace',
+    borderRadius: "0.75rem",
+    border: `1.5px solid ${filled ? "var(--primary)" : "var(--border)"}`,
+    background: filled
+      ? "oklch(from var(--primary) l c h / 5%)"
+      : "oklch(from var(--background) l c h / 60%)",
+    color: "var(--foreground)",
+    outline: "none",
+    transition: "all 0.2s ease",
+    caretColor: "var(--primary)",
+  });
 
   return (
-    <div className="flex items-center justify-center gap-4 mt-6">
-      {MAIL_QUICK_LINKS.map((provider) => (
-        <a
-          key={provider.name}
-          href={provider.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 px-6 py-3 border border-border rounded-lg text-info font-medium hover:bg-muted transition-colors"
-        >
-          <Mail className="w-5 h-5" />
-          <span>{t("openMailProvider", { provider: provider.name })}</span>
-        </a>
+    <div className="flex justify-center gap-2" onPaste={handlePaste}>
+      {digits.map((d, i) => (
+        <input
+          key={i}
+          ref={(el) => {
+            inputsRef.current[i] = el;
+          }}
+          type="text"
+          inputMode="numeric"
+          maxLength={1}
+          value={d}
+          disabled={disabled}
+          autoFocus={i === 0}
+          onChange={(e) => handleInput(i, e)}
+          onKeyDown={(e) => handleKeyDown(i, e)}
+          onFocus={(e) => e.target.select()}
+          style={digitStyle(!!d)}
+          className="focus:ring-3 focus:ring-primary/15 focus:border-primary disabled:opacity-50"
+        />
       ))}
     </div>
   );
 }
 
-type LoginSearch = {
-  redirect?: string;
-  invite?: string;
-};
+// ─── Inline keyframes (injected once) ───────────────────────────────────────
+
+const styleId = "login-keyframes";
+if (typeof document !== "undefined" && !document.getElementById(styleId)) {
+  const style = document.createElement("style");
+  style.id = styleId;
+  style.textContent = `@keyframes loginFadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`;
+  document.head.appendChild(style);
+}
+
+// ─── Loading / Pending ──────────────────────────────────────────────────────
 
 function LoginPending() {
   const { t } = useTranslation("auth");
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="w-full max-w-100 px-4">
-        {/* Logo/Brand */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-foreground mb-2">Team9</h1>
-          <p className="text-muted-foreground text-lg">
-            {t("signInToWorkspace")}
-          </p>
+    <LoginLayout>
+      <GlassCard>
+        <LogoBanner subtitle={t("signInToWorkspace")} />
+        <div className="space-y-5">
+          <Skeleton className="h-11 w-full rounded-xl" />
+          <Skeleton className="h-4 w-24 mx-auto rounded" />
+          <Skeleton className="h-11 w-full rounded-xl" />
+          <Skeleton className="h-11 w-full rounded-xl" />
         </div>
-
-        {/* Loading Skeleton */}
-        <div className="bg-background border border-border rounded-lg shadow-sm p-8">
-          <div className="space-y-5">
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-11 w-full" />
-            </div>
-            <Skeleton className="h-11 w-full" />
-          </div>
-        </div>
-
-        {/* Sign Up Link */}
-        <div className="text-center mt-6">
-          <Skeleton className="h-4 w-48 mx-auto" />
-        </div>
-      </div>
-    </div>
+      </GlassCard>
+    </LoginLayout>
   );
 }
 
@@ -84,35 +240,154 @@ export const Route = createFileRoute("/login")({
     return {
       redirect: (search.redirect as string) || "/",
       invite: (search.invite as string) || undefined,
+      desktopSessionId: (search.desktopSessionId as string) || undefined,
     };
   },
 });
 
-function LoginLinkSentView({
-  email,
-  invite,
-  verificationLink,
-  loginSessionId,
-}: {
-  email: string;
-  invite?: string;
-  /** Dev mode: direct verification link (skips email) */
-  verificationLink?: string;
-  loginSessionId: string | null;
-}) {
+// ─── Desktop Mode ───────────────────────────────────────────────────────────
+
+function DesktopLoginView() {
   const { t } = useTranslation("auth");
   const navigate = useNavigate();
-  const login = useLogin();
-  const [countdown, setCountdown] = useState(60);
+  const createSession = useCreateDesktopSession();
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
-  // Poll for login session completion (cross-device login)
-  useLoginPolling(loginSessionId, () => {
-    if (invite) {
-      navigate({ to: "/invite/$code", params: { code: invite } });
-    } else {
-      navigate({ to: "/" });
+  useEffect(() => {
+    const pendingSessionId = localStorage.getItem("pending_desktop_session_id");
+    if (pendingSessionId) {
+      setSessionId(pendingSessionId);
     }
-  });
+  }, []);
+
+  useLoginPolling(
+    sessionId,
+    () => {
+      localStorage.removeItem("pending_desktop_session_id");
+      navigate({ to: "/" });
+    },
+    () => {
+      setSessionExpired(true);
+      localStorage.removeItem("pending_desktop_session_id");
+    },
+  );
+
+  const handleSignInWithBrowser = async () => {
+    setSessionExpired(false);
+    try {
+      const result = await createSession.mutateAsync();
+      setSessionId(result.sessionId);
+      localStorage.setItem("pending_desktop_session_id", result.sessionId);
+      const appUrl = import.meta.env.VITE_APP_URL;
+      if (appUrl) {
+        const { openUrl } = await import("@tauri-apps/plugin-opener");
+        const url = `${appUrl}/login?desktopSessionId=${result.sessionId}`;
+        await openUrl(url);
+      }
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
+  const handleOpenBrowser = async () => {
+    if (!sessionId || sessionExpired) {
+      await handleSignInWithBrowser();
+      return;
+    }
+    const appUrl = import.meta.env.VITE_APP_URL;
+    if (appUrl) {
+      const { openUrl } = await import("@tauri-apps/plugin-opener");
+      const url = `${appUrl}/login?desktopSessionId=${sessionId}`;
+      await openUrl(url);
+    }
+  };
+
+  return (
+    <LoginLayout>
+      <GlassCard>
+        <LogoBanner subtitle="Team collaboration, reimagined" />
+        <div className="flex flex-col items-center">
+          <Button
+            onClick={handleOpenBrowser}
+            disabled={createSession.isPending}
+            className="w-full h-12 text-base font-semibold rounded-xl"
+          >
+            {createSession.isPending ? (
+              <Loader2 className="w-5 h-5 animate-spin mr-2" />
+            ) : (
+              <Monitor className="w-5 h-5 mr-2" />
+            )}
+            {t("accessToTeam9")}
+          </Button>
+          <p className="text-center text-sm text-muted-foreground mt-4">
+            {t("openBrowserHint")}
+          </p>
+        </div>
+      </GlassCard>
+    </LoginLayout>
+  );
+}
+
+// ─── Web Browser Mode ───────────────────────────────────────────────────────
+
+type AuthState =
+  | "idle"
+  | "need_display_name"
+  | "code_sent"
+  | "verifying_code"
+  | "authenticated";
+
+const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
+function WebLoginView() {
+  const { t } = useTranslation("auth");
+  const navigate = useNavigate();
+  const { redirect, invite, desktopSessionId } = Route.useSearch();
+
+  const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [code, setCode] = useState("");
+  const [error, setError] = useState("");
+  const [authState, setAuthState] = useState<AuthState>("idle");
+  const [challengeId, setChallengeId] = useState<string | null>(null);
+  const [devCode, setDevCode] = useState<string | undefined>();
+  const [countdown, setCountdown] = useState(0);
+  const authCompletedInSession = useRef(false);
+
+  const authStart = useAuthStart();
+  const verifyCode = useVerifyCode();
+  const googleAuth = useGoogleAuth();
+  const completeDesktop = useCompleteDesktopSession();
+  const { data: currentUser, isLoading } = useCurrentUser();
+  const { data: invitationInfo } = useInvitationInfo(invite);
+
+  useEffect(() => {
+    if (!currentUser || isLoading || authCompletedInSession.current) return;
+
+    const completeAndRedirect = async () => {
+      if (desktopSessionId) {
+        try {
+          await completeDesktop.mutateAsync({
+            sessionId: desktopSessionId,
+          });
+        } catch {
+          // Desktop session may have expired
+        }
+        setAuthState("authenticated");
+        return;
+      }
+
+      if (invite) {
+        navigate({ to: "/invite/$code", params: { code: invite } });
+      } else {
+        navigate({ to: redirect || "/" });
+      }
+    };
+
+    completeAndRedirect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, isLoading]);
 
   useEffect(() => {
     if (countdown > 0) {
@@ -121,137 +396,134 @@ function LoginLinkSentView({
     }
   }, [countdown]);
 
-  const handleResend = async () => {
-    try {
-      await login.mutateAsync({ email });
-      setCountdown(60);
-    } catch {
-      // Error handled by mutation
+  useEffect(() => {
+    if (
+      code.length === 6 &&
+      challengeId &&
+      authState === "code_sent" &&
+      !verifyCode.isPending
+    ) {
+      const doVerify = async () => {
+        setError("");
+        try {
+          setAuthState("verifying_code");
+          await verifyCode.mutateAsync({ email, challengeId, code });
+          setAuthState("authenticated");
+          await navigateAfterAuth();
+        } catch (err: any) {
+          setAuthState("code_sent");
+          const errorMessage =
+            err?.response?.data?.message ||
+            err?.message ||
+            t("verificationFailed");
+          setError(errorMessage);
+        }
+      };
+      doVerify();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code]);
+
+  const navigateAfterAuth = async () => {
+    authCompletedInSession.current = true;
+
+    if (desktopSessionId) {
+      try {
+        await completeDesktop.mutateAsync({
+          sessionId: desktopSessionId,
+        });
+      } catch {
+        // Desktop session failed/expired
+      }
+      setAuthState("authenticated");
+      return;
+    }
+
+    if (invite) {
+      navigate({ to: "/invite/$code", params: { code: invite } });
+    } else {
+      navigate({ to: redirect || "/" });
     }
   };
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="w-full max-w-100 px-4">
-        {/* Logo/Brand */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-foreground mb-2">Team9</h1>
-          <p className="text-muted-foreground text-lg">{t("loginLinkSent")}</p>
-        </div>
-
-        {/* Login Link Sent Card */}
-        <div className="bg-background border border-border rounded-lg shadow-sm p-8 text-center">
-          <div className="mb-6">
-            <Mail className="w-16 h-16 mx-auto text-primary" />
-          </div>
-          <h2 className="text-xl font-semibold mb-4">{t("loginLinkSent")}</h2>
-          <p className="text-muted-foreground mb-6">
-            {t("loginLinkSentMessage", { email })}
-          </p>
-
-          {/* Dev mode: Show direct verification link */}
-          {verificationLink && (
-            <div className="mb-6 p-4 bg-warning/10 border border-warning/30 rounded-lg">
-              <p className="text-sm text-warning font-medium mb-3">
-                🛠️ Dev Mode: Click to login directly
-              </p>
-              <a
-                href={verificationLink}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
-              >
-                <ExternalLink className="w-4 h-4" />
-                Login Now
-              </a>
-            </div>
-          )}
-
-          {!verificationLink && (
-            <>
-              <p className="text-sm text-muted-foreground mb-2">
-                {t("loginLinkSentHint")}
-              </p>
-              <p className="text-sm text-muted-foreground mb-6 font-bold">
-                {t("checkSpamFolder")}
-              </p>
-            </>
-          )}
-          <Button
-            variant="outline"
-            onClick={handleResend}
-            disabled={login.isPending || countdown > 0}
-            className="w-full"
-          >
-            {countdown > 0
-              ? t("resendIn", { seconds: countdown })
-              : login.isPending
-                ? t("sending")
-                : t("resendLoginLink")}
-          </Button>
-        </div>
-
-        {/* Email Quick Links - hide in dev mode */}
-        {!verificationLink && <EmailQuickLinks />}
-
-        {/* Back to Login Link */}
-        <div className="text-center mt-6">
-          <Link
-            to="/register"
-            search={invite ? { invite } : {}}
-            className="text-primary hover:underline font-medium"
-          >
-            {t("createAccount")}
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-
-function Login() {
-  const { t } = useTranslation("auth");
-  const [email, setEmail] = useState("");
-  const [error, setError] = useState("");
-  const [linkSent, setLinkSent] = useState(false);
-  const [sentEmail, setSentEmail] = useState("");
-  const [verificationLink, setVerificationLink] = useState<
-    string | undefined
-  >();
-  const [loginSessionId, setLoginSessionId] = useState<string | null>(null);
-
-  const navigate = useNavigate();
-  const { redirect, invite } = Route.useSearch();
-  const login = useLogin();
-  const googleAuth = useGoogleAuth();
-  const { data: currentUser, isLoading } = useCurrentUser();
-
-  // Redirect if already logged in
-  useEffect(() => {
-    if (currentUser && !isLoading) {
-      if (invite) {
-        navigate({ to: "/invite/$code", params: { code: invite } });
-      } else {
-        navigate({ to: redirect || "/" });
-      }
+  const handleContinueInBrowser = () => {
+    if (invite) {
+      navigate({ to: "/invite/$code", params: { code: invite } });
+    } else {
+      navigate({ to: redirect || "/" });
     }
-  }, [currentUser, isLoading, navigate, redirect, invite]);
+  };
 
-  const handleLogin = async (e: React.FormEvent) => {
+  useEffect(() => {
+    if (authState === "authenticated" && desktopSessionId) {
+      window.location.href = `team9://auth-complete?sessionId=${desktopSessionId}`;
+    }
+  }, [authState, desktopSessionId]);
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    // Save invite code to localStorage to bridge the email verification gap
     if (invite) {
       localStorage.setItem("pending_invite_code", invite);
     }
 
     try {
-      const result = await login.mutateAsync({ email });
-      setSentEmail(email);
-      setVerificationLink(result.verificationLink);
-      setLoginSessionId(result.loginSessionId);
-      setLinkSent(true);
+      const result = await authStart.mutateAsync({
+        email,
+        ...(authState === "need_display_name" ? { displayName } : {}),
+      });
+
+      if (result.action === "need_display_name") {
+        setAuthState("need_display_name");
+      } else if (result.action === "code_sent") {
+        setChallengeId(result.challengeId!);
+        setDevCode(result.verificationCode);
+        setAuthState("code_sent");
+        setCountdown(60);
+      }
+    } catch (err: any) {
+      const errorMessage =
+        err?.response?.data?.message || err?.message || t("loginFailed");
+      setError(errorMessage);
+    }
+  };
+
+  const handleCodeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (!challengeId) return;
+
+    try {
+      setAuthState("verifying_code");
+      await verifyCode.mutateAsync({
+        email,
+        challengeId,
+        code,
+      });
+      setAuthState("authenticated");
+      await navigateAfterAuth();
+    } catch (err: any) {
+      setAuthState("code_sent");
+      const errorMessage =
+        err?.response?.data?.message || err?.message || t("verificationFailed");
+      setError(errorMessage);
+    }
+  };
+
+  const handleResendCode = async () => {
+    setError("");
+    try {
+      const result = await authStart.mutateAsync({
+        email,
+        ...(displayName ? { displayName } : {}),
+      });
+      if (result.action === "code_sent") {
+        setChallengeId(result.challengeId!);
+        setDevCode(result.verificationCode);
+        setCountdown(60);
+      }
     } catch (err: any) {
       const errorMessage =
         err?.response?.data?.message || err?.message || t("loginFailed");
@@ -271,11 +543,7 @@ function Login() {
 
     try {
       await googleAuth.mutateAsync(credentialResponse.credential);
-      if (invite) {
-        navigate({ to: "/invite/$code", params: { code: invite } });
-      } else {
-        navigate({ to: redirect || "/" });
-      }
+      await navigateAfterAuth();
     } catch (err: any) {
       const errorMessage =
         err?.response?.data?.message || err?.message || t("googleLoginFailed");
@@ -283,147 +551,358 @@ function Login() {
     }
   };
 
-  // Show login link sent view
-  if (linkSent) {
+  const handleChangeEmail = () => {
+    setAuthState("idle");
+    setCode("");
+    setChallengeId(null);
+    setDevCode(undefined);
+    setError("");
+    setDisplayName("");
+  };
+
+  // Loading state
+  if (googleAuth.isPending || completeDesktop.isPending) {
     return (
-      <LoginLinkSentView
-        email={sentEmail}
-        invite={invite}
-        verificationLink={verificationLink}
-        loginSessionId={loginSessionId}
-      />
+      <LoginLayout>
+        <GlassCard>
+          <LogoBanner />
+          <div className="flex flex-col items-center gap-4 py-4">
+            <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+              <Loader2 className="w-7 h-7 text-primary animate-spin" />
+            </div>
+            <p className="text-muted-foreground text-base font-medium">
+              {t("signingIn")}
+            </p>
+          </div>
+        </GlassCard>
+      </LoginLayout>
     );
   }
 
-  // Show loading while Google auth is in progress
-  if (googleAuth.isPending) {
+  // Desktop session intermediate page
+  if (authState === "authenticated" && desktopSessionId) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="w-full max-w-100 px-4">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-foreground mb-2">Team9</h1>
+      <LoginLayout>
+        <GlassCard className="text-center">
+          <LogoBanner />
+          <p className="text-foreground font-medium text-lg mb-2">
+            {t("clickOpenDesktopApp")}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {t("notWorkingHint")}{" "}
+            <button
+              type="button"
+              onClick={handleContinueInBrowser}
+              className="text-primary font-medium hover:underline"
+            >
+              {t("useInBrowser")}
+            </button>
+          </p>
+        </GlassCard>
+      </LoginLayout>
+    );
+  }
+
+  // Code entry view
+  if (authState === "code_sent" || authState === "verifying_code") {
+    return (
+      <LoginLayout>
+        <GlassCard>
+          <LogoBanner subtitle={t("checkYourInbox")} />
+          <button
+            type="button"
+            onClick={handleChangeEmail}
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-5 -mt-1"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            {t("back")}
+          </button>
+
+          <div className="text-center mb-6">
+            <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <Mail className="w-7 h-7 text-primary" />
+            </div>
+            <p className="text-muted-foreground text-sm">
+              {t("codeSentMessage", { email })}
+            </p>
           </div>
-          <div className="bg-background border border-border rounded-lg shadow-sm p-8">
-            <div className="flex flex-col items-center gap-4 py-6">
-              <Loader2 className="w-10 h-10 text-primary animate-spin" />
-              <p className="text-muted-foreground text-base">
-                {t("signingIn")}
+
+          {/* Dev mode: show code directly */}
+          {devCode && (
+            <div className="mb-6 p-4 bg-warning/10 border border-warning/30 rounded-xl text-center">
+              <p className="text-sm text-warning font-medium mb-1">Dev Mode</p>
+              <p className="text-2xl font-mono font-bold tracking-wider">
+                {devCode}
               </p>
             </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="w-full max-w-100 px-4">
-        {/* Logo/Brand */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-foreground mb-2">Team9</h1>
-          <p className="text-muted-foreground text-lg">
-            {t("signInToWorkspace")}
-          </p>
-        </div>
-
-        {/* Login Form */}
-        <div className="bg-background border border-border rounded-lg shadow-sm p-8">
-          {/* Google Login */}
-          {googleClientId && (
-            <>
-              <div className="flex justify-center">
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={() => setError(t("googleLoginFailed"))}
-                  size="large"
-                  width="100%"
-                  text="continue_with"
-                />
-              </div>
-              <div className="relative my-5">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-border" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">
-                    {t("orContinueWith")}
-                  </span>
-                </div>
-              </div>
-            </>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-5">
-            {/* Email Field */}
+          <form onSubmit={handleCodeSubmit} className="space-y-5">
             <div className="space-y-2">
-              <label
-                htmlFor="email"
-                className="block text-sm font-semibold text-foreground"
-              >
-                {t("email")}
+              <label className="block text-sm font-semibold text-foreground text-center">
+                {t("verificationCode")}
               </label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder={t("emailPlaceholder")}
-                className="w-full h-11 px-3"
-                required
-                autoFocus
+              <CodeInput
+                value={code}
+                onChange={setCode}
+                disabled={
+                  verifyCode.isPending || authState === "verifying_code"
+                }
               />
             </div>
 
-            {/* Error Message */}
             {error && (
-              <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded text-sm">
+              <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-xl text-sm text-center">
                 {error}
               </div>
             )}
 
-            {/* Submit Button */}
             <Button
               type="submit"
-              className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-base"
-              disabled={login.isPending}
+              className="w-full h-11 font-semibold text-base rounded-xl"
+              disabled={
+                verifyCode.isPending ||
+                authState === "verifying_code" ||
+                code.length < 6
+              }
             >
-              {login.isPending ? t("sendingLoginLink") : t("sendLoginLink")}
+              {verifyCode.isPending || authState === "verifying_code" ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  {t("signingIn")}
+                </>
+              ) : (
+                t("verifyAndSignIn")
+              )}
             </Button>
           </form>
-        </div>
 
-        {/* Sign Up Link */}
-        <div className="text-center mt-6">
-          <p className="text-muted-foreground text-sm">
-            {t("dontHaveAccount")}{" "}
-            <Link
-              to="/register"
-              search={invite ? { invite } : {}}
-              className="text-primary hover:underline font-medium"
+          <div className="flex items-center justify-between mt-5 pt-4 border-t border-border/50">
+            <button
+              type="button"
+              onClick={handleChangeEmail}
+              className="text-sm text-primary font-medium hover:underline"
             >
-              {t("createAccount")}
-            </Link>
-          </p>
-        </div>
+              {t("changeEmail")}
+            </button>
+            <button
+              type="button"
+              onClick={handleResendCode}
+              disabled={authStart.isPending || countdown > 0}
+              className="text-sm text-primary font-medium hover:underline disabled:text-muted-foreground disabled:no-underline"
+            >
+              {countdown > 0
+                ? t("resendIn", { seconds: countdown })
+                : authStart.isPending
+                  ? t("sending")
+                  : t("resendCode")}
+            </button>
+          </div>
+        </GlassCard>
 
-        {/* Footer */}
-        <div className="text-center mt-8 text-xs text-muted-foreground">
-          <p>
-            {t("termsAgreement")}{" "}
-            <Link
-              to="/terms-of-service"
-              className="text-primary hover:underline"
-            >
-              {t("termsOfService")}
-            </Link>{" "}
-            {t("and")}{" "}
-            <Link to="/privacy" className="text-primary hover:underline">
-              {t("privacyPolicy")}
-            </Link>
+        {/* Email Quick Links */}
+        {!devCode && (
+          <div
+            className="flex items-center justify-center gap-3 mt-6"
+            style={{ animation: "loginFadeIn 0.5s ease-out 0.25s both" }}
+          >
+            {MAIL_QUICK_LINKS.map((provider) => (
+              <a
+                key={provider.name}
+                href={provider.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-foreground transition-all"
+                style={{
+                  background: "oklch(from var(--background) l c h / 60%)",
+                  backdropFilter: "blur(12px)",
+                  border: "1px solid oklch(from var(--border) l c h / 50%)",
+                }}
+              >
+                <Mail className="w-4 h-4" />
+                <span>
+                  {t("openMailProvider", { provider: provider.name })}
+                </span>
+              </a>
+            ))}
+          </div>
+        )}
+      </LoginLayout>
+    );
+  }
+
+  // Main login form (idle or need_display_name)
+  return (
+    <LoginLayout>
+      {/* Invite banner */}
+      {invite && invitationInfo?.isValid && (
+        <div
+          className="rounded-2xl p-4 mb-4 text-center"
+          style={{
+            background: "oklch(from var(--primary) l c h / 8%)",
+            border: "1px solid oklch(from var(--primary) l c h / 15%)",
+            animation: "loginFadeIn 0.5s ease-out",
+          }}
+        >
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-2">
+            <Users className="w-5 h-5 text-primary" />
+          </div>
+          <p className="text-sm font-medium text-primary">
+            {t("invitedToWorkspace")}
           </p>
+          <p className="text-lg font-bold text-foreground">
+            {invitationInfo.workspaceName}
+          </p>
+          {invitationInfo.invitedBy && (
+            <p className="text-xs text-muted-foreground mt-1">
+              {t("invitedBy", { name: invitationInfo.invitedBy })}
+            </p>
+          )}
         </div>
+      )}
+
+      <GlassCard>
+        <LogoBanner subtitle={t("signInToWorkspace")} />
+
+        {/* Google Login */}
+        {googleClientId && (
+          <>
+            <div className="flex justify-center">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => setError(t("googleLoginFailed"))}
+                size="large"
+                width="100%"
+                text="continue_with"
+              />
+            </div>
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border/60" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background/80 px-3 text-muted-foreground">
+                  {t("orContinueWith")}
+                </span>
+              </div>
+            </div>
+          </>
+        )}
+
+        <form onSubmit={handleEmailSubmit} className="space-y-5">
+          {/* Email Field */}
+          <div className="space-y-2">
+            <label
+              htmlFor="email"
+              className="block text-sm font-semibold text-foreground"
+            >
+              {t("email")}
+            </label>
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder={t("emailPlaceholder")}
+              className="w-full h-11 px-3 rounded-xl"
+              required
+              autoFocus={authState === "idle"}
+              disabled={authState === "need_display_name"}
+            />
+          </div>
+
+          {/* Display Name Field (shown for new users) */}
+          {authState === "need_display_name" && (
+            <div
+              className="space-y-2"
+              style={{ animation: "loginFadeIn 0.3s ease-out" }}
+            >
+              <label
+                htmlFor="displayName"
+                className="block text-sm font-semibold text-foreground"
+              >
+                {t("displayName")}
+              </label>
+              <Input
+                id="displayName"
+                type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder={t("displayNamePlaceholder")}
+                className="w-full h-11 px-3 rounded-xl"
+                required
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("displayNameHint")}
+              </p>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {error && (
+            <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-xl text-sm">
+              {error}
+            </div>
+          )}
+
+          {/* Submit Button */}
+          <Button
+            type="submit"
+            className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-base rounded-xl"
+            disabled={
+              authStart.isPending ||
+              (authState === "need_display_name" && !displayName.trim())
+            }
+          >
+            {authStart.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                {t("sending")}
+              </>
+            ) : (
+              t("continueWithEmail")
+            )}
+          </Button>
+
+          {/* Change email link when in need_display_name state */}
+          {authState === "need_display_name" && (
+            <button
+              type="button"
+              onClick={handleChangeEmail}
+              className="block w-full text-center text-sm text-primary font-medium hover:underline"
+            >
+              {t("changeEmail")}
+            </button>
+          )}
+        </form>
+      </GlassCard>
+
+      {/* Footer */}
+      <div
+        className="text-center mt-8 text-xs text-muted-foreground"
+        style={{ animation: "loginFadeIn 0.5s ease-out 0.3s both" }}
+      >
+        <p>
+          {t("termsAgreement")}{" "}
+          <Link to="/terms-of-service" className="text-primary hover:underline">
+            {t("termsOfService")}
+          </Link>{" "}
+          {t("and")}{" "}
+          <Link to="/privacy" className="text-primary hover:underline">
+            {t("privacyPolicy")}
+          </Link>
+        </p>
       </div>
-    </div>
+    </LoginLayout>
   );
+}
+
+// ─── Main Component ─────────────────────────────────────────────────────────
+
+function Login() {
+  if (IS_TAURI) {
+    return <DesktopLoginView />;
+  }
+  return <WebLoginView />;
 }

@@ -5,3 +5,6 @@ export * from './verify-email.dto.js';
 export * from './resend-verification.dto.js';
 export * from './google-login.dto.js';
 export * from './poll-login.dto.js';
+export * from './auth-start.dto.js';
+export * from './verify-code.dto.js';
+export * from './desktop-session.dto.js';

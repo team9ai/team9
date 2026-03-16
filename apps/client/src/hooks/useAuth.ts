@@ -4,6 +4,9 @@ import { invoke } from "@tauri-apps/api/core";
 import api, {
   type LoginRequest,
   type RegisterRequest,
+  type AuthStartRequest,
+  type VerifyCodeRequest,
+  type CompleteDesktopSessionRequest,
   type User,
 } from "@/services/api";
 import {
@@ -84,36 +87,79 @@ export const useLoginPolling = (
     accessToken: string;
     refreshToken: string;
   }) => void,
+  onExpired?: () => void,
 ) => {
   return useQuery({
     queryKey: ["loginPolling", sessionId],
     queryFn: async () => {
-      const result = await api.auth.pollLogin(sessionId!);
-      if (
-        result.status === "verified" &&
-        result.accessToken &&
-        result.refreshToken &&
-        result.user
-      ) {
-        // Store tokens
-        localStorage.setItem("auth_token", result.accessToken);
-        localStorage.setItem("refresh_token", result.refreshToken);
-        syncUserToStore(result.user);
-        onSuccess({
-          user: result.user,
-          accessToken: result.accessToken,
-          refreshToken: result.refreshToken,
-        });
+      try {
+        const result = await api.auth.pollLogin(sessionId!);
+        if (
+          result.status === "verified" &&
+          result.accessToken &&
+          result.refreshToken &&
+          result.user
+        ) {
+          // Store tokens
+          localStorage.setItem("auth_token", result.accessToken);
+          localStorage.setItem("refresh_token", result.refreshToken);
+          syncUserToStore(result.user);
+          onSuccess({
+            user: result.user,
+            accessToken: result.accessToken,
+            refreshToken: result.refreshToken,
+          });
+        }
+        return result;
+      } catch (err: any) {
+        // 404 means session expired or not found
+        if (err?.response?.status === 404 || err?.status === 404) {
+          onExpired?.();
+        }
+        throw err;
       }
-      return result;
     },
     enabled: !!sessionId,
     refetchInterval: (query) => {
-      // Stop polling once verified
+      // Stop polling once verified or errored
       if (query.state.data?.status === "verified") return false;
+      if (query.state.error) return false;
       return 3000; // Poll every 3 seconds
     },
     retry: false,
+  });
+};
+
+// --- New unified auth flow hooks ---
+
+export const useAuthStart = () => {
+  return useMutation({
+    mutationFn: (data: AuthStartRequest) => api.auth.authStart(data),
+  });
+};
+
+export const useVerifyCode = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: VerifyCodeRequest) => api.auth.verifyCode(data),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["currentUser"], data.user);
+      syncUserToStore(data.user);
+    },
+  });
+};
+
+export const useCreateDesktopSession = () => {
+  return useMutation({
+    mutationFn: () => api.auth.createDesktopSession(),
+  });
+};
+
+export const useCompleteDesktopSession = () => {
+  return useMutation({
+    mutationFn: (data: CompleteDesktopSessionRequest) =>
+      api.auth.completeDesktopSession(data),
   });
 };
 

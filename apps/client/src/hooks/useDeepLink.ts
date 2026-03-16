@@ -42,7 +42,8 @@ export function useDeepLink() {
         if (path === "auth-complete") {
           const sessionId = parsed.searchParams.get("sessionId");
           if (sessionId) {
-            sessionStorage.setItem("deep_link_session_id", sessionId);
+            // Store as pending desktop session for cold-start recovery
+            localStorage.setItem("pending_desktop_session_id", sessionId);
           }
           // Navigate to login page which will pick up the polling session
           navigate({ to: "/login" });
