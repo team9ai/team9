@@ -1,10 +1,21 @@
 import { useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { useConnectionStore } from "@/stores/connection";
+import { ConnectionPanel } from "@/components/left/ConnectionPanel";
+import { ChannelList } from "@/components/left/ChannelList";
+import { BotInfo } from "@/components/left/BotInfo";
 
-function LeftPlaceholder() {
-  return <div className="p-3 text-xs text-slate-500">Left panel</div>;
+function LeftPanel() {
+  return (
+    <>
+      <ConnectionPanel />
+      <ChannelList />
+      <div className="flex-1" />
+      <BotInfo />
+    </>
+  );
 }
+
 function CenterPlaceholder() {
   return (
     <div className="flex-1 flex items-center justify-center text-slate-500 text-sm">
@@ -25,7 +36,7 @@ export function App() {
 
   return (
     <Layout
-      left={<LeftPlaceholder />}
+      left={<LeftPanel />}
       center={<CenterPlaceholder />}
       right={<RightPlaceholder />}
     />
