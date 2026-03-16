@@ -79,6 +79,7 @@ export function MessageList({
   lastReadMessageId,
 }: MessageListProps) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(false);
   const { data: currentUser } = useCurrentUser();
   const openThread = useThreadStore((state) => state.openThread);
@@ -250,6 +251,39 @@ export function MessageList({
     return false as const;
   }, []);
 
+  // Pin tall messages: after a new message is appended and followOutput scrolls
+  // to the bottom, check if the last message is taller than the viewport.
+  // If so, scroll to show its beginning instead.
+  const prevMessageCountRef = useRef(chronoMessages.length);
+  useEffect(() => {
+    const prevCount = prevMessageCountRef.current;
+    prevMessageCountRef.current = chronoMessages.length;
+
+    if (chronoMessages.length <= prevCount) return;
+    if (!isAtBottomRef.current) return;
+
+    // Wait for followOutput's smooth scroll to settle and item to render
+    const timeoutId = setTimeout(() => {
+      if (!containerRef.current) return;
+
+      const viewportHeight = containerRef.current.clientHeight;
+      const items = containerRef.current.querySelectorAll("[data-item-index]");
+      const lastItemEl = items[items.length - 1] as HTMLElement | null;
+      if (!lastItemEl) return;
+
+      const itemHeight = lastItemEl.getBoundingClientRect().height;
+      if (itemHeight > viewportHeight * 0.85) {
+        virtuosoRef.current?.scrollToIndex({
+          index: listData.length - 1,
+          align: "start",
+          behavior: "auto",
+        });
+      }
+    }, 150);
+
+    return () => clearTimeout(timeoutId);
+  }, [chronoMessages.length, listData.length]);
+
   // Jump to latest handler
   const handleJumpToLatest = useCallback(() => {
     scrollStore.send(channelId, { type: "JUMP_TO_LATEST" });
@@ -354,7 +388,7 @@ export function MessageList({
   }
 
   return (
-    <div className="flex-1 min-h-0 relative">
+    <div ref={containerRef} className="flex-1 min-h-0 relative">
       <Virtuoso
         ref={virtuosoRef}
         data={listData}
