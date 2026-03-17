@@ -3,6 +3,7 @@ import { Loader2, ListChecks, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { tasksApi } from "@/services/api/tasks";
 import { TaskCard } from "./TaskCard";
 import { TaskChatArea } from "./TaskChatArea";
@@ -10,14 +11,14 @@ import { TaskRightPanel } from "./TaskRightPanel";
 import { CreateTaskDialog } from "./CreateTaskDialog";
 import type { AgentTaskStatus } from "@/types/task";
 
-const STATUS_GROUPS: { key: string; statuses: AgentTaskStatus[] }[] = [
-  { key: "active", statuses: ["in_progress", "paused", "pending_action"] },
-  { key: "upcoming", statuses: ["upcoming"] },
-  {
-    key: "finished",
-    statuses: ["completed", "failed", "stopped", "timeout"],
-  },
-];
+const STATUS_FILTERS: Record<string, AgentTaskStatus[]> = {
+  active: ["in_progress", "paused", "pending_action"],
+  upcoming: ["upcoming"],
+  finished: ["completed", "failed", "stopped", "timeout"],
+};
+
+const TAB_KEYS = ["all", "active", "upcoming", "finished"] as const;
+type TabKey = (typeof TAB_KEYS)[number];
 
 const ACTIVE_STATUSES: AgentTaskStatus[] = [
   "in_progress",
@@ -35,6 +36,7 @@ export function TaskList({ botId }: TaskListProps) {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [rightPanelTab, setRightPanelTab] = useState("run");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [tab, setTab] = useState<TabKey>("all");
 
   const { data: allTasks = [], isLoading } = useQuery({
     queryKey: ["tasks", { botId }],
@@ -91,13 +93,12 @@ export function TaskList({ botId }: TaskListProps) {
   const isViewingHistory =
     !!selectedRun && !!activeExecution && selectedRunId !== activeExecution.id;
 
-  // Group tasks by status
-  const groupedTasks = useMemo(() => {
-    return STATUS_GROUPS.map((group) => ({
-      ...group,
-      tasks: allTasks.filter((task) => group.statuses.includes(task.status)),
-    })).filter((group) => group.tasks.length > 0);
-  }, [allTasks]);
+  // Filter tasks by selected tab
+  const filteredTasks = useMemo(() => {
+    if (tab === "all") return allTasks;
+    const statuses = STATUS_FILTERS[tab];
+    return allTasks.filter((task) => statuses.includes(task.status));
+  }, [allTasks, tab]);
 
   const handleSelectRun = useCallback((runId: string) => {
     setSelectedRunId(runId);
@@ -149,16 +150,36 @@ export function TaskList({ botId }: TaskListProps) {
         )}
 
         {!isLoading && allTasks.length > 0 && (
-          <div className="flex-1 overflow-y-auto">
-            {groupedTasks.map((group) => (
-              <div key={group.key}>
-                <div className="px-3 pt-3 pb-1">
-                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    {t(`tabs.${group.key}`, group.key)}
-                  </span>
+          <>
+            {/* Filter tabs */}
+            <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border">
+              {TAB_KEYS.map((key) => (
+                <button
+                  key={key}
+                  onClick={() => setTab(key)}
+                  className={cn(
+                    "px-2 py-0.5 text-[11px] rounded-md transition-colors",
+                    tab === key
+                      ? "bg-accent text-accent-foreground font-medium"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
+                  )}
+                >
+                  {t(`tabs.${key}`, key)}
+                </button>
+              ))}
+            </div>
+
+            {/* Task list */}
+            <div className="flex-1 overflow-y-auto">
+              {filteredTasks.length === 0 ? (
+                <div className="flex items-center justify-center py-8">
+                  <p className="text-xs text-muted-foreground">
+                    {t("noTasks")}
+                  </p>
                 </div>
-                <div className="px-2 space-y-1 pb-1">
-                  {group.tasks.map((task) => (
+              ) : (
+                <div className="px-2 py-1 space-y-1">
+                  {filteredTasks.map((task) => (
                     <TaskCard
                       key={task.id}
                       task={task}
@@ -166,9 +187,9 @@ export function TaskList({ botId }: TaskListProps) {
                     />
                   ))}
                 </div>
-              </div>
-            ))}
-          </div>
+              )}
+            </div>
+          </>
         )}
       </div>
 
