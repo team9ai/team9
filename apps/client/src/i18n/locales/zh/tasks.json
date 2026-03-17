@@ -7,7 +7,10 @@
     "info": "基本信息",
     "triggers": "触发器",
     "document": "文档",
-    "runs": "运行记录"
+    "runs": "运行记录",
+    "run": "运行",
+    "settings": "设置",
+    "history": "历史"
   },
   "noTasks": "暂无任务",
   "create": {
@@ -228,8 +231,53 @@
       "paused": "任务已暂停"
     }
   },
+  "chat": {
+    "placeholder": "启动任务后即可与 Bot 对话"
+  },
   "manualTrigger": {
     "title": "启动任务",
     "notesPlaceholder": "添加本次运行的备注或说明（可选）..."
+  },
+  "chatArea": {
+    "viewingHistory": "正在查看历史运行",
+    "returnToCurrent": "返回当前运行",
+    "lastRunCompleted": "上次运行已完成",
+    "lastRunFailed": "上次运行失败",
+    "lastRunStopped": "上次运行已停止",
+    "lastRunTimeout": "上次运行超时",
+    "rerun": "重新运行",
+    "readOnly": "历史对话（只读）",
+    "finishedReadOnly": "上次运行的对话（只读）",
+    "start": "开始",
+    "noRunsYet": "还没有运行记录，开始你的第一次运行吧！",
+    "pause": "暂停",
+    "resume": "恢复",
+    "stop": "停止"
+  },
+  "runTab": {
+    "title": "运行详情",
+    "status": "状态",
+    "duration": "耗时",
+    "triggerType": "触发方式",
+    "taskVersion": "任务版本",
+    "tokenUsage": "Token 用量",
+    "timeline": "时间线",
+    "noExecution": "未选择执行"
+  },
+  "settingsTab": {
+    "title": "设置",
+    "taskTitle": "标题",
+    "taskDescription": "描述",
+    "deleteConfirm": "确定要删除此任务吗？此操作无法撤销。"
+  },
+  "historyTab": {
+    "title": "历史",
+    "current": "当前",
+    "empty": "暂无运行记录",
+    "manual": "手动",
+    "interval": "定时",
+    "schedule": "计划",
+    "channelMessage": "频道消息",
+    "retry": "重试"
   }
 }

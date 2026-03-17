@@ -7,7 +7,10 @@
     "info": "Info",
     "triggers": "Triggers",
     "document": "Document",
-    "runs": "Runs"
+    "runs": "Runs",
+    "run": "Run",
+    "settings": "Settings",
+    "history": "History"
   },
   "noTasks": "No tasks",
   "create": {
@@ -228,8 +231,53 @@
       "paused": "Task paused"
     }
   },
+  "chat": {
+    "placeholder": "Start the task to chat with the bot"
+  },
   "manualTrigger": {
     "title": "Start Task",
     "notesPlaceholder": "Add notes or context for this run (optional)..."
+  },
+  "chatArea": {
+    "viewingHistory": "Viewing historical run",
+    "returnToCurrent": "Return to current run",
+    "lastRunCompleted": "Last run completed",
+    "lastRunFailed": "Last run failed",
+    "lastRunStopped": "Last run stopped",
+    "lastRunTimeout": "Last run timed out",
+    "rerun": "Rerun",
+    "readOnly": "Historical conversation (read-only)",
+    "finishedReadOnly": "Last run conversation (read-only)",
+    "start": "Start",
+    "noRunsYet": "No runs yet. Start your first run!",
+    "pause": "Pause",
+    "resume": "Resume",
+    "stop": "Stop"
+  },
+  "runTab": {
+    "title": "Run Details",
+    "status": "Status",
+    "duration": "Duration",
+    "triggerType": "Trigger",
+    "taskVersion": "Task Version",
+    "tokenUsage": "Token Usage",
+    "timeline": "Timeline",
+    "noExecution": "No execution selected"
+  },
+  "settingsTab": {
+    "title": "Settings",
+    "taskTitle": "Title",
+    "taskDescription": "Description",
+    "deleteConfirm": "Are you sure you want to delete this task? This action cannot be undone."
+  },
+  "historyTab": {
+    "title": "History",
+    "current": "Current",
+    "empty": "No runs yet",
+    "manual": "Manual",
+    "interval": "Interval",
+    "schedule": "Schedule",
+    "channelMessage": "Channel Message",
+    "retry": "Retry"
   }
 }
