@@ -25,7 +25,7 @@ const baseContext: ExecutionContext = {
   executionId: 'exec-001',
   botId: 'bot-001',
   channelId: 'ch-001',
-  taskcastTaskId: 'tc-001',
+  taskcastTaskId: 'agent_task_exec_exec-001',
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -42,14 +42,19 @@ function makeBot(opts: {
   agentId?: string;
   accessUrl?: string;
   nestedAccessUrl?: string;
+  gatewayToken?: string;
 }) {
   const extra = opts.agentId ? { openclaw: { agentId: opts.agentId } } : {};
   const secrets: Record<string, any> = {};
   if (opts.accessUrl) {
-    secrets.instanceResult = { access_url: opts.accessUrl };
+    secrets.instanceResult = {
+      access_url: opts.accessUrl,
+      gateway_token: opts.gatewayToken ?? 'test-gw-token',
+    };
   } else if (opts.nestedAccessUrl) {
     secrets.instanceResult = {
       instance: { access_url: opts.nestedAccessUrl },
+      gateway_token: opts.gatewayToken ?? 'test-gw-token',
     };
   }
   return { extra, secrets };
@@ -136,7 +141,12 @@ describe('OpenclawStrategy', () => {
     resetDbChain([
       {
         extra: {},
-        secrets: { instanceResult: { access_url: 'https://x.com' } },
+        secrets: {
+          instanceResult: {
+            access_url: 'https://x.com',
+            gateway_token: 'test-gw-token',
+          },
+        },
       },
     ]);
     mockFetch.mockResolvedValue({ ok: true } as Response);
@@ -198,7 +208,7 @@ describe('OpenclawStrategy', () => {
     } as unknown as Response);
 
     await expect(strategy.execute(baseContext)).rejects.toThrow(
-      'OpenClaw execute failed for agent default (502): upstream timeout',
+      'OpenClaw execute failed (502): upstream timeout',
     );
   });
 
@@ -213,19 +223,70 @@ describe('OpenclawStrategy', () => {
     } as unknown as Response);
 
     await expect(strategy.execute(baseContext)).rejects.toThrow(
-      'OpenClaw execute failed for agent default (500): Internal Server Error',
+      'OpenClaw execute failed (500): Internal Server Error',
     );
   });
 
-  it('should use POST method for the execute call', async () => {
+  it('should send POST with body, auth headers, and abort signal', async () => {
     const bot = makeBot({ accessUrl: 'https://claw.example.com' });
     resetDbChain([bot]);
     mockFetch.mockResolvedValue({ ok: true } as Response);
 
     await strategy.execute(baseContext);
 
-    expect(mockFetch).toHaveBeenCalledWith(expect.anything(), {
-      method: 'POST',
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer test-gw-token',
+        }),
+        body: expect.any(String),
+        signal: expect.any(AbortSignal),
+      }),
+    );
+
+    // Verify body content
+    const callOpts = mockFetch.mock.calls[0]![1] as RequestInit;
+    const parsedBody = JSON.parse(callOpts.body as string);
+    expect(parsedBody).toEqual(
+      expect.objectContaining({
+        channelId: 'ch-001',
+        task: { taskId: 'task-001', executionId: 'exec-001' },
+      }),
+    );
+  });
+
+  // ── stop() ─────────────────────────────────────────────────────────
+
+  describe('stop()', () => {
+    it('should POST to /api/agents/{agentId}/stop with sessionKey', async () => {
+      resetDbChain([
+        makeBot({ accessUrl: 'https://oc.test', agentId: 'mybot' }),
+      ]);
+      mockFetch.mockResolvedValueOnce(new Response('', { status: 200 }));
+
+      await strategy.stop(baseContext);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          href: 'https://oc.test/api/agents/mybot/stop',
+        }),
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('"sessionKey"'),
+        }),
+      );
+    });
+
+    it('should not throw if stop returns 404 (run already finished)', async () => {
+      resetDbChain([makeBot({ accessUrl: 'https://oc.test' })]);
+      mockFetch.mockResolvedValueOnce(
+        new Response('Not found', { status: 404 }),
+      );
+
+      await expect(strategy.stop(baseContext)).resolves.not.toThrow();
     });
   });
 });

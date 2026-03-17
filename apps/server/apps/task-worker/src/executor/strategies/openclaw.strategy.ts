@@ -10,13 +10,10 @@ import type {
   ExecutionContext,
 } from '../execution-strategy.interface.js';
 
-type OpenclawSecrets = {
-  instanceResult?: {
-    access_url?: string;
-    instance?: {
-      access_url?: string;
-    };
-  };
+type OpenclawConfig = {
+  agentId: string;
+  openclawUrl: string;
+  gatewayToken: string | undefined;
 };
 
 @Injectable()
@@ -30,6 +27,107 @@ export class OpenclawStrategy implements ExecutionStrategy {
 
   async execute(context: ExecutionContext): Promise<void> {
     this.logger.log(`Starting OpenClaw agent for task ${context.taskId}`);
+
+    const { agentId, openclawUrl, gatewayToken } =
+      await this.resolveOpenclawConfig(context.botId);
+
+    const body = {
+      message: context.documentContent ?? 'Execute this task',
+      idempotencyKey: context.taskcastTaskId ?? `exec_${context.executionId}`,
+      sessionKey: `agent:${agentId}:task:${context.taskId}`,
+      channelId: context.channelId,
+      timeout: 86400,
+      task: {
+        taskId: context.taskId,
+        executionId: context.executionId,
+      },
+    };
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (gatewayToken) {
+      headers['Authorization'] = `Bearer ${gatewayToken}`;
+    } else {
+      this.logger.warn(
+        `No gateway token for bot ${context.botId}, sending without auth`,
+      );
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30_000);
+
+    try {
+      const response = await fetch(
+        new URL(
+          `/api/agents/${encodeURIComponent(agentId)}/execute`,
+          openclawUrl,
+        ),
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `OpenClaw execute failed (${response.status}): ${errorText || response.statusText}`,
+        );
+      }
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async pause(context: ExecutionContext): Promise<void> {
+    this.logger.warn(
+      `Pause not yet supported for task ${context.taskId} — OpenClaw does not support agent checkpointing`,
+    );
+  }
+
+  async resume(context: ExecutionContext): Promise<void> {
+    this.logger.warn(
+      `Resume not yet supported for task ${context.taskId} — OpenClaw does not support agent checkpointing`,
+    );
+  }
+
+  async stop(context: ExecutionContext): Promise<void> {
+    this.logger.log(`Stopping OpenClaw agent for task ${context.taskId}`);
+
+    const { agentId, openclawUrl, gatewayToken } =
+      await this.resolveOpenclawConfig(context.botId);
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (gatewayToken) {
+      headers['Authorization'] = `Bearer ${gatewayToken}`;
+    }
+
+    try {
+      await fetch(
+        new URL(`/api/agents/${encodeURIComponent(agentId)}/stop`, openclawUrl),
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            sessionKey: `agent:${agentId}:task:${context.taskId}`,
+          }),
+          signal: AbortSignal.timeout(10_000),
+        },
+      );
+      // Don't throw on non-2xx — the run may have already finished
+    } catch (error) {
+      this.logger.warn(
+        `Failed to stop OpenClaw agent for task ${context.taskId}: ${error}`,
+      );
+    }
+  }
+
+  private async resolveOpenclawConfig(botId: string): Promise<OpenclawConfig> {
     const [bot] = await this.db
       .select({
         extra: schema.bots.extra,
@@ -40,53 +138,28 @@ export class OpenclawStrategy implements ExecutionStrategy {
         schema.installedApplications,
         eq(schema.installedApplications.id, schema.bots.installedApplicationId),
       )
-      .where(eq(schema.bots.id, context.botId))
+      .where(eq(schema.bots.id, botId))
       .limit(1);
 
     if (!bot) {
-      throw new Error(`OpenClaw bot not found: ${context.botId}`);
+      throw new Error(`OpenClaw bot not found: ${botId}`);
     }
 
-    const agentId = bot.extra?.openclaw?.agentId ?? 'default';
-    const secrets = bot.secrets as OpenclawSecrets | null;
+    const agentId =
+      (bot.extra as Record<string, any>)?.openclaw?.agentId ?? 'default';
+
+    const secrets = bot.secrets as Record<string, any> | null;
+    const instanceResult = secrets?.instanceResult;
     const openclawUrl =
-      secrets?.instanceResult?.access_url ??
-      secrets?.instanceResult?.instance?.access_url;
+      instanceResult?.access_url ?? instanceResult?.instance?.access_url;
 
     if (!openclawUrl) {
-      throw new Error(`OpenClaw URL not configured for bot ${context.botId}`);
+      throw new Error(`OpenClaw URL not configured for bot ${botId}`);
     }
 
-    const response = await fetch(
-      new URL(
-        `/api/agents/${encodeURIComponent(agentId)}/execute`,
-        openclawUrl,
-      ),
-      {
-        method: 'POST',
-      },
-    );
+    const gatewayToken: string | undefined =
+      instanceResult?.gateway_token ?? instanceResult?.instance?.gateway_token;
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(
-        `OpenClaw execute failed for agent ${agentId} (${response.status}): ${errorText || response.statusText}`,
-      );
-    }
-  }
-
-  async pause(context: ExecutionContext): Promise<void> {
-    this.logger.log(`Pausing OpenClaw agent for task ${context.taskId}`);
-    // TODO: POST {openclaw_url}/api/agents/{agentId}/pause
-  }
-
-  async resume(context: ExecutionContext): Promise<void> {
-    this.logger.log(`Resuming OpenClaw agent for task ${context.taskId}`);
-    // TODO: POST {openclaw_url}/api/agents/{agentId}/resume
-  }
-
-  async stop(context: ExecutionContext): Promise<void> {
-    this.logger.log(`Stopping OpenClaw agent for task ${context.taskId}`);
-    // TODO: POST {openclaw_url}/api/agents/{agentId}/stop
+    return { agentId, openclawUrl, gatewayToken };
   }
 }
