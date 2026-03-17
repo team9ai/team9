@@ -89,10 +89,7 @@ export class TaskCommandConsumer {
           );
           break;
         case 'stop':
-          // TODO: delegate to executor.stopExecution
-          this.logger.warn(
-            `Stop not yet implemented for task ${command.taskId}`,
-          );
+          await this.executor.stopExecution(command.taskId);
           break;
         default:
           this.logger.warn(

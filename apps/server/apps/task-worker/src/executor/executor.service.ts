@@ -243,6 +243,107 @@ export class ExecutorService {
     this.logger.log(`Execution ${executionId} initiated for task ${taskId}`);
   }
 
+  /**
+   * Stop the currently active execution for the given task.
+   */
+  async stopExecution(taskId: string): Promise<void> {
+    // 1. Load task
+    const [task] = await this.db
+      .select()
+      .from(schema.agentTasks)
+      .where(eq(schema.agentTasks.id, taskId))
+      .limit(1);
+
+    if (!task) {
+      this.logger.error(`Task not found for stop: ${taskId}`);
+      return;
+    }
+
+    if (!task.currentExecutionId) {
+      this.logger.warn(`Task ${taskId} has no active execution to stop`);
+      return;
+    }
+
+    if (!task.botId) {
+      this.logger.error(`Task ${taskId} has no bot assigned`);
+      return;
+    }
+
+    // 2. Load execution
+    const [execution] = await this.db
+      .select()
+      .from(schema.agentTaskExecutions)
+      .where(eq(schema.agentTaskExecutions.id, task.currentExecutionId))
+      .limit(1);
+
+    if (!execution) {
+      this.logger.error(`Execution ${task.currentExecutionId} not found`);
+      return;
+    }
+
+    // 3. Look up bot type → get strategy
+    const [bot] = await this.db
+      .select({ type: schema.bots.type })
+      .from(schema.bots)
+      .where(eq(schema.bots.id, task.botId))
+      .limit(1);
+
+    if (!bot) {
+      this.logger.error(`Bot not found: ${task.botId}`);
+      return;
+    }
+
+    const strategy = this.strategies.get(bot.type);
+    if (!strategy) {
+      this.logger.error(`No strategy for bot type "${bot.type}"`);
+      return;
+    }
+
+    // 4. Call strategy.stop()
+    const context: ExecutionContext = {
+      taskId,
+      executionId: execution.id,
+      botId: task.botId,
+      // channelId is nullable in DB but ExecutionContext requires string; guard checked above
+      channelId: execution.channelId ?? '',
+      taskcastTaskId: execution.taskcastTaskId,
+    };
+
+    try {
+      await strategy.stop(context);
+    } catch (error) {
+      this.logger.warn(`Strategy stop failed for task ${taskId}: ${error}`);
+    }
+
+    // 5. Update execution + task status to stopped
+    const now = new Date();
+
+    await this.db
+      .update(schema.agentTaskExecutions)
+      .set({
+        status: 'stopped',
+        completedAt: now,
+        ...(execution.startedAt
+          ? {
+              duration: Math.round(
+                (now.getTime() - execution.startedAt.getTime()) / 1000,
+              ),
+            }
+          : {}),
+      })
+      .where(eq(schema.agentTaskExecutions.id, execution.id));
+
+    await this.db
+      .update(schema.agentTasks)
+      .set({
+        status: 'stopped',
+        updatedAt: now,
+      })
+      .where(eq(schema.agentTasks.id, taskId));
+
+    this.logger.log(`Execution ${execution.id} stopped for task ${taskId}`);
+  }
+
   private async markExecutionFailed(
     executionId: string,
     taskId: string,
