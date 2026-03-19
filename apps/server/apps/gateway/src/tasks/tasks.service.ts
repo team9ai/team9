@@ -562,6 +562,8 @@ export class TasksService {
       );
     }
 
+    this.validateStatusTransition(task.status, 'retry');
+
     await this.publishTaskCommand({
       type: 'retry',
       taskId,
@@ -706,6 +708,7 @@ export class TasksService {
       resume: ['paused'],
       stop: ['in_progress', 'paused', 'pending_action'],
       restart: ['completed', 'failed', 'timeout', 'stopped'],
+      retry: ['completed', 'failed', 'timeout', 'stopped'],
     };
     if (!allowed[action]?.includes(currentStatus)) {
       throw new BadRequestException(

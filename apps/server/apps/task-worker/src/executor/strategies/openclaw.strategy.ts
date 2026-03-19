@@ -5,6 +5,7 @@ import {
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
+import { env } from '@team9/shared';
 import type {
   ExecutionStrategy,
   ExecutionContext,
@@ -32,7 +33,7 @@ export class OpenclawStrategy implements ExecutionStrategy {
       await this.resolveOpenclawConfig(context.botId);
 
     const body = {
-      message: context.documentContent ?? 'Execute this task',
+      message: context.documentContent || 'Execute this task',
       idempotencyKey: context.taskcastTaskId ?? `exec_${context.executionId}`,
       sessionKey: `agent:${agentId}:task:${context.taskId}`,
       channelId: context.channelId,
@@ -146,19 +147,23 @@ export class OpenclawStrategy implements ExecutionStrategy {
     }
 
     const agentId =
-      (bot.extra as Record<string, any>)?.openclaw?.agentId ?? 'default';
+      (bot.extra as Record<string, any>)?.openclaw?.agentId ?? 'main';
 
     const secrets = bot.secrets as Record<string, any> | null;
     const instanceResult = secrets?.instanceResult;
     const openclawUrl =
-      instanceResult?.access_url ?? instanceResult?.instance?.access_url;
+      instanceResult?.access_url ??
+      instanceResult?.instance?.access_url ??
+      env.OPENCLAW_INSTANCE_URL;
 
     if (!openclawUrl) {
       throw new Error(`OpenClaw URL not configured for bot ${botId}`);
     }
 
     const gatewayToken: string | undefined =
-      instanceResult?.gateway_token ?? instanceResult?.instance?.gateway_token;
+      instanceResult?.gateway_token ??
+      instanceResult?.instance?.gateway_token ??
+      env.OPENCLAW_GATEWAY_TOKEN;
 
     return { agentId, openclawUrl, gatewayToken };
   }

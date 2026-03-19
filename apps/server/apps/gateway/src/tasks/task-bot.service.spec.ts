@@ -49,6 +49,7 @@ const BOT = { userId: 'bot-user-1' };
 
 const EXECUTION_WITH_TASKCAST = {
   id: 'exec-1',
+  taskId: 'task-1',
   taskcastTaskId: 'agent_task_exec_exec-1',
   startedAt: new Date(),
   status: 'in_progress',
@@ -56,26 +57,38 @@ const EXECUTION_WITH_TASKCAST = {
 
 const EXECUTION_WITHOUT_TASKCAST = {
   id: 'exec-1',
+  taskId: 'task-1',
   taskcastTaskId: null,
   startedAt: new Date(),
   status: 'in_progress',
 };
 
+const EXECUTION_TERMINAL = {
+  id: 'exec-1',
+  taskId: 'task-1',
+  taskcastTaskId: 'agent_task_exec_exec-1',
+  startedAt: new Date(),
+  status: 'completed',
+};
+
 /**
  * Set up the `limit` mock so that the first three calls return:
- *   1. task (for getActiveExecution — select from agentTasks)
- *   2. bot  (for getActiveExecution — select from bots)
- *   3. execution (for getActiveExecution — select from agentTaskExecutions)
+ *   1. execution (for getExecutionDirect — select from agentTaskExecutions)
+ *   2. task      (for getExecutionDirect — select from agentTasks)
+ *   3. bot       (for verifyBotOwnership — select from bots)
  * Any subsequent calls (e.g. per-step look-ups in reportSteps) resolve to [].
  */
-function setupGetActiveExecutionMocks(
+function setupGetExecutionDirectMocks(
   db: ReturnType<typeof mockDb>,
-  execution: typeof EXECUTION_WITH_TASKCAST | typeof EXECUTION_WITHOUT_TASKCAST,
+  execution:
+    | typeof EXECUTION_WITH_TASKCAST
+    | typeof EXECUTION_WITHOUT_TASKCAST
+    | typeof EXECUTION_TERMINAL,
 ) {
   db.limit
+    .mockResolvedValueOnce([execution] as any)
     .mockResolvedValueOnce([TASK] as any)
-    .mockResolvedValueOnce([BOT] as any)
-    .mockResolvedValueOnce([execution] as any);
+    .mockResolvedValueOnce([BOT] as any);
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────
@@ -116,16 +129,16 @@ describe('TaskBotService — TaskCast integration', () => {
     };
 
     /**
-     * Helper: configure db.where so that calls #1-3 (getActiveExecution) and
+     * Helper: configure db.where so that calls #1-3 (getExecutionDirect) and
      * call #4 (per-step lookup) return the chain (enabling .limit() chaining),
      * while call #5 (sum query — no trailing .limit/.orderBy) returns a
      * resolved Promise with [{ total: 0 }], and calls #6+ (update where,
      * final select where) return the chain again.
      *
      * where call map for reportSteps with one step (no existing):
-     *   #1  getActiveExecution: agentTasks.where → chain → .limit(1)
-     *   #2  getActiveExecution: bots.where → chain → .limit(1)
-     *   #3  getActiveExecution: agentTaskExecutions.where → chain → .limit(1)
+     *   #1  getExecutionDirect: agentTaskExecutions.where → chain → .limit(1)
+     *   #2  getExecutionDirect: agentTasks.where → chain → .limit(1)
+     *   #3  verifyBotOwnership: bots.where → chain → .limit(1)
      *   #4  step lookup: agentTaskSteps.where(and(...)) → chain → .limit(1)
      *   #5  sum query: agentTaskSteps.where(eq(executionId)) → awaited directly
      *   #6  update execution: agentTaskExecutions.where → chain (awaited as update)
@@ -144,10 +157,10 @@ describe('TaskBotService — TaskCast integration', () => {
     }
 
     it('calls publishEvent with type "step", seriesId "steps", seriesMode "latest" when taskcastTaskId is set', async () => {
-      setupGetActiveExecutionMocks(db, EXECUTION_WITH_TASKCAST);
+      setupGetExecutionDirectMocks(db, EXECUTION_WITH_TASKCAST);
       setupReportStepsMocks(db);
 
-      await service.reportSteps('task-1', 'bot-user-1', dto);
+      await service.reportSteps('task-1', 'exec-1', 'bot-user-1', dto);
 
       expect(taskCastService.publishEvent).toHaveBeenCalledTimes(1);
       expect(taskCastService.publishEvent).toHaveBeenCalledWith(
@@ -161,10 +174,10 @@ describe('TaskBotService — TaskCast integration', () => {
     });
 
     it('does NOT call publishEvent when taskcastTaskId is null', async () => {
-      setupGetActiveExecutionMocks(db, EXECUTION_WITHOUT_TASKCAST);
+      setupGetExecutionDirectMocks(db, EXECUTION_WITHOUT_TASKCAST);
       setupReportStepsMocks(db);
 
-      await service.reportSteps('task-1', 'bot-user-1', dto);
+      await service.reportSteps('task-1', 'exec-1', 'bot-user-1', dto);
 
       expect(taskCastService.publishEvent).not.toHaveBeenCalled();
     });
@@ -174,7 +187,7 @@ describe('TaskBotService — TaskCast integration', () => {
 
   describe('updateStatus', () => {
     it('calls transitionStatus with the status when taskcastTaskId is set', async () => {
-      setupGetActiveExecutionMocks(db, EXECUTION_WITH_TASKCAST);
+      setupGetExecutionDirectMocks(db, EXECUTION_WITH_TASKCAST);
 
       db.returning
         .mockResolvedValueOnce([
@@ -182,7 +195,7 @@ describe('TaskBotService — TaskCast integration', () => {
         ] as any)
         .mockResolvedValueOnce([{ ...TASK, status: 'completed' }] as any);
 
-      await service.updateStatus('task-1', 'bot-user-1', 'completed');
+      await service.updateStatus('task-1', 'exec-1', 'bot-user-1', 'completed');
 
       expect(taskCastService.transitionStatus).toHaveBeenCalledTimes(1);
       expect(taskCastService.transitionStatus).toHaveBeenCalledWith(
@@ -192,7 +205,7 @@ describe('TaskBotService — TaskCast integration', () => {
     });
 
     it('does NOT call transitionStatus when taskcastTaskId is null', async () => {
-      setupGetActiveExecutionMocks(db, EXECUTION_WITHOUT_TASKCAST);
+      setupGetExecutionDirectMocks(db, EXECUTION_WITHOUT_TASKCAST);
 
       db.returning
         .mockResolvedValueOnce([
@@ -200,7 +213,7 @@ describe('TaskBotService — TaskCast integration', () => {
         ] as any)
         .mockResolvedValueOnce([{ ...TASK, status: 'completed' }] as any);
 
-      await service.updateStatus('task-1', 'bot-user-1', 'completed');
+      await service.updateStatus('task-1', 'exec-1', 'bot-user-1', 'completed');
 
       expect(taskCastService.transitionStatus).not.toHaveBeenCalled();
     });
@@ -215,7 +228,7 @@ describe('TaskBotService — TaskCast integration', () => {
     };
 
     it('calls transitionStatus("pending_action") AND publishEvent with type "intervention" when taskcastTaskId is set', async () => {
-      setupGetActiveExecutionMocks(db, EXECUTION_WITH_TASKCAST);
+      setupGetExecutionDirectMocks(db, EXECUTION_WITH_TASKCAST);
 
       const interventionRow = {
         id: 'intervention-1',
@@ -226,9 +239,8 @@ describe('TaskBotService — TaskCast integration', () => {
         stepId: null,
       };
       db.returning.mockResolvedValueOnce([interventionRow] as any);
-      // second update (task status) — no returning needed, chain handles it
 
-      await service.createIntervention('task-1', 'bot-user-1', dto);
+      await service.createIntervention('task-1', 'exec-1', 'bot-user-1', dto);
 
       expect(taskCastService.transitionStatus).toHaveBeenCalledTimes(1);
       expect(taskCastService.transitionStatus).toHaveBeenCalledWith(
@@ -246,7 +258,7 @@ describe('TaskBotService — TaskCast integration', () => {
     });
 
     it('does NOT call TaskCast methods when taskcastTaskId is null', async () => {
-      setupGetActiveExecutionMocks(db, EXECUTION_WITHOUT_TASKCAST);
+      setupGetExecutionDirectMocks(db, EXECUTION_WITHOUT_TASKCAST);
 
       const interventionRow = {
         id: 'intervention-2',
@@ -258,7 +270,7 @@ describe('TaskBotService — TaskCast integration', () => {
       };
       db.returning.mockResolvedValueOnce([interventionRow] as any);
 
-      await service.createIntervention('task-1', 'bot-user-1', dto);
+      await service.createIntervention('task-1', 'exec-1', 'bot-user-1', dto);
 
       expect(taskCastService.transitionStatus).not.toHaveBeenCalled();
       expect(taskCastService.publishEvent).not.toHaveBeenCalled();
@@ -274,7 +286,7 @@ describe('TaskBotService — TaskCast integration', () => {
     };
 
     it('calls publishEvent with type "deliverable" when taskcastTaskId is set', async () => {
-      setupGetActiveExecutionMocks(db, EXECUTION_WITH_TASKCAST);
+      setupGetExecutionDirectMocks(db, EXECUTION_WITH_TASKCAST);
 
       const deliverableRow = {
         id: 'deliverable-1',
@@ -287,7 +299,12 @@ describe('TaskBotService — TaskCast integration', () => {
       };
       db.returning.mockResolvedValueOnce([deliverableRow] as any);
 
-      await service.addDeliverable('task-1', 'bot-user-1', deliverableData);
+      await service.addDeliverable(
+        'task-1',
+        'exec-1',
+        'bot-user-1',
+        deliverableData,
+      );
 
       expect(taskCastService.publishEvent).toHaveBeenCalledTimes(1);
       expect(taskCastService.publishEvent).toHaveBeenCalledWith(
@@ -299,7 +316,7 @@ describe('TaskBotService — TaskCast integration', () => {
     });
 
     it('does NOT call publishEvent when taskcastTaskId is null', async () => {
-      setupGetActiveExecutionMocks(db, EXECUTION_WITHOUT_TASKCAST);
+      setupGetExecutionDirectMocks(db, EXECUTION_WITHOUT_TASKCAST);
 
       const deliverableRow = {
         id: 'deliverable-2',
@@ -312,9 +329,90 @@ describe('TaskBotService — TaskCast integration', () => {
       };
       db.returning.mockResolvedValueOnce([deliverableRow] as any);
 
-      await service.addDeliverable('task-1', 'bot-user-1', deliverableData);
+      await service.addDeliverable(
+        'task-1',
+        'exec-1',
+        'bot-user-1',
+        deliverableData,
+      );
 
       expect(taskCastService.publishEvent).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── Terminal execution rejection ─────────────────────────────────
+
+  describe('getExecutionDirect — terminal status rejection', () => {
+    it('rejects reportSteps on a completed execution with ConflictException', async () => {
+      // execution lookup returns terminal status
+      db.limit.mockResolvedValueOnce([EXECUTION_TERMINAL] as any);
+
+      const dto = {
+        steps: [
+          { orderIndex: 0, title: 'Step 1', status: 'completed' as const },
+        ],
+      };
+
+      await expect(
+        service.reportSteps('task-1', 'exec-1', 'bot-user-1', dto),
+      ).rejects.toThrow(
+        'Cannot write to execution in terminal status: completed',
+      );
+    });
+
+    it('rejects updateStatus on a completed execution with ConflictException', async () => {
+      db.limit.mockResolvedValueOnce([EXECUTION_TERMINAL] as any);
+
+      await expect(
+        service.updateStatus('task-1', 'exec-1', 'bot-user-1', 'failed'),
+      ).rejects.toThrow(
+        'Cannot write to execution in terminal status: completed',
+      );
+    });
+
+    it('rejects createIntervention on a completed execution with ConflictException', async () => {
+      db.limit.mockResolvedValueOnce([EXECUTION_TERMINAL] as any);
+
+      const dto = {
+        prompt: 'Should I proceed?',
+        actions: [{ label: 'Yes', value: 'yes' }],
+      };
+
+      await expect(
+        service.createIntervention('task-1', 'exec-1', 'bot-user-1', dto),
+      ).rejects.toThrow(
+        'Cannot write to execution in terminal status: completed',
+      );
+    });
+
+    it('rejects addDeliverable on a completed execution with ConflictException', async () => {
+      db.limit.mockResolvedValueOnce([EXECUTION_TERMINAL] as any);
+
+      await expect(
+        service.addDeliverable('task-1', 'exec-1', 'bot-user-1', {
+          fileName: 'report.pdf',
+          fileUrl: 'https://example.com/report.pdf',
+        }),
+      ).rejects.toThrow(
+        'Cannot write to execution in terminal status: completed',
+      );
+    });
+  });
+
+  // ── Execution not found ──────────────────────────────────────────
+
+  describe('getExecutionDirect — execution not found', () => {
+    it('throws NotFoundException when execution does not exist', async () => {
+      // limit returns empty (no execution found)
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.reportSteps('task-1', 'nonexistent-exec', 'bot-user-1', {
+          steps: [
+            { orderIndex: 0, title: 'Step 1', status: 'completed' as const },
+          ],
+        }),
+      ).rejects.toThrow('Execution not found for this task');
     });
   });
 });

@@ -4,6 +4,7 @@ import {
   DATABASE_CONNECTION,
   eq,
   and,
+  notInArray,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -35,11 +36,11 @@ export class ExecutorService {
   /**
    * Trigger a full execution lifecycle for the given task.
    *
-   * 1. Load task from DB
+   * 1. CAS: claim the task atomically (must be first — prevents duplicate executions)
    * 2. Create task channel (type='task')
    * 3. Fetch document content (if linked)
    * 4. Create execution record in DB (with task version snapshot)
-   * 5. Update task status to in_progress
+   * 5. Update task with currentExecutionId
    * 6. Look up bot's shadow userId from bots table
    * 7. Delegate to strategy
    * 8. Log completion
@@ -54,22 +55,47 @@ export class ExecutorService {
       documentVersionId?: string;
     },
   ): Promise<void> {
-    // ── 1. Load task ──────────────────────────────────────────────────
-    const [task] = await this.db
-      .select()
-      .from(schema.agentTasks)
-      .where(eq(schema.agentTasks.id, taskId))
-      .limit(1);
+    // ── 1. CAS: claim the task (must be first — before any resource creation) ──
+    const claimed = await this.db
+      .update(schema.agentTasks)
+      .set({ status: 'in_progress', updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.agentTasks.id, taskId),
+          notInArray(schema.agentTasks.status, [
+            'in_progress',
+            'paused',
+            'pending_action',
+          ]),
+        ),
+      )
+      .returning({
+        id: schema.agentTasks.id,
+        botId: schema.agentTasks.botId,
+        tenantId: schema.agentTasks.tenantId,
+        documentId: schema.agentTasks.documentId,
+        creatorId: schema.agentTasks.creatorId,
+        title: schema.agentTasks.title,
+        version: schema.agentTasks.version,
+      });
 
-    if (!task) {
-      this.logger.error(`Task not found: ${taskId}`);
+    if (claimed.length === 0) {
+      this.logger.warn(
+        `Task ${taskId} cannot start execution — status not eligible or already active`,
+      );
       return;
     }
 
+    const task = claimed[0]!;
     this.logger.log(`Starting execution for task ${taskId} ("${task.title}")`);
 
     if (!task.botId) {
       this.logger.error(`Task ${taskId} has no bot assigned, cannot execute`);
+      // Release CAS — mark as failed so it can be retried
+      await this.db
+        .update(schema.agentTasks)
+        .set({ status: 'failed', updatedAt: new Date() })
+        .where(eq(schema.agentTasks.id, taskId));
       return;
     }
 
@@ -91,7 +117,7 @@ export class ExecutorService {
       role: 'owner',
     });
 
-    // ── 4. Fetch document content (if linked) ─────────────────────────
+    // ── 3. Fetch document content (if linked) ─────────────────────────
     let documentContent: string | undefined;
     let documentVersionId: string | undefined;
     if (task.documentId) {
@@ -112,12 +138,11 @@ export class ExecutorService {
       documentVersionId = docVersion?.versionId;
     }
 
-    // If a specific documentVersionId was provided (e.g. retry case), use it instead
     if (opts?.documentVersionId) {
       documentVersionId = opts.documentVersionId;
     }
 
-    // ── 5. Create execution record ────────────────────────────────────
+    // ── 4. Create execution record ────────────────────────────────────
     const executionId = uuidv7();
     const taskcastTaskId = await this.taskCastClient.createTask({
       taskId,
@@ -143,17 +168,13 @@ export class ExecutorService {
       startedAt: new Date(),
     });
 
-    // ── 6. Update task status to in_progress ──────────────────────────
+    // ── 5. Update task with currentExecutionId ────────────────────────
     await this.db
       .update(schema.agentTasks)
-      .set({
-        status: 'in_progress',
-        currentExecutionId: executionId,
-        updatedAt: new Date(),
-      })
+      .set({ currentExecutionId: executionId })
       .where(eq(schema.agentTasks.id, taskId));
 
-    // ── 7. Look up bot's shadow userId ────────────────────────────────
+    // ── 6. Look up bot's shadow userId ────────────────────────────────
     const [bot] = await this.db
       .select({ userId: schema.bots.userId, type: schema.bots.type })
       .from(schema.bots)
@@ -177,7 +198,7 @@ export class ExecutorService {
       role: 'member',
     });
 
-    // ── 8. Delegate to strategy ───────────────────────────────────────
+    // ── 7. Delegate to strategy ───────────────────────────────────────
     const strategy = this.strategies.get(bot.type);
     const context: ExecutionContext = {
       taskId,
@@ -205,27 +226,18 @@ export class ExecutorService {
         );
 
         const now = new Date();
-
-        // Update execution record with failed status and error details
         await this.db
           .update(schema.agentTaskExecutions)
           .set({
             status: 'failed',
             completedAt: now,
-            error: {
-              message: errorMessage,
-              details: errorStack,
-            },
+            error: { message: errorMessage, details: errorStack },
           })
           .where(eq(schema.agentTaskExecutions.id, executionId));
 
-        // Update task status to failed
         await this.db
           .update(schema.agentTasks)
-          .set({
-            status: 'failed',
-            updatedAt: now,
-          })
+          .set({ status: 'failed', updatedAt: now })
           .where(eq(schema.agentTasks.id, taskId));
 
         return;
@@ -239,7 +251,7 @@ export class ExecutorService {
       return;
     }
 
-    // ── 9. Log completion ──────────────────────────────────────────────
+    // ── 8. Log completion ──────────────────────────────────────────────
     this.logger.log(`Execution ${executionId} initiated for task ${taskId}`);
   }
 

@@ -104,7 +104,11 @@ export function TaskList({ botId }: TaskListProps) {
           }
         } else {
           next.add(taskId);
-          // Auto-select will happen via ExpandableTaskCard's useEffect
+          // Set activeTaskId immediately so the center panel renders
+          // (tasks with no runs still need to show the Start button)
+          setActiveTaskId(taskId);
+          setSelectedRunId(null);
+          // Auto-select run will happen via ExpandableTaskCard's useEffect
         }
         return next;
       });

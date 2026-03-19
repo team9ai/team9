@@ -25,52 +25,68 @@ import {
 export class TaskBotController {
   constructor(private readonly taskBotService: TaskBotService) {}
 
-  @Post(':id/steps')
+  @Post(':taskId/executions/:executionId/steps')
   async reportSteps(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Param('executionId', ParseUUIDPipe) executionId: string,
     @Body() dto: ReportStepsDto,
     @CurrentUser('sub') botUserId: string,
   ) {
-    return this.taskBotService.reportSteps(id, botUserId, dto);
+    return this.taskBotService.reportSteps(taskId, executionId, botUserId, dto);
   }
 
-  @Patch(':id/status')
+  @Patch(':taskId/executions/:executionId/status')
   async updateStatus(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Param('executionId', ParseUUIDPipe) executionId: string,
     @Body() dto: UpdateStatusDto,
     @CurrentUser('sub') botUserId: string,
   ) {
     return this.taskBotService.updateStatus(
-      id,
+      taskId,
+      executionId,
       botUserId,
       dto.status,
       dto.error,
     );
   }
 
-  @Post(':id/interventions')
+  @Post(':taskId/executions/:executionId/interventions')
   async createIntervention(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Param('executionId', ParseUUIDPipe) executionId: string,
     @Body() dto: CreateInterventionDto,
     @CurrentUser('sub') botUserId: string,
   ) {
-    return this.taskBotService.createIntervention(id, botUserId, dto);
+    return this.taskBotService.createIntervention(
+      taskId,
+      executionId,
+      botUserId,
+      dto,
+    );
   }
 
-  @Post(':id/deliverables')
+  @Post(':taskId/executions/:executionId/deliverables')
   async addDeliverable(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Param('executionId', ParseUUIDPipe) executionId: string,
     @Body() dto: AddDeliverableDto,
     @CurrentUser('sub') botUserId: string,
   ) {
-    return this.taskBotService.addDeliverable(id, botUserId, dto);
+    return this.taskBotService.addDeliverable(
+      taskId,
+      executionId,
+      botUserId,
+      dto,
+    );
   }
 
-  @Get(':id/document')
+  @Get(':taskId/executions/:executionId/document')
   async getDocument(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Param('executionId', ParseUUIDPipe) executionId: string,
     @CurrentUser('sub') botUserId: string,
   ) {
-    return this.taskBotService.getTaskDocument(id, botUserId);
+    return this.taskBotService.getTaskDocument(taskId, executionId, botUserId);
   }
 }
