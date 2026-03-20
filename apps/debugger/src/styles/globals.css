@@ -1,0 +1,5 @@
+@import "tailwindcss";
+
+@theme {
+  --color-slate-925: oklch(0.14 0.01 260);
+}
