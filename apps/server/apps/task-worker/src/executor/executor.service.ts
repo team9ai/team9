@@ -205,6 +205,7 @@ export class ExecutorService {
       executionId,
       botId: task.botId,
       channelId,
+      title: task.title,
       documentContent,
       taskcastTaskId,
     };
@@ -318,6 +319,7 @@ export class ExecutorService {
       botId: task.botId,
       // channelId is nullable in DB but ExecutionContext requires string; guard checked above
       channelId: execution.channelId ?? '',
+      title: task.title,
       taskcastTaskId: execution.taskcastTaskId,
     };
 

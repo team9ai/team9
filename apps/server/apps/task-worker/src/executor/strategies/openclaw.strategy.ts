@@ -29,11 +29,18 @@ export class OpenclawStrategy implements ExecutionStrategy {
   async execute(context: ExecutionContext): Promise<void> {
     this.logger.log(`Starting OpenClaw agent for task ${context.taskId}`);
 
+    const message = context.documentContent?.trim() || context.title?.trim();
+    if (!message) {
+      throw new Error(
+        `Task ${context.taskId} has no document content or title — cannot execute without instructions`,
+      );
+    }
+
     const { agentId, openclawUrl, gatewayToken } =
       await this.resolveOpenclawConfig(context.botId);
 
     const body = {
-      message: context.documentContent || 'Execute this task',
+      message,
       idempotencyKey: context.taskcastTaskId ?? `exec_${context.executionId}`,
       sessionKey: `agent:${agentId}:task:${context.taskId}`,
       channelId: context.channelId,
