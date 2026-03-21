@@ -24,11 +24,12 @@ Replace the channel room model with a **user room model**. Each user joins a sin
 
 **Important context:** The current `gRPC createMessage` → Worker path only calls `createAndPersist()` for DB storage + Outbox creation. It does NOT invoke `MessageRouterService` for delivery. The `PostBroadcastService` only handles unread counts, notifications, and bot webhooks — NOT message delivery. Therefore, the Gateway's `sendToChannel` is currently the **sole real-time delivery mechanism**. This refactor replaces it with `sendToChannelMembers`.
 
-| Category              | Events                                                                                                 | Delivery Path                                                            |
-| --------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| **Channel-scoped**    | `new_message`, `message_updated`, `message_deleted`, `typing`, `streaming`, `reactions`, `read_status` | Gateway → ChannelMemberCacheService → `sendToChannelMembers` → user room |
-| **Channel lifecycle** | `channel_updated`, `channel_joined`, `channel_left`                                                    | Gateway → ChannelMemberCacheService → `sendToChannelMembers` → user room |
-| **Unaffected**        | `user_online`, `user_offline`, `user_status_changed`, `workspace_member_*`, `task:*`, `notification_*` | Already use workspace room / `sendToUser` — no changes needed            |
+| Category              | Events                                                                                                 | Delivery Path                                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| **Channel-scoped**    | `new_message`, `message_updated`, `message_deleted`, `typing`, `streaming`, `reactions`, `read_status` | Gateway → ChannelMemberCacheService → `sendToChannelMembers` → user room                                    |
+| **Channel lifecycle** | `channel_updated`, `channel_joined`                                                                    | Gateway → ChannelMemberCacheService → `sendToChannelMembers` → user room                                    |
+| **Member removal**    | `channel_left`                                                                                         | Special: invalidate cache → `sendToChannelMembers` (remaining) → `sendToUser` (removed user). See §2 detail |
+| **Unaffected**        | `user_online`, `user_offline`, `user_status_changed`, `workspace_member_*`, `task:*`, `notification_*` | Already use workspace room / `sendToUser` — no changes needed                                               |
 
 **Sender inclusion policy** — each call site decides:
 
@@ -857,14 +858,14 @@ Scenario 6: Disconnect and reconnect
 
 ### Client
 
-| File                                                       | Change                                                                                                                                              |
-| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `services/websocket/index.ts`                              | Remove joinChannel, leaveChannel, pendingChannelJoins, processPendingJoins                                                                          |
-| Components calling joinChannel/leaveChannel                | Remove those calls                                                                                                                                  |
-| `channel_created` listener calling `this.joinChannel(...)` | Remove the joinChannel call (keep the cache invalidation logic)                                                                                     |
-| `hooks/useSyncChannel.ts`                                  | Rewrite merge: replace edited (don't skip), remove deleted, merge into `["thread", rootId]` AND `["subReplies", rootId]`, update aggregation fields |
-| `hooks/useSyncChannel.ts` → `syncItemToMessage`            | Pass through `isDeleted` from sync response instead of hardcoding `false`                                                                           |
-| `types/im.ts`                                              | Add `isDeleted: boolean` to `SyncMessageItem`                                                                                                       |
+| File                                                       | Change                                                                                                                                                     |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `services/websocket/index.ts`                              | Remove joinChannel, leaveChannel, pendingChannelJoins, processPendingJoins                                                                                 |
+| Components calling joinChannel/leaveChannel                | Remove those calls                                                                                                                                         |
+| `channel_created` listener calling `this.joinChannel(...)` | Remove the joinChannel call (keep the cache invalidation logic)                                                                                            |
+| `hooks/useSyncChannel.ts`                                  | Rewrite merge: replace edited (don't skip), remove deleted, merge into `["thread", rootId]` AND `["subReplies", parentReplyId]`, update aggregation fields |
+| `hooks/useSyncChannel.ts` → `syncItemToMessage`            | Pass through `isDeleted` from sync response instead of hardcoding `false`                                                                                  |
+| `types/im.ts`                                              | Add `isDeleted: boolean` to `SyncMessageItem`                                                                                                              |
 
 ## Known Limitations & Future Work
 
