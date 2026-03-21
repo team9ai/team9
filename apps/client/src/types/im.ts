@@ -261,6 +261,7 @@ export interface SyncMessageItem {
   seqId: string;
   isPinned: boolean;
   isEdited: boolean;
+  isDeleted: boolean;
   createdAt: string;
   updatedAt: string;
   sender?: {

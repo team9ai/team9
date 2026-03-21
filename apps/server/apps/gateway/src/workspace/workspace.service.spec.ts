@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { WorkspaceService } from './workspace.service.js';
 import { BotService } from '../bot/bot.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
+import { InstalledApplicationsService } from '../applications/installed-applications.service.js';
 import { RedisService } from '@team9/redis';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
@@ -66,7 +67,10 @@ describe('WorkspaceService', () => {
   let websocketGateway: {
     broadcastToWorkspace: MockFn;
     sendToUser: MockFn;
-    sendToChannel: MockFn;
+    sendToChannelMembers: MockFn;
+  };
+  let installedApplicationsService: {
+    getInstalledApplicationsForTenant: MockFn;
   };
 
   beforeEach(async () => {
@@ -100,7 +104,10 @@ describe('WorkspaceService', () => {
     websocketGateway = {
       broadcastToWorkspace: jest.fn<any>(),
       sendToUser: jest.fn<any>(),
-      sendToChannel: jest.fn<any>(),
+      sendToChannelMembers: jest.fn<any>().mockResolvedValue(undefined),
+    };
+    installedApplicationsService = {
+      getInstalledApplicationsForTenant: jest.fn<any>().mockResolvedValue([]),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -114,6 +121,10 @@ describe('WorkspaceService', () => {
         },
         { provide: ChannelsService, useValue: channelsService },
         { provide: BotService, useValue: botService },
+        {
+          provide: InstalledApplicationsService,
+          useValue: installedApplicationsService,
+        },
       ],
     }).compile();
 
@@ -342,7 +353,7 @@ describe('WorkspaceService', () => {
         'welcome-channel-uuid',
         'Alice joined Test Workspace',
       );
-      expect(websocketGateway.sendToChannel).toHaveBeenCalledWith(
+      expect(websocketGateway.sendToChannelMembers).toHaveBeenCalledWith(
         'welcome-channel-uuid',
         'new_message',
         expect.objectContaining({

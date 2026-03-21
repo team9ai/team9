@@ -765,10 +765,6 @@ export class WebsocketGateway
     this.server.to(`user:${userId}`).emit(event, data);
   }
 
-  sendToChannel(channelId: string, event: string, data: unknown): void {
-    this.server.to(`channel:${channelId}`).emit(event, data);
-  }
-
   async sendToChannelMembers(
     channelId: string,
     event: string,
