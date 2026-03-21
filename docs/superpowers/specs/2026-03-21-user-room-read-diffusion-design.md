@@ -75,7 +75,12 @@ await this.db.update(schema.messages).set({
 });
 ```
 
-2. **Sync returns deleted messages:** Remove the `isDeleted = false` filter from sync queries. Clients receive deleted message records and can remove them from local cache.
+2. **Sync API exposes `isDeleted`:** The current sync serialization and types do not include `isDeleted`. Three changes needed:
+   - **Server `sync.service.ts`:** Add `isDeleted` to the serialized response fields
+   - **Shared type `SyncMessageItem`** (`libs/shared/src/types/message.types.ts`): Add `isDeleted: boolean`
+   - **Client type** (`types/im.ts`): Update `SyncMessageItem` to include `isDeleted`
+
+3. **Sync query returns deleted messages:** Remove the `isDeleted = false` filter from sync queries.
 
 ```typescript
 // sync.service.ts - remove isDeleted filter
@@ -93,9 +98,10 @@ const messages = await this.db
   .limit(limit + 1);
 ```
 
-3. **Client sync merge rewrite (`useSyncChannel.ts`):** The current merge logic has two gaps that break edit/delete recovery:
+4. **Client sync merge rewrite (`useSyncChannel.ts`):** The current merge logic has three gaps:
    - **Gap A:** Existing message IDs are skipped (`existingIds.has(msg.id)` → skip). An edited message returns with the same ID but updated content — it must **replace** the local version, not be skipped.
    - **Gap B:** Thread replies are filtered out (`filter(item => !item.parentId)`). Edit/delete of thread messages has no recovery path.
+   - **Gap C:** The actual thread cache is two-level: `["thread", rootMessageId]` for first-level replies, and `["subReplies", rootMessageId]` for second-level replies. Sub-replies also update aggregation fields (`subReplyCount`, `replyCount`, `lastRepliers`) on parent replies and root messages.
 
    **New merge logic:**
 
@@ -104,51 +110,55 @@ const messages = await this.db
    const deletedIds = new Set(
      syncedMessages.filter((m) => m.isDeleted).map((m) => m.id),
    );
+
+   // --- Main message cache ---
    const mainMessages = syncedMessages
      .filter((m) => !m.parentId && !m.isDeleted)
      .map(syncItemToMessage);
-   const threadMessages = syncedMessages
-     .filter((m) => m.parentId && !m.isDeleted)
-     .map(syncItemToMessage);
 
-   // Main message cache: remove deleted, replace updated, append new
    queryClient.setQueriesData({ queryKey: ["messages", channelId] }, (old) => {
-     // 1. Remove deleted messages
-     // 2. Replace existing messages that have been edited (same ID, new content)
-     // 3. Append genuinely new messages
      const existingById = new Map(allExistingMsgs.map((m) => [m.id, m]));
-
      const merged = allExistingMsgs
        .filter((m) => !deletedIds.has(m.id)) // remove deleted
        .map((m) => mainMessages.find((s) => s.id === m.id) || m); // replace edited
-
-     const newMessages = mainMessages.filter((m) => !existingById.has(m.id)); // append new
+     const newMessages = mainMessages.filter((m) => !existingById.has(m.id));
      return rebuildPages([...newMessages, ...merged]);
    });
 
-   // Thread caches: same logic per parentId/rootId
-   const threadsByParent = groupBy(
-     threadMessages,
-     (m) => m.parentId || m.rootId,
+   // --- First-level reply cache: ["thread", rootMessageId] ---
+   const firstLevelReplies = syncedMessages
+     .filter((m) => m.parentId && m.parentId === m.rootId && !m.isDeleted)
+     .map(syncItemToMessage);
+   const deletedFirstLevel = syncedMessages.filter(
+     (m) => m.parentId && m.parentId === m.rootId && m.isDeleted,
    );
-   for (const [parentId, msgs] of threadsByParent) {
-     queryClient.setQueriesData({ queryKey: ["thread", parentId] }, (old) => {
+
+   for (const rootId of uniqueRootIds(firstLevelReplies, deletedFirstLevel)) {
+     queryClient.setQueriesData({ queryKey: ["thread", rootId] }, (old) => {
+       // Same delete/replace/append logic as main cache
+     });
+   }
+
+   // --- Sub-reply cache: ["subReplies", rootMessageId] ---
+   const subReplies = syncedMessages
+     .filter(
+       (m) => m.parentId && m.rootId && m.parentId !== m.rootId && !m.isDeleted,
+     )
+     .map(syncItemToMessage);
+   const deletedSubReplies = syncedMessages.filter(
+     (m) => m.parentId && m.rootId && m.parentId !== m.rootId && m.isDeleted,
+   );
+
+   for (const rootId of uniqueRootIds(subReplies, deletedSubReplies)) {
+     queryClient.setQueriesData({ queryKey: ["subReplies", rootId] }, (old) => {
        // Same delete/replace/append logic
      });
    }
 
-   // Thread deleted messages
-   const deletedThreadMsgs = syncedMessages.filter(
-     (m) => m.parentId && m.isDeleted,
-   );
-   for (const msg of deletedThreadMsgs) {
-     queryClient.setQueriesData(
-       { queryKey: ["thread", msg.parentId] },
-       (old) => {
-         // Remove deleted thread messages from cache
-       },
-     );
-   }
+   // --- Update aggregation fields on parent messages ---
+   // After merging thread changes, recalculate replyCount/subReplyCount/lastRepliers
+   // on the root message in ["messages", channelId] and parent reply in ["thread", rootId]
+   // This mirrors what useMessages.ts lines 178-260 do for real-time events
    ```
 
    **`syncItemToMessage` also needs updating:** Currently hardcodes `isDeleted: false` (line 20). Must pass through the actual value from sync response.
@@ -332,7 +342,11 @@ All ephemeral events replace `this.server.to(\`channel:${channelId}\`).emit(...)
 - **Streaming**: include all members (sender is a bot, other users need to see it)
 - **Reactions**: include all members (including the reactor)
 - **Read Status**: include all members
-- **Channel lifecycle** (`channel_updated`, `channel_joined`, `channel_left`): include all members
+- **Channel lifecycle** (`channel_updated`, `channel_joined`): include all members
+- **`channel_left` / member removal**: special case — the removed user is no longer in the member cache, so `sendToChannelMembers` won't reach them. Use a two-step approach:
+  1. **Before** invalidating the member cache, snapshot the removed userId
+  2. `sendToChannelMembers(channelId, CHANNEL.LEFT, payload)` — notifies remaining members
+  3. `sendToUser(removedUserId, CHANNEL.LEFT, payload)` — notifies the removed user directly
 - **Bot stream cleanup** (`cleanupBotStreams` on bot disconnect): `STREAMING.ABORT` uses `sendToChannelMembers`
 
 #### Error handling
@@ -626,7 +640,8 @@ The clean-break deployment strategy makes rollback trivial.
 | Streaming end     | Emits both STREAMING.END and MESSAGE.NEW via sendToChannelMembers when message data present |
 | Reactions         | Calls sendToChannelMembers, includes all members                                            |
 | Read Status       | Calls sendToChannelMembers, includes all members                                            |
-| Channel lifecycle | channel_updated, channel_joined, channel_left use sendToChannelMembers                      |
+| Channel lifecycle | channel_updated, channel_joined use sendToChannelMembers                                    |
+| Member removal    | channel_left: sendToChannelMembers for remaining + sendToUser for removed user              |
 | Bot cleanup       | cleanupBotStreams emits STREAMING.ABORT via sendToChannelMembers                            |
 | Error resilience  | sendToChannelMembers catches and logs errors, does not propagate to client                  |
 
@@ -658,15 +673,19 @@ The clean-break deployment strategy makes rollback trivial.
 
 **9. Client sync merge (`useSyncChannel.ts`)**
 
-| Test Case                          | Description                                                                    |
-| ---------------------------------- | ------------------------------------------------------------------------------ |
-| New messages appended              | Sync returns messages not in cache → appended to first page                    |
-| Edited message replaced            | Sync returns message with existing ID but new content → local version replaced |
-| Deleted message removed            | Sync returns message with isDeleted=true → removed from cache                  |
-| Thread edit recovered              | Sync returns edited thread reply → thread cache updated                        |
-| Thread delete recovered            | Sync returns deleted thread reply → removed from thread cache                  |
-| Mixed batch                        | Sync returns new + edited + deleted in one batch → all handled correctly       |
-| syncItemToMessage passes isDeleted | isDeleted field from sync response flows through, not hardcoded false          |
+| Test Case                               | Description                                                                       |
+| --------------------------------------- | --------------------------------------------------------------------------------- |
+| New messages appended                   | Sync returns messages not in cache → appended to first page                       |
+| Edited message replaced                 | Sync returns message with existing ID but new content → local version replaced    |
+| Deleted message removed                 | Sync returns message with isDeleted=true → removed from main cache                |
+| First-level reply edit                  | Sync returns edited reply → `["thread", rootId]` cache updated                    |
+| First-level reply delete                | Sync returns deleted reply → removed from `["thread", rootId]` cache              |
+| Sub-reply edit                          | Sync returns edited sub-reply → `["subReplies", rootId]` cache updated            |
+| Sub-reply delete                        | Sync returns deleted sub-reply → removed from `["subReplies", rootId]` cache      |
+| Aggregation fields updated              | After thread edit/delete, replyCount/subReplyCount/lastRepliers recalculated      |
+| Mixed batch                             | Sync returns new + edited + deleted across main + thread + sub-reply, all handled |
+| syncItemToMessage passes isDeleted      | isDeleted field from sync response flows through, not hardcoded false             |
+| SyncMessageItem type includes isDeleted | Both server and client types have isDeleted field                                 |
 
 **10. Client WebSocket service**
 
@@ -803,15 +822,21 @@ Scenario 6: Disconnect and reconnect
 | `im/websocket/websocket.gateway.ts`                  | Remove channel room joins, add user room join, add sendToChannelMembers, refactor sendToUser, update all ephemeral/channel-lifecycle event handlers, update cleanupBotStreams |
 | `im/websocket/websocket.module.ts`                   | Add ChannelMemberCacheService provider                                                                                                                                        |
 | `im/messages/messages.controller.ts`                 | Replace sendToChannel with sendToChannelMembers for new_message (remove fast path), message_updated, message_deleted                                                          |
-| `im/channels/channels.controller.ts`                 | Replace sendToChannel with sendToChannelMembers for channel_updated, channel_joined events                                                                                    |
+| `im/channels/channels.controller.ts`                 | Replace sendToChannel with sendToChannelMembers for channel_updated/joined; add WS notification for removeMember/leaveChannel (sendToUser for removed user)                   |
 | `cluster/connection/connection.service.ts`           | Change downstream delivery from socketId to user room                                                                                                                         |
 | `workspace/workspace.service.ts`                     | Replace sendToChannel with sendToChannelMembers for system messages (workspace join welcome)                                                                                  |
 | **New:** `im/shared/channel-member-cache.service.ts` | Channel member cache with Redis + DB fallback + stampede prevention                                                                                                           |
 | `im/channels/channels.service.ts`                    | Add cache invalidation calls on member changes                                                                                                                                |
 | `im/messages/messages.service.ts`                    | Edit/delete methods: generate new seqId before updating                                                                                                                       |
-| `im/sync/sync.service.ts`                            | Remove `isDeleted = false` filter from incremental sync query                                                                                                                 |
+| `im/sync/sync.service.ts`                            | Remove `isDeleted = false` filter; add `isDeleted` to serialized response                                                                                                     |
 
 **Note on `sendToChannel`:** After migration, remove it entirely to avoid confusion.
+
+### Server — Shared libs
+
+| File                                     | Change                                        |
+| ---------------------------------------- | --------------------------------------------- |
+| `libs/shared/src/types/message.types.ts` | Add `isDeleted: boolean` to `SyncMessageItem` |
 
 ### Server — IM Worker
 
@@ -821,13 +846,14 @@ Scenario 6: Disconnect and reconnect
 
 ### Client
 
-| File                                                       | Change                                                                                                              |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `services/websocket/index.ts`                              | Remove joinChannel, leaveChannel, pendingChannelJoins, processPendingJoins                                          |
-| Components calling joinChannel/leaveChannel                | Remove those calls                                                                                                  |
-| `channel_created` listener calling `this.joinChannel(...)` | Remove the joinChannel call (keep the cache invalidation logic)                                                     |
-| `hooks/useSyncChannel.ts`                                  | Rewrite merge logic: replace edited messages (don't skip), remove deleted, merge thread messages into thread caches |
-| `hooks/useSyncChannel.ts` → `syncItemToMessage`            | Pass through `isDeleted` from sync response instead of hardcoding `false`                                           |
+| File                                                       | Change                                                                                                                                              |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `services/websocket/index.ts`                              | Remove joinChannel, leaveChannel, pendingChannelJoins, processPendingJoins                                                                          |
+| Components calling joinChannel/leaveChannel                | Remove those calls                                                                                                                                  |
+| `channel_created` listener calling `this.joinChannel(...)` | Remove the joinChannel call (keep the cache invalidation logic)                                                                                     |
+| `hooks/useSyncChannel.ts`                                  | Rewrite merge: replace edited (don't skip), remove deleted, merge into `["thread", rootId]` AND `["subReplies", rootId]`, update aggregation fields |
+| `hooks/useSyncChannel.ts` → `syncItemToMessage`            | Pass through `isDeleted` from sync response instead of hardcoding `false`                                                                           |
+| `types/im.ts`                                              | Add `isDeleted: boolean` to `SyncMessageItem`                                                                                                       |
 
 ## Known Limitations & Future Work
 
