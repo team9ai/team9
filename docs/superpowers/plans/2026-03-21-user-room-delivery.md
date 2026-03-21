@@ -100,10 +100,12 @@ describe("ChannelMemberCacheService", () => {
     const { Test } = await import("@nestjs/testing");
     const { DATABASE_CONNECTION } = await import("@team9/database");
 
+    const { RedisService } = await import("@team9/redis");
+
     const module = await Test.createTestingModule({
       providers: [
         ChannelMemberCacheService,
-        { provide: "RedisService", useValue: redisService },
+        { provide: RedisService, useValue: redisService },
         { provide: DATABASE_CONNECTION, useValue: db },
       ],
     }).compile();
@@ -223,12 +225,12 @@ export class ChannelMemberCacheService {
       .select({ userId: schema.channelMembers.userId })
       .from(schema.channelMembers)
       .where(
-        eq(schema.channelMembers.channelId, channelId),
-        // Only active members (not left)
+        and(
+          eq(schema.channelMembers.channelId, channelId),
+          isNull(schema.channelMembers.leftAt),
+        ),
       );
 
-    // Filter out members who have left (leftAt is not null)
-    // The exact filter depends on schema — adjust if channelMembers has leftAt
     const memberIds = rows.map((r) => r.userId);
 
     await this.redisService.set(
@@ -242,7 +244,7 @@ export class ChannelMemberCacheService {
 }
 ```
 
-**Note:** The exact DB query filter for active members depends on the `channelMembers` schema. Check `schema.channelMembers` for a `leftAt` column — if present, add `isNull(schema.channelMembers.leftAt)` to the where clause. Read `apps/server/libs/database/schemas/im/channel-members.ts` to verify.
+Import `and` and `isNull` from `drizzle-orm` at the top of the file. The `leftAt` column is confirmed in `channel-members.ts` (line 35) — `channels.service.ts` sets `leftAt: new Date()` on removal (line 618).
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -281,26 +283,42 @@ describe("ChannelSequenceService", () => {
     redisService = {
       incr: jest.fn<any>().mockResolvedValue(42),
       exists: jest.fn<any>().mockResolvedValue(1),
+      get: jest.fn<any>().mockResolvedValue(null),
+      getClient: jest.fn<any>().mockReturnValue({
+        setnx: jest.fn<any>().mockResolvedValue(1),
+      }),
     };
+    db = mockDb();
+    db.where.mockResolvedValue([{ maxSeq: "100" }]);
 
     const { ChannelSequenceService } =
       await import("./channel-sequence.service.js");
     const { Test } = await import("@nestjs/testing");
+    const { RedisService } = await import("@team9/redis");
+    const { DATABASE_CONNECTION } = await import("@team9/database");
 
     const module = await Test.createTestingModule({
       providers: [
         ChannelSequenceService,
-        { provide: "RedisService", useValue: redisService },
+        { provide: RedisService, useValue: redisService },
+        { provide: DATABASE_CONNECTION, useValue: db },
       ],
     }).compile();
 
     service = module.get(ChannelSequenceService);
   });
 
-  it("generates seqId via Redis INCR", async () => {
+  it("generates seqId via Redis INCR when key exists", async () => {
     const seq = await service.generateChannelSeq("channel-1");
     expect(redisService.incr).toHaveBeenCalledWith("im:seq:channel:channel-1");
     expect(seq).toBe(BigInt(42));
+  });
+
+  it("recovers from DB when Redis key missing", async () => {
+    redisService.exists.mockResolvedValue(0);
+    await service.generateChannelSeq("channel-1");
+    expect(redisService.getClient().setnx).toHaveBeenCalled();
+    expect(redisService.incr).toHaveBeenCalledWith("im:seq:channel:channel-1");
   });
 });
 ```
@@ -1254,8 +1272,8 @@ Extract the sync merge logic from the `useEffect` into a testable pure function 
 4. Sub-reply updates: group by parentId (first-level reply ID) for `["subReplies", parentReplyId]`
 5. **Recalculate aggregation fields** on root messages and parent replies after thread changes:
    - For each affected root message in `["messages", channelId]`: recalculate `replyCount`, `lastRepliers`, `lastReplyAt` based on the merged thread cache
-   - For each affected first-level reply in `["thread", rootId]`: recalculate `subReplyCount` based on the merged sub-reply cache
-   - Mirror the logic in `useMessages.ts` lines 178-260 that handles real-time thread events
+   - For each affected first-level reply in `["thread", rootId]`: recalculate `replyCount`, `subReplyCount`, `lastRepliers`, `lastReplyAt` based on the merged sub-reply cache (mirrors `useMessages.ts` lines 178-220 where sub-reply updates parent reply's replyCount/lastRepliers/lastReplyAt too)
+   - Mirror the full logic in `useMessages.ts` lines 178-260 that handles real-time thread events
 
 - [ ] **Step 6: Update the useEffect to use the extracted merge function**
 
