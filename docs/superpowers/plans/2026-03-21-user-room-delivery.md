@@ -32,7 +32,8 @@
 | File                                                                    | Changes                                                                                                                                                 |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `apps/server/apps/gateway/src/im/websocket/websocket.gateway.ts`        | Remove channel room joins, add user room join, add `sendToChannelMembers`, refactor `sendToUser`, update all event handlers, update `cleanupBotStreams` |
-| `apps/server/apps/gateway/src/im/websocket/websocket.module.ts`         | Register new services                                                                                                                                   |
+| `apps/server/apps/gateway/src/im/websocket/websocket.module.ts`         | Update imports if needed                                                                                                                                |
+| `apps/server/apps/gateway/src/im/im.module.ts` (or root AppModule)      | Import `ImSharedModule` to make shared services globally available                                                                                      |
 | `apps/server/apps/gateway/src/im/messages/messages.controller.ts`       | Replace `sendToChannel` with `sendToChannelMembers`                                                                                                     |
 | `apps/server/apps/gateway/src/im/messages/messages.service.ts`          | Edit/delete advance seqId                                                                                                                               |
 | `apps/server/apps/gateway/src/im/channels/channels.controller.ts`       | Replace `sendToChannel`, add member removal WS notification                                                                                             |
@@ -181,7 +182,7 @@ import { RedisService } from "@team9/redis";
 import { DATABASE_CONNECTION } from "@team9/database";
 import type { PostgresJsDatabase } from "@team9/database";
 import * as schema from "@team9/database/schemas";
-import { eq, isNull } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 const CACHE_KEY = (channelId: string) =>
   `im:cache:channel_members:${channelId}`;
@@ -275,9 +276,21 @@ The Gateway needs to generate seqIds for edit/delete operations. Currently `Sequ
 // apps/server/apps/gateway/src/im/shared/channel-sequence.service.spec.ts
 import { jest, describe, it, expect, beforeEach } from "@jest/globals";
 
+type MockFn = jest.Mock<(...args: any[]) => any>;
+
+function mockDb() {
+  const chain: Record<string, MockFn> = {};
+  const methods = ["select", "from", "where"];
+  for (const m of methods) {
+    chain[m] = jest.fn<any>().mockReturnValue(chain);
+  }
+  return chain;
+}
+
 describe("ChannelSequenceService", () => {
   let service: any;
   let redisService: any;
+  let db: ReturnType<typeof mockDb>;
 
   beforeEach(async () => {
     redisService = {
@@ -484,8 +497,9 @@ Expected: PASS (existing tests should still pass)
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/server/apps/gateway/src/im/websocket/websocket.gateway.ts apps/server/apps/gateway/src/im/websocket/websocket.module.ts
-git commit -m "feat(im): add sendToChannelMembers method and refactor sendToUser to user room"
+git add apps/server/apps/gateway/src/im/shared/im-shared.module.ts apps/server/apps/gateway/src/im/websocket/websocket.gateway.ts apps/server/apps/gateway/src/im/websocket/websocket.module.ts
+# Also add the root module file where ImSharedModule is imported (e.g., im.module.ts or app.module.ts)
+git commit -m "feat(im): add ImSharedModule, sendToChannelMembers, refactor sendToUser to user room"
 ```
 
 ---
@@ -1240,7 +1254,83 @@ describe("mergeSyncedMessages", () => {
   });
 
   it("syncItemToMessage passes isDeleted through", () => {
-    // Verify the conversion function doesn't hardcode isDeleted
+    const item = {
+      id: "msg-1",
+      isDeleted: true,
+      content: "x" /* ... other fields */,
+    };
+    const msg = syncItemToMessage(item);
+    expect(msg.isDeleted).toBe(true);
+  });
+
+  it("recalculates root message aggregation after thread changes", () => {
+    const existing = [
+      {
+        id: "root-1",
+        replyCount: 2,
+        lastRepliers: ["u1"],
+        lastReplyAt: "2026-01-01",
+      },
+    ];
+    const synced = [
+      {
+        id: "reply-new",
+        parentId: "root-1",
+        rootId: "root-1",
+        isDeleted: false,
+        senderId: "u2",
+        createdAt: "2026-03-21",
+      },
+    ];
+    const result = mergeSyncedMessages(existing, synced);
+    // Root message replyCount should increase, lastRepliers should include u2
+    expect(result.rootAggregationUpdates.get("root-1").replyCount).toBe(3);
+    expect(result.rootAggregationUpdates.get("root-1").lastRepliers).toContain(
+      "u2",
+    );
+  });
+
+  it("recalculates parent reply aggregation after sub-reply changes", () => {
+    const synced = [
+      {
+        id: "sub-1",
+        parentId: "reply-1",
+        rootId: "root-1",
+        isDeleted: false,
+        senderId: "u3",
+        createdAt: "2026-03-21",
+      },
+    ];
+    const result = mergeSyncedMessages([], synced);
+    // Parent reply should have updated subReplyCount, replyCount, lastRepliers
+    expect(
+      result.parentReplyAggregationUpdates.get("reply-1").subReplyCount,
+    ).toBe(1);
+    expect(
+      result.parentReplyAggregationUpdates.get("reply-1").lastRepliers,
+    ).toContain("u3");
+  });
+
+  it("handles mixed batch across main + thread + sub-reply", () => {
+    const existing = [{ id: "msg-1", content: "old" }];
+    const synced = [
+      {
+        id: "msg-1",
+        content: "edited",
+        isDeleted: false,
+        isEdited: true,
+        parentId: null,
+        rootId: null,
+      },
+      { id: "msg-2", isDeleted: true, parentId: null, rootId: null },
+      { id: "reply-1", parentId: "root-1", rootId: "root-1", isDeleted: false },
+      { id: "sub-1", parentId: "reply-1", rootId: "root-1", isDeleted: true },
+    ];
+    const result = mergeSyncedMessages(existing, synced);
+    expect(result.main[0].content).toBe("edited");
+    expect(result.deletedIds).toContain("msg-2");
+    expect(result.threadUpdates.get("root-1")).toHaveLength(1);
+    expect(result.deletedSubReplyIds).toContain("sub-1");
   });
 });
 ```
