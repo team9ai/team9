@@ -20,54 +20,113 @@ Replace the channel room model with a **user room model**. Each user joins a sin
 
 ### Event Classification
 
-Events are split by persistence requirement:
+**All channel-scoped events** are delivered via `sendToChannelMembers` at the Gateway layer. The IM Worker is NOT involved in real-time delivery — it only handles persistence (via gRPC `createAndPersist`) and post-processing (via PostBroadcastTask).
 
-| Category              | Events                                                                                                 | Delivery Path                                                               |
-| --------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
-| **Persistent**        | `new_message`                                                                                          | Gateway → gRPC → IM Worker → query members → RabbitMQ → Gateway → user room |
-| **Ephemeral**         | `typing`, `streaming`, `reactions`, `read_status`, `message_updated`, `message_deleted`                | Gateway → query member cache → user room (direct, no Worker)                |
-| **Channel Lifecycle** | `channel_updated`, `channel_joined`, `channel_left`                                                    | Gateway → query member cache → user room (via sendToChannelMembers)         |
-| **Unaffected**        | `user_online`, `user_offline`, `user_status_changed`, `workspace_member_*`, `task:*`, `notification_*` | Already use workspace room / sendToUser — no changes needed                 |
+**Important context:** The current `gRPC createMessage` → Worker path only calls `createAndPersist()` for DB storage + Outbox creation. It does NOT invoke `MessageRouterService` for delivery. The `PostBroadcastService` only handles unread counts, notifications, and bot webhooks — NOT message delivery. Therefore, the Gateway's `sendToChannel` is currently the **sole real-time delivery mechanism**. This refactor replaces it with `sendToChannelMembers`.
 
-**Decision criterion: does the event need to be persisted AND routed through the Worker pipeline?**
+| Category              | Events                                                                                                 | Delivery Path                                                            |
+| --------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| **Channel-scoped**    | `new_message`, `message_updated`, `message_deleted`, `typing`, `streaming`, `reactions`, `read_status` | Gateway → ChannelMemberCacheService → `sendToChannelMembers` → user room |
+| **Channel lifecycle** | `channel_updated`, `channel_joined`, `channel_left`                                                    | Gateway → ChannelMemberCacheService → `sendToChannelMembers` → user room |
+| **Unaffected**        | `user_online`, `user_offline`, `user_status_changed`, `workspace_member_*`, `task:*`, `notification_*` | Already use workspace room / `sendToUser` — no changes needed            |
 
-- Only `new_message` → Worker pipeline (reliable, ordered, seqId assignment, traceable)
-- Everything else → Gateway direct delivery via user room (low latency, loss-tolerant)
+**Sender inclusion policy** — each call site decides:
 
-**Why `message_updated` and `message_deleted` are ephemeral:** These events are already persisted to DB by the time they are broadcast. They are low-frequency and loss-tolerant — if a client misses one, incremental sync (seqId-based) will catch it on next channel open. Building a new Worker pipeline for update/delete adds complexity with little benefit.
+| Event             | Include sender? | Reason                                             |
+| ----------------- | --------------- | -------------------------------------------------- |
+| `new_message`     | Yes             | Multi-device: other devices of sender must receive |
+| `message_updated` | Yes             | Multi-device consistency                           |
+| `message_deleted` | Yes             | Multi-device consistency                           |
+| `typing`          | No              | Sender doesn't need their own typing indicator     |
+| `streaming`       | Yes             | Sender is a bot, all users need to see it          |
+| `reactions`       | Yes             | All members including reactor                      |
+| `read_status`     | Yes             | All members                                        |
+| `channel_updated` | Yes             | All members                                        |
 
-**Special case — `streaming_end`:** The streaming end handler may emit both `STREAMING.END` (ephemeral) and `MESSAGE.NEW` (persistent). The `new_message` within streaming_end must go through `sendToChannelMembers` to ensure delivery via user rooms, since the message is already persisted to DB by the bot's HTTP call. This is NOT routed through the Worker pipeline — it is a direct user-room broadcast of an already-persisted message.
+**Special case — `streaming_end`:** The streaming end handler may emit both `STREAMING.END` and `MESSAGE.NEW`. Both use `sendToChannelMembers` — the `new_message` is already persisted by the bot's HTTP call, this is just notification delivery.
+
+### Edit/Delete Consistency Model
+
+**Problem:** Current edit/delete operations do NOT advance `seqId`, and the sync service filters out deleted messages (`isDeleted = false`). If a client misses a `message_updated` or `message_deleted` event, there is no recovery path — incremental sync will not surface the change.
+
+**Fix (included in this refactor):**
+
+1. **Edit/delete advance seqId:** When a message is edited or deleted, generate a new channel seqId and update the message record. This ensures the change appears in incremental sync.
+
+```typescript
+// messages.service.ts - update method
+const newSeqId = await this.sequenceService.generateChannelSeq(channelId);
+await this.db.update(schema.messages).set({
+  content: dto.content,
+  isEdited: true,
+  updatedAt: new Date(),
+  seqId: newSeqId, // advance seqId so sync picks it up
+});
+```
+
+```typescript
+// messages.service.ts - delete method
+const newSeqId = await this.sequenceService.generateChannelSeq(channelId);
+await this.db.update(schema.messages).set({
+  isDeleted: true,
+  deletedAt: new Date(),
+  updatedAt: new Date(),
+  seqId: newSeqId, // advance seqId so sync picks it up
+});
+```
+
+2. **Sync returns deleted messages:** Remove the `isDeleted = false` filter from sync queries. Clients receive deleted message records and can remove them from local cache.
+
+```typescript
+// sync.service.ts - remove isDeleted filter
+const messages = await this.db
+  .select()
+  .from(schema.messages)
+  .where(
+    and(
+      eq(schema.messages.channelId, channelId),
+      gt(schema.messages.seqId, afterSeqId),
+      // REMOVED: eq(schema.messages.isDeleted, false)
+    ),
+  )
+  .orderBy(schema.messages.seqId)
+  .limit(limit + 1);
+```
+
+3. **Client handles deleted messages in sync:** When sync returns a message with `isDeleted = true`, the client removes it from local cache instead of displaying it.
+
+### Public Channel Preview
+
+**Decision:** After this refactor, public channel preview for non-members is **history-only**. Non-members can still fetch message history via REST API but will NOT receive real-time events (`new_message`, `typing`, etc.) since they are not in the channel member list used by `sendToChannelMembers`.
+
+The `handleJoinChannel` handler becomes a no-op for room management. The preview UI should note this limitation. If real-time preview is needed in the future, it can be implemented by adding a separate "preview subscribers" list to `ChannelMemberCacheService`.
 
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  Persistent Events                                       │
-│                                                          │
-│  Client HTTP POST                                        │
-│       ↓                                                  │
-│  Gateway (no local broadcast)                            │
-│       ↓ gRPC                                             │
-│  IM Worker                                               │
-│       ├── Store to DB (seqId)                            │
-│       ├── Query channel members                          │
-│       ├── Query user → gateway mapping                   │
-│       └── RabbitMQ → target Gateway(s)                   │
-│                 ↓                                         │
-│  Gateway ConnectionService                               │
-│       └── server.to(`user:${userId}`).emit(event, data)  │
-│                                                          │
-├──────────────────────────────────────────────────────────┤
-│  Ephemeral Events                                        │
-│                                                          │
-│  Client WS emit (typing_start, add_reaction, etc.)       │
-│       ↓                                                  │
-│  Gateway WebSocket handler                               │
-│       ├── ChannelMemberCacheService.getMemberIds()        │
-│       └── server.to(`user:${userId}`).emit(event, data)  │
-│           (for each member, via Redis Adapter cross-node) │
-└──────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│  Message Creation (HTTP)                                          │
+│                                                                   │
+│  Client HTTP POST /channels/:id/messages                          │
+│       ↓                                                           │
+│  Gateway MessagesController                                       │
+│       ├── gRPC createMessage → IM Worker (persist only, no route) │
+│       ├── sendToChannelMembers → user rooms (real-time delivery)  │
+│       └── publishPostBroadcast → RabbitMQ (unread, notifications) │
+│                                                                   │
+├──────────────────────────────────────────────────────────────────┤
+│  All Other Channel Events (WS)                                    │
+│                                                                   │
+│  Client WS emit (typing_start, add_reaction, etc.)                │
+│       ↓                                                           │
+│  Gateway WebSocket handler                                        │
+│       ├── ChannelMemberCacheService.getMemberIds()                 │
+│       └── server.to(`user:${userId}`).emit(event, data)           │
+│           (for each member, via Redis Adapter cross-node)          │
+└──────────────────────────────────────────────────────────────────┘
 ```
+
+**Key insight:** ALL real-time delivery goes through Gateway `sendToChannelMembers`. The IM Worker is a persistence-only service for message creation — it does NOT route or deliver messages.
 
 ## Detailed Design
 
@@ -244,26 +303,27 @@ Streaming content (highest frequency ephemeral event, one per token):
 - 50 member channel, 50x `server.to(user room).emit()`: ~1-2ms
 - **Total additional latency: ~2ms** — imperceptible for streaming
 
-### 3. Persistent Event Delivery
+### 3. Message Delivery Changes
 
-#### Message creation flow change
+#### Message creation flow
 
-**Current (MessagesController):**
+**Current:**
 
 ```
-HTTP POST → gRPC createMessage → immediate sendToChannel broadcast → PostBroadcastTask
+HTTP POST → gRPC createMessage (persist) → sendToChannel broadcast → PostBroadcastTask
 ```
 
 **New:**
 
 ```
-HTTP POST → gRPC createMessage → IM Worker stores + routes → RabbitMQ → Gateway → user room
+HTTP POST → gRPC createMessage (persist) → sendToChannelMembers → PostBroadcastTask
 ```
 
-Key change in `MessagesController`:
+The only change is replacing `sendToChannel` (channel room broadcast) with `sendToChannelMembers` (user room delivery). The gRPC persistence path and PostBroadcastTask are unchanged.
 
 ```typescript
-// Remove (lines ~151-157)
+// messages.controller.ts
+// Current
 if (!dto.skipBroadcast) {
   this.websocketGateway.sendToChannel(
     channelId,
@@ -272,51 +332,44 @@ if (!dto.skipBroadcast) {
   );
 }
 
-// No replacement needed — IM Worker's MessageRouterService handles delivery
-```
-
-#### ConnectionService downstream message handling
-
-```typescript
-// Current: iterate socketIds
-for (const socketId of socketIds) {
-  this.server.to(socketId).emit(WS_EVENTS.MESSAGE.NEW, fullMessage);
-}
-
-// New: push to user rooms
-for (const userId of targetUserIds) {
-  this.server.to(`user:${userId}`).emit(WS_EVENTS.MESSAGE.NEW, fullMessage);
+// New — include sender for multi-device consistency
+if (!dto.skipBroadcast) {
+  await this.websocketGateway.sendToChannelMembers(
+    channelId,
+    WS_EVENTS.MESSAGE.NEW,
+    message,
+  );
+  // No excludeUserId — sender's other devices need this
 }
 ```
 
 #### message_updated / message_deleted
 
-These are reclassified as ephemeral. The Gateway controller already persists the update/delete to DB before broadcasting. Replace `sendToChannel` with `sendToChannelMembers`:
+Same pattern — replace `sendToChannel` with `sendToChannelMembers`:
 
 ```typescript
-// Current (messages.controller.ts)
-this.websocketGateway.sendToChannel(
-  channelId,
-  WS_EVENTS.MESSAGE.UPDATED,
-  updatedMessage,
-);
-
-// New
+// messages.controller.ts - update
 await this.websocketGateway.sendToChannelMembers(
   channelId,
   WS_EVENTS.MESSAGE.UPDATED,
   updatedMessage,
 );
+
+// messages.controller.ts - delete
+await this.websocketGateway.sendToChannelMembers(
+  channelId,
+  WS_EVENTS.MESSAGE.DELETED,
+  { messageId, channelId },
+);
 ```
 
-If a client misses these events, seqId incremental sync will provide the updated state on next channel open.
+Both include the sender (no `excludeUserId`) for multi-device consistency.
 
 #### streaming_end special case
 
-The `handleStreamingEnd` method emits both `STREAMING.END` and potentially `MESSAGE.NEW`. Both must use `sendToChannelMembers`:
+The `handleStreamingEnd` method emits both `STREAMING.END` and potentially `MESSAGE.NEW`. Both use `sendToChannelMembers`:
 
 ```typescript
-// Replace channel room broadcast with user room delivery
 await this.sendToChannelMembers(
   channelId,
   WS_EVENTS.STREAMING.END,
@@ -331,41 +384,48 @@ if (data.message) {
 }
 ```
 
-The `new_message` here is already persisted by the bot's HTTP call — this broadcast is just notification delivery.
+#### ConnectionService downstream message handling
 
-#### PostBroadcastTask role
+The existing RabbitMQ downstream path (used by the legacy `MessageRouterService`) is updated to use user rooms instead of individual socket IDs:
 
-After this change, PostBroadcastTask becomes purely for business post-processing:
+```typescript
+// Current: iterate socketIds
+for (const socketId of socketIds) {
+  this.server.to(socketId).emit(event, fullMessage);
+}
+
+// New: push to user rooms
+for (const userId of targetUserIds) {
+  this.server.to(`user:${userId}`).emit(event, fullMessage);
+}
+```
+
+#### PostBroadcastTask role (unchanged)
+
+PostBroadcastTask continues to handle post-processing only:
 
 - Unread count updates
-- Push notifications
-- Outbox marking
+- Push notifications (mentions, DM, replies)
+- Bot webhooks
+- Outbox completion
 
-It no longer supplements broadcast delivery.
-
-#### Sender self-delivery
-
-The current IM Worker's `MessageRouterService` excludes the sender from routing (`memberIds.filter(id => id !== userId)`). This was fine when the Gateway fast path broadcast to the channel room (sender was in the room and received it). After removing the fast path, the sender would not receive their own message via WebSocket.
-
-**Decision:** The sender already receives the full message object in the HTTP response. The client can optimistically add it to the local cache. No change needed to IM Worker routing. Update the E2E test expectations accordingly — sender does NOT receive `new_message` via WebSocket, only via HTTP response.
+It was never responsible for message delivery and remains unchanged.
 
 #### Delivery guarantees
 
-The Worker pipeline is more reliable than the current fire-and-forget fast path:
+Same as current fast path — fire-and-forget from Gateway. If a client misses a message:
 
-- User offline → not delivered → caught by seqId incremental sync on reconnect
-- RabbitMQ delivery failure → dead letter queue → retryable
-- Gateway receives but user disconnected → no impact, incremental sync on reconnect
+- User offline → message not delivered via WS → caught by seqId incremental sync on reconnect/channel open
+- User online but WS hiccup → same recovery via incremental sync
 
 #### Latency impact
 
 ```
-Current fast path: Gateway direct broadcast ~1ms
-New: Gateway → gRPC (~2ms) → IM Worker → Redis queries (~5ms) → RabbitMQ (~3ms) → Gateway → user room
-Total: ~13-20ms
+Current: Gateway sendToChannel (channel room broadcast) ~1ms
+New: Gateway sendToChannelMembers (member cache lookup + user room emit) ~2-3ms
 ```
 
-Acceptable for chat messages — user-perceived network latency is already 50-200ms.
+The ~1-2ms delta comes from the Redis cache lookup for channel members. No Worker round-trip is involved — this is a Gateway-local operation, same as typing/streaming delivery.
 
 ### 4. Socket.io Redis Adapter
 
@@ -381,8 +441,8 @@ Rationale:
 **Final architecture:**
 
 ```
-Persistent events: IM Worker → RabbitMQ precise routing → Gateway → user room (local)
-Ephemeral events: Gateway → Redis Adapter → user room (cross-node auto-sync)
+All channel events: Gateway → sendToChannelMembers → Redis Adapter → user room (cross-node auto-sync)
+IM Worker: persistence only (gRPC createAndPersist) + post-processing (PostBroadcastTask via RabbitMQ)
 ```
 
 ### 5. Client-Side Changes
@@ -529,7 +589,16 @@ The clean-break deployment strategy makes rollback trivial.
 | Missing user       | User not on this node — empty room emit, no error            |
 | Multi-device       | Single user room emit covers all devices                     |
 
-**8. Client WebSocket service**
+**8. Edit/delete seqId advancement**
+
+| Test Case            | Description                                                           |
+| -------------------- | --------------------------------------------------------------------- |
+| Edit advances seq    | Editing a message generates a new seqId greater than the original     |
+| Delete advances seq  | Deleting a message generates a new seqId greater than the original    |
+| Sync returns edits   | Incremental sync after edit returns the message with updated content  |
+| Sync returns deletes | Incremental sync after delete returns the message with isDeleted=true |
+
+**9. Client WebSocket service**
 
 | Test Case              | Description                              |
 | ---------------------- | ---------------------------------------- |
@@ -560,20 +629,23 @@ Member cache consistency:
 - User leaves channel → cache invalidated → ex-member stops receiving events
 ```
 
-**2. IM Worker routing integration**
+**2. Message creation full-chain integration**
 
 ```
-- Message created → MessageRouterService queries members → groups by gateway → publishes to correct RabbitMQ queues
-- Target user offline → no delivery, no error
-- Multi-gateway scenario → messages correctly distributed to each node's queue
-```
-
-**3. Persistent event full-chain integration**
-
-```
-- HTTP POST create message → no Gateway direct broadcast → IM Worker routes → RabbitMQ → ConnectionService receives → user room delivery
+- HTTP POST create message → gRPC persist → sendToChannelMembers → all members receive via user room
+- Sender's other devices receive the message (multi-device)
+- Non-member does NOT receive the message
 - Message content integrity (all fields preserved from creation to receipt)
 - Message ordering (multiple messages in same channel ordered by seqId)
+```
+
+**3. Edit/delete consistency integration**
+
+```
+- Edit message → new seqId assigned → sendToChannelMembers delivers update
+- Delete message → new seqId assigned → sendToChannelMembers delivers deletion
+- Client reconnects → incremental sync returns edited message with isEdited=true
+- Client reconnects → incremental sync returns deleted message with isDeleted=true → client removes from cache
 ```
 
 ### End-to-End Tests
@@ -584,7 +656,7 @@ Member cache consistency:
 Scenario 1: Basic message send/receive
 - User A and User B in same channel
 - A sends message → B receives via user room
-- A receives the message in the HTTP response (NOT via WebSocket — sender excluded from Worker routing)
+- A's other devices also receive via user room (sender included in sendToChannelMembers)
 
 Scenario 2: Multi-device
 - User A online on device 1 and device 2
@@ -628,9 +700,15 @@ Scenario 6: Disconnect and reconnect
 
 4. ACK and sync:
 - message_ack
-- seqId incremental sync
+- seqId incremental sync (now includes edited/deleted messages)
+- Edit/delete advances seqId correctly
+- Sync returns isDeleted=true records, client removes them
 
-5. Notifications:
+5. Public channel preview:
+- Non-member can fetch message history via REST
+- Non-member does NOT receive real-time events
+
+6. Notifications:
 - Unread count updates
 - Push notifications (PostBroadcastTask pipeline unchanged)
 ```
@@ -660,28 +738,38 @@ Scenario 6: Disconnect and reconnect
 | `workspace/workspace.service.ts`                     | Replace sendToChannel with sendToChannelMembers for system messages (workspace join welcome)                                                                                  |
 | **New:** `im/shared/channel-member-cache.service.ts` | Channel member cache with Redis + DB fallback + stampede prevention                                                                                                           |
 | `im/channels/channels.service.ts`                    | Add cache invalidation calls on member changes                                                                                                                                |
+| `im/messages/messages.service.ts`                    | Edit/delete methods: generate new seqId before updating                                                                                                                       |
+| `im/sync/sync.service.ts`                            | Remove `isDeleted = false` filter from incremental sync query                                                                                                                 |
 
-**Note on `sendToChannel`:** After migration, `sendToChannel` can be removed entirely OR reimplemented as a thin wrapper around `sendToChannelMembers` for backward compatibility during the transition. Recommended: remove it to avoid confusion.
+**Note on `sendToChannel`:** After migration, remove it entirely to avoid confusion.
 
 ### Server — IM Worker
 
-| File                                | Change                                              |
-| ----------------------------------- | --------------------------------------------------- |
-| `message/message-router.service.ts` | No changes needed (already does user-level routing) |
+| File                                | Change                                                             |
+| ----------------------------------- | ------------------------------------------------------------------ |
+| `message/message-router.service.ts` | No changes needed (not invoked in current HTTP createMessage path) |
 
 ### Client
 
-| File                                                       | Change                                                                     |
-| ---------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `services/websocket/index.ts`                              | Remove joinChannel, leaveChannel, pendingChannelJoins, processPendingJoins |
-| Components calling joinChannel/leaveChannel                | Remove those calls                                                         |
-| `channel_created` listener calling `this.joinChannel(...)` | Remove the joinChannel call (keep the cache invalidation logic)            |
+| File                                                       | Change                                                                                  |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `services/websocket/index.ts`                              | Remove joinChannel, leaveChannel, pendingChannelJoins, processPendingJoins              |
+| Components calling joinChannel/leaveChannel                | Remove those calls                                                                      |
+| `channel_created` listener calling `this.joinChannel(...)` | Remove the joinChannel call (keep the cache invalidation logic)                         |
+| Message list / cache handling                              | Handle `isDeleted=true` messages from sync (remove from local cache instead of display) |
+
+## Known Limitations & Future Work
+
+- **REST `POST /channels/:id/read` does not broadcast `read_status_updated`** — only the WS `mark_as_read` handler does. This is a pre-existing issue not addressed in this refactor. Fix: add `sendToChannelMembers` call in the REST handler.
+- **Public channel real-time preview** — non-members lose real-time events. Can be restored in the future via a "preview subscribers" list in `ChannelMemberCacheService`.
 
 ## Latency Summary
 
-| Event Type        | Current          | After                      | Delta                  |
-| ----------------- | ---------------- | -------------------------- | ---------------------- |
-| Typing            | ~1ms             | ~2-3ms                     | +1-2ms (imperceptible) |
-| Streaming content | ~1ms             | ~2-3ms                     | +1-2ms (imperceptible) |
-| Reactions         | ~1ms             | ~2-3ms                     | +1-2ms (imperceptible) |
-| New message       | ~1ms (fast path) | ~13-20ms (Worker pipeline) | +12-19ms (acceptable)  |
+| Event Type        | Current          | After  | Delta                  |
+| ----------------- | ---------------- | ------ | ---------------------- |
+| Typing            | ~1ms             | ~2-3ms | +1-2ms (imperceptible) |
+| Streaming content | ~1ms             | ~2-3ms | +1-2ms (imperceptible) |
+| Reactions         | ~1ms             | ~2-3ms | +1-2ms (imperceptible) |
+| New message       | ~1ms (fast path) | ~2-3ms | +1-2ms (imperceptible) |
+| Message edit      | ~1ms             | ~2-3ms | +1-2ms (imperceptible) |
+| Message delete    | ~1ms             | ~2-3ms | +1-2ms (imperceptible) |
