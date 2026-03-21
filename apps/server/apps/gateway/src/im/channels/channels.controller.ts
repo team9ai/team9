@@ -180,14 +180,18 @@ export class ChannelsController {
     const channel = await this.channelsService.update(channelId, dto, userId);
 
     // Notify channel members about the update
-    this.websocketGateway.sendToChannel(channelId, WS_EVENTS.CHANNEL.UPDATED, {
+    await this.websocketGateway.sendToChannelMembers(
       channelId,
-      name: channel.name,
-      description: channel.description,
-      avatarUrl: channel.avatarUrl,
-      updatedBy: userId,
-      updatedAt: channel.updatedAt,
-    });
+      WS_EVENTS.CHANNEL.UPDATED,
+      {
+        channelId,
+        name: channel.name,
+        description: channel.description,
+        avatarUrl: channel.avatarUrl,
+        updatedBy: userId,
+        updatedAt: channel.updatedAt,
+      },
+    );
 
     // Emit event for search indexing
     this.eventEmitter.emit('channel.updated', { channel });
@@ -241,10 +245,14 @@ export class ChannelsController {
     );
 
     // Notify existing channel members about the new member
-    this.websocketGateway.sendToChannel(channelId, WS_EVENTS.CHANNEL.JOINED, {
+    await this.websocketGateway.sendToChannelMembers(
       channelId,
-      userId: dto.userId,
-    });
+      WS_EVENTS.CHANNEL.JOINED,
+      {
+        channelId,
+        userId: dto.userId,
+      },
+    );
 
     return { success: true };
   }
@@ -267,6 +275,23 @@ export class ChannelsController {
     @Param('memberId') memberId: string,
   ): Promise<{ success: boolean }> {
     await this.channelsService.removeMember(channelId, memberId, userId);
+
+    // Cache is already invalidated by channelsService.removeMember
+    // Notify remaining members
+    await this.websocketGateway.sendToChannelMembers(
+      channelId,
+      WS_EVENTS.CHANNEL.LEFT,
+      {
+        channelId,
+        userId: memberId,
+      },
+    );
+    // Notify the removed user directly (they're no longer in the member cache)
+    await this.websocketGateway.sendToUser(memberId, WS_EVENTS.CHANNEL.LEFT, {
+      channelId,
+      userId: memberId,
+    });
+
     return { success: true };
   }
 
@@ -276,6 +301,23 @@ export class ChannelsController {
     @Param('id') channelId: string,
   ): Promise<{ success: boolean }> {
     await this.channelsService.removeMember(channelId, userId, userId);
+
+    // Cache is already invalidated by channelsService.removeMember
+    // Notify remaining members
+    await this.websocketGateway.sendToChannelMembers(
+      channelId,
+      WS_EVENTS.CHANNEL.LEFT,
+      {
+        channelId,
+        userId,
+      },
+    );
+    // Notify the leaving user's OTHER devices
+    await this.websocketGateway.sendToUser(userId, WS_EVENTS.CHANNEL.LEFT, {
+      channelId,
+      userId,
+    });
+
     return { success: true };
   }
 
