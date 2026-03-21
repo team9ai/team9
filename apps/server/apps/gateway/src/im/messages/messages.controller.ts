@@ -149,7 +149,8 @@ export class MessagesController {
     // Skip broadcast when the message is part of a streaming session (bot will
     // emit streaming_end with the persisted message, which handles the broadcast)
     if (!dto.skipBroadcast) {
-      this.websocketGateway.sendToChannel(
+      // No excludeUserId — sender's other devices need this
+      await this.websocketGateway.sendToChannelMembers(
         channelId,
         WS_EVENTS.MESSAGE.NEW,
         message,
@@ -280,7 +281,7 @@ export class MessagesController {
     const message = await this.messagesService.update(messageId, userId, dto);
 
     // Broadcast message update to all channel members via WebSocket
-    this.websocketGateway.sendToChannel(
+    await this.websocketGateway.sendToChannelMembers(
       message.channelId,
       WS_EVENTS.MESSAGE.UPDATED,
       message,
@@ -323,9 +324,11 @@ export class MessagesController {
     await this.messagesService.delete(messageId, userId);
 
     // Broadcast message deletion to all channel members via WebSocket
-    this.websocketGateway.sendToChannel(channelId, WS_EVENTS.MESSAGE.DELETED, {
-      messageId,
-    });
+    await this.websocketGateway.sendToChannelMembers(
+      channelId,
+      WS_EVENTS.MESSAGE.DELETED,
+      { messageId, channelId },
+    );
 
     // Emit event for search index removal
     this.eventEmitter.emit('message.deleted', messageId);
