@@ -2,6 +2,8 @@ import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ChannelsService } from './channels.service.js';
 import { DATABASE_CONNECTION } from '@team9/database';
+import { RedisService } from '@team9/redis';
+import { ChannelMemberCacheService } from '../shared/channel-member-cache.service.js';
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -45,6 +47,20 @@ describe('ChannelsService', () => {
       providers: [
         ChannelsService,
         { provide: DATABASE_CONNECTION, useValue: db },
+        {
+          provide: RedisService,
+          useValue: {
+            get: jest.fn<any>().mockResolvedValue(null),
+            set: jest.fn<any>().mockResolvedValue(undefined),
+            del: jest.fn<any>().mockResolvedValue(undefined),
+            getOrSet: jest.fn<any>().mockResolvedValue(null),
+            invalidate: jest.fn<any>().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: ChannelMemberCacheService,
+          useValue: { invalidate: jest.fn<any>().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 

@@ -23,6 +23,7 @@ import {
 } from './dto/index.js';
 import { RedisService } from '@team9/redis';
 import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
+import { ChannelMemberCacheService } from '../shared/channel-member-cache.service.js';
 
 export interface ChannelResponse {
   id: string;
@@ -76,6 +77,7 @@ export class ChannelsService {
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly redis: RedisService,
+    private readonly channelMemberCacheService: ChannelMemberCacheService,
   ) {}
 
   async create(
@@ -596,6 +598,7 @@ export class ChannelsService {
       });
     }
 
+    await this.channelMemberCacheService.invalidate(channelId);
     await this.redis.invalidate(
       REDIS_KEYS.CHANNEL_MEMBER_ROLE(channelId, userId),
     );
@@ -626,6 +629,7 @@ export class ChannelsService {
         ),
       );
 
+    await this.channelMemberCacheService.invalidate(channelId);
     await this.redis.invalidate(
       REDIS_KEYS.CHANNEL_MEMBER_ROLE(channelId, userId),
     );
