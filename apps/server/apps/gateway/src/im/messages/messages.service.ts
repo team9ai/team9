@@ -22,6 +22,7 @@ import {
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import { UpdateMessageDto } from './dto/index.js';
+import { ChannelSequenceService } from '../shared/channel-sequence.service.js';
 
 export interface MessageSender {
   id: string;
@@ -105,6 +106,7 @@ export class MessagesService {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
+    private readonly channelSequenceService: ChannelSequenceService,
   ) {}
 
   async getMessageWithDetails(messageId: string): Promise<MessageResponse> {
@@ -844,11 +846,17 @@ export class MessagesService {
       throw new ForbiddenException('Cannot edit message from another user');
     }
 
+    // Advance seqId so the edit shows up in incremental sync
+    const newSeqId = await this.channelSequenceService.generateChannelSeq(
+      message.channelId,
+    );
+
     await this.db
       .update(schema.messages)
       .set({
         content: dto.content,
         isEdited: true,
+        seqId: newSeqId,
         updatedAt: new Date(),
       })
       .where(eq(schema.messages.id, messageId));
@@ -871,10 +879,16 @@ export class MessagesService {
       throw new ForbiddenException('Cannot delete message from another user');
     }
 
+    // Advance seqId so the deletion shows up in incremental sync
+    const newSeqId = await this.channelSequenceService.generateChannelSeq(
+      message.channelId,
+    );
+
     await this.db
       .update(schema.messages)
       .set({
         isDeleted: true,
+        seqId: newSeqId,
         deletedAt: new Date(),
         updatedAt: new Date(),
       })
