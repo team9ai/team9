@@ -139,7 +139,9 @@ const messages = await this.db
      });
    }
 
-   // --- Sub-reply cache: ["subReplies", rootMessageId] ---
+   // --- Sub-reply cache: ["subReplies", parentReplyId] ---
+   // IMPORTANT: sub-reply cache is keyed by the FIRST-LEVEL REPLY ID (parentId),
+   // NOT the root thread ID. See useThread.ts line 208, useMessages.ts line 1027.
    const subReplies = syncedMessages
      .filter(
        (m) => m.parentId && m.rootId && m.parentId !== m.rootId && !m.isDeleted,
@@ -149,10 +151,18 @@ const messages = await this.db
      (m) => m.parentId && m.rootId && m.parentId !== m.rootId && m.isDeleted,
    );
 
-   for (const rootId of uniqueRootIds(subReplies, deletedSubReplies)) {
-     queryClient.setQueriesData({ queryKey: ["subReplies", rootId] }, (old) => {
-       // Same delete/replace/append logic
-     });
+   // Group by parentId (first-level reply ID), NOT rootId
+   const subsByParent = groupBy(
+     [...subReplies, ...deletedSubReplies],
+     (m) => m.parentId,
+   );
+   for (const [parentReplyId, msgs] of subsByParent) {
+     queryClient.setQueriesData(
+       { queryKey: ["subReplies", parentReplyId] },
+       (old) => {
+         // Same delete/replace/append logic
+       },
+     );
    }
 
    // --- Update aggregation fields on parent messages ---
@@ -343,10 +353,11 @@ All ephemeral events replace `this.server.to(\`channel:${channelId}\`).emit(...)
 - **Reactions**: include all members (including the reactor)
 - **Read Status**: include all members
 - **Channel lifecycle** (`channel_updated`, `channel_joined`): include all members
-- **`channel_left` / member removal**: special case — the removed user is no longer in the member cache, so `sendToChannelMembers` won't reach them. Use a two-step approach:
-  1. **Before** invalidating the member cache, snapshot the removed userId
-  2. `sendToChannelMembers(channelId, CHANNEL.LEFT, payload)` — notifies remaining members
-  3. `sendToUser(removedUserId, CHANNEL.LEFT, payload)` — notifies the removed user directly
+- **`channel_left` / member removal**: special case — the removed user must NOT receive the event twice. Strict ordering:
+  1. Remove user from DB
+  2. **Invalidate member cache** (removed user is now gone from cache)
+  3. `sendToChannelMembers(channelId, CHANNEL.LEFT, payload)` — remaining members only (cache no longer includes removed user)
+  4. `sendToUser(removedUserId, CHANNEL.LEFT, payload)` — removed user gets exactly one notification
 - **Bot stream cleanup** (`cleanupBotStreams` on bot disconnect): `STREAMING.ABORT` uses `sendToChannelMembers`
 
 #### Error handling
@@ -680,8 +691,8 @@ The clean-break deployment strategy makes rollback trivial.
 | Deleted message removed                 | Sync returns message with isDeleted=true → removed from main cache                |
 | First-level reply edit                  | Sync returns edited reply → `["thread", rootId]` cache updated                    |
 | First-level reply delete                | Sync returns deleted reply → removed from `["thread", rootId]` cache              |
-| Sub-reply edit                          | Sync returns edited sub-reply → `["subReplies", rootId]` cache updated            |
-| Sub-reply delete                        | Sync returns deleted sub-reply → removed from `["subReplies", rootId]` cache      |
+| Sub-reply edit                          | Sync returns edited sub-reply → `["subReplies", parentReplyId]` cache updated     |
+| Sub-reply delete                        | Sync returns deleted sub-reply → removed from `["subReplies", parentReplyId]`     |
 | Aggregation fields updated              | After thread edit/delete, replyCount/subReplyCount/lastRepliers recalculated      |
 | Mixed batch                             | Sync returns new + edited + deleted across main + thread + sub-reply, all handled |
 | syncItemToMessage passes isDeleted      | isDeleted field from sync response flows through, not hardcoded false             |
