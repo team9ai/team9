@@ -22,15 +22,21 @@ Replace the channel room model with a **user room model**. Each user joins a sin
 
 Events are split by persistence requirement:
 
-| Category       | Events                                              | Delivery Path                                                               |
-| -------------- | --------------------------------------------------- | --------------------------------------------------------------------------- |
-| **Persistent** | `new_message`, `message_updated`, `message_deleted` | Gateway → gRPC → IM Worker → query members → RabbitMQ → Gateway → user room |
-| **Ephemeral**  | `typing`, `streaming`, `reactions`, `read_status`   | Gateway → query member cache → user room (direct, no Worker)                |
+| Category              | Events                                                                                                 | Delivery Path                                                               |
+| --------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| **Persistent**        | `new_message`                                                                                          | Gateway → gRPC → IM Worker → query members → RabbitMQ → Gateway → user room |
+| **Ephemeral**         | `typing`, `streaming`, `reactions`, `read_status`, `message_updated`, `message_deleted`                | Gateway → query member cache → user room (direct, no Worker)                |
+| **Channel Lifecycle** | `channel_updated`, `channel_joined`, `channel_left`                                                    | Gateway → query member cache → user room (via sendToChannelMembers)         |
+| **Unaffected**        | `user_online`, `user_offline`, `user_status_changed`, `workspace_member_*`, `task:*`, `notification_*` | Already use workspace room / sendToUser — no changes needed                 |
 
-**Decision criterion: does the event need to be persisted?**
+**Decision criterion: does the event need to be persisted AND routed through the Worker pipeline?**
 
-- Yes → Worker pipeline (reliable, ordered, traceable)
-- No → Gateway direct delivery (low latency, loss-tolerant)
+- Only `new_message` → Worker pipeline (reliable, ordered, seqId assignment, traceable)
+- Everything else → Gateway direct delivery via user room (low latency, loss-tolerant)
+
+**Why `message_updated` and `message_deleted` are ephemeral:** These events are already persisted to DB by the time they are broadcast. They are low-frequency and loss-tolerant — if a client misses one, incremental sync (seqId-based) will catch it on next channel open. Building a new Worker pipeline for update/delete adds complexity with little benefit.
+
+**Special case — `streaming_end`:** The streaming end handler may emit both `STREAMING.END` (ephemeral) and `MESSAGE.NEW` (persistent). The `new_message` within streaming_end must go through `sendToChannelMembers` to ensure delivery via user rooms, since the message is already persisted to DB by the bot's HTTP call. This is NOT routed through the Worker pipeline — it is a direct user-room broadcast of an already-persisted message.
 
 ## Architecture Overview
 
@@ -111,6 +117,22 @@ server.to("user:abc").emit(...)  ─────┘  both devices receive
 
 This replaces the current `sendToUser` pattern (iterating USER_SOCKETS) with native Socket.io room broadcast.
 
+#### sendToUser migration
+
+The existing `WebsocketGateway.sendToUser()` method iterates `REDIS_KEYS.USER_SOCKETS` to find socket IDs and emits to each individually. Refactor to:
+
+```typescript
+sendToUser(userId: string, event: string, data: unknown) {
+  this.server.to(`user:${userId}`).emit(event, data);
+}
+```
+
+Callers of `sendToUser` (e.g., `NotificationDeliveryService.deliverToUser()`) continue to work unchanged — only the internal implementation changes.
+
+#### Legacy Redis keys (USER_SOCKETS, SOCKET_USER)
+
+These keys are **retained** for now. `SessionService` and other services (e.g., `NotificationDeliveryService.isUserOnline()`) still use them for online-status checks. These can be migrated to check user room membership in a follow-up, but are not part of this refactor's scope to avoid unnecessary blast radius.
+
 #### join_channel / leave_channel events
 
 Remove room join/leave operations from these handlers. Keep business logic (permission checks, member change notifications). Add deprecation warning log for client compatibility:
@@ -144,7 +166,29 @@ class ChannelMemberCacheService {
 - User is removed from a channel
 - Channel is deleted/archived
 
-**Cache stampede prevention:** Concurrent requests for the same uncached channel should coalesce into a single DB query.
+**Cache stampede prevention:** Concurrent requests for the same uncached channel should coalesce into a single DB query. Implementation: use a per-key in-flight `Promise` map — if a load is already in progress for a channelId, subsequent callers await the same promise instead of issuing a new DB query.
+
+```typescript
+private inflightLoads = new Map<string, Promise<string[]>>();
+
+async getMemberIds(channelId: string): Promise<string[]> {
+  // 1. Check Redis cache
+  const cached = await this.redisService.get(CACHE_KEY(channelId));
+  if (cached) return JSON.parse(cached);
+
+  // 2. Coalesce concurrent loads
+  const inflight = this.inflightLoads.get(channelId);
+  if (inflight) return inflight;
+
+  const loadPromise = this.loadFromDb(channelId);
+  this.inflightLoads.set(channelId, loadPromise);
+  try {
+    return await loadPromise;
+  } finally {
+    this.inflightLoads.delete(channelId);
+  }
+}
+```
 
 #### New method: sendToChannelMembers
 
@@ -171,6 +215,26 @@ All ephemeral events replace `this.server.to(\`channel:${channelId}\`).emit(...)
 - **Streaming**: include all members (sender is a bot, other users need to see it)
 - **Reactions**: include all members (including the reactor)
 - **Read Status**: include all members
+- **Channel lifecycle** (`channel_updated`, `channel_joined`, `channel_left`): include all members
+- **Bot stream cleanup** (`cleanupBotStreams` on bot disconnect): `STREAMING.ABORT` uses `sendToChannelMembers`
+
+#### Error handling
+
+Ephemeral events are loss-tolerant by definition. If `ChannelMemberCacheService` throws (Redis down + DB unreachable), the event handler should **catch and log**, not propagate the error to the client:
+
+```typescript
+async sendToChannelMembers(channelId: string, event: string, data: unknown, excludeUserId?: string) {
+  try {
+    const memberIds = await this.channelMemberCacheService.getMemberIds(channelId);
+    for (const userId of memberIds) {
+      if (userId === excludeUserId) continue;
+      this.server.to(`user:${userId}`).emit(event, data);
+    }
+  } catch (error) {
+    this.logger.error(`Failed to deliver ${event} to channel ${channelId}: ${error.message}`);
+  }
+}
+```
 
 #### Performance impact
 
@@ -227,7 +291,47 @@ for (const userId of targetUserIds) {
 
 #### message_updated / message_deleted
 
-Same change — route through IM Worker pipeline instead of Gateway direct broadcast.
+These are reclassified as ephemeral. The Gateway controller already persists the update/delete to DB before broadcasting. Replace `sendToChannel` with `sendToChannelMembers`:
+
+```typescript
+// Current (messages.controller.ts)
+this.websocketGateway.sendToChannel(
+  channelId,
+  WS_EVENTS.MESSAGE.UPDATED,
+  updatedMessage,
+);
+
+// New
+await this.websocketGateway.sendToChannelMembers(
+  channelId,
+  WS_EVENTS.MESSAGE.UPDATED,
+  updatedMessage,
+);
+```
+
+If a client misses these events, seqId incremental sync will provide the updated state on next channel open.
+
+#### streaming_end special case
+
+The `handleStreamingEnd` method emits both `STREAMING.END` and potentially `MESSAGE.NEW`. Both must use `sendToChannelMembers`:
+
+```typescript
+// Replace channel room broadcast with user room delivery
+await this.sendToChannelMembers(
+  channelId,
+  WS_EVENTS.STREAMING.END,
+  streamEndPayload,
+);
+if (data.message) {
+  await this.sendToChannelMembers(
+    channelId,
+    WS_EVENTS.MESSAGE.NEW,
+    data.message,
+  );
+}
+```
+
+The `new_message` here is already persisted by the bot's HTTP call — this broadcast is just notification delivery.
 
 #### PostBroadcastTask role
 
@@ -238,6 +342,12 @@ After this change, PostBroadcastTask becomes purely for business post-processing
 - Outbox marking
 
 It no longer supplements broadcast delivery.
+
+#### Sender self-delivery
+
+The current IM Worker's `MessageRouterService` excludes the sender from routing (`memberIds.filter(id => id !== userId)`). This was fine when the Gateway fast path broadcast to the channel room (sender was in the room and received it). After removing the fast path, the sender would not receive their own message via WebSocket.
+
+**Decision:** The sender already receives the full message object in the HTTP response. The client can optimistically add it to the local cache. No change needed to IM Worker routing. Update the E2E test expectations accordingly — sender does NOT receive `new_message` via WebSocket, only via HTTP response.
 
 #### Delivery guarantees
 
@@ -334,6 +444,17 @@ Old clients will still emit `join_channel`/`leave_channel`. Server handles grace
 - Socket.io silently ignores emits to non-existent handlers
 - Remove deprecated handlers in a subsequent release
 
+## Rollback Plan
+
+If the new model has issues in production:
+
+1. Redeploy the previous version (stop-and-deploy, same as the forward deployment)
+2. Users auto-reconnect → old version re-joins channel rooms → everything reverts
+3. No data migration to undo — Redis state is ephemeral, DB schema is unchanged
+4. New `im:cache:channel_members:*` keys will expire naturally (TTL 5 minutes)
+
+The clean-break deployment strategy makes rollback trivial.
+
 ## Testing Strategy
 
 ### Unit Tests
@@ -380,14 +501,27 @@ Old clients will still emit `join_channel`/`leave_channel`. Server handles grace
 
 **5. Ephemeral event handlers**
 
-| Event       | Test Cases                                                              |
-| ----------- | ----------------------------------------------------------------------- |
-| Typing      | Calls sendToChannelMembers, excludes sender                             |
-| Streaming   | Calls sendToChannelMembers for start/content/thinking_content/end/abort |
-| Reactions   | Calls sendToChannelMembers, includes all members                        |
-| Read Status | Calls sendToChannelMembers, includes all members                        |
+| Event             | Test Cases                                                                                  |
+| ----------------- | ------------------------------------------------------------------------------------------- |
+| Typing            | Calls sendToChannelMembers, excludes sender                                                 |
+| Streaming         | Calls sendToChannelMembers for start/content/thinking_content/end/abort                     |
+| Streaming end     | Emits both STREAMING.END and MESSAGE.NEW via sendToChannelMembers when message data present |
+| Reactions         | Calls sendToChannelMembers, includes all members                                            |
+| Read Status       | Calls sendToChannelMembers, includes all members                                            |
+| Channel lifecycle | channel_updated, channel_joined, channel_left use sendToChannelMembers                      |
+| Bot cleanup       | cleanupBotStreams emits STREAMING.ABORT via sendToChannelMembers                            |
+| Error resilience  | sendToChannelMembers catches and logs errors, does not propagate to client                  |
 
-**6. ConnectionService downstream (modified)**
+**6. sendToUser (refactored)**
+
+| Test Case            | Description                                                      |
+| -------------------- | ---------------------------------------------------------------- |
+| Single device        | Emits to `user:{userId}` room                                    |
+| Multi-device         | Single emit covers all sockets in user room                      |
+| User offline         | No error when user room is empty                                 |
+| NotificationDelivery | Existing callers continue to work with refactored implementation |
+
+**7. ConnectionService downstream (modified)**
 
 | Test Case          | Description                                                  |
 | ------------------ | ------------------------------------------------------------ |
@@ -395,7 +529,7 @@ Old clients will still emit `join_channel`/`leave_channel`. Server handles grace
 | Missing user       | User not on this node — empty room emit, no error            |
 | Multi-device       | Single user room emit covers all devices                     |
 
-**7. Client WebSocket service**
+**8. Client WebSocket service**
 
 | Test Case              | Description                              |
 | ---------------------- | ---------------------------------------- |
@@ -450,7 +584,7 @@ Member cache consistency:
 Scenario 1: Basic message send/receive
 - User A and User B in same channel
 - A sends message → B receives via user room
-- A also receives own message via user room
+- A receives the message in the HTTP response (NOT via WebSocket — sender excluded from Worker routing)
 
 Scenario 2: Multi-device
 - User A online on device 1 and device 2
@@ -516,14 +650,18 @@ Scenario 6: Disconnect and reconnect
 
 ### Server — Gateway
 
-| File                                                 | Change                                                                                                                              |
-| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `im/websocket/websocket.gateway.ts`                  | Remove channel room joins, add user room join, replace sendToChannel with sendToChannelMembers, update all ephemeral event handlers |
-| `im/websocket/websocket.module.ts`                   | Add ChannelMemberCacheService provider                                                                                              |
-| `im/messages/messages.controller.ts`                 | Remove direct sendToChannel broadcast                                                                                               |
-| `cluster/connection/connection.service.ts`           | Change downstream delivery from socketId to user room                                                                               |
-| **New:** `im/shared/channel-member-cache.service.ts` | Channel member cache with Redis + DB fallback                                                                                       |
-| `im/channels/channels.service.ts`                    | Add cache invalidation calls on member changes                                                                                      |
+| File                                                 | Change                                                                                                                                                                        |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `im/websocket/websocket.gateway.ts`                  | Remove channel room joins, add user room join, add sendToChannelMembers, refactor sendToUser, update all ephemeral/channel-lifecycle event handlers, update cleanupBotStreams |
+| `im/websocket/websocket.module.ts`                   | Add ChannelMemberCacheService provider                                                                                                                                        |
+| `im/messages/messages.controller.ts`                 | Replace sendToChannel with sendToChannelMembers for new_message (remove fast path), message_updated, message_deleted                                                          |
+| `im/channels/channels.controller.ts`                 | Replace sendToChannel with sendToChannelMembers for channel_updated, channel_joined events                                                                                    |
+| `cluster/connection/connection.service.ts`           | Change downstream delivery from socketId to user room                                                                                                                         |
+| `workspace/workspace.service.ts`                     | Replace sendToChannel with sendToChannelMembers for system messages (workspace join welcome)                                                                                  |
+| **New:** `im/shared/channel-member-cache.service.ts` | Channel member cache with Redis + DB fallback + stampede prevention                                                                                                           |
+| `im/channels/channels.service.ts`                    | Add cache invalidation calls on member changes                                                                                                                                |
+
+**Note on `sendToChannel`:** After migration, `sendToChannel` can be removed entirely OR reimplemented as a thin wrapper around `sendToChannelMembers` for backward compatibility during the transition. Recommended: remove it to avoid confusion.
 
 ### Server — IM Worker
 
@@ -533,10 +671,11 @@ Scenario 6: Disconnect and reconnect
 
 ### Client
 
-| File                                        | Change                                                                     |
-| ------------------------------------------- | -------------------------------------------------------------------------- |
-| `services/websocket/index.ts`               | Remove joinChannel, leaveChannel, pendingChannelJoins, processPendingJoins |
-| Components calling joinChannel/leaveChannel | Remove those calls                                                         |
+| File                                                       | Change                                                                     |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `services/websocket/index.ts`                              | Remove joinChannel, leaveChannel, pendingChannelJoins, processPendingJoins |
+| Components calling joinChannel/leaveChannel                | Remove those calls                                                         |
+| `channel_created` listener calling `this.joinChannel(...)` | Remove the joinChannel call (keep the cache invalidation logic)            |
 
 ## Latency Summary
 
