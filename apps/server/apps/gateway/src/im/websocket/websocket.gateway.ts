@@ -36,6 +36,7 @@ import {
   type StreamingAbortEvent,
 } from './events/events.constants.js';
 import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
+import { ChannelMemberCacheService } from '../shared/channel-member-cache.service.js';
 import { SocketWithUser } from '../shared/interfaces/socket-with-user.interface.js';
 import { WorkspaceService } from '../../workspace/workspace.service.js';
 import { GatewayMQService } from '@team9/rabbitmq';
@@ -82,6 +83,7 @@ export class WebsocketGateway
     @Optional()
     @Inject(BOT_TOKEN_VALIDATOR)
     private readonly botTokenValidator?: BotTokenValidatorInterface,
+    private readonly channelMemberCacheService: ChannelMemberCacheService,
   ) {}
 
   /**
@@ -791,16 +793,31 @@ export class WebsocketGateway
     event: string,
     data: unknown,
   ): Promise<void> {
-    const socketIds = await this.redisService.smembers(
-      REDIS_KEYS.USER_SOCKETS(userId),
-    );
-    for (const socketId of socketIds) {
-      this.server.to(socketId).emit(event, data);
-    }
+    this.server.to(`user:${userId}`).emit(event, data);
   }
 
   sendToChannel(channelId: string, event: string, data: unknown): void {
     this.server.to(`channel:${channelId}`).emit(event, data);
+  }
+
+  async sendToChannelMembers(
+    channelId: string,
+    event: string,
+    data: unknown,
+    excludeUserId?: string,
+  ): Promise<void> {
+    try {
+      const memberIds =
+        await this.channelMemberCacheService.getMemberIds(channelId);
+      for (const userId of memberIds) {
+        if (userId === excludeUserId) continue;
+        this.server.to(`user:${userId}`).emit(event, data);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to deliver ${event} to channel ${channelId}: ${(error as Error).message}`,
+      );
+    }
   }
 
   // ==================== Workspace Operations ====================
