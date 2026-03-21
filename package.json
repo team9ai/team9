@@ -10,8 +10,8 @@
     "dev:server": "pnpm -C apps/server dev",
     "dev:im-worker": "pnpm -C apps/server dev:im-worker",
     "dev:task-worker": "pnpm -C apps/server dev:task-worker",
-    "dev:server:all": "concurrently \"pnpm dev:server\" \"pnpm dev:im-worker\"",
-    "dev": "concurrently \"pnpm dev:server\" \"pnpm dev:im-worker\" \"pnpm dev:client\"",
+    "dev:server:all": "concurrently \"pnpm dev:server\" \"pnpm dev:im-worker\" \"pnpm dev:task-worker\"",
+    "dev": "concurrently \"pnpm dev:server\" \"pnpm dev:im-worker\" \"pnpm dev:task-worker\" \"pnpm dev:client\"",
     "build:client": "pnpm -C apps/client build",
     "build:client:mac": "pnpm -C apps/client build:mac",
     "build:client:windows": "pnpm -C apps/client build:windows",
@@ -24,6 +24,7 @@
     "db:studio": "pnpm -C apps/server db:studio",
     "install:all": "pnpm install && pnpm -C apps/client install && pnpm -C apps/server install",
     "clean": "rm -rf node_modules && pnpm -C apps/client clean && pnpm -C apps/server clean",
+    "dev:debugger": "pnpm -C apps/debugger dev",
     "prepare": "husky"
   },
   "devDependencies": {

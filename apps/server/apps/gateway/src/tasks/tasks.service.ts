@@ -36,6 +36,7 @@ import type { ResumeTaskDto } from './dto/task-control.dto.js';
 import type { StopTaskDto } from './dto/task-control.dto.js';
 import type { ResolveInterventionDto } from './dto/resolve-intervention.dto.js';
 import type { RetryExecutionDto } from './dto/trigger.dto.js';
+import { TaskCastService } from './taskcast.service.js';
 
 // ── Filter types ────────────────────────────────────────────────────
 
@@ -57,6 +58,7 @@ export class TasksService {
     private readonly documentsService: DocumentsService,
     private readonly amqpConnection: AmqpConnection,
     private readonly triggersService: TriggersService,
+    private readonly taskCastService: TaskCastService,
   ) {}
 
   // ── CRUD ────────────────────────────────────────────────────────
@@ -234,7 +236,7 @@ export class TasksService {
       .select()
       .from(schema.agentTaskExecutions)
       .where(eq(schema.agentTaskExecutions.taskId, taskId))
-      .orderBy(desc(schema.agentTaskExecutions.version));
+      .orderBy(desc(schema.agentTaskExecutions.createdAt));
 
     return executions;
   }
@@ -448,6 +450,12 @@ export class TasksService {
       userId,
     });
 
+    // Sync paused status to TaskCast (deterministic ID — no DB lookup)
+    if (task.currentExecutionId) {
+      const tcId = TaskCastService.taskcastId(task.currentExecutionId);
+      await this.taskCastService.transitionStatus(tcId, 'paused');
+    }
+
     return { success: true };
   }
 
@@ -467,6 +475,12 @@ export class TasksService {
       message: dto.message,
     });
 
+    // Sync running status to TaskCast (deterministic ID — no DB lookup)
+    if (task.currentExecutionId) {
+      const tcId = TaskCastService.taskcastId(task.currentExecutionId);
+      await this.taskCastService.transitionStatus(tcId, 'in_progress');
+    }
+
     return { success: true };
   }
 
@@ -485,6 +499,12 @@ export class TasksService {
       userId,
       message: dto.reason,
     });
+
+    // Sync cancelled status to TaskCast (deterministic ID — no DB lookup)
+    if (task.currentExecutionId) {
+      const tcId = TaskCastService.taskcastId(task.currentExecutionId);
+      await this.taskCastService.transitionStatus(tcId, 'stopped');
+    }
 
     return { success: true };
   }
@@ -541,6 +561,8 @@ export class TasksService {
         'Cannot retry task without an assigned bot',
       );
     }
+
+    this.validateStatusTransition(task.status, 'retry');
 
     await this.publishTaskCommand({
       type: 'retry',
@@ -621,6 +643,21 @@ export class TasksService {
         ),
       );
 
+    // Sync running status to TaskCast (unblock) — deterministic ID, no DB lookup
+    const tcId = TaskCastService.taskcastId(intervention.executionId);
+    await this.taskCastService.transitionStatus(tcId, 'in_progress');
+    await this.taskCastService.publishEvent(tcId, {
+      type: 'intervention',
+      data: {
+        intervention: {
+          ...updated,
+          status: 'resolved',
+        },
+      },
+      seriesId: `intervention:${interventionId}`,
+      seriesMode: 'latest',
+    });
+
     // Publish resume command via RabbitMQ
     await this.publishTaskCommand({
       type: 'resume',
@@ -671,6 +708,7 @@ export class TasksService {
       resume: ['paused'],
       stop: ['in_progress', 'paused', 'pending_action'],
       restart: ['completed', 'failed', 'timeout', 'stopped'],
+      retry: ['completed', 'failed', 'timeout', 'stopped'],
     };
     if (!allowed[action]?.includes(currentStatus)) {
       throw new BadRequestException(

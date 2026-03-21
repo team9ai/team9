@@ -139,11 +139,6 @@ export const env = {
     return process.env.APP_ENV || process.env.NODE_ENV || 'development';
   },
 
-  // Task Tracker Service
-  get TASK_TRACKER_PORT() {
-    return parseInt(process.env.TASK_TRACKER_PORT || '3002', 10);
-  },
-
   // System Bot Configuration (optional)
   // If configured, this bot account will be automatically added to all new workspaces
   get SYSTEM_BOT_EMAIL() {
@@ -168,6 +163,14 @@ export const env = {
   },
   get OPENCLAW_AUTH_TOKEN() {
     return process.env.OPENCLAW_AUTH_TOKEN;
+  },
+  // Fallback OpenClaw instance URL for local dev (skips DB secrets lookup)
+  get OPENCLAW_INSTANCE_URL() {
+    // return process.env.OPENCLAW_INSTANCE_URL;
+    return process.env.OPENCLAW_API_URL;
+  },
+  get OPENCLAW_GATEWAY_TOKEN() {
+    return process.env.OPENCLAW_GATEWAY_TOKEN;
   },
   get CAPABILITY_BASE_URL() {
     return (

@@ -8,10 +8,11 @@ import { TaskBotController } from './task-bot.controller.js';
 import { TaskBotService } from './task-bot.service.js';
 import { TaskCastService } from './taskcast.service.js';
 import { TriggersService } from './triggers.service.js';
+import { TasksStreamController } from './tasks-stream.controller.js';
 
 @Module({
   imports: [AuthModule, DocumentsModule, forwardRef(() => WebsocketModule)],
-  controllers: [TasksController, TaskBotController],
+  controllers: [TasksController, TaskBotController, TasksStreamController],
   providers: [TasksService, TaskBotService, TaskCastService, TriggersService],
   exports: [TasksService, TaskCastService, TriggersService],
 })

@@ -4,13 +4,13 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
   eq,
   and,
-  desc,
   sql,
   type PostgresJsDatabase,
 } from '@team9/database';
@@ -20,6 +20,7 @@ import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
 import type { WebsocketGateway } from '../im/websocket/websocket.gateway.js';
 import type { ReportStepsDto } from './dto/report-steps.dto.js';
 import type { CreateInterventionDto } from './dto/create-intervention.dto.js';
+import { TaskCastService } from './taskcast.service.js';
 
 // ── Service ─────────────────────────────────────────────────────────
 
@@ -30,12 +31,22 @@ export class TaskBotService {
     private readonly db: PostgresJsDatabase<typeof schema>,
     @Inject(WEBSOCKET_GATEWAY)
     private readonly wsGateway: WebsocketGateway,
+    private readonly taskCastService: TaskCastService,
   ) {}
 
   // ── Report step progress ─────────────────────────────────────────
 
-  async reportSteps(taskId: string, botUserId: string, dto: ReportStepsDto) {
-    const { execution } = await this.getActiveExecution(taskId, botUserId);
+  async reportSteps(
+    taskId: string,
+    executionId: string,
+    botUserId: string,
+    dto: ReportStepsDto,
+  ) {
+    const { execution } = await this.getExecutionDirect(
+      taskId,
+      executionId,
+      botUserId,
+    );
 
     for (const step of dto.steps) {
       // Check if a step already exists for this execution + orderIndex
@@ -116,6 +127,16 @@ export class TaskBotService {
       .where(eq(schema.agentTaskSteps.executionId, execution.id))
       .orderBy(schema.agentTaskSteps.orderIndex);
 
+    // Publish step progress to TaskCast
+    if (execution.taskcastTaskId) {
+      await this.taskCastService.publishEvent(execution.taskcastTaskId, {
+        type: 'step',
+        data: { steps },
+        seriesId: 'steps',
+        seriesMode: 'latest',
+      });
+    }
+
     return steps;
   }
 
@@ -123,12 +144,14 @@ export class TaskBotService {
 
   async updateStatus(
     taskId: string,
+    executionId: string,
     botUserId: string,
     status: string,
     error?: { code?: string; message: string },
   ) {
-    const { task, execution } = await this.getActiveExecution(
+    const { task, execution } = await this.getExecutionDirect(
       taskId,
+      executionId,
       botUserId,
     );
 
@@ -185,6 +208,14 @@ export class TaskBotService {
       },
     );
 
+    // Sync status to TaskCast
+    if (execution.taskcastTaskId) {
+      await this.taskCastService.transitionStatus(
+        execution.taskcastTaskId,
+        status,
+      );
+    }
+
     return { task: updatedTask, execution: updatedExecution };
   }
 
@@ -192,11 +223,13 @@ export class TaskBotService {
 
   async createIntervention(
     taskId: string,
+    executionId: string,
     botUserId: string,
     dto: CreateInterventionDto,
   ) {
-    const { task, execution } = await this.getActiveExecution(
+    const { task, execution } = await this.getExecutionDirect(
       taskId,
+      executionId,
       botUserId,
     );
 
@@ -235,6 +268,20 @@ export class TaskBotService {
       },
     );
 
+    // Sync blocked status + intervention event to TaskCast
+    if (execution.taskcastTaskId) {
+      await this.taskCastService.transitionStatus(
+        execution.taskcastTaskId,
+        'pending_action',
+      );
+      await this.taskCastService.publishEvent(execution.taskcastTaskId, {
+        type: 'intervention',
+        data: { intervention },
+        seriesId: `intervention:${intervention.id}`,
+        seriesMode: 'latest',
+      });
+    }
+
     return intervention;
   }
 
@@ -242,6 +289,7 @@ export class TaskBotService {
 
   async addDeliverable(
     taskId: string,
+    executionId: string,
     botUserId: string,
     data: {
       fileName: string;
@@ -250,7 +298,11 @@ export class TaskBotService {
       fileUrl: string;
     },
   ) {
-    const { execution } = await this.getActiveExecution(taskId, botUserId);
+    const { execution } = await this.getExecutionDirect(
+      taskId,
+      executionId,
+      botUserId,
+    );
 
     const deliverableId = uuidv7();
 
@@ -267,35 +319,29 @@ export class TaskBotService {
       })
       .returning();
 
+    // Publish deliverable event to TaskCast
+    if (execution.taskcastTaskId) {
+      await this.taskCastService.publishEvent(execution.taskcastTaskId, {
+        type: 'deliverable',
+        data: { deliverable },
+      });
+    }
+
     return deliverable;
   }
 
   // ── Get task document ────────────────────────────────────────────
 
-  async getTaskDocument(taskId: string, botUserId: string) {
-    const [task] = await this.db
-      .select()
-      .from(schema.agentTasks)
-      .where(eq(schema.agentTasks.id, taskId))
-      .limit(1);
-
-    if (!task) {
-      throw new NotFoundException('Task not found');
-    }
-
-    // Verify bot ownership
-    if (!task.botId) {
-      throw new ForbiddenException('Task has no associated bot');
-    }
-    const [bot] = await this.db
-      .select({ userId: schema.bots.userId })
-      .from(schema.bots)
-      .where(eq(schema.bots.id, task.botId!))
-      .limit(1);
-
-    if (!bot || bot.userId !== botUserId) {
-      throw new ForbiddenException('Bot does not own this task');
-    }
+  async getTaskDocument(
+    taskId: string,
+    executionId: string,
+    botUserId: string,
+  ) {
+    const { task } = await this.getExecutionReadOnly(
+      taskId,
+      executionId,
+      botUserId,
+    );
 
     if (!task.documentId) {
       return null;
@@ -347,7 +393,48 @@ export class TaskBotService {
 
   // ── Private helpers ──────────────────────────────────────────────
 
-  private async getActiveExecution(taskId: string, botUserId?: string) {
+  private async verifyBotOwnership(botId: string, botUserId: string) {
+    const [bot] = await this.db
+      .select({ userId: schema.bots.userId })
+      .from(schema.bots)
+      .where(eq(schema.bots.id, botId))
+      .limit(1);
+
+    if (!bot || bot.userId !== botUserId) {
+      throw new ForbiddenException('Bot does not own this task');
+    }
+  }
+
+  private async getExecutionDirect(
+    taskId: string,
+    executionId: string,
+    botUserId?: string,
+  ) {
+    // 1. Direct lookup by executionId + taskId
+    const [execution] = await this.db
+      .select()
+      .from(schema.agentTaskExecutions)
+      .where(
+        and(
+          eq(schema.agentTaskExecutions.id, executionId),
+          eq(schema.agentTaskExecutions.taskId, taskId),
+        ),
+      )
+      .limit(1);
+
+    if (!execution) {
+      throw new NotFoundException('Execution not found for this task');
+    }
+
+    // 2. Reject writes to terminal executions
+    const terminalStatuses = ['completed', 'failed', 'timeout', 'stopped'];
+    if (terminalStatuses.includes(execution.status)) {
+      throw new ConflictException(
+        `Cannot write to execution in terminal status: ${execution.status}`,
+      );
+    }
+
+    // 3. Load task
     const [task] = await this.db
       .select()
       .from(schema.agentTasks)
@@ -358,31 +445,47 @@ export class TaskBotService {
       throw new NotFoundException('Task not found');
     }
 
-    // Verify bot ownership: the authenticated bot's shadow userId must match
+    // 4. Verify bot ownership
     if (botUserId && task.botId) {
-      const [bot] = await this.db
-        .select({ userId: schema.bots.userId })
-        .from(schema.bots)
-        .where(eq(schema.bots.id, task.botId!))
-        .limit(1);
-
-      if (!bot || bot.userId !== botUserId) {
-        throw new ForbiddenException('Bot does not own this task');
-      }
+      await this.verifyBotOwnership(task.botId, botUserId);
     }
 
-    if (!task.currentExecutionId) {
-      throw new NotFoundException('Task has no active execution');
-    }
+    return { task, execution };
+  }
 
+  private async getExecutionReadOnly(
+    taskId: string,
+    executionId: string,
+    botUserId?: string,
+  ) {
+    // Same as getExecutionDirect but without terminal status rejection
     const [execution] = await this.db
       .select()
       .from(schema.agentTaskExecutions)
-      .where(eq(schema.agentTaskExecutions.id, task.currentExecutionId))
+      .where(
+        and(
+          eq(schema.agentTaskExecutions.id, executionId),
+          eq(schema.agentTaskExecutions.taskId, taskId),
+        ),
+      )
       .limit(1);
 
     if (!execution) {
-      throw new NotFoundException('Active execution not found');
+      throw new NotFoundException('Execution not found for this task');
+    }
+
+    const [task] = await this.db
+      .select()
+      .from(schema.agentTasks)
+      .where(eq(schema.agentTasks.id, taskId))
+      .limit(1);
+
+    if (!task) {
+      throw new NotFoundException('Task not found');
+    }
+
+    if (botUserId && task.botId) {
+      await this.verifyBotOwnership(task.botId, botUserId);
     }
 
     return { task, execution };

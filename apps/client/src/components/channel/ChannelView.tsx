@@ -48,6 +48,10 @@ interface ChannelViewProps {
   initialDraft?: string;
   // Preview channel data for non-members (public channel preview mode)
   previewChannel?: PublicChannelPreview;
+  // Hide the built-in ChannelHeader (e.g. when a parent component provides its own header)
+  hideHeader?: boolean;
+  // Show a read-only bar instead of the message input
+  readOnly?: boolean;
 }
 
 /**
@@ -60,6 +64,8 @@ export function ChannelView({
   initialMessageId,
   initialDraft,
   previewChannel,
+  hideHeader,
+  readOnly,
 }: ChannelViewProps) {
   const isPreviewMode = !!previewChannel;
   const { data: memberChannel, isLoading: channelLoading } = useChannel(
@@ -329,7 +335,9 @@ export function ChannelView({
       <div
         className={`flex-1 flex flex-col min-w-0 ${isSnapped ? "hidden" : ""}`}
       >
-        <ChannelHeader channel={channel} currentUserRole={currentUserRole} />
+        {!hideHeader && (
+          <ChannelHeader channel={channel} currentUserRole={currentUserRole} />
+        )}
 
         {showOverlay ? (
           <BotStartupOverlay
@@ -381,7 +389,11 @@ export function ChannelView({
           />
         )}
 
-        {isPreviewMode ? (
+        {readOnly ? (
+          <div className="px-4 py-3 border-t border-border bg-muted/30 text-center">
+            <span className="text-sm text-muted-foreground">Read-only</span>
+          </div>
+        ) : isPreviewMode ? (
           <JoinChannelPrompt
             channelId={channelId}
             channelName={channel.name || ""}
