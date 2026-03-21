@@ -565,7 +565,7 @@ export class WorkspaceService {
                   `${displayName} joined ${workspace.name}. Say hello!`,
                 );
 
-              this.websocketGateway.sendToChannel(
+              await this.websocketGateway.sendToChannelMembers(
                 dmChannel.id,
                 WS_EVENTS.MESSAGE.NEW,
                 {
@@ -629,7 +629,7 @@ export class WorkspaceService {
         );
 
         // Broadcast system message to channel members via WebSocket
-        this.websocketGateway.sendToChannel(
+        await this.websocketGateway.sendToChannelMembers(
           welcomeChannel.id,
           WS_EVENTS.MESSAGE.NEW,
           {
