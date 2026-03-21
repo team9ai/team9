@@ -1,8 +1,8 @@
-# User Room + Read Diffusion WebSocket Architecture
+# User Room Delivery Architecture
 
 **Date:** 2026-03-21
 **Status:** Approved
-**Scope:** WebSocket message delivery model overhaul
+**Scope:** WebSocket message delivery model overhaul — replace channel room broadcast with user room delivery
 
 ## Problem Statement
 
@@ -14,7 +14,7 @@ The current WebSocket architecture uses a **channel room model**: when a user co
 
 As the platform grows to support large numbers of low-frequency channels (e.g., per-task/bot channels), this model scales poorly — most rooms will be idle, yet every online user pays the cost of maintaining membership in all of them.
 
-## Solution: User Room + Read Diffusion
+## Solution: User Room Delivery
 
 Replace the channel room model with a **user room model**. Each user joins a single `user:{userId}` room on connect. Messages are delivered by querying channel membership and pushing to individual user rooms.
 
@@ -93,7 +93,65 @@ const messages = await this.db
   .limit(limit + 1);
 ```
 
-3. **Client handles deleted messages in sync:** When sync returns a message with `isDeleted = true`, the client removes it from local cache instead of displaying it.
+3. **Client sync merge rewrite (`useSyncChannel.ts`):** The current merge logic has two gaps that break edit/delete recovery:
+   - **Gap A:** Existing message IDs are skipped (`existingIds.has(msg.id)` → skip). An edited message returns with the same ID but updated content — it must **replace** the local version, not be skipped.
+   - **Gap B:** Thread replies are filtered out (`filter(item => !item.parentId)`). Edit/delete of thread messages has no recovery path.
+
+   **New merge logic:**
+
+   ```typescript
+   // Partition synced messages by type
+   const deletedIds = new Set(
+     syncedMessages.filter((m) => m.isDeleted).map((m) => m.id),
+   );
+   const mainMessages = syncedMessages
+     .filter((m) => !m.parentId && !m.isDeleted)
+     .map(syncItemToMessage);
+   const threadMessages = syncedMessages
+     .filter((m) => m.parentId && !m.isDeleted)
+     .map(syncItemToMessage);
+
+   // Main message cache: remove deleted, replace updated, append new
+   queryClient.setQueriesData({ queryKey: ["messages", channelId] }, (old) => {
+     // 1. Remove deleted messages
+     // 2. Replace existing messages that have been edited (same ID, new content)
+     // 3. Append genuinely new messages
+     const existingById = new Map(allExistingMsgs.map((m) => [m.id, m]));
+
+     const merged = allExistingMsgs
+       .filter((m) => !deletedIds.has(m.id)) // remove deleted
+       .map((m) => mainMessages.find((s) => s.id === m.id) || m); // replace edited
+
+     const newMessages = mainMessages.filter((m) => !existingById.has(m.id)); // append new
+     return rebuildPages([...newMessages, ...merged]);
+   });
+
+   // Thread caches: same logic per parentId/rootId
+   const threadsByParent = groupBy(
+     threadMessages,
+     (m) => m.parentId || m.rootId,
+   );
+   for (const [parentId, msgs] of threadsByParent) {
+     queryClient.setQueriesData({ queryKey: ["thread", parentId] }, (old) => {
+       // Same delete/replace/append logic
+     });
+   }
+
+   // Thread deleted messages
+   const deletedThreadMsgs = syncedMessages.filter(
+     (m) => m.parentId && m.isDeleted,
+   );
+   for (const msg of deletedThreadMsgs) {
+     queryClient.setQueriesData(
+       { queryKey: ["thread", msg.parentId] },
+       (old) => {
+         // Remove deleted thread messages from cache
+       },
+     );
+   }
+   ```
+
+   **`syncItemToMessage` also needs updating:** Currently hardcodes `isDeleted: false` (line 20). Must pass through the actual value from sync response.
 
 ### Public Channel Preview
 
@@ -598,7 +656,19 @@ The clean-break deployment strategy makes rollback trivial.
 | Sync returns edits   | Incremental sync after edit returns the message with updated content  |
 | Sync returns deletes | Incremental sync after delete returns the message with isDeleted=true |
 
-**9. Client WebSocket service**
+**9. Client sync merge (`useSyncChannel.ts`)**
+
+| Test Case                          | Description                                                                    |
+| ---------------------------------- | ------------------------------------------------------------------------------ |
+| New messages appended              | Sync returns messages not in cache → appended to first page                    |
+| Edited message replaced            | Sync returns message with existing ID but new content → local version replaced |
+| Deleted message removed            | Sync returns message with isDeleted=true → removed from cache                  |
+| Thread edit recovered              | Sync returns edited thread reply → thread cache updated                        |
+| Thread delete recovered            | Sync returns deleted thread reply → removed from thread cache                  |
+| Mixed batch                        | Sync returns new + edited + deleted in one batch → all handled correctly       |
+| syncItemToMessage passes isDeleted | isDeleted field from sync response flows through, not hardcoded false          |
+
+**10. Client WebSocket service**
 
 | Test Case              | Description                              |
 | ---------------------- | ---------------------------------------- |
@@ -751,17 +821,19 @@ Scenario 6: Disconnect and reconnect
 
 ### Client
 
-| File                                                       | Change                                                                                  |
-| ---------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `services/websocket/index.ts`                              | Remove joinChannel, leaveChannel, pendingChannelJoins, processPendingJoins              |
-| Components calling joinChannel/leaveChannel                | Remove those calls                                                                      |
-| `channel_created` listener calling `this.joinChannel(...)` | Remove the joinChannel call (keep the cache invalidation logic)                         |
-| Message list / cache handling                              | Handle `isDeleted=true` messages from sync (remove from local cache instead of display) |
+| File                                                       | Change                                                                                                              |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `services/websocket/index.ts`                              | Remove joinChannel, leaveChannel, pendingChannelJoins, processPendingJoins                                          |
+| Components calling joinChannel/leaveChannel                | Remove those calls                                                                                                  |
+| `channel_created` listener calling `this.joinChannel(...)` | Remove the joinChannel call (keep the cache invalidation logic)                                                     |
+| `hooks/useSyncChannel.ts`                                  | Rewrite merge logic: replace edited messages (don't skip), remove deleted, merge thread messages into thread caches |
+| `hooks/useSyncChannel.ts` → `syncItemToMessage`            | Pass through `isDeleted` from sync response instead of hardcoding `false`                                           |
 
 ## Known Limitations & Future Work
 
 - **REST `POST /channels/:id/read` does not broadcast `read_status_updated`** — only the WS `mark_as_read` handler does. This is a pre-existing issue not addressed in this refactor. Fix: add `sendToChannelMembers` call in the REST handler.
 - **Public channel real-time preview** — non-members lose real-time events. Can be restored in the future via a "preview subscribers" list in `ChannelMemberCacheService`.
+- **System messages are best-effort** — `sendSystemMessage()` inserts directly to DB without seqId and broadcasts via WS. If a client misses the event, incremental sync will NOT recover it (no seqId = not in sync range). This is acceptable given system messages are infrequent (channel join/leave only). Future fix: route through `createAndPersist` pipeline to assign seqId.
 
 ## Latency Summary
 
