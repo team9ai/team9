@@ -16,15 +16,16 @@
 
 ### New Files
 
-| File                                                                          | Responsibility                                                             |
-| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `apps/server/apps/gateway/src/im/shared/channel-member-cache.service.ts`      | Redis-cached channel member ID lookups with stampede prevention            |
-| `apps/server/apps/gateway/src/im/shared/channel-member-cache.service.spec.ts` | Unit tests for cache service                                               |
-| `apps/server/apps/gateway/src/im/shared/channel-sequence.service.ts`          | Gateway-side seqId generation (Redis INCR on `im:seq:channel:{channelId}`) |
-| `apps/server/apps/gateway/src/im/shared/channel-sequence.service.spec.ts`     | Unit tests for sequence service                                            |
-| `apps/server/apps/gateway/src/im/websocket/websocket.gateway.spec.ts`         | Unit tests for gateway changes                                             |
-| `apps/server/apps/gateway/test/websocket-user-room.e2e-spec.ts`               | E2E tests for user room delivery                                           |
-| `apps/client/src/hooks/__tests__/useSyncChannel.test.ts`                      | Vitest tests for sync merge rewrite                                        |
+| File                                                                          | Responsibility                                                                    |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `apps/server/apps/gateway/src/im/shared/im-shared.module.ts`                  | Global NestJS module exporting ChannelMemberCacheService + ChannelSequenceService |
+| `apps/server/apps/gateway/src/im/shared/channel-member-cache.service.ts`      | Redis-cached channel member ID lookups with stampede prevention                   |
+| `apps/server/apps/gateway/src/im/shared/channel-member-cache.service.spec.ts` | Unit tests for cache service                                                      |
+| `apps/server/apps/gateway/src/im/shared/channel-sequence.service.ts`          | Gateway-side seqId generation with DB recovery (mirrors IM Worker)                |
+| `apps/server/apps/gateway/src/im/shared/channel-sequence.service.spec.ts`     | Unit tests for sequence service                                                   |
+| `apps/server/apps/gateway/src/im/websocket/websocket.gateway.spec.ts`         | Unit tests for gateway changes                                                    |
+| `apps/server/apps/gateway/test/websocket-user-room.e2e-spec.ts`               | E2E tests for user room delivery                                                  |
+| `apps/client/src/hooks/__tests__/useSyncChannel.test.ts`                      | Vitest tests for sync merge rewrite                                               |
 
 ### Modified Files
 
@@ -313,22 +314,61 @@ Expected: FAIL
 
 ```typescript
 // apps/server/apps/gateway/src/im/shared/channel-sequence.service.ts
-import { Injectable } from "@nestjs/common";
+import { Injectable, Inject, Logger } from "@nestjs/common";
 import { RedisService } from "@team9/redis";
+import { DATABASE_CONNECTION, sql } from "@team9/database";
+import type { PostgresJsDatabase } from "@team9/database";
+import * as schema from "@team9/database/schemas";
 
 @Injectable()
 export class ChannelSequenceService {
-  constructor(private readonly redisService: RedisService) {}
+  private readonly logger = new Logger(ChannelSequenceService.name);
+
+  constructor(
+    private readonly redisService: RedisService,
+    @Inject(DATABASE_CONNECTION)
+    private readonly db: PostgresJsDatabase<typeof schema>,
+  ) {}
 
   /**
    * Generate next seqId for a channel.
-   * Uses the same Redis key pattern as IM Worker's SequenceService
-   * to ensure seqId continuity.
+   * Mirrors IM Worker's SequenceService exactly:
+   * - Same Redis key pattern: im:seq:channel:{channelId}
+   * - Same DB recovery: if Redis key missing, recover MAX(seq_id) from DB first
+   * - Then INCR atomically
    */
   async generateChannelSeq(channelId: string): Promise<bigint> {
     const key = `im:seq:channel:${channelId}`;
+
+    const exists = await this.redisService.exists(key);
+    if (!exists) {
+      await this.recoverFromDb(channelId);
+    }
+
     const seq = await this.redisService.incr(key);
     return BigInt(seq);
+  }
+
+  private async recoverFromDb(channelId: string): Promise<void> {
+    const key = `im:seq:channel:${channelId}`;
+    try {
+      const result = await this.db
+        .select({ maxSeq: sql<string>`COALESCE(MAX(seq_id), 0)` })
+        .from(schema.messages)
+        .where(sql`${schema.messages.channelId} = ${channelId}`);
+
+      const maxSeq = result[0]?.maxSeq ?? "0";
+      const client = this.redisService.getClient();
+      await client.setnx(key, maxSeq);
+
+      this.logger.log(
+        `Recovered channel ${channelId} seqId from database: ${maxSeq}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to recover seqId for channel ${channelId}: ${error}`,
+      );
+    }
   }
 }
 ```
@@ -351,12 +391,33 @@ git commit -m "feat(im): add ChannelSequenceService for Gateway-side seqId gener
 
 **Files:**
 
+- Create: `apps/server/apps/gateway/src/im/shared/im-shared.module.ts`
 - Modify: `apps/server/apps/gateway/src/im/websocket/websocket.gateway.ts`
 - Modify: `apps/server/apps/gateway/src/im/websocket/websocket.module.ts`
 
-- [ ] **Step 1: Register new services in WebSocket module**
+- [ ] **Step 1: Create ImSharedModule for cross-module services**
 
-In `websocket.module.ts`, add `ChannelMemberCacheService` and `ChannelSequenceService` to providers array.
+`ChannelMemberCacheService` and `ChannelSequenceService` are needed by multiple modules (WebSocket, Messages, Channels, Workspace). Create a shared module that exports them:
+
+```typescript
+// apps/server/apps/gateway/src/im/shared/im-shared.module.ts
+import { Global, Module } from "@nestjs/common";
+import { ChannelMemberCacheService } from "./channel-member-cache.service.js";
+import { ChannelSequenceService } from "./channel-sequence.service.js";
+
+@Global() // Makes exports available to all modules without explicit imports
+@Module({
+  providers: [ChannelMemberCacheService, ChannelSequenceService],
+  exports: [ChannelMemberCacheService, ChannelSequenceService],
+})
+export class ImSharedModule {}
+```
+
+Then import `ImSharedModule` in the root app module (e.g., `AppModule` or `ImModule`) so it's available globally. Check the existing module hierarchy to find the right place — likely `apps/server/apps/gateway/src/im/im.module.ts` or the root `app.module.ts`.
+
+- [ ] **Step 2: Update websocket.module.ts**
+
+Remove direct provider registration of the new services (they come from the global `ImSharedModule`). Only add them if `ImSharedModule` is NOT registered globally — in that case, import `ImSharedModule` instead.
 
 - [ ] **Step 2: Inject ChannelMemberCacheService into WebSocketGateway constructor**
 
@@ -675,6 +736,8 @@ git commit -m "feat(im): messages controller uses sendToChannelMembers for all b
 
 ## Task 7: Channels Controller — Replace sendToChannel + member removal notification
 
+**Prerequisite:** Task 8 (cache invalidation in channels.service) must be completed first — member removal notification depends on cache being invalidated before `sendToChannelMembers` is called.
+
 **Files:**
 
 - Modify: `apps/server/apps/gateway/src/im/channels/channels.controller.ts`
@@ -740,16 +803,44 @@ async removeMember(
 }
 ```
 
-- [ ] **Step 4: Run tests**
+- [ ] **Step 4: Add same notification to leaveChannel endpoint**
+
+The `POST :id/leave` endpoint (lines 273-280) is a separate path for self-removal. It also calls `removeMember` internally. Add the same WS notification:
+
+```typescript
+@Post(':id/leave')
+async leaveChannel(
+  @CurrentUser('sub') userId: string,
+  @Param('id') channelId: string,
+): Promise<{ success: boolean }> {
+  await this.channelsService.removeMember(channelId, userId, userId);
+
+  // Cache is already invalidated by channelsService.removeMember
+  // Notify remaining members
+  await this.websocketGateway.sendToChannelMembers(channelId, WS_EVENTS.CHANNEL.LEFT, {
+    channelId,
+    userId,
+  });
+  // Notify the leaving user's OTHER devices
+  await this.websocketGateway.sendToUser(userId, WS_EVENTS.CHANNEL.LEFT, {
+    channelId,
+    userId,
+  });
+
+  return { success: true };
+}
+```
+
+- [ ] **Step 5: Run tests**
 
 Run: `cd apps/server && npx jest apps/gateway/src/im/channels/ --no-coverage`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add apps/server/apps/gateway/src/im/channels/channels.controller.ts
-git commit -m "feat(im): channels controller uses sendToChannelMembers, adds member removal WS notification"
+git commit -m "feat(im): channels controller uses sendToChannelMembers, adds member removal WS notification for both remove and leave"
 ```
 
 ---
@@ -1161,10 +1252,19 @@ Extract the sync merge logic from the `useEffect` into a testable pure function 
 2. Main cache: remove deleted, replace edited, append new
 3. Thread updates: group first-level replies by rootId for `["thread", rootId]`
 4. Sub-reply updates: group by parentId (first-level reply ID) for `["subReplies", parentReplyId]`
+5. **Recalculate aggregation fields** on root messages and parent replies after thread changes:
+   - For each affected root message in `["messages", channelId]`: recalculate `replyCount`, `lastRepliers`, `lastReplyAt` based on the merged thread cache
+   - For each affected first-level reply in `["thread", rootId]`: recalculate `subReplyCount` based on the merged sub-reply cache
+   - Mirror the logic in `useMessages.ts` lines 178-260 that handles real-time thread events
 
 - [ ] **Step 6: Update the useEffect to use the extracted merge function**
 
-Apply the merge results to the appropriate React Query caches.
+Apply the merge results to the appropriate React Query caches:
+
+- Main messages → `["messages", channelId]`
+- Thread replies → `["thread", rootId]`
+- Sub-replies → `["subReplies", parentReplyId]`
+- Aggregation field updates → back to `["messages", channelId]` and `["thread", rootId]`
 
 - [ ] **Step 7: Run tests to verify they pass**
 
