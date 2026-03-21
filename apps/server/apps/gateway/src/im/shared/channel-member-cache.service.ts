@@ -1,6 +1,5 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { and, eq, isNull } from 'drizzle-orm';
-import { DATABASE_CONNECTION } from '@team9/database';
+import { DATABASE_CONNECTION, and, eq, isNull } from '@team9/database';
 import { RedisService } from '@team9/redis';
 import * as schema from '@team9/database/schemas';
 

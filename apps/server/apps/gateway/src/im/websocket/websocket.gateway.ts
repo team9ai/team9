@@ -71,6 +71,7 @@ export class WebsocketGateway
     private readonly redisService: RedisService,
     @Inject(forwardRef(() => WorkspaceService))
     private readonly workspaceService: WorkspaceService,
+    private readonly channelMemberCacheService: ChannelMemberCacheService,
     // Distributed IM Architecture services
     @Optional() private readonly clusterNodeService?: ClusterNodeService,
     @Optional() private readonly sessionService?: SessionService,
@@ -83,7 +84,6 @@ export class WebsocketGateway
     @Optional()
     @Inject(BOT_TOKEN_VALIDATOR)
     private readonly botTokenValidator?: BotTokenValidatorInterface,
-    private readonly channelMemberCacheService: ChannelMemberCacheService,
   ) {}
 
   /**
