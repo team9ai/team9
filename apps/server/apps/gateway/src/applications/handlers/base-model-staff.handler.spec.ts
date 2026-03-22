@@ -205,6 +205,8 @@ describe('BaseModelStaffHandler', () => {
       const firstResult = makeBotResult('claude');
       const secondResult = makeBotResult('chatgpt');
 
+      // Reset the default mocks from beforeEach before setting failure scenario
+      botService.createWorkspaceBot.mockReset();
       botService.createWorkspaceBot
         .mockResolvedValueOnce(firstResult)
         .mockResolvedValueOnce(secondResult)

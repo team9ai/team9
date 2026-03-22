@@ -41,10 +41,13 @@ export class ClawHiveService {
   }
 
   async deleteAgent(agentId: string): Promise<void> {
-    const res = await fetch(`${this.baseUrl}/api/agents/${agentId}`, {
-      method: 'DELETE',
-      headers: this.headers(),
-    });
+    const res = await fetch(
+      `${this.baseUrl}/api/agents/${encodeURIComponent(agentId)}`,
+      {
+        method: 'DELETE',
+        headers: this.headers(),
+      },
+    );
     if (!res.ok) {
       throw new Error(`Failed to delete agent: ${res.status}`);
     }

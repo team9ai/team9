@@ -69,8 +69,15 @@ const makeChannel = (type: string = 'direct') => ({
   name: type === 'direct' ? null : 'general',
 });
 
+// Use UUID-format user IDs so the HTML mention parser can match them
+const BOT_UUIDS: Record<string, string> = {
+  claude: '00000000-0000-0000-0000-000000000001',
+  gemini: '00000000-0000-0000-0000-000000000002',
+  chatgpt: '00000000-0000-0000-0000-000000000003',
+};
+
 const makeHiveBot = (key: string) => ({
-  userId: `bot-user-${key}`,
+  userId: BOT_UUIDS[key] ?? `00000000-0000-0000-0000-00000000${key}`,
   botId: `bot-id-${key}`,
   managedMeta: { agentId: `base-model-${key}-${TENANT_ID.slice(0, 8)}` },
 });
@@ -122,7 +129,16 @@ describe('PostBroadcastService — pushToHiveBots', () => {
 
     // 1st where() call: hive bot query (terminal — no limit)
     db.where.mockResolvedValueOnce(bots);
-    // Then getMessageWithContext calls (all end with .limit(1)):
+    // getMessageWithContext calls use .where().limit(1) — where must return
+    // chain (not a promise) so .limit() can be called.
+    db.where
+      .mockReturnValueOnce(db) // message query
+      .mockReturnValueOnce(db) // sender query
+      .mockReturnValueOnce(db); // channel query
+    if (message.parentId) {
+      db.where.mockReturnValueOnce(db); // parent message query
+    }
+    // Then set up .limit() return values for each query:
     db.limit
       .mockResolvedValueOnce([message]) // messages table
       .mockResolvedValueOnce([sender]) // users table

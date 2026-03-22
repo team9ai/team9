@@ -107,7 +107,8 @@ describe('InstalledApplicationsService — install', () => {
   // ── rollback on handler failure ─────────────────────────────────────────────
 
   it('deletes the inserted record when handler.onInstall() throws', async () => {
-    // Singleton check: no existing record
+    // Singleton check: where() must return chain for .limit() chaining
+    db.where.mockReturnValueOnce(db);
     db.limit.mockResolvedValueOnce([]);
     // Insert: return the new record
     db.returning.mockResolvedValueOnce([INSERTED_RECORD]);
@@ -126,6 +127,7 @@ describe('InstalledApplicationsService — install', () => {
   });
 
   it('re-throws the original error after rollback', async () => {
+    db.where.mockReturnValueOnce(db);
     db.limit.mockResolvedValueOnce([]);
     db.returning.mockResolvedValueOnce([INSERTED_RECORD]);
     handler.onInstall.mockRejectedValueOnce(new Error('specific error'));
@@ -136,10 +138,14 @@ describe('InstalledApplicationsService — install', () => {
   });
 
   it('does NOT delete the record on success', async () => {
+    // Singleton check: where() returns chain for .limit() chaining
+    db.where.mockReturnValueOnce(db);
     db.limit.mockResolvedValueOnce([]);
     db.returning
       .mockResolvedValueOnce([INSERTED_RECORD]) // insert
       .mockResolvedValueOnce([INSERTED_RECORD]); // update with result
+    // Update step: where() returns chain for .returning() chaining
+    db.where.mockReturnValueOnce(db);
 
     handler.onInstall.mockResolvedValueOnce({ config: { botIds: ['b1'] } });
 
@@ -151,6 +157,8 @@ describe('InstalledApplicationsService — install', () => {
   // ── singleton constraint ────────────────────────────────────────────────────
 
   it('throws ConflictException when app is already installed (singleton)', async () => {
+    // Singleton check: where() returns chain for .limit() chaining
+    db.where.mockReturnValueOnce(db);
     // Singleton check: existing record found
     db.limit.mockResolvedValueOnce([{ id: 'existing-id' }]);
 
