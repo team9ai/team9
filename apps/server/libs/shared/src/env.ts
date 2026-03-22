@@ -166,8 +166,7 @@ export const env = {
   },
   // Fallback OpenClaw instance URL for local dev (skips DB secrets lookup)
   get OPENCLAW_INSTANCE_URL() {
-    // return process.env.OPENCLAW_INSTANCE_URL;
-    return process.env.OPENCLAW_API_URL;
+    return process.env.OPENCLAW_INSTANCE_URL ?? process.env.OPENCLAW_API_URL;
   },
   get OPENCLAW_GATEWAY_TOKEN() {
     return process.env.OPENCLAW_GATEWAY_TOKEN;

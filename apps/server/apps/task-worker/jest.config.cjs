@@ -12,7 +12,7 @@ module.exports = {
       },
     ],
   },
-  collectCoverageFrom: ['src/**/*.(t|j)s'],
+  collectCoverageFrom: ['src/**/*.{ts,js}'],
   coverageDirectory: 'coverage',
   testEnvironment: 'node',
   extensionsToTreatAsEsm: ['.ts'],

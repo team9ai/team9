@@ -41,7 +41,8 @@ function makeChainableUpdate() {
     updateSets.push(v);
     return chain;
   });
-  chain.where = jest.fn<any>().mockResolvedValue([]);
+  chain.where = jest.fn<any>().mockReturnValue(chain);
+  chain.returning = jest.fn<any>().mockResolvedValue([]);
   return chain;
 }
 

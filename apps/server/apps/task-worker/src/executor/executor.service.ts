@@ -312,21 +312,26 @@ export class ExecutorService {
       return;
     }
 
-    // 4. Call strategy.stop()
-    const context: ExecutionContext = {
-      taskId,
-      executionId: execution.id,
-      botId: task.botId,
-      // channelId is nullable in DB but ExecutionContext requires string; guard checked above
-      channelId: execution.channelId ?? '',
-      title: task.title,
-      taskcastTaskId: execution.taskcastTaskId,
-    };
+    // 4. Call strategy.stop() (only if we have a valid channelId)
+    if (!execution.channelId) {
+      this.logger.warn(
+        `Execution ${execution.id} for task ${taskId} has no channelId; skipping strategy.stop`,
+      );
+    } else {
+      const context: ExecutionContext = {
+        taskId,
+        executionId: execution.id,
+        botId: task.botId,
+        channelId: execution.channelId,
+        title: task.title,
+        taskcastTaskId: execution.taskcastTaskId,
+      };
 
-    try {
-      await strategy.stop(context);
-    } catch (error) {
-      this.logger.warn(`Strategy stop failed for task ${taskId}: ${error}`);
+      try {
+        await strategy.stop(context);
+      } catch (error) {
+        this.logger.warn(`Strategy stop failed for task ${taskId}: ${error}`);
+      }
     }
 
     // 5. Update execution + task status to stopped

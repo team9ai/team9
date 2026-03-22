@@ -154,7 +154,7 @@ export class OpenclawStrategy implements ExecutionStrategy {
     }
 
     const agentId =
-      (bot.extra as Record<string, any>)?.openclaw?.agentId ?? 'main';
+      (bot.extra as Record<string, any>)?.openclaw?.agentId ?? 'default';
 
     const secrets = bot.secrets as Record<string, any> | null;
     const instanceResult = secrets?.instanceResult;
