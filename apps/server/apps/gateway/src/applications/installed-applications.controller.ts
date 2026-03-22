@@ -73,6 +73,90 @@ export class InstalledApplicationsController {
   }
 
   /**
+   * Get all installed applications with their bots and instance status.
+   * Aggregates data to avoid waterfall requests from the frontend.
+   * NOTE: Must be declared before @Get(':id') to avoid route shadowing.
+   */
+  @Get('with-bots')
+  async findAllWithBots(@CurrentTenantId() tenantId: string) {
+    if (!tenantId) {
+      throw new BadRequestException('Tenant ID is required');
+    }
+    const apps =
+      await this.installedApplicationsService.findAllByTenant(tenantId);
+
+    const results = await Promise.all(
+      apps.map(async (app) => {
+        if (app.status !== 'active') {
+          return { ...app, bots: [], instanceStatus: null };
+        }
+
+        if (app.applicationId === 'openclaw') {
+          const instancesId = (app.config as { instancesId?: string })
+            ?.instancesId;
+          const [bots, instance] = await Promise.all([
+            this.botService
+              .getBotsByInstalledApplicationId(app.id)
+              .catch(() => []),
+            instancesId
+              ? this.openclawService.getInstance(instancesId).catch(() => null)
+              : Promise.resolve(null),
+          ]);
+
+          return {
+            ...app,
+            bots: bots.map((bot) => ({
+              botId: bot.botId,
+              userId: bot.userId,
+              agentId: bot.extra?.openclaw?.agentId ?? null,
+              workspace: bot.extra?.openclaw?.workspace ?? null,
+              username: bot.username,
+              displayName: bot.displayName,
+              isActive: bot.isActive,
+              createdAt: bot.createdAt,
+              mentorId: bot.mentorId,
+              mentorDisplayName: bot.mentorDisplayName,
+              mentorAvatarUrl: bot.mentorAvatarUrl,
+            })),
+            instanceStatus: instance
+              ? {
+                  instanceId: instance.id,
+                  status: instance.status,
+                  accessUrl: instance.access_url,
+                  createdAt: instance.created_at,
+                  lastHeartbeat: instance.last_heartbeat,
+                }
+              : null,
+          };
+        }
+
+        if (app.applicationId === 'base-model-staff') {
+          const bots = await this.botService
+            .getBotsByInstalledApplicationId(app.id)
+            .catch(() => []);
+          return {
+            ...app,
+            bots: bots.map((bot) => ({
+              botId: bot.botId,
+              userId: bot.userId,
+              username: bot.username,
+              displayName: bot.displayName,
+              isActive: bot.isActive,
+              createdAt: bot.createdAt,
+              managedMeta: bot.managedMeta,
+            })),
+            instanceStatus: null,
+          };
+        }
+
+        return { ...app, bots: [], instanceStatus: null };
+      }),
+    );
+
+    return results;
+  }
+
+  /**
    * Get an installed application by ID.
    * Requires: workspace member
    */

@@ -27,18 +27,27 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { slugify } from "transliteration";
 import { api } from "@/services/api";
 import type {
-  InstalledApplication,
+  BaseModelStaffBotInfo,
+  InstalledApplicationWithBots,
   OpenClawBotInfo,
   OpenClawInstanceStatus,
 } from "@/services/api/applications";
 import { cn } from "@/lib/utils";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 
+// ── Type guard ────────────────────────────────────────────────────────
+
+type AIStaffBot = OpenClawBotInfo | BaseModelStaffBotInfo;
+
+function isOpenClawBot(bot: AIStaffBot): bot is OpenClawBotInfo {
+  return "agentId" in bot;
+}
+
 // ── Per-bot card ─────────────────────────────────────────────────────
 
 interface AIStaffBotCardProps {
-  app: InstalledApplication;
-  bot: OpenClawBotInfo;
+  app: InstalledApplicationWithBots;
+  bot: AIStaffBot;
   instanceStatus?: OpenClawInstanceStatus;
 }
 
@@ -48,7 +57,8 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
   const displayName = bot.displayName || app.name || "AI Staff";
   const isRunning = instanceStatus?.status === "running";
   const initials = displayName.slice(0, 2).toUpperCase();
-  const isDefault = !bot.agentId;
+  const isOcBot = isOpenClawBot(bot);
+  const isDefault = isOcBot ? !bot.agentId : true;
 
   return (
     <Card
@@ -107,7 +117,7 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
               </span>
             )}
           </p>
-          {bot.mentorDisplayName && (
+          {isOcBot && bot.mentorDisplayName && (
             <div className="flex items-center gap-1 mt-1">
               <Avatar className="w-4 h-4">
                 {bot.mentorAvatarUrl ? (
@@ -129,43 +139,10 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
   );
 }
 
-// ── Bot cards for a single app ───────────────────────────────────────
-
-function AppBotCards({ app }: { app: InstalledApplication }) {
-  const workspaceId = useSelectedWorkspaceId();
-
-  const { data: bots } = useQuery({
-    queryKey: ["openclaw-bots", workspaceId, app.id],
-    queryFn: () => api.applications.getOpenClawBots(app.id),
-    enabled: app.applicationId === "openclaw" && app.status === "active",
-  });
-
-  const { data: instanceStatus } = useQuery({
-    queryKey: ["openclaw-status", workspaceId, app.id],
-    queryFn: () => api.applications.getOpenClawStatus(app.id),
-    enabled: app.applicationId === "openclaw" && app.status === "active",
-  });
-
-  if (!bots) return null;
-
-  return (
-    <>
-      {bots.map((bot) => (
-        <AIStaffBotCard
-          key={bot.botId}
-          app={app}
-          bot={bot}
-          instanceStatus={instanceStatus}
-        />
-      ))}
-    </>
-  );
-}
-
 // ── Create Agent Dialog ──────────────────────────────────────────────
 
 interface CreateAgentDialogProps {
-  openClawApps: InstalledApplication[];
+  openClawApps: InstalledApplicationWithBots[];
   workspaceId: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -243,7 +220,7 @@ function CreateAgentDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["openclaw-bots", workspaceId, selectedAppId],
+        queryKey: ["installed-applications-with-bots", workspaceId],
       });
       setDisplayName("");
       setUsername("");
@@ -399,8 +376,8 @@ export function AIStaffMainContent() {
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["installed-applications", workspaceId],
-    queryFn: () => api.applications.getInstalledApplications(),
+    queryKey: ["installed-applications-with-bots", workspaceId],
+    queryFn: () => api.applications.getInstalledApplicationsWithBots(),
     enabled: !!workspaceId,
   });
 
@@ -469,9 +446,22 @@ export function AIStaffMainContent() {
             installedApps &&
             installedApps.length > 0 && (
               <div className="max-w-md space-y-2">
-                {installedApps.map((app) => (
-                  <AppBotCards key={app.id} app={app} />
-                ))}
+                {installedApps
+                  .filter(
+                    (app) =>
+                      app.applicationId === "openclaw" &&
+                      app.status === "active",
+                  )
+                  .flatMap((app) =>
+                    app.bots.map((bot) => (
+                      <AIStaffBotCard
+                        key={bot.botId}
+                        app={app}
+                        bot={bot}
+                        instanceStatus={app.instanceStatus ?? undefined}
+                      />
+                    )),
+                  )}
               </div>
             )}
         </div>

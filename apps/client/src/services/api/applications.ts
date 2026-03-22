@@ -81,6 +81,23 @@ export interface FileKeeperListResponse {
   entries: FileKeeperDirEntry[];
 }
 
+// Base Model Staff types
+export interface BaseModelStaffBotInfo {
+  botId: string;
+  userId: string;
+  username: string;
+  displayName: string | null;
+  isActive: boolean;
+  createdAt: string;
+  managedMeta: { agentId: string } | null;
+}
+
+// Aggregated app with bots (from /with-bots endpoint)
+export interface InstalledApplicationWithBots extends InstalledApplication {
+  bots: (OpenClawBotInfo | BaseModelStaffBotInfo)[];
+  instanceStatus: OpenClawInstanceStatus | null;
+}
+
 // OpenClaw-specific types
 export interface OpenClawInstanceStatus {
   instanceId: string;
@@ -132,6 +149,16 @@ export const applicationsApi = {
   getInstalledApplications: async (): Promise<InstalledApplication[]> => {
     const response = await http.get<InstalledApplication[]>(
       "/v1/installed-applications",
+    );
+    return response.data;
+  },
+
+  // Get all installed applications with bots and instance status (aggregated)
+  getInstalledApplicationsWithBots: async (): Promise<
+    InstalledApplicationWithBots[]
+  > => {
+    const response = await http.get<InstalledApplicationWithBots[]>(
+      "/v1/installed-applications/with-bots",
     );
     return response.data;
   },

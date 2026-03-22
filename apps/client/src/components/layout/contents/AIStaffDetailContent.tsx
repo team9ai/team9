@@ -152,6 +152,9 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
       queryClient.invalidateQueries({
         queryKey: ["openclaw-bots", workspaceId, appId],
       });
+      queryClient.invalidateQueries({
+        queryKey: ["installed-applications-with-bots", workspaceId],
+      });
       setEditingName(false);
     },
   });
@@ -166,6 +169,9 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["installed-applications", workspaceId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["installed-applications-with-bots", workspaceId],
       });
       setEditingDesc(false);
     },
@@ -184,6 +190,9 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
       queryClient.invalidateQueries({
         queryKey: ["openclaw-bots", workspaceId, appId],
       });
+      queryClient.invalidateQueries({
+        queryKey: ["installed-applications-with-bots", workspaceId],
+      });
     },
   });
 
@@ -195,6 +204,9 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["openclaw-bots", workspaceId, appId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["installed-applications-with-bots", workspaceId],
       });
       navigate({ to: "/ai-staff" });
     },

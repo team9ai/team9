@@ -216,6 +216,12 @@ export function MainSidebar() {
         queryKey: ["installed-applications", prevWorkspaceIdRef.current],
       });
       queryClient.removeQueries({
+        queryKey: [
+          "installed-applications-with-bots",
+          prevWorkspaceIdRef.current,
+        ],
+      });
+      queryClient.removeQueries({
         queryKey: ["installed-application", prevWorkspaceIdRef.current],
       });
       queryClient.removeQueries({

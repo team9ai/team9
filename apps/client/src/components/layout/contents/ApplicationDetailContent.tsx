@@ -78,6 +78,9 @@ export function ApplicationDetailContent({
       queryClient.invalidateQueries({
         queryKey: ["installed-applications", workspaceId],
       });
+      queryClient.invalidateQueries({
+        queryKey: ["installed-applications-with-bots", workspaceId],
+      });
     },
   });
 
@@ -86,6 +89,9 @@ export function ApplicationDetailContent({
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["installed-applications", workspaceId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["installed-applications-with-bots", workspaceId],
       });
       navigate({ to: "/application" });
     },
