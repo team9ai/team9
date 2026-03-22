@@ -24,6 +24,7 @@ module.exports = {
     '^@team9/rabbitmq$': '<rootDir>/../../libs/rabbitmq/src/index.ts',
     '^@team9/auth$': '<rootDir>/../../libs/auth/src/index.ts',
     '^@team9/email$': '<rootDir>/../../libs/email/src/index.ts',
+    '^@team9/claw-hive$': '<rootDir>/../../libs/claw-hive/src/index.ts',
   },
   transformIgnorePatterns: [
     'node_modules/(?!(@team9)/)',

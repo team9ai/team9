@@ -41,6 +41,8 @@
       "@team9/storage/*": ["libs/storage/src/*"],
       "@team9/observability": ["libs/observability/src"],
       "@team9/observability/*": ["libs/observability/src/*"],
+      "@team9/claw-hive": ["libs/claw-hive/src"],
+      "@team9/claw-hive/*": ["libs/claw-hive/src/*"],
       "@team9/enterprise-sso": ["../../enterprise/libs/sso/src"],
       "@team9/enterprise-sso/*": ["../../enterprise/libs/sso/src/*"],
       "@team9/enterprise-audit": ["../../enterprise/libs/audit/src"],

@@ -16,6 +16,17 @@ const APPLICATIONS: Application[] = [
     type: 'managed',
     singleton: true,
   },
+  {
+    id: 'base-model-staff',
+    name: 'Base Model Staff',
+    description:
+      'Create AI staff members powered by base models (Claude, ChatGPT, Gemini)',
+    iconUrl: '/icons/base-model-staff.svg',
+    categories: ['ai', 'bot'],
+    enabled: true,
+    type: 'managed',
+    singleton: true,
+  },
 ];
 
 @Injectable()

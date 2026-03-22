@@ -15,7 +15,7 @@ import { PostBroadcastService } from './post-broadcast.service.js';
  * Messages are synced when user opens a channel via GET /v1/im/sync/channel/:channelId
  */
 @Module({
-  imports: [DatabaseModule, RedisModule, RabbitmqModule],
+  imports: [DatabaseModule, RedisModule, RabbitmqModule, ClawHiveModule],
   providers: [PostBroadcastService],
   exports: [PostBroadcastService],
 })

@@ -1,0 +1,279 @@
+import { jest, describe, it, expect, beforeEach } from '@jest/globals';
+import { Test, TestingModule } from '@nestjs/testing';
+import { DATABASE_CONNECTION } from '@team9/database';
+import { BaseModelStaffHandler } from './base-model-staff.handler.js';
+import { BotService } from '../../bot/bot.service.js';
+import { ClawHiveService } from '@team9/claw-hive';
+import { ChannelsService } from '../../im/channels/channels.service.js';
+import { BASE_MODEL_PRESETS } from './base-model-staff.presets.js';
+import type { InstallContext } from './application-handler.interface.js';
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+type MockFn = jest.Mock<(...args: any[]) => any>;
+
+/** Minimal Drizzle chain mock */
+function mockDb() {
+  const chain: Record<string, MockFn> = {};
+  const methods = ['select', 'from', 'where', 'innerJoin', 'leftJoin'];
+  for (const m of methods) {
+    chain[m] = jest.fn<any>().mockReturnValue(chain);
+  }
+  // Default: return empty member list
+  chain.where.mockResolvedValue([]);
+  return chain;
+}
+
+// ── fixtures ──────────────────────────────────────────────────────────────────
+
+const TENANT_ID = 'tenant-uuid-1234';
+const INSTALLED_BY = 'user-uuid-owner';
+const INSTALLED_APP = { id: 'installed-app-uuid' } as any;
+
+const makeContext = (): InstallContext => ({
+  installedApplication: INSTALLED_APP,
+  tenantId: TENANT_ID,
+  installedBy: INSTALLED_BY,
+});
+
+const TENANT_SHORT = TENANT_ID.slice(0, 8);
+
+const makeBotResult = (key: string) => ({
+  bot: {
+    botId: `bot-id-${key}`,
+    userId: `bot-user-${key}`,
+    username: `${key}-bot-short`,
+    displayName: key,
+    email: `${key}@team9.local`,
+    type: 'system',
+    ownerId: INSTALLED_BY,
+    mentorId: INSTALLED_BY,
+    description: null,
+    capabilities: null,
+    extra: null,
+    managedProvider: 'hive',
+    managedMeta: { agentId: `base-model-${key}-${TENANT_SHORT}` },
+    isActive: true,
+  },
+  accessToken: `token-${key}`,
+});
+
+// ── tests ─────────────────────────────────────────────────────────────────────
+
+describe('BaseModelStaffHandler', () => {
+  let handler: BaseModelStaffHandler;
+  let db: ReturnType<typeof mockDb>;
+  let botService: {
+    createWorkspaceBot: MockFn;
+    deleteBotAndCleanup: MockFn;
+    getBotsByInstalledApplicationId: MockFn;
+  };
+  let clawHiveService: {
+    healthCheck: MockFn;
+    registerAgent: MockFn;
+    deleteAgent: MockFn;
+  };
+  let channelsService: { createDirectChannelsBatch: MockFn };
+
+  beforeEach(async () => {
+    db = mockDb();
+
+    botService = {
+      createWorkspaceBot: jest.fn<any>(),
+      deleteBotAndCleanup: jest.fn<any>().mockResolvedValue(undefined),
+      getBotsByInstalledApplicationId: jest.fn<any>().mockResolvedValue([]),
+    };
+
+    clawHiveService = {
+      healthCheck: jest.fn<any>().mockResolvedValue(true),
+      registerAgent: jest.fn<any>().mockResolvedValue(undefined),
+      deleteAgent: jest.fn<any>().mockResolvedValue(undefined),
+    };
+
+    channelsService = {
+      createDirectChannelsBatch: jest.fn<any>().mockResolvedValue(undefined),
+    };
+
+    // Default: createWorkspaceBot returns per-preset bot result
+    for (const preset of BASE_MODEL_PRESETS) {
+      botService.createWorkspaceBot.mockResolvedValueOnce(
+        makeBotResult(preset.key),
+      );
+    }
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        BaseModelStaffHandler,
+        { provide: DATABASE_CONNECTION, useValue: db },
+        { provide: BotService, useValue: botService },
+        { provide: ClawHiveService, useValue: clawHiveService },
+        { provide: ChannelsService, useValue: channelsService },
+      ],
+    }).compile();
+
+    handler = module.get<BaseModelStaffHandler>(BaseModelStaffHandler);
+  });
+
+  // ── onInstall ───────────────────────────────────────────────────────────────
+
+  describe('onInstall', () => {
+    it('health-checks claw-hive before proceeding', async () => {
+      await handler.onInstall(makeContext());
+      expect(clawHiveService.healthCheck).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws if claw-hive health check fails', async () => {
+      clawHiveService.healthCheck.mockResolvedValueOnce(false);
+      await expect(handler.onInstall(makeContext())).rejects.toThrow(
+        'Claw Hive API is not reachable',
+      );
+    });
+
+    it('creates one bot per preset with correct parameters', async () => {
+      await handler.onInstall(makeContext());
+
+      expect(botService.createWorkspaceBot).toHaveBeenCalledTimes(
+        BASE_MODEL_PRESETS.length,
+      );
+
+      for (const preset of BASE_MODEL_PRESETS) {
+        expect(botService.createWorkspaceBot).toHaveBeenCalledWith(
+          expect.objectContaining({
+            tenantId: TENANT_ID,
+            ownerId: INSTALLED_BY,
+            type: 'system',
+            displayName: preset.name,
+            managedProvider: 'hive',
+            managedMeta: {
+              agentId: `base-model-${preset.key}-${TENANT_ID.slice(0, 8)}`,
+            },
+          }),
+        );
+      }
+    });
+
+    it('registers one claw-hive agent per preset', async () => {
+      await handler.onInstall(makeContext());
+
+      expect(clawHiveService.registerAgent).toHaveBeenCalledTimes(
+        BASE_MODEL_PRESETS.length,
+      );
+
+      for (const preset of BASE_MODEL_PRESETS) {
+        expect(clawHiveService.registerAgent).toHaveBeenCalledWith(
+          expect.objectContaining({
+            id: `base-model-${preset.key}-${TENANT_ID.slice(0, 8)}`,
+            name: preset.name,
+            blueprintId: 'team9-hive-base-model',
+            tenantId: TENANT_ID,
+            model: { provider: preset.provider, id: preset.modelId },
+          }),
+        );
+      }
+    });
+
+    it('creates DM channels for workspace members for each bot', async () => {
+      const memberIds = ['member-a', 'member-b'];
+      db.where.mockResolvedValueOnce(memberIds.map((userId) => ({ userId })));
+
+      await handler.onInstall(makeContext());
+
+      expect(channelsService.createDirectChannelsBatch).toHaveBeenCalledTimes(
+        BASE_MODEL_PRESETS.length,
+      );
+    });
+
+    it('returns config with all bot IDs', async () => {
+      const result = await handler.onInstall(makeContext());
+
+      const expectedBotIds = BASE_MODEL_PRESETS.map(
+        (p) => makeBotResult(p.key).bot.botId,
+      );
+      expect(result.config).toEqual({ botIds: expectedBotIds });
+    });
+
+    it('skips DM creation when there are no workspace members', async () => {
+      db.where.mockResolvedValueOnce([]);
+
+      await handler.onInstall(makeContext());
+
+      expect(channelsService.createDirectChannelsBatch).not.toHaveBeenCalled();
+    });
+
+    it('rolls back created bots if a later step fails', async () => {
+      // First two bots succeed; third bot creation throws
+      const firstResult = makeBotResult('claude');
+      const secondResult = makeBotResult('chatgpt');
+
+      botService.createWorkspaceBot
+        .mockResolvedValueOnce(firstResult)
+        .mockResolvedValueOnce(secondResult)
+        .mockRejectedValueOnce(new Error('DB error'));
+
+      await expect(handler.onInstall(makeContext())).rejects.toThrow(
+        'DB error',
+      );
+
+      // Should attempt cleanup for both created bots
+      expect(botService.deleteBotAndCleanup).toHaveBeenCalledWith(
+        firstResult.bot.botId,
+      );
+      expect(botService.deleteBotAndCleanup).toHaveBeenCalledWith(
+        secondResult.bot.botId,
+      );
+    });
+  });
+
+  // ── onUninstall ─────────────────────────────────────────────────────────────
+
+  describe('onUninstall', () => {
+    const installedApp = { id: 'installed-app-uuid' } as any;
+
+    it('deletes claw-hive agents and bots', async () => {
+      const bots = BASE_MODEL_PRESETS.map((p) => ({
+        ...makeBotResult(p.key).bot,
+      }));
+      botService.getBotsByInstalledApplicationId.mockResolvedValueOnce(bots);
+
+      await handler.onUninstall(installedApp);
+
+      for (const bot of bots) {
+        expect(clawHiveService.deleteAgent).toHaveBeenCalledWith(
+          bot.managedMeta!.agentId,
+        );
+        expect(botService.deleteBotAndCleanup).toHaveBeenCalledWith(bot.botId);
+      }
+    });
+
+    it('still deletes the bot record if agent deletion fails', async () => {
+      const bots = [makeBotResult('claude').bot];
+      botService.getBotsByInstalledApplicationId.mockResolvedValueOnce(bots);
+      clawHiveService.deleteAgent.mockRejectedValueOnce(new Error('404'));
+
+      await expect(handler.onUninstall(installedApp)).resolves.not.toThrow();
+
+      expect(botService.deleteBotAndCleanup).toHaveBeenCalledWith(
+        bots[0].botId,
+      );
+    });
+
+    it('skips agent deletion when managedMeta.agentId is absent', async () => {
+      const bot = { ...makeBotResult('claude').bot, managedMeta: null };
+      botService.getBotsByInstalledApplicationId.mockResolvedValueOnce([bot]);
+
+      await handler.onUninstall(installedApp);
+
+      expect(clawHiveService.deleteAgent).not.toHaveBeenCalled();
+      expect(botService.deleteBotAndCleanup).toHaveBeenCalledWith(bot.botId);
+    });
+
+    it('is a no-op when no bots are found', async () => {
+      botService.getBotsByInstalledApplicationId.mockResolvedValueOnce([]);
+
+      await handler.onUninstall(installedApp);
+
+      expect(clawHiveService.deleteAgent).not.toHaveBeenCalled();
+      expect(botService.deleteBotAndCleanup).not.toHaveBeenCalled();
+    });
+  });
+});

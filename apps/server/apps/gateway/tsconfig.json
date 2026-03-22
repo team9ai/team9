@@ -18,7 +18,9 @@
       "@team9/enterprise-analytics": [
         "../../../../enterprise/libs/analytics/src"
       ],
-      "@team9/enterprise-license": ["../../../../enterprise/libs/license/src"]
+      "@team9/enterprise-license": ["../../../../enterprise/libs/license/src"],
+      "@team9/claw-hive": ["../../libs/claw-hive/src"],
+      "@team9/claw-hive/*": ["../../libs/claw-hive/src/*"]
     }
   },
   "include": ["src/**/*"],

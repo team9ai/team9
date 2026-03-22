@@ -30,6 +30,12 @@ export interface BotExtra {
   };
 }
 
+export interface ManagedMeta {
+  agentId?: string; // claw-hive agent ID
+  instanceId?: string; // openclaw instance ID
+  [key: string]: unknown;
+}
+
 export const bots = pgTable(
   'im_bots',
   {
@@ -75,6 +81,13 @@ export const bots = pgTable(
 
     // Flexible extension data (e.g. openclaw.agentId)
     extra: jsonb('extra').$type<BotExtra>().default({}),
+
+    // Managed bot provider (e.g. "hive", "openclaw")
+    // null = unmanaged (custom/webhook)
+    managedProvider: text('managed_provider'),
+
+    // Provider-specific metadata (e.g. { agentId: "base-model-claude" })
+    managedMeta: jsonb('managed_meta').$type<ManagedMeta>(),
 
     // Access token for API authentication (hashed: fingerprint:bcryptHash)
     accessToken: text('access_token'),

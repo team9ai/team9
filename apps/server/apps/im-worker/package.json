@@ -22,6 +22,7 @@
     "@nestjs/microservices": "^11.0.1",
     "@sentry/nestjs": "^10.40.0",
     "@sentry/profiling-node": "^10.40.0",
+    "@team9/claw-hive": "workspace:*",
     "@team9/database": "workspace:*",
     "@team9/observability": "workspace:*",
     "@team9/rabbitmq": "workspace:*",

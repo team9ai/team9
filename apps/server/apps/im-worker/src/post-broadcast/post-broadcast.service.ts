@@ -13,12 +13,14 @@ import * as schema from '@team9/database/schemas';
 import { RabbitMQEventService } from '@team9/rabbitmq';
 import {
   parseMentions,
+  extractMentionedUserIds,
   type PostBroadcastTask,
   type MentionNotificationTask,
   type ReplyNotificationTask,
   type DMNotificationTask,
   type ParsedMention,
 } from '@team9/shared';
+import { ClawHiveService } from '@team9/claw-hive';
 
 /**
  * Post-Broadcast Service
@@ -39,6 +41,7 @@ export class PostBroadcastService {
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly rabbitMQEventService: RabbitMQEventService,
+    private readonly clawHiveService: ClawHiveService,
   ) {}
 
   /**
@@ -66,8 +69,11 @@ export class PostBroadcastService {
       // 3. Process notification tasks (mentions, replies, DMs)
       await this.processNotificationTasks(msgId, channelId, senderId);
 
-      // 4. Push to bot webhooks (fire-and-forget, errors logged but not thrown)
-      await this.pushToBotWebhooks(msgId, senderId, memberIds);
+      // 4. Push to bot webhooks and hive bots (fire-and-forget, errors logged but not thrown)
+      await Promise.all([
+        this.pushToBotWebhooks(msgId, senderId, memberIds),
+        this.pushToHiveBots(msgId, senderId, memberIds),
+      ]);
 
       // 5. Mark Outbox as completed
       await this.markOutboxCompleted(msgId);
@@ -411,6 +417,115 @@ export class PostBroadcastService {
     } catch (error) {
       this.logger.warn(`Bot webhook push failed: ${error}`);
       // Don't throw - webhook failures should never block message delivery
+    }
+  }
+
+  // ── Hive Bot Push ─────────────────────────────────────────────────
+
+  /**
+   * Push message to claw-hive managed bots in the channel.
+   * Trigger rules:
+   *   - DM channel: always trigger for all hive bots
+   *   - Group channel: only trigger if the bot is @mentioned
+   * Fire-and-forget: failures are logged but do not block message delivery.
+   */
+  private async pushToHiveBots(
+    msgId: string,
+    senderId: string,
+    memberIds: string[],
+  ): Promise<void> {
+    try {
+      if (memberIds.length === 0) return;
+
+      // Find hive-managed bots among channel members (excluding sender)
+      const hiveBots = await this.db
+        .select({
+          userId: schema.bots.userId,
+          botId: schema.bots.id,
+          managedMeta: schema.bots.managedMeta,
+        })
+        .from(schema.bots)
+        .innerJoin(schema.users, eq(schema.bots.userId, schema.users.id))
+        .where(
+          and(
+            inArray(schema.bots.userId, memberIds),
+            eq(schema.bots.isActive, true),
+            eq(schema.bots.managedProvider, 'hive'),
+            eq(schema.users.userType, 'bot'),
+          ),
+        );
+
+      const targetBots = hiveBots.filter(
+        (b) => b.userId !== senderId && b.managedMeta?.agentId,
+      );
+      if (targetBots.length === 0) return;
+
+      const messageData = await this.getMessageWithContext(msgId);
+      if (!messageData) return;
+
+      const { message, sender, channel, mentions, parentMessage } = messageData;
+
+      const isDm = channel.type === 'direct';
+      const mentionedUserIds = isDm ? null : extractMentionedUserIds(mentions);
+
+      // Build the recursive MessageLocation for the event payload
+      const channelLocation: Record<string, unknown> = {
+        type: isDm ? 'dm' : 'channel',
+        id: channel.id,
+        ...(channel.name ? { name: channel.name } : {}),
+      };
+      const location: Record<string, unknown> = message.parentId
+        ? {
+            type: 'thread',
+            id: message.parentId,
+            ...(parentMessage?.content
+              ? { content: parentMessage.content }
+              : {}),
+            parent: channelLocation,
+          }
+        : channelLocation;
+
+      const tenantId = channel.tenantId ?? '';
+      const scope = isDm ? 'dm' : 'channel';
+      const scopeId = channel.id;
+      const timestamp = new Date().toISOString();
+
+      for (const bot of targetBots) {
+        const agentId = bot.managedMeta!.agentId!;
+
+        // Apply trigger rules for group channels
+        if (!isDm && !mentionedUserIds!.includes(bot.userId)) {
+          continue;
+        }
+
+        const sessionId = `team9/${tenantId}/${agentId}/${scope}/${scopeId}`;
+        const event = {
+          type: 'team9:message.text' as const,
+          source: 'team9',
+          timestamp,
+          payload: {
+            messageId: message.id,
+            content: message.content ?? '',
+            sender: {
+              id: sender.id,
+              username: sender.username,
+              displayName: sender.displayName,
+            },
+            location,
+          },
+        };
+
+        this.clawHiveService
+          .sendInput(sessionId, event, tenantId || undefined)
+          .catch((err: Error) => {
+            this.logger.warn(
+              `Hive bot input failed for bot ${bot.botId} (agent ${agentId}): ${err.message}`,
+            );
+          });
+      }
+    } catch (error) {
+      this.logger.warn(`Hive bot push failed: ${error}`);
+      // Don't throw - hive failures should never block message delivery
     }
   }
 

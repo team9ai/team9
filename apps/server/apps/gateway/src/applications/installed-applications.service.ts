@@ -22,7 +22,10 @@ import type {
   ApplicationPermissions,
 } from '@team9/database/schemas';
 import { ApplicationsService } from './applications.service.js';
-import type { ApplicationHandler } from './handlers/application-handler.interface.js';
+import type {
+  ApplicationHandler,
+  InstallResult,
+} from './handlers/application-handler.interface.js';
 
 export interface InstallApplicationDto {
   applicationId: string;
@@ -133,11 +136,20 @@ export class InstalledApplicationsService {
 
     this.logger.log(`Invoking handler for application ${dto.applicationId}`);
 
-    const result = await handler.onInstall({
-      installedApplication: inserted,
-      tenantId,
-      installedBy,
-    });
+    let result: InstallResult;
+    try {
+      result = await handler.onInstall({
+        installedApplication: inserted,
+        tenantId,
+        installedBy,
+      });
+    } catch (error) {
+      // Roll back the DB record so the singleton check doesn't permanently block reinstallation
+      await this.db
+        .delete(schema.installedApplications)
+        .where(eq(schema.installedApplications.id, id));
+      throw error;
+    }
 
     // Update record with handler results
     if (result.config || result.secrets || result.permissions) {
@@ -260,11 +272,15 @@ export class InstalledApplicationsService {
       throw new NotFoundException(`Installed application ${id} not found`);
     }
 
-    // Check if this is a managed application - cannot be uninstalled
+    // Check if this is a managed application - only some can be uninstalled
+    const UNINSTALLABLE_MANAGED_APPS = ['base-model-staff'];
     const application = this.applicationsService.findById(
       existing.applicationId,
     );
-    if (application?.type === 'managed') {
+    if (
+      application?.type === 'managed' &&
+      !UNINSTALLABLE_MANAGED_APPS.includes(application.id)
+    ) {
       throw new ForbiddenException(
         `Managed application ${application.name} cannot be uninstalled`,
       );

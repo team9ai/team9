@@ -12,7 +12,11 @@ import {
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
-import type { BotCapabilities, BotExtra } from '@team9/database/schemas';
+import type {
+  BotCapabilities,
+  BotExtra,
+  ManagedMeta,
+} from '@team9/database/schemas';
 import { env } from '@team9/shared';
 import { ChannelsService } from '../im/channels/channels.service.js';
 
@@ -40,6 +44,8 @@ export interface BotInfo {
   description: string | null;
   capabilities: BotCapabilities | null;
   extra: BotExtra | null;
+  managedProvider: string | null;
+  managedMeta: ManagedMeta | null;
   isActive: boolean;
 }
 
@@ -48,9 +54,12 @@ export interface CreateWorkspaceBotOptions {
   tenantId: string;
   displayName?: string;
   username?: string;
+  type?: 'system' | 'custom' | 'webhook';
   installedApplicationId?: string;
   generateToken?: boolean;
   mentorId?: string;
+  managedProvider?: string;
+  managedMeta?: ManagedMeta;
 }
 
 export interface WorkspaceBotResult {
@@ -246,6 +255,8 @@ export class BotService implements OnModuleInit {
       description: newBot.description,
       capabilities: newBot.capabilities,
       extra: newBot.extra,
+      managedProvider: newBot.managedProvider,
+      managedMeta: newBot.managedMeta,
       isActive: newBot.isActive,
     };
 
@@ -269,9 +280,12 @@ export class BotService implements OnModuleInit {
       tenantId,
       displayName = 'Bot',
       username,
+      type = 'custom',
       installedApplicationId,
       generateToken = false,
       mentorId,
+      managedProvider,
+      managedMeta,
     } = options;
 
     // Look up the owner
@@ -294,7 +308,7 @@ export class BotService implements OnModuleInit {
     const bot = await this.createBot({
       username: botUsername,
       displayName,
-      type: 'custom',
+      type,
       ownerId: owner.id,
       description: `${displayName} for ${owner.username}`,
       capabilities: { canSendMessages: true, canReadMessages: true },
@@ -302,13 +316,15 @@ export class BotService implements OnModuleInit {
 
     this.logger.log(`Created bot ${bot.botId} for workspace ${tenantId}`);
 
-    // 2. Link to application and set mentor if provided
-    if (installedApplicationId || mentorId) {
+    // 2. Link to application, set mentor, and managed fields if provided
+    if (installedApplicationId || mentorId || managedProvider) {
       await this.db
         .update(schema.bots)
         .set({
           ...(installedApplicationId && { installedApplicationId }),
           ...(mentorId && { mentorId }),
+          ...(managedProvider && { managedProvider }),
+          ...(managedMeta && { managedMeta }),
           updatedAt: new Date(),
         })
         .where(eq(schema.bots.id, bot.botId));
@@ -419,6 +435,8 @@ export class BotService implements OnModuleInit {
         description: schema.bots.description,
         capabilities: schema.bots.capabilities,
         extra: schema.bots.extra,
+        managedProvider: schema.bots.managedProvider,
+        managedMeta: schema.bots.managedMeta,
         isActive: schema.bots.isActive,
       })
       .from(schema.bots)
@@ -680,6 +698,8 @@ export class BotService implements OnModuleInit {
         description: schema.bots.description,
         capabilities: schema.bots.capabilities,
         extra: schema.bots.extra,
+        managedProvider: schema.bots.managedProvider,
+        managedMeta: schema.bots.managedMeta,
         isActive: schema.bots.isActive,
         createdAt: schema.bots.createdAt,
         mentorDisplayName: mentorUsers.displayName,
@@ -720,6 +740,8 @@ export class BotService implements OnModuleInit {
         description: schema.bots.description,
         capabilities: schema.bots.capabilities,
         extra: schema.bots.extra,
+        managedProvider: schema.bots.managedProvider,
+        managedMeta: schema.bots.managedMeta,
         isActive: schema.bots.isActive,
         createdAt: schema.bots.createdAt,
         mentorDisplayName: mentorUsers.displayName,
@@ -748,6 +770,8 @@ export class BotService implements OnModuleInit {
         description: schema.bots.description,
         capabilities: schema.bots.capabilities,
         extra: schema.bots.extra,
+        managedProvider: schema.bots.managedProvider,
+        managedMeta: schema.bots.managedMeta,
         isActive: schema.bots.isActive,
       })
       .from(schema.bots)

@@ -171,6 +171,14 @@ export const env = {
   get OPENCLAW_GATEWAY_TOKEN() {
     return process.env.OPENCLAW_GATEWAY_TOKEN;
   },
+
+  // Claw Hive Integration (optional)
+  get CLAW_HIVE_API_URL() {
+    return process.env.CLAW_HIVE_API_URL; // e.g. http://localhost:4100
+  },
+  get CLAW_HIVE_AUTH_TOKEN() {
+    return process.env.CLAW_HIVE_AUTH_TOKEN;
+  },
   get CAPABILITY_BASE_URL() {
     return (
       process.env.CAPABILITY_BASE_URL || 'https://gateway.capability.team9.ai'
