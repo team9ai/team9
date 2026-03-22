@@ -1,6 +1,7 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ChannelsService } from './channels.service.js';
+import { RedisService } from '@team9/redis';
 import { DATABASE_CONNECTION } from '@team9/database';
 
 // ── helpers ──────────────────────────────────────────────────────────
@@ -45,6 +46,17 @@ describe('ChannelsService', () => {
       providers: [
         ChannelsService,
         { provide: DATABASE_CONNECTION, useValue: db },
+        {
+          provide: RedisService,
+          useValue: {
+            get: jest.fn<any>().mockResolvedValue(null),
+            set: jest.fn<any>().mockResolvedValue(undefined),
+            del: jest.fn<any>().mockResolvedValue(undefined),
+            hget: jest.fn<any>().mockResolvedValue(null),
+            hset: jest.fn<any>().mockResolvedValue(undefined),
+            hdel: jest.fn<any>().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 

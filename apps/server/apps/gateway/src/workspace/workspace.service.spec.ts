@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { WorkspaceService } from './workspace.service.js';
 import { BotService } from '../bot/bot.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
+import { InstalledApplicationsService } from '../applications/installed-applications.service.js';
 import { RedisService } from '@team9/redis';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
@@ -53,7 +54,9 @@ describe('WorkspaceService', () => {
   let db: ReturnType<typeof mockDb>;
   let botService: {
     getBotUserId: MockFn;
-    createWorkspaceBot: MockFn;
+  };
+  let installedApplicationsService: {
+    install: MockFn;
   };
   let channelsService: {
     create: MockFn;
@@ -73,10 +76,9 @@ describe('WorkspaceService', () => {
     db = mockDb();
     botService = {
       getBotUserId: jest.fn<any>().mockReturnValue(null),
-      createWorkspaceBot: jest.fn<any>().mockResolvedValue({
-        userId: 'custom-bot-user',
-        botId: 'custom-bot-id',
-      }),
+    };
+    installedApplicationsService = {
+      install: jest.fn<any>().mockResolvedValue(undefined),
     };
     channelsService = {
       create: jest.fn<any>().mockResolvedValue({}),
@@ -114,6 +116,10 @@ describe('WorkspaceService', () => {
         },
         { provide: ChannelsService, useValue: channelsService },
         { provide: BotService, useValue: botService },
+        {
+          provide: InstalledApplicationsService,
+          useValue: installedApplicationsService,
+        },
       ],
     }).compile();
 
@@ -139,24 +145,25 @@ describe('WorkspaceService', () => {
       db.returning.mockResolvedValue([WORKSPACE_ROW] as any);
     });
 
-    it('should call createWorkspaceBot with ownerId and workspace id', async () => {
+    it('should install openclaw application for the workspace', async () => {
       await service.create({ name: 'Test Workspace', ownerId: 'owner-1' });
 
-      expect(botService.createWorkspaceBot).toHaveBeenCalledWith(
-        'owner-1',
+      expect(installedApplicationsService.install).toHaveBeenCalledWith(
         'ws-uuid',
+        'owner-1',
+        { applicationId: 'openclaw' },
       );
     });
 
-    it('should call createWorkspaceBot even when system bot is disabled', async () => {
+    it('should install openclaw even when system bot is disabled', async () => {
       botService.getBotUserId.mockReturnValue(null);
 
       await service.create({ name: 'Test Workspace', ownerId: 'owner-1' });
 
-      expect(botService.createWorkspaceBot).toHaveBeenCalledTimes(1);
+      expect(installedApplicationsService.install).toHaveBeenCalledTimes(1);
     });
 
-    it('should call createWorkspaceBot alongside system bot when system bot is enabled', async () => {
+    it('should add system bot alongside openclaw install when system bot is enabled', async () => {
       botService.getBotUserId.mockReturnValue('system-bot-user');
 
       await service.create({ name: 'Test Workspace', ownerId: 'owner-1' });
@@ -176,16 +183,17 @@ describe('WorkspaceService', () => {
         'ws-uuid',
       );
 
-      // Custom bot also created
-      expect(botService.createWorkspaceBot).toHaveBeenCalledWith(
-        'owner-1',
+      // OpenClaw also installed
+      expect(installedApplicationsService.install).toHaveBeenCalledWith(
         'ws-uuid',
+        'owner-1',
+        { applicationId: 'openclaw' },
       );
     });
 
-    it('should not fail workspace creation if custom bot creation fails', async () => {
-      botService.createWorkspaceBot.mockRejectedValue(
-        new Error('Bot creation failed'),
+    it('should not fail workspace creation if openclaw install fails', async () => {
+      installedApplicationsService.install.mockRejectedValue(
+        new Error('Install failed'),
       );
 
       const result = await service.create({
@@ -194,7 +202,7 @@ describe('WorkspaceService', () => {
       });
 
       expect(result).toEqual(WORKSPACE_ROW);
-      expect(botService.createWorkspaceBot).toHaveBeenCalled();
+      expect(installedApplicationsService.install).toHaveBeenCalled();
     });
 
     it('should not fail workspace creation if system bot addition fails', async () => {
@@ -210,24 +218,24 @@ describe('WorkspaceService', () => {
       });
 
       expect(result).toEqual(WORKSPACE_ROW);
-      // Custom bot should still be created even if system bot fails
-      expect(botService.createWorkspaceBot).toHaveBeenCalled();
+      // OpenClaw should still be installed even if system bot fails
+      expect(installedApplicationsService.install).toHaveBeenCalled();
     });
 
-    it('should create welcome channel before bots', async () => {
+    it('should create welcome channel before app install', async () => {
       const callOrder: string[] = [];
       channelsService.create.mockImplementation((() => {
         callOrder.push('welcome-channel');
         return Promise.resolve({});
       }) as any);
-      botService.createWorkspaceBot.mockImplementation((() => {
-        callOrder.push('workspace-bot');
-        return Promise.resolve({ userId: 'b', botId: 'b' });
+      installedApplicationsService.install.mockImplementation((() => {
+        callOrder.push('openclaw-install');
+        return Promise.resolve(undefined);
       }) as any);
 
       await service.create({ name: 'Test Workspace', ownerId: 'owner-1' });
 
-      expect(callOrder).toEqual(['welcome-channel', 'workspace-bot']);
+      expect(callOrder).toEqual(['welcome-channel', 'openclaw-install']);
     });
 
     it('should add owner as member with owner role', async () => {

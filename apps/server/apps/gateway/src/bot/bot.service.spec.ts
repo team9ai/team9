@@ -97,12 +97,12 @@ describe('BotService', () => {
         return Promise.resolve([{}]);
       }) as any);
 
-      const result = await service.createWorkspaceBot(ownerId, tenantId);
+      const result = await service.createWorkspaceBot({ ownerId, tenantId });
 
-      expect(result.userId).toBe('bot-user-uuid');
-      expect(result.botId).toBe('bot-uuid');
-      expect(result.type).toBe('custom');
-      expect(result.ownerId).toBe(ownerId);
+      expect(result.bot.userId).toBe('bot-user-uuid');
+      expect(result.bot.botId).toBe('bot-uuid');
+      expect(result.bot.type).toBe('custom');
+      expect(result.bot.ownerId).toBe(ownerId);
 
       expect(db.insert).toHaveBeenCalled();
       expect(db.values).toHaveBeenCalledWith(
@@ -130,7 +130,7 @@ describe('BotService', () => {
       db.limit.mockResolvedValue([] as any);
 
       await expect(
-        service.createWorkspaceBot('nonexistent', tenantId),
+        service.createWorkspaceBot({ ownerId: 'nonexistent', tenantId }),
       ).rejects.toThrow('Owner nonexistent not found');
     });
 
@@ -150,7 +150,7 @@ describe('BotService', () => {
       }) as any);
 
       await expect(
-        service.createWorkspaceBot(ownerId, tenantId),
+        service.createWorkspaceBot({ ownerId, tenantId }),
       ).rejects.toThrow('DB constraint error');
 
       expect(channelsService.createDirectChannel).not.toHaveBeenCalled();
