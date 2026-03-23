@@ -37,7 +37,18 @@ const STATUS_BADGE_VARIANT: Record<
 };
 
 const FINISHED_BANNER_CONFIG: Partial<
-  Record<AgentTaskStatus, { key: string; bgClass: string; textClass: string }>
+  Record<
+    AgentTaskStatus,
+    {
+      key:
+        | "lastRunCompleted"
+        | "lastRunFailed"
+        | "lastRunStopped"
+        | "lastRunTimeout";
+      bgClass: string;
+      textClass: string;
+    }
+  >
 > = {
   completed: {
     key: "lastRunCompleted",
