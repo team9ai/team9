@@ -66,3 +66,6 @@ node_modules/
 tmp
 
 .superpowers
+
+# Turbo
+.turbo
