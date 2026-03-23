@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "dev": "vite",
     "dev:web": "vite",
     "dev:desktop": "tauri dev",
     "dev:ios": "tauri ios dev",
