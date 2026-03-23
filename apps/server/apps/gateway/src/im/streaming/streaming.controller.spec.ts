@@ -25,6 +25,7 @@ const uuid = await import('uuid');
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { ForbiddenException, Logger } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { RedisService } from '@team9/redis';
 import { GatewayMQService } from '@team9/rabbitmq';
 import { ChannelsService } from '../channels/channels.service.js';
@@ -84,7 +85,12 @@ describe('StreamingController', () => {
   let messagesService: { getMessageWithDetails: MockFn };
   let imWorkerGrpcClientService: { createMessage: MockFn };
   let botService: { isBot: MockFn };
-  let gatewayMQService: { publishPostBroadcast: MockFn; isReady: MockFn };
+  let gatewayMQService: {
+    publishPostBroadcast: MockFn;
+    publishWorkspaceEvent: MockFn;
+    isReady: MockFn;
+  };
+  let eventEmitter: { emit: MockFn };
 
   let dateSpy: jest.Spied<typeof Date.now>;
 
@@ -121,7 +127,12 @@ describe('StreamingController', () => {
 
     gatewayMQService = {
       publishPostBroadcast: jest.fn<any>().mockResolvedValue(undefined),
+      publishWorkspaceEvent: jest.fn<any>().mockResolvedValue(undefined),
       isReady: jest.fn<any>().mockReturnValue(true),
+    };
+
+    eventEmitter = {
+      emit: jest.fn<any>(),
     };
 
     dateSpy = jest.spyOn(Date, 'now').mockReturnValue(1700000000000);
@@ -138,6 +149,7 @@ describe('StreamingController', () => {
           useValue: imWorkerGrpcClientService,
         },
         { provide: BotService, useValue: botService },
+        { provide: EventEmitter2, useValue: eventEmitter },
         { provide: GatewayMQService, useValue: gatewayMQService },
       ],
     }).compile();
@@ -380,6 +392,18 @@ describe('StreamingController', () => {
         WS_EVENTS.MESSAGE.NEW,
         message,
       );
+
+      // Emits message.created event for search indexing
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        'message.created',
+        expect.objectContaining({
+          message: expect.objectContaining({
+            id: MSG_ID,
+            channelId: CHANNEL_ID,
+            senderId: BOT_USER_ID,
+          }),
+        }),
+      );
     });
 
     it('uses undefined workspaceId when channel has no tenantId', async () => {
@@ -502,6 +526,7 @@ describe('StreamingController', () => {
             useValue: imWorkerGrpcClientService,
           },
           { provide: BotService, useValue: botService },
+          { provide: EventEmitter2, useValue: eventEmitter },
           // GatewayMQService NOT provided — @Optional() means it stays undefined
         ],
       }).compile();

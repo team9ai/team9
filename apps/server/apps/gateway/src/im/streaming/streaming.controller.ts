@@ -11,9 +11,10 @@ import {
   Logger,
 } from '@nestjs/common';
 import { v7 as uuidv7 } from 'uuid';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import { RedisService } from '@team9/redis';
-import { GatewayMQService } from '@team9/rabbitmq';
+import { GatewayMQService, RABBITMQ_ROUTING_KEYS } from '@team9/rabbitmq';
 import type { PostBroadcastTask } from '@team9/shared';
 import { ChannelsService } from '../channels/channels.service.js';
 import { MessagesService } from '../messages/messages.service.js';
@@ -43,6 +44,7 @@ export class StreamingController {
     private readonly websocketGateway: WebsocketGateway,
     private readonly imWorkerGrpcClientService: ImWorkerGrpcClientService,
     private readonly botService: BotService,
+    private readonly eventEmitter: EventEmitter2,
     @Optional() private readonly gatewayMQService?: GatewayMQService,
   ) {}
 
@@ -217,8 +219,41 @@ export class StreamingController {
       message,
     );
 
-    // Post-broadcast task (unread counts, notifications, hive bot push)
+    // Emit event for search indexing (same as MessagesController.createMessage)
+    this.eventEmitter.emit('message.created', {
+      message: {
+        id: message.id,
+        channelId: message.channelId,
+        senderId: message.senderId,
+        content: message.content,
+        type: message.type,
+        isPinned: message.isPinned,
+        parentId: message.parentId,
+        createdAt: message.createdAt,
+      },
+      channel,
+      sender: message.sender
+        ? {
+            id: message.sender.id,
+            username: message.sender.username,
+            displayName: message.sender.displayName,
+          }
+        : undefined,
+    });
+
+    // Publish to RabbitMQ (channel-message triggers + post-broadcast)
     if (this.gatewayMQService?.isReady()) {
+      this.gatewayMQService
+        .publishWorkspaceEvent(RABBITMQ_ROUTING_KEYS.MESSAGE_CREATED, {
+          channelId: message.channelId,
+          messageId: message.id,
+          content: message.content,
+          senderId: message.senderId,
+        })
+        .catch((err) => {
+          this.logger.warn(`Failed to publish message.created event: ${err}`);
+        });
+
       const postBroadcastTask: PostBroadcastTask = {
         msgId: result.msgId,
         channelId,
