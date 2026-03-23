@@ -164,8 +164,15 @@ export class BaseModelStaffHandler implements ApplicationHandler {
       .map((bot) => bot.managedMeta!.agentId as string);
 
     if (agentIds.length > 0) {
-      await this.clawHiveService.deleteAgents(agentIds);
-      this.logger.log(`Deleted ${agentIds.length} claw-hive agents`);
+      try {
+        await this.clawHiveService.deleteAgents(agentIds);
+        this.logger.log(`Deleted ${agentIds.length} claw-hive agents`);
+      } catch (error) {
+        this.logger.warn(
+          `Failed to delete claw-hive agents, continuing with bot cleanup`,
+          error,
+        );
+      }
     }
 
     // Delete bots

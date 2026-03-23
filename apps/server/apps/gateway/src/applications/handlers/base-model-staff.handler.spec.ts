@@ -36,8 +36,6 @@ const makeContext = (): InstallContext => ({
   installedBy: INSTALLED_BY,
 });
 
-const TENANT_SHORT = TENANT_ID.slice(0, 8);
-
 const makeBotResult = (key: string) => ({
   bot: {
     botId: `bot-id-${key}`,
@@ -52,7 +50,7 @@ const makeBotResult = (key: string) => ({
     capabilities: null,
     extra: null,
     managedProvider: 'hive',
-    managedMeta: { agentId: `base-model-${key}-${TENANT_SHORT}` },
+    managedMeta: { agentId: `base-model-${key}-${TENANT_ID}` },
     isActive: true,
   },
   accessToken: `token-${key}`,
@@ -70,8 +68,8 @@ describe('BaseModelStaffHandler', () => {
   };
   let clawHiveService: {
     healthCheck: MockFn;
-    registerAgent: MockFn;
-    deleteAgent: MockFn;
+    registerAgents: MockFn;
+    deleteAgents: MockFn;
   };
   let channelsService: { createDirectChannelsBatch: MockFn };
 
@@ -86,8 +84,8 @@ describe('BaseModelStaffHandler', () => {
 
     clawHiveService = {
       healthCheck: jest.fn<any>().mockResolvedValue(true),
-      registerAgent: jest.fn<any>().mockResolvedValue(undefined),
-      deleteAgent: jest.fn<any>().mockResolvedValue(undefined),
+      registerAgents: jest.fn<any>().mockResolvedValue(undefined),
+      deleteAgents: jest.fn<any>().mockResolvedValue(undefined),
     };
 
     channelsService = {
@@ -145,31 +143,33 @@ describe('BaseModelStaffHandler', () => {
             displayName: preset.name,
             managedProvider: 'hive',
             managedMeta: {
-              agentId: `base-model-${preset.key}-${TENANT_ID.slice(0, 8)}`,
+              agentId: `base-model-${preset.key}-${TENANT_ID}`,
             },
           }),
         );
       }
     });
 
-    it('registers one claw-hive agent per preset', async () => {
+    it('batch-registers claw-hive agents for all presets', async () => {
       await handler.onInstall(makeContext());
 
-      expect(clawHiveService.registerAgent).toHaveBeenCalledTimes(
-        BASE_MODEL_PRESETS.length,
+      expect(clawHiveService.registerAgents).toHaveBeenCalledTimes(1);
+      expect(clawHiveService.registerAgents).toHaveBeenCalledWith(
+        expect.objectContaining({
+          atomic: true,
+          agents: expect.arrayContaining(
+            BASE_MODEL_PRESETS.map((preset) =>
+              expect.objectContaining({
+                id: `base-model-${preset.key}-${TENANT_ID}`,
+                name: preset.name,
+                blueprintId: 'team9-hive-base-model',
+                tenantId: TENANT_ID,
+                model: { provider: preset.provider, id: preset.modelId },
+              }),
+            ),
+          ),
+        }),
       );
-
-      for (const preset of BASE_MODEL_PRESETS) {
-        expect(clawHiveService.registerAgent).toHaveBeenCalledWith(
-          expect.objectContaining({
-            id: `base-model-${preset.key}-${TENANT_ID.slice(0, 8)}`,
-            name: preset.name,
-            blueprintId: 'team9-hive-base-model',
-            tenantId: TENANT_ID,
-            model: { provider: preset.provider, id: preset.modelId },
-          }),
-        );
-      }
     });
 
     it('creates DM channels for workspace members for each bot', async () => {
@@ -231,7 +231,7 @@ describe('BaseModelStaffHandler', () => {
   describe('onUninstall', () => {
     const installedApp = { id: 'installed-app-uuid' } as any;
 
-    it('deletes claw-hive agents and bots', async () => {
+    it('batch-deletes claw-hive agents and deletes bots', async () => {
       const bots = BASE_MODEL_PRESETS.map((p) => ({
         ...makeBotResult(p.key).bot,
       }));
@@ -239,10 +239,11 @@ describe('BaseModelStaffHandler', () => {
 
       await handler.onUninstall(installedApp);
 
+      const expectedAgentIds = bots.map((bot) => bot.managedMeta!.agentId);
+      expect(clawHiveService.deleteAgents).toHaveBeenCalledWith(
+        expectedAgentIds,
+      );
       for (const bot of bots) {
-        expect(clawHiveService.deleteAgent).toHaveBeenCalledWith(
-          bot.managedMeta!.agentId,
-        );
         expect(botService.deleteBotAndCleanup).toHaveBeenCalledWith(bot.botId);
       }
     });
@@ -250,7 +251,7 @@ describe('BaseModelStaffHandler', () => {
     it('still deletes the bot record if agent deletion fails', async () => {
       const bots = [makeBotResult('claude').bot];
       botService.getBotsByInstalledApplicationId.mockResolvedValueOnce(bots);
-      clawHiveService.deleteAgent.mockRejectedValueOnce(new Error('404'));
+      clawHiveService.deleteAgents.mockRejectedValueOnce(new Error('404'));
 
       await expect(handler.onUninstall(installedApp)).resolves.not.toThrow();
 
@@ -265,7 +266,7 @@ describe('BaseModelStaffHandler', () => {
 
       await handler.onUninstall(installedApp);
 
-      expect(clawHiveService.deleteAgent).not.toHaveBeenCalled();
+      expect(clawHiveService.deleteAgents).not.toHaveBeenCalled();
       expect(botService.deleteBotAndCleanup).toHaveBeenCalledWith(bot.botId);
     });
 
@@ -274,7 +275,7 @@ describe('BaseModelStaffHandler', () => {
 
       await handler.onUninstall(installedApp);
 
-      expect(clawHiveService.deleteAgent).not.toHaveBeenCalled();
+      expect(clawHiveService.deleteAgents).not.toHaveBeenCalled();
       expect(botService.deleteBotAndCleanup).not.toHaveBeenCalled();
     });
   });
