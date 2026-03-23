@@ -15,8 +15,12 @@
   "scripts": {
     "build": "tsc"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@nestjs/common": "^11.0.1",
+    "@team9/shared": "workspace:*"
+  },
   "devDependencies": {
+    "@jest/globals": "^30.0.0",
     "typescript": "^5.7.3"
   }
 }
