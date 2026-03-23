@@ -12,6 +12,8 @@ export type BotStartupPhase = "countdown" | "ready" | "chatting" | null;
 interface UseBotStartupCountdownOptions {
   channel: Channel | ChannelWithUnread | undefined;
   members: ChannelMember[];
+  /** Only activate the startup countdown for OpenClaw-managed bots */
+  isOpenClawBot?: boolean;
 }
 
 interface UseBotStartupCountdownResult {
@@ -24,12 +26,18 @@ interface UseBotStartupCountdownResult {
 export function useBotStartupCountdown({
   channel,
   members,
+  isOpenClawBot = false,
 }: UseBotStartupCountdownOptions): UseBotStartupCountdownResult {
   const otherUser = (channel as ChannelWithUnread | undefined)?.otherUser;
 
+  // Only show startup countdown for OpenClaw bots (they need instance spin-up time)
   const isBotDm = useMemo(() => {
-    return channel?.type === "direct" && otherUser?.userType === "bot";
-  }, [channel?.type, otherUser?.userType]);
+    return (
+      channel?.type === "direct" &&
+      otherUser?.userType === "bot" &&
+      isOpenClawBot
+    );
+  }, [channel?.type, otherUser?.userType, isOpenClawBot]);
 
   // Get bot member info from channel members
   const botMember = useMemo(() => {

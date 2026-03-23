@@ -447,11 +447,7 @@ export function AIStaffMainContent() {
             installedApps.length > 0 && (
               <div className="max-w-md space-y-2">
                 {installedApps
-                  .filter(
-                    (app) =>
-                      app.applicationId === "openclaw" &&
-                      app.status === "active",
-                  )
+                  .filter((app) => app.status === "active")
                   .flatMap((app) =>
                     app.bots.map((bot) => (
                       <AIStaffBotCard

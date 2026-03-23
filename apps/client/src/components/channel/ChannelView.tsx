@@ -131,11 +131,36 @@ export function ChannelView({
   const sendMessage = useSendMessage(channelId);
   const markAsRead = useMarkAsRead();
 
-  // Bot startup countdown for bot DM channels
+  // Determine if this is a bot DM channel
+  const isBotDm = useMemo(() => {
+    if (!memberChannel) return false;
+    return (
+      memberChannel.type === "direct" &&
+      (memberChannel as any).otherUser?.userType === "bot"
+    );
+  }, [memberChannel]);
+
+  const botDmUserId = useMemo(() => {
+    if (!isBotDm) return null;
+    return (memberChannel as any)?.otherUser?.id ?? null;
+  }, [isBotDm, memberChannel]);
+
+  // OpenClaw instance status for bot DM channels (to detect stopped instances)
+  const {
+    isInstanceStopped,
+    isInstanceStarting,
+    isOpenClawBot,
+    canStart,
+    startInstance,
+    isStarting,
+  } = useOpenClawBotInstanceStatus(isBotDm ? botDmUserId : null);
+
+  // Bot startup countdown — only for OpenClaw bots (they need instance spin-up)
   const { phase, remainingSeconds, startChatting, showOverlay } =
     useBotStartupCountdown({
       channel: memberChannel,
       members,
+      isOpenClawBot,
     });
 
   // Get current user's role in this channel
@@ -156,28 +181,6 @@ export function ChannelView({
 
   // Bot thinking indicator state (local)
   const [thinkingBotIds, setThinkingBotIds] = useState<string[]>([]);
-  // Determine if this is a bot DM channel
-  const isBotDm = useMemo(() => {
-    if (!memberChannel) return false;
-    return (
-      memberChannel.type === "direct" &&
-      (memberChannel as any).otherUser?.userType === "bot"
-    );
-  }, [memberChannel]);
-
-  const botDmUserId = useMemo(() => {
-    if (!isBotDm) return null;
-    return (memberChannel as any)?.otherUser?.id ?? null;
-  }, [isBotDm, memberChannel]);
-
-  // OpenClaw instance status for bot DM channels (to detect stopped instances)
-  const {
-    isInstanceStopped,
-    isInstanceStarting,
-    canStart,
-    startInstance,
-    isStarting,
-  } = useOpenClawBotInstanceStatus(isBotDm ? botDmUserId : null);
 
   // Clear thinking state when channel changes
   useEffect(() => {
