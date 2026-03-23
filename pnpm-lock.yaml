@@ -14,9 +14,6 @@ importers:
       "@swc/core":
         specifier: ^1.15.7
         version: 1.15.7
-      concurrently:
-        specifier: ^9.2.1
-        version: 9.2.1
       copyfiles:
         specifier: ^2.4.1
         version: 2.4.1
@@ -29,6 +26,9 @@ importers:
       prettier:
         specifier: ^3.4.2
         version: 3.7.4
+      turbo:
+        specifier: ^2.8.20
+        version: 2.8.20
 
   apps/client:
     dependencies:
@@ -443,9 +443,6 @@ importers:
       "@types/supertest":
         specifier: ^6.0.2
         version: 6.0.3
-      concurrently:
-        specifier: ^9.1.2
-        version: 9.2.1
       eslint:
         specifier: ^9.18.0
         version: 9.39.2(jiti@2.6.1)
@@ -551,6 +548,9 @@ importers:
       "@team9/auth":
         specifier: workspace:*
         version: link:../../libs/auth
+      "@team9/claw-hive":
+        specifier: workspace:*
+        version: link:../../libs/claw-hive
       "@team9/database":
         specifier: workspace:*
         version: link:../../libs/database
@@ -630,7 +630,7 @@ importers:
         version: link:../../../../enterprise/libs/analytics
       "@team9/enterprise-audit":
         specifier: workspace:*
-        version: file:enterprise/libs/audit(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)(uuid@13.0.0)
+        version: link:../../../../enterprise/libs/audit
       "@team9/enterprise-license":
         specifier: workspace:*
         version: link:../../../../enterprise/libs/license
@@ -664,6 +664,9 @@ importers:
       "@sentry/profiling-node":
         specifier: ^10.40.0
         version: 10.40.0
+      "@team9/claw-hive":
+        specifier: workspace:*
+        version: link:../../libs/claw-hive
       "@team9/database":
         specifier: workspace:*
         version: link:../../libs/database
@@ -749,10 +752,10 @@ importers:
         version: 30.0.0
       jest:
         specifier: ^30.2.0
-        version: 30.2.0(@types/node@25.0.3)(esbuild-register@3.6.0(esbuild@0.27.2))(ts-node@10.9.2(@swc/core@1.15.7)(@types/node@25.0.3)(typescript@5.8.3))
+        version: 30.2.0(@types/node@22.19.3)(esbuild-register@3.6.0(esbuild@0.27.2))(ts-node@10.9.2(@swc/core@1.15.7)(@types/node@22.19.3)(typescript@5.8.3))
       ts-jest:
         specifier: ^29.4.6
-        version: 29.4.6(@babel/core@7.28.5)(@jest/transform@30.2.0)(@jest/types@30.2.0)(babel-jest@30.2.0(@babel/core@7.28.5))(esbuild@0.27.2)(jest-util@30.2.0)(jest@30.2.0(@types/node@25.0.3)(esbuild-register@3.6.0(esbuild@0.27.2))(ts-node@10.9.2(@swc/core@1.15.7)(@types/node@25.0.3)(typescript@5.8.3)))(typescript@5.8.3)
+        version: 29.4.6(@babel/core@7.28.5)(@jest/transform@30.2.0)(@jest/types@30.2.0)(babel-jest@30.2.0(@babel/core@7.28.5))(esbuild@0.27.2)(jest-util@30.2.0)(jest@30.2.0(esbuild-register@3.6.0(esbuild@0.27.2)))(typescript@5.8.3)
       typescript:
         specifier: ^5.7.3
         version: 5.8.3
@@ -802,6 +805,12 @@ importers:
       socket.io:
         specifier: ^4.8.3
         version: 4.8.3
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.8.3
+
+  apps/server/libs/claw-hive:
     devDependencies:
       typescript:
         specifier: ^5.7.3
@@ -965,13 +974,6 @@ importers:
       "@nestjs/core":
         specifier: ^11.0.0
         version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-    devDependencies:
-      "@types/node":
-        specifier: ^22.0.0
-        version: 22.19.3
-      typescript:
-        specifier: ^5.7.3
-        version: 5.8.3
 
   enterprise/libs/audit:
     dependencies:
@@ -981,16 +983,6 @@ importers:
       "@nestjs/core":
         specifier: ^11.0.0
         version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      uuid:
-        specifier: ^11.0.0
-        version: 11.1.0
-    devDependencies:
-      "@types/node":
-        specifier: ^22.0.0
-        version: 22.19.3
-      typescript:
-        specifier: ^5.7.3
-        version: 5.8.3
 
   enterprise/libs/license:
     dependencies:
@@ -1000,13 +992,6 @@ importers:
       "@nestjs/core":
         specifier: ^11.0.0
         version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-    devDependencies:
-      "@types/node":
-        specifier: ^22.0.0
-        version: 22.19.3
-      typescript:
-        specifier: ^5.7.3
-        version: 5.8.3
 
   enterprise/libs/sso:
     dependencies:
@@ -1016,13 +1001,15 @@ importers:
       "@nestjs/core":
         specifier: ^11.0.0
         version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-    devDependencies:
-      "@types/node":
-        specifier: ^22.0.0
-        version: 22.19.3
-      typescript:
-        specifier: ^5.7.3
-        version: 5.8.3
+
+  enterprise/libs/tenant:
+    dependencies:
+      "@nestjs/common":
+        specifier: ^11.0.0
+        version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      "@nestjs/core":
+        specifier: ^11.0.0
+        version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
 
 packages:
   "@angular-devkit/core@19.2.17":
@@ -6949,13 +6936,6 @@ packages:
       "@nestjs/common": ^11.0.0
       "@nestjs/core": ^11.0.0
 
-  "@team9/enterprise-audit@file:enterprise/libs/audit":
-    resolution: { directory: enterprise/libs/audit, type: directory }
-    peerDependencies:
-      "@nestjs/common": ^11.0.0
-      "@nestjs/core": ^11.0.0
-      uuid: ^11.0.0
-
   "@team9/shared@file:apps/server/libs/shared":
     resolution: { directory: apps/server/libs/shared, type: directory }
 
@@ -6995,6 +6975,54 @@ packages:
       {
         integrity: sha512-vxhUy4J8lyeyinH7Azl1pdd43GJhZH/tP2weN8TntQblOY+A0XbT8DJk1/oCPuOOyg/Ja757rG0CgHcWC8OfMA==,
       }
+
+  "@turbo/darwin-64@2.8.20":
+    resolution:
+      {
+        integrity: sha512-FQ9EX1xMU5nbwjxXxM3yU88AQQ6Sqc6S44exPRroMcx9XZHqqppl5ymJF0Ig/z3nvQNwDmz1Gsnvxubo+nXWjQ==,
+      }
+    cpu: [x64]
+    os: [darwin]
+
+  "@turbo/darwin-arm64@2.8.20":
+    resolution:
+      {
+        integrity: sha512-Gpyh9ATFGThD6/s9L95YWY54cizg/VRWl2B67h0yofG8BpHf67DFAh9nuJVKG7bY0+SBJDAo5cMur+wOl9YOYw==,
+      }
+    cpu: [arm64]
+    os: [darwin]
+
+  "@turbo/linux-64@2.8.20":
+    resolution:
+      {
+        integrity: sha512-p2QxWUYyYUgUFG0b0kR+pPi8t7c9uaVlRtjTTI1AbCvVqkpjUfCcReBn6DgG/Hu8xrWdKLuyQFaLYFzQskZbcA==,
+      }
+    cpu: [x64]
+    os: [linux]
+
+  "@turbo/linux-arm64@2.8.20":
+    resolution:
+      {
+        integrity: sha512-Gn5yjlZGLRZWarLWqdQzv0wMqyBNIdq1QLi48F1oY5Lo9kiohuf7BPQWtWxeNVS2NgJ1+nb/DzK1JduYC4AWOA==,
+      }
+    cpu: [arm64]
+    os: [linux]
+
+  "@turbo/windows-64@2.8.20":
+    resolution:
+      {
+        integrity: sha512-vyaDpYk/8T6Qz5V/X+ihKvKFEZFUoC0oxYpC1sZanK6gaESJlmV3cMRT3Qhcg4D2VxvtC2Jjs9IRkrZGL+exLw==,
+      }
+    cpu: [x64]
+    os: [win32]
+
+  "@turbo/windows-arm64@2.8.20":
+    resolution:
+      {
+        integrity: sha512-voicVULvUV5yaGXo0Iue13BcHGYW3u0VgqSbfQwBaHbpj1zLjYV4KIe+7fYIo6DO8FVUJzxFps3ODCQG/Wy2Qw==,
+      }
+    cpu: [arm64]
+    os: [win32]
 
   "@tybys/wasm-util@0.10.1":
     resolution:
@@ -8633,14 +8661,6 @@ packages:
         integrity: sha512-MWufYdFw53ccGjCA+Ol7XJYpAlW6/prSMzuPOTRnJGcGzuhLn4Scrz7qf6o8bROZ514ltazcIFJZevcfbo0x7A==,
       }
     engines: { "0": node >= 6.0 }
-
-  concurrently@9.2.1:
-    resolution:
-      {
-        integrity: sha512-fsfrO0MxV64Znoy8/l1vVIjjHa29SZyyqPgQBwhiDcaW8wJc2W3XWVOGx4M3oJBnv/zdUZIIp1gDeS98GzP8Ng==,
-      }
-    engines: { node: ">=18" }
-    hasBin: true
 
   consola@3.4.2:
     resolution:
@@ -13529,6 +13549,13 @@ packages:
     engines: { node: ">=18.0.0" }
     hasBin: true
 
+  turbo@2.8.20:
+    resolution:
+      {
+        integrity: sha512-Rb4qk5YT8RUwwdXtkLpkVhNEe/lor6+WV7S5tTlLpxSz6MjV5Qi8jGNn4gS6NAvrYGA/rNrE6YUQM85sCZUDbQ==,
+      }
+    hasBin: true
+
   tw-animate-css@1.4.0:
     resolution:
       {
@@ -13794,13 +13821,6 @@ packages:
         integrity: sha512-pMZTvIkT1d+TFGvDOqodOclx0QWkkgi6Tdoa8gC8ffGAAqz9pzPTZWAybbsHHoED/ztMtkv/VoYTYyShUn81hA==,
       }
     engines: { node: ">= 0.4.0" }
-
-  uuid@11.1.0:
-    resolution:
-      {
-        integrity: sha512-0/A9rDy9P7cJ+8w1c9WD9V//9Wj15Ce2MPz8Ri6032usz+NfePxx5AcN3bN+r6ZL6jEo066/yNYB3tn4pQEx+A==,
-      }
-    hasBin: true
 
   uuid@13.0.0:
     resolution:
@@ -15636,42 +15656,6 @@ snapshots:
       graceful-fs: 4.2.11
       jest-changed-files: 30.2.0
       jest-config: 30.2.0(@types/node@25.0.3)(esbuild-register@3.6.0(esbuild@0.27.2))(ts-node@10.9.2(@swc/core@1.15.7)(@types/node@22.19.3)(typescript@5.8.3))
-      jest-haste-map: 30.2.0
-      jest-message-util: 30.2.0
-      jest-regex-util: 30.0.1
-      jest-resolve: 30.2.0
-      jest-resolve-dependencies: 30.2.0
-      jest-runner: 30.2.0
-      jest-runtime: 30.2.0
-      jest-snapshot: 30.2.0
-      jest-util: 30.2.0
-      jest-validate: 30.2.0
-      jest-watcher: 30.2.0
-      micromatch: 4.0.8
-      pretty-format: 30.2.0
-      slash: 3.0.0
-    transitivePeerDependencies:
-      - babel-plugin-macros
-      - esbuild-register
-      - supports-color
-      - ts-node
-
-  "@jest/core@30.2.0(esbuild-register@3.6.0(esbuild@0.27.2))(ts-node@10.9.2(@swc/core@1.15.7)(@types/node@25.0.3)(typescript@5.8.3))":
-    dependencies:
-      "@jest/console": 30.2.0
-      "@jest/pattern": 30.0.1
-      "@jest/reporters": 30.2.0
-      "@jest/test-result": 30.2.0
-      "@jest/transform": 30.2.0
-      "@jest/types": 30.2.0
-      "@types/node": 25.0.3
-      ansi-escapes: 4.3.2
-      chalk: 4.1.2
-      ci-info: 4.3.1
-      exit-x: 0.2.2
-      graceful-fs: 4.2.11
-      jest-changed-files: 30.2.0
-      jest-config: 30.2.0(@types/node@25.0.3)(esbuild-register@3.6.0(esbuild@0.27.2))(ts-node@10.9.2(@swc/core@1.15.7)(@types/node@25.0.3)(typescript@5.8.3))
       jest-haste-map: 30.2.0
       jest-message-util: 30.2.0
       jest-regex-util: 30.0.1
@@ -18831,13 +18815,6 @@ snapshots:
       - react
       - react-dom
 
-  "@team9/enterprise-audit@file:enterprise/libs/audit(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)(uuid@13.0.0)":
-    dependencies:
-      "@nestjs/common": 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      "@nestjs/core": 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      uuid: 13.0.0
-    optional: true
-
   "@team9/shared@file:apps/server/libs/shared": {}
 
   "@tokenizer/inflate@0.4.1":
@@ -18856,6 +18833,24 @@ snapshots:
   "@tsconfig/node14@1.0.3": {}
 
   "@tsconfig/node16@1.0.4": {}
+
+  "@turbo/darwin-64@2.8.20":
+    optional: true
+
+  "@turbo/darwin-arm64@2.8.20":
+    optional: true
+
+  "@turbo/linux-64@2.8.20":
+    optional: true
+
+  "@turbo/linux-arm64@2.8.20":
+    optional: true
+
+  "@turbo/windows-64@2.8.20":
+    optional: true
+
+  "@turbo/windows-arm64@2.8.20":
+    optional: true
 
   "@tybys/wasm-util@0.10.1":
     dependencies:
@@ -19854,15 +19849,6 @@ snapshots:
       inherits: 2.0.4
       readable-stream: 3.6.2
       typedarray: 0.0.6
-
-  concurrently@9.2.1:
-    dependencies:
-      chalk: 4.1.2
-      rxjs: 7.8.2
-      shell-quote: 1.8.3
-      supports-color: 8.1.1
-      tree-kill: 1.2.2
-      yargs: 17.7.2
 
   consola@3.4.2: {}
 
@@ -21038,25 +21024,6 @@ snapshots:
       - supports-color
       - ts-node
 
-  jest-cli@30.2.0(@types/node@25.0.3)(esbuild-register@3.6.0(esbuild@0.27.2))(ts-node@10.9.2(@swc/core@1.15.7)(@types/node@25.0.3)(typescript@5.8.3)):
-    dependencies:
-      "@jest/core": 30.2.0(esbuild-register@3.6.0(esbuild@0.27.2))(ts-node@10.9.2(@swc/core@1.15.7)(@types/node@25.0.3)(typescript@5.8.3))
-      "@jest/test-result": 30.2.0
-      "@jest/types": 30.2.0
-      chalk: 4.1.2
-      exit-x: 0.2.2
-      import-local: 3.2.0
-      jest-config: 30.2.0(@types/node@25.0.3)(esbuild-register@3.6.0(esbuild@0.27.2))(ts-node@10.9.2(@swc/core@1.15.7)(@types/node@25.0.3)(typescript@5.8.3))
-      jest-util: 30.2.0
-      jest-validate: 30.2.0
-      yargs: 17.7.2
-    transitivePeerDependencies:
-      - "@types/node"
-      - babel-plugin-macros
-      - esbuild-register
-      - supports-color
-      - ts-node
-
   jest-config@30.2.0(@types/node@22.19.3)(esbuild-register@3.6.0(esbuild@0.27.2))(ts-node@10.9.2(@swc/core@1.15.7)(@types/node@22.19.3)(typescript@5.8.3)):
     dependencies:
       "@babel/core": 7.28.5
@@ -21121,40 +21088,6 @@ snapshots:
       "@types/node": 25.0.3
       esbuild-register: 3.6.0(esbuild@0.27.2)
       ts-node: 10.9.2(@swc/core@1.15.7)(@types/node@22.19.3)(typescript@5.8.3)
-    transitivePeerDependencies:
-      - babel-plugin-macros
-      - supports-color
-
-  jest-config@30.2.0(@types/node@25.0.3)(esbuild-register@3.6.0(esbuild@0.27.2))(ts-node@10.9.2(@swc/core@1.15.7)(@types/node@25.0.3)(typescript@5.8.3)):
-    dependencies:
-      "@babel/core": 7.28.5
-      "@jest/get-type": 30.1.0
-      "@jest/pattern": 30.0.1
-      "@jest/test-sequencer": 30.2.0
-      "@jest/types": 30.2.0
-      babel-jest: 30.2.0(@babel/core@7.28.5)
-      chalk: 4.1.2
-      ci-info: 4.3.1
-      deepmerge: 4.3.1
-      glob: 10.5.0
-      graceful-fs: 4.2.11
-      jest-circus: 30.2.0
-      jest-docblock: 30.2.0
-      jest-environment-node: 30.2.0
-      jest-regex-util: 30.0.1
-      jest-resolve: 30.2.0
-      jest-runner: 30.2.0
-      jest-util: 30.2.0
-      jest-validate: 30.2.0
-      micromatch: 4.0.8
-      parse-json: 5.2.0
-      pretty-format: 30.2.0
-      slash: 3.0.0
-      strip-json-comments: 3.1.1
-    optionalDependencies:
-      "@types/node": 25.0.3
-      esbuild-register: 3.6.0(esbuild@0.27.2)
-      ts-node: 10.9.2(@swc/core@1.15.7)(@types/node@25.0.3)(typescript@5.8.3)
     transitivePeerDependencies:
       - babel-plugin-macros
       - supports-color
@@ -21386,19 +21319,6 @@ snapshots:
       "@jest/types": 30.2.0
       import-local: 3.2.0
       jest-cli: 30.2.0(@types/node@22.19.3)(esbuild-register@3.6.0(esbuild@0.27.2))(ts-node@10.9.2(@swc/core@1.15.7)(@types/node@22.19.3)(typescript@5.8.3))
-    transitivePeerDependencies:
-      - "@types/node"
-      - babel-plugin-macros
-      - esbuild-register
-      - supports-color
-      - ts-node
-
-  jest@30.2.0(@types/node@25.0.3)(esbuild-register@3.6.0(esbuild@0.27.2))(ts-node@10.9.2(@swc/core@1.15.7)(@types/node@25.0.3)(typescript@5.8.3)):
-    dependencies:
-      "@jest/core": 30.2.0(esbuild-register@3.6.0(esbuild@0.27.2))(ts-node@10.9.2(@swc/core@1.15.7)(@types/node@25.0.3)(typescript@5.8.3))
-      "@jest/types": 30.2.0
-      import-local: 3.2.0
-      jest-cli: 30.2.0(@types/node@25.0.3)(esbuild-register@3.6.0(esbuild@0.27.2))(ts-node@10.9.2(@swc/core@1.15.7)(@types/node@25.0.3)(typescript@5.8.3))
     transitivePeerDependencies:
       - "@types/node"
       - babel-plugin-macros
@@ -22843,7 +22763,8 @@ snapshots:
 
   shebang-regex@3.0.0: {}
 
-  shell-quote@1.8.3: {}
+  shell-quote@1.8.3:
+    optional: true
 
   shimmer@1.2.1: {}
 
@@ -23217,12 +23138,12 @@ snapshots:
       esbuild: 0.27.2
       jest-util: 30.2.0
 
-  ts-jest@29.4.6(@babel/core@7.28.5)(@jest/transform@30.2.0)(@jest/types@30.2.0)(babel-jest@30.2.0(@babel/core@7.28.5))(esbuild@0.27.2)(jest-util@30.2.0)(jest@30.2.0(@types/node@25.0.3)(esbuild-register@3.6.0(esbuild@0.27.2))(ts-node@10.9.2(@swc/core@1.15.7)(@types/node@25.0.3)(typescript@5.8.3)))(typescript@5.8.3):
+  ts-jest@29.4.6(@babel/core@7.28.5)(@jest/transform@30.2.0)(@jest/types@30.2.0)(babel-jest@30.2.0(@babel/core@7.28.5))(esbuild@0.27.2)(jest-util@30.2.0)(jest@30.2.0(esbuild-register@3.6.0(esbuild@0.27.2)))(typescript@5.8.3):
     dependencies:
       bs-logger: 0.2.6
       fast-json-stable-stringify: 2.1.0
       handlebars: 4.7.8
-      jest: 30.2.0(@types/node@25.0.3)(esbuild-register@3.6.0(esbuild@0.27.2))(ts-node@10.9.2(@swc/core@1.15.7)(@types/node@25.0.3)(typescript@5.8.3))
+      jest: 30.2.0(@types/node@22.19.3)(esbuild-register@3.6.0(esbuild@0.27.2))(ts-node@10.9.2(@swc/core@1.15.7)(@types/node@22.19.3)(typescript@5.8.3))
       json5: 2.2.3
       lodash.memoize: 4.1.2
       make-error: 1.3.6
@@ -23286,27 +23207,6 @@ snapshots:
     optionalDependencies:
       "@swc/core": 1.15.7
 
-  ts-node@10.9.2(@swc/core@1.15.7)(@types/node@25.0.3)(typescript@5.8.3):
-    dependencies:
-      "@cspotcode/source-map-support": 0.8.1
-      "@tsconfig/node10": 1.0.12
-      "@tsconfig/node12": 1.0.11
-      "@tsconfig/node14": 1.0.3
-      "@tsconfig/node16": 1.0.4
-      "@types/node": 25.0.3
-      acorn: 8.15.0
-      acorn-walk: 8.3.4
-      arg: 4.1.3
-      create-require: 1.1.1
-      diff: 4.0.2
-      make-error: 1.3.6
-      typescript: 5.8.3
-      v8-compile-cache-lib: 3.0.1
-      yn: 3.1.1
-    optionalDependencies:
-      "@swc/core": 1.15.7
-    optional: true
-
   tsconfig-paths-webpack-plugin@4.2.0:
     dependencies:
       chalk: 4.1.2
@@ -23335,6 +23235,15 @@ snapshots:
       get-tsconfig: 4.13.0
     optionalDependencies:
       fsevents: 2.3.3
+
+  turbo@2.8.20:
+    optionalDependencies:
+      "@turbo/darwin-64": 2.8.20
+      "@turbo/darwin-arm64": 2.8.20
+      "@turbo/linux-64": 2.8.20
+      "@turbo/linux-arm64": 2.8.20
+      "@turbo/windows-64": 2.8.20
+      "@turbo/windows-arm64": 2.8.20
 
   tw-animate-css@1.4.0: {}
 
@@ -23502,8 +23411,6 @@ snapshots:
   util-deprecate@1.0.2: {}
 
   utils-merge@1.0.1: {}
-
-  uuid@11.1.0: {}
 
   uuid@13.0.0: {}
 
