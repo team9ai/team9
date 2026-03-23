@@ -401,7 +401,7 @@ export class PostBroadcastService {
       for (const bot of targetBots) {
         const customHeaders =
           bot.webhookHeaders && typeof bot.webhookHeaders === 'object'
-            ? (bot.webhookHeaders as Record<string, string>)
+            ? bot.webhookHeaders
             : {};
         this.deliverWebhook(
           bot.webhookUrl!,

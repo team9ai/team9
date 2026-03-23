@@ -160,7 +160,7 @@ export class BaseModelStaffHandler implements ApplicationHandler {
     // Batch delete all agents
     const agentIds = bots
       .filter((bot) => bot.managedMeta?.agentId)
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
       .map((bot) => bot.managedMeta!.agentId as string);
 
     if (agentIds.length > 0) {

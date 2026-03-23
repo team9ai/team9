@@ -57,26 +57,22 @@ export class NotificationConsumerService implements OnModuleInit {
     try {
       switch (task.type) {
         case 'mention':
-          await this.handleMentionTask(task as MentionNotificationTask);
+          await this.handleMentionTask(task);
           break;
         case 'reply':
-          await this.handleReplyTask(task as ReplyNotificationTask);
+          await this.handleReplyTask(task);
           break;
         case 'dm':
-          await this.handleDMTask(task as DMNotificationTask);
+          await this.handleDMTask(task);
           break;
         case 'workspace_invitation':
-          await this.handleWorkspaceInvitationTask(
-            task as WorkspaceInvitationNotificationTask,
-          );
+          await this.handleWorkspaceInvitationTask(task);
           break;
         case 'member_joined':
-          await this.handleMemberJoinedTask(
-            task as MemberJoinedNotificationTask,
-          );
+          await this.handleMemberJoinedTask(task);
           break;
         case 'role_changed':
-          await this.handleRoleChangedTask(task as RoleChangedNotificationTask);
+          await this.handleRoleChangedTask(task);
           break;
         default:
           this.logger.warn(

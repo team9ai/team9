@@ -185,7 +185,7 @@ describe('WebhookController', () => {
       expect(db.update).toHaveBeenCalledTimes(2);
 
       // set() should carry 'timeout' status for execution update
-      const setCalls = (db.set as MockFn).mock.calls;
+      const setCalls = db.set.mock.calls;
       const executionSetCall = setCalls[0]?.[0] as Record<string, unknown>;
       expect(executionSetCall).toMatchObject({ status: 'timeout' });
 

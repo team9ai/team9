@@ -117,7 +117,7 @@ describe('OpenclawStrategy', () => {
 
     await strategy.execute(baseContext);
 
-    const calledUrl = (mockFetch.mock.calls[0]![0] as URL).toString();
+    const calledUrl = (mockFetch.mock.calls[0][0] as URL).toString();
     expect(calledUrl).toBe(
       'https://claw.example.com/api/agents/default/execute',
     );
@@ -130,7 +130,7 @@ describe('OpenclawStrategy', () => {
 
     await strategy.execute(baseContext);
 
-    const calledUrl = (mockFetch.mock.calls[0]![0] as URL).toString();
+    const calledUrl = (mockFetch.mock.calls[0][0] as URL).toString();
     expect(calledUrl).toBe(
       'https://nested.example.com/api/agents/default/execute',
     );
@@ -154,7 +154,7 @@ describe('OpenclawStrategy', () => {
 
     await strategy.execute(baseContext);
 
-    const calledUrl = (mockFetch.mock.calls[0]![0] as URL).toString();
+    const calledUrl = (mockFetch.mock.calls[0][0] as URL).toString();
     expect(calledUrl).toContain('/api/agents/default/execute');
   });
 
@@ -168,7 +168,7 @@ describe('OpenclawStrategy', () => {
 
     await strategy.execute(baseContext);
 
-    const calledUrl = (mockFetch.mock.calls[0]![0] as URL).toString();
+    const calledUrl = (mockFetch.mock.calls[0][0] as URL).toString();
     expect(calledUrl).toBe(
       'https://claw.example.com/api/agents/my-agent/execute',
     );
@@ -184,7 +184,7 @@ describe('OpenclawStrategy', () => {
 
     await strategy.execute(baseContext);
 
-    const calledUrl = (mockFetch.mock.calls[0]![0] as URL).toString();
+    const calledUrl = (mockFetch.mock.calls[0][0] as URL).toString();
     expect(calledUrl).toContain('/api/agents/agent%2Fwith%20spaces/execute');
   });
 
@@ -249,7 +249,7 @@ describe('OpenclawStrategy', () => {
     );
 
     // Verify body content
-    const callOpts = mockFetch.mock.calls[0]![1] as RequestInit;
+    const callOpts = mockFetch.mock.calls[0][1] as RequestInit;
     const parsedBody = JSON.parse(callOpts.body as string);
     expect(parsedBody).toEqual(
       expect.objectContaining({

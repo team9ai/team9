@@ -86,7 +86,7 @@ export class ExecutorService {
       return;
     }
 
-    const task = claimed[0]!;
+    const task = claimed[0];
     this.logger.log(`Starting execution for task ${taskId} ("${task.title}")`);
 
     if (!task.botId) {

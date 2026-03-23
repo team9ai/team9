@@ -313,14 +313,14 @@ export class NotificationService {
     // Populate category counts
     categoryResults.forEach((r) => {
       const count = Number(r.count);
-      counts.byCategory[r.category as keyof typeof counts.byCategory] = count;
+      counts.byCategory[r.category] = count;
       counts.total += count;
     });
 
     // Populate type counts
     typeResults.forEach((r) => {
       const count = Number(r.count);
-      counts.byType[r.type as keyof typeof counts.byType] = count;
+      counts.byType[r.type] = count;
     });
 
     return counts;

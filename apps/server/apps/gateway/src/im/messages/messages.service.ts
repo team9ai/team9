@@ -691,7 +691,7 @@ export class MessagesService {
     let filteredFirstLevel = firstLevelReplies;
     if (cursorDate) {
       filteredFirstLevel = firstLevelReplies.filter(
-        (r) => r.createdAt > cursorDate!,
+        (r) => r.createdAt > cursorDate,
       );
     }
 

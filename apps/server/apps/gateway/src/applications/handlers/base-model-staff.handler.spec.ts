@@ -239,7 +239,7 @@ describe('BaseModelStaffHandler', () => {
 
       await handler.onUninstall(installedApp);
 
-      const expectedAgentIds = bots.map((bot) => bot.managedMeta!.agentId);
+      const expectedAgentIds = bots.map((bot) => bot.managedMeta.agentId);
       expect(clawHiveService.deleteAgents).toHaveBeenCalledWith(
         expectedAgentIds,
       );
