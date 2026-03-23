@@ -21,9 +21,10 @@ jest.unstable_mockModule('../websocket/websocket.gateway.js', () => ({
 // Dynamic import AFTER mocking
 const { StreamingController } = await import('./streaming.controller.js');
 const { WebsocketGateway } = await import('../websocket/websocket.gateway.js');
+const uuid = await import('uuid');
 
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, Logger } from '@nestjs/common';
 import { RedisService } from '@team9/redis';
 import { GatewayMQService } from '@team9/rabbitmq';
 import { ChannelsService } from '../channels/channels.service.js';
@@ -44,6 +45,7 @@ const OTHER_USER_ID = 'other-user-id-002';
 const NON_BOT_USER_ID = 'human-user-id-003';
 const CHANNEL_ID = 'channel-uuid-abc';
 const STREAM_ID = 'mock-stream-id';
+const CLIENT_MSG_ID = 'mock-client-msg-id';
 const PARENT_ID = 'parent-msg-uuid';
 const MSG_ID = 'persisted-msg-id-777';
 
@@ -324,6 +326,8 @@ describe('StreamingController', () => {
       redisService.get.mockResolvedValueOnce(JSON.stringify(makeSession()));
       const message = makeMessage();
       messagesService.getMessageWithDetails.mockResolvedValueOnce(message);
+      // Return a distinct value for the clientMsgId uuidv7() call inside endStreaming
+      (uuid.v7 as unknown as jest.Mock<any>).mockReturnValueOnce(CLIENT_MSG_ID);
 
       const result = await controller.endStreaming(BOT_USER_ID, STREAM_ID, {
         content: 'Final content',
@@ -342,9 +346,9 @@ describe('StreamingController', () => {
         STREAM_ID,
       );
 
-      // Persists message via gRPC
+      // Persists message via gRPC (clientMsgId is a fresh uuidv7(), distinct from streamId)
       expect(imWorkerGrpcClientService.createMessage).toHaveBeenCalledWith({
-        clientMsgId: STREAM_ID, // uuidv7 is mocked to return STREAM_ID
+        clientMsgId: CLIENT_MSG_ID,
         channelId: CHANNEL_ID,
         senderId: BOT_USER_ID,
         content: 'Final content',
@@ -461,6 +465,9 @@ describe('StreamingController', () => {
       gatewayMQService.publishPostBroadcast.mockRejectedValueOnce(
         new Error('RabbitMQ connection lost'),
       );
+      const warnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => {});
 
       // Should resolve successfully even though post-broadcast fails
       const result = await controller.endStreaming(BOT_USER_ID, STREAM_ID, {
@@ -468,6 +475,14 @@ describe('StreamingController', () => {
       });
 
       expect(result).toEqual({ success: true, messageId: MSG_ID });
+
+      // Flush the microtask queue so the .catch() handler runs
+      await new Promise((r) => setImmediate(r));
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to publish post-broadcast task'),
+      );
+      warnSpy.mockRestore();
     });
   });
 
