@@ -23,6 +23,7 @@ function mockDb() {
     'update',
     'set',
     'innerJoin',
+    'delete',
   ];
   for (const m of methods) {
     chain[m] = jest.fn<any>().mockReturnValue(chain);
@@ -35,13 +36,17 @@ function mockDb() {
 describe('BotService', () => {
   let service: BotService;
   let db: ReturnType<typeof mockDb>;
-  let channelsService: { createDirectChannel: MockFn };
+  let channelsService: {
+    createDirectChannel: MockFn;
+    deleteDirectChannelsForUser: MockFn;
+  };
   let eventEmitter: { emit: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
     channelsService = {
       createDirectChannel: jest.fn<any>().mockResolvedValue({}),
+      deleteDirectChannelsForUser: jest.fn<any>().mockResolvedValue(0),
     };
     eventEmitter = { emit: jest.fn<any>() };
 
@@ -228,6 +233,40 @@ describe('BotService', () => {
     it('should return false for unknown user', async () => {
       db.limit.mockResolvedValue([] as any);
       expect(await service.isBot('nonexistent')).toBe(false);
+    });
+  });
+
+  // ── deleteBotAndCleanup ─────────────────────────────────────────────
+
+  describe('deleteBotAndCleanup', () => {
+    it('should delete DM channels, user, and emit event', async () => {
+      // getBotById: limit returns bot row
+      db.limit.mockResolvedValueOnce([
+        { id: 'bot-1', userId: 'bot-user-1' },
+      ] as any);
+
+      await service.deleteBotAndCleanup('bot-1');
+
+      expect(channelsService.deleteDirectChannelsForUser).toHaveBeenCalledWith(
+        'bot-user-1',
+      );
+      expect(db.delete).toHaveBeenCalled();
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        'bot.deleted',
+        expect.objectContaining({ botId: 'bot-1', userId: 'bot-user-1' }),
+      );
+    });
+
+    it('should throw if bot is not found', async () => {
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(service.deleteBotAndCleanup('nonexistent')).rejects.toThrow(
+        'Bot not found: nonexistent',
+      );
+
+      expect(
+        channelsService.deleteDirectChannelsForUser,
+      ).not.toHaveBeenCalled();
     });
   });
 });

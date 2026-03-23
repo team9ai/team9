@@ -198,7 +198,7 @@ describe('InstalledApplicationsService — uninstall', () => {
       findById: jest.fn<any>().mockReturnValue({
         id: APP_ID,
         name: 'Base Model Staff',
-        type: 'managed',
+        type: 'custom',
         singleton: true,
         enabled: true,
       }),
@@ -224,7 +224,7 @@ describe('InstalledApplicationsService — uninstall', () => {
     );
   });
 
-  it('calls onUninstall for base-model-staff (UNINSTALLABLE_MANAGED_APPS)', async () => {
+  it('calls onUninstall handler for custom apps', async () => {
     // findByIdWithSecrets uses select().from().where() — where() is terminal
     db.where.mockResolvedValueOnce([
       { ...INSERTED_RECORD, applicationId: APP_ID },
@@ -235,7 +235,7 @@ describe('InstalledApplicationsService — uninstall', () => {
     expect(handler.onUninstall).toHaveBeenCalled();
   });
 
-  it('throws ForbiddenException when uninstalling a non-whitelisted managed app (openclaw)', async () => {
+  it('throws ForbiddenException when uninstalling a managed app', async () => {
     applicationsService.findById.mockReturnValueOnce({
       id: 'openclaw',
       name: 'OpenClaw',

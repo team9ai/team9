@@ -999,4 +999,41 @@ export class ChannelsService {
     }
     return { valid: true };
   }
+
+  /**
+   * Delete all DM channels that a user participates in.
+   * Used during bot cleanup to remove orphaned direct channels.
+   */
+  async deleteDirectChannelsForUser(userId: string): Promise<number> {
+    // Find all DM channel IDs where this user is a member
+    const dmChannels = await this.db
+      .select({ channelId: schema.channelMembers.channelId })
+      .from(schema.channelMembers)
+      .innerJoin(
+        schema.channels,
+        eq(schema.channelMembers.channelId, schema.channels.id),
+      )
+      .where(
+        and(
+          eq(schema.channelMembers.userId, userId),
+          eq(schema.channels.type, 'direct'),
+        ),
+      );
+
+    if (dmChannels.length === 0) return 0;
+
+    const channelIds = dmChannels.map((c) => c.channelId);
+
+    // Delete channels (cascades to channel_members, messages, etc.)
+    await this.db
+      .delete(schema.channels)
+      .where(inArray(schema.channels.id, channelIds));
+
+    // Invalidate Redis cache for each channel
+    for (const id of channelIds) {
+      await this.redis.invalidate(REDIS_KEYS.CHANNEL_CACHE(id));
+    }
+
+    return channelIds.length;
+  }
 }

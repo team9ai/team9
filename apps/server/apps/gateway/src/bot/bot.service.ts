@@ -645,6 +645,15 @@ export class BotService implements OnModuleInit {
       throw new Error(`Bot not found: ${botId}`);
     }
 
+    // Delete all DM channels the bot participates in
+    const deletedChannels =
+      await this.channelsService.deleteDirectChannelsForUser(bot.userId);
+    if (deletedChannels > 0) {
+      this.logger.log(
+        `Deleted ${deletedChannels} DM channels for bot ${botId}`,
+      );
+    }
+
     // Delete shadow user (im_bots cascades via userId FK)
     await this.db.delete(schema.users).where(eq(schema.users.id, bot.userId));
 

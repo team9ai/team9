@@ -26,6 +26,7 @@ function mockDb() {
     'offset',
     'groupBy',
     'having',
+    'delete',
   ];
   for (const m of methods) {
     chain[m] = jest.fn<any>().mockReturnValue(chain);
@@ -133,6 +134,42 @@ describe('ChannelsService', () => {
       );
 
       expect(result.content).toBe('fallback content');
+    });
+  });
+
+  // ── deleteDirectChannelsForUser ────────────────────────────────────
+
+  describe('deleteDirectChannelsForUser', () => {
+    let redisService: { invalidate: MockFn };
+
+    beforeEach(() => {
+      redisService = (service as any).redis;
+      redisService.invalidate = jest.fn<any>().mockResolvedValue(undefined);
+    });
+
+    it('should delete DM channels and invalidate Redis cache', async () => {
+      // First where() call: select query returns DM channel IDs
+      db.where.mockResolvedValueOnce([
+        { channelId: 'dm-1' },
+        { channelId: 'dm-2' },
+      ]);
+      // Second where() call: delete query resolves
+      db.where.mockResolvedValueOnce(undefined);
+
+      const count = await service.deleteDirectChannelsForUser('bot-user-id');
+
+      expect(count).toBe(2);
+      expect(db.delete).toHaveBeenCalled();
+      expect(redisService.invalidate).toHaveBeenCalledTimes(2);
+    });
+
+    it('should return 0 and skip delete when no DM channels exist', async () => {
+      db.where.mockResolvedValueOnce([]);
+
+      const count = await service.deleteDirectChannelsForUser('bot-user-id');
+
+      expect(count).toBe(0);
+      // delete should not be called since there are no channels
     });
   });
 });

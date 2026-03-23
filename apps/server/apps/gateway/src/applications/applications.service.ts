@@ -24,7 +24,7 @@ const APPLICATIONS: Application[] = [
     iconUrl: '/icons/base-model-staff.svg',
     categories: ['ai', 'bot'],
     enabled: true,
-    type: 'managed',
+    type: 'custom',
     singleton: true,
   },
 ];

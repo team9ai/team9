@@ -272,15 +272,11 @@ export class InstalledApplicationsService {
       throw new NotFoundException(`Installed application ${id} not found`);
     }
 
-    // Check if this is a managed application - only some can be uninstalled
-    const UNINSTALLABLE_MANAGED_APPS = ['base-model-staff'];
+    // Managed applications cannot be uninstalled
     const application = this.applicationsService.findById(
       existing.applicationId,
     );
-    if (
-      application?.type === 'managed' &&
-      !UNINSTALLABLE_MANAGED_APPS.includes(application.id)
-    ) {
+    if (application?.type === 'managed') {
       throw new ForbiddenException(
         `Managed application ${application.name} cannot be uninstalled`,
       );
