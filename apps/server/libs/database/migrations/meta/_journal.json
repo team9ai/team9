@@ -183,6 +183,13 @@
       "when": 1773908048677,
       "tag": "0025_useful_puff_adder",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1774258206518,
+      "tag": "0026_overrated_spencer_smythe",
+      "breakpoints": true
     }
   ]
 }

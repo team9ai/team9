@@ -1,0 +1,1 @@
+DROP INDEX "idx_bots_managed_provider";
