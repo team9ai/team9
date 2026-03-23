@@ -98,13 +98,17 @@ export class StreamingController {
     );
 
     // Broadcast to channel via Socket.io
-    this.websocketGateway.sendToChannel(channelId, WS_EVENTS.STREAMING.START, {
-      streamId,
+    this.websocketGateway.sendToChannelMembers(
       channelId,
-      senderId: userId,
-      parentId: dto.parentId,
-      startedAt,
-    });
+      WS_EVENTS.STREAMING.START,
+      {
+        streamId,
+        channelId,
+        senderId: userId,
+        parentId: dto.parentId,
+        startedAt,
+      },
+    );
 
     return { streamId };
   }
@@ -141,7 +145,7 @@ export class StreamingController {
       STREAM_TTL,
     );
 
-    this.websocketGateway.sendToChannel(
+    this.websocketGateway.sendToChannelMembers(
       session.channelId,
       WS_EVENTS.STREAMING.CONTENT,
       {
@@ -205,15 +209,19 @@ export class StreamingController {
     );
 
     // Broadcast streaming_end with persisted message
-    this.websocketGateway.sendToChannel(channelId, WS_EVENTS.STREAMING.END, {
-      streamId,
+    this.websocketGateway.sendToChannelMembers(
       channelId,
-      senderId: userId,
-      message,
-    });
+      WS_EVENTS.STREAMING.END,
+      {
+        streamId,
+        channelId,
+        senderId: userId,
+        message,
+      },
+    );
 
     // Also broadcast as new_message for clients that missed the stream
-    this.websocketGateway.sendToChannel(
+    this.websocketGateway.sendToChannelMembers(
       channelId,
       WS_EVENTS.MESSAGE.NEW,
       message,
