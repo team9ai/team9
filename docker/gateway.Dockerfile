@@ -41,6 +41,7 @@ COPY apps/server/libs/ai-client/package.json ./apps/server/libs/ai-client/
 COPY apps/server/libs/storage/package.json ./apps/server/libs/storage/
 COPY apps/server/libs/email/package.json ./apps/server/libs/email/
 COPY apps/server/libs/observability/package.json ./apps/server/libs/observability/
+COPY apps/server/libs/claw-hive/package.json ./apps/server/libs/claw-hive/
 
 # Copy enterprise package.json files if submodule is present
 COPY enterpris[e]/libs/sso/package.json ./enterprise/libs/sso/
