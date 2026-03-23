@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { DatabaseModule } from '@team9/database';
 import { RedisModule } from '@team9/redis';
 import { RabbitmqModule } from '@team9/rabbitmq';
+import { ClawHiveModule } from '@team9/claw-hive';
 import { PostBroadcastService } from './post-broadcast.service.js';
 
 /**
