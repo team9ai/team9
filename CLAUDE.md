@@ -19,6 +19,10 @@ pnpm dev:im-worker    # Background IM worker service only
 pnpm dev:server:all   # Both gateway and im-worker services
 ```
 
+> Note: `pnpm dev` and other scripts use Turborepo for task orchestration.
+> Build artifacts are cached locally in `.turbo/`. Run `turbo run build`
+> directly if you need fine-grained control (e.g., `--filter`, `--dry`).
+
 ### Database Operations
 
 ```bash
