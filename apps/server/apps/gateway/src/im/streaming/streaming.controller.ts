@@ -72,6 +72,7 @@ export class StreamingController {
     }
 
     const streamId = uuidv7();
+    const startedAt = Date.now();
 
     // Store session in Redis (same keys as WebSocket handler)
     await this.redisService.set(
@@ -80,7 +81,7 @@ export class StreamingController {
         channelId,
         senderId: userId,
         parentId: dto.parentId,
-        startedAt: Date.now(),
+        startedAt,
       }),
       STREAM_TTL,
     );
@@ -100,7 +101,7 @@ export class StreamingController {
       channelId,
       senderId: userId,
       parentId: dto.parentId,
-      startedAt: Date.now(),
+      startedAt,
     });
 
     return { streamId };
@@ -124,9 +125,17 @@ export class StreamingController {
     }
     const session = JSON.parse(sessionRaw);
 
-    // Refresh TTL
+    if (session.senderId !== userId) {
+      throw new ForbiddenException('Not the owner of this stream');
+    }
+
+    // Refresh TTL on both session and active-streams set
     await this.redisService.expire(
       REDIS_KEYS.STREAMING_SESSION(streamId),
+      STREAM_TTL,
+    );
+    await this.redisService.expire(
+      REDIS_KEYS.BOT_ACTIVE_STREAMS(userId),
       STREAM_TTL,
     );
 
@@ -161,6 +170,11 @@ export class StreamingController {
       throw new ForbiddenException('Streaming session not found or expired');
     }
     const session = JSON.parse(sessionRaw);
+
+    if (session.senderId !== userId) {
+      throw new ForbiddenException('Not the owner of this stream');
+    }
+
     const channelId = session.channelId;
 
     // Clean up Redis state

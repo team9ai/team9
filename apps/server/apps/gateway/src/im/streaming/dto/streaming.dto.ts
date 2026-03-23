@@ -1,9 +1,12 @@
-import { IsString, IsUUID, IsOptional, MaxLength } from 'class-validator';
+import {
+  IsString,
+  IsUUID,
+  IsOptional,
+  IsNotEmpty,
+  MaxLength,
+} from 'class-validator';
 
 export class StartStreamingDto {
-  @IsUUID()
-  senderId: string;
-
   @IsUUID()
   @IsOptional()
   parentId?: string;
@@ -11,12 +14,14 @@ export class StartStreamingDto {
 
 export class UpdateStreamingContentDto {
   @IsString()
+  @IsNotEmpty()
   @MaxLength(100000)
   content: string;
 }
 
 export class EndStreamingDto {
   @IsString()
+  @IsNotEmpty()
   @MaxLength(100000)
   content: string;
 }
