@@ -57,33 +57,42 @@ export class BaseModelStaffHandler implements ApplicationHandler {
     const botIds: string[] = [];
 
     try {
+      // Step 1: Create bots sequentially (needs accessToken per bot)
+      const createdBotData: Array<{
+        bot: { botId: string; userId: string };
+        accessToken: string;
+        preset: (typeof BASE_MODEL_PRESETS)[number];
+      }> = [];
+
       for (const preset of BASE_MODEL_PRESETS) {
-        // 3a. Create bot in team9
         const { bot, accessToken } = await this.botService.createWorkspaceBot({
           ownerId: installedBy,
           tenantId,
           type: 'system',
           displayName: preset.name,
-          username: `${preset.key}-bot-${tenantId.slice(0, 8)}`,
+          username: `${preset.key}_bot_${tenantId}`,
           installedApplicationId: installedApplication.id,
           generateToken: true,
           mentorId: installedBy,
           managedProvider: 'hive',
           managedMeta: {
-            agentId: `base-model-${preset.key}-${tenantId.slice(0, 8)}`,
+            agentId: `base-model-${preset.key}-${tenantId}`,
           },
         });
 
         createdBots.push(bot.botId);
         botIds.push(bot.botId);
+        createdBotData.push({ bot, accessToken: accessToken!, preset });
 
         this.logger.log(
           `Created bot ${bot.botId} (${preset.name}) for tenant ${tenantId}`,
         );
+      }
 
-        // 3b. Register agent in claw-hive
-        await this.clawHiveService.registerAgent({
-          id: `base-model-${preset.key}-${tenantId.slice(0, 8)}`,
+      // Step 2: Batch register all agents (1 HTTP call instead of 3)
+      await this.clawHiveService.registerAgents({
+        agents: createdBotData.map(({ bot, accessToken, preset }) => ({
+          id: `base-model-${preset.key}-${tenantId}`,
           name: preset.name,
           blueprintId: 'team9-hive-base-model',
           tenantId,
@@ -91,29 +100,36 @@ export class BaseModelStaffHandler implements ApplicationHandler {
           componentConfigs: {
             'base-model-agent': { modelName: preset.name },
             team9: {
-              team9AuthToken: accessToken!,
+              team9AuthToken: accessToken,
               botUserId: bot.userId,
             },
           },
-        });
+        })),
+        atomic: true,
+      });
 
-        this.logger.log(
-          `Registered claw-hive agent base-model-${preset.key}-${tenantId.slice(0, 8)} for tenant ${tenantId}`,
-        );
+      this.logger.log(
+        `Batch registered ${createdBotData.length} claw-hive agents for tenant ${tenantId}`,
+      );
 
-        // 3c. Create DM channels for all workspace members
-        const memberUserIds = members
-          .map((m) => m.userId)
-          .filter((uid) => uid !== bot.userId);
+      // Step 3: Parallel channel creation
+      const memberUserIds = members.map((m) => m.userId);
 
-        if (memberUserIds.length > 0) {
-          await this.channelsService.createDirectChannelsBatch(
-            bot.userId,
-            memberUserIds,
-            tenantId,
+      await Promise.all(
+        createdBotData.map(({ bot }) => {
+          const filteredMembers = memberUserIds.filter(
+            (uid) => uid !== bot.userId,
           );
-        }
-      }
+          if (filteredMembers.length > 0) {
+            return this.channelsService.createDirectChannelsBatch(
+              bot.userId,
+              filteredMembers,
+              tenantId,
+            );
+          }
+          return Promise.resolve();
+        }),
+      );
     } catch (error) {
       // Rollback: clean up any bots created before the failure
       this.logger.error(
@@ -141,19 +157,19 @@ export class BaseModelStaffHandler implements ApplicationHandler {
   async onUninstall(app: schema.InstalledApplication): Promise<void> {
     const bots = await this.botService.getBotsByInstalledApplicationId(app.id);
 
+    // Batch delete all agents
+    const agentIds = bots
+      .filter((bot) => bot.managedMeta?.agentId)
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      .map((bot) => bot.managedMeta!.agentId as string);
+
+    if (agentIds.length > 0) {
+      await this.clawHiveService.deleteAgents(agentIds);
+      this.logger.log(`Deleted ${agentIds.length} claw-hive agents`);
+    }
+
+    // Delete bots
     for (const bot of bots) {
-      // Use managedMeta to get agentId
-      if (bot.managedMeta?.agentId) {
-        try {
-          await this.clawHiveService.deleteAgent(bot.managedMeta.agentId);
-          this.logger.log(`Deleted claw-hive agent ${bot.managedMeta.agentId}`);
-        } catch (error) {
-          this.logger.warn(
-            `Failed to delete claw-hive agent ${bot.managedMeta.agentId}`,
-            error,
-          );
-        }
-      }
       try {
         await this.botService.deleteBotAndCleanup(bot.botId);
         this.logger.log(`Deleted bot ${bot.botId}`);

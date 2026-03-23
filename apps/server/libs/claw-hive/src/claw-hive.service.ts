@@ -86,6 +86,43 @@ export class ClawHiveService {
     }
   }
 
+  async registerAgents(params: {
+    agents: Array<{
+      id: string;
+      name: string;
+      blueprintId: string;
+      tenantId: string;
+      model: { provider: string; id: string };
+      componentConfigs: Record<string, Record<string, unknown>>;
+    }>;
+    atomic?: boolean;
+  }): Promise<{
+    results: Array<{ id: string; status: string; error?: string }>;
+    hasErrors: boolean;
+  }> {
+    const res = await fetch(`${this.baseUrl}/api/agents/batch`, {
+      method: 'POST',
+      headers: this.headers(params.agents[0]?.tenantId),
+      body: JSON.stringify({
+        agents: params.agents,
+        atomic: params.atomic,
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Failed to batch register agents: ${res.status} ${text}`);
+    }
+    return res.json() as Promise<{
+      results: Array<{ id: string; status: string; error?: string }>;
+      hasErrors: boolean;
+    }>;
+  }
+
+  async deleteAgents(agentIds: string[]): Promise<void> {
+    await Promise.allSettled(agentIds.map((id) => this.deleteAgent(id)));
+  }
+
   private headers(tenantId?: string): Record<string, string> {
     return {
       'Content-Type': 'application/json',
