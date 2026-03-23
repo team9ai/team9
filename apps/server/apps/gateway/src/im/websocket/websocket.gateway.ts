@@ -36,6 +36,7 @@ import {
   type StreamingAbortEvent,
 } from './events/events.constants.js';
 import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
+import { ChannelMemberCacheService } from '../shared/channel-member-cache.service.js';
 import { SocketWithUser } from '../shared/interfaces/socket-with-user.interface.js';
 import { WorkspaceService } from '../../workspace/workspace.service.js';
 import { GatewayMQService } from '@team9/rabbitmq';
@@ -70,6 +71,7 @@ export class WebsocketGateway
     private readonly redisService: RedisService,
     @Inject(forwardRef(() => WorkspaceService))
     private readonly workspaceService: WorkspaceService,
+    private readonly channelMemberCacheService: ChannelMemberCacheService,
     // Distributed IM Architecture services
     @Optional() private readonly clusterNodeService?: ClusterNodeService,
     @Optional() private readonly sessionService?: SessionService,
@@ -230,15 +232,8 @@ export class WebsocketGateway
         throw error; // Re-throw to be caught by outer catch
       }
 
-      // Auto-join user's channels
-      this.logger.debug(`[WS] Loading user channels...`);
-      const userChannels = await this.channelsService.getUserChannels(
-        payload.sub,
-      );
-      this.logger.debug(`[WS] Found ${userChannels.length} channels`);
-      for (const channel of userChannels) {
-        void client.join(`channel:${channel.id}`);
-      }
+      // Join user room for targeted delivery
+      void client.join(`user:${payload.sub}`);
 
       // Auto-join user's workspaces
       const workspaceIds = await this.workspaceService.getWorkspaceIdsByUserId(
@@ -517,58 +512,24 @@ export class WebsocketGateway
   @SubscribeMessage(WS_EVENTS.CHANNEL.JOIN)
   async handleJoinChannel(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: JoinChannelPayload,
+    @MessageBody() _data: JoinChannelPayload,
   ) {
     const socketClient = client as SocketWithUser;
-    const { channelId } = data;
-    const roomName = `channel:${channelId}`;
-
-    // Already in the room (e.g. auto-joined on connect) — skip DB query and broadcast
-    if (client.rooms.has(roomName)) {
-      return { success: true };
-    }
-
-    const isMember = await this.channelsService.isMember(
-      channelId,
-      socketClient.userId,
+    this.logger.warn(
+      `Deprecated: join_channel from ${socketClient.userId}, no-op`,
     );
-    if (!isMember) {
-      // Allow non-members to join public channel rooms (for preview mode)
-      const channel = await this.channelsService.findById(channelId);
-      if (!channel || channel.type !== 'public') {
-        return { error: 'Not a member of this channel' };
-      }
-    }
-
-    void client.join(roomName);
-
-    // Only broadcast join event for actual members
-    if (isMember) {
-      client.to(roomName).emit(WS_EVENTS.CHANNEL.JOINED, {
-        channelId,
-        userId: socketClient.userId,
-        username: socketClient.username,
-      });
-    }
-
     return { success: true };
   }
 
   @SubscribeMessage(WS_EVENTS.CHANNEL.LEAVE)
   handleLeaveChannel(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: JoinChannelPayload,
+    @MessageBody() _data: JoinChannelPayload,
   ) {
     const socketClient = client as SocketWithUser;
-    const { channelId } = data;
-
-    void client.leave(`channel:${channelId}`);
-
-    client.to(`channel:${channelId}`).emit(WS_EVENTS.CHANNEL.LEFT, {
-      channelId,
-      userId: socketClient.userId,
-    });
-
+    this.logger.warn(
+      `Deprecated: leave_channel from ${socketClient.userId}, no-op`,
+    );
     return { success: true };
   }
 
@@ -588,7 +549,7 @@ export class WebsocketGateway
       messageId,
     );
 
-    client.to(`channel:${channelId}`).emit(WS_EVENTS.READ_STATUS.UPDATED, {
+    await this.sendToChannelMembers(channelId, WS_EVENTS.READ_STATUS.UPDATED, {
       channelId,
       userId: socketClient.userId,
       lastReadMessageId: messageId,
@@ -611,12 +572,17 @@ export class WebsocketGateway
     // Set typing status with 5s TTL
     await this.redisService.set(typingKey, '1', 5);
 
-    client.to(`channel:${channelId}`).emit(WS_EVENTS.TYPING.USER_TYPING, {
+    await this.sendToChannelMembers(
       channelId,
-      userId: socketClient.userId,
-      username: socketClient.username,
-      isTyping: true,
-    });
+      WS_EVENTS.TYPING.USER_TYPING,
+      {
+        channelId,
+        userId: socketClient.userId,
+        username: socketClient.username,
+        isTyping: true,
+      },
+      socketClient.userId,
+    );
 
     return { success: true };
   }
@@ -632,11 +598,16 @@ export class WebsocketGateway
 
     await this.redisService.del(typingKey);
 
-    client.to(`channel:${channelId}`).emit(WS_EVENTS.TYPING.USER_TYPING, {
+    await this.sendToChannelMembers(
       channelId,
-      userId: socketClient.userId,
-      isTyping: false,
-    });
+      WS_EVENTS.TYPING.USER_TYPING,
+      {
+        channelId,
+        userId: socketClient.userId,
+        isTyping: false,
+      },
+      socketClient.userId,
+    );
 
     return { success: true };
   }
@@ -697,7 +668,7 @@ export class WebsocketGateway
 
     const channelId = await this.messagesService.getMessageChannelId(messageId);
 
-    this.server.to(`channel:${channelId}`).emit(WS_EVENTS.REACTION.ADDED, {
+    await this.sendToChannelMembers(channelId, WS_EVENTS.REACTION.ADDED, {
       messageId,
       userId: socketClient.userId,
       emoji,
@@ -722,7 +693,7 @@ export class WebsocketGateway
 
     const channelId = await this.messagesService.getMessageChannelId(messageId);
 
-    this.server.to(`channel:${channelId}`).emit(WS_EVENTS.REACTION.REMOVED, {
+    await this.sendToChannelMembers(channelId, WS_EVENTS.REACTION.REMOVED, {
       messageId,
       userId: socketClient.userId,
       emoji,
@@ -791,16 +762,27 @@ export class WebsocketGateway
     event: string,
     data: unknown,
   ): Promise<void> {
-    const socketIds = await this.redisService.smembers(
-      REDIS_KEYS.USER_SOCKETS(userId),
-    );
-    for (const socketId of socketIds) {
-      this.server.to(socketId).emit(event, data);
-    }
+    this.server.to(`user:${userId}`).emit(event, data);
   }
 
-  sendToChannel(channelId: string, event: string, data: unknown): void {
-    this.server.to(`channel:${channelId}`).emit(event, data);
+  async sendToChannelMembers(
+    channelId: string,
+    event: string,
+    data: unknown,
+    excludeUserId?: string,
+  ): Promise<void> {
+    try {
+      const memberIds =
+        await this.channelMemberCacheService.getMemberIds(channelId);
+      for (const userId of memberIds) {
+        if (userId === excludeUserId) continue;
+        this.server.to(`user:${userId}`).emit(event, data);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to deliver ${event} to channel ${channelId}: ${(error as Error).message}`,
+      );
+    }
   }
 
   // ==================== Workspace Operations ====================
@@ -897,9 +879,11 @@ export class WebsocketGateway
       startedAt: Date.now(),
     };
 
-    this.server
-      .to(`channel:${data.channelId}`)
-      .emit(WS_EVENTS.STREAMING.START, event);
+    await this.sendToChannelMembers(
+      data.channelId,
+      WS_EVENTS.STREAMING.START,
+      event,
+    );
 
     return { success: true };
   }
@@ -920,12 +904,14 @@ export class WebsocketGateway
       120,
     );
 
-    this.server
-      .to(`channel:${data.channelId}`)
-      .emit(WS_EVENTS.STREAMING.CONTENT, {
+    await this.sendToChannelMembers(
+      data.channelId,
+      WS_EVENTS.STREAMING.CONTENT,
+      {
         ...data,
         senderId: socketClient.userId,
-      });
+      },
+    );
 
     return { success: true };
   }
@@ -945,12 +931,14 @@ export class WebsocketGateway
       120,
     );
 
-    this.server
-      .to(`channel:${data.channelId}`)
-      .emit(WS_EVENTS.STREAMING.THINKING_CONTENT, {
+    await this.sendToChannelMembers(
+      data.channelId,
+      WS_EVENTS.STREAMING.THINKING_CONTENT,
+      {
         ...data,
         senderId: socketClient.userId,
-      });
+      },
+    );
 
     return { success: true };
   }
@@ -978,16 +966,20 @@ export class WebsocketGateway
     };
 
     // Broadcast streaming end to channel
-    this.server
-      .to(`channel:${data.channelId}`)
-      .emit(WS_EVENTS.STREAMING.END, endEvent);
+    await this.sendToChannelMembers(
+      data.channelId,
+      WS_EVENTS.STREAMING.END,
+      endEvent,
+    );
 
     // Also broadcast as new_message for clients that missed the stream
     // or joined mid-stream. The message was already persisted via HTTP API.
     if (data.message) {
-      this.server
-        .to(`channel:${data.channelId}`)
-        .emit(WS_EVENTS.MESSAGE.NEW, data.message);
+      await this.sendToChannelMembers(
+        data.channelId,
+        WS_EVENTS.MESSAGE.NEW,
+        data.message,
+      );
       appMetrics.messagesTotal.add(1);
     }
 
@@ -1010,12 +1002,10 @@ export class WebsocketGateway
       data.streamId,
     );
 
-    this.server
-      .to(`channel:${data.channelId}`)
-      .emit(WS_EVENTS.STREAMING.ABORT, {
-        ...data,
-        senderId: socketClient.userId,
-      });
+    await this.sendToChannelMembers(data.channelId, WS_EVENTS.STREAMING.ABORT, {
+      ...data,
+      senderId: socketClient.userId,
+    });
 
     return { success: true };
   }
@@ -1047,14 +1037,16 @@ export class WebsocketGateway
         if (sessionData) {
           const session = JSON.parse(sessionData);
           // Broadcast abort to channel
-          this.server
-            .to(`channel:${session.channelId}`)
-            .emit(WS_EVENTS.STREAMING.ABORT, {
+          await this.sendToChannelMembers(
+            session.channelId,
+            WS_EVENTS.STREAMING.ABORT,
+            {
               streamId,
               channelId: session.channelId,
               senderId: botUserId,
               reason: 'disconnect' as const,
-            });
+            },
+          );
 
           // Clean up Redis
           await this.redisService.del(REDIS_KEYS.STREAMING_SESSION(streamId));

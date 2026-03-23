@@ -70,7 +70,6 @@ export class SyncService {
         and(
           eq(schema.messages.channelId, channelId),
           gt(schema.messages.seqId, afterSeqId),
-          eq(schema.messages.isDeleted, false),
         ),
       )
       .orderBy(schema.messages.seqId)
@@ -255,6 +254,7 @@ export class SyncService {
       seqId: msg.seqId?.toString() ?? '0',
       isPinned: msg.isPinned,
       isEdited: msg.isEdited,
+      isDeleted: msg.isDeleted,
       createdAt: msg.createdAt.toISOString(),
       updatedAt: msg.updatedAt.toISOString(),
       sender: msg.senderId ? sendersMap.get(msg.senderId) : undefined,

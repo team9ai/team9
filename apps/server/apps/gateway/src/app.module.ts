@@ -40,6 +40,7 @@ import { TasksModule } from './tasks/tasks.module.js';
 import { ResourcesModule } from './resources/resources.module.js';
 import { SkillsModule } from './skills/skills.module.js';
 import { SentryUserInterceptor } from './common/interceptors/sentry-user.interceptor.js';
+import { ImSharedModule } from './im/shared/im-shared.module.js';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { SentryUserInterceptor } from './common/interceptors/sentry-user.interce
     AiClientModule,
     RabbitmqModule,
     StorageModule,
+    ImSharedModule,
     BotModule,
     OpenclawModule,
     FileKeeperModule,

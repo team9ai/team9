@@ -74,9 +74,6 @@ export function useMessages(channelId: string | undefined) {
   useEffect(() => {
     if (!channelId) return;
 
-    // Join the channel room to receive real-time messages
-    wsService.joinChannel(channelId);
-
     const handleNewMessage = (message: Message) => {
       if (message.channelId !== channelId) return;
 
@@ -757,8 +754,6 @@ export function useChannelMessages(
   // Listen for real-time updates
   useEffect(() => {
     if (!channelId) return;
-
-    wsService.joinChannel(channelId);
 
     const msgQueryKey = [
       "messages",

@@ -52,8 +52,6 @@ class WebSocketService {
   private isConnecting = false;
   private authErrorRetryTimer: ReturnType<typeof setTimeout> | null = null;
   private authErrorRetryCount = 0;
-  // Queue for channels to join when connection is established
-  private pendingChannelJoins: Set<string> = new Set();
   // Queue for event listeners to register when connection is established
   private pendingListeners: Array<{ event: string; callback: EventCallback }> =
     [];
@@ -166,8 +164,6 @@ class WebSocketService {
         message: "WebSocket connected",
         level: "info",
       });
-      // Process pending channel joins
-      this.processPendingJoins();
       // Process pending event listeners
       this.processPendingListeners();
     });
@@ -197,10 +193,9 @@ class WebSocketService {
       this.refreshQueriesAfterReconnect();
     });
 
-    // Auto-join new channels when they are created (e.g., DM channels)
-    this.socket.on("channel_created", (channel: { id: string }) => {
-      console.log("[WS] New channel created, joining:", channel.id);
-      this.joinChannel(channel.id);
+    // Channel list will be refreshed via query invalidation when a new channel is created
+    this.socket.on("channel_created", () => {
+      // No-op: server delivers messages via user rooms, no join needed
     });
 
     this.socket.on("auth_error", (error) => {
@@ -319,15 +314,6 @@ class WebSocketService {
     }, 500);
   }
 
-  private processPendingJoins(): void {
-    if (!this.socket?.connected) return;
-    for (const channelId of this.pendingChannelJoins) {
-      console.log("[WS] Processing pending join for channel:", channelId);
-      this.socket.emit("join_channel", { channelId });
-    }
-    this.pendingChannelJoins.clear();
-  }
-
   private processPendingListeners(): void {
     if (!this.socket) return;
     for (const { event, callback } of this.pendingListeners) {
@@ -335,25 +321,6 @@ class WebSocketService {
       this.socket.on(event, callback);
     }
     this.pendingListeners = [];
-  }
-
-  // Channel operations
-  joinChannel(channelId: string): void {
-    if (!this.socket?.connected) {
-      console.log("[WS] Queuing channel join for:", channelId);
-      this.pendingChannelJoins.add(channelId);
-      return;
-    }
-    console.log("[WS] Joining channel:", channelId);
-    this.socket.emit("join_channel", { channelId });
-  }
-
-  leaveChannel(channelId: string): void {
-    // Remove from pending joins if not yet connected
-    this.pendingChannelJoins.delete(channelId);
-    if (!this.socket) return;
-    console.log("[WS] Leaving channel:", channelId);
-    this.socket.emit("leave_channel", { channelId });
   }
 
   // Read status

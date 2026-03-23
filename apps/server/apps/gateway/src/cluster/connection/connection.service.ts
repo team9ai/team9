@@ -169,27 +169,19 @@ export class ConnectionService implements OnModuleInit {
     }
 
     for (const userId of message.targetUserIds) {
-      const socketIds = this.getLocalUserSockets(userId);
+      try {
+        // Deliver to user room — Socket.io fans out to all sockets in the room
+        this.server
+          .to(`user:${userId}`)
+          .emit(WS_EVENTS.MESSAGE.NEW, fullMessage);
 
-      if (socketIds.length === 0) {
         this.logger.debug(
-          `No local sockets for user ${userId}, message may be offline`,
+          `Delivered message ${message.msgId} to user room user:${userId}`,
         );
-        continue;
-      }
-
-      for (const socketId of socketIds) {
-        try {
-          this.server.to(socketId).emit(WS_EVENTS.MESSAGE.NEW, fullMessage);
-
-          this.logger.debug(
-            `Delivered message ${message.msgId} to socket ${socketId}`,
-          );
-        } catch (error) {
-          this.logger.error(
-            `Failed to deliver message to socket ${socketId}: ${error}`,
-          );
-        }
+      } catch (error) {
+        this.logger.error(
+          `Failed to deliver message to user room user:${userId}: ${error}`,
+        );
       }
     }
   }
