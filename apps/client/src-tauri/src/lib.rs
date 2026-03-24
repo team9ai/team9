@@ -1,5 +1,8 @@
 mod ahand;
 
+use tauri_plugin_autostart::MacosLauncher;
+use tauri_plugin_autostart::ManagerExt;
+
 /// Start aHand daemon in openclaw-gateway mode.
 /// Called by the React frontend after obtaining the gateway URL from Team9 API.
 #[tauri::command]
@@ -84,6 +87,14 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            None,
+        ))
+        .setup(|app| {
+            let _ = app.autolaunch().enable();
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             toggle_devtools,
             ahand_start,
