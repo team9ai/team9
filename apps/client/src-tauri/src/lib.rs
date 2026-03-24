@@ -101,20 +101,21 @@ pub fn run() {
                     .map(|d| d.join(".autostart_initialized"));
 
                 // Use the same executable path that tauri-plugin-autostart
-                // registers. On Linux AppImage builds the plugin writes
-                // the APPIMAGE path into the startup entry, not current_exe().
+                // registers. On Linux AppImage builds the plugin passes
+                // the raw APPIMAGE path to auto-launch without canonicalizing,
+                // so we must store the raw path to keep the marker aligned.
                 #[cfg(target_os = "linux")]
                 let current_exe = app
                     .env()
                     .appimage
                     .as_ref()
-                    .and_then(|p| p.canonicalize().ok().or_else(|| Some(p.clone())))
+                    .and_then(|p| p.to_str().map(|s| s.to_string()))
                     .or_else(|| {
                         std::env::current_exe()
                             .ok()
                             .and_then(|p| p.canonicalize().ok().or(Some(p)))
-                    })
-                    .map(|p| p.display().to_string());
+                            .map(|p| p.display().to_string())
+                    });
 
                 #[cfg(not(target_os = "linux"))]
                 let current_exe = std::env::current_exe()
