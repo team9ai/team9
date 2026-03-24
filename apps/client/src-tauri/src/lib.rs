@@ -114,14 +114,20 @@ pub fn run() {
                     (Some(stored), Some(current)) if stored != current
                 );
 
-                // Enable autostart on first run. On path change (reinstall /
-                // relocation), only re-enable if autostart is not currently
-                // active — this avoids spuriously re-enabling when the path
-                // differs only due to normalization (e.g. AppImage symlink vs
-                // current_exe, or macOS canonical path differences).
-                let needs_enable = is_first_run
-                    || (path_changed
-                        && !app.autolaunch().is_enabled().unwrap_or(true));
+                // Enable autostart on first run.
+                // On path change (reinstall / relocation), refresh the OS
+                // startup entry only if autostart is currently enabled — this
+                // ensures the entry targets the new executable while
+                // respecting the user's choice when they turned it off.
+                // Note: is_enabled() only checks whether a startup entry
+                // exists, not whether it points at the right binary, so we
+                // must call enable() to overwrite the stale entry.
+                let autostart_active = app
+                    .autolaunch()
+                    .is_enabled()
+                    .unwrap_or(false);
+                let needs_enable =
+                    is_first_run || (path_changed && autostart_active);
 
                 if needs_enable {
                     match app.autolaunch().enable() {
@@ -139,8 +145,8 @@ pub fn run() {
                         }
                     }
                 } else if path_changed {
-                    // Path changed but autostart is already active — update the
-                    // marker to avoid rechecking on every launch.
+                    // Path changed but user has autostart disabled — just
+                    // update the marker so we don't recheck every launch.
                     if let Some(ref dir) = config_dir {
                         let _ = std::fs::create_dir_all(dir);
                     }
