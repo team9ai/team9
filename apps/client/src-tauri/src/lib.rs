@@ -102,22 +102,28 @@ pub fn run() {
 
                 let current_exe = std::env::current_exe()
                     .ok()
+                    .and_then(|p| p.canonicalize().ok().or(Some(p)))
                     .map(|p| p.display().to_string());
                 let stored_exe = marker
                     .as_ref()
                     .and_then(|p| std::fs::read_to_string(p).ok());
 
-                // Enable autostart on first run or when the executable path
-                // changes (reinstall / app relocation). If the stored path
-                // matches the current one, the user's login-item preference
-                // (enabled or disabled) is left untouched.
-                let needs_init = match (&stored_exe, &current_exe) {
-                    (None, _) => true,
-                    (Some(stored), Some(current)) => stored != current,
-                    _ => false,
-                };
+                let is_first_run = stored_exe.is_none();
+                let path_changed = matches!(
+                    (&stored_exe, &current_exe),
+                    (Some(stored), Some(current)) if stored != current
+                );
 
-                if needs_init {
+                // Enable autostart on first run. On path change (reinstall /
+                // relocation), only re-enable if autostart is not currently
+                // active — this avoids spuriously re-enabling when the path
+                // differs only due to normalization (e.g. AppImage symlink vs
+                // current_exe, or macOS canonical path differences).
+                let needs_enable = is_first_run
+                    || (path_changed
+                        && !app.autolaunch().is_enabled().unwrap_or(true));
+
+                if needs_enable {
                     match app.autolaunch().enable() {
                         Ok(()) => {
                             if let Some(ref dir) = config_dir {
@@ -131,6 +137,16 @@ pub fn run() {
                         Err(e) => {
                             eprintln!("Failed to enable autostart: {e}");
                         }
+                    }
+                } else if path_changed {
+                    // Path changed but autostart is already active — update the
+                    // marker to avoid rechecking on every launch.
+                    if let Some(ref dir) = config_dir {
+                        let _ = std::fs::create_dir_all(dir);
+                    }
+                    if let Some(ref path) = marker {
+                        let exe_str = current_exe.unwrap_or_default();
+                        let _ = std::fs::write(path, exe_str);
                     }
                 }
             }
