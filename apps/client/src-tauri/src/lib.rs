@@ -1,6 +1,5 @@
 mod ahand;
 
-use tauri::Manager;
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_autostart::ManagerExt;
 
@@ -95,26 +94,17 @@ pub fn run() {
         .setup(|app| {
             #[cfg(not(debug_assertions))]
             {
-                let config_dir = app.path().app_config_dir().ok();
-                let marker = config_dir
-                    .as_ref()
-                    .map(|d| d.join(".autostart_initialized"));
-                let already_initialized = marker.as_ref().is_some_and(|p| p.exists());
-
-                if !already_initialized {
-                    match app.autolaunch().enable() {
-                        Ok(()) => {
-                            if let Some(ref dir) = config_dir {
-                                let _ = std::fs::create_dir_all(dir);
-                            }
-                            if let Some(ref path) = marker {
-                                let _ = std::fs::write(path, "");
-                            }
-                        }
-                        Err(e) => {
+                let autolaunch = app.autolaunch();
+                match autolaunch.is_enabled() {
+                    Ok(false) => {
+                        if let Err(e) = autolaunch.enable() {
                             eprintln!("Failed to enable autostart: {e}");
                         }
                     }
+                    Err(e) => {
+                        eprintln!("Failed to check autostart status: {e}");
+                    }
+                    _ => {}
                 }
             }
             Ok(())
