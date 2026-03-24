@@ -50,7 +50,11 @@ fn augmented_path() -> String {
     }
 
     // fnm
-    let fnm_bin = home.join(".fnm").join("aliases").join("default").join("bin");
+    let fnm_bin = home
+        .join(".fnm")
+        .join("aliases")
+        .join("default")
+        .join("bin");
     if fnm_bin.exists() {
         extra.push(fnm_bin.to_string_lossy().into_owned());
     }
@@ -153,11 +157,7 @@ pub fn get_or_create_node_id() -> String {
 /// Write ~/.ahand/config.toml for openclaw-gateway mode.
 ///
 /// IMPORTANT: auth_token belongs under [openclaw] section, NOT at the top level.
-fn write_config(
-    gateway_url: &str,
-    auth_token: Option<&str>,
-    node_id: &str,
-) -> std::io::Result<()> {
+fn write_config(gateway_url: &str, auth_token: Option<&str>, node_id: &str) -> std::io::Result<()> {
     let path = dirs::home_dir()
         .expect("no home dir")
         .join(".ahand")
@@ -195,9 +195,7 @@ headed = true
 
 fn parse_gateway_url(url: &str) -> (String, u16, bool) {
     let tls = url.starts_with("wss://");
-    let without_scheme = url
-        .trim_start_matches("wss://")
-        .trim_start_matches("ws://");
+    let without_scheme = url.trim_start_matches("wss://").trim_start_matches("ws://");
 
     // Strip path and query (e.g. "host.example.com/?token=abc" → "host.example.com")
     let without_path = without_scheme
@@ -235,13 +233,13 @@ pub fn start(gateway_url: &str, auth_token: Option<&str>, node_id: &str) -> Resu
     // Auto-install browser dependencies if not ready.
     if !browser_is_ready() {
         eprintln!("[ahand] Browser dependencies not found, running browser-init...");
-        let _ = Command::new(&binary).arg("browser-init").env("PATH", augmented_path()).status();
+        let _ = Command::new(&binary)
+            .arg("browser-init")
+            .env("PATH", augmented_path())
+            .status();
     }
 
-    let config_path = dirs::home_dir()
-        .unwrap()
-        .join(".ahand")
-        .join("config.toml");
+    let config_path = dirs::home_dir().unwrap().join(".ahand").join("config.toml");
 
     let child = Command::new(&binary)
         .arg("--config")
@@ -268,10 +266,7 @@ pub fn start_daemon_only(
 
     write_config(gateway_url, auth_token, node_id).map_err(|e| e.to_string())?;
 
-    let config_path = dirs::home_dir()
-        .unwrap()
-        .join(".ahand")
-        .join("config.toml");
+    let config_path = dirs::home_dir().unwrap().join(".ahand").join("config.toml");
 
     let child = Command::new(&binary)
         .arg("--config")
@@ -345,7 +340,9 @@ pub fn browser_init(force: bool) -> Result<(), String> {
         cmd.arg("--force");
     }
 
-    let status = cmd.status().map_err(|e| format!("failed to run ahandd browser-init: {e}"))?;
+    let status = cmd
+        .status()
+        .map_err(|e| format!("failed to run ahandd browser-init: {e}"))?;
     if !status.success() {
         return Err("browser-init failed".to_string());
     }
@@ -367,7 +364,11 @@ pub fn browser_is_ready() -> bool {
 
     // playwright-cli binary — installed to ~/.ahand/node/bin/ by browser-init.
     // Also check augmented PATH as a fallback for manual installations.
-    let has_local_cli = ahand.join("node").join("bin").join("playwright-cli").exists();
+    let has_local_cli = ahand
+        .join("node")
+        .join("bin")
+        .join("playwright-cli")
+        .exists();
     if has_local_cli {
         return true;
     }
@@ -377,10 +378,7 @@ pub fn browser_is_ready() -> bool {
 }
 
 /// Map [N/2] step markers to step IDs used by the frontend.
-const BROWSER_STEP_MAP: &[(u32, &str)] = &[
-    (1, "browser-node"),
-    (2, "browser-cli"),
-];
+const BROWSER_STEP_MAP: &[(u32, &str)] = &[(1, "browser-node"), (2, "browser-cli")];
 
 /// Parse a `[N/2]` marker from a line of stdout.
 /// Returns the step number N if found.
@@ -477,7 +475,10 @@ pub fn browser_init_with_progress(app: &tauri::AppHandle) -> Result<(), String> 
     let stderr_lines = stderr_handle.join().unwrap_or_default();
 
     if !status.success() {
-        let exit_code = status.code().map(|c| c.to_string()).unwrap_or_else(|| "signal".into());
+        let exit_code = status
+            .code()
+            .map(|c| c.to_string())
+            .unwrap_or_else(|| "signal".into());
         // Use the last non-empty stderr line as detail (contains the anyhow error message)
         let detail = stderr_lines
             .iter()

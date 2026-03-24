@@ -1,5 +1,9 @@
 mod ahand;
 
+use tauri::Manager;
+use tauri_plugin_autostart::MacosLauncher;
+use tauri_plugin_autostart::ManagerExt;
+
 /// Start aHand daemon in openclaw-gateway mode.
 /// Called by the React frontend after obtaining the gateway URL from Team9 API.
 #[tauri::command]
@@ -84,6 +88,94 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            None,
+        ))
+        .setup(|app| {
+            #[cfg(not(debug_assertions))]
+            {
+                let config_dir = app.path().app_config_dir().ok();
+                let marker = config_dir
+                    .as_ref()
+                    .map(|d| d.join(".autostart_initialized"));
+
+                // Use the same executable path that tauri-plugin-autostart
+                // registers. On Linux AppImage builds the plugin passes
+                // the raw APPIMAGE path to auto-launch without canonicalizing,
+                // so we must store the raw path to keep the marker aligned.
+                #[cfg(target_os = "linux")]
+                let current_exe = app
+                    .env()
+                    .appimage
+                    .as_ref()
+                    .and_then(|p| p.to_str().map(|s| s.to_string()))
+                    .or_else(|| {
+                        std::env::current_exe()
+                            .ok()
+                            .and_then(|p| p.canonicalize().ok().or(Some(p)))
+                            .map(|p| p.display().to_string())
+                    });
+
+                #[cfg(not(target_os = "linux"))]
+                let current_exe = std::env::current_exe()
+                    .ok()
+                    .and_then(|p| p.canonicalize().ok().or(Some(p)))
+                    .map(|p| p.display().to_string());
+                let stored_exe = marker
+                    .as_ref()
+                    .and_then(|p| std::fs::read_to_string(p).ok());
+
+                let is_first_run = stored_exe.is_none();
+                let path_changed = matches!(
+                    (&stored_exe, &current_exe),
+                    (Some(stored), Some(current)) if stored != current
+                );
+
+                // Enable autostart on first run.
+                // On path change (reinstall / relocation), refresh the OS
+                // startup entry only if autostart is currently enabled — this
+                // ensures the entry targets the new executable while
+                // respecting the user's choice when they turned it off.
+                // Note: is_enabled() only checks whether a startup entry
+                // exists, not whether it points at the right binary, so we
+                // must call enable() to overwrite the stale entry.
+                let autostart_active = app
+                    .autolaunch()
+                    .is_enabled()
+                    .unwrap_or(false);
+                let needs_enable =
+                    is_first_run || (path_changed && autostart_active);
+
+                if needs_enable {
+                    match app.autolaunch().enable() {
+                        Ok(()) => {
+                            if let Some(ref dir) = config_dir {
+                                let _ = std::fs::create_dir_all(dir);
+                            }
+                            if let Some(ref path) = marker {
+                                let exe_str = current_exe.unwrap_or_default();
+                                let _ = std::fs::write(path, exe_str);
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to enable autostart: {e}");
+                        }
+                    }
+                } else if path_changed {
+                    // Path changed but user has autostart disabled — just
+                    // update the marker so we don't recheck every launch.
+                    if let Some(ref dir) = config_dir {
+                        let _ = std::fs::create_dir_all(dir);
+                    }
+                    if let Some(ref path) = marker {
+                        let exe_str = current_exe.unwrap_or_default();
+                        let _ = std::fs::write(path, exe_str);
+                    }
+                }
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             toggle_devtools,
             ahand_start,
