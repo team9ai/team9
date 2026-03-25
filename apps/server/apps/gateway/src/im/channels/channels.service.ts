@@ -30,12 +30,13 @@ export interface ChannelResponse {
   tenantId: string | null;
   name: string | null;
   description: string | null;
-  type: 'direct' | 'public' | 'private' | 'task';
+  type: 'direct' | 'public' | 'private' | 'task' | 'tracking';
   avatarUrl: string | null;
   createdBy: string | null;
   sectionId: string | null;
   order: number;
   isArchived: boolean;
+  isActivated: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

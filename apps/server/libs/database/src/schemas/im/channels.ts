@@ -18,6 +18,7 @@ export const channelTypeEnum = pgEnum('channel_type', [
   'public',
   'private',
   'task',
+  'tracking',
 ]);
 
 export const channels = pgTable(
@@ -37,6 +38,7 @@ export const channels = pgTable(
     }),
     order: integer('order').default(0).notNull(),
     isArchived: boolean('is_archived').default(false).notNull(),
+    isActivated: boolean('is_activated').default(true).notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
