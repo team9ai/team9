@@ -216,6 +216,17 @@ export const WS_EVENTS = {
     EXECUTION_CREATED: 'task:execution_created',
   },
 
+  // ==================== Tracking Channel ====================
+  /**
+   * Tracking channel lifecycle events
+   */
+  TRACKING: {
+    /** Tracking channel deactivated (execution complete, read-only) */
+    DEACTIVATED: 'tracking:deactivated',
+    /** Tracking channel activated (resumed for new execution) */
+    ACTIVATED: 'tracking:activated',
+  },
+
   // ==================== AI Streaming (Bot) ====================
   /**
    * AI bot streaming message events.
@@ -253,4 +264,5 @@ export type WsEventName =
   | (typeof WS_EVENTS.SESSION)[keyof typeof WS_EVENTS.SESSION]
   | (typeof WS_EVENTS.SYNC)[keyof typeof WS_EVENTS.SYNC]
   | (typeof WS_EVENTS.TASK)[keyof typeof WS_EVENTS.TASK]
+  | (typeof WS_EVENTS.TRACKING)[keyof typeof WS_EVENTS.TRACKING]
   | (typeof WS_EVENTS.STREAMING)[keyof typeof WS_EVENTS.STREAMING];
