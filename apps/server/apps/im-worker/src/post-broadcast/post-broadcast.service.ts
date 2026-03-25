@@ -21,6 +21,8 @@ import {
   type ParsedMention,
 } from '@team9/shared';
 import { ClawHiveService } from '@team9/claw-hive';
+import { MessageRouterService } from '../message/message-router.service.js';
+import { SequenceService } from '../sequence/sequence.service.js';
 
 /**
  * Post-Broadcast Service
@@ -42,6 +44,8 @@ export class PostBroadcastService {
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly rabbitMQEventService: RabbitMQEventService,
     private readonly clawHiveService: ClawHiveService,
+    private readonly routerService: MessageRouterService,
+    private readonly sequenceService: SequenceService,
   ) {}
 
   /**
@@ -443,6 +447,9 @@ export class PostBroadcastService {
     originalChannelId: string,
   ): Promise<string> {
     const channelId = uuidv7();
+    const placeholderMsgId = uuidv7();
+    const placeholderSeqId =
+      await this.sequenceService.generateChannelSeq(originalChannelId);
 
     await this.db.transaction(async (tx) => {
       await tx.insert(schema.channels).values({
@@ -469,17 +476,45 @@ export class PostBroadcastService {
 
       // Placeholder message in original channel — client renders as tracking link
       await tx.insert(schema.messages).values({
-        id: uuidv7(),
+        id: placeholderMsgId,
         channelId: originalChannelId,
         senderId: botUserId,
         content: '',
         type: 'system',
+        seqId: placeholderSeqId,
         metadata: {
           trackingChannelId: channelId,
           triggerMessageId,
         },
       });
     });
+
+    // Broadcast placeholder to original channel members via MessageRouter
+    // (same path as normal messages: im-worker → router → gateway → WebSocket)
+    const memberIds = await this.getChannelMemberIds(originalChannelId);
+    const recipientIds = memberIds.filter((id) => id !== botUserId);
+
+    if (recipientIds.length > 0) {
+      await this.routerService.routeMessage(
+        {
+          msgId: placeholderMsgId,
+          seqId: placeholderSeqId,
+          type: 'system',
+          senderId: botUserId,
+          targetType: 'channel',
+          targetId: originalChannelId,
+          payload: {
+            content: '',
+            metadata: {
+              trackingChannelId: channelId,
+              triggerMessageId,
+            },
+          },
+          timestamp: Date.now(),
+        },
+        recipientIds,
+      );
+    }
 
     return channelId;
   }

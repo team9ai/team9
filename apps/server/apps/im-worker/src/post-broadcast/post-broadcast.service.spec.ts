@@ -4,6 +4,8 @@ import { DATABASE_CONNECTION } from '@team9/database';
 import { RabbitMQEventService } from '@team9/rabbitmq';
 import { ClawHiveService } from '@team9/claw-hive';
 import { PostBroadcastService } from './post-broadcast.service.js';
+import { MessageRouterService } from '../message/message-router.service.js';
+import { SequenceService } from '../sequence/sequence.service.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -95,6 +97,8 @@ describe('PostBroadcastService — pushToHiveBots', () => {
   let db: ReturnType<typeof mockDb>;
   let clawHiveService: { sendInput: MockFn };
   let rabbitMQEventService: { publishNotificationTask: MockFn };
+  let routerService: { routeMessage: MockFn };
+  let sequenceService: { generateChannelSeq: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
@@ -104,6 +108,14 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     rabbitMQEventService = {
       publishNotificationTask: jest.fn<any>().mockResolvedValue(undefined),
     };
+    routerService = {
+      routeMessage: jest
+        .fn<any>()
+        .mockResolvedValue({ online: [], offline: [] }),
+    };
+    sequenceService = {
+      generateChannelSeq: jest.fn<any>().mockResolvedValue(BigInt(1)),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -111,6 +123,8 @@ describe('PostBroadcastService — pushToHiveBots', () => {
         { provide: DATABASE_CONNECTION, useValue: db },
         { provide: RabbitMQEventService, useValue: rabbitMQEventService },
         { provide: ClawHiveService, useValue: clawHiveService },
+        { provide: MessageRouterService, useValue: routerService },
+        { provide: SequenceService, useValue: sequenceService },
       ],
     }).compile();
 
@@ -388,6 +402,11 @@ describe('PostBroadcastService — pushToHiveBots', () => {
       message: msg,
       channel: makeChannel('public'),
     });
+    // getChannelMemberIds called after tracking channel creation for broadcast
+    db.where.mockResolvedValueOnce([
+      { userId: bot.userId },
+      { userId: SENDER_ID },
+    ]);
 
     await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
 
@@ -454,6 +473,11 @@ describe('PostBroadcastService — pushToHiveBots', () => {
       message: msg,
       channel: makeChannel('public'),
     });
+    // getChannelMemberIds for placeholder broadcast
+    db.where.mockResolvedValueOnce([
+      { userId: bot.userId },
+      { userId: SENDER_ID },
+    ]);
 
     await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
 
