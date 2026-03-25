@@ -808,6 +808,7 @@ export class ChannelsService {
         'Only tracking and task channels can be deactivated',
       );
     }
+    if (!channel.isActivated) return; // already deactivated
 
     await this.db
       .update(schema.channels)
@@ -831,6 +832,7 @@ export class ChannelsService {
         'Only tracking and task channels can be activated',
       );
     }
+    if (channel.isActivated) return; // already activated
 
     await this.db
       .update(schema.channels)

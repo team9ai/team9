@@ -430,6 +430,11 @@ export class PostBroadcastService {
    * and a placeholder system message in the original channel linking to the
    * tracking channel.
    */
+  /**
+   * Precondition: botUserId !== triggerSenderId (enforced by pushToHiveBots
+   * which filters out bots where b.userId === senderId). Violating this would
+   * hit the unique(channelId, userId) constraint on im_channel_members.
+   */
   private async createTrackingChannel(
     tenantId: string | null,
     botUserId: string,
