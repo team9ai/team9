@@ -33,6 +33,12 @@ function mockDb() {
   // delete() is often terminal (no limit/returning)
   chain.delete.mockReturnValue(chain);
   chain.where.mockResolvedValue([]);
+  // transaction: pass the same mockDb as the transaction context
+  chain.transaction = jest.fn<any>((fn) => fn(chain));
+  // insert inside transaction for createTrackingChannel
+  chain.insert.mockReturnValue({
+    values: jest.fn<any>().mockResolvedValue(undefined),
+  });
   return chain;
 }
 
@@ -180,7 +186,7 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     );
   });
 
-  it('builds correct session ID for a group channel', async () => {
+  it('builds correct session ID for a group channel (tracking/ scope)', async () => {
     const bot = makeHiveBot('claude');
     // Include @mention in content so the group-channel trigger fires
     const msg = makeMessage({
@@ -198,8 +204,11 @@ describe('PostBroadcastService — pushToHiveBots', () => {
       string,
       ...unknown[],
     ];
-    expect(sessionId).toBe(
-      `team9/${TENANT_ID}/${bot.managedMeta.agentId}/channel/${CHANNEL_ID}`,
+    // Group @mention creates a new tracking channel; session uses tracking/ scope
+    expect(sessionId).toMatch(
+      new RegExp(
+        `^team9/${TENANT_ID}/${bot.managedMeta.agentId}/tracking/[\\w-]+$`,
+      ),
     );
   });
 
@@ -365,5 +374,111 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     await expect(
       (service as any).pushToHiveBots(MSG_ID, SENDER_ID, ['some-member']),
     ).resolves.not.toThrow();
+  });
+
+  // ── Tracking channel ─────────────────────────────────────────────
+
+  it('creates tracking channel for group @mention and uses tracking/ session scope', async () => {
+    const bot = makeHiveBot('claude');
+    const msg = makeMessage({
+      content: `<mention data-user-id="${bot.userId}">@Claude</mention> hello`,
+    });
+    setupDbForHivePush({
+      bots: [bot],
+      message: msg,
+      channel: makeChannel('public'),
+    });
+
+    await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
+
+    // Verify tracking channel was created (transaction called)
+    expect(db.transaction).toHaveBeenCalled();
+
+    // Verify session ID uses tracking/ scope
+    const [sessionId] = clawHiveService.sendInput.mock.calls[0] as [
+      string,
+      ...unknown[],
+    ];
+    expect(sessionId).toMatch(
+      new RegExp(
+        `^team9/${TENANT_ID}/${bot.managedMeta.agentId}/tracking/[\\w-]+$`,
+      ),
+    );
+  });
+
+  it('does NOT create tracking channel for DM — uses dm/ scope', async () => {
+    const bot = makeHiveBot('claude');
+    setupDbForHivePush({ bots: [bot], channel: makeChannel('direct') });
+
+    await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
+
+    // No transaction = no tracking channel created
+    expect(db.transaction).not.toHaveBeenCalled();
+
+    const [sessionId] = clawHiveService.sendInput.mock.calls[0] as [
+      string,
+      ...unknown[],
+    ];
+    expect(sessionId).toBe(
+      `team9/${TENANT_ID}/${bot.managedMeta.agentId}/dm/${CHANNEL_ID}`,
+    );
+  });
+
+  it('routes tracking channel message to same session without creating new channel', async () => {
+    const bot = makeHiveBot('claude');
+    setupDbForHivePush({ bots: [bot], channel: makeChannel('tracking') });
+
+    await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
+
+    // No transaction = no new tracking channel
+    expect(db.transaction).not.toHaveBeenCalled();
+
+    // Session uses existing tracking channel ID
+    const [sessionId] = clawHiveService.sendInput.mock.calls[0] as [
+      string,
+      ...unknown[],
+    ];
+    expect(sessionId).toBe(
+      `team9/${TENANT_ID}/${bot.managedMeta.agentId}/tracking/${CHANNEL_ID}`,
+    );
+  });
+
+  it('includes trackingChannelId in payload for group channel, not for DM', async () => {
+    // Group channel
+    const bot = makeHiveBot('claude');
+    const msg = makeMessage({
+      content: `<mention data-user-id="${bot.userId}">@Claude</mention> hello`,
+    });
+    setupDbForHivePush({
+      bots: [bot],
+      message: msg,
+      channel: makeChannel('public'),
+    });
+
+    await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
+
+    const [, groupEvent] = clawHiveService.sendInput.mock.calls[0] as [
+      string,
+      any,
+      string,
+    ];
+    expect(groupEvent.payload.trackingChannelId).toBeDefined();
+
+    // DM channel — reset mock state so stale queued return values don't bleed across
+    clawHiveService.sendInput.mockClear();
+    db.where.mockReset();
+    db.limit.mockReset();
+    db.where.mockResolvedValue([]);
+    db.limit.mockResolvedValue([]);
+    setupDbForHivePush({ bots: [bot], channel: makeChannel('direct') });
+
+    await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
+
+    const [, dmEvent] = clawHiveService.sendInput.mock.calls[0] as [
+      string,
+      any,
+      string,
+    ];
+    expect(dmEvent.payload.trackingChannelId).toBeUndefined();
   });
 });
