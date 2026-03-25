@@ -534,7 +534,7 @@ export class PostBroadcastService {
 
       // Build the recursive MessageLocation for the event payload
       const channelLocation: Record<string, unknown> = {
-        type: isDm ? 'dm' : 'channel',
+        type: isDm ? 'dm' : isTracking ? 'tracking' : 'channel',
         id: channel.id,
         ...(channel.name ? { name: channel.name } : {}),
       };
