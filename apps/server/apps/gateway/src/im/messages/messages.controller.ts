@@ -122,6 +122,13 @@ export class MessagesController {
     const t2 = Date.now();
     const workspaceId = channel?.tenantId ?? undefined;
 
+    // Reject messages to deactivated tracking/task channels
+    if (channel && !channel.isActivated) {
+      throw new ForbiddenException(
+        'Channel is deactivated — execution has completed',
+      );
+    }
+
     // Determine message type based on attachments
     const messageType = dto.attachments?.length ? 'file' : 'text';
 
