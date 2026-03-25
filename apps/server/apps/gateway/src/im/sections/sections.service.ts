@@ -24,7 +24,7 @@ export interface SectionWithChannels extends SectionResponse {
   channels: {
     id: string;
     name: string | null;
-    type: 'direct' | 'public' | 'private' | 'task';
+    type: 'direct' | 'public' | 'private' | 'task' | 'tracking';
     order: number;
   }[];
 }

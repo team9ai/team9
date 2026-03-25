@@ -407,6 +407,7 @@ export class ChannelsService {
         sectionId: schema.channels.sectionId,
         order: schema.channels.order,
         isArchived: schema.channels.isArchived,
+        isActivated: schema.channels.isActivated,
         createdAt: schema.channels.createdAt,
         updatedAt: schema.channels.updatedAt,
         unreadCount:
@@ -929,6 +930,7 @@ export class ChannelsService {
         sectionId: schema.channels.sectionId,
         order: schema.channels.order,
         isArchived: schema.channels.isArchived,
+        isActivated: schema.channels.isActivated,
         createdAt: schema.channels.createdAt,
         updatedAt: schema.channels.updatedAt,
         memberCount: sql<number>`(
