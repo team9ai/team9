@@ -794,6 +794,53 @@ export class ChannelsService {
   }
 
   /**
+   * Deactivate a channel — sets isActivated=false, preventing further messages.
+   * Used when agent execution ends to make the tracking channel read-only.
+   * Also applicable to task channels when execution completes.
+   */
+  async deactivateChannel(channelId: string): Promise<void> {
+    const channel = await this.findById(channelId);
+    if (!channel) {
+      throw new NotFoundException('Channel not found');
+    }
+    if (channel.type !== 'tracking' && channel.type !== 'task') {
+      throw new ForbiddenException(
+        'Only tracking and task channels can be deactivated',
+      );
+    }
+
+    await this.db
+      .update(schema.channels)
+      .set({ isActivated: false, updatedAt: new Date() })
+      .where(eq(schema.channels.id, channelId));
+
+    await this.redis.invalidate(REDIS_KEYS.CHANNEL_CACHE(channelId));
+  }
+
+  /**
+   * Activate a channel — sets isActivated=true, allowing messages again.
+   * Used to reactivate a previously deactivated tracking/task channel.
+   */
+  async activateChannel(channelId: string): Promise<void> {
+    const channel = await this.findById(channelId);
+    if (!channel) {
+      throw new NotFoundException('Channel not found');
+    }
+    if (channel.type !== 'tracking' && channel.type !== 'task') {
+      throw new ForbiddenException(
+        'Only tracking and task channels can be activated',
+      );
+    }
+
+    await this.db
+      .update(schema.channels)
+      .set({ isActivated: true, updatedAt: new Date() })
+      .where(eq(schema.channels.id, channelId));
+
+    await this.redis.invalidate(REDIS_KEYS.CHANNEL_CACHE(channelId));
+  }
+
+  /**
    * Unarchive a channel
    */
   async unarchiveChannel(

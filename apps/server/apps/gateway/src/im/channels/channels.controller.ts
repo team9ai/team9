@@ -401,4 +401,58 @@ export class ChannelsController {
 
     return channel;
   }
+
+  @Post(':id/deactivate')
+  async deactivateChannel(
+    @CurrentUser('sub') userId: string,
+    @Param('id') channelId: string,
+  ): Promise<{ success: boolean }> {
+    const isMember = await this.channelsService.isMember(channelId, userId);
+    if (!isMember) {
+      throw new ForbiddenException('Not a channel member');
+    }
+
+    // Only bots can deactivate channels (execution lifecycle is bot-controlled)
+    const isBot = await this.channelsService.isBot(userId);
+    if (!isBot) {
+      throw new ForbiddenException('Only bots can deactivate channels');
+    }
+
+    await this.channelsService.deactivateChannel(channelId);
+
+    await this.websocketGateway.sendToChannelMembers(
+      channelId,
+      WS_EVENTS.TRACKING.DEACTIVATED,
+      { channelId },
+    );
+
+    return { success: true };
+  }
+
+  @Post(':id/activate')
+  async activateChannel(
+    @CurrentUser('sub') userId: string,
+    @Param('id') channelId: string,
+  ): Promise<{ success: boolean }> {
+    const isMember = await this.channelsService.isMember(channelId, userId);
+    if (!isMember) {
+      throw new ForbiddenException('Not a channel member');
+    }
+
+    // Only bots can activate channels
+    const isBot = await this.channelsService.isBot(userId);
+    if (!isBot) {
+      throw new ForbiddenException('Only bots can activate channels');
+    }
+
+    await this.channelsService.activateChannel(channelId);
+
+    await this.websocketGateway.sendToChannelMembers(
+      channelId,
+      WS_EVENTS.TRACKING.ACTIVATED,
+      { channelId },
+    );
+
+    return { success: true };
+  }
 }
