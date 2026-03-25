@@ -73,6 +73,14 @@ export class StreamingController {
       throw new ForbiddenException('Not a member of this channel');
     }
 
+    // Reject streaming to deactivated channels
+    const channel = await this.channelsService.findById(channelId);
+    if (channel && !channel.isActivated) {
+      throw new ForbiddenException(
+        'Channel is deactivated — execution has completed',
+      );
+    }
+
     const streamId = uuidv7();
     const startedAt = Date.now();
 
