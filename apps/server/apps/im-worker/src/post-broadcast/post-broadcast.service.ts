@@ -420,12 +420,72 @@ export class PostBroadcastService {
     }
   }
 
+  // ── Tracking Channel Creation ──────────────────────────────────
+
+  /**
+   * Create a tracking channel for a hive bot interaction.
+   * Tracking channels show the agent's execution process in real-time.
+   *
+   * Inserts: channel (type='tracking'), two members (bot + trigger sender),
+   * and a placeholder system message in the original channel linking to the
+   * tracking channel.
+   */
+  private async createTrackingChannel(
+    tenantId: string | null,
+    botUserId: string,
+    triggerSenderId: string,
+    triggerMessageId: string,
+    originalChannelId: string,
+  ): Promise<string> {
+    const channelId = uuidv7();
+
+    await this.db.transaction(async (tx) => {
+      await tx.insert(schema.channels).values({
+        id: channelId,
+        tenantId,
+        name: null,
+        type: 'tracking',
+        createdBy: botUserId,
+      });
+
+      await tx.insert(schema.channelMembers).values({
+        id: uuidv7(),
+        channelId,
+        userId: botUserId,
+        role: 'member',
+      });
+
+      await tx.insert(schema.channelMembers).values({
+        id: uuidv7(),
+        channelId,
+        userId: triggerSenderId,
+        role: 'member',
+      });
+
+      // Placeholder message in original channel — client renders as tracking link
+      await tx.insert(schema.messages).values({
+        id: uuidv7(),
+        channelId: originalChannelId,
+        senderId: botUserId,
+        content: '',
+        type: 'system',
+        metadata: {
+          trackingChannelId: channelId,
+          triggerMessageId,
+        },
+      });
+    });
+
+    return channelId;
+  }
+
   // ── Hive Bot Push ─────────────────────────────────────────────────
 
   /**
    * Push message to claw-hive managed bots in the channel.
    * Trigger rules:
    *   - DM channel: always trigger for all hive bots
+   *   - Tracking channel: always trigger (guidance routed to same session)
    *   - Group channel: only trigger if the bot is @mentioned
    * Fire-and-forget: failures are logged but do not block message delivery.
    */
@@ -466,7 +526,11 @@ export class PostBroadcastService {
       const { message, sender, channel, mentions, parentMessage } = messageData;
 
       const isDm = channel.type === 'direct';
-      const mentionedUserIds = isDm ? null : extractMentionedUserIds(mentions);
+      const isTracking = channel.type === 'tracking';
+      const alwaysForward = isDm || isTracking;
+      const mentionedUserIds = alwaysForward
+        ? null
+        : extractMentionedUserIds(mentions);
 
       // Build the recursive MessageLocation for the event payload
       const channelLocation: Record<string, unknown> = {
@@ -486,19 +550,37 @@ export class PostBroadcastService {
         : channelLocation;
 
       const tenantId = channel.tenantId ?? '';
-      const scope = isDm ? 'dm' : 'channel';
-      const scopeId = channel.id;
       const timestamp = new Date().toISOString();
 
       for (const bot of targetBots) {
         const agentId = bot.managedMeta!.agentId!;
 
-        // Apply trigger rules for group channels
-        if (!isDm && !mentionedUserIds!.includes(bot.userId)) {
+        // Apply trigger rules
+        if (!alwaysForward && !mentionedUserIds!.includes(bot.userId)) {
           continue;
         }
 
+        // Create tracking channel for group @mentions only
+        // Tracking channel messages reuse the existing channel (same session)
+        let trackingChannelId: string | undefined;
+        if (!isDm && !isTracking) {
+          trackingChannelId = await this.createTrackingChannel(
+            tenantId || null,
+            bot.userId,
+            sender.id,
+            message.id,
+            channel.id,
+          );
+        }
+
+        // Session ID:
+        //   DM: team9/{tenant}/{agent}/dm/{channelId}
+        //   Group @mention: team9/{tenant}/{agent}/tracking/{newTrackingChannelId}
+        //   Tracking guidance: team9/{tenant}/{agent}/tracking/{existingChannelId}
+        const scope = isDm ? 'dm' : 'tracking';
+        const scopeId = isDm ? channel.id : (trackingChannelId ?? channel.id);
         const sessionId = `team9/${tenantId}/${agentId}/${scope}/${scopeId}`;
+
         const event = {
           type: 'team9:message.text' as const,
           source: 'team9',
@@ -512,6 +594,7 @@ export class PostBroadcastService {
               displayName: sender.displayName,
             },
             location,
+            ...(trackingChannelId ? { trackingChannelId } : {}),
           },
         };
 
