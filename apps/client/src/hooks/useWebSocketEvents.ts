@@ -12,6 +12,7 @@ import type {
   NotificationReadEvent,
   TaskStatusChangedEvent,
   TaskExecutionCreatedEvent,
+  TrackingDeactivatedEvent,
 } from "@/types/ws-events";
 import { useSelectedWorkspaceId, useUser } from "@/stores";
 import {
@@ -236,6 +237,23 @@ export function useWebSocketEvents() {
       queryClient.invalidateQueries({ queryKey: ["task", event.taskId] });
     };
 
+    // ==================== Tracking Events ====================
+
+    // Handle tracking channel deactivation
+    const handleTrackingDeactivated = (event: TrackingDeactivatedEvent) => {
+      // Invalidate channel cache to update isActivated status
+      queryClient.invalidateQueries({
+        queryKey: ["channels", event.channelId],
+      });
+      // Invalidate tracking messages cache
+      queryClient.invalidateQueries({
+        queryKey: ["trackingMessages", event.channelId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["trackingModalMessages", event.channelId],
+      });
+    };
+
     // ==================== Register All Listeners ====================
 
     // Channel lifecycle events
@@ -263,6 +281,9 @@ export function useWebSocketEvents() {
     // Task events
     wsService.onTaskStatusChanged(handleTaskStatusChanged);
     wsService.onTaskExecutionCreated(handleTaskExecutionCreated);
+
+    // Tracking events
+    wsService.onTrackingDeactivated(handleTrackingDeactivated);
 
     // ==================== Cleanup ====================
 
@@ -297,6 +318,9 @@ export function useWebSocketEvents() {
       // Task events
       wsService.offTaskStatusChanged(handleTaskStatusChanged);
       wsService.offTaskExecutionCreated(handleTaskExecutionCreated);
+
+      // Tracking events
+      wsService.offTrackingDeactivated(handleTrackingDeactivated);
     };
   }, [queryClient, workspaceId, currentUser?.id]);
 }
