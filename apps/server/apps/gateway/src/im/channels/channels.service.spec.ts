@@ -178,6 +178,24 @@ describe('ChannelsService', () => {
       redisService.getOrSet = jest.fn<any>().mockResolvedValue(makeChannel());
     });
 
+    /**
+     * Helper: set up mocks for the two parallel queries in deactivateChannel.
+     * Query 1: select→from→where→orderBy→limit  (messages)
+     * Query 2: select→from→where                 (count)
+     * Chain building is synchronous, so where() is called twice in order.
+     */
+    function mockDeactivateQueries(
+      msgs: Array<Record<string, unknown>>,
+      count: number,
+    ) {
+      // 1st where call (messages query) → return chain to continue to orderBy
+      db.where.mockReturnValueOnce(db);
+      // 1st limit call (messages query) → resolve with msgs
+      db.limit.mockResolvedValueOnce(msgs);
+      // 2nd where call (count query) → resolve with count result
+      db.where.mockResolvedValueOnce([{ count }]);
+    }
+
     it('should deactivate an active tracking channel and return snapshot', async () => {
       const msgs = [
         { id: 'm3', content: 'msg3', metadata: null, createdAt: now },
@@ -185,10 +203,7 @@ describe('ChannelsService', () => {
         { id: 'm1', content: 'msg1', metadata: null, createdAt: now },
       ];
 
-      // First chain: latest 3 messages query
-      db.limit.mockResolvedValueOnce(msgs);
-      // Second chain: count query (select → from → where, returns array)
-      db.where.mockResolvedValueOnce([{ count: 10 }]);
+      mockDeactivateQueries(msgs, 10);
 
       const result = await service.deactivateChannel('tracking-ch');
 
@@ -210,8 +225,7 @@ describe('ChannelsService', () => {
       redisService.getOrSet = jest
         .fn<any>()
         .mockResolvedValue(makeChannel({ type: 'task' }));
-      db.limit.mockResolvedValueOnce([]);
-      db.where.mockResolvedValueOnce([{ count: 0 }]);
+      mockDeactivateQueries([], 0);
 
       const result = await service.deactivateChannel('tracking-ch');
 
@@ -274,10 +288,10 @@ describe('ChannelsService', () => {
 
     it('should preserve metadata in snapshot latestMessages', async () => {
       const meta = { agentEventType: 'thinking', status: 'completed' };
-      db.limit.mockResolvedValueOnce([
-        { id: 'm1', content: 'thinking...', metadata: meta, createdAt: now },
-      ]);
-      db.where.mockResolvedValueOnce([{ count: 1 }]);
+      mockDeactivateQueries(
+        [{ id: 'm1', content: 'thinking...', metadata: meta, createdAt: now }],
+        1,
+      );
 
       const result = await service.deactivateChannel('tracking-ch');
 
