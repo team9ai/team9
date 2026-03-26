@@ -852,7 +852,10 @@ export class ChannelsService {
 
     const snapshot = {
       totalMessageCount: countResult[0]?.count ?? 0,
-      latestMessages: latestMessages.reverse(), // oldest first
+      latestMessages: latestMessages.reverse().map((m) => ({
+        ...m,
+        metadata: m.metadata as Record<string, unknown> | null,
+      })),
     };
 
     await this.db

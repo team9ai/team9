@@ -58,7 +58,7 @@ export interface MessageResponse {
   parentId: string | null;
   rootId: string | null;
   content: string | null;
-  type: 'text' | 'file' | 'image' | 'system';
+  type: 'text' | 'file' | 'image' | 'system' | 'tracking';
   isPinned: boolean;
   isEdited: boolean;
   isDeleted: boolean;
