@@ -9,6 +9,7 @@ import { MessageHoverToolbar } from "./MessageHoverToolbar";
 import { MessageReactions } from "./MessageReactions";
 import { ThreadReplyIndicator } from "./ThreadReplyIndicator";
 import { ThinkingBlock } from "./ThinkingBlock";
+import { TrackingCard } from "./TrackingCard";
 import { formatMessageTime } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/types/im";
@@ -69,6 +70,16 @@ export function MessageItem({
   const isOwnMessage = currentUserId === message.senderId;
   const isSending = message.sendStatus === "sending";
   const isFailed = message.sendStatus === "failed";
+
+  // Tracking message display (inline card)
+  const isTrackingMessage = message.type === "tracking";
+  if (isTrackingMessage) {
+    return (
+      <div id={`message-${message.id}`} className="py-2 px-2">
+        <TrackingCard message={message} />
+      </div>
+    );
+  }
 
   // System message display (centered, no avatar, gray text)
   if (isSystemMessage) {
