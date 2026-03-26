@@ -418,12 +418,13 @@ export class ChannelsController {
       throw new ForbiddenException('Only bots can deactivate channels');
     }
 
-    await this.channelsService.deactivateChannel(channelId);
+    const { snapshot } =
+      await this.channelsService.deactivateChannel(channelId);
 
     await this.websocketGateway.sendToChannelMembers(
       channelId,
       WS_EVENTS.TRACKING.DEACTIVATED,
-      { channelId },
+      { channelId, snapshot },
     );
 
     return { success: true };

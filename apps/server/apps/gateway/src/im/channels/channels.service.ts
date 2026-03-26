@@ -11,6 +11,7 @@ import {
   eq,
   and,
   sql,
+  desc,
   isNull,
   inArray,
   type PostgresJsDatabase,
@@ -798,8 +799,19 @@ export class ChannelsService {
    * Deactivate a channel — sets isActivated=false, preventing further messages.
    * Used when agent execution ends to make the tracking channel read-only.
    * Also applicable to task channels when execution completes.
+   * Returns a snapshot of the latest 3 messages and total message count.
    */
-  async deactivateChannel(channelId: string): Promise<void> {
+  async deactivateChannel(channelId: string): Promise<{
+    snapshot: {
+      totalMessageCount: number;
+      latestMessages: Array<{
+        id: string;
+        content: string | null;
+        metadata: Record<string, unknown> | null;
+        createdAt: Date;
+      }>;
+    };
+  }> {
     const channel = await this.findById(channelId);
     if (!channel) {
       throw new NotFoundException('Channel not found');
@@ -809,14 +821,52 @@ export class ChannelsService {
         'Only tracking and task channels can be deactivated',
       );
     }
-    if (!channel.isActivated) return; // already deactivated
+    if (!channel.isActivated) {
+      // Already deactivated — return existing snapshot
+      return {
+        snapshot: (channel as any).snapshot ?? {
+          totalMessageCount: 0,
+          latestMessages: [],
+        },
+      };
+    }
+
+    // Query latest 3 messages and total count
+    const [latestMessages, countResult] = await Promise.all([
+      this.db
+        .select({
+          id: schema.messages.id,
+          content: schema.messages.content,
+          metadata: schema.messages.metadata,
+          createdAt: schema.messages.createdAt,
+        })
+        .from(schema.messages)
+        .where(eq(schema.messages.channelId, channelId))
+        .orderBy(desc(schema.messages.createdAt))
+        .limit(3),
+      this.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(schema.messages)
+        .where(eq(schema.messages.channelId, channelId)),
+    ]);
+
+    const snapshot = {
+      totalMessageCount: countResult[0]?.count ?? 0,
+      latestMessages: latestMessages.reverse(), // oldest first
+    };
 
     await this.db
       .update(schema.channels)
-      .set({ isActivated: false, updatedAt: new Date() })
+      .set({
+        isActivated: false,
+        snapshot: snapshot,
+        updatedAt: new Date(),
+      })
       .where(eq(schema.channels.id, channelId));
 
     await this.redis.invalidate(REDIS_KEYS.CHANNEL_CACHE(channelId));
+
+    return { snapshot };
   }
 
   /**
