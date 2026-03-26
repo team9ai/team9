@@ -1010,6 +1010,44 @@ export class WebsocketGateway
     return { success: true };
   }
 
+  // ── channel:observe / channel:unobserve ────────────────────────
+
+  @SubscribeMessage(WS_EVENTS.CHANNEL.OBSERVE)
+  async handleChannelObserve(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { channelId: string },
+  ): Promise<void> {
+    const socketClient = client as SocketWithUser;
+    if (!socketClient.userId) return;
+
+    const { channelId } = data;
+    if (!channelId) return;
+
+    // Permission check: user must be in the same tenant as the channel
+    const channel = await this.channelsService.findById(channelId);
+    if (!channel || !channel.tenantId) return;
+
+    const isSameTenant = await this.channelsService.isUserInTenant(
+      socketClient.userId,
+      channel.tenantId,
+    );
+    if (!isSameTenant) return;
+
+    // Join the channel room for this socket only
+    client.join(channelId);
+  }
+
+  @SubscribeMessage(WS_EVENTS.CHANNEL.UNOBSERVE)
+  async handleChannelUnobserve(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { channelId: string },
+  ): Promise<void> {
+    const { channelId } = data;
+    if (!channelId) return;
+
+    client.leave(channelId);
+  }
+
   // ==================== Streaming Cleanup ====================
 
   /**

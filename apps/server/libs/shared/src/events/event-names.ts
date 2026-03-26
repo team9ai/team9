@@ -65,6 +65,10 @@ export const WS_EVENTS = {
     ARCHIVED: 'channel_archived',
     /** Channel unarchived - broadcast by server */
     UNARCHIVED: 'channel_unarchived',
+    /** Client requests to observe a channel (temporary subscription for non-members) */
+    OBSERVE: 'channel:observe',
+    /** Client requests to stop observing a channel */
+    UNOBSERVE: 'channel:unobserve',
   },
 
   // ==================== Message Operations ====================

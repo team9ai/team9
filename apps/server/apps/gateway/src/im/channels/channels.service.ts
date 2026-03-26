@@ -1107,6 +1107,24 @@ export class ChannelsService {
   }
 
   /**
+   * Check whether a user is a member of a given tenant.
+   * Used by channel:observe to gate temporary subscriptions.
+   */
+  async isUserInTenant(userId: string, tenantId: string): Promise<boolean> {
+    const result = await this.db
+      .select({ id: schema.tenantMembers.id })
+      .from(schema.tenantMembers)
+      .where(
+        and(
+          eq(schema.tenantMembers.userId, userId),
+          eq(schema.tenantMembers.tenantId, tenantId),
+        ),
+      )
+      .limit(1);
+    return result.length > 0;
+  }
+
+  /**
    * Delete all DM channels that a user participates in.
    * Used during bot cleanup to remove orphaned direct channels.
    */
