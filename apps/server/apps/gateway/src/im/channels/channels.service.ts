@@ -38,6 +38,7 @@ export interface ChannelResponse {
   order: number;
   isArchived: boolean;
   isActivated: boolean;
+  snapshot: unknown;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -409,6 +410,7 @@ export class ChannelsService {
         order: schema.channels.order,
         isArchived: schema.channels.isArchived,
         isActivated: schema.channels.isActivated,
+        snapshot: schema.channels.snapshot,
         createdAt: schema.channels.createdAt,
         updatedAt: schema.channels.updatedAt,
         unreadCount:
@@ -824,7 +826,7 @@ export class ChannelsService {
     if (!channel.isActivated) {
       // Already deactivated — return existing snapshot
       return {
-        snapshot: (channel as any).snapshot ?? {
+        snapshot: (channel.snapshot as any) ?? {
           totalMessageCount: 0,
           latestMessages: [],
         },
@@ -984,6 +986,7 @@ export class ChannelsService {
         order: schema.channels.order,
         isArchived: schema.channels.isArchived,
         isActivated: schema.channels.isActivated,
+        snapshot: schema.channels.snapshot,
         createdAt: schema.channels.createdAt,
         updatedAt: schema.channels.updatedAt,
         memberCount: sql<number>`(

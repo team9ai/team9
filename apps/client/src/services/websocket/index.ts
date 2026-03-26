@@ -552,12 +552,12 @@ class WebSocketService {
 
   observeChannel(channelId: string): void {
     if (!this.socket) return;
-    this.socket.emit(WS_EVENTS.CHANNEL_OBSERVE.OBSERVE, { channelId });
+    this.socket.emit(WS_EVENTS.CHANNEL.OBSERVE, { channelId });
   }
 
   unobserveChannel(channelId: string): void {
     if (!this.socket) return;
-    this.socket.emit(WS_EVENTS.CHANNEL_OBSERVE.UNOBSERVE, { channelId });
+    this.socket.emit(WS_EVENTS.CHANNEL.UNOBSERVE, { channelId });
   }
 
   // ── Tracking Events ──────────────────────────────

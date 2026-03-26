@@ -32,6 +32,8 @@ export const WS_EVENTS = {
     DELETED: "channel_deleted",
     ARCHIVED: "channel_archived",
     UNARCHIVED: "channel_unarchived",
+    OBSERVE: "channel:observe",
+    UNOBSERVE: "channel:unobserve",
   },
 
   // Message operations
@@ -121,12 +123,6 @@ export const WS_EVENTS = {
     THINKING_CONTENT: "streaming_thinking_content",
     END: "streaming_end",
     ABORT: "streaming_abort",
-  },
-
-  // Channel observe (non-member temporary subscription)
-  CHANNEL_OBSERVE: {
-    OBSERVE: "channel:observe",
-    UNOBSERVE: "channel:unobserve",
   },
 
   // Tracking channel events

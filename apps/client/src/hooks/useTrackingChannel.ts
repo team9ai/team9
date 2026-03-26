@@ -80,7 +80,7 @@ export function useTrackingChannel(trackingChannelId: string | undefined) {
 
     const handleNewMessage = (msg: Message) => {
       if (msg.channelId !== trackingChannelId) return;
-      setExtraMessages((prev) => [...prev, msg]);
+      setExtraMessages((prev) => [...prev, msg].slice(-10));
     };
 
     const handleStreamStart = (event: StreamingStartEvent) => {
