@@ -497,6 +497,27 @@ export interface TaskExecutionCreatedEvent {
   };
 }
 
+// ==================== Tracking Channel Event Types ====================
+
+/** Tracking channel deactivated - snapshot of messages captured */
+export interface TrackingDeactivatedEvent {
+  channelId: string;
+  snapshot: {
+    totalMessageCount: number;
+    latestMessages: Array<{
+      id: string;
+      content: string;
+      metadata: Record<string, unknown>;
+      createdAt: string;
+    }>;
+  };
+}
+
+/** Tracking channel activated */
+export interface TrackingActivatedEvent {
+  channelId: string;
+}
+
 // ==================== Streaming Event Types (AI Bot) ====================
 
 /** Streaming start - bot begins generating a response */
@@ -505,6 +526,7 @@ export interface StreamingStartEvent {
   channelId: string;
   senderId: string;
   parentId?: string;
+  metadata?: Record<string, unknown>;
   startedAt: number;
 }
 

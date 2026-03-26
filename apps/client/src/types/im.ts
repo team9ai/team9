@@ -1,10 +1,35 @@
 // IM Types matching gateway API
 
-export type ChannelType = "direct" | "public" | "private";
-export type MessageType = "text" | "file" | "image" | "system";
+export type ChannelType = "direct" | "public" | "private" | "task" | "tracking";
+export type MessageType = "text" | "file" | "image" | "system" | "tracking";
 export type MemberRole = "owner" | "admin" | "member";
 export type UserStatus = "online" | "offline" | "away" | "busy";
 export type MessageSendStatus = "sending" | "sent" | "failed";
+
+export interface AgentEventMetadata {
+  agentEventType:
+    | "thinking"
+    | "writing"
+    | "tool_call"
+    | "tool_result"
+    | "agent_start"
+    | "agent_end"
+    | "error"
+    | "turn_separator";
+  status: "running" | "completed" | "failed";
+  toolName?: string;
+  success?: boolean;
+}
+
+export interface ChannelSnapshot {
+  totalMessageCount: number;
+  latestMessages: Array<{
+    id: string;
+    content: string;
+    metadata: AgentEventMetadata;
+    createdAt: string;
+  }>;
+}
 
 export interface IMUser {
   id: string;
@@ -31,6 +56,8 @@ export interface Channel {
   sectionId?: string | null;
   order: number;
   isArchived: boolean;
+  isActivated: boolean;
+  snapshot?: ChannelSnapshot | null;
   createdAt: string;
   updatedAt: string;
 }
