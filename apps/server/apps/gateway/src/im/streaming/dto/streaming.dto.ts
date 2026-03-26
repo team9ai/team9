@@ -3,6 +3,7 @@ import {
   IsUUID,
   IsOptional,
   IsNotEmpty,
+  IsObject,
   MaxLength,
 } from 'class-validator';
 
@@ -10,6 +11,10 @@ export class StartStreamingDto {
   @IsUUID()
   @IsOptional()
   parentId?: string;
+
+  @IsObject()
+  @IsOptional()
+  metadata?: Record<string, unknown>;
 }
 
 export class UpdateStreamingContentDto {

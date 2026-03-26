@@ -91,6 +91,7 @@ export class StreamingController {
         channelId,
         senderId: userId,
         parentId: dto.parentId,
+        metadata: dto.metadata,
         startedAt,
       }),
       STREAM_TTL,
@@ -114,6 +115,7 @@ export class StreamingController {
         channelId,
         senderId: userId,
         parentId: dto.parentId,
+        metadata: dto.metadata,
         startedAt,
       },
     );
