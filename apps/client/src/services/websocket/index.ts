@@ -36,6 +36,8 @@ import {
   type StreamingThinkingContentEvent,
   type StreamingEndEvent,
   type StreamingAbortEvent,
+  type TrackingDeactivatedEvent,
+  type TrackingActivatedEvent,
 } from "@/types/ws-events";
 
 type EventCallback = (...args: any[]) => void;
@@ -544,6 +546,42 @@ class WebSocketService {
 
   onStreamingAbort(callback: (event: StreamingAbortEvent) => void): void {
     this.on(WS_EVENTS.STREAMING.ABORT, callback);
+  }
+
+  // ── Channel Observe ──────────────────────────────
+
+  observeChannel(channelId: string): void {
+    if (!this.socket) return;
+    this.socket.emit(WS_EVENTS.CHANNEL_OBSERVE.OBSERVE, { channelId });
+  }
+
+  unobserveChannel(channelId: string): void {
+    if (!this.socket) return;
+    this.socket.emit(WS_EVENTS.CHANNEL_OBSERVE.UNOBSERVE, { channelId });
+  }
+
+  // ── Tracking Events ──────────────────────────────
+
+  onTrackingDeactivated(
+    callback: (event: TrackingDeactivatedEvent) => void,
+  ): void {
+    this.on(WS_EVENTS.TRACKING.DEACTIVATED, callback);
+  }
+
+  offTrackingDeactivated(
+    callback: (event: TrackingDeactivatedEvent) => void,
+  ): void {
+    this.off(WS_EVENTS.TRACKING.DEACTIVATED, callback);
+  }
+
+  onTrackingActivated(callback: (event: TrackingActivatedEvent) => void): void {
+    this.on(WS_EVENTS.TRACKING.ACTIVATED, callback);
+  }
+
+  offTrackingActivated(
+    callback: (event: TrackingActivatedEvent) => void,
+  ): void {
+    this.off(WS_EVENTS.TRACKING.ACTIVATED, callback);
   }
 }
 

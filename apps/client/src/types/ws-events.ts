@@ -122,6 +122,18 @@ export const WS_EVENTS = {
     END: "streaming_end",
     ABORT: "streaming_abort",
   },
+
+  // Channel observe (non-member temporary subscription)
+  CHANNEL_OBSERVE: {
+    OBSERVE: "channel:observe",
+    UNOBSERVE: "channel:unobserve",
+  },
+
+  // Tracking channel events
+  TRACKING: {
+    DEACTIVATED: "tracking:deactivated",
+    ACTIVATED: "tracking:activated",
+  },
 } as const;
 
 // ==================== Authentication Event Types ====================
