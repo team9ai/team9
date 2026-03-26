@@ -8,6 +8,7 @@ import {
   pgEnum,
   index,
   integer,
+  jsonb,
 } from 'drizzle-orm/pg-core';
 import { users } from './users.js';
 import { tenants } from '../tenant/tenants.js';
@@ -39,6 +40,7 @@ export const channels = pgTable(
     order: integer('order').default(0).notNull(),
     isArchived: boolean('is_archived').default(false).notNull(),
     isActivated: boolean('is_activated').default(true).notNull(),
+    snapshot: jsonb('snapshot'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
