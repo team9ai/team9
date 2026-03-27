@@ -326,6 +326,11 @@ export function MessageList({
       const showUnreadDivider =
         firstUnreadIndex >= 0 && chronoIndex === firstUnreadIndex;
 
+      // Get previous message for agent event grouping
+      const prevItem = listData[index - firstItemIndex - 1];
+      const prevMessage =
+        prevItem?.type === "message" ? prevItem.message : undefined;
+
       if (readOnly) {
         return (
           <div className="py-0.5">
@@ -333,6 +338,7 @@ export function MessageList({
             <MessageItem
               key={message.id}
               message={message}
+              prevMessage={prevMessage}
               isRootMessage={true}
               isHighlighted={isHighlighted}
             />
@@ -346,6 +352,7 @@ export function MessageList({
           <ChannelMessageItem
             key={message.id}
             message={message}
+            prevMessage={prevMessage}
             currentUserId={currentUser?.id}
             showReplyCount={Boolean(hasReplies)}
             onReplyCountClick={() => openThread(message.id)}
@@ -367,6 +374,7 @@ export function MessageList({
       firstItemIndex,
       members,
       thinkingBotIds,
+      listData,
     ],
   );
 
@@ -446,6 +454,7 @@ export function MessageList({
 // Wrapper component for channel-specific message behavior
 function ChannelMessageItem({
   message,
+  prevMessage,
   currentUserId,
   showReplyCount,
   onReplyCountClick,
@@ -454,6 +463,7 @@ function ChannelMessageItem({
   isDirect,
 }: {
   message: Message;
+  prevMessage?: Message;
   currentUserId?: string;
   showReplyCount?: boolean;
   onReplyCountClick?: () => void;
@@ -513,6 +523,7 @@ function ChannelMessageItem({
   return (
     <MessageItem
       message={message}
+      prevMessage={prevMessage}
       currentUserId={currentUserId}
       showReplyCount={!isDirect && showReplyCount}
       onReplyCountClick={isDirect ? undefined : onReplyCountClick}
