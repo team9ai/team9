@@ -67,7 +67,9 @@ export function TrackingEventItem({
       : content;
 
   const summaryContent = collapsible
-    ? truncateLine(displayContent, 60) + " ..."
+    ? displayContent.length > 60
+      ? truncateLine(displayContent, 60) + " ..."
+      : displayContent
     : displayContent;
 
   return (

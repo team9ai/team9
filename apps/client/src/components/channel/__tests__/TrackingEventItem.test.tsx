@@ -128,7 +128,7 @@ describe("TrackingEventItem - collapsible", () => {
     render(
       <TrackingEventItem
         metadata={meta}
-        content='{"results": [1,2,3], "count": 42}'
+        content='{"results": [1,2,3], "count": 42, "categories": {"ui": 45, "perf": 38, "feat": 32}}'
         collapsible
       />,
     );
