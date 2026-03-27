@@ -1,0 +1,147 @@
+import { describe, it, expect } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { MessageItem } from "../MessageItem";
+import type { Message } from "@/types/im";
+
+// Minimal mock for i18next
+import { vi } from "vitest";
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+
+function makeMessage(overrides: Partial<Message> = {}): Message {
+  return {
+    id: "msg-1",
+    channelId: "ch-1",
+    senderId: "user-1",
+    content: "test content",
+    type: "text",
+    isPinned: false,
+    isEdited: false,
+    isDeleted: false,
+    createdAt: "2026-03-27T12:00:00Z",
+    updatedAt: "2026-03-27T12:00:00Z",
+    ...overrides,
+  };
+}
+
+describe("MessageItem - agent event rendering", () => {
+  it("should render TrackingEventItem for messages with agentEventType metadata", () => {
+    const msg = makeMessage({
+      metadata: {
+        agentEventType: "tool_call",
+        status: "completed",
+        toolName: "SearchFiles",
+      },
+    });
+
+    render(<MessageItem message={msg} />);
+
+    expect(screen.getByText("Calling")).toBeInTheDocument();
+    expect(screen.getByText("SearchFiles")).toBeInTheDocument();
+    // Should NOT render avatar/sender
+    expect(screen.queryByText("Unknown User")).not.toBeInTheDocument();
+  });
+
+  it("should NOT render as agent event when metadata has no agentEventType", () => {
+    const msg = makeMessage({
+      metadata: { someOtherField: "value" },
+      sender: {
+        id: "user-1",
+        username: "TestUser",
+        displayName: "Test User",
+        avatarUrl: null,
+        status: "online",
+        userType: "human",
+      },
+    });
+
+    render(<MessageItem message={msg} />);
+
+    // Should render normally with sender name
+    expect(screen.getByText("Test User")).toBeInTheDocument();
+  });
+
+  it("should NOT render as agent event when agentEventType is not a string", () => {
+    const msg = makeMessage({
+      metadata: { agentEventType: 123 },
+      sender: {
+        id: "user-1",
+        username: "TestUser",
+        displayName: "Test User",
+        avatarUrl: null,
+        status: "online",
+        userType: "human",
+      },
+    });
+
+    render(<MessageItem message={msg} />);
+
+    expect(screen.getByText("Test User")).toBeInTheDocument();
+  });
+
+  it("should render with tight spacing when previous message is also an agent event", () => {
+    const prevMsg = makeMessage({
+      id: "msg-0",
+      metadata: { agentEventType: "agent_start", status: "completed" },
+    });
+    const msg = makeMessage({
+      metadata: {
+        agentEventType: "tool_call",
+        status: "completed",
+        toolName: "Search",
+      },
+    });
+
+    const { container } = render(
+      <MessageItem message={msg} prevMessage={prevMsg} />,
+    );
+
+    const wrapper = container.firstChild as HTMLElement;
+    // Should NOT have mt-1 class (not first in group)
+    expect(wrapper.className).not.toContain("mt-1");
+  });
+
+  it("should render with top margin when first agent event in group", () => {
+    const prevMsg = makeMessage({ id: "msg-0" }); // regular message, no metadata
+    const msg = makeMessage({
+      metadata: {
+        agentEventType: "tool_call",
+        status: "completed",
+        toolName: "Search",
+      },
+    });
+
+    const { container } = render(
+      <MessageItem message={msg} prevMessage={prevMsg} />,
+    );
+
+    const wrapper = container.firstChild as HTMLElement;
+    expect(wrapper.className).toContain("mt-1");
+  });
+
+  it("should render tool_result as collapsible", () => {
+    const msg = makeMessage({
+      metadata: { agentEventType: "tool_result", status: "completed" },
+      content:
+        '{"results": [1, 2, 3], "count": 42, "more_data": "something extra to make it longer than sixty characters total"}',
+    });
+
+    render(<MessageItem message={msg} />);
+
+    expect(screen.getByText("Result")).toBeInTheDocument();
+    // Should show truncated with ...
+    expect(screen.getByText(/\.\.\./)).toBeInTheDocument();
+  });
+
+  it("should handle null content gracefully", () => {
+    const msg = makeMessage({
+      metadata: { agentEventType: "agent_start", status: "completed" },
+      content: null as unknown as string,
+    });
+
+    render(<MessageItem message={msg} />);
+
+    expect(screen.getByText("Started")).toBeInTheDocument();
+  });
+});

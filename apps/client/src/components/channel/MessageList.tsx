@@ -144,6 +144,10 @@ export function MessageList({
     thinkingBotIdsKey,
   ]);
 
+  // Ref to listData for prevMessage lookup — avoids adding listData to useCallback deps
+  const listDataRef = useRef(listData);
+  listDataRef.current = listData;
+
   // Stable firstItemIndex: only decreases when older messages are prepended (loaded
   // via infinite scroll at the top), NOT when new messages are appended at the bottom.
   // Without this, Virtuoso misinterprets appended messages as prepended items and
@@ -327,7 +331,7 @@ export function MessageList({
         firstUnreadIndex >= 0 && chronoIndex === firstUnreadIndex;
 
       // Get previous message for agent event grouping
-      const prevItem = listData[index - firstItemIndex - 1];
+      const prevItem = listDataRef.current[index - firstItemIndex - 1];
       const prevMessage =
         prevItem?.type === "message" ? prevItem.message : undefined;
 
@@ -374,7 +378,6 @@ export function MessageList({
       firstItemIndex,
       members,
       thinkingBotIds,
-      listData,
     ],
   );
 
