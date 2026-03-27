@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { TrackingEventItem } from "../TrackingEventItem";
 import type { AgentEventMetadata } from "@/types/im";
 
@@ -116,5 +116,72 @@ describe("TrackingEventItem", () => {
       expect(screen.getByText(label)).toBeInTheDocument();
       unmount();
     }
+  });
+});
+
+describe("TrackingEventItem - collapsible", () => {
+  it("should show truncated content with ... when collapsible", () => {
+    const meta: AgentEventMetadata = {
+      agentEventType: "tool_result",
+      status: "completed",
+    };
+    render(
+      <TrackingEventItem
+        metadata={meta}
+        content='{"results": [1,2,3], "count": 42}'
+        collapsible
+      />,
+    );
+
+    expect(screen.getByText(/\.\.\./)).toBeInTheDocument();
+  });
+
+  it("should not show expanded content by default", () => {
+    const meta: AgentEventMetadata = {
+      agentEventType: "tool_result",
+      status: "completed",
+    };
+    render(
+      <TrackingEventItem
+        metadata={meta}
+        content='{"full": "content"}'
+        collapsible
+      />,
+    );
+
+    const expandedBlocks = document.querySelectorAll(
+      "[data-testid='expanded-content']",
+    );
+    expect(expandedBlocks).toHaveLength(0);
+  });
+
+  it("should expand content on click", () => {
+    const meta: AgentEventMetadata = {
+      agentEventType: "tool_result",
+      status: "completed",
+    };
+    render(
+      <TrackingEventItem
+        metadata={meta}
+        content='{"full": "content"}'
+        collapsible
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Result"));
+    expect(screen.getByTestId("expanded-content")).toBeInTheDocument();
+  });
+
+  it("should use purple label for thinking type", () => {
+    const meta: AgentEventMetadata = {
+      agentEventType: "thinking",
+      status: "completed",
+    };
+    const { container } = render(
+      <TrackingEventItem metadata={meta} content="thinking..." />,
+    );
+
+    const label = container.querySelector(".text-purple-400");
+    expect(label).toBeInTheDocument();
   });
 });
