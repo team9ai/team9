@@ -10,6 +10,7 @@ import {
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import { SyncService } from './sync.service.js';
 import { SyncAckDto } from './dto/sync.dto.js';
+import { ChannelsService } from '../channels/channels.service.js';
 import type { SyncMessagesResponse } from '@team9/shared';
 
 @Controller({
@@ -18,7 +19,10 @@ import type { SyncMessagesResponse } from '@team9/shared';
 })
 @UseGuards(AuthGuard)
 export class SyncController {
-  constructor(private readonly syncService: SyncService) {}
+  constructor(
+    private readonly syncService: SyncService,
+    private readonly channelsService: ChannelsService,
+  ) {}
 
   /**
    * Sync messages for a specific channel (lazy loading)
@@ -30,6 +34,7 @@ export class SyncController {
     @Param('channelId') channelId: string,
     @Query('limit') limit?: string,
   ): Promise<SyncMessagesResponse> {
+    await this.channelsService.assertReadAccess(channelId, userId);
     const messageLimit = limit ? parseInt(limit, 10) : 50;
     return this.syncService.syncChannel(userId, channelId, messageLimit);
   }
@@ -43,6 +48,7 @@ export class SyncController {
     @CurrentUser('sub') userId: string,
     @Body() dto: SyncAckDto,
   ): Promise<{ success: boolean }> {
+    await this.channelsService.assertReadAccess(dto.channelId, userId);
     await this.syncService.updateSyncPosition(
       userId,
       dto.channelId,

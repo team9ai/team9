@@ -299,6 +299,115 @@ describe('ChannelsService', () => {
     });
   });
 
+  // ── assertReadAccess ─────────────────────────────────────────────
+
+  describe('assertReadAccess', () => {
+    let redisService: { getOrSet: MockFn };
+
+    beforeEach(() => {
+      redisService = (service as any).redis;
+    });
+
+    it('should pass when user is a channel member', async () => {
+      // getMemberRole → returns 'member'
+      redisService.getOrSet = jest.fn<any>().mockResolvedValueOnce('member');
+
+      await expect(
+        service.assertReadAccess('ch-1', 'user-1'),
+      ).resolves.toBeUndefined();
+    });
+
+    it('should pass for public channel when user is not a member', async () => {
+      // getMemberRole → null (not a member)
+      redisService.getOrSet = jest
+        .fn<any>()
+        .mockResolvedValueOnce(null)
+        // findById → public channel
+        .mockResolvedValueOnce({ id: 'ch-1', type: 'public', tenantId: 't-1' });
+
+      await expect(
+        service.assertReadAccess('ch-1', 'user-1'),
+      ).resolves.toBeUndefined();
+    });
+
+    it('should pass for tracking channel when user is a tenant member', async () => {
+      // getMemberRole → null
+      redisService.getOrSet = jest
+        .fn<any>()
+        .mockResolvedValueOnce(null)
+        // findById → tracking channel
+        .mockResolvedValueOnce({
+          id: 'ch-1',
+          type: 'tracking',
+          tenantId: 't-1',
+        });
+      // isUserInTenant → found
+      db.limit.mockResolvedValueOnce([{ id: 'member-1' }]);
+
+      await expect(
+        service.assertReadAccess('ch-1', 'user-1'),
+      ).resolves.toBeUndefined();
+    });
+
+    it('should throw for tracking channel when user is NOT a tenant member', async () => {
+      redisService.getOrSet = jest
+        .fn<any>()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          id: 'ch-1',
+          type: 'tracking',
+          tenantId: 't-1',
+        });
+      // isUserInTenant → not found
+      db.limit.mockResolvedValueOnce([]);
+
+      await expect(service.assertReadAccess('ch-1', 'user-1')).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('should throw for tracking channel with null tenantId', async () => {
+      redisService.getOrSet = jest
+        .fn<any>()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          id: 'ch-1',
+          type: 'tracking',
+          tenantId: null,
+        });
+
+      await expect(service.assertReadAccess('ch-1', 'user-1')).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('should throw for non-existent channel', async () => {
+      redisService.getOrSet = jest
+        .fn<any>()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null);
+
+      await expect(
+        service.assertReadAccess('nonexistent', 'user-1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw for private channel when user is not a member', async () => {
+      redisService.getOrSet = jest
+        .fn<any>()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          id: 'ch-1',
+          type: 'private',
+          tenantId: 't-1',
+        });
+
+      await expect(service.assertReadAccess('ch-1', 'user-1')).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+  });
+
   // ── isUserInTenant ────────────────────────────────────────────────
 
   describe('isUserInTenant', () => {

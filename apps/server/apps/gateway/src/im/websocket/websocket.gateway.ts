@@ -543,6 +543,7 @@ export class WebsocketGateway
     const socketClient = client as SocketWithUser;
     const { channelId, messageId } = data;
 
+    await this.channelsService.assertReadAccess(channelId, socketClient.userId);
     await this.messagesService.markAsRead(
       channelId,
       socketClient.userId,
