@@ -10,13 +10,25 @@ import { MessageReactions } from "./MessageReactions";
 import { ThreadReplyIndicator } from "./ThreadReplyIndicator";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { TrackingCard } from "./TrackingCard";
+import { TrackingEventItem } from "./TrackingEventItem";
 import { formatMessageTime } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
-import type { Message } from "@/types/im";
+import type { Message, AgentEventMetadata } from "@/types/im";
+
+/** Check if a message has agent event metadata */
+function getAgentMeta(message: Message): AgentEventMetadata | undefined {
+  const meta = message.metadata as Record<string, unknown> | undefined;
+  if (meta && typeof meta.agentEventType === "string") {
+    return meta as unknown as AgentEventMetadata;
+  }
+  return undefined;
+}
 
 export interface MessageItemProps {
   message: Message;
   currentUserId?: string;
+  /** Previous message in the list — used for agent event grouping */
+  prevMessage?: Message;
   /** Compact mode for thread panel - smaller avatar and spacing */
   compact?: boolean;
   /** Indent for nested replies */
@@ -48,6 +60,7 @@ export interface MessageItemProps {
 export function MessageItem({
   message,
   currentUserId,
+  prevMessage,
   compact = false,
   indent = false,
   isRootMessage = false,
@@ -77,6 +90,34 @@ export function MessageItem({
     return (
       <div id={`message-${message.id}`} className="py-2 px-2">
         <TrackingCard message={message} />
+      </div>
+    );
+  }
+
+  // Agent event message display (no avatar, compact, grouped)
+  const agentMeta = getAgentMeta(message);
+  if (agentMeta) {
+    const prevIsAgentEvent = prevMessage ? !!getAgentMeta(prevMessage) : false;
+    const isFirstInGroup = !prevIsAgentEvent;
+
+    return (
+      <div
+        id={`message-${message.id}`}
+        className={cn(
+          "ml-4 border-l-2 border-emerald-500/15 bg-emerald-500/[0.03] rounded-r-md pr-4",
+          isFirstInGroup ? "mt-1 pt-1.5" : "",
+          "pb-0.5",
+        )}
+        style={{ paddingLeft: "13px" }}
+      >
+        <TrackingEventItem
+          metadata={agentMeta}
+          content={message.content ?? ""}
+          collapsible={
+            agentMeta.agentEventType === "tool_result" ||
+            agentMeta.agentEventType === "thinking"
+          }
+        />
       </div>
     );
   }
