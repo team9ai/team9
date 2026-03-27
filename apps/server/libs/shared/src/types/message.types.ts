@@ -42,6 +42,7 @@ export type MessageType =
   | 'file'
   | 'image'
   | 'system'
+  | 'tracking'
   | 'ack'
   | 'typing'
   | 'read'

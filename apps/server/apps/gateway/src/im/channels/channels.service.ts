@@ -670,6 +670,31 @@ export class ChannelsService {
     return role !== null;
   }
 
+  /**
+   * Assert that a user has read access to a channel.
+   * - Channel members always have access.
+   * - Public channels are readable by anyone.
+   * - Tracking channels are readable by any tenant member.
+   * Throws ForbiddenException if none of the above apply.
+   */
+  async assertReadAccess(channelId: string, userId: string): Promise<void> {
+    const isMember = await this.isMember(channelId, userId);
+    if (isMember) return;
+
+    const channel = await this.findById(channelId);
+    if (!channel) throw new ForbiddenException('Access denied');
+    if (channel.type === 'public') return;
+    if (
+      channel.type === 'tracking' &&
+      channel.tenantId &&
+      (await this.isUserInTenant(userId, channel.tenantId))
+    ) {
+      return;
+    }
+
+    throw new ForbiddenException('Access denied');
+  }
+
   async isBot(userId: string): Promise<boolean> {
     const [user] = await this.db
       .select({ userType: schema.users.userType })
@@ -1124,6 +1149,7 @@ export class ChannelsService {
         and(
           eq(schema.tenantMembers.userId, userId),
           eq(schema.tenantMembers.tenantId, tenantId),
+          isNull(schema.tenantMembers.leftAt),
         ),
       )
       .limit(1);

@@ -480,7 +480,7 @@ export class PostBroadcastService {
         channelId: originalChannelId,
         senderId: botUserId,
         content: '',
-        type: 'system',
+        type: 'tracking',
         seqId: placeholderSeqId,
         metadata: {
           trackingChannelId: channelId,
@@ -499,7 +499,7 @@ export class PostBroadcastService {
         {
           msgId: placeholderMsgId,
           seqId: placeholderSeqId,
-          type: 'system',
+          type: 'tracking',
           senderId: botUserId,
           targetType: 'channel',
           targetId: originalChannelId,

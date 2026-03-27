@@ -124,10 +124,7 @@ export class ChannelsController {
     @CurrentUser('sub') userId: string,
     @Param('id') channelId: string,
   ): Promise<ChannelWithUnread> {
-    const isMember = await this.channelsService.isMember(channelId, userId);
-    if (!isMember) {
-      throw new ForbiddenException('Access denied');
-    }
+    await this.channelsService.assertReadAccess(channelId, userId);
     return this.channelsService.findByIdOrThrow(channelId, userId);
   }
 
@@ -204,10 +201,7 @@ export class ChannelsController {
     @CurrentUser('sub') userId: string,
     @Param('id') channelId: string,
   ): Promise<ChannelMemberResponse[]> {
-    const isMember = await this.channelsService.isMember(channelId, userId);
-    if (!isMember) {
-      throw new ForbiddenException('Access denied');
-    }
+    await this.channelsService.assertReadAccess(channelId, userId);
     return this.channelsService.getChannelMembers(channelId);
   }
 

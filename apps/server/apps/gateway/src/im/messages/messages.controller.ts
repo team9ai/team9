@@ -65,14 +65,7 @@ export class MessagesController {
   ): Promise<MessageResponse[] | PaginatedMessagesResponse> {
     const t0 = Date.now();
 
-    const isMember = await this.channelsService.isMember(channelId, userId);
-    if (!isMember) {
-      // Allow non-members to read public channel messages (read-only preview)
-      const channel = await this.channelsService.findById(channelId);
-      if (!channel || channel.type !== 'public') {
-        throw new ForbiddenException('Access denied');
-      }
-    }
+    await this.channelsService.assertReadAccess(channelId, userId);
 
     const parsedLimit = limit ? parseInt(limit, 10) : 50;
     // When after/around is used, return paginated response with hasOlder/hasNewer
@@ -246,10 +239,7 @@ export class MessagesController {
     @CurrentUser('sub') userId: string,
     @Param('channelId') channelId: string,
   ): Promise<MessageResponse[]> {
-    const isMember = await this.channelsService.isMember(channelId, userId);
-    if (!isMember) {
-      throw new ForbiddenException('Access denied');
-    }
+    await this.channelsService.assertReadAccess(channelId, userId);
     return this.messagesService.getPinnedMessages(channelId);
   }
 
@@ -259,6 +249,7 @@ export class MessagesController {
     @Param('channelId') channelId: string,
     @Body() body: { messageId: string },
   ): Promise<{ success: boolean }> {
+    await this.channelsService.assertReadAccess(channelId, userId);
     await this.messagesService.markAsRead(channelId, userId, body.messageId);
     return { success: true };
   }
@@ -269,13 +260,7 @@ export class MessagesController {
     @Param('id') messageId: string,
   ): Promise<MessageResponse> {
     const message = await this.messagesService.getMessageWithDetails(messageId);
-    const isMember = await this.channelsService.isMember(
-      message.channelId,
-      userId,
-    );
-    if (!isMember) {
-      throw new ForbiddenException('Access denied');
-    }
+    await this.channelsService.assertReadAccess(message.channelId, userId);
     return message;
   }
 
@@ -355,10 +340,7 @@ export class MessagesController {
     @Query('cursor') cursor?: string,
   ): Promise<ThreadResponse> {
     const channelId = await this.messagesService.getMessageChannelId(messageId);
-    const isMember = await this.channelsService.isMember(channelId, userId);
-    if (!isMember) {
-      throw new ForbiddenException('Access denied');
-    }
+    await this.channelsService.assertReadAccess(channelId, userId);
     return this.messagesService.getThread(
       messageId,
       limit ? parseInt(limit, 10) : 20,
@@ -378,10 +360,7 @@ export class MessagesController {
     @Query('cursor') cursor?: string,
   ): Promise<SubRepliesResponse> {
     const channelId = await this.messagesService.getMessageChannelId(messageId);
-    const isMember = await this.channelsService.isMember(channelId, userId);
-    if (!isMember) {
-      throw new ForbiddenException('Access denied');
-    }
+    await this.channelsService.assertReadAccess(channelId, userId);
     return this.messagesService.getSubReplies(
       messageId,
       limit ? parseInt(limit, 10) : 20,
