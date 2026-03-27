@@ -475,10 +475,12 @@ export class PostBroadcastService {
       });
 
       // Placeholder message in original channel — client renders as tracking link
+      // parentId = triggerMessageId so it appears as a thread reply
       await tx.insert(schema.messages).values({
         id: placeholderMsgId,
         channelId: originalChannelId,
         senderId: botUserId,
+        parentId: triggerMessageId,
         content: '',
         type: 'tracking',
         seqId: placeholderSeqId,
@@ -501,6 +503,7 @@ export class PostBroadcastService {
           seqId: placeholderSeqId,
           type: 'tracking',
           senderId: botUserId,
+          parentId: triggerMessageId,
           targetType: 'channel',
           targetId: originalChannelId,
           payload: {
