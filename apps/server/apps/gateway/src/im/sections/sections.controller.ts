@@ -57,7 +57,9 @@ export class SectionsController {
   }
 
   @Get(':id')
-  async getSection(@Param('id') sectionId: string): Promise<SectionResponse> {
+  async getSection(
+    @Param('id', ParseUUIDPipe) sectionId: string,
+  ): Promise<SectionResponse> {
     return this.sectionsService.findByIdOrThrow(sectionId);
   }
 
@@ -65,7 +67,7 @@ export class SectionsController {
   @WorkspaceRoles('member')
   async updateSection(
     @CurrentUser('sub') userId: string,
-    @Param('id') sectionId: string,
+    @Param('id', ParseUUIDPipe) sectionId: string,
     @Body() dto: UpdateSectionDto,
   ): Promise<SectionResponse> {
     return this.sectionsService.update(sectionId, dto, userId);
@@ -75,7 +77,7 @@ export class SectionsController {
   @WorkspaceRoles('member')
   async deleteSection(
     @CurrentUser('sub') userId: string,
-    @Param('id') sectionId: string,
+    @Param('id', ParseUUIDPipe) sectionId: string,
   ): Promise<{ success: boolean }> {
     await this.sectionsService.delete(sectionId, userId);
     return { success: true };

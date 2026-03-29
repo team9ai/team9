@@ -258,7 +258,7 @@ export class MessagesController {
   @Get('messages/:id')
   async getMessage(
     @CurrentUser('sub') userId: string,
-    @Param('id') messageId: string,
+    @Param('id', ParseUUIDPipe) messageId: string,
   ): Promise<MessageResponse> {
     const message = await this.messagesService.getMessageWithDetails(messageId);
     await this.channelsService.assertReadAccess(message.channelId, userId);
@@ -268,7 +268,7 @@ export class MessagesController {
   @Patch('messages/:id')
   async updateMessage(
     @CurrentUser('sub') userId: string,
-    @Param('id') messageId: string,
+    @Param('id', ParseUUIDPipe) messageId: string,
     @Body() dto: UpdateMessageDto,
   ): Promise<MessageResponse> {
     const message = await this.messagesService.update(messageId, userId, dto);
@@ -311,7 +311,7 @@ export class MessagesController {
   @Delete('messages/:id')
   async deleteMessage(
     @CurrentUser('sub') userId: string,
-    @Param('id') messageId: string,
+    @Param('id', ParseUUIDPipe) messageId: string,
   ): Promise<{ success: boolean }> {
     const channelId = await this.messagesService.getMessageChannelId(messageId);
     await this.messagesService.delete(messageId, userId);
@@ -336,7 +336,7 @@ export class MessagesController {
   @Get('messages/:id/thread')
   async getThread(
     @CurrentUser('sub') userId: string,
-    @Param('id') messageId: string,
+    @Param('id', ParseUUIDPipe) messageId: string,
     @Query('limit') limit?: string,
     @Query('cursor') cursor?: string,
   ): Promise<ThreadResponse> {
@@ -356,7 +356,7 @@ export class MessagesController {
   @Get('messages/:id/sub-replies')
   async getSubReplies(
     @CurrentUser('sub') userId: string,
-    @Param('id') messageId: string,
+    @Param('id', ParseUUIDPipe) messageId: string,
     @Query('limit') limit?: string,
     @Query('cursor') cursor?: string,
   ): Promise<SubRepliesResponse> {
@@ -372,7 +372,7 @@ export class MessagesController {
   @Post('messages/:id/pin')
   async pinMessage(
     @CurrentUser('sub') userId: string,
-    @Param('id') messageId: string,
+    @Param('id', ParseUUIDPipe) messageId: string,
   ): Promise<{ success: boolean }> {
     const channelId = await this.messagesService.getMessageChannelId(messageId);
     const role = await this.channelsService.getMemberRole(channelId, userId);
@@ -386,7 +386,7 @@ export class MessagesController {
   @Delete('messages/:id/pin')
   async unpinMessage(
     @CurrentUser('sub') userId: string,
-    @Param('id') messageId: string,
+    @Param('id', ParseUUIDPipe) messageId: string,
   ): Promise<{ success: boolean }> {
     const channelId = await this.messagesService.getMessageChannelId(messageId);
     const role = await this.channelsService.getMemberRole(channelId, userId);
@@ -400,7 +400,7 @@ export class MessagesController {
   @Post('messages/:id/reactions')
   async addReaction(
     @CurrentUser('sub') userId: string,
-    @Param('id') messageId: string,
+    @Param('id', ParseUUIDPipe) messageId: string,
     @Body() dto: AddReactionDto,
   ): Promise<{ success: boolean }> {
     await this.messagesService.addReaction(messageId, userId, dto.emoji);
@@ -410,7 +410,7 @@ export class MessagesController {
   @Delete('messages/:id/reactions/:emoji')
   async removeReaction(
     @CurrentUser('sub') userId: string,
-    @Param('id') messageId: string,
+    @Param('id', ParseUUIDPipe) messageId: string,
     @Param('emoji') emoji: string,
   ): Promise<{ success: boolean }> {
     await this.messagesService.removeReaction(messageId, userId, emoji);

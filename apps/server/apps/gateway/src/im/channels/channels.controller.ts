@@ -94,7 +94,7 @@ export class ChannelsController {
   async createDirectChannel(
     @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string | undefined,
-    @Param('targetUserId') targetUserId: string,
+    @Param('targetUserId', ParseUUIDPipe) targetUserId: string,
   ): Promise<ChannelResponse> {
     const channel = await this.channelsService.createDirectChannel(
       userId,
@@ -256,7 +256,7 @@ export class ChannelsController {
   async updateMember(
     @CurrentUser('sub') userId: string,
     @Param('id', ParseUUIDPipe) channelId: string,
-    @Param('memberId') memberId: string,
+    @Param('memberId', ParseUUIDPipe) memberId: string,
     @Body() dto: UpdateMemberDto,
   ): Promise<{ success: boolean }> {
     await this.channelsService.updateMember(channelId, memberId, dto, userId);
@@ -267,7 +267,7 @@ export class ChannelsController {
   async removeMember(
     @CurrentUser('sub') userId: string,
     @Param('id', ParseUUIDPipe) channelId: string,
-    @Param('memberId') memberId: string,
+    @Param('memberId', ParseUUIDPipe) memberId: string,
   ): Promise<{ success: boolean }> {
     await this.channelsService.removeMember(channelId, memberId, userId);
 
