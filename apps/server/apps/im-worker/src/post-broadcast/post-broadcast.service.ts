@@ -7,6 +7,7 @@ import {
   isNull,
   inArray,
   sql,
+  desc,
 } from '@team9/database';
 import type { PostgresJsDatabase } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -577,6 +578,39 @@ export class PostBroadcastService {
         ? null
         : extractMentionedUserIds(mentions);
 
+      // For thread replies in group channels, check if there's already a
+      // tracking channel in this thread. If so, auto-forward to the same
+      // agent session without requiring @mention.
+      const threadTrackingMap = new Map<string, string>(); // botUserId → trackingChannelId
+      const threadRootId = message.rootId ?? message.parentId;
+      if (!alwaysForward && threadRootId) {
+        const trackingMsgs = await this.db
+          .select({
+            senderId: schema.messages.senderId,
+            metadata: schema.messages.metadata,
+          })
+          .from(schema.messages)
+          .where(
+            and(
+              eq(schema.messages.channelId, channel.id),
+              eq(schema.messages.type, 'tracking'),
+              eq(schema.messages.rootId, threadRootId),
+            ),
+          )
+          .orderBy(desc(schema.messages.createdAt))
+          .limit(10);
+
+        for (const msg of trackingMsgs) {
+          const meta = msg.metadata as Record<string, unknown> | null;
+          if (msg.senderId && meta?.trackingChannelId) {
+            threadTrackingMap.set(
+              msg.senderId,
+              meta.trackingChannelId as string,
+            );
+          }
+        }
+      }
+
       // Build the recursive MessageLocation for the event payload
       const channelLocation: Record<string, unknown> = {
         type: isDm ? 'dm' : isTracking ? 'tracking' : 'channel',
@@ -600,15 +634,24 @@ export class PostBroadcastService {
       for (const bot of targetBots) {
         const agentId = bot.managedMeta!.agentId!;
 
-        // Apply trigger rules
-        if (!alwaysForward && !mentionedUserIds!.includes(bot.userId)) {
+        // Check if this bot has an existing tracking channel in this thread
+        const existingTrackingId = threadTrackingMap.get(bot.userId);
+
+        // Apply trigger rules: skip if no @mention AND no existing tracking
+        if (
+          !alwaysForward &&
+          !existingTrackingId &&
+          !mentionedUserIds!.includes(bot.userId)
+        ) {
           continue;
         }
 
-        // Create tracking channel for group @mentions only
-        // Tracking channel messages reuse the existing channel (same session)
-        let trackingChannelId: string | undefined;
-        if (!isDm && !isTracking) {
+        // Determine tracking channel:
+        // - Existing: reuse from thread (follow-up reply)
+        // - New: create for fresh group @mentions
+        // - None: DM or tracking channel message
+        let trackingChannelId: string | undefined = existingTrackingId;
+        if (!isDm && !isTracking && !trackingChannelId) {
           trackingChannelId = await this.createTrackingChannel(
             tenantId || null,
             bot.userId,
@@ -646,8 +689,25 @@ export class PostBroadcastService {
         this.clawHiveService
           .sendInput(sessionId, event, tenantId || undefined)
           .catch((err: Error) => {
+            const context = [
+              `bot ${bot.botId}`,
+              `agent ${agentId}`,
+              `session ${sessionId}`,
+              `channel ${channel.id}`,
+              trackingChannelId
+                ? `tracking ${trackingChannelId}`
+                : `scope ${scope}/${scopeId}`,
+              tenantId ? `tenant ${tenantId}` : null,
+            ]
+              .filter(Boolean)
+              .join(', ');
+
+            const hint = err.message.includes('No available workers')
+              ? ' claw-hive has no connected workers; start claw-hive-worker or the full hive dev stack.'
+              : '';
+
             this.logger.warn(
-              `Hive bot input failed for bot ${bot.botId} (agent ${agentId}): ${err.message}`,
+              `Hive bot input failed for ${context}: ${err.message}.${hint}`,
             );
           });
       }
