@@ -21,7 +21,9 @@ import {
 import { useChannelScrollStore } from "@/hooks/useChannelScrollState";
 import { useStreamingStore } from "@/stores/useStreamingStore";
 import type { StreamingMessage } from "@/stores/useStreamingStore";
+import { cn } from "@/lib/utils";
 import { MessageItem } from "./MessageItem";
+import { ToolCallBlock } from "./ToolCallBlock";
 import { StreamingMessageItem } from "./StreamingMessageItem";
 import { BotThinkingIndicator } from "./BotThinkingIndicator";
 import { NewMessagesIndicator } from "./NewMessagesIndicator";
@@ -49,6 +51,15 @@ interface MessageListProps {
   members?: ChannelMember[];
   // Last read message ID for unread divider positioning
   lastReadMessageId?: string;
+}
+
+/** Extract agent event metadata from a message, if present */
+function getAgentMeta(message: Message): AgentEventMetadata | undefined {
+  const meta = message.metadata as Record<string, unknown> | undefined;
+  if (meta && typeof meta.agentEventType === "string") {
+    return meta as unknown as AgentEventMetadata;
+  }
+  return undefined;
 }
 
 /**
@@ -376,16 +387,71 @@ export function MessageList({
       }
 
       const message = item.message;
+      const itemIndex = index - firstItemIndex;
+      const agentMeta = getAgentMeta(message);
+
+      // Combined tool_call + tool_result block: render both in one card,
+      // then hide the standalone tool_result item that follows.
+      if (agentMeta?.agentEventType === "tool_call" && agentMeta.toolCallId) {
+        const nextItem = listDataRef.current[itemIndex + 1];
+        const nextMsg =
+          nextItem?.type === "message" ? nextItem.message : undefined;
+        const nextMeta = nextMsg ? getAgentMeta(nextMsg) : undefined;
+
+        if (
+          nextMeta?.agentEventType === "tool_result" &&
+          nextMeta.toolCallId === agentMeta.toolCallId
+        ) {
+          const prevItem = listDataRef.current[itemIndex - 1];
+          const prevIsAgentEvent =
+            prevItem?.type === "message" && !!getAgentMeta(prevItem.message);
+          const isFirstInGroup = !prevIsAgentEvent;
+
+          return (
+            <div
+              id={`message-${message.id}`}
+              className={cn(
+                "ml-4 border-l-2 border-emerald-500/15 bg-emerald-500/[0.03] rounded-r-md pr-4",
+                isFirstInGroup ? "mt-1 pt-1.5" : "",
+                "pb-0.5",
+              )}
+              style={{ paddingLeft: "13px" }}
+            >
+              <ToolCallBlock
+                callMetadata={agentMeta}
+                resultMetadata={nextMeta}
+                resultContent={nextMsg!.content ?? ""}
+              />
+            </div>
+          );
+        }
+      }
+
+      // Hide tool_result already rendered in the combined block above
+      if (agentMeta?.agentEventType === "tool_result" && agentMeta.toolCallId) {
+        const prevItem = listDataRef.current[itemIndex - 1];
+        const prevMsg =
+          prevItem?.type === "message" ? prevItem.message : undefined;
+        const prevMeta = prevMsg ? getAgentMeta(prevMsg) : undefined;
+
+        if (
+          prevMeta?.agentEventType === "tool_call" &&
+          prevMeta.toolCallId === agentMeta.toolCallId
+        ) {
+          return <div className="h-0 overflow-hidden" />;
+        }
+      }
+
       const hasReplies =
         !message.parentId && message.replyCount && message.replyCount > 0;
       const isHighlighted = highlightMessageId === message.id;
       // Show unread divider before the first unread message
-      const chronoIndex = index - firstItemIndex;
+      const chronoIndex = itemIndex;
       const showUnreadDivider =
         firstUnreadIndex >= 0 && chronoIndex === firstUnreadIndex;
 
       // Get previous message for agent event grouping
-      const prevItem = listDataRef.current[index - firstItemIndex - 1];
+      const prevItem = listDataRef.current[itemIndex - 1];
       const prevMessage =
         prevItem?.type === "message" ? prevItem.message : undefined;
 
