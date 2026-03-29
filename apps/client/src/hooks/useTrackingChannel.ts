@@ -41,25 +41,19 @@ export function useTrackingChannel(trackingChannelId: string | undefined) {
     queryKey: ["channels", trackingChannelId],
     queryFn: () => imApi.channels.getChannel(trackingChannelId!),
     enabled: !!trackingChannelId,
-    staleTime: isDeactivated ? 5000 : Infinity,
+    staleTime: Infinity,
     retry: false,
   });
 
   const isActivated = channelInfo ? channelInfo.isActivated : true;
 
-  // Sync deactivated state with channel info
+  // For deactivated channels, use snapshot from channel info
   useEffect(() => {
-    if (!channelInfo) return;
-    if (!channelInfo.isActivated && channelInfo.snapshot) {
+    if (channelInfo && !channelInfo.isActivated && channelInfo.snapshot) {
       setSnapshot(channelInfo.snapshot as ChannelSnapshot);
       setIsDeactivated(true);
-    } else if (channelInfo.isActivated && isDeactivated) {
-      // Channel was reactivated (follow-up message)
-      setIsDeactivated(false);
-      setSnapshot(null);
-      setExtraMessages([]);
     }
-  }, [channelInfo, isDeactivated]);
+  }, [channelInfo]);
 
   // For active channels, fetch latest messages
   // messagesApi.getMessages returns Message[] directly
