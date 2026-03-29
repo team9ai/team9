@@ -7,6 +7,7 @@ import {
   Body,
   Param,
   UseGuards,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { SectionsService, SectionResponse } from './sections.service.js';
 import {
@@ -102,7 +103,7 @@ export class ChannelSectionController {
   @WorkspaceRoles('member')
   async moveChannel(
     @CurrentUser('sub') userId: string,
-    @Param('id') channelId: string,
+    @Param('id', ParseUUIDPipe) channelId: string,
     @Body() dto: MoveChannelDto,
   ): Promise<{ success: boolean }> {
     await this.sectionsService.moveChannelToSection(

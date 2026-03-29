@@ -13,6 +13,7 @@ import {
   forwardRef,
   Optional,
   Logger,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { v7 as uuidv7 } from 'uuid';
@@ -57,7 +58,7 @@ export class MessagesController {
   @Get('channels/:channelId/messages')
   async getChannelMessages(
     @CurrentUser('sub') userId: string,
-    @Param('channelId') channelId: string,
+    @Param('channelId', ParseUUIDPipe) channelId: string,
     @Query('limit') limit?: string,
     @Query('before') before?: string,
     @Query('after') after?: string,
@@ -96,7 +97,7 @@ export class MessagesController {
   @Post('channels/:channelId/messages')
   async createMessage(
     @CurrentUser('sub') userId: string,
-    @Param('channelId') channelId: string,
+    @Param('channelId', ParseUUIDPipe) channelId: string,
     @Body() dto: CreateMessageDto,
   ): Promise<MessageResponse> {
     const t0 = Date.now();
@@ -237,7 +238,7 @@ export class MessagesController {
   @Get('channels/:channelId/pinned')
   async getPinnedMessages(
     @CurrentUser('sub') userId: string,
-    @Param('channelId') channelId: string,
+    @Param('channelId', ParseUUIDPipe) channelId: string,
   ): Promise<MessageResponse[]> {
     await this.channelsService.assertReadAccess(channelId, userId);
     return this.messagesService.getPinnedMessages(channelId);
@@ -246,7 +247,7 @@ export class MessagesController {
   @Post('channels/:channelId/read')
   async markAsRead(
     @CurrentUser('sub') userId: string,
-    @Param('channelId') channelId: string,
+    @Param('channelId', ParseUUIDPipe) channelId: string,
     @Body() body: { messageId: string },
   ): Promise<{ success: boolean }> {
     await this.channelsService.assertReadAccess(channelId, userId);

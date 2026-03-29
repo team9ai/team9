@@ -10,6 +10,7 @@ import {
   ForbiddenException,
   Inject,
   forwardRef,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
@@ -122,7 +123,7 @@ export class ChannelsController {
   @Get(':id')
   async getChannel(
     @CurrentUser('sub') userId: string,
-    @Param('id') channelId: string,
+    @Param('id', ParseUUIDPipe) channelId: string,
   ): Promise<ChannelWithUnread> {
     await this.channelsService.assertReadAccess(channelId, userId);
     return this.channelsService.findByIdOrThrow(channelId, userId);
@@ -131,7 +132,7 @@ export class ChannelsController {
   @Get(':id/preview')
   async getChannelPreview(
     @CurrentUser('sub') userId: string,
-    @Param('id') channelId: string,
+    @Param('id', ParseUUIDPipe) channelId: string,
   ) {
     const preview = await this.channelsService.getPublicChannelPreview(
       channelId,
@@ -148,7 +149,7 @@ export class ChannelsController {
   @Post(':id/join')
   async joinChannel(
     @CurrentUser('sub') userId: string,
-    @Param('id') channelId: string,
+    @Param('id', ParseUUIDPipe) channelId: string,
   ): Promise<{ success: boolean }> {
     await this.channelsService.joinPublicChannel(channelId, userId);
 
@@ -171,7 +172,7 @@ export class ChannelsController {
   @Patch(':id')
   async updateChannel(
     @CurrentUser('sub') userId: string,
-    @Param('id') channelId: string,
+    @Param('id', ParseUUIDPipe) channelId: string,
     @Body() dto: UpdateChannelDto,
   ): Promise<ChannelResponse> {
     const channel = await this.channelsService.update(channelId, dto, userId);
@@ -199,7 +200,7 @@ export class ChannelsController {
   @Get(':id/members')
   async getMembers(
     @CurrentUser('sub') userId: string,
-    @Param('id') channelId: string,
+    @Param('id', ParseUUIDPipe) channelId: string,
   ): Promise<ChannelMemberResponse[]> {
     await this.channelsService.assertReadAccess(channelId, userId);
     return this.channelsService.getChannelMembers(channelId);
@@ -208,7 +209,7 @@ export class ChannelsController {
   @Post(':id/members')
   async addMember(
     @CurrentUser('sub') userId: string,
-    @Param('id') channelId: string,
+    @Param('id', ParseUUIDPipe) channelId: string,
     @Body() dto: AddMemberDto,
   ): Promise<{ success: boolean }> {
     const role = await this.channelsService.getMemberRole(channelId, userId);
@@ -254,7 +255,7 @@ export class ChannelsController {
   @Patch(':id/members/:memberId')
   async updateMember(
     @CurrentUser('sub') userId: string,
-    @Param('id') channelId: string,
+    @Param('id', ParseUUIDPipe) channelId: string,
     @Param('memberId') memberId: string,
     @Body() dto: UpdateMemberDto,
   ): Promise<{ success: boolean }> {
@@ -265,7 +266,7 @@ export class ChannelsController {
   @Delete(':id/members/:memberId')
   async removeMember(
     @CurrentUser('sub') userId: string,
-    @Param('id') channelId: string,
+    @Param('id', ParseUUIDPipe) channelId: string,
     @Param('memberId') memberId: string,
   ): Promise<{ success: boolean }> {
     await this.channelsService.removeMember(channelId, memberId, userId);
@@ -292,7 +293,7 @@ export class ChannelsController {
   @Post(':id/leave')
   async leaveChannel(
     @CurrentUser('sub') userId: string,
-    @Param('id') channelId: string,
+    @Param('id', ParseUUIDPipe) channelId: string,
   ): Promise<{ success: boolean }> {
     await this.channelsService.removeMember(channelId, userId, userId);
 
@@ -318,7 +319,7 @@ export class ChannelsController {
   @Delete(':id')
   async deleteChannel(
     @CurrentUser('sub') userId: string,
-    @Param('id') channelId: string,
+    @Param('id', ParseUUIDPipe) channelId: string,
     @Body() dto: DeleteChannelDto,
   ): Promise<{ success: boolean }> {
     // Get member IDs and channel info before deletion
@@ -372,7 +373,7 @@ export class ChannelsController {
   @Post(':id/unarchive')
   async unarchiveChannel(
     @CurrentUser('sub') userId: string,
-    @Param('id') channelId: string,
+    @Param('id', ParseUUIDPipe) channelId: string,
   ): Promise<ChannelResponse> {
     const channel = await this.channelsService.unarchiveChannel(
       channelId,
@@ -399,7 +400,7 @@ export class ChannelsController {
   @Post(':id/deactivate')
   async deactivateChannel(
     @CurrentUser('sub') userId: string,
-    @Param('id') channelId: string,
+    @Param('id', ParseUUIDPipe) channelId: string,
   ): Promise<{ success: boolean }> {
     const isMember = await this.channelsService.isMember(channelId, userId);
     if (!isMember) {
@@ -427,7 +428,7 @@ export class ChannelsController {
   @Post(':id/activate')
   async activateChannel(
     @CurrentUser('sub') userId: string,
-    @Param('id') channelId: string,
+    @Param('id', ParseUUIDPipe) channelId: string,
   ): Promise<{ success: boolean }> {
     const isMember = await this.channelsService.isMember(channelId, userId);
     if (!isMember) {

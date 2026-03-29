@@ -6,6 +6,7 @@ import {
   Param,
   Query,
   UseGuards,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import { SyncService } from './sync.service.js';
@@ -31,7 +32,7 @@ export class SyncController {
   @Get('channel/:channelId')
   async syncChannel(
     @CurrentUser('sub') userId: string,
-    @Param('channelId') channelId: string,
+    @Param('channelId', ParseUUIDPipe) channelId: string,
     @Query('limit') limit?: string,
   ): Promise<SyncMessagesResponse> {
     await this.channelsService.assertReadAccess(channelId, userId);

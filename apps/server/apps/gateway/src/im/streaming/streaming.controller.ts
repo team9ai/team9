@@ -9,6 +9,7 @@ import {
   forwardRef,
   Optional,
   Logger,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { v7 as uuidv7 } from 'uuid';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -63,7 +64,7 @@ export class StreamingController {
   @Post('channels/:channelId/streaming/start')
   async startStreaming(
     @CurrentUser('sub') userId: string,
-    @Param('channelId') channelId: string,
+    @Param('channelId', ParseUUIDPipe) channelId: string,
     @Body() dto: StartStreamingDto,
   ): Promise<{ streamId: string }> {
     await this.assertBot(userId);

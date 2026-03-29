@@ -6,6 +6,7 @@ import {
   Body,
   Query,
   UseGuards,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { OpenclawAuthGuard } from './openclaw-auth.guard.js';
 import { OpenclawService } from './openclaw.service.js';
@@ -43,7 +44,7 @@ export class OpenclawController {
   @Get('instances/:instanceId/conversations/:channelId/messages')
   async getConversationMessages(
     @Param('instanceId') instanceId: string,
-    @Param('channelId') channelId: string,
+    @Param('channelId', ParseUUIDPipe) channelId: string,
     @Query('limit') limit?: string,
     @Query('before') before?: string,
   ) {
