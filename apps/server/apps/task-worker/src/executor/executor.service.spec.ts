@@ -508,5 +508,13 @@ describe('ExecutorService', () => {
       await service.resumeExecution('task-001');
       expect(mockStrategy.resume).not.toHaveBeenCalled();
     });
+
+    it('returns early when task has no currentExecutionId', async () => {
+      selectResultQueue = [
+        [{ ...sampleTask, currentExecutionId: null, status: 'paused' }],
+      ];
+      await service.resumeExecution('task-001');
+      expect(mockStrategy.resume).not.toHaveBeenCalled();
+    });
   });
 });
