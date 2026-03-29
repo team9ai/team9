@@ -400,7 +400,12 @@ export class ExecutorService {
       .where(eq(schema.agentTasks.id, taskId))
       .limit(1);
 
-    if (!task || !task.currentExecutionId || !task.botId) {
+    if (!task) {
+      this.logger.error(`Task ${taskId} not found`);
+      return;
+    }
+
+    if (!task.currentExecutionId || !task.botId) {
       this.logger.warn(
         `Task ${taskId} cannot be paused — no active execution or bot`,
       );
@@ -463,6 +468,11 @@ export class ExecutorService {
     }
 
     await this.db
+      .update(schema.agentTaskExecutions)
+      .set({ status: 'paused' })
+      .where(eq(schema.agentTaskExecutions.id, execution.id));
+
+    await this.db
       .update(schema.agentTasks)
       .set({ status: 'paused', updatedAt: new Date() })
       .where(eq(schema.agentTasks.id, taskId));
@@ -481,14 +491,27 @@ export class ExecutorService {
         tenantId: schema.agentTasks.tenantId,
         title: schema.agentTasks.title,
         currentExecutionId: schema.agentTasks.currentExecutionId,
+        status: schema.agentTasks.status,
       })
       .from(schema.agentTasks)
       .where(eq(schema.agentTasks.id, taskId))
       .limit(1);
 
-    if (!task || !task.currentExecutionId || !task.botId) {
+    if (!task) {
+      this.logger.error(`Task ${taskId} not found`);
+      return;
+    }
+
+    if (!task.currentExecutionId || !task.botId) {
       this.logger.warn(
         `Task ${taskId} cannot be resumed — no active execution or bot`,
+      );
+      return;
+    }
+
+    if (task.status !== 'paused') {
+      this.logger.warn(
+        `Task ${taskId} cannot be resumed — current status is ${task.status}`,
       );
       return;
     }
@@ -548,6 +571,11 @@ export class ExecutorService {
     } catch (error) {
       this.logger.warn(`Strategy resume failed for task ${taskId}: ${error}`);
     }
+
+    await this.db
+      .update(schema.agentTaskExecutions)
+      .set({ status: 'in_progress' })
+      .where(eq(schema.agentTaskExecutions.id, execution.id));
 
     await this.db
       .update(schema.agentTasks)

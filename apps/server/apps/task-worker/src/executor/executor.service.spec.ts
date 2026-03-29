@@ -417,7 +417,7 @@ describe('ExecutorService', () => {
   // ── pauseExecution ────────────────────────────────────────────────
 
   describe('pauseExecution', () => {
-    it('calls strategy.pause and sets task status to paused', async () => {
+    it('calls strategy.pause and sets task and execution status to paused', async () => {
       const taskWithExec = {
         ...sampleTask,
         currentExecutionId: 'exec-001',
@@ -436,8 +436,9 @@ describe('ExecutorService', () => {
       expect(mockStrategy.pause).toHaveBeenCalledWith(
         expect.objectContaining({ taskId: 'task-001', tenantId: 'tenant-001' }),
       );
-      const pausedSet = updateSets.find((s) => s.status === 'paused');
-      expect(pausedSet).toBeDefined();
+      const pausedSets = updateSets.filter((s) => s.status === 'paused');
+      // Both the execution record and the task record must be updated to 'paused'
+      expect(pausedSets.length).toBeGreaterThanOrEqual(2);
     });
 
     it('returns early when task has no currentExecutionId', async () => {
@@ -447,16 +448,23 @@ describe('ExecutorService', () => {
 
       expect(mockStrategy.pause).not.toHaveBeenCalled();
     });
+
+    it('returns early when task is not found', async () => {
+      selectResultQueue = [[]]; // empty = not found
+      await service.pauseExecution('task-001');
+      expect(mockStrategy.pause).not.toHaveBeenCalled();
+    });
   });
 
   // ── resumeExecution ───────────────────────────────────────────────
 
   describe('resumeExecution', () => {
-    it('calls strategy.resume with message and sets status to in_progress', async () => {
+    it('calls strategy.resume with message and sets task and execution status to in_progress', async () => {
       const taskWithExec = {
         ...sampleTask,
         currentExecutionId: 'exec-001',
         tenantId: 'tenant-001',
+        status: 'paused',
       };
       const execution = {
         id: 'exec-001',
@@ -474,8 +482,31 @@ describe('ExecutorService', () => {
           message: 'please continue',
         }),
       );
-      const inProgressSet = updateSets.find((s) => s.status === 'in_progress');
-      expect(inProgressSet).toBeDefined();
+      const inProgressSets = updateSets.filter(
+        (s) => s.status === 'in_progress',
+      );
+      // Both the execution record and the task record must be updated to 'in_progress'
+      expect(inProgressSets.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('returns early when task is not found', async () => {
+      selectResultQueue = [[]];
+      await service.resumeExecution('task-001');
+      expect(mockStrategy.resume).not.toHaveBeenCalled();
+    });
+
+    it('returns early when task is not in paused status', async () => {
+      selectResultQueue = [
+        [
+          {
+            ...sampleTask,
+            currentExecutionId: 'exec-001',
+            status: 'in_progress',
+          },
+        ],
+      ];
+      await service.resumeExecution('task-001');
+      expect(mockStrategy.resume).not.toHaveBeenCalled();
     });
   });
 });
