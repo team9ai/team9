@@ -386,6 +386,10 @@ export class ExecutorService {
 
   /**
    * Pause the currently active execution for the given task.
+   *
+   * Note: Uses read-then-check pattern (not CAS) for status validation.
+   * Duplicate pause commands are harmless — interruptSession is idempotent
+   * (404 swallowed by HiveStrategy) and DB writes are idempotent.
    */
   async pauseExecution(taskId: string): Promise<void> {
     const [task] = await this.db
@@ -489,7 +493,11 @@ export class ExecutorService {
   }
 
   /**
-   * Resume the currently paused execution for the given task.
+   * Resume the paused execution for the given task.
+   *
+   * Note: Uses read-then-check pattern (not CAS) for status validation.
+   * Duplicate resume commands are harmless — sendInput is idempotent
+   * and DB writes are idempotent.
    */
   async resumeExecution(taskId: string, message?: string): Promise<void> {
     const [task] = await this.db

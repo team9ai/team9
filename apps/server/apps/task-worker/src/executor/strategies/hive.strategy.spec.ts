@@ -201,5 +201,12 @@ describe('HiveStrategy', () => {
       );
       expect(mockClawHive.deleteSession).not.toHaveBeenCalled();
     });
+
+    it('propagates non-404 errors from deleteSession', async () => {
+      mockClawHive.deleteSession.mockRejectedValueOnce(
+        new Error('Failed to delete session: 500 Internal Server Error'),
+      );
+      await expect(strategy.stop(baseContext)).rejects.toThrow('500');
+    });
   });
 });
