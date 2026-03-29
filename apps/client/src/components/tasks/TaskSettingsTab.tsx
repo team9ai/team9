@@ -16,7 +16,6 @@ import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import { TaskTriggersTab } from "./TaskTriggersTab";
 import { TaskDocumentTab } from "./TaskDocumentTab";
 import type { AgentTaskDetail } from "@/types/task";
-import type { OpenClawBotInfo } from "@/services/api/applications";
 
 interface TaskSettingsTabProps {
   task: AgentTaskDetail;
@@ -46,27 +45,14 @@ export function TaskSettingsTab({ task, onClose }: TaskSettingsTabProps) {
     },
   });
 
-  // Fetch bots for assignment
-  const { data: installedApps } = useQuery({
-    queryKey: ["installed-applications", workspaceId],
-    queryFn: () => api.applications.getInstalledApplications(),
-    enabled: !!workspaceId,
-  });
-
-  const openClawApps =
-    installedApps?.filter(
-      (a) => a.applicationId === "openclaw" && a.status === "active",
-    ) ?? [];
-
+  // Fetch bots for assignment (all app types: openclaw + base-model-staff)
   const { data: allBots = [] } = useQuery({
-    queryKey: ["openclaw-bots-all", workspaceId, openClawApps.map((a) => a.id)],
+    queryKey: ["installed-applications-with-bots", workspaceId],
     queryFn: async () => {
-      const results = await Promise.all(
-        openClawApps.map((app) => api.applications.getOpenClawBots(app.id)),
-      );
-      return results.flat();
+      const apps = await api.applications.getInstalledApplicationsWithBots();
+      return apps.filter((a) => a.status === "active").flatMap((a) => a.bots);
     },
-    enabled: openClawApps.length > 0,
+    enabled: !!workspaceId,
   });
 
   const canDelete =
@@ -104,7 +90,7 @@ export function TaskSettingsTab({ task, onClose }: TaskSettingsTabProps) {
             <SelectItem value="__none__">
               <span className="text-muted-foreground">{t("detail.noBot")}</span>
             </SelectItem>
-            {allBots.map((bot: OpenClawBotInfo) => (
+            {allBots.map((bot) => (
               <SelectItem key={bot.botId} value={bot.botId}>
                 {bot.displayName || bot.username}
               </SelectItem>
