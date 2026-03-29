@@ -463,6 +463,58 @@ describe('ExecutorService', () => {
       await service.pauseExecution('task-001');
       expect(mockStrategy.pause).not.toHaveBeenCalled();
     });
+
+    it('returns early when execution is not found', async () => {
+      const taskWithExec = {
+        ...sampleTask,
+        currentExecutionId: 'exec-missing',
+        status: 'in_progress',
+      };
+      selectResultQueue = [[taskWithExec], []]; // execution not found
+      await service.pauseExecution('task-001');
+      expect(mockStrategy.pause).not.toHaveBeenCalled();
+    });
+
+    it('returns early when bot is not found', async () => {
+      const taskWithExec = {
+        ...sampleTask,
+        currentExecutionId: 'exec-001',
+        status: 'in_progress',
+      };
+      const execution = {
+        id: 'exec-001',
+        channelId: 'ch-001',
+        taskcastTaskId: null,
+      };
+      selectResultQueue = [[taskWithExec], [execution], []]; // bot not found
+      service.registerStrategy('system', mockStrategy);
+      await service.pauseExecution('task-001');
+      expect(mockStrategy.pause).not.toHaveBeenCalled();
+    });
+
+    it('does not update status when strategy.pause fails', async () => {
+      const taskWithExec = {
+        ...sampleTask,
+        currentExecutionId: 'exec-001',
+        status: 'in_progress',
+      };
+      const execution = {
+        id: 'exec-001',
+        channelId: 'ch-001',
+        taskcastTaskId: null,
+      };
+      selectResultQueue = [[taskWithExec], [execution], [sampleBot]];
+      mockStrategy.pause = jest
+        .fn<any>()
+        .mockRejectedValueOnce(new Error('pause failed'));
+      service.registerStrategy('system', mockStrategy);
+
+      await service.pauseExecution('task-001');
+
+      // Status should NOT be updated to 'paused' since strategy failed
+      const pausedSet = updateSets.find((s) => s.status === 'paused');
+      expect(pausedSet).toBeUndefined();
+    });
   });
 
   // ── resumeExecution ───────────────────────────────────────────────
@@ -524,6 +576,47 @@ describe('ExecutorService', () => {
       ];
       await service.resumeExecution('task-001');
       expect(mockStrategy.resume).not.toHaveBeenCalled();
+    });
+
+    it('returns early when bot is not found', async () => {
+      const taskWithExec = {
+        ...sampleTask,
+        currentExecutionId: 'exec-001',
+        status: 'paused',
+      };
+      const execution = {
+        id: 'exec-001',
+        channelId: 'ch-001',
+        taskcastTaskId: null,
+      };
+      selectResultQueue = [[taskWithExec], [execution], []]; // bot not found
+      service.registerStrategy('system', mockStrategy);
+      await service.resumeExecution('task-001');
+      expect(mockStrategy.resume).not.toHaveBeenCalled();
+    });
+
+    it('does not update status when strategy.resume fails', async () => {
+      const taskWithExec = {
+        ...sampleTask,
+        currentExecutionId: 'exec-001',
+        status: 'paused',
+      };
+      const execution = {
+        id: 'exec-001',
+        channelId: 'ch-001',
+        taskcastTaskId: null,
+      };
+      selectResultQueue = [[taskWithExec], [execution], [sampleBot]];
+      mockStrategy.resume = jest
+        .fn<any>()
+        .mockRejectedValueOnce(new Error('resume failed'));
+      service.registerStrategy('system', mockStrategy);
+
+      await service.resumeExecution('task-001', 'continue');
+
+      // Status should NOT be updated to 'in_progress' since strategy failed
+      const inProgressSet = updateSets.find((s) => s.status === 'in_progress');
+      expect(inProgressSet).toBeUndefined();
     });
   });
 });

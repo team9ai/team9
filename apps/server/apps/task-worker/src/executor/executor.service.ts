@@ -471,21 +471,21 @@ export class ExecutorService {
 
     try {
       await strategy.pause(context);
+
+      await this.db
+        .update(schema.agentTaskExecutions)
+        .set({ status: 'paused' })
+        .where(eq(schema.agentTaskExecutions.id, execution.id));
+
+      await this.db
+        .update(schema.agentTasks)
+        .set({ status: 'paused', updatedAt: new Date() })
+        .where(eq(schema.agentTasks.id, taskId));
+
+      this.logger.log(`Task ${taskId} paused`);
     } catch (error) {
       this.logger.warn(`Strategy pause failed for task ${taskId}: ${error}`);
     }
-
-    await this.db
-      .update(schema.agentTaskExecutions)
-      .set({ status: 'paused' })
-      .where(eq(schema.agentTaskExecutions.id, execution.id));
-
-    await this.db
-      .update(schema.agentTasks)
-      .set({ status: 'paused', updatedAt: new Date() })
-      .where(eq(schema.agentTasks.id, taskId));
-
-    this.logger.log(`Task ${taskId} paused`);
   }
 
   /**
@@ -576,21 +576,21 @@ export class ExecutorService {
 
     try {
       await strategy.resume(context);
+
+      await this.db
+        .update(schema.agentTaskExecutions)
+        .set({ status: 'in_progress' })
+        .where(eq(schema.agentTaskExecutions.id, execution.id));
+
+      await this.db
+        .update(schema.agentTasks)
+        .set({ status: 'in_progress', updatedAt: new Date() })
+        .where(eq(schema.agentTasks.id, taskId));
+
+      this.logger.log(`Task ${taskId} resumed`);
     } catch (error) {
       this.logger.warn(`Strategy resume failed for task ${taskId}: ${error}`);
     }
-
-    await this.db
-      .update(schema.agentTaskExecutions)
-      .set({ status: 'in_progress' })
-      .where(eq(schema.agentTaskExecutions.id, execution.id));
-
-    await this.db
-      .update(schema.agentTasks)
-      .set({ status: 'in_progress', updatedAt: new Date() })
-      .where(eq(schema.agentTasks.id, taskId));
-
-    this.logger.log(`Task ${taskId} resumed`);
   }
 
   private resolveStrategyKey(bot: {
