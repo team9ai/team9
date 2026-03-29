@@ -422,6 +422,7 @@ describe('ExecutorService', () => {
         ...sampleTask,
         currentExecutionId: 'exec-001',
         tenantId: 'tenant-001',
+        status: 'in_progress',
       };
       const execution = {
         id: 'exec-001',
@@ -451,6 +452,14 @@ describe('ExecutorService', () => {
 
     it('returns early when task is not found', async () => {
       selectResultQueue = [[]]; // empty = not found
+      await service.pauseExecution('task-001');
+      expect(mockStrategy.pause).not.toHaveBeenCalled();
+    });
+
+    it('returns early when task is not in in_progress status', async () => {
+      selectResultQueue = [
+        [{ ...sampleTask, currentExecutionId: 'exec-001', status: 'paused' }],
+      ];
       await service.pauseExecution('task-001');
       expect(mockStrategy.pause).not.toHaveBeenCalled();
     });

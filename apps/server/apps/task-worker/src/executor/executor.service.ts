@@ -395,6 +395,7 @@ export class ExecutorService {
         tenantId: schema.agentTasks.tenantId,
         title: schema.agentTasks.title,
         currentExecutionId: schema.agentTasks.currentExecutionId,
+        status: schema.agentTasks.status,
       })
       .from(schema.agentTasks)
       .where(eq(schema.agentTasks.id, taskId))
@@ -408,6 +409,13 @@ export class ExecutorService {
     if (!task.currentExecutionId || !task.botId) {
       this.logger.warn(
         `Task ${taskId} cannot be paused — no active execution or bot`,
+      );
+      return;
+    }
+
+    if (task.status !== 'in_progress') {
+      this.logger.warn(
+        `Task ${taskId} cannot be paused — current status is ${task.status}`,
       );
       return;
     }
