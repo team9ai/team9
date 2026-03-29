@@ -27,6 +27,12 @@ export interface IMMessageEnvelope {
   // Target ID (channel ID or user ID)
   targetId: string;
 
+  // Parent message ID (direct parent for thread replies)
+  parentId?: string;
+
+  // Root message ID (thread root, for efficient querying)
+  rootId?: string;
+
   // Message payload
   payload: MessagePayload;
 
