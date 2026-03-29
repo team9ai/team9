@@ -30,6 +30,7 @@ function mockDb() {
   }
   chain.limit.mockResolvedValue([]);
   chain.returning.mockResolvedValue([]);
+  chain.transaction = jest.fn<any>((fn) => fn(chain));
   return chain;
 }
 
