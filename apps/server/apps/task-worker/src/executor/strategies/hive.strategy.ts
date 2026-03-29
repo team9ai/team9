@@ -61,10 +61,16 @@ export class HiveStrategy implements ExecutionStrategy {
     );
     try {
       await this.clawHiveService.interruptSession(sessionId, context.tenantId);
-    } catch (err) {
-      this.logger.warn(
-        `Failed to interrupt session ${sessionId} (session may have already ended): ${(err as Error).message}`,
-      );
+    } catch (error) {
+      // Session already ended (404) — expected, swallow it
+      if (error instanceof Error && error.message.includes('404')) {
+        this.logger.warn(
+          `Session ${sessionId} already ended during pause: ${error.message}`,
+        );
+        return;
+      }
+      // Other errors (API down, 500, network) — re-throw so ExecutorService doesn't falsely update DB status
+      throw error;
     }
   }
 

@@ -24,7 +24,7 @@ export interface TaskCommand {
  *
  * Handles task lifecycle commands published by the Gateway service:
  * - start / restart: trigger a new execution via ExecutorService
- * - pause / resume / stop: delegate to ExecutorService (TODO)
+ * - pause / resume / stop: delegate to ExecutorService
  */
 @Injectable()
 export class TaskCommandConsumer {

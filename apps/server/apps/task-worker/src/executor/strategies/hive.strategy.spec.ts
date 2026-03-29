@@ -136,13 +136,20 @@ describe('HiveStrategy', () => {
       await expect(strategy.pause(baseContext)).rejects.toThrow();
     });
 
-    it('does not throw when interruptSession fails (session may have ended)', async () => {
+    it('does not throw when interruptSession fails with 404 (session already ended)', async () => {
       mockClawHive.interruptSession.mockRejectedValueOnce(
-        new Error('Failed to interrupt session: 404'),
+        new Error('Failed to interrupt session: 404 Not Found'),
       );
 
-      // Should resolve (not throw)
       await expect(strategy.pause(baseContext)).resolves.toBeUndefined();
+    });
+
+    it('re-throws when interruptSession fails with non-404 error', async () => {
+      mockClawHive.interruptSession.mockRejectedValueOnce(
+        new Error('Failed to interrupt session: 500 Internal Server Error'),
+      );
+
+      await expect(strategy.pause(baseContext)).rejects.toThrow('500');
     });
   });
 
