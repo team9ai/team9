@@ -176,7 +176,11 @@ export class ExecutorService {
 
     // ── 6. Look up bot's shadow userId ────────────────────────────────
     const [bot] = await this.db
-      .select({ userId: schema.bots.userId, type: schema.bots.type })
+      .select({
+        userId: schema.bots.userId,
+        type: schema.bots.type,
+        managedProvider: schema.bots.managedProvider,
+      })
       .from(schema.bots)
       .where(eq(schema.bots.id, task.botId))
       .limit(1);
@@ -199,7 +203,8 @@ export class ExecutorService {
     });
 
     // ── 7. Delegate to strategy ───────────────────────────────────────
-    const strategy = this.strategies.get(bot.type);
+    const strategyKey = bot.managedProvider === 'hive' ? 'hive' : bot.type;
+    const strategy = this.strategies.get(strategyKey);
     const context: ExecutionContext = {
       taskId,
       executionId,
@@ -208,13 +213,14 @@ export class ExecutorService {
       title: task.title,
       documentContent,
       taskcastTaskId,
+      tenantId: task.tenantId,
     };
 
     if (strategy) {
       try {
         await strategy.execute(context);
         this.logger.log(
-          `Execution ${executionId} delegated to ${bot.type} strategy`,
+          `Execution ${executionId} delegated to ${strategyKey} strategy`,
         );
       } catch (error) {
         const errorMessage =
@@ -244,10 +250,10 @@ export class ExecutorService {
         return;
       }
     } else {
-      this.logger.error(`No strategy registered for bot type "${bot.type}"`);
+      this.logger.error(`No strategy registered for bot type "${strategyKey}"`);
       await this.markExecutionFailed(executionId, taskId, {
         code: 'NO_STRATEGY',
-        message: `No execution strategy registered for bot type "${bot.type}"`,
+        message: `No execution strategy registered for bot type "${strategyKey}"`,
       });
       return;
     }
@@ -296,7 +302,10 @@ export class ExecutorService {
 
     // 3. Look up bot type → get strategy
     const [bot] = await this.db
-      .select({ type: schema.bots.type })
+      .select({
+        type: schema.bots.type,
+        managedProvider: schema.bots.managedProvider,
+      })
       .from(schema.bots)
       .where(eq(schema.bots.id, task.botId))
       .limit(1);
@@ -306,9 +315,10 @@ export class ExecutorService {
       return;
     }
 
-    const strategy = this.strategies.get(bot.type);
+    const strategyKey = bot.managedProvider === 'hive' ? 'hive' : bot.type;
+    const strategy = this.strategies.get(strategyKey);
     if (!strategy) {
-      this.logger.error(`No strategy for bot type "${bot.type}"`);
+      this.logger.error(`No strategy for bot type "${strategyKey}"`);
       return;
     }
 
@@ -325,6 +335,7 @@ export class ExecutorService {
         channelId: execution.channelId,
         title: task.title,
         taskcastTaskId: execution.taskcastTaskId,
+        tenantId: task.tenantId,
       };
 
       try {

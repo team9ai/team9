@@ -27,6 +27,7 @@ const baseContext: ExecutionContext = {
   channelId: 'ch-001',
   title: 'Test task',
   taskcastTaskId: 'agent_task_exec_exec-001',
+  tenantId: 'tenant-001',
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────

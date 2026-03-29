@@ -4,11 +4,17 @@ import type { ExecutionStrategy } from './execution-strategy.interface.js';
 // ── DB mock ────────────────────────────────────────────────────────────
 
 /**
- * We use a result queue: each call to db.select()...limit() pops the next
- * result from the queue. This is order-dependent but matches the sequential
- * queries in ExecutorService.triggerExecution().
+ * We use result queues:
+ * - selectResultQueue: each call to db.select()...limit() pops the next result
+ * - returningResultQueue: each call to db.update()...returning() pops the next result
+ *
+ * triggerExecution uses db.update().returning() for CAS task claiming (step 1),
+ * then db.select()...limit() for document and bot lookups.
+ * The first entry in selectResultQueue is therefore the bot lookup result
+ * (or document query if task has a documentId).
  */
 let selectResultQueue: any[][];
+let returningResultQueue: any[][];
 
 function makeChainableSelect() {
   const chain: any = {};
@@ -42,7 +48,9 @@ function makeChainableUpdate() {
     return chain;
   });
   chain.where = jest.fn<any>().mockReturnValue(chain);
-  chain.returning = jest.fn<any>().mockResolvedValue([]);
+  chain.returning = jest.fn<any>().mockImplementation(() => {
+    return Promise.resolve(returningResultQueue.shift() ?? []);
+  });
   return chain;
 }
 
@@ -92,6 +100,7 @@ const sampleTask = {
 const sampleBot = {
   userId: 'bot-user-001',
   type: 'system',
+  managedProvider: null,
 };
 
 // ── Tests ──────────────────────────────────────────────────────────────
@@ -105,6 +114,7 @@ describe('ExecutorService', () => {
     jest.clearAllMocks();
     uuidCounter = 0;
     selectResultQueue = [];
+    returningResultQueue = [];
     insertValues.length = 0;
     updateSets.length = 0;
 
@@ -125,7 +135,8 @@ describe('ExecutorService', () => {
   // ── Task not found ─────────────────────────────────────────────────
 
   it('should return early when task does not exist', async () => {
-    selectResultQueue = [[]]; // task query returns empty
+    // CAS update().returning() returns empty → task not claimed
+    returningResultQueue = [[]];
 
     await service.triggerExecution('nonexistent-task');
 
@@ -135,7 +146,8 @@ describe('ExecutorService', () => {
   // ── Task has no bot ────────────────────────────────────────────────
 
   it('should return early when task has no botId', async () => {
-    selectResultQueue = [[{ ...sampleTask, botId: null }]];
+    // CAS returns task with no botId
+    returningResultQueue = [[{ ...sampleTask, botId: null }]];
 
     await service.triggerExecution('task-001');
 
@@ -145,14 +157,14 @@ describe('ExecutorService', () => {
   // ── Version snapshot ───────────────────────────────────────────────
 
   it('should snapshot the task version in execution record', async () => {
-    // Queue: task (version=5) → bot lookup
-    selectResultQueue = [[{ ...sampleTask, version: 5 }], [sampleBot]];
+    // CAS returns task (version=5); bot lookup via select
+    returningResultQueue = [[{ ...sampleTask, version: 5 }]];
+    selectResultQueue = [[sampleBot]];
     service.registerStrategy('system', mockStrategy);
 
     await service.triggerExecution('task-001');
 
-    // insertValues: [channel, channelMember-creator, execution, task-status-update, channelMember-bot]
-    // The execution insert is the 3rd one (index 2)
+    // insertValues: [channel, channelMember-creator, execution, channelMember-bot]
     const executionInsert = insertValues.find(
       (v) => v.taskVersion !== undefined,
     );
@@ -163,10 +175,9 @@ describe('ExecutorService', () => {
   // ── Bot not found ──────────────────────────────────────────────────
 
   it('should mark execution as failed when bot lookup returns empty', async () => {
-    selectResultQueue = [
-      [sampleTask], // task found
-      [], // bot not found
-    ];
+    // CAS returns task; bot lookup returns empty
+    returningResultQueue = [[sampleTask]];
+    selectResultQueue = [[]]; // bot not found
 
     await service.triggerExecution('task-001');
 
@@ -179,9 +190,9 @@ describe('ExecutorService', () => {
   // ── No strategy registered ────────────────────────────────────────
 
   it('should mark execution as failed when no strategy is registered for bot type', async () => {
+    returningResultQueue = [[sampleTask]];
     selectResultQueue = [
-      [sampleTask],
-      [{ userId: 'bot-user-001', type: 'unknown_type' }],
+      [{ userId: 'bot-user-001', type: 'unknown_type', managedProvider: null }],
     ];
     // No strategy registered
 
@@ -195,7 +206,8 @@ describe('ExecutorService', () => {
   // ── Strategy failure ───────────────────────────────────────────────
 
   it('should mark execution as failed when strategy.execute throws', async () => {
-    selectResultQueue = [[sampleTask], [sampleBot]];
+    returningResultQueue = [[sampleTask]];
+    selectResultQueue = [[sampleBot]];
 
     const failingStrategy: ExecutionStrategy = {
       execute: jest.fn<any>().mockRejectedValue(new Error('agent crashed')),
@@ -215,7 +227,8 @@ describe('ExecutorService', () => {
   // ── Happy path ─────────────────────────────────────────────────────
 
   it('should delegate to the registered strategy on success', async () => {
-    selectResultQueue = [[sampleTask], [sampleBot]];
+    returningResultQueue = [[sampleTask]];
+    selectResultQueue = [[sampleBot]];
     service.registerStrategy('system', mockStrategy);
 
     await service.triggerExecution('task-001');
@@ -231,10 +244,10 @@ describe('ExecutorService', () => {
   // ── Channel naming ────────────────────────────────────────────────
 
   it('should create task channel with sanitized name and channelId suffix', async () => {
-    selectResultQueue = [
+    returningResultQueue = [
       [{ ...sampleTask, title: 'My  Multi   Space  Task' }],
-      [sampleBot],
     ];
+    selectResultQueue = [[sampleBot]];
     service.registerStrategy('system', mockStrategy);
 
     await service.triggerExecution('task-001');
@@ -248,12 +261,54 @@ describe('ExecutorService', () => {
   // ── Task status update ────────────────────────────────────────────
 
   it('should update task status to in_progress on execution start', async () => {
-    selectResultQueue = [[sampleTask], [sampleBot]];
+    returningResultQueue = [[sampleTask]];
+    selectResultQueue = [[sampleBot]];
     service.registerStrategy('system', mockStrategy);
 
     await service.triggerExecution('task-001');
 
     const inProgressSet = updateSets.find((s) => s.status === 'in_progress');
     expect(inProgressSet).toBeDefined();
+  });
+
+  // ── Hive strategy routing ─────────────────────────────────────────
+
+  it('should route to "hive" strategy when managedProvider is "hive"', async () => {
+    const hiveBot = {
+      userId: 'bot-user-001',
+      type: 'custom',
+      managedProvider: 'hive',
+    };
+    returningResultQueue = [[sampleTask]];
+    selectResultQueue = [[hiveBot]];
+
+    const hiveStrategy = {
+      execute: jest.fn<any>().mockResolvedValue(undefined),
+      pause: jest.fn<any>().mockResolvedValue(undefined),
+      resume: jest.fn<any>().mockResolvedValue(undefined),
+      stop: jest.fn<any>().mockResolvedValue(undefined),
+    };
+    service.registerStrategy('hive', hiveStrategy);
+
+    await service.triggerExecution('task-001');
+
+    expect(hiveStrategy.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskId: 'task-001',
+        tenantId: 'tenant-001',
+      }),
+    );
+  });
+
+  it('should pass tenantId in ExecutionContext', async () => {
+    returningResultQueue = [[{ ...sampleTask, tenantId: 'tenant-xyz' }]];
+    selectResultQueue = [[sampleBot]];
+    service.registerStrategy('system', mockStrategy);
+
+    await service.triggerExecution('task-001');
+
+    expect(mockStrategy.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ tenantId: 'tenant-xyz' }),
+    );
   });
 });

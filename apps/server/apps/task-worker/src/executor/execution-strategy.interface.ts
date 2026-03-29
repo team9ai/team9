@@ -6,6 +6,8 @@ export interface ExecutionContext {
   title: string;
   documentContent?: string;
   taskcastTaskId: string | null;
+  tenantId: string; // required for session ID construction
+  message?: string; // carries resume message; undefined for start/stop/pause
 }
 
 export interface ExecutionStrategy {
