@@ -12,17 +12,9 @@ import { ThinkingBlock } from "./ThinkingBlock";
 import { TrackingCard } from "./TrackingCard";
 import { TrackingEventItem } from "./TrackingEventItem";
 import { formatMessageTime } from "@/lib/date-utils";
+import { getAgentMeta } from "@/lib/agent-events";
 import { cn } from "@/lib/utils";
-import type { Message, AgentEventMetadata } from "@/types/im";
-
-/** Check if a message has agent event metadata */
-function getAgentMeta(message: Message): AgentEventMetadata | undefined {
-  const meta = message.metadata as Record<string, unknown> | undefined;
-  if (meta && typeof meta.agentEventType === "string") {
-    return meta as unknown as AgentEventMetadata;
-  }
-  return undefined;
-}
+import type { Message } from "@/types/im";
 
 export interface MessageItemProps {
   message: Message;

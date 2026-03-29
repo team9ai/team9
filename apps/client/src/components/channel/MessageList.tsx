@@ -380,7 +380,7 @@ export function MessageList({
           prevMeta?.agentEventType === "tool_call" &&
           prevMeta.toolCallId === agentMeta.toolCallId
         ) {
-          return <div className="h-0 overflow-hidden" />;
+          return <div className="h-0 overflow-hidden" aria-hidden="true" />;
         }
       }
 
