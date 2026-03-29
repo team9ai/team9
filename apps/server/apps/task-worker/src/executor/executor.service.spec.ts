@@ -368,6 +368,8 @@ describe('ExecutorService', () => {
       currentExecutionId: 'exec-001',
     };
 
+    service.registerStrategy('system', mockStrategy);
+
     // select queue order: task, execution, bot (empty — not found)
     selectResultQueue = [[taskWithExecution], [sampleExecution], []];
 
