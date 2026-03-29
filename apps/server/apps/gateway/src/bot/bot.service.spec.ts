@@ -10,7 +10,7 @@ import { DATABASE_CONNECTION } from '@team9/database';
 type MockFn = jest.Mock<(...args: any[]) => any>;
 
 /** Build a minimal Drizzle-like mock that chains select→from→where→limit */
-function mockDb() {
+function mockChain() {
   const chain: Record<string, MockFn> = {};
   const methods = [
     'select',
@@ -30,7 +30,16 @@ function mockDb() {
   }
   chain.limit.mockResolvedValue([]);
   chain.returning.mockResolvedValue([]);
-  chain.transaction = jest.fn<any>((fn) => fn(chain));
+  return chain;
+}
+
+function mockDb() {
+  const chain = mockChain();
+  // Transaction callback receives a separate chain so that call counts
+  // inside the tx don't interfere with outer db calls.
+  const txChain = mockChain();
+  chain.transaction = jest.fn<any>((fn) => fn(txChain));
+  (chain as any)._txChain = txChain;
   return chain;
 }
 
@@ -88,6 +97,7 @@ describe('BotService', () => {
         webhookUrl: null,
       };
 
+      // Owner lookup uses outer db chain
       let limitCallCount = 0;
       db.limit.mockImplementation((() => {
         limitCallCount++;
@@ -95,13 +105,17 @@ describe('BotService', () => {
         return Promise.resolve([]);
       }) as any);
 
+      // createBot inserts run inside transaction (txChain)
+      const tx = (db as any)._txChain;
       let returningCallCount = 0;
-      db.returning.mockImplementation((() => {
+      tx.returning.mockImplementation((() => {
         returningCallCount++;
         if (returningCallCount === 1) return Promise.resolve([userRow]);
         if (returningCallCount === 2) return Promise.resolve([botRow]);
         return Promise.resolve([{}]);
       }) as any);
+      // tenantMembers insert uses outer db chain
+      db.returning.mockResolvedValue([{}]);
 
       const result = await service.createWorkspaceBot({ ownerId, tenantId });
 
@@ -144,8 +158,10 @@ describe('BotService', () => {
       const ownerRow = { id: ownerId, username: 'alice' };
       db.limit.mockResolvedValue([ownerRow] as any);
 
+      // createBot inserts run inside transaction (txChain)
+      const tx = (db as any)._txChain;
       let returningCallCount = 0;
-      db.returning.mockImplementation((() => {
+      tx.returning.mockImplementation((() => {
         returningCallCount++;
         if (returningCallCount === 1) {
           return Promise.resolve([
@@ -183,8 +199,9 @@ describe('BotService', () => {
         isActive: true,
       };
 
+      const tx = (db as any)._txChain;
       let returningCallCount = 0;
-      db.returning.mockImplementation((() => {
+      tx.returning.mockImplementation((() => {
         returningCallCount++;
         if (returningCallCount === 1) return Promise.resolve([userRow]);
         return Promise.resolve([botRow]);
@@ -213,8 +230,9 @@ describe('BotService', () => {
         displayName: 'TestBot',
       };
 
+      const tx = (db as any)._txChain;
       let returningCallCount = 0;
-      db.returning.mockImplementation((() => {
+      tx.returning.mockImplementation((() => {
         returningCallCount++;
         if (returningCallCount === 1) return Promise.resolve([userRow]);
         return Promise.reject(new Error('unique constraint violation'));

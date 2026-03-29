@@ -1,4 +1,13 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals';
+import {
+  jest,
+  describe,
+  it,
+  expect,
+  beforeEach,
+  beforeAll,
+  afterAll,
+} from '@jest/globals';
+import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { OpenClawHandler } from './openclaw.handler.js';
@@ -8,8 +17,28 @@ import type { InstallContext } from './application-handler.interface.js';
 
 // ── env stubs ────────────────────────────────────────────────────────────────
 
-process.env.API_URL = 'http://localhost:3000';
-process.env.CAPABILITY_BASE_URL = 'http://localhost:4000';
+const savedEnv: Record<string, string | undefined> = {};
+
+beforeAll(() => {
+  for (const key of ['API_URL', 'CAPABILITY_BASE_URL']) {
+    savedEnv[key] = process.env[key];
+  }
+  process.env.API_URL = 'http://localhost:3000';
+  process.env.CAPABILITY_BASE_URL = 'http://localhost:4000';
+
+  // Suppress logger output during tests
+  jest.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
+  jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
+  jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => {});
+});
+
+afterAll(() => {
+  for (const [key, val] of Object.entries(savedEnv)) {
+    if (val === undefined) delete process.env[key];
+    else process.env[key] = val;
+  }
+  jest.restoreAllMocks();
+});
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
