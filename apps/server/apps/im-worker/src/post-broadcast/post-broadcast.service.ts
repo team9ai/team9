@@ -479,13 +479,13 @@ export class PostBroadcastService {
       });
 
       // Placeholder message in original channel — client renders as tracking link
-      // parentId = triggerMessageId (direct reply to the trigger)
-      // rootId = thread root (so it appears in the thread view)
+      // Always a first-level reply: parentId = rootId = thread root
+      // (trigger relationship preserved in metadata.triggerMessageId)
       await tx.insert(schema.messages).values({
         id: placeholderMsgId,
         channelId: originalChannelId,
         senderId: botUserId,
-        parentId: triggerMessageId,
+        parentId: effectiveRootId,
         rootId: effectiveRootId,
         content: '',
         type: 'tracking',
@@ -509,7 +509,7 @@ export class PostBroadcastService {
           seqId: placeholderSeqId,
           type: 'tracking',
           senderId: botUserId,
-          parentId: triggerMessageId,
+          parentId: effectiveRootId,
           rootId: effectiveRootId,
           targetType: 'channel',
           targetId: originalChannelId,
