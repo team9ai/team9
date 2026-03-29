@@ -1,0 +1,191 @@
+import { describe, it, expect } from "vitest";
+import { getAgentMeta, pairToolEvents } from "../agent-events";
+import type { Message } from "@/types/im";
+
+/** Minimal message factory for tests */
+function makeMsg(id: string, metadata?: Record<string, unknown>): Message {
+  return {
+    id,
+    channelId: "ch-1",
+    senderId: "bot-1",
+    content: id,
+    type: "text",
+    isPinned: false,
+    isEdited: false,
+    isDeleted: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    metadata,
+  };
+}
+
+function makeToolCall(id: string, toolCallId: string, toolName: string) {
+  return makeMsg(id, {
+    agentEventType: "tool_call",
+    status: "completed",
+    toolName,
+    toolCallId,
+  });
+}
+
+function makeToolResult(id: string, toolCallId: string, toolName?: string) {
+  return makeMsg(id, {
+    agentEventType: "tool_result",
+    status: "completed",
+    success: true,
+    toolCallId,
+    toolName,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// getAgentMeta
+// ---------------------------------------------------------------------------
+
+describe("getAgentMeta", () => {
+  it("returns metadata when agentEventType is present", () => {
+    const msg = makeMsg("1", {
+      agentEventType: "tool_call",
+      status: "completed",
+    });
+    const meta = getAgentMeta(msg);
+    expect(meta).toBeDefined();
+    expect(meta!.agentEventType).toBe("tool_call");
+  });
+
+  it("returns undefined when metadata is absent", () => {
+    const msg = makeMsg("1");
+    expect(getAgentMeta(msg)).toBeUndefined();
+  });
+
+  it("returns undefined when metadata has no agentEventType", () => {
+    const msg = makeMsg("1", { someOther: "data" });
+    expect(getAgentMeta(msg)).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// pairToolEvents
+// ---------------------------------------------------------------------------
+
+describe("pairToolEvents", () => {
+  it("returns empty array for empty input", () => {
+    expect(pairToolEvents([])).toEqual([]);
+  });
+
+  it("passes through messages with no agent metadata", () => {
+    const msgs = [makeMsg("a"), makeMsg("b"), makeMsg("c")];
+    const result = pairToolEvents(msgs);
+    expect(result).toBe(msgs); // same reference (early return)
+  });
+
+  it("passes through unpaired tool_call (no matching result)", () => {
+    const msgs = [makeToolCall("tc-1", "call-1", "Search"), makeMsg("text-1")];
+    const result = pairToolEvents(msgs);
+    expect(result).toBe(msgs); // no pairs found, same reference
+  });
+
+  it("passes through unpaired tool_result (no matching call)", () => {
+    const msgs = [makeToolResult("tr-1", "call-99"), makeMsg("text-1")];
+    const result = pairToolEvents(msgs);
+    expect(result).toBe(msgs);
+  });
+
+  it("pairs a single tool_call with its tool_result", () => {
+    const call = makeToolCall("tc-1", "call-1", "Search");
+    const result = makeToolResult("tr-1", "call-1");
+    const msgs = [call, makeMsg("text"), result];
+
+    const paired = pairToolEvents(msgs);
+    expect(paired.map((m) => m.id)).toEqual(["tc-1", "tr-1", "text"]);
+  });
+
+  it("pairs multiple parallel tool calls with interleaved results", () => {
+    // Simulates: call_A, call_B, result_A, result_B
+    const callA = makeToolCall("tc-A", "call-A", "SendToChannel");
+    const callB = makeToolCall("tc-B", "call-B", "Terminate");
+    const resultA = makeToolResult("tr-A", "call-A");
+    const resultB = makeToolResult("tr-B", "call-B");
+    const msgs = [callA, callB, resultA, resultB];
+
+    const paired = pairToolEvents(msgs);
+    expect(paired.map((m) => m.id)).toEqual([
+      "tc-A",
+      "tr-A", // call A + result A
+      "tc-B",
+      "tr-B", // call B + result B
+    ]);
+  });
+
+  it("preserves non-agent messages between paired events", () => {
+    const start = makeMsg("start", {
+      agentEventType: "agent_start",
+      status: "completed",
+    });
+    const callA = makeToolCall("tc-A", "call-A", "Search");
+    const callB = makeToolCall("tc-B", "call-B", "Read");
+    const resultA = makeToolResult("tr-A", "call-A");
+    const resultB = makeToolResult("tr-B", "call-B");
+    const end = makeMsg("end", {
+      agentEventType: "agent_end",
+      status: "completed",
+    });
+
+    const msgs = [start, callA, callB, resultA, resultB, end];
+    const paired = pairToolEvents(msgs);
+    expect(paired.map((m) => m.id)).toEqual([
+      "start",
+      "tc-A",
+      "tr-A",
+      "tc-B",
+      "tr-B",
+      "end",
+    ]);
+  });
+
+  it("handles tool_call without toolCallId (no pairing)", () => {
+    const call = makeMsg("tc-1", {
+      agentEventType: "tool_call",
+      status: "completed",
+      toolName: "OldTool",
+      // no toolCallId
+    });
+    const result = makeMsg("tr-1", {
+      agentEventType: "tool_result",
+      status: "completed",
+      // no toolCallId
+    });
+    const msgs = [call, result];
+    const paired = pairToolEvents(msgs);
+    expect(paired).toBe(msgs); // no pairs, same reference
+  });
+
+  it("preserves message count (no duplicates or drops)", () => {
+    const callA = makeToolCall("tc-A", "call-A", "A");
+    const callB = makeToolCall("tc-B", "call-B", "B");
+    const resultA = makeToolResult("tr-A", "call-A");
+    const resultB = makeToolResult("tr-B", "call-B");
+    const text = makeMsg("text-1");
+    const msgs = [text, callA, callB, resultA, resultB];
+
+    const paired = pairToolEvents(msgs);
+    expect(paired).toHaveLength(msgs.length);
+    // All original IDs are present
+    const ids = new Set(paired.map((m) => m.id));
+    for (const msg of msgs) {
+      expect(ids.has(msg.id)).toBe(true);
+    }
+  });
+
+  it("handles duplicate toolCallId across results (last result wins pairing)", () => {
+    const call = makeToolCall("tc-1", "call-1", "Search");
+    const result1 = makeToolResult("tr-1", "call-1");
+    const result2 = makeToolResult("tr-2", "call-1");
+    const msgs = [call, result1, result2];
+
+    const paired = pairToolEvents(msgs);
+    // result2 overwrites result1 in Map, so result2 is paired
+    // result1 is NOT in pairedResultIds, so it stays in place
+    expect(paired.map((m) => m.id)).toEqual(["tc-1", "tr-2", "tr-1"]);
+  });
+});
