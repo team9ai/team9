@@ -731,6 +731,9 @@ importers:
       "@taskcast/server-sdk":
         specifier: ^1.1.0
         version: 1.1.0(@taskcast/core@1.1.0)
+      "@team9/claw-hive":
+        specifier: workspace:*
+        version: link:../../libs/claw-hive
       "@team9/database":
         specifier: workspace:*
         version: link:../../libs/database
