@@ -52,32 +52,49 @@ export class OpenClawHandler implements ApplicationHandler {
     // 2. Create OpenClaw compute instance
     const instancesId = bot.botId;
 
-    const instanceResult = await this.openclawService.createInstance(
-      instancesId,
-      instancesId, // subdomain
-      {
-        TEAM9_TOKEN: accessToken!,
-        TEAM9_BASE_URL: env.API_URL,
-        CAPABILITY_BASE_URL: env.CAPABILITY_BASE_URL,
-      },
-    );
-
-    if (instanceResult) {
-      this.logger.log(
-        `Created OpenClaw instance for bot ${bot.botId}: ${instanceResult.access_url}`,
-      );
-    }
-
-    // 3. Return updated config/secrets
-    return {
-      config: {
+    try {
+      const instanceResult = await this.openclawService.createInstance(
         instancesId,
-      },
-      secrets: {
-        instanceResult,
-      },
-      botId: bot.botId,
-    };
+        instancesId, // subdomain
+        {
+          TEAM9_TOKEN: accessToken!,
+          TEAM9_BASE_URL: env.API_URL,
+          CAPABILITY_BASE_URL: env.CAPABILITY_BASE_URL,
+        },
+      );
+
+      if (instanceResult) {
+        this.logger.log(
+          `Created OpenClaw instance for bot ${bot.botId}: ${instanceResult.access_url}`,
+        );
+      }
+
+      // 3. Return updated config/secrets
+      return {
+        config: {
+          instancesId,
+        },
+        secrets: {
+          instanceResult,
+        },
+        botId: bot.botId,
+      };
+    } catch (error) {
+      // Rollback: clean up the bot created before the failure
+      this.logger.error(
+        `Failed to create OpenClaw instance, rolling back bot ${bot.botId}`,
+        error,
+      );
+      try {
+        await this.botService.deleteBotAndCleanup(bot.botId);
+      } catch (cleanupError) {
+        this.logger.warn(
+          `Failed to clean up bot ${bot.botId} during rollback`,
+          cleanupError,
+        );
+      }
+      throw error;
+    }
   }
 
   async onUninstall(app: schema.InstalledApplication): Promise<void> {
