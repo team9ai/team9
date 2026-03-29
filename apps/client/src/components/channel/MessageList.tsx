@@ -7,7 +7,7 @@ import {
   type StateSnapshot,
 } from "react-virtuoso";
 import { Loader2 } from "lucide-react";
-import type { Message, ChannelMember } from "@/types/im";
+import type { Message, AgentEventMetadata, ChannelMember } from "@/types/im";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useChannelMembers } from "@/hooks/useChannels";
 import { useThreadStore } from "@/hooks/useThread";
@@ -49,6 +49,56 @@ interface MessageListProps {
   members?: ChannelMember[];
   // Last read message ID for unread divider positioning
   lastReadMessageId?: string;
+}
+
+/**
+ * Reorder agent event messages so each tool_result appears immediately
+ * after its corresponding tool_call (matched by toolCallId).
+ * Messages without toolCallId or non-agent messages are unaffected.
+ */
+function pairToolEvents(messages: Message[]): Message[] {
+  const resultByCallId = new Map<string, Message>();
+  const callIds = new Set<string>();
+
+  for (const msg of messages) {
+    const meta = msg.metadata as AgentEventMetadata | undefined;
+    if (meta?.agentEventType === "tool_call" && meta.toolCallId) {
+      callIds.add(meta.toolCallId);
+    }
+    if (meta?.agentEventType === "tool_result" && meta.toolCallId) {
+      resultByCallId.set(meta.toolCallId, msg);
+    }
+  }
+
+  // Find tool_results that can be paired (both call and result exist)
+  const pairedResultIds = new Set<string>();
+  for (const [callId, resultMsg] of resultByCallId) {
+    if (callIds.has(callId)) {
+      pairedResultIds.add(resultMsg.id);
+    }
+  }
+
+  if (pairedResultIds.size === 0) return messages;
+
+  const result: Message[] = [];
+  for (const msg of messages) {
+    const meta = msg.metadata as AgentEventMetadata | undefined;
+
+    // Skip paired tool_results — they'll be inserted after their tool_call
+    if (pairedResultIds.has(msg.id)) continue;
+
+    result.push(msg);
+
+    // After a tool_call, insert its matching tool_result
+    if (meta?.agentEventType === "tool_call" && meta.toolCallId) {
+      const matchingResult = resultByCallId.get(meta.toolCallId);
+      if (matchingResult && pairedResultIds.has(matchingResult.id)) {
+        result.push(matchingResult);
+      }
+    }
+  }
+
+  return result;
 }
 
 // Large base index for prepending support via firstItemIndex
@@ -114,8 +164,10 @@ export function MessageList({
     };
   }, [channelId]);
 
-  // Messages come in DESC order (newest first), reverse to chronological for Virtuoso
-  const chronoMessages = useMemo(() => [...messages].reverse(), [messages]);
+  // Messages come in DESC order (newest first), reverse to chronological for Virtuoso.
+  // Keep raw order for stable firstItemIndex tracking, then apply tool pairing for display.
+  const rawChrono = useMemo(() => [...messages].reverse(), [messages]);
+  const chronoMessages = useMemo(() => pairToolEvents(rawChrono), [rawChrono]);
   const listData = useMemo<ChannelListItem[]>(() => {
     const items: ChannelListItem[] = chronoMessages.map((message) => ({
       type: "message",
@@ -152,22 +204,24 @@ export function MessageList({
   // via infinite scroll at the top), NOT when new messages are appended at the bottom.
   // Without this, Virtuoso misinterprets appended messages as prepended items and
   // incorrectly adjusts the scroll offset, which can push the viewport to a blank area.
+  // NOTE: uses rawChrono (not chronoMessages) so that pairToolEvents reordering
+  // doesn't falsely trigger the "prepend detected" branch.
   const firstItemIndexRef = useRef(START_INDEX - chronoMessages.length);
-  const prevFirstMsgIdRef = useRef<string | undefined>(chronoMessages[0]?.id);
+  const prevFirstMsgIdRef = useRef<string | undefined>(rawChrono[0]?.id);
 
   // Detect prepends vs appends by tracking the first (oldest) message ID.
   // - If the first ID changed, older messages were loaded → decrease firstItemIndex
   // - If the first ID is the same, new messages were appended → keep firstItemIndex
   // This runs during render (not in useEffect) so Virtuoso sees the correct value
   // on the same render pass that data changes.
-  if (chronoMessages.length > 0) {
-    const currentFirstId = chronoMessages[0]?.id;
+  if (rawChrono.length > 0) {
+    const currentFirstId = rawChrono[0]?.id;
     if (prevFirstMsgIdRef.current === undefined) {
       // Initial load
       firstItemIndexRef.current = START_INDEX - chronoMessages.length;
     } else if (currentFirstId !== prevFirstMsgIdRef.current) {
       // First message changed → older messages were prepended at the top
-      const prevIdx = chronoMessages.findIndex(
+      const prevIdx = rawChrono.findIndex(
         (m) => m.id === prevFirstMsgIdRef.current,
       );
       if (prevIdx > 0) {

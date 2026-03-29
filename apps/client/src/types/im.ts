@@ -18,6 +18,7 @@ export interface AgentEventMetadata {
     | "turn_separator";
   status: "running" | "completed" | "failed";
   toolName?: string;
+  toolCallId?: string;
   success?: boolean;
 }
 
