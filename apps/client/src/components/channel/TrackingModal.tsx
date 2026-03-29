@@ -20,6 +20,11 @@ interface TrackingModalProps {
   trackingChannelId: string | undefined;
   botUser?: IMUser;
   isActivated: boolean;
+  initialActiveStream?: {
+    streamId: string;
+    content: string;
+    metadata?: Record<string, unknown>;
+  } | null;
 }
 
 export function TrackingModal({
@@ -28,6 +33,7 @@ export function TrackingModal({
   trackingChannelId,
   botUser,
   isActivated,
+  initialActiveStream,
 }: TrackingModalProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
@@ -36,6 +42,13 @@ export function TrackingModal({
     content: string;
     metadata?: Record<string, unknown>;
   } | null>(null);
+
+  // Sync active stream from parent when modal opens
+  useEffect(() => {
+    if (isOpen && initialActiveStream && !activeStream) {
+      setActiveStream(initialActiveStream);
+    }
+  }, [isOpen, initialActiveStream, activeStream]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Observe channel when modal is open

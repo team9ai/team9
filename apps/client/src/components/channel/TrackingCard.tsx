@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { parseLikelyPastDate } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import { useTrackingChannel } from "@/hooks/useTrackingChannel";
 import { TrackingEventItem } from "./TrackingEventItem";
@@ -10,19 +11,19 @@ interface TrackingCardProps {
   message: Message;
 }
 
-function formatElapsed(startTime: string): string {
-  const elapsed = Math.floor(
-    (Date.now() - new Date(startTime).getTime()) / 1000,
-  );
+function formatElapsed(startTime: string | number): string {
+  const startedAt = parseLikelyPastDate(startTime).getTime();
+  if (Number.isNaN(startedAt)) return "0m 00s";
+
+  const elapsed = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
   const minutes = Math.floor(elapsed / 60);
   const seconds = elapsed % 60;
   return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
 }
 
 export function TrackingCard({ message }: TrackingCardProps) {
-  const trackingChannelId = (message.metadata as any)?.trackingChannelId as
-    | string
-    | undefined;
+  const metadata = (message.metadata as any) ?? {};
+  const trackingChannelId = metadata?.trackingChannelId as string | undefined;
   const {
     isActivated,
     latestMessages,
@@ -33,19 +34,24 @@ export function TrackingCard({ message }: TrackingCardProps) {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [elapsed, setElapsed] = useState("");
+  const elapsedStartTime =
+    typeof metadata.startedAt === "string" ||
+    typeof metadata.startedAt === "number"
+      ? metadata.startedAt
+      : message.createdAt;
 
   // Live-updating elapsed timer
   useEffect(() => {
-    if (!message.createdAt) return;
+    if (!elapsedStartTime) return;
     if (!isActivated) {
-      setElapsed(formatElapsed(message.createdAt));
+      setElapsed(formatElapsed(elapsedStartTime));
       return;
     }
-    const update = () => setElapsed(formatElapsed(message.createdAt));
+    const update = () => setElapsed(formatElapsed(elapsedStartTime));
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
-  }, [message.createdAt, isActivated]);
+  }, [elapsedStartTime, isActivated]);
 
   const moreCount = totalMessageCount - 3;
   const showFrost = moreCount > 0;
@@ -160,6 +166,7 @@ export function TrackingCard({ message }: TrackingCardProps) {
         trackingChannelId={trackingChannelId}
         botUser={message.sender}
         isActivated={isActivated}
+        initialActiveStream={activeStream}
       />
     </>
   );
