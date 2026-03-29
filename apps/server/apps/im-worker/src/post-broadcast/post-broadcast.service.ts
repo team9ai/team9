@@ -651,6 +651,20 @@ export class PostBroadcastService {
         // - New: create for fresh group @mentions
         // - None: DM or tracking channel message
         let trackingChannelId: string | undefined = existingTrackingId;
+
+        // Reactivate deactivated tracking channel for follow-up messages
+        if (trackingChannelId) {
+          await this.db
+            .update(schema.channels)
+            .set({ isActivated: true, snapshot: null, updatedAt: new Date() })
+            .where(
+              and(
+                eq(schema.channels.id, trackingChannelId),
+                eq(schema.channels.isActivated, false),
+              ),
+            );
+        }
+
         if (!isDm && !isTracking && !trackingChannelId) {
           trackingChannelId = await this.createTrackingChannel(
             tenantId || null,
