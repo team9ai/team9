@@ -15,6 +15,7 @@ import {
   ConflictException,
   ForbiddenException,
   ServiceUnavailableException,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import {
@@ -161,7 +162,10 @@ export class InstalledApplicationsController {
    * Requires: workspace member
    */
   @Get(':id')
-  async findById(@Param('id') id: string, @CurrentTenantId() tenantId: string) {
+  async findById(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
     if (!tenantId) {
       throw new BadRequestException('Tenant ID is required');
     }
@@ -208,7 +212,7 @@ export class InstalledApplicationsController {
   @UseGuards(WorkspaceRoleGuard)
   @WorkspaceRoles('admin', 'owner')
   async update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateInstalledApplicationDto,
     @CurrentTenantId() tenantId: string,
   ) {
@@ -226,7 +230,7 @@ export class InstalledApplicationsController {
   @UseGuards(WorkspaceRoleGuard)
   @WorkspaceRoles('admin', 'owner')
   async uninstall(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenantId() tenantId: string,
   ) {
     if (!tenantId) {
@@ -243,7 +247,7 @@ export class InstalledApplicationsController {
    */
   @Get(':id/openclaw/status')
   async getOpenClawStatus(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenantId() tenantId: string,
   ) {
     const app = await this.getVerifiedApp(id, tenantId, 'openclaw');
@@ -271,7 +275,7 @@ export class InstalledApplicationsController {
    */
   @Get(':id/openclaw/bots')
   async getOpenClawBots(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenantId() tenantId: string,
   ) {
     const app = await this.getVerifiedApp(id, tenantId, 'openclaw');
@@ -296,8 +300,8 @@ export class InstalledApplicationsController {
    */
   @Patch(':id/openclaw/bots/:botId')
   async updateOpenClawBot(
-    @Param('id') id: string,
-    @Param('botId') botId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('botId', ParseUUIDPipe) botId: string,
     @CurrentTenantId() tenantId: string,
     @Body() body: { displayName: string },
   ) {
@@ -322,8 +326,8 @@ export class InstalledApplicationsController {
    */
   @Patch(':id/openclaw/bots/:botId/mentor')
   async updateOpenClawBotMentor(
-    @Param('id') id: string,
-    @Param('botId') botId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('botId', ParseUUIDPipe) botId: string,
     @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string,
     @Body() body: { mentorId: string | null },
@@ -354,7 +358,7 @@ export class InstalledApplicationsController {
   @UseGuards(WorkspaceRoleGuard)
   @WorkspaceRoles('admin', 'owner')
   async startOpenClaw(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenantId() tenantId: string,
   ) {
     const app = await this.getVerifiedApp(id, tenantId, 'openclaw');
@@ -376,7 +380,7 @@ export class InstalledApplicationsController {
   @UseGuards(WorkspaceRoleGuard)
   @WorkspaceRoles('admin', 'owner')
   async stopOpenClaw(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenantId() tenantId: string,
   ) {
     const app = await this.getVerifiedApp(id, tenantId, 'openclaw');
@@ -398,7 +402,7 @@ export class InstalledApplicationsController {
   @UseGuards(WorkspaceRoleGuard)
   @WorkspaceRoles('admin', 'owner')
   async restartOpenClaw(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenantId() tenantId: string,
   ) {
     const app = await this.getVerifiedApp(id, tenantId, 'openclaw');
@@ -420,7 +424,7 @@ export class InstalledApplicationsController {
    */
   @Get(':id/openclaw/devices')
   async getOpenClawDevices(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenantId() tenantId: string,
   ) {
     const app = await this.getVerifiedApp(id, tenantId, 'openclaw');
@@ -442,7 +446,7 @@ export class InstalledApplicationsController {
    */
   @Get(':id/openclaw/gateway-info')
   async getOpenClawGatewayInfo(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenantId() tenantId: string,
   ) {
     const app = await this.getVerifiedApp(id, tenantId, 'openclaw');
@@ -490,7 +494,7 @@ export class InstalledApplicationsController {
    */
   @Post(':id/openclaw/devices/self-approve')
   async selfApproveOpenClawDevice(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenantId() tenantId: string,
     @Body('requestId') requestId: string,
   ) {
@@ -522,7 +526,7 @@ export class InstalledApplicationsController {
   @UseGuards(WorkspaceRoleGuard)
   @WorkspaceRoles('admin', 'owner')
   async approveOpenClawDevice(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenantId() tenantId: string,
     @Body() body: { requestId: string },
   ) {
@@ -548,7 +552,7 @@ export class InstalledApplicationsController {
   @UseGuards(WorkspaceRoleGuard)
   @WorkspaceRoles('admin', 'owner')
   async rejectOpenClawDevice(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenantId() tenantId: string,
     @Body() body: { requestId: string },
   ) {
@@ -571,7 +575,7 @@ export class InstalledApplicationsController {
    */
   @Get(':id/openclaw/workspaces')
   async getOpenClawWorkspaces(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenantId() tenantId: string,
   ) {
     const app = await this.getVerifiedApp(id, tenantId, 'openclaw');
@@ -601,7 +605,7 @@ export class InstalledApplicationsController {
    */
   @Get(':id/openclaw/file-keeper-token')
   async getFileKeeperToken(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenantId() tenantId: string,
   ) {
     const app = await this.getVerifiedApp(id, tenantId, 'openclaw');
@@ -626,7 +630,7 @@ export class InstalledApplicationsController {
    */
   @Get(':id/openclaw/check-username')
   async checkUsername(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenantId() tenantId: string,
     @Query('username') username: string,
   ) {
@@ -644,7 +648,7 @@ export class InstalledApplicationsController {
    */
   @Post(':id/openclaw/agents')
   async createOpenClawAgent(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string,
     @Body()
@@ -801,8 +805,8 @@ export class InstalledApplicationsController {
    */
   @Delete(':id/openclaw/agents/:botId')
   async deleteOpenClawAgent(
-    @Param('id') id: string,
-    @Param('botId') botId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('botId', ParseUUIDPipe) botId: string,
     @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string,
   ) {

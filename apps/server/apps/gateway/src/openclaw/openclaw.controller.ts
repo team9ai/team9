@@ -22,7 +22,9 @@ export class OpenclawController {
   }
 
   @Get('workspaces/:workspaceId/last-message')
-  async getLastMessage(@Param('workspaceId') workspaceId: string) {
+  async getLastMessage(
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
+  ) {
     return this.openclawService.getWorkspaceLastMessage(workspaceId);
   }
 

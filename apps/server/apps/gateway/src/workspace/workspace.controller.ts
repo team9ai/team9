@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
   Logger,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { WorkspaceService } from './workspace.service.js';
 import {
@@ -58,7 +59,7 @@ export class WorkspaceController {
 
   @Get(':workspaceId')
   @UseGuards(AuthGuard, WorkspaceGuard)
-  async findById(@Param('workspaceId') workspaceId: string) {
+  async findById(@Param('workspaceId', ParseUUIDPipe) workspaceId: string) {
     return this.workspaceService.findByIdOrThrow(workspaceId);
   }
 
@@ -66,7 +67,7 @@ export class WorkspaceController {
   @UseGuards(AuthGuard, WorkspaceGuard, WorkspaceRoleGuard)
   @WorkspaceRoles('owner', 'admin')
   async update(
-    @Param('workspaceId') workspaceId: string,
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
     @Body() dto: UpdateWorkspaceDto,
   ) {
     this.logger.log(`Updating workspace: ${workspaceId}`);
@@ -76,7 +77,7 @@ export class WorkspaceController {
   @Delete(':workspaceId')
   @UseGuards(AuthGuard, WorkspaceGuard, WorkspaceRoleGuard)
   @WorkspaceRoles('owner')
-  async delete(@Param('workspaceId') workspaceId: string) {
+  async delete(@Param('workspaceId', ParseUUIDPipe) workspaceId: string) {
     this.logger.log(`Deleting workspace: ${workspaceId}`);
     await this.workspaceService.delete(workspaceId);
     return { success: true };
@@ -87,7 +88,7 @@ export class WorkspaceController {
   @Get(':workspaceId/members')
   @UseGuards(AuthGuard)
   async getWorkspaceMembers(
-    @Param('workspaceId') workspaceId: string,
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
     @CurrentUser('sub') userId: string,
     @Query() query: GetMembersQueryDto,
   ) {
@@ -102,7 +103,7 @@ export class WorkspaceController {
   @UseGuards(AuthGuard, WorkspaceGuard, WorkspaceRoleGuard)
   @WorkspaceRoles('owner', 'admin')
   async addMember(
-    @Param('workspaceId') workspaceId: string,
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
     @Body() dto: AddWorkspaceMemberDto,
     @CurrentUser('sub') userId: string,
   ) {
@@ -120,8 +121,8 @@ export class WorkspaceController {
   @UseGuards(AuthGuard, WorkspaceGuard, WorkspaceRoleGuard)
   @WorkspaceRoles('owner')
   async updateMemberRole(
-    @Param('workspaceId') workspaceId: string,
-    @Param('userId') targetUserId: string,
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
+    @Param('userId', ParseUUIDPipe) targetUserId: string,
     @Body() dto: UpdateMemberRoleDto,
   ) {
     this.logger.log(
@@ -139,8 +140,8 @@ export class WorkspaceController {
   @UseGuards(AuthGuard, WorkspaceGuard, WorkspaceRoleGuard)
   @WorkspaceRoles('owner', 'admin')
   async removeMember(
-    @Param('workspaceId') workspaceId: string,
-    @Param('userId') targetUserId: string,
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
+    @Param('userId', ParseUUIDPipe) targetUserId: string,
   ) {
     this.logger.log(
       `Removing member ${targetUserId} from workspace ${workspaceId}`,
@@ -152,7 +153,7 @@ export class WorkspaceController {
   @Get(':workspaceId/debug/online-status')
   @UseGuards(AuthGuard)
   async debugOnlineStatus(
-    @Param('workspaceId') workspaceId: string,
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
     @CurrentUser('sub') userId: string,
   ) {
     return this.workspaceService.getOnlineOfflineMemberIds(workspaceId);
@@ -161,7 +162,7 @@ export class WorkspaceController {
   @Post(':workspaceId/invitations')
   @UseGuards(AuthGuard, WorkspaceGuard)
   async createInvitation(
-    @Param('workspaceId') workspaceId: string,
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
     @CurrentUser('sub') userId: string,
     @Body() dto: CreateInvitationDto,
   ) {
@@ -170,14 +171,16 @@ export class WorkspaceController {
 
   @Get(':workspaceId/invitations')
   @UseGuards(AuthGuard)
-  async getInvitations(@Param('workspaceId') workspaceId: string) {
+  async getInvitations(
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
+  ) {
     return this.workspaceService.getInvitations(workspaceId);
   }
 
   @Delete(':workspaceId/invitations/:code')
   @UseGuards(AuthGuard)
   async revokeInvitation(
-    @Param('workspaceId') workspaceId: string,
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
     @Param('code') code: string,
   ) {
     await this.workspaceService.revokeInvitation(workspaceId, code);
