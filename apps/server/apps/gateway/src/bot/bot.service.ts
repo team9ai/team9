@@ -207,41 +207,44 @@ export class BotService implements OnModuleInit {
     const botEmail = email || `${username}_bot@team9.local`;
     const passwordHash = password ? await bcrypt.hash(password, 10) : undefined;
 
-    // Create shadow user in im_users
-    const [newUser] = await this.db
-      .insert(schema.users)
-      .values({
-        id: uuidv7(),
-        email: botEmail,
-        username,
-        displayName: displayName ?? username,
-        passwordHash,
-        status: 'online',
-        isActive: true,
-        emailVerified: true,
-        userType: 'bot',
-      })
-      .returning({
-        id: schema.users.id,
-        email: schema.users.email,
-        username: schema.users.username,
-        displayName: schema.users.displayName,
-      });
+    // Create shadow user + bot extension atomically to prevent orphaned im_users
+    const { newUser, newBot } = await this.db.transaction(async (tx) => {
+      const [newUser] = await tx
+        .insert(schema.users)
+        .values({
+          id: uuidv7(),
+          email: botEmail,
+          username,
+          displayName: displayName ?? username,
+          passwordHash,
+          status: 'online',
+          isActive: true,
+          emailVerified: true,
+          userType: 'bot',
+        })
+        .returning({
+          id: schema.users.id,
+          email: schema.users.email,
+          username: schema.users.username,
+          displayName: schema.users.displayName,
+        });
 
-    // Create extension record in im_bots
-    const [newBot] = await this.db
-      .insert(schema.bots)
-      .values({
-        id: uuidv7(),
-        userId: newUser.id,
-        type,
-        ownerId: ownerId ?? null,
-        description: description ?? null,
-        capabilities,
-        webhookUrl: webhookUrl ?? null,
-        isActive: true,
-      })
-      .returning();
+      const [newBot] = await tx
+        .insert(schema.bots)
+        .values({
+          id: uuidv7(),
+          userId: newUser.id,
+          type,
+          ownerId: ownerId ?? null,
+          description: description ?? null,
+          capabilities,
+          webhookUrl: webhookUrl ?? null,
+          isActive: true,
+        })
+        .returning();
+
+      return { newUser, newBot };
+    });
 
     const botInfo: BotInfo = {
       userId: newUser.id,
