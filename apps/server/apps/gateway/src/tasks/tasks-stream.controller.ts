@@ -8,6 +8,7 @@ import {
   Logger,
   NotFoundException,
   Inject,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
@@ -39,8 +40,8 @@ export class TasksStreamController {
 
   @Get(':taskId/executions/:execId/stream')
   async streamExecution(
-    @Param('taskId') taskId: string,
-    @Param('execId') execId: string,
+    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Param('execId', ParseUUIDPipe) execId: string,
     @Query('token') queryToken: string | undefined,
     @Req() req: Request,
     @Res() res: Response,

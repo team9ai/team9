@@ -8,6 +8,7 @@ import {
   UseGuards,
   Inject,
   forwardRef,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { UsersService, UserResponse } from './users.service.js';
 import { UpdateUserDto, UpdateUserStatusDto } from './dto/index.js';
@@ -50,7 +51,7 @@ export class UsersController {
   }
 
   @Get(':id')
-  async getUser(@Param('id') id: string): Promise<UserResponse> {
+  async getUser(@Param('id', ParseUUIDPipe) id: string): Promise<UserResponse> {
     return this.usersService.findByIdOrThrow(id);
   }
 
