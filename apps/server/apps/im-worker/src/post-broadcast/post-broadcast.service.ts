@@ -446,11 +446,14 @@ export class PostBroadcastService {
     triggerSenderId: string,
     triggerMessageId: string,
     originalChannelId: string,
+    threadRootId?: string,
   ): Promise<string> {
     const channelId = uuidv7();
     const placeholderMsgId = uuidv7();
     const placeholderSeqId =
       await this.sequenceService.generateChannelSeq(originalChannelId);
+
+    const effectiveRootId = threadRootId ?? triggerMessageId;
 
     await this.db.transaction(async (tx) => {
       await tx.insert(schema.channels).values({
@@ -476,13 +479,14 @@ export class PostBroadcastService {
       });
 
       // Placeholder message in original channel — client renders as tracking link
-      // First-level reply: parentId = rootId = triggerMessageId
+      // parentId = triggerMessageId (direct reply to the trigger)
+      // rootId = thread root (so it appears in the thread view)
       await tx.insert(schema.messages).values({
         id: placeholderMsgId,
         channelId: originalChannelId,
         senderId: botUserId,
         parentId: triggerMessageId,
-        rootId: triggerMessageId,
+        rootId: effectiveRootId,
         content: '',
         type: 'tracking',
         seqId: placeholderSeqId,
@@ -506,7 +510,7 @@ export class PostBroadcastService {
           type: 'tracking',
           senderId: botUserId,
           parentId: triggerMessageId,
-          rootId: triggerMessageId,
+          rootId: effectiveRootId,
           targetType: 'channel',
           targetId: originalChannelId,
           payload: {
@@ -656,6 +660,7 @@ export class PostBroadcastService {
             sender.id,
             message.id,
             channel.id,
+            message.rootId ?? undefined,
           );
         }
 
