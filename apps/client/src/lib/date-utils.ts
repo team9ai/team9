@@ -1,3 +1,83 @@
+const ISO_DATETIME_WITHOUT_TZ_RE =
+  /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/;
+const EXPLICIT_TIMEZONE_SUFFIX_RE = /(?:[zZ]|[+-]\d{2}:\d{2})$/;
+
+/**
+ * Parse API timestamps consistently.
+ * Bare datetime strings without an explicit timezone are treated as UTC.
+ */
+export function parseApiDate(value: Date | string | number): Date {
+  if (value instanceof Date) {
+    return new Date(value.getTime());
+  }
+
+  if (typeof value === "number") {
+    return new Date(value);
+  }
+
+  const trimmed = value.trim();
+  if (
+    ISO_DATETIME_WITHOUT_TZ_RE.test(trimmed) &&
+    !EXPLICIT_TIMEZONE_SUFFIX_RE.test(trimmed)
+  ) {
+    return new Date(`${trimmed.replace(" ", "T")}Z`);
+  }
+
+  return new Date(trimmed);
+}
+
+/**
+ * Heuristic parser for timestamps that should represent a past event.
+ * Useful for relative timers when upstream payloads may be serialized with or
+ * without timezone information inconsistently.
+ */
+export function parseLikelyPastDate(
+  value: Date | string | number,
+  referenceTime: number = Date.now(),
+): Date {
+  if (value instanceof Date || typeof value === "number") {
+    return parseApiDate(value);
+  }
+
+  const trimmed = value.trim();
+  const candidates = new Set<number>();
+
+  const direct = new Date(trimmed).getTime();
+  if (!Number.isNaN(direct)) {
+    candidates.add(direct);
+  }
+
+  if (EXPLICIT_TIMEZONE_SUFFIX_RE.test(trimmed)) {
+    const localLike = trimmed.replace(EXPLICIT_TIMEZONE_SUFFIX_RE, "");
+    const localTime = new Date(localLike).getTime();
+    if (!Number.isNaN(localTime)) {
+      candidates.add(localTime);
+    }
+  } else if (ISO_DATETIME_WITHOUT_TZ_RE.test(trimmed)) {
+    const utcTime = new Date(`${trimmed.replace(" ", "T")}Z`).getTime();
+    if (!Number.isNaN(utcTime)) {
+      candidates.add(utcTime);
+    }
+  }
+
+  if (candidates.size === 0) {
+    return new Date(NaN);
+  }
+
+  const sorted = Array.from(candidates).sort((a, b) => a - b);
+  const pastOrNearNow = sorted.filter((time) => time <= referenceTime + 60_000);
+  const best =
+    pastOrNearNow.length > 0
+      ? pastOrNearNow[pastOrNearNow.length - 1]
+      : sorted.reduce((closest, time) =>
+          Math.abs(time - referenceTime) < Math.abs(closest - referenceTime)
+            ? time
+            : closest,
+        );
+
+  return new Date(best);
+}
+
 /**
  * Format a date as static time (e.g., "10:30" for today, "01/05 10:30" for other days)
  */
