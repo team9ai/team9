@@ -59,7 +59,13 @@ export class HiveStrategy implements ExecutionStrategy {
       agentId,
       context.taskId,
     );
-    await this.clawHiveService.interruptSession(sessionId, context.tenantId);
+    try {
+      await this.clawHiveService.interruptSession(sessionId, context.tenantId);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to interrupt session ${sessionId} (session may have already ended): ${(err as Error).message}`,
+      );
+    }
   }
 
   async resume(context: ExecutionContext): Promise<void> {
@@ -112,7 +118,11 @@ export class HiveStrategy implements ExecutionStrategy {
       .where(eq(schema.bots.id, botId))
       .limit(1);
 
-    const agentId = (bot?.managedMeta as Record<string, unknown> | null)
+    if (!bot) {
+      throw new Error(`Hive bot not found: ${botId}`);
+    }
+
+    const agentId = (bot.managedMeta as Record<string, unknown> | null)
       ?.agentId as string | undefined;
 
     if (!agentId) {

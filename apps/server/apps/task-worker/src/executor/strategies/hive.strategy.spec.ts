@@ -94,7 +94,7 @@ describe('HiveStrategy', () => {
       resetDbChain([]);
 
       await expect(strategy.execute(baseContext)).rejects.toThrow(
-        'Hive agentId not configured for bot bot-001',
+        'Hive bot not found: bot-001',
       );
     });
 
@@ -134,6 +134,15 @@ describe('HiveStrategy', () => {
     it('throws when bot has no agentId', async () => {
       resetDbChain([{ managedMeta: null }]);
       await expect(strategy.pause(baseContext)).rejects.toThrow();
+    });
+
+    it('does not throw when interruptSession fails (session may have ended)', async () => {
+      mockClawHive.interruptSession.mockRejectedValueOnce(
+        new Error('Failed to interrupt session: 404'),
+      );
+
+      // Should resolve (not throw)
+      await expect(strategy.pause(baseContext)).resolves.toBeUndefined();
     });
   });
 
@@ -176,6 +185,14 @@ describe('HiveStrategy', () => {
         'team9/tenant-abc/my-agent/task/task-001',
         'tenant-abc',
       );
+    });
+
+    it('throws when bot has no agentId', async () => {
+      resetDbChain([{ managedMeta: {} }]);
+      await expect(strategy.stop(baseContext)).rejects.toThrow(
+        'Hive agentId not configured for bot bot-001',
+      );
+      expect(mockClawHive.deleteSession).not.toHaveBeenCalled();
     });
   });
 });
