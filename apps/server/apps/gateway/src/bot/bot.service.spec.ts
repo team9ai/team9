@@ -204,6 +204,28 @@ describe('BotService', () => {
         expect.objectContaining({ userId: 'u1', botId: 'b1' }),
       );
     });
+
+    it('should roll back user insert and not emit event when bot insert fails', async () => {
+      const userRow = {
+        id: 'u1',
+        email: 'bot@team9.local',
+        username: 'testbot',
+        displayName: 'TestBot',
+      };
+
+      let returningCallCount = 0;
+      db.returning.mockImplementation((() => {
+        returningCallCount++;
+        if (returningCallCount === 1) return Promise.resolve([userRow]);
+        return Promise.reject(new Error('unique constraint violation'));
+      }) as any);
+
+      await expect(
+        service.createBot({ username: 'testbot', displayName: 'TestBot' }),
+      ).rejects.toThrow('unique constraint violation');
+
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
+    });
   });
 
   // ── system bot helpers ────────────────────────────────────────────
