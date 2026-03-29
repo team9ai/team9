@@ -203,7 +203,7 @@ export class ExecutorService {
     });
 
     // ── 7. Delegate to strategy ───────────────────────────────────────
-    const strategyKey = bot.managedProvider === 'hive' ? 'hive' : bot.type;
+    const strategyKey = this.resolveStrategyKey(bot);
     const strategy = this.strategies.get(strategyKey);
     const context: ExecutionContext = {
       taskId,
@@ -268,7 +268,13 @@ export class ExecutorService {
   async stopExecution(taskId: string): Promise<void> {
     // 1. Load task
     const [task] = await this.db
-      .select()
+      .select({
+        id: schema.agentTasks.id,
+        botId: schema.agentTasks.botId,
+        tenantId: schema.agentTasks.tenantId,
+        title: schema.agentTasks.title,
+        currentExecutionId: schema.agentTasks.currentExecutionId,
+      })
       .from(schema.agentTasks)
       .where(eq(schema.agentTasks.id, taskId))
       .limit(1);
@@ -312,10 +318,14 @@ export class ExecutorService {
 
     if (!bot) {
       this.logger.error(`Bot not found: ${task.botId}`);
+      await this.markExecutionFailed(task.currentExecutionId, taskId, {
+        code: 'BOT_NOT_FOUND',
+        message: `Bot ${task.botId} not found`,
+      });
       return;
     }
 
-    const strategyKey = bot.managedProvider === 'hive' ? 'hive' : bot.type;
+    const strategyKey = this.resolveStrategyKey(bot);
     const strategy = this.strategies.get(strategyKey);
     if (!strategy) {
       this.logger.error(`No strategy for bot type "${strategyKey}"`);
@@ -372,6 +382,13 @@ export class ExecutorService {
       .where(eq(schema.agentTasks.id, taskId));
 
     this.logger.log(`Execution ${execution.id} stopped for task ${taskId}`);
+  }
+
+  private resolveStrategyKey(bot: {
+    type: string;
+    managedProvider: string | null;
+  }): string {
+    return bot.managedProvider === 'hive' ? 'hive' : bot.type;
   }
 
   private async markExecutionFailed(

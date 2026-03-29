@@ -311,4 +311,104 @@ describe('ExecutorService', () => {
       expect.objectContaining({ tenantId: 'tenant-xyz' }),
     );
   });
+
+  // ── stopExecution: hive strategy routing ─────────────────────────
+
+  it('stopExecution: routes to "hive" strategy when managedProvider is "hive"', async () => {
+    const sampleExecution = {
+      id: 'exec-001',
+      channelId: 'chan-001',
+      taskcastTaskId: 'tc-001',
+      startedAt: new Date(),
+    };
+    const hiveBot = { type: 'custom', managedProvider: 'hive' };
+    const taskWithExecution = {
+      id: 'task-001',
+      botId: 'bot-001',
+      tenantId: 'tenant-001',
+      title: 'My Test Task',
+      currentExecutionId: 'exec-001',
+    };
+
+    // select queue order: task, execution, bot
+    selectResultQueue = [[taskWithExecution], [sampleExecution], [hiveBot]];
+
+    const hiveStrategy = {
+      execute: jest.fn<any>().mockResolvedValue(undefined),
+      pause: jest.fn<any>().mockResolvedValue(undefined),
+      resume: jest.fn<any>().mockResolvedValue(undefined),
+      stop: jest.fn<any>().mockResolvedValue(undefined),
+    };
+    service.registerStrategy('hive', hiveStrategy);
+
+    await service.stopExecution('task-001');
+
+    expect(hiveStrategy.stop).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskId: 'task-001',
+        executionId: 'exec-001',
+      }),
+    );
+  });
+
+  // ── stopExecution: bot-not-found marks execution as failed ────────
+
+  it('stopExecution: marks execution and task as failed when bot is not found', async () => {
+    const sampleExecution = {
+      id: 'exec-001',
+      channelId: 'chan-001',
+      taskcastTaskId: 'tc-001',
+      startedAt: new Date(),
+    };
+    const taskWithExecution = {
+      id: 'task-001',
+      botId: 'bot-missing',
+      tenantId: 'tenant-001',
+      title: 'My Test Task',
+      currentExecutionId: 'exec-001',
+    };
+
+    // select queue order: task, execution, bot (empty — not found)
+    selectResultQueue = [[taskWithExecution], [sampleExecution], []];
+
+    await service.stopExecution('task-001');
+
+    // strategy.stop must NOT be called (no strategy involved)
+    expect(mockStrategy.stop).not.toHaveBeenCalled();
+    // DB must be updated with status 'failed' for both execution and task
+    const failedSet = updateSets.find((s) => s.status === 'failed');
+    expect(failedSet).toBeDefined();
+  });
+
+  // ── stopExecution: tenantId in ExecutionContext ───────────────────
+
+  it('stopExecution: includes tenantId in ExecutionContext passed to strategy', async () => {
+    const sampleExecution = {
+      id: 'exec-001',
+      channelId: 'chan-001',
+      taskcastTaskId: 'tc-001',
+      startedAt: new Date(),
+    };
+    const taskWithExecution = {
+      id: 'task-001',
+      botId: 'bot-001',
+      tenantId: 'tenant-abc',
+      title: 'My Test Task',
+      currentExecutionId: 'exec-001',
+    };
+
+    // select queue order: task, execution, bot
+    selectResultQueue = [
+      [taskWithExecution],
+      [sampleExecution],
+      [{ type: 'system', managedProvider: null }],
+    ];
+    service.registerStrategy('system', mockStrategy);
+
+    await service.stopExecution('task-001');
+
+    expect(mockStrategy.stop).toHaveBeenCalledWith(
+      expect.objectContaining({ tenantId: 'tenant-abc' }),
+    );
+  });
 });
