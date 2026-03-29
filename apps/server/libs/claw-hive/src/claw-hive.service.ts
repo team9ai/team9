@@ -123,6 +123,30 @@ export class ClawHiveService {
     await Promise.allSettled(agentIds.map((id) => this.deleteAgent(id)));
   }
 
+  /** Interrupt (pause) a running session. */
+  async interruptSession(sessionId: string, tenantId?: string): Promise<void> {
+    const res = await fetch(
+      `${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}/interrupt`,
+      { method: 'POST', headers: this.headers(tenantId) },
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Failed to interrupt session: ${res.status} ${text}`);
+    }
+  }
+
+  /** Delete (terminate) a session. Swallows 404 (session already gone). */
+  async deleteSession(sessionId: string, tenantId?: string): Promise<void> {
+    const res = await fetch(
+      `${this.baseUrl}/api/sessions/${encodeURIComponent(sessionId)}`,
+      { method: 'DELETE', headers: this.headers(tenantId) },
+    );
+    if (!res.ok && res.status !== 404) {
+      const text = await res.text();
+      throw new Error(`Failed to delete session: ${res.status} ${text}`);
+    }
+  }
+
   private headers(tenantId?: string): Record<string, string> {
     return {
       'Content-Type': 'application/json',

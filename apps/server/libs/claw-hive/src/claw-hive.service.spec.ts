@@ -230,6 +230,91 @@ describe('ClawHiveService', () => {
     });
   });
 
+  // ── interruptSession ─────────────────────────────────────────────────────
+
+  describe('interruptSession', () => {
+    it('sends POST to /api/sessions/{id}/interrupt with auth headers', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({ status: 'interrupted' }));
+
+      await service.interruptSession('my-session-id', 'tenant-abc');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://test-hive:9999/api/sessions/my-session-id/interrupt',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            'X-Hive-Auth': 'test-token',
+            'X-Hive-Tenant': 'tenant-abc',
+          }),
+        }),
+      );
+    });
+
+    it('URL-encodes session IDs containing slashes', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({}));
+
+      await service.interruptSession('team9/t1/agent/task/task-1');
+
+      const calledUrl = (mockFetch.mock.calls[0] as any[])[0] as string;
+      expect(calledUrl).toBe(
+        'http://test-hive:9999/api/sessions/team9%2Ft1%2Fagent%2Ftask%2Ftask-1/interrupt',
+      );
+    });
+
+    it('throws when response is not ok', async () => {
+      mockFetch.mockResolvedValueOnce(textResponse('Session not found', 404));
+
+      await expect(service.interruptSession('bad-session')).rejects.toThrow(
+        'Failed to interrupt session: 404',
+      );
+    });
+  });
+
+  // ── deleteSession ─────────────────────────────────────────────────────────
+
+  describe('deleteSession', () => {
+    it('sends DELETE to /api/sessions/{id}', async () => {
+      mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+      await service.deleteSession('sess-abc', 'tenant-xyz');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://test-hive:9999/api/sessions/sess-abc',
+        expect.objectContaining({
+          method: 'DELETE',
+          headers: expect.objectContaining({ 'X-Hive-Tenant': 'tenant-xyz' }),
+        }),
+      );
+    });
+
+    it('does not throw on 404 (session already gone)', async () => {
+      mockFetch.mockResolvedValueOnce(
+        new Response('Not Found', { status: 404 }),
+      );
+
+      await expect(
+        service.deleteSession('gone-session'),
+      ).resolves.toBeUndefined();
+    });
+
+    it('throws on non-404 error responses', async () => {
+      mockFetch.mockResolvedValueOnce(textResponse('Server error', 500));
+
+      await expect(service.deleteSession('sess-abc')).rejects.toThrow(
+        'Failed to delete session: 500',
+      );
+    });
+
+    it('does not include X-Hive-Tenant header when tenantId is omitted', async () => {
+      mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+      await service.deleteSession('sess-no-tenant');
+
+      const headers = (mockFetch.mock.calls[0] as any[])[1]?.headers ?? {};
+      expect(headers['X-Hive-Tenant']).toBeUndefined();
+    });
+  });
+
   // ── headers ──────────────────────────────────────────────────────────────
 
   describe('headers', () => {
