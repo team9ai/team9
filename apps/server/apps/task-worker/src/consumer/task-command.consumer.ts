@@ -77,16 +77,10 @@ export class TaskCommandConsumer {
           });
           break;
         case 'pause':
-          // TODO: delegate to executor.pauseExecution
-          this.logger.warn(
-            `Pause not yet implemented for task ${command.taskId}`,
-          );
+          await this.executor.pauseExecution(command.taskId);
           break;
         case 'resume':
-          // TODO: delegate to executor.resumeExecution
-          this.logger.warn(
-            `Resume not yet implemented for task ${command.taskId}`,
-          );
+          await this.executor.resumeExecution(command.taskId, command.message);
           break;
         case 'stop':
           await this.executor.stopExecution(command.taskId);

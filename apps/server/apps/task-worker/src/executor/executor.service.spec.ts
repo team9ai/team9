@@ -413,4 +413,69 @@ describe('ExecutorService', () => {
       expect.objectContaining({ tenantId: 'tenant-abc' }),
     );
   });
+
+  // ── pauseExecution ────────────────────────────────────────────────
+
+  describe('pauseExecution', () => {
+    it('calls strategy.pause and sets task status to paused', async () => {
+      const taskWithExec = {
+        ...sampleTask,
+        currentExecutionId: 'exec-001',
+        tenantId: 'tenant-001',
+      };
+      const execution = {
+        id: 'exec-001',
+        channelId: 'ch-001',
+        taskcastTaskId: null,
+      };
+      selectResultQueue = [[taskWithExec], [execution], [sampleBot]];
+      service.registerStrategy('system', mockStrategy);
+
+      await service.pauseExecution('task-001');
+
+      expect(mockStrategy.pause).toHaveBeenCalledWith(
+        expect.objectContaining({ taskId: 'task-001', tenantId: 'tenant-001' }),
+      );
+      const pausedSet = updateSets.find((s) => s.status === 'paused');
+      expect(pausedSet).toBeDefined();
+    });
+
+    it('returns early when task has no currentExecutionId', async () => {
+      selectResultQueue = [[{ ...sampleTask, currentExecutionId: null }]];
+
+      await service.pauseExecution('task-001');
+
+      expect(mockStrategy.pause).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── resumeExecution ───────────────────────────────────────────────
+
+  describe('resumeExecution', () => {
+    it('calls strategy.resume with message and sets status to in_progress', async () => {
+      const taskWithExec = {
+        ...sampleTask,
+        currentExecutionId: 'exec-001',
+        tenantId: 'tenant-001',
+      };
+      const execution = {
+        id: 'exec-001',
+        channelId: 'ch-001',
+        taskcastTaskId: null,
+      };
+      selectResultQueue = [[taskWithExec], [execution], [sampleBot]];
+      service.registerStrategy('system', mockStrategy);
+
+      await service.resumeExecution('task-001', 'please continue');
+
+      expect(mockStrategy.resume).toHaveBeenCalledWith(
+        expect.objectContaining({
+          taskId: 'task-001',
+          message: 'please continue',
+        }),
+      );
+      const inProgressSet = updateSets.find((s) => s.status === 'in_progress');
+      expect(inProgressSet).toBeDefined();
+    });
+  });
 });

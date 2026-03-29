@@ -384,6 +384,179 @@ export class ExecutorService {
     this.logger.log(`Execution ${execution.id} stopped for task ${taskId}`);
   }
 
+  /**
+   * Pause the currently active execution for the given task.
+   */
+  async pauseExecution(taskId: string): Promise<void> {
+    const [task] = await this.db
+      .select({
+        id: schema.agentTasks.id,
+        botId: schema.agentTasks.botId,
+        tenantId: schema.agentTasks.tenantId,
+        title: schema.agentTasks.title,
+        currentExecutionId: schema.agentTasks.currentExecutionId,
+      })
+      .from(schema.agentTasks)
+      .where(eq(schema.agentTasks.id, taskId))
+      .limit(1);
+
+    if (!task || !task.currentExecutionId || !task.botId) {
+      this.logger.warn(
+        `Task ${taskId} cannot be paused — no active execution or bot`,
+      );
+      return;
+    }
+
+    const [execution] = await this.db
+      .select()
+      .from(schema.agentTaskExecutions)
+      .where(eq(schema.agentTaskExecutions.id, task.currentExecutionId))
+      .limit(1);
+
+    if (!execution) {
+      this.logger.error(`Execution ${task.currentExecutionId} not found`);
+      return;
+    }
+
+    const [bot] = await this.db
+      .select({
+        type: schema.bots.type,
+        managedProvider: schema.bots.managedProvider,
+      })
+      .from(schema.bots)
+      .where(eq(schema.bots.id, task.botId))
+      .limit(1);
+
+    if (!bot) {
+      this.logger.error(`Bot not found: ${task.botId}`);
+      return;
+    }
+
+    const strategyKey = this.resolveStrategyKey(bot);
+    const strategy = this.strategies.get(strategyKey);
+    if (!strategy) {
+      this.logger.error(`No strategy for bot type "${strategyKey}"`);
+      return;
+    }
+
+    if (!execution.channelId) {
+      this.logger.warn(
+        `Execution ${execution.id} has no channelId; skipping pause`,
+      );
+      return;
+    }
+
+    const context: ExecutionContext = {
+      taskId,
+      executionId: execution.id,
+      botId: task.botId,
+      channelId: execution.channelId,
+      title: task.title,
+      taskcastTaskId: execution.taskcastTaskId,
+      tenantId: task.tenantId,
+    };
+
+    try {
+      await strategy.pause(context);
+    } catch (error) {
+      this.logger.warn(`Strategy pause failed for task ${taskId}: ${error}`);
+    }
+
+    await this.db
+      .update(schema.agentTasks)
+      .set({ status: 'paused', updatedAt: new Date() })
+      .where(eq(schema.agentTasks.id, taskId));
+
+    this.logger.log(`Task ${taskId} paused`);
+  }
+
+  /**
+   * Resume the currently paused execution for the given task.
+   */
+  async resumeExecution(taskId: string, message?: string): Promise<void> {
+    const [task] = await this.db
+      .select({
+        id: schema.agentTasks.id,
+        botId: schema.agentTasks.botId,
+        tenantId: schema.agentTasks.tenantId,
+        title: schema.agentTasks.title,
+        currentExecutionId: schema.agentTasks.currentExecutionId,
+      })
+      .from(schema.agentTasks)
+      .where(eq(schema.agentTasks.id, taskId))
+      .limit(1);
+
+    if (!task || !task.currentExecutionId || !task.botId) {
+      this.logger.warn(
+        `Task ${taskId} cannot be resumed — no active execution or bot`,
+      );
+      return;
+    }
+
+    const [execution] = await this.db
+      .select()
+      .from(schema.agentTaskExecutions)
+      .where(eq(schema.agentTaskExecutions.id, task.currentExecutionId))
+      .limit(1);
+
+    if (!execution) {
+      this.logger.error(`Execution ${task.currentExecutionId} not found`);
+      return;
+    }
+
+    const [bot] = await this.db
+      .select({
+        type: schema.bots.type,
+        managedProvider: schema.bots.managedProvider,
+      })
+      .from(schema.bots)
+      .where(eq(schema.bots.id, task.botId))
+      .limit(1);
+
+    if (!bot) {
+      this.logger.error(`Bot not found: ${task.botId}`);
+      return;
+    }
+
+    const strategyKey = this.resolveStrategyKey(bot);
+    const strategy = this.strategies.get(strategyKey);
+    if (!strategy) {
+      this.logger.error(`No strategy for bot type "${strategyKey}"`);
+      return;
+    }
+
+    if (!execution.channelId) {
+      this.logger.warn(
+        `Execution ${execution.id} has no channelId; skipping resume`,
+      );
+      return;
+    }
+
+    const context: ExecutionContext = {
+      taskId,
+      executionId: execution.id,
+      botId: task.botId,
+      channelId: execution.channelId,
+      title: task.title,
+      taskcastTaskId: execution.taskcastTaskId,
+      tenantId: task.tenantId,
+      message,
+    };
+
+    try {
+      await strategy.resume(context);
+    } catch (error) {
+      this.logger.warn(`Strategy resume failed for task ${taskId}: ${error}`);
+    }
+
+    await this.db
+      .update(schema.agentTasks)
+      .set({ status: 'in_progress', updatedAt: new Date() })
+      .where(eq(schema.agentTasks.id, taskId));
+
+    this.logger.log(`Task ${taskId} resumed`);
+  }
+
   private resolveStrategyKey(bot: {
     type: string;
     managedProvider: string | null;
