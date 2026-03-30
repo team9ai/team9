@@ -248,6 +248,19 @@ export function TaskChatArea({
               {t("chatArea.start")}
             </Button>
           )}
+          {["completed", "failed", "stopped", "timeout"].includes(
+            task.status,
+          ) &&
+            !isViewingHistory && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setShowStartDialog(true)}
+              >
+                <Play size={14} />
+                {t("chatArea.startNew", "Start New")}
+              </Button>
+            )}
         </div>
       </div>
 
