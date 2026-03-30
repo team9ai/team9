@@ -38,10 +38,10 @@ export function TaskRunItem({
     <button
       onClick={onClick}
       className={cn(
-        "w-full text-left px-2 py-1.5 rounded-md border transition-colors",
+        "w-full text-left px-2 py-1.5 rounded-md transition-colors",
         isSelected
-          ? "border-primary bg-accent text-accent-foreground"
-          : "border-transparent hover:bg-muted/50",
+          ? "bg-primary/10 ring-1 ring-primary/25"
+          : "hover:bg-muted/50",
       )}
     >
       {/* Line 1: status dot + version + timestamp */}
@@ -52,27 +52,22 @@ export function TaskRunItem({
             STATUS_COLORS[execution.status] ?? "bg-gray-400",
           )}
         />
-        <span className="text-xs font-medium">v{execution.taskVersion}</span>
+        <span
+          className={cn(
+            "text-xs font-medium",
+            isSelected ? "text-primary" : "text-foreground",
+          )}
+        >
+          v{execution.taskVersion}
+        </span>
         {execution.startedAt && (
-          <span
-            className={cn(
-              "text-[10px] ml-auto",
-              isSelected
-                ? "text-accent-foreground/70"
-                : "text-muted-foreground",
-            )}
-          >
+          <span className="text-[10px] text-muted-foreground ml-auto">
             {new Date(execution.startedAt).toLocaleString()}
           </span>
         )}
       </div>
       {/* Line 2: trigger type + duration */}
-      <div
-        className={cn(
-          "flex items-center gap-2 text-[10px] mt-0.5 pl-3",
-          isSelected ? "text-accent-foreground/70" : "text-muted-foreground",
-        )}
-      >
+      <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5 pl-3">
         {execution.triggerType && (
           <span>
             {TRIGGER_TYPE_KEYS[execution.triggerType]
