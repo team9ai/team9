@@ -105,8 +105,8 @@ describe("ToolCallBlock", () => {
     expect(
       screen.getAllByText("visible result content").length,
     ).toBeGreaterThanOrEqual(1);
-    // Summary line hidden when expanded
-    expect(screen.queryByText("Result")).not.toBeInTheDocument();
+    // Result label still visible in expanded state
+    expect(screen.getByText("Result")).toBeInTheDocument();
   });
 
   it("collapses back to summary on second click", () => {
@@ -120,9 +120,9 @@ describe("ToolCallBlock", () => {
 
     const label = screen.getByText("Calling");
 
-    // Expand
+    // Expand — Result label stays visible
     fireEvent.click(label);
-    expect(screen.queryByText("Result")).not.toBeInTheDocument();
+    expect(screen.getByText("Result")).toBeInTheDocument();
 
     // Collapse — summary reappears
     fireEvent.click(label);
