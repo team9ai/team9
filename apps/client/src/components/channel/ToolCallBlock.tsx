@@ -9,6 +9,48 @@ interface ToolCallBlockProps {
   resultContent: string;
 }
 
+/**
+ * Extract readable text from tool result content.
+ * Tool results may be wrapped in `{ content: [{ type: "text", text: "..." }], details: {} }`.
+ * This unwraps that structure to show the actual result text.
+ */
+function unwrapResultContent(raw: string): string {
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && Array.isArray(parsed.content)) {
+      const texts = parsed.content
+        .filter(
+          (block: { type?: string; text?: string }) => block.type === "text",
+        )
+        .map((block: { text: string }) => block.text);
+      if (texts.length > 0) return texts.join("\n");
+    }
+  } catch {
+    // Not JSON or unexpected structure — use raw content
+  }
+  return raw;
+}
+
+function formatJson(text: string): string {
+  try {
+    const parsed = JSON.parse(text);
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    return text;
+  }
+}
+
+function summarizeArgs(args: Record<string, unknown>): string {
+  for (const value of Object.values(args)) {
+    if (typeof value === "string" && value.length > 0) {
+      return value.length > 60 ? value.slice(0, 57) + "..." : value;
+    }
+  }
+  const json = JSON.stringify(args);
+  if (json.length <= 60) return json;
+  return json.slice(0, 57) + "...";
+}
+
 export function ToolCallBlock({
   callMetadata,
   resultMetadata,
@@ -17,15 +59,20 @@ export function ToolCallBlock({
   const [isExpanded, setIsExpanded] = useState(false);
 
   const toolName = callMetadata.toolName ?? "Unknown tool";
+  const toolArgs = callMetadata.toolArgs;
   const resultFailed = resultMetadata.status === "failed";
+  const unwrapped = unwrapResultContent(resultContent);
   const resultSummary =
-    resultContent.length > 80
-      ? resultContent.slice(0, 80) + " ..."
-      : resultContent;
+    unwrapped.length > 80 ? unwrapped.slice(0, 80) + " ..." : unwrapped;
+
+  // Collapsed: toolName(argsSummary) or just toolName
+  const callSummary = toolArgs
+    ? `${toolName}(${summarizeArgs(toolArgs)})`
+    : toolName;
 
   return (
     <div>
-      {/* Line 1: tool name */}
+      {/* Line 1: tool call */}
       <div
         className="flex items-center min-h-6 cursor-pointer group"
         onClick={() => setIsExpanded(!isExpanded)}
@@ -46,9 +93,9 @@ export function ToolCallBlock({
         >
           Calling
         </span>
-        {/* Tool name */}
+        {/* Tool name + args summary */}
         <span className="text-xs truncate flex-1 min-w-0 ml-2 font-mono text-foreground/80">
-          {toolName}
+          {callSummary}
         </span>
         {/* Result status indicator */}
         <span
@@ -70,7 +117,7 @@ export function ToolCallBlock({
         />
       </div>
 
-      {/* Line 2: result summary */}
+      {/* Line 2: result summary (collapsed only) */}
       {!isExpanded && resultSummary && (
         <div
           className="flex items-center min-h-5 cursor-pointer"
@@ -96,26 +143,43 @@ export function ToolCallBlock({
         </div>
       )}
 
-      {/* Expanded: result content */}
+      {/* Expanded: args + result */}
       {isExpanded && (
-        <div className="mt-1 mb-1.5">
-          <span
-            className={cn(
-              "text-xs font-semibold",
-              resultFailed ? "text-red-500" : "text-emerald-500",
-            )}
-          >
-            Result
-          </span>
-          <div
-            className={cn(
-              "mt-0.5 p-2 rounded-md text-xs leading-relaxed max-h-44 overflow-y-auto whitespace-pre-wrap break-all",
-              resultFailed
-                ? "bg-red-500/5 border border-red-500/20 text-red-300"
-                : "bg-black/30 border border-border font-mono text-muted-foreground",
-            )}
-          >
-            {resultContent}
+        <div className="mt-1 mb-1.5 space-y-2">
+          {toolArgs && (
+            <div>
+              <span className="text-xs font-semibold text-muted-foreground">
+                Args
+              </span>
+              <pre
+                className={cn(
+                  "mt-0.5 p-2 rounded-md text-xs leading-relaxed max-h-32 overflow-y-auto whitespace-pre-wrap break-all",
+                  "bg-black/20 border border-border font-mono text-muted-foreground",
+                )}
+              >
+                {JSON.stringify(toolArgs, null, 2)}
+              </pre>
+            </div>
+          )}
+          <div>
+            <span
+              className={cn(
+                "text-xs font-semibold",
+                resultFailed ? "text-red-500" : "text-emerald-500",
+              )}
+            >
+              Result
+            </span>
+            <pre
+              className={cn(
+                "mt-0.5 p-2 rounded-md text-xs leading-relaxed max-h-44 overflow-y-auto whitespace-pre-wrap break-all",
+                resultFailed
+                  ? "bg-red-500/5 border border-red-500/20 text-red-300"
+                  : "bg-black/30 border border-border font-mono text-muted-foreground",
+              )}
+            >
+              {formatJson(unwrapped)}
+            </pre>
           </div>
         </div>
       )}
