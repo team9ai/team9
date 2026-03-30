@@ -40,7 +40,7 @@ export function TaskRunItem({
       className={cn(
         "w-full text-left px-2 py-1.5 rounded-md border transition-colors",
         isSelected
-          ? "border-primary bg-accent"
+          ? "border-primary bg-accent text-accent-foreground"
           : "border-transparent hover:bg-muted/50",
       )}
     >
@@ -54,13 +54,25 @@ export function TaskRunItem({
         />
         <span className="text-xs font-medium">v{execution.taskVersion}</span>
         {execution.startedAt && (
-          <span className="text-[10px] text-muted-foreground ml-auto">
+          <span
+            className={cn(
+              "text-[10px] ml-auto",
+              isSelected
+                ? "text-accent-foreground/70"
+                : "text-muted-foreground",
+            )}
+          >
             {new Date(execution.startedAt).toLocaleString()}
           </span>
         )}
       </div>
       {/* Line 2: trigger type + duration */}
-      <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5 pl-3">
+      <div
+        className={cn(
+          "flex items-center gap-2 text-[10px] mt-0.5 pl-3",
+          isSelected ? "text-accent-foreground/70" : "text-muted-foreground",
+        )}
+      >
         {execution.triggerType && (
           <span>
             {TRIGGER_TYPE_KEYS[execution.triggerType]
