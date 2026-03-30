@@ -253,12 +253,12 @@ export function TaskChatArea({
           ) &&
             !isViewingHistory && (
               <Button
-                variant="default"
+                variant="outline"
                 size="sm"
                 onClick={() => setShowStartDialog(true)}
               >
-                <Play size={14} />
-                {t("chatArea.startNew", "Start New")}
+                <RotateCcw size={14} />
+                {t("chatArea.rerun")}
               </Button>
             )}
         </div>
