@@ -206,6 +206,17 @@ export const env = {
     return process.env.EMAIL_FROM || 'Team9 <noreply@auth.team9.ai>';
   },
 
+  // PostHog (optional)
+  get POSTHOG_PROJECT_API_KEY() {
+    return process.env.POSTHOG_PROJECT_API_KEY;
+  },
+  get POSTHOG_HOST() {
+    return process.env.POSTHOG_HOST;
+  },
+  get POSTHOG_FEATURE_FLAGS_SECURE_API_KEY() {
+    return process.env.POSTHOG_FEATURE_FLAGS_SECURE_API_KEY;
+  },
+
   // Development: Skip email verification (only works when APP_ENV=local)
   // When enabled, registration and login will return verification link directly instead of sending email
   get DEV_SKIP_EMAIL_VERIFICATION() {

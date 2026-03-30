@@ -10,7 +10,9 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [
-    tanstackRouter(),
+    tanstackRouter({
+      autoCodeSplitting: true,
+    }),
     react(),
     tailwindcss(),
     sentryVitePlugin({
@@ -35,6 +37,7 @@ export default defineConfig(async () => ({
 
   build: {
     sourcemap: true,
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
         manualChunks(id: string) {

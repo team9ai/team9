@@ -307,7 +307,6 @@ export function useSendThreadReply(
       const previousData = queryClient.getQueryData(queryKey);
 
       // Get current user from app store
-      const { useAppStore } = await import("@/stores/useAppStore");
       const currentUser = useAppStore.getState().user;
 
       // Generate a temporary ID for the optimistic message

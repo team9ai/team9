@@ -41,6 +41,7 @@ import { ResourcesModule } from './resources/resources.module.js';
 import { SkillsModule } from './skills/skills.module.js';
 import { SentryUserInterceptor } from './common/interceptors/sentry-user.interceptor.js';
 import { ImSharedModule } from './im/shared/im-shared.module.js';
+import { PosthogModule } from '@team9/posthog';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { ImSharedModule } from './im/shared/im-shared.module.js';
     AiClientModule,
     RabbitmqModule,
     StorageModule,
+    PosthogModule,
     ImSharedModule,
     BotModule,
     OpenclawModule,

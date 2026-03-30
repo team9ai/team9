@@ -47,6 +47,10 @@
   },
   "pnpm": {
     "peerDependencyRules": {
+      "allowedVersions": {
+        "@emoji-mart/react>react": "19",
+        "@team9/enterprise-audit>uuid": "13"
+      },
       "ignoreMissing": [
         "react",
         "react-dom"
