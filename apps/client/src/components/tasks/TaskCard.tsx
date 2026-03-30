@@ -1,9 +1,10 @@
 import { useState, type KeyboardEvent, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronRight, ChevronDown, Settings, Coins } from "lucide-react";
+import { ChevronRight, ChevronDown, Settings, Coins, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatMessageTime } from "@/lib/date-utils";
 import { TaskRunItem } from "./TaskRunItem";
+import { ManualTriggerDialog } from "./ManualTriggerDialog";
 import type {
   AgentTask,
   AgentTaskExecution,
@@ -69,6 +70,7 @@ export function TaskCard({
 }: TaskCardProps) {
   const { t } = useTranslation("tasks");
   const [showAllRuns, setShowAllRuns] = useState(false);
+  const [showStartDialog, setShowStartDialog] = useState(false);
 
   const showTokens =
     SHOW_TOKEN_STATUSES.includes(task.status) &&
@@ -85,6 +87,11 @@ export function TaskCard({
   const handleSettingsClick = (e: MouseEvent) => {
     e.stopPropagation();
     onOpenSettings();
+  };
+
+  const handleStartClick = (e: MouseEvent) => {
+    e.stopPropagation();
+    setShowStartDialog(true);
   };
 
   const visibleRuns = showAllRuns
@@ -121,7 +128,14 @@ export function TaskCard({
           <span className="font-medium text-sm truncate flex-1">
             {task.title}
           </span>
-          {/* Settings gear — visible on hover */}
+          {/* Action buttons — visible on hover */}
+          <button
+            onClick={handleStartClick}
+            className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted"
+            aria-label={t("detail.start", "Start")}
+          >
+            <Play size={14} className="text-muted-foreground" />
+          </button>
           <button
             onClick={handleSettingsClick}
             className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted"
@@ -145,6 +159,12 @@ export function TaskCard({
           )}
         </div>
       </div>
+
+      <ManualTriggerDialog
+        taskId={task.id}
+        isOpen={showStartDialog}
+        onClose={() => setShowStartDialog(false)}
+      />
 
       {/* Expanded: Run list */}
       {isExpanded && (
