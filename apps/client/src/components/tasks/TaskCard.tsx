@@ -1,6 +1,13 @@
 import { useState, type KeyboardEvent, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronRight, ChevronDown, Settings, Coins, Play } from "lucide-react";
+import {
+  ChevronRight,
+  ChevronDown,
+  Settings,
+  Coins,
+  Play,
+  Bot,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatMessageTime } from "@/lib/date-utils";
 import { TaskRunItem } from "./TaskRunItem";
@@ -40,6 +47,7 @@ interface TaskCardProps {
   isActive: boolean;
   selectedRunId: string | null;
   executions: AgentTaskExecution[];
+  botName?: string | null;
   onToggleExpand: () => void;
   onSelectRun: (runId: string) => void;
   onOpenSettings: () => void;
@@ -64,6 +72,7 @@ export function TaskCard({
   isActive,
   selectedRunId,
   executions,
+  botName,
   onToggleExpand,
   onSelectRun,
   onOpenSettings,
@@ -151,6 +160,12 @@ export function TaskCard({
         )}
         <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1.5 pl-6">
           <span>{formatMessageTime(new Date(task.createdAt))}</span>
+          {botName && (
+            <span className="inline-flex items-center gap-1 truncate">
+              <Bot size={12} className="shrink-0" />
+              {botName}
+            </span>
+          )}
           {showTokens && (
             <span className="inline-flex items-center gap-1">
               <Coins size={12} />

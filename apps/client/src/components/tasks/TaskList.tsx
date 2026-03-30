@@ -4,7 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { api } from "@/services/api";
 import { tasksApi } from "@/services/api/tasks";
+import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import { TaskCard } from "./TaskCard";
 import { TaskChatArea } from "./TaskChatArea";
 import { TaskRightPanel } from "./TaskRightPanel";
@@ -33,6 +35,7 @@ interface TaskListProps {
 
 export function TaskList({ botId }: TaskListProps) {
   const { t } = useTranslation("tasks");
+  const workspaceId = useSelectedWorkspaceId();
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   // activeTaskId tracks which task owns the selected run
   // (set alongside selectedRunId to avoid needing cross-task execution lookups)
@@ -50,6 +53,23 @@ export function TaskList({ botId }: TaskListProps) {
   const { data: allTasks = [], isLoading } = useQuery({
     queryKey: ["tasks", { botId }],
     queryFn: () => tasksApi.list({ botId }),
+  });
+
+  // Build botId → displayName lookup from installed apps
+  const { data: botNameMap = new Map<string, string>() } = useQuery({
+    queryKey: ["installed-applications-with-bots", workspaceId, "bot-names"],
+    queryFn: async () => {
+      const apps = await api.applications.getInstalledApplicationsWithBots();
+      const map = new Map<string, string>();
+      for (const app of apps) {
+        for (const bot of app.bots) {
+          if (bot.displayName) map.set(bot.botId, bot.displayName);
+        }
+      }
+      return map;
+    },
+    enabled: allTasks.length > 0 && !!workspaceId,
+    staleTime: 60_000,
   });
 
   // Filter tasks by selected tab
@@ -216,6 +236,7 @@ export function TaskList({ botId }: TaskListProps) {
                       isExpanded={expandedTaskIds.has(task.id)}
                       isActive={activeTaskId === task.id}
                       selectedRunId={selectedRunId}
+                      botNameMap={botNameMap}
                       onToggleExpand={() => handleToggleExpand(task.id)}
                       onSelectRun={handleSelectRun}
                       onOpenSettings={() => setShowSettingsTaskId(task.id)}
@@ -264,6 +285,7 @@ interface ExpandableTaskCardProps {
   isExpanded: boolean;
   isActive: boolean;
   selectedRunId: string | null;
+  botNameMap: Map<string, string>;
   onToggleExpand: () => void;
   onSelectRun: (taskId: string, runId: string) => void;
   onOpenSettings: () => void;
@@ -274,6 +296,7 @@ function ExpandableTaskCard({
   isExpanded,
   isActive,
   selectedRunId,
+  botNameMap,
   onToggleExpand,
   onSelectRun,
   onOpenSettings,
@@ -319,6 +342,7 @@ function ExpandableTaskCard({
       isActive={isActive}
       selectedRunId={selectedRunId}
       executions={executions}
+      botName={task.botId ? botNameMap.get(task.botId) : null}
       onToggleExpand={onToggleExpand}
       onSelectRun={handleSelectRun}
       onOpenSettings={onOpenSettings}
