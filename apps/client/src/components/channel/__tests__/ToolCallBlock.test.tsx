@@ -63,19 +63,34 @@ describe("ToolCallBlock", () => {
     expect(container.querySelector(".bg-red-500")).toBeInTheDocument();
   });
 
-  it("does not show result content when collapsed", () => {
+  it("shows result summary when collapsed", () => {
     render(
       <ToolCallBlock
         callMetadata={makeCallMeta("Search")}
         resultMetadata={makeResultMeta()}
-        resultContent="hidden result content"
+        resultContent="short result"
       />,
     );
 
-    expect(screen.queryByText("hidden result content")).not.toBeInTheDocument();
+    // Summary line visible with Result label
+    expect(screen.getByText("Result")).toBeInTheDocument();
+    expect(screen.getByText("short result")).toBeInTheDocument();
   });
 
-  it("shows result content when expanded", () => {
+  it("truncates long result summary to 80 chars", () => {
+    const longContent = "x".repeat(100);
+    render(
+      <ToolCallBlock
+        callMetadata={makeCallMeta("Search")}
+        resultMetadata={makeResultMeta()}
+        resultContent={longContent}
+      />,
+    );
+
+    expect(screen.getByText("x".repeat(80) + " ...")).toBeInTheDocument();
+  });
+
+  it("shows full result content when expanded", () => {
     render(
       <ToolCallBlock
         callMetadata={makeCallMeta("Search")}
@@ -86,10 +101,15 @@ describe("ToolCallBlock", () => {
 
     // Click to expand
     fireEvent.click(screen.getByText("Calling"));
-    expect(screen.getByText("visible result content")).toBeInTheDocument();
+    // Full content in expanded block
+    expect(
+      screen.getAllByText("visible result content").length,
+    ).toBeGreaterThanOrEqual(1);
+    // Summary line hidden when expanded
+    expect(screen.queryByText("Result")).not.toBeInTheDocument();
   });
 
-  it("collapses result content on second click", () => {
+  it("collapses back to summary on second click", () => {
     render(
       <ToolCallBlock
         callMetadata={makeCallMeta("Search")}
@@ -102,11 +122,12 @@ describe("ToolCallBlock", () => {
 
     // Expand
     fireEvent.click(label);
-    expect(screen.getByText("toggle content")).toBeInTheDocument();
+    expect(screen.queryByText("Result")).not.toBeInTheDocument();
 
-    // Collapse
+    // Collapse — summary reappears
     fireEvent.click(label);
-    expect(screen.queryByText("toggle content")).not.toBeInTheDocument();
+    expect(screen.getByText("Result")).toBeInTheDocument();
+    expect(screen.getByText("toggle content")).toBeInTheDocument();
   });
 
   it("falls back to 'Unknown tool' when toolName is missing", () => {

@@ -18,10 +18,14 @@ export function ToolCallBlock({
 
   const toolName = callMetadata.toolName ?? "Unknown tool";
   const resultFailed = resultMetadata.status === "failed";
+  const resultSummary =
+    resultContent.length > 80
+      ? resultContent.slice(0, 80) + " ..."
+      : resultContent;
 
   return (
     <div>
-      {/* Main row - clickable to expand result */}
+      {/* Line 1: tool name */}
       <div
         className="flex items-center min-h-6 cursor-pointer group"
         onClick={() => setIsExpanded(!isExpanded)}
@@ -65,6 +69,32 @@ export function ToolCallBlock({
           )}
         />
       </div>
+
+      {/* Line 2: result summary */}
+      {!isExpanded && resultSummary && (
+        <div
+          className="flex items-center min-h-5 cursor-pointer"
+          onClick={() => setIsExpanded(true)}
+        >
+          <div className="w-2 shrink-0 mr-[26px]" />
+          <span
+            className={cn(
+              "text-xs font-semibold shrink-0 w-[72px]",
+              resultFailed ? "text-red-500" : "text-emerald-500",
+            )}
+          >
+            Result
+          </span>
+          <span
+            className={cn(
+              "text-xs truncate flex-1 min-w-0 ml-2 font-mono",
+              resultFailed ? "text-red-400" : "text-foreground/80",
+            )}
+          >
+            {resultSummary}
+          </span>
+        </div>
+      )}
 
       {/* Expanded: result content */}
       {isExpanded && (
