@@ -509,7 +509,12 @@ export class TasksService {
     return { success: true };
   }
 
-  async restart(taskId: string, userId: string, tenantId: string) {
+  async restart(
+    taskId: string,
+    userId: string,
+    tenantId: string,
+    dto?: { notes?: string },
+  ) {
     const task = await this.getTaskOrThrow(taskId, tenantId);
     this.validateStatusTransition(task.status, 'restart');
 
@@ -517,6 +522,7 @@ export class TasksService {
       type: 'restart',
       taskId,
       userId,
+      notes: dto?.notes,
     });
 
     return { success: true };

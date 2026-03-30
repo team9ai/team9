@@ -71,8 +71,8 @@ export const tasksApi = {
     await http.post(`/v1/tasks/${id}/stop`, reason ? { reason } : {});
   },
 
-  restart: async (id: string): Promise<void> => {
-    await http.post(`/v1/tasks/${id}/restart`, {});
+  restart: async (id: string, opts?: { notes?: string }): Promise<void> => {
+    await http.post(`/v1/tasks/${id}/restart`, opts ?? {});
   },
 
   getExecutions: async (id: string): Promise<AgentTaskExecution[]> => {

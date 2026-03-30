@@ -17,20 +17,27 @@ interface ManualTriggerDialogProps {
   taskId: string;
   isOpen: boolean;
   onClose: () => void;
+  /** "start" for upcoming tasks, "restart" for terminal-state tasks. Defaults to "start". */
+  mode?: "start" | "restart";
 }
 
 export function ManualTriggerDialog({
   taskId,
   isOpen,
   onClose,
+  mode = "start",
 }: ManualTriggerDialogProps) {
   const { t } = useTranslation("tasks");
   const queryClient = useQueryClient();
   const [notes, setNotes] = useState("");
 
-  const startMutation = useMutation({
-    mutationFn: () =>
-      tasksApi.start(taskId, { notes: notes.trim() || undefined }),
+  const mutation = useMutation({
+    mutationFn: () => {
+      const opts = { notes: notes.trim() || undefined };
+      return mode === "restart"
+        ? tasksApi.restart(taskId, opts)
+        : tasksApi.start(taskId, opts);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["task", taskId] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -40,15 +47,22 @@ export function ManualTriggerDialog({
 
   function handleClose() {
     setNotes("");
-    startMutation.reset();
+    mutation.reset();
     onClose();
   }
+
+  const title =
+    mode === "restart"
+      ? t("manualTrigger.rerunTitle", "Rerun Task")
+      : t("manualTrigger.title");
+  const submitLabel =
+    mode === "restart" ? t("chatArea.rerun", "Rerun") : t("detail.start");
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{t("manualTrigger.title")}</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <Textarea
           value={notes}
@@ -57,10 +71,9 @@ export function ManualTriggerDialog({
           rows={4}
           className="resize-none"
         />
-        {startMutation.isError && (
+        {mutation.isError && (
           <p className="text-sm text-destructive">
-            {(startMutation.error as Error)?.message ||
-              t("create.errorGeneric")}
+            {(mutation.error as Error)?.message || t("create.errorGeneric")}
           </p>
         )}
         <DialogFooter>
@@ -68,13 +81,13 @@ export function ManualTriggerDialog({
             {t("create.cancel")}
           </Button>
           <Button
-            onClick={() => startMutation.mutate()}
-            disabled={startMutation.isPending}
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending}
           >
-            {startMutation.isPending && (
+            {mutation.isPending && (
               <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
             )}
-            {t("detail.start")}
+            {submitLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

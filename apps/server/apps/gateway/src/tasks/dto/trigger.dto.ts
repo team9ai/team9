@@ -89,6 +89,12 @@ export class StartTaskNewDto {
   message?: string;
 }
 
+export class RestartTaskDto {
+  @IsString()
+  @IsOptional()
+  notes?: string;
+}
+
 export class RetryExecutionDto {
   @IsUUID()
   executionId: string;
