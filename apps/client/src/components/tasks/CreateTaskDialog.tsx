@@ -33,7 +33,10 @@ import {
 import { api } from "@/services/api";
 import { channelsApi } from "@/services/api/im";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
-import type { OpenClawBotInfo } from "@/services/api/applications";
+import type {
+  OpenClawBotInfo,
+  BaseModelStaffBotInfo,
+} from "@/services/api/applications";
 import type { AgentTaskTriggerType, CreateTriggerDto } from "@/types/task";
 
 interface CreateTaskDialogProps {
@@ -100,27 +103,16 @@ export function CreateTaskDialog({ isOpen, onClose }: CreateTaskDialogProps) {
   const [scheduleDayOfMonth, setScheduleDayOfMonth] = useState(1);
   const [channelId, setChannelId] = useState("");
 
-  // Fetch all installed apps, then bots from active OpenClaw apps
-  const { data: installedApps } = useQuery({
-    queryKey: ["installed-applications", workspaceId],
-    queryFn: () => api.applications.getInstalledApplications(),
-    enabled: isOpen && !!workspaceId,
-  });
-
-  const openClawApps =
-    installedApps?.filter(
-      (a) => a.applicationId === "openclaw" && a.status === "active",
-    ) ?? [];
-
-  const { data: allBots = [] } = useQuery({
-    queryKey: ["openclaw-bots-all", workspaceId, openClawApps.map((a) => a.id)],
+  // Fetch bots for assignment (all app types: openclaw + base-model-staff)
+  const { data: allBots = [] } = useQuery<
+    (OpenClawBotInfo | BaseModelStaffBotInfo)[]
+  >({
+    queryKey: ["installed-applications-with-bots", workspaceId],
     queryFn: async () => {
-      const results = await Promise.all(
-        openClawApps.map((app) => api.applications.getOpenClawBots(app.id)),
-      );
-      return results.flat();
+      const apps = await api.applications.getInstalledApplicationsWithBots();
+      return apps.filter((a) => a.status === "active").flatMap((a) => a.bots);
     },
-    enabled: isOpen && openClawApps.length > 0,
+    enabled: isOpen && !!workspaceId,
   });
 
   // Fetch channels for channel_message trigger type
