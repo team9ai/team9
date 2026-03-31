@@ -114,9 +114,7 @@ describe("WorkspaceSettingsContent", () => {
       target: { value: "Bad Slug!" },
     });
 
-    expect(
-      screen.getByText(/lowercase letters, numbers, and hyphens/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText("slugInvalidFormat")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /save changes/i }),
     ).toBeDisabled();
@@ -170,7 +168,6 @@ describe("WorkspaceSettingsContent", () => {
         workspaceId: "ws-1",
         data: {
           name: "Renamed Workspace",
-          slug: "weight-wave",
           logoUrl: "https://cdn.example.com/logo.png",
         },
       }),
@@ -183,5 +180,84 @@ describe("WorkspaceSettingsContent", () => {
       fileName: "logo.png",
       visibility: "public",
     });
+  });
+
+  it("shows error when file exceeds size limit", async () => {
+    render(<WorkspaceSettingsContent />);
+
+    const bigFile = new File(["x".repeat(6 * 1024 * 1024)], "huge.png", {
+      type: "image/png",
+    });
+    Object.defineProperty(bigFile, "size", { value: 6 * 1024 * 1024 });
+
+    fireEvent.change(await screen.findByLabelText(/workspace logo/i), {
+      target: { files: [bigFile] },
+    });
+
+    expect(screen.getByText("logoTooLarge")).toBeInTheDocument();
+    expect(mockPresign).not.toHaveBeenCalled();
+  });
+
+  it("shows error when file type is not allowed", async () => {
+    render(<WorkspaceSettingsContent />);
+
+    const gifFile = new File(["gif"], "anim.gif", { type: "image/gif" });
+
+    fireEvent.change(await screen.findByLabelText(/workspace logo/i), {
+      target: { files: [gifFile] },
+    });
+
+    expect(screen.getByText("logoInvalidType")).toBeInTheDocument();
+    expect(mockPresign).not.toHaveBeenCalled();
+  });
+
+  it("shows error when logo upload fails", async () => {
+    mockPresign.mockRejectedValue(new Error("Network error"));
+
+    render(<WorkspaceSettingsContent />);
+
+    fireEvent.change(await screen.findByLabelText(/workspace logo/i), {
+      target: {
+        files: [new File(["logo"], "logo.png", { type: "image/png" })],
+      },
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText("Network error")).toBeInTheDocument(),
+    );
+  });
+
+  it("shows error when save fails", async () => {
+    mockMutateAsync.mockRejectedValue(new Error("Server error"));
+
+    render(<WorkspaceSettingsContent />);
+
+    fireEvent.change(await screen.findByLabelText(/^name$/i), {
+      target: { value: "New Name" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText("Server error")).toBeInTheDocument(),
+    );
+  });
+
+  it("shows slug-taken error on 409 conflict", async () => {
+    const conflictError = new Error("Conflict");
+    (conflictError as any).response = { status: 409 };
+    mockMutateAsync.mockRejectedValue(conflictError);
+
+    render(<WorkspaceSettingsContent />);
+
+    fireEvent.change(await screen.findByLabelText(/slug/i), {
+      target: { value: "taken-slug" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText("slugAlreadyTaken")).toBeInTheDocument(),
+    );
   });
 });

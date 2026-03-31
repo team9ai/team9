@@ -70,6 +70,16 @@ describe("useWorkspace", () => {
     };
   };
 
+  it("does not fetch when workspaceId is undefined", async () => {
+    const { result } = renderHook(() => useWorkspace(undefined), {
+      wrapper: createWrapper(),
+    });
+
+    expect(result.current.data).toBeUndefined();
+    expect(result.current.isFetching).toBe(false);
+    expect(mockWorkspaceApi.getWorkspace).not.toHaveBeenCalled();
+  });
+
   it("loads full workspace details", async () => {
     mockWorkspaceApi.getWorkspace.mockResolvedValue(workspaceDetail);
 

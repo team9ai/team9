@@ -25,28 +25,18 @@ const ALLOWED_LOGO_TYPES = new Set([
   "image/svg+xml",
 ]);
 
-function validateName(name: string) {
+function validateName(name: string): string | null {
   const trimmed = name.trim();
-  if (trimmed.length < 2) {
-    return "Name must be at least 2 characters";
-  }
-  if (trimmed.length > 100) {
-    return "Name must be 100 characters or less";
-  }
+  if (trimmed.length < 2) return "nameTooShort";
+  if (trimmed.length > 100) return "nameTooLong";
   return null;
 }
 
-function validateSlug(slug: string) {
+function validateSlug(slug: string): string | null {
   const trimmed = slug.trim();
-  if (trimmed.length < 2) {
-    return "Slug must be at least 2 characters";
-  }
-  if (trimmed.length > 50) {
-    return "Slug must be 50 characters or less";
-  }
-  if (!SLUG_PATTERN.test(trimmed)) {
-    return "Slug must contain only lowercase letters, numbers, and hyphens";
-  }
+  if (trimmed.length < 2) return "slugTooShort";
+  if (trimmed.length > 50) return "slugTooLong";
+  if (!SLUG_PATTERN.test(trimmed)) return "slugInvalidFormat";
   return null;
 }
 
@@ -72,6 +62,8 @@ export function WorkspaceSettingsContent() {
     setName(workspace.name);
     setSlug(workspace.slug);
     setLogoUrl(workspace.logoUrl);
+    setSavedMessage(null);
+    setSubmitError(null);
   }, [workspace]);
 
   const nameError = useMemo(() => validateName(name), [name]);
@@ -102,12 +94,12 @@ export function WorkspaceSettingsContent() {
     setSavedMessage(null);
 
     if (file.size > MAX_LOGO_SIZE) {
-      setUploadError("Logo must be 5MB or smaller");
+      setUploadError(t("logoTooLarge"));
       return;
     }
 
     if (!ALLOWED_LOGO_TYPES.has(file.type)) {
-      setUploadError("Logo must be a PNG, JPG, WEBP, or SVG file");
+      setUploadError(t("logoInvalidType"));
       return;
     }
 
@@ -132,7 +124,7 @@ export function WorkspaceSettingsContent() {
       setUploadError(
         error?.response?.data?.message ||
           error?.message ||
-          "Failed to upload logo",
+          t("logoUploadFailed"),
       );
     } finally {
       setIsUploadingLogo(false);
@@ -145,22 +137,29 @@ export function WorkspaceSettingsContent() {
     setSubmitError(null);
     setSavedMessage(null);
 
+    const data: Record<string, unknown> = {};
+    if (name.trim() !== workspace.name) data.name = name.trim();
+    if (slug.trim() !== workspace.slug) data.slug = slug.trim();
+    if ((logoUrl ?? null) !== (workspace.logoUrl ?? null))
+      data.logoUrl = logoUrl;
+
     try {
       await updateWorkspace.mutateAsync({
         workspaceId: selectedWorkspaceId,
-        data: {
-          name: name.trim(),
-          slug: slug.trim(),
-          logoUrl,
-        },
+        data,
       });
-      setSavedMessage("Workspace settings saved");
+      setSavedMessage(t("settingsSaved"));
     } catch (error: any) {
-      setSubmitError(
-        error?.response?.data?.message ||
-          error?.message ||
-          "Failed to save workspace settings",
-      );
+      const status = error?.response?.status ?? error?.status;
+      if (status === 409) {
+        setSubmitError(t("slugAlreadyTaken"));
+      } else {
+        setSubmitError(
+          error?.response?.data?.message ||
+            error?.message ||
+            t("settingsSaveFailed"),
+        );
+      }
     }
   };
 
@@ -250,7 +249,7 @@ export function WorkspaceSettingsContent() {
               <div className="space-y-2">
                 <Label htmlFor="workspace-logo">{t("logo", "Logo")}</Label>
                 <div className="flex items-center gap-4">
-                  <div className="relative">
+                  <div className="group relative">
                     <Avatar className="h-16 w-16 rounded-2xl">
                       {logoUrl ? (
                         <AvatarImage src={logoUrl} alt={name} />
@@ -261,7 +260,7 @@ export function WorkspaceSettingsContent() {
                           .toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-2xl bg-black/35 text-white">
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-2xl bg-black/35 text-white opacity-0 transition-opacity group-hover:opacity-100">
                       <Camera size={18} />
                     </div>
                   </div>
@@ -301,7 +300,7 @@ export function WorkspaceSettingsContent() {
                   }}
                 />
                 {nameError && (
-                  <p className="text-sm text-destructive">{nameError}</p>
+                  <p className="text-sm text-destructive">{t(nameError)}</p>
                 )}
               </div>
 
@@ -317,7 +316,7 @@ export function WorkspaceSettingsContent() {
                   }}
                 />
                 {slugError && (
-                  <p className="text-sm text-destructive">{slugError}</p>
+                  <p className="text-sm text-destructive">{t(slugError)}</p>
                 )}
               </div>
 
