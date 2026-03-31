@@ -159,6 +159,20 @@ describe('UsersService', () => {
         service.update('user-uuid', { username: 'taken-name' } as any),
       ).rejects.toThrow(ConflictException);
     });
+
+    it('should map a late unique violation to a conflict error', async () => {
+      db.limit.mockResolvedValueOnce([]);
+      db.returning.mockImplementationOnce(async () => {
+        throw Object.assign(
+          new Error('duplicate key value violates unique constraint'),
+          { code: '23505' },
+        );
+      });
+
+      await expect(
+        service.update('user-uuid', { username: 'race-name' } as any),
+      ).rejects.toThrow(ConflictException);
+    });
   });
 
   describe('UpdateUserDto validation', () => {

@@ -102,14 +102,22 @@ export class UsersService {
       }
     }
 
-    const [updatedUser] = await this.db
-      .update(schema.users)
-      .set({
-        ...dto,
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.users.id, id))
-      .returning();
+    let updatedUser;
+    try {
+      [updatedUser] = await this.db
+        .update(schema.users)
+        .set({
+          ...dto,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.users.id, id))
+        .returning();
+    } catch (error) {
+      if ((error as { code?: string })?.code === '23505') {
+        throw new ConflictException('Username is already taken');
+      }
+      throw error;
+    }
 
     if (!updatedUser) {
       throw new NotFoundException('User not found');
