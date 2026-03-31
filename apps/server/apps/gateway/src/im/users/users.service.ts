@@ -1,4 +1,9 @@
-import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Inject,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   DATABASE_CONNECTION,
@@ -83,6 +88,20 @@ export class UsersService {
   }
 
   async update(id: string, dto: UpdateUserDto): Promise<UserResponse> {
+    if (dto.username !== undefined) {
+      const [existingUser] = await this.db
+        .select({
+          id: schema.users.id,
+        })
+        .from(schema.users)
+        .where(eq(schema.users.username, dto.username))
+        .limit(1);
+
+      if (existingUser && existingUser.id !== id) {
+        throw new ConflictException('Username is already taken');
+      }
+    }
+
     const [updatedUser] = await this.db
       .update(schema.users)
       .set({

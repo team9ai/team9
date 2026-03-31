@@ -1,9 +1,11 @@
 import {
   IsString,
+  MinLength,
   MaxLength,
   IsOptional,
   IsUrl,
   IsEnum,
+  Matches,
 } from 'class-validator';
 
 export class UpdateUserDto {
@@ -15,6 +17,16 @@ export class UpdateUserDto {
   @IsUrl()
   @IsOptional()
   avatarUrl?: string;
+
+  @IsString()
+  @MinLength(3)
+  @MaxLength(30)
+  @Matches(/^[a-z0-9-]+$/, {
+    message:
+      'Username can only contain lowercase letters, numbers, and hyphens',
+  })
+  @IsOptional()
+  username?: string;
 }
 
 export class UpdateUserStatusDto {
