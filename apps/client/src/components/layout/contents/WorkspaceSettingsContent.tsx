@@ -19,12 +19,7 @@ import type { UpdateWorkspaceDto } from "@/types/workspace";
 
 const MAX_LOGO_SIZE = 5 * 1024 * 1024;
 const SLUG_PATTERN = /^[a-z0-9-]+$/;
-const ALLOWED_LOGO_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/svg+xml",
-]);
+const ALLOWED_LOGO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 type NameValidationKey = "nameTooShort" | "nameTooLong";
 type SlugValidationKey = "slugTooShort" | "slugTooLong" | "slugInvalidFormat";
@@ -48,9 +43,12 @@ export function WorkspaceSettingsContent() {
   const { t } = useTranslation("workspace");
   const { selectedWorkspaceId } = useWorkspaceStore();
   const { isOwnerOrAdmin } = useCurrentWorkspaceRole();
-  const { data: workspace, isLoading } = useWorkspace(
-    selectedWorkspaceId || undefined,
-  );
+  const {
+    data: workspace,
+    isLoading,
+    error,
+    refetch,
+  } = useWorkspace(selectedWorkspaceId || undefined);
   const updateWorkspace = useUpdateWorkspace();
 
   const [name, setName] = useState("");
@@ -208,6 +206,47 @@ export function WorkspaceSettingsContent() {
     );
   }
 
+  if (error || !workspace) {
+    const loadErrorMessage =
+      (error as any)?.response?.data?.message ||
+      (error as Error | null)?.message ||
+      t("workspaceLoadFailed", "Unable to load workspace settings right now");
+
+    return (
+      <main className="h-full flex flex-col overflow-hidden bg-background">
+        <header className="h-14 bg-background flex items-center gap-3 px-4 border-b">
+          <Link to="/more">
+            <Button variant="ghost" size="icon">
+              <ArrowLeft size={20} />
+            </Button>
+          </Link>
+          <h1 className="text-lg font-semibold">
+            {t("workspaceSettings", "Workspace Settings")}
+          </h1>
+        </header>
+
+        <div className="flex-1 p-6 bg-secondary/30">
+          <Card className="max-w-3xl">
+            <CardContent className="space-y-4 pt-6">
+              <div className="flex items-center gap-2 rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                <AlertCircle size={16} />
+                {loadErrorMessage}
+              </div>
+
+              {selectedWorkspaceId ? (
+                <div className="flex justify-end">
+                  <Button variant="outline" onClick={() => void refetch()}>
+                    {t("retry", "Retry")}
+                  </Button>
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="h-full flex flex-col overflow-hidden bg-background">
       <header className="h-14 bg-background flex items-center gap-3 px-4 border-b">
@@ -274,7 +313,7 @@ export function WorkspaceSettingsContent() {
                       id="workspace-logo"
                       aria-label="Workspace logo"
                       type="file"
-                      accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                      accept="image/jpeg,image/png,image/webp"
                       className="sr-only"
                       onChange={handleLogoChange}
                     />
@@ -286,7 +325,7 @@ export function WorkspaceSettingsContent() {
                       </span>
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      {t("logoHint", "PNG, JPG, WEBP, or SVG up to 5MB")}
+                      {t("logoHint", "PNG, JPG, or WEBP up to 5MB")}
                     </p>
                   </div>
                 </div>

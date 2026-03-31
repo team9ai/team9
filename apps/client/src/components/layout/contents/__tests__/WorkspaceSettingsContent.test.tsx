@@ -211,6 +211,21 @@ describe("WorkspaceSettingsContent", () => {
     expect(mockPresign).not.toHaveBeenCalled();
   });
 
+  it("rejects svg uploads", async () => {
+    render(<WorkspaceSettingsContent />);
+
+    const svgFile = new File(["<svg></svg>"], "logo.svg", {
+      type: "image/svg+xml",
+    });
+
+    fireEvent.change(await screen.findByLabelText(/workspace logo/i), {
+      target: { files: [svgFile] },
+    });
+
+    expect(screen.getByText("logoInvalidType")).toBeInTheDocument();
+    expect(mockPresign).not.toHaveBeenCalled();
+  });
+
   it("shows error when logo upload fails", async () => {
     mockPresign.mockRejectedValue(new Error("Network error"));
 
@@ -259,5 +274,22 @@ describe("WorkspaceSettingsContent", () => {
     await waitFor(() =>
       expect(screen.getByText("slugAlreadyTaken")).toBeInTheDocument(),
     );
+  });
+
+  it("shows an error state when workspace details fail to load", async () => {
+    mockUseWorkspace.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new Error("Load failed"),
+      refetch: vi.fn(),
+    });
+
+    render(<WorkspaceSettingsContent />);
+
+    expect(await screen.findByText("Load failed")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /save changes/i }),
+    ).not.toBeInTheDocument();
   });
 });
