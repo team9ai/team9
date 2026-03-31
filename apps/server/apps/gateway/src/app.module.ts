@@ -42,6 +42,7 @@ import { SkillsModule } from './skills/skills.module.js';
 import { SentryUserInterceptor } from './common/interceptors/sentry-user.interceptor.js';
 import { ImSharedModule } from './im/shared/im-shared.module.js';
 import { PosthogModule } from '@team9/posthog';
+import { AccountModule } from './account/account.module.js';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { PosthogModule } from '@team9/posthog';
     FileKeeperModule,
     ApplicationsModule,
     AuthModule,
+    AccountModule,
     ClusterModule,
     ImModule,
     WorkspaceModule,
