@@ -15,6 +15,7 @@ import {
 } from "@/hooks/useWorkspace";
 import { fileApi } from "@/services/api/file";
 import { useWorkspaceStore } from "@/stores";
+import type { UpdateWorkspaceDto } from "@/types/workspace";
 
 const MAX_LOGO_SIZE = 5 * 1024 * 1024;
 const SLUG_PATTERN = /^[a-z0-9-]+$/;
@@ -25,14 +26,17 @@ const ALLOWED_LOGO_TYPES = new Set([
   "image/svg+xml",
 ]);
 
-function validateName(name: string): string | null {
+type NameValidationKey = "nameTooShort" | "nameTooLong";
+type SlugValidationKey = "slugTooShort" | "slugTooLong" | "slugInvalidFormat";
+
+function validateName(name: string): NameValidationKey | null {
   const trimmed = name.trim();
   if (trimmed.length < 2) return "nameTooShort";
   if (trimmed.length > 100) return "nameTooLong";
   return null;
 }
 
-function validateSlug(slug: string): string | null {
+function validateSlug(slug: string): SlugValidationKey | null {
   const trimmed = slug.trim();
   if (trimmed.length < 2) return "slugTooShort";
   if (trimmed.length > 50) return "slugTooLong";
@@ -137,7 +141,7 @@ export function WorkspaceSettingsContent() {
     setSubmitError(null);
     setSavedMessage(null);
 
-    const data: Record<string, unknown> = {};
+    const data: Partial<UpdateWorkspaceDto> = {};
     if (name.trim() !== workspace.name) data.name = name.trim();
     if (slug.trim() !== workspace.slug) data.slug = slug.trim();
     if ((logoUrl ?? null) !== (workspace.logoUrl ?? null))

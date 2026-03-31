@@ -21,6 +21,7 @@
   "logoUploadFailed": "Logo 上传失败",
   "settingsSaved": "工作空间设置已保存",
   "settingsSaveFailed": "保存工作空间设置失败",
+  "workspaceSettingsUnauthorized": "您没有编辑工作空间设置的权限",
   "membersDescription": "管理工作空间成员及其角色",
   "searchMembers": "搜索成员...",
   "noMembersFound": "未找到成员",

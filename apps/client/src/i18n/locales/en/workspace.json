@@ -21,6 +21,7 @@
   "logoUploadFailed": "Failed to upload logo",
   "settingsSaved": "Workspace settings saved",
   "settingsSaveFailed": "Failed to save workspace settings",
+  "workspaceSettingsUnauthorized": "You don't have permission to edit workspace settings",
   "membersDescription": "Manage members and their roles in this workspace",
   "searchMembers": "Search members...",
   "noMembersFound": "No members found",
