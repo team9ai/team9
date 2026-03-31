@@ -5,6 +5,12 @@ export interface CreateWorkspaceDto {
   domain?: string;
 }
 
+export interface UpdateWorkspaceDto {
+  name?: string;
+  slug?: string;
+  logoUrl?: string | null;
+}
+
 export interface WorkspaceResponse {
   id: string;
   name: string;

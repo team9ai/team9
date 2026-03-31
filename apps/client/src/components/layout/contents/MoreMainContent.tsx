@@ -12,6 +12,7 @@ import {
   Sun,
   Moon,
   Check,
+  Building2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -29,6 +30,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { InviteManagementDialog } from "@/components/workspace/InviteManagementDialog";
 import { useWorkspaceStore } from "@/stores";
 import { useThemeToggle } from "@/hooks/useTheme";
+import { useCurrentWorkspaceRole } from "@/hooks/useWorkspace";
 
 const settingsGroups = [
   {
@@ -58,26 +60,48 @@ const settingsGroups = [
 
 export function MoreMainContent() {
   const { t } = useTranslation("settings");
+  const { t: tWorkspace } = useTranslation("workspace");
   const navigate = useNavigate();
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [isAppearanceDialogOpen, setIsAppearanceDialogOpen] = useState(false);
   const { theme, setTheme } = useThemeToggle();
+  const { isOwnerOrAdmin } = useCurrentWorkspaceRole();
 
   // Get current selected workspace
   const { selectedWorkspaceId } = useWorkspaceStore();
+
+  const groups = settingsGroups.map((group) => {
+    if (group.title !== "Workspace" || !isOwnerOrAdmin) {
+      return group;
+    }
+
+    return {
+      ...group,
+      items: [
+        ...group.items,
+        {
+          id: "workspace-settings",
+          label: tWorkspace("workspaceSettings", "Workspace Settings"),
+          icon: Building2,
+        },
+      ],
+    };
+  });
 
   const handleSettingClick = (id: string) => {
     if (id === "invitations") {
       setIsInviteDialogOpen(true);
     } else if (id === "members") {
       navigate({ to: "/more/members" });
+    } else if (id === "workspace-settings") {
+      navigate({ to: "/more/workspace-settings" });
     } else if (id === "appearance") {
       setIsAppearanceDialogOpen(true);
     }
     // Handle other settings...
   };
   return (
-    <main className="flex-1 flex flex-col bg-background">
+    <main className="h-full flex flex-col overflow-hidden bg-background">
       {/* Content Header */}
       <header className="h-14 bg-background flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
@@ -91,10 +115,10 @@ export function MoreMainContent() {
       <Separator />
 
       {/* Settings Content */}
-      <ScrollArea className="flex-1 bg-secondary/50">
+      <ScrollArea className="flex-1 min-h-0 bg-secondary/50">
         <div className="p-4">
           <div className="space-y-6">
-            {settingsGroups.map((group) => (
+            {groups.map((group) => (
               <div key={group.title}>
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">
                   {group.title}
