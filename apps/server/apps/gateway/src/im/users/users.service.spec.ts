@@ -162,9 +162,9 @@ describe('UsersService', () => {
   });
 
   describe('UpdateUserDto validation', () => {
-    it('should accept usernames with lowercase letters, numbers, and hyphens', async () => {
+    it('should accept usernames with underscores as well as lowercase letters, numbers, and hyphens', async () => {
       const dto = Object.assign(new UpdateUserDto(), {
-        username: 'new-user-123',
+        username: 'new_user-123',
       });
 
       const errors = await validate(dto);

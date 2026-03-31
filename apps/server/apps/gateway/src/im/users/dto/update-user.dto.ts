@@ -21,9 +21,9 @@ export class UpdateUserDto {
   @IsString()
   @MinLength(3)
   @MaxLength(30)
-  @Matches(/^[a-z0-9-]+$/, {
+  @Matches(/^[a-z0-9_-]+$/, {
     message:
-      'Username can only contain lowercase letters, numbers, and hyphens',
+      'Username can only contain lowercase letters, numbers, underscores, and hyphens',
   })
   @IsOptional()
   username?: string;
