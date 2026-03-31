@@ -8,12 +8,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useUpdateWorkspace, useWorkspace } from "@/hooks/useWorkspace";
+import {
+  useCurrentWorkspaceRole,
+  useUpdateWorkspace,
+  useWorkspace,
+} from "@/hooks/useWorkspace";
 import { fileApi } from "@/services/api/file";
 import { useWorkspaceStore } from "@/stores";
 
 const MAX_LOGO_SIZE = 5 * 1024 * 1024;
 const SLUG_PATTERN = /^[a-z0-9-]+$/;
+const ALLOWED_LOGO_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/svg+xml",
+]);
 
 function validateName(name: string) {
   const trimmed = name.trim();
@@ -43,6 +53,7 @@ function validateSlug(slug: string) {
 export function WorkspaceSettingsContent() {
   const { t } = useTranslation("workspace");
   const { selectedWorkspaceId } = useWorkspaceStore();
+  const { isOwnerOrAdmin } = useCurrentWorkspaceRole();
   const { data: workspace, isLoading } = useWorkspace(
     selectedWorkspaceId || undefined,
   );
@@ -92,6 +103,11 @@ export function WorkspaceSettingsContent() {
 
     if (file.size > MAX_LOGO_SIZE) {
       setUploadError("Logo must be 5MB or smaller");
+      return;
+    }
+
+    if (!ALLOWED_LOGO_TYPES.has(file.type)) {
+      setUploadError("Logo must be a PNG, JPG, WEBP, or SVG file");
       return;
     }
 
@@ -153,6 +169,37 @@ export function WorkspaceSettingsContent() {
       <main className="h-full flex items-center justify-center bg-background">
         <div className="text-sm text-muted-foreground">
           {t("loading", "Loading...")}
+        </div>
+      </main>
+    );
+  }
+
+  if (!isOwnerOrAdmin) {
+    return (
+      <main className="h-full flex flex-col overflow-hidden bg-background">
+        <header className="h-14 bg-background flex items-center gap-3 px-4 border-b">
+          <Link to="/more">
+            <Button variant="ghost" size="icon">
+              <ArrowLeft size={20} />
+            </Button>
+          </Link>
+          <h1 className="text-lg font-semibold">
+            {t("workspaceSettings", "Workspace Settings")}
+          </h1>
+        </header>
+
+        <div className="flex-1 p-6 bg-secondary/30">
+          <Card className="max-w-3xl">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                <AlertCircle size={16} />
+                {t(
+                  "workspaceSettingsUnauthorized",
+                  "You don't have permission to edit workspace settings",
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </main>
     );

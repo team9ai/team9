@@ -15,6 +15,7 @@ const workspaceDetail: WorkspaceResponse = {
 };
 
 const mockUseWorkspace = vi.hoisted(() => vi.fn());
+const mockUseCurrentWorkspaceRole = vi.hoisted(() => vi.fn());
 const mockMutateAsync = vi.hoisted(() => vi.fn());
 const mockUseUpdateWorkspace = vi.hoisted(() => vi.fn());
 const mockWorkspaceStore = vi.hoisted(() => vi.fn());
@@ -36,6 +37,7 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("@/hooks/useWorkspace", () => ({
   useWorkspace: mockUseWorkspace,
+  useCurrentWorkspaceRole: mockUseCurrentWorkspaceRole,
   useUpdateWorkspace: mockUseUpdateWorkspace,
 }));
 
@@ -65,6 +67,12 @@ describe("WorkspaceSettingsContent", () => {
       data: workspaceDetail,
       isLoading: false,
       error: null,
+    });
+
+    mockUseCurrentWorkspaceRole.mockReturnValue({
+      isOwner: true,
+      isAdmin: false,
+      isOwnerOrAdmin: true,
     });
 
     mockUseUpdateWorkspace.mockReturnValue({
@@ -112,6 +120,26 @@ describe("WorkspaceSettingsContent", () => {
     expect(
       screen.getByRole("button", { name: /save changes/i }),
     ).toBeDisabled();
+  });
+
+  it("blocks direct access for non-admin users", async () => {
+    mockUseCurrentWorkspaceRole.mockReturnValue({
+      isOwner: false,
+      isAdmin: false,
+      isOwnerOrAdmin: false,
+    });
+
+    render(<WorkspaceSettingsContent />);
+
+    expect(
+      await screen.findByText(
+        /you don't have permission to edit workspace settings/i,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText(/workspace logo/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /save changes/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("uploads a logo and saves the edited workspace", async () => {
