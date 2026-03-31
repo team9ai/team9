@@ -68,6 +68,15 @@ const makeSender = () => ({
   username: 'alice',
   displayName: 'Alice',
   email: 'alice@test.com',
+  userType: 'human',
+});
+
+const makeBotSender = () => ({
+  id: SENDER_ID,
+  username: 'claude',
+  displayName: 'Claude',
+  email: 'claude@test.com',
+  userType: 'bot',
 });
 
 const makeChannel = (type: string = 'direct') => ({
@@ -159,6 +168,34 @@ describe('PostBroadcastService — pushToHiveBots', () => {
       db.where.mockReturnValueOnce(db); // parent message query
     }
     // Then set up .limit() return values for each query:
+    db.limit
+      .mockResolvedValueOnce([message]) // messages table
+      .mockResolvedValueOnce([sender]) // users table
+      .mockResolvedValueOnce([channel]) // channels table
+      .mockResolvedValueOnce(parentMessage ? [parentMessage] : []); // parent
+  }
+
+  function setupDbForNotificationTasks(opts: {
+    message?: ReturnType<typeof makeMessage>;
+    sender?: ReturnType<typeof makeSender>;
+    channel?: ReturnType<typeof makeChannel>;
+    parentMessage?: unknown;
+  }) {
+    const {
+      message = makeMessage(),
+      sender = makeSender(),
+      channel = makeChannel('public'),
+      parentMessage = null,
+    } = opts;
+
+    db.where
+      .mockReturnValueOnce(db) // message query
+      .mockReturnValueOnce(db) // sender query
+      .mockReturnValueOnce(db); // channel query
+    if (message.parentId) {
+      db.where.mockReturnValueOnce(db); // parent message query
+    }
+
     db.limit
       .mockResolvedValueOnce([message]) // messages table
       .mockResolvedValueOnce([sender]) // users table
@@ -388,6 +425,115 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     await expect(
       (service as any).pushToHiveBots(MSG_ID, SENDER_ID, ['some-member']),
     ).resolves.not.toThrow();
+  });
+
+  // ── Notification task suppression ─────────────────────────────────────────
+
+  it('does not publish notification tasks for tracking channels', async () => {
+    const bot = makeHiveBot('claude');
+    const msg = makeMessage({
+      content: `<mention data-user-id="${bot.userId}">@Claude</mention> hello`,
+    });
+    setupDbForNotificationTasks({
+      message: msg,
+      channel: makeChannel('tracking'),
+    });
+
+    await service.processNotificationTasks(MSG_ID, CHANNEL_ID, SENDER_ID);
+
+    expect(rabbitMQEventService.publishNotificationTask).not.toHaveBeenCalled();
+  });
+
+  it('does not publish DM notifications for bot-authored direct messages', async () => {
+    const msg = makeMessage({ content: 'bot direct message' });
+    setupDbForNotificationTasks({
+      message: msg,
+      sender: makeBotSender(),
+      channel: makeChannel('direct'),
+    });
+
+    await service.processNotificationTasks(MSG_ID, CHANNEL_ID, SENDER_ID);
+
+    expect(rabbitMQEventService.publishNotificationTask).not.toHaveBeenCalled();
+  });
+
+  it('does not publish notification tasks for bot-authored direct message replies', async () => {
+    const msg = makeMessage({
+      content: 'bot direct reply',
+      parentId: THREAD_PARENT_ID,
+    });
+    const parentMessage = {
+      id: THREAD_PARENT_ID,
+      senderId: 'recipient-user-uuid',
+    };
+    setupDbForNotificationTasks({
+      message: msg,
+      sender: makeBotSender(),
+      channel: makeChannel('direct'),
+      parentMessage,
+    });
+
+    await service.processNotificationTasks(MSG_ID, CHANNEL_ID, SENDER_ID);
+
+    expect(rabbitMQEventService.publishNotificationTask).not.toHaveBeenCalled();
+  });
+
+  it('publishes DM notifications for human-authored direct messages', async () => {
+    const msg = makeMessage({ content: 'human direct message' });
+    setupDbForNotificationTasks({
+      message: msg,
+      sender: makeSender(),
+      channel: makeChannel('direct'),
+    });
+    db.where.mockResolvedValueOnce([
+      { userId: 'recipient-user-uuid' },
+      { userId: SENDER_ID },
+    ]);
+
+    await service.processNotificationTasks(MSG_ID, CHANNEL_ID, SENDER_ID);
+
+    expect(rabbitMQEventService.publishNotificationTask).toHaveBeenCalledTimes(
+      1,
+    );
+    expect(rabbitMQEventService.publishNotificationTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'dm',
+        payload: expect.objectContaining({
+          messageId: MSG_ID,
+          channelId: CHANNEL_ID,
+          senderId: SENDER_ID,
+          recipientId: 'recipient-user-uuid',
+        }),
+      }),
+    );
+  });
+
+  it('still publishes mention notifications for bots in normal channels', async () => {
+    const bot = makeHiveBot('claude');
+    const msg = makeMessage({
+      content: `<mention data-user-id="${bot.userId}">@Claude</mention> hello`,
+    });
+    setupDbForNotificationTasks({
+      message: msg,
+      channel: makeChannel('public'),
+    });
+
+    await service.processNotificationTasks(MSG_ID, CHANNEL_ID, SENDER_ID);
+
+    expect(rabbitMQEventService.publishNotificationTask).toHaveBeenCalledTimes(
+      1,
+    );
+    expect(rabbitMQEventService.publishNotificationTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'mention',
+        payload: expect.objectContaining({
+          messageId: MSG_ID,
+          channelId: CHANNEL_ID,
+          senderId: SENDER_ID,
+          mentions: [{ userId: bot.userId, type: 'user' }],
+        }),
+      }),
+    );
   });
 
   // ── Tracking channel ─────────────────────────────────────────────

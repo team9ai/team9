@@ -96,6 +96,28 @@ export class NotificationService {
     private readonly db: PostgresJsDatabase<typeof schema>,
   ) {}
 
+  private buildUnreadConditions(
+    userId: string,
+    category?: string,
+    types?: NotificationType[],
+  ): ReturnType<typeof eq>[] {
+    const conditions: ReturnType<typeof eq>[] = [
+      eq(schema.notifications.userId, userId),
+      eq(schema.notifications.isRead, false),
+    ];
+
+    if (category) {
+      conditions.push(
+        eq(schema.notifications.category, category as NotificationCategory),
+      );
+    }
+    if (types?.length) {
+      conditions.push(inArray(schema.notifications.type, types));
+    }
+
+    return conditions;
+  }
+
   /**
    * Create a new notification
    */
@@ -351,17 +373,12 @@ export class NotificationService {
   /**
    * Mark all notifications as read (optionally by category)
    */
-  async markAllAsRead(userId: string, category?: string): Promise<void> {
-    const conditions: ReturnType<typeof eq>[] = [
-      eq(schema.notifications.userId, userId),
-      eq(schema.notifications.isRead, false),
-    ];
-
-    if (category) {
-      conditions.push(
-        eq(schema.notifications.category, category as NotificationCategory),
-      );
-    }
+  async markAllAsRead(
+    userId: string,
+    category?: string,
+    types?: NotificationType[],
+  ): Promise<void> {
+    const conditions = this.buildUnreadConditions(userId, category, types);
 
     await this.db
       .update(schema.notifications)
@@ -374,6 +391,20 @@ export class NotificationService {
     this.logger.debug(
       `Marked all ${category || 'all'} notifications as read for user ${userId}`,
     );
+  }
+
+  async getUnreadNotificationIds(
+    userId: string,
+    category?: string,
+    types?: NotificationType[],
+  ): Promise<string[]> {
+    const conditions = this.buildUnreadConditions(userId, category, types);
+    const rows = await this.db
+      .select({ id: schema.notifications.id })
+      .from(schema.notifications)
+      .where(and(...conditions));
+
+    return rows.map((row) => row.id);
   }
 
   /**

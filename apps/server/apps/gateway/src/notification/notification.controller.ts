@@ -7,6 +7,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   NotificationService,
@@ -15,7 +16,40 @@ import {
 } from './notification.service.js';
 import { NotificationDeliveryService } from './notification-delivery.service.js';
 import { AuthGuard, CurrentUser } from '@team9/auth';
+import {
+  notificationTypeEnum,
+  type NotificationType,
+} from '@team9/database/schemas';
 import { GetNotificationsQueryDto, MarkNotificationsDto } from './dto/index.js';
+
+const VALID_NOTIFICATION_TYPES = new Set(notificationTypeEnum.enumValues);
+
+function parseNotificationTypes(
+  types: string | string[] | undefined,
+): NotificationType[] | undefined {
+  if (types === undefined) return undefined;
+  if (Array.isArray(types)) {
+    throw new BadRequestException('Invalid notification types');
+  }
+  if (typeof types !== 'string') {
+    throw new BadRequestException('Invalid notification types');
+  }
+
+  const trimmed = types.trim();
+  if (!trimmed) {
+    throw new BadRequestException('Invalid notification types');
+  }
+
+  const parsed = trimmed.split(',').map((type) => type.trim());
+
+  for (const type of parsed) {
+    if (!type || !VALID_NOTIFICATION_TYPES.has(type as NotificationType)) {
+      throw new BadRequestException('Invalid notification types');
+    }
+  }
+
+  return parsed as NotificationType[];
+}
 
 @Controller({
   path: 'notifications',
@@ -94,8 +128,24 @@ export class NotificationController {
   async markAllAsRead(
     @CurrentUser('sub') userId: string,
     @Query('category') category?: string,
+    @Query('types') types?: string | string[],
   ): Promise<{ success: boolean }> {
-    await this.notificationService.markAllAsRead(userId, category);
+    const parsedTypes = parseNotificationTypes(types);
+    const unreadNotificationIds =
+      await this.notificationService.getUnreadNotificationIds(
+        userId,
+        category,
+        parsedTypes,
+      );
+
+    await this.notificationService.markAllAsRead(userId, category, parsedTypes);
+
+    if (unreadNotificationIds.length > 0) {
+      await this.deliveryService.broadcastNotificationRead(
+        userId,
+        unreadNotificationIds,
+      );
+    }
 
     // Send updated counts
     const counts = await this.notificationService.getUnreadCounts(userId);

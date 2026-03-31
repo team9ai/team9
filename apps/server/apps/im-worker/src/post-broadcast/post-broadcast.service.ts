@@ -171,6 +171,21 @@ export class PostBroadcastService {
 
       const { message, sender, channel, mentions, parentMessage } = messageData;
 
+      // Suppress noisy activity notifications for tracking channels and bot-authored DMs.
+      if (channel.type === 'tracking') {
+        this.logger.debug(
+          `Skipping notification tasks for tracking channel message ${msgId}`,
+        );
+        return;
+      }
+
+      if (channel.type === 'direct' && sender.userType === 'bot') {
+        this.logger.debug(
+          `Skipping notification tasks for bot-authored DM message ${msgId}`,
+        );
+        return;
+      }
+
       // Skip if channel has no tenant (DM channels handled separately)
       const tenantId = channel.tenantId;
 
