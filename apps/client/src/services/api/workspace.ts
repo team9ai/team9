@@ -4,6 +4,7 @@ import type {
   WorkspaceInvitation,
   CreateInvitationDto,
   CreateWorkspaceDto,
+  UpdateWorkspaceDto,
   WorkspaceResponse,
   InvitationInfo,
   AcceptInvitationResponse,
@@ -23,6 +24,26 @@ export const workspaceApi = {
   // Get user's workspaces
   getUserWorkspaces: async (): Promise<UserWorkspace[]> => {
     const response = await http.get<UserWorkspace[]>("/v1/workspaces");
+    return response.data;
+  },
+
+  // Get a workspace by id
+  getWorkspace: async (workspaceId: string): Promise<WorkspaceResponse> => {
+    const response = await http.get<WorkspaceResponse>(
+      `/v1/workspaces/${workspaceId}`,
+    );
+    return response.data;
+  },
+
+  // Update workspace settings
+  updateWorkspace: async (
+    workspaceId: string,
+    data: UpdateWorkspaceDto,
+  ): Promise<WorkspaceResponse> => {
+    const response = await http.patch<WorkspaceResponse>(
+      `/v1/workspaces/${workspaceId}`,
+      data,
+    );
     return response.data;
   },
 
