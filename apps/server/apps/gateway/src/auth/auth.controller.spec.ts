@@ -265,4 +265,29 @@ describe('AuthController (integration)', () => {
       expect(authService.completeDesktopSession).not.toHaveBeenCalled();
     });
   });
+
+  describe('POST /api/v1/auth/logout', () => {
+    it('should pass optional refreshToken to service', async () => {
+      authService.logout.mockResolvedValue(undefined);
+
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/auth/logout')
+        .send({ refreshToken: 'rt-1' })
+        .expect(200);
+
+      expect(res.body).toEqual({ success: true });
+      expect(authService.logout).toHaveBeenCalledWith('user-uuid', 'rt-1');
+    });
+
+    it('should allow empty body', async () => {
+      authService.logout.mockResolvedValue(undefined);
+
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/logout')
+        .send({})
+        .expect(200);
+
+      expect(authService.logout).toHaveBeenCalledWith('user-uuid', undefined);
+    });
+  });
 });
