@@ -10,6 +10,13 @@ import { ChannelsService } from '../im/channels/channels.service.js';
 
 type MockFn = jest.Mock<(...args: any[]) => any>;
 
+function createRawHex(fingerprint: string, fillChar = 'a'): string {
+  if (fingerprint.length !== 8) {
+    throw new Error('fingerprint must be 8 characters');
+  }
+  return `${fingerprint}${fillChar.repeat(88)}`;
+}
+
 function createSelectWhereChain(rows: unknown[]) {
   const chain: Record<string, MockFn> = {
     from: jest.fn<any>(),
@@ -160,8 +167,7 @@ describe('BotService auth validation', () => {
   });
 
   it('returns botId, userId, and tenantId for a valid active token and preserves legacy validation output', async () => {
-    const rawHex =
-      '12345678abcdef00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff0011223344556677';
+    const rawHex = createRawHex('12345678', 'a');
     const rawToken = `t9bot_${rawHex}`;
     const hash = await bcrypt.hash(rawHex, 4);
 
@@ -240,8 +246,7 @@ describe('BotService auth validation', () => {
   });
 
   it('preserves legacy validation for a valid bot token without an installed-application link', async () => {
-    const rawHex =
-      'feedfaceabcdef00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff0011223344556677';
+    const rawHex = createRawHex('feedface', 'b');
     const rawToken = `t9bot_${rawHex}`;
     const hash = await bcrypt.hash(rawHex, 4);
 
@@ -308,8 +313,7 @@ describe('BotService auth validation', () => {
   });
 
   it('uses the cache-backed validation path for repeated token checks', async () => {
-    const rawHex =
-      '87654321abcdef00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff0011223344556677';
+    const rawHex = createRawHex('87654321', 'c');
     const rawToken = `t9bot_${rawHex}`;
     const hash = await bcrypt.hash(rawHex, 4);
 
@@ -349,8 +353,7 @@ describe('BotService auth validation', () => {
   });
 
   it('does not return or cache a positive strict context when the bot token changes before final confirmation', async () => {
-    const rawHex =
-      'deadbeefabcdef00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff0011223344556677';
+    const rawHex = createRawHex('deadbeef', 'd');
     const rawToken = `t9bot_${rawHex}`;
     const initialHash = await bcrypt.hash(rawHex, 4);
     const rotatedHex = `beadbeef${rawHex.slice(8)}`;
@@ -396,8 +399,7 @@ describe('BotService auth validation', () => {
   });
 
   it('invalidates cached validation results on revocation', async () => {
-    const rawHex =
-      'aaaaaaaaabcdef00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff0011223344556677';
+    const rawHex = createRawHex('aaaaaaaa', 'e');
     const rawToken = `t9bot_${rawHex}`;
     const hash = await bcrypt.hash(rawHex, 4);
 
@@ -448,8 +450,7 @@ describe('BotService auth validation', () => {
   });
 
   it('invalidates cached validation results when generating a new token', async () => {
-    const rawHex =
-      'bbbbbbbbabcdef00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff0011223344556677';
+    const rawHex = createRawHex('bbbbbbbb', 'f');
     const rawToken = `t9bot_${rawHex}`;
     const hash = await bcrypt.hash(rawHex, 4);
 
@@ -501,8 +502,7 @@ describe('BotService auth validation', () => {
   });
 
   it('invalidates auth cache before deleting the shadow user during cleanup', async () => {
-    const rawHex =
-      'ccccccccabcdef00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff0011223344556677';
+    const rawHex = createRawHex('cccccccc', '0');
     const rawToken = `t9bot_${rawHex}`;
     const hash = await bcrypt.hash(rawHex, 4);
 

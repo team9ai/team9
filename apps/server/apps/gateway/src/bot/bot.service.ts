@@ -20,6 +20,7 @@ import type {
 import { env } from '@team9/shared';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { BotAuthCacheService } from './bot-auth-cache.service.js';
+import { BOT_TOKEN_PREFIX, extractBotTokenHex } from './bot-token.util.js';
 
 export interface CreateBotOptions {
   username: string;
@@ -542,7 +543,7 @@ export class BotService implements OnModuleInit {
     }
 
     const rawHex = crypto.randomBytes(48).toString('hex');
-    const rawToken = `t9bot_${rawHex}`;
+    const rawToken = `${BOT_TOKEN_PREFIX}${rawHex}`;
     const fingerprint = rawHex.slice(0, 8);
     const hash = await bcrypt.hash(rawHex, 10);
 
@@ -562,7 +563,7 @@ export class BotService implements OnModuleInit {
   async validateAccessTokenWithContext(
     rawToken: string,
   ): Promise<BotAuthValidationContext | null> {
-    if (!this.extractBotTokenHex(rawToken)) {
+    if (!extractBotTokenHex(rawToken)) {
       return null;
     }
 
@@ -825,19 +826,10 @@ export class BotService implements OnModuleInit {
     return row || null;
   }
 
-  private extractBotTokenHex(rawToken: string): string | null {
-    if (!rawToken || !rawToken.startsWith('t9bot_')) {
-      return null;
-    }
-
-    const rawHex = rawToken.slice(6);
-    return rawHex.length > 0 ? rawHex : null;
-  }
-
   private async findValidatedAccessTokenMatch(
     rawToken: string,
   ): Promise<ValidatedBotTokenMatch | null> {
-    const rawHex = this.extractBotTokenHex(rawToken);
+    const rawHex = extractBotTokenHex(rawToken);
     if (!rawHex) {
       return null;
     }
