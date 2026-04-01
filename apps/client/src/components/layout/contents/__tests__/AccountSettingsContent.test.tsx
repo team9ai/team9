@@ -10,6 +10,7 @@ const mockCreatePresignedUpload = vi.hoisted(() => vi.fn());
 const mockUploadToS3 = vi.hoisted(() => vi.fn());
 const mockConfirmUpload = vi.hoisted(() => vi.fn());
 const mockGetPublicDownloadUrl = vi.hoisted(() => vi.fn());
+const mockGetStablePublicFileUrl = vi.hoisted(() => vi.fn());
 
 const currentUserState = vi.hoisted(() => ({
   current: {
@@ -95,6 +96,7 @@ vi.mock("@/services/api/file", () => ({
     uploadToS3: mockUploadToS3,
     confirmUpload: mockConfirmUpload,
     getPublicDownloadUrl: mockGetPublicDownloadUrl,
+    getStablePublicFileUrl: mockGetStablePublicFileUrl,
   },
 }));
 
@@ -131,6 +133,9 @@ describe("AccountSettingsContent", () => {
       url: "https://cdn.example.com/avatars/user-1.png",
       expiresAt: "2026-04-02T00:00:00.000Z",
     });
+    mockGetStablePublicFileUrl.mockReturnValue(
+      "http://localhost:3000/api/v1/files/public/file/file-1",
+    );
     mockUpdateCurrentUser.mockResolvedValue(currentUserState.current);
     mockStartEmailChange.mockResolvedValue({
       message: "Confirmation email sent.",
@@ -235,9 +240,10 @@ describe("AccountSettingsContent", () => {
 
     await waitFor(() => {
       expect(mockUpdateCurrentUser).toHaveBeenCalledWith({
-        avatarUrl: "https://cdn.example.com/avatars/user-1.png",
+        avatarUrl: "http://localhost:3000/api/v1/files/public/file/file-1",
       });
     });
+    expect(mockGetStablePublicFileUrl).toHaveBeenCalledWith("file-1");
     expect(mockGetPublicDownloadUrl).not.toHaveBeenCalled();
   });
 });

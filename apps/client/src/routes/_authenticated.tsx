@@ -18,6 +18,9 @@ import {
   appActions,
   DEFAULT_SECTION_PATHS,
   getSectionFromPath,
+  isRestorableSectionPath,
+  isSidebarSection,
+  sanitizeLastVisitedPaths,
 } from "@/stores";
 
 export const Route = createFileRoute("/_authenticated")({
@@ -41,21 +44,37 @@ export const Route = createFileRoute("/_authenticated")({
         if (appStorage) {
           try {
             const parsed = JSON.parse(appStorage);
-            const activeSidebar = parsed?.state?.activeSidebar || "home";
-            const lastVisitedPaths = parsed?.state?.lastVisitedPaths;
+            const activeSidebar = isSidebarSection(parsed?.state?.activeSidebar)
+              ? parsed.state.activeSidebar
+              : "home";
+            const lastVisitedPaths = sanitizeLastVisitedPaths(
+              parsed?.state?.lastVisitedPaths,
+            );
+
+            if (
+              parsed?.state?.lastVisitedPaths &&
+              JSON.stringify(parsed.state.lastVisitedPaths) !==
+                JSON.stringify(lastVisitedPaths)
+            ) {
+              localStorage.setItem(
+                "app-storage",
+                JSON.stringify({
+                  ...parsed,
+                  state: {
+                    ...parsed.state,
+                    lastVisitedPaths,
+                  },
+                }),
+              );
+            }
+
             const lastVisitedPath =
               lastVisitedPaths?.[activeSidebar] ??
               DEFAULT_SECTION_PATHS[
                 activeSidebar as keyof typeof DEFAULT_SECTION_PATHS
               ];
 
-            // Only redirect if the path is valid and not a search page
-            // (search is a global feature, not a section-specific page)
-            if (
-              lastVisitedPath &&
-              lastVisitedPath !== "/" &&
-              !lastVisitedPath.startsWith("/search")
-            ) {
+            if (isRestorableSectionPath(lastVisitedPath)) {
               throw redirect({
                 to: lastVisitedPath,
               });
@@ -122,7 +141,7 @@ function AuthenticatedLayout() {
 
     // Don't save global or utility pages as a last visited path for any section
     // Search and profile are not part of the main sidebar navigation model.
-    if (pathname.startsWith("/search") || pathname.startsWith("/profile")) {
+    if (!isRestorableSectionPath(pathname)) {
       return;
     }
 

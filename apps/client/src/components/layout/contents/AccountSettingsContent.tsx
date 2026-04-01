@@ -210,13 +210,13 @@ export function AccountSettingsContent() {
           presigned.fields,
         );
 
-        await fileApi.confirmUpload({
+        const confirmedUpload = await fileApi.confirmUpload({
           key: presigned.key,
           fileName: selectedAvatar.name,
           visibility: "public",
         });
 
-        avatarUrl = presigned.publicUrl;
+        avatarUrl = fileApi.getStablePublicFileUrl(confirmedUpload.id);
       }
 
       const payload: {

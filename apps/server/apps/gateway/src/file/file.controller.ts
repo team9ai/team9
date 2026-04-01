@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
   BadRequestException,
+  Redirect,
 } from '@nestjs/common';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import { PresignedUploadCredentials } from '@team9/storage';
@@ -106,6 +107,24 @@ export class FileController {
       key,
       query.expiresIn,
     );
+  }
+
+  /**
+   * Stable public file URL that redirects to a fresh signed download.
+   * This avoids storing expiring presigned URLs in user-facing models.
+   */
+  @Get('public/file/:fileId')
+  @Redirect()
+  async redirectToPublicFile(
+    @Param('fileId') fileId: string,
+    @Query() query: GetDownloadUrlDto,
+  ): Promise<{ url: string }> {
+    const result = await this.fileService.getPublicDownloadUrlById(
+      fileId,
+      query.expiresIn,
+    );
+
+    return { url: result.url };
   }
 
   /**
