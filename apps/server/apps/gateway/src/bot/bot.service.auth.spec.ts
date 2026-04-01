@@ -104,6 +104,12 @@ function createRedisMock() {
       values.set(key, value);
       return 'OK';
     }),
+    incr: jest.fn(async (key: string) => {
+      const current = Number.parseInt(values.get(key) ?? '0', 10);
+      const next = current + 1;
+      values.set(key, String(next));
+      return next;
+    }),
     sadd: jest.fn(async (key: string, member: string) => {
       const set = sets.get(key) ?? new Set<string>();
       set.add(member);
@@ -431,6 +437,11 @@ describe('BotService auth validation', () => {
       service.validateAccessTokenWithContext(rawToken),
     ).resolves.toBeNull();
     expect(db.select).toHaveBeenCalledTimes(3);
+    const invalidationOrder = redis.incr.mock.invocationCallOrder[1] ?? 0;
+    const revokeMutationOrder =
+      db.__updateChain.where.mock.invocationCallOrder[0] ??
+      Number.MAX_SAFE_INTEGER;
+    expect(invalidationOrder).toBeLessThan(revokeMutationOrder);
     expect(redis.smembers).toHaveBeenCalledWith(
       'auth:bot-token-keys:bot-revoke',
     );
@@ -472,6 +483,11 @@ describe('BotService auth validation', () => {
     expect(tokenResult.botId).toBe('bot-generate');
     expect(tokenResult.userId).toBe('user-generate');
     expect(tokenResult.accessToken).toMatch(/^t9bot_[a-f0-9]{96}$/);
+    const invalidationOrder = redis.incr.mock.invocationCallOrder[1] ?? 0;
+    const generateMutationOrder =
+      db.__updateChain.where.mock.invocationCallOrder[0] ??
+      Number.MAX_SAFE_INTEGER;
+    expect(invalidationOrder).toBeLessThan(generateMutationOrder);
 
     db.__queueSelect(createSelectWhereChain([]));
 
@@ -536,6 +552,7 @@ describe('BotService auth validation', () => {
     await service.deleteBotAndCleanup('bot-delete');
 
     const cacheInvalidationOrder = Math.max(
+      redis.incr.mock.invocationCallOrder[1] ?? 0,
       redis.smembers.mock.invocationCallOrder[0] ?? 0,
       ...redis.del.mock.invocationCallOrder,
     );
@@ -547,5 +564,84 @@ describe('BotService auth validation', () => {
     expect(channelsService.deleteDirectChannelsForUser).toHaveBeenCalledWith(
       'user-delete',
     );
+  });
+
+  it('aborts token generation before the token update when the auth version bump fails', async () => {
+    db.__queueSelect(
+      createSelectLimitChain([
+        { id: 'bot-fail-generate', userId: 'user-fail' },
+      ]),
+    );
+    redis.incr.mockRejectedValueOnce(new Error('redis down'));
+
+    await expect(
+      service.generateAccessToken('bot-fail-generate'),
+    ).rejects.toThrow('redis down');
+
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it('aborts token revocation before the token update when the auth version bump fails', async () => {
+    redis.incr.mockRejectedValueOnce(new Error('redis down'));
+
+    await expect(service.revokeAccessToken('bot-fail-revoke')).rejects.toThrow(
+      'redis down',
+    );
+
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it('aborts bot deletion before shadow-user deletion when the auth version bump fails', async () => {
+    db.__queueSelect(
+      createSelectLimitChain([
+        {
+          botId: 'bot-fail-delete',
+          userId: 'user-fail-delete',
+          username: 'bot-fail-delete',
+          displayName: 'Bot Fail Delete',
+          email: 'bot-fail-delete@example.com',
+          type: 'custom',
+          ownerId: null,
+          mentorId: null,
+          description: null,
+          capabilities: null,
+          extra: null,
+          managedProvider: null,
+          managedMeta: null,
+          isActive: true,
+        },
+      ]),
+    );
+    redis.incr.mockRejectedValueOnce(new Error('redis down'));
+
+    await expect(
+      service.deleteBotAndCleanup('bot-fail-delete'),
+    ).rejects.toThrow('redis down');
+
+    expect(db.delete).not.toHaveBeenCalled();
+  });
+
+  it('allows lifecycle methods to continue when cache-key deletion fails after a successful version bump', async () => {
+    db.__queueSelect(
+      createSelectLimitChain([
+        { id: 'bot-best-effort', userId: 'user-best-effort' },
+      ]),
+    );
+    redis.smembers.mockRejectedValueOnce(new Error('smembers failed'));
+    redis.del.mockRejectedValue(new Error('del failed'));
+
+    await expect(
+      service.generateAccessToken('bot-best-effort'),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        botId: 'bot-best-effort',
+        userId: 'user-best-effort',
+      }),
+    );
+
+    expect(redis.incr).toHaveBeenCalledWith(
+      'auth:bot-token-version:bot-best-effort',
+    );
+    expect(db.update).toHaveBeenCalled();
   });
 });
