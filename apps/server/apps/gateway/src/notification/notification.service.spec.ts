@@ -50,7 +50,8 @@ const schema = await import('@team9/database/schemas');
 function createDbMock() {
   const selectChain = {
     from: jest.fn<any>().mockReturnThis(),
-    where: jest.fn<any>().mockResolvedValue([{ id: 'notif-1' }]),
+    where: jest.fn<any>().mockReturnThis(),
+    limit: jest.fn<any>().mockResolvedValue([{ id: 'notif-1' }]),
   };
   const chain = {
     select: jest.fn<any>().mockReturnValue(selectChain),

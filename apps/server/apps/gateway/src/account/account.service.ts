@@ -258,11 +258,15 @@ export class AccountService {
           throw new BadRequestException('Email change token has expired');
         }
 
-        const user = await this.getUserOrThrow(request.userId);
-        await this.assertEmailAvailable(request.newEmail, {
-          excludeUserId: request.userId,
-          excludeRequestId: request.id,
-        });
+        const user = await this.getUserOrThrow(request.userId, tx);
+        await this.assertEmailAvailable(
+          request.newEmail,
+          {
+            excludeUserId: request.userId,
+            excludeRequestId: request.id,
+          },
+          tx,
+        );
 
         const [confirmedRequest] = await tx
           .update(schema.userEmailChangeRequests)
@@ -304,8 +308,12 @@ export class AccountService {
     return { message: 'Email address updated successfully.' };
   }
 
-  private async getUserOrThrow(userId: string) {
-    const [user] = await this.db
+  private async getUserOrThrow(
+    userId: string,
+    executor?: Pick<PostgresJsDatabase<typeof schema>, 'select'>,
+  ) {
+    const db = executor ?? this.db;
+    const [user] = await db
       .select()
       .from(schema.users)
       .where(eq(schema.users.id, userId))
@@ -328,8 +336,10 @@ export class AccountService {
       excludeUserId?: string;
       excludeRequestId?: string;
     } = {},
+    executor?: Pick<PostgresJsDatabase<typeof schema>, 'select' | 'update'>,
   ) {
-    const [existingUser] = await this.db
+    const db = executor ?? this.db;
+    const [existingUser] = await db
       .select()
       .from(schema.users)
       .where(eq(schema.users.email, newEmail))
@@ -342,6 +352,7 @@ export class AccountService {
     const pendingReservation = await this.findPendingReservationByEmail(
       newEmail,
       options,
+      executor,
     );
 
     if (pendingReservation) {
@@ -390,13 +401,15 @@ export class AccountService {
       excludeUserId?: string;
       excludeRequestId?: string;
     },
+    executor?: Pick<PostgresJsDatabase<typeof schema>, 'select' | 'update'>,
   ) {
-    await this.expireExpiredPendingRequests(this.db, {
+    const db = executor ?? this.db;
+    await this.expireExpiredPendingRequests(db, {
       newEmail,
       now: new Date(),
     });
 
-    const pendingRequests = await this.db
+    const pendingRequests = await db
       .select()
       .from(schema.userEmailChangeRequests)
       .where(
@@ -531,7 +544,7 @@ export class AccountService {
     }
 
     if ((error as { code?: string })?.code === '23505') {
-      throw new ConflictException('Email already in use');
+      return new ConflictException('Email already in use');
     }
 
     return error as Error;

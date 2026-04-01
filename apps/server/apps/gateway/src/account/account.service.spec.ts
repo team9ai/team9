@@ -71,7 +71,7 @@ const PENDING_REQUEST = {
   newEmail: 'new@test.com',
   tokenHash: 'stored-hash',
   status: 'pending',
-  expiresAt: new Date('2026-04-01T10:00:00.000Z'),
+  expiresAt: new Date('2099-01-01T00:00:00.000Z'),
   confirmedAt: null,
   createdAt: new Date('2026-03-31T10:00:00.000Z'),
   updatedAt: new Date('2026-03-31T10:00:00.000Z'),

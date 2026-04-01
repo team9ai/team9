@@ -10,6 +10,7 @@ import {
   UseGuards,
   BadRequestException,
   Redirect,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import { PresignedUploadCredentials } from '@team9/storage';
@@ -116,7 +117,7 @@ export class FileController {
   @Get('public/file/:fileId')
   @Redirect()
   async redirectToPublicFile(
-    @Param('fileId') fileId: string,
+    @Param('fileId', ParseUUIDPipe) fileId: string,
     @Query() query: GetDownloadUrlDto,
   ): Promise<{ url: string }> {
     const result = await this.fileService.getPublicDownloadUrlById(

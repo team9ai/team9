@@ -4,10 +4,24 @@ export interface EmailChangeConfirmationData {
   confirmationLink: string;
 }
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export const emailChangeConfirmationTemplate = (
   data: EmailChangeConfirmationData,
-) => ({
-  html: `
+) => {
+  const username = escapeHtml(data.username);
+  const currentEmail = escapeHtml(data.currentEmail);
+  const confirmationLink = data.confirmationLink;
+
+  return {
+    html: `
 <!DOCTYPE html>
 <html>
 <head>
@@ -21,12 +35,12 @@ export const emailChangeConfirmationTemplate = (
 
   <h2 style="color: #1f2937;">Confirm your new email address</h2>
 
-  <p>Hi ${data.username},</p>
+  <p>Hi ${username},</p>
 
-  <p>We received a request to change the Team9 account email for ${data.currentEmail} to this address.</p>
+  <p>We received a request to change the Team9 account email for ${currentEmail} to this address.</p>
 
   <div style="text-align: center; margin: 30px 0;">
-    <a href="${data.confirmationLink}"
+    <a href="${confirmationLink}"
        style="display: inline-block; background-color: #7c3aed; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600;">
       Confirm Email Change
     </a>
@@ -38,7 +52,7 @@ export const emailChangeConfirmationTemplate = (
 
   <p style="color: #6b7280; font-size: 14px;">
     If the button doesn't work, copy and paste this link into your browser:<br>
-    <a href="${data.confirmationLink}" style="color: #7c3aed; word-break: break-all;">${data.confirmationLink}</a>
+    <a href="${confirmationLink}" style="color: #7c3aed; word-break: break-all;">${confirmationLink}</a>
   </p>
 
   <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
@@ -49,7 +63,7 @@ export const emailChangeConfirmationTemplate = (
 </body>
 </html>
   `.trim(),
-  text: `
+    text: `
 Hi ${data.username},
 
 We received a request to change the Team9 account email for ${data.currentEmail} to this address.
@@ -61,4 +75,5 @@ This link will expire in 24 hours. If you didn't request this email change, you 
 
 Team9 - Team Collaboration Platform
   `.trim(),
-});
+  };
+};
