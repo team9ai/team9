@@ -42,6 +42,7 @@ import { SkillsModule } from './skills/skills.module.js';
 import { SentryUserInterceptor } from './common/interceptors/sentry-user.interceptor.js';
 import { ImSharedModule } from './im/shared/im-shared.module.js';
 import { PosthogModule } from '@team9/posthog';
+import { BillingHubModule } from './billing-hub/billing-hub.module.js';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { PosthogModule } from '@team9/posthog';
     RabbitmqModule,
     StorageModule,
     PosthogModule,
+    BillingHubModule,
     ImSharedModule,
     BotModule,
     OpenclawModule,

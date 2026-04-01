@@ -134,6 +134,14 @@ export const env = {
     return getRequiredEnv('API_URL');
   },
 
+  // Billing Hub (required for subscription management)
+  get BILLING_HUB_BASE_URL() {
+    return getRequiredEnv('BILLING_HUB_BASE_URL');
+  },
+  get BILLING_HUB_SERVICE_KEY() {
+    return getRequiredEnv('BILLING_HUB_SERVICE_KEY');
+  },
+
   // Application Environment
   get APP_ENV() {
     return process.env.APP_ENV || process.env.NODE_ENV || 'development';

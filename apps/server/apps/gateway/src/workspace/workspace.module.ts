@@ -3,6 +3,7 @@ import {
   WorkspaceController,
   InvitationsController,
 } from './workspace.controller.js';
+import { WorkspaceBillingController } from './workspace-billing.controller.js';
 import { WorkspaceService } from './workspace.service.js';
 import { WorkspaceGuard } from './guards/workspace.guard.js';
 import { WorkspaceRoleGuard } from './guards/workspace-role.guard.js';
@@ -11,6 +12,7 @@ import { RedisModule } from '@team9/redis';
 import { WebsocketModule } from '../im/websocket/websocket.module.js';
 import { ChannelsModule } from '../im/channels/channels.module.js';
 import { ApplicationsModule } from '../applications/applications.module.js';
+import { BillingHubModule } from '../billing-hub/billing-hub.module.js';
 
 @Module({
   imports: [
@@ -19,8 +21,13 @@ import { ApplicationsModule } from '../applications/applications.module.js';
     forwardRef(() => WebsocketModule),
     forwardRef(() => ChannelsModule),
     forwardRef(() => ApplicationsModule),
+    BillingHubModule,
   ],
-  controllers: [WorkspaceController, InvitationsController],
+  controllers: [
+    WorkspaceController,
+    InvitationsController,
+    WorkspaceBillingController,
+  ],
   providers: [WorkspaceService, WorkspaceGuard, WorkspaceRoleGuard],
   exports: [WorkspaceService, WorkspaceGuard, WorkspaceRoleGuard],
 })

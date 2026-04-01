@@ -105,3 +105,33 @@ export interface PaginatedMembersResponse {
     totalPages: number;
   };
 }
+
+export interface BillingProductDisplay {
+  badge?: string;
+  description?: string;
+  features: string[];
+  sortOrder: number;
+}
+
+export interface BillingProduct {
+  stripePriceId: string;
+  name: string;
+  amountCents: number;
+  interval: string | null;
+  active: boolean;
+  display: BillingProductDisplay;
+}
+
+export interface WorkspaceSubscription {
+  stripeSubscriptionId: string;
+  status: string;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  cancelAtPeriodEnd: boolean;
+  product: BillingProduct;
+}
+
+export interface WorkspaceBillingSummary {
+  subscription: WorkspaceSubscription | null;
+  managementAllowed: boolean;
+}
