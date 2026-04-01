@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { Link } from "@tanstack/react-router";
 import { useIsUserOnline } from "@/hooks/useIMUsers";
 
@@ -57,6 +57,7 @@ export function UserListItem({
   const avatarSizeClass = avatarSize === "sm" ? "w-6 h-6" : "w-8 h-8";
   const avatarTextClass = avatarSize === "sm" ? "text-xs" : "text-sm";
   const onlineIndicatorSize = avatarSize === "sm" ? "w-2.5 h-2.5" : "w-3 h-3";
+  const username = subtitle?.startsWith("@") ? subtitle.slice(1) : undefined;
 
   const content = (
     <Button
@@ -70,15 +71,15 @@ export function UserListItem({
       )}
     >
       <div className="relative">
-        <Avatar className={avatarSizeClass}>
-          {avatarUrl && <AvatarImage src={avatarUrl} alt={name} />}
-          {isBot && !avatarUrl && <AvatarImage src="/bot.webp" alt={name} />}
-          <AvatarFallback
-            className={cn("bg-accent text-accent-foreground", avatarTextClass)}
-          >
-            {avatar}
-          </AvatarFallback>
-        </Avatar>
+        <UserAvatar
+          userId={userId}
+          name={name || avatar}
+          username={username}
+          avatarUrl={avatarUrl}
+          isBot={isBot}
+          className={avatarSizeClass}
+          fallbackClassName={avatarTextClass}
+        />
         {isOnline && (
           <div
             className={cn(

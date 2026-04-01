@@ -17,6 +17,7 @@ import { mergeRegister } from "@lexical/utils";
 import { useTranslation } from "react-i18next";
 import { useSearchUsers } from "@/hooks/useIMUsers";
 import { OnlineStatusDot } from "@/components/ui/online-status-dot";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import {
   useChannel,
   useChannelMembers,
@@ -116,12 +117,15 @@ function MentionSuggestions({
               onClick={() => onSelect(user)}
               onMouseEnter={() => onHover(index)}
             >
-              <Avatar className="w-6 h-6">
-                {user.avatarUrl && <AvatarImage src={user.avatarUrl} />}
-                <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                  {(user.displayName || user.username)[0].toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
+              <UserAvatar
+                userId={user.id}
+                name={user.displayName || user.username}
+                username={user.username}
+                avatarUrl={user.avatarUrl}
+                isBot={user.userType === "bot"}
+                className="w-6 h-6"
+                fallbackClassName="text-xs"
+              />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">
                   {user.displayName || user.username}
