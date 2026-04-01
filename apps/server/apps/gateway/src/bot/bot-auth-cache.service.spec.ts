@@ -8,6 +8,7 @@ describe('BotAuthCacheService', () => {
   let redis: {
     get: jest.Mock<any>;
     set: jest.Mock<any>;
+    incr: jest.Mock<any>;
     sadd: jest.Mock<any>;
     smembers: jest.Mock<any>;
     expire: jest.Mock<any>;
@@ -18,6 +19,7 @@ describe('BotAuthCacheService', () => {
     redis = {
       get: jest.fn<any>().mockResolvedValue(null),
       set: jest.fn<any>().mockResolvedValue('OK'),
+      incr: jest.fn<any>().mockResolvedValue(1),
       sadd: jest.fn<any>().mockResolvedValue(1),
       smembers: jest.fn<any>().mockResolvedValue([]),
       expire: jest.fn<any>().mockResolvedValue(1),
@@ -44,9 +46,10 @@ describe('BotAuthCacheService', () => {
     expect(result).toEqual(value);
     expect(redis.set).toHaveBeenCalledWith(
       expect.stringMatching(/^auth:bot-token:[a-f0-9]{64}$/),
-      JSON.stringify(value),
+      JSON.stringify({ context: value, version: 0 }),
       30,
     );
+    expect(redis.get).toHaveBeenCalledWith('auth:bot-token-version:bot-1');
     expect(redis.sadd).toHaveBeenCalledWith(
       'auth:bot-token-keys:bot-1',
       expect.stringMatching(/^auth:bot-token:[a-f0-9]{64}$/),
@@ -128,11 +131,56 @@ describe('BotAuthCacheService', () => {
 
     await service.invalidateBot('bot-9');
 
+    expect(redis.incr).toHaveBeenCalledWith('auth:bot-token-version:bot-9');
     expect(redis.smembers).toHaveBeenCalledWith('auth:bot-token-keys:bot-9');
     expect(redis.del.mock.calls).toEqual([
       ['auth:bot-token:abc'],
       ['auth:bot-token:def'],
       ['auth:bot-token-keys:bot-9'],
     ]);
+  });
+
+  it('treats a positive cache entry with an old bot version as stale after invalidation', async () => {
+    const value = { botId: 'bot-7', userId: 'user-7', tenantId: 'tenant-7' };
+    let version = 0;
+    const entries = new Map<string, string>();
+
+    redis.get.mockImplementation(async (key: string) => {
+      if (key === 'auth:bot-token-version:bot-7') {
+        return String(version);
+      }
+      return entries.get(key) ?? null;
+    });
+    redis.set.mockImplementation(async (key: string, payload: string) => {
+      entries.set(key, payload);
+      return 'OK';
+    });
+    redis.incr.mockImplementation(async (key: string) => {
+      if (key === 'auth:bot-token-version:bot-7') {
+        version += 1;
+        return version;
+      }
+      return 1;
+    });
+    redis.sadd.mockImplementation(async () => 1);
+
+    const loader = jest.fn(async () => value);
+    const token = 't9bot_versioned';
+
+    await expect(service.getOrSetValidation(token, loader)).resolves.toEqual(
+      value,
+    );
+    expect(loader).toHaveBeenCalledTimes(1);
+
+    await service.invalidateBot('bot-7');
+
+    const staleKey = redis.set.mock.calls[0]?.[0] as string;
+    entries.set(staleKey, JSON.stringify({ context: value, version: 0 }));
+
+    loader.mockResolvedValueOnce(null);
+
+    await expect(service.getOrSetValidation(token, loader)).resolves.toBeNull();
+    expect(loader).toHaveBeenCalledTimes(2);
+    expect(redis.del).toHaveBeenCalledWith(staleKey);
   });
 });
