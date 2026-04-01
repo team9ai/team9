@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
@@ -355,6 +355,7 @@ function WebLoginView() {
   const [devCode, setDevCode] = useState<string | undefined>();
   const [countdown, setCountdown] = useState(0);
   const authCompletedInSession = useRef(false);
+  const lastAutoVerifyAttempt = useRef<string | null>(null);
 
   const authStart = useAuthStart();
   const verifyCode = useVerifyCode();
@@ -363,63 +364,15 @@ function WebLoginView() {
   const { data: currentUser, isLoading } = useCurrentUser();
   const { data: invitationInfo } = useInvitationInfo(invite);
 
-  useEffect(() => {
-    if (!currentUser || isLoading || authCompletedInSession.current) return;
-
-    const completeAndRedirect = async () => {
-      if (desktopSessionId) {
-        try {
-          await completeDesktop.mutateAsync({
-            sessionId: desktopSessionId,
-          });
-        } catch {
-          // Desktop session may have expired
-        }
-        setAuthState("authenticated");
-        return;
-      }
-
-      if (invite) {
-        navigate({ to: "/invite/$code", params: { code: invite } });
-      } else {
-        navigate({ to: redirect || "/" });
-      }
-    };
-
-    completeAndRedirect();
-  }, [currentUser, isLoading]);
-
-  useEffect(() => {
-    if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-      return () => clearTimeout(timer);
+  const navigateToPostAuthDestination = useCallback(() => {
+    if (invite) {
+      navigate({ to: "/invite/$code", params: { code: invite } });
+    } else {
+      navigate({ to: redirect || "/" });
     }
-  }, [countdown]);
+  }, [invite, navigate, redirect]);
 
-  useEffect(() => {
-    if (
-      code.length === 6 &&
-      challengeId &&
-      authState === "code_sent" &&
-      !verifyCode.isPending
-    ) {
-      const doVerify = async () => {
-        setError("");
-        try {
-          setAuthState("verifying_code");
-          await verifyCode.mutateAsync({ email, challengeId, code });
-          setAuthState("authenticated");
-          await navigateAfterAuth();
-        } catch (err: unknown) {
-          setAuthState("code_sent");
-          setError(getErrorMessage(err, t("verificationFailed")));
-        }
-      };
-      doVerify();
-    }
-  }, [code]);
-
-  const navigateAfterAuth = async () => {
+  const navigateAfterAuth = useCallback(async () => {
     authCompletedInSession.current = true;
 
     if (desktopSessionId) {
@@ -434,19 +387,69 @@ function WebLoginView() {
       return;
     }
 
-    if (invite) {
-      navigate({ to: "/invite/$code", params: { code: invite } });
-    } else {
-      navigate({ to: redirect || "/" });
+    navigateToPostAuthDestination();
+  }, [completeDesktop, desktopSessionId, navigateToPostAuthDestination]);
+
+  useEffect(() => {
+    if (!currentUser || isLoading || authCompletedInSession.current) return;
+    void navigateAfterAuth();
+  }, [currentUser, isLoading, navigateAfterAuth]);
+
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
     }
-  };
+  }, [countdown]);
+
+  const autoVerifyAttemptKey = useMemo(() => {
+    if (code.length !== 6 || !challengeId) return null;
+    return `${challengeId}:${code}`;
+  }, [challengeId, code]);
+
+  useEffect(() => {
+    if (!autoVerifyAttemptKey) {
+      lastAutoVerifyAttempt.current = null;
+      return;
+    }
+    if (!challengeId) return;
+    if (authState !== "code_sent" || verifyCode.isPending) return;
+    if (lastAutoVerifyAttempt.current === autoVerifyAttemptKey) return;
+
+    lastAutoVerifyAttempt.current = autoVerifyAttemptKey;
+    const currentChallengeId = challengeId;
+
+    const doVerify = async () => {
+      setError("");
+      try {
+        setAuthState("verifying_code");
+        await verifyCode.mutateAsync({
+          email,
+          challengeId: currentChallengeId,
+          code,
+        });
+        setAuthState("authenticated");
+        await navigateAfterAuth();
+      } catch (err: unknown) {
+        setAuthState("code_sent");
+        setError(getErrorMessage(err, t("verificationFailed")));
+      }
+    };
+
+    void doVerify();
+  }, [
+    authState,
+    autoVerifyAttemptKey,
+    challengeId,
+    code,
+    email,
+    navigateAfterAuth,
+    t,
+    verifyCode,
+  ]);
 
   const handleContinueInBrowser = () => {
-    if (invite) {
-      navigate({ to: "/invite/$code", params: { code: invite } });
-    } else {
-      navigate({ to: redirect || "/" });
-    }
+    navigateToPostAuthDestination();
   };
 
   useEffect(() => {

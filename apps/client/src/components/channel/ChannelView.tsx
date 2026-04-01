@@ -9,6 +9,7 @@ import {
 import { useUser } from "@/stores";
 import { useThreadStore } from "@/hooks/useThread";
 import { useBotStartupCountdown } from "@/hooks/useBotStartupCountdown";
+import { useEffectOncePerKey } from "@/hooks/useEffectOncePerKey";
 import wsService from "@/services/websocket";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
@@ -247,30 +248,22 @@ export function ChannelView({
   // Skip for preview mode (non-members)
   // In anchored mode, only mark as read when there are no newer pages to load,
   // because messages[0] may not be the true latest message otherwise.
-  useEffect(() => {
-    if (isPreviewMode) return;
-    if (hasPreviousPage) return;
-
-    // Only mark as read if the messageId is a valid UUID (not a temporary ID)
-    // Temporary IDs (e.g., "temp-1234567890-abc123") are used for optimistic updates
-    // and should not be sent to the server as they don't exist in the database yet
-    if (
+  useEffectOncePerKey(
+    latestMessageId,
+    Boolean(
       latestMessageId &&
+      !isPreviewMode &&
+      !hasPreviousPage &&
       !messagesLoading &&
-      isValidMessageId(latestMessageId)
-    ) {
+      isValidMessageId(latestMessageId),
+    ),
+    (messageId) => {
       markAsRead.mutate({
         channelId,
-        messageId: latestMessageId,
+        messageId,
       });
-    }
-  }, [
-    channelId,
-    latestMessageId,
-    messagesLoading,
-    isPreviewMode,
-    hasPreviousPage,
-  ]);
+    },
+  );
 
   // Monitor outer container width and calculate whether snap mode is needed
   // We observe the outer flex container (never hidden) rather than the main chat

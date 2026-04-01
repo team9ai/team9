@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   File,
   FileText,
@@ -49,7 +49,13 @@ function ImageAttachment({
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const loadImage = async () => {
+  useEffect(() => {
+    setImageUrl(null);
+    setError(null);
+    setIsLoading(false);
+  }, [attachment.fileKey]);
+
+  const loadImage = useCallback(async () => {
     if (imageUrl) return;
     setIsLoading(true);
     setError(null);
@@ -62,12 +68,12 @@ function ImageAttachment({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [attachment.fileKey, imageUrl]);
 
   // Auto-load image when component mounts
   useEffect(() => {
-    loadImage();
-  }, []);
+    void loadImage();
+  }, [loadImage]);
 
   if (isLoading) {
     return (
