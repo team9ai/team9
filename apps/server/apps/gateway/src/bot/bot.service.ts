@@ -19,6 +19,7 @@ import type {
 } from '@team9/database/schemas';
 import { env } from '@team9/shared';
 import { ChannelsService } from '../im/channels/channels.service.js';
+import { BotAuthCacheService } from './bot-auth-cache.service.js';
 
 export interface CreateBotOptions {
   username: string;
@@ -67,6 +68,12 @@ export interface WorkspaceBotResult {
   accessToken?: string;
 }
 
+export interface BotAuthValidationContext {
+  botId: string;
+  userId: string;
+  tenantId: string;
+}
+
 /**
  * BotService manages bot accounts.
  *
@@ -87,6 +94,7 @@ export class BotService implements OnModuleInit {
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly eventEmitter: EventEmitter2,
     private readonly channelsService: ChannelsService,
+    private readonly botAuthCache: BotAuthCacheService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -539,7 +547,73 @@ export class BotService implements OnModuleInit {
       })
       .where(eq(schema.bots.id, botId));
 
+    await this.botAuthCache.invalidateBot(botId);
+
     return { botId, userId: bot.userId, accessToken: rawToken };
+  }
+
+  async validateAccessTokenWithContext(
+    rawToken: string,
+  ): Promise<BotAuthValidationContext | null> {
+    const rawHex = this.extractBotTokenHex(rawToken);
+    if (!rawHex) {
+      return null;
+    }
+
+    const fingerprint = rawHex.slice(0, 8);
+
+    return this.botAuthCache.getOrSetValidation(rawToken, async () => {
+      const rows = await this.db
+        .select({
+          botId: schema.bots.id,
+          userId: schema.bots.userId,
+          tenantId: schema.installedApplications.tenantId,
+          accessToken: schema.bots.accessToken,
+        })
+        .from(schema.bots)
+        .innerJoin(
+          schema.installedApplications,
+          eq(
+            schema.bots.installedApplicationId,
+            schema.installedApplications.id,
+          ),
+        )
+        .where(
+          and(
+            like(schema.bots.accessToken, `${fingerprint}:%`),
+            eq(schema.bots.isActive, true),
+          ),
+        );
+
+      for (const row of rows) {
+        if (!row.accessToken) {
+          continue;
+        }
+
+        const separatorIndex = row.accessToken.indexOf(':');
+        if (separatorIndex === -1) {
+          continue;
+        }
+
+        const storedHash = row.accessToken.slice(separatorIndex + 1);
+        const isValid = await bcrypt.compare(rawHex, storedHash);
+        if (!isValid) {
+          continue;
+        }
+
+        if (!row.tenantId) {
+          return null;
+        }
+
+        return {
+          botId: row.botId,
+          userId: row.userId,
+          tenantId: row.tenantId,
+        };
+      }
+
+      return null;
+    });
   }
 
   /**
@@ -552,43 +626,30 @@ export class BotService implements OnModuleInit {
   async validateAccessToken(
     rawToken: string,
   ): Promise<{ userId: string; email: string; username: string } | null> {
-    if (!rawToken || !rawToken.startsWith('t9bot_')) return null;
+    const context = await this.validateAccessTokenWithContext(rawToken);
+    if (!context) {
+      return null;
+    }
 
-    const rawHex = rawToken.slice(6);
-    if (rawHex.length === 0) return null;
-
-    const fingerprint = rawHex.slice(0, 8);
-
-    const rows = await this.db
+    const [user] = await this.db
       .select({
-        botId: schema.bots.id,
-        userId: schema.bots.userId,
-        accessToken: schema.bots.accessToken,
+        id: schema.users.id,
         email: schema.users.email,
         username: schema.users.username,
       })
-      .from(schema.bots)
-      .innerJoin(schema.users, eq(schema.bots.userId, schema.users.id))
-      .where(
-        and(
-          like(schema.bots.accessToken, `${fingerprint}:%`),
-          eq(schema.bots.isActive, true),
-        ),
-      );
+      .from(schema.users)
+      .where(eq(schema.users.id, context.userId))
+      .limit(1);
 
-    for (const row of rows) {
-      const storedHash = row.accessToken!.slice(fingerprint.length + 1);
-      const isValid = await bcrypt.compare(rawHex, storedHash);
-      if (isValid) {
-        return {
-          userId: row.userId,
-          email: row.email,
-          username: row.username,
-        };
-      }
+    if (!user) {
+      return null;
     }
 
-    return null;
+    return {
+      userId: context.userId,
+      email: user.email,
+      username: user.username,
+    };
   }
 
   /**
@@ -599,6 +660,8 @@ export class BotService implements OnModuleInit {
       .update(schema.bots)
       .set({ accessToken: null, updatedAt: new Date() })
       .where(eq(schema.bots.id, botId));
+
+    await this.botAuthCache.invalidateBot(botId);
   }
 
   /**
@@ -656,6 +719,8 @@ export class BotService implements OnModuleInit {
         `Deleted ${deletedChannels} DM channels for bot ${botId}`,
       );
     }
+
+    await this.botAuthCache.invalidateBot(botId);
 
     // Delete shadow user (im_bots cascades via userId FK)
     await this.db.delete(schema.users).where(eq(schema.users.id, bot.userId));
@@ -792,6 +857,15 @@ export class BotService implements OnModuleInit {
       .limit(1);
 
     return row || null;
+  }
+
+  private extractBotTokenHex(rawToken: string): string | null {
+    if (!rawToken || !rawToken.startsWith('t9bot_')) {
+      return null;
+    }
+
+    const rawHex = rawToken.slice(6);
+    return rawHex.length > 0 ? rawHex : null;
   }
 }
 
