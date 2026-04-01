@@ -96,14 +96,20 @@ export function useFileUpload(options: UseFileUploadOptions = {}) {
       };
     },
     onSuccess: (result, { id }) => {
+      updateFileStatus(id, { status: "completed", result });
+
+      const file = uploadingFiles.find((item) => item.id === id);
+      if (!file) {
+        return;
+      }
+
       const updatedFile: UploadingFile = {
-        id,
-        file: uploadingFiles.find((f) => f.id === id)?.file!,
+        ...file,
         progress: 100,
         status: "completed",
         result,
       };
-      updateFileStatus(id, { status: "completed", result });
+
       onUploadComplete?.(updatedFile);
     },
     onError: (error, { id }) => {

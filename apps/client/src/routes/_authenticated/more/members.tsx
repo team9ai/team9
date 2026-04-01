@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useRef, useCallback } from "react";
+import { useState, useCallback, type UIEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ArrowLeft,
@@ -52,7 +52,6 @@ const roleLabels = {
 function MembersPage() {
   const { t } = useTranslation("workspace");
   const [search, setSearch] = useState("");
-  const scrollRef = useRef<HTMLDivElement>(null);
 
   const { selectedWorkspaceId } = useWorkspaceStore();
   const { isOwner } = useCurrentWorkspaceRole();
@@ -72,14 +71,17 @@ function MembersPage() {
   const members = data?.pages.flatMap((page) => page.members) || [];
 
   // Handle scroll for infinite loading
-  const handleScroll = useCallback(() => {
-    if (!scrollRef.current || !hasNextPage || isFetchingNextPage) return;
+  const handleScroll = useCallback(
+    (event: UIEvent<HTMLDivElement>) => {
+      if (!hasNextPage || isFetchingNextPage) return;
 
-    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-    if (scrollHeight - scrollTop <= clientHeight * 1.5) {
-      fetchNextPage();
-    }
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+      const { scrollTop, scrollHeight, clientHeight } = event.currentTarget;
+      if (scrollHeight - scrollTop <= clientHeight * 1.5) {
+        fetchNextPage();
+      }
+    },
+    [hasNextPage, isFetchingNextPage, fetchNextPage],
+  );
 
   const handleRoleChange = async (
     member: WorkspaceMember,
@@ -176,12 +178,7 @@ function MembersPage() {
         </div>
 
         {/* Members List */}
-        <ScrollArea
-          className="flex-1"
-          onScroll={handleScroll}
-          //@ts-ignore
-          ref={scrollRef}
-        >
+        <ScrollArea className="flex-1" onScrollCapture={handleScroll}>
           {isLoading ? (
             <div className="text-center py-8 text-muted-foreground">
               {t("common:loading", "Loading...")}

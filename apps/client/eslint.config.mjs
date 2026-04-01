@@ -12,7 +12,6 @@ export default tseslint.config(
       'src-tauri/**',
       'public/**',
       'src/**/*.gen.ts',
-      'src/routeTree.gen.ts',
       '**/*.d.ts',
     ],
   },
@@ -30,9 +29,9 @@ export default tseslint.config(
       'react-hooks': reactHooks,
     },
     rules: {
-      '@typescript-eslint/ban-ts-comment': 'off',
+      '@typescript-eslint/ban-ts-comment': 'error',
       '@typescript-eslint/no-explicit-any': 'error',
-      '@typescript-eslint/no-non-null-asserted-optional-chain': 'off',
+      '@typescript-eslint/no-non-null-asserted-optional-chain': 'error',
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
