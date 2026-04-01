@@ -2,7 +2,6 @@ import {
   Home,
   MessageSquare,
   Bell,
-  FileText,
   MoreHorizontal,
   Smile,
   ChevronRight,
@@ -612,7 +611,13 @@ export function MainSidebar() {
 
                 {/* Profile & Settings */}
                 <div className="py-1">
-                  <button className="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-accent">
+                  <button
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      navigate({ to: "/profile" as never });
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-accent"
+                  >
                     <User size={16} />
                     <span>{tSettings("profile")}</span>
                   </button>
