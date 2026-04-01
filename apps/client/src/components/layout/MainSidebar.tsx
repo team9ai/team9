@@ -281,7 +281,9 @@ export function MainSidebar() {
   const renderNavigationItems = () =>
     navigationItems.map((item) => {
       const Icon = item.icon;
-      const currentSection = getSectionFromPath(location.pathname);
+      const currentSection = location.pathname.startsWith("/profile")
+        ? null
+        : getSectionFromPath(location.pathname);
       const isActive = currentSection === item.id;
       const label = tNav(item.labelKey);
 

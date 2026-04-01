@@ -120,9 +120,11 @@ function AuthenticatedLayout() {
     const pathname = location.pathname;
     if (pathname === "/") return;
 
-    // Don't save search page as a last visited path for any section
-    // Search is a global feature, not part of any sidebar section
-    if (pathname.startsWith("/search")) return;
+    // Don't save global or utility pages as a last visited path for any section
+    // Search and profile are not part of the main sidebar navigation model.
+    if (pathname.startsWith("/search") || pathname.startsWith("/profile")) {
+      return;
+    }
 
     // Determine which section this path belongs to based on the path itself
     // This ensures paths are always saved to the correct section,

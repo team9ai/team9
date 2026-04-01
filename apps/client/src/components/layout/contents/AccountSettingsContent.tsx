@@ -216,8 +216,7 @@ export function AccountSettingsContent() {
           visibility: "public",
         });
 
-        const publicUrl = await fileApi.getPublicDownloadUrl(presigned.key);
-        avatarUrl = publicUrl.url;
+        avatarUrl = presigned.publicUrl;
       }
 
       const payload: {

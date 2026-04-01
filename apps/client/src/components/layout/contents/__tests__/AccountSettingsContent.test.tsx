@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { AccountSettingsContent } from "../AccountSettingsContent";
 
 const mockUpdateCurrentUser = vi.hoisted(() => vi.fn());
@@ -116,6 +116,7 @@ describe("AccountSettingsContent", () => {
       url: "https://s3.example.com/presigned",
       key: "avatars/user-1.png",
       fields: {},
+      publicUrl: "https://cdn.example.com/avatars/user-1.png",
     });
     mockUploadToS3.mockResolvedValue(undefined);
     mockConfirmUpload.mockResolvedValue({
@@ -190,5 +191,53 @@ describe("AccountSettingsContent", () => {
     expect(
       screen.getByRole("button", { name: "Cancel request" }),
     ).toBeInTheDocument();
+  });
+
+  it("shows the new email request form when no pending request exists", () => {
+    render(<AccountSettingsContent />);
+
+    expect(screen.getByLabelText("New email")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Request change" }),
+    ).toBeDisabled();
+  });
+
+  it("rejects avatar files that are not supported images", () => {
+    render(<AccountSettingsContent />);
+
+    const fileInput = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    const badFile = new File(["svg"], "avatar.svg", {
+      type: "image/svg+xml",
+    });
+
+    fireEvent.change(fileInput, { target: { files: [badFile] } });
+
+    expect(
+      screen.getByText("Avatar must be a JPEG, PNG, or WebP image"),
+    ).toBeInTheDocument();
+    expect(mockCreatePresignedUpload).not.toHaveBeenCalled();
+  });
+
+  it("persists the stable public avatar URL on save", async () => {
+    render(<AccountSettingsContent />);
+
+    const fileInput = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    const avatarFile = new File(["avatar"], "avatar.png", {
+      type: "image/png",
+    });
+
+    fireEvent.change(fileInput, { target: { files: [avatarFile] } });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => {
+      expect(mockUpdateCurrentUser).toHaveBeenCalledWith({
+        avatarUrl: "https://cdn.example.com/avatars/user-1.png",
+      });
+    });
+    expect(mockGetPublicDownloadUrl).not.toHaveBeenCalled();
   });
 });
