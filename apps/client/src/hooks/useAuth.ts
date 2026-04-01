@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type QueryClient,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import * as Sentry from "@sentry/react";
 import { invoke } from "@tauri-apps/api/core";
 import api, {
@@ -17,7 +22,12 @@ import {
 } from "@/stores";
 
 // Sync user data to Zustand store and Sentry context
-const syncUserToStore = (user: User | null) => {
+export const syncCurrentUser = (
+  user: User | null,
+  queryClient?: Pick<QueryClient, "setQueryData">,
+) => {
+  queryClient?.setQueryData(["currentUser"], user);
+
   if (user) {
     appActions.setUser({
       id: user.id,
@@ -55,8 +65,7 @@ export const useVerifyEmail = () => {
     mutationFn: (token: string) => api.auth.verifyEmail(token),
     onSuccess: (data) => {
       // Tokens are stored in api.auth.verifyEmail
-      queryClient.setQueryData(["currentUser"], data.user);
-      syncUserToStore(data.user);
+      syncCurrentUser(data.user, queryClient);
     },
   });
 };
@@ -68,8 +77,7 @@ export const useGoogleAuth = () => {
     mutationFn: (credential: string) => api.auth.googleLogin(credential),
     onSuccess: (data) => {
       // Tokens are stored in api.auth.googleLogin
-      queryClient.setQueryData(["currentUser"], data.user);
-      syncUserToStore(data.user);
+      syncCurrentUser(data.user, queryClient);
     },
   });
 };
@@ -103,7 +111,7 @@ export const useLoginPolling = (
           // Store tokens
           localStorage.setItem("auth_token", result.accessToken);
           localStorage.setItem("refresh_token", result.refreshToken);
-          syncUserToStore(result.user);
+          syncCurrentUser(result.user);
           onSuccess({
             user: result.user,
             accessToken: result.accessToken,
@@ -144,8 +152,7 @@ export const useVerifyCode = () => {
   return useMutation({
     mutationFn: (data: VerifyCodeRequest) => api.auth.verifyCode(data),
     onSuccess: (data) => {
-      queryClient.setQueryData(["currentUser"], data.user);
-      syncUserToStore(data.user);
+      syncCurrentUser(data.user, queryClient);
     },
   });
 };
@@ -198,7 +205,7 @@ export const useCurrentUser = () => {
     queryKey: ["currentUser"],
     queryFn: async () => {
       const user = await api.auth.getCurrentUser();
-      syncUserToStore(user);
+      syncCurrentUser(user);
       return user;
     },
     enabled: !!localStorage.getItem("auth_token"),

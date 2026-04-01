@@ -266,7 +266,7 @@ export const userApi = {
   },
 };
 
-import imApi from "./im";
+import imApi, { accountApi } from "./im";
 import workspaceApi from "./workspace";
 import notificationApi from "./notification";
 import searchApi from "./search";
@@ -280,6 +280,7 @@ export const api = {
   auth: authApi,
   user: userApi,
   im: imApi,
+  account: accountApi,
   workspace: workspaceApi,
   notification: notificationApi,
   search: searchApi,
