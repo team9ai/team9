@@ -19,8 +19,6 @@ import { AuthGuard } from '@team9/auth';
 
 // ── helpers ──────────────────────────────────────────────────────────
 
-type MockFn = jest.Mock<(...args: any[]) => any>;
-
 function mockAuthService() {
   return {
     authStart: jest.fn<any>(),

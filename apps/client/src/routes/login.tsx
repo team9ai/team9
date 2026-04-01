@@ -15,6 +15,7 @@ import { GoogleLogin } from "@react-oauth/google";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getErrorMessage } from "@/services/http";
 import { Mail, Loader2, Monitor, Users, ArrowLeft } from "lucide-react";
 
 const IS_TAURI =
@@ -386,7 +387,6 @@ function WebLoginView() {
     };
 
     completeAndRedirect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, isLoading]);
 
   useEffect(() => {
@@ -410,18 +410,13 @@ function WebLoginView() {
           await verifyCode.mutateAsync({ email, challengeId, code });
           setAuthState("authenticated");
           await navigateAfterAuth();
-        } catch (err: any) {
+        } catch (err: unknown) {
           setAuthState("code_sent");
-          const errorMessage =
-            err?.response?.data?.message ||
-            err?.message ||
-            t("verificationFailed");
-          setError(errorMessage);
+          setError(getErrorMessage(err, t("verificationFailed")));
         }
       };
       doVerify();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
   const navigateAfterAuth = async () => {
@@ -482,10 +477,8 @@ function WebLoginView() {
         setAuthState("code_sent");
         setCountdown(60);
       }
-    } catch (err: any) {
-      const errorMessage =
-        err?.response?.data?.message || err?.message || t("loginFailed");
-      setError(errorMessage);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, t("loginFailed")));
     }
   };
 
@@ -504,11 +497,9 @@ function WebLoginView() {
       });
       setAuthState("authenticated");
       await navigateAfterAuth();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setAuthState("code_sent");
-      const errorMessage =
-        err?.response?.data?.message || err?.message || t("verificationFailed");
-      setError(errorMessage);
+      setError(getErrorMessage(err, t("verificationFailed")));
     }
   };
 
@@ -524,10 +515,8 @@ function WebLoginView() {
         setDevCode(result.verificationCode);
         setCountdown(60);
       }
-    } catch (err: any) {
-      const errorMessage =
-        err?.response?.data?.message || err?.message || t("loginFailed");
-      setError(errorMessage);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, t("loginFailed")));
     }
   };
 
@@ -544,10 +533,8 @@ function WebLoginView() {
     try {
       await googleAuth.mutateAsync(credentialResponse.credential);
       await navigateAfterAuth();
-    } catch (err: any) {
-      const errorMessage =
-        err?.response?.data?.message || err?.message || t("googleLoginFailed");
-      setError(errorMessage);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, t("googleLoginFailed")));
     }
   };
 

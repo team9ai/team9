@@ -24,6 +24,10 @@ export class SessionService {
 
   constructor(private readonly redisService: RedisService) {}
 
+  private parseDeviceInfo(raw: string): UserSession['deviceInfo'] {
+    return JSON.parse(raw) as UserSession['deviceInfo'];
+  }
+
   // ============ User Session Management ============
 
   /**
@@ -77,7 +81,9 @@ export class SessionService {
       socketId: data.socketId,
       loginTime: parseInt(data.loginTime, 10),
       lastActiveTime: parseInt(data.lastActiveTime, 10),
-      deviceInfo: data.deviceInfo ? JSON.parse(data.deviceInfo) : undefined,
+      deviceInfo: data.deviceInfo
+        ? this.parseDeviceInfo(data.deviceInfo)
+        : undefined,
     };
   }
 

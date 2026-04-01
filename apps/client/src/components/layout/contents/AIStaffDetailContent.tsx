@@ -49,7 +49,6 @@ import { cn } from "@/lib/utils";
 import { useMemo, useState } from "react";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import { WorkspaceFileBrowserContent } from "./WorkspaceFileBrowserContent";
-import type { WorkspaceMember } from "@/types/workspace";
 
 function statusBadgeVariant(status?: string) {
   switch (status) {

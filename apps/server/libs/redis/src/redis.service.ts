@@ -60,7 +60,9 @@ export class RedisService {
       } else {
         await this.redis.set(key, JSON.stringify(result), 'EX', ttlSeconds);
       }
-    } catch {}
+    } catch {
+      // Cache writes are best-effort and should not fail the caller.
+    }
 
     return result;
   }

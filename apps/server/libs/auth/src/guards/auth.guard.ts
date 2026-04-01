@@ -6,10 +6,16 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { AuthGuard as PassportAuthGuard } from '@nestjs/passport';
+import type { Request } from 'express';
 import {
   BOT_TOKEN_VALIDATOR,
   type BotTokenValidatorInterface,
 } from '../interfaces/bot-token-validator.interface.js';
+import type { JwtPayload } from '../interfaces/jwt-payload.interface.js';
+
+type RequestWithUser = Request & {
+  user?: JwtPayload;
+};
 
 @Injectable()
 export class AuthGuard extends PassportAuthGuard('jwt') {
@@ -21,9 +27,27 @@ export class AuthGuard extends PassportAuthGuard('jwt') {
     super();
   }
 
+  private getAuthorizationHeader(request: Request): string | null {
+    const headers = request.headers as Record<string, unknown>;
+    const authorizationHeader = headers.authorization;
+
+    if (typeof authorizationHeader === 'string') {
+      return authorizationHeader;
+    }
+
+    if (
+      Array.isArray(authorizationHeader) &&
+      typeof authorizationHeader[0] === 'string'
+    ) {
+      return authorizationHeader[0];
+    }
+
+    return null;
+  }
+
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
-    const authHeader: string | undefined = request.headers?.authorization;
+    const request = context.switchToHttp().getRequest<RequestWithUser>();
+    const authHeader = this.getAuthorizationHeader(request);
 
     // Bot tokens use the t9bot_ prefix — route to bot token validation
     if (authHeader?.startsWith('Bearer t9bot_')) {

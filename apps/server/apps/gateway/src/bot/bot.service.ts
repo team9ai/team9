@@ -104,7 +104,7 @@ export class BotService implements OnModuleInit {
     private readonly botAuthCache: BotAuthCacheService,
   ) {}
 
-  async onModuleInit(): Promise<void> {
+  onModuleInit(): void {
     if (env.SYSTEM_BOT_ENABLED) {
       // await this.initializeSystemBot();
     } else {

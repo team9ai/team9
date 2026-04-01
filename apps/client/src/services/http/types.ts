@@ -2,11 +2,11 @@ export interface HttpRequestConfig extends RequestInit {
   baseURL?: string;
   url?: string;
   timeout?: number;
-  params?: Record<string, any>;
-  data?: any;
+  params?: object;
+  data?: unknown;
 }
 
-export interface HttpResponse<T = any> {
+export interface HttpResponse<T = unknown> {
   data: T;
   status: number;
   statusText: string;
@@ -14,24 +14,24 @@ export interface HttpResponse<T = any> {
   config: HttpRequestConfig;
 }
 
-export interface HttpError extends Error {
+export interface HttpError<T = unknown> extends Error {
   config?: HttpRequestConfig;
   code?: string;
   status?: number;
-  response?: HttpResponse;
+  response?: HttpResponse<T>;
 }
 
 export type RequestInterceptor = (
   config: HttpRequestConfig,
 ) => HttpRequestConfig | Promise<HttpRequestConfig>;
 
-export type ResponseInterceptor = <T = any>(
+export type ResponseInterceptor = <T = unknown>(
   response: HttpResponse<T>,
 ) => HttpResponse<T> | Promise<HttpResponse<T>>;
 
 export type ErrorInterceptor = (
   error: HttpError,
-) => Promise<never> | Promise<any>;
+) => Promise<never> | Promise<HttpResponse<unknown>>;
 
 export interface InterceptorManager {
   request: {

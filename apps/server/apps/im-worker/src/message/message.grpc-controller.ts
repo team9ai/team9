@@ -50,6 +50,10 @@ export class MessageGrpcController {
 
   constructor(private readonly messageService: MessageService) {}
 
+  private parseMetadata(raw: string): Record<string, unknown> {
+    return JSON.parse(raw) as Record<string, unknown>;
+  }
+
   /**
    * Create a new message via gRPC
    */
@@ -105,7 +109,7 @@ export class MessageGrpcController {
           mimeType: att.mime_type,
         })),
         metadata: request.metadata_json
-          ? JSON.parse(request.metadata_json)
+          ? this.parseMetadata(request.metadata_json)
           : undefined,
       };
 

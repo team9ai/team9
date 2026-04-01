@@ -266,9 +266,7 @@ describe('AuthService', () => {
 
       // First limit call: completeSignup checks if email exists → no
       // Second limit call: generateUniqueUsername checks if username exists → no
-      let limitCallCount = 0;
       db.limit.mockImplementation((() => {
-        limitCallCount++;
         return Promise.resolve([]);
       }) as any);
 

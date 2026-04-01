@@ -127,7 +127,7 @@ export interface Message {
   rootId?: string;
   content: string;
   type: MessageType;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   isPinned: boolean;
   isEdited: boolean;
   isDeleted: boolean;

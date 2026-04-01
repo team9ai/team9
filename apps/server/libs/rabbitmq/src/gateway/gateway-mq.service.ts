@@ -134,11 +134,13 @@ export class GatewayMQService implements OnModuleInit, OnModuleDestroy {
 
     const { consumerTag } = await channel.consume(
       this.queueName,
-      async (msg) => {
+      (msg) => {
         if (!msg) return;
 
         try {
-          const content: DownstreamMessage = JSON.parse(msg.content.toString());
+          const content = JSON.parse(
+            msg.content.toString(),
+          ) as DownstreamMessage;
 
           // Emit event for WebSocket gateway to handle
           this.eventEmitter.emit('im.downstream.message', content);

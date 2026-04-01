@@ -103,7 +103,7 @@ export class SearchController {
    * Call this after migration to index existing data
    */
   @Post('reindex')
-  async reindexAll(): Promise<{ success: boolean; message: string }> {
+  reindexAll(): { success: boolean; message: string } {
     // Run in background to avoid timeout
     this.searchIndexerService.reindexAll().catch((err) => {
       console.error('Reindex failed:', err);

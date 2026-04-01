@@ -310,7 +310,6 @@ function MarkdownMessageContent({ content, className }: MessageContentProps) {
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function MarkdownCodeRenderer({ className, children, node, ...props }: any) {
   const match = /language-(\w+)/.exec(className || "");
   const code = String(children).replace(/\n$/, "");

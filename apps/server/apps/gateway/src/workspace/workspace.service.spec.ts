@@ -71,9 +71,6 @@ describe('WorkspaceService', () => {
     sendToUser: MockFn;
     sendToChannelMembers: MockFn;
   };
-  let installedApplicationsService: {
-    getInstalledApplicationsForTenant: MockFn;
-  };
 
   beforeEach(async () => {
     db = mockDb();
@@ -106,9 +103,6 @@ describe('WorkspaceService', () => {
       broadcastToWorkspace: jest.fn<any>(),
       sendToUser: jest.fn<any>(),
       sendToChannelMembers: jest.fn<any>().mockResolvedValue(undefined),
-    };
-    installedApplicationsService = {
-      getInstalledApplicationsForTenant: jest.fn<any>().mockResolvedValue([]),
     };
 
     const module: TestingModule = await Test.createTestingModule({

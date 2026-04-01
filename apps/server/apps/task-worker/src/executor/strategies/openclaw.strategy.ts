@@ -17,6 +17,25 @@ type OpenclawConfig = {
   gatewayToken: string | undefined;
 };
 
+interface OpenclawBotExtra {
+  openclaw?: {
+    agentId?: string;
+  };
+}
+
+interface OpenclawInstanceDetails {
+  access_url?: string;
+  gateway_token?: string;
+}
+
+interface OpenclawInstanceResult extends OpenclawInstanceDetails {
+  instance?: OpenclawInstanceDetails;
+}
+
+interface OpenclawBotSecrets {
+  instanceResult?: OpenclawInstanceResult;
+}
+
 @Injectable()
 export class OpenclawStrategy implements ExecutionStrategy {
   private readonly logger = new Logger(OpenclawStrategy.name);
@@ -90,16 +109,18 @@ export class OpenclawStrategy implements ExecutionStrategy {
     }
   }
 
-  async pause(context: ExecutionContext): Promise<void> {
+  pause(context: ExecutionContext): Promise<void> {
     this.logger.warn(
       `Pause not yet supported for task ${context.taskId} — OpenClaw does not support agent checkpointing`,
     );
+    return Promise.resolve();
   }
 
-  async resume(context: ExecutionContext): Promise<void> {
+  resume(context: ExecutionContext): Promise<void> {
     this.logger.warn(
       `Resume not yet supported for task ${context.taskId} — OpenClaw does not support agent checkpointing`,
     );
+    return Promise.resolve();
   }
 
   async stop(context: ExecutionContext): Promise<void> {
@@ -153,10 +174,10 @@ export class OpenclawStrategy implements ExecutionStrategy {
       throw new Error(`OpenClaw bot not found: ${botId}`);
     }
 
-    const agentId =
-      (bot.extra as Record<string, any>)?.openclaw?.agentId ?? 'default';
+    const botExtra = bot.extra as OpenclawBotExtra | null;
+    const agentId = botExtra?.openclaw?.agentId ?? 'default';
 
-    const secrets = bot.secrets as Record<string, any> | null;
+    const secrets = bot.secrets as OpenclawBotSecrets | null;
     const instanceResult = secrets?.instanceResult;
     const openclawUrl =
       instanceResult?.access_url ??

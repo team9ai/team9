@@ -79,6 +79,7 @@ describe('TasksStreamController', () => {
   const TENANT_ID = 'tenant-1';
 
   beforeEach(async () => {
+    process.env.JWT_PUBLIC_KEY = 'test-public-key';
     db = mockDb();
     jwtService = { verify: jest.fn<any>().mockReturnValue({ sub: USER_ID }) };
 
@@ -150,7 +151,10 @@ describe('TasksStreamController', () => {
 
       await controller.streamExecution(TASK_ID, EXEC_ID, undefined, req, res);
 
-      expect(jwtService.verify).toHaveBeenCalledWith('valid-token');
+      expect(jwtService.verify).toHaveBeenCalledWith('valid-token', {
+        publicKey: 'test-public-key',
+        algorithms: ['ES256'],
+      });
       // Did not get a 401 — auth passed
       expect(res.status).not.toHaveBeenCalledWith(401);
     });
@@ -178,7 +182,10 @@ describe('TasksStreamController', () => {
         res,
       );
 
-      expect(jwtService.verify).toHaveBeenCalledWith('query-token');
+      expect(jwtService.verify).toHaveBeenCalledWith('query-token', {
+        publicKey: 'test-public-key',
+        algorithms: ['ES256'],
+      });
       expect(res.status).not.toHaveBeenCalledWith(401);
     });
   });

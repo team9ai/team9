@@ -1,5 +1,11 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { DATABASE_CONNECTION, and, eq, isNull } from '@team9/database';
+import {
+  DATABASE_CONNECTION,
+  and,
+  eq,
+  isNull,
+  type PostgresJsDatabase,
+} from '@team9/database';
 import { RedisService } from '@team9/redis';
 import * as schema from '@team9/database/schemas';
 
@@ -16,7 +22,8 @@ export class ChannelMemberCacheService {
   private readonly inflight = new Map<string, Promise<string[]>>();
 
   constructor(
-    @Inject(DATABASE_CONNECTION) private readonly db: any,
+    @Inject(DATABASE_CONNECTION)
+    private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly redisService: RedisService,
   ) {}
 

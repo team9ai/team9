@@ -18,7 +18,7 @@ export const agentTaskTriggerTypeEnum = pgEnum('agent_task__trigger_type', [
 
 // ── Config types ────────────────────────────────────────────────────
 
-export interface ManualTriggerConfig {}
+export type ManualTriggerConfig = Record<string, never>;
 
 export interface IntervalTriggerConfig {
   every: number;

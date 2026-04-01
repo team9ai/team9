@@ -44,7 +44,6 @@ jest.unstable_mockModule('@team9/database/schemas', () => ({
 }));
 
 const { NotificationService } = await import('./notification.service.js');
-const { DATABASE_CONNECTION } = await import('@team9/database');
 const schema = await import('@team9/database/schemas');
 
 function createDbMock() {

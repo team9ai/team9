@@ -17,6 +17,7 @@ import type {
   LoginResponse,
   AuthStartResponse,
   DesktopSessionResponse,
+  PollLoginResponse,
 } from './auth.service.js';
 import {
   RegisterDto,
@@ -32,6 +33,7 @@ import {
 } from './dto/index.js';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import type { JwtPayload } from '@team9/auth';
+import type { Request } from 'express';
 
 @Controller({
   path: 'auth',
@@ -39,6 +41,10 @@ import type { JwtPayload } from '@team9/auth';
 })
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  private getClientIp(req: Request): string {
+    return req.ip || req.socket.remoteAddress || 'unknown';
+  }
 
   // --- New unified auth flow ---
 
@@ -56,9 +62,10 @@ export class AuthController {
 
   @Post('create-desktop-session')
   @HttpCode(HttpStatus.CREATED)
-  async createDesktopSession(@Req() req: any): Promise<DesktopSessionResponse> {
-    const ip = req.ip || req.connection?.remoteAddress || 'unknown';
-    return this.authService.createDesktopSession(ip);
+  async createDesktopSession(
+    @Req() req: Request,
+  ): Promise<DesktopSessionResponse> {
+    return this.authService.createDesktopSession(this.getClientIp(req));
   }
 
   @Post('complete-desktop-session')
@@ -90,9 +97,11 @@ export class AuthController {
   }
 
   @Get('poll-login')
-  async pollLogin(@Query() dto: PollLoginDto, @Req() req: any) {
-    const ip = req.ip || req.connection?.remoteAddress || 'unknown';
-    return this.authService.pollLogin(dto.sessionId, ip);
+  async pollLogin(
+    @Query() dto: PollLoginDto,
+    @Req() req: Request,
+  ): Promise<PollLoginResponse> {
+    return this.authService.pollLogin(dto.sessionId, this.getClientIp(req));
   }
 
   @Post('google')

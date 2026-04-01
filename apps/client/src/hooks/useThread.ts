@@ -15,6 +15,7 @@ import type {
   SubRepliesResponse,
   CreateMessageDto,
   Message,
+  MessageReaction,
   ThreadReply,
   MessageSendStatus,
 } from "@/types/im";
@@ -1022,7 +1023,7 @@ export function useRemoveThreadReaction(
                   return {
                     ...reply,
                     reactions: (reply.reactions || []).filter(
-                      (r: any) =>
+                      (r: MessageReaction) =>
                         !(r.userId === currentUser.id && r.emoji === emoji),
                     ),
                   };
@@ -1045,7 +1046,7 @@ export function useRemoveThreadReaction(
                   return {
                     ...reply,
                     reactions: (reply.reactions || []).filter(
-                      (r: any) =>
+                      (r: MessageReaction) =>
                         !(r.userId === currentUser.id && r.emoji === emoji),
                     ),
                   };

@@ -2,7 +2,6 @@ import {
   Home,
   MessageSquare,
   Bell,
-  FileText,
   MoreHorizontal,
   Smile,
   ChevronRight,

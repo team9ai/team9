@@ -2,6 +2,32 @@ import * as Sentry from "@sentry/react";
 import type { HttpRequestConfig, HttpResponse, HttpError } from "./types";
 import { useWorkspaceStore } from "../../stores";
 
+interface RefreshTokenResponse {
+  accessToken: string;
+  refreshToken: string;
+}
+
+function parseRequestData(data: unknown): Record<string, unknown> | null {
+  if (typeof data === "string") {
+    try {
+      const parsed = JSON.parse(data) as unknown;
+      return typeof parsed === "object" && parsed !== null
+        ? (parsed as Record<string, unknown>)
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  return typeof data === "object" && data !== null
+    ? (data as Record<string, unknown>)
+    : null;
+}
+
+function hasDataEnvelope(value: unknown): value is { data: unknown } {
+  return typeof value === "object" && value !== null && "data" in value;
+}
+
 // Token refresh management
 let isRefreshing = false;
 let refreshSubscribers: Array<(token: string) => void> = [];
@@ -42,7 +68,7 @@ const refreshAccessToken = async (): Promise<string | null> => {
       return null;
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as RefreshTokenResponse;
 
     // Update stored tokens
     localStorage.setItem("auth_token", data.accessToken);
@@ -134,10 +160,10 @@ export const workspaceInterceptor = (
 };
 
 // Retry a failed request with new token
-const retryRequest = async (
+const retryRequest = async <T = unknown>(
   config: HttpRequestConfig,
   newToken: string,
-): Promise<HttpResponse> => {
+): Promise<HttpResponse<T>> => {
   const baseURL =
     import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
 
@@ -176,14 +202,11 @@ const retryRequest = async (
     body,
   });
 
-  const contentType = response.headers.get("content-type");
-  let data: any;
-
-  if (contentType?.includes("application/json")) {
-    data = await response.json();
-  } else {
-    data = await response.text();
-  }
+  const data = response.headers
+    .get("content-type")
+    ?.includes("application/json")
+    ? ((await response.json()) as T)
+    : ((await response.text()) as T);
 
   if (!response.ok) {
     const error = new Error(
@@ -228,11 +251,8 @@ export const handleUnauthorized = async (
 
   // Check if this is already a refresh token request to avoid infinite loop
   if (originalConfig?.data) {
-    const data =
-      typeof originalConfig.data === "string"
-        ? JSON.parse(originalConfig.data)
-        : originalConfig.data;
-    if (data.refreshToken) {
+    const data = parseRequestData(originalConfig.data);
+    if (data?.refreshToken) {
       // Refresh token request itself failed, redirect to login
       redirectToLogin();
       throw error;
@@ -279,7 +299,7 @@ export const handleUnauthorized = async (
     }
 
     throw error;
-  } catch (refreshError) {
+  } catch (_refreshError) {
     onRefreshFailed();
     redirectToLogin();
     throw error;
@@ -291,14 +311,10 @@ export const handleUnauthorized = async (
 export const transformResponse = <T>(
   response: HttpResponse<T>,
 ): HttpResponse<T> => {
-  if (
-    response.data &&
-    typeof response.data === "object" &&
-    "data" in response.data
-  ) {
+  if (response.data && hasDataEnvelope(response.data)) {
     return {
       ...response,
-      data: (response.data as any).data,
+      data: response.data.data as T,
     };
   }
   return response;

@@ -154,10 +154,9 @@ export class ClusterNodeService implements OnModuleInit, OnModuleDestroy {
    * Start heartbeat timer
    */
   private startHeartbeat(): void {
-    this.heartbeatInterval = setInterval(
-      () => this.sendHeartbeat(),
-      this.NODE_HEARTBEAT_INTERVAL * 1000,
-    );
+    this.heartbeatInterval = setInterval(() => {
+      void this.sendHeartbeat();
+    }, this.NODE_HEARTBEAT_INTERVAL * 1000);
   }
 
   /**

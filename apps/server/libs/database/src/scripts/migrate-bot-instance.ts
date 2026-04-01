@@ -11,6 +11,13 @@ import * as schema from '../schemas/index.js';
  * Use this to fix bots that were created without the OpenClaw integration.
  */
 
+interface OpenClawInstanceResponse {
+  access_url?: string;
+  instance?: {
+    access_url?: string;
+  };
+}
+
 async function generateAccessToken(
   db: ReturnType<typeof drizzle>,
   botId: string,
@@ -76,7 +83,7 @@ async function createOpenClawInstance(
     return false;
   }
 
-  const result = await res.json();
+  const result = (await res.json()) as OpenClawInstanceResponse;
   console.log(
     `OpenClaw instance created: ${result.access_url || result.instance?.access_url}`,
   );

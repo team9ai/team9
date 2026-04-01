@@ -13,6 +13,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
 import { JwtService } from '@nestjs/jwt';
+import type { JwtPayload } from '@team9/auth';
 import {
   DATABASE_CONNECTION,
   eq,
@@ -20,6 +21,7 @@ import {
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
+import { env } from '@team9/shared';
 
 @Controller({ path: 'tasks', version: '1' })
 export class TasksStreamController {
@@ -57,7 +59,10 @@ export class TasksStreamController {
 
     let userId: string;
     try {
-      const payload = this.jwtService.verify(token);
+      const payload = this.jwtService.verify<JwtPayload>(token, {
+        publicKey: env.JWT_PUBLIC_KEY,
+        algorithms: ['ES256'],
+      });
       userId = payload.sub;
     } catch {
       res.status(401).json({ error: 'Invalid token' });
@@ -160,7 +165,7 @@ export class TasksStreamController {
         }
       };
 
-      pump();
+      void pump();
     } catch (error) {
       if ((error as Error).name === 'AbortError') return;
       this.logger.error(`SSE proxy error: ${error}`);

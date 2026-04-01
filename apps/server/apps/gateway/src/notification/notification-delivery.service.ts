@@ -58,10 +58,14 @@ export const WS_NOTIFICATION_EVENTS = {
   READ: 'notification_read',
 } as const;
 
+interface NotificationWebsocketGateway {
+  sendToUser(userId: string, event: string, data: unknown): Promise<void>;
+}
+
 @Injectable()
 export class NotificationDeliveryService {
   private readonly logger = new Logger(NotificationDeliveryService.name);
-  private websocketGateway: any = null;
+  private websocketGateway: NotificationWebsocketGateway | null = null;
 
   constructor(private readonly redisService: RedisService) {}
 
@@ -69,7 +73,7 @@ export class NotificationDeliveryService {
    * Set the WebSocket gateway instance (called from module initialization)
    * This avoids circular dependency issues
    */
-  setWebsocketGateway(gateway: any): void {
+  setWebsocketGateway(gateway: NotificationWebsocketGateway): void {
     this.websocketGateway = gateway;
     this.logger.log('WebSocket gateway set for notification delivery');
   }
