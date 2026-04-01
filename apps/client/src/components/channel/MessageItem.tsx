@@ -49,6 +49,14 @@ export interface MessageItemProps {
   onRemoveReaction?: (emoji: string) => void;
 }
 
+function getThinkingMetadata(
+  metadata: Message["metadata"],
+): { thinking?: string } | undefined {
+  if (!metadata || typeof metadata !== "object") return undefined;
+  const thinking = metadata["thinking"];
+  return typeof thinking === "string" ? { thinking } : undefined;
+}
+
 export function MessageItem({
   message,
   currentUserId,
@@ -70,6 +78,7 @@ export function MessageItem({
   onRemoveReaction,
 }: MessageItemProps) {
   const { t } = useTranslation(["thread", "message"]);
+  const thinkingMetadata = getThinkingMetadata(message.metadata);
   const [isHovered, setIsHovered] = useState(false);
   const isSystemMessage = message.type === "system";
   const isOwnMessage = currentUserId === message.senderId;
@@ -220,9 +229,9 @@ export function MessageItem({
             </span>
           )}
         </div>
-        {(message.metadata as any)?.thinking && (
+        {thinkingMetadata?.thinking && (
           <ThinkingBlock
-            content={(message.metadata as any).thinking}
+            content={thinkingMetadata.thinking}
             isStreaming={false}
           />
         )}

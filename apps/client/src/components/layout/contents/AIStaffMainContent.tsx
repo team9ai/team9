@@ -32,6 +32,7 @@ import type {
   OpenClawBotInfo,
   OpenClawInstanceStatus,
 } from "@/services/api/applications";
+import { getHttpErrorMessage } from "@/lib/http-error";
 import { cn } from "@/lib/utils";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 
@@ -229,11 +230,8 @@ function CreateAgentDialog({
       setUsernameStatus("idle");
       onOpenChange(false);
     },
-    onError: (error: any) => {
-      const message =
-        error?.response?.data?.message ||
-        error?.message ||
-        "Failed to create agent";
+    onError: (error: unknown) => {
+      const message = getHttpErrorMessage(error) || "Failed to create agent";
       setCreateError(message);
     },
   });

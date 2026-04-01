@@ -26,6 +26,7 @@ import {
   useUpdateMemberRole,
   useRemoveMember,
 } from "@/hooks/useWorkspace";
+import { getHttpErrorMessage } from "@/lib/http-error";
 import { useWorkspaceStore } from "@/stores";
 import { formatDistanceToNow } from "@/lib/date-utils";
 import type { WorkspaceMember } from "@/types/workspace";
@@ -104,8 +105,8 @@ function MembersPage() {
         userId: member.userId,
         role: newRole,
       });
-    } catch (error: any) {
-      alert(error?.response?.data?.message || "Failed to update role");
+    } catch (error: unknown) {
+      alert(getHttpErrorMessage(error) || "Failed to update role");
     }
   };
 
@@ -135,8 +136,8 @@ function MembersPage() {
     ) {
       try {
         await removeMember.mutateAsync(member.userId);
-      } catch (error: any) {
-        alert(error?.response?.data?.message || "Failed to remove member");
+      } catch (error: unknown) {
+        alert(getHttpErrorMessage(error) || "Failed to remove member");
       }
     }
   };

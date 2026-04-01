@@ -61,7 +61,7 @@ function formatElapsed(startTime: string | number): string {
 }
 
 export function TrackingCard({ message }: TrackingCardProps) {
-  const metadata = (message.metadata as any) ?? {};
+  const metadata = (message.metadata ?? {}) as Record<string, unknown>;
   const trackingChannelId = metadata?.trackingChannelId as string | undefined;
   const {
     isActivated,

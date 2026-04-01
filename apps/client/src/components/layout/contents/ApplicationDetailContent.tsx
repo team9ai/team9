@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { useNavigate } from "@tanstack/react-router";
+import { getHttpErrorStatus } from "@/lib/http-error";
 import { useState, useEffect } from "react";
 import {
   AlertDialog,
@@ -63,7 +64,7 @@ export function ApplicationDetailContent({
 
   // Navigate back to list if app not found (e.g. workspace mismatch)
   useEffect(() => {
-    if (error && (error as any)?.response?.status === 404) {
+    if (getHttpErrorStatus(error) === 404) {
       navigate({ to: "/application" });
     }
   }, [error, navigate]);

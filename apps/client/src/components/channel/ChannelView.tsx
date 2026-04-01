@@ -130,20 +130,19 @@ export function ChannelView({
   } = useChannelMessages(channelId, { anchorMessageId: unreadAnchor });
   const sendMessage = useSendMessage(channelId);
   const markAsRead = useMarkAsRead();
+  const dmOtherUser = (memberChannel as ChannelWithUnread | undefined)
+    ?.otherUser;
 
   // Determine if this is a bot DM channel
   const isBotDm = useMemo(() => {
     if (!memberChannel) return false;
-    return (
-      memberChannel.type === "direct" &&
-      (memberChannel as any).otherUser?.userType === "bot"
-    );
-  }, [memberChannel]);
+    return memberChannel.type === "direct" && dmOtherUser?.userType === "bot";
+  }, [dmOtherUser, memberChannel]);
 
   const botDmUserId = useMemo(() => {
     if (!isBotDm) return null;
-    return (memberChannel as any)?.otherUser?.id ?? null;
-  }, [isBotDm, memberChannel]);
+    return dmOtherUser?.id ?? null;
+  }, [dmOtherUser, isBotDm]);
 
   // OpenClaw instance status for bot DM channels (to detect stopped instances)
   const {

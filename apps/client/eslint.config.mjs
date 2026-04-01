@@ -31,7 +31,7 @@ export default tseslint.config(
     },
     rules: {
       '@typescript-eslint/ban-ts-comment': 'off',
-      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-non-null-asserted-optional-chain': 'off',
       '@typescript-eslint/no-unused-vars': [
         'error',
@@ -52,6 +52,9 @@ export default tseslint.config(
         ...globals.node,
         ...globals.vitest,
       },
+    },
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
     },
   },
 );

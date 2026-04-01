@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { getHttpErrorMessage } from "@/lib/http-error";
 import workspaceApi from "@/services/api/workspace";
 import { workspaceActions, appActions } from "@/stores";
 import { useState, useEffect, useRef } from "react";
@@ -43,9 +44,9 @@ function InvitePage() {
       await queryClient.invalidateQueries({ queryKey: ["user-workspaces"] });
       navigate({ to: "/channels", replace: true });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       console.error("Failed to accept invitation:", error);
-      const msg = error?.message || error?.response?.data?.message || "";
+      const msg = getHttpErrorMessage(error) || "";
       if (msg.includes("maximum") || msg.includes("member limit")) {
         setWorkspaceFull(true);
       } else if (msg.includes("already a member")) {

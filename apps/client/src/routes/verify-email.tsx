@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useVerifyEmail } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { getHttpErrorMessage } from "@/lib/http-error";
 import workspaceApi from "@/services/api/workspace";
 import { workspaceActions, appActions } from "@/stores";
 
@@ -89,13 +90,9 @@ function VerifyEmail() {
             replace: true,
           });
         }, 3000);
-      } catch (err: any) {
+      } catch (err: unknown) {
         setStatus("error");
-        setErrorMessage(
-          err?.response?.data?.message ||
-            err?.message ||
-            t("verificationFailed"),
-        );
+        setErrorMessage(getHttpErrorMessage(err) || t("verificationFailed"));
       }
     };
 
