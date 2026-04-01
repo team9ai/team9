@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Hash, Lock, Info, Users, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { ChannelDetailsModal } from "./ChannelDetailsModal";
 import { AddMemberDialog } from "./AddMemberDialog";
 import { useChannelMembers } from "@/hooks/useChannels";
@@ -37,10 +37,6 @@ export function ChannelHeader({
     ? otherUser?.displayName || otherUser?.username || "Unknown User"
     : channel.name;
 
-  const getInitials = (name: string) => {
-    return name[0]?.toUpperCase() || "U";
-  };
-
   const isOnline = useIsUserOnline(otherUser?.id);
 
   const openDetails = (tab: "about" | "members" | "settings") => {
@@ -54,17 +50,15 @@ export function ChannelHeader({
         <div className="flex items-center gap-3">
           {isDirect && otherUser ? (
             <div className="relative">
-              <Avatar className="w-8 h-8">
-                {otherUser.avatarUrl && (
-                  <AvatarImage src={otherUser.avatarUrl} alt={displayName} />
-                )}
-                {otherUser.userType === "bot" && !otherUser.avatarUrl && (
-                  <AvatarImage src="/bot.webp" alt={displayName} />
-                )}
-                <AvatarFallback className="bg-accent text-accent-foreground text-sm">
-                  {getInitials(displayName)}
-                </AvatarFallback>
-              </Avatar>
+              <UserAvatar
+                userId={otherUser.id}
+                name={otherUser.displayName ?? displayName}
+                username={otherUser.username}
+                avatarUrl={otherUser.avatarUrl}
+                isBot={otherUser.userType === "bot"}
+                className="w-8 h-8"
+                fallbackClassName="text-sm"
+              />
               {isOnline && (
                 <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-success rounded-full border-2 border-background" />
               )}

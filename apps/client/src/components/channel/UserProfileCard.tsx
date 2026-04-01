@@ -1,6 +1,6 @@
 import { createPortal } from "react-dom";
 import { useRef, useMemo } from "react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { useIMUser, useIsUserOnline } from "@/hooks/useIMUsers";
 
 interface UserProfileCardProps {
@@ -52,7 +52,6 @@ export function UserProfileCard({
   }, [anchorRect]);
 
   const name = user?.displayName || user?.username || displayName;
-  const initials = name[0]?.toUpperCase() || "?";
 
   return createPortal(
     <div
@@ -74,17 +73,15 @@ export function UserProfileCard({
         <div className="p-4">
           <div className="flex items-center gap-3 mb-3">
             <div className="relative shrink-0">
-              <Avatar className="w-12 h-12">
-                {user?.avatarUrl && (
-                  <AvatarImage src={user.avatarUrl} alt={name} />
-                )}
-                {user?.userType === "bot" && !user?.avatarUrl && (
-                  <AvatarImage src="/bot.webp" alt={name} />
-                )}
-                <AvatarFallback className="bg-primary text-primary-foreground text-lg">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
+              <UserAvatar
+                userId={user?.id ?? userId}
+                name={user?.displayName ?? name}
+                username={user?.username}
+                avatarUrl={user?.avatarUrl}
+                isBot={user?.userType === "bot"}
+                className="w-12 h-12"
+                fallbackClassName="text-lg"
+              />
               <span
                 className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-popover ${
                   isOnline ? "bg-success" : "bg-muted-foreground/40"

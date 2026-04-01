@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { useWorkspaceMembers } from "@/hooks/useWorkspace";
 import { useChannelMembers, useAddChannelMember } from "@/hooks/useChannels";
 import { useSelectedWorkspaceId } from "@/stores";
@@ -117,12 +117,14 @@ export function AddMemberDialog({
         }`}
       >
         <div className="flex items-center gap-3">
-          <Avatar className="w-9 h-9">
-            {member.avatarUrl && <AvatarImage src={member.avatarUrl} />}
-            <AvatarFallback className="bg-primary/10 text-primary">
-              {displayName[0].toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
+          <UserAvatar
+            userId={member.userId}
+            name={displayName}
+            username={member.username}
+            avatarUrl={member.avatarUrl}
+            isBot={member.userType === "bot"}
+            className="w-9 h-9"
+          />
           <div className="text-left">
             <p className="text-sm font-medium">{displayName}</p>
             <p className="text-xs text-muted-foreground">@{member.username}</p>
