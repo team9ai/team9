@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { cn } from "@/lib/utils";
 
 interface Replier {
@@ -45,32 +45,18 @@ export function ThreadReplyIndicator({
         {/* Avatar stack */}
         {lastRepliers.length > 0 && (
           <div className="flex items-center -space-x-1.5">
-            {lastRepliers.slice(0, 5).map((replier) => {
-              const initial =
-                replier.displayName?.[0] || replier.username[0] || "?";
-              return (
-                <Avatar
-                  key={replier.id}
-                  className="w-5 h-5 ring-2 ring-background"
-                >
-                  {replier.avatarUrl && (
-                    <AvatarImage
-                      src={replier.avatarUrl}
-                      alt={replier.displayName || replier.username}
-                    />
-                  )}
-                  {replier.userType === "bot" && !replier.avatarUrl && (
-                    <AvatarImage
-                      src="/bot.webp"
-                      alt={replier.displayName || replier.username}
-                    />
-                  )}
-                  <AvatarFallback className="bg-primary text-primary-foreground text-[8px]">
-                    {initial.toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              );
-            })}
+            {lastRepliers.slice(0, 5).map((replier) => (
+              <UserAvatar
+                key={replier.id}
+                userId={replier.id}
+                name={replier.displayName}
+                username={replier.username}
+                avatarUrl={replier.avatarUrl}
+                isBot={replier.userType === "bot"}
+                className="w-5 h-5 ring-2 ring-background"
+                fallbackClassName="text-[8px]"
+              />
+            ))}
           </div>
         )}
 

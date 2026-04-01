@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2, AlertCircle, RotateCcw, X } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { MessageContent } from "./MessageContent";
 import { MessageAttachments } from "./MessageAttachments";
 import { MessageContextMenu } from "./MessageContextMenu";
@@ -146,8 +146,6 @@ export function MessageItem({
     );
   }
 
-  const initials =
-    message.sender?.displayName?.[0] || message.sender?.username?.[0] || "?";
   const senderName =
     message.sender?.displayName || message.sender?.username || "Unknown User";
 
@@ -190,22 +188,15 @@ export function MessageItem({
           onReplyInThread={onReplyInThread}
         />
       )}
-      <Avatar className={cn("shrink-0", compact ? "w-8 h-8" : "w-9 h-9")}>
-        {message.sender?.avatarUrl && (
-          <AvatarImage src={message.sender.avatarUrl} alt={senderName} />
-        )}
-        {message.sender?.userType === "bot" && !message.sender?.avatarUrl && (
-          <AvatarImage src="/bot.webp" alt={senderName} />
-        )}
-        <AvatarFallback
-          className={cn(
-            "bg-primary text-primary-foreground",
-            compact ? "text-xs" : "text-sm",
-          )}
-        >
-          {initials.toUpperCase()}
-        </AvatarFallback>
-      </Avatar>
+      <UserAvatar
+        userId={message.sender?.id ?? message.senderId ?? undefined}
+        name={message.sender?.displayName ?? senderName}
+        username={message.sender?.username}
+        avatarUrl={message.sender?.avatarUrl}
+        isBot={message.sender?.userType === "bot"}
+        className={cn("shrink-0", compact ? "w-8 h-8" : "w-9 h-9")}
+        fallbackClassName={compact ? "text-xs" : "text-sm"}
+      />
 
       <div className="flex flex-col items-start flex-1 min-w-0">
         <div className="flex items-baseline gap-2 mb-1">

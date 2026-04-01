@@ -31,7 +31,7 @@ export type ResponseInterceptor = <T = any>(
 
 export type ErrorInterceptor = (
   error: HttpError,
-) => Promise<never> | Promise<any>;
+) => Promise<HttpResponse | never> | Promise<any>;
 
 export interface InterceptorManager {
   request: {

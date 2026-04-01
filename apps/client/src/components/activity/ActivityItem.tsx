@@ -1,6 +1,7 @@
+import type { TFunction } from "i18next";
 import { Hash, AtSign, MessageSquare, Reply } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { cn } from "@/lib/utils";
 import { formatMessageTime } from "@/lib/date-utils";
 import type {
@@ -30,7 +31,7 @@ function getNotificationIcon(type: NotificationType) {
 
 function getSourceContext(
   notification: Notification,
-  t: (key: string, options?: Record<string, string>) => string,
+  t: TFunction<"navigation">,
 ): string {
   const { type, title } = notification;
 
@@ -81,10 +82,6 @@ export function ActivityItem({
 
   const actorName =
     notification.actor?.displayName || notification.actor?.username || "System";
-  const actorInitial =
-    notification.actor?.displayName?.[0] ||
-    notification.actor?.username?.[0]?.toUpperCase() ||
-    "S";
 
   return (
     <div
@@ -107,14 +104,14 @@ export function ActivityItem({
 
       {/* User info and preview */}
       <div className="flex items-start gap-2">
-        <Avatar className="w-8 h-8 shrink-0">
-          {notification.actor?.avatarUrl && (
-            <AvatarImage src={notification.actor.avatarUrl} alt={actorName} />
-          )}
-          <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-            {actorInitial}
-          </AvatarFallback>
-        </Avatar>
+        <UserAvatar
+          userId={notification.actor?.id}
+          name={notification.actor?.displayName ?? actorName}
+          username={notification.actor?.username}
+          avatarUrl={notification.actor?.avatarUrl}
+          className="w-8 h-8 shrink-0"
+          fallbackClassName="text-xs"
+        />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <span className="text-sm font-medium text-nav-foreground truncate">

@@ -19,9 +19,11 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
+import { getInitials, getSeededAvatarGradient } from "@/lib/avatar-colors";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import {
   Tooltip,
   TooltipContent,
@@ -69,20 +71,6 @@ const navigationItems = [
   { id: "library", labelKey: "library" as const, icon: Library },
   { id: "application", labelKey: "application" as const, icon: LayoutGrid },
   { id: "more", labelKey: "more" as const, icon: MoreHorizontal },
-];
-
-// Workspace avatar gradient colors - softer, modern palette
-const WORKSPACE_GRADIENTS = [
-  "from-indigo-500 to-blue-400",
-  "from-violet-500 to-purple-400",
-  "from-rose-400 to-pink-400",
-  "from-emerald-500 to-teal-400",
-  "from-amber-400 to-orange-400",
-  "from-cyan-500 to-sky-400",
-  "from-fuchsia-500 to-pink-400",
-  "from-lime-500 to-green-400",
-  "from-blue-500 to-indigo-400",
-  "from-orange-500 to-red-400",
 ];
 
 export function MainSidebar() {
@@ -253,18 +241,6 @@ export function MainSidebar() {
     prevWorkspaceIdRef.current = selectedWorkspaceId;
   }, [selectedWorkspaceId, queryClient, navigate]);
 
-  const getInitials = (name: string) => {
-    const words = name.trim().split(/\s+/);
-    if (words.length === 1) {
-      return words[0][0].toUpperCase();
-    }
-    return (words[0][0] + words[1][0]).toUpperCase();
-  };
-
-  const getWorkspaceGradient = (index: number) => {
-    return WORKSPACE_GRADIENTS[index % WORKSPACE_GRADIENTS.length];
-  };
-
   const sidebarCollapsed = useSidebarCollapsed();
 
   const renderNavigationItems = () =>
@@ -342,9 +318,6 @@ export function MainSidebar() {
             ) : sidebarCollapsed && workspaces && workspaces.length > 1 ? (
               /* Stacked workspace avatars when collapsed - current on top */
               (() => {
-                const currentIdx = workspaces.findIndex(
-                  (w) => w.id === currentWorkspace?.id,
-                );
                 const others = workspaces.filter(
                   (w) => w.id !== currentWorkspace?.id,
                 );
@@ -361,13 +334,12 @@ export function MainSidebar() {
                       >
                         {/* Background avatars (behind, offset) */}
                         {others.slice(0, 2).map((workspace, i) => {
-                          const origIdx = workspaces.indexOf(workspace);
                           return (
                             <div
                               key={workspace.id}
                               className={cn(
                                 "absolute flex items-center justify-center bg-linear-to-br text-white text-xs font-semibold rounded-lg border-2 border-nav-bg opacity-60",
-                                getWorkspaceGradient(origIdx),
+                                getSeededAvatarGradient(workspace.id),
                               )}
                               style={{
                                 width: "32px",
@@ -386,9 +358,7 @@ export function MainSidebar() {
                           <div
                             className={cn(
                               "w-10 h-10 absolute top-0 left-0 flex items-center justify-center bg-linear-to-br text-white text-sm font-semibold rounded-xl shadow-md",
-                              getWorkspaceGradient(
-                                currentIdx >= 0 ? currentIdx : 0,
-                              ),
+                              getSeededAvatarGradient(currentWorkspace.id),
                             )}
                             style={{ zIndex: 10 }}
                           >
@@ -402,7 +372,7 @@ export function MainSidebar() {
                         <p className="font-semibold text-xs mb-2 text-muted-foreground px-2">
                           {tNav("moreWorkspaces")}
                         </p>
-                        {workspaces.map((workspace, index) => {
+                        {workspaces.map((workspace) => {
                           const isActive =
                             currentWorkspace?.id === workspace.id;
                           return (
@@ -421,7 +391,7 @@ export function MainSidebar() {
                               <div
                                 className={cn(
                                   "w-6 h-6 rounded-md flex items-center justify-center bg-linear-to-br text-white text-xs font-semibold shrink-0",
-                                  getWorkspaceGradient(index),
+                                  getSeededAvatarGradient(workspace.id),
                                   !isActive && "opacity-60",
                                 )}
                               >
@@ -449,7 +419,7 @@ export function MainSidebar() {
                 );
               })()
             ) : (
-              visibleWorkspaces.map((workspace, index) => {
+              visibleWorkspaces.map((workspace) => {
                 const isSelected = currentWorkspace?.id === workspace.id;
                 return (
                   <Tooltip key={workspace.id}>
@@ -457,7 +427,7 @@ export function MainSidebar() {
                       <div
                         className={cn(
                           "cursor-pointer transition-all duration-200 flex items-center justify-center bg-linear-to-br text-white font-semibold",
-                          getWorkspaceGradient(index),
+                          getSeededAvatarGradient(workspace.id),
                           isSelected
                             ? "w-11 h-11 rounded-lg text-base shadow-[0_2px_12px_rgba(0,0,0,0.3)]"
                             : "w-9 h-9 rounded-full text-sm opacity-50 hover:opacity-90 hover:rounded-2xl hover:w-10 hover:h-10",
@@ -505,13 +475,14 @@ export function MainSidebar() {
             <Popover open={userMenuOpen} onOpenChange={setUserMenuOpen}>
               <PopoverTrigger asChild>
                 <div className="relative cursor-pointer">
-                  <Avatar className="w-10 h-10">
-                    <AvatarFallback className="bg-primary hover:bg-primary/90 transition-colors text-primary-foreground text-sm font-medium">
-                      {currentUser?.displayName?.[0] ||
-                        currentUser?.username?.[0]?.toUpperCase() ||
-                        "U"}
-                    </AvatarFallback>
-                  </Avatar>
+                  <UserAvatar
+                    userId={currentUser?.id}
+                    name={currentUser?.displayName}
+                    username={currentUser?.username}
+                    avatarUrl={currentUser?.avatarUrl}
+                    className="w-10 h-10"
+                    fallbackClassName="transition-opacity hover:opacity-90 text-sm font-medium"
+                  />
                   <div
                     className={cn(
                       "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-nav-bg",
@@ -530,16 +501,15 @@ export function MainSidebar() {
                 <div className="p-4">
                   <div className="flex items-center gap-3">
                     <div className="relative">
-                      <Avatar
+                      <UserAvatar
+                        userId={currentUser?.id}
+                        name={currentUser?.displayName}
+                        username={currentUser?.username}
+                        avatarUrl={currentUser?.avatarUrl}
                         className="w-12 h-12 cursor-pointer"
+                        fallbackClassName="text-lg font-medium"
                         onClick={devtoolsTap}
-                      >
-                        <AvatarFallback className="bg-primary text-primary-foreground text-lg font-medium">
-                          {currentUser?.displayName?.[0] ||
-                            currentUser?.username?.[0]?.toUpperCase() ||
-                            "U"}
-                        </AvatarFallback>
-                      </Avatar>
+                      />
                       {devtoolsMessage && (
                         <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 whitespace-nowrap rounded bg-foreground px-2 py-1 text-xs text-background shadow-md animate-in fade-in zoom-in-95 duration-150">
                           {devtoolsMessage}
