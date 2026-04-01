@@ -18,7 +18,7 @@ export const emailChangeConfirmationTemplate = (
 ) => {
   const username = escapeHtml(data.username);
   const currentEmail = escapeHtml(data.currentEmail);
-  const confirmationLink = data.confirmationLink;
+  const confirmationLink = escapeHtml(data.confirmationLink);
 
   return {
     html: `

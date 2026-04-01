@@ -90,6 +90,67 @@ function isEmailValid(value: string) {
   return EMAIL_PATTERN.test(value.trim());
 }
 
+function getApiErrorMessage(error: unknown): string {
+  if (
+    error &&
+    typeof error === "object" &&
+    "response" in error &&
+    error.response &&
+    typeof error.response === "object" &&
+    "data" in error.response &&
+    error.response.data &&
+    typeof error.response.data === "object" &&
+    "message" in error.response.data &&
+    typeof error.response.data.message === "string"
+  ) {
+    return error.response.data.message;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "";
+}
+
+function getProfileSaveError(error: unknown, t: any): string {
+  const message = getApiErrorMessage(error);
+
+  if (message === "Username is already taken") {
+    return t("profileCard.usernameTaken", "That username is already taken");
+  }
+
+  if (
+    message === "Avatar URL must reference your own public Team9 upload" ||
+    message === "Avatar URL must use the configured Team9 file host" ||
+    message ===
+      "Avatar URL must use a Team9 public file URL or a trusted avatar provider"
+  ) {
+    return t(
+      "profileCard.avatarRejected",
+      "That avatar upload could not be saved. Please choose a new file and try again.",
+    );
+  }
+
+  return t(
+    "profileCard.updateFailed",
+    "We could not update your profile right now.",
+  );
+}
+
+function getEmailChangeError(error: unknown, t: any): string {
+  const message = getApiErrorMessage(error);
+
+  if (message === "Email already in use") {
+    return t("emailCard.emailInUse", "That email is already in use");
+  }
+
+  return t(
+    "emailCard.requestFailed",
+    "We could not start the email change right now.",
+  );
+}
+
 export function AccountSettingsContent() {
   const { t } = useTranslation("settings");
   const { data: currentUser, isLoading } = useCurrentUser();
@@ -244,12 +305,7 @@ export function AccountSettingsContent() {
       setSelectedAvatar(null);
       setAvatarPreviewUrl(null);
     } catch (error) {
-      setSaveError(
-        t(
-          "profileCard.updateFailed",
-          "We could not update your profile right now.",
-        ),
-      );
+      setSaveError(getProfileSaveError(error, t));
     } finally {
       setIsSavingProfile(false);
     }
@@ -275,12 +331,7 @@ export function AccountSettingsContent() {
       await startEmailChange({ newEmail: normalizedEmail });
       setNewEmail("");
     } catch (error) {
-      setEmailError(
-        t(
-          "emailCard.requestFailed",
-          "We could not start the email change right now.",
-        ),
-      );
+      setEmailError(getEmailChangeError(error, t));
     } finally {
       setIsSubmittingEmailChange(false);
     }

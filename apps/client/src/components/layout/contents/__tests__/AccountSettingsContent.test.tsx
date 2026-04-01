@@ -174,6 +174,28 @@ describe("AccountSettingsContent", () => {
     expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
   });
 
+  it("shows a specific error when the username is already taken", async () => {
+    mockUpdateCurrentUser.mockRejectedValue({
+      status: 409,
+      response: {
+        data: {
+          message: "Username is already taken",
+        },
+      },
+    });
+
+    render(<AccountSettingsContent />);
+
+    fireEvent.change(screen.getByLabelText("Username"), {
+      target: { value: "taken_name" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    expect(
+      await screen.findByText("That username is already taken"),
+    ).toBeInTheDocument();
+  });
+
   it("shows pending email change actions when one exists", () => {
     pendingEmailState.current = {
       pendingEmailChange: {
@@ -205,6 +227,28 @@ describe("AccountSettingsContent", () => {
     expect(
       screen.getByRole("button", { name: "Request change" }),
     ).toBeDisabled();
+  });
+
+  it("shows a specific error when the new email is already in use", async () => {
+    mockStartEmailChange.mockRejectedValue({
+      status: 409,
+      response: {
+        data: {
+          message: "Email already in use",
+        },
+      },
+    });
+
+    render(<AccountSettingsContent />);
+
+    fireEvent.change(screen.getByLabelText("New email"), {
+      target: { value: "taken@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Request change" }));
+
+    expect(
+      await screen.findByText("That email is already in use"),
+    ).toBeInTheDocument();
   });
 
   it("rejects avatar files that are not supported images", () => {

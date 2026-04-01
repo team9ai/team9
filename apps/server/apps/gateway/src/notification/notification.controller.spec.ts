@@ -7,20 +7,17 @@ import { NotificationDeliveryService } from './notification-delivery.service.js'
 describe('NotificationController markAllAsRead', () => {
   let controller: NotificationController;
   let notificationService: {
-    getUnreadNotificationIds: jest.Mock<any>;
     markAllAsRead: jest.Mock<any>;
     getUnreadCounts: jest.Mock<any>;
   };
   let deliveryService: {
     broadcastNotificationRead: jest.Mock<any>;
+    broadcastNotificationAllRead: jest.Mock<any>;
     broadcastCountsUpdate: jest.Mock<any>;
   };
 
   beforeEach(() => {
     notificationService = {
-      getUnreadNotificationIds: jest
-        .fn<any>()
-        .mockResolvedValue(['notif-1', 'notif-2']),
       markAllAsRead: jest.fn<any>().mockResolvedValue(undefined),
       getUnreadCounts: jest.fn<any>().mockResolvedValue({
         total: 0,
@@ -30,6 +27,7 @@ describe('NotificationController markAllAsRead', () => {
     };
     deliveryService = {
       broadcastNotificationRead: jest.fn<any>().mockResolvedValue(undefined),
+      broadcastNotificationAllRead: jest.fn<any>().mockResolvedValue(undefined),
       broadcastCountsUpdate: jest.fn<any>().mockResolvedValue(undefined),
     };
 
@@ -51,10 +49,12 @@ describe('NotificationController markAllAsRead', () => {
       'message',
       ['mention', 'reply', 'thread_reply'],
     );
-    expect(deliveryService.broadcastNotificationRead).toHaveBeenCalledWith(
+    expect(deliveryService.broadcastNotificationAllRead).toHaveBeenCalledWith(
       'user-1',
-      ['notif-1', 'notif-2'],
+      'message',
+      ['mention', 'reply', 'thread_reply'],
     );
+    expect(deliveryService.broadcastNotificationRead).not.toHaveBeenCalled();
     expect(deliveryService.broadcastCountsUpdate).toHaveBeenCalled();
   });
 
@@ -62,6 +62,11 @@ describe('NotificationController markAllAsRead', () => {
     await controller.markAllAsRead('user-1', 'message', undefined);
 
     expect(notificationService.markAllAsRead).toHaveBeenCalledWith(
+      'user-1',
+      'message',
+      undefined,
+    );
+    expect(deliveryService.broadcastNotificationAllRead).toHaveBeenCalledWith(
       'user-1',
       'message',
       undefined,
