@@ -54,7 +54,7 @@ interface RawPendingDevice {
   displayName?: string;
   platform?: string;
   ts: number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface RawPairedDevice {
@@ -63,7 +63,7 @@ interface RawPairedDevice {
   platform?: string;
   approvedAtMs?: number;
   createdAtMs?: number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface RawDeviceList {
@@ -78,7 +78,7 @@ export interface DeviceInfo {
   deviceId?: string;
   name?: string;
   status: 'pending' | 'approved';
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface Instance {
@@ -87,7 +87,7 @@ export interface Instance {
   subdomain: string;
   status: 'creating' | 'running' | 'stopped' | 'error';
   provider: string;
-  running_instance_info?: Record<string, any>;
+  running_instance_info?: Record<string, unknown>;
   custom_env?: Record<string, string>;
   tunnel_id?: string;
   volume_id?: string;

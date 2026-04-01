@@ -6,7 +6,7 @@ import { REDIS_CLIENT } from './redis.constants.js';
 export class RedisService {
   private readonly NULL_MARKER = '__CACHE_NULL__';
   // Singleflight: prevent cache stampede by deduplicating concurrent DB calls for the same key
-  private readonly inflight = new Map<string, Promise<any>>();
+  private readonly inflight = new Map<string, Promise<unknown>>();
 
   constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
 
