@@ -14,7 +14,6 @@ describe("UserListItem avatar fallback", () => {
     render(
       <UserListItem
         name="Alice Smith"
-        avatar="A"
         userId="user-seeded"
         subtitle="@alice"
       />,

@@ -8,8 +8,6 @@ import { useIsUserOnline } from "@/hooks/useIMUsers";
 export interface UserListItemProps {
   /** Display name */
   name: string;
-  /** Avatar text (initials) */
-  avatar: string;
   /** Avatar image URL */
   avatarUrl?: string;
   /** User ID for real-time online status detection */
@@ -40,7 +38,6 @@ export interface UserListItemProps {
  */
 export function UserListItem({
   name,
-  avatar,
   avatarUrl,
   userId,
   isSelected = false,
@@ -73,7 +70,7 @@ export function UserListItem({
       <div className="relative">
         <UserAvatar
           userId={userId}
-          name={name || avatar}
+          name={name}
           username={username}
           avatarUrl={avatarUrl}
           isBot={isBot}

@@ -26,6 +26,9 @@ type IntlWithOptionalSegmenter = typeof Intl & {
   ) => GraphemeSegmenter;
 };
 
+let cachedIntlRef: typeof Intl | undefined;
+let cachedGraphemeSegmenter: GraphemeSegmenter | null | undefined;
+
 function hashSeed(seed: string): number {
   let hash = 5381;
 
@@ -39,18 +42,28 @@ function hashSeed(seed: string): number {
 
 function getGraphemeSegmenter(): GraphemeSegmenter | null {
   if (typeof Intl === "undefined") {
+    cachedIntlRef = undefined;
+    cachedGraphemeSegmenter = null;
     return null;
+  }
+
+  if (cachedIntlRef === Intl && cachedGraphemeSegmenter !== undefined) {
+    return cachedGraphemeSegmenter;
   }
 
   const intlWithSegmenter = Intl as IntlWithOptionalSegmenter;
+  cachedIntlRef = Intl;
 
   if (typeof intlWithSegmenter.Segmenter !== "function") {
+    cachedGraphemeSegmenter = null;
     return null;
   }
 
-  return new intlWithSegmenter.Segmenter(undefined, {
+  cachedGraphemeSegmenter = new intlWithSegmenter.Segmenter(undefined, {
     granularity: "grapheme",
   });
+
+  return cachedGraphemeSegmenter;
 }
 
 function getFirstDisplayedGrapheme(value: string): string {
