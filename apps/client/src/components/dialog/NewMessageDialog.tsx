@@ -3,9 +3,9 @@ import { useNavigate } from "@tanstack/react-router";
 import { Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { OnlineStatusDot } from "@/components/ui/online-status-dot";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { useSearchUsers } from "@/hooks/useIMUsers";
 import { useCreateDirectChannel } from "@/hooks/useChannels";
 import type { IMUser } from "@/types/im";
@@ -100,11 +100,14 @@ export function NewMessageDialog({ isOpen, onClose }: NewMessageDialogProps) {
                     disabled={createDirectChannel.isPending}
                     className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted transition-colors text-left disabled:opacity-50"
                   >
-                    <Avatar className="w-10 h-10">
-                      <AvatarFallback className="bg-primary text-primary-foreground">
-                        {(user.displayName || user.username)[0].toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar
+                      userId={user.id}
+                      name={user.displayName || user.username}
+                      username={user.username}
+                      avatarUrl={user.avatarUrl}
+                      isBot={user.userType === "bot"}
+                      className="w-10 h-10"
+                    />
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm text-foreground truncate">
                         {user.displayName || user.username}

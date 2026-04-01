@@ -8,8 +8,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { cn } from "@/lib/utils";
 import { useWorkspaceMembers } from "@/hooks/useWorkspace";
 import { useSelectedWorkspaceId, useUser } from "@/stores";
@@ -153,13 +153,15 @@ export function SearchFilterFrom({
                           "border-primary-foreground data-[state=checked]:bg-primary-foreground data-[state=checked]:text-primary",
                       )}
                     />
-                    <Avatar className="h-6 w-6">
-                      <AvatarImage src={member.avatarUrl || undefined} />
-                      <AvatarFallback className="text-xs">
-                        {(member.displayName ||
-                          member.username)?.[0]?.toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar
+                      userId={member.userId}
+                      name={member.displayName || member.username}
+                      username={member.username}
+                      avatarUrl={member.avatarUrl}
+                      isBot={member.userType === "bot"}
+                      className="h-6 w-6"
+                      fallbackClassName="text-xs"
+                    />
                     <span className="flex-1 truncate text-sm">
                       {member.displayName || member.username}
                       {isCurrentUser && (

@@ -13,13 +13,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import {
   useWorkspaceMembers,
   useCurrentWorkspaceRole,
@@ -199,16 +199,14 @@ function MembersPage() {
                   className="flex items-center justify-between p-4 rounded-lg hover:bg-accent/50 transition-colors border"
                 >
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <Avatar className="w-10 h-10">
-                      {member.avatarUrl && (
-                        <AvatarImage src={member.avatarUrl} />
-                      )}
-                      <AvatarFallback className="bg-primary/10 text-primary">
-                        {(member.displayName || member.username)
-                          .charAt(0)
-                          .toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar
+                      userId={member.userId}
+                      name={member.displayName || member.username}
+                      username={member.username}
+                      avatarUrl={member.avatarUrl}
+                      isBot={member.userType === "bot"}
+                      className="w-10 h-10"
+                    />
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">
                         {member.displayName || member.username}

@@ -23,6 +23,7 @@ import { supportedLanguages } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import {
   Tooltip,
   TooltipContent,
@@ -515,13 +516,14 @@ export function MainSidebar() {
             <Popover open={userMenuOpen} onOpenChange={setUserMenuOpen}>
               <PopoverTrigger asChild>
                 <div className="relative cursor-pointer">
-                  <Avatar className="w-10 h-10">
-                    <AvatarFallback className="bg-primary hover:bg-primary/90 transition-colors text-primary-foreground text-sm font-medium">
-                      {currentUser?.displayName?.[0] ||
-                        currentUser?.username?.[0]?.toUpperCase() ||
-                        "U"}
-                    </AvatarFallback>
-                  </Avatar>
+                  <UserAvatar
+                    userId={currentUser?.id}
+                    name={currentUser?.displayName}
+                    username={currentUser?.username}
+                    avatarUrl={currentUser?.avatarUrl}
+                    className="w-10 h-10"
+                    fallbackClassName="transition-opacity hover:opacity-90 text-sm font-medium"
+                  />
                   <div
                     className={cn(
                       "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-nav-bg",
@@ -540,16 +542,15 @@ export function MainSidebar() {
                 <div className="p-4">
                   <div className="flex items-center gap-3">
                     <div className="relative">
-                      <Avatar
+                      <UserAvatar
+                        userId={currentUser?.id}
+                        name={currentUser?.displayName}
+                        username={currentUser?.username}
+                        avatarUrl={currentUser?.avatarUrl}
                         className="w-12 h-12 cursor-pointer"
+                        fallbackClassName="text-lg font-medium"
                         onClick={devtoolsTap}
-                      >
-                        <AvatarFallback className="bg-primary text-primary-foreground text-lg font-medium">
-                          {currentUser?.displayName?.[0] ||
-                            currentUser?.username?.[0]?.toUpperCase() ||
-                            "U"}
-                        </AvatarFallback>
-                      </Avatar>
+                      />
                       {devtoolsMessage && (
                         <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 whitespace-nowrap rounded bg-foreground px-2 py-1 text-xs text-background shadow-md animate-in fade-in zoom-in-95 duration-150">
                           {devtoolsMessage}
