@@ -329,15 +329,12 @@ export function HomeSubSidebar() {
     const otherUser = channel.otherUser;
     const displayName =
       otherUser?.displayName || otherUser?.username || "Direct Message";
-    const avatarText =
-      otherUser?.displayName?.[0] || otherUser?.username?.[0] || "D";
 
     return {
       id: channel.id,
       channelId: channel.id,
       userId: otherUser?.id,
       name: displayName,
-      avatar: avatarText,
       avatarUrl: otherUser?.avatarUrl,
       status: otherUser?.status || ("offline" as const),
       unreadCount: channel.unreadCount || 0,
@@ -631,7 +628,6 @@ export function HomeSubSidebar() {
                     <UserListItem
                       key={dm.id}
                       name={dm.name}
-                      avatar={dm.avatar}
                       avatarUrl={dm.avatarUrl}
                       userId={dm.userId}
                       isSelected={selectedChannelId === dm.channelId}
