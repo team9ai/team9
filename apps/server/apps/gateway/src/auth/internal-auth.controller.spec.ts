@@ -51,7 +51,11 @@ describe('InternalAuthController (integration)', () => {
   });
 
   afterEach(async () => {
-    process.env.INTERNAL_AUTH_VALIDATION_TOKEN = previousInternalToken;
+    if (previousInternalToken === undefined) {
+      delete process.env.INTERNAL_AUTH_VALIDATION_TOKEN;
+    } else {
+      process.env.INTERNAL_AUTH_VALIDATION_TOKEN = previousInternalToken;
+    }
     await app.close();
   });
 
@@ -140,28 +144,26 @@ describe('InternalAuthGuard', () => {
   const previousInternalToken = process.env.INTERNAL_AUTH_VALIDATION_TOKEN;
 
   afterEach(() => {
-    process.env.INTERNAL_AUTH_VALIDATION_TOKEN = previousInternalToken;
+    if (previousInternalToken === undefined) {
+      delete process.env.INTERNAL_AUTH_VALIDATION_TOKEN;
+    } else {
+      process.env.INTERNAL_AUTH_VALIDATION_TOKEN = previousInternalToken;
+    }
   });
 
-  it('does not fail at construction when INTERNAL_AUTH_VALIDATION_TOKEN is missing', () => {
+  it('throws at construction when INTERNAL_AUTH_VALIDATION_TOKEN is missing', () => {
     delete process.env.INTERNAL_AUTH_VALIDATION_TOKEN;
 
-    expect(() => new InternalAuthGuard()).not.toThrow();
+    expect(() => new InternalAuthGuard()).toThrow(
+      'Missing required environment variable: INTERNAL_AUTH_VALIDATION_TOKEN',
+    );
   });
 
-  it('returns 401 when INTERNAL_AUTH_VALIDATION_TOKEN is missing', () => {
-    delete process.env.INTERNAL_AUTH_VALIDATION_TOKEN;
-    const guard = new InternalAuthGuard();
-    const context = {
-      switchToHttp: () => ({
-        getRequest: () => ({
-          headers: { authorization: 'Bearer internal-secret' },
-        }),
-      }),
-    };
+  it('throws at construction when INTERNAL_AUTH_VALIDATION_TOKEN is empty', () => {
+    process.env.INTERNAL_AUTH_VALIDATION_TOKEN = '';
 
-    expect(() => guard.canActivate(context as any)).toThrow(
-      UnauthorizedException,
+    expect(() => new InternalAuthGuard()).toThrow(
+      'Missing required environment variable: INTERNAL_AUTH_VALIDATION_TOKEN',
     );
   });
 

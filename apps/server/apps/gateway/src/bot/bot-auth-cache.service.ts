@@ -13,6 +13,8 @@ interface VersionedBotAuthContext {
   version: number | null;
 }
 
+type SafeGetResult = { ok: true; value: string | null } | { ok: false };
+
 type CachedBotAuthPayload =
   | { invalid: true }
   | VersionedBotAuthContext
@@ -105,11 +107,15 @@ export class BotAuthCacheService {
 
   async getBotVersion(botId: string): Promise<number | null> {
     const raw = await this.safeGet(this.versionKey(botId));
-    if (raw === null) {
+    if (!raw.ok) {
+      return null;
+    }
+
+    if (raw.value === null) {
       return 0;
     }
 
-    const parsed = Number.parseInt(raw, 10);
+    const parsed = Number.parseInt(raw.value, 10);
     return Number.isNaN(parsed) ? null : parsed;
   }
 
@@ -131,14 +137,14 @@ export class BotAuthCacheService {
 
   private async getValidCachedContext(
     cacheKey: string,
-    cached: string | null,
+    cached: SafeGetResult,
   ): Promise<BotAuthContext | null | undefined> {
-    if (cached === null) {
+    if (!cached.ok || cached.value === null) {
       return undefined;
     }
 
     try {
-      const parsed = JSON.parse(cached) as CachedBotAuthPayload;
+      const parsed = JSON.parse(cached.value) as CachedBotAuthPayload;
       if ('invalid' in parsed) {
         return null;
       }
@@ -181,11 +187,14 @@ export class BotAuthCacheService {
     };
   }
 
-  private async safeGet(key: string): Promise<string | null> {
+  private async safeGet(key: string): Promise<SafeGetResult> {
     try {
-      return await this.redis.get(key);
+      return {
+        ok: true,
+        value: await this.redis.get(key),
+      };
     } catch {
-      return null;
+      return { ok: false };
     }
   }
 

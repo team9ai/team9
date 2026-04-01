@@ -55,6 +55,10 @@ describe('BotService', () => {
   let botAuthCache: {
     getOrSetValidation: MockFn;
     invalidateBot: MockFn;
+    beginBotMutation: MockFn;
+    endBotMutation: MockFn;
+    isBotMutationInProgress: MockFn;
+    getBotVersion: MockFn;
   };
 
   beforeEach(async () => {
@@ -67,6 +71,10 @@ describe('BotService', () => {
     botAuthCache = {
       getOrSetValidation: jest.fn<any>(),
       invalidateBot: jest.fn<any>().mockResolvedValue(undefined),
+      beginBotMutation: jest.fn<any>().mockResolvedValue(undefined),
+      endBotMutation: jest.fn<any>().mockResolvedValue(undefined),
+      isBotMutationInProgress: jest.fn<any>().mockResolvedValue(false),
+      getBotVersion: jest.fn<any>().mockResolvedValue(0),
     };
 
     const module: TestingModule = await Test.createTestingModule({

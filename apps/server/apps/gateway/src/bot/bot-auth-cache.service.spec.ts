@@ -159,6 +159,29 @@ describe('BotAuthCacheService', () => {
     ).resolves.toEqual(value);
   });
 
+  it('skips positive cache writes when the bot version cannot be read from Redis', async () => {
+    const value = {
+      botId: 'bot-version-read-fail',
+      userId: 'user-5',
+      tenantId: 'tenant-5',
+    };
+
+    redis.get.mockImplementation(async (key: string) => {
+      if (key === 'auth:bot-token-version:bot-version-read-fail') {
+        throw new Error('redis unavailable');
+      }
+      return null;
+    });
+
+    await expect(
+      service.getOrSetValidation('t9bot_version_read_fail', async () => value),
+    ).resolves.toEqual(value);
+
+    expect(redis.set).not.toHaveBeenCalled();
+    expect(redis.sadd).not.toHaveBeenCalled();
+    expect(redis.expire).not.toHaveBeenCalled();
+  });
+
   it('invalidates all cached token digests for a bot via the reverse index', async () => {
     redis.smembers.mockResolvedValue([
       'auth:bot-token:abc',
