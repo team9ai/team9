@@ -169,6 +169,16 @@ describe('BotService auth validation', () => {
         },
       ]),
     );
+    db.__queueSelect(
+      createSelectLimitChain([
+        {
+          botId: 'bot-1',
+          userId: 'user-1',
+          tenantId: 'tenant-1',
+          accessToken: `12345678:${hash}`,
+        },
+      ]),
+    );
 
     const context = await service.validateAccessTokenWithContext(rawToken);
 
@@ -178,6 +188,26 @@ describe('BotService auth validation', () => {
       tenantId: 'tenant-1',
     });
 
+    db.__queueSelect(
+      createSelectWhereChain([
+        {
+          botId: 'bot-1',
+          userId: 'user-1',
+          tenantId: 'tenant-1',
+          accessToken: `12345678:${hash}`,
+        },
+      ]),
+    );
+    db.__queueSelect(
+      createSelectLimitChain([
+        {
+          botId: 'bot-1',
+          userId: 'user-1',
+          tenantId: 'tenant-1',
+          accessToken: `12345678:${hash}`,
+        },
+      ]),
+    );
     db.__queueSelect(
       createSelectLimitChain([
         {
@@ -203,6 +233,74 @@ describe('BotService auth validation', () => {
     expect(db.select).not.toHaveBeenCalled();
   });
 
+  it('preserves legacy validation for a valid bot token without an installed-application link', async () => {
+    const rawHex =
+      'feedfaceabcdef00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff0011223344556677';
+    const rawToken = `t9bot_${rawHex}`;
+    const hash = await bcrypt.hash(rawHex, 4);
+
+    db.__queueSelect(
+      createSelectWhereChain([
+        {
+          botId: 'bot-legacy',
+          userId: 'user-legacy',
+          tenantId: null,
+          accessToken: `feedface:${hash}`,
+        },
+      ]),
+    );
+    db.__queueSelect(
+      createSelectLimitChain([
+        {
+          botId: 'bot-legacy',
+          userId: 'user-legacy',
+          tenantId: null,
+          accessToken: `feedface:${hash}`,
+        },
+      ]),
+    );
+
+    await expect(
+      service.validateAccessTokenWithContext(rawToken),
+    ).resolves.toBeNull();
+
+    db.__queueSelect(
+      createSelectWhereChain([
+        {
+          botId: 'bot-legacy',
+          userId: 'user-legacy',
+          tenantId: null,
+          accessToken: `feedface:${hash}`,
+        },
+      ]),
+    );
+    db.__queueSelect(
+      createSelectLimitChain([
+        {
+          botId: 'bot-legacy',
+          userId: 'user-legacy',
+          tenantId: null,
+          accessToken: `feedface:${hash}`,
+        },
+      ]),
+    );
+    db.__queueSelect(
+      createSelectLimitChain([
+        {
+          id: 'user-legacy',
+          email: 'legacy@example.com',
+          username: 'legacy-bot',
+        },
+      ]),
+    );
+
+    await expect(service.validateAccessToken(rawToken)).resolves.toEqual({
+      userId: 'user-legacy',
+      email: 'legacy@example.com',
+      username: 'legacy-bot',
+    });
+  });
+
   it('uses the cache-backed validation path for repeated token checks', async () => {
     const rawHex =
       '87654321abcdef00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff0011223344556677';
@@ -211,6 +309,16 @@ describe('BotService auth validation', () => {
 
     db.__queueSelect(
       createSelectWhereChain([
+        {
+          botId: 'bot-cache',
+          userId: 'user-cache',
+          tenantId: 'tenant-cache',
+          accessToken: `87654321:${hash}`,
+        },
+      ]),
+    );
+    db.__queueSelect(
+      createSelectLimitChain([
         {
           botId: 'bot-cache',
           userId: 'user-cache',
@@ -229,9 +337,56 @@ describe('BotService auth validation', () => {
       tenantId: 'tenant-cache',
     });
     expect(second).toEqual(first);
-    expect(db.select).toHaveBeenCalledTimes(1);
+    expect(db.select).toHaveBeenCalledTimes(2);
     expect(redis.set).toHaveBeenCalled();
     expect(redis.get).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not return or cache a positive strict context when the bot token changes before final confirmation', async () => {
+    const rawHex =
+      'deadbeefabcdef00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff0011223344556677';
+    const rawToken = `t9bot_${rawHex}`;
+    const initialHash = await bcrypt.hash(rawHex, 4);
+    const rotatedHex = `beadbeef${rawHex.slice(8)}`;
+    const rotatedHash = await bcrypt.hash(rotatedHex, 4);
+
+    db.__queueSelect(
+      createSelectWhereChain([
+        {
+          botId: 'bot-race',
+          userId: 'user-race',
+          tenantId: 'tenant-race',
+          accessToken: `deadbeef:${initialHash}`,
+        },
+      ]),
+    );
+    db.__queueSelect(
+      createSelectLimitChain([
+        {
+          botId: 'bot-race',
+          userId: 'user-race',
+          tenantId: 'tenant-race',
+          accessToken: `deadbeef:${rotatedHash}`,
+        },
+      ]),
+    );
+
+    await expect(
+      service.validateAccessTokenWithContext(rawToken),
+    ).resolves.toBeNull();
+
+    db.__queueSelect(createSelectWhereChain([]));
+
+    await expect(
+      service.validateAccessTokenWithContext(rawToken),
+    ).resolves.toBeNull();
+
+    expect(db.select).toHaveBeenCalledTimes(2);
+    expect(redis.set).toHaveBeenLastCalledWith(
+      expect.stringMatching(/^auth:bot-token:[a-f0-9]{64}$/),
+      JSON.stringify({ invalid: true }),
+      5,
+    );
   });
 
   it('invalidates cached validation results on revocation', async () => {
@@ -242,6 +397,16 @@ describe('BotService auth validation', () => {
 
     db.__queueSelect(
       createSelectWhereChain([
+        {
+          botId: 'bot-revoke',
+          userId: 'user-revoke',
+          tenantId: 'tenant-revoke',
+          accessToken: `aaaaaaaa:${hash}`,
+        },
+      ]),
+    );
+    db.__queueSelect(
+      createSelectLimitChain([
         {
           botId: 'bot-revoke',
           userId: 'user-revoke',
@@ -265,7 +430,7 @@ describe('BotService auth validation', () => {
     await expect(
       service.validateAccessTokenWithContext(rawToken),
     ).resolves.toBeNull();
-    expect(db.select).toHaveBeenCalledTimes(2);
+    expect(db.select).toHaveBeenCalledTimes(3);
     expect(redis.smembers).toHaveBeenCalledWith(
       'auth:bot-token-keys:bot-revoke',
     );
@@ -279,6 +444,16 @@ describe('BotService auth validation', () => {
 
     db.__queueSelect(
       createSelectWhereChain([
+        {
+          botId: 'bot-generate',
+          userId: 'user-generate',
+          tenantId: 'tenant-generate',
+          accessToken: `bbbbbbbb:${hash}`,
+        },
+      ]),
+    );
+    db.__queueSelect(
+      createSelectLimitChain([
         {
           botId: 'bot-generate',
           userId: 'user-generate',
@@ -303,7 +478,7 @@ describe('BotService auth validation', () => {
     await expect(
       service.validateAccessTokenWithContext(rawToken),
     ).resolves.toBeNull();
-    expect(db.select).toHaveBeenCalledTimes(3);
+    expect(db.select).toHaveBeenCalledTimes(4);
     expect(redis.smembers).toHaveBeenCalledWith(
       'auth:bot-token-keys:bot-generate',
     );
@@ -317,6 +492,16 @@ describe('BotService auth validation', () => {
 
     db.__queueSelect(
       createSelectWhereChain([
+        {
+          botId: 'bot-delete',
+          userId: 'user-delete',
+          tenantId: 'tenant-delete',
+          accessToken: `cccccccc:${hash}`,
+        },
+      ]),
+    );
+    db.__queueSelect(
+      createSelectLimitChain([
         {
           botId: 'bot-delete',
           userId: 'user-delete',
