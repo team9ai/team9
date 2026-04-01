@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AVATAR_GRADIENTS,
   getInitials,
@@ -22,6 +22,10 @@ describe("getSeededAvatarGradient", () => {
 });
 
 describe("getInitials", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('returns "A" for a single-word name', () => {
     expect(getInitials("Alice")).toBe("A");
   });
@@ -36,6 +40,15 @@ describe("getInitials", () => {
 
   it("keeps a one-word Unicode initial to a single displayed character", () => {
     expect(getInitials("ß")).toBe("S");
+  });
+
+  it("keeps a combined Unicode grapheme when Intl.Segmenter is unavailable", () => {
+    vi.stubGlobal("Intl", {
+      ...Intl,
+      Segmenter: undefined,
+    });
+
+    expect(getInitials("e\u0301clair")).toBe("\u00c9");
   });
 
   it('returns "?" for an empty name', () => {

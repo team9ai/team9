@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import {
   useChannel,
   useChannelMembers,
@@ -284,16 +284,15 @@ export function ChannelDetailsModal({
                           className="flex items-center justify-between p-2 rounded-lg hover:bg-muted"
                         >
                           <div className="flex items-center gap-3">
-                            <Avatar className="w-9 h-9">
-                              {member.user?.avatarUrl && (
-                                <AvatarImage src={member.user.avatarUrl} />
-                              )}
-                              <AvatarFallback className="bg-primary/10 text-primary">
-                                {(member.user?.displayName ||
-                                  member.user?.username ||
-                                  "U")[0].toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
+                            <UserAvatar
+                              userId={member.user?.id ?? member.userId}
+                              name={member.user?.displayName}
+                              username={member.user?.username}
+                              avatarUrl={member.user?.avatarUrl}
+                              isBot={member.user?.userType === "bot"}
+                              className="w-9 h-9"
+                              fallbackClassName="text-sm"
+                            />
                             <div>
                               <p className="text-sm font-medium">
                                 {member.user?.displayName ||
