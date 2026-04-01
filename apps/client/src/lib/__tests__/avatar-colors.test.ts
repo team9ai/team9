@@ -8,7 +8,7 @@ import {
 describe("getSeededAvatarGradient", () => {
   it("returns the same gradient for the same seed", () => {
     const seed = "workspace-123";
-    const expectedGradient = "from-lime-500 to-green-400";
+    const expectedGradient = "from-emerald-600 to-green-500";
 
     expect(getSeededAvatarGradient(seed)).toBe(expectedGradient);
     expect(getSeededAvatarGradient(`  ${seed}  `)).toBe(expectedGradient);
