@@ -5,7 +5,7 @@ import {
   useQuery,
   type InfiniteData,
 } from "@tanstack/react-query";
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useMemo } from "react";
 import { create } from "zustand";
 import { api } from "@/services/api";
 import wsService from "@/services/websocket";
@@ -736,9 +736,13 @@ export function useThreadPanelForLevel(
       : undefined;
 
   // Query key for invalidation
-  const queryKey = isPrimary
-    ? ["thread", rootMessageId]
-    : ["subReplies", rootMessageId];
+  const queryKey = useMemo(
+    () =>
+      isPrimary
+        ? (["thread", rootMessageId] as const)
+        : (["subReplies", rootMessageId] as const),
+    [isPrimary, rootMessageId],
+  );
 
   /**
    * Continue loading from current position and fetch new messages.

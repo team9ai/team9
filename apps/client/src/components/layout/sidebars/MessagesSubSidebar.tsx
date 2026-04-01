@@ -56,16 +56,15 @@ export function MessagesSubSidebar() {
     });
   }, [directChannels]);
 
-  // Filter members: exclude current user and those with existing DM channels
-  const existingDmUserIds = new Set(
-    directChannels.map((ch) => ch.otherUser?.id).filter(Boolean),
-  );
-
   const filteredMembers = useMemo(() => {
+    const existingDmUserIds = new Set(
+      directChannels.map((channel) => channel.otherUser?.id).filter(Boolean),
+    );
+
     return members.filter(
       (m) => m.userId !== currentUser?.id && !existingDmUserIds.has(m.userId),
     );
-  }, [members, currentUser?.id, existingDmUserIds]);
+  }, [members, currentUser?.id, directChannels]);
 
   const handleMemberClick = async (memberId: string) => {
     try {
