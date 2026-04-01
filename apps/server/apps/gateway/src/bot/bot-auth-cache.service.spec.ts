@@ -140,6 +140,16 @@ describe('BotAuthCacheService', () => {
     ]);
   });
 
+  it('throws when the authoritative bot auth version bump fails', async () => {
+    redis.incr.mockRejectedValueOnce(new Error('redis down'));
+
+    await expect(service.invalidateBot('bot-bump-fail')).rejects.toThrow(
+      'redis down',
+    );
+
+    expect(redis.smembers).not.toHaveBeenCalled();
+  });
+
   it('treats a positive cache entry with an old bot version as stale after invalidation', async () => {
     const value = { botId: 'bot-7', userId: 'user-7', tenantId: 'tenant-7' };
     let version = 0;
@@ -182,5 +192,18 @@ describe('BotAuthCacheService', () => {
     await expect(service.getOrSetValidation(token, loader)).resolves.toBeNull();
     expect(loader).toHaveBeenCalledTimes(2);
     expect(redis.del).toHaveBeenCalledWith(staleKey);
+  });
+
+  it('keeps invalidation best-effort after the version bump succeeds', async () => {
+    redis.smembers.mockRejectedValueOnce(new Error('smembers failed'));
+    redis.del.mockRejectedValue(new Error('del failed'));
+
+    await expect(
+      service.invalidateBot('bot-best-effort'),
+    ).resolves.toBeUndefined();
+
+    expect(redis.incr).toHaveBeenCalledWith(
+      'auth:bot-token-version:bot-best-effort',
+    );
   });
 });

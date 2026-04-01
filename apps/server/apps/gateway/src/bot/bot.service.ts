@@ -546,6 +546,8 @@ export class BotService implements OnModuleInit {
     const fingerprint = rawHex.slice(0, 8);
     const hash = await bcrypt.hash(rawHex, 10);
 
+    await this.botAuthCache.invalidateBot(botId);
+
     await this.db
       .update(schema.bots)
       .set({
@@ -553,8 +555,6 @@ export class BotService implements OnModuleInit {
         updatedAt: new Date(),
       })
       .where(eq(schema.bots.id, botId));
-
-    await this.botAuthCache.invalidateBot(botId);
 
     return { botId, userId: bot.userId, accessToken: rawToken };
   }
@@ -623,12 +623,12 @@ export class BotService implements OnModuleInit {
    * Revoke a bot's access token.
    */
   async revokeAccessToken(botId: string): Promise<void> {
+    await this.botAuthCache.invalidateBot(botId);
+
     await this.db
       .update(schema.bots)
       .set({ accessToken: null, updatedAt: new Date() })
       .where(eq(schema.bots.id, botId));
-
-    await this.botAuthCache.invalidateBot(botId);
   }
 
   /**
@@ -687,9 +687,8 @@ export class BotService implements OnModuleInit {
       );
     }
 
-    await this.botAuthCache.invalidateBot(botId);
-
     // Delete shadow user (im_bots cascades via userId FK)
+    await this.botAuthCache.invalidateBot(botId);
     await this.db.delete(schema.users).where(eq(schema.users.id, bot.userId));
 
     this.logger.log(`Deleted bot ${botId} and shadow user ${bot.userId}`);

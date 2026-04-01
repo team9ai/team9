@@ -76,7 +76,7 @@ export class BotAuthCacheService {
   }
 
   async invalidateBot(botId: string): Promise<void> {
-    await this.safeIncr(this.versionKey(botId));
+    await this.bumpBotVersion(botId);
 
     const reverseIndexKey = this.reverseIndexKey(botId);
     const keys = await this.safeSmembers(reverseIndexKey);
@@ -208,11 +208,7 @@ export class BotAuthCacheService {
     }
   }
 
-  private async safeIncr(key: string): Promise<void> {
-    try {
-      await this.redis.incr(key);
-    } catch {
-      // Best-effort invalidation version bump.
-    }
+  private async bumpBotVersion(botId: string): Promise<number> {
+    return this.redis.incr(this.versionKey(botId));
   }
 }
