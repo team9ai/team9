@@ -48,11 +48,15 @@ describe("MessageItem - agent event rendering", () => {
       metadata: { someOtherField: "value" },
       sender: {
         id: "user-1",
+        email: "test@example.com",
         username: "TestUser",
         displayName: "Test User",
-        avatarUrl: null,
+        avatarUrl: undefined,
         status: "online",
+        isActive: true,
         userType: "human",
+        createdAt: "2026-03-27T12:00:00Z",
+        updatedAt: "2026-03-27T12:00:00Z",
       },
     });
 
@@ -67,11 +71,15 @@ describe("MessageItem - agent event rendering", () => {
       metadata: { agentEventType: 123 },
       sender: {
         id: "user-1",
+        email: "test@example.com",
         username: "TestUser",
         displayName: "Test User",
-        avatarUrl: null,
+        avatarUrl: undefined,
         status: "online",
+        isActive: true,
         userType: "human",
+        createdAt: "2026-03-27T12:00:00Z",
+        updatedAt: "2026-03-27T12:00:00Z",
       },
     });
 

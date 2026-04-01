@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { normalizeTrackingSnapshot } from "@/lib/agent-event-metadata";
 import imApi from "@/services/api/im";
 import wsService from "@/services/websocket";
 import { WS_EVENTS } from "@/types/ws-events";
@@ -14,7 +15,9 @@ import type {
 
 interface TrackingChannelState {
   isActivated: boolean;
-  latestMessages: Message[];
+  latestMessages: Array<
+    Pick<Message, "id" | "content" | "metadata" | "createdAt">
+  >;
   totalMessageCount: number;
   isLoading: boolean;
   /** Currently streaming message (not yet persisted) */
@@ -32,7 +35,9 @@ interface TrackingChannelState {
 export function useTrackingChannel(trackingChannelId: string | undefined) {
   const [activeStream, setActiveStream] =
     useState<TrackingChannelState["activeStream"]>(null);
-  const [extraMessages, setExtraMessages] = useState<Message[]>([]);
+  const [extraMessages, setExtraMessages] = useState<
+    TrackingChannelState["latestMessages"]
+  >([]);
   const [isDeactivated, setIsDeactivated] = useState(false);
   const [snapshot, setSnapshot] = useState<ChannelSnapshot | null>(null);
 
@@ -50,7 +55,7 @@ export function useTrackingChannel(trackingChannelId: string | undefined) {
   // For deactivated channels, use snapshot from channel info
   useEffect(() => {
     if (channelInfo && !channelInfo.isActivated && channelInfo.snapshot) {
-      setSnapshot(channelInfo.snapshot as ChannelSnapshot);
+      setSnapshot(normalizeTrackingSnapshot(channelInfo.snapshot));
       setIsDeactivated(true);
     }
   }, [channelInfo]);
@@ -110,7 +115,7 @@ export function useTrackingChannel(trackingChannelId: string | undefined) {
     const handleDeactivated = (event: TrackingDeactivatedEvent) => {
       if (event.channelId !== trackingChannelId) return;
       setIsDeactivated(true);
-      setSnapshot(event.snapshot as ChannelSnapshot);
+      setSnapshot(normalizeTrackingSnapshot(event.snapshot));
       setActiveStream(null);
     };
 
@@ -130,14 +135,17 @@ export function useTrackingChannel(trackingChannelId: string | undefined) {
   }, [trackingChannelId, isDeactivated]);
 
   // Compute latest 3 messages
-  const allMessages = [...fetchedMessages, ...extraMessages];
+  const allMessages: TrackingChannelState["latestMessages"] = [
+    ...fetchedMessages,
+    ...extraMessages,
+  ];
   const latest3 = allMessages.slice(-3);
 
   // Use snapshot for deactivated channels
   if (isDeactivated && snapshot) {
     return {
       isActivated: false,
-      latestMessages: snapshot.latestMessages as unknown as Message[],
+      latestMessages: snapshot.latestMessages,
       totalMessageCount: snapshot.totalMessageCount,
       isLoading: isLoadingChannel,
       activeStream: null,

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { getAgentEventMetadata } from "@/lib/agent-event-metadata";
 import { parseLikelyPastDate } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import { useTrackingChannel } from "@/hooks/useTrackingChannel";
@@ -9,45 +10,6 @@ import type { Message, AgentEventMetadata } from "@/types/im";
 
 interface TrackingCardProps {
   message: Message;
-}
-
-const AGENT_EVENT_TYPES = new Set<AgentEventMetadata["agentEventType"]>([
-  "thinking",
-  "writing",
-  "tool_call",
-  "tool_result",
-  "agent_start",
-  "agent_end",
-  "error",
-  "turn_separator",
-]);
-
-const AGENT_EVENT_STATUSES = new Set<AgentEventMetadata["status"]>([
-  "running",
-  "completed",
-  "failed",
-]);
-
-function getAgentEventMetadata(
-  value: unknown,
-  fallback: AgentEventMetadata,
-): AgentEventMetadata {
-  if (!value || typeof value !== "object") {
-    return fallback;
-  }
-
-  const candidate = value as Partial<AgentEventMetadata>;
-
-  if (
-    candidate.agentEventType &&
-    AGENT_EVENT_TYPES.has(candidate.agentEventType) &&
-    candidate.status &&
-    AGENT_EVENT_STATUSES.has(candidate.status)
-  ) {
-    return candidate as AgentEventMetadata;
-  }
-
-  return fallback;
 }
 
 function formatElapsed(startTime: string | number): string {

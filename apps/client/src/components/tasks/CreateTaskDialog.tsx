@@ -30,13 +30,19 @@ import {
   MessageSquare,
   ChevronDown,
 } from "lucide-react";
+import {
+  INTERVAL_UNIT_LABEL_KEYS,
+  SCHEDULE_DAY_OPTIONS,
+  SCHEDULE_FREQUENCY_LABEL_KEYS,
+  TASK_TRIGGER_TYPE_LABEL_KEYS,
+  type IntervalUnit,
+  type ScheduleFrequency,
+  isIntervalUnit,
+  isScheduleFrequency,
+} from "@/lib/task-trigger-keys";
 import { api } from "@/services/api";
 import { channelsApi } from "@/services/api/im";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
-import type {
-  OpenClawBotInfo,
-  BaseModelStaffBotInfo,
-} from "@/services/api/applications";
 import type { AgentTaskTriggerType, CreateTriggerDto } from "@/types/task";
 
 interface CreateTaskDialogProps {
@@ -60,22 +66,11 @@ const TRIGGER_TYPE_OPTIONS: AgentTaskTriggerType[] = [
   "channel_message",
 ];
 
-const INTERVAL_UNITS = [
-  "minutes",
-  "hours",
-  "days",
-  "weeks",
-  "months",
-  "years",
-] as const;
+const INTERVAL_UNITS = Object.keys(INTERVAL_UNIT_LABEL_KEYS) as IntervalUnit[];
 
-const SCHEDULE_FREQUENCIES = [
-  "daily",
-  "weekly",
-  "monthly",
-  "yearly",
-  "weekdays",
-] as const;
+const SCHEDULE_FREQUENCIES = Object.keys(
+  SCHEDULE_FREQUENCY_LABEL_KEYS,
+) as ScheduleFrequency[];
 
 export function CreateTaskDialog({ isOpen, onClose }: CreateTaskDialogProps) {
   const { t } = useTranslation("tasks");
@@ -93,8 +88,9 @@ export function CreateTaskDialog({ isOpen, onClose }: CreateTaskDialogProps) {
   const [newTriggerType, setNewTriggerType] =
     useState<AgentTaskTriggerType>("manual");
   const [intervalValue, setIntervalValue] = useState(1);
-  const [intervalUnit, setIntervalUnit] = useState("hours");
-  const [scheduleFrequency, setScheduleFrequency] = useState("daily");
+  const [intervalUnit, setIntervalUnit] = useState<IntervalUnit>("hours");
+  const [scheduleFrequency, setScheduleFrequency] =
+    useState<ScheduleFrequency>("daily");
   const [scheduleTime, setScheduleTime] = useState("09:00");
   const [scheduleTimezone, setScheduleTimezone] = useState(
     Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -104,9 +100,7 @@ export function CreateTaskDialog({ isOpen, onClose }: CreateTaskDialogProps) {
   const [channelId, setChannelId] = useState("");
 
   // Fetch bots for assignment (all app types: openclaw + base-model-staff)
-  const { data: allBots = [] } = useQuery<
-    (OpenClawBotInfo | BaseModelStaffBotInfo)[]
-  >({
+  const { data: allBots = [] } = useQuery({
     queryKey: ["installed-applications-with-bots", workspaceId],
     queryFn: async () => {
       const apps = await api.applications.getInstalledApplicationsWithBots();
@@ -201,13 +195,25 @@ export function CreateTaskDialog({ isOpen, onClose }: CreateTaskDialogProps) {
     const config = trigger.config ?? {};
     switch (trigger.type) {
       case "manual":
-        return t("triggers.types.manual");
-      case "interval":
-        return `${t("triggers.interval.every")} ${config.every ?? 1} ${t(`triggers.interval.units.${(config.unit as string) ?? "hours"}` as never)}`;
-      case "schedule":
-        return `${t(`triggers.schedule.frequencies.${(config.frequency as string) ?? "daily"}` as never)} ${t("triggers.schedule.time")} ${(config.time as string) ?? ""}`;
+        return t(TASK_TRIGGER_TYPE_LABEL_KEYS.manual);
+      case "interval": {
+        const unit = typeof config.unit === "string" ? config.unit : "hours";
+        const unitLabel = isIntervalUnit(unit)
+          ? t(INTERVAL_UNIT_LABEL_KEYS[unit])
+          : unit;
+        return `${t("triggers.interval.every")} ${config.every ?? 1} ${unitLabel}`;
+      }
+      case "schedule": {
+        const frequency =
+          typeof config.frequency === "string" ? config.frequency : "daily";
+        const frequencyLabel = isScheduleFrequency(frequency)
+          ? t(SCHEDULE_FREQUENCY_LABEL_KEYS[frequency])
+          : frequency;
+        const time = typeof config.time === "string" ? config.time : "";
+        return `${frequencyLabel} ${t("triggers.schedule.time")} ${time}`.trim();
+      }
       case "channel_message":
-        return `${t("triggers.channelMessage.channel")}: ${(config.channelId as string) ?? ""}`;
+        return `${t("triggers.channelMessage.channel")}: ${typeof config.channelId === "string" ? config.channelId : ""}`;
       default:
         return "";
     }
@@ -258,7 +264,7 @@ export function CreateTaskDialog({ isOpen, onClose }: CreateTaskDialogProps) {
                     {t("create.noBot")}
                   </span>
                 </SelectItem>
-                {allBots.map((bot: OpenClawBotInfo) => (
+                {allBots.map((bot) => (
                   <SelectItem key={bot.botId} value={bot.botId}>
                     {bot.displayName || bot.username}
                   </SelectItem>
@@ -347,7 +353,7 @@ export function CreateTaskDialog({ isOpen, onClose }: CreateTaskDialogProps) {
                         <SelectContent>
                           {TRIGGER_TYPE_OPTIONS.map((type) => (
                             <SelectItem key={type} value={type}>
-                              {t(`triggers.types.${type}` as const)}
+                              {t(TASK_TRIGGER_TYPE_LABEL_KEYS[type])}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -376,7 +382,11 @@ export function CreateTaskDialog({ isOpen, onClose }: CreateTaskDialogProps) {
                         />
                         <Select
                           value={intervalUnit}
-                          onValueChange={setIntervalUnit}
+                          onValueChange={(value) => {
+                            if (isIntervalUnit(value)) {
+                              setIntervalUnit(value);
+                            }
+                          }}
                         >
                           <SelectTriggerUI className="flex-1">
                             <SelectValue />
@@ -384,7 +394,7 @@ export function CreateTaskDialog({ isOpen, onClose }: CreateTaskDialogProps) {
                           <SelectContent>
                             {INTERVAL_UNITS.map((unit) => (
                               <SelectItem key={unit} value={unit}>
-                                {t(`triggers.interval.units.${unit}` as const)}
+                                {t(INTERVAL_UNIT_LABEL_KEYS[unit])}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -396,7 +406,11 @@ export function CreateTaskDialog({ isOpen, onClose }: CreateTaskDialogProps) {
                       <div className="space-y-2">
                         <Select
                           value={scheduleFrequency}
-                          onValueChange={setScheduleFrequency}
+                          onValueChange={(value) => {
+                            if (isScheduleFrequency(value)) {
+                              setScheduleFrequency(value);
+                            }
+                          }}
                         >
                           <SelectTriggerUI>
                             <SelectValue />
@@ -404,9 +418,7 @@ export function CreateTaskDialog({ isOpen, onClose }: CreateTaskDialogProps) {
                           <SelectContent>
                             {SCHEDULE_FREQUENCIES.map((freq) => (
                               <SelectItem key={freq} value={freq}>
-                                {t(
-                                  `triggers.schedule.frequencies.${freq}` as const,
-                                )}
+                                {t(SCHEDULE_FREQUENCY_LABEL_KEYS[freq])}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -433,9 +445,12 @@ export function CreateTaskDialog({ isOpen, onClose }: CreateTaskDialogProps) {
                               <SelectValue />
                             </SelectTriggerUI>
                             <SelectContent>
-                              {[0, 1, 2, 3, 4, 5, 6].map((day) => (
-                                <SelectItem key={day} value={String(day)}>
-                                  {t(`schedule.days.${day}` as never)}
+                              {SCHEDULE_DAY_OPTIONS.map((day) => (
+                                <SelectItem
+                                  key={day.value}
+                                  value={String(day.value)}
+                                >
+                                  {t(day.labelKey)}
                                 </SelectItem>
                               ))}
                             </SelectContent>
