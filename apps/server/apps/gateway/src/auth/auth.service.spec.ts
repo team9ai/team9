@@ -316,13 +316,16 @@ describe('AuthService', () => {
 
       expect(result.user.displayName).toBe(existingUser.displayName);
       expect(result.user.avatarUrl).toBe(existingUser.avatarUrl);
-      expect(db.set).toHaveBeenCalledWith(
-        expect.objectContaining({
-          emailVerified: true,
-          emailVerifiedAt: expect.any(Date),
-          updatedAt: expect.any(Date),
-        }),
-      );
+      expect(db.insert).not.toHaveBeenCalled();
+      expect(db.set).toHaveBeenCalledTimes(1);
+      const updatePayload = db.set.mock.calls[0][0];
+      expect(updatePayload).toStrictEqual({
+        emailVerified: true,
+        emailVerifiedAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      });
+      expect(updatePayload).not.toHaveProperty('displayName');
+      expect(updatePayload).not.toHaveProperty('avatarUrl');
       expect(db.set.mock.calls).toHaveLength(1);
     });
   });
