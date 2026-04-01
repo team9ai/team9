@@ -130,6 +130,10 @@ export class MessageGrpcController {
         error: result.error,
       };
     } catch (error) {
+      if (error instanceof RpcException) {
+        throw error;
+      }
+
       this.logger.error(`gRPC CreateMessage failed: ${error}`);
       throw new RpcException({
         code: status.INTERNAL,
