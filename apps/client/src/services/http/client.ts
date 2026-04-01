@@ -91,13 +91,15 @@ class HttpClient {
     return finalResponse;
   }
 
-  private async applyErrorInterceptors(error: HttpError): Promise<never> {
+  private async applyErrorInterceptors<T = any>(
+    error: HttpError,
+  ): Promise<HttpResponse<T>> {
     let finalError = error;
 
     for (const { onRejected } of this.responseInterceptors) {
       if (onRejected) {
         try {
-          await onRejected(finalError);
+          return (await onRejected(finalError)) as HttpResponse<T>;
         } catch (err) {
           finalError = err as HttpError;
         }
@@ -200,7 +202,7 @@ class HttpClient {
         throw this.createError(error.message, config, "ERR_NETWORK", undefined);
       }
 
-      return await this.applyErrorInterceptors(error as HttpError);
+      return await this.applyErrorInterceptors<T>(error as HttpError);
     }
   }
 

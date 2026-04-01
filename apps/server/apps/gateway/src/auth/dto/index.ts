@@ -9,3 +9,4 @@ export * from './auth-start.dto.js';
 export * from './verify-code.dto.js';
 export * from './desktop-session.dto.js';
 export * from './validate-bot-token.dto.js';
+export * from './logout.dto.js';

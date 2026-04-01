@@ -28,6 +28,7 @@ import {
   CreateTriggerDto,
   UpdateTriggerDto,
   RetryExecutionDto,
+  RestartTaskDto,
 } from './dto/index.js';
 
 @Controller({
@@ -176,8 +177,9 @@ export class TasksController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string,
+    @Body() dto: RestartTaskDto,
   ) {
-    return this.tasksService.restart(id, userId, tenantId);
+    return this.tasksService.restart(id, userId, tenantId, dto);
   }
 
   @Post(':id/interventions/:intId/resolve')

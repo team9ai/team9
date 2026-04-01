@@ -89,7 +89,9 @@ export function TaskChatArea({
 }: TaskChatAreaProps) {
   const { t } = useTranslation("tasks");
   const queryClient = useQueryClient();
-  const [showStartDialog, setShowStartDialog] = useState(false);
+  const [dialogMode, setDialogMode] = useState<"start" | "restart" | null>(
+    null,
+  );
 
   const isReadOnly = !activeExecution || isViewingHistory;
   const channelId = selectedRun?.channelId ?? null;
@@ -136,7 +138,7 @@ export function TaskChatArea({
               variant="default"
               size="sm"
               disabled={isMutating}
-              onClick={() => setShowStartDialog(true)}
+              onClick={() => setDialogMode("start")}
             >
               <Play size={14} />
               {t("chatArea.start")}
@@ -146,8 +148,9 @@ export function TaskChatArea({
         <TaskChatPlaceholder />
         <ManualTriggerDialog
           taskId={task.id}
-          isOpen={showStartDialog}
-          onClose={() => setShowStartDialog(false)}
+          isOpen={!!dialogMode}
+          mode={dialogMode ?? "start"}
+          onClose={() => setDialogMode(null)}
         />
       </div>
     );
@@ -242,12 +245,25 @@ export function TaskChatArea({
               variant="default"
               size="sm"
               disabled={isMutating}
-              onClick={() => setShowStartDialog(true)}
+              onClick={() => setDialogMode("start")}
             >
               <Play size={14} />
               {t("chatArea.start")}
             </Button>
           )}
+          {["completed", "failed", "stopped", "timeout"].includes(
+            task.status,
+          ) &&
+            !isViewingHistory && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDialogMode("restart")}
+              >
+                <RotateCcw size={14} />
+                {t("chatArea.rerun")}
+              </Button>
+            )}
         </div>
       </div>
 
@@ -295,7 +311,7 @@ export function TaskChatArea({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setShowStartDialog(true)}
+            onClick={() => setDialogMode("restart")}
           >
             <RotateCcw size={14} />
             {t("chatArea.rerun")}
@@ -319,8 +335,9 @@ export function TaskChatArea({
 
       <ManualTriggerDialog
         taskId={task.id}
-        isOpen={showStartDialog}
-        onClose={() => setShowStartDialog(false)}
+        isOpen={!!dialogMode}
+        mode={dialogMode ?? "start"}
+        onClose={() => setDialogMode(null)}
       />
     </div>
   );

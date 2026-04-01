@@ -10,6 +10,7 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { routeTree } from "./routeTree.gen";
 import { queryClient } from "./lib/query-client";
+import { Team9PostHogProvider } from "./analytics/posthog";
 
 // Initialize Sentry
 Sentry.init({
@@ -42,14 +43,19 @@ declare module "@tanstack/react-router" {
 }
 
 const AppProviders = ({ children }: { children: React.ReactNode }) => {
+  let tree = children;
+
+  tree = <Team9PostHogProvider>{tree}</Team9PostHogProvider>;
+
   if (googleClientId) {
-    return (
+    tree = (
       <GoogleOAuthProvider clientId={googleClientId}>
-        {children}
+        {tree}
       </GoogleOAuthProvider>
     );
   }
-  return <>{children}</>;
+
+  return <>{tree}</>;
 };
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(

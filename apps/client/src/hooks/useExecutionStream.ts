@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { getValidAccessToken, redirectToLogin } from "@/services/auth-session";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
@@ -23,13 +24,12 @@ export function useExecutionStream(
   useEffect(() => {
     if (!enabled || !execId || !taskcastTaskId) return;
 
-    const token = localStorage.getItem("auth_token");
-    if (!token) return;
+    let eventSource: EventSource | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let disposed = false;
+    let reconnecting = false;
 
-    const url = `${API_BASE_URL}/v1/tasks/${taskId}/executions/${execId}/stream?token=${encodeURIComponent(token)}`;
-    const eventSource = new EventSource(url);
-
-    eventSource.onmessage = (event) => {
+    const handleMessage = (event: MessageEvent<string>) => {
       try {
         const data = JSON.parse(event.data);
 
@@ -59,10 +59,61 @@ export function useExecutionStream(
       }
     };
 
-    eventSource.onerror = () => {
-      // EventSource auto-reconnects on error; no action needed.
+    const openStream = async (token?: string) => {
+      const accessToken = token ?? (await getValidAccessToken());
+      if (!accessToken) {
+        if (!disposed) {
+          redirectToLogin();
+        }
+        return;
+      }
+
+      if (disposed) {
+        return;
+      }
+
+      const url = `${API_BASE_URL}/v1/tasks/${taskId}/executions/${execId}/stream?token=${encodeURIComponent(accessToken)}`;
+      eventSource = new EventSource(url);
+      eventSource.onmessage = handleMessage;
+      eventSource.onerror = () => {
+        if (disposed || reconnecting) {
+          return;
+        }
+
+        reconnecting = true;
+        eventSource?.close();
+        eventSource = null;
+
+        void (async () => {
+          const nextToken = await getValidAccessToken();
+          if (!nextToken) {
+            if (!disposed) {
+              redirectToLogin();
+            }
+            return;
+          }
+
+          if (disposed) {
+            return;
+          }
+
+          reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            reconnecting = false;
+            void openStream(nextToken);
+          }, 1000);
+        })();
+      };
     };
 
-    return () => eventSource.close();
+    void openStream();
+
+    return () => {
+      disposed = true;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+      }
+      eventSource?.close();
+    };
   }, [taskId, execId, taskcastTaskId, enabled, queryClient]);
 }

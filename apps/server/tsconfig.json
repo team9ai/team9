@@ -39,6 +39,8 @@
       "@team9/rabbitmq/*": ["libs/rabbitmq/src/*"],
       "@team9/storage": ["libs/storage/src"],
       "@team9/storage/*": ["libs/storage/src/*"],
+      "@team9/posthog": ["libs/posthog/src"],
+      "@team9/posthog/*": ["libs/posthog/src/*"],
       "@team9/observability": ["libs/observability/src"],
       "@team9/observability/*": ["libs/observability/src/*"],
       "@team9/claw-hive": ["libs/claw-hive/src"],

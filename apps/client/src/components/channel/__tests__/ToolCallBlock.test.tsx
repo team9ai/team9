@@ -3,12 +3,16 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { ToolCallBlock } from "../ToolCallBlock";
 import type { AgentEventMetadata } from "@/types/im";
 
-function makeCallMeta(toolName: string): AgentEventMetadata {
+function makeCallMeta(
+  toolName: string,
+  toolArgs?: Record<string, unknown>,
+): AgentEventMetadata {
   return {
     agentEventType: "tool_call",
     status: "completed",
     toolName,
     toolCallId: "tc-1",
+    toolArgs,
   };
 }
 
@@ -33,8 +37,22 @@ describe("ToolCallBlock", () => {
       />,
     );
 
-    expect(screen.getByText("SearchFiles")).toBeInTheDocument();
     expect(screen.getByText("Calling")).toBeInTheDocument();
+    expect(screen.getByText("SearchFiles")).toBeInTheDocument();
+  });
+
+  it("shows tool name with args summary in collapsed state", () => {
+    render(
+      <ToolCallBlock
+        callMetadata={makeCallMeta("QueryChannelInfo", {
+          channelId: "ch-123",
+        })}
+        resultMetadata={makeResultMeta()}
+        resultContent='{"name": "general"}'
+      />,
+    );
+
+    expect(screen.getByText("QueryChannelInfo(ch-123)")).toBeInTheDocument();
   });
 
   it("shows success indicator (checkmark) for completed result", () => {
@@ -59,7 +77,6 @@ describe("ToolCallBlock", () => {
     );
 
     expect(screen.getByText("\u2718")).toBeInTheDocument();
-    // Red status dot for failure
     expect(container.querySelector(".bg-red-500")).toBeInTheDocument();
   });
 
@@ -72,7 +89,6 @@ describe("ToolCallBlock", () => {
       />,
     );
 
-    // Summary line visible with Result label
     expect(screen.getByText("Result")).toBeInTheDocument();
     expect(screen.getByText("short result")).toBeInTheDocument();
   });
@@ -90,22 +106,39 @@ describe("ToolCallBlock", () => {
     expect(screen.getByText("x".repeat(80) + " ...")).toBeInTheDocument();
   });
 
-  it("shows full result content when expanded", () => {
+  it("shows both args and result when expanded", () => {
     render(
       <ToolCallBlock
-        callMetadata={makeCallMeta("Search")}
+        callMetadata={makeCallMeta("QueryChannel", {
+          channelId: "ch-456",
+        })}
         resultMetadata={makeResultMeta()}
-        resultContent="visible result content"
+        resultContent='{"name": "general"}'
       />,
     );
 
-    // Click to expand
     fireEvent.click(screen.getByText("Calling"));
-    // Full content in expanded block
-    expect(
-      screen.getAllByText("visible result content").length,
-    ).toBeGreaterThanOrEqual(1);
-    // Result label still visible in expanded state
+
+    // Args section visible
+    expect(screen.getByText("Args")).toBeInTheDocument();
+    expect(screen.getByText(/"channelId": "ch-456"/)).toBeInTheDocument();
+
+    // Result section visible
+    expect(screen.getByText("Result")).toBeInTheDocument();
+  });
+
+  it("hides args section when no toolArgs provided", () => {
+    render(
+      <ToolCallBlock
+        callMetadata={makeCallMeta("SimpleTool")}
+        resultMetadata={makeResultMeta()}
+        resultContent="done"
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Calling"));
+
+    expect(screen.queryByText("Args")).not.toBeInTheDocument();
     expect(screen.getByText("Result")).toBeInTheDocument();
   });
 
@@ -120,11 +153,9 @@ describe("ToolCallBlock", () => {
 
     const label = screen.getByText("Calling");
 
-    // Expand — Result label stays visible
+    // Expand
     fireEvent.click(label);
-    expect(screen.getByText("Result")).toBeInTheDocument();
-
-    // Collapse — summary reappears
+    // Collapse
     fireEvent.click(label);
     expect(screen.getByText("Result")).toBeInTheDocument();
     expect(screen.getByText("toggle content")).toBeInTheDocument();
@@ -135,7 +166,6 @@ describe("ToolCallBlock", () => {
       agentEventType: "tool_call",
       status: "completed",
       toolCallId: "tc-1",
-      // no toolName
     };
     render(
       <ToolCallBlock
@@ -159,5 +189,23 @@ describe("ToolCallBlock", () => {
 
     expect(container.querySelector(".bg-emerald-500")).toBeInTheDocument();
     expect(container.querySelector(".bg-red-500")).not.toBeInTheDocument();
+  });
+
+  it("unwraps nested content structure in tool results", () => {
+    const wrappedContent = JSON.stringify({
+      content: [{ type: "text", text: '{"success":true}' }],
+      details: {},
+    });
+
+    render(
+      <ToolCallBlock
+        callMetadata={makeCallMeta("ReportSteps")}
+        resultMetadata={makeResultMeta()}
+        resultContent={wrappedContent}
+      />,
+    );
+
+    // Summary should show unwrapped content, not the wrapper
+    expect(screen.getByText('{"success":true}')).toBeInTheDocument();
   });
 });

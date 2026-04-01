@@ -13,6 +13,7 @@ import { useWebSocketEvents } from "@/hooks/useWebSocketEvents";
 import { useAHandSetupStore } from "@/stores/useAHandSetupStore";
 import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
 import { useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import {
   appActions,
   DEFAULT_SECTION_PATHS,
@@ -104,9 +105,7 @@ function AuthenticatedLayout() {
     if (!isTauri) return;
 
     return () => {
-      import("@tauri-apps/api/core").then(({ invoke }) => {
-        invoke("ahand_stop").catch(() => {});
-      });
+      invoke("ahand_stop").catch(() => {});
     };
   }, []);
 

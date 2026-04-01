@@ -178,6 +178,11 @@ export function TaskCard({
       <ManualTriggerDialog
         taskId={task.id}
         isOpen={showStartDialog}
+        mode={
+          ["completed", "failed", "stopped", "timeout"].includes(task.status)
+            ? "restart"
+            : "start"
+        }
         onClose={() => setShowStartDialog(false)}
       />
 

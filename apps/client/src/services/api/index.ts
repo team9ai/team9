@@ -1,4 +1,10 @@
 import http from "../http";
+import {
+  clearAuthTokens,
+  getRefreshToken,
+  refreshAccessToken,
+  setAuthTokens,
+} from "../auth-session";
 
 export interface User {
   id: string;
@@ -115,8 +121,7 @@ export const authApi = {
       data,
     );
     const authData = response.data;
-    localStorage.setItem("auth_token", authData.accessToken);
-    localStorage.setItem("refresh_token", authData.refreshToken);
+    setAuthTokens(authData);
     return authData;
   },
 
@@ -158,9 +163,7 @@ export const authApi = {
 
     const authData = response.data;
 
-    // Store tokens after successful verification
-    localStorage.setItem("auth_token", authData.accessToken);
-    localStorage.setItem("refresh_token", authData.refreshToken);
+    setAuthTokens(authData);
 
     return authData;
   },
@@ -172,9 +175,7 @@ export const authApi = {
 
     const authData = response.data;
 
-    // Store tokens after successful Google login
-    localStorage.setItem("auth_token", authData.accessToken);
-    localStorage.setItem("refresh_token", authData.refreshToken);
+    setAuthTokens(authData);
 
     return authData;
   },
@@ -202,12 +203,12 @@ export const authApi = {
   },
 
   logout: async (): Promise<void> => {
+    const refreshToken = getRefreshToken();
+
     try {
-      await http.post("/v1/auth/logout", {});
+      await http.post("/v1/auth/logout", refreshToken ? { refreshToken } : {});
     } finally {
-      // Always clear local storage even if the request fails
-      localStorage.removeItem("auth_token");
-      localStorage.removeItem("refresh_token");
+      clearAuthTokens();
     }
   },
 
@@ -217,22 +218,17 @@ export const authApi = {
   },
 
   refreshToken: async (): Promise<TokenPair> => {
-    const refreshToken = localStorage.getItem("refresh_token");
+    const accessToken = await refreshAccessToken();
+    const nextRefreshToken = getRefreshToken();
 
-    if (!refreshToken) {
-      throw new Error("No refresh token available");
+    if (!accessToken || !nextRefreshToken) {
+      throw new Error("Failed to refresh token");
     }
 
-    const response = await http.post<TokenPair>("/v1/auth/refresh", {
-      refreshToken,
-    });
-
-    const tokenData = response.data;
-
-    localStorage.setItem("auth_token", tokenData.accessToken);
-    localStorage.setItem("refresh_token", tokenData.refreshToken);
-
-    return tokenData;
+    return {
+      accessToken,
+      refreshToken: nextRefreshToken,
+    };
   },
 };
 

@@ -19,6 +19,7 @@ export interface AgentEventMetadata {
   status: "running" | "completed" | "failed";
   toolName?: string;
   toolCallId?: string;
+  toolArgs?: Record<string, unknown>;
   success?: boolean;
 }
 

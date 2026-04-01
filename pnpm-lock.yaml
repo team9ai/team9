@@ -74,6 +74,9 @@ importers:
       "@lexical/utils":
         specifier: ^0.39.0
         version: 0.39.0
+      "@posthog/react":
+        specifier: ^1.8.2
+        version: 1.8.2(@types/react@19.2.7)(posthog-js@1.364.1)(react@19.2.3)
       "@radix-ui/react-alert-dialog":
         specifier: ^1.1.15
         version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -129,8 +132,8 @@ importers:
         specifier: ^4.1.18
         version: 4.1.18(vite@7.3.0(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
       "@tanstack/react-query":
-        specifier: ^5.90.12
-        version: 5.90.12(react@19.2.3)
+        specifier: ^5.91.2
+        version: 5.95.2(react@19.2.3)
       "@tanstack/react-router":
         specifier: ^1.141.6
         version: 1.143.11(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -188,6 +191,9 @@ importers:
       motion:
         specifier: ^12.34.0
         version: 12.34.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      posthog-js:
+        specifier: ^1.279.2
+        version: 1.364.1
       prismjs:
         specifier: ^1.30.0
         version: 1.30.0
@@ -233,7 +239,7 @@ importers:
         version: 5.1.0(rollup@4.54.0)
       "@tanstack/react-query-devtools":
         specifier: ^5.91.2
-        version: 5.91.2(@tanstack/react-query@5.90.12(react@19.2.3))(react@19.2.3)
+        version: 5.91.2(@tanstack/react-query@5.95.2(react@19.2.3))(react@19.2.3)
       "@tauri-apps/cli":
         specifier: ^2
         version: 2.9.6
@@ -243,9 +249,6 @@ importers:
       "@testing-library/react":
         specifier: ^16.3.2
         version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      "@testing-library/react-hooks":
-        specifier: ^8.0.1
-        version: 8.0.1(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       "@types/node":
         specifier: ^25.0.3
         version: 25.0.3
@@ -575,6 +578,9 @@ importers:
       "@team9/observability":
         specifier: workspace:*
         version: link:../../libs/observability
+      "@team9/posthog":
+        specifier: workspace:*
+        version: link:../../libs/posthog
       "@team9/rabbitmq":
         specifier: workspace:*
         version: link:../../libs/rabbitmq
@@ -645,7 +651,7 @@ importers:
         version: link:../../../../enterprise/libs/analytics
       "@team9/enterprise-audit":
         specifier: workspace:*
-        version: link:../../../../enterprise/libs/audit
+        version: file:enterprise/libs/audit(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)(uuid@13.0.0)
       "@team9/enterprise-license":
         specifier: workspace:*
         version: link:../../../../enterprise/libs/license
@@ -934,6 +940,28 @@ importers:
         specifier: ^5.7.3
         version: 5.8.3
 
+  apps/server/libs/posthog:
+    dependencies:
+      "@nestjs/common":
+        specifier: ^11.0.0
+        version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      "@nestjs/core":
+        specifier: ^11.0.0
+        version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      "@team9/shared":
+        specifier: workspace:*
+        version: link:../shared
+      posthog-node:
+        specifier: ^5.9.1
+        version: 5.28.8(rxjs@7.8.2)
+    devDependencies:
+      "@types/node":
+        specifier: ^25.0.3
+        version: 25.0.3
+      typescript:
+        specifier: ^5.7.3
+        version: 5.8.3
+
   apps/server/libs/rabbitmq:
     dependencies:
       "@golevelup/nestjs-rabbitmq":
@@ -1002,6 +1030,13 @@ importers:
       "@nestjs/core":
         specifier: ^11.0.0
         version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+    devDependencies:
+      "@types/node":
+        specifier: ^22.0.0
+        version: 22.19.3
+      typescript:
+        specifier: ^5.7.3
+        version: 5.8.3
 
   enterprise/libs/audit:
     dependencies:
@@ -1011,6 +1046,16 @@ importers:
       "@nestjs/core":
         specifier: ^11.0.0
         version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      uuid:
+        specifier: ^11.0.0
+        version: 11.1.0
+    devDependencies:
+      "@types/node":
+        specifier: ^22.0.0
+        version: 22.19.3
+      typescript:
+        specifier: ^5.7.3
+        version: 5.8.3
 
   enterprise/libs/license:
     dependencies:
@@ -1020,6 +1065,13 @@ importers:
       "@nestjs/core":
         specifier: ^11.0.0
         version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+    devDependencies:
+      "@types/node":
+        specifier: ^22.0.0
+        version: 22.19.3
+      typescript:
+        specifier: ^5.7.3
+        version: 5.8.3
 
   enterprise/libs/sso:
     dependencies:
@@ -1029,15 +1081,13 @@ importers:
       "@nestjs/core":
         specifier: ^11.0.0
         version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-
-  enterprise/libs/tenant:
-    dependencies:
-      "@nestjs/common":
-        specifier: ^11.0.0
-        version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      "@nestjs/core":
-        specifier: ^11.0.0
-        version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+    devDependencies:
+      "@types/node":
+        specifier: ^22.0.0
+        version: 22.19.3
+      typescript:
+        specifier: ^5.7.3
+        version: 5.8.3
 
 packages:
   "@adobe/css-tools@4.4.4":
@@ -3663,6 +3713,15 @@ packages:
     peerDependencies:
       "@opentelemetry/api": ">=1.0.0 <1.10.0"
 
+  "@opentelemetry/core@2.2.0":
+    resolution:
+      {
+        integrity: sha512-FuabnnUm8LflnieVxs6eP7Z383hgQU4W1e3KJS6aOG3RxWxcHyBxH8fDMHNgu/gFx/M2jvTOW/4/PHhLz6bjWw==,
+      }
+    engines: { node: ^18.19.0 || >=20.6.0 }
+    peerDependencies:
+      "@opentelemetry/api": ">=1.0.0 <1.10.0"
+
   "@opentelemetry/core@2.5.0":
     resolution:
       {
@@ -3687,6 +3746,15 @@ packages:
         integrity: sha512-eovEy10n3umjKJl2Ey6TLzikPE+W4cUQ4gCwgGP1RqzTGtgDra0WjIqdy29ohiUKfvmbiL3MndZww58xfIvyFw==,
       }
     engines: { node: ">=14" }
+    peerDependencies:
+      "@opentelemetry/api": ^1.3.0
+
+  "@opentelemetry/exporter-logs-otlp-http@0.208.0":
+    resolution:
+      {
+        integrity: sha512-jOv40Bs9jy9bZVLo/i8FwUiuCvbjWDI+ZW13wimJm4LjnlwJxGgB+N/VWOZUTpM+ah/awXeQqKdNlpLf2EjvYg==,
+      }
+    engines: { node: ^18.19.0 || >=20.6.0 }
     peerDependencies:
       "@opentelemetry/api": ^1.3.0
 
@@ -4374,6 +4442,15 @@ packages:
     peerDependencies:
       "@opentelemetry/api": ^1.3.0
 
+  "@opentelemetry/otlp-exporter-base@0.208.0":
+    resolution:
+      {
+        integrity: sha512-gMd39gIfVb2OgxldxUtOwGJYSH8P1kVFFlJLuut32L6KgUC4gl1dMhn+YC2mGn0bDOiQYSk/uHOdSjuKp58vvA==,
+      }
+    engines: { node: ^18.19.0 || >=20.6.0 }
+    peerDependencies:
+      "@opentelemetry/api": ^1.3.0
+
   "@opentelemetry/otlp-exporter-base@0.57.2":
     resolution:
       {
@@ -4389,6 +4466,15 @@ packages:
         integrity: sha512-USn173KTWy0saqqRB5yU9xUZ2xdgb1Rdu5IosJnm9aV4hMTuFFRTUsQxbgc24QxpCHeoKzzCSnS/JzdV0oM2iQ==,
       }
     engines: { node: ">=14" }
+    peerDependencies:
+      "@opentelemetry/api": ^1.3.0
+
+  "@opentelemetry/otlp-transformer@0.208.0":
+    resolution:
+      {
+        integrity: sha512-DCFPY8C6lAQHUNkzcNT9R+qYExvsk6C5Bto2pbNxgicpcSWbe2WHShLxkOxIdNcBiYPdVHv/e7vH7K6TI+C+fQ==,
+      }
+    engines: { node: ^18.19.0 || >=20.6.0 }
     peerDependencies:
       "@opentelemetry/api": ^1.3.0
 
@@ -4496,6 +4582,15 @@ packages:
     peerDependencies:
       "@opentelemetry/api": ">=1.0.0 <1.10.0"
 
+  "@opentelemetry/resources@2.2.0":
+    resolution:
+      {
+        integrity: sha512-1pNQf/JazQTMA0BiO5NINUzH0cbLbbl7mntLa4aJNmCCXSj0q03T5ZXXL0zw4G55TjdL9Tz32cznGClf+8zr5A==,
+      }
+    engines: { node: ^18.19.0 || >=20.6.0 }
+    peerDependencies:
+      "@opentelemetry/api": ">=1.3.0 <1.10.0"
+
   "@opentelemetry/resources@2.5.1":
     resolution:
       {
@@ -4504,6 +4599,15 @@ packages:
     engines: { node: ^18.19.0 || >=20.6.0 }
     peerDependencies:
       "@opentelemetry/api": ">=1.3.0 <1.10.0"
+
+  "@opentelemetry/sdk-logs@0.208.0":
+    resolution:
+      {
+        integrity: sha512-QlAyL1jRpOeaqx7/leG1vJMp84g0xKP6gJmfELBpnI4O/9xPX+Hu5m1POk9Kl+veNkyth5t19hRlN6tNY1sjbA==,
+      }
+    engines: { node: ^18.19.0 || >=20.6.0 }
+    peerDependencies:
+      "@opentelemetry/api": ">=1.4.0 <1.10.0"
 
   "@opentelemetry/sdk-logs@0.57.2":
     resolution:
@@ -4523,6 +4627,15 @@ packages:
     peerDependencies:
       "@opentelemetry/api": ">=1.3.0 <1.10.0"
 
+  "@opentelemetry/sdk-metrics@2.2.0":
+    resolution:
+      {
+        integrity: sha512-G5KYP6+VJMZzpGipQw7Giif48h6SGQ2PFKEYCybeXJsOCB4fp8azqMAAzE5lnnHK3ZVwYQrgmFbsUJO/zOnwGw==,
+      }
+    engines: { node: ^18.19.0 || >=20.6.0 }
+    peerDependencies:
+      "@opentelemetry/api": ">=1.9.0 <1.10.0"
+
   "@opentelemetry/sdk-node@0.57.2":
     resolution:
       {
@@ -4540,6 +4653,15 @@ packages:
     engines: { node: ">=14" }
     peerDependencies:
       "@opentelemetry/api": ">=1.0.0 <1.10.0"
+
+  "@opentelemetry/sdk-trace-base@2.2.0":
+    resolution:
+      {
+        integrity: sha512-xWQgL0Bmctsalg6PaXExmzdedSp3gyKV8mQBwK/j9VGdCDu2fmXIb2gAehBKbkXCpJ4HPkgv3QfoJWRT4dHWbw==,
+      }
+    engines: { node: ^18.19.0 || >=20.6.0 }
+    peerDependencies:
+      "@opentelemetry/api": ">=1.3.0 <1.10.0"
 
   "@opentelemetry/sdk-trace-base@2.5.1":
     resolution:
@@ -4900,6 +5022,31 @@ packages:
         integrity: sha512-QNqXyfVS2wm9hweSYD2O7F0G06uurj9kZ96TRQE5Y9hU7+tgdZwIkbAKc5Ocy1HxEY2kuDQa6cQ1WRs/O5LFKA==,
       }
     engines: { node: ^12.20.0 || ^14.18.0 || >=16.0.0 }
+
+  "@posthog/core@1.24.3":
+    resolution:
+      {
+        integrity: sha512-nTyL1R/8V5vfdH37MbjXDYWFnUoxVijb2TnfJSNHz0+RBLtNnq0hNnBDCwWLl5yh1bzeJBYTT8UF+dV7D8y03w==,
+      }
+
+  "@posthog/react@1.8.2":
+    resolution:
+      {
+        integrity: sha512-KzUuXIcAR8fAjU7IeDq+XfEcUTNvzgEGB381WRrFUUsu7jFTcKZZ6crx/ukHRCzTnoEuy5EJDkL7b7sJecPlCg==,
+      }
+    peerDependencies:
+      "@types/react": ">=16.8.0"
+      posthog-js: ">=1.257.2"
+      react: ">=16.8.0"
+    peerDependenciesMeta:
+      "@types/react":
+        optional: true
+
+  "@posthog/types@1.364.1":
+    resolution:
+      {
+        integrity: sha512-COB9L+EF9gqGTcK06392yCPC1mbPtqStguFLDin57dxekJM6uwygfxciBi6f6XoFiNEkACpykZYIgjgk5FsuaQ==,
+      }
 
   "@preact/signals-core@1.12.1":
     resolution:
@@ -6745,10 +6892,10 @@ packages:
       }
     engines: { node: ">=12" }
 
-  "@tanstack/query-core@5.90.12":
+  "@tanstack/query-core@5.95.2":
     resolution:
       {
-        integrity: sha512-T1/8t5DhV/SisWjDnaiU2drl6ySvsHj1bHBCWNXd+/T+Hh1cf6JodyEYMd5sgwm+b/mETT4EV3H+zCVczCU5hg==,
+        integrity: sha512-o4T8vZHZET4Bib3jZ/tCW9/7080urD4c+0/AUaYVpIqOsr7y0reBc1oX3ttNaSW5mYyvZHctiQ/UOP2PfdmFEQ==,
       }
 
   "@tanstack/query-devtools@5.92.0":
@@ -6766,10 +6913,10 @@ packages:
       "@tanstack/react-query": ^5.90.14
       react: ^18 || ^19
 
-  "@tanstack/react-query@5.90.12":
+  "@tanstack/react-query@5.95.2":
     resolution:
       {
-        integrity: sha512-graRZspg7EoEaw0a8faiUASCyJrqjKPdqJ9EwuDRUF9mEYJ1YPczI9H+/agJ0mOJkPCJDk0lsz5QTrLZ/jQ2rg==,
+        integrity: sha512-/wGkvLj/st5Ud1Q76KF1uFxScV7WeqN1slQx5280ycwAyYkIPGaRZAEgHxe3bjirSd5Zpwkj6zNcR4cqYni/ZA==,
       }
     peerDependencies:
       react: ^18 || ^19
@@ -7069,6 +7216,13 @@ packages:
       "@nestjs/common": ^11.0.0
       "@nestjs/core": ^11.0.0
 
+  "@team9/enterprise-audit@file:enterprise/libs/audit":
+    resolution: { directory: enterprise/libs/audit, type: directory }
+    peerDependencies:
+      "@nestjs/common": ^11.0.0
+      "@nestjs/core": ^11.0.0
+      uuid: ^11.0.0
+
   "@team9/shared@file:apps/server/libs/shared":
     resolution: { directory: apps/server/libs/shared, type: directory }
 
@@ -7085,25 +7239,6 @@ packages:
         integrity: sha512-zIcONa+hVtVSSep9UT3jZ5rizo2BsxgyDYU7WFD5eICBE7no3881HGeb/QkGfsJs6JTkY1aQhT7rIPC7e+0nnA==,
       }
     engines: { node: ">=14", npm: ">=6", yarn: ">=1" }
-
-  "@testing-library/react-hooks@8.0.1":
-    resolution:
-      {
-        integrity: sha512-Aqhl2IVmLt8IovEVarNDFuJDVWVvhnr9/GCU6UUnrYXwgDFF9h2L2o2P9KBni1AST5sT6riAyoukFLyjQUgD/g==,
-      }
-    engines: { node: ">=12" }
-    peerDependencies:
-      "@types/react": ^16.9.0 || ^17.0.0
-      react: ^16.9.0 || ^17.0.0
-      react-dom: ^16.9.0 || ^17.0.0
-      react-test-renderer: ^16.9.0 || ^17.0.0
-    peerDependenciesMeta:
-      "@types/react":
-        optional: true
-      react-dom:
-        optional: true
-      react-test-renderer:
-        optional: true
 
   "@testing-library/react@16.3.2":
     resolution:
@@ -7593,6 +7728,12 @@ packages:
     resolution:
       {
         integrity: sha512-KHPsfX/FoVbUGbyYvk1q9MMQHLPeRZhRJZdO45Q4YjvFkv4hMNghCWTvy7rdKessBsmtz4euWCWAB6/tVpI1Iw==,
+      }
+
+  "@types/trusted-types@2.0.7":
+    resolution:
+      {
+        integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==,
       }
 
   "@types/unist@2.0.11":
@@ -8931,6 +9072,12 @@ packages:
       }
     hasBin: true
 
+  core-js@3.49.0:
+    resolution:
+      {
+        integrity: sha512-es1U2+YTtzpwkxVLwAFdSpaIMyQaq0PBgm3YD1W3Qpsn1NAmO3KSgZfu+oGSWVu6NvLHoHCV/aYcsE5wiB7ALg==,
+      }
+
   core-util-is@1.0.3:
     resolution:
       {
@@ -9187,6 +9334,12 @@ packages:
         integrity: sha512-cgwlv/1iFQiFnU96XXgROh8xTeetsnJiDsTc7TYCLFd9+/WNkIqPTxiM/8pSd8VIrhXGTf1Ny1q1hquVqDJB5w==,
       }
     engines: { node: ">= 4" }
+
+  dompurify@3.3.3:
+    resolution:
+      {
+        integrity: sha512-Oj6pzI2+RqBfFG+qOaOLbFXLQ90ARpcGG6UePL82bJLtdsa6CYJD7nmiU8MW9nQNOtCHV3lZ/Bzq1X0QYbBZCA==,
+      }
 
   domutils@3.2.2:
     resolution:
@@ -9850,6 +10003,12 @@ packages:
         integrity: sha512-7yAQpD2UMJzLi1Dqv7qFYnPbaPx7ZfFK6PiIxQ4PfkGPyNyl2Ugx+a/umUonmKqjhM4DnfbMvdX6otXq83soQQ==,
       }
     engines: { node: ^12.20 || >= 14.13 }
+
+  fflate@0.4.8:
+    resolution:
+      {
+        integrity: sha512-FJqqoDBR00Mdj9ppamLa/Y7vxm+PRmNWA67N846RvsoYVMKB4q3y/de5PA7gUmRMYK/8CMz2GDZQmCRN1wBcWA==,
+      }
 
   file-entry-cache@8.0.0:
     resolution:
@@ -12553,6 +12712,30 @@ packages:
       }
     engines: { node: ">=12" }
 
+  posthog-js@1.364.1:
+    resolution:
+      {
+        integrity: sha512-7nR2lfxKKqv5SeC+OjeWkWXfK/4RbXxRiqmSAW214y+FuDFVS+Li0mPzTBC/V20uHPWtd92ptrctpY/jKj0F7w==,
+      }
+
+  posthog-node@5.28.8:
+    resolution:
+      {
+        integrity: sha512-UD55SdSbgUvoOb3HkvNC22ZgpdeNknDrao8+yYTB/rDnwgaibPB7pJJzgn4j7MIUw7DOTEHEmJRqza1EDtK2Zw==,
+      }
+    engines: { node: ^20.20.0 || >=22.22.0 }
+    peerDependencies:
+      rxjs: ^7.0.0
+    peerDependenciesMeta:
+      rxjs:
+        optional: true
+
+  preact@10.29.0:
+    resolution:
+      {
+        integrity: sha512-wSAGyk2bYR1c7t3SZ3jHcM6xy0lcBcDel6lODcs9ME6Th++Dx2KU+6D3HD8wMMKGA8Wpw7OMd3/4RGzYRpzwRg==,
+      }
+
   prelude-ls@1.2.1:
     resolution:
       {
@@ -12661,6 +12844,12 @@ packages:
       }
     engines: { node: ">=0.6" }
 
+  query-selector-shadow-dom@1.0.1:
+    resolution:
+      {
+        integrity: sha512-lT5yCqEBgfoMYpf3F2xQRK7zEr1rhIIZuceDK6+xRkJQ4NMbHTwXqk4NkwDwQMNqXgG9r9fyHnzwNVs6zV5KRw==,
+      }
+
   querystringify@2.2.0:
     resolution:
       {
@@ -12703,15 +12892,6 @@ packages:
       }
     peerDependencies:
       react: ^19.2.3
-
-  react-error-boundary@3.1.4:
-    resolution:
-      {
-        integrity: sha512-uM9uPzZJTF6wRQORmSrvOIgt4lJ9MC1sNgEOj2XGsDTRE4kmpWxg7ENK9EWNKJRMAOY9z0MuF4yIfl6gp4sotA==,
-      }
-    engines: { node: ">=10", npm: ">=6" }
-    peerDependencies:
-      react: ">=16.13.1"
 
   react-error-boundary@6.0.1:
     resolution:
@@ -14224,6 +14404,13 @@ packages:
       }
     engines: { node: ">= 0.4.0" }
 
+  uuid@11.1.0:
+    resolution:
+      {
+        integrity: sha512-0/A9rDy9P7cJ+8w1c9WD9V//9Wj15Ce2MPz8Ri6032usz+NfePxx5AcN3bN+r6ZL6jEo066/yNYB3tn4pQEx+A==,
+      }
+    hasBin: true
+
   uuid@13.0.0:
     resolution:
       {
@@ -14396,6 +14583,12 @@ packages:
         integrity: sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw==,
       }
     engines: { node: ">= 8" }
+
+  web-vitals@5.2.0:
+    resolution:
+      {
+        integrity: sha512-i2z98bEmaCqSDiHEDu+gHl/dmR4Q+TxFmG3/13KkMO+o8UxQzCqWaDRCiLgEa41nlO4VpXSI0ASa1xWmO9sBlA==,
+      }
 
   webidl-conversions@3.0.1:
     resolution:
@@ -16776,6 +16969,11 @@ snapshots:
       "@opentelemetry/api": 1.9.0
       "@opentelemetry/semantic-conventions": 1.28.0
 
+  "@opentelemetry/core@2.2.0(@opentelemetry/api@1.9.0)":
+    dependencies:
+      "@opentelemetry/api": 1.9.0
+      "@opentelemetry/semantic-conventions": 1.39.0
+
   "@opentelemetry/core@2.5.0(@opentelemetry/api@1.9.0)":
     dependencies:
       "@opentelemetry/api": 1.9.0
@@ -16795,6 +16993,15 @@ snapshots:
       "@opentelemetry/otlp-grpc-exporter-base": 0.57.2(@opentelemetry/api@1.9.0)
       "@opentelemetry/otlp-transformer": 0.57.2(@opentelemetry/api@1.9.0)
       "@opentelemetry/sdk-logs": 0.57.2(@opentelemetry/api@1.9.0)
+
+  "@opentelemetry/exporter-logs-otlp-http@0.208.0(@opentelemetry/api@1.9.0)":
+    dependencies:
+      "@opentelemetry/api": 1.9.0
+      "@opentelemetry/api-logs": 0.208.0
+      "@opentelemetry/core": 2.2.0(@opentelemetry/api@1.9.0)
+      "@opentelemetry/otlp-exporter-base": 0.208.0(@opentelemetry/api@1.9.0)
+      "@opentelemetry/otlp-transformer": 0.208.0(@opentelemetry/api@1.9.0)
+      "@opentelemetry/sdk-logs": 0.208.0(@opentelemetry/api@1.9.0)
 
   "@opentelemetry/exporter-logs-otlp-http@0.57.2(@opentelemetry/api@1.9.0)":
     dependencies:
@@ -17464,6 +17671,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  "@opentelemetry/otlp-exporter-base@0.208.0(@opentelemetry/api@1.9.0)":
+    dependencies:
+      "@opentelemetry/api": 1.9.0
+      "@opentelemetry/core": 2.2.0(@opentelemetry/api@1.9.0)
+      "@opentelemetry/otlp-transformer": 0.208.0(@opentelemetry/api@1.9.0)
+
   "@opentelemetry/otlp-exporter-base@0.57.2(@opentelemetry/api@1.9.0)":
     dependencies:
       "@opentelemetry/api": 1.9.0
@@ -17477,6 +17690,17 @@ snapshots:
       "@opentelemetry/core": 1.30.1(@opentelemetry/api@1.9.0)
       "@opentelemetry/otlp-exporter-base": 0.57.2(@opentelemetry/api@1.9.0)
       "@opentelemetry/otlp-transformer": 0.57.2(@opentelemetry/api@1.9.0)
+
+  "@opentelemetry/otlp-transformer@0.208.0(@opentelemetry/api@1.9.0)":
+    dependencies:
+      "@opentelemetry/api": 1.9.0
+      "@opentelemetry/api-logs": 0.208.0
+      "@opentelemetry/core": 2.2.0(@opentelemetry/api@1.9.0)
+      "@opentelemetry/resources": 2.2.0(@opentelemetry/api@1.9.0)
+      "@opentelemetry/sdk-logs": 0.208.0(@opentelemetry/api@1.9.0)
+      "@opentelemetry/sdk-metrics": 2.2.0(@opentelemetry/api@1.9.0)
+      "@opentelemetry/sdk-trace-base": 2.2.0(@opentelemetry/api@1.9.0)
+      protobufjs: 7.5.4
 
   "@opentelemetry/otlp-transformer@0.57.2(@opentelemetry/api@1.9.0)":
     dependencies:
@@ -17552,11 +17776,24 @@ snapshots:
       "@opentelemetry/core": 1.30.1(@opentelemetry/api@1.9.0)
       "@opentelemetry/semantic-conventions": 1.28.0
 
+  "@opentelemetry/resources@2.2.0(@opentelemetry/api@1.9.0)":
+    dependencies:
+      "@opentelemetry/api": 1.9.0
+      "@opentelemetry/core": 2.2.0(@opentelemetry/api@1.9.0)
+      "@opentelemetry/semantic-conventions": 1.39.0
+
   "@opentelemetry/resources@2.5.1(@opentelemetry/api@1.9.0)":
     dependencies:
       "@opentelemetry/api": 1.9.0
       "@opentelemetry/core": 2.5.1(@opentelemetry/api@1.9.0)
       "@opentelemetry/semantic-conventions": 1.39.0
+
+  "@opentelemetry/sdk-logs@0.208.0(@opentelemetry/api@1.9.0)":
+    dependencies:
+      "@opentelemetry/api": 1.9.0
+      "@opentelemetry/api-logs": 0.208.0
+      "@opentelemetry/core": 2.2.0(@opentelemetry/api@1.9.0)
+      "@opentelemetry/resources": 2.2.0(@opentelemetry/api@1.9.0)
 
   "@opentelemetry/sdk-logs@0.57.2(@opentelemetry/api@1.9.0)":
     dependencies:
@@ -17570,6 +17807,12 @@ snapshots:
       "@opentelemetry/api": 1.9.0
       "@opentelemetry/core": 1.30.1(@opentelemetry/api@1.9.0)
       "@opentelemetry/resources": 1.30.1(@opentelemetry/api@1.9.0)
+
+  "@opentelemetry/sdk-metrics@2.2.0(@opentelemetry/api@1.9.0)":
+    dependencies:
+      "@opentelemetry/api": 1.9.0
+      "@opentelemetry/core": 2.2.0(@opentelemetry/api@1.9.0)
+      "@opentelemetry/resources": 2.2.0(@opentelemetry/api@1.9.0)
 
   "@opentelemetry/sdk-node@0.57.2(@opentelemetry/api@1.9.0)":
     dependencies:
@@ -17603,6 +17846,13 @@ snapshots:
       "@opentelemetry/core": 1.30.1(@opentelemetry/api@1.9.0)
       "@opentelemetry/resources": 1.30.1(@opentelemetry/api@1.9.0)
       "@opentelemetry/semantic-conventions": 1.28.0
+
+  "@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0)":
+    dependencies:
+      "@opentelemetry/api": 1.9.0
+      "@opentelemetry/core": 2.2.0(@opentelemetry/api@1.9.0)
+      "@opentelemetry/resources": 2.2.0(@opentelemetry/api@1.9.0)
+      "@opentelemetry/semantic-conventions": 1.39.0
 
   "@opentelemetry/sdk-trace-base@2.5.1(@opentelemetry/api@1.9.0)":
     dependencies:
@@ -17769,6 +18019,19 @@ snapshots:
     optional: true
 
   "@pkgr/core@0.2.9": {}
+
+  "@posthog/core@1.24.3":
+    dependencies:
+      cross-spawn: 7.0.6
+
+  "@posthog/react@1.8.2(@types/react@19.2.7)(posthog-js@1.364.1)(react@19.2.3)":
+    dependencies:
+      posthog-js: 1.364.1
+      react: 19.2.3
+    optionalDependencies:
+      "@types/react": 19.2.7
+
+  "@posthog/types@1.364.1": {}
 
   "@preact/signals-core@1.12.1": {}
 
@@ -19089,19 +19352,19 @@ snapshots:
 
   "@tanstack/history@1.141.0": {}
 
-  "@tanstack/query-core@5.90.12": {}
+  "@tanstack/query-core@5.95.2": {}
 
   "@tanstack/query-devtools@5.92.0": {}
 
-  "@tanstack/react-query-devtools@5.91.2(@tanstack/react-query@5.90.12(react@19.2.3))(react@19.2.3)":
+  "@tanstack/react-query-devtools@5.91.2(@tanstack/react-query@5.95.2(react@19.2.3))(react@19.2.3)":
     dependencies:
       "@tanstack/query-devtools": 5.92.0
-      "@tanstack/react-query": 5.90.12(react@19.2.3)
+      "@tanstack/react-query": 5.95.2(react@19.2.3)
       react: 19.2.3
 
-  "@tanstack/react-query@5.90.12(react@19.2.3)":
+  "@tanstack/react-query@5.95.2(react@19.2.3)":
     dependencies:
-      "@tanstack/query-core": 5.90.12
+      "@tanstack/query-core": 5.95.2
       react: 19.2.3
 
   "@tanstack/react-router-devtools@1.143.11(@tanstack/react-router@1.143.11(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@tanstack/router-core@1.143.6)(csstype@3.2.3)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(solid-js@1.9.10)":
@@ -19314,6 +19577,13 @@ snapshots:
       - react
       - react-dom
 
+  "@team9/enterprise-audit@file:enterprise/libs/audit(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.10)(uuid@13.0.0)":
+    dependencies:
+      "@nestjs/common": 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      "@nestjs/core": 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      uuid: 13.0.0
+    optional: true
+
   "@team9/shared@file:apps/server/libs/shared": {}
 
   "@testing-library/dom@10.4.1":
@@ -19335,15 +19605,6 @@ snapshots:
       dom-accessibility-api: 0.6.3
       picocolors: 1.1.1
       redent: 3.0.0
-
-  "@testing-library/react-hooks@8.0.1(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)":
-    dependencies:
-      "@babel/runtime": 7.28.4
-      react: 19.2.3
-      react-error-boundary: 3.1.4(react@19.2.3)
-    optionalDependencies:
-      "@types/react": 19.2.7
-      react-dom: 19.2.3(react@19.2.3)
 
   "@testing-library/react@16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)":
     dependencies:
@@ -19637,6 +19898,9 @@ snapshots:
   "@types/tedious@4.0.14":
     dependencies:
       "@types/node": 22.19.3
+
+  "@types/trusted-types@2.0.7":
+    optional: true
 
   "@types/unist@2.0.11": {}
 
@@ -20426,6 +20690,8 @@ snapshots:
       untildify: 4.0.0
       yargs: 16.2.0
 
+  core-js@3.49.0: {}
+
   core-util-is@1.0.3: {}
 
   cors@2.8.5:
@@ -20541,6 +20807,10 @@ snapshots:
   domhandler@5.0.3:
     dependencies:
       domelementtype: 2.3.0
+
+  dompurify@3.3.3:
+    optionalDependencies:
+      "@types/trusted-types": 2.0.7
 
   domutils@3.2.2:
     dependencies:
@@ -20995,6 +21265,8 @@ snapshots:
     dependencies:
       node-domexception: 1.0.0
       web-streams-polyfill: 3.3.3
+
+  fflate@0.4.8: {}
 
   file-entry-cache@8.0.0:
     dependencies:
@@ -22912,6 +23184,30 @@ snapshots:
 
   postgres@3.4.7: {}
 
+  posthog-js@1.364.1:
+    dependencies:
+      "@opentelemetry/api": 1.9.0
+      "@opentelemetry/api-logs": 0.208.0
+      "@opentelemetry/exporter-logs-otlp-http": 0.208.0(@opentelemetry/api@1.9.0)
+      "@opentelemetry/resources": 2.5.1(@opentelemetry/api@1.9.0)
+      "@opentelemetry/sdk-logs": 0.208.0(@opentelemetry/api@1.9.0)
+      "@posthog/core": 1.24.3
+      "@posthog/types": 1.364.1
+      core-js: 3.49.0
+      dompurify: 3.3.3
+      fflate: 0.4.8
+      preact: 10.29.0
+      query-selector-shadow-dom: 1.0.1
+      web-vitals: 5.2.0
+
+  posthog-node@5.28.8(rxjs@7.8.2):
+    dependencies:
+      "@posthog/core": 1.24.3
+    optionalDependencies:
+      rxjs: 7.8.2
+
+  preact@10.29.0: {}
+
   prelude-ls@1.2.1: {}
 
   prettier-linter-helpers@1.0.0:
@@ -22972,6 +23268,8 @@ snapshots:
     dependencies:
       side-channel: 1.1.0
 
+  query-selector-shadow-dom@1.0.1: {}
+
   querystringify@2.2.0: {}
 
   randombytes@2.1.0:
@@ -22997,11 +23295,6 @@ snapshots:
     dependencies:
       react: 19.2.3
       scheduler: 0.27.0
-
-  react-error-boundary@3.1.4(react@19.2.3):
-    dependencies:
-      "@babel/runtime": 7.28.4
-      react: 19.2.3
 
   react-error-boundary@6.0.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
     dependencies:
@@ -24021,6 +24314,8 @@ snapshots:
 
   utils-merge@1.0.1: {}
 
+  uuid@11.1.0: {}
+
   uuid@13.0.0: {}
 
   uuid@9.0.1: {}
@@ -24124,6 +24419,8 @@ snapshots:
       defaults: 1.0.4
 
   web-streams-polyfill@3.3.3: {}
+
+  web-vitals@5.2.0: {}
 
   webidl-conversions@3.0.1: {}
 
