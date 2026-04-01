@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isRestorableSectionPath,
   sanitizeLastVisitedPaths,
+  useAppStore,
 } from "../useAppStore";
 
 describe("useAppStore navigation helpers", () => {
@@ -22,6 +23,43 @@ describe("useAppStore navigation helpers", () => {
     ).toMatchObject({
       home: null,
       messages: "/messages/dm-1",
+      more: null,
+    });
+  });
+
+  it("resets all section paths, including skill detail pages, on workspace entry", () => {
+    useAppStore.setState({
+      activeSidebar: "skills",
+      lastVisitedPaths: {
+        home: "/channels/channel-1",
+        messages: "/messages/dm-1",
+        activity: "/activity/channel-1",
+        files: "/files",
+        aiStaff: "/ai-staff/staff-1",
+        tasks: "/tasks",
+        skills: "/skills/skill-1",
+        resources: "/resources",
+        library: "/library",
+        application: "/application/app-1",
+        more: "/more/members",
+      },
+    });
+
+    useAppStore.getState().resetNavigationForWorkspaceEntry();
+
+    const state = useAppStore.getState();
+    expect(state.activeSidebar).toBe("home");
+    expect(state.lastVisitedPaths).toMatchObject({
+      home: null,
+      messages: null,
+      activity: null,
+      files: null,
+      aiStaff: null,
+      tasks: null,
+      skills: null,
+      resources: null,
+      library: null,
+      application: null,
       more: null,
     });
   });

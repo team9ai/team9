@@ -76,4 +76,17 @@ describe("accountApi", () => {
     expect(http.delete).toHaveBeenCalledWith("/v1/account/email-change");
     expect(result.message).toBe("Pending email change cancelled.");
   });
+
+  it("confirms an email change token with an explicit POST", async () => {
+    vi.spyOn(http, "post").mockResolvedValueOnce({
+      data: { message: "Email address updated successfully." },
+    } as never);
+
+    const result = await api.account.confirmEmailChange("confirm-token");
+
+    expect(http.post).toHaveBeenCalledWith("/v1/account/confirm-email-change", {
+      token: "confirm-token",
+    });
+    expect(result.message).toBe("Email address updated successfully.");
+  });
 });

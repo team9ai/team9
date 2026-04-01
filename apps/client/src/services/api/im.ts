@@ -386,6 +386,14 @@ export const accountApi = {
     const response = await http.delete("/v1/account/email-change");
     return response.data;
   },
+
+  // Confirm an email change token after explicit user action
+  confirmEmailChange: async (token: string): Promise<{ message: string }> => {
+    const response = await http.post("/v1/account/confirm-email-change", {
+      token,
+    });
+    return response.data;
+  },
 };
 
 // Sections API

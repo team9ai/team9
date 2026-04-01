@@ -458,7 +458,7 @@ export class AccountService {
     const expiresAt = new Date(
       Date.now() + this.EMAIL_CHANGE_TOKEN_EXPIRY_HOURS * 60 * 60 * 1000,
     );
-    const confirmationLink = `${env.API_URL}/api/v1/account/confirm-email-change?token=${token}`;
+    const confirmationLink = `${env.APP_URL}/confirm-email-change?token=${token}`;
 
     return { tokenHash, expiresAt, confirmationLink };
   }

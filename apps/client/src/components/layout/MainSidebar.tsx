@@ -240,20 +240,9 @@ export function MainSidebar() {
       });
       // Note: Don't remove messages as they might be needed if user navigates back
 
-      // Reset last visited paths — detail pages belong to the old workspace
-      const sections: SidebarSection[] = [
-        "home",
-        "messages",
-        "activity",
-        "files",
-        "aiStaff",
-        "library",
-        "application",
-        "more",
-      ];
-      for (const section of sections) {
-        appActions.setLastVisitedPath(section, null);
-      }
+      // Reset last visited paths — persisted section routes may not exist
+      // or may point at stale detail pages in the next workspace.
+      appActions.resetNavigationForWorkspaceEntry();
 
       // Reset aHand setup state so it re-runs for the new workspace
       useAHandSetupStore.getState().reset();

@@ -1,6 +1,13 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals';
+import {
+  jest,
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+} from '@jest/globals';
 import { Test, type TestingModule } from '@nestjs/testing';
-import { ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { validate } from 'class-validator';
 import { RedisService } from '@team9/redis';
@@ -59,6 +66,11 @@ jest.unstable_mockModule('@team9/database/schemas', () => ({
     userType: 'users.userType',
     updatedAt: 'users.updatedAt',
   },
+  files: {
+    id: 'files.id',
+    visibility: 'files.visibility',
+    uploaderId: 'files.uploaderId',
+  },
   tenantMembers: {
     userId: 'tenantMembers.userId',
     tenantId: 'tenantMembers.tenantId',
@@ -93,9 +105,12 @@ function mockDb() {
 describe('UsersService', () => {
   let service: UsersService;
   let db: ReturnType<typeof mockDb>;
+  let originalEnv: NodeJS.ProcessEnv;
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    originalEnv = { ...process.env };
+    process.env.API_URL = 'https://api.team9.test';
     db = mockDb();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -119,6 +134,10 @@ describe('UsersService', () => {
     }).compile();
 
     service = module.get<UsersService>(UsersService);
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
   });
 
   describe('update', () => {
@@ -172,6 +191,61 @@ describe('UsersService', () => {
       await expect(
         service.update('user-uuid', { username: 'race-name' } as any),
       ).rejects.toThrow(ConflictException);
+    });
+
+    it('should accept a Team9 public file avatar URL owned by the current user', async () => {
+      const fileId = '123e4567-e89b-12d3-a456-426614174000';
+      const returnedUser = {
+        id: 'user-uuid',
+        email: 'alice@test.com',
+        username: 'alice',
+        displayName: 'Alice',
+        avatarUrl: `https://api.team9.test/api/v1/files/public/file/${fileId}`,
+        status: 'offline',
+        lastSeenAt: null,
+        userType: 'human',
+      };
+
+      db.limit.mockResolvedValueOnce([
+        { id: fileId, visibility: 'public', uploaderId: 'user-uuid' },
+      ]);
+      db.returning.mockResolvedValueOnce([returnedUser]);
+
+      await expect(
+        service.update('user-uuid', {
+          avatarUrl: `https://api.team9.test/api/v1/files/public/file/${fileId}`,
+        } as any),
+      ).resolves.toEqual(returnedUser);
+    });
+
+    it('should reject an arbitrary third-party avatar URL', async () => {
+      await expect(
+        service.update('user-uuid', {
+          avatarUrl: 'https://tracker.example.com/pixel.png',
+        } as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject a public-file-shaped avatar URL from an untrusted origin', async () => {
+      await expect(
+        service.update('user-uuid', {
+          avatarUrl:
+            'https://evil.example/api/v1/files/public/file/123e4567-e89b-12d3-a456-426614174000',
+        } as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject a Team9 public file avatar URL not owned by the current user', async () => {
+      const fileId = '123e4567-e89b-12d3-a456-426614174001';
+      db.limit.mockResolvedValueOnce([
+        { id: fileId, visibility: 'public', uploaderId: 'other-user' },
+      ]);
+
+      await expect(
+        service.update('user-uuid', {
+          avatarUrl: `https://api.team9.test/api/v1/files/public/file/${fileId}`,
+        } as any),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

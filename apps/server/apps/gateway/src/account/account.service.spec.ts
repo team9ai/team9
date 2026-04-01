@@ -221,7 +221,7 @@ describe('AccountService', () => {
       expect(inserted.tokenHash).toBe(expectedHash);
       expect(inserted.tokenHash).not.toBe(rawToken);
       expect(sentLink).toBe(
-        `https://api.team9.test/api/v1/account/confirm-email-change?token=${rawToken}`,
+        `https://app.team9.test/confirm-email-change?token=${rawToken}`,
       );
 
       expect(result.pendingEmailChange?.newEmail).toBe('new@test.com');

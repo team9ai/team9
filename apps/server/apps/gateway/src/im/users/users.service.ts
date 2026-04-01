@@ -3,6 +3,7 @@ import {
   Inject,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
@@ -18,6 +19,7 @@ import {
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
+import { env } from '@team9/shared';
 import { UpdateUserDto } from './dto/index.js';
 
 export interface UserResponse {
@@ -36,6 +38,17 @@ export class UsersService {
   private readonly ONLINE_USERS_KEY = 'im:online_users';
   private readonly USER_CACHE_PREFIX = 'im:user:';
   private readonly USER_CACHE_TTL = 3600; // 1 hour
+  private readonly TEAM9_PUBLIC_FILE_PATHS = [
+    /^\/api\/v1\/files\/public\/file\/([0-9a-f-]+)$/i,
+    /^\/v1\/files\/public\/file\/([0-9a-f-]+)$/i,
+  ];
+  private readonly TRUSTED_AVATAR_HOST_PATTERNS = [
+    /^(.+\.)?googleusercontent\.com$/i,
+    /^secure\.gravatar\.com$/i,
+    /^www\.gravatar\.com$/i,
+    /^gravatar\.com$/i,
+  ];
+  private readonly TEAM9_API_ORIGIN = new URL(env.API_URL).origin;
 
   constructor(
     @Inject(DATABASE_CONNECTION)
@@ -102,6 +115,10 @@ export class UsersService {
       }
     }
 
+    if (dto.avatarUrl !== undefined) {
+      await this.assertAvatarUrlAllowed(id, dto.avatarUrl);
+    }
+
     let updatedUser;
     try {
       [updatedUser] = await this.db
@@ -139,6 +156,67 @@ export class UsersService {
       lastSeenAt: updatedUser.lastSeenAt,
       userType: updatedUser.userType,
     };
+  }
+
+  private async assertAvatarUrlAllowed(
+    userId: string,
+    avatarUrl: string,
+  ): Promise<void> {
+    let parsed: URL;
+
+    try {
+      parsed = new URL(avatarUrl);
+    } catch {
+      throw new BadRequestException('Avatar URL must be a valid absolute URL');
+    }
+
+    if (
+      this.TRUSTED_AVATAR_HOST_PATTERNS.some((pattern) =>
+        pattern.test(parsed.hostname),
+      )
+    ) {
+      return;
+    }
+
+    const fileId = this.extractPublicFileId(parsed.pathname);
+    if (!fileId) {
+      throw new BadRequestException(
+        'Avatar URL must use a Team9 public file URL or a trusted avatar provider',
+      );
+    }
+
+    if (parsed.origin !== this.TEAM9_API_ORIGIN) {
+      throw new BadRequestException(
+        'Avatar URL must use the configured Team9 file host',
+      );
+    }
+
+    const [file] = await this.db
+      .select({
+        id: schema.files.id,
+        visibility: schema.files.visibility,
+        uploaderId: schema.files.uploaderId,
+      })
+      .from(schema.files)
+      .where(eq(schema.files.id, fileId))
+      .limit(1);
+
+    if (!file || file.visibility !== 'public' || file.uploaderId !== userId) {
+      throw new BadRequestException(
+        'Avatar URL must reference your own public Team9 upload',
+      );
+    }
+  }
+
+  private extractPublicFileId(pathname: string): string | null {
+    for (const pattern of this.TEAM9_PUBLIC_FILE_PATHS) {
+      const match = pathname.match(pattern);
+      if (match) {
+        return match[1];
+      }
+    }
+
+    return null;
   }
 
   async updateStatus(

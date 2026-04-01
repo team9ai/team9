@@ -23,6 +23,7 @@ function mockAccountService() {
     createEmailChange: jest.fn<any>(),
     resendEmailChange: jest.fn<any>(),
     cancelEmailChange: jest.fn<any>(),
+    redirectConfirmEmailChange: jest.fn<any>(),
     confirmEmailChange: jest.fn<any>(),
   };
 }
@@ -30,8 +31,12 @@ function mockAccountService() {
 describe('AccountController (integration)', () => {
   let app: INestApplication;
   let accountService: ReturnType<typeof mockAccountService>;
+  let originalEnv: NodeJS.ProcessEnv;
 
   beforeEach(async () => {
+    originalEnv = { ...process.env };
+    process.env.APP_URL = 'https://app.team9.test';
+
     accountService = mockAccountService();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -57,6 +62,7 @@ describe('AccountController (integration)', () => {
 
   afterEach(async () => {
     await app.close();
+    process.env = originalEnv;
   });
 
   describe('GET /api/v1/account/email-change', () => {
@@ -150,19 +156,15 @@ describe('AccountController (integration)', () => {
   });
 
   describe('GET /api/v1/account/confirm-email-change', () => {
-    it('confirms an email change token without auth', async () => {
-      accountService.confirmEmailChange.mockResolvedValue({
-        message: 'Email address updated successfully.',
-      });
-
+    it('redirects legacy confirmation links to the app confirmation page', async () => {
       const res = await request(app.getHttpServer())
         .get('/api/v1/account/confirm-email-change?token=confirm-token')
-        .expect(200);
+        .expect(302);
 
-      expect(res.body.message).toBe('Email address updated successfully.');
-      expect(accountService.confirmEmailChange).toHaveBeenCalledWith(
-        'confirm-token',
+      expect(res.headers.location).toBe(
+        'https://app.team9.test/confirm-email-change?token=confirm-token',
       );
+      expect(accountService.confirmEmailChange).not.toHaveBeenCalled();
     });
 
     it('rejects a missing token', async () => {
@@ -171,6 +173,24 @@ describe('AccountController (integration)', () => {
         .expect(400);
 
       expect(accountService.confirmEmailChange).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /api/v1/account/confirm-email-change', () => {
+    it('confirms an email change token after explicit submission', async () => {
+      accountService.confirmEmailChange.mockResolvedValue({
+        message: 'Email address updated successfully.',
+      });
+
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/account/confirm-email-change')
+        .send({ token: 'confirm-token' })
+        .expect(200);
+
+      expect(res.body.message).toBe('Email address updated successfully.');
+      expect(accountService.confirmEmailChange).toHaveBeenCalledWith(
+        'confirm-token',
+      );
     });
   });
 });

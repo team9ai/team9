@@ -8,8 +8,10 @@ import {
   Query,
   Body,
   UseGuards,
+  Redirect,
 } from '@nestjs/common';
 import { AuthGuard, CurrentUser } from '@team9/auth';
+import { env } from '@team9/shared';
 import { AccountService } from './account.service.js';
 import { ConfirmEmailChangeDto, CreateEmailChangeDto } from './dto/index.js';
 import type {
@@ -60,8 +62,19 @@ export class AccountController {
   }
 
   @Get('confirm-email-change')
-  async confirmEmailChange(
+  @Redirect()
+  async redirectConfirmEmailChange(
     @Query() dto: ConfirmEmailChangeDto,
+  ): Promise<{ url: string }> {
+    return {
+      url: `${env.APP_URL}/confirm-email-change?token=${encodeURIComponent(dto.token)}`,
+    };
+  }
+
+  @Post('confirm-email-change')
+  @HttpCode(HttpStatus.OK)
+  async confirmEmailChange(
+    @Body() dto: ConfirmEmailChangeDto,
   ): Promise<{ message: string }> {
     return this.accountService.confirmEmailChange(dto.token);
   }

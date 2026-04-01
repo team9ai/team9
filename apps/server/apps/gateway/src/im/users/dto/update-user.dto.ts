@@ -3,7 +3,6 @@ import {
   MinLength,
   MaxLength,
   IsOptional,
-  IsUrl,
   IsEnum,
   Matches,
 } from 'class-validator';
@@ -14,7 +13,7 @@ export class UpdateUserDto {
   @IsOptional()
   displayName?: string;
 
-  @IsUrl()
+  @IsString()
   @IsOptional()
   avatarUrl?: string;
 
