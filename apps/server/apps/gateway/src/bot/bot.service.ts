@@ -533,6 +533,7 @@ export class BotService implements OnModuleInit {
       .select({
         id: schema.bots.id,
         userId: schema.bots.userId,
+        accessToken: schema.bots.accessToken,
       })
       .from(schema.bots)
       .where(eq(schema.bots.id, botId))
@@ -546,16 +547,13 @@ export class BotService implements OnModuleInit {
     const rawToken = `${BOT_TOKEN_PREFIX}${rawHex}`;
     const fingerprint = rawHex.slice(0, 8);
     const hash = await bcrypt.hash(rawHex, 10);
+    const nextAccessToken = `${fingerprint}:${hash}`;
 
-    await this.botAuthCache.invalidateBot(botId);
-
-    await this.db
-      .update(schema.bots)
-      .set({
-        accessToken: `${fingerprint}:${hash}`,
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.bots.id, botId));
+    await this.replaceAccessTokenAndInvalidate(
+      botId,
+      bot.accessToken,
+      nextAccessToken,
+    );
 
     return { botId, userId: bot.userId, accessToken: rawToken };
   }
@@ -624,12 +622,12 @@ export class BotService implements OnModuleInit {
    * Revoke a bot's access token.
    */
   async revokeAccessToken(botId: string): Promise<void> {
-    await this.botAuthCache.invalidateBot(botId);
-
-    await this.db
-      .update(schema.bots)
-      .set({ accessToken: null, updatedAt: new Date() })
-      .where(eq(schema.bots.id, botId));
+    const previousAccessToken = await this.getStoredAccessToken(botId);
+    await this.replaceAccessTokenAndInvalidate(
+      botId,
+      previousAccessToken,
+      null,
+    );
   }
 
   /**
@@ -679,6 +677,13 @@ export class BotService implements OnModuleInit {
       throw new Error(`Bot not found: ${botId}`);
     }
 
+    const previousAccessToken = await this.getStoredAccessToken(botId);
+    await this.replaceAccessTokenAndInvalidate(
+      botId,
+      previousAccessToken,
+      null,
+    );
+
     // Delete all DM channels the bot participates in
     const deletedChannels =
       await this.channelsService.deleteDirectChannelsForUser(bot.userId);
@@ -689,7 +694,6 @@ export class BotService implements OnModuleInit {
     }
 
     // Delete shadow user (im_bots cascades via userId FK)
-    await this.botAuthCache.invalidateBot(botId);
     await this.db.delete(schema.users).where(eq(schema.users.id, bot.userId));
 
     this.logger.log(`Deleted bot ${botId} and shadow user ${bot.userId}`);
@@ -826,6 +830,44 @@ export class BotService implements OnModuleInit {
     return row || null;
   }
 
+  private async getStoredAccessToken(botId: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({
+        accessToken: schema.bots.accessToken,
+      })
+      .from(schema.bots)
+      .where(eq(schema.bots.id, botId))
+      .limit(1);
+
+    return row?.accessToken ?? null;
+  }
+
+  private async replaceAccessTokenAndInvalidate(
+    botId: string,
+    previousAccessToken: string | null,
+    nextAccessToken: string | null,
+  ): Promise<void> {
+    await this.botAuthCache.beginBotMutation(botId);
+    try {
+      await this.db
+        .update(schema.bots)
+        .set({ accessToken: nextAccessToken, updatedAt: new Date() })
+        .where(eq(schema.bots.id, botId));
+
+      await this.botAuthCache.invalidateBot(botId);
+    } catch (error) {
+      if (nextAccessToken !== previousAccessToken) {
+        await this.db
+          .update(schema.bots)
+          .set({ accessToken: previousAccessToken, updatedAt: new Date() })
+          .where(eq(schema.bots.id, botId));
+      }
+      throw error;
+    } finally {
+      await this.botAuthCache.endBotMutation(botId);
+    }
+  }
+
   private async findValidatedAccessTokenMatch(
     rawToken: string,
   ): Promise<ValidatedBotTokenMatch | null> {
@@ -855,7 +897,15 @@ export class BotService implements OnModuleInit {
       );
 
     for (const row of rows) {
+      if (await this.botAuthCache.isBotMutationInProgress(row.botId)) {
+        continue;
+      }
+
       if (!(await this.doesTokenMatch(rawHex, row.accessToken))) {
+        continue;
+      }
+
+      if (await this.botAuthCache.isBotMutationInProgress(row.botId)) {
         continue;
       }
 
@@ -865,6 +915,10 @@ export class BotService implements OnModuleInit {
         rawHex,
       );
       if (!confirmed) {
+        continue;
+      }
+
+      if (await this.botAuthCache.isBotMutationInProgress(row.botId)) {
         continue;
       }
 

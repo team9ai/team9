@@ -8,6 +8,7 @@ describe('BotAuthCacheService', () => {
   let redis: {
     get: jest.Mock<any>;
     set: jest.Mock<any>;
+    exists: jest.Mock<any>;
     incr: jest.Mock<any>;
     sadd: jest.Mock<any>;
     smembers: jest.Mock<any>;
@@ -19,6 +20,7 @@ describe('BotAuthCacheService', () => {
     redis = {
       get: jest.fn<any>().mockResolvedValue(null),
       set: jest.fn<any>().mockResolvedValue('OK'),
+      exists: jest.fn<any>().mockResolvedValue(0),
       incr: jest.fn<any>().mockResolvedValue(1),
       sadd: jest.fn<any>().mockResolvedValue(1),
       smembers: jest.fn<any>().mockResolvedValue([]),
@@ -97,6 +99,40 @@ describe('BotAuthCacheService', () => {
       tenantId: 'tenant-2',
     });
     expect(loader).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns null for positive cache hits while a bot mutation lock is active', async () => {
+    const value = {
+      botId: 'bot-locked',
+      userId: 'user-locked',
+      tenantId: 'tenant-locked',
+    };
+
+    redis.get.mockImplementation(async (key: string) => {
+      if (key === 'auth:bot-token-version:bot-locked') {
+        return '1';
+      }
+      return JSON.stringify({ context: value, version: 1 });
+    });
+    redis.exists.mockImplementation(async (key: string) =>
+      key === 'auth:bot-token-mutation:bot-locked' ? 1 : 0,
+    );
+
+    await expect(
+      service.getOrSetValidation('t9bot_locked', async () => value),
+    ).resolves.toBeNull();
+  });
+
+  it('sets and clears a per-bot mutation lock', async () => {
+    await service.beginBotMutation('bot-10');
+    await service.endBotMutation('bot-10');
+
+    expect(redis.set).toHaveBeenCalledWith(
+      'auth:bot-token-mutation:bot-10',
+      '1',
+      30,
+    );
+    expect(redis.del).toHaveBeenCalledWith('auth:bot-token-mutation:bot-10');
   });
 
   it('returns the loader result when Redis read and parse operations fail', async () => {

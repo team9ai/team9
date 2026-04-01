@@ -4,6 +4,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class InternalAuthGuard implements CanActivate {
@@ -27,7 +28,13 @@ export class InternalAuthGuard implements CanActivate {
     }
 
     const bearerToken = authHeader.slice(7);
-    if (bearerToken !== internalAuthValidationToken) {
+    const provided = Buffer.from(bearerToken, 'utf8');
+    const expected = Buffer.from(internalAuthValidationToken, 'utf8');
+
+    if (
+      provided.length !== expected.length ||
+      !crypto.timingSafeEqual(provided, expected)
+    ) {
       throw new UnauthorizedException();
     }
 

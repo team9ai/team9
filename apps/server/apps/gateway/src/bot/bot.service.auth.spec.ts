@@ -117,6 +117,9 @@ function createRedisMock() {
       values.set(key, String(next));
       return next;
     }),
+    exists: jest.fn(async (key: string) =>
+      values.has(key) || sets.has(key) ? 1 : 0,
+    ),
     sadd: jest.fn(async (key: string, member: string) => {
       const set = sets.get(key) ?? new Set<string>();
       set.add(member);
@@ -431,6 +434,14 @@ describe('BotService auth validation', () => {
       tenantId: 'tenant-revoke',
     });
 
+    db.__queueSelect(
+      createSelectLimitChain([
+        {
+          accessToken: `aaaaaaaa:${hash}`,
+        },
+      ]),
+    );
+
     await service.revokeAccessToken('bot-revoke');
 
     db.__queueSelect(createSelectWhereChain([]));
@@ -438,12 +449,18 @@ describe('BotService auth validation', () => {
     await expect(
       service.validateAccessTokenWithContext(rawToken),
     ).resolves.toBeNull();
-    expect(db.select).toHaveBeenCalledTimes(3);
-    const invalidationOrder = redis.incr.mock.invocationCallOrder[1] ?? 0;
+    expect(db.select).toHaveBeenCalledTimes(4);
+    const invalidationOrder =
+      redis.incr.mock.invocationCallOrder.at(-1) ?? Number.MAX_SAFE_INTEGER;
     const revokeMutationOrder =
       db.__updateChain.where.mock.invocationCallOrder[0] ??
       Number.MAX_SAFE_INTEGER;
-    expect(invalidationOrder).toBeLessThan(revokeMutationOrder);
+    expect(revokeMutationOrder).toBeLessThan(invalidationOrder);
+    expect(redis.set).toHaveBeenCalledWith(
+      'auth:bot-token-mutation:bot-revoke',
+      '1',
+      30,
+    );
     expect(redis.smembers).toHaveBeenCalledWith(
       'auth:bot-token-keys:bot-revoke',
     );
@@ -484,11 +501,17 @@ describe('BotService auth validation', () => {
     expect(tokenResult.botId).toBe('bot-generate');
     expect(tokenResult.userId).toBe('user-generate');
     expect(tokenResult.accessToken).toMatch(/^t9bot_[a-f0-9]{96}$/);
-    const invalidationOrder = redis.incr.mock.invocationCallOrder[1] ?? 0;
+    const invalidationOrder =
+      redis.incr.mock.invocationCallOrder.at(-1) ?? Number.MAX_SAFE_INTEGER;
     const generateMutationOrder =
       db.__updateChain.where.mock.invocationCallOrder[0] ??
       Number.MAX_SAFE_INTEGER;
-    expect(invalidationOrder).toBeLessThan(generateMutationOrder);
+    expect(generateMutationOrder).toBeLessThan(invalidationOrder);
+    expect(redis.set).toHaveBeenCalledWith(
+      'auth:bot-token-mutation:bot-generate',
+      '1',
+      30,
+    );
 
     db.__queueSelect(createSelectWhereChain([]));
 
@@ -501,7 +524,7 @@ describe('BotService auth validation', () => {
     );
   });
 
-  it('invalidates auth cache before deleting the shadow user during cleanup', async () => {
+  it('revokes bot auth before channel cleanup and deletes the shadow user after cache invalidation', async () => {
     const rawHex = createRawHex('cccccccc', '0');
     const rawToken = `t9bot_${rawHex}`;
     const hash = await bcrypt.hash(rawHex, 4);
@@ -548,28 +571,52 @@ describe('BotService auth validation', () => {
         },
       ]),
     );
+    db.__queueSelect(
+      createSelectLimitChain([
+        {
+          accessToken: `cccccccc:${hash}`,
+        },
+      ]),
+    );
 
     await service.deleteBotAndCleanup('bot-delete');
 
+    const revokeMutationOrder =
+      db.__updateChain.where.mock.invocationCallOrder[0] ??
+      Number.MAX_SAFE_INTEGER;
     const cacheInvalidationOrder = Math.max(
-      redis.incr.mock.invocationCallOrder[1] ?? 0,
+      redis.incr.mock.invocationCallOrder.at(-1) ?? 0,
       redis.smembers.mock.invocationCallOrder[0] ?? 0,
       ...redis.del.mock.invocationCallOrder,
     );
+    const channelCleanupOrder =
+      channelsService.deleteDirectChannelsForUser.mock.invocationCallOrder[0] ??
+      Number.MAX_SAFE_INTEGER;
     const userDeletionOrder =
       db.__deleteChain.where.mock.invocationCallOrder[0] ??
       Number.MAX_SAFE_INTEGER;
 
+    expect(revokeMutationOrder).toBeLessThan(channelCleanupOrder);
+    expect(cacheInvalidationOrder).toBeLessThan(channelCleanupOrder);
     expect(cacheInvalidationOrder).toBeLessThan(userDeletionOrder);
     expect(channelsService.deleteDirectChannelsForUser).toHaveBeenCalledWith(
       'user-delete',
     );
+    expect(redis.set).toHaveBeenCalledWith(
+      'auth:bot-token-mutation:bot-delete',
+      '1',
+      30,
+    );
   });
 
-  it('aborts token generation before the token update when the auth version bump fails', async () => {
+  it('rolls back token generation when cache invalidation fails after the token update', async () => {
     db.__queueSelect(
       createSelectLimitChain([
-        { id: 'bot-fail-generate', userId: 'user-fail' },
+        {
+          id: 'bot-fail-generate',
+          userId: 'user-fail',
+          accessToken: 'prevhash:old-token-hash',
+        },
       ]),
     );
     redis.incr.mockRejectedValueOnce(new Error('redis down'));
@@ -578,20 +625,27 @@ describe('BotService auth validation', () => {
       service.generateAccessToken('bot-fail-generate'),
     ).rejects.toThrow('redis down');
 
-    expect(db.update).not.toHaveBeenCalled();
+    expect(db.update).toHaveBeenCalledTimes(2);
   });
 
-  it('aborts token revocation before the token update when the auth version bump fails', async () => {
+  it('rolls back token revocation when cache invalidation fails after the token update', async () => {
+    db.__queueSelect(
+      createSelectLimitChain([
+        {
+          accessToken: 'revokehash:old-token-hash',
+        },
+      ]),
+    );
     redis.incr.mockRejectedValueOnce(new Error('redis down'));
 
     await expect(service.revokeAccessToken('bot-fail-revoke')).rejects.toThrow(
       'redis down',
     );
 
-    expect(db.update).not.toHaveBeenCalled();
+    expect(db.update).toHaveBeenCalledTimes(2);
   });
 
-  it('aborts bot deletion before shadow-user deletion when the auth version bump fails', async () => {
+  it('rolls back token revocation and aborts bot deletion when cache invalidation fails', async () => {
     db.__queueSelect(
       createSelectLimitChain([
         {
@@ -612,13 +666,22 @@ describe('BotService auth validation', () => {
         },
       ]),
     );
+    db.__queueSelect(
+      createSelectLimitChain([
+        {
+          accessToken: 'deletehash:old-token-hash',
+        },
+      ]),
+    );
     redis.incr.mockRejectedValueOnce(new Error('redis down'));
 
     await expect(
       service.deleteBotAndCleanup('bot-fail-delete'),
     ).rejects.toThrow('redis down');
 
+    expect(db.update).toHaveBeenCalledTimes(2);
     expect(db.delete).not.toHaveBeenCalled();
+    expect(channelsService.deleteDirectChannelsForUser).not.toHaveBeenCalled();
   });
 
   it('allows lifecycle methods to continue when cache-key deletion fails after a successful version bump', async () => {

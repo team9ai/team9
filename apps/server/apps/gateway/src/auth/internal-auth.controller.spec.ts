@@ -89,14 +89,22 @@ describe('InternalAuthController (integration)', () => {
     expect(botService.validateAccessTokenWithContext).not.toHaveBeenCalled();
   });
 
-  it('returns 400 for malformed token format and does not call BotService', async () => {
-    await request(app.getHttpServer())
+  it("returns 404 with {valid:false,error:'invalid token'} for malformed token format", async () => {
+    botService.validateAccessTokenWithContext.mockResolvedValue(null);
+
+    const res = await request(app.getHttpServer())
       .post('/api/v1/internal/auth/validate-bot-token')
       .set('Authorization', 'Bearer internal-secret')
       .send({ token: 'invalid-token-format' })
-      .expect(400);
+      .expect(404);
 
-    expect(botService.validateAccessTokenWithContext).not.toHaveBeenCalled();
+    expect(res.body).toEqual({
+      valid: false,
+      error: 'invalid token',
+    });
+    expect(botService.validateAccessTokenWithContext).toHaveBeenCalledWith(
+      'invalid-token-format',
+    );
   });
 
   it('returns 401 when bearer secret is invalid', async () => {
@@ -164,6 +172,22 @@ describe('InternalAuthGuard', () => {
       switchToHttp: () => ({
         getRequest: () => ({
           headers: { authorization: ['Bearer internal-secret'] },
+        }),
+      }),
+    };
+
+    expect(() => guard.canActivate(context as any)).toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it('rejects bearer tokens with a different length without throwing comparison errors', () => {
+    process.env.INTERNAL_AUTH_VALIDATION_TOKEN = 'internal-secret';
+    const guard = new InternalAuthGuard();
+    const context = {
+      switchToHttp: () => ({
+        getRequest: () => ({
+          headers: { authorization: 'Bearer short' },
         }),
       }),
     };
