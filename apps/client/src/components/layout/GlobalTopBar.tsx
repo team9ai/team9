@@ -8,6 +8,7 @@ import {
   X,
   PanelLeft,
   PanelRight,
+  Crown,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
@@ -214,8 +215,19 @@ export function GlobalTopBar() {
         </div>
       </div>
 
-      {/* Right section - Local device status */}
-      <div className="flex items-center">
+      {/* Right section - Subscription entry + Local device status */}
+      <div className="flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-nav-foreground-subtle hover:text-nav-foreground hover:bg-nav-hover gap-1"
+          onClick={() => navigate({ to: "/subscription" })}
+        >
+          <Crown size={14} />
+          <span className="text-xs hidden sm:inline">
+            {t("subscription", "Subscription")}
+          </span>
+        </Button>
         <LocalDeviceStatus />
       </div>
     </header>
