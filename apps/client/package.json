@@ -16,7 +16,7 @@
     "build:android": "tauri android build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test": "vitest run",
+    "test": "node ./scripts/vitest-run.mjs",
     "test:watch": "vitest",
     "clean": "rm -rf node_modules dist"
   },

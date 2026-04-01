@@ -30,6 +30,37 @@ export const MENTION_TYPES: NotificationType[] = [
   "here_mention",
 ];
 export const THREAD_TYPES: NotificationType[] = ["reply", "thread_reply"];
+const SYSTEM_TYPES: NotificationType[] = [
+  "system_announcement",
+  "maintenance_notice",
+  "version_update",
+];
+const WORKSPACE_TYPES: NotificationType[] = [
+  "workspace_invitation",
+  "role_changed",
+  "member_joined",
+  "member_left",
+  "channel_invite",
+];
+export const ACTIVITY_TYPES: NotificationType[] = [
+  ...MENTION_TYPES,
+  ...THREAD_TYPES,
+  ...SYSTEM_TYPES,
+  ...WORKSPACE_TYPES,
+];
+
+const ALL_TYPES_BY_CATEGORY: Record<NotificationCategory, NotificationType[]> =
+  {
+    message: [...MENTION_TYPES, ...THREAD_TYPES, "dm_received"],
+    system: SYSTEM_TYPES,
+    workspace: WORKSPACE_TYPES,
+  };
+
+const getCategoryForType = (type: NotificationType): NotificationCategory => {
+  if (SYSTEM_TYPES.includes(type)) return "system";
+  if (WORKSPACE_TYPES.includes(type)) return "workspace";
+  return "message";
+};
 
 export interface NotificationActor {
   id: string;
@@ -104,10 +135,21 @@ interface NotificationState {
   addNotification: (notification: Notification) => void;
   addNotifications: (notifications: Notification[]) => void;
   markAsRead: (notificationIds: string[]) => void;
-  markAllAsRead: (category?: NotificationCategory) => void;
+  markAllAsRead: (
+    category?: NotificationCategory,
+    types?: NotificationType[],
+  ) => void;
   setCounts: (counts: NotificationCounts) => void;
-  decrementCount: (category: NotificationCategory, amount?: number) => void;
-  incrementCount: (category: NotificationCategory, amount?: number) => void;
+  decrementCount: (
+    category: NotificationCategory,
+    amount?: number,
+    type?: NotificationType,
+  ) => void;
+  incrementCount: (
+    category: NotificationCategory,
+    amount?: number,
+    type?: NotificationType,
+  ) => void;
   setLoading: (isLoading: boolean) => void;
   setHasMore: (hasMore: boolean) => void;
   setNextCursor: (cursor: string | null) => void;
@@ -159,7 +201,7 @@ const initialState = {
 // Store
 export const useNotificationStore = create<NotificationState>()(
   devtools(
-    (set) => ({
+    (set, get) => ({
       ...initialState,
 
       setNotifications: (notifications) =>
@@ -196,37 +238,110 @@ export const useNotificationStore = create<NotificationState>()(
           "markAsRead",
         ),
 
-      markAllAsRead: (category) =>
+      markAllAsRead: (category, types) => {
+        const state = get();
+        const now = new Date().toISOString();
+        const normalizedTypes = types?.length ? types : undefined;
+        const typeSet = normalizedTypes ? new Set(normalizedTypes) : null;
+
+        const shouldMark = (notification: Notification) =>
+          (!category || notification.category === category) &&
+          (!typeSet || typeSet.has(notification.type));
+
+        const selectedTypes = normalizedTypes
+          ? normalizedTypes.filter(
+              (type) => !category || getCategoryForType(type) === category,
+            )
+          : category
+            ? ALL_TYPES_BY_CATEGORY[category]
+            : ([
+                ...ALL_TYPES_BY_CATEGORY.message,
+                ...ALL_TYPES_BY_CATEGORY.system,
+                ...ALL_TYPES_BY_CATEGORY.workspace,
+              ] as NotificationType[]);
+
+        const decrementedByCategory: NotificationCounts["byCategory"] = {
+          message: 0,
+          system: 0,
+          workspace: 0,
+        };
+        const decrementedByType: NotificationCounts["byType"] = {
+          ...state.counts.byType,
+        };
+
+        let totalDecrement = 0;
+
+        for (const type of selectedTypes) {
+          const amount = state.counts.byType[type];
+          if (amount === 0) continue;
+
+          totalDecrement += amount;
+          decrementedByType[type] = Math.max(
+            0,
+            decrementedByType[type] - amount,
+          );
+          decrementedByCategory[getCategoryForType(type)] += amount;
+        }
+
+        const nextCounts = {
+          ...state.counts,
+          total: Math.max(0, state.counts.total - totalDecrement),
+          byCategory: category
+            ? {
+                ...state.counts.byCategory,
+                [category]: Math.max(
+                  0,
+                  state.counts.byCategory[category] -
+                    decrementedByCategory[category],
+                ),
+              }
+            : {
+                message: Math.max(
+                  0,
+                  state.counts.byCategory.message -
+                    decrementedByCategory.message,
+                ),
+                system: Math.max(
+                  0,
+                  state.counts.byCategory.system - decrementedByCategory.system,
+                ),
+                workspace: Math.max(
+                  0,
+                  state.counts.byCategory.workspace -
+                    decrementedByCategory.workspace,
+                ),
+              },
+          byType: normalizedTypes
+            ? decrementedByType
+            : category
+              ? {
+                  ...state.counts.byType,
+                  ...Object.fromEntries(
+                    ALL_TYPES_BY_CATEGORY[category].map((type) => [type, 0]),
+                  ),
+                }
+              : (Object.fromEntries(
+                  Object.keys(state.counts.byType).map((type) => [type, 0]),
+                ) as NotificationCounts["byType"]),
+        };
+
         set(
-          (state) => ({
-            notifications: state.notifications.map((n) =>
-              !category || n.category === category
-                ? { ...n, isRead: true, readAt: new Date().toISOString() }
-                : n,
+          {
+            notifications: state.notifications.map((notification) =>
+              notification.isRead || !shouldMark(notification)
+                ? notification
+                : { ...notification, isRead: true, readAt: now },
             ),
-            counts: {
-              ...state.counts,
-              total: category
-                ? state.counts.total - state.counts.byCategory[category]
-                : 0,
-              byCategory: category
-                ? {
-                    ...state.counts.byCategory,
-                    [category]: 0,
-                  }
-                : { message: 0, system: 0, workspace: 0 },
-              byType: category
-                ? state.counts.byType
-                : initialState.counts.byType,
-            },
-          }),
+            counts: nextCounts,
+          },
           false,
           "markAllAsRead",
-        ),
+        );
+      },
 
       setCounts: (counts) => set({ counts }, false, "setCounts"),
 
-      decrementCount: (category, amount = 1) =>
+      decrementCount: (category, amount = 1, type) =>
         set(
           (state) => ({
             counts: {
@@ -239,13 +354,19 @@ export const useNotificationStore = create<NotificationState>()(
                   state.counts.byCategory[category] - amount,
                 ),
               },
+              byType: type
+                ? {
+                    ...state.counts.byType,
+                    [type]: Math.max(0, state.counts.byType[type] - amount),
+                  }
+                : state.counts.byType,
             },
           }),
           false,
           "decrementCount",
         ),
 
-      incrementCount: (category, amount = 1) =>
+      incrementCount: (category, amount = 1, type) =>
         set(
           (state) => ({
             counts: {
@@ -255,6 +376,12 @@ export const useNotificationStore = create<NotificationState>()(
                 ...state.counts.byCategory,
                 [category]: state.counts.byCategory[category] + amount,
               },
+              byType: type
+                ? {
+                    ...state.counts.byType,
+                    [type]: state.counts.byType[type] + amount,
+                  }
+                : state.counts.byType,
             },
           }),
           false,
@@ -314,7 +441,10 @@ export const filterNotifications = (
   activeTab: ActivityTab,
   showUnreadOnly: boolean,
 ): Notification[] => {
-  let filtered = notifications;
+  let filtered =
+    activeTab === "all"
+      ? notifications.filter((n) => ACTIVITY_TYPES.includes(n.type))
+      : notifications;
 
   // Filter by tab
   if (activeTab === "mentions") {
@@ -349,14 +479,22 @@ export const notificationActions = {
     useNotificationStore.getState().addNotifications(notifications),
   markAsRead: (notificationIds: string[]) =>
     useNotificationStore.getState().markAsRead(notificationIds),
-  markAllAsRead: (category?: NotificationCategory) =>
-    useNotificationStore.getState().markAllAsRead(category),
+  markAllAsRead: (
+    category?: NotificationCategory,
+    types?: NotificationType[],
+  ) => useNotificationStore.getState().markAllAsRead(category, types),
   setCounts: (counts: NotificationCounts) =>
     useNotificationStore.getState().setCounts(counts),
-  decrementCount: (category: NotificationCategory, amount?: number) =>
-    useNotificationStore.getState().decrementCount(category, amount),
-  incrementCount: (category: NotificationCategory, amount?: number) =>
-    useNotificationStore.getState().incrementCount(category, amount),
+  decrementCount: (
+    category: NotificationCategory,
+    amount?: number,
+    type?: NotificationType,
+  ) => useNotificationStore.getState().decrementCount(category, amount, type),
+  incrementCount: (
+    category: NotificationCategory,
+    amount?: number,
+    type?: NotificationType,
+  ) => useNotificationStore.getState().incrementCount(category, amount, type),
   setLoading: (isLoading: boolean) =>
     useNotificationStore.getState().setLoading(isLoading),
   setHasMore: (hasMore: boolean) =>

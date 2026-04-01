@@ -6,16 +6,23 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ActivityItem } from "@/components/activity/ActivityItem";
-import { useNotifications } from "@/hooks/useNotifications";
+import {
+  useNotifications,
+  useMarkNotificationsAsRead,
+  useMarkAllNotificationsAsRead,
+} from "@/hooks/useNotifications";
 import {
   useNotifications as useNotificationsFromStore,
   useActivityTab,
+  useNotificationCounts,
   useShowUnreadOnly,
   notificationActions,
+  ACTIVITY_TYPES,
+  MENTION_TYPES,
+  THREAD_TYPES,
   filterNotifications,
   type ActivityTab,
 } from "@/stores/useNotificationStore";
-import { useMarkNotificationsAsRead } from "@/hooks/useNotifications";
 import { groupByDate } from "@/lib/date-utils";
 import { useMemo } from "react";
 
@@ -28,6 +35,7 @@ export function ActivitySubSidebar() {
 
   const allNotifications = useNotificationsFromStore();
   const activeTab = useActivityTab();
+  const notificationCounts = useNotificationCounts();
   const showUnreadOnly = useShowUnreadOnly();
 
   // Filter notifications using useMemo to avoid creating new array references on every render
@@ -37,6 +45,32 @@ export function ActivitySubSidebar() {
   );
 
   const { mutate: markAsRead } = useMarkNotificationsAsRead();
+  const { mutate: markAllAsRead, isPending: isMarkAllAsReadPending } =
+    useMarkAllNotificationsAsRead();
+
+  const markAllParams = useMemo(() => {
+    if (activeTab === "mentions") {
+      return { types: MENTION_TYPES };
+    }
+
+    if (activeTab === "threads") {
+      return { types: THREAD_TYPES };
+    }
+
+    return { types: ACTIVITY_TYPES };
+  }, [activeTab]);
+
+  const hasUnreadNotifications = useMemo(() => {
+    if (activeTab === "mentions") {
+      return MENTION_TYPES.some((type) => notificationCounts.byType[type] > 0);
+    }
+
+    if (activeTab === "threads") {
+      return THREAD_TYPES.some((type) => notificationCounts.byType[type] > 0);
+    }
+
+    return ACTIVITY_TYPES.some((type) => notificationCounts.byType[type] > 0);
+  }, [activeTab, notificationCounts]);
 
   // Group notifications by date
   const groupedNotifications = useMemo(() => {
@@ -89,19 +123,30 @@ export function ActivitySubSidebar() {
       <div className="p-4 pb-2">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-lg">{t("activity")}</h2>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={toggleUnreadOnly}
-            className={cn(
-              "h-7 px-2 text-xs",
-              showUnreadOnly
-                ? "bg-accent/30 text-nav-foreground hover:bg-accent/40"
-                : "text-nav-foreground-subtle hover:text-nav-foreground hover:bg-nav-hover",
-            )}
-          >
-            {t("activityUnread")}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleUnreadOnly}
+              className={cn(
+                "h-7 px-2 text-xs",
+                showUnreadOnly
+                  ? "bg-accent/30 text-nav-foreground hover:bg-accent/40"
+                  : "text-nav-foreground-subtle hover:text-nav-foreground hover:bg-nav-hover",
+              )}
+            >
+              {t("activityUnread")}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => markAllAsRead(markAllParams)}
+              disabled={!hasUnreadNotifications || isMarkAllAsReadPending}
+              className="h-7 px-2 text-xs text-nav-foreground-subtle hover:text-nav-foreground hover:bg-nav-hover"
+            >
+              {t("markAllAsRead", { ns: "message" })}
+            </Button>
+          </div>
         </div>
       </div>
 

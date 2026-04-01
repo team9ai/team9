@@ -1,4 +1,11 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals';
+import {
+  jest,
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+} from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   BadRequestException,
@@ -7,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { OAuth2Client } from 'google-auth-library';
 import * as crypto from 'crypto';
 import { AuthService } from './auth.service.js';
 import { RedisService } from '@team9/redis';
@@ -62,8 +70,12 @@ describe('AuthService', () => {
   let jwtService: Record<string, MockFn>;
   let emailService: Record<string, MockFn>;
   let eventEmitter: Record<string, MockFn>;
+  let originalEnv: NodeJS.ProcessEnv;
 
   beforeEach(async () => {
+    originalEnv = { ...process.env };
+    process.env.GOOGLE_CLIENT_ID = 'test-google-client-id';
+
     db = mockDb();
     redisService = {
       get: jest.fn<any>().mockResolvedValue(null),
@@ -103,6 +115,11 @@ describe('AuthService', () => {
       accessToken: 'mock-access-token',
       refreshToken: 'mock-refresh-token',
     });
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+    jest.restoreAllMocks();
   });
 
   // ── authStart ─────────────────────────────────────────────────────
@@ -188,6 +205,128 @@ describe('AuthService', () => {
       await expect(
         service.authStart({ email: 'alice@test.com' }),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ── googleLogin ───────────────────────────────────────────────────
+
+  describe('googleLogin', () => {
+    function mockGooglePayload(payload: Record<string, any>) {
+      jest
+        .spyOn(OAuth2Client.prototype as any, 'verifyIdToken')
+        .mockResolvedValue({
+          getPayload: () => payload,
+        } as any);
+    }
+
+    it('should seed new Google users with Google name and picture', async () => {
+      const googlePayload = {
+        email: 'new-google@test.com',
+        name: 'Google Name',
+        picture: 'https://lh3.googleusercontent.com/avatar.jpg',
+      };
+      mockGooglePayload(googlePayload);
+
+      db.limit.mockResolvedValueOnce([]);
+      db.returning.mockResolvedValueOnce([
+        {
+          ...USER_ROW,
+          id: 'google-user-uuid',
+          email: googlePayload.email,
+          username: 'google_name',
+          displayName: googlePayload.name,
+          avatarUrl: googlePayload.picture,
+        },
+      ]);
+
+      const result = await service.googleLogin({ credential: 'google-token' });
+
+      expect(result.user.displayName).toBe('Google Name');
+      expect(result.user.avatarUrl).toBe(googlePayload.picture);
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          displayName: 'Google Name',
+          avatarUrl: googlePayload.picture,
+          emailVerified: true,
+        }),
+      );
+    });
+
+    it('should fall back to gravatar when the Google picture is missing', async () => {
+      const email = 'fallback@test.com';
+      const googlePayload = {
+        email,
+        name: 'Fallback Name',
+      };
+      mockGooglePayload(googlePayload);
+
+      db.limit.mockResolvedValueOnce([]);
+      db.returning.mockResolvedValueOnce([
+        {
+          ...USER_ROW,
+          id: 'fallback-user-uuid',
+          email,
+          username: 'fallback_name',
+          displayName: googlePayload.name,
+          avatarUrl: `https://www.gravatar.com/avatar/${crypto
+            .createHash('md5')
+            .update(email.trim().toLowerCase())
+            .digest('hex')}?d=identicon`,
+        },
+      ]);
+
+      const result = await service.googleLogin({ credential: 'google-token' });
+
+      expect(result.user.displayName).toBe('Fallback Name');
+      expect(result.user.avatarUrl).toBe(
+        `https://www.gravatar.com/avatar/${crypto
+          .createHash('md5')
+          .update(email.trim().toLowerCase())
+          .digest('hex')}?d=identicon`,
+      );
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          displayName: 'Fallback Name',
+          avatarUrl: `https://www.gravatar.com/avatar/${crypto
+            .createHash('md5')
+            .update(email.trim().toLowerCase())
+            .digest('hex')}?d=identicon`,
+        }),
+      );
+    });
+
+    it('should not overwrite profile data for an existing user', async () => {
+      const existingUser = {
+        ...USER_ROW,
+        email: 'existing-google@test.com',
+        username: 'existing_user',
+        displayName: 'Existing Profile Name',
+        avatarUrl: 'https://example.com/existing.png',
+        emailVerified: false,
+      };
+      mockGooglePayload({
+        email: existingUser.email,
+        name: 'New Google Name',
+        picture: 'https://lh3.googleusercontent.com/new-picture.jpg',
+      });
+
+      db.limit.mockResolvedValueOnce([existingUser]);
+
+      const result = await service.googleLogin({ credential: 'google-token' });
+
+      expect(result.user.displayName).toBe(existingUser.displayName);
+      expect(result.user.avatarUrl).toBe(existingUser.avatarUrl);
+      expect(db.insert).not.toHaveBeenCalled();
+      expect(db.set).toHaveBeenCalledTimes(1);
+      const updatePayload = db.set.mock.calls[0][0];
+      expect(updatePayload).toStrictEqual({
+        emailVerified: true,
+        emailVerifiedAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      });
+      expect(updatePayload).not.toHaveProperty('displayName');
+      expect(updatePayload).not.toHaveProperty('avatarUrl');
+      expect(db.set.mock.calls).toHaveLength(1);
     });
   });
 

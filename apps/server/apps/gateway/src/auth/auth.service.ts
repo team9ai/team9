@@ -558,6 +558,8 @@ export class AuthService {
 
     // New user — auto-register (prefer Google display name for username)
     const username = await this.generateUniqueUsername(name || email, email);
+    const displayName = name || username;
+    const avatarUrl = picture || this.getGravatarUrl(email);
     const userId = uuidv7();
 
     const [user] = await this.db
@@ -566,8 +568,8 @@ export class AuthService {
         id: userId,
         email,
         username,
-        displayName: name || username,
-        avatarUrl: picture || null,
+        displayName,
+        avatarUrl,
         emailVerified: true,
         emailVerifiedAt: new Date(),
       })
@@ -576,7 +578,7 @@ export class AuthService {
     // Emit events (same as register flow)
     this.eventEmitter.emit(USER_EVENTS.REGISTERED, {
       userId: user.id,
-      displayName: name || username,
+      displayName,
     } satisfies UserRegisteredEvent);
 
     this.eventEmitter.emit('user.created', { user });
@@ -650,6 +652,13 @@ export class AuthService {
 
     // Fallback: use uuid fragment
     return `${base}_${uuidv7().slice(-4)}`;
+  }
+
+  private getGravatarUrl(email: string): string {
+    const normalizedEmail = email.trim().toLowerCase();
+    const hash = crypto.createHash('md5').update(normalizedEmail).digest('hex');
+
+    return `https://www.gravatar.com/avatar/${hash}?d=identicon`;
   }
 
   async refreshToken(refreshToken: string): Promise<TokenPair> {

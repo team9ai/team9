@@ -333,6 +333,69 @@ export const imUsersApi = {
   },
 };
 
+// Account API
+export const accountApi = {
+  // Get current pending email change request
+  getPendingEmailChange: async (): Promise<{
+    pendingEmailChange: {
+      id: string;
+      currentEmail: string;
+      newEmail: string;
+      expiresAt?: string;
+      createdAt?: string;
+    } | null;
+  }> => {
+    const response = await http.get("/v1/account/email-change");
+    return response.data;
+  },
+
+  // Start a new email change request
+  startEmailChange: async (data: {
+    newEmail: string;
+  }): Promise<{
+    message: string;
+    pendingEmailChange: {
+      id: string;
+      currentEmail: string;
+      newEmail: string;
+      expiresAt?: string;
+      createdAt?: string;
+    } | null;
+  }> => {
+    const response = await http.post("/v1/account/email-change", data);
+    return response.data;
+  },
+
+  // Resend the current email change confirmation
+  resendEmailChange: async (): Promise<{
+    message: string;
+    pendingEmailChange: {
+      id: string;
+      currentEmail: string;
+      newEmail: string;
+      expiresAt?: string;
+      createdAt?: string;
+    } | null;
+  }> => {
+    const response = await http.post("/v1/account/email-change/resend");
+    return response.data;
+  },
+
+  // Cancel the current email change request
+  cancelEmailChange: async (): Promise<{ message: string }> => {
+    const response = await http.delete("/v1/account/email-change");
+    return response.data;
+  },
+
+  // Confirm an email change token after explicit user action
+  confirmEmailChange: async (token: string): Promise<{ message: string }> => {
+    const response = await http.post("/v1/account/confirm-email-change", {
+      token,
+    });
+    return response.data;
+  },
+};
+
 // Sections API
 export interface Section {
   id: string;

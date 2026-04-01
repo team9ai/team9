@@ -3,6 +3,7 @@ import type {
   Notification,
   NotificationCategory,
   NotificationCounts,
+  NotificationType,
 } from "../../stores/useNotificationStore";
 
 // Query params for getting notifications
@@ -27,6 +28,7 @@ export interface MarkNotificationsRequest {
 
 export interface MarkAllReadRequest {
   category?: NotificationCategory;
+  types?: NotificationType[];
 }
 
 export interface ArchiveNotificationsRequest {
@@ -67,8 +69,18 @@ const notificationApi = {
   /**
    * Mark all notifications as read (optionally filtered by category)
    */
-  markAllAsRead: async (category?: NotificationCategory): Promise<void> => {
-    await http.post<void>("/v1/notifications/mark-all-read", { category });
+  markAllAsRead: async (
+    category?: NotificationCategory,
+    types?: NotificationType[],
+  ): Promise<void> => {
+    const normalizedTypes = types?.length ? types : undefined;
+
+    await http.post<void>("/v1/notifications/mark-all-read", undefined, {
+      params: {
+        category,
+        types: normalizedTypes?.join(","),
+      },
+    });
   },
 
   /**
