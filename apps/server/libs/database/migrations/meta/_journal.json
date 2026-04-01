@@ -211,6 +211,13 @@
       "when": 1774969063248,
       "tag": "0029_smart_zarek",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1775025773110,
+      "tag": "0030_classy_emma_frost",
+      "breakpoints": true
     }
   ]
 }

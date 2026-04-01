@@ -25,6 +25,7 @@ function mockDb() {
     'select',
     'from',
     'where',
+    'orderBy',
     'limit',
     'insert',
     'values',
@@ -125,6 +126,8 @@ describe('AccountService', () => {
           },
         },
       );
+
+      expect(db.orderBy).toHaveBeenCalled();
     });
 
     it('returns null when no pending request exists', async () => {
@@ -146,6 +149,26 @@ describe('AccountService', () => {
 
       await expect(
         service.createEmailChange(USER_ROW.id, { newEmail: 'taken@test.com' }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('rejects a target email reserved by another user pending request', async () => {
+      db.limit
+        .mockResolvedValueOnce([USER_ROW])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          {
+            id: 'other-pending',
+            userId: 'other-user',
+            newEmail: 'reserved@test.com',
+            status: 'pending',
+          },
+        ]);
+
+      await expect(
+        service.createEmailChange(USER_ROW.id, {
+          newEmail: 'reserved@test.com',
+        }),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -209,7 +232,9 @@ describe('AccountService', () => {
     it('resends confirmation for the current pending request', async () => {
       db.limit
         .mockResolvedValueOnce([PENDING_REQUEST])
-        .mockResolvedValueOnce([USER_ROW]);
+        .mockResolvedValueOnce([USER_ROW])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([PENDING_REQUEST]);
 
       db.returning.mockResolvedValueOnce([
         {
@@ -223,7 +248,7 @@ describe('AccountService', () => {
 
       expect(db.update).toHaveBeenCalled();
 
-      const resentUpdate = db.set.mock.calls[0][0];
+      const resentUpdate = db.set.mock.calls.at(-1)?.[0];
       const resentArgs =
         emailService.sendEmailChangeConfirmationEmail.mock.calls[0];
       const resentLink = resentArgs[3] as string;
@@ -254,7 +279,7 @@ describe('AccountService', () => {
 
   describe('cancelEmailChange', () => {
     it('cancels the active pending request', async () => {
-      db.limit.mockResolvedValueOnce([PENDING_REQUEST]);
+      db.returning.mockResolvedValueOnce([PENDING_REQUEST]);
 
       await expect(service.cancelEmailChange(USER_ROW.id)).resolves.toEqual({
         message: 'Pending email change cancelled.',
@@ -278,16 +303,25 @@ describe('AccountService', () => {
       db.limit
         .mockResolvedValueOnce([{ ...PENDING_REQUEST, tokenHash }])
         .mockResolvedValueOnce([USER_ROW])
-        .mockResolvedValueOnce([]);
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ ...PENDING_REQUEST, tokenHash }]);
 
-      db.returning.mockResolvedValueOnce([
-        {
-          ...USER_ROW,
-          email: PENDING_REQUEST.newEmail,
-          emailVerified: true,
-          emailVerifiedAt: new Date('2026-03-31T11:00:00.000Z'),
-        },
-      ]);
+      db.returning
+        .mockResolvedValueOnce([
+          {
+            ...PENDING_REQUEST,
+            tokenHash,
+            status: 'confirmed',
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            ...USER_ROW,
+            email: PENDING_REQUEST.newEmail,
+            emailVerified: true,
+            emailVerifiedAt: new Date('2026-03-31T11:00:00.000Z'),
+          },
+        ]);
 
       await expect(service.confirmEmailChange(rawToken)).resolves.toEqual({
         message: 'Email address updated successfully.',
@@ -321,9 +355,69 @@ describe('AccountService', () => {
           expiresAt: new Date('2026-03-30T10:00:00.000Z'),
         },
       ]);
+      db.returning.mockResolvedValueOnce([
+        {
+          ...PENDING_REQUEST,
+          tokenHash,
+          status: 'expired',
+        },
+      ]);
 
       await expect(service.confirmEmailChange(rawToken)).rejects.toThrow(
         BadRequestException,
+      );
+    });
+
+    it('rejects stale tokens when the request is no longer pending at confirm time', async () => {
+      const rawToken = 'stale-token';
+      const tokenHash = crypto
+        .createHash('sha256')
+        .update(rawToken)
+        .digest('hex');
+
+      db.limit
+        .mockResolvedValueOnce([{ ...PENDING_REQUEST, tokenHash }])
+        .mockResolvedValueOnce([USER_ROW])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ ...PENDING_REQUEST, tokenHash }]);
+
+      db.returning.mockResolvedValueOnce([]);
+
+      await expect(service.confirmEmailChange(rawToken)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('maps a late user email unique violation to ConflictException', async () => {
+      const rawToken = 'late-race-token';
+      const tokenHash = crypto
+        .createHash('sha256')
+        .update(rawToken)
+        .digest('hex');
+
+      db.limit
+        .mockResolvedValueOnce([{ ...PENDING_REQUEST, tokenHash }])
+        .mockResolvedValueOnce([USER_ROW])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ ...PENDING_REQUEST, tokenHash }]);
+
+      db.returning
+        .mockResolvedValueOnce([
+          {
+            ...PENDING_REQUEST,
+            tokenHash,
+            status: 'confirmed',
+          },
+        ])
+        .mockImplementationOnce(async () => {
+          throw Object.assign(
+            new Error('duplicate key value violates unique constraint'),
+            { code: '23505' },
+          );
+        });
+
+      await expect(service.confirmEmailChange(rawToken)).rejects.toThrow(
+        ConflictException,
       );
     });
   });

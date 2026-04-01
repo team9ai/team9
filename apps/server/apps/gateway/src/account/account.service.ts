@@ -11,7 +11,10 @@ import * as crypto from 'crypto';
 import {
   DATABASE_CONNECTION,
   and,
+  desc,
   eq,
+  lte,
+  or,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -68,34 +71,55 @@ export class AccountService {
       );
     }
 
-    await this.assertEmailAvailable(dto.newEmail, userId);
-
-    const existingRequest = await this.findPendingRequest(userId);
-    if (existingRequest) {
-      await this.db
-        .update(schema.userEmailChangeRequests)
-        .set({
-          status: 'cancelled',
-          updatedAt: new Date(),
-        })
-        .where(eq(schema.userEmailChangeRequests.id, existingRequest.id));
-    }
+    await this.assertEmailAvailable(dto.newEmail, {
+      excludeUserId: userId,
+    });
 
     const { tokenHash, expiresAt, confirmationLink } =
       this.generateConfirmationArtifacts();
+    const now = new Date();
 
-    const [request] = await this.db
-      .insert(schema.userEmailChangeRequests)
-      .values({
-        id: uuidv7(),
-        userId: user.id,
-        currentEmail: user.email,
-        newEmail: dto.newEmail,
-        tokenHash,
-        status: 'pending',
-        expiresAt,
-      })
-      .returning();
+    let request: schema.UserEmailChangeRequest;
+
+    try {
+      request = await this.db.transaction(async (tx) => {
+        await this.expireExpiredPendingRequests(tx, {
+          userId,
+          newEmail: dto.newEmail,
+          now,
+        });
+
+        await tx
+          .update(schema.userEmailChangeRequests)
+          .set({
+            status: 'cancelled',
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(schema.userEmailChangeRequests.userId, userId),
+              eq(schema.userEmailChangeRequests.status, 'pending'),
+            ),
+          );
+
+        const [insertedRequest] = await tx
+          .insert(schema.userEmailChangeRequests)
+          .values({
+            id: uuidv7(),
+            userId: user.id,
+            currentEmail: user.email,
+            newEmail: dto.newEmail,
+            tokenHash,
+            status: 'pending',
+            expiresAt,
+          })
+          .returning();
+
+        return insertedRequest;
+      });
+    } catch (error) {
+      throw this.mapEmailChangeWriteError(error);
+    }
 
     await this.sendConfirmationEmail(
       dto.newEmail,
@@ -117,21 +141,39 @@ export class AccountService {
     const request = await this.getPendingRequestOrThrow(userId);
     const user = await this.getUserOrThrow(userId);
 
-    await this.assertEmailAvailable(request.newEmail, userId);
+    await this.assertEmailAvailable(request.newEmail, {
+      excludeUserId: userId,
+      excludeRequestId: request.id,
+    });
 
     const { tokenHash, expiresAt, confirmationLink } =
       this.generateConfirmationArtifacts();
+    const now = new Date();
 
-    const [updatedRequest] = await this.db
-      .update(schema.userEmailChangeRequests)
-      .set({
-        tokenHash,
-        status: 'pending',
-        expiresAt,
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.userEmailChangeRequests.id, request.id))
-      .returning();
+    let updatedRequest: schema.UserEmailChangeRequest;
+    try {
+      [updatedRequest] = await this.db
+        .update(schema.userEmailChangeRequests)
+        .set({
+          tokenHash,
+          status: 'pending',
+          expiresAt,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(schema.userEmailChangeRequests.id, request.id),
+            eq(schema.userEmailChangeRequests.status, 'pending'),
+          ),
+        )
+        .returning();
+    } catch (error) {
+      throw this.mapEmailChangeWriteError(error);
+    }
+
+    if (!updatedRequest) {
+      throw new BadRequestException('Email change request is no longer active');
+    }
 
     await this.sendConfirmationEmail(
       updatedRequest.newEmail,
@@ -148,15 +190,28 @@ export class AccountService {
   }
 
   async cancelEmailChange(userId: string): Promise<{ message: string }> {
-    const request = await this.getPendingRequestOrThrow(userId);
+    await this.expireExpiredPendingRequests(this.db, {
+      userId,
+      now: new Date(),
+    });
 
-    await this.db
+    const cancelledRequests = await this.db
       .update(schema.userEmailChangeRequests)
       .set({
         status: 'cancelled',
         updatedAt: new Date(),
       })
-      .where(eq(schema.userEmailChangeRequests.id, request.id));
+      .where(
+        and(
+          eq(schema.userEmailChangeRequests.userId, userId),
+          eq(schema.userEmailChangeRequests.status, 'pending'),
+        ),
+      )
+      .returning();
+
+    if (cancelledRequests.length === 0) {
+      throw new NotFoundException('No pending email change request found');
+    }
 
     return { message: 'Pending email change cancelled.' };
   }
@@ -164,59 +219,87 @@ export class AccountService {
   async confirmEmailChange(token: string): Promise<{ message: string }> {
     const tokenHash = this.hashToken(token);
 
-    const [request] = await this.db
-      .select()
-      .from(schema.userEmailChangeRequests)
-      .where(
-        and(
-          eq(schema.userEmailChangeRequests.tokenHash, tokenHash),
-          eq(schema.userEmailChangeRequests.status, 'pending'),
-        ),
-      )
-      .limit(1);
+    const request = await this.getRequestByTokenHash(tokenHash);
 
     if (!request) {
       throw new BadRequestException('Invalid email change token');
     }
 
-    if (request.expiresAt.getTime() <= Date.now()) {
-      await this.db
-        .update(schema.userEmailChangeRequests)
-        .set({
-          status: 'expired',
-          updatedAt: new Date(),
-        })
-        .where(eq(schema.userEmailChangeRequests.id, request.id));
-
-      throw new BadRequestException('Email change token has expired');
+    if (request.status !== 'pending') {
+      throw new BadRequestException('Email change request is no longer active');
     }
-
-    const user = await this.getUserOrThrow(request.userId);
-    await this.assertEmailAvailable(request.newEmail, request.userId);
 
     const now = new Date();
 
-    await this.db.transaction(async (tx) => {
-      await tx
-        .update(schema.users)
-        .set({
-          email: request.newEmail,
-          emailVerified: true,
-          emailVerifiedAt: now,
-          updatedAt: now,
-        })
-        .where(eq(schema.users.id, user.id))
-        .returning();
+    try {
+      await this.db.transaction(async (tx) => {
+        if (request.expiresAt.getTime() <= now.getTime()) {
+          const [expiredRequest] = await tx
+            .update(schema.userEmailChangeRequests)
+            .set({
+              status: 'expired',
+              updatedAt: now,
+            })
+            .where(
+              and(
+                eq(schema.userEmailChangeRequests.id, request.id),
+                eq(schema.userEmailChangeRequests.tokenHash, tokenHash),
+                eq(schema.userEmailChangeRequests.status, 'pending'),
+              ),
+            )
+            .returning();
 
-      await tx
-        .update(schema.userEmailChangeRequests)
-        .set({
-          status: 'confirmed',
-          confirmedAt: now,
-          updatedAt: now,
-        })
-        .where(eq(schema.userEmailChangeRequests.id, request.id));
-    });
+          if (!expiredRequest) {
+            throw new BadRequestException(
+              'Email change request is no longer active',
+            );
+          }
+
+          throw new BadRequestException('Email change token has expired');
+        }
+
+        const user = await this.getUserOrThrow(request.userId);
+        await this.assertEmailAvailable(request.newEmail, {
+          excludeUserId: request.userId,
+          excludeRequestId: request.id,
+        });
+
+        const [confirmedRequest] = await tx
+          .update(schema.userEmailChangeRequests)
+          .set({
+            status: 'confirmed',
+            confirmedAt: now,
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(schema.userEmailChangeRequests.id, request.id),
+              eq(schema.userEmailChangeRequests.tokenHash, tokenHash),
+              eq(schema.userEmailChangeRequests.status, 'pending'),
+            ),
+          )
+          .returning();
+
+        if (!confirmedRequest) {
+          throw new BadRequestException(
+            'Email change request is no longer active',
+          );
+        }
+
+        await tx
+          .update(schema.users)
+          .set({
+            email: confirmedRequest.newEmail,
+            emailVerified: true,
+            emailVerifiedAt: now,
+            updatedAt: now,
+          })
+          .where(eq(schema.users.id, user.id))
+          .returning();
+      });
+    } catch (error) {
+      throw this.mapEmailChangeWriteError(error);
+    }
 
     return { message: 'Email address updated successfully.' };
   }
@@ -239,14 +322,29 @@ export class AccountService {
     return user;
   }
 
-  private async assertEmailAvailable(newEmail: string, userId: string) {
+  private async assertEmailAvailable(
+    newEmail: string,
+    options: {
+      excludeUserId?: string;
+      excludeRequestId?: string;
+    } = {},
+  ) {
     const [existingUser] = await this.db
       .select()
       .from(schema.users)
       .where(eq(schema.users.email, newEmail))
       .limit(1);
 
-    if (existingUser && existingUser.id !== userId) {
+    if (existingUser && existingUser.id !== options.excludeUserId) {
+      throw new ConflictException('Email already in use');
+    }
+
+    const pendingReservation = await this.findPendingReservationByEmail(
+      newEmail,
+      options,
+    );
+
+    if (pendingReservation) {
       throw new ConflictException('Email already in use');
     }
   }
@@ -262,6 +360,11 @@ export class AccountService {
   }
 
   private async findPendingRequest(userId: string) {
+    await this.expireExpiredPendingRequests(this.db, {
+      userId,
+      now: new Date(),
+    });
+
     const [request] = await this.db
       .select()
       .from(schema.userEmailChangeRequests)
@@ -271,25 +374,70 @@ export class AccountService {
           eq(schema.userEmailChangeRequests.status, 'pending'),
         ),
       )
+      .orderBy(
+        desc(schema.userEmailChangeRequests.updatedAt),
+        desc(schema.userEmailChangeRequests.createdAt),
+        desc(schema.userEmailChangeRequests.id),
+      )
       .limit(1);
 
-    if (!request) {
-      return null;
-    }
-
-    if (request.expiresAt.getTime() <= Date.now()) {
-      await this.db
-        .update(schema.userEmailChangeRequests)
-        .set({
-          status: 'expired',
-          updatedAt: new Date(),
-        })
-        .where(eq(schema.userEmailChangeRequests.id, request.id));
-
-      return null;
-    }
-
     return request;
+  }
+
+  private async findPendingReservationByEmail(
+    newEmail: string,
+    options: {
+      excludeUserId?: string;
+      excludeRequestId?: string;
+    },
+  ) {
+    await this.expireExpiredPendingRequests(this.db, {
+      newEmail,
+      now: new Date(),
+    });
+
+    const pendingRequests = await this.db
+      .select()
+      .from(schema.userEmailChangeRequests)
+      .where(
+        and(
+          eq(schema.userEmailChangeRequests.newEmail, newEmail),
+          eq(schema.userEmailChangeRequests.status, 'pending'),
+        ),
+      )
+      .orderBy(
+        desc(schema.userEmailChangeRequests.updatedAt),
+        desc(schema.userEmailChangeRequests.createdAt),
+        desc(schema.userEmailChangeRequests.id),
+      )
+      .limit(10);
+
+    return (
+      pendingRequests.find((request) => {
+        if (
+          options.excludeRequestId &&
+          request.id === options.excludeRequestId
+        ) {
+          return false;
+        }
+
+        if (options.excludeUserId && request.userId === options.excludeUserId) {
+          return false;
+        }
+
+        return true;
+      }) ?? null
+    );
+  }
+
+  private async getRequestByTokenHash(tokenHash: string) {
+    const [request] = await this.db
+      .select()
+      .from(schema.userEmailChangeRequests)
+      .where(eq(schema.userEmailChangeRequests.tokenHash, tokenHash))
+      .limit(1);
+
+    return request ?? null;
   }
 
   private serializeRequest(
@@ -315,6 +463,41 @@ export class AccountService {
     return { tokenHash, expiresAt, confirmationLink };
   }
 
+  private async expireExpiredPendingRequests(
+    executor: Pick<PostgresJsDatabase<typeof schema>, 'update'>,
+    options: {
+      userId?: string;
+      newEmail?: string;
+      now: Date;
+    },
+  ) {
+    const scopeCondition =
+      options.userId && options.newEmail
+        ? or(
+            eq(schema.userEmailChangeRequests.userId, options.userId),
+            eq(schema.userEmailChangeRequests.newEmail, options.newEmail),
+          )
+        : options.userId
+          ? eq(schema.userEmailChangeRequests.userId, options.userId)
+          : options.newEmail
+            ? eq(schema.userEmailChangeRequests.newEmail, options.newEmail)
+            : undefined;
+
+    const conditions = [
+      eq(schema.userEmailChangeRequests.status, 'pending'),
+      lte(schema.userEmailChangeRequests.expiresAt, options.now),
+      scopeCondition,
+    ].filter(Boolean);
+
+    await executor
+      .update(schema.userEmailChangeRequests)
+      .set({
+        status: 'expired',
+        updatedAt: options.now,
+      })
+      .where(and(...conditions));
+  }
+
   private async sendConfirmationEmail(
     newEmail: string,
     username: string,
@@ -335,5 +518,22 @@ export class AccountService {
 
   private hashToken(token: string) {
     return crypto.createHash('sha256').update(token).digest('hex');
+  }
+
+  private mapEmailChangeWriteError(error: unknown): Error {
+    if (
+      error instanceof BadRequestException ||
+      error instanceof ConflictException ||
+      error instanceof NotFoundException ||
+      error instanceof UnauthorizedException
+    ) {
+      return error;
+    }
+
+    if ((error as { code?: string })?.code === '23505') {
+      throw new ConflictException('Email already in use');
+    }
+
+    return error as Error;
   }
 }

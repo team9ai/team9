@@ -5,7 +5,9 @@ import {
   varchar,
   timestamp,
   index,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { users } from './users.js';
 
 export const userEmailChangeRequestStatusEnum = pgEnum(
@@ -35,6 +37,12 @@ export const userEmailChangeRequests = pgTable(
     index('idx_user_email_change_requests_user_id').on(table.userId),
     index('idx_user_email_change_requests_status').on(table.status),
     index('idx_user_email_change_requests_expires_at').on(table.expiresAt),
+    uniqueIndex('uq_user_email_change_requests_pending_user')
+      .on(table.userId)
+      .where(sql`${table.status} = 'pending'`),
+    uniqueIndex('uq_user_email_change_requests_pending_new_email')
+      .on(table.newEmail)
+      .where(sql`${table.status} = 'pending'`),
   ],
 );
 
