@@ -339,7 +339,7 @@ describe('BotService auth validation', () => {
     expect(second).toEqual(first);
     expect(db.select).toHaveBeenCalledTimes(2);
     expect(redis.set).toHaveBeenCalled();
-    expect(redis.get).toHaveBeenCalledTimes(2);
+    expect(redis.get).toHaveBeenCalledTimes(5);
   });
 
   it('does not return or cache a positive strict context when the bot token changes before final confirmation', async () => {

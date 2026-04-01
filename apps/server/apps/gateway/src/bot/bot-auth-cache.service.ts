@@ -8,6 +8,16 @@ export interface BotAuthContext {
   tenantId: string;
 }
 
+interface VersionedBotAuthContext {
+  context: BotAuthContext;
+  version: number | null;
+}
+
+type CachedBotAuthPayload =
+  | { invalid: true }
+  | VersionedBotAuthContext
+  | BotAuthContext;
+
 @Injectable()
 export class BotAuthCacheService {
   private readonly positiveTtlSeconds = 30;
@@ -18,17 +28,13 @@ export class BotAuthCacheService {
 
   async getOrSetValidation(
     rawToken: string,
-    loader: () => Promise<BotAuthContext | null>,
+    loader: () => Promise<BotAuthContext | VersionedBotAuthContext | null>,
   ): Promise<BotAuthContext | null> {
     const cacheKey = this.cacheKey(rawToken);
     const cached = await this.safeGet(cacheKey);
-    if (cached !== null) {
-      try {
-        const parsed = JSON.parse(cached) as BotAuthContext | { invalid: true };
-        return 'invalid' in parsed ? null : parsed;
-      } catch {
-        // Ignore malformed cache entries and fall through to validation.
-      }
+    const cachedContext = await this.getValidCachedContext(cacheKey, cached);
+    if (cachedContext !== undefined) {
+      return cachedContext;
     }
 
     const existing = this.inflight.get(cacheKey);
@@ -39,15 +45,18 @@ export class BotAuthCacheService {
     const promise = (async () => {
       const result = await loader();
       if (result) {
-        const reverseIndexKey = this.reverseIndexKey(result.botId);
-        await this.safeSet(
-          cacheKey,
-          JSON.stringify(result),
-          this.positiveTtlSeconds,
-        );
-        await this.safeSadd(reverseIndexKey, cacheKey);
-        await this.safeExpire(reverseIndexKey, this.positiveTtlSeconds);
-        return result;
+        const versioned = await this.resolveVersionedContext(result);
+        if (versioned.version !== null) {
+          const reverseIndexKey = this.reverseIndexKey(versioned.context.botId);
+          await this.safeSet(
+            cacheKey,
+            JSON.stringify(versioned),
+            this.positiveTtlSeconds,
+          );
+          await this.safeSadd(reverseIndexKey, cacheKey);
+          await this.safeExpire(reverseIndexKey, this.positiveTtlSeconds);
+        }
+        return versioned.context;
       }
 
       await this.safeSet(
@@ -67,6 +76,8 @@ export class BotAuthCacheService {
   }
 
   async invalidateBot(botId: string): Promise<void> {
+    await this.safeIncr(this.versionKey(botId));
+
     const reverseIndexKey = this.reverseIndexKey(botId);
     const keys = await this.safeSmembers(reverseIndexKey);
     for (const key of keys) {
@@ -75,12 +86,74 @@ export class BotAuthCacheService {
     await this.safeDel(reverseIndexKey);
   }
 
+  async getBotVersion(botId: string): Promise<number | null> {
+    const raw = await this.safeGet(this.versionKey(botId));
+    if (raw === null) {
+      return 0;
+    }
+
+    const parsed = Number.parseInt(raw, 10);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+
   private cacheKey(rawToken: string): string {
     return `auth:bot-token:${createHash('sha256').update(rawToken).digest('hex')}`;
   }
 
   private reverseIndexKey(botId: string): string {
     return `auth:bot-token-keys:${botId}`;
+  }
+
+  private versionKey(botId: string): string {
+    return `auth:bot-token-version:${botId}`;
+  }
+
+  private async getValidCachedContext(
+    cacheKey: string,
+    cached: string | null,
+  ): Promise<BotAuthContext | null | undefined> {
+    if (cached === null) {
+      return undefined;
+    }
+
+    try {
+      const parsed = JSON.parse(cached) as CachedBotAuthPayload;
+      if ('invalid' in parsed) {
+        return null;
+      }
+
+      if (!('context' in parsed)) {
+        await this.safeDel(cacheKey);
+        return undefined;
+      }
+
+      const currentVersion = await this.getBotVersion(parsed.context.botId);
+      if (currentVersion === null) {
+        return undefined;
+      }
+
+      if (parsed.version !== currentVersion) {
+        await this.safeDel(cacheKey);
+        return undefined;
+      }
+
+      return parsed.context;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async resolveVersionedContext(
+    result: BotAuthContext | VersionedBotAuthContext,
+  ): Promise<VersionedBotAuthContext> {
+    if ('context' in result) {
+      return result;
+    }
+
+    return {
+      context: result,
+      version: await this.getBotVersion(result.botId),
+    };
   }
 
   private async safeGet(key: string): Promise<string | null> {
@@ -132,6 +205,14 @@ export class BotAuthCacheService {
       await this.redis.del(key);
     } catch {
       // Best-effort invalidation.
+    }
+  }
+
+  private async safeIncr(key: string): Promise<void> {
+    try {
+      await this.redis.incr(key);
+    } catch {
+      // Best-effort invalidation version bump.
     }
   }
 }

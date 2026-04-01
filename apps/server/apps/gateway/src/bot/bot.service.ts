@@ -78,6 +78,7 @@ interface ValidatedBotTokenMatch {
   botId: string;
   userId: string;
   tenantId: string | null;
+  authVersion: number | null;
 }
 
 /**
@@ -572,9 +573,12 @@ export class BotService implements OnModuleInit {
       }
 
       return {
-        botId: match.botId,
-        userId: match.userId,
-        tenantId: match.tenantId,
+        context: {
+          botId: match.botId,
+          userId: match.userId,
+          tenantId: match.tenantId,
+        },
+        version: match.authVersion,
       };
     });
   }
@@ -864,6 +868,7 @@ export class BotService implements OnModuleInit {
         continue;
       }
 
+      const versionBefore = await this.botAuthCache.getBotVersion(row.botId);
       const confirmed = await this.confirmValidatedAccessToken(
         row.botId,
         rawHex,
@@ -871,6 +876,17 @@ export class BotService implements OnModuleInit {
       if (!confirmed) {
         continue;
       }
+
+      const versionAfter = await this.botAuthCache.getBotVersion(row.botId);
+      if (
+        versionBefore !== null &&
+        versionAfter !== null &&
+        versionBefore !== versionAfter
+      ) {
+        continue;
+      }
+
+      confirmed.authVersion = versionAfter ?? versionBefore;
 
       return confirmed;
     }
@@ -909,6 +925,7 @@ export class BotService implements OnModuleInit {
       botId: row.botId,
       userId: row.userId,
       tenantId: row.tenantId,
+      authVersion: null,
     };
   }
 
