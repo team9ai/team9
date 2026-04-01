@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import { Hash, AtSign, MessageSquare, Reply } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { UserAvatar } from "@/components/ui/user-avatar";
@@ -30,7 +31,7 @@ function getNotificationIcon(type: NotificationType) {
 
 function getSourceContext(
   notification: Notification,
-  t: (key: string, options?: Record<string, string>) => string,
+  t: TFunction<"navigation">,
 ): string {
   const { type, title } = notification;
 

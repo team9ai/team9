@@ -11,6 +11,21 @@ export const AVATAR_GRADIENTS = [
   "from-orange-500 to-red-400",
 ] as const;
 
+type GraphemeSegment = {
+  segment: string;
+};
+
+type GraphemeSegmenter = {
+  segment(input: string): Iterable<GraphemeSegment>;
+};
+
+type IntlWithOptionalSegmenter = typeof Intl & {
+  Segmenter?: new (
+    locales?: string | string[],
+    options?: { granularity?: "grapheme" | "word" | "sentence" },
+  ) => GraphemeSegmenter;
+};
+
 function hashSeed(seed: string): number {
   let hash = 5381;
 
@@ -22,18 +37,33 @@ function hashSeed(seed: string): number {
   return Math.abs(hash);
 }
 
+function getGraphemeSegmenter(): GraphemeSegmenter | null {
+  if (typeof Intl === "undefined") {
+    return null;
+  }
+
+  const intlWithSegmenter = Intl as IntlWithOptionalSegmenter;
+
+  if (typeof intlWithSegmenter.Segmenter !== "function") {
+    return null;
+  }
+
+  return new intlWithSegmenter.Segmenter(undefined, {
+    granularity: "grapheme",
+  });
+}
+
 function getFirstDisplayedGrapheme(value: string): string {
-  if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
-    const segmenter = new Intl.Segmenter(undefined, {
-      granularity: "grapheme",
-    });
+  const segmenter = getGraphemeSegmenter();
+
+  if (segmenter) {
     const firstSegment = segmenter.segment(value)[Symbol.iterator]().next()
       .value?.segment;
 
     return firstSegment ?? "";
   }
 
-  return Array.from(value)[0] ?? "";
+  return Array.from(value.normalize("NFC"))[0] ?? "";
 }
 
 function getInitialFromPart(part: string): string {
