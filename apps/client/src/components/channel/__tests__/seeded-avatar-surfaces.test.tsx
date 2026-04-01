@@ -21,6 +21,7 @@ const mockUseIsUserOnline = vi.fn();
 const mockUseTrackingChannel = vi.fn();
 const mockUseUser = vi.fn();
 const mockTrackingEventItem = vi.fn();
+const mockConsoleError = vi.fn();
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -181,6 +182,7 @@ function makeTrackingMessage(): Message {
 describe("seeded avatar channel surfaces", () => {
   beforeEach(() => {
     vi.stubGlobal("Image", MockImage);
+    vi.spyOn(console, "error").mockImplementation(mockConsoleError);
     mockUseChannelMembers.mockReturnValue({ data: [] });
     mockUseIsUserOnline.mockReturnValue(false);
     mockUseUpdateChannel.mockReturnValue({
@@ -203,6 +205,7 @@ describe("seeded avatar channel surfaces", () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 
@@ -230,6 +233,9 @@ describe("seeded avatar channel surfaces", () => {
     const image = screen.getByRole("img", { name: "Helper Bot" });
 
     expect(image).toHaveAttribute("src", "/bot.webp");
+    expect(mockConsoleError).not.toHaveBeenCalledWith(
+      expect.stringContaining("Missing `Description`"),
+    );
   });
 
   it("renders seeded stacked avatars in ThreadReplyIndicator", () => {
