@@ -1,15 +1,6 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import {
-  Search,
-  ArrowLeft,
-  ArrowRight,
-  History,
-  X,
-  PanelLeft,
-  PanelRight,
-  Crown,
-} from "lucide-react";
+import { Search, X, PanelLeft, PanelRight, Crown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";

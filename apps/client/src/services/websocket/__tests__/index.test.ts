@@ -54,6 +54,14 @@ vi.mock("socket.io-client", () => ({
   io: ioMock,
 }));
 
+vi.mock("@/services/auth-session", () => ({
+  getAuthToken: vi.fn(() => "test-token"),
+  getValidAccessToken: vi.fn(async () => "test-token"),
+  hasStoredAuthSession: vi.fn(() => true),
+  redirectToLogin: vi.fn(),
+  refreshAccessToken: vi.fn(async () => "test-token"),
+}));
+
 vi.mock("@sentry/react", () => sentryMock);
 
 vi.mock("@/lib/query-client", () => ({
@@ -69,7 +77,6 @@ describe("WebSocketService transport fallback", () => {
     queryClientMock.invalidateQueries.mockClear();
     sockets.length = 0;
     localStorage.clear();
-    localStorage.setItem("auth_token", "test-token");
   });
 
   it("retries with polling-first after an initial websocket connect_error", async () => {
@@ -85,7 +92,9 @@ describe("WebSocketService transport fallback", () => {
       new Error("WebSocket is closed before the connection is established."),
     );
 
-    expect(ioMock).toHaveBeenCalledTimes(2);
+    await vi.waitFor(() => {
+      expect(ioMock).toHaveBeenCalledTimes(2);
+    });
     expect(ioMock.mock.calls[1]?.[1]).toMatchObject({
       transports: ["polling", "websocket"],
     });
