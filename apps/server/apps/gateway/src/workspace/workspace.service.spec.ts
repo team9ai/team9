@@ -59,6 +59,7 @@ describe('WorkspaceService', () => {
   };
   let installedApplicationsService: {
     install: MockFn;
+    getInstalledApplicationsForTenant: MockFn;
   };
   let redisService: {
     hgetall: MockFn;
@@ -76,7 +77,6 @@ describe('WorkspaceService', () => {
     sendToUser: MockFn;
     sendToChannelMembers: MockFn;
   };
-
   beforeEach(async () => {
     db = mockDb();
     botService = {
@@ -84,6 +84,7 @@ describe('WorkspaceService', () => {
     };
     installedApplicationsService = {
       install: jest.fn<any>().mockResolvedValue(undefined),
+      getInstalledApplicationsForTenant: jest.fn<any>().mockResolvedValue([]),
     };
     redisService = {
       hgetall: jest.fn<any>().mockResolvedValue({}),
