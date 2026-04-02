@@ -44,6 +44,7 @@ type EventCallback = (...args: any[]) => void;
 
 export type ConnectionStatus = "connected" | "disconnected" | "reconnecting";
 type ConnectionChangeCallback = (status: ConnectionStatus) => void;
+type TransportOrder = "websocket-first" | "polling-first";
 
 class WebSocketService {
   private static readonly BASE_AUTH_RETRY_DELAY_MS = 1000;
@@ -60,6 +61,7 @@ class WebSocketService {
   // Connection status observers
   private connectionChangeCallbacks: Set<ConnectionChangeCallback> = new Set();
   private _connectionStatus: ConnectionStatus = "disconnected";
+  private transportOrder: TransportOrder = "websocket-first";
 
   constructor() {
     // Auto-connect if token exists
@@ -134,11 +136,10 @@ class WebSocketService {
       auth: (cb) => {
         cb({ token: this.getAuthToken() });
       },
-      // Start with WebSocket (direct connection, no session affinity needed).
-      // Polling fallback is available but polling→WebSocket upgrade fails
-      // behind CDN layers (Cloudflare/Fastly) that don't maintain session
-      // affinity across transports.
-      transports: ["websocket", "polling"],
+      // Prefer direct WebSocket, but allow a reconnect cycle to downgrade to
+      // polling-first when some browsers or network paths reject the initial
+      // upgrade request.
+      transports: this.getTransports(),
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
@@ -155,6 +156,7 @@ class WebSocketService {
     this.socket.on("connect", () => {
       console.log("[WS] Connected successfully");
       this.isConnecting = false;
+      this.transportOrder = "websocket-first";
       if (this.authErrorRetryTimer) {
         clearTimeout(this.authErrorRetryTimer);
         this.authErrorRetryTimer = null;
@@ -188,6 +190,14 @@ class WebSocketService {
       Sentry.captureException(error, {
         tags: { type: "websocket", event: "connect_error" },
       });
+
+      if (this.transportOrder === "websocket-first") {
+        console.warn(
+          "[WS] Initial websocket handshake failed, retrying with polling-first transport order",
+        );
+        this.transportOrder = "polling-first";
+        this.connect();
+      }
     });
 
     this.socket.on("authenticated", () => {
@@ -293,6 +303,14 @@ class WebSocketService {
   }
 
   private refreshQueryTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private getTransports(): Array<"websocket" | "polling"> {
+    if (this.transportOrder === "polling-first") {
+      return ["polling", "websocket"];
+    }
+
+    return ["websocket", "polling"];
+  }
 
   private refreshQueriesAfterReconnect(): void {
     // Debounce: both `authenticated` and `reconnect` events can fire in quick
