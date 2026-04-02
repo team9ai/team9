@@ -296,15 +296,22 @@ export function HomeSubSidebar() {
 
   // Merge my public channels (with unread counts) with all public channels
   // Show all public channels, but use the unreadCount from myPublicChannels if available
-  const publicChannelsWithStatus = allPublicChannels.map((channel) => {
-    const myChannel = myPublicChannels.find((ch) => ch.id === channel.id);
-    return {
-      ...channel,
-      unreadCount: myChannel?.unreadCount || 0,
-    };
-  });
+  const publicChannelsWithStatus = useMemo(
+    () =>
+      allPublicChannels.map((channel) => {
+        const myChannel = myPublicChannels.find((ch) => ch.id === channel.id);
+        return {
+          ...channel,
+          unreadCount: myChannel?.unreadCount || 0,
+        };
+      }),
+    [allPublicChannels, myPublicChannels],
+  );
 
-  const allChannels = [...publicChannelsWithStatus, ...privateChannels];
+  const allChannels = useMemo(
+    () => [...publicChannelsWithStatus, ...privateChannels],
+    [publicChannelsWithStatus, privateChannels],
+  );
 
   // Group channels by section
   const channelsBySection = useMemo(() => {
@@ -321,7 +328,7 @@ export function HomeSubSidebar() {
     });
 
     return grouped;
-  }, [allChannels, sections]);
+  }, [allChannels]);
 
   // Extract users from direct channels
   const directMessageUsers = directChannels.map((channel) => {
@@ -329,15 +336,12 @@ export function HomeSubSidebar() {
     const otherUser = channel.otherUser;
     const displayName =
       otherUser?.displayName || otherUser?.username || "Direct Message";
-    const avatarText =
-      otherUser?.displayName?.[0] || otherUser?.username?.[0] || "D";
 
     return {
       id: channel.id,
       channelId: channel.id,
       userId: otherUser?.id,
       name: displayName,
-      avatar: avatarText,
       avatarUrl: otherUser?.avatarUrl,
       status: otherUser?.status || ("offline" as const),
       unreadCount: channel.unreadCount || 0,
@@ -631,7 +635,6 @@ export function HomeSubSidebar() {
                     <UserListItem
                       key={dm.id}
                       name={dm.name}
-                      avatar={dm.avatar}
                       avatarUrl={dm.avatarUrl}
                       userId={dm.userId}
                       isSelected={selectedChannelId === dm.channelId}

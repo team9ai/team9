@@ -26,6 +26,17 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import {
+  INTERVAL_UNIT_LABEL_KEYS,
+  SCHEDULE_DAY_OPTIONS,
+  SCHEDULE_FREQUENCY_LABEL_KEYS,
+  TASK_TRIGGER_DESCRIPTION_KEYS,
+  TASK_TRIGGER_TYPE_LABEL_KEYS,
+  type IntervalUnit,
+  type ScheduleFrequency,
+  isIntervalUnit,
+  isScheduleFrequency,
+} from "@/lib/task-trigger-keys";
 import { tasksApi } from "@/services/api/tasks";
 import { channelsApi } from "@/services/api/im";
 import type { AgentTaskTriggerType } from "@/types/task";
@@ -39,42 +50,18 @@ interface AddTriggerDialogProps {
 const TRIGGER_TYPES: {
   type: AgentTaskTriggerType;
   icon: typeof Hand;
-  descriptionKey: string;
 }[] = [
-  { type: "manual", icon: Hand, descriptionKey: "triggers.typeDesc.manual" },
-  {
-    type: "interval",
-    icon: Timer,
-    descriptionKey: "triggers.typeDesc.interval",
-  },
-  {
-    type: "schedule",
-    icon: CalendarClock,
-    descriptionKey: "triggers.typeDesc.schedule",
-  },
-  {
-    type: "channel_message",
-    icon: MessageSquare,
-    descriptionKey: "triggers.typeDesc.channel_message",
-  },
+  { type: "manual", icon: Hand },
+  { type: "interval", icon: Timer },
+  { type: "schedule", icon: CalendarClock },
+  { type: "channel_message", icon: MessageSquare },
 ];
 
-const INTERVAL_UNITS = [
-  "minutes",
-  "hours",
-  "days",
-  "weeks",
-  "months",
-  "years",
-] as const;
+const INTERVAL_UNITS = Object.keys(INTERVAL_UNIT_LABEL_KEYS) as IntervalUnit[];
 
-const SCHEDULE_FREQUENCIES = [
-  "daily",
-  "weekly",
-  "monthly",
-  "yearly",
-  "weekdays",
-] as const;
+const SCHEDULE_FREQUENCIES = Object.keys(
+  SCHEDULE_FREQUENCY_LABEL_KEYS,
+) as ScheduleFrequency[];
 
 export function AddTriggerDialog({
   taskId,
@@ -92,10 +79,11 @@ export function AddTriggerDialog({
 
   // Interval config
   const [intervalValue, setIntervalValue] = useState(1);
-  const [intervalUnit, setIntervalUnit] = useState<string>("hours");
+  const [intervalUnit, setIntervalUnit] = useState<IntervalUnit>("hours");
 
   // Schedule config
-  const [scheduleFrequency, setScheduleFrequency] = useState("daily");
+  const [scheduleFrequency, setScheduleFrequency] =
+    useState<ScheduleFrequency>("daily");
   const [scheduleTime, setScheduleTime] = useState("09:00");
   const [scheduleTimezone, setScheduleTimezone] = useState(
     Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -193,9 +181,11 @@ export function AddTriggerDialog({
           <DialogTitle>
             {step === 1
               ? t("triggers.addTitle")
-              : t("triggers.configureTitle", {
-                  type: t(`triggers.types.${selectedType}` as const),
-                })}
+              : selectedType
+                ? t("triggers.configureTitle", {
+                    type: t(TASK_TRIGGER_TYPE_LABEL_KEYS[selectedType]),
+                  })
+                : t("triggers.addTitle")}
           </DialogTitle>
         </DialogHeader>
 
@@ -206,7 +196,7 @@ export function AddTriggerDialog({
               {t("triggers.selectType")}
             </p>
             <div className="grid grid-cols-2 gap-2">
-              {TRIGGER_TYPES.map(({ type, icon: Icon, descriptionKey }) => (
+              {TRIGGER_TYPES.map(({ type, icon: Icon }) => (
                 <button
                   key={type}
                   type="button"
@@ -215,10 +205,10 @@ export function AddTriggerDialog({
                 >
                   <Icon size={20} className="text-muted-foreground" />
                   <span className="text-sm font-medium">
-                    {t(`triggers.types.${type}` as const)}
+                    {t(TASK_TRIGGER_TYPE_LABEL_KEYS[type])}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {t(descriptionKey)}
+                    {t(TASK_TRIGGER_DESCRIPTION_KEYS[type])}
                   </span>
                 </button>
               ))}
@@ -247,14 +237,21 @@ export function AddTriggerDialog({
                   }
                   className="w-20"
                 />
-                <Select value={intervalUnit} onValueChange={setIntervalUnit}>
+                <Select
+                  value={intervalUnit}
+                  onValueChange={(value) => {
+                    if (isIntervalUnit(value)) {
+                      setIntervalUnit(value);
+                    }
+                  }}
+                >
                   <SelectTrigger className="flex-1">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {INTERVAL_UNITS.map((unit) => (
                       <SelectItem key={unit} value={unit}>
-                        {t(`triggers.interval.units.${unit}` as const)}
+                        {t(INTERVAL_UNIT_LABEL_KEYS[unit])}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -270,7 +267,11 @@ export function AddTriggerDialog({
               <Label>{t("schedule.frequency")}</Label>
               <Select
                 value={scheduleFrequency}
-                onValueChange={setScheduleFrequency}
+                onValueChange={(value) => {
+                  if (isScheduleFrequency(value)) {
+                    setScheduleFrequency(value);
+                  }
+                }}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -278,7 +279,7 @@ export function AddTriggerDialog({
                 <SelectContent>
                   {SCHEDULE_FREQUENCIES.map((freq) => (
                     <SelectItem key={freq} value={freq}>
-                      {t(`triggers.schedule.frequencies.${freq}` as const)}
+                      {t(SCHEDULE_FREQUENCY_LABEL_KEYS[freq])}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -314,9 +315,9 @@ export function AddTriggerDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {[0, 1, 2, 3, 4, 5, 6].map((day) => (
-                      <SelectItem key={day} value={String(day)}>
-                        {t(`schedule.days.${day}` as const)}
+                    {SCHEDULE_DAY_OPTIONS.map((day) => (
+                      <SelectItem key={day.value} value={String(day.value)}>
+                        {t(day.labelKey)}
                       </SelectItem>
                     ))}
                   </SelectContent>

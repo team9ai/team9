@@ -30,10 +30,9 @@ describe("syncItemToMessage", () => {
   });
 
   it("defaults isDeleted to false when undefined", () => {
-    const item = makeSyncItem({});
-    // @ts-ignore - simulate old API response without isDeleted
-    delete (item as any).isDeleted;
-    const msg = syncItemToMessage(item);
+    const item = { ...makeSyncItem({}) } as Partial<SyncMessageItem>;
+    delete item.isDeleted;
+    const msg = syncItemToMessage(item as SyncMessageItem);
     expect(msg.isDeleted).toBe(false);
   });
 

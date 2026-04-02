@@ -95,7 +95,7 @@ export function useReorderSections() {
 /**
  * Hook to move a channel to a section
  */
-export function useMoveChannel(onError?: (error: any) => void) {
+export function useMoveChannel(onError?: (error: unknown) => void) {
   const queryClient = useQueryClient();
   const workspaceId = useSelectedWorkspaceId();
 

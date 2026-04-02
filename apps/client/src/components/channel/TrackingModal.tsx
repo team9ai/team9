@@ -2,12 +2,13 @@ import { useState, useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { getAgentEventMetadata } from "@/lib/agent-event-metadata";
 import imApi from "@/services/api/im";
 import wsService from "@/services/websocket";
 import { WS_EVENTS } from "@/types/ws-events";
 import { useChannelObserver } from "@/hooks/useChannelObserver";
 import { TrackingEventItem } from "./TrackingEventItem";
-import type { Message, IMUser, AgentEventMetadata } from "@/types/im";
+import type { Message, IMUser } from "@/types/im";
 import type {
   StreamingStartEvent,
   StreamingContentEvent,
@@ -177,10 +178,13 @@ export function TrackingModal({
           className="flex-1 overflow-y-auto px-5 py-4 space-y-3"
         >
           {messages.map((msg) => {
-            const meta = msg.metadata as AgentEventMetadata | undefined;
+            const meta = getAgentEventMetadata(msg.metadata, {
+              agentEventType: "writing",
+              status: "completed",
+            });
 
             // Turn separator
-            if (meta?.agentEventType === "turn_separator") {
+            if (meta.agentEventType === "turn_separator") {
               return (
                 <div key={msg.id} className="flex items-center gap-2 py-1">
                   <div className="flex-1 h-px bg-border" />
@@ -198,9 +202,7 @@ export function TrackingModal({
                 className="flex items-start gap-2.5 p-2 rounded-lg bg-muted/30"
               >
                 <TrackingEventItem
-                  metadata={
-                    meta ?? { agentEventType: "writing", status: "completed" }
-                  }
+                  metadata={meta}
                   content={msg.content ?? ""}
                   compact={false}
                 />
@@ -212,12 +214,10 @@ export function TrackingModal({
           {activeStream && (
             <div className="flex items-start gap-2.5 p-2 rounded-lg bg-muted/30">
               <TrackingEventItem
-                metadata={
-                  (activeStream.metadata as AgentEventMetadata) ?? {
-                    agentEventType: "writing",
-                    status: "running",
-                  }
-                }
+                metadata={getAgentEventMetadata(activeStream.metadata, {
+                  agentEventType: "writing",
+                  status: "running",
+                })}
                 content={activeStream.content}
                 isStreaming
                 compact={false}

@@ -108,6 +108,7 @@ export const WS_EVENTS = {
     NEW: "notification_new",
     COUNTS_UPDATED: "notification_counts_updated",
     READ: "notification_read",
+    ALL_READ: "notification_all_read",
   },
 
   // Task events
@@ -481,6 +482,13 @@ export interface NotificationReadEvent {
   readAt: string;
 }
 
+/** Notification all-read event (multi-device sync) */
+export interface NotificationAllReadEvent {
+  category?: NotificationCategory;
+  types?: NotificationType[];
+  readAt: string;
+}
+
 // ==================== Task Event Types ====================
 
 /** Task status changed event */
@@ -621,6 +629,7 @@ export interface ServerToClientEvents {
   notification_new: NotificationNewEvent;
   notification_counts_updated: NotificationCountsUpdatedEvent;
   notification_read: NotificationReadEvent;
+  notification_all_read: NotificationAllReadEvent;
   // Task
   "task:status_changed": TaskStatusChangedEvent;
   "task:execution_created": TaskExecutionCreatedEvent;

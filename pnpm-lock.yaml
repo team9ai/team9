@@ -234,12 +234,18 @@ importers:
         specifier: ^5.0.9
         version: 5.0.9(@types/react@19.2.7)(react@19.2.3)(use-sync-external-store@1.6.0(react@19.2.3))
     devDependencies:
+      "@eslint/js":
+        specifier: ^9.18.0
+        version: 9.39.2
       "@sentry/vite-plugin":
         specifier: ^5.1.0
         version: 5.1.0(rollup@4.54.0)
       "@tanstack/react-query-devtools":
         specifier: ^5.91.2
         version: 5.91.2(@tanstack/react-query@5.95.2(react@19.2.3))(react@19.2.3)
+      "@tanstack/router-generator":
+        specifier: ^1.143.11
+        version: 1.143.11
       "@tauri-apps/cli":
         specifier: ^2
         version: 2.9.6
@@ -267,6 +273,18 @@ importers:
       "@vitejs/plugin-react":
         specifier: ^4.6.0
         version: 4.7.0(vite@7.3.0(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      "@vitest/coverage-v8":
+        specifier: ^4.0.18
+        version: 4.0.18(vitest@4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.0.3)(jiti@2.6.1)(jsdom@29.0.1(@noble/hashes@1.8.0))(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      eslint:
+        specifier: ^9.18.0
+        version: 9.39.2(jiti@2.6.1)
+      eslint-plugin-react-hooks:
+        specifier: ^5.2.0
+        version: 5.2.0(eslint@9.39.2(jiti@2.6.1))
+      globals:
+        specifier: ^16.0.0
+        version: 16.5.0
       jsdom:
         specifier: ^29.0.1
         version: 29.0.1(@noble/hashes@1.8.0)
@@ -279,6 +297,9 @@ importers:
       typescript:
         specifier: ~5.8.3
         version: 5.8.3
+      typescript-eslint:
+        specifier: ^8.20.0
+        version: 8.50.1(eslint@9.39.2(jiti@2.6.1))(typescript@5.8.3)
       vite:
         specifier: ^7.0.4
         version: 7.3.0(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
@@ -1022,73 +1043,6 @@ importers:
         specifier: ^5.7.3
         version: 5.8.3
 
-  enterprise/libs/analytics:
-    dependencies:
-      "@nestjs/common":
-        specifier: ^11.0.0
-        version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      "@nestjs/core":
-        specifier: ^11.0.0
-        version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-    devDependencies:
-      "@types/node":
-        specifier: ^22.0.0
-        version: 22.19.3
-      typescript:
-        specifier: ^5.7.3
-        version: 5.8.3
-
-  enterprise/libs/audit:
-    dependencies:
-      "@nestjs/common":
-        specifier: ^11.0.0
-        version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      "@nestjs/core":
-        specifier: ^11.0.0
-        version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      uuid:
-        specifier: ^11.0.0
-        version: 11.1.0
-    devDependencies:
-      "@types/node":
-        specifier: ^22.0.0
-        version: 22.19.3
-      typescript:
-        specifier: ^5.7.3
-        version: 5.8.3
-
-  enterprise/libs/license:
-    dependencies:
-      "@nestjs/common":
-        specifier: ^11.0.0
-        version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      "@nestjs/core":
-        specifier: ^11.0.0
-        version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-    devDependencies:
-      "@types/node":
-        specifier: ^22.0.0
-        version: 22.19.3
-      typescript:
-        specifier: ^5.7.3
-        version: 5.8.3
-
-  enterprise/libs/sso:
-    dependencies:
-      "@nestjs/common":
-        specifier: ^11.0.0
-        version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      "@nestjs/core":
-        specifier: ^11.0.0
-        version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-    devDependencies:
-      "@types/node":
-        specifier: ^22.0.0
-        version: 22.19.3
-      typescript:
-        specifier: ^5.7.3
-        version: 5.8.3
-
 packages:
   "@adobe/css-tools@4.4.4":
     resolution:
@@ -1607,6 +1561,14 @@ packages:
     engines: { node: ">=6.0.0" }
     hasBin: true
 
+  "@babel/parser@7.29.2":
+    resolution:
+      {
+        integrity: sha512-4GgRzy/+fsBa72/RZVJmGKPmZu9Byn8o4MoLpmNe1m8ZfYnz5emHLQz3U4gLud6Zwl0RZIcgiLD7Uq7ySFuDLA==,
+      }
+    engines: { node: ">=6.0.0" }
+    hasBin: true
+
   "@babel/plugin-syntax-async-generators@7.8.4":
     resolution:
       {
@@ -1795,11 +1757,25 @@ packages:
       }
     engines: { node: ">=6.9.0" }
 
+  "@babel/types@7.29.0":
+    resolution:
+      {
+        integrity: sha512-LwdZHpScM4Qz8Xw2iKSzS+cfglZzJGvofQICy7W7v4caru4EaAmyUuO6BGrbyQ2mYV11W0U8j5mBhd14dd3B0A==,
+      }
+    engines: { node: ">=6.9.0" }
+
   "@bcoe/v8-coverage@0.2.3":
     resolution:
       {
         integrity: sha512-0hYQ8SB4Db5zvZB4axdMHGwEaQjkZzFjQiN9LVYvIFB2nSUHW9tYpxWriPrWDASIxiaXax83REcLxuSdnGPZtw==,
       }
+
+  "@bcoe/v8-coverage@1.0.2":
+    resolution:
+      {
+        integrity: sha512-6zABk/ECA/QYSCQ1NGiVwwbQerUCZ+TQbp64Q3AgmfNvurHH0j8TtXa1qbShXA6qqkpAj4V5W8pP6mLe1mcMqA==,
+      }
+    engines: { node: ">=18" }
 
   "@borewit/text-codec@0.1.1":
     resolution:
@@ -8029,6 +8005,18 @@ packages:
     peerDependencies:
       vite: ^4.2.0 || ^5.0.0 || ^6.0.0 || ^7.0.0
 
+  "@vitest/coverage-v8@4.0.18":
+    resolution:
+      {
+        integrity: sha512-7i+N2i0+ME+2JFZhfuz7Tg/FqKtilHjGyGvoHYQ6iLV0zahbsJ9sljC9OcFcPDbhYKCet+sG8SsVqlyGvPflZg==,
+      }
+    peerDependencies:
+      "@vitest/browser": 4.0.18
+      vitest: 4.0.18
+    peerDependenciesMeta:
+      "@vitest/browser":
+        optional: true
+
   "@vitest/expect@4.0.18":
     resolution:
       {
@@ -8454,6 +8442,12 @@ packages:
         integrity: sha512-6t10qk83GOG8p0vKmaCr8eiilZwO171AvbROMtvvNiwrTly62t+7XkA8RdIIVbpMhCASAsxgAzdRSwh6nw/5Dg==,
       }
     engines: { node: ">=4" }
+
+  ast-v8-to-istanbul@0.3.12:
+    resolution:
+      {
+        integrity: sha512-BRRC8VRZY2R4Z4lFIL35MwNXmwVqBityvOIwETtsCSwvjl0IdgFsy9NhdaA6j74nUdtJJlIypeRhpDam19Wq3g==,
+      }
 
   asynckit@0.4.0:
     resolution:
@@ -9745,6 +9739,15 @@ packages:
         optional: true
       eslint-config-prettier:
         optional: true
+
+  eslint-plugin-react-hooks@5.2.0:
+    resolution:
+      {
+        integrity: sha512-+f15FfK64YQwZdJNELETdn5ibXEUQmW1DZL6KXhNnc2heoy/sg9VJJeT7n8TlMWouzWqSWavFkIhHyIbIAEapg==,
+      }
+    engines: { node: ">=10" }
+    peerDependencies:
+      eslint: ^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0-0 || ^9.0.0
 
   eslint-scope@5.1.1:
     resolution:
@@ -11098,6 +11101,12 @@ packages:
       }
     hasBin: true
 
+  js-tokens@10.0.0:
+    resolution:
+      {
+        integrity: sha512-lM/UBzQmfJRo9ABXbPWemivdCW8V2G8FHaHdypQaIy523snUjog0W71ayWXTjiR+ixeMyVHN2XcpnTd/liPg/Q==,
+      }
+
   js-tokens@4.0.0:
     resolution:
       {
@@ -11618,6 +11627,12 @@ packages:
         integrity: sha512-ISQTe55T2ao7XtlAStud6qwYPZjE4GK1S/BeVPus4jrq6JuOnQ00YKQC581RWhR122W7msZV263KzVeLoqidyQ==,
       }
     engines: { node: ">=12" }
+
+  magicast@0.5.2:
+    resolution:
+      {
+        integrity: sha512-E3ZJh4J3S9KfwdjZhe2afj6R9lGIN5Pher1pF39UGrXRqq/VDaGVIGN13BjHd2u8B61hArAGOnso7nBOouW3TQ==,
+      }
 
   make-dir@4.0.0:
     resolution:
@@ -13917,6 +13932,13 @@ packages:
       }
     engines: { node: ">=14.0.0" }
 
+  tinyrainbow@3.1.0:
+    resolution:
+      {
+        integrity: sha512-Bf+ILmBgretUrdJxzXM0SgXLZ3XfiaUuOj/IKQHuTXip+05Xn+uyEYdVg0kYDipTBcLrCVyUzAPz7QmArb0mmw==,
+      }
+    engines: { node: ">=14.0.0" }
+
   tldts-core@7.0.27:
     resolution:
       {
@@ -14403,13 +14425,6 @@ packages:
         integrity: sha512-pMZTvIkT1d+TFGvDOqodOclx0QWkkgi6Tdoa8gC8ffGAAqz9pzPTZWAybbsHHoED/ztMtkv/VoYTYyShUn81hA==,
       }
     engines: { node: ">= 0.4.0" }
-
-  uuid@11.1.0:
-    resolution:
-      {
-        integrity: sha512-0/A9rDy9P7cJ+8w1c9WD9V//9Wj15Ce2MPz8Ri6032usz+NfePxx5AcN3bN+r6ZL6jEo066/yNYB3tn4pQEx+A==,
-      }
-    hasBin: true
 
   uuid@13.0.0:
     resolution:
@@ -15563,6 +15578,10 @@ snapshots:
     dependencies:
       "@babel/types": 7.28.5
 
+  "@babel/parser@7.29.2":
+    dependencies:
+      "@babel/types": 7.29.0
+
   "@babel/plugin-syntax-async-generators@7.8.4(@babel/core@7.28.5)":
     dependencies:
       "@babel/core": 7.28.5
@@ -15683,7 +15702,14 @@ snapshots:
       "@babel/helper-string-parser": 7.27.1
       "@babel/helper-validator-identifier": 7.28.5
 
+  "@babel/types@7.29.0":
+    dependencies:
+      "@babel/helper-string-parser": 7.27.1
+      "@babel/helper-validator-identifier": 7.28.5
+
   "@bcoe/v8-coverage@0.2.3": {}
+
+  "@bcoe/v8-coverage@1.0.2": {}
 
   "@borewit/text-codec@0.1.1": {}
 
@@ -19477,7 +19503,7 @@ snapshots:
     dependencies:
       "@babel/core": 7.28.5
       "@babel/generator": 7.28.5
-      "@babel/parser": 7.28.5
+      "@babel/parser": 7.29.2
       ansis: 4.2.0
       diff: 8.0.3
       pathe: 2.0.3
@@ -20082,6 +20108,20 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  "@vitest/coverage-v8@4.0.18(vitest@4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.0.3)(jiti@2.6.1)(jsdom@29.0.1(@noble/hashes@1.8.0))(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))":
+    dependencies:
+      "@bcoe/v8-coverage": 1.0.2
+      "@vitest/utils": 4.0.18
+      ast-v8-to-istanbul: 0.3.12
+      istanbul-lib-coverage: 3.2.2
+      istanbul-lib-report: 3.0.1
+      istanbul-reports: 3.2.0
+      magicast: 0.5.2
+      obug: 2.1.1
+      std-env: 3.10.0
+      tinyrainbow: 3.1.0
+      vitest: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.0.3)(jiti@2.6.1)(jsdom@29.0.1(@noble/hashes@1.8.0))(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
+
   "@vitest/expect@4.0.18":
     dependencies:
       "@standard-schema/spec": 1.1.0
@@ -20119,7 +20159,7 @@ snapshots:
   "@vitest/utils@4.0.18":
     dependencies:
       "@vitest/pretty-format": 4.0.18
-      tinyrainbow: 3.0.3
+      tinyrainbow: 3.1.0
 
   "@webassemblyjs/ast@1.14.1":
     dependencies:
@@ -20336,6 +20376,12 @@ snapshots:
   ast-types@0.16.1:
     dependencies:
       tslib: 2.8.1
+
+  ast-v8-to-istanbul@0.3.12:
+    dependencies:
+      "@jridgewell/trace-mapping": 0.3.31
+      estree-walker: 3.0.3
+      js-tokens: 10.0.0
 
   asynckit@0.4.0: {}
 
@@ -21070,6 +21116,10 @@ snapshots:
       "@types/eslint": 9.6.1
       eslint-config-prettier: 10.1.8(eslint@9.39.2(jiti@2.6.1))
 
+  eslint-plugin-react-hooks@5.2.0(eslint@9.39.2(jiti@2.6.1)):
+    dependencies:
+      eslint: 9.39.2(jiti@2.6.1)
+
   eslint-scope@5.1.1:
     dependencies:
       esrecurse: 4.3.0
@@ -21793,7 +21843,7 @@ snapshots:
   istanbul-lib-instrument@6.0.3:
     dependencies:
       "@babel/core": 7.28.5
-      "@babel/parser": 7.28.5
+      "@babel/parser": 7.29.2
       "@istanbuljs/schema": 0.1.3
       istanbul-lib-coverage: 3.2.2
       semver: 7.7.3
@@ -22148,6 +22198,8 @@ snapshots:
 
   jiti@2.6.1: {}
 
+  js-tokens@10.0.0: {}
+
   js-tokens@4.0.0: {}
 
   js-yaml@3.14.2:
@@ -22430,6 +22482,12 @@ snapshots:
   magic-string@0.30.8:
     dependencies:
       "@jridgewell/sourcemap-codec": 1.5.5
+
+  magicast@0.5.2:
+    dependencies:
+      "@babel/parser": 7.29.2
+      "@babel/types": 7.29.0
+      source-map-js: 1.2.1
 
   make-dir@4.0.0:
     dependencies:
@@ -23994,6 +24052,8 @@ snapshots:
 
   tinyrainbow@3.0.3: {}
 
+  tinyrainbow@3.1.0: {}
+
   tldts-core@7.0.27: {}
 
   tldts@7.0.27:
@@ -24313,8 +24373,6 @@ snapshots:
   util-deprecate@1.0.2: {}
 
   utils-merge@1.0.1: {}
-
-  uuid@11.1.0: {}
 
   uuid@13.0.0: {}
 

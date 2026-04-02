@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import type { DocumentIdentity } from '@team9/database/schemas';
+import type { Request } from 'express';
 import { CurrentTenantId } from '../common/decorators/current-tenant.decorator.js';
 import { DocumentsService } from './documents.service.js';
 import {
@@ -32,12 +33,30 @@ import {
 export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}
 
+  private getAuthorizationHeader(req: Request): string | null {
+    const headers = (req.headers ?? {}) as Record<string, unknown>;
+    const authorizationHeader = headers.authorization;
+
+    if (typeof authorizationHeader === 'string') {
+      return authorizationHeader;
+    }
+
+    if (
+      Array.isArray(authorizationHeader) &&
+      typeof authorizationHeader[0] === 'string'
+    ) {
+      return authorizationHeader[0];
+    }
+
+    return null;
+  }
+
   @Post()
   async create(
     @Body() dto: CreateDocumentDto,
     @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string,
-    @Req() req: any,
+    @Req() req: Request,
   ) {
     const identity = this.getCallerIdentity(userId, req);
     return this.documentsService.create(dto, identity, tenantId);
@@ -58,7 +77,7 @@ export class DocumentsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateDocumentDto,
     @CurrentUser('sub') userId: string,
-    @Req() req: any,
+    @Req() req: Request,
   ) {
     const identity = this.getCallerIdentity(userId, req);
     return this.documentsService.update(id, dto, identity);
@@ -69,7 +88,7 @@ export class DocumentsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdatePrivilegesDto,
     @CurrentUser('sub') userId: string,
-    @Req() req: any,
+    @Req() req: Request,
   ) {
     const identity = this.getCallerIdentity(userId, req);
     await this.documentsService.updatePrivileges(id, dto.privileges, identity);
@@ -94,7 +113,7 @@ export class DocumentsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: SubmitSuggestionDto,
     @CurrentUser('sub') userId: string,
-    @Req() req: any,
+    @Req() req: Request,
   ) {
     const identity = this.getCallerIdentity(userId, req);
     return this.documentsService.submitSuggestion(id, dto, identity);
@@ -121,7 +140,7 @@ export class DocumentsController {
     @Param('sugId', ParseUUIDPipe) sugId: string,
     @Body() dto: ReviewSuggestionDto,
     @CurrentUser('sub') userId: string,
-    @Req() req: any,
+    @Req() req: Request,
   ) {
     const identity = this.getCallerIdentity(userId, req);
     return this.documentsService.reviewSuggestion(sugId, dto.action, identity);
@@ -131,8 +150,8 @@ export class DocumentsController {
    * Determine caller identity from auth header.
    * Bot tokens use 't9bot_' prefix; everything else is a human user.
    */
-  private getCallerIdentity(userId: string, req: any): DocumentIdentity {
-    const authHeader: string | undefined = req.headers?.authorization;
+  private getCallerIdentity(userId: string, req: Request): DocumentIdentity {
+    const authHeader = this.getAuthorizationHeader(req);
     if (authHeader?.startsWith('Bearer t9bot_')) {
       return { type: 'bot', id: userId };
     }

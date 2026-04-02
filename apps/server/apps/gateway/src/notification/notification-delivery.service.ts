@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { RedisService } from '@team9/redis';
+import type { NotificationType } from '@team9/database/schemas';
 import { REDIS_KEYS } from '../im/shared/constants/redis-keys.js';
 
 // Forward reference to avoid circular dependency
@@ -56,12 +57,17 @@ export const WS_NOTIFICATION_EVENTS = {
   NEW: 'notification_new',
   COUNTS_UPDATED: 'notification_counts_updated',
   READ: 'notification_read',
+  ALL_READ: 'notification_all_read',
 } as const;
+
+interface NotificationWebsocketGateway {
+  sendToUser(userId: string, event: string, data: unknown): Promise<void>;
+}
 
 @Injectable()
 export class NotificationDeliveryService {
   private readonly logger = new Logger(NotificationDeliveryService.name);
-  private websocketGateway: any = null;
+  private websocketGateway: NotificationWebsocketGateway | null = null;
 
   constructor(private readonly redisService: RedisService) {}
 
@@ -69,7 +75,7 @@ export class NotificationDeliveryService {
    * Set the WebSocket gateway instance (called from module initialization)
    * This avoids circular dependency issues
    */
-  setWebsocketGateway(gateway: any): void {
+  setWebsocketGateway(gateway: NotificationWebsocketGateway): void {
     this.websocketGateway = gateway;
     this.logger.log('WebSocket gateway set for notification delivery');
   }
@@ -160,6 +166,31 @@ export class NotificationDeliveryService {
         { notificationIds },
       );
       this.logger.debug(`Sent notification read event to user ${userId}`);
+    }
+  }
+
+  async broadcastNotificationAllRead(
+    userId: string,
+    category?: string,
+    types?: NotificationType[],
+  ): Promise<void> {
+    if (!this.websocketGateway) {
+      return;
+    }
+
+    const isOnline = await this.isUserOnline(userId);
+
+    if (isOnline) {
+      await this.websocketGateway.sendToUser(
+        userId,
+        WS_NOTIFICATION_EVENTS.ALL_READ,
+        {
+          category,
+          types,
+          readAt: new Date().toISOString(),
+        },
+      );
+      this.logger.debug(`Sent notification all-read event to user ${userId}`);
     }
   }
 

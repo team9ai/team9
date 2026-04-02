@@ -54,7 +54,7 @@ interface RawPendingDevice {
   displayName?: string;
   platform?: string;
   ts: number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface RawPairedDevice {
@@ -63,7 +63,7 @@ interface RawPairedDevice {
   platform?: string;
   approvedAtMs?: number;
   createdAtMs?: number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface RawDeviceList {
@@ -78,7 +78,7 @@ export interface DeviceInfo {
   deviceId?: string;
   name?: string;
   status: 'pending' | 'approved';
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface Instance {
@@ -87,7 +87,7 @@ export interface Instance {
   subdomain: string;
   status: 'creating' | 'running' | 'stopped' | 'error';
   provider: string;
-  running_instance_info?: Record<string, any>;
+  running_instance_info?: Record<string, unknown>;
   custom_env?: Record<string, string>;
   tunnel_id?: string;
   volume_id?: string;
@@ -414,7 +414,12 @@ export class OpenclawService {
   }
 
   async getAllInstanceActivity() {
-    const rows = await this.db.execute(sql`
+    const rows = await this.db.execute<{
+      instance_id: string;
+      workspace_name: string;
+      last_message_at: string | Date | null;
+      messages_last_7d: number | string | null;
+    }>(sql`
       SELECT
         ia.config->>'instancesId' AS instance_id,
         t.name AS workspace_name,
@@ -430,16 +435,15 @@ export class OpenclawService {
     `);
 
     return {
-      results: (rows as unknown as Array<Record<string, unknown>>).map(
-        (row) => ({
-          instance_id: row.instance_id as string,
-          workspace_name: row.workspace_name as string,
-          last_message_at: row.last_message_at
-            ? String(row.last_message_at)
-            : null,
-          messages_last_7d: Number(row.messages_last_7d ?? 0),
-        }),
-      ),
+      results: rows.map((row) => ({
+        instance_id: row.instance_id,
+        workspace_name: row.workspace_name,
+        last_message_at:
+          row.last_message_at instanceof Date
+            ? row.last_message_at.toISOString()
+            : row.last_message_at,
+        messages_last_7d: Number(row.messages_last_7d ?? 0),
+      })),
     };
   }
 

@@ -135,6 +135,10 @@ export class MessageService {
     }
   }
 
+  private parseDedupEntry(raw: string): { msgId: string; seqId: string } {
+    return JSON.parse(raw) as { msgId: string; seqId: string };
+  }
+
   /**
    * Check for duplicate message
    */
@@ -149,7 +153,7 @@ export class MessageService {
     }
 
     try {
-      const parsed = JSON.parse(data);
+      const parsed = this.parseDedupEntry(data);
       return {
         msgId: parsed.msgId,
         seqId: BigInt(parsed.seqId),

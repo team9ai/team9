@@ -6,9 +6,9 @@ import {
   NotFoundException,
   Inject,
 } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { OAuth2Client } from 'google-auth-library';
+import { OAuth2Client, type TokenPayload } from 'google-auth-library';
 import * as crypto from 'crypto';
 import { v7 as uuidv7 } from 'uuid';
 import {
@@ -78,6 +78,10 @@ export interface DesktopSessionResponse {
   expiresInSeconds: number;
 }
 
+export type PollLoginResponse =
+  | { status: 'pending' }
+  | ({ status: 'verified' } & AuthResponse);
+
 interface AuthChallenge {
   status: 'pending' | 'verified' | 'failed';
   email: string;
@@ -86,6 +90,16 @@ interface AuthChallenge {
   flow: 'login' | 'verify_existing_user' | 'signup';
   signupDisplayName?: string;
 }
+
+interface DesktopPendingSession {
+  status: 'pending';
+}
+
+interface DesktopVerifiedSession {
+  status: 'verified';
+}
+
+type DesktopSessionState = DesktopPendingSession | DesktopVerifiedSession;
 
 @Injectable()
 export class AuthService {
@@ -115,6 +129,18 @@ export class AuthService {
     private readonly eventEmitter: EventEmitter2,
     private readonly emailService: EmailService,
   ) {}
+
+  private getJwtExpiresIn(value: string): JwtSignOptions['expiresIn'] {
+    return value as JwtSignOptions['expiresIn'];
+  }
+
+  private parseAuthChallenge(raw: string): AuthChallenge {
+    return JSON.parse(raw) as AuthChallenge;
+  }
+
+  private parseDesktopSession(raw: string): DesktopSessionState {
+    return JSON.parse(raw) as DesktopSessionState;
+  }
 
   async register(dto: RegisterDto): Promise<RegisterResponse> {
     // Check if email or username already exists
@@ -498,7 +524,7 @@ export class AuthService {
 
     // Verify Google ID token
     const client = new OAuth2Client(googleClientId);
-    let payload;
+    let payload: TokenPayload | undefined;
     try {
       const ticket = await client.verifyIdToken({
         idToken: dto.credential,
@@ -558,6 +584,8 @@ export class AuthService {
 
     // New user — auto-register (prefer Google display name for username)
     const username = await this.generateUniqueUsername(name || email, email);
+    const displayName = name || username;
+    const avatarUrl = picture || this.getGravatarUrl(email);
     const userId = uuidv7();
 
     const [user] = await this.db
@@ -566,8 +594,8 @@ export class AuthService {
         id: userId,
         email,
         username,
-        displayName: name || username,
-        avatarUrl: picture || null,
+        displayName,
+        avatarUrl,
         emailVerified: true,
         emailVerifiedAt: new Date(),
       })
@@ -576,7 +604,7 @@ export class AuthService {
     // Emit events (same as register flow)
     this.eventEmitter.emit(USER_EVENTS.REGISTERED, {
       userId: user.id,
-      displayName: name || username,
+      displayName,
     } satisfies UserRegisteredEvent);
 
     this.eventEmitter.emit('user.created', { user });
@@ -650,6 +678,13 @@ export class AuthService {
 
     // Fallback: use uuid fragment
     return `${base}_${uuidv7().slice(-4)}`;
+  }
+
+  private getGravatarUrl(email: string): string {
+    const normalizedEmail = email.trim().toLowerCase();
+    const hash = crypto.createHash('md5').update(normalizedEmail).digest('hex');
+
+    return `https://www.gravatar.com/avatar/${hash}?d=identicon`;
   }
 
   async refreshToken(refreshToken: string): Promise<TokenPair> {
@@ -737,7 +772,7 @@ export class AuthService {
       {
         privateKey: env.JWT_PRIVATE_KEY,
         algorithm: 'ES256',
-        expiresIn: env.JWT_EXPIRES_IN as any,
+        expiresIn: this.getJwtExpiresIn(env.JWT_EXPIRES_IN),
       },
     );
 
@@ -746,7 +781,7 @@ export class AuthService {
       {
         privateKey: env.JWT_REFRESH_PRIVATE_KEY,
         algorithm: 'ES256',
-        expiresIn: env.JWT_REFRESH_EXPIRES_IN as any,
+        expiresIn: this.getJwtExpiresIn(env.JWT_REFRESH_EXPIRES_IN),
       },
     );
 
@@ -798,7 +833,7 @@ export class AuthService {
     return sessionId;
   }
 
-  async pollLogin(sessionId: string, ip: string) {
+  async pollLogin(sessionId: string, ip: string): Promise<PollLoginResponse> {
     // IP-based rate limiting: max 30 requests per minute
     const rateLimitKey = `${this.POLL_LOGIN_RATE_PREFIX}${ip}`;
     const count = await this.redisService.incr(rateLimitKey);
@@ -817,7 +852,7 @@ export class AuthService {
     if (!data) {
       throw new NotFoundException('Login session not found or expired');
     }
-    const result = JSON.parse(data);
+    const result = JSON.parse(data) as PollLoginResponse;
 
     // One-time consumption: delete key after returning verified result
     if (result.status === 'verified') {
@@ -942,7 +977,7 @@ export class AuthService {
       );
     }
 
-    const challenge: AuthChallenge = JSON.parse(raw);
+    const challenge = this.parseAuthChallenge(raw);
 
     if (challenge.status !== 'pending') {
       throw new BadRequestException('Challenge has already been used');
@@ -1131,7 +1166,7 @@ export class AuthService {
       throw new NotFoundException('Desktop session not found or expired');
     }
 
-    const session = JSON.parse(raw);
+    const session = this.parseDesktopSession(raw);
 
     if (session.status !== 'pending') {
       throw new BadRequestException('Desktop session has already been used');

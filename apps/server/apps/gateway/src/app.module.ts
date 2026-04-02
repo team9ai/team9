@@ -43,6 +43,7 @@ import { SentryUserInterceptor } from './common/interceptors/sentry-user.interce
 import { ImSharedModule } from './im/shared/im-shared.module.js';
 import { PosthogModule } from '@team9/posthog';
 import { BillingHubModule } from './billing-hub/billing-hub.module.js';
+import { AccountModule } from './account/account.module.js';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { BillingHubModule } from './billing-hub/billing-hub.module.js';
     FileKeeperModule,
     ApplicationsModule,
     AuthModule,
+    AccountModule,
     ClusterModule,
     ImModule,
     WorkspaceModule,

@@ -8,11 +8,7 @@ import {
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { v7 as uuidv7 } from 'uuid';
-import {
-  StorageService,
-  PresignedUploadCredentials,
-  FileInfo,
-} from '@team9/storage';
+import { StorageService, PresignedUploadCredentials } from '@team9/storage';
 import {
   DATABASE_CONNECTION,
   eq,
@@ -54,6 +50,7 @@ export interface FileRecord {
 }
 
 export interface ConfirmUploadResult {
+  id: string;
   key: string;
   fileName: string;
   fileSize: number;
@@ -78,7 +75,7 @@ export class FileService implements OnModuleInit {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async onModuleInit() {
+  onModuleInit(): void {
     this.logger.log(
       `FileService initialized with ${PENDING_EXPIRATION_DAYS} day expiration for pending uploads`,
     );
@@ -216,6 +213,7 @@ export class FileService implements OnModuleInit {
     });
 
     return {
+      id: fileId,
       key: dto.key,
       fileName: dto.fileName,
       fileSize: fileInfo.size,
@@ -237,6 +235,20 @@ export class FileService implements OnModuleInit {
       .where(
         and(eq(schema.files.tenantId, workspaceId), eq(schema.files.key, key)),
       )
+      .limit(1);
+
+    return (file as FileRecord) || null;
+  }
+
+  /**
+   * Get file record by id without workspace scoping.
+   * Used for globally stable public file URLs.
+   */
+  async getFileById(fileId: string): Promise<FileRecord | null> {
+    const [file] = await this.db
+      .select()
+      .from(schema.files)
+      .where(eq(schema.files.id, fileId))
       .limit(1);
 
     return (file as FileRecord) || null;
@@ -276,7 +288,7 @@ export class FileService implements OnModuleInit {
         }
         return false;
 
-      case 'channel':
+      case 'channel': {
         // Must be a member of the channel
         if (!userId || !file.channelId) {
           return false;
@@ -292,6 +304,7 @@ export class FileService implements OnModuleInit {
           )
           .limit(1);
         return !!channelMember;
+      }
 
       case 'private':
         // Only the uploader can access
@@ -344,6 +357,34 @@ export class FileService implements OnModuleInit {
     expiresIn = DEFAULT_DOWNLOAD_EXPIRES_IN,
   ): Promise<DownloadUrlResult> {
     const file = await this.getFileByKey(workspaceId, key);
+
+    if (!file) {
+      throw new NotFoundException('File not found');
+    }
+
+    if (file.visibility !== 'public') {
+      throw new ForbiddenException('This file is not public');
+    }
+
+    const url = await this.storageService.createPresignedDownload(
+      file.bucket,
+      file.key,
+      expiresIn,
+    );
+
+    const expiresAt = new Date(Date.now() + expiresIn * 1000);
+
+    return { url, expiresAt };
+  }
+
+  /**
+   * Get public download URL by file id for stable, tenant-agnostic public assets.
+   */
+  async getPublicDownloadUrlById(
+    fileId: string,
+    expiresIn = DEFAULT_DOWNLOAD_EXPIRES_IN,
+  ): Promise<DownloadUrlResult> {
+    const file = await this.getFileById(fileId);
 
     if (!file) {
       throw new NotFoundException('File not found');

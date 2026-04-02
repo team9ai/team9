@@ -3,6 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
+import type {
+  BaseModelStaffBotInfo,
+  OpenClawBotInfo,
+} from "@/services/api/applications";
 import type { AppConfigPanelProps } from "./registry";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 
@@ -22,6 +26,12 @@ function getModelMeta(agentId: string | undefined) {
   return null;
 }
 
+function isBaseModelStaffBot(
+  bot: OpenClawBotInfo | BaseModelStaffBotInfo,
+): bot is BaseModelStaffBotInfo {
+  return "managedMeta" in bot;
+}
+
 export function BaseModelStaffBotsTab({ installedApp }: AppConfigPanelProps) {
   const workspaceId = useSelectedWorkspaceId();
   const appId = installedApp.id;
@@ -32,7 +42,11 @@ export function BaseModelStaffBotsTab({ installedApp }: AppConfigPanelProps) {
     error,
   } = useQuery({
     queryKey: ["base-model-staff-bots", workspaceId, appId],
-    queryFn: () => api.applications.getBaseModelStaffBots(appId),
+    queryFn: async () => {
+      const apps = await api.applications.getInstalledApplicationsWithBots();
+      const app = apps.find((candidate) => candidate.id === appId);
+      return app?.bots.filter(isBaseModelStaffBot) ?? [];
+    },
     enabled: !!workspaceId,
   });
 

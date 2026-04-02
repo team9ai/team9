@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/ui/user-avatar";
+import { getAgentEventMetadata } from "@/lib/agent-event-metadata";
 import { parseLikelyPastDate } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import { useTrackingChannel } from "@/hooks/useTrackingChannel";
@@ -22,7 +23,7 @@ function formatElapsed(startTime: string | number): string {
 }
 
 export function TrackingCard({ message }: TrackingCardProps) {
-  const metadata = (message.metadata as any) ?? {};
+  const metadata = (message.metadata ?? {}) as Record<string, unknown>;
   const trackingChannelId = metadata?.trackingChannelId as string | undefined;
   const {
     isActivated,
@@ -65,10 +66,10 @@ export function TrackingCard({ message }: TrackingCardProps) {
   }> = latestMessages.map((msg) => ({
     id: msg.id,
     content: msg.content ?? "",
-    metadata: (msg.metadata as AgentEventMetadata) ?? {
+    metadata: getAgentEventMetadata(msg.metadata, {
       agentEventType: "writing",
       status: "completed",
-    },
+    }),
     isStreaming: false,
   }));
 
@@ -76,10 +77,10 @@ export function TrackingCard({ message }: TrackingCardProps) {
     displayItems.push({
       id: `stream-${activeStream.streamId}`,
       content: activeStream.content,
-      metadata: (activeStream.metadata as AgentEventMetadata) ?? {
+      metadata: getAgentEventMetadata(activeStream.metadata, {
         agentEventType: "writing",
         status: "running",
-      },
+      }),
       isStreaming: true,
     });
   }
@@ -100,14 +101,15 @@ export function TrackingCard({ message }: TrackingCardProps) {
         {/* Header */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <Avatar className="w-8 h-8">
-              <AvatarImage src={message.sender?.avatarUrl ?? undefined} />
-              <AvatarFallback className="text-xs">
-                {message.sender?.displayName?.[0] ??
-                  message.sender?.username?.[0] ??
-                  "B"}
-              </AvatarFallback>
-            </Avatar>
+            <UserAvatar
+              userId={message.sender?.id ?? message.senderId ?? undefined}
+              name={message.sender?.displayName}
+              username={message.sender?.username}
+              avatarUrl={message.sender?.avatarUrl}
+              isBot={message.sender?.userType === "bot"}
+              className="w-8 h-8"
+              fallbackClassName="text-xs"
+            />
             <span className="text-sm font-semibold">
               {message.sender?.displayName ?? message.sender?.username ?? "Bot"}
             </span>

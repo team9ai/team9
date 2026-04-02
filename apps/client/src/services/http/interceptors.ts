@@ -7,6 +7,27 @@ import {
   refreshAccessToken,
 } from "../auth-session";
 
+function parseRequestData(data: unknown): Record<string, unknown> | null {
+  if (typeof data === "string") {
+    try {
+      const parsed = JSON.parse(data) as unknown;
+      return typeof parsed === "object" && parsed !== null
+        ? (parsed as Record<string, unknown>)
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  return typeof data === "object" && data !== null
+    ? (data as Record<string, unknown>)
+    : null;
+}
+
+function hasDataEnvelope(value: unknown): value is { data: unknown } {
+  return typeof value === "object" && value !== null && "data" in value;
+}
+
 export const requestLogger = (config: HttpRequestConfig): HttpRequestConfig => {
   if (import.meta.env.DEV) {
     console.log(`[HTTP Request] ${config.method} ${config.baseURL}`, config);
@@ -27,7 +48,6 @@ export const responseLogger = <T>(
 };
 
 export const errorLogger = async (error: HttpError): Promise<never> => {
-  // Report to Sentry (skip 401 as those are handled by auth refresh)
   if (error.status !== 401) {
     Sentry.captureException(error, {
       tags: {
@@ -77,29 +97,24 @@ export const workspaceInterceptor = (
     if (import.meta.env.DEV) {
       console.log(`[HTTP Interceptor] Adding X-Tenant-Id: ${workspaceId}`);
     }
-  } else {
-    if (import.meta.env.DEV) {
-      console.warn(`[HTTP Interceptor] No workspace selected for request`);
-    }
+  } else if (import.meta.env.DEV) {
+    console.warn(`[HTTP Interceptor] No workspace selected for request`);
   }
 
   return config;
 };
 
-// Retry a failed request with new token
-const retryRequest = async (
+const retryRequest = async <T = unknown>(
   config: HttpRequestConfig,
   newToken: string,
-): Promise<HttpResponse> => {
+): Promise<HttpResponse<T>> => {
   const baseURL =
     import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
 
-  // Build the full URL
   let url = config.baseURL
     ? `${config.baseURL}${config.url || ""}`
     : `${baseURL}${config.url || ""}`;
 
-  // Handle params if present
   if (config.params) {
     const urlObj = new URL(url);
     Object.entries(config.params).forEach(([key, value]) => {
@@ -129,14 +144,11 @@ const retryRequest = async (
     body,
   });
 
-  const contentType = response.headers.get("content-type");
-  let data: any;
-
-  if (contentType?.includes("application/json")) {
-    data = await response.json();
-  } else {
-    data = await response.text();
-  }
+  const data = response.headers
+    .get("content-type")
+    ?.includes("application/json")
+    ? ((await response.json()) as T)
+    : ((await response.text()) as T);
 
   if (!response.ok) {
     const error = new Error(
@@ -164,9 +176,12 @@ export const handleUnauthorized = async (
   }
 
   const originalConfig = error.config;
+  const isRefreshRequest =
+    originalConfig?.url?.includes("/v1/auth/refresh") ||
+    (originalConfig?.data &&
+      parseRequestData(originalConfig.data)?.refreshToken);
 
-  // Avoid retry loops for the refresh endpoint itself.
-  if (originalConfig?.url?.includes("/v1/auth/refresh")) {
+  if (isRefreshRequest) {
     redirectToLogin();
     throw error;
   }
@@ -193,14 +208,10 @@ export const handleUnauthorized = async (
 export const transformResponse = <T>(
   response: HttpResponse<T>,
 ): HttpResponse<T> => {
-  if (
-    response.data &&
-    typeof response.data === "object" &&
-    "data" in response.data
-  ) {
+  if (response.data && hasDataEnvelope(response.data)) {
     return {
       ...response,
-      data: (response.data as any).data,
+      data: response.data.data as T,
     };
   }
   return response;

@@ -8,6 +8,8 @@ interface EnterpriseModuleConfig {
   exportName: string;
 }
 
+type EnterpriseModuleExports = Record<string, Type<unknown> | undefined>;
+
 // TenantModule removed - now available in community edition via WorkspaceModule
 const ENTERPRISE_MODULES: EnterpriseModuleConfig[] = [
   {
@@ -62,14 +64,17 @@ export class EditionModule {
     };
   }
 
-  private static async loadEnterpriseModules(): Promise<Type[]> {
-    const modules: Type[] = [];
+  private static async loadEnterpriseModules(): Promise<Type<unknown>[]> {
+    const modules: Type<unknown>[] = [];
 
     for (const config of ENTERPRISE_MODULES) {
       try {
-        const mod = await import(config.modulePath);
-        if (mod[config.exportName]) {
-          modules.push(mod[config.exportName]);
+        const mod = (await import(
+          config.modulePath
+        )) as EnterpriseModuleExports;
+        const enterpriseModule = mod[config.exportName];
+        if (enterpriseModule) {
+          modules.push(enterpriseModule);
           this.logger.log(`✓ Loaded ${config.name}`);
         }
       } catch {

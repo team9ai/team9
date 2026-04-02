@@ -191,7 +191,12 @@ export function ThreadPanel({
     });
 
     return () => cancelAnimationFrame(rafId);
-  }, [tailActivityKey, thinkingBotIdsKey, threadListData.length]);
+  }, [
+    tailActivityKey,
+    thinkingBotIdsKey,
+    threadListData.length,
+    threadStreams.length,
+  ]);
 
   // Handle jumping to bottom when clicking new message indicator
   const handleJumpToBottom = useCallback(async () => {

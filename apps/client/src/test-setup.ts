@@ -2,17 +2,17 @@ import "@testing-library/jest-dom/vitest";
 import { beforeEach } from "vitest";
 
 function createMemoryStorage(): Storage {
-  let store = new Map<string, string>();
+  const store = new Map<string, string>();
 
   return {
     get length() {
       return store.size;
     },
     clear() {
-      store = new Map<string, string>();
+      store.clear();
     },
     getItem(key: string) {
-      return store.has(key) ? store.get(key)! : null;
+      return store.get(key) ?? null;
     },
     key(index: number) {
       return Array.from(store.keys())[index] ?? null;
@@ -21,27 +21,36 @@ function createMemoryStorage(): Storage {
       store.delete(key);
     },
     setItem(key: string, value: string) {
-      store.set(key, value);
+      store.set(key, String(value));
     },
   };
 }
 
-function ensureWebStorage(name: "localStorage" | "sessionStorage") {
-  const storage = globalThis[name];
-  if (storage && typeof storage.getItem === "function") {
-    return storage;
+function ensureStorage(name: "localStorage" | "sessionStorage") {
+  const existing = globalThis[name];
+  if (existing && typeof existing.getItem === "function") {
+    return existing;
   }
 
-  const fallback = createMemoryStorage();
+  const storage = createMemoryStorage();
+
   Object.defineProperty(globalThis, name, {
-    value: fallback,
+    value: storage,
     configurable: true,
   });
-  return fallback;
+
+  if (typeof window !== "undefined") {
+    Object.defineProperty(window, name, {
+      value: storage,
+      configurable: true,
+    });
+  }
+
+  return storage;
 }
 
-const localStorageRef = ensureWebStorage("localStorage");
-const sessionStorageRef = ensureWebStorage("sessionStorage");
+const localStorageRef = ensureStorage("localStorage");
+const sessionStorageRef = ensureStorage("sessionStorage");
 
 beforeEach(() => {
   localStorageRef.clear();

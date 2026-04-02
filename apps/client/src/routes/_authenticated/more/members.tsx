@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useRef, useCallback } from "react";
+import { useState, useCallback, type UIEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ArrowLeft,
@@ -13,19 +13,20 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import {
   useWorkspaceMembers,
   useCurrentWorkspaceRole,
   useUpdateMemberRole,
   useRemoveMember,
 } from "@/hooks/useWorkspace";
+import { getHttpErrorMessage } from "@/lib/http-error";
 import { useWorkspaceStore } from "@/stores";
 import { formatDistanceToNow } from "@/lib/date-utils";
 import type { WorkspaceMember } from "@/types/workspace";
@@ -51,7 +52,6 @@ const roleLabels = {
 function MembersPage() {
   const { t } = useTranslation("workspace");
   const [search, setSearch] = useState("");
-  const scrollRef = useRef<HTMLDivElement>(null);
 
   const { selectedWorkspaceId } = useWorkspaceStore();
   const { isOwner } = useCurrentWorkspaceRole();
@@ -71,14 +71,17 @@ function MembersPage() {
   const members = data?.pages.flatMap((page) => page.members) || [];
 
   // Handle scroll for infinite loading
-  const handleScroll = useCallback(() => {
-    if (!scrollRef.current || !hasNextPage || isFetchingNextPage) return;
+  const handleScroll = useCallback(
+    (event: UIEvent<HTMLDivElement>) => {
+      if (!hasNextPage || isFetchingNextPage) return;
 
-    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-    if (scrollHeight - scrollTop <= clientHeight * 1.5) {
-      fetchNextPage();
-    }
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+      const { scrollTop, scrollHeight, clientHeight } = event.currentTarget;
+      if (scrollHeight - scrollTop <= clientHeight * 1.5) {
+        fetchNextPage();
+      }
+    },
+    [hasNextPage, isFetchingNextPage, fetchNextPage],
+  );
 
   const handleRoleChange = async (
     member: WorkspaceMember,
@@ -104,8 +107,8 @@ function MembersPage() {
         userId: member.userId,
         role: newRole,
       });
-    } catch (error: any) {
-      alert(error?.response?.data?.message || "Failed to update role");
+    } catch (error: unknown) {
+      alert(getHttpErrorMessage(error) || "Failed to update role");
     }
   };
 
@@ -135,8 +138,8 @@ function MembersPage() {
     ) {
       try {
         await removeMember.mutateAsync(member.userId);
-      } catch (error: any) {
-        alert(error?.response?.data?.message || "Failed to remove member");
+      } catch (error: unknown) {
+        alert(getHttpErrorMessage(error) || "Failed to remove member");
       }
     }
   };
@@ -175,12 +178,7 @@ function MembersPage() {
         </div>
 
         {/* Members List */}
-        <ScrollArea
-          className="flex-1"
-          onScroll={handleScroll}
-          //@ts-ignore
-          ref={scrollRef}
-        >
+        <ScrollArea className="flex-1" onScrollCapture={handleScroll}>
           {isLoading ? (
             <div className="text-center py-8 text-muted-foreground">
               {t("common:loading", "Loading...")}
@@ -199,16 +197,14 @@ function MembersPage() {
                   className="flex items-center justify-between p-4 rounded-lg hover:bg-accent/50 transition-colors border"
                 >
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <Avatar className="w-10 h-10">
-                      {member.avatarUrl && (
-                        <AvatarImage src={member.avatarUrl} />
-                      )}
-                      <AvatarFallback className="bg-primary/10 text-primary">
-                        {(member.displayName || member.username)
-                          .charAt(0)
-                          .toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar
+                      userId={member.userId}
+                      name={member.displayName || member.username}
+                      username={member.username}
+                      avatarUrl={member.avatarUrl}
+                      isBot={member.userType === "bot"}
+                      className="w-10 h-10"
+                    />
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">
                         {member.displayName || member.username}

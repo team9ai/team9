@@ -10,7 +10,7 @@ async function seed() {
   console.log('🌱 Seeding database...');
 
   const client = postgres(connectionString);
-  const db = drizzle(client, { schema });
+  const _db = drizzle(client, { schema });
 
   try {
     // Add seed data here as needed

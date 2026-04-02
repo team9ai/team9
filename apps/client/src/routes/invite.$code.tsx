@@ -11,9 +11,11 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { getHttpErrorMessage } from "@/lib/http-error";
+import { useEffectOncePerKey } from "@/hooks/useEffectOncePerKey";
 import workspaceApi from "@/services/api/workspace";
 import { workspaceActions, appActions } from "@/stores";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 
 export const Route = createFileRoute("/invite/$code")({
   component: InvitePage,
@@ -26,7 +28,6 @@ function InvitePage() {
   const { t } = useTranslation("workspace");
   const [alreadyMember, setAlreadyMember] = useState(false);
   const [workspaceFull, setWorkspaceFull] = useState(false);
-  const autoAcceptTriggered = useRef(false);
 
   const token = localStorage.getItem("auth_token");
 
@@ -36,16 +37,17 @@ function InvitePage() {
   });
 
   const acceptMutation = useMutation({
-    mutationFn: () => workspaceApi.acceptInvitation(code),
+    mutationFn: (inviteCode: string) =>
+      workspaceApi.acceptInvitation(inviteCode),
     onSuccess: async (data) => {
       workspaceActions.setSelectedWorkspaceId(data.workspace.id);
       appActions.resetNavigationForWorkspaceEntry();
       await queryClient.invalidateQueries({ queryKey: ["user-workspaces"] });
       navigate({ to: "/channels", replace: true });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       console.error("Failed to accept invitation:", error);
-      const msg = error?.message || error?.response?.data?.message || "";
+      const msg = getHttpErrorMessage(error) || "";
       if (msg.includes("maximum") || msg.includes("member limit")) {
         setWorkspaceFull(true);
       } else if (msg.includes("already a member")) {
@@ -54,13 +56,19 @@ function InvitePage() {
     },
   });
 
-  // Auto-accept for logged-in users
   useEffect(() => {
-    if (token && inviteInfo?.isValid && !autoAcceptTriggered.current) {
-      autoAcceptTriggered.current = true;
-      acceptMutation.mutate();
-    }
-  }, [token, inviteInfo]);
+    setAlreadyMember(false);
+    setWorkspaceFull(false);
+  }, [code]);
+
+  // Auto-accept for logged-in users
+  useEffectOncePerKey(
+    code,
+    Boolean(token && inviteInfo?.isValid),
+    (inviteCode) => {
+      acceptMutation.mutate(inviteCode);
+    },
+  );
 
   // Redirect unauthenticated users to register
   useEffect(() => {

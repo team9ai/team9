@@ -8,7 +8,7 @@ import {
   Wrench,
   ArrowRight,
 } from "lucide-react";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,14 @@ import {
 } from "@/hooks/useWorkspace";
 import { useSelectedWorkspaceId, useUser } from "@/stores";
 import { useChannelsByType } from "@/hooks/useChannels";
+import { useEffectOncePerKey } from "@/hooks/useEffectOncePerKey";
 import { CreateChannelDialog } from "@/components/dialog/CreateChannelDialog";
+
+const DEFAULT_INVITATION_OPTIONS = {
+  role: "member" as const,
+  maxUses: 1000,
+  expiresInDays: 100,
+};
 
 export function HomeMainContent() {
   const { t } = useTranslation(["navigation", "common"]);
@@ -47,7 +54,6 @@ export function HomeMainContent() {
     workspaceId ?? undefined,
   );
   const createInvitation = useCreateInvitation(workspaceId ?? undefined);
-  const hasCreatedRef = useRef(false);
 
   const validInvitation = useMemo(
     () =>
@@ -60,15 +66,15 @@ export function HomeMainContent() {
     [invitations],
   );
 
-  useEffect(() => {
-    if (validInvitation || hasCreatedRef.current || !workspaceId) return;
-    hasCreatedRef.current = true;
-    createInvitation.mutate({
-      role: "member",
-      maxUses: 1000,
-      expiresInDays: 100,
-    });
-  }, [validInvitation, workspaceId]);
+  useEffectOncePerKey(
+    workspaceId,
+    Boolean(workspaceId) && !validInvitation,
+    () => {
+      createInvitation.mutate({
+        ...DEFAULT_INVITATION_OPTIONS,
+      });
+    },
+  );
 
   const inviteUrl = validInvitation?.url;
 

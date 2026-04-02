@@ -13,7 +13,6 @@ import {
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Popover,
   PopoverContent,
@@ -33,7 +32,7 @@ import { QuickSearchResults } from "@/components/search/QuickSearchResults";
 export function GlobalTopBar() {
   const { t } = useTranslation("common");
   const navigate = useNavigate();
-  const user = useUser();
+  useUser();
   const { selectedWorkspaceId } = useWorkspaceStore();
   const { data: workspaces } = useUserWorkspaces();
   const inputRef = useRef<HTMLInputElement>(null);

@@ -1,4 +1,8 @@
 import { useTranslation } from "react-i18next";
+import {
+  HISTORY_TRIGGER_TYPE_LABEL_KEYS,
+  isHistoryTriggerType,
+} from "@/lib/task-trigger-keys";
 import { cn } from "@/lib/utils";
 import type { AgentTaskExecution, AgentTaskStatus } from "@/types/task";
 
@@ -11,14 +15,6 @@ const STATUS_COLORS: Record<AgentTaskStatus, string> = {
   failed: "bg-red-500",
   stopped: "bg-gray-500",
   timeout: "bg-red-400",
-};
-
-const TRIGGER_TYPE_KEYS: Record<string, string> = {
-  manual: "historyTab.manual",
-  interval: "historyTab.interval",
-  schedule: "historyTab.schedule",
-  channel_message: "historyTab.channelMessage",
-  retry: "historyTab.retry",
 };
 
 interface TaskRunItemProps {
@@ -70,8 +66,8 @@ export function TaskRunItem({
       <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5 pl-3">
         {execution.triggerType && (
           <span>
-            {TRIGGER_TYPE_KEYS[execution.triggerType]
-              ? t(TRIGGER_TYPE_KEYS[execution.triggerType])
+            {isHistoryTriggerType(execution.triggerType)
+              ? t(HISTORY_TRIGGER_TYPE_LABEL_KEYS[execution.triggerType])
               : execution.triggerType}
           </span>
         )}

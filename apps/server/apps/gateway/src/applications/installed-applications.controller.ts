@@ -38,10 +38,17 @@ import {
   type SafeInstalledApplication,
 } from './installed-applications.service.js';
 import { ApplicationsService } from './applications.service.js';
-import { OpenclawService } from '../openclaw/openclaw.service.js';
+import {
+  OpenclawService,
+  type Instance as OpenclawInstance,
+} from '../openclaw/openclaw.service.js';
 import { FileKeeperService } from '../file-keeper/file-keeper.service.js';
 import { BotService } from '../bot/bot.service.js';
 import { generateSlug, generateShortId } from '../common/utils/slug.util.js';
+
+type InstalledApplicationBot = Awaited<
+  ReturnType<BotService['getBotsByInstalledApplicationId']>
+>[number];
 
 @Controller({
   path: 'installed-applications',
@@ -60,6 +67,28 @@ export class InstalledApplicationsController {
     private readonly fileKeeperService: FileKeeperService,
     private readonly botService: BotService,
   ) {}
+
+  private async getBotsOrEmpty(
+    installedApplicationId: string,
+  ): Promise<InstalledApplicationBot[]> {
+    try {
+      return await this.botService.getBotsByInstalledApplicationId(
+        installedApplicationId,
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  private async getOpenclawInstanceOrNull(
+    instanceId: string,
+  ): Promise<OpenclawInstance | null> {
+    try {
+      return await this.openclawService.getInstance(instanceId);
+    } catch {
+      return null;
+    }
+  }
 
   /**
    * Get all installed applications for the current tenant.
@@ -96,11 +125,9 @@ export class InstalledApplicationsController {
           const instancesId = (app.config as { instancesId?: string })
             ?.instancesId;
           const [bots, instance] = await Promise.all([
-            this.botService
-              .getBotsByInstalledApplicationId(app.id)
-              .catch(() => []),
+            this.getBotsOrEmpty(app.id),
             instancesId
-              ? this.openclawService.getInstance(instancesId).catch(() => null)
+              ? this.getOpenclawInstanceOrNull(instancesId)
               : Promise.resolve(null),
           ]);
 
@@ -132,9 +159,7 @@ export class InstalledApplicationsController {
         }
 
         if (app.applicationId === 'base-model-staff') {
-          const bots = await this.botService
-            .getBotsByInstalledApplicationId(app.id)
-            .catch(() => []);
+          const bots = await this.getBotsOrEmpty(app.id);
           return {
             ...app,
             bots: bots.map((bot) => ({

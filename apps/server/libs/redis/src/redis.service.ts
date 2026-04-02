@@ -6,7 +6,7 @@ import { REDIS_CLIENT } from './redis.constants.js';
 export class RedisService {
   private readonly NULL_MARKER = '__CACHE_NULL__';
   // Singleflight: prevent cache stampede by deduplicating concurrent DB calls for the same key
-  private readonly inflight = new Map<string, Promise<any>>();
+  private readonly inflight = new Map<string, Promise<unknown>>();
 
   constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
 
@@ -60,7 +60,9 @@ export class RedisService {
       } else {
         await this.redis.set(key, JSON.stringify(result), 'EX', ttlSeconds);
       }
-    } catch {}
+    } catch {
+      // Cache writes are best-effort and should not fail the caller.
+    }
 
     return result;
   }

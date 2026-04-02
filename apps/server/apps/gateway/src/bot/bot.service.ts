@@ -19,6 +19,8 @@ import type {
 } from '@team9/database/schemas';
 import { env } from '@team9/shared';
 import { ChannelsService } from '../im/channels/channels.service.js';
+import { BotAuthCacheService } from './bot-auth-cache.service.js';
+import { BOT_TOKEN_PREFIX, extractBotTokenHex } from './bot-token.util.js';
 
 export interface CreateBotOptions {
   username: string;
@@ -67,6 +69,19 @@ export interface WorkspaceBotResult {
   accessToken?: string;
 }
 
+export interface BotAuthValidationContext {
+  botId: string;
+  userId: string;
+  tenantId: string;
+}
+
+interface ValidatedBotTokenMatch {
+  botId: string;
+  userId: string;
+  tenantId: string | null;
+  authVersion: number | null;
+}
+
 /**
  * BotService manages bot accounts.
  *
@@ -87,9 +102,10 @@ export class BotService implements OnModuleInit {
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly eventEmitter: EventEmitter2,
     private readonly channelsService: ChannelsService,
+    private readonly botAuthCache: BotAuthCacheService,
   ) {}
 
-  async onModuleInit(): Promise<void> {
+  onModuleInit(): void {
     if (env.SYSTEM_BOT_ENABLED) {
       // await this.initializeSystemBot();
     } else {
@@ -517,6 +533,7 @@ export class BotService implements OnModuleInit {
       .select({
         id: schema.bots.id,
         userId: schema.bots.userId,
+        accessToken: schema.bots.accessToken,
       })
       .from(schema.bots)
       .where(eq(schema.bots.id, botId))
@@ -527,19 +544,42 @@ export class BotService implements OnModuleInit {
     }
 
     const rawHex = crypto.randomBytes(48).toString('hex');
-    const rawToken = `t9bot_${rawHex}`;
+    const rawToken = `${BOT_TOKEN_PREFIX}${rawHex}`;
     const fingerprint = rawHex.slice(0, 8);
     const hash = await bcrypt.hash(rawHex, 10);
+    const nextAccessToken = `${fingerprint}:${hash}`;
 
-    await this.db
-      .update(schema.bots)
-      .set({
-        accessToken: `${fingerprint}:${hash}`,
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.bots.id, botId));
+    await this.replaceAccessTokenAndInvalidate(
+      botId,
+      bot.accessToken,
+      nextAccessToken,
+    );
 
     return { botId, userId: bot.userId, accessToken: rawToken };
+  }
+
+  async validateAccessTokenWithContext(
+    rawToken: string,
+  ): Promise<BotAuthValidationContext | null> {
+    if (!extractBotTokenHex(rawToken)) {
+      return null;
+    }
+
+    return this.botAuthCache.getOrSetValidation(rawToken, async () => {
+      const match = await this.findValidatedAccessTokenMatch(rawToken);
+      if (!match?.tenantId) {
+        return null;
+      }
+
+      return {
+        context: {
+          botId: match.botId,
+          userId: match.userId,
+          tenantId: match.tenantId,
+        },
+        version: match.authVersion,
+      };
+    });
   }
 
   /**
@@ -552,53 +592,42 @@ export class BotService implements OnModuleInit {
   async validateAccessToken(
     rawToken: string,
   ): Promise<{ userId: string; email: string; username: string } | null> {
-    if (!rawToken || !rawToken.startsWith('t9bot_')) return null;
+    const match = await this.findValidatedAccessTokenMatch(rawToken);
+    if (!match) {
+      return null;
+    }
 
-    const rawHex = rawToken.slice(6);
-    if (rawHex.length === 0) return null;
-
-    const fingerprint = rawHex.slice(0, 8);
-
-    const rows = await this.db
+    const [user] = await this.db
       .select({
-        botId: schema.bots.id,
-        userId: schema.bots.userId,
-        accessToken: schema.bots.accessToken,
+        id: schema.users.id,
         email: schema.users.email,
         username: schema.users.username,
       })
-      .from(schema.bots)
-      .innerJoin(schema.users, eq(schema.bots.userId, schema.users.id))
-      .where(
-        and(
-          like(schema.bots.accessToken, `${fingerprint}:%`),
-          eq(schema.bots.isActive, true),
-        ),
-      );
+      .from(schema.users)
+      .where(eq(schema.users.id, match.userId))
+      .limit(1);
 
-    for (const row of rows) {
-      const storedHash = row.accessToken!.slice(fingerprint.length + 1);
-      const isValid = await bcrypt.compare(rawHex, storedHash);
-      if (isValid) {
-        return {
-          userId: row.userId,
-          email: row.email,
-          username: row.username,
-        };
-      }
+    if (!user) {
+      return null;
     }
 
-    return null;
+    return {
+      userId: match.userId,
+      email: user.email,
+      username: user.username,
+    };
   }
 
   /**
    * Revoke a bot's access token.
    */
   async revokeAccessToken(botId: string): Promise<void> {
-    await this.db
-      .update(schema.bots)
-      .set({ accessToken: null, updatedAt: new Date() })
-      .where(eq(schema.bots.id, botId));
+    const previousAccessToken = await this.getStoredAccessToken(botId);
+    await this.replaceAccessTokenAndInvalidate(
+      botId,
+      previousAccessToken,
+      null,
+    );
   }
 
   /**
@@ -648,6 +677,13 @@ export class BotService implements OnModuleInit {
       throw new Error(`Bot not found: ${botId}`);
     }
 
+    const previousAccessToken = await this.getStoredAccessToken(botId);
+    await this.replaceAccessTokenAndInvalidate(
+      botId,
+      previousAccessToken,
+      null,
+    );
+
     // Delete all DM channels the bot participates in
     const deletedChannels =
       await this.channelsService.deleteDirectChannelsForUser(bot.userId);
@@ -658,6 +694,7 @@ export class BotService implements OnModuleInit {
     }
 
     // Delete shadow user (im_bots cascades via userId FK)
+    await this.botAuthCache.invalidateBot(botId);
     await this.db.delete(schema.users).where(eq(schema.users.id, bot.userId));
 
     this.logger.log(`Deleted bot ${botId} and shadow user ${bot.userId}`);
@@ -792,6 +829,164 @@ export class BotService implements OnModuleInit {
       .limit(1);
 
     return row || null;
+  }
+
+  private async getStoredAccessToken(botId: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({
+        accessToken: schema.bots.accessToken,
+      })
+      .from(schema.bots)
+      .where(eq(schema.bots.id, botId))
+      .limit(1);
+
+    return row?.accessToken ?? null;
+  }
+
+  private async replaceAccessTokenAndInvalidate(
+    botId: string,
+    previousAccessToken: string | null,
+    nextAccessToken: string | null,
+  ): Promise<void> {
+    await this.botAuthCache.beginBotMutation(botId);
+    try {
+      await this.db
+        .update(schema.bots)
+        .set({ accessToken: nextAccessToken, updatedAt: new Date() })
+        .where(eq(schema.bots.id, botId));
+
+      await this.botAuthCache.invalidateBot(botId);
+    } catch (error) {
+      if (nextAccessToken !== previousAccessToken) {
+        await this.db
+          .update(schema.bots)
+          .set({ accessToken: previousAccessToken, updatedAt: new Date() })
+          .where(eq(schema.bots.id, botId));
+      }
+      throw error;
+    } finally {
+      await this.botAuthCache.endBotMutation(botId);
+    }
+  }
+
+  private async findValidatedAccessTokenMatch(
+    rawToken: string,
+  ): Promise<ValidatedBotTokenMatch | null> {
+    const rawHex = extractBotTokenHex(rawToken);
+    if (!rawHex) {
+      return null;
+    }
+
+    const fingerprint = rawHex.slice(0, 8);
+    const rows = await this.db
+      .select({
+        botId: schema.bots.id,
+        userId: schema.bots.userId,
+        tenantId: schema.installedApplications.tenantId,
+        accessToken: schema.bots.accessToken,
+      })
+      .from(schema.bots)
+      .leftJoin(
+        schema.installedApplications,
+        eq(schema.bots.installedApplicationId, schema.installedApplications.id),
+      )
+      .where(
+        and(
+          like(schema.bots.accessToken, `${fingerprint}:%`),
+          eq(schema.bots.isActive, true),
+        ),
+      );
+
+    for (const row of rows) {
+      if (await this.botAuthCache.isBotMutationInProgress(row.botId)) {
+        continue;
+      }
+      if (!(await this.doesTokenMatch(rawHex, row.accessToken))) {
+        continue;
+      }
+
+      if (await this.botAuthCache.isBotMutationInProgress(row.botId)) {
+        continue;
+      }
+      const versionBefore = await this.botAuthCache.getBotVersion(row.botId);
+      const confirmed = await this.confirmValidatedAccessToken(
+        row.botId,
+        rawHex,
+      );
+      if (!confirmed) {
+        continue;
+      }
+
+      if (await this.botAuthCache.isBotMutationInProgress(row.botId)) {
+        continue;
+      }
+      const versionAfter = await this.botAuthCache.getBotVersion(row.botId);
+      if (
+        versionBefore !== null &&
+        versionAfter !== null &&
+        versionBefore !== versionAfter
+      ) {
+        continue;
+      }
+
+      confirmed.authVersion = versionAfter ?? versionBefore;
+
+      return confirmed;
+    }
+
+    return null;
+  }
+
+  private async confirmValidatedAccessToken(
+    botId: string,
+    rawHex: string,
+  ): Promise<ValidatedBotTokenMatch | null> {
+    const [row] = await this.db
+      .select({
+        botId: schema.bots.id,
+        userId: schema.bots.userId,
+        tenantId: schema.installedApplications.tenantId,
+        accessToken: schema.bots.accessToken,
+      })
+      .from(schema.bots)
+      .leftJoin(
+        schema.installedApplications,
+        eq(schema.bots.installedApplicationId, schema.installedApplications.id),
+      )
+      .where(and(eq(schema.bots.id, botId), eq(schema.bots.isActive, true)))
+      .limit(1);
+
+    if (!row) {
+      return null;
+    }
+
+    if (!(await this.doesTokenMatch(rawHex, row.accessToken))) {
+      return null;
+    }
+
+    return {
+      botId: row.botId,
+      userId: row.userId,
+      tenantId: row.tenantId,
+      authVersion: null,
+    };
+  }
+
+  private async doesTokenMatch(
+    rawHex: string,
+    storedAccessToken: string | null,
+  ): Promise<boolean> {
+    if (!storedAccessToken) {
+      return false;
+    }
+
+    const separatorIndex = storedAccessToken.indexOf(':');
+    if (separatorIndex === -1) {
+      return false;
+    }
+
+    const storedHash = storedAccessToken.slice(separatorIndex + 1);
+    return bcrypt.compare(rawHex, storedHash);
   }
 }
 

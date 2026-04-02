@@ -15,6 +15,7 @@ import {
 } from "@/hooks/useWorkspace";
 import { fileApi } from "@/services/api/file";
 import { useWorkspaceStore } from "@/stores";
+import { getHttpErrorMessage, getHttpErrorStatus } from "@/lib/http-error";
 import type { UpdateWorkspaceDto } from "@/types/workspace";
 
 const MAX_LOGO_SIZE = 5 * 1024 * 1024;
@@ -122,12 +123,8 @@ export function WorkspaceSettingsContent() {
       });
 
       setLogoUrl(presigned.publicUrl);
-    } catch (error: any) {
-      setUploadError(
-        error?.response?.data?.message ||
-          error?.message ||
-          t("logoUploadFailed"),
-      );
+    } catch (error) {
+      setUploadError(getHttpErrorMessage(error) ?? t("logoUploadFailed"));
     } finally {
       setIsUploadingLogo(false);
     }
@@ -151,16 +148,12 @@ export function WorkspaceSettingsContent() {
         data,
       });
       setSavedMessage(t("settingsSaved"));
-    } catch (error: any) {
-      const status = error?.response?.status ?? error?.status;
+    } catch (error) {
+      const status = getHttpErrorStatus(error);
       if (status === 409) {
         setSubmitError(t("slugAlreadyTaken"));
       } else {
-        setSubmitError(
-          error?.response?.data?.message ||
-            error?.message ||
-            t("settingsSaveFailed"),
-        );
+        setSubmitError(getHttpErrorMessage(error) ?? t("settingsSaveFailed"));
       }
     }
   };
@@ -208,8 +201,7 @@ export function WorkspaceSettingsContent() {
 
   if (error || !workspace) {
     const loadErrorMessage =
-      (error as any)?.response?.data?.message ||
-      (error as Error | null)?.message ||
+      getHttpErrorMessage(error) ||
       t("workspaceLoadFailed", "Unable to load workspace settings right now");
 
     return (

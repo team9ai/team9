@@ -2,10 +2,6 @@ import { Injectable, Inject } from '@nestjs/common';
 import {
   DATABASE_CONNECTION,
   sql,
-  eq,
-  and,
-  lt,
-  gt,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -150,7 +146,7 @@ export class PostgresSearchProvider implements SearchProvider {
 
   async searchChannels(
     query: SearchQuery,
-    userId: string,
+    _userId: string,
   ): Promise<SearchResults<ChannelSearchResult>> {
     const limit = query.limit || DEFAULT_SEARCH_LIMIT;
     const offset = query.offset || 0;
@@ -427,7 +423,8 @@ export class PostgresSearchProvider implements SearchProvider {
       .toLowerCase() // Convert to lowercase for case-insensitive search
       .split(/\s+/)
       .filter((term) => term.length > 0)
-      .map((term) => term.replace(/[^\w\u4e00-\u9fff]/g, '')); // Keep alphanumeric and Chinese chars
+      .map((term) => term.replace(/[^\w\u4e00-\u9fff]/g, ''))
+      .filter((term) => term.length > 0); // Keep alphanumeric and Chinese chars
 
     if (terms.length === 0) {
       return '';

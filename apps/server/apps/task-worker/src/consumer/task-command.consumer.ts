@@ -85,8 +85,6 @@ export class TaskCommandConsumer {
         case 'stop':
           await this.executor.stopExecution(command.taskId);
           break;
-        default:
-          this.logger.warn(`Unknown task command type: ${command.type}`);
       }
     } catch (error) {
       this.logger.error(

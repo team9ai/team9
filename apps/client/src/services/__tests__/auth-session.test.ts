@@ -100,19 +100,21 @@ describe("isAuthTokenExpired", () => {
 
 describe("redirectToLogin", () => {
   let originalPathname: string;
-  let hrefSetter: ReturnType<typeof vi.fn>;
+  let hrefSetterSpy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     originalPathname = window.location.pathname;
     // window.location.href assignment triggers navigation; spy on it.
-    hrefSetter = vi.fn();
+    hrefSetterSpy = vi.fn();
     Object.defineProperty(window, "location", {
       value: { ...window.location, pathname: "/dashboard", href: "" },
       writable: true,
       configurable: true,
     });
     Object.defineProperty(window.location, "href", {
-      set: hrefSetter,
+      set: (value: string) => {
+        hrefSetterSpy.mock.calls.push([value]);
+      },
       get: () => "",
       configurable: true,
     });
@@ -131,25 +133,25 @@ describe("redirectToLogin", () => {
     redirectToLogin();
     expect(getAuthToken()).toBeNull();
     expect(getRefreshToken()).toBeNull();
-    expect(hrefSetter).toHaveBeenCalledWith("/login");
+    expect(hrefSetterSpy).toHaveBeenCalledWith("/login");
   });
 
   it("does not redirect when already on /login", () => {
     window.location.pathname = "/login";
     redirectToLogin();
-    expect(hrefSetter).not.toHaveBeenCalled();
+    expect(hrefSetterSpy).not.toHaveBeenCalled();
   });
 
   it("does not redirect when on /register", () => {
     window.location.pathname = "/register";
     redirectToLogin();
-    expect(hrefSetter).not.toHaveBeenCalled();
+    expect(hrefSetterSpy).not.toHaveBeenCalled();
   });
 
   it("does not redirect when on /verify-email", () => {
     window.location.pathname = "/verify-email/some-token";
     redirectToLogin();
-    expect(hrefSetter).not.toHaveBeenCalled();
+    expect(hrefSetterSpy).not.toHaveBeenCalled();
   });
 });
 

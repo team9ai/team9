@@ -29,6 +29,10 @@ export class TenantMiddleware implements NestMiddleware {
     private readonly redisService: RedisService,
   ) {}
 
+  private getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+  }
+
   async use(
     req: Request & { tenantId?: string; tenant?: Tenant },
     res: Response,
@@ -46,8 +50,10 @@ export class TenantMiddleware implements NestMiddleware {
           this.logger.debug(`Tenant context set: ${tenant.slug}`);
         }
       }
-    } catch (error: any) {
-      this.logger.warn(`Failed to resolve tenant context: ${error.message}`);
+    } catch (error: unknown) {
+      this.logger.warn(
+        `Failed to resolve tenant context: ${this.getErrorMessage(error)}`,
+      );
     }
 
     next();

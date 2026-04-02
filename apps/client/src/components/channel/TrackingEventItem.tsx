@@ -46,7 +46,7 @@ export function TrackingEventItem({
   metadata,
   content,
   isStreaming = false,
-  compact = true,
+  compact: _compact = true,
   collapsible = false,
 }: TrackingEventItemProps) {
   const [isExpanded, setIsExpanded] = useState(false);
