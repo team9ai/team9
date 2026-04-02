@@ -47,6 +47,8 @@ export function GlobalTopBar() {
     (w) => w.id === selectedWorkspaceId,
   );
   const workspaceName = currentWorkspace?.name || "Workspace";
+  const canManageBilling =
+    currentWorkspace?.role === "owner" || currentWorkspace?.role === "admin";
 
   // Navigate to search page for full search (default to messages)
   const handleDeepSearch = useCallback(() => {
@@ -217,17 +219,19 @@ export function GlobalTopBar() {
 
       {/* Right section - Subscription entry + Local device status */}
       <div className="flex items-center gap-1">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2 text-nav-foreground-subtle hover:text-nav-foreground hover:bg-nav-hover gap-1"
-          onClick={() => navigate({ to: "/subscription" })}
-        >
-          <Crown size={14} />
-          <span className="text-xs hidden sm:inline">
-            {t("subscription", "Subscription")}
-          </span>
-        </Button>
+        {canManageBilling ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-nav-foreground-subtle hover:text-nav-foreground hover:bg-nav-hover gap-1"
+            onClick={() => navigate({ to: "/subscription" })}
+          >
+            <Crown size={14} />
+            <span className="text-xs hidden sm:inline">
+              {t("subscription", "Plan")}
+            </span>
+          </Button>
+        ) : null}
         <LocalDeviceStatus />
       </div>
     </header>

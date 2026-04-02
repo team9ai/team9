@@ -4,6 +4,7 @@ import { SubscriptionContent } from "@/components/layout/contents/SubscriptionCo
 type SubscriptionSearchParams = {
   workspaceId?: string;
   result?: "success" | "cancel";
+  view?: "plans" | "credits";
 };
 
 export const Route = createFileRoute("/_authenticated/subscription")({
@@ -17,14 +18,22 @@ export const Route = createFileRoute("/_authenticated/subscription")({
         search.result === "success" || search.result === "cancel"
           ? search.result
           : undefined,
+      view:
+        search.view === "credits" || search.view === "plans"
+          ? search.view
+          : undefined,
     };
   },
 });
 
 function SubscriptionRoute() {
-  const { workspaceId, result } = Route.useSearch();
+  const { workspaceId, result, view } = Route.useSearch();
 
   return (
-    <SubscriptionContent workspaceIdFromSearch={workspaceId} result={result} />
+    <SubscriptionContent
+      workspaceIdFromSearch={workspaceId}
+      result={result}
+      view={view}
+    />
   );
 }

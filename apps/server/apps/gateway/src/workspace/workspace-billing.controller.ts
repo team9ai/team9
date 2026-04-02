@@ -16,6 +16,7 @@ import {
   WorkspaceRoles,
 } from './guards/workspace-role.guard.js';
 import { CreateWorkspaceBillingCheckoutDto } from './dto/create-workspace-billing-checkout.dto.js';
+import { CreateWorkspaceBillingPortalDto } from './dto/create-workspace-billing-portal.dto.js';
 
 @Controller({
   path: 'workspaces',
@@ -47,6 +48,13 @@ export class WorkspaceBillingController {
     };
   }
 
+  @Get(':workspaceId/billing/overview')
+  @UseGuards(AuthGuard, WorkspaceGuard, WorkspaceRoleGuard)
+  @WorkspaceRoles('owner', 'admin')
+  async getOverview(@Param('workspaceId', ParseUUIDPipe) workspaceId: string) {
+    return this.billingHubService.getWorkspaceOverview(workspaceId);
+  }
+
   @Post(':workspaceId/billing/checkout')
   @UseGuards(AuthGuard, WorkspaceGuard, WorkspaceRoleGuard)
   @WorkspaceRoles('owner', 'admin')
@@ -57,14 +65,20 @@ export class WorkspaceBillingController {
     return this.billingHubService.createWorkspaceCheckout(
       workspaceId,
       dto.priceId,
+      dto.type,
+      dto.view,
+      dto.amountCents,
     );
   }
 
   @Post(':workspaceId/billing/portal')
   @UseGuards(AuthGuard, WorkspaceGuard, WorkspaceRoleGuard)
   @WorkspaceRoles('owner', 'admin')
-  async createPortal(@Param('workspaceId', ParseUUIDPipe) workspaceId: string) {
-    return this.billingHubService.createWorkspacePortal(workspaceId);
+  async createPortal(
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
+    @Body() dto?: CreateWorkspaceBillingPortalDto,
+  ) {
+    return this.billingHubService.createWorkspacePortal(workspaceId, dto?.view);
   }
 
   private managementAllowed(role?: string) {

@@ -11,6 +11,7 @@ import type {
   GetMembersParams,
   PaginatedMembersResponse,
   BillingProduct,
+  WorkspaceBillingOverview,
   WorkspaceBillingSummary,
 } from "@/types/workspace";
 
@@ -149,24 +150,41 @@ export const workspaceApi = {
     return response.data;
   },
 
+  getBillingOverview: async (
+    workspaceId: string,
+  ): Promise<WorkspaceBillingOverview> => {
+    const response = await http.get<WorkspaceBillingOverview>(
+      `/v1/workspaces/${workspaceId}/billing/overview`,
+    );
+    return response.data;
+  },
+
   createBillingCheckout: async (
     workspaceId: string,
     priceId: string,
+    type: "subscription" | "one_time" = "subscription",
+    view: "plans" | "credits" = "plans",
+    amountCents?: number,
   ): Promise<{ checkoutUrl: string; sessionId: string }> => {
     const response = await http.post<{
       checkoutUrl: string;
       sessionId: string;
     }>(`/v1/workspaces/${workspaceId}/billing/checkout`, {
       priceId,
+      type,
+      view,
+      ...(amountCents !== undefined ? { amountCents } : {}),
     });
     return response.data;
   },
 
   createBillingPortal: async (
     workspaceId: string,
+    view: "plans" | "credits" = "plans",
   ): Promise<{ portalUrl: string }> => {
     const response = await http.post<{ portalUrl: string }>(
       `/v1/workspaces/${workspaceId}/billing/portal`,
+      { view },
     );
     return response.data;
   },

@@ -9,6 +9,7 @@ describe('WorkspaceBillingController', () => {
   let billingHubService: {
     listSubscriptionProducts: jest.Mock<any>;
     getWorkspaceSubscription: jest.Mock<any>;
+    getWorkspaceOverview: jest.Mock<any>;
     createWorkspaceCheckout: jest.Mock<any>;
     createWorkspacePortal: jest.Mock<any>;
   };
@@ -17,6 +18,13 @@ describe('WorkspaceBillingController', () => {
     billingHubService = {
       listSubscriptionProducts: jest.fn<any>().mockResolvedValue([]),
       getWorkspaceSubscription: jest.fn<any>().mockResolvedValue(null),
+      getWorkspaceOverview: jest.fn<any>().mockResolvedValue({
+        account: null,
+        subscription: null,
+        subscriptionProducts: [],
+        creditProducts: [],
+        recentTransactions: [],
+      }),
       createWorkspaceCheckout: jest.fn<any>().mockResolvedValue({
         checkoutUrl: 'https://checkout.stripe.com/session',
         sessionId: 'cs_test',
@@ -65,15 +73,47 @@ describe('WorkspaceBillingController', () => {
   it('delegates checkout creation to BillingHubService', async () => {
     await controller.createCheckout('72ecfcd7-d495-43a4-8b8a-8fda2d9cec14', {
       priceId: 'price_pro_monthly',
+      type: 'subscription',
+      view: 'credits',
+      amountCents: 5500,
     });
 
     expect(billingHubService.createWorkspaceCheckout).toHaveBeenCalledWith(
       '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
       'price_pro_monthly',
+      'subscription',
+      'credits',
+      5500,
     );
   });
 
-  it('marks checkout and portal endpoints as owner/admin only', () => {
+  it('delegates portal creation with the current view context', async () => {
+    await controller.createPortal('72ecfcd7-d495-43a4-8b8a-8fda2d9cec14', {
+      view: 'credits',
+    });
+
+    expect(billingHubService.createWorkspacePortal).toHaveBeenCalledWith(
+      '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+      'credits',
+    );
+  });
+
+  it('delegates overview loading to BillingHubService', async () => {
+    await controller.getOverview('72ecfcd7-d495-43a4-8b8a-8fda2d9cec14');
+
+    expect(billingHubService.getWorkspaceOverview).toHaveBeenCalledWith(
+      '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+    );
+  });
+
+  it('marks overview, checkout and portal endpoints as owner/admin only', () => {
+    expect(
+      Reflect.getMetadata(
+        WORKSPACE_ROLES_KEY,
+        WorkspaceBillingController.prototype.getOverview,
+      ),
+    ).toEqual(['owner', 'admin']);
+
     expect(
       Reflect.getMetadata(
         WORKSPACE_ROLES_KEY,

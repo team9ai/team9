@@ -52,6 +52,112 @@ describe('BillingHubService', () => {
     );
   });
 
+  it('uses the one-time Stripe checkout route for credit packs', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: jest.fn<any>().mockResolvedValue(
+        JSON.stringify({
+          success: true,
+          data: {
+            checkoutUrl: 'https://checkout.stripe.com/c/pay/cs_pack',
+            sessionId: 'cs_pack',
+          },
+        }),
+      ),
+    });
+
+    await service.createWorkspaceCheckout(
+      '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+      'price_credit_pack',
+      'one_time',
+      'plans',
+      5500,
+    );
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://billing.example.com/api/billing/stripe/checkout/one-time',
+      expect.objectContaining({
+        body: JSON.stringify({
+          ownerExternalId: 'tenant:72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+          priceId: 'price_credit_pack',
+          successUrl:
+            'https://team9.ai/subscription?workspaceId=72ecfcd7-d495-43a4-8b8a-8fda2d9cec14&result=success',
+          cancelUrl:
+            'https://team9.ai/subscription?workspaceId=72ecfcd7-d495-43a4-8b8a-8fda2d9cec14&result=cancel',
+          amountCents: 5500,
+        }),
+      }),
+    );
+  });
+
+  it('preserves the credits view in checkout and portal return URLs', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: jest.fn<any>().mockResolvedValue(
+        JSON.stringify({
+          success: true,
+          data: {
+            checkoutUrl: 'https://checkout.stripe.com/c/pay/cs_pack',
+            sessionId: 'cs_pack',
+            portalUrl: 'https://billing.stripe.com/session',
+          },
+        }),
+      ),
+    });
+
+    await service.createWorkspaceCheckout(
+      '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+      'price_credit_pack',
+      'one_time',
+      'credits',
+    );
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://billing.example.com/api/billing/stripe/checkout/one-time',
+      expect.objectContaining({
+        body: JSON.stringify({
+          ownerExternalId: 'tenant:72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+          priceId: 'price_credit_pack',
+          successUrl:
+            'https://team9.ai/subscription?workspaceId=72ecfcd7-d495-43a4-8b8a-8fda2d9cec14&result=success&view=credits',
+          cancelUrl:
+            'https://team9.ai/subscription?workspaceId=72ecfcd7-d495-43a4-8b8a-8fda2d9cec14&result=cancel&view=credits',
+        }),
+      }),
+    );
+
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: jest.fn<any>().mockResolvedValue(
+        JSON.stringify({
+          success: true,
+          data: {
+            portalUrl: 'https://billing.stripe.com/session',
+          },
+        }),
+      ),
+    });
+
+    await service.createWorkspacePortal(
+      '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+      'credits',
+    );
+
+    expect(global.fetch).toHaveBeenLastCalledWith(
+      'https://billing.example.com/api/billing/stripe/portal',
+      expect.objectContaining({
+        body: JSON.stringify({
+          ownerExternalId: 'tenant:72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+          returnUrl:
+            'https://team9.ai/subscription?workspaceId=72ecfcd7-d495-43a4-8b8a-8fda2d9cec14&view=credits',
+        }),
+      }),
+    );
+  });
+
   it('throws HttpException for upstream 4xx responses', async () => {
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: false,

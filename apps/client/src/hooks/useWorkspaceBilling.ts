@@ -1,6 +1,17 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import workspaceApi from "@/services/api/workspace";
 
+export function useWorkspaceBillingOverview(
+  workspaceId: string | undefined,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: ["workspace-billing-overview", workspaceId],
+    queryFn: () => workspaceApi.getBillingOverview(workspaceId!),
+    enabled: !!workspaceId && enabled,
+  });
+}
+
 export function useWorkspaceBillingProducts(workspaceId: string | undefined) {
   return useQuery({
     queryKey: ["workspace-billing-products", workspaceId],
@@ -21,8 +32,24 @@ export function useCreateWorkspaceBillingCheckout(
   workspaceId: string | undefined,
 ) {
   return useMutation({
-    mutationFn: ({ priceId }: { priceId: string }) =>
-      workspaceApi.createBillingCheckout(workspaceId!, priceId),
+    mutationFn: ({
+      priceId,
+      type,
+      view,
+      amountCents,
+    }: {
+      priceId: string;
+      type?: "subscription" | "one_time";
+      view?: "plans" | "credits";
+      amountCents?: number;
+    }) =>
+      workspaceApi.createBillingCheckout(
+        workspaceId!,
+        priceId,
+        type,
+        view,
+        amountCents,
+      ),
   });
 }
 
@@ -30,6 +57,7 @@ export function useCreateWorkspaceBillingPortal(
   workspaceId: string | undefined,
 ) {
   return useMutation({
-    mutationFn: () => workspaceApi.createBillingPortal(workspaceId!),
+    mutationFn: ({ view }: { view?: "plans" | "credits" } = {}) =>
+      workspaceApi.createBillingPortal(workspaceId!, view),
   });
 }
