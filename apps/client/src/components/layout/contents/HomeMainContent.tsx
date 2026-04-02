@@ -35,6 +35,7 @@ const DASHBOARD_ACTION_CHIPS = [
 
 function DashboardHeader() {
   const { t } = useTranslation("navigation");
+  const navigate = useNavigate();
 
   return (
     <header className="flex items-center justify-between gap-4">
@@ -46,24 +47,37 @@ function DashboardHeader() {
         <ChevronDown size={14} className="text-[#8f8578]" />
       </button>
 
-      <div className="dashboard-landing-pill inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm text-[#8f8578]">
+      <Button
+        variant="ghost"
+        onClick={() =>
+          navigate({ to: "/subscription", search: { view: "credits" } })
+        }
+        className="dashboard-landing-pill inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm text-[#8f8578] hover:bg-white/50 hover:text-[#8f8578] h-auto cursor-pointer"
+      >
         <Sparkles size={14} className="text-[#9c8f80]" />
         <span>{t("dashboardUsageValue")}</span>
-      </div>
+      </Button>
     </header>
   );
 }
 
 function DashboardPlanBadge() {
   const { t } = useTranslation("navigation");
+  const navigate = useNavigate();
 
   return (
     <div className="dashboard-landing-pill inline-flex items-center rounded-full p-[0.2rem] text-[0.8rem] text-[#8d8274]">
       <span className="rounded-full px-4 py-1.5">{t("dashboardPlan")}</span>
       <span className="h-4 w-px bg-[#e7ddd0]" />
-      <span className="rounded-full px-4 py-1.5 font-medium text-[#2f67ff]">
+      <Button
+        variant="ghost"
+        onClick={() =>
+          navigate({ to: "/subscription", search: { view: "plans" } })
+        }
+        className="rounded-full px-4 py-1.5 font-medium text-[#2f67ff] hover:bg-white/50 hover:text-[#2f67ff] h-auto cursor-pointer"
+      >
         {t("dashboardUpgrade")}
-      </span>
+      </Button>
     </div>
   );
 }
