@@ -92,7 +92,11 @@ describe("updateAgent", () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `pnpm --dir apps/server/apps/gateway test -- --runTestsByPath ../../libs/claw-hive/src/claw-hive.service.spec.ts -t "updateAgent"`
+Run:
+
+```bash
+NODE_OPTIONS='--experimental-vm-modules' pnpm --dir apps/server exec jest --config '{"moduleFileExtensions":["js","json","ts"],"rootDir":"libs/claw-hive","testMatch":["<rootDir>/src/**/*.spec.ts"],"transform":{"^.+\\.(t|j)s$":["ts-jest",{"useESM":true,"tsconfig":"<rootDir>/tsconfig.json"}]},"collectCoverageFrom":["<rootDir>/src/**/*.(t|j)s"],"coverageDirectory":"<rootDir>/coverage","testEnvironment":"node","extensionsToTreatAsEsm":[".ts"],"moduleNameMapper":{"^(\\.{1,2}/.*)\\.js$":"$1","^@team9/shared$":"<rootDir>/../shared/src/index.ts"},"transformIgnorePatterns":["node_modules/(?!(@team9)/)"]}' --runTestsByPath libs/claw-hive/src/claw-hive.service.spec.ts -t "updateAgent"
+```
 
 Expected: FAIL with `service.updateAgent is not a function` or TypeScript errors for the missing method
 
@@ -154,7 +158,11 @@ async registerAgents(params: {
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `pnpm --dir apps/server/apps/gateway test -- --runTestsByPath ../../libs/claw-hive/src/claw-hive.service.spec.ts -t "updateAgent"`
+Run:
+
+```bash
+NODE_OPTIONS='--experimental-vm-modules' pnpm --dir apps/server exec jest --config '{"moduleFileExtensions":["js","json","ts"],"rootDir":"libs/claw-hive","testMatch":["<rootDir>/src/**/*.spec.ts"],"transform":{"^.+\\.(t|j)s$":["ts-jest",{"useESM":true,"tsconfig":"<rootDir>/tsconfig.json"}]},"collectCoverageFrom":["<rootDir>/src/**/*.(t|j)s"],"coverageDirectory":"<rootDir>/coverage","testEnvironment":"node","extensionsToTreatAsEsm":[".ts"],"moduleNameMapper":{"^(\\.{1,2}/.*)\\.js$":"$1","^@team9/shared$":"<rootDir>/../shared/src/index.ts"},"transformIgnorePatterns":["node_modules/(?!(@team9)/)"]}' --runTestsByPath libs/claw-hive/src/claw-hive.service.spec.ts -t "updateAgent"
+```
 
 Expected: PASS with 2 passing tests in the `updateAgent` block
 
@@ -574,7 +582,7 @@ private async persistBotMentor(
 Run:
 
 ```bash
-pnpm --dir apps/server/apps/gateway test -- --runTestsByPath ../../libs/claw-hive/src/claw-hive.service.spec.ts
+NODE_OPTIONS='--experimental-vm-modules' pnpm --dir apps/server exec jest --config '{"moduleFileExtensions":["js","json","ts"],"rootDir":"libs/claw-hive","testMatch":["<rootDir>/src/**/*.spec.ts"],"transform":{"^.+\\.(t|j)s$":["ts-jest",{"useESM":true,"tsconfig":"<rootDir>/tsconfig.json"}]},"collectCoverageFrom":["<rootDir>/src/**/*.(t|j)s"],"coverageDirectory":"<rootDir>/coverage","testEnvironment":"node","extensionsToTreatAsEsm":[".ts"],"moduleNameMapper":{"^(\\.{1,2}/.*)\\.js$":"$1","^@team9/shared$":"<rootDir>/../shared/src/index.ts"},"transformIgnorePatterns":["node_modules/(?!(@team9)/)"]}' --runTestsByPath libs/claw-hive/src/claw-hive.service.spec.ts
 pnpm --dir apps/server/apps/gateway test -- --runTestsByPath src/applications/handlers/base-model-staff.handler.spec.ts
 pnpm --dir apps/server/apps/gateway test -- --runTestsByPath src/bot/bot.service.spec.ts
 pnpm --dir apps/server/apps/gateway test -- --runTestsByPath src/applications/installed-applications.controller.spec.ts
