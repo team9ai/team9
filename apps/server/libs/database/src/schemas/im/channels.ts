@@ -22,6 +22,18 @@ export const channelTypeEnum = pgEnum('channel_type', [
   'tracking',
 ]);
 
+export interface ChannelSnapshotMessage {
+  id: string;
+  content: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: Date;
+}
+
+export interface ChannelSnapshot {
+  totalMessageCount: number;
+  latestMessages: ChannelSnapshotMessage[];
+}
+
 export const channels = pgTable(
   'im_channels',
   {
@@ -40,7 +52,7 @@ export const channels = pgTable(
     order: integer('order').default(0).notNull(),
     isArchived: boolean('is_archived').default(false).notNull(),
     isActivated: boolean('is_activated').default(true).notNull(),
-    snapshot: jsonb('snapshot'),
+    snapshot: jsonb('snapshot').$type<ChannelSnapshot | null>(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },

@@ -61,8 +61,8 @@ export class WorkspaceGuard implements CanActivate {
       workspaceId,
       user.sub,
     );
-    request.workspaceRole = role;
-    request.tenantRole = role; // For backward compatibility
+    request.workspaceRole = role ?? undefined;
+    request.tenantRole = role ?? undefined; // For backward compatibility
 
     return true;
   }

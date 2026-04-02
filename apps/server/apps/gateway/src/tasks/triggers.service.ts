@@ -46,7 +46,7 @@ export class TriggersService {
         id: triggerId,
         taskId,
         type: dto.type,
-        config: dto.config ?? null,
+        config: (dto.config ?? null) as schema.TriggerConfig | null,
         enabled: dto.enabled ?? true,
         nextRunAt,
         createdAt: now,
