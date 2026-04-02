@@ -37,6 +37,10 @@ jest.unstable_mockModule('../workspace/guards/workspace-role.guard.js', () => ({
   WorkspaceRoles: () => () => undefined,
 }));
 
+jest.unstable_mockModule('../im/websocket/websocket.gateway.js', () => ({
+  WebsocketGateway: class WebsocketGateway {},
+}));
+
 jest.unstable_mockModule('../bot/bot.service.js', () => ({
   BotService: class BotService {},
 }));
@@ -47,6 +51,10 @@ jest.unstable_mockModule('../openclaw/openclaw.service.js', () => ({
 
 jest.unstable_mockModule('../file-keeper/file-keeper.service.js', () => ({
   FileKeeperService: class FileKeeperService {},
+}));
+
+jest.unstable_mockModule('../im/channels/channels.service.js', () => ({
+  ChannelsService: class ChannelsService {},
 }));
 
 jest.unstable_mockModule('./installed-applications.service.js', () => ({
@@ -81,21 +89,34 @@ const SECOND_BOT_ID = 'bot-2';
 const NOW = new Date('2026-04-02T12:00:00Z');
 
 function makeDb() {
-  const chain: Record<string, MockFn> = {
-    select: jest.fn<any>(),
+  const selectedRows = { current: [] as any[] };
+  const selectWhereChain = {
+    limit: jest.fn<any>().mockResolvedValue([]),
+    then: (onfulfilled?: (value: any[]) => unknown, onrejected?: (reason: unknown) => unknown) =>
+      Promise.resolve(selectedRows.current).then(onfulfilled, onrejected),
+  } as PromiseLike<any[]> & { limit: MockFn };
+  const selectChain: Record<string, MockFn> = {
     from: jest.fn<any>(),
     where: jest.fn<any>(),
-    limit: jest.fn<any>(),
-    update: jest.fn<any>(),
-    set: jest.fn<any>(),
   };
-  chain.select.mockReturnValue(chain);
-  chain.from.mockReturnValue(chain);
-  chain.where.mockReturnValue(chain);
-  chain.limit.mockResolvedValue([]);
-  chain.update.mockReturnValue(chain);
-  chain.set.mockReturnValue(chain);
-  return chain;
+  selectChain.from.mockReturnValue(selectChain);
+  selectChain.where.mockReturnValue(selectWhereChain);
+
+  const updateWhere = jest.fn<any>().mockResolvedValue(undefined);
+  const set = jest.fn<any>().mockReturnValue({
+    where: updateWhere,
+  });
+
+  return {
+    selectedRows,
+    select: jest.fn<any>().mockReturnValue(selectChain),
+    from: selectChain.from,
+    where: selectChain.where,
+    limit: selectWhereChain.limit,
+    update: jest.fn<any>().mockReturnValue({ set }),
+    set,
+    updateWhere,
+  };
 }
 
 function makeInstalledApp(overrides: Record<string, any> = {}) {
@@ -177,6 +198,17 @@ describe('InstalledApplicationsController', () => {
     deleteBotAndCleanup: MockFn;
     updateBotExtra: MockFn;
   };
+  let channelsService: {
+    createDirectChannelsBatch: MockFn;
+  };
+  let websocketGateway: {
+    sendToUser: MockFn;
+    sendToChannelMembers: MockFn;
+    broadcastToWorkspace: MockFn;
+  };
+  let redisService: {
+    hgetall: MockFn;
+  };
 
   beforeAll(() => {
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
@@ -237,6 +269,17 @@ describe('InstalledApplicationsController', () => {
       deleteBotAndCleanup: jest.fn<any>().mockResolvedValue(undefined),
       updateBotExtra: jest.fn<any>().mockResolvedValue(undefined),
     };
+    channelsService = {
+      createDirectChannelsBatch: jest.fn<any>().mockResolvedValue(new Map()),
+    };
+    websocketGateway = {
+      sendToUser: jest.fn<any>().mockResolvedValue(undefined),
+      sendToChannelMembers: jest.fn<any>().mockResolvedValue(undefined),
+      broadcastToWorkspace: jest.fn<any>().mockResolvedValue(undefined),
+    };
+    redisService = {
+      hgetall: jest.fn<any>().mockResolvedValue({}),
+    };
 
     controller = new InstalledApplicationsController(
       db as never,
@@ -245,6 +288,9 @@ describe('InstalledApplicationsController', () => {
       openclawService as never,
       fileKeeperService as never,
       botService as never,
+      channelsService as never,
+      websocketGateway as never,
+      redisService as never,
     );
   });
 

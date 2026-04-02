@@ -13,6 +13,9 @@ import { DATABASE_CONNECTION } from '@team9/database';
 import { OpenClawHandler } from './openclaw.handler.js';
 import { BotService } from '../../bot/bot.service.js';
 import { OpenclawService } from '../../openclaw/openclaw.service.js';
+import { ChannelsService } from '../../im/channels/channels.service.js';
+import { WebsocketGateway } from '../../im/websocket/websocket.gateway.js';
+import { RedisService } from '@team9/redis';
 import type { InstallContext } from './application-handler.interface.js';
 
 // ── env stubs ────────────────────────────────────────────────────────────────
@@ -103,6 +106,9 @@ describe('OpenClawHandler', () => {
     createInstance: MockFn;
     deleteInstance: MockFn;
   };
+  let channelsService: { createDirectChannelsBatch: MockFn };
+  let websocketGateway: { sendToUser: MockFn };
+  let redisService: { hgetall: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
@@ -117,12 +123,27 @@ describe('OpenClawHandler', () => {
       deleteInstance: jest.fn<any>().mockResolvedValue(undefined),
     };
 
+    channelsService = {
+      createDirectChannelsBatch: jest.fn<any>().mockResolvedValue(new Map()),
+    };
+
+    websocketGateway = {
+      sendToUser: jest.fn<any>().mockResolvedValue(undefined),
+    };
+
+    redisService = {
+      hgetall: jest.fn<any>().mockResolvedValue({}),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OpenClawHandler,
         { provide: DATABASE_CONNECTION, useValue: db },
         { provide: BotService, useValue: botService },
         { provide: OpenclawService, useValue: openclawService },
+        { provide: ChannelsService, useValue: channelsService },
+        { provide: WebsocketGateway, useValue: websocketGateway },
+        { provide: RedisService, useValue: redisService },
       ],
     }).compile();
 
@@ -183,6 +204,92 @@ describe('OpenClawHandler', () => {
 
       await expect(handler.onInstall(makeContext())).rejects.toThrow(
         'Instance creation timeout',
+      );
+    });
+
+    it('creates DM channels between bot and workspace members', async () => {
+      // Mock workspace members query
+      db.where.mockResolvedValueOnce([
+        { userId: 'member-a' },
+        { userId: 'member-b' },
+      ]);
+
+      channelsService.createDirectChannelsBatch.mockResolvedValueOnce(
+        new Map([
+          ['member-a', { id: 'dm-a', type: 'direct' }],
+          ['member-b', { id: 'dm-b', type: 'direct' }],
+        ]),
+      );
+
+      await handler.onInstall(makeContext());
+
+      expect(channelsService.createDirectChannelsBatch).toHaveBeenCalledWith(
+        BOT_RESULT.bot.userId,
+        ['member-a', 'member-b'],
+        TENANT_ID,
+      );
+    });
+
+    it('emits channel_created events to online members', async () => {
+      db.where.mockResolvedValueOnce([
+        { userId: 'member-a' },
+        { userId: 'member-b' },
+      ]);
+
+      const dmChannelA = { id: 'dm-a', type: 'direct' };
+      channelsService.createDirectChannelsBatch.mockResolvedValueOnce(
+        new Map([
+          ['member-a', dmChannelA],
+          ['member-b', { id: 'dm-b', type: 'direct' }],
+        ]),
+      );
+
+      // Only member-a is online
+      redisService.hgetall.mockResolvedValueOnce({ 'member-a': 'online' });
+
+      await handler.onInstall(makeContext());
+
+      expect(websocketGateway.sendToUser).toHaveBeenCalledWith(
+        'member-a',
+        'channel_created',
+        dmChannelA,
+      );
+      expect(websocketGateway.sendToUser).not.toHaveBeenCalledWith(
+        'member-b',
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
+    it('does not fail installation if DM channel creation fails', async () => {
+      db.where.mockResolvedValueOnce([{ userId: 'member-a' }]);
+      channelsService.createDirectChannelsBatch.mockRejectedValueOnce(
+        new Error('DB error'),
+      );
+
+      const result = await handler.onInstall(makeContext());
+
+      // Installation still succeeds
+      expect(result.config).toEqual({ instancesId: BOT_RESULT.bot.botId });
+    });
+
+    it('excludes the bot itself from DM member list', async () => {
+      // Bot userId is in members list — should be filtered out
+      db.where.mockResolvedValueOnce([
+        { userId: BOT_RESULT.bot.userId },
+        { userId: 'member-a' },
+      ]);
+
+      channelsService.createDirectChannelsBatch.mockResolvedValueOnce(
+        new Map([['member-a', { id: 'dm-a', type: 'direct' }]]),
+      );
+
+      await handler.onInstall(makeContext());
+
+      expect(channelsService.createDirectChannelsBatch).toHaveBeenCalledWith(
+        BOT_RESULT.bot.userId,
+        ['member-a'],
+        TENANT_ID,
       );
     });
   });
