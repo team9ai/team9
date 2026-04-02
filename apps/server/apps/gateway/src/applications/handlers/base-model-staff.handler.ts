@@ -12,7 +12,10 @@ import type {
 } from './application-handler.interface.js';
 import { BotService } from '../../bot/bot.service.js';
 import { ClawHiveService } from '@team9/claw-hive';
-import { ChannelsService } from '../../im/channels/channels.service.js';
+import {
+  ChannelsService,
+  type ChannelResponse,
+} from '../../im/channels/channels.service.js';
 import { WebsocketGateway } from '../../im/websocket/websocket.gateway.js';
 import { RedisService } from '@team9/redis';
 import { WS_EVENTS } from '../../im/websocket/events/events.constants.js';
@@ -133,7 +136,7 @@ export class BaseModelStaffHandler implements ApplicationHandler {
               tenantId,
             );
           }
-          return Promise.resolve(new Map());
+          return Promise.resolve(new Map<string, ChannelResponse>());
         }),
       );
 

@@ -116,7 +116,7 @@ export class OpenClawHandler implements ApplicationHandler {
       } catch (error) {
         // Don't fail installation if DM channel creation fails
         this.logger.warn(
-          `Failed to create DM channels for OpenClaw bot: ${error.message}`,
+          `Failed to create DM channels for OpenClaw bot: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
 

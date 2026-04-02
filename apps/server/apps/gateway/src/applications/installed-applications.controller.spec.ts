@@ -92,8 +92,10 @@ function makeDb() {
   const selectedRows = { current: [] as any[] };
   const selectWhereChain = {
     limit: jest.fn<any>().mockResolvedValue([]),
-    then: (onfulfilled?: (value: any[]) => unknown, onrejected?: (reason: unknown) => unknown) =>
-      Promise.resolve(selectedRows.current).then(onfulfilled, onrejected),
+    then: (
+      onfulfilled?: (value: any[]) => unknown,
+      onrejected?: (reason: unknown) => unknown,
+    ) => Promise.resolve(selectedRows.current).then(onfulfilled, onrejected),
   } as PromiseLike<any[]> & { limit: MockFn };
   const selectChain: Record<string, MockFn> = {
     from: jest.fn<any>(),
