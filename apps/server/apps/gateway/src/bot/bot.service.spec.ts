@@ -366,6 +366,50 @@ describe('BotService', () => {
         clawHiveService.updateAgent.mock.invocationCallOrder[0],
       ).toBeLessThan(db.update.mock.invocationCallOrder[0]);
     });
+
+    it('rolls hive metadata back when the Team9 write fails', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          botId: 'bot-1',
+          mentorId: 'old-mentor',
+          managedProvider: 'hive',
+          managedMeta: { agentId: 'agent-1' },
+          tenantId: 'tenant-1',
+        },
+      ] as any);
+      db.where
+        .mockImplementationOnce(() => db as any)
+        .mockRejectedValueOnce(new Error('write failed'));
+
+      await expect(
+        service.updateBotMentor('bot-1', 'new-mentor'),
+      ).rejects.toThrow('write failed');
+
+      expect(clawHiveService.updateAgent).toHaveBeenNthCalledWith(
+        1,
+        'agent-1',
+        {
+          tenantId: 'tenant-1',
+          metadata: {
+            tenantId: 'tenant-1',
+            botId: 'bot-1',
+            mentorId: 'new-mentor',
+          },
+        },
+      );
+      expect(clawHiveService.updateAgent).toHaveBeenNthCalledWith(
+        2,
+        'agent-1',
+        {
+          tenantId: 'tenant-1',
+          metadata: {
+            tenantId: 'tenant-1',
+            botId: 'bot-1',
+            mentorId: 'old-mentor',
+          },
+        },
+      );
+    });
   });
 
   describe('onModuleInit', () => {

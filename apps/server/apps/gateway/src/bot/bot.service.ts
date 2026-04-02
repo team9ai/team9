@@ -669,20 +669,43 @@ export class BotService implements OnModuleInit {
         throw new Error(`Hive tenantId not configured for bot ${botId}`);
       }
 
+      const nextMetadata = {
+        tenantId: bot.tenantId,
+        botId: bot.botId,
+        mentorId,
+      };
+      const previousMetadata = {
+        tenantId: bot.tenantId,
+        botId: bot.botId,
+        mentorId: bot.mentorId,
+      };
+
       await this.clawHiveService.updateAgent(agentId, {
         tenantId: bot.tenantId,
-        metadata: {
-          tenantId: bot.tenantId,
-          botId: bot.botId,
-          mentorId,
-        },
+        metadata: nextMetadata,
       });
+
+      try {
+        await this.persistBotMentor(botId, mentorId);
+      } catch (error) {
+        try {
+          await this.clawHiveService.updateAgent(agentId, {
+            tenantId: bot.tenantId,
+            metadata: previousMetadata,
+          });
+        } catch (rollbackError) {
+          this.logger.error(
+            `Failed to roll hive metadata back for bot ${botId}`,
+            rollbackError as Error,
+          );
+        }
+        throw error;
+      }
+
+      return;
     }
 
-    await this.db
-      .update(schema.bots)
-      .set({ mentorId, updatedAt: new Date() })
-      .where(eq(schema.bots.id, botId));
+    await this.persistBotMentor(botId, mentorId);
   }
 
   /**
@@ -895,6 +918,16 @@ export class BotService implements OnModuleInit {
       .limit(1);
 
     return row?.accessToken ?? null;
+  }
+
+  private async persistBotMentor(
+    botId: string,
+    mentorId: string | null,
+  ): Promise<void> {
+    await this.db
+      .update(schema.bots)
+      .set({ mentorId, updatedAt: new Date() })
+      .where(eq(schema.bots.id, botId));
   }
 
   private async replaceAccessTokenAndInvalidate(

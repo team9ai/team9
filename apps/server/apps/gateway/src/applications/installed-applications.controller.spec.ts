@@ -1429,6 +1429,30 @@ describe('InstalledApplicationsController', () => {
     expect(result).toEqual({ success: true });
   });
 
+  it('surfaces mentor sync failures from the controller endpoint', async () => {
+    installedApplicationsService.findById.mockResolvedValueOnce(
+      makeInstalledApp({
+        id: OPENCLAW_APP_ID,
+        applicationId: 'openclaw',
+      }),
+    );
+    botService.getBotById.mockResolvedValueOnce(
+      makeBot({ botId: 'bot-transfer', mentorId: USER_ID }),
+    );
+    db.limit.mockResolvedValueOnce([{ role: 'member' }]);
+    botService.updateBotMentor.mockRejectedValueOnce(new Error('hive down'));
+
+    await expect(
+      controller.updateOpenClawBotMentor(
+        OPENCLAW_APP_ID,
+        'bot-transfer',
+        USER_ID,
+        TENANT_ID,
+        { mentorId: OTHER_USER_ID },
+      ),
+    ).rejects.toThrow('hive down');
+  });
+
   it('rejects mentor transfer when the requester is neither mentor nor admin', async () => {
     installedApplicationsService.findById.mockResolvedValueOnce(
       makeInstalledApp({
