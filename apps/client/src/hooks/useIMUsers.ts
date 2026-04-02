@@ -1,5 +1,8 @@
+import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import imApi from "@/services/api/im";
+import { api } from "@/services/api";
+import type { InstalledApplicationWithBots } from "@/services/api/applications";
 import type { UpdateUserStatusDto } from "@/types/im";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 
@@ -28,6 +31,39 @@ export function useOnlineUsers() {
     queryFn: () => imApi.users.getOnlineUsers(),
     refetchInterval: 30000, // Refresh every 30 seconds
   });
+}
+
+export function getAlwaysOnlineBaseModelBotUserIds(
+  apps: InstalledApplicationWithBots[] | undefined,
+) {
+  const userIds = new Set<string>();
+
+  for (const app of apps ?? []) {
+    if (app.applicationId !== "base-model-staff") continue;
+
+    for (const bot of app.bots) {
+      if ("managedMeta" in bot && bot.userId) {
+        userIds.add(bot.userId);
+      }
+    }
+  }
+
+  return userIds;
+}
+
+export function useAlwaysOnlineBaseModelBotUserIds() {
+  const workspaceId = useSelectedWorkspaceId();
+  const { data: installedApps } = useQuery({
+    queryKey: ["installed-applications-with-bots", workspaceId],
+    queryFn: () => api.applications.getInstalledApplicationsWithBots(),
+    enabled: !!workspaceId,
+    staleTime: 30_000,
+  });
+
+  return useMemo(
+    () => getAlwaysOnlineBaseModelBotUserIds(installedApps),
+    [installedApps],
+  );
 }
 
 /**
@@ -60,7 +96,11 @@ export function useUpdateStatus() {
  */
 export function useIsUserOnline(userId: string | undefined) {
   const { data: onlineUsers = {} } = useOnlineUsers();
+  const alwaysOnlineBotUserIds = useAlwaysOnlineBaseModelBotUserIds();
 
   if (!userId) return false;
-  return userId in onlineUsers && onlineUsers[userId] === "online";
+  return (
+    alwaysOnlineBotUserIds.has(userId) ||
+    (userId in onlineUsers && onlineUsers[userId] === "online")
+  );
 }
