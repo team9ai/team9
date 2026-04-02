@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { CheckCircle, Loader2, MailCheck, XCircle } from "lucide-react";
 import api from "@/services/api";
+import { getHttpErrorMessage } from "@/lib/http-error";
 import { Button } from "@/components/ui/button";
 
 type ConfirmEmailChangeSearch = {
@@ -46,11 +47,11 @@ function ConfirmEmailChange() {
       setErrorMessage("");
       await api.account.confirmEmailChange(token);
       setStatus("success");
-    } catch (error: any) {
+    } catch (error: unknown) {
       setStatus("error");
       setErrorMessage(
-        error?.response?.data?.message ||
-          error?.message ||
+        getHttpErrorMessage(error) ||
+          (error instanceof Error ? error.message : "") ||
           t(
             "confirmEmailChangeFailed",
             "We could not confirm your email change.",

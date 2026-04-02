@@ -7,6 +7,7 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from "react";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useCurrentUser } from "@/hooks/useAuth";
 import {
@@ -50,7 +51,7 @@ function getInitials(value: string) {
     .toUpperCase();
 }
 
-function getUsernameError(username: string, t: any) {
+function getUsernameError(username: string, t: TFunction) {
   const trimmed = username.trim();
 
   if (trimmed.length === 0) {
@@ -71,7 +72,7 @@ function getUsernameError(username: string, t: any) {
   return null;
 }
 
-function getAvatarError(file: File, t: any) {
+function getAvatarError(file: File, t: TFunction) {
   if (!ALLOWED_AVATAR_TYPES.has(file.type)) {
     return t(
       "profileCard.avatarInvalidType",
@@ -113,7 +114,7 @@ function getApiErrorMessage(error: unknown): string {
   return "";
 }
 
-function getProfileSaveError(error: unknown, t: any): string {
+function getProfileSaveError(error: unknown, t: TFunction): string {
   const message = getApiErrorMessage(error);
 
   if (message === "Username is already taken") {
@@ -138,7 +139,7 @@ function getProfileSaveError(error: unknown, t: any): string {
   );
 }
 
-function getEmailChangeError(error: unknown, t: any): string {
+function getEmailChangeError(error: unknown, t: TFunction): string {
   const message = getApiErrorMessage(error);
 
   if (message === "Email already in use") {
@@ -177,19 +178,28 @@ export function AccountSettingsContent() {
   const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
 
   const pendingEmailChange = pendingEmailData?.pendingEmailChange ?? null;
+  const currentUserId = currentUser?.id;
+  const currentUserUpdatedAt = currentUser?.updatedAt;
+  const currentUserDisplayName = currentUser?.displayName;
+  const currentUserUsername = currentUser?.username;
 
   useEffect(() => {
-    if (!currentUser) {
+    if (!currentUserId) {
       return;
     }
 
-    setDisplayName(currentUser.displayName ?? "");
-    setUsername(currentUser.username ?? "");
+    setDisplayName(currentUserDisplayName ?? "");
+    setUsername(currentUserUsername ?? "");
     setSelectedAvatar(null);
     setAvatarPreviewUrl(null);
     setAvatarError(null);
     setSaveError(null);
-  }, [currentUser?.id, currentUser?.updatedAt]);
+  }, [
+    currentUserDisplayName,
+    currentUserId,
+    currentUserUpdatedAt,
+    currentUserUsername,
+  ]);
 
   useEffect(() => {
     if (!selectedAvatar) {

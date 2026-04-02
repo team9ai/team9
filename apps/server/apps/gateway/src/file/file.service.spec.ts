@@ -192,6 +192,7 @@ describe('FileService', () => {
         channelId: 'channel-1',
       } as never),
     ).resolves.toEqual({
+      id: expect.any(String),
       key: 'uploads/image.png',
       fileName: 'image.png',
       fileSize: 42,
@@ -245,6 +246,7 @@ describe('FileService', () => {
         fileName: 'archive.bin',
       } as never),
     ).resolves.toEqual({
+      id: expect.any(String),
       key: 'uploads/archive.bin',
       fileName: 'archive.bin',
       fileSize: 9,

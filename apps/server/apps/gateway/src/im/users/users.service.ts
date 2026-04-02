@@ -143,19 +143,12 @@ export class UsersService {
     // Clear cache
     await this.redisService.del(`${this.USER_CACHE_PREFIX}${id}`);
 
-    // Emit event for search indexing
-    this.eventEmitter.emit('user.updated', { user: updatedUser });
+    const normalizedUser = updatedUser as UserResponse;
 
-    return {
-      id: updatedUser.id,
-      email: updatedUser.email,
-      username: updatedUser.username,
-      displayName: updatedUser.displayName,
-      avatarUrl: updatedUser.avatarUrl,
-      status: updatedUser.status,
-      lastSeenAt: updatedUser.lastSeenAt,
-      userType: updatedUser.userType,
-    };
+    // Emit event for search indexing
+    this.eventEmitter.emit('user.updated', { user: normalizedUser });
+
+    return normalizedUser;
   }
 
   private async assertAvatarUrlAllowed(
