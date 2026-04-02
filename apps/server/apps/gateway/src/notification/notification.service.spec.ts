@@ -63,7 +63,10 @@ const schema = await import('@team9/database/schemas');
 function createDbMock() {
   const selectChain = {
     from: jest.fn<any>().mockReturnThis(),
+    leftJoin: jest.fn<any>().mockReturnThis(),
     where: jest.fn<any>().mockResolvedValue([{ id: 'notif-1' }]),
+    orderBy: jest.fn<any>().mockReturnThis(),
+    limit: jest.fn<any>().mockResolvedValue([]),
     groupBy: jest.fn<any>().mockResolvedValue([]),
   };
   const insertChain = {
@@ -196,6 +199,140 @@ describe('NotificationService.markAllAsRead', () => {
     expect(notification).toEqual({ id: 'created-notif' });
   });
 
+  it('creates batched notifications and skips empty batches', async () => {
+    await service.createBatch([], {
+      category: 'message' as any,
+      type: 'mention' as any,
+      title: 'Ignored',
+    });
+
+    expect(db.insert).not.toHaveBeenCalled();
+
+    await service.createBatch(['user-1', 'user-2'], {
+      category: 'message' as any,
+      type: 'mention' as any,
+      title: 'Hello',
+      actionUrl: '/notifications/1',
+    });
+
+    expect(db.insert).toHaveBeenCalledWith(schema.notifications);
+    expect(db.insertChain.values).toHaveBeenCalledWith([
+      expect.objectContaining({
+        userId: 'user-1',
+        title: 'Hello',
+        priority: 'normal',
+        actionUrl: '/notifications/1',
+      }),
+      expect.objectContaining({
+        userId: 'user-2',
+        title: 'Hello',
+        priority: 'normal',
+        actionUrl: '/notifications/1',
+      }),
+    ]);
+  });
+
+  it('returns paginated notifications with actor mapping and cursor filtering', async () => {
+    const limitChain = {
+      from: jest.fn<any>().mockReturnThis(),
+      leftJoin: jest.fn<any>().mockReturnThis(),
+      where: jest.fn<any>().mockReturnThis(),
+      orderBy: jest.fn<any>().mockReturnThis(),
+      limit: jest.fn<any>().mockResolvedValue([
+        {
+          notification: {
+            id: 'notif-1',
+            category: 'message',
+            type: 'mention',
+            priority: 'normal',
+            title: 'Mentioned',
+            body: 'Hello',
+            tenantId: 'tenant-1',
+            channelId: 'channel-1',
+            messageId: 'message-1',
+            actionUrl: '/messages/1',
+            isRead: false,
+            createdAt: new Date('2026-04-02T12:00:00.000Z'),
+          },
+          actor: {
+            id: 'user-2',
+            username: 'alice',
+            displayName: 'Alice',
+            avatarUrl: null,
+          },
+        },
+        {
+          notification: {
+            id: 'notif-2',
+            category: 'system',
+            type: 'version_update',
+            priority: 'high',
+            title: 'Update',
+            body: null,
+            tenantId: null,
+            channelId: null,
+            messageId: null,
+            actionUrl: null,
+            isRead: true,
+            createdAt: new Date('2026-04-01T12:00:00.000Z'),
+          },
+          actor: {
+            id: null,
+            username: null,
+            displayName: null,
+            avatarUrl: null,
+          },
+        },
+      ]),
+      groupBy: jest.fn<any>().mockResolvedValue([]),
+    };
+    db.select.mockReturnValueOnce(limitChain);
+
+    const result = await service.getNotifications('user-1', {
+      category: 'message',
+      type: 'mention',
+      isRead: false,
+      limit: 1,
+      cursor: '2026-04-03T00:00:00.000Z',
+    });
+
+    expect(result).toEqual({
+      notifications: [
+        {
+          id: 'notif-1',
+          category: 'message',
+          type: 'mention',
+          priority: 'normal',
+          title: 'Mentioned',
+          body: 'Hello',
+          actor: {
+            id: 'user-2',
+            username: 'alice',
+            displayName: 'Alice',
+            avatarUrl: null,
+          },
+          tenantId: 'tenant-1',
+          channelId: 'channel-1',
+          messageId: 'message-1',
+          actionUrl: '/messages/1',
+          isRead: false,
+          createdAt: new Date('2026-04-02T12:00:00.000Z'),
+        },
+      ],
+      nextCursor: '2026-04-02T12:00:00.000Z',
+    });
+
+    expect(limitChain.leftJoin).toHaveBeenCalledWith(
+      schema.users,
+      expect.objectContaining({
+        kind: 'eq',
+        field: schema.notifications.actorId,
+        value: schema.users.id,
+      }),
+    );
+    expect(limitChain.limit).toHaveBeenCalledWith(2);
+  });
+
   it('aggregates unread counts by category and type', async () => {
     const categoryChain = {
       from: jest.fn<any>().mockReturnThis(),
@@ -246,6 +383,35 @@ describe('NotificationService.markAllAsRead', () => {
         values: ['notif-1', 'notif-2'],
       },
     );
+  });
+
+  it('marks specific notifications as read and can delete notifications by message id', async () => {
+    await service.markAsRead('user-1', ['notif-1']);
+
+    expect(db.update).toHaveBeenCalledWith(schema.notifications);
+    expect(db.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isRead: true,
+        readAt: expect.any(Date),
+      }),
+    );
+    expect(mockAnd).toHaveBeenCalledWith(
+      { kind: 'eq', field: schema.notifications.userId, value: 'user-1' },
+      {
+        kind: 'inArray',
+        field: schema.notifications.id,
+        values: ['notif-1'],
+      },
+    );
+
+    await service.deleteByMessageId('message-1');
+
+    expect(db.delete).toHaveBeenCalledWith(schema.notifications);
+    expect(db.deleteChain.where).toHaveBeenCalledWith({
+      kind: 'eq',
+      field: schema.notifications.messageId,
+      value: 'message-1',
+    });
   });
 
   it('cleans up expired notifications and returns the deleted count', async () => {

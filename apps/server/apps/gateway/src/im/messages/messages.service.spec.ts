@@ -55,6 +55,7 @@ function makeMessageRow(overrides: Record<string, unknown> = {}) {
     id: 'message-1',
     channelId: 'channel-1',
     senderId: 'user-1',
+    createdAt: new Date('2026-04-02T10:30:00.000Z'),
     ...overrides,
   };
 }
@@ -289,6 +290,184 @@ describe('MessagesService', () => {
     expect(getMessageWithDetailsSpy).toHaveBeenNthCalledWith(2, 'message-2');
   });
 
+  it('builds message details without a sender and aggregates reactions and repliers', async () => {
+    const messageRow = makeMessageRow({
+      senderId: 'user-1',
+      clientMsgId: 'client-1',
+      content: 'detailed',
+      metadata: { source: 'test' },
+    });
+    const attachments = [
+      {
+        id: 'att-1',
+        fileName: 'report.pdf',
+        fileKey: 'file-key',
+        fileUrl: 'https://cdn.example.com/report.pdf',
+        fileSize: 1024,
+        mimeType: 'application/pdf',
+        thumbnailUrl: null,
+        width: null,
+        height: null,
+      },
+      {
+        id: 'att-2',
+        fileName: 'image.png',
+        fileKey: 'image-key',
+        fileUrl: 'https://cdn.example.com/image.png',
+        fileSize: 2048,
+        mimeType: 'image/png',
+        thumbnailUrl: 'https://cdn.example.com/thumb.png',
+        width: 640,
+        height: 480,
+      },
+    ];
+    const reactions = [
+      { emoji: ':+1:', userId: 'user-a' },
+      { emoji: ':+1:', userId: 'user-b' },
+      { emoji: ':tada:', userId: 'user-c' },
+    ];
+    const recentRepliers = [
+      { senderId: 'user-c', createdAt: new Date('2026-04-02T10:33:00.000Z') },
+      { senderId: 'user-b', createdAt: new Date('2026-04-02T10:32:00.000Z') },
+      { senderId: 'user-c', createdAt: new Date('2026-04-02T10:31:00.000Z') },
+      { senderId: 'user-a', createdAt: new Date('2026-04-02T10:30:00.000Z') },
+    ];
+    const replierUsers = [
+      {
+        id: 'user-c',
+        username: 'carol',
+        displayName: 'Carol',
+        avatarUrl: null,
+        userType: 'human',
+      },
+      {
+        id: 'user-b',
+        username: 'bob',
+        displayName: 'Bob',
+        avatarUrl: null,
+        userType: 'human',
+      },
+      {
+        id: 'user-a',
+        username: 'alice',
+        displayName: 'Alice',
+        avatarUrl: null,
+        userType: 'bot',
+      },
+    ];
+    const makeSelectChain = (whereReturnValue: unknown) => ({
+      from: jest.fn<any>().mockReturnValue({
+        where: jest.fn<any>().mockReturnValue(whereReturnValue),
+      }),
+    });
+
+    db.select
+      .mockReturnValueOnce(
+        makeSelectChain({
+          limit: jest.fn<any>().mockResolvedValue([messageRow]),
+        }),
+      )
+      .mockReturnValueOnce(
+        makeSelectChain({
+          limit: jest.fn<any>().mockResolvedValue([]),
+        }),
+      )
+      .mockReturnValueOnce(makeSelectChain(attachments))
+      .mockReturnValueOnce(makeSelectChain(reactions))
+      .mockReturnValueOnce(makeSelectChain([{ count: 3 }]))
+      .mockReturnValueOnce(
+        makeSelectChain({
+          orderBy: jest.fn<any>().mockResolvedValue(recentRepliers),
+        }),
+      )
+      .mockReturnValueOnce(makeSelectChain(replierUsers));
+
+    await expect(service.getMessageWithDetails('message-1')).resolves.toEqual(
+      expect.objectContaining({
+        id: 'message-1',
+        clientMsgId: 'client-1',
+        sender: null,
+        attachments: expect.arrayContaining([
+          expect.objectContaining({ id: 'att-1' }),
+          expect.objectContaining({ id: 'att-2' }),
+        ]),
+        reactions: [
+          {
+            emoji: ':+1:',
+            count: 2,
+            userIds: ['user-a', 'user-b'],
+          },
+          {
+            emoji: ':tada:',
+            count: 1,
+            userIds: ['user-c'],
+          },
+        ],
+        replyCount: 3,
+        lastReplyAt: new Date('2026-04-02T10:33:00.000Z'),
+        lastRepliers: [
+          {
+            id: 'user-c',
+            username: 'carol',
+            displayName: 'Carol',
+            avatarUrl: null,
+            userType: 'human',
+          },
+          {
+            id: 'user-b',
+            username: 'bob',
+            displayName: 'Bob',
+            avatarUrl: null,
+            userType: 'human',
+          },
+          {
+            id: 'user-a',
+            username: 'alice',
+            displayName: 'Alice',
+            avatarUrl: null,
+            userType: 'bot',
+          },
+        ],
+        metadata: { source: 'test' },
+      }),
+    );
+  });
+
+  it('returns an empty thread response when there are no first-level replies', async () => {
+    const rootMessage = makeMessageResponse({ id: 'root-1' });
+    db.chains.selectOrderBy.mockResolvedValueOnce([]);
+    jest.spyOn(service, 'getMessageWithDetails').mockResolvedValue(rootMessage);
+    jest
+      .spyOn(service as any, 'getMessagesWithDetailsBatch')
+      .mockResolvedValue(new Map());
+
+    await expect(service.getThread('root-1', 2)).resolves.toEqual({
+      rootMessage,
+      replies: [],
+      totalReplyCount: 0,
+      hasMore: false,
+      nextCursor: null,
+    });
+  });
+
+  it('returns an empty sub-replies page when there are no replies', async () => {
+    const emptySubRepliesLimit = jest.fn<any>().mockResolvedValue([]);
+    db.chains.selectOrderBy.mockReturnValueOnce({
+      limit: emptySubRepliesLimit,
+    });
+    jest
+      .spyOn(service as any, 'getMessagesWithDetailsBatch')
+      .mockResolvedValue(new Map());
+
+    await expect(
+      service.getSubReplies('reply-1', 2, '2026-04-02T10:30:00.000Z'),
+    ).resolves.toEqual({
+      replies: [],
+      hasMore: false,
+      nextCursor: null,
+    });
+  });
+
   it('builds thread responses with nested preview replies and pagination metadata', async () => {
     const rootMessage = makeMessageResponse({ id: 'root-1' });
     const reply1 = {
@@ -364,6 +543,53 @@ describe('MessagesService', () => {
     });
   });
 
+  it('ignores an invalid thread cursor and still returns the first page of replies', async () => {
+    const rootMessage = makeMessageResponse({ id: 'root-1' });
+    db.chains.selectOrderBy.mockResolvedValueOnce([
+      {
+        id: 'reply-1',
+        parentId: 'root-1',
+        createdAt: new Date('2026-04-02T10:31:00.000Z'),
+      },
+      {
+        id: 'reply-2',
+        parentId: 'root-1',
+        createdAt: new Date('2026-04-02T10:32:00.000Z'),
+      },
+    ]);
+
+    jest.spyOn(service, 'getMessageWithDetails').mockResolvedValue(rootMessage);
+    jest
+      .spyOn(service as any, 'getMessagesWithDetailsBatch')
+      .mockResolvedValue(
+        new Map([['reply-1', makeMessageResponse({ id: 'reply-1' })]]),
+      );
+
+    await expect(service.getThread('root-1', 1, 'not-a-date')).resolves.toEqual(
+      {
+        rootMessage,
+        replies: [
+          {
+            ...makeMessageResponse({ id: 'reply-1' }),
+            subReplies: [],
+            subReplyCount: 0,
+          },
+        ],
+        totalReplyCount: 2,
+        hasMore: true,
+        nextCursor: '2026-04-02T10:31:00.000Z',
+      },
+    );
+  });
+
+  it('throws when the message channel id cannot be resolved', async () => {
+    db.chains.selectLimit.mockResolvedValueOnce([]);
+
+    await expect(
+      service.getMessageChannelId('missing-message'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
   it('paginates second-level replies with limit plus one semantics', async () => {
     const orderedLimit = jest.fn<any>().mockResolvedValue([
       {
@@ -405,6 +631,106 @@ describe('MessagesService', () => {
     expect(orderedLimit).toHaveBeenCalledWith(3);
   });
 
+  it('falls back to the latest page when an around cursor cannot be resolved', async () => {
+    const aroundTimestampChain = {
+      from: jest.fn<any>().mockReturnThis(),
+      where: jest.fn<any>().mockReturnThis(),
+      limit: jest.fn<any>().mockResolvedValue([]),
+    };
+    const latestRowsLimit = jest.fn<any>().mockResolvedValue([
+      makeMessageRow({
+        id: 'message-3',
+        createdAt: new Date('2026-04-02T10:33:00.000Z'),
+      }),
+      makeMessageRow({
+        id: 'message-2',
+        createdAt: new Date('2026-04-02T10:32:00.000Z'),
+      }),
+      makeMessageRow({
+        id: 'message-1',
+        createdAt: new Date('2026-04-02T10:31:00.000Z'),
+      }),
+    ]);
+    const latestRowsChain = {
+      from: jest.fn<any>().mockReturnThis(),
+      where: jest.fn<any>().mockReturnThis(),
+      orderBy: jest.fn<any>().mockReturnThis(),
+      limit: latestRowsLimit,
+    };
+    db.select
+      .mockReturnValueOnce(aroundTimestampChain)
+      .mockReturnValueOnce(latestRowsChain);
+    jest.spyOn(service as any, 'getMessagesWithDetailsBatch').mockResolvedValue(
+      new Map([
+        ['message-3', makeMessageResponse({ id: 'message-3' })],
+        ['message-2', makeMessageResponse({ id: 'message-2' })],
+      ]),
+    );
+
+    await expect(
+      service.getChannelMessagesPaginated('channel-1', 2, {
+        around: '11111111-1111-1111-1111-111111111111',
+      }),
+    ).resolves.toEqual({
+      messages: [
+        makeMessageResponse({ id: 'message-3' }),
+        makeMessageResponse({ id: 'message-2' }),
+      ],
+      hasOlder: true,
+      hasNewer: false,
+    });
+
+    expect(latestRowsLimit).toHaveBeenCalledWith(3);
+  });
+
+  it('falls back to the latest page when a before cursor cannot be resolved', async () => {
+    const beforeTimestampChain = {
+      from: jest.fn<any>().mockReturnThis(),
+      where: jest.fn<any>().mockReturnThis(),
+      limit: jest.fn<any>().mockResolvedValue([]),
+    };
+    const latestRowsLimit = jest.fn<any>().mockResolvedValue([
+      makeMessageRow({
+        id: 'message-2',
+        createdAt: new Date('2026-04-02T10:32:00.000Z'),
+      }),
+      makeMessageRow({
+        id: 'message-1',
+        createdAt: new Date('2026-04-02T10:31:00.000Z'),
+      }),
+    ]);
+    const latestRowsChain = {
+      from: jest.fn<any>().mockReturnThis(),
+      where: jest.fn<any>().mockReturnThis(),
+      orderBy: jest.fn<any>().mockReturnThis(),
+      limit: latestRowsLimit,
+    };
+    db.select
+      .mockReturnValueOnce(beforeTimestampChain)
+      .mockReturnValueOnce(latestRowsChain);
+    jest.spyOn(service as any, 'getMessagesWithDetailsBatch').mockResolvedValue(
+      new Map([
+        ['message-2', makeMessageResponse({ id: 'message-2' })],
+        ['message-1', makeMessageResponse({ id: 'message-1' })],
+      ]),
+    );
+
+    await expect(
+      service.getChannelMessagesPaginated('channel-1', 2, {
+        before: '11111111-1111-1111-1111-111111111111',
+      }),
+    ).resolves.toEqual({
+      messages: [
+        makeMessageResponse({ id: 'message-2' }),
+        makeMessageResponse({ id: 'message-1' }),
+      ],
+      hasOlder: false,
+      hasNewer: false,
+    });
+
+    expect(latestRowsLimit).toHaveBeenCalledWith(3);
+  });
+
   it('returns top-level channel messages and filters out missing detail rows', async () => {
     const orderedLimit = jest
       .fn<any>()
@@ -424,6 +750,59 @@ describe('MessagesService', () => {
     ).resolves.toEqual([makeMessageResponse({ id: 'message-1' })]);
 
     expect(orderedLimit).toHaveBeenCalledWith(2);
+  });
+
+  it('returns older channel messages when a valid before cursor resolves to a timestamp', async () => {
+    const initialQueryChain = {
+      from: jest.fn<any>().mockReturnThis(),
+      where: jest.fn<any>().mockReturnThis(),
+      orderBy: jest.fn<any>().mockReturnThis(),
+      limit: jest.fn<any>().mockResolvedValue([]),
+    };
+    const beforeTimestampChain = {
+      from: jest.fn<any>().mockReturnThis(),
+      where: jest.fn<any>().mockReturnThis(),
+      limit: jest
+        .fn<any>()
+        .mockResolvedValue([
+          { createdAt: new Date('2026-04-02T10:35:00.000Z') },
+        ]),
+    };
+    const olderRowsLimit = jest
+      .fn<any>()
+      .mockResolvedValue([
+        makeMessageRow({ id: 'message-2' }),
+        makeMessageRow({ id: 'message-1' }),
+      ]);
+    const olderRowsChain = {
+      from: jest.fn<any>().mockReturnThis(),
+      where: jest.fn<any>().mockReturnThis(),
+      orderBy: jest.fn<any>().mockReturnThis(),
+      limit: olderRowsLimit,
+    };
+    db.select
+      .mockReturnValueOnce(initialQueryChain)
+      .mockReturnValueOnce(beforeTimestampChain)
+      .mockReturnValueOnce(olderRowsChain);
+    jest.spyOn(service as any, 'getMessagesWithDetailsBatch').mockResolvedValue(
+      new Map([
+        ['message-2', makeMessageResponse({ id: 'message-2' })],
+        ['message-1', makeMessageResponse({ id: 'message-1' })],
+      ]),
+    );
+
+    await expect(
+      service.getChannelMessages(
+        'channel-1',
+        2,
+        '11111111-1111-1111-1111-111111111111',
+      ),
+    ).resolves.toEqual([
+      makeMessageResponse({ id: 'message-2' }),
+      makeMessageResponse({ id: 'message-1' }),
+    ]);
+
+    expect(olderRowsLimit).toHaveBeenCalledWith(2);
   });
 
   it('returns thread replies through the batch detail helper', async () => {
@@ -454,6 +833,62 @@ describe('MessagesService', () => {
     ]);
   });
 
+  it('returns newer pages in descending order when a valid after cursor is provided', async () => {
+    const afterTimestampChain = {
+      from: jest.fn<any>().mockReturnThis(),
+      where: jest.fn<any>().mockReturnThis(),
+      limit: jest
+        .fn<any>()
+        .mockResolvedValue([
+          { createdAt: new Date('2026-04-02T10:31:00.000Z') },
+        ]),
+    };
+    const newerRowsLimit = jest.fn<any>().mockResolvedValue([
+      makeMessageRow({
+        id: 'message-2',
+        createdAt: new Date('2026-04-02T10:32:00.000Z'),
+      }),
+      makeMessageRow({
+        id: 'message-3',
+        createdAt: new Date('2026-04-02T10:33:00.000Z'),
+      }),
+      makeMessageRow({
+        id: 'message-4',
+        createdAt: new Date('2026-04-02T10:34:00.000Z'),
+      }),
+    ]);
+    const newerRowsChain = {
+      from: jest.fn<any>().mockReturnThis(),
+      where: jest.fn<any>().mockReturnThis(),
+      orderBy: jest.fn<any>().mockReturnThis(),
+      limit: newerRowsLimit,
+    };
+    db.select
+      .mockReturnValueOnce(afterTimestampChain)
+      .mockReturnValueOnce(newerRowsChain);
+    jest.spyOn(service as any, 'getMessagesWithDetailsBatch').mockResolvedValue(
+      new Map([
+        ['message-3', makeMessageResponse({ id: 'message-3' })],
+        ['message-2', makeMessageResponse({ id: 'message-2' })],
+      ]),
+    );
+
+    await expect(
+      service.getChannelMessagesPaginated('channel-1', 2, {
+        after: '11111111-1111-1111-1111-111111111111',
+      }),
+    ).resolves.toEqual({
+      messages: [
+        makeMessageResponse({ id: 'message-3' }),
+        makeMessageResponse({ id: 'message-2' }),
+      ],
+      hasOlder: true,
+      hasNewer: true,
+    });
+
+    expect(newerRowsLimit).toHaveBeenCalledWith(3);
+  });
+
   it('returns an empty newer page when the after cursor cannot be resolved', async () => {
     db.chains.selectLimit.mockResolvedValueOnce([]);
 
@@ -465,6 +900,77 @@ describe('MessagesService', () => {
       messages: [],
       hasOlder: true,
       hasNewer: false,
+    });
+  });
+
+  it('returns messages around an anchor and reports both directions when extra rows exist', async () => {
+    const anchorTimestampChain = {
+      from: jest.fn<any>().mockReturnThis(),
+      where: jest.fn<any>().mockReturnThis(),
+      limit: jest
+        .fn<any>()
+        .mockResolvedValue([
+          { createdAt: new Date('2026-04-02T10:30:00.000Z') },
+        ]),
+    };
+    const olderRowsChain = {
+      from: jest.fn<any>().mockReturnThis(),
+      where: jest.fn<any>().mockReturnThis(),
+      orderBy: jest.fn<any>().mockReturnThis(),
+      limit: jest.fn<any>().mockResolvedValue([
+        makeMessageRow({
+          id: 'older-nearest',
+          createdAt: new Date('2026-04-02T10:29:00.000Z'),
+        }),
+        makeMessageRow({
+          id: 'older-extra',
+          createdAt: new Date('2026-04-02T10:28:00.000Z'),
+        }),
+      ]),
+    };
+    const newerRowsChain = {
+      from: jest.fn<any>().mockReturnThis(),
+      where: jest.fn<any>().mockReturnThis(),
+      orderBy: jest.fn<any>().mockReturnThis(),
+      limit: jest.fn<any>().mockResolvedValue([
+        makeMessageRow({
+          id: 'anchor',
+          createdAt: new Date('2026-04-02T10:30:00.000Z'),
+        }),
+        makeMessageRow({
+          id: 'newer-nearest',
+          createdAt: new Date('2026-04-02T10:31:00.000Z'),
+        }),
+        makeMessageRow({
+          id: 'newer-extra',
+          createdAt: new Date('2026-04-02T10:32:00.000Z'),
+        }),
+      ]),
+    };
+    db.select
+      .mockReturnValueOnce(anchorTimestampChain)
+      .mockReturnValueOnce(olderRowsChain)
+      .mockReturnValueOnce(newerRowsChain);
+    jest.spyOn(service as any, 'getMessagesWithDetailsBatch').mockResolvedValue(
+      new Map([
+        ['newer-nearest', makeMessageResponse({ id: 'newer-nearest' })],
+        ['anchor', makeMessageResponse({ id: 'anchor' })],
+        ['older-nearest', makeMessageResponse({ id: 'older-nearest' })],
+      ]),
+    );
+
+    await expect(
+      service.getChannelMessagesPaginated('channel-1', 3, {
+        around: '11111111-1111-1111-1111-111111111111',
+      }),
+    ).resolves.toEqual({
+      messages: [
+        makeMessageResponse({ id: 'newer-nearest' }),
+        makeMessageResponse({ id: 'anchor' }),
+        makeMessageResponse({ id: 'older-nearest' }),
+      ],
+      hasOlder: true,
+      hasNewer: true,
     });
   });
 
@@ -506,6 +1012,60 @@ describe('MessagesService', () => {
     });
 
     expect(orderedLimit).toHaveBeenCalledWith(3);
+  });
+
+  it('returns older pages with hasNewer when a valid before cursor is provided', async () => {
+    const beforeTimestampChain = {
+      from: jest.fn<any>().mockReturnThis(),
+      where: jest.fn<any>().mockReturnThis(),
+      limit: jest
+        .fn<any>()
+        .mockResolvedValue([
+          { createdAt: new Date('2026-04-02T10:35:00.000Z') },
+        ]),
+    };
+    const beforeRowsLimit = jest.fn<any>().mockResolvedValue([
+      makeMessageRow({
+        id: 'message-2',
+        createdAt: new Date('2026-04-02T10:34:00.000Z'),
+      }),
+      makeMessageRow({
+        id: 'message-1',
+        createdAt: new Date('2026-04-02T10:33:00.000Z'),
+      }),
+      makeMessageRow({
+        id: 'message-0',
+        createdAt: new Date('2026-04-02T10:32:00.000Z'),
+      }),
+    ]);
+    const beforeRowsChain = {
+      from: jest.fn<any>().mockReturnThis(),
+      where: jest.fn<any>().mockReturnThis(),
+      orderBy: jest.fn<any>().mockReturnThis(),
+      limit: beforeRowsLimit,
+    };
+    db.select
+      .mockReturnValueOnce(beforeTimestampChain)
+      .mockReturnValueOnce(beforeRowsChain);
+    jest.spyOn(service as any, 'getMessagesWithDetailsBatch').mockResolvedValue(
+      new Map([
+        ['message-2', makeMessageResponse({ id: 'message-2' })],
+        ['message-1', makeMessageResponse({ id: 'message-1' })],
+      ]),
+    );
+
+    await expect(
+      service.getChannelMessagesPaginated('channel-1', 2, {
+        before: '11111111-1111-1111-1111-111111111111',
+      }),
+    ).resolves.toEqual({
+      messages: [
+        makeMessageResponse({ id: 'message-2' }),
+        makeMessageResponse({ id: 'message-1' }),
+      ],
+      hasOlder: true,
+      hasNewer: true,
+    });
   });
 
   it('adds reactions without failing on conflicts', async () => {

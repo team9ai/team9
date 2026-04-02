@@ -12,6 +12,7 @@ import {
   ForbiddenException,
   Logger,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 
 jest.unstable_mockModule('@team9/auth', () => ({
@@ -154,6 +155,8 @@ describe('InstalledApplicationsController', () => {
     rejectDevice: MockFn;
     startInstance: MockFn;
     stopInstance: MockFn;
+    createAgent: MockFn;
+    deleteAgent: MockFn;
   };
   let fileKeeperService: {
     listWorkspaces: MockFn;
@@ -165,6 +168,9 @@ describe('InstalledApplicationsController', () => {
     isUsernameTaken: MockFn;
     updateBotDisplayName: MockFn;
     updateBotMentor: MockFn;
+    createWorkspaceBot: MockFn;
+    deleteBotAndCleanup: MockFn;
+    updateBotExtra: MockFn;
   };
 
   beforeAll(() => {
@@ -200,6 +206,8 @@ describe('InstalledApplicationsController', () => {
       rejectDevice: jest.fn<any>().mockResolvedValue(undefined),
       startInstance: jest.fn<any>().mockResolvedValue(undefined),
       stopInstance: jest.fn<any>().mockResolvedValue(undefined),
+      createAgent: jest.fn<any>().mockResolvedValue({ agentId: 'agent-1' }),
+      deleteAgent: jest.fn<any>().mockResolvedValue(undefined),
     };
     fileKeeperService = {
       listWorkspaces: jest.fn<any>().mockResolvedValue([]),
@@ -216,6 +224,12 @@ describe('InstalledApplicationsController', () => {
       isUsernameTaken: jest.fn<any>().mockResolvedValue(false),
       updateBotDisplayName: jest.fn<any>().mockResolvedValue(undefined),
       updateBotMentor: jest.fn<any>().mockResolvedValue(undefined),
+      createWorkspaceBot: jest.fn<any>().mockResolvedValue({
+        bot: makeBot(),
+        accessToken: 'team9-token',
+      }),
+      deleteBotAndCleanup: jest.fn<any>().mockResolvedValue(undefined),
+      updateBotExtra: jest.fn<any>().mockResolvedValue(undefined),
     };
 
     controller = new InstalledApplicationsController(
@@ -257,6 +271,193 @@ describe('InstalledApplicationsController', () => {
       APP_ID,
       TENANT_ID,
     );
+  });
+
+  it.each([
+    [
+      'install',
+      () =>
+        controller.install(
+          { applicationId: 'openclaw' } as never,
+          USER_ID,
+          undefined as never,
+        ),
+    ],
+    [
+      'update',
+      () => controller.update(APP_ID, {} as never, undefined as never),
+    ],
+    ['uninstall', () => controller.uninstall(APP_ID, undefined as never)],
+  ])('requires tenantId for %s', async (_, invoke) => {
+    await expect(invoke()).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects OpenClaw status requests when no instance is configured', async () => {
+    installedApplicationsService.findById.mockResolvedValueOnce(
+      makeInstalledApp({
+        id: OPENCLAW_APP_ID,
+        applicationId: 'openclaw',
+        config: {},
+      }),
+    );
+
+    await expect(
+      controller.getOpenClawStatus(OPENCLAW_APP_ID, TENANT_ID),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('surfaces a missing access URL as a service unavailable error', async () => {
+    installedApplicationsService.findById.mockResolvedValueOnce(
+      makeInstalledApp({
+        id: OPENCLAW_APP_ID,
+        applicationId: 'openclaw',
+        config: { instancesId: 'openclaw-instance' },
+      }),
+    );
+    openclawService.getInstance.mockResolvedValueOnce(
+      makeInstance({
+        id: 'openclaw-instance',
+        access_url: '',
+      }),
+    );
+
+    await expect(
+      controller.getOpenClawGatewayInfo(OPENCLAW_APP_ID, TENANT_ID),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
+  it('falls back to the default file-keeper base URL when listing workspaces', async () => {
+    installedApplicationsService.findById.mockResolvedValueOnce(
+      makeInstalledApp({
+        id: OPENCLAW_APP_ID,
+        applicationId: 'openclaw',
+        config: { instancesId: 'openclaw-instance' },
+      }),
+    );
+    openclawService.getInstance.mockResolvedValueOnce(
+      makeInstance({
+        id: 'openclaw-instance',
+        file_keeper_domain: undefined,
+      }),
+    );
+    fileKeeperService.listWorkspaces.mockResolvedValueOnce([
+      { name: 'workspace-a', modified: '2026-04-01T09:00:00Z' },
+    ]);
+
+    const result = await controller.getOpenClawWorkspaces(
+      OPENCLAW_APP_ID,
+      TENANT_ID,
+    );
+
+    expect(fileKeeperService.listWorkspaces).toHaveBeenCalledWith(
+      'openclaw-instance',
+      undefined,
+    );
+    expect(result).toEqual({
+      instanceId: 'openclaw-instance',
+      workspaces: [{ name: 'workspace-a', modified: '2026-04-01T09:00:00Z' }],
+    });
+  });
+
+  it('creates an OpenClaw agent and persists its bot metadata', async () => {
+    installedApplicationsService.findById.mockResolvedValueOnce(
+      makeInstalledApp({
+        id: OPENCLAW_APP_ID,
+        applicationId: 'openclaw',
+        config: { instancesId: 'openclaw-instance' },
+      }),
+    );
+    openclawService.getInstance.mockResolvedValueOnce(
+      makeInstance({
+        id: 'openclaw-instance',
+      }),
+    );
+    botService.createWorkspaceBot.mockResolvedValueOnce({
+      bot: makeBot({
+        botId: 'bot-created',
+        displayName: 'Agent Display',
+        username: 'agent_name',
+      }),
+      accessToken: 'team9-token',
+    });
+    openclawService.createAgent.mockResolvedValueOnce({
+      agentId: 'agent-created',
+      name: 'agent-display-abcd',
+    });
+
+    const result = await controller.createOpenClawAgent(
+      OPENCLAW_APP_ID,
+      USER_ID,
+      TENANT_ID,
+      {
+        displayName: '  Agent Display  ',
+        username: '  agent_name  ',
+      },
+    );
+
+    expect(botService.createWorkspaceBot).toHaveBeenCalledWith({
+      ownerId: USER_ID,
+      tenantId: TENANT_ID,
+      displayName: 'Agent Display',
+      username: 'agent_name',
+      installedApplicationId: OPENCLAW_APP_ID,
+      generateToken: true,
+      mentorId: USER_ID,
+    });
+    expect(openclawService.createAgent).toHaveBeenCalledWith(
+      'openclaw-instance',
+      {
+        name: 'agent-display-abcd',
+        workspace: '/data/.openclaw/workspace-bot-created',
+        team9_token: 'team9-token',
+      },
+    );
+    expect(botService.updateBotExtra).toHaveBeenCalledWith('bot-created', {
+      openclaw: {
+        agentId: 'agent-created',
+        workspace: 'bot-created',
+      },
+    });
+    expect(result).toEqual({
+      botId: 'bot-created',
+      agentId: 'agent-created',
+      displayName: 'Agent Display',
+      mentorId: USER_ID,
+    });
+  });
+
+  it('rolls back the created bot when OpenClaw agent creation fails with a 400 response', async () => {
+    installedApplicationsService.findById.mockResolvedValueOnce(
+      makeInstalledApp({
+        id: OPENCLAW_APP_ID,
+        applicationId: 'openclaw',
+        config: { instancesId: 'openclaw-instance' },
+      }),
+    );
+    openclawService.getInstance.mockResolvedValueOnce(
+      makeInstance({
+        id: 'openclaw-instance',
+      }),
+    );
+    botService.createWorkspaceBot.mockResolvedValueOnce({
+      bot: makeBot({
+        botId: 'bot-created',
+        displayName: 'Agent Display',
+      }),
+      accessToken: 'team9-token',
+    });
+    openclawService.createAgent.mockRejectedValueOnce(
+      new Error('control plane responded 400 — agent already exists'),
+    );
+
+    await expect(
+      controller.createOpenClawAgent(OPENCLAW_APP_ID, USER_ID, TENANT_ID, {
+        displayName: 'Agent Display',
+        username: 'agent_name',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(botService.deleteBotAndCleanup).toHaveBeenCalledWith('bot-created');
   });
 
   it('falls back to the application icon when install payload omits iconUrl', async () => {

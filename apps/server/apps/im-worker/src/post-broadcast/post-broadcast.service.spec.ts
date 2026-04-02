@@ -1,4 +1,11 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals';
+import {
+  jest,
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+} from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { RabbitMQEventService } from '@team9/rabbitmq';
@@ -138,6 +145,210 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     }).compile();
 
     service = module.get<PostBroadcastService>(PostBroadcastService);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('marks the outbox completed and skips downstream work when there are no recipients', async () => {
+    const getChannelMemberIds = jest
+      .spyOn(service as any, 'getChannelMemberIds')
+      .mockResolvedValue([SENDER_ID]);
+    const updateUnreadCounts = jest
+      .spyOn(service as any, 'updateUnreadCounts')
+      .mockResolvedValue(undefined);
+    const processNotificationTasks = jest
+      .spyOn(service as any, 'processNotificationTasks')
+      .mockResolvedValue(undefined);
+    const pushToBotWebhooks = jest
+      .spyOn(service as any, 'pushToBotWebhooks')
+      .mockResolvedValue(undefined);
+    const pushToHiveBots = jest
+      .spyOn(service as any, 'pushToHiveBots')
+      .mockResolvedValue(undefined);
+    const markOutboxCompleted = jest
+      .spyOn(service as any, 'markOutboxCompleted')
+      .mockResolvedValue(undefined);
+
+    await service.processTask({
+      msgId: MSG_ID,
+      channelId: CHANNEL_ID,
+      senderId: SENDER_ID,
+      broadcastAt: 1_000,
+    });
+
+    expect(getChannelMemberIds).toHaveBeenCalledWith(CHANNEL_ID);
+    expect(updateUnreadCounts).not.toHaveBeenCalled();
+    expect(processNotificationTasks).not.toHaveBeenCalled();
+    expect(pushToBotWebhooks).not.toHaveBeenCalled();
+    expect(pushToHiveBots).not.toHaveBeenCalled();
+    expect(markOutboxCompleted).toHaveBeenCalledWith(MSG_ID);
+  });
+
+  it('runs the full post-broadcast orchestration when recipients exist', async () => {
+    const memberIds = [SENDER_ID, 'recipient-1', 'recipient-2'];
+    const getChannelMemberIds = jest
+      .spyOn(service as any, 'getChannelMemberIds')
+      .mockResolvedValue(memberIds);
+    const updateUnreadCounts = jest
+      .spyOn(service as any, 'updateUnreadCounts')
+      .mockResolvedValue(undefined);
+    const processNotificationTasks = jest
+      .spyOn(service as any, 'processNotificationTasks')
+      .mockResolvedValue(undefined);
+    const pushToBotWebhooks = jest
+      .spyOn(service as any, 'pushToBotWebhooks')
+      .mockResolvedValue(undefined);
+    const pushToHiveBots = jest
+      .spyOn(service as any, 'pushToHiveBots')
+      .mockResolvedValue(undefined);
+    const markOutboxCompleted = jest
+      .spyOn(service as any, 'markOutboxCompleted')
+      .mockResolvedValue(undefined);
+    const logger = {
+      debug: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    };
+    (service as any).logger = logger;
+
+    await service.processTask({
+      msgId: MSG_ID,
+      channelId: CHANNEL_ID,
+      senderId: SENDER_ID,
+      broadcastAt: 1_000,
+    });
+
+    expect(getChannelMemberIds).toHaveBeenCalledWith(CHANNEL_ID);
+    expect(updateUnreadCounts).toHaveBeenCalledWith(CHANNEL_ID, [
+      'recipient-1',
+      'recipient-2',
+    ]);
+    expect(processNotificationTasks).toHaveBeenCalledWith(
+      MSG_ID,
+      CHANNEL_ID,
+      SENDER_ID,
+    );
+    expect(pushToBotWebhooks).toHaveBeenCalledWith(
+      MSG_ID,
+      SENDER_ID,
+      memberIds,
+    );
+    expect(pushToHiveBots).toHaveBeenCalledWith(MSG_ID, SENDER_ID, memberIds);
+    expect(markOutboxCompleted).toHaveBeenCalledWith(MSG_ID);
+    expect(logger.debug).toHaveBeenCalledWith(
+      expect.stringContaining(`Post-broadcast completed for ${MSG_ID}`),
+    );
+  });
+
+  it('logs and rethrows when post-broadcast orchestration fails', async () => {
+    const failure = new Error('db down');
+    const logger = {
+      debug: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    };
+    (service as any).logger = logger;
+    jest
+      .spyOn(service as any, 'getChannelMemberIds')
+      .mockRejectedValue(failure);
+
+    await expect(
+      service.processTask({
+        msgId: MSG_ID,
+        channelId: CHANNEL_ID,
+        senderId: SENDER_ID,
+        broadcastAt: 1_000,
+      }),
+    ).rejects.toThrow('db down');
+
+    expect(logger.error).toHaveBeenCalledWith(
+      'Failed to process post-broadcast task: Error: db down',
+    );
+  });
+
+  it('warns and returns when notification context is missing', async () => {
+    const logger = {
+      debug: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    };
+    (service as any).logger = logger;
+    db.where.mockReturnValue(db);
+    db.limit.mockResolvedValueOnce([]);
+
+    await service.processNotificationTasks(MSG_ID, CHANNEL_ID, SENDER_ID);
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      `Message ${MSG_ID} not found for notification processing`,
+    );
+    expect(rabbitMQEventService.publishNotificationTask).not.toHaveBeenCalled();
+  });
+
+  it('sends webhook payloads to active bots with custom headers', async () => {
+    const botMember = {
+      userId: 'bot-user-uuid',
+      webhookUrl: 'https://example.test/webhook',
+      webhookHeaders: {
+        'X-Custom-Trace': 'trace-123',
+      },
+      botId: 'bot-id-123',
+    };
+    const message = makeMessage({ content: 'webhook payload' });
+    const sender = makeSender();
+    const channel = makeChannel('public');
+    const getMessageWithContext = jest
+      .spyOn(service as any, 'getMessageWithContext')
+      .mockResolvedValue({
+        message,
+        sender,
+        channel,
+        mentions: [],
+        parentMessage: null,
+      });
+    db.where.mockResolvedValueOnce([botMember]);
+    const fetchMock = jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue({ ok: true } as any);
+    jest.spyOn(globalThis, 'setTimeout').mockImplementation((() => 0) as any);
+
+    await (service as any).pushToBotWebhooks(MSG_ID, SENDER_ID, [
+      botMember.userId,
+    ]);
+
+    expect(getMessageWithContext).toHaveBeenCalledWith(MSG_ID);
+    expect(fetchMock).toHaveBeenCalledWith(
+      botMember.webhookUrl,
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Content-Type': 'application/json',
+          'X-Team9-Event': 'message.created',
+          'X-Team9-Bot-Id': botMember.botId,
+          'X-Custom-Trace': 'trace-123',
+        }),
+        body: expect.any(String),
+      }),
+    );
+    expect(
+      JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string),
+    ).toEqual(
+      expect.objectContaining({
+        event: 'message.created',
+        data: expect.objectContaining({
+          messageId: MSG_ID,
+          sender: expect.objectContaining({
+            id: sender.id,
+            username: sender.username,
+          }),
+          channel: expect.objectContaining({
+            id: channel.id,
+            type: channel.type,
+          }),
+        }),
+      }),
+    );
   });
 
   /** Helper: set up DB responses for one pushToHiveBots call */

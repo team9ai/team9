@@ -1,4 +1,11 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals';
+import {
+  jest,
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+} from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BotService } from './bot.service.js';
@@ -80,6 +87,10 @@ describe('BotService', () => {
     }).compile();
 
     service = module.get<BotService>(BotService);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   // ── createWorkspaceBot ────────────────────────────────────────────
@@ -187,6 +198,78 @@ describe('BotService', () => {
 
       expect(channelsService.createDirectChannel).not.toHaveBeenCalled();
     });
+
+    it('should link optional workspace metadata and generate a token when requested', async () => {
+      const ownerRow = { id: ownerId, username: 'alice' };
+      const userRow = {
+        id: 'bot-user-uuid',
+        email: 'bot@team9.local',
+        username: 'bot_abc_123',
+        displayName: 'Ops Bot',
+      };
+      const botRow = {
+        id: 'bot-uuid',
+        userId: 'bot-user-uuid',
+        type: 'webhook',
+        ownerId,
+        description: 'Ops Bot for alice',
+        capabilities: { canSendMessages: true, canReadMessages: true },
+        isActive: true,
+        webhookUrl: null,
+        installedApplicationId: null,
+        mentorId: null,
+        managedProvider: null,
+        managedMeta: null,
+      };
+
+      db.limit.mockResolvedValue([ownerRow] as any);
+
+      const tx = (db as any)._txChain;
+      let returningCallCount = 0;
+      tx.returning.mockImplementation((() => {
+        returningCallCount++;
+        if (returningCallCount === 1) return Promise.resolve([userRow]);
+        return Promise.resolve([botRow]);
+      }) as any);
+
+      const tokenSpy = jest
+        .spyOn(service, 'generateAccessToken')
+        .mockResolvedValue({
+          botId: 'bot-uuid',
+          userId: 'bot-user-uuid',
+          accessToken: 't9bot_fake_token',
+        });
+
+      const result = await service.createWorkspaceBot({
+        ownerId,
+        tenantId,
+        displayName: 'Ops Bot',
+        username: 'bot_abc_123',
+        type: 'webhook',
+        installedApplicationId: 'app-123',
+        generateToken: true,
+        mentorId: 'mentor-123',
+        managedProvider: 'openclaw',
+        managedMeta: { agentId: 'agent-1' } as any,
+      });
+
+      expect(tokenSpy).toHaveBeenCalledWith('bot-uuid');
+      expect(result.accessToken).toBe('t9bot_fake_token');
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          installedApplicationId: 'app-123',
+          mentorId: 'mentor-123',
+          managedProvider: 'openclaw',
+          managedMeta: { agentId: 'agent-1' },
+          updatedAt: expect.any(Date),
+        }),
+      );
+      expect(channelsService.createDirectChannel).toHaveBeenCalledWith(
+        ownerId,
+        'bot-user-uuid',
+        tenantId,
+      );
+    });
   });
 
   // ── createBot ─────────────────────────────────────────────────────
@@ -256,6 +339,40 @@ describe('BotService', () => {
     });
   });
 
+  describe('generateAccessToken', () => {
+    it('should generate a fingerprinted token, invalidate cache, and persist the hash', async () => {
+      db.limit.mockResolvedValue([{ id: 'bot-1', userId: 'user-1' }] as any);
+
+      const result = await service.generateAccessToken('bot-1');
+
+      expect(result).toMatchObject({
+        botId: 'bot-1',
+        userId: 'user-1',
+        accessToken: expect.stringMatching(/^t9bot_[0-9a-f]{96}$/),
+      });
+
+      expect(botAuthCache.invalidateBot).toHaveBeenCalledWith('bot-1');
+      const persisted = (db.set as any).mock.calls[0][0].accessToken as string;
+      const fingerprint = result.accessToken.slice(6, 14);
+      expect(persisted.startsWith(`${fingerprint}:`)).toBe(true);
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          updatedAt: expect.any(Date),
+        }),
+      );
+    });
+
+    it('should throw when the bot does not exist', async () => {
+      db.limit.mockResolvedValue([] as any);
+
+      await expect(service.generateAccessToken('missing-bot')).rejects.toThrow(
+        'Bot not found: missing-bot',
+      );
+
+      expect(botAuthCache.invalidateBot).not.toHaveBeenCalled();
+    });
+  });
+
   // ── system bot helpers ────────────────────────────────────────────
 
   describe('system bot helpers', () => {
@@ -265,6 +382,11 @@ describe('BotService', () => {
 
     it('isSystemBotEnabled should return false when not initialized', () => {
       expect(service.isSystemBotEnabled()).toBe(false);
+    });
+
+    it('getSystemBotUser and getSystemBotProfile should return null when not initialized', async () => {
+      await expect(service.getSystemBotUser()).resolves.toBeNull();
+      await expect(service.getSystemBotProfile()).resolves.toBeNull();
     });
   });
 
@@ -318,6 +440,32 @@ describe('BotService', () => {
       expect(
         channelsService.deleteDirectChannelsForUser,
       ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('updateWebhook', () => {
+    it('should omit webhookHeaders when headers are not provided', async () => {
+      await service.updateWebhook('bot-1', 'https://hooks.example.com');
+
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          webhookUrl: 'https://hooks.example.com',
+          updatedAt: expect.any(Date),
+        }),
+      );
+      expect(db.set.mock.calls[0][0]).not.toHaveProperty('webhookHeaders');
+    });
+
+    it('should store an empty webhookHeaders object when null is provided', async () => {
+      await service.updateWebhook('bot-1', 'https://hooks.example.com', null);
+
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          webhookUrl: 'https://hooks.example.com',
+          webhookHeaders: {},
+          updatedAt: expect.any(Date),
+        }),
+      );
     });
   });
 });

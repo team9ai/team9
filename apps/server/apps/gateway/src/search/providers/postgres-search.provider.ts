@@ -423,7 +423,8 @@ export class PostgresSearchProvider implements SearchProvider {
       .toLowerCase() // Convert to lowercase for case-insensitive search
       .split(/\s+/)
       .filter((term) => term.length > 0)
-      .map((term) => term.replace(/[^\w\u4e00-\u9fff]/g, '')); // Keep alphanumeric and Chinese chars
+      .map((term) => term.replace(/[^\w\u4e00-\u9fff]/g, ''))
+      .filter((term) => term.length > 0); // Keep alphanumeric and Chinese chars
 
     if (terms.length === 0) {
       return '';

@@ -64,6 +64,9 @@ describe('AuthService', () => {
   let eventEmitter: Record<string, MockFn>;
 
   beforeEach(async () => {
+    process.env.APP_URL = 'https://app.test';
+    process.env.DEV_SKIP_EMAIL_VERIFICATION = 'true';
+
     db = mockDb();
     redisService = {
       get: jest.fn<any>().mockResolvedValue(null),
@@ -408,6 +411,198 @@ describe('AuthService', () => {
       expect(result.user.email).toBe('race@test.com');
       // Should NOT insert a new user
       expect(db.insert).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── login ────────────────────────────────────────────────────────
+
+  describe('login', () => {
+    it('should send verification email for unverified human user', async () => {
+      const unverifiedUser = { ...USER_ROW, emailVerified: false };
+      db.limit.mockResolvedValue([unverifiedUser]);
+
+      const result = await service.login({ email: 'alice@test.com' });
+
+      expect(result.message).toBe(
+        'Your email is not verified yet. We have sent a verification email.',
+      );
+      expect(result.email).toBe('alice@test.com');
+      expect(result.loginSessionId).toBeDefined();
+      expect(db.delete).not.toHaveBeenCalled();
+      expect(db.insert).toHaveBeenCalled();
+      expect(redisService.set).toHaveBeenCalledWith(
+        expect.stringContaining('im:login_session:'),
+        expect.stringContaining('"status":"pending"'),
+        1800,
+      );
+    });
+
+    it('should send login link for verified human user', async () => {
+      db.limit.mockResolvedValue([USER_ROW]);
+
+      const result = await service.login({ email: 'alice@test.com' });
+
+      expect(result.message).toBe('Login link has been sent to your email.');
+      expect(result.email).toBe('alice@test.com');
+      expect(result.loginSessionId).toBeDefined();
+      expect(db.delete).toHaveBeenCalledTimes(1);
+      expect(db.insert).toHaveBeenCalled();
+      expect(redisService.set).toHaveBeenCalledWith(
+        expect.stringContaining('im:login_rate:alice@test.com'),
+        '1',
+        60,
+      );
+      expect(redisService.set).toHaveBeenCalledWith(
+        expect.stringContaining('im:login_session:'),
+        expect.stringContaining('"status":"pending"'),
+        1800,
+      );
+    });
+  });
+
+  // ── verifyEmail ──────────────────────────────────────────────────
+
+  describe('verifyEmail', () => {
+    it('should verify email, consume linked login session, and return tokens', async () => {
+      const tokenRecord = {
+        id: 'token-1',
+        userId: USER_ROW.id,
+        token: 'token-123',
+        email: USER_ROW.email,
+        expiresAt: new Date(Date.now() + 60_000),
+        usedAt: null,
+      };
+      const verifiedUser = {
+        ...USER_ROW,
+        emailVerified: true,
+        emailVerifiedAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      db.limit.mockResolvedValueOnce([tokenRecord]);
+      db.returning.mockResolvedValueOnce([verifiedUser]);
+      redisService.get.mockResolvedValue('login-session-1');
+
+      const result = await service.verifyEmail('token-123');
+
+      expect(result.user.email).toBe('alice@test.com');
+      expect(result.accessToken).toBe('mock-access-token');
+      expect(result.refreshToken).toBe('mock-refresh-token');
+      expect(db.set).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ usedAt: expect.any(Date) }),
+      );
+      expect(db.set).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          emailVerified: true,
+          emailVerifiedAt: expect.any(Date),
+          updatedAt: expect.any(Date),
+        }),
+      );
+      expect(redisService.set).toHaveBeenCalledWith(
+        'im:login_session:login-session-1',
+        expect.stringContaining('"status":"verified"'),
+        300,
+      );
+      expect(redisService.del).toHaveBeenCalledWith(
+        'im:login_session_by_user:user-uuid',
+      );
+    });
+
+    it('should reject missing verification tokens', async () => {
+      db.limit.mockResolvedValueOnce([]);
+
+      await expect(service.verifyEmail('missing-token')).rejects.toThrow(
+        'Invalid verification token',
+      );
+    });
+
+    it('should reject already-used verification tokens', async () => {
+      const tokenRecord = {
+        id: 'token-1',
+        userId: USER_ROW.id,
+        token: 'token-123',
+        email: USER_ROW.email,
+        expiresAt: new Date(Date.now() + 60_000),
+        usedAt: new Date(),
+      };
+
+      db.limit.mockResolvedValueOnce([tokenRecord]);
+
+      await expect(service.verifyEmail('token-123')).rejects.toThrow(
+        'Verification token has already been used',
+      );
+    });
+
+    it('should reject expired verification tokens', async () => {
+      const tokenRecord = {
+        id: 'token-1',
+        userId: USER_ROW.id,
+        token: 'token-123',
+        email: USER_ROW.email,
+        expiresAt: new Date(Date.now() - 60_000),
+        usedAt: null,
+      };
+
+      db.limit.mockResolvedValueOnce([tokenRecord]);
+
+      await expect(service.verifyEmail('token-123')).rejects.toThrow(
+        'Verification token has expired',
+      );
+    });
+  });
+
+  // ── refreshToken / logout ────────────────────────────────────────
+
+  describe('refreshToken and logout', () => {
+    it('should reject revoked refresh tokens', async () => {
+      jwtService.verify.mockReturnValueOnce({
+        sub: USER_ROW.id,
+        jti: 'refresh-jti-2',
+        exp: Math.floor(Date.now() / 1000) + 120,
+      });
+      redisService.get.mockResolvedValueOnce('1');
+
+      await expect(service.refreshToken('revoked-token')).rejects.toThrow(
+        'Invalid refresh token',
+      );
+      expect(db.limit).not.toHaveBeenCalled();
+      expect(redisService.set).not.toHaveBeenCalled();
+    });
+
+    it('should reject refresh tokens when the user no longer exists', async () => {
+      jwtService.verify.mockReturnValueOnce({
+        sub: 'missing-user',
+        jti: 'refresh-jti-3',
+        exp: Math.floor(Date.now() / 1000) + 120,
+      });
+      redisService.get.mockResolvedValueOnce(null);
+      db.limit.mockResolvedValueOnce([]);
+
+      await expect(service.refreshToken('stale-token')).rejects.toThrow(
+        'Invalid refresh token',
+      );
+      expect(redisService.set).not.toHaveBeenCalled();
+    });
+
+    it('should ignore invalid refresh tokens during logout', async () => {
+      jwtService.verify.mockImplementationOnce(() => {
+        throw new Error('invalid');
+      });
+
+      await expect(
+        service.logout(USER_ROW.id, 'bad-token'),
+      ).resolves.toBeUndefined();
+
+      expect(redisService.set).not.toHaveBeenCalled();
+    });
+
+    it('should do nothing when logout is called without a refresh token', async () => {
+      await expect(service.logout(USER_ROW.id)).resolves.toBeUndefined();
+
+      expect(jwtService.verify).not.toHaveBeenCalled();
+      expect(redisService.set).not.toHaveBeenCalled();
     });
   });
 
