@@ -58,12 +58,10 @@ function DashboardPlanBadge() {
   const { t } = useTranslation("navigation");
 
   return (
-    <div className="dashboard-landing-pill inline-flex items-center rounded-full p-1 text-[0.84rem] text-[#8d8274]">
-      <span className="rounded-full px-[1.125rem] py-1.5">
-        {t("dashboardPlan")}
-      </span>
-      <span className="h-[1.125rem] w-px bg-[#e7ddd0]" />
-      <span className="rounded-full px-[1.125rem] py-1.5 font-medium text-[#2f67ff]">
+    <div className="dashboard-landing-pill inline-flex items-center rounded-full p-[0.2rem] text-[0.8rem] text-[#8d8274]">
+      <span className="rounded-full px-4 py-1.5">{t("dashboardPlan")}</span>
+      <span className="h-4 w-px bg-[#e7ddd0]" />
+      <span className="rounded-full px-4 py-1.5 font-medium text-[#2f67ff]">
         {t("dashboardUpgrade")}
       </span>
     </div>
@@ -82,11 +80,11 @@ function DashboardActionChip({
   return (
     <div
       className={cn(
-        "dashboard-composer-chip inline-flex h-10 items-center gap-2 rounded-full px-4 text-[0.8rem] font-medium",
+        "dashboard-composer-chip inline-flex h-[2.375rem] items-center gap-1.5 rounded-full px-3.5 text-[0.78rem] font-medium",
         className,
       )}
     >
-      <Icon size={15} strokeWidth={1.8} />
+      <Icon size={14} strokeWidth={1.8} />
       <span>{label}</span>
     </div>
   );
@@ -96,8 +94,8 @@ function DashboardTaskPill() {
   const { t } = useTranslation("navigation");
 
   return (
-    <div className="dashboard-landing-pill inline-flex items-center gap-2.5 rounded-full px-[1.125rem] py-2.5 text-[0.84rem] text-[#6c6359]">
-      <span className="rounded-full bg-[#edf2ff] px-2 py-0.5 text-[0.68rem] font-medium text-[#6e89b5]">
+    <div className="dashboard-landing-pill inline-flex items-center gap-2.5 rounded-full px-4.5 py-2 text-[0.8rem] text-[#6c6359]">
+      <span className="rounded-full bg-[#edf2ff] px-2 py-0.5 text-[0.64rem] font-medium text-[#6e89b5]">
         {t("dashboardMockLabel")}
       </span>
       <span className="text-[#b0a79d]">{t("dashboardTaskEmptyValue")}</span>
@@ -107,7 +105,7 @@ function DashboardTaskPill() {
       <span className="font-medium text-[#2f67ff]">
         {t("dashboardCreateTask")}
       </span>
-      <ChevronRight size={14} className="text-[#8d8377]" />
+      <ChevronRight size={13} className="text-[#8d8377]" />
     </div>
   );
 }
@@ -157,13 +155,13 @@ export function HomeMainContent() {
         <div className="flex min-h-full w-full flex-col px-4 pb-8 pt-4 sm:px-6 sm:pb-10 lg:px-8">
           <DashboardHeader />
 
-          <div className="mx-auto flex w-full max-w-[1680px] flex-1 flex-col items-center justify-center gap-6 pb-8 pt-3 sm:gap-7 sm:pb-12 sm:pt-5 lg:pb-20 lg:pt-4">
+          <div className="mx-auto flex w-full max-w-[1680px] flex-1 flex-col items-center justify-center gap-5 pb-8 pt-2 sm:gap-6 sm:pb-12 sm:pt-4 lg:pb-[4.5rem] lg:pt-3">
             <DashboardPlanBadge />
 
             {isNewUser && !isWarmupDismissed ? (
-              <div className="dashboard-landing-pill flex w-full max-w-[40rem] items-start gap-3 rounded-[1.35rem] px-4 py-3 text-[0.84rem] text-[#6e655b] sm:items-center">
+              <div className="dashboard-landing-pill flex w-full max-w-[36rem] items-start gap-2.5 rounded-[1.2rem] px-3.5 py-2.5 text-[0.78rem] text-[#6e655b] sm:items-center">
                 <Loader2
-                  size={15}
+                  size={14}
                   className="mt-0.5 shrink-0 animate-spin text-[#7b8dcb] sm:mt-0"
                 />
                 <p className="flex-1">
@@ -175,33 +173,33 @@ export function HomeMainContent() {
                   className="rounded-full p-1 text-[#a89c8d] transition-colors hover:bg-white/55 hover:text-[#6e655b]"
                   aria-label={t("cancel")}
                 >
-                  <X size={13} />
+                  <X size={12} />
                 </button>
               </div>
             ) : null}
 
-            <div className="mx-auto flex w-full max-w-[48rem] flex-col items-center gap-5">
-              <h1 className="dashboard-landing-title max-w-[29.75rem] text-center text-[clamp(2.2rem,4.2vw,3.6rem)] leading-[0.98] text-[#2d2924]">
+            <div className="mx-auto flex w-full max-w-[45.5rem] flex-col items-center gap-5">
+              <h1 className="dashboard-landing-title max-w-[27.75rem] text-center text-[clamp(2.1rem,4vw,3.35rem)] leading-[0.99] text-[#2d2924]">
                 {t("dashboardTitle")}
               </h1>
 
-              <div className="dashboard-landing-surface w-full rounded-[2rem] px-4 pb-3.5 pt-3 sm:px-[1.125rem] sm:pb-4 sm:pt-3.5">
+              <div className="dashboard-landing-surface w-full rounded-[1.9rem] px-3.5 pb-3.5 pt-3 sm:px-4 sm:pb-4 sm:pt-3.5">
                 <Textarea
                   value={prompt}
                   onChange={(event) => setPrompt(event.target.value)}
                   onKeyDown={handlePromptKeyDown}
                   rows={3}
                   placeholder={t("dashboardPromptPlaceholder")}
-                  className="min-h-[7.4rem] resize-none border-0 bg-transparent px-2.5 py-1.5 text-[0.84rem] leading-[1.24rem] text-[#3f3a35] shadow-none placeholder:text-[#c8d5e6] focus-visible:border-transparent focus-visible:ring-0 md:text-[0.84rem]"
+                  className="min-h-[7rem] resize-none border-0 bg-transparent px-2.5 py-1.5 text-[0.82rem] leading-[1.2rem] text-[#3f3a35] shadow-none placeholder:text-[#c8d5e6] focus-visible:border-transparent focus-visible:ring-0 md:text-[0.82rem]"
                 />
 
-                <div className="mt-3.5 flex flex-col gap-3 px-0.5 pt-0.5 sm:flex-row sm:items-end sm:justify-between">
-                  <div className="flex flex-wrap items-center gap-2">
+                <div className="mt-3 flex flex-col gap-2.5 px-0.5 pt-0.5 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <button
                       type="button"
-                      className="dashboard-composer-plus inline-flex h-10 w-10 items-center justify-center rounded-full text-[#3e4f68]"
+                      className="dashboard-composer-plus inline-flex h-[2.375rem] w-[2.375rem] items-center justify-center rounded-full text-[#3e4f68]"
                     >
-                      <Plus size={18} strokeWidth={2} />
+                      <Plus size={17} strokeWidth={2} />
                     </button>
 
                     {DASHBOARD_ACTION_CHIPS.map((chip) => (
@@ -214,11 +212,11 @@ export function HomeMainContent() {
                     ))}
                   </div>
 
-                  <div className="flex items-center justify-between gap-2 sm:justify-end">
-                    <div className="dashboard-composer-model inline-flex h-[2.2rem] items-center gap-1.5 rounded-full px-3.5 text-[0.8rem] text-[#50627f]">
-                      <Sparkles size={13} className="text-[#2c3647]" />
+                  <div className="flex items-center justify-between gap-1.5 sm:justify-end">
+                    <div className="dashboard-composer-model inline-flex h-[2.05rem] items-center gap-1.5 rounded-full px-3 text-[0.76rem] text-[#50627f]">
+                      <Sparkles size={12} className="text-[#2c3647]" />
                       <span>{t("dashboardModelLabel")}</span>
-                      <ChevronDown size={12} className="text-[#93887b]" />
+                      <ChevronDown size={11} className="text-[#93887b]" />
                     </div>
 
                     <Button
@@ -226,9 +224,9 @@ export function HomeMainContent() {
                       size="icon"
                       onClick={handleSubmit}
                       disabled={!canSubmit}
-                      className="dashboard-composer-send h-10 w-10 rounded-full bg-[#818894] text-white shadow-none hover:bg-[#727885] disabled:bg-[#ddd7cf] disabled:text-[#a2998d]"
+                      className="dashboard-composer-send h-[2.375rem] w-[2.375rem] rounded-full bg-[#818894] text-white shadow-none hover:bg-[#727885] disabled:bg-[#ddd7cf] disabled:text-[#a2998d]"
                     >
-                      <ArrowUp size={17} strokeWidth={2.2} />
+                      <ArrowUp size={16} strokeWidth={2.2} />
                     </Button>
                   </div>
                 </div>
