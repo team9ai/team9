@@ -80,7 +80,7 @@ describe('StreamingController', () => {
     srem: MockFn;
     expire: MockFn;
   };
-  let websocketGateway: { sendToChannel: MockFn };
+  let websocketGateway: { sendToChannelMembers: MockFn };
   let channelsService: { isMember: MockFn; findById: MockFn };
   let messagesService: { getMessageWithDetails: MockFn };
   let imWorkerGrpcClientService: { createMessage: MockFn };
@@ -105,12 +105,14 @@ describe('StreamingController', () => {
     };
 
     websocketGateway = {
-      sendToChannel: jest.fn<any>(),
+      sendToChannelMembers: jest.fn<any>(),
     };
 
     channelsService = {
       isMember: jest.fn<any>().mockResolvedValue(true),
-      findById: jest.fn<any>().mockResolvedValue({ tenantId: 'workspace-1' }),
+      findById: jest
+        .fn<any>()
+        .mockResolvedValue({ tenantId: 'workspace-1', isActivated: true }),
     };
 
     messagesService = {
@@ -197,7 +199,7 @@ describe('StreamingController', () => {
       );
 
       // Broadcasts streaming_start to channel
-      expect(websocketGateway.sendToChannel).toHaveBeenCalledWith(
+      expect(websocketGateway.sendToChannelMembers).toHaveBeenCalledWith(
         CHANNEL_ID,
         WS_EVENTS.STREAMING.START,
         {
@@ -240,7 +242,7 @@ describe('StreamingController', () => {
 
       // Should not proceed to Redis or WS operations
       expect(redisService.set).not.toHaveBeenCalled();
-      expect(websocketGateway.sendToChannel).not.toHaveBeenCalled();
+      expect(websocketGateway.sendToChannelMembers).not.toHaveBeenCalled();
     });
 
     it('rejects non-members with ForbiddenException', async () => {
@@ -252,7 +254,7 @@ describe('StreamingController', () => {
 
       // Should not proceed to Redis or WS operations
       expect(redisService.set).not.toHaveBeenCalled();
-      expect(websocketGateway.sendToChannel).not.toHaveBeenCalled();
+      expect(websocketGateway.sendToChannelMembers).not.toHaveBeenCalled();
     });
   });
 
@@ -281,7 +283,7 @@ describe('StreamingController', () => {
       );
 
       // Broadcasts content to channel
-      expect(websocketGateway.sendToChannel).toHaveBeenCalledWith(
+      expect(websocketGateway.sendToChannelMembers).toHaveBeenCalledWith(
         CHANNEL_ID,
         WS_EVENTS.STREAMING.CONTENT,
         {
@@ -313,7 +315,7 @@ describe('StreamingController', () => {
         }),
       ).rejects.toThrow(ForbiddenException);
 
-      expect(websocketGateway.sendToChannel).not.toHaveBeenCalled();
+      expect(websocketGateway.sendToChannelMembers).not.toHaveBeenCalled();
     });
 
     it('rejects non-owner with ForbiddenException', async () => {
@@ -327,7 +329,7 @@ describe('StreamingController', () => {
         }),
       ).rejects.toThrow(ForbiddenException);
 
-      expect(websocketGateway.sendToChannel).not.toHaveBeenCalled();
+      expect(websocketGateway.sendToChannelMembers).not.toHaveBeenCalled();
     });
   });
 
@@ -375,7 +377,7 @@ describe('StreamingController', () => {
       );
 
       // Broadcasts streaming_end
-      expect(websocketGateway.sendToChannel).toHaveBeenCalledWith(
+      expect(websocketGateway.sendToChannelMembers).toHaveBeenCalledWith(
         CHANNEL_ID,
         WS_EVENTS.STREAMING.END,
         {
@@ -387,7 +389,7 @@ describe('StreamingController', () => {
       );
 
       // Broadcasts new_message
-      expect(websocketGateway.sendToChannel).toHaveBeenCalledWith(
+      expect(websocketGateway.sendToChannelMembers).toHaveBeenCalledWith(
         CHANNEL_ID,
         WS_EVENTS.MESSAGE.NEW,
         message,

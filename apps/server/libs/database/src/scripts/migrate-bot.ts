@@ -9,10 +9,17 @@ import * as schema from '../schemas/index.js';
 
 // ── OpenClaw API helpers ──────────────────────────────────────────────────
 
+interface OpenClawInstanceResponse {
+  access_url?: string;
+  instance?: {
+    access_url?: string;
+  };
+}
+
 async function generateAccessToken(
   db: ReturnType<typeof drizzle>,
   botId: string,
-  botUserId: string,
+  _botUserId: string,
 ): Promise<string> {
   const rawHex = crypto.randomBytes(48).toString('hex');
   const rawToken = `t9bot_${rawHex}`;
@@ -76,7 +83,7 @@ async function createOpenClawInstance(
     return false;
   }
 
-  const result = await res.json();
+  const result = (await res.json()) as OpenClawInstanceResponse;
   console.log(
     `✅ OpenClaw instance created: ${result.access_url || result.instance?.access_url}`,
   );

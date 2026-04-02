@@ -27,6 +27,10 @@ function getRequiredPemKey(key: string): string {
   return value.replace(/\\n/g, '\n');
 }
 
+function getAppEnv(): string {
+  return process.env.APP_ENV || process.env.NODE_ENV || 'development';
+}
+
 export const env = {
   // JWT (ES256 - ECDSA P-256)
   get JWT_PRIVATE_KEY() {
@@ -116,7 +120,7 @@ export const env = {
   },
   // Shared S3 bucket name (single bucket for all workspaces)
   get S3_BUCKET() {
-    return process.env.S3_BUCKET || `t9-${this.APP_ENV}`;
+    return process.env.S3_BUCKET || `t9-${getAppEnv()}`;
   },
 
   // CORS
@@ -136,7 +140,7 @@ export const env = {
 
   // Application Environment
   get APP_ENV() {
-    return process.env.APP_ENV || process.env.NODE_ENV || 'development';
+    return getAppEnv();
   },
 
   // System Bot Configuration (optional)
@@ -227,7 +231,7 @@ export const env = {
   get DEV_SKIP_EMAIL_VERIFICATION() {
     return (
       process.env.DEV_SKIP_EMAIL_VERIFICATION === 'true' &&
-      this.APP_ENV === 'local'
+      getAppEnv() === 'local'
     );
   },
 };

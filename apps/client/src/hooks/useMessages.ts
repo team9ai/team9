@@ -2,6 +2,7 @@ import {
   useMutation,
   useQueryClient,
   useInfiniteQuery,
+  type InfiniteData,
 } from "@tanstack/react-query";
 import { useEffect } from "react";
 import imApi from "@/services/api/im";
@@ -10,7 +11,11 @@ import type {
   CreateMessageDto,
   UpdateMessageDto,
   Message,
+  MessageReaction,
   MessageSendStatus,
+  PaginatedMessagesResponse,
+  SubRepliesResponse,
+  ThreadResponse,
 } from "@/types/im";
 import type {
   StreamingStartEvent,
@@ -39,9 +44,46 @@ const pendingByClientMsgId = new Map<string, string>();
 // Set of server message IDs already resolved by WebSocket (so onSuccess can skip)
 const resolvedServerIds = new Set<string>();
 
+type MessagesPage = Message[] | PaginatedMessagesResponse;
+type MessagesQueryData = InfiniteData<MessagesPage>;
+type ThreadQueryData = InfiniteData<ThreadResponse>;
+type SubRepliesQueryData = InfiniteData<SubRepliesResponse>;
+type MessageReplier = NonNullable<Message["lastRepliers"]>[number];
+
 function findPendingTempId(clientMsgId?: string | null): string | undefined {
   if (!clientMsgId) return undefined;
   return pendingByClientMsgId.get(clientMsgId);
+}
+
+function buildUpdatedRepliers(
+  existing: Message["lastRepliers"],
+  sender: Message["sender"],
+): MessageReplier[] {
+  const updatedRepliers = [...(existing ?? [])];
+  if (!sender) return updatedRepliers;
+
+  const newReplier: MessageReplier = {
+    id: sender.id,
+    username: sender.username,
+    displayName: sender.displayName ?? null,
+    avatarUrl: sender.avatarUrl ?? null,
+    userType: sender.userType ?? "human",
+  };
+
+  return [
+    newReplier,
+    ...updatedRepliers.filter((replier) => replier.id !== newReplier.id),
+  ].slice(0, 5);
+}
+
+function filterReaction(
+  reactions: MessageReaction[] | undefined,
+  userId: string,
+  emoji: string,
+): MessageReaction[] {
+  return (reactions ?? []).filter(
+    (reaction) => !(reaction.userId === userId && reaction.emoji === emoji),
+  );
 }
 
 /**
@@ -175,134 +217,131 @@ export function useMessages(channelId: string | undefined) {
         // For sub-replies, update the parent reply's subReplyCount/replyCount
         // in the thread cache so the ThreadReplyIndicator updates in real-time
         if (isSubReply) {
-          queryClient.setQueryData(["thread", rootId], (old: any) => {
+          queryClient.setQueryData<ThreadQueryData>(
+            ["thread", rootId],
+            (old) => {
+              if (!old) return old;
+
+              return {
+                ...old,
+                pages: old.pages.map((page) => ({
+                  ...page,
+                  replies: page.replies.map((reply) => {
+                    if (reply.id === parentId) {
+                      return {
+                        ...reply,
+                        subReplyCount: (reply.subReplyCount || 0) + 1,
+                        replyCount: (reply.replyCount || 0) + 1,
+                        lastRepliers: buildUpdatedRepliers(
+                          reply.lastRepliers,
+                          message.sender,
+                        ),
+                        lastReplyAt: message.createdAt,
+                      };
+                    }
+                    return reply;
+                  }),
+                })),
+              };
+            },
+          );
+        }
+
+        // Update the parent message's replyCount, lastRepliers, and lastReplyAt in the main list
+        queryClient.setQueryData<MessagesQueryData>(
+          ["messages", channelId],
+          (old) => {
             if (!old) return old;
 
             return {
               ...old,
-              pages: old.pages.map((page: any) => ({
-                ...page,
-                replies: page.replies.map((reply: any) => {
-                  if (reply.id === parentId) {
-                    // Build updated lastRepliers for the parent reply
-                    let updatedRepliers = [...(reply.lastRepliers || [])];
-                    if (message.sender) {
-                      const newReplier = {
-                        id: message.sender.id,
-                        username: message.sender.username,
-                        displayName: message.sender.displayName ?? null,
-                        avatarUrl: message.sender.avatarUrl ?? null,
-                        userType: message.sender.userType ?? "human",
+              pages: old.pages.map((page) =>
+                setMessages(
+                  page,
+                  getMessages(page).map((msg) => {
+                    if (msg.id === rootId) {
+                      return {
+                        ...msg,
+                        replyCount: (msg.replyCount || 0) + 1,
+                        lastRepliers: buildUpdatedRepliers(
+                          msg.lastRepliers,
+                          message.sender,
+                        ),
+                        lastReplyAt: message.createdAt,
                       };
-                      updatedRepliers = updatedRepliers.filter(
-                        (r: any) => r.id !== newReplier.id,
-                      );
-                      updatedRepliers.unshift(newReplier);
-                      updatedRepliers = updatedRepliers.slice(0, 5);
                     }
-
-                    return {
-                      ...reply,
-                      subReplyCount: (reply.subReplyCount || 0) + 1,
-                      replyCount: (reply.replyCount || 0) + 1,
-                      lastRepliers: updatedRepliers,
-                      lastReplyAt: message.createdAt,
-                    };
-                  }
-                  return reply;
-                }),
-              })),
+                    return msg;
+                  }),
+                ),
+              ),
             };
-          });
-        }
-
-        // Update the parent message's replyCount, lastRepliers, and lastReplyAt in the main list
-        queryClient.setQueryData(["messages", channelId], (old: any) => {
-          if (!old) return old;
-
-          return {
-            ...old,
-            pages: old.pages.map((page: Message[]) =>
-              page.map((msg) => {
-                if (msg.id === rootId) {
-                  // Build updated lastRepliers from the reply's sender
-                  let updatedRepliers = [...(msg.lastRepliers || [])];
-                  if (message.sender) {
-                    const newReplier = {
-                      id: message.sender.id,
-                      username: message.sender.username,
-                      displayName: message.sender.displayName ?? null,
-                      avatarUrl: message.sender.avatarUrl ?? null,
-                      userType: message.sender.userType ?? "human",
-                    };
-                    // Remove duplicate then prepend
-                    updatedRepliers = updatedRepliers.filter(
-                      (r) => r.id !== newReplier.id,
-                    );
-                    updatedRepliers.unshift(newReplier);
-                    updatedRepliers = updatedRepliers.slice(0, 5);
-                  }
-
-                  return {
-                    ...msg,
-                    replyCount: (msg.replyCount || 0) + 1,
-                    lastRepliers: updatedRepliers,
-                    lastReplyAt: message.createdAt,
-                  };
-                }
-                return msg;
-              }),
-            ),
-          };
-        });
+          },
+        );
         return;
       }
 
-      queryClient.setQueryData(["messages", channelId], (old: any) => {
-        if (!old) return { pages: [[message]], pageParams: [undefined] };
+      queryClient.setQueryData<MessagesQueryData>(
+        ["messages", channelId],
+        (old) => {
+          if (!old) return { pages: [[message]], pageParams: [undefined] };
 
-        // Check if message already exists (might have been added via onSuccess)
-        const exists = old.pages.some((page: Message[]) =>
-          page.some((msg) => msg.id === message.id),
-        );
+          // Check if message already exists (might have been added via onSuccess)
+          const exists = old.pages.some((page) =>
+            getMessages(page).some((msg) => msg.id === message.id),
+          );
 
-        // Use clientMsgId for precise tempId lookup
-        const matchedTempId = findPendingTempId(message.clientMsgId);
+          // Use clientMsgId for precise tempId lookup
+          const matchedTempId = findPendingTempId(message.clientMsgId);
 
-        if (exists) {
-          // Server message exists - clean up any lingering temp duplicate
-          if (!matchedTempId) return old;
-          pendingByClientMsgId.delete(message.clientMsgId!);
+          if (exists) {
+            // Server message exists - clean up any lingering temp duplicate
+            if (!matchedTempId) return old;
+            pendingByClientMsgId.delete(message.clientMsgId!);
+            return {
+              ...old,
+              pages: old.pages.map((page) =>
+                setMessages(
+                  page,
+                  getMessages(page).filter((msg) => msg.id !== matchedTempId),
+                ),
+              ),
+            };
+          }
+
+          // Replace matching temp message in-place (smooth transition, no flicker)
+          if (matchedTempId) {
+            // Record that WS handled this server message so onSuccess can skip
+            resolvedServerIds.add(message.id);
+            pendingByClientMsgId.delete(message.clientMsgId!);
+            setTimeout(() => resolvedServerIds.delete(message.id), 30000);
+            return {
+              ...old,
+              pages: old.pages.map((page) =>
+                setMessages(
+                  page,
+                  getMessages(page).map((msg) =>
+                    msg.id === matchedTempId ? message : msg,
+                  ),
+                ),
+              ),
+            };
+          }
+
+          // No matching temp found - new message from someone else, prepend
           return {
             ...old,
-            pages: old.pages.map((page: Message[]) =>
-              page.filter((msg) => msg.id !== matchedTempId),
-            ),
+            pages: old.pages[0]
+              ? [
+                  setMessages(old.pages[0], [
+                    message,
+                    ...getMessages(old.pages[0]),
+                  ]),
+                  ...old.pages.slice(1),
+                ]
+              : [[message]],
           };
-        }
-
-        // Replace matching temp message in-place (smooth transition, no flicker)
-        if (matchedTempId) {
-          // Record that WS handled this server message so onSuccess can skip
-          resolvedServerIds.add(message.id);
-          pendingByClientMsgId.delete(message.clientMsgId!);
-          setTimeout(() => resolvedServerIds.delete(message.id), 30000);
-          return {
-            ...old,
-            pages: old.pages.map((page: Message[]) =>
-              page.map((msg) => (msg.id === matchedTempId ? message : msg)),
-            ),
-          };
-        }
-
-        // No matching temp found - new message from someone else, prepend
-        return {
-          ...old,
-          pages: old.pages[0]
-            ? [[message, ...old.pages[0]], ...old.pages.slice(1)]
-            : [[message]],
-        };
-      });
+        },
+      );
 
       // Notify channel scroll state machine about the new message
       useChannelScrollStore.getState().send(channelId, { type: "NEW_MESSAGE" });
@@ -311,31 +350,45 @@ export function useMessages(channelId: string | undefined) {
     const handleMessageUpdated = (message: Message) => {
       if (message.channelId !== channelId) return;
 
-      queryClient.setQueryData(["messages", channelId], (old: any) => {
-        if (!old) return old;
+      queryClient.setQueryData<MessagesQueryData>(
+        ["messages", channelId],
+        (old) => {
+          if (!old) return old;
 
-        return {
-          ...old,
-          pages: old.pages.map((page: Message[]) =>
-            page.map((msg) => (msg.id === message.id ? message : msg)),
-          ),
-        };
-      });
+          return {
+            ...old,
+            pages: old.pages.map((page) =>
+              setMessages(
+                page,
+                getMessages(page).map((msg) =>
+                  msg.id === message.id ? message : msg,
+                ),
+              ),
+            ),
+          };
+        },
+      );
     };
 
     const handleMessageDeleted = ({ messageId }: { messageId: string }) => {
-      queryClient.setQueryData(["messages", channelId], (old: any) => {
-        if (!old) return old;
+      queryClient.setQueryData<MessagesQueryData>(
+        ["messages", channelId],
+        (old) => {
+          if (!old) return old;
 
-        return {
-          ...old,
-          pages: old.pages.map((page: Message[]) =>
-            page.map((msg) =>
-              msg.id === messageId ? { ...msg, isDeleted: true } : msg,
+          return {
+            ...old,
+            pages: old.pages.map((page) =>
+              setMessages(
+                page,
+                getMessages(page).map((msg) =>
+                  msg.id === messageId ? { ...msg, isDeleted: true } : msg,
+                ),
+              ),
             ),
-          ),
-        };
-      });
+          };
+        },
+      );
     };
 
     // Auto-open thread panel when bot replies to current user's message
@@ -348,15 +401,15 @@ export function useMessages(channelId: string | undefined) {
       if (!currentUserId) return;
 
       // Look up parent message in cache to verify current user triggered the bot
-      const messagesData = queryClient.getQueryData([
+      const messagesData = queryClient.getQueryData<MessagesQueryData>([
         "messages",
         channelId,
-      ]) as any;
+      ]);
       if (!messagesData) return;
 
       const parentMsg = messagesData.pages
-        .flat()
-        .find((m: any) => m.id === rootId);
+        .flatMap((page) => getMessages(page))
+        .find((msg) => msg.id === rootId);
       if (parentMsg?.senderId === currentUserId) {
         threadState.openPrimaryThread(rootId);
       }
@@ -380,12 +433,15 @@ export function useMessages(channelId: string | undefined) {
       if (!currentUserId) return;
 
       // Look up parent message in the thread cache to verify current user triggered the bot
-      const threadData = queryClient.getQueryData(["thread", rootId]) as any;
+      const threadData = queryClient.getQueryData<ThreadQueryData>([
+        "thread",
+        rootId,
+      ]);
       if (!threadData) return;
 
       const parentMsg = threadData.pages
-        ?.flatMap((page: any) => page.replies)
-        ?.find((r: any) => r.id === parentId);
+        .flatMap((page) => page.replies)
+        .find((reply) => reply.id === parentId);
       if (parentMsg?.senderId === currentUserId) {
         threadState.openSecondaryThread(parentId);
       }
@@ -456,20 +512,29 @@ export function useMessages(channelId: string | undefined) {
       // Proactively insert the final message into cache as a safety net,
       // in case the subsequent new_message broadcast is lost.
       if (event.message) {
-        const msg = event.message as Message;
+        const msg = event.message;
         if (!msg.parentId) {
           // Main channel message - insert into messages cache
-          queryClient.setQueryData(["messages", channelId], (old: any) => {
-            if (!old) return { pages: [[msg]], pageParams: [undefined] };
-            const exists = old.pages.some((page: Message[]) =>
-              page.some((m) => m.id === msg.id),
-            );
-            if (exists) return old;
-            return {
-              ...old,
-              pages: [[msg, ...old.pages[0]], ...old.pages.slice(1)],
-            };
-          });
+          queryClient.setQueryData<MessagesQueryData>(
+            ["messages", channelId],
+            (old) => {
+              if (!old) return { pages: [[msg]], pageParams: [undefined] };
+              const exists = old.pages.some((page) =>
+                getMessages(page).some((message) => message.id === msg.id),
+              );
+              if (exists) return old;
+              return {
+                ...old,
+                pages: [
+                  setMessages(old.pages[0], [
+                    msg,
+                    ...getMessages(old.pages[0]),
+                  ]),
+                  ...old.pages.slice(1),
+                ],
+              };
+            },
+          );
         } else {
           // Thread reply - invalidate thread query so it's fresh when viewed
           const rootId = msg.rootId || msg.parentId;
@@ -488,41 +553,48 @@ export function useMessages(channelId: string | undefined) {
 
     const handleReactionAdded = (event: ReactionAddedEvent) => {
       // Update main messages cache
-      queryClient.setQueryData(["messages", channelId], (old: any) => {
-        if (!old) return old;
-        return {
-          ...old,
-          pages: old.pages.map((page: Message[]) =>
-            page.map((msg) => {
-              if (msg.id !== event.messageId) return msg;
-              const existing = msg.reactions || [];
-              // Prevent duplicate
-              if (
-                existing.some(
-                  (r) => r.userId === event.userId && r.emoji === event.emoji,
-                )
-              )
-                return msg;
-              return {
-                ...msg,
-                reactions: [
-                  ...existing,
-                  {
-                    id: `${event.userId}-${event.emoji}`,
-                    messageId: event.messageId,
-                    userId: event.userId,
-                    emoji: event.emoji,
-                    createdAt: new Date().toISOString(),
-                  },
-                ],
-              };
-            }),
-          ),
-        };
-      });
+      queryClient.setQueryData<MessagesQueryData>(
+        ["messages", channelId],
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page) =>
+              setMessages(
+                page,
+                getMessages(page).map((msg) => {
+                  if (msg.id !== event.messageId) return msg;
+                  const existing = msg.reactions || [];
+                  // Prevent duplicate
+                  if (
+                    existing.some(
+                      (r) =>
+                        r.userId === event.userId && r.emoji === event.emoji,
+                    )
+                  )
+                    return msg;
+                  return {
+                    ...msg,
+                    reactions: [
+                      ...existing,
+                      {
+                        id: `${event.userId}-${event.emoji}`,
+                        messageId: event.messageId,
+                        userId: event.userId,
+                        emoji: event.emoji,
+                        createdAt: new Date().toISOString(),
+                      },
+                    ],
+                  };
+                }),
+              ),
+            ),
+          };
+        },
+      );
 
       // Update open thread caches
-      const newReaction = {
+      const newReaction: MessageReaction = {
         id: `${event.userId}-${event.emoji}`,
         messageId: event.messageId,
         userId: event.userId,
@@ -535,19 +607,20 @@ export function useMessages(channelId: string | undefined) {
         threadState.primaryThread.rootMessageId
       ) {
         const threadKey = ["thread", threadState.primaryThread.rootMessageId];
-        queryClient.setQueryData(threadKey, (old: any) => {
+        queryClient.setQueryData<ThreadQueryData>(threadKey, (old) => {
           if (!old) return old;
           return {
             ...old,
-            pages: old.pages.map((page: any) => ({
+            pages: old.pages.map((page) => ({
               ...page,
-              replies: page.replies.map((reply: any) => {
+              replies: page.replies.map((reply) => {
                 if (reply.id !== event.messageId) return reply;
                 const existing = reply.reactions || [];
                 if (
                   existing.some(
-                    (r: any) =>
-                      r.userId === event.userId && r.emoji === event.emoji,
+                    (reaction) =>
+                      reaction.userId === event.userId &&
+                      reaction.emoji === event.emoji,
                   )
                 )
                   return reply;
@@ -565,19 +638,20 @@ export function useMessages(channelId: string | undefined) {
           "subReplies",
           threadState.secondaryThread.rootMessageId,
         ];
-        queryClient.setQueryData(subKey, (old: any) => {
+        queryClient.setQueryData<SubRepliesQueryData>(subKey, (old) => {
           if (!old) return old;
           return {
             ...old,
-            pages: old.pages.map((page: any) => ({
+            pages: old.pages.map((page) => ({
               ...page,
-              replies: page.replies.map((reply: any) => {
+              replies: page.replies.map((reply) => {
                 if (reply.id !== event.messageId) return reply;
                 const existing = reply.reactions || [];
                 if (
                   existing.some(
-                    (r: any) =>
-                      r.userId === event.userId && r.emoji === event.emoji,
+                    (reaction) =>
+                      reaction.userId === event.userId &&
+                      reaction.emoji === event.emoji,
                   )
                 )
                   return reply;
@@ -591,47 +665,54 @@ export function useMessages(channelId: string | undefined) {
 
     const handleReactionRemoved = (event: ReactionRemovedEvent) => {
       // Update main messages cache
-      queryClient.setQueryData(["messages", channelId], (old: any) => {
-        if (!old) return old;
-        return {
-          ...old,
-          pages: old.pages.map((page: Message[]) =>
-            page.map((msg) => {
-              if (msg.id !== event.messageId) return msg;
-              return {
-                ...msg,
-                reactions: (msg.reactions || []).filter(
-                  (r: any) =>
-                    !(r.userId === event.userId && r.emoji === event.emoji),
-                ),
-              };
-            }),
-          ),
-        };
-      });
+      queryClient.setQueryData<MessagesQueryData>(
+        ["messages", channelId],
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page) =>
+              setMessages(
+                page,
+                getMessages(page).map((msg) => {
+                  if (msg.id !== event.messageId) return msg;
+                  return {
+                    ...msg,
+                    reactions: filterReaction(
+                      msg.reactions,
+                      event.userId,
+                      event.emoji,
+                    ),
+                  };
+                }),
+              ),
+            ),
+          };
+        },
+      );
 
       // Update open thread caches
-      const filterReaction = (reactions: any[]) =>
-        reactions.filter(
-          (r: any) => !(r.userId === event.userId && r.emoji === event.emoji),
-        );
       const threadState = useThreadStore.getState();
       if (
         threadState.primaryThread.isOpen &&
         threadState.primaryThread.rootMessageId
       ) {
         const threadKey = ["thread", threadState.primaryThread.rootMessageId];
-        queryClient.setQueryData(threadKey, (old: any) => {
+        queryClient.setQueryData<ThreadQueryData>(threadKey, (old) => {
           if (!old) return old;
           return {
             ...old,
-            pages: old.pages.map((page: any) => ({
+            pages: old.pages.map((page) => ({
               ...page,
-              replies: page.replies.map((reply: any) => {
+              replies: page.replies.map((reply) => {
                 if (reply.id !== event.messageId) return reply;
                 return {
                   ...reply,
-                  reactions: filterReaction(reply.reactions || []),
+                  reactions: filterReaction(
+                    reply.reactions,
+                    event.userId,
+                    event.emoji,
+                  ),
                 };
               }),
             })),
@@ -646,17 +727,21 @@ export function useMessages(channelId: string | undefined) {
           "subReplies",
           threadState.secondaryThread.rootMessageId,
         ];
-        queryClient.setQueryData(subKey, (old: any) => {
+        queryClient.setQueryData<SubRepliesQueryData>(subKey, (old) => {
           if (!old) return old;
           return {
             ...old,
-            pages: old.pages.map((page: any) => ({
+            pages: old.pages.map((page) => ({
               ...page,
-              replies: page.replies.map((reply: any) => {
+              replies: page.replies.map((reply) => {
                 if (reply.id !== event.messageId) return reply;
                 return {
                   ...reply,
-                  reactions: filterReaction(reply.reactions || []),
+                  reactions: filterReaction(
+                    reply.reactions,
+                    event.userId,
+                    event.emoji,
+                  ),
                 };
               }),
             })),
@@ -770,7 +855,7 @@ export function useChannelMessages(
         return;
       }
 
-      queryClient.setQueryData(msgQueryKey, (old: any) => {
+      queryClient.setQueryData<MessagesQueryData>(msgQueryKey, (old) => {
         if (!old)
           return {
             pages: [{ messages: [message], hasOlder: false, hasNewer: false }],
@@ -778,8 +863,8 @@ export function useChannelMessages(
           };
 
         // Check if message already exists
-        const exists = old.pages.some((page: any) =>
-          page.messages.some((msg: Message) => msg.id === message.id),
+        const exists = old.pages.some((page) =>
+          getMessages(page).some((msg) => msg.id === message.id),
         );
 
         const matchedTempId = findPendingTempId(message.clientMsgId);
@@ -789,12 +874,12 @@ export function useChannelMessages(
           pendingByClientMsgId.delete(message.clientMsgId!);
           return {
             ...old,
-            pages: old.pages.map((page: any) => ({
-              ...page,
-              messages: page.messages.filter(
-                (msg: Message) => msg.id !== matchedTempId,
+            pages: old.pages.map((page) =>
+              setMessages(
+                page,
+                getMessages(page).filter((msg) => msg.id !== matchedTempId),
               ),
-            })),
+            ),
           };
         }
 
@@ -804,12 +889,14 @@ export function useChannelMessages(
           setTimeout(() => resolvedServerIds.delete(message.id), 30000);
           return {
             ...old,
-            pages: old.pages.map((page: any) => ({
-              ...page,
-              messages: page.messages.map((msg: Message) =>
-                msg.id === matchedTempId ? message : msg,
+            pages: old.pages.map((page) =>
+              setMessages(
+                page,
+                getMessages(page).map((msg) =>
+                  msg.id === matchedTempId ? message : msg,
+                ),
               ),
-            })),
+            ),
           };
         }
 
@@ -817,10 +904,7 @@ export function useChannelMessages(
         return {
           ...old,
           pages: [
-            {
-              ...old.pages[0],
-              messages: [message, ...old.pages[0].messages],
-            },
+            setMessages(old.pages[0], [message, ...getMessages(old.pages[0])]),
             ...old.pages.slice(1),
           ],
         };
@@ -832,31 +916,35 @@ export function useChannelMessages(
 
     const handleMessageUpdated = (message: Message) => {
       if (message.channelId !== channelId) return;
-      queryClient.setQueryData(msgQueryKey, (old: any) => {
+      queryClient.setQueryData<MessagesQueryData>(msgQueryKey, (old) => {
         if (!old) return old;
         return {
           ...old,
-          pages: old.pages.map((page: any) => ({
-            ...page,
-            messages: page.messages.map((msg: Message) =>
-              msg.id === message.id ? message : msg,
+          pages: old.pages.map((page) =>
+            setMessages(
+              page,
+              getMessages(page).map((msg) =>
+                msg.id === message.id ? message : msg,
+              ),
             ),
-          })),
+          ),
         };
       });
     };
 
     const handleMessageDeleted = ({ messageId }: { messageId: string }) => {
-      queryClient.setQueryData(msgQueryKey, (old: any) => {
+      queryClient.setQueryData<MessagesQueryData>(msgQueryKey, (old) => {
         if (!old) return old;
         return {
           ...old,
-          pages: old.pages.map((page: any) => ({
-            ...page,
-            messages: page.messages.map((msg: Message) =>
-              msg.id === messageId ? { ...msg, isDeleted: true } : msg,
+          pages: old.pages.map((page) =>
+            setMessages(
+              page,
+              getMessages(page).map((msg) =>
+                msg.id === messageId ? { ...msg, isDeleted: true } : msg,
+              ),
             ),
-          })),
+          ),
         };
       });
     };
@@ -921,22 +1009,22 @@ export function useChannelMessages(
       if (event.channelId !== channelId) return;
       useStreamingStore.getState().endStream(event.streamId);
       if (event.message) {
-        const msg = event.message as Message;
+        const msg = event.message;
         if (!msg.parentId) {
-          queryClient.setQueryData(msgQueryKey, (old: any) => {
+          queryClient.setQueryData<MessagesQueryData>(msgQueryKey, (old) => {
             if (!old)
               return {
                 pages: [{ messages: [msg], hasOlder: false, hasNewer: false }],
                 pageParams: [undefined],
               };
-            const exists = old.pages.some((page: any) =>
-              page.messages.some((m: Message) => m.id === msg.id),
+            const exists = old.pages.some((page) =>
+              getMessages(page).some((message) => message.id === msg.id),
             );
             if (exists) return old;
             return {
               ...old,
               pages: [
-                { ...old.pages[0], messages: [msg, ...old.pages[0].messages] },
+                setMessages(old.pages[0], [msg, ...getMessages(old.pages[0])]),
                 ...old.pages.slice(1),
               ],
             };
@@ -966,24 +1054,26 @@ export function useChannelMessages(
         createdAt: new Date().toISOString(),
       };
       // Update messages cache
-      queryClient.setQueryData(msgQueryKey, (old: any) => {
+      queryClient.setQueryData<MessagesQueryData>(msgQueryKey, (old) => {
         if (!old) return old;
         return {
           ...old,
-          pages: old.pages.map((page: any) => ({
-            ...page,
-            messages: page.messages.map((msg: Message) => {
-              if (msg.id !== event.messageId) return msg;
-              const existing = msg.reactions || [];
-              if (
-                existing.some(
-                  (r) => r.userId === event.userId && r.emoji === event.emoji,
+          pages: old.pages.map((page) =>
+            setMessages(
+              page,
+              getMessages(page).map((msg) => {
+                if (msg.id !== event.messageId) return msg;
+                const existing = msg.reactions || [];
+                if (
+                  existing.some(
+                    (r) => r.userId === event.userId && r.emoji === event.emoji,
+                  )
                 )
-              )
-                return msg;
-              return { ...msg, reactions: [...existing, newReaction] };
-            }),
-          })),
+                  return msg;
+                return { ...msg, reactions: [...existing, newReaction] };
+              }),
+            ),
+          ),
         };
       });
       // Update thread caches
@@ -993,19 +1083,20 @@ export function useChannelMessages(
         threadState.primaryThread.rootMessageId
       ) {
         const threadKey = ["thread", threadState.primaryThread.rootMessageId];
-        queryClient.setQueryData(threadKey, (old: any) => {
+        queryClient.setQueryData<ThreadQueryData>(threadKey, (old) => {
           if (!old) return old;
           return {
             ...old,
-            pages: old.pages.map((page: any) => ({
+            pages: old.pages.map((page) => ({
               ...page,
-              replies: page.replies.map((reply: any) => {
+              replies: page.replies.map((reply) => {
                 if (reply.id !== event.messageId) return reply;
                 const existing = reply.reactions || [];
                 if (
                   existing.some(
-                    (r: any) =>
-                      r.userId === event.userId && r.emoji === event.emoji,
+                    (reaction) =>
+                      reaction.userId === event.userId &&
+                      reaction.emoji === event.emoji,
                   )
                 )
                   return reply;
@@ -1023,19 +1114,20 @@ export function useChannelMessages(
           "subReplies",
           threadState.secondaryThread.rootMessageId,
         ];
-        queryClient.setQueryData(subKey, (old: any) => {
+        queryClient.setQueryData<SubRepliesQueryData>(subKey, (old) => {
           if (!old) return old;
           return {
             ...old,
-            pages: old.pages.map((page: any) => ({
+            pages: old.pages.map((page) => ({
               ...page,
-              replies: page.replies.map((reply: any) => {
+              replies: page.replies.map((reply) => {
                 if (reply.id !== event.messageId) return reply;
                 const existing = reply.reactions || [];
                 if (
                   existing.some(
-                    (r: any) =>
-                      r.userId === event.userId && r.emoji === event.emoji,
+                    (reaction) =>
+                      reaction.userId === event.userId &&
+                      reaction.emoji === event.emoji,
                   )
                 )
                   return reply;
@@ -1048,21 +1140,26 @@ export function useChannelMessages(
     };
 
     const handleReactionRemoved = (event: ReactionRemovedEvent) => {
-      const filterReaction = (reactions: any[]) =>
-        reactions.filter(
-          (r: any) => !(r.userId === event.userId && r.emoji === event.emoji),
-        );
-      queryClient.setQueryData(msgQueryKey, (old: any) => {
+      queryClient.setQueryData<MessagesQueryData>(msgQueryKey, (old) => {
         if (!old) return old;
         return {
           ...old,
-          pages: old.pages.map((page: any) => ({
-            ...page,
-            messages: page.messages.map((msg: Message) => {
-              if (msg.id !== event.messageId) return msg;
-              return { ...msg, reactions: filterReaction(msg.reactions || []) };
-            }),
-          })),
+          pages: old.pages.map((page) =>
+            setMessages(
+              page,
+              getMessages(page).map((msg) => {
+                if (msg.id !== event.messageId) return msg;
+                return {
+                  ...msg,
+                  reactions: filterReaction(
+                    msg.reactions,
+                    event.userId,
+                    event.emoji,
+                  ),
+                };
+              }),
+            ),
+          ),
         };
       });
       const threadState = useThreadStore.getState();
@@ -1071,17 +1168,21 @@ export function useChannelMessages(
         threadState.primaryThread.rootMessageId
       ) {
         const threadKey = ["thread", threadState.primaryThread.rootMessageId];
-        queryClient.setQueryData(threadKey, (old: any) => {
+        queryClient.setQueryData<ThreadQueryData>(threadKey, (old) => {
           if (!old) return old;
           return {
             ...old,
-            pages: old.pages.map((page: any) => ({
+            pages: old.pages.map((page) => ({
               ...page,
-              replies: page.replies.map((reply: any) => {
+              replies: page.replies.map((reply) => {
                 if (reply.id !== event.messageId) return reply;
                 return {
                   ...reply,
-                  reactions: filterReaction(reply.reactions || []),
+                  reactions: filterReaction(
+                    reply.reactions,
+                    event.userId,
+                    event.emoji,
+                  ),
                 };
               }),
             })),
@@ -1096,17 +1197,21 @@ export function useChannelMessages(
           "subReplies",
           threadState.secondaryThread.rootMessageId,
         ];
-        queryClient.setQueryData(subKey, (old: any) => {
+        queryClient.setQueryData<SubRepliesQueryData>(subKey, (old) => {
           if (!old) return old;
           return {
             ...old,
-            pages: old.pages.map((page: any) => ({
+            pages: old.pages.map((page) => ({
               ...page,
-              replies: page.replies.map((reply: any) => {
+              replies: page.replies.map((reply) => {
                 if (reply.id !== event.messageId) return reply;
                 return {
                   ...reply,
-                  reactions: filterReaction(reply.reactions || []),
+                  reactions: filterReaction(
+                    reply.reactions,
+                    event.userId,
+                    event.emoji,
+                  ),
                 };
               }),
             })),
@@ -1214,34 +1319,22 @@ function handleThreadReply(
 
   // Update sub-reply counts in thread cache
   if (isSubReply) {
-    queryClient.setQueryData(["thread", rootId], (old: any) => {
+    queryClient.setQueryData<ThreadQueryData>(["thread", rootId], (old) => {
       if (!old) return old;
       return {
         ...old,
-        pages: old.pages.map((page: any) => ({
+        pages: old.pages.map((page) => ({
           ...page,
-          replies: page.replies.map((reply: any) => {
+          replies: page.replies.map((reply) => {
             if (reply.id === parentId) {
-              let updatedRepliers = [...(reply.lastRepliers || [])];
-              if (message.sender) {
-                const newReplier = {
-                  id: message.sender.id,
-                  username: message.sender.username,
-                  displayName: message.sender.displayName ?? null,
-                  avatarUrl: message.sender.avatarUrl ?? null,
-                  userType: message.sender.userType ?? "human",
-                };
-                updatedRepliers = updatedRepliers.filter(
-                  (r: any) => r.id !== newReplier.id,
-                );
-                updatedRepliers.unshift(newReplier);
-                updatedRepliers = updatedRepliers.slice(0, 5);
-              }
               return {
                 ...reply,
                 subReplyCount: (reply.subReplyCount || 0) + 1,
                 replyCount: (reply.replyCount || 0) + 1,
-                lastRepliers: updatedRepliers,
+                lastRepliers: buildUpdatedRepliers(
+                  reply.lastRepliers,
+                  message.sender,
+                ),
                 lastReplyAt: message.createdAt,
               };
             }
@@ -1265,34 +1358,22 @@ function updateRootMessageReplyCount(
 ) {
   queryClient.setQueriesData(
     { queryKey: ["messages", channelId] },
-    (old: any) => {
+    (old: MessagesQueryData | undefined) => {
       if (!old) return old;
       return {
         ...old,
-        pages: old.pages.map((page: any) =>
+        pages: old.pages.map((page) =>
           setMessages(
             page,
-            getMessages(page).map((msg: Message) => {
+            getMessages(page).map((msg) => {
               if (msg.id === rootId) {
-                let updatedRepliers = [...(msg.lastRepliers || [])];
-                if (message.sender) {
-                  const newReplier = {
-                    id: message.sender.id,
-                    username: message.sender.username,
-                    displayName: message.sender.displayName ?? null,
-                    avatarUrl: message.sender.avatarUrl ?? null,
-                    userType: message.sender.userType ?? "human",
-                  };
-                  updatedRepliers = updatedRepliers.filter(
-                    (r) => r.id !== newReplier.id,
-                  );
-                  updatedRepliers.unshift(newReplier);
-                  updatedRepliers = updatedRepliers.slice(0, 5);
-                }
                 return {
                   ...msg,
                   replyCount: (msg.replyCount || 0) + 1,
-                  lastRepliers: updatedRepliers,
+                  lastRepliers: buildUpdatedRepliers(
+                    msg.lastRepliers,
+                    message.sender,
+                  ),
                   lastReplyAt: message.createdAt,
                 };
               }
@@ -1322,11 +1403,11 @@ function autoOpenBotThread(
     .getQueryCache()
     .findAll({ queryKey: ["messages", channelId] });
   for (const query of queries) {
-    const data = query.state.data as any;
+    const data = query.state.data as MessagesQueryData | undefined;
     if (!data?.pages) continue;
     for (const page of data.pages) {
       const msgs = getMessages(page);
-      const parentMsg = msgs.find((m: Message) => m.id === rootId);
+      const parentMsg = msgs.find((msg) => msg.id === rootId);
       if (parentMsg?.senderId === currentUserId) {
         threadState.openPrimaryThread(rootId);
         return;
@@ -1353,12 +1434,15 @@ function autoOpenBotSecondaryThread(
   const currentUserId = useAppStore.getState().user?.id;
   if (!currentUserId) return;
 
-  const threadData = queryClient.getQueryData(["thread", rootId]) as any;
+  const threadData = queryClient.getQueryData<ThreadQueryData>([
+    "thread",
+    rootId,
+  ]);
   if (!threadData) return;
 
   const parentMsg = threadData.pages
-    ?.flatMap((page: any) => page.replies)
-    ?.find((r: any) => r.id === parentId);
+    .flatMap((page) => page.replies)
+    .find((reply) => reply.id === parentId);
   if (parentMsg?.senderId === currentUserId) {
     threadState.openSecondaryThread(parentId);
   }
@@ -1367,10 +1451,10 @@ function autoOpenBotSecondaryThread(
 // --- Cache format helpers ---
 // Support both old (Message[][]) and new (PaginatedMessagesResponse[]) page formats.
 // Old format: each page is Message[]; new format: each page is { messages: Message[], hasOlder, hasNewer }
-function getMessages(page: any): Message[] {
+function getMessages(page: MessagesPage): Message[] {
   return Array.isArray(page) ? page : page.messages;
 }
-function setMessages(page: any, messages: Message[]): any {
+function setMessages(page: MessagesPage, messages: Message[]): MessagesPage {
   return Array.isArray(page) ? messages : { ...page, messages };
 }
 
@@ -1456,7 +1540,7 @@ export function useSendMessage(channelId: string) {
       // Optimistically add the message to the cache
       queryClient.setQueriesData(
         { queryKey: ["messages", channelId] },
-        (old: any) => {
+        (old: MessagesQueryData | undefined) => {
           if (!old)
             return {
               pages: [
@@ -1497,22 +1581,18 @@ export function useSendMessage(channelId: string) {
         resolvedServerIds.delete(serverMessage.id);
         queryClient.setQueriesData(
           { queryKey: ["messages", channelId] },
-          (old: any) => {
+          (old: MessagesQueryData | undefined) => {
             if (!old) return old;
-            const hasTempMsg = old.pages.some((page: any) =>
-              getMessages(page).some(
-                (msg: Message) => msg.id === context?.tempId,
-              ),
+            const hasTempMsg = old.pages.some((page) =>
+              getMessages(page).some((msg) => msg.id === context?.tempId),
             );
             if (!hasTempMsg) return old;
             return {
               ...old,
-              pages: old.pages.map((page: any) =>
+              pages: old.pages.map((page) =>
                 setMessages(
                   page,
-                  getMessages(page).filter(
-                    (msg: Message) => msg.id !== context?.tempId,
-                  ),
+                  getMessages(page).filter((msg) => msg.id !== context?.tempId),
                 ),
               ),
             };
@@ -1525,7 +1605,7 @@ export function useSendMessage(channelId: string) {
       // Normal path: replace the optimistic message with the real one from server
       queryClient.setQueriesData(
         { queryKey: ["messages", channelId] },
-        (old: any) => {
+        (old: MessagesQueryData | undefined) => {
           if (!old)
             return {
               pages: [
@@ -1534,17 +1614,15 @@ export function useSendMessage(channelId: string) {
               pageParams: [undefined],
             };
 
-          const serverMessageExists = old.pages.some((page: any) =>
-            getMessages(page).some(
-              (msg: Message) => msg.id === serverMessage.id,
-            ),
+          const serverMessageExists = old.pages.some((page) =>
+            getMessages(page).some((msg) => msg.id === serverMessage.id),
           );
 
           let tempFound = false;
-          const updatedPages = old.pages.map((page: any) => {
+          const updatedPages = old.pages.map((page) => {
             const msgs = getMessages(page);
             const tempIndex = msgs.findIndex(
-              (msg: Message) => msg.id === context?.tempId,
+              (msg) => msg.id === context?.tempId,
             );
 
             if (tempIndex !== -1) {
@@ -1552,7 +1630,7 @@ export function useSendMessage(channelId: string) {
               if (serverMessageExists) {
                 return setMessages(
                   page,
-                  msgs.filter((msg: Message) => msg.id !== context?.tempId),
+                  msgs.filter((msg) => msg.id !== context?.tempId),
                 );
               } else {
                 const newMsgs = [...msgs];
@@ -1591,14 +1669,14 @@ export function useSendMessage(channelId: string) {
       if (context?.tempId) {
         queryClient.setQueriesData(
           { queryKey: ["messages", channelId] },
-          (old: any) => {
+          (old: MessagesQueryData | undefined) => {
             if (!old) return old;
             return {
               ...old,
-              pages: old.pages.map((page: any) =>
+              pages: old.pages.map((page) =>
                 setMessages(
                   page,
-                  getMessages(page).map((msg: Message) =>
+                  getMessages(page).map((msg) =>
                     msg.id === context.tempId
                       ? {
                           ...msg,
@@ -1642,14 +1720,14 @@ export function useRetryMessage(channelId: string) {
 
       queryClient.setQueriesData(
         { queryKey: ["messages", channelId] },
-        (old: any) => {
+        (old: MessagesQueryData | undefined) => {
           if (!old) return old;
           return {
             ...old,
-            pages: old.pages.map((page: any) =>
+            pages: old.pages.map((page) =>
               setMessages(
                 page,
-                getMessages(page).map((msg: Message) =>
+                getMessages(page).map((msg) =>
                   msg.id === tempId
                     ? {
                         ...msg,
@@ -1676,18 +1754,18 @@ export function useRetryMessage(channelId: string) {
         resolvedServerIds.delete(serverMessage.id);
         queryClient.setQueriesData(
           { queryKey: ["messages", channelId] },
-          (old: any) => {
+          (old: MessagesQueryData | undefined) => {
             if (!old) return old;
-            const hasTempMsg = old.pages.some((page: any) =>
-              getMessages(page).some((msg: Message) => msg.id === tempId),
+            const hasTempMsg = old.pages.some((page) =>
+              getMessages(page).some((msg) => msg.id === tempId),
             );
             if (!hasTempMsg) return old;
             return {
               ...old,
-              pages: old.pages.map((page: any) =>
+              pages: old.pages.map((page) =>
                 setMessages(
                   page,
-                  getMessages(page).filter((msg: Message) => msg.id !== tempId),
+                  getMessages(page).filter((msg) => msg.id !== tempId),
                 ),
               ),
             };
@@ -1699,7 +1777,7 @@ export function useRetryMessage(channelId: string) {
 
       queryClient.setQueriesData(
         { queryKey: ["messages", channelId] },
-        (old: any) => {
+        (old: MessagesQueryData | undefined) => {
           if (!old)
             return {
               pages: [
@@ -1708,24 +1786,20 @@ export function useRetryMessage(channelId: string) {
               pageParams: [undefined],
             };
 
-          const serverMessageExists = old.pages.some((page: any) =>
-            getMessages(page).some(
-              (msg: Message) => msg.id === serverMessage.id,
-            ),
+          const serverMessageExists = old.pages.some((page) =>
+            getMessages(page).some((msg) => msg.id === serverMessage.id),
           );
 
           let tempFound = false;
-          const updatedPages = old.pages.map((page: any) => {
+          const updatedPages = old.pages.map((page) => {
             const msgs = getMessages(page);
-            const tempIndex = msgs.findIndex(
-              (msg: Message) => msg.id === tempId,
-            );
+            const tempIndex = msgs.findIndex((msg) => msg.id === tempId);
             if (tempIndex !== -1) {
               tempFound = true;
               if (serverMessageExists) {
                 return setMessages(
                   page,
-                  msgs.filter((msg: Message) => msg.id !== tempId),
+                  msgs.filter((msg) => msg.id !== tempId),
                 );
               } else {
                 const newMsgs = [...msgs];
@@ -1760,14 +1834,14 @@ export function useRetryMessage(channelId: string) {
       }
       queryClient.setQueriesData(
         { queryKey: ["messages", channelId] },
-        (old: any) => {
+        (old: MessagesQueryData | undefined) => {
           if (!old) return old;
           return {
             ...old,
-            pages: old.pages.map((page: any) =>
+            pages: old.pages.map((page) =>
               setMessages(
                 page,
-                getMessages(page).map((msg: Message) =>
+                getMessages(page).map((msg) =>
                   msg.id === tempId
                     ? {
                         ...msg,
@@ -1794,14 +1868,14 @@ export function useRemoveFailedMessage(channelId: string) {
   return (tempId: string) => {
     queryClient.setQueriesData(
       { queryKey: ["messages", channelId] },
-      (old: any) => {
+      (old: MessagesQueryData | undefined) => {
         if (!old) return old;
         return {
           ...old,
-          pages: old.pages.map((page: any) =>
+          pages: old.pages.map((page) =>
             setMessages(
               page,
-              getMessages(page).filter((msg: Message) => msg.id !== tempId),
+              getMessages(page).filter((msg) => msg.id !== tempId),
             ),
           ),
         };
@@ -1858,14 +1932,14 @@ export function useAddReaction(channelId?: string) {
 
       queryClient.setQueriesData(
         { queryKey: ["messages", channelId] },
-        (old: any) => {
+        (old: MessagesQueryData | undefined) => {
           if (!old) return old;
           return {
             ...old,
-            pages: old.pages.map((page: any) =>
+            pages: old.pages.map((page) =>
               setMessages(
                 page,
-                getMessages(page).map((msg: Message) => {
+                getMessages(page).map((msg) => {
                   if (msg.id !== messageId) return msg;
                   const existing = msg.reactions || [];
                   if (
@@ -1921,20 +1995,21 @@ export function useRemoveReaction(channelId?: string) {
 
       queryClient.setQueriesData(
         { queryKey: ["messages", channelId] },
-        (old: any) => {
+        (old: MessagesQueryData | undefined) => {
           if (!old) return old;
           return {
             ...old,
-            pages: old.pages.map((page: any) =>
+            pages: old.pages.map((page) =>
               setMessages(
                 page,
-                getMessages(page).map((msg: Message) => {
+                getMessages(page).map((msg) => {
                   if (msg.id !== messageId) return msg;
                   return {
                     ...msg,
-                    reactions: (msg.reactions || []).filter(
-                      (r: any) =>
-                        !(r.userId === currentUser.id && r.emoji === emoji),
+                    reactions: filterReaction(
+                      msg.reactions,
+                      currentUser.id,
+                      emoji,
                     ),
                   };
                 }),

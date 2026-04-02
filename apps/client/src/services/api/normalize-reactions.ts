@@ -8,22 +8,37 @@ interface AggregatedReaction {
   userIds: string[];
 }
 
+function isAggregatedReaction(
+  reaction: MessageReaction | AggregatedReaction,
+): reaction is AggregatedReaction {
+  return "userIds" in reaction;
+}
+
 export function normalizeReactions(
   messageId: string,
-  reactions: any[],
+  reactions: Array<MessageReaction | AggregatedReaction>,
 ): MessageReaction[] {
   if (!reactions || reactions.length === 0) return [];
   // Already in individual format (from optimistic updates / WS events)
-  if (reactions[0]?.userId && !reactions[0]?.userIds) return reactions;
+  if (
+    reactions.every(
+      (reaction): reaction is MessageReaction =>
+        !isAggregatedReaction(reaction),
+    )
+  ) {
+    return reactions;
+  }
   // Convert aggregated → individual
-  return (reactions as AggregatedReaction[]).flatMap((r) =>
-    r.userIds.map((userId) => ({
-      id: `${messageId}-${userId}-${r.emoji}`,
-      messageId,
-      userId,
-      emoji: r.emoji,
-      createdAt: new Date().toISOString(),
-    })),
+  return reactions.flatMap((reaction) =>
+    isAggregatedReaction(reaction)
+      ? reaction.userIds.map((userId) => ({
+          id: `${messageId}-${userId}-${reaction.emoji}`,
+          messageId,
+          userId,
+          emoji: reaction.emoji,
+          createdAt: new Date().toISOString(),
+        }))
+      : [reaction],
   );
 }
 

@@ -48,7 +48,7 @@ import {
   type TrackingActivatedEvent,
 } from "@/types/ws-events";
 
-type EventCallback = (...args: any[]) => void;
+type EventCallback<TEvent = unknown> = (event: TEvent) => void;
 
 export type ConnectionStatus = "connected" | "disconnected" | "reconnecting";
 type ConnectionChangeCallback = (status: ConnectionStatus) => void;
@@ -398,19 +398,21 @@ class WebSocketService {
   }
 
   // Event listeners
-  on(event: string, callback: EventCallback): void {
+  on<TEvent>(event: string, callback: EventCallback<TEvent>): void {
+    const listener = callback as EventCallback;
     if (!this.socket?.connected) {
-      this.pendingListeners.push({ event, callback });
+      this.pendingListeners.push({ event, callback: listener });
       return;
     }
-    this.socket.on(event, callback);
+    this.socket.on(event, listener);
   }
 
-  off(event: string, callback?: EventCallback): void {
+  off<TEvent>(event: string, callback?: EventCallback<TEvent>): void {
+    const listener = callback as EventCallback | undefined;
     // Remove from pending listeners if not yet connected
-    if (callback) {
+    if (listener) {
       this.pendingListeners = this.pendingListeners.filter(
-        (l) => !(l.event === event && l.callback === callback),
+        (l) => !(l.event === event && l.callback === listener),
       );
     } else {
       this.pendingListeners = this.pendingListeners.filter(
@@ -418,104 +420,113 @@ class WebSocketService {
       );
     }
     if (!this.socket) return;
-    this.socket.off(event, callback);
+    this.socket.off(event, listener);
   }
 
-  once(event: string, callback: EventCallback): void {
+  once<TEvent>(event: string, callback: EventCallback<TEvent>): void {
     if (!this.socket) return;
-    this.socket.once(event, callback);
+    this.socket.once(event, callback as EventCallback);
   }
 
   // Convenience methods for common events
   onNewMessage(callback: (event: NewMessageEvent) => void): void {
-    this.on(WS_EVENTS.MESSAGE.NEW, callback);
+    this.on<NewMessageEvent>(WS_EVENTS.MESSAGE.NEW, callback);
   }
 
   onMessageUpdated(callback: (event: MessageUpdatedEvent) => void): void {
-    this.on(WS_EVENTS.MESSAGE.UPDATED, callback);
+    this.on<MessageUpdatedEvent>(WS_EVENTS.MESSAGE.UPDATED, callback);
   }
 
   onMessageDeleted(callback: (event: MessageDeletedEvent) => void): void {
-    this.on(WS_EVENTS.MESSAGE.DELETED, callback);
+    this.on<MessageDeletedEvent>(WS_EVENTS.MESSAGE.DELETED, callback);
   }
 
   onUserTyping(callback: (event: UserTypingEvent) => void): void {
-    this.on(WS_EVENTS.TYPING.USER_TYPING, callback);
+    this.on<UserTypingEvent>(WS_EVENTS.TYPING.USER_TYPING, callback);
   }
 
   onReadStatusUpdated(callback: (event: ReadStatusUpdatedEvent) => void): void {
-    this.on(WS_EVENTS.READ_STATUS.UPDATED, callback);
+    this.on<ReadStatusUpdatedEvent>(WS_EVENTS.READ_STATUS.UPDATED, callback);
   }
 
   onChannelJoined(callback: (event: ChannelJoinedEvent) => void): void {
-    this.on(WS_EVENTS.CHANNEL.JOINED, callback);
+    this.on<ChannelJoinedEvent>(WS_EVENTS.CHANNEL.JOINED, callback);
   }
 
   onChannelLeft(callback: (event: ChannelLeftEvent) => void): void {
-    this.on(WS_EVENTS.CHANNEL.LEFT, callback);
+    this.on<ChannelLeftEvent>(WS_EVENTS.CHANNEL.LEFT, callback);
   }
 
   onChannelCreated(callback: (event: ChannelCreatedEvent) => void): void {
-    this.on(WS_EVENTS.CHANNEL.CREATED, callback);
+    this.on<ChannelCreatedEvent>(WS_EVENTS.CHANNEL.CREATED, callback);
   }
 
   onChannelUpdated(callback: (event: ChannelUpdatedEvent) => void): void {
-    this.on(WS_EVENTS.CHANNEL.UPDATED, callback);
+    this.on<ChannelUpdatedEvent>(WS_EVENTS.CHANNEL.UPDATED, callback);
   }
 
   onChannelDeleted(callback: (event: ChannelDeletedEvent) => void): void {
-    this.on(WS_EVENTS.CHANNEL.DELETED, callback);
+    this.on<ChannelDeletedEvent>(WS_EVENTS.CHANNEL.DELETED, callback);
   }
 
   onChannelArchived(callback: (event: ChannelArchivedEvent) => void): void {
-    this.on(WS_EVENTS.CHANNEL.ARCHIVED, callback);
+    this.on<ChannelArchivedEvent>(WS_EVENTS.CHANNEL.ARCHIVED, callback);
   }
 
   onChannelUnarchived(callback: (event: ChannelUnarchivedEvent) => void): void {
-    this.on(WS_EVENTS.CHANNEL.UNARCHIVED, callback);
+    this.on<ChannelUnarchivedEvent>(WS_EVENTS.CHANNEL.UNARCHIVED, callback);
   }
 
   onUserOnline(callback: (event: UserOnlineEvent) => void): void {
-    this.on(WS_EVENTS.USER.ONLINE, callback);
+    this.on<UserOnlineEvent>(WS_EVENTS.USER.ONLINE, callback);
   }
 
   onUserOffline(callback: (event: UserOfflineEvent) => void): void {
-    this.on(WS_EVENTS.USER.OFFLINE, callback);
+    this.on<UserOfflineEvent>(WS_EVENTS.USER.OFFLINE, callback);
   }
 
   onUserStatusChanged(callback: (event: UserStatusChangedEvent) => void): void {
-    this.on(WS_EVENTS.USER.STATUS_CHANGED, callback);
+    this.on<UserStatusChangedEvent>(WS_EVENTS.USER.STATUS_CHANGED, callback);
   }
 
   onReactionAdded(callback: (event: ReactionAddedEvent) => void): void {
-    this.on(WS_EVENTS.REACTION.ADDED, callback);
+    this.on<ReactionAddedEvent>(WS_EVENTS.REACTION.ADDED, callback);
   }
 
   onReactionRemoved(callback: (event: ReactionRemovedEvent) => void): void {
-    this.on(WS_EVENTS.REACTION.REMOVED, callback);
+    this.on<ReactionRemovedEvent>(WS_EVENTS.REACTION.REMOVED, callback);
   }
 
   onWorkspaceMemberJoined(
     callback: (event: WorkspaceMemberJoinedEvent) => void,
   ): void {
-    this.on(WS_EVENTS.WORKSPACE.MEMBER_JOINED, callback);
+    this.on<WorkspaceMemberJoinedEvent>(
+      WS_EVENTS.WORKSPACE.MEMBER_JOINED,
+      callback,
+    );
   }
 
   onWorkspaceMemberLeft(
     callback: (event: WorkspaceMemberLeftEvent) => void,
   ): void {
-    this.on(WS_EVENTS.WORKSPACE.MEMBER_LEFT, callback);
+    this.on<WorkspaceMemberLeftEvent>(
+      WS_EVENTS.WORKSPACE.MEMBER_LEFT,
+      callback,
+    );
   }
 
   onWorkspaceMemberRemoved(
     callback: (event: WorkspaceMemberRemovedEvent) => void,
   ): void {
-    this.on(WS_EVENTS.WORKSPACE.MEMBER_REMOVED, callback);
+    this.on<WorkspaceMemberRemovedEvent>(
+      WS_EVENTS.WORKSPACE.MEMBER_REMOVED,
+      callback,
+    );
   }
 
   // Notification events
   onNotificationNew(callback: (event: NotificationNewEvent) => void): void {
-    this.on(WS_EVENTS.NOTIFICATION.NEW, (event) => {
+    this.on<NotificationNewEvent>(WS_EVENTS.NOTIFICATION.NEW, (event) => {
       callback(event);
     });
   }
@@ -523,13 +534,16 @@ class WebSocketService {
   onNotificationCountsUpdated(
     callback: (event: NotificationCountsUpdatedEvent) => void,
   ): void {
-    this.on(WS_EVENTS.NOTIFICATION.COUNTS_UPDATED, (event) => {
-      callback(event);
-    });
+    this.on<NotificationCountsUpdatedEvent>(
+      WS_EVENTS.NOTIFICATION.COUNTS_UPDATED,
+      (event) => {
+        callback(event);
+      },
+    );
   }
 
   onNotificationRead(callback: (event: NotificationReadEvent) => void): void {
-    this.on(WS_EVENTS.NOTIFICATION.READ, callback);
+    this.on<NotificationReadEvent>(WS_EVENTS.NOTIFICATION.READ, callback);
   }
 
   onNotificationAllRead(
@@ -539,17 +553,20 @@ class WebSocketService {
   }
 
   offNotificationNew(callback: (event: NotificationNewEvent) => void): void {
-    this.off(WS_EVENTS.NOTIFICATION.NEW, callback);
+    this.off<NotificationNewEvent>(WS_EVENTS.NOTIFICATION.NEW, callback);
   }
 
   offNotificationCountsUpdated(
     callback: (event: NotificationCountsUpdatedEvent) => void,
   ): void {
-    this.off(WS_EVENTS.NOTIFICATION.COUNTS_UPDATED, callback);
+    this.off<NotificationCountsUpdatedEvent>(
+      WS_EVENTS.NOTIFICATION.COUNTS_UPDATED,
+      callback,
+    );
   }
 
   offNotificationRead(callback: (event: NotificationReadEvent) => void): void {
-    this.off(WS_EVENTS.NOTIFICATION.READ, callback);
+    this.off<NotificationReadEvent>(WS_EVENTS.NOTIFICATION.READ, callback);
   }
 
   offNotificationAllRead(
@@ -560,48 +577,57 @@ class WebSocketService {
 
   // Task events
   onTaskStatusChanged(callback: (event: TaskStatusChangedEvent) => void): void {
-    this.on(WS_EVENTS.TASK.STATUS_CHANGED, callback);
+    this.on<TaskStatusChangedEvent>(WS_EVENTS.TASK.STATUS_CHANGED, callback);
   }
 
   onTaskExecutionCreated(
     callback: (event: TaskExecutionCreatedEvent) => void,
   ): void {
-    this.on(WS_EVENTS.TASK.EXECUTION_CREATED, callback);
+    this.on<TaskExecutionCreatedEvent>(
+      WS_EVENTS.TASK.EXECUTION_CREATED,
+      callback,
+    );
   }
 
   offTaskStatusChanged(
     callback: (event: TaskStatusChangedEvent) => void,
   ): void {
-    this.off(WS_EVENTS.TASK.STATUS_CHANGED, callback);
+    this.off<TaskStatusChangedEvent>(WS_EVENTS.TASK.STATUS_CHANGED, callback);
   }
 
   offTaskExecutionCreated(
     callback: (event: TaskExecutionCreatedEvent) => void,
   ): void {
-    this.off(WS_EVENTS.TASK.EXECUTION_CREATED, callback);
+    this.off<TaskExecutionCreatedEvent>(
+      WS_EVENTS.TASK.EXECUTION_CREATED,
+      callback,
+    );
   }
 
   // Streaming events (AI bot)
   onStreamingStart(callback: (event: StreamingStartEvent) => void): void {
-    this.on(WS_EVENTS.STREAMING.START, callback);
+    this.on<StreamingStartEvent>(WS_EVENTS.STREAMING.START, callback);
   }
 
   onStreamingContent(callback: (event: StreamingContentEvent) => void): void {
-    this.on(WS_EVENTS.STREAMING.CONTENT, callback);
+    this.on<StreamingContentEvent>(WS_EVENTS.STREAMING.CONTENT, callback);
   }
 
   onStreamingThinkingContent(
     callback: (event: StreamingThinkingContentEvent) => void,
   ): void {
-    this.on(WS_EVENTS.STREAMING.THINKING_CONTENT, callback);
+    this.on<StreamingThinkingContentEvent>(
+      WS_EVENTS.STREAMING.THINKING_CONTENT,
+      callback,
+    );
   }
 
   onStreamingEnd(callback: (event: StreamingEndEvent) => void): void {
-    this.on(WS_EVENTS.STREAMING.END, callback);
+    this.on<StreamingEndEvent>(WS_EVENTS.STREAMING.END, callback);
   }
 
   onStreamingAbort(callback: (event: StreamingAbortEvent) => void): void {
-    this.on(WS_EVENTS.STREAMING.ABORT, callback);
+    this.on<StreamingAbortEvent>(WS_EVENTS.STREAMING.ABORT, callback);
   }
 
   // ── Channel Observe ──────────────────────────────
@@ -621,23 +647,26 @@ class WebSocketService {
   onTrackingDeactivated(
     callback: (event: TrackingDeactivatedEvent) => void,
   ): void {
-    this.on(WS_EVENTS.TRACKING.DEACTIVATED, callback);
+    this.on<TrackingDeactivatedEvent>(WS_EVENTS.TRACKING.DEACTIVATED, callback);
   }
 
   offTrackingDeactivated(
     callback: (event: TrackingDeactivatedEvent) => void,
   ): void {
-    this.off(WS_EVENTS.TRACKING.DEACTIVATED, callback);
+    this.off<TrackingDeactivatedEvent>(
+      WS_EVENTS.TRACKING.DEACTIVATED,
+      callback,
+    );
   }
 
   onTrackingActivated(callback: (event: TrackingActivatedEvent) => void): void {
-    this.on(WS_EVENTS.TRACKING.ACTIVATED, callback);
+    this.on<TrackingActivatedEvent>(WS_EVENTS.TRACKING.ACTIVATED, callback);
   }
 
   offTrackingActivated(
     callback: (event: TrackingActivatedEvent) => void,
   ): void {
-    this.off(WS_EVENTS.TRACKING.ACTIVATED, callback);
+    this.off<TrackingActivatedEvent>(WS_EVENTS.TRACKING.ACTIVATED, callback);
   }
 }
 

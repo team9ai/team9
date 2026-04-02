@@ -48,6 +48,21 @@ import { ConnectionService } from '../../cluster/connection/connection.service.j
 import { SocketRedisAdapterService } from '../../cluster/adapter/socket-redis-adapter.service.js';
 import { appMetrics } from '@team9/observability';
 
+interface SocketHandshakeAuth {
+  token?: string;
+  platform?: string;
+  version?: string;
+  deviceId?: string;
+}
+
+interface StreamingSessionPayload {
+  channelId: string;
+  senderId: string;
+  parentId?: string;
+  metadata?: Record<string, unknown>;
+  startedAt: number;
+}
+
 @WebSocketGateway({
   cors: {
     origin: env.CORS_ORIGIN,
@@ -85,6 +100,25 @@ export class WebsocketGateway
     @Inject(BOT_TOKEN_VALIDATOR)
     private readonly botTokenValidator?: BotTokenValidatorInterface,
   ) {}
+
+  private getHandshakeAuth(client: Socket): SocketHandshakeAuth {
+    return client.handshake.auth as SocketHandshakeAuth;
+  }
+
+  private getTokenFromHandshake(client: Socket): string | null {
+    const auth = this.getHandshakeAuth(client);
+    const authorizationHeader = client.handshake.headers.authorization;
+    const bearerToken =
+      typeof authorizationHeader === 'string'
+        ? authorizationHeader.replace('Bearer ', '')
+        : undefined;
+
+    return auth.token ?? bearerToken ?? null;
+  }
+
+  private parseStreamingSession(sessionData: string): StreamingSessionPayload {
+    return JSON.parse(sessionData) as StreamingSessionPayload;
+  }
 
   /**
    * Called after the WebSocket server is initialized
@@ -125,9 +159,8 @@ export class WebsocketGateway
 
   async handleConnection(client: Socket) {
     try {
-      const token =
-        client.handshake.auth?.token ||
-        client.handshake.headers?.authorization?.replace('Bearer ', '');
+      const auth = this.getHandshakeAuth(client);
+      const token = this.getTokenFromHandshake(client);
 
       if (!token) {
         this.logger.warn(`[WS] No token provided for client ${client.id}`);
@@ -209,9 +242,9 @@ export class WebsocketGateway
           loginTime: Date.now(),
           lastActiveTime: Date.now(),
           deviceInfo: {
-            platform: client.handshake.auth?.platform || 'unknown',
-            version: client.handshake.auth?.version || 'unknown',
-            deviceId: client.handshake.auth?.deviceId,
+            platform: auth.platform ?? 'unknown',
+            version: auth.version ?? 'unknown',
+            deviceId: auth.deviceId,
           },
         });
         this.clusterNodeService.incrementConnections();
@@ -510,7 +543,7 @@ export class WebsocketGateway
   // ==================== Channel Operations ====================
 
   @SubscribeMessage(WS_EVENTS.CHANNEL.JOIN)
-  async handleJoinChannel(
+  handleJoinChannel(
     @ConnectedSocket() client: Socket,
     @MessageBody() _data: JoinChannelPayload,
   ) {
@@ -758,12 +791,9 @@ export class WebsocketGateway
 
   // ==================== Helper Methods ====================
 
-  async sendToUser(
-    userId: string,
-    event: string,
-    data: unknown,
-  ): Promise<void> {
+  sendToUser(userId: string, event: string, data: unknown): Promise<void> {
     this.server.to(`user:${userId}`).emit(event, data);
+    return Promise.resolve();
   }
 
   async sendToChannelMembers(
@@ -788,12 +818,13 @@ export class WebsocketGateway
 
   // ==================== Workspace Operations ====================
 
-  async broadcastToWorkspace(
+  broadcastToWorkspace(
     workspaceId: string,
     event: string,
     data: unknown,
   ): Promise<void> {
     this.server.to(`workspace:${workspaceId}`).emit(event, data);
+    return Promise.resolve();
   }
 
   @SubscribeMessage(WS_EVENTS.WORKSPACE.JOIN)
@@ -1035,7 +1066,7 @@ export class WebsocketGateway
     if (!isSameTenant) return;
 
     // Join the channel room for this socket only
-    client.join(channelId);
+    await client.join(channelId);
   }
 
   @SubscribeMessage(WS_EVENTS.CHANNEL.UNOBSERVE)
@@ -1046,7 +1077,7 @@ export class WebsocketGateway
     const { channelId } = data;
     if (!channelId) return;
 
-    client.leave(channelId);
+    await client.leave(channelId);
   }
 
   // ==================== Streaming Cleanup ====================
@@ -1074,7 +1105,7 @@ export class WebsocketGateway
         );
 
         if (sessionData) {
-          const session = JSON.parse(sessionData);
+          const session = this.parseStreamingSession(sessionData);
           // Broadcast abort to channel
           await this.sendToChannelMembers(
             session.channelId,

@@ -1,7 +1,21 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+} from "@tanstack/react-query";
 import { useEffect } from "react";
 import imApi from "@/services/api/im";
-import type { Message, SyncMessageItem } from "@/types/im";
+import type {
+  Message,
+  PaginatedMessagesResponse,
+  SubRepliesResponse,
+  SyncMessageItem,
+  ThreadResponse,
+} from "@/types/im";
+
+type MessagesQueryData = InfiniteData<PaginatedMessagesResponse>;
+type ThreadQueryData = InfiniteData<ThreadResponse>;
+type SubRepliesQueryData = InfiniteData<SubRepliesResponse>;
 
 /**
  * Convert SyncMessageItem to Message format for cache compatibility
@@ -182,7 +196,7 @@ export function useSyncChannel(channelId: string | undefined) {
     ) {
       queryClient.setQueriesData(
         { queryKey: ["messages", channelId] },
-        (old: any) => {
+        (old: MessagesQueryData | undefined) => {
           if (!old) {
             // Sync returns ASC order, message list is DESC — reverse for display
             const reversed = [...result.mainUpdates.newMessages].reverse();
@@ -200,23 +214,18 @@ export function useSyncChannel(channelId: string | undefined) {
 
           // Collect existing IDs for dedup (messages already received via WS)
           const existingIds = new Set<string>();
-          old.pages.forEach((page: any) => {
-            const msgs: Message[] = Array.isArray(page) ? page : page.messages;
-            msgs.forEach((msg: Message) => existingIds.add(msg.id));
+          old.pages.forEach((page) => {
+            page.messages.forEach((msg) => existingIds.add(msg.id));
           });
 
           // Process each page: remove deleted, replace edited
-          const updatedPages = old.pages.map((page: any) => {
-            const msgs: Message[] = Array.isArray(page) ? page : page.messages;
-            const processed = msgs
-              .filter((m: Message) => !result.mainUpdates.deletedIds.has(m.id))
+          const updatedPages = old.pages.map((page) => {
+            const processed = page.messages
+              .filter((msg) => !result.mainUpdates.deletedIds.has(msg.id))
               .map(
-                (m: Message) =>
-                  result.mainUpdates.editedMessages.get(m.id) || m,
+                (msg) => result.mainUpdates.editedMessages.get(msg.id) || msg,
               );
-            return Array.isArray(page)
-              ? processed
-              : { ...page, messages: processed };
+            return { ...page, messages: processed };
           });
 
           // Dedup: only prepend messages not already in cache
@@ -228,15 +237,10 @@ export function useSyncChannel(channelId: string | undefined) {
             // Sync returns ASC, message list is DESC — reverse before prepend
             const reversed = [...genuinelyNew].reverse();
             const firstPage = updatedPages[0];
-            const firstPageMsgs: Message[] = Array.isArray(firstPage)
-              ? firstPage
-              : firstPage.messages;
-            updatedPages[0] = Array.isArray(firstPage)
-              ? [...reversed, ...firstPageMsgs]
-              : {
-                  ...firstPage,
-                  messages: [...reversed, ...firstPageMsgs],
-                };
+            updatedPages[0] = {
+              ...firstPage,
+              messages: [...reversed, ...firstPage.messages],
+            };
           }
 
           return { ...old, pages: updatedPages };
@@ -245,36 +249,40 @@ export function useSyncChannel(channelId: string | undefined) {
     }
 
     // Apply thread updates (best-effort — cache may not be loaded yet)
-    // Thread cache shape: { rootMessage: Message, replies: ThreadReply[], totalReplyCount, hasMore, nextCursor }
+    // Thread cache pages use ThreadResponse objects from useInfiniteQuery.
     for (const [rootId, updates] of result.threadUpdates) {
       queryClient.setQueriesData(
         { queryKey: ["thread", rootId] },
-        (old: any) => {
-          if (!old?.replies) return old;
+        (old: ThreadQueryData | undefined) => {
+          if (!old) return old;
 
-          const existingIds = new Set(old.replies.map((r: any) => r.id));
-
-          // Remove deleted, replace edited
-          let processed = old.replies
-            .filter((r: any) => !updates.deletedIds.has(r.id))
-            .map((r: any) => updates.edited.get(r.id) || r);
-
-          // Dedup then append new
-          const genuinelyNew = updates.new.filter(
-            (m) => !existingIds.has(m.id),
+          const existingIds = new Set(
+            old.pages.flatMap((page) => page.replies.map((reply) => reply.id)),
           );
-          processed = [...processed, ...genuinelyNew];
-
-          // Update totalReplyCount
+          const genuinelyNew = updates.new.filter(
+            (message) => !existingIds.has(message.id),
+          );
           const countDelta = genuinelyNew.length - updates.deletedIds.size;
 
           return {
             ...old,
-            replies: processed,
-            totalReplyCount: Math.max(
-              0,
-              (old.totalReplyCount ?? 0) + countDelta,
-            ),
+            pages: old.pages.map((page, pageIndex) => {
+              const processedReplies = page.replies
+                .filter((reply) => !updates.deletedIds.has(reply.id))
+                .map((reply) => updates.edited.get(reply.id) || reply);
+
+              return {
+                ...page,
+                replies:
+                  pageIndex === old.pages.length - 1
+                    ? [...processedReplies, ...genuinelyNew]
+                    : processedReplies,
+                totalReplyCount: Math.max(
+                  0,
+                  (page.totalReplyCount ?? 0) + countDelta,
+                ),
+              };
+            }),
           };
         },
       );
@@ -283,23 +291,21 @@ export function useSyncChannel(channelId: string | undefined) {
       if (updates.new.length > 0 || updates.deletedIds.size > 0) {
         queryClient.setQueriesData(
           { queryKey: ["messages", channelId] },
-          (old: any) => {
+          (old: MessagesQueryData | undefined) => {
             if (!old) return old;
             const countDelta = updates.new.length - updates.deletedIds.size;
-            const updatedPages = old.pages.map((page: any) => {
-              const msgs: Message[] = Array.isArray(page)
-                ? page
-                : page.messages;
-              const updated = msgs.map((m: Message) => {
-                if (m.id !== rootId) return m;
+            const updatedPages = old.pages.map((page) => {
+              const updated = page.messages.map((message) => {
+                if (message.id !== rootId) return message;
                 return {
-                  ...m,
-                  replyCount: Math.max(0, (m.replyCount ?? 0) + countDelta),
+                  ...message,
+                  replyCount: Math.max(
+                    0,
+                    (message.replyCount ?? 0) + countDelta,
+                  ),
                 };
               });
-              return Array.isArray(page)
-                ? updated
-                : { ...page, messages: updated };
+              return { ...page, messages: updated };
             });
             return { ...old, pages: updatedPages };
           },
@@ -308,27 +314,36 @@ export function useSyncChannel(channelId: string | undefined) {
     }
 
     // Apply sub-reply updates (best-effort — cache may not be loaded yet)
-    // SubReplies cache shape: { replies: Message[], hasMore, nextCursor }
+    // Sub-reply cache pages use SubRepliesResponse objects from useInfiniteQuery.
     for (const [parentReplyId, updates] of result.subReplyUpdates) {
       queryClient.setQueriesData(
         { queryKey: ["subReplies", parentReplyId] },
-        (old: any) => {
-          if (!old?.replies) return old;
+        (old: SubRepliesQueryData | undefined) => {
+          if (!old) return old;
 
-          const existingIds = new Set(old.replies.map((r: any) => r.id));
-
-          // Remove deleted, replace edited
-          let processed = old.replies
-            .filter((r: any) => !updates.deletedIds.has(r.id))
-            .map((r: any) => updates.edited.get(r.id) || r);
-
-          // Dedup then append new
-          const genuinelyNew = updates.new.filter(
-            (m) => !existingIds.has(m.id),
+          const existingIds = new Set(
+            old.pages.flatMap((page) => page.replies.map((reply) => reply.id)),
           );
-          processed = [...processed, ...genuinelyNew];
+          const genuinelyNew = updates.new.filter(
+            (message) => !existingIds.has(message.id),
+          );
 
-          return { ...old, replies: processed };
+          return {
+            ...old,
+            pages: old.pages.map((page, pageIndex) => {
+              const processedReplies = page.replies
+                .filter((reply) => !updates.deletedIds.has(reply.id))
+                .map((reply) => updates.edited.get(reply.id) || reply);
+
+              return {
+                ...page,
+                replies:
+                  pageIndex === old.pages.length - 1
+                    ? [...processedReplies, ...genuinelyNew]
+                    : processedReplies,
+              };
+            }),
+          };
         },
       );
     }

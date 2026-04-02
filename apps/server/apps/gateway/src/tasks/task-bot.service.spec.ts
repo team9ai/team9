@@ -217,6 +217,23 @@ describe('TaskBotService — TaskCast integration', () => {
 
       expect(taskCastService.transitionStatus).not.toHaveBeenCalled();
     });
+
+    it('rejects invalid terminal status values before updating records', async () => {
+      setupGetExecutionDirectMocks(db, EXECUTION_WITH_TASKCAST);
+
+      await expect(
+        service.updateStatus(
+          'task-1',
+          'exec-1',
+          'bot-user-1',
+          'pending_action',
+        ),
+      ).rejects.toThrow("Invalid status 'pending_action'");
+
+      expect(db.update).not.toHaveBeenCalled();
+      expect(wsGateway.broadcastToWorkspace).not.toHaveBeenCalled();
+      expect(taskCastService.transitionStatus).not.toHaveBeenCalled();
+    });
   });
 
   // ── createIntervention ───────────────────────────────────────────
@@ -337,6 +354,106 @@ describe('TaskBotService — TaskCast integration', () => {
       );
 
       expect(taskCastService.publishEvent).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── getTaskDocument ──────────────────────────────────────────────
+
+  describe('getTaskDocument', () => {
+    it('returns null when the task has no linked document', async () => {
+      setupGetExecutionDirectMocks(db, EXECUTION_WITH_TASKCAST);
+
+      await expect(
+        service.getTaskDocument('task-1', 'exec-1', 'bot-user-1'),
+      ).resolves.toBeNull();
+
+      expect(db.select).toHaveBeenCalledTimes(3);
+    });
+
+    it('throws when the linked document cannot be found', async () => {
+      db.limit
+        .mockResolvedValueOnce([EXECUTION_WITH_TASKCAST] as any)
+        .mockResolvedValueOnce([{ ...TASK, documentId: 'doc-1' }] as any)
+        .mockResolvedValueOnce([BOT] as any)
+        .mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.getTaskDocument('task-1', 'exec-1', 'bot-user-1'),
+      ).rejects.toThrow('Document not found');
+    });
+
+    it('returns document metadata with a null currentVersion when no version is linked', async () => {
+      db.limit
+        .mockResolvedValueOnce([EXECUTION_WITH_TASKCAST] as any)
+        .mockResolvedValueOnce([{ ...TASK, documentId: 'doc-1' }] as any)
+        .mockResolvedValueOnce([BOT] as any)
+        .mockResolvedValueOnce([
+          {
+            id: 'doc-1',
+            title: 'Runbook',
+            documentType: 'text',
+            currentVersionId: null,
+          },
+        ] as any);
+
+      await expect(
+        service.getTaskDocument('task-1', 'exec-1', 'bot-user-1'),
+      ).resolves.toEqual({
+        id: 'doc-1',
+        title: 'Runbook',
+        documentType: 'text',
+        currentVersion: null,
+      });
+    });
+
+    it('hydrates the current document version when one is linked', async () => {
+      db.limit
+        .mockResolvedValueOnce([EXECUTION_WITH_TASKCAST] as any)
+        .mockResolvedValueOnce([{ ...TASK, documentId: 'doc-1' }] as any)
+        .mockResolvedValueOnce([BOT] as any)
+        .mockResolvedValueOnce([
+          {
+            id: 'doc-1',
+            title: 'Runbook',
+            documentType: 'text',
+            currentVersionId: 'ver-1',
+          },
+        ] as any)
+        .mockResolvedValueOnce([
+          {
+            id: 'ver-1',
+            versionIndex: 3,
+            content: 'latest content',
+            summary: 'latest summary',
+            createdAt: new Date('2026-04-01T10:00:00.000Z'),
+          },
+        ] as any);
+
+      await expect(
+        service.getTaskDocument('task-1', 'exec-1', 'bot-user-1'),
+      ).resolves.toEqual({
+        id: 'doc-1',
+        title: 'Runbook',
+        documentType: 'text',
+        currentVersion: {
+          id: 'ver-1',
+          versionIndex: 3,
+          content: 'latest content',
+          summary: 'latest summary',
+          createdAt: new Date('2026-04-01T10:00:00.000Z'),
+        },
+      });
+    });
+
+    it('rejects read access when the bot does not own the task', async () => {
+      db.limit
+        .mockResolvedValueOnce([EXECUTION_WITH_TASKCAST] as any)
+        .mockResolvedValueOnce([{ ...TASK, documentId: 'doc-1' }] as any)
+        .mockResolvedValueOnce([{ userId: 'different-bot-user' }] as any);
+
+      await expect(
+        service.getTaskDocument('task-1', 'exec-1', 'bot-user-1'),
+      ).rejects.toThrow('Bot does not own this task');
     });
   });
 

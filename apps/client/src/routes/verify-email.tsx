@@ -1,9 +1,11 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useVerifyEmail } from "@/hooks/useAuth";
+import { useEffectOncePerKey } from "@/hooks/useEffectOncePerKey";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { getHttpErrorMessage } from "@/lib/http-error";
 import workspaceApi from "@/services/api/workspace";
 import { workspaceActions, appActions } from "@/stores";
 
@@ -29,7 +31,6 @@ function VerifyEmail() {
     "loading",
   );
   const [errorMessage, setErrorMessage] = useState("");
-  const verifiedRef = useRef(false);
 
   // Prevent token leakage via HTTP Referrer header
   useEffect(() => {
@@ -49,58 +50,50 @@ function VerifyEmail() {
       return;
     }
 
-    // Prevent double execution in React StrictMode
-    if (verifiedRef.current) return;
-    verifiedRef.current = true;
+    setStatus("loading");
+    setErrorMessage("");
+  }, [token, t]);
 
-    const verify = async () => {
-      try {
-        await verifyEmail.mutateAsync(token);
-        setStatus("success");
-        let joinedFromInvite = false;
+  useEffectOncePerKey(token, Boolean(token), async (currentToken) => {
+    try {
+      await verifyEmail.mutateAsync(currentToken);
+      setStatus("success");
+      let joinedFromInvite = false;
 
-        // Auto-accept pending invitation after successful verification
-        const pendingInviteCode = localStorage.getItem("pending_invite_code");
-        if (pendingInviteCode) {
-          try {
-            const result =
-              await workspaceApi.acceptInvitation(pendingInviteCode);
-            workspaceActions.setSelectedWorkspaceId(result.workspace.id);
-            appActions.resetNavigationForWorkspaceEntry();
-            joinedFromInvite = true;
-          } catch {
-            // Fail silently — user can revisit the invite link later
-          } finally {
-            localStorage.removeItem("pending_invite_code");
-          }
-        }
-
-        // Try to wake up the desktop client via deep link.
+      // Auto-accept pending invitation after successful verification
+      const pendingInviteCode = localStorage.getItem("pending_invite_code");
+      if (pendingInviteCode) {
         try {
-          window.location.href = "team9://auth-complete";
+          const result = await workspaceApi.acceptInvitation(pendingInviteCode);
+          workspaceActions.setSelectedWorkspaceId(result.workspace.id);
+          appActions.resetNavigationForWorkspaceEntry();
+          joinedFromInvite = true;
         } catch {
-          // Deep link not handled, continue in browser
+          // Fail silently — user can revisit the invite link later
+        } finally {
+          localStorage.removeItem("pending_invite_code");
         }
-
-        // Redirect to home after 3 seconds
-        setTimeout(() => {
-          navigate({
-            to: joinedFromInvite ? "/channels" : "/",
-            replace: true,
-          });
-        }, 3000);
-      } catch (err: any) {
-        setStatus("error");
-        setErrorMessage(
-          err?.response?.data?.message ||
-            err?.message ||
-            t("verificationFailed"),
-        );
       }
-    };
 
-    verify();
-  }, [token]);
+      // Try to wake up the desktop client via deep link.
+      try {
+        window.location.href = "team9://auth-complete";
+      } catch {
+        // Deep link not handled, continue in browser
+      }
+
+      // Redirect to home after 3 seconds
+      setTimeout(() => {
+        navigate({
+          to: joinedFromInvite ? "/channels" : "/",
+          replace: true,
+        });
+      }, 3000);
+    } catch (err: unknown) {
+      setStatus("error");
+      setErrorMessage(getHttpErrorMessage(err) || t("verificationFailed"));
+    }
+  });
 
   // Inject keyframes if not already present
   useEffect(() => {

@@ -30,6 +30,14 @@ export class FileKeeperService {
     return env.FILE_KEEPER_JWT_SECRET;
   }
 
+  private getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+  }
+
+  private isNotFoundError(error: unknown): boolean {
+    return error instanceof Error && error.message.includes('404');
+  }
+
   /**
    * Whether the File-Keeper integration is configured.
    * If false, all API calls will be skipped gracefully.
@@ -90,10 +98,10 @@ export class FileKeeperService {
         }
       }
     } else {
-      const error = rootSettled.reason;
-      if (!(error instanceof Error && error.message.includes('404'))) {
+      const error: unknown = rootSettled.reason;
+      if (!this.isNotFoundError(error)) {
         this.logger.warn(
-          `Failed to scan root for instance ${instanceId}: ${error}`,
+          `Failed to scan root for instance ${instanceId}: ${this.getErrorMessage(error)}`,
         );
       }
     }
@@ -126,10 +134,10 @@ export class FileKeeperService {
         }
       }
     } else {
-      const error = wsSettled.reason;
-      if (!(error instanceof Error && error.message.includes('404'))) {
+      const error: unknown = wsSettled.reason;
+      if (!this.isNotFoundError(error)) {
         this.logger.warn(
-          `Failed to list workspaces for instance ${instanceId}: ${error}`,
+          `Failed to list workspaces for instance ${instanceId}: ${this.getErrorMessage(error)}`,
         );
       }
     }

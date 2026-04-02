@@ -105,7 +105,7 @@ export class BotService implements OnModuleInit {
     private readonly botAuthCache: BotAuthCacheService,
   ) {}
 
-  async onModuleInit(): Promise<void> {
+  onModuleInit(): void {
     if (env.SYSTEM_BOT_ENABLED) {
       // await this.initializeSystemBot();
     } else {
@@ -694,6 +694,7 @@ export class BotService implements OnModuleInit {
     }
 
     // Delete shadow user (im_bots cascades via userId FK)
+    await this.botAuthCache.invalidateBot(botId);
     await this.db.delete(schema.users).where(eq(schema.users.id, bot.userId));
 
     this.logger.log(`Deleted bot ${botId} and shadow user ${bot.userId}`);
@@ -900,7 +901,6 @@ export class BotService implements OnModuleInit {
       if (await this.botAuthCache.isBotMutationInProgress(row.botId)) {
         continue;
       }
-
       if (!(await this.doesTokenMatch(rawHex, row.accessToken))) {
         continue;
       }
@@ -908,7 +908,6 @@ export class BotService implements OnModuleInit {
       if (await this.botAuthCache.isBotMutationInProgress(row.botId)) {
         continue;
       }
-
       const versionBefore = await this.botAuthCache.getBotVersion(row.botId);
       const confirmed = await this.confirmValidatedAccessToken(
         row.botId,
@@ -921,7 +920,6 @@ export class BotService implements OnModuleInit {
       if (await this.botAuthCache.isBotMutationInProgress(row.botId)) {
         continue;
       }
-
       const versionAfter = await this.botAuthCache.getBotVersion(row.botId);
       if (
         versionBefore !== null &&

@@ -50,6 +50,10 @@ export class MessageGrpcController {
 
   constructor(private readonly messageService: MessageService) {}
 
+  private parseMetadata(raw: string): Record<string, unknown> {
+    return JSON.parse(raw) as Record<string, unknown>;
+  }
+
   /**
    * Create a new message via gRPC
    */
@@ -105,7 +109,7 @@ export class MessageGrpcController {
           mimeType: att.mime_type,
         })),
         metadata: request.metadata_json
-          ? JSON.parse(request.metadata_json)
+          ? this.parseMetadata(request.metadata_json)
           : undefined,
       };
 
@@ -126,6 +130,10 @@ export class MessageGrpcController {
         error: result.error,
       };
     } catch (error) {
+      if (error instanceof RpcException) {
+        throw error;
+      }
+
       this.logger.error(`gRPC CreateMessage failed: ${error}`);
       throw new RpcException({
         code: status.INTERNAL,

@@ -63,7 +63,7 @@ export class AccountController {
 
   @Get('confirm-email-change')
   @Redirect()
-  async redirectConfirmEmailChange(
+  redirectConfirmEmailChange(
     @Query() dto: ConfirmEmailChangeDto,
   ): Promise<{ url: string }> {
     return {

@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCreateWorkspace } from "@/hooks/useWorkspace";
+import { getHttpErrorMessage } from "@/lib/http-error";
 import { useWorkspaceStore } from "@/stores";
 
 interface CreateWorkspaceDialogProps {
@@ -105,9 +106,9 @@ export function CreateWorkspaceDialog({
       // Switch to the newly created workspace
       setSelectedWorkspaceId(workspace.id);
       handleClose();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to create workspace:", error);
-      const msg = error?.response?.data?.message || error?.message || "";
+      const msg = getHttpErrorMessage(error) || "";
       if (msg.includes("maximum of")) {
         onClose();
         resetForm();

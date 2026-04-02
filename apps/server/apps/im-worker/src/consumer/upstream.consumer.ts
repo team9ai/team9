@@ -103,7 +103,7 @@ export class UpstreamConsumer {
   /**
    * Process typing indicators - forwarded without storage
    */
-  private async processTypingMessage(upstream: UpstreamMessage): Promise<void> {
+  private processTypingMessage(upstream: UpstreamMessage): void {
     this.logger.debug(
       `Typing indicator from ${upstream.userId} in ${upstream.message.targetId}`,
     );
@@ -122,9 +122,7 @@ export class UpstreamConsumer {
    * Note: Message delivery on reconnect removed - now using SeqId-based incremental sync
    * Messages are synced when user opens a channel via GET /v1/im/sync/channel/:channelId
    */
-  private async processPresenceMessage(
-    upstream: UpstreamMessage,
-  ): Promise<void> {
+  private processPresenceMessage(upstream: UpstreamMessage): void {
     const { userId, gatewayId } = upstream;
     const payload = upstream.message.payload as PresencePayload;
 

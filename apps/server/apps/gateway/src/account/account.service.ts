@@ -39,6 +39,15 @@ export interface EmailChangeMutationResponse extends PendingEmailChangeResponse 
   confirmationLink?: string;
 }
 
+type EmailChangeConfirmationEmailSender = {
+  sendEmailChangeConfirmationEmail(
+    email: string,
+    username: string,
+    currentEmail: string,
+    confirmationLink: string,
+  ): Promise<boolean>;
+};
+
 @Injectable()
 export class AccountService {
   private readonly EMAIL_CHANGE_TOKEN_EXPIRY_HOURS = 24;
@@ -516,12 +525,15 @@ export class AccountService {
     username: string,
     currentEmail: string,
     confirmationLink: string,
-  ) {
+  ): Promise<void> {
     if (env.DEV_SKIP_EMAIL_VERIFICATION) {
       return;
     }
 
-    await this.emailService.sendEmailChangeConfirmationEmail(
+    const emailService = this
+      .emailService as unknown as EmailChangeConfirmationEmailSender;
+
+    await emailService.sendEmailChangeConfirmationEmail(
       newEmail,
       username,
       currentEmail,

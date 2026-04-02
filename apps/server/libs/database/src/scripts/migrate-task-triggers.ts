@@ -96,8 +96,10 @@ async function migrateTaskTriggers() {
         // If recurring with config, create a schedule trigger
         if (task.scheduleType === 'recurring' && task.scheduleConfig) {
           const config = task.scheduleConfig as Record<string, unknown>;
+          const frequency =
+            typeof config.frequency === 'string' ? config.frequency : 'daily';
           const schedTriggerConfig: Record<string, unknown> = {
-            frequency: config.frequency ?? 'daily',
+            frequency,
             time: config.time ?? '09:00',
             timezone: config.timezone ?? 'UTC',
           };
@@ -121,7 +123,7 @@ async function migrateTaskTriggers() {
           });
           scheduleCreated++;
           console.log(
-            `[Task ${task.id}] Created manual + schedule trigger (${config.frequency})`,
+            `[Task ${task.id}] Created manual + schedule trigger (${frequency})`,
           );
         } else {
           console.log(`[Task ${task.id}] Created manual trigger`);

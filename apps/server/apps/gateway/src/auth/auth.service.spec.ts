@@ -17,6 +17,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { OAuth2Client } from 'google-auth-library';
 import * as crypto from 'crypto';
 import { AuthService } from './auth.service.js';
+import { USER_EVENTS } from './events/user.events.js';
 import { RedisService } from '@team9/redis';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { EmailService } from '@team9/email';
@@ -74,6 +75,8 @@ describe('AuthService', () => {
 
   beforeEach(async () => {
     originalEnv = { ...process.env };
+    process.env.APP_URL = 'https://app.test';
+    process.env.DEV_SKIP_EMAIL_VERIFICATION = 'true';
     process.env.GOOGLE_CLIENT_ID = 'test-google-client-id';
 
     db = mockDb();
@@ -164,6 +167,21 @@ describe('AuthService', () => {
         expect.stringContaining('im:auth_challenge:'),
         expect.stringContaining('"flow":"login"'),
         600,
+      );
+    });
+
+    it('should send verification code email when dev email skipping is disabled', async () => {
+      process.env.DEV_SKIP_EMAIL_VERIFICATION = 'false';
+      db.limit.mockResolvedValue([USER_ROW]);
+
+      const result = await service.authStart({ email: 'alice@test.com' });
+
+      expect(result.action).toBe('code_sent');
+      expect(result).not.toHaveProperty('verificationCode');
+      expect(emailService.sendVerificationCodeEmail).toHaveBeenCalledWith(
+        'alice@test.com',
+        expect.any(String),
+        10,
       );
     });
 
@@ -405,9 +423,7 @@ describe('AuthService', () => {
 
       // First limit call: completeSignup checks if email exists → no
       // Second limit call: generateUniqueUsername checks if username exists → no
-      let limitCallCount = 0;
       db.limit.mockImplementation((() => {
-        limitCallCount++;
         return Promise.resolve([]);
       }) as any);
 
@@ -549,6 +565,483 @@ describe('AuthService', () => {
       expect(result.user.email).toBe('race@test.com');
       // Should NOT insert a new user
       expect(db.insert).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── login ────────────────────────────────────────────────────────
+
+  describe('login', () => {
+    it('should enforce rate limiting before reading the user record', async () => {
+      redisService.get.mockResolvedValueOnce('1');
+
+      await expect(service.login({ email: 'alice@test.com' })).rejects.toThrow(
+        BadRequestException,
+      );
+
+      expect(db.limit).not.toHaveBeenCalled();
+    });
+
+    it('should reject login when the account does not exist', async () => {
+      db.limit.mockResolvedValueOnce([]);
+
+      await expect(
+        service.login({ email: 'missing@test.com' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should reject login for non-human users', async () => {
+      db.limit.mockResolvedValueOnce([{ ...USER_ROW, userType: 'bot' }]);
+
+      await expect(service.login({ email: 'bot@test.com' })).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should reject login for inactive users', async () => {
+      db.limit.mockResolvedValueOnce([{ ...USER_ROW, isActive: false }]);
+
+      await expect(
+        service.login({ email: 'inactive@test.com' }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should send verification email for unverified human user', async () => {
+      const unverifiedUser = { ...USER_ROW, emailVerified: false };
+      db.limit.mockResolvedValue([unverifiedUser]);
+
+      const result = await service.login({ email: 'alice@test.com' });
+
+      expect(result.message).toBe(
+        'Your email is not verified yet. We have sent a verification email.',
+      );
+      expect(result.email).toBe('alice@test.com');
+      expect(result.loginSessionId).toBeDefined();
+      expect(db.delete).not.toHaveBeenCalled();
+      expect(db.insert).toHaveBeenCalled();
+      expect(redisService.set).toHaveBeenCalledWith(
+        expect.stringContaining('im:login_session:'),
+        expect.stringContaining('"status":"pending"'),
+        1800,
+      );
+    });
+
+    it('should send login link for verified human user', async () => {
+      db.limit.mockResolvedValue([USER_ROW]);
+
+      const result = await service.login({ email: 'alice@test.com' });
+
+      expect(result.message).toBe('Login link has been sent to your email.');
+      expect(result.email).toBe('alice@test.com');
+      expect(result.loginSessionId).toBeDefined();
+      expect(db.delete).toHaveBeenCalledTimes(1);
+      expect(db.insert).toHaveBeenCalled();
+      expect(redisService.set).toHaveBeenCalledWith(
+        expect.stringContaining('im:login_rate:alice@test.com'),
+        '1',
+        60,
+      );
+      expect(redisService.set).toHaveBeenCalledWith(
+        expect.stringContaining('im:login_session:'),
+        expect.stringContaining('"status":"pending"'),
+        1800,
+      );
+    });
+
+    it('should send the login email when dev email skipping is disabled', async () => {
+      process.env.DEV_SKIP_EMAIL_VERIFICATION = 'false';
+      db.limit.mockResolvedValue([USER_ROW]);
+
+      const result = await service.login({ email: 'alice@test.com' });
+
+      expect(result.message).toBe('Login link has been sent to your email.');
+      expect(result).not.toHaveProperty('verificationLink');
+      expect(emailService.sendLoginEmail).toHaveBeenCalledWith(
+        USER_ROW.email,
+        USER_ROW.username,
+        expect.stringContaining('https://app.test/verify-email?token='),
+      );
+    });
+  });
+
+  // ── resendVerificationEmail ──────────────────────────────────────
+
+  describe('resendVerificationEmail', () => {
+    it('should enforce resend rate limits', async () => {
+      redisService.get.mockResolvedValueOnce('1');
+
+      await expect(
+        service.resendVerificationEmail('alice@test.com'),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(db.limit).not.toHaveBeenCalled();
+    });
+
+    it("should return a generic success response when the account doesn't exist", async () => {
+      db.limit.mockResolvedValueOnce([]);
+
+      await expect(
+        service.resendVerificationEmail('missing@test.com'),
+      ).resolves.toEqual({
+        message: 'If the email exists, a verification email has been sent.',
+        loginSessionId: '',
+      });
+
+      expect(db.delete).not.toHaveBeenCalled();
+      expect(db.insert).not.toHaveBeenCalled();
+    });
+
+    it('should reject resend requests for already-verified users', async () => {
+      db.limit.mockResolvedValueOnce([USER_ROW]);
+
+      await expect(
+        service.resendVerificationEmail('alice@test.com'),
+      ).rejects.toThrow('Email is already verified');
+    });
+
+    it('should replace tokens, issue a new login session, and return the dev verification link', async () => {
+      const unverifiedUser = { ...USER_ROW, emailVerified: false };
+      db.limit.mockResolvedValueOnce([unverifiedUser]);
+
+      const result = await service.resendVerificationEmail('alice@test.com');
+
+      expect(result.message).toBe('Verification email has been sent.');
+      expect(result.loginSessionId).toBeDefined();
+      expect(db.delete).toHaveBeenCalledTimes(1);
+      expect(db.insert).toHaveBeenCalledTimes(1);
+      expect(redisService.set).toHaveBeenCalledWith(
+        'im:verify_rate:alice@test.com',
+        '1',
+        60,
+      );
+      expect(redisService.set).toHaveBeenCalledWith(
+        expect.stringContaining('im:login_session:'),
+        expect.stringContaining('"status":"pending"'),
+        1800,
+      );
+    });
+  });
+
+  // ── googleLogin ──────────────────────────────────────────────────
+
+  describe('googleLogin', () => {
+    beforeEach(() => {
+      process.env.GOOGLE_CLIENT_ID = 'google-client-id';
+    });
+
+    it('should reject when google login is not configured', async () => {
+      process.env.GOOGLE_CLIENT_ID = '';
+
+      await expect(
+        service.googleLogin({ credential: 'google-credential' }),
+      ).rejects.toThrow('Google login is not configured');
+    });
+
+    it('should reject invalid google credentials', async () => {
+      jest
+        .spyOn(OAuth2Client.prototype, 'verifyIdToken')
+        .mockRejectedValueOnce(new Error('bad credential'));
+
+      await expect(
+        service.googleLogin({ credential: 'google-credential' }),
+      ).rejects.toThrow('Invalid Google credential');
+    });
+
+    it('should reject google payloads without an email', async () => {
+      jest
+        .spyOn(OAuth2Client.prototype, 'verifyIdToken')
+        .mockResolvedValueOnce({
+          getPayload: () => ({ name: 'Alice' }),
+        } as Awaited<ReturnType<OAuth2Client['verifyIdToken']>>);
+
+      await expect(
+        service.googleLogin({ credential: 'google-credential' }),
+      ).rejects.toThrow('Invalid Google credential');
+    });
+
+    it('should mark existing human users as verified before returning tokens', async () => {
+      const existingUser = {
+        ...USER_ROW,
+        emailVerified: false,
+      };
+      db.limit.mockResolvedValueOnce([existingUser]);
+      jest
+        .spyOn(OAuth2Client.prototype, 'verifyIdToken')
+        .mockResolvedValueOnce({
+          getPayload: () => ({
+            email: existingUser.email,
+            name: 'Alice',
+            picture: 'https://avatar.test/alice.png',
+          }),
+        } as Awaited<ReturnType<OAuth2Client['verifyIdToken']>>);
+
+      const result = await service.googleLogin({
+        credential: 'google-credential',
+      });
+
+      expect(result.user.email).toBe(existingUser.email);
+      expect(db.update).toHaveBeenCalledTimes(1);
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          emailVerified: true,
+          emailVerifiedAt: expect.any(Date),
+          updatedAt: expect.any(Date),
+        }),
+      );
+    });
+
+    it('should register new google users and emit lifecycle events', async () => {
+      const insertedUser = {
+        ...USER_ROW,
+        id: 'google-user-id',
+        email: 'new-google@test.com',
+        username: 'new_google',
+        displayName: 'New Google',
+        avatarUrl: 'https://avatar.test/new-google.png',
+      };
+      db.limit.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      db.returning.mockResolvedValueOnce([insertedUser]);
+      jest
+        .spyOn(OAuth2Client.prototype, 'verifyIdToken')
+        .mockResolvedValueOnce({
+          getPayload: () => ({
+            email: insertedUser.email,
+            name: insertedUser.displayName,
+            picture: insertedUser.avatarUrl,
+          }),
+        } as Awaited<ReturnType<OAuth2Client['verifyIdToken']>>);
+
+      const result = await service.googleLogin({
+        credential: 'google-credential',
+      });
+
+      expect(result.user).toEqual({
+        id: insertedUser.id,
+        email: insertedUser.email,
+        username: insertedUser.username,
+        displayName: insertedUser.displayName,
+        avatarUrl: insertedUser.avatarUrl,
+      });
+      expect(db.insert).toHaveBeenCalledTimes(1);
+      expect(eventEmitter.emit).toHaveBeenNthCalledWith(
+        1,
+        USER_EVENTS.REGISTERED,
+        expect.objectContaining({
+          userId: insertedUser.id,
+          displayName: insertedUser.displayName,
+        }),
+      );
+      expect(eventEmitter.emit).toHaveBeenNthCalledWith(2, 'user.created', {
+        user: insertedUser,
+      });
+    });
+
+    it('should reject existing non-human google users', async () => {
+      db.limit.mockResolvedValueOnce([{ ...USER_ROW, userType: 'bot' }]);
+      jest
+        .spyOn(OAuth2Client.prototype, 'verifyIdToken')
+        .mockResolvedValueOnce({
+          getPayload: () => ({
+            email: USER_ROW.email,
+            name: 'Alice',
+          }),
+        } as Awaited<ReturnType<OAuth2Client['verifyIdToken']>>);
+
+      await expect(
+        service.googleLogin({ credential: 'google-credential' }),
+      ).rejects.toThrow('This account cannot log in');
+    });
+
+    it('should reject existing inactive google users', async () => {
+      db.limit.mockResolvedValueOnce([{ ...USER_ROW, isActive: false }]);
+      jest
+        .spyOn(OAuth2Client.prototype, 'verifyIdToken')
+        .mockResolvedValueOnce({
+          getPayload: () => ({
+            email: USER_ROW.email,
+            name: 'Alice',
+          }),
+        } as Awaited<ReturnType<OAuth2Client['verifyIdToken']>>);
+
+      await expect(
+        service.googleLogin({ credential: 'google-credential' }),
+      ).rejects.toThrow('Account is disabled');
+    });
+  });
+
+  // ── verifyEmail ──────────────────────────────────────────────────
+
+  describe('verifyEmail', () => {
+    it('should verify email, consume linked login session, and return tokens', async () => {
+      const tokenRecord = {
+        id: 'token-1',
+        userId: USER_ROW.id,
+        token: 'token-123',
+        email: USER_ROW.email,
+        expiresAt: new Date(Date.now() + 60_000),
+        usedAt: null,
+      };
+      const verifiedUser = {
+        ...USER_ROW,
+        emailVerified: true,
+        emailVerifiedAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      db.limit.mockResolvedValueOnce([tokenRecord]);
+      db.returning.mockResolvedValueOnce([verifiedUser]);
+      redisService.get.mockResolvedValue('login-session-1');
+
+      const result = await service.verifyEmail('token-123');
+
+      expect(result.user.email).toBe('alice@test.com');
+      expect(result.accessToken).toBe('mock-access-token');
+      expect(result.refreshToken).toBe('mock-refresh-token');
+      expect(db.set).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ usedAt: expect.any(Date) }),
+      );
+      expect(db.set).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          emailVerified: true,
+          emailVerifiedAt: expect.any(Date),
+          updatedAt: expect.any(Date),
+        }),
+      );
+      expect(redisService.set).toHaveBeenCalledWith(
+        'im:login_session:login-session-1',
+        expect.stringContaining('"status":"verified"'),
+        300,
+      );
+      expect(redisService.del).toHaveBeenCalledWith(
+        'im:login_session_by_user:user-uuid',
+      );
+    });
+
+    it('should verify email without an associated login session', async () => {
+      const tokenRecord = {
+        id: 'token-1',
+        userId: USER_ROW.id,
+        token: 'token-123',
+        email: USER_ROW.email,
+        expiresAt: new Date(Date.now() + 60_000),
+        usedAt: null,
+      };
+      const verifiedUser = {
+        ...USER_ROW,
+        emailVerified: true,
+        emailVerifiedAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      db.limit.mockResolvedValueOnce([tokenRecord]);
+      db.returning.mockResolvedValueOnce([verifiedUser]);
+      redisService.get.mockResolvedValueOnce(null);
+
+      const result = await service.verifyEmail('token-123');
+
+      expect(result.user.email).toBe('alice@test.com');
+      expect(redisService.set).not.toHaveBeenCalledWith(
+        expect.stringContaining('im:login_session:'),
+        expect.any(String),
+        300,
+      );
+      expect(redisService.del).not.toHaveBeenCalled();
+    });
+
+    it('should reject missing verification tokens', async () => {
+      db.limit.mockResolvedValueOnce([]);
+
+      await expect(service.verifyEmail('missing-token')).rejects.toThrow(
+        'Invalid verification token',
+      );
+    });
+
+    it('should reject already-used verification tokens', async () => {
+      const tokenRecord = {
+        id: 'token-1',
+        userId: USER_ROW.id,
+        token: 'token-123',
+        email: USER_ROW.email,
+        expiresAt: new Date(Date.now() + 60_000),
+        usedAt: new Date(),
+      };
+
+      db.limit.mockResolvedValueOnce([tokenRecord]);
+
+      await expect(service.verifyEmail('token-123')).rejects.toThrow(
+        'Verification token has already been used',
+      );
+    });
+
+    it('should reject expired verification tokens', async () => {
+      const tokenRecord = {
+        id: 'token-1',
+        userId: USER_ROW.id,
+        token: 'token-123',
+        email: USER_ROW.email,
+        expiresAt: new Date(Date.now() - 60_000),
+        usedAt: null,
+      };
+
+      db.limit.mockResolvedValueOnce([tokenRecord]);
+
+      await expect(service.verifyEmail('token-123')).rejects.toThrow(
+        'Verification token has expired',
+      );
+    });
+  });
+
+  // ── refreshToken / logout ────────────────────────────────────────
+
+  describe('refreshToken and logout', () => {
+    it('should reject revoked refresh tokens', async () => {
+      jwtService.verify.mockReturnValueOnce({
+        sub: USER_ROW.id,
+        jti: 'refresh-jti-2',
+        exp: Math.floor(Date.now() / 1000) + 120,
+      });
+      redisService.get.mockResolvedValueOnce('1');
+
+      await expect(service.refreshToken('revoked-token')).rejects.toThrow(
+        'Invalid refresh token',
+      );
+      expect(db.limit).not.toHaveBeenCalled();
+      expect(redisService.set).not.toHaveBeenCalled();
+    });
+
+    it('should reject refresh tokens when the user no longer exists', async () => {
+      jwtService.verify.mockReturnValueOnce({
+        sub: 'missing-user',
+        jti: 'refresh-jti-3',
+        exp: Math.floor(Date.now() / 1000) + 120,
+      });
+      redisService.get.mockResolvedValueOnce(null);
+      db.limit.mockResolvedValueOnce([]);
+
+      await expect(service.refreshToken('stale-token')).rejects.toThrow(
+        'Invalid refresh token',
+      );
+      expect(redisService.set).not.toHaveBeenCalled();
+    });
+
+    it('should ignore invalid refresh tokens during logout', async () => {
+      jwtService.verify.mockImplementationOnce(() => {
+        throw new Error('invalid');
+      });
+
+      await expect(
+        service.logout(USER_ROW.id, 'bad-token'),
+      ).resolves.toBeUndefined();
+
+      expect(redisService.set).not.toHaveBeenCalled();
+    });
+
+    it('should do nothing when logout is called without a refresh token', async () => {
+      await expect(service.logout(USER_ROW.id)).resolves.toBeUndefined();
+
+      expect(jwtService.verify).not.toHaveBeenCalled();
+      expect(redisService.set).not.toHaveBeenCalled();
     });
   });
 
@@ -720,6 +1213,42 @@ describe('AuthService', () => {
       await expect(service.pollLogin('session-1', '127.0.0.1')).rejects.toThrow(
         BadRequestException,
       );
+    });
+  });
+
+  // ── getUserById / cleanupExpiredTokens ───────────────────────────
+
+  describe('getUserById', () => {
+    it('should serialize the found user', async () => {
+      db.limit.mockResolvedValueOnce([USER_ROW]);
+
+      await expect(service.getUserById(USER_ROW.id)).resolves.toEqual({
+        id: USER_ROW.id,
+        email: USER_ROW.email,
+        username: USER_ROW.username,
+        displayName: USER_ROW.displayName,
+        avatarUrl: USER_ROW.avatarUrl,
+        isActive: USER_ROW.isActive,
+        createdAt: USER_ROW.createdAt.toISOString(),
+        updatedAt: USER_ROW.updatedAt.toISOString(),
+      });
+    });
+
+    it('should reject when the user cannot be found', async () => {
+      db.limit.mockResolvedValueOnce([]);
+
+      await expect(service.getUserById('missing-user')).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+  });
+
+  describe('cleanupExpiredTokens', () => {
+    it('should delete expired verification tokens', async () => {
+      await expect(service.cleanupExpiredTokens()).resolves.toBeUndefined();
+
+      expect(db.delete).toHaveBeenCalledTimes(1);
+      expect(db.where).toHaveBeenCalledTimes(1);
     });
   });
 });

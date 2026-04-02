@@ -8,11 +8,7 @@ import {
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { v7 as uuidv7 } from 'uuid';
-import {
-  StorageService,
-  PresignedUploadCredentials,
-  FileInfo,
-} from '@team9/storage';
+import { StorageService, PresignedUploadCredentials } from '@team9/storage';
 import {
   DATABASE_CONNECTION,
   eq,
@@ -79,7 +75,7 @@ export class FileService implements OnModuleInit {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async onModuleInit() {
+  onModuleInit(): void {
     this.logger.log(
       `FileService initialized with ${PENDING_EXPIRATION_DAYS} day expiration for pending uploads`,
     );
@@ -292,7 +288,7 @@ export class FileService implements OnModuleInit {
         }
         return false;
 
-      case 'channel':
+      case 'channel': {
         // Must be a member of the channel
         if (!userId || !file.channelId) {
           return false;
@@ -308,6 +304,7 @@ export class FileService implements OnModuleInit {
           )
           .limit(1);
         return !!channelMember;
+      }
 
       case 'private':
         // Only the uploader can access

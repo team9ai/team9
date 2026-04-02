@@ -14,6 +14,7 @@ import api, {
   type CompleteDesktopSessionRequest,
   type User,
 } from "@/services/api";
+import { getHttpErrorStatus } from "@/lib/http-error";
 import {
   appActions,
   workspaceActions,
@@ -121,9 +122,9 @@ export const useLoginPolling = (
           });
         }
         return result;
-      } catch (err: any) {
+      } catch (err: unknown) {
         // 404 means session expired or not found
-        if (err?.response?.status === 404 || err?.status === 404) {
+        if (getHttpErrorStatus(err) === 404) {
           onExpired?.();
         }
         throw err;

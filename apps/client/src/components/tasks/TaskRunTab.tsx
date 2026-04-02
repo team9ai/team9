@@ -2,6 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  HISTORY_TRIGGER_TYPE_LABEL_KEYS,
+  isHistoryTriggerType,
+} from "@/lib/task-trigger-keys";
 import { tasksApi } from "@/services/api/tasks";
 import { ExecutionTimeline } from "./ExecutionTimeline";
 import { TaskInterventionCard } from "./TaskInterventionCard";
@@ -27,14 +31,6 @@ const ACTIVE_STATUSES: AgentTaskStatus[] = [
   "pending_action",
   "paused",
 ];
-
-const TRIGGER_TYPE_KEYS: Record<string, string> = {
-  manual: "historyTab.manual",
-  interval: "historyTab.interval",
-  schedule: "historyTab.schedule",
-  channel_message: "historyTab.channelMessage",
-  retry: "historyTab.retry",
-};
 
 interface TaskRunTabProps {
   taskId: string;
@@ -108,8 +104,8 @@ export function TaskRunTab({ taskId, execution }: TaskRunTabProps) {
                 {t("runTab.triggerType")}
               </div>
               <div>
-                {TRIGGER_TYPE_KEYS[execution.triggerType]
-                  ? t(TRIGGER_TYPE_KEYS[execution.triggerType])
+                {isHistoryTriggerType(execution.triggerType)
+                  ? t(HISTORY_TRIGGER_TYPE_LABEL_KEYS[execution.triggerType])
                   : execution.triggerType}
               </div>
             </div>

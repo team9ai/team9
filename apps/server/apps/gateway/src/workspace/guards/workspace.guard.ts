@@ -6,7 +6,21 @@ import {
   Inject,
   forwardRef,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { WorkspaceService } from '../workspace.service.js';
+
+interface WorkspaceRequest extends Request {
+  params: {
+    workspaceId?: string;
+    id?: string;
+  };
+  tenantId?: string;
+  user?: {
+    sub: string;
+  };
+  workspaceRole?: string;
+  tenantRole?: string;
+}
 
 @Injectable()
 export class WorkspaceGuard implements CanActivate {
@@ -16,12 +30,12 @@ export class WorkspaceGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<WorkspaceRequest>();
 
     // Get workspace ID from route param or tenantId from middleware
     // Priority: workspaceId param > tenantId from header > id param (for backward compatibility)
     const workspaceId =
-      request.params.workspaceId || request.tenantId || request.params.id;
+      request.params.workspaceId ?? request.tenantId ?? request.params.id;
     const user = request.user;
 
     if (!workspaceId) {

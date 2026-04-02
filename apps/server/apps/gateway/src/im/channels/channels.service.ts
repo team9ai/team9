@@ -38,7 +38,7 @@ export interface ChannelResponse {
   order: number;
   isArchived: boolean;
   isActivated: boolean;
-  snapshot: unknown;
+  snapshot: ChannelSnapshot | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -72,6 +72,16 @@ export interface ChannelMemberResponse {
     userType: 'human' | 'bot' | 'system';
     createdAt: Date;
   };
+}
+
+interface ChannelSnapshot {
+  totalMessageCount: number;
+  latestMessages: Array<{
+    id: string;
+    content: string | null;
+    metadata: Record<string, unknown> | null;
+    createdAt: Date;
+  }>;
 }
 
 @Injectable()
@@ -829,15 +839,7 @@ export class ChannelsService {
    * Returns a snapshot of the latest 3 messages and total message count.
    */
   async deactivateChannel(channelId: string): Promise<{
-    snapshot: {
-      totalMessageCount: number;
-      latestMessages: Array<{
-        id: string;
-        content: string | null;
-        metadata: Record<string, unknown> | null;
-        createdAt: Date;
-      }>;
-    };
+    snapshot: ChannelSnapshot;
   }> {
     const channel = await this.findById(channelId);
     if (!channel) {
@@ -849,12 +851,14 @@ export class ChannelsService {
       );
     }
     if (!channel.isActivated) {
+      const defaultSnapshot: ChannelSnapshot = {
+        totalMessageCount: 0,
+        latestMessages: [],
+      };
+
       // Already deactivated — return existing snapshot
       return {
-        snapshot: (channel.snapshot as any) ?? {
-          totalMessageCount: 0,
-          latestMessages: [],
-        },
+        snapshot: channel.snapshot ?? defaultSnapshot,
       };
     }
 

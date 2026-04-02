@@ -5,7 +5,7 @@ import {
   useQuery,
   type InfiniteData,
 } from "@tanstack/react-query";
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useMemo } from "react";
 import { create } from "zustand";
 import { api } from "@/services/api";
 import wsService from "@/services/websocket";
@@ -15,6 +15,7 @@ import type {
   SubRepliesResponse,
   CreateMessageDto,
   Message,
+  MessageReaction,
   ThreadReply,
   MessageSendStatus,
 } from "@/types/im";
@@ -735,9 +736,13 @@ export function useThreadPanelForLevel(
       : undefined;
 
   // Query key for invalidation
-  const queryKey = isPrimary
-    ? ["thread", rootMessageId]
-    : ["subReplies", rootMessageId];
+  const queryKey = useMemo(
+    () =>
+      isPrimary
+        ? (["thread", rootMessageId] as const)
+        : (["subReplies", rootMessageId] as const),
+    [isPrimary, rootMessageId],
+  );
 
   /**
    * Continue loading from current position and fetch new messages.
@@ -1022,7 +1027,7 @@ export function useRemoveThreadReaction(
                   return {
                     ...reply,
                     reactions: (reply.reactions || []).filter(
-                      (r: any) =>
+                      (r: MessageReaction) =>
                         !(r.userId === currentUser.id && r.emoji === emoji),
                     ),
                   };
@@ -1045,7 +1050,7 @@ export function useRemoveThreadReaction(
                   return {
                     ...reply,
                     reactions: (reply.reactions || []).filter(
-                      (r: any) =>
+                      (r: MessageReaction) =>
                         !(r.userId === currentUser.id && r.emoji === emoji),
                     ),
                   };

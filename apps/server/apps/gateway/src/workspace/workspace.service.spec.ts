@@ -24,7 +24,9 @@ function mockDb() {
     'returning',
     'update',
     'set',
+    'delete',
     'innerJoin',
+    'leftJoin',
     'orderBy',
     'offset',
   ];
@@ -58,6 +60,9 @@ describe('WorkspaceService', () => {
   let installedApplicationsService: {
     install: MockFn;
   };
+  let redisService: {
+    hgetall: MockFn;
+  };
   let channelsService: {
     create: MockFn;
     createDirectChannel: MockFn;
@@ -71,9 +76,6 @@ describe('WorkspaceService', () => {
     sendToUser: MockFn;
     sendToChannelMembers: MockFn;
   };
-  let installedApplicationsService: {
-    getInstalledApplicationsForTenant: MockFn;
-  };
 
   beforeEach(async () => {
     db = mockDb();
@@ -82,6 +84,9 @@ describe('WorkspaceService', () => {
     };
     installedApplicationsService = {
       install: jest.fn<any>().mockResolvedValue(undefined),
+    };
+    redisService = {
+      hgetall: jest.fn<any>().mockResolvedValue({}),
     };
     channelsService = {
       create: jest.fn<any>().mockResolvedValue({}),
@@ -107,19 +112,13 @@ describe('WorkspaceService', () => {
       sendToUser: jest.fn<any>(),
       sendToChannelMembers: jest.fn<any>().mockResolvedValue(undefined),
     };
-    installedApplicationsService = {
-      getInstalledApplicationsForTenant: jest.fn<any>().mockResolvedValue([]),
-    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         WorkspaceService,
         { provide: DATABASE_CONNECTION, useValue: db },
         { provide: WEBSOCKET_GATEWAY, useValue: websocketGateway },
-        {
-          provide: RedisService,
-          useValue: { hgetall: jest.fn<any>().mockResolvedValue({}) },
-        },
+        { provide: RedisService, useValue: redisService },
         { provide: ChannelsService, useValue: channelsService },
         { provide: BotService, useValue: botService },
         {
@@ -271,6 +270,671 @@ describe('WorkspaceService', () => {
       });
 
       expect(result).toEqual(WORKSPACE_ROW);
+    });
+
+    it('should throw when a provided slug already exists', async () => {
+      (service as any).findBySlug.mockResolvedValueOnce({
+        id: 'existing-workspace',
+      });
+
+      await expect(
+        service.create({
+          name: 'Test Workspace',
+          slug: 'custom-slug',
+          ownerId: 'owner-1',
+        }),
+      ).rejects.toThrow('Workspace slug already exists');
+    });
+
+    it('should throw when a provided domain is already in use', async () => {
+      (service as any).findByDomain.mockResolvedValueOnce({
+        id: 'existing-workspace',
+      });
+
+      await expect(
+        service.create({
+          name: 'Test Workspace',
+          domain: 'team9.test',
+          ownerId: 'owner-1',
+        }),
+      ).rejects.toThrow('Domain already in use');
+    });
+  });
+
+  // ── invitations ─────────────────────────────────────────────────
+
+  describe('createInvitation', () => {
+    beforeEach(() => {
+      process.env.APP_URL = 'https://app.team9.test';
+      jest
+        .spyOn(service as any, 'generateInviteCode')
+        .mockReturnValue('invite-code');
+    });
+
+    it('should shape the invitation response with URL, creator info, and defaults', async () => {
+      const nowSpy = jest
+        .spyOn(Date, 'now')
+        .mockReturnValue(new Date('2026-04-02T12:00:00.000Z').getTime());
+      db.returning.mockResolvedValueOnce([
+        {
+          id: 'invitation-uuid',
+          code: 'invite-code',
+          role: 'member',
+          maxUses: 5,
+          usedCount: 0,
+          expiresAt: new Date('2026-04-04T12:00:00.000Z'),
+          isActive: true,
+          createdAt: new Date('2026-04-02T12:00:00.000Z'),
+        },
+      ] as any);
+      db.limit.mockResolvedValueOnce([
+        {
+          id: 'creator-uuid',
+          username: 'alice',
+          displayName: 'Alice',
+        },
+      ] as any);
+
+      const result = await service.createInvitation('ws-uuid', 'creator-uuid', {
+        maxUses: 5,
+        expiresInDays: 2,
+      } as any);
+
+      expect(result).toEqual({
+        id: 'invitation-uuid',
+        code: 'invite-code',
+        url: 'https://app.team9.test/invite/invite-code',
+        role: 'member',
+        maxUses: 5,
+        usedCount: 0,
+        expiresAt: new Date('2026-04-04T12:00:00.000Z'),
+        isActive: true,
+        createdAt: new Date('2026-04-02T12:00:00.000Z'),
+        createdBy: {
+          id: 'creator-uuid',
+          username: 'alice',
+          displayName: 'Alice',
+        },
+      });
+
+      nowSpy.mockRestore();
+    });
+  });
+
+  describe('getInvitationInfo', () => {
+    it('should return not found when the invitation does not exist', async () => {
+      db.limit.mockResolvedValueOnce([]);
+
+      await expect(service.getInvitationInfo('missing-code')).resolves.toEqual({
+        workspaceName: '',
+        workspaceSlug: '',
+        isValid: false,
+        reason: 'Invitation not found',
+      });
+    });
+
+    it('should return revoked info when the invitation is inactive', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          invitation: {
+            id: 'invitation-uuid',
+            tenantId: 'ws-uuid',
+            code: 'invite-code',
+            createdBy: 'creator-uuid',
+            role: 'member',
+            maxUses: null,
+            usedCount: 0,
+            expiresAt: null,
+            isActive: false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          workspace: {
+            name: 'Test Workspace',
+            slug: 'test-workspace',
+          },
+          creator: {
+            username: 'alice',
+            displayName: 'Alice',
+          },
+        },
+      ] as any);
+
+      await expect(service.getInvitationInfo('invite-code')).resolves.toEqual({
+        workspaceName: 'Test Workspace',
+        workspaceSlug: 'test-workspace',
+        isValid: false,
+        reason: 'Invitation has been revoked',
+      });
+    });
+
+    it('should return expired info when the invitation is past its expiry', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          invitation: {
+            id: 'invitation-uuid',
+            tenantId: 'ws-uuid',
+            code: 'invite-code',
+            createdBy: 'creator-uuid',
+            role: 'member',
+            maxUses: null,
+            usedCount: 0,
+            expiresAt: new Date('2026-01-01T00:00:00.000Z'),
+            isActive: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          workspace: {
+            name: 'Test Workspace',
+            slug: 'test-workspace',
+          },
+          creator: {
+            username: 'alice',
+            displayName: 'Alice',
+          },
+        },
+      ] as any);
+
+      await expect(service.getInvitationInfo('invite-code')).resolves.toEqual({
+        workspaceName: 'Test Workspace',
+        workspaceSlug: 'test-workspace',
+        expiresAt: new Date('2026-01-01T00:00:00.000Z'),
+        isValid: false,
+        reason: 'Invitation has expired',
+      });
+    });
+
+    it('should return max-uses info when the invitation is exhausted', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          invitation: {
+            id: 'invitation-uuid',
+            tenantId: 'ws-uuid',
+            code: 'invite-code',
+            createdBy: 'creator-uuid',
+            role: 'member',
+            maxUses: 2,
+            usedCount: 2,
+            expiresAt: null,
+            isActive: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          workspace: {
+            name: 'Test Workspace',
+            slug: 'test-workspace',
+          },
+          creator: {
+            username: 'alice',
+            displayName: 'Alice',
+          },
+        },
+      ] as any);
+
+      await expect(service.getInvitationInfo('invite-code')).resolves.toEqual({
+        workspaceName: 'Test Workspace',
+        workspaceSlug: 'test-workspace',
+        isValid: false,
+        reason: 'Invitation has reached maximum uses',
+      });
+    });
+
+    it('should return valid info and invitedBy from the creator display name', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          invitation: {
+            id: 'invitation-uuid',
+            tenantId: 'ws-uuid',
+            code: 'invite-code',
+            createdBy: 'creator-uuid',
+            role: 'member',
+            maxUses: 5,
+            usedCount: 1,
+            expiresAt: new Date('2026-04-10T00:00:00.000Z'),
+            isActive: true,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          workspace: {
+            name: 'Test Workspace',
+            slug: 'test-workspace',
+          },
+          creator: {
+            username: 'alice',
+            displayName: null,
+          },
+        },
+      ] as any);
+
+      await expect(service.getInvitationInfo('invite-code')).resolves.toEqual({
+        workspaceName: 'Test Workspace',
+        workspaceSlug: 'test-workspace',
+        invitedBy: 'alice',
+        expiresAt: new Date('2026-04-10T00:00:00.000Z'),
+        isValid: true,
+      });
+    });
+  });
+
+  describe('revokeInvitation', () => {
+    it('should throw when the invitation cannot be found', async () => {
+      db.returning.mockResolvedValueOnce([]);
+
+      await expect(
+        service.revokeInvitation('ws-uuid', 'missing-code'),
+      ).rejects.toThrow('Invitation not found');
+    });
+
+    it('should deactivate the invitation when it exists', async () => {
+      db.returning.mockResolvedValueOnce([
+        {
+          id: 'invitation-uuid',
+          isActive: false,
+        },
+      ] as any);
+
+      await expect(
+        service.revokeInvitation('ws-uuid', 'invite-code'),
+      ).resolves.toBeUndefined();
+
+      expect(db.update).toHaveBeenCalled();
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({ isActive: false }),
+      );
+    });
+  });
+
+  describe('getWorkspaceMembers', () => {
+    it('should reject when the requester is not a member', async () => {
+      jest.spyOn(service, 'isWorkspaceMember' as any).mockResolvedValue(false);
+
+      await expect(
+        service.getWorkspaceMembers('ws-uuid', 'user-uuid'),
+      ).rejects.toThrow('Not a member of this workspace');
+    });
+
+    it('should map Redis status and pagination for a member list', async () => {
+      jest.spyOn(service, 'isWorkspaceMember' as any).mockResolvedValue(true);
+      db.where
+        .mockImplementationOnce(() => Promise.resolve([{ count: '2' }]) as any)
+        .mockImplementationOnce(() => db as any);
+      db.limit.mockReturnValue(db as any);
+      db.offset.mockResolvedValueOnce([
+        {
+          id: 'member-uuid',
+          userId: 'online-user',
+          username: 'alice',
+          displayName: 'Alice',
+          avatarUrl: null,
+          role: 'admin',
+          userType: 'human',
+          joinedAt: new Date('2026-04-01T00:00:00.000Z'),
+          invitedBy: 'owner-uuid',
+          lastSeenAt: null,
+        },
+      ] as any);
+      redisService.hgetall.mockResolvedValueOnce({ 'online-user': 'online' });
+
+      const result = await service.getWorkspaceMembers('ws-uuid', 'user-uuid', {
+        page: 2,
+        limit: 1,
+      });
+
+      expect(result).toEqual({
+        members: [
+          {
+            id: 'member-uuid',
+            userId: 'online-user',
+            username: 'alice',
+            displayName: 'Alice',
+            avatarUrl: null,
+            role: 'admin',
+            status: 'online',
+            userType: 'human',
+            joinedAt: new Date('2026-04-01T00:00:00.000Z'),
+            invitedBy: 'owner-uuid',
+            lastSeenAt: null,
+          },
+        ],
+        pagination: {
+          page: 2,
+          limit: 1,
+          total: 2,
+          totalPages: 2,
+        },
+      });
+    });
+  });
+
+  describe('getOnlineOfflineMemberIds', () => {
+    it('should split member ids by the Redis online hash', async () => {
+      db.where.mockResolvedValueOnce([
+        { userId: 'online-1' },
+        { userId: 'offline-1' },
+        { userId: 'online-2' },
+      ] as any);
+      redisService.hgetall.mockResolvedValueOnce({
+        'online-1': 'online',
+        'online-2': 'online',
+      });
+
+      await expect(
+        service.getOnlineOfflineMemberIds('ws-uuid'),
+      ).resolves.toEqual({
+        onlineIds: ['online-1', 'online-2'],
+        offlineIds: ['offline-1'],
+      });
+    });
+  });
+
+  describe('getUserWorkspaces', () => {
+    it('should map tenant memberships into user workspace summaries', async () => {
+      db.orderBy.mockResolvedValueOnce([
+        {
+          workspace: {
+            id: 'ws-1',
+            name: 'Workspace One',
+            slug: 'workspace-one',
+          },
+          role: 'owner',
+          joinedAt: new Date('2026-04-01T00:00:00.000Z'),
+        },
+        {
+          workspace: {
+            id: 'ws-2',
+            name: 'Workspace Two',
+            slug: 'workspace-two',
+          },
+          role: 'member',
+          joinedAt: new Date('2026-04-02T00:00:00.000Z'),
+        },
+      ] as any);
+
+      await expect(service.getUserWorkspaces('user-uuid')).resolves.toEqual([
+        {
+          id: 'ws-1',
+          name: 'Workspace One',
+          slug: 'workspace-one',
+          role: 'owner',
+          joinedAt: new Date('2026-04-01T00:00:00.000Z'),
+        },
+        {
+          id: 'ws-2',
+          name: 'Workspace Two',
+          slug: 'workspace-two',
+          role: 'member',
+          joinedAt: new Date('2026-04-02T00:00:00.000Z'),
+        },
+      ]);
+    });
+  });
+
+  describe('handleUserRegistered', () => {
+    it('should create a personal workspace for the new user', async () => {
+      const logger = { log: jest.fn<any>() };
+      (service as any).logger = logger;
+      jest.spyOn(service, 'create').mockResolvedValue(WORKSPACE_ROW as any);
+
+      await expect(
+        service.handleUserRegistered({
+          userId: 'user-uuid',
+          displayName: 'Alice',
+        } as any),
+      ).resolves.toBeUndefined();
+
+      expect(service.create).toHaveBeenCalledWith({
+        name: "Alice's Workspace",
+        ownerId: 'user-uuid',
+      });
+      expect(logger.log).toHaveBeenCalledWith(
+        "Created personal workspace for user user-uuid: Alice's Workspace",
+      );
+    });
+  });
+
+  describe('getInvitations', () => {
+    it('should shape invitation rows into API responses', async () => {
+      process.env.APP_URL = 'https://app.team9.test';
+      db.orderBy.mockResolvedValueOnce([
+        {
+          invitation: {
+            id: 'inv-1',
+            code: 'invite-code',
+            role: 'member',
+            maxUses: 3,
+            usedCount: 1,
+            expiresAt: new Date('2026-04-10T00:00:00.000Z'),
+            isActive: true,
+            createdAt: new Date('2026-04-02T00:00:00.000Z'),
+          },
+          creator: {
+            id: 'creator-1',
+            username: 'alice',
+            displayName: 'Alice',
+          },
+        },
+      ] as any);
+
+      await expect(service.getInvitations('ws-uuid')).resolves.toEqual([
+        {
+          id: 'inv-1',
+          code: 'invite-code',
+          url: 'https://app.team9.test/invite/invite-code',
+          role: 'member',
+          maxUses: 3,
+          usedCount: 1,
+          expiresAt: new Date('2026-04-10T00:00:00.000Z'),
+          isActive: true,
+          createdAt: new Date('2026-04-02T00:00:00.000Z'),
+          createdBy: {
+            id: 'creator-1',
+            username: 'alice',
+            displayName: 'Alice',
+          },
+        },
+      ]);
+    });
+  });
+
+  describe('membership lookup helpers', () => {
+    it('should report workspace membership presence', async () => {
+      db.limit
+        .mockResolvedValueOnce([{ id: 'member-1' }] as any)
+        .mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.isWorkspaceMember('ws-uuid', 'user-1'),
+      ).resolves.toBe(true);
+      await expect(
+        service.isWorkspaceMember('ws-uuid', 'user-2'),
+      ).resolves.toBe(false);
+    });
+
+    it('should return workspace ids for active memberships only', async () => {
+      db.where.mockResolvedValueOnce([
+        { tenantId: 'ws-1' },
+        { tenantId: 'ws-2' },
+      ] as any);
+
+      await expect(
+        service.getWorkspaceIdsByUserId('user-uuid'),
+      ).resolves.toEqual(['ws-1', 'ws-2']);
+    });
+
+    it('should return a member object and derive member role', async () => {
+      db.limit
+        .mockResolvedValueOnce([
+          {
+            id: 'member-1',
+            role: 'admin',
+            joinedAt: new Date('2026-04-01T00:00:00.000Z'),
+          },
+        ] as any)
+        .mockResolvedValueOnce([
+          {
+            id: 'member-2',
+            role: 'owner',
+            joinedAt: new Date('2026-04-02T00:00:00.000Z'),
+          },
+        ] as any)
+        .mockResolvedValueOnce([] as any);
+
+      await expect(service.getMember('ws-uuid', 'user-1')).resolves.toEqual({
+        id: 'member-1',
+        role: 'admin',
+        joinedAt: new Date('2026-04-01T00:00:00.000Z'),
+      });
+      await expect(service.getMemberRole('ws-uuid', 'user-2')).resolves.toBe(
+        'owner',
+      );
+      await expect(
+        service.getMemberRole('ws-uuid', 'user-3'),
+      ).resolves.toBeNull();
+    });
+  });
+
+  describe('workspace lookup helpers', () => {
+    it('should find workspaces by id, slug, and domain', async () => {
+      (service.findBySlug as MockFn).mockRestore();
+      (service.findByDomain as MockFn).mockRestore();
+
+      db.limit
+        .mockResolvedValueOnce([WORKSPACE_ROW] as any)
+        .mockResolvedValueOnce([
+          { ...WORKSPACE_ROW, slug: 'custom-slug' },
+        ] as any)
+        .mockResolvedValueOnce([
+          { ...WORKSPACE_ROW, domain: 'team9.test' },
+        ] as any)
+        .mockResolvedValueOnce([] as any);
+
+      await expect(service.findById('ws-uuid')).resolves.toEqual(WORKSPACE_ROW);
+      await expect(service.findBySlug('custom-slug')).resolves.toEqual({
+        ...WORKSPACE_ROW,
+        slug: 'custom-slug',
+      });
+      await expect(service.findByDomain('team9.test')).resolves.toEqual({
+        ...WORKSPACE_ROW,
+        domain: 'team9.test',
+      });
+      await expect(
+        service.findByIdOrThrow('missing-workspace'),
+      ).rejects.toThrow('Workspace not found');
+    });
+  });
+
+  describe('generateUniqueSlug', () => {
+    it('should return the base slug when it is available', async () => {
+      (service.generateUniqueSlug as MockFn).mockRestore();
+      (service.findBySlug as MockFn).mockResolvedValueOnce(null);
+
+      await expect(
+        (service as any).generateUniqueSlug('My Test Workspace'),
+      ).resolves.toBe('my-test-workspace');
+    });
+
+    it('should fall back to a suffixed slug after repeated collisions', async () => {
+      (service.generateUniqueSlug as MockFn).mockRestore();
+      (service.findBySlug as MockFn).mockReset();
+      (service.findBySlug as MockFn).mockResolvedValue({ id: 'taken' } as any);
+
+      const slug = await (service as any).generateUniqueSlug(
+        'My Test Workspace',
+      );
+
+      expect(slug).toMatch(/^my-test-workspace-[a-f0-9]{8}$/);
+    });
+  });
+
+  describe('count helpers', () => {
+    it('should convert ownership and member counts to numbers', async () => {
+      (service.getUserOwnedWorkspaceCount as MockFn).mockRestore();
+      (service.getWorkspaceMemberCount as MockFn).mockRestore();
+      db.where
+        .mockResolvedValueOnce([{ count: '2' }] as any)
+        .mockResolvedValueOnce([{ count: '7' }] as any);
+
+      await expect(
+        (service as any).getUserOwnedWorkspaceCount('user-uuid'),
+      ).resolves.toBe(2);
+      await expect(
+        (service as any).getWorkspaceMemberCount('ws-uuid'),
+      ).resolves.toBe(7);
+    });
+  });
+
+  describe('update', () => {
+    it('should throw when the workspace cannot be found', async () => {
+      db.returning.mockResolvedValueOnce([]);
+
+      await expect(
+        service.update('missing-workspace', { name: 'Updated Workspace' }),
+      ).rejects.toThrow('Workspace not found');
+    });
+
+    it('should update member roles, soft-remove members, and delete workspaces', async () => {
+      db.returning.mockResolvedValueOnce([WORKSPACE_ROW] as any);
+
+      await expect(
+        service.update('ws-uuid', { name: 'Updated Workspace' }),
+      ).resolves.toEqual(WORKSPACE_ROW);
+
+      await expect(
+        service.updateMemberRole('ws-uuid', 'user-1', 'admin'),
+      ).resolves.toBeUndefined();
+      await expect(
+        service.removeMember('ws-uuid', 'user-1'),
+      ).resolves.toBeUndefined();
+      await expect(service.delete('ws-uuid')).resolves.toBeUndefined();
+
+      expect(db.set).toHaveBeenCalledWith({ role: 'admin' });
+      expect(db.delete).toHaveBeenCalled();
+    });
+  });
+
+  describe('getOrCreateDefaultWorkspace', () => {
+    it('should create the default workspace when it is missing', async () => {
+      jest.spyOn(service, 'findBySlug' as any).mockResolvedValueOnce(null);
+      jest.spyOn(service, 'create' as any).mockResolvedValueOnce({
+        ...WORKSPACE_ROW,
+        slug: 'default',
+      });
+
+      await expect(
+        service.getOrCreateDefaultWorkspace('owner-uuid'),
+      ).resolves.toEqual({
+        ...WORKSPACE_ROW,
+        slug: 'default',
+      });
+
+      expect(service.create).toHaveBeenCalledWith({
+        name: 'Default Workspace',
+        slug: 'default',
+        ownerId: 'owner-uuid',
+      });
+    });
+
+    it('should add the owner when the default workspace exists but they are missing', async () => {
+      jest.spyOn(service, 'findBySlug' as any).mockResolvedValueOnce({
+        ...WORKSPACE_ROW,
+        slug: 'default',
+      });
+      jest
+        .spyOn(service, 'isWorkspaceMember' as any)
+        .mockResolvedValueOnce(false);
+
+      await expect(
+        service.getOrCreateDefaultWorkspace('owner-uuid'),
+      ).resolves.toEqual({
+        ...WORKSPACE_ROW,
+        slug: 'default',
+      });
+
+      expect(service.addMember).toHaveBeenCalledWith(
+        'ws-uuid',
+        'owner-uuid',
+        'member',
+      );
     });
   });
 
@@ -453,6 +1117,75 @@ describe('WorkspaceService', () => {
         service.acceptInvitation('abc123', 'user-uuid'),
       ).rejects.toThrow('Workspace has reached the maximum of 1000 members');
     });
+
+    it('should throw when the invitation does not exist', async () => {
+      db.limit.mockReset();
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.acceptInvitation('missing-code', 'user-uuid'),
+      ).rejects.toThrow('Invitation not found');
+    });
+
+    it('should throw when the invitation has been revoked', async () => {
+      db.limit.mockReset();
+      db.limit.mockResolvedValueOnce([
+        {
+          ...INVITATION_ROW,
+          isActive: false,
+        },
+      ] as any);
+
+      await expect(
+        service.acceptInvitation('abc123', 'user-uuid'),
+      ).rejects.toThrow('Invitation has been revoked');
+    });
+
+    it('should throw when the invitation has expired', async () => {
+      db.limit.mockReset();
+      db.limit.mockResolvedValueOnce([
+        {
+          ...INVITATION_ROW,
+          expiresAt: new Date('2026-01-01T00:00:00.000Z'),
+        },
+      ] as any);
+
+      await expect(
+        service.acceptInvitation('abc123', 'user-uuid'),
+      ).rejects.toThrow('Invitation has expired');
+    });
+
+    it('should throw when the invitation has reached maximum uses', async () => {
+      db.limit.mockReset();
+      db.limit.mockResolvedValueOnce([
+        {
+          ...INVITATION_ROW,
+          maxUses: 2,
+          usedCount: 2,
+        },
+      ] as any);
+
+      await expect(
+        service.acceptInvitation('abc123', 'user-uuid'),
+      ).rejects.toThrow('Invitation has reached maximum uses');
+    });
+
+    it('should throw when the user is already a workspace member', async () => {
+      db.limit.mockReset();
+      db.limit
+        .mockResolvedValueOnce([INVITATION_ROW] as any)
+        .mockResolvedValueOnce([
+          {
+            id: 'existing-member',
+            tenantId: 'ws-uuid',
+            userId: 'user-uuid',
+          },
+        ] as any);
+
+      await expect(
+        service.acceptInvitation('abc123', 'user-uuid'),
+      ).rejects.toThrow('You are already a member of this workspace');
+    });
   });
 
   // ── addMember: member limit ────────────────────────────────────────
@@ -479,6 +1212,20 @@ describe('WorkspaceService', () => {
       await service.addMember('ws-uuid', 'new-user', 'member');
 
       expect(db.insert).toHaveBeenCalled();
+    });
+
+    it('should reject duplicate workspace members before insert', async () => {
+      (service.getMember as MockFn).mockResolvedValue({
+        id: 'member-1',
+        role: 'member',
+        joinedAt: new Date(),
+      } as any);
+
+      await expect(
+        service.addMember('ws-uuid', 'new-user', 'member'),
+      ).rejects.toThrow('User is already a member of this workspace');
+
+      expect(db.insert).not.toHaveBeenCalled();
     });
   });
 });

@@ -245,7 +245,7 @@ function getTimezoneOffsetMinutes(date: Date, tz: string): number {
     const get = (type: string) =>
       parseInt(parts.find((p) => p.type === type)!.value, 10);
 
-    const tzDate = new Date(
+    const tzTime = Date.UTC(
       get('year'),
       get('month') - 1,
       get('day'),
@@ -254,7 +254,7 @@ function getTimezoneOffsetMinutes(date: Date, tz: string): number {
       get('second'),
     );
     // Difference = how far the tz local time is ahead of UTC
-    return Math.round((tzDate.getTime() - date.getTime()) / 60_000);
+    return Math.round((tzTime - date.getTime()) / 60_000);
   } catch {
     return 0;
   }

@@ -1,20 +1,14 @@
 import {
   Controller,
   Get,
-  Post,
-  Patch,
-  Delete,
-  Body,
-  Param,
   Query,
   UseGuards,
   BadRequestException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { AuthGuard, CurrentUser } from '@team9/auth';
+import { AuthGuard } from '@team9/auth';
 import { BotService } from './bot.service.js';
-import { CreateBotDto, UpdateWebhookDto } from './dto/index.js';
 
 @Controller({
   path: 'bots',
