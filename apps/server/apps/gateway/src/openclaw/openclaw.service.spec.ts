@@ -76,6 +76,10 @@ function createJsonResponse(
   };
 }
 
+function toLocalDateTimeString(value: string) {
+  return new Date(value).toString();
+}
+
 describe('OpenclawService', () => {
   let service: InstanceType<typeof OpenclawService>;
   let db: ReturnType<typeof createDbMock>;
@@ -512,8 +516,7 @@ describe('OpenclawService', () => {
       conversations: [
         {
           channel_id: 'channel-1',
-          channel_created_at:
-            'Wed Apr 01 2026 08:00:00 GMT+0800 (China Standard Time)',
+          channel_created_at: toLocalDateTimeString('2026-04-01T00:00:00.000Z'),
           bot: {
             user_id: 'bot-user-1',
             username: 'helper',
@@ -530,16 +533,14 @@ describe('OpenclawService', () => {
             id: 'msg-1',
             content: 'hello',
             sender_id: 'user-1',
-            created_at:
-              'Thu Apr 02 2026 08:00:00 GMT+0800 (China Standard Time)',
+            created_at: toLocalDateTimeString('2026-04-02T00:00:00.000Z'),
             type: 'text',
           },
           message_count: 3,
         },
         {
           channel_id: 'channel-2',
-          channel_created_at:
-            'Wed Apr 01 2026 09:00:00 GMT+0800 (China Standard Time)',
+          channel_created_at: toLocalDateTimeString('2026-04-01T01:00:00.000Z'),
           bot: {
             user_id: 'bot-user-2',
             username: 'helper-2',
@@ -624,8 +625,8 @@ describe('OpenclawService', () => {
           id: 'msg-3',
           content: 'third',
           type: 'text',
-          created_at: 'Thu Apr 02 2026 08:03:00 GMT+0800 (China Standard Time)',
-          updated_at: 'Thu Apr 02 2026 08:03:00 GMT+0800 (China Standard Time)',
+          created_at: toLocalDateTimeString('2026-04-02T00:03:00.000Z'),
+          updated_at: toLocalDateTimeString('2026-04-02T00:03:00.000Z'),
           is_edited: false,
           parent_id: null,
           sender: {
@@ -640,8 +641,8 @@ describe('OpenclawService', () => {
           id: 'msg-2',
           content: 'second',
           type: 'text',
-          created_at: 'Thu Apr 02 2026 08:02:00 GMT+0800 (China Standard Time)',
-          updated_at: 'Thu Apr 02 2026 08:02:00 GMT+0800 (China Standard Time)',
+          created_at: toLocalDateTimeString('2026-04-02T00:02:00.000Z'),
+          updated_at: toLocalDateTimeString('2026-04-02T00:02:00.000Z'),
           is_edited: true,
           parent_id: 'parent-1',
           sender: null,
