@@ -131,21 +131,14 @@ export class NotificationController {
     @Query('types') types?: string | string[],
   ): Promise<{ success: boolean }> {
     const parsedTypes = parseNotificationTypes(types);
-    const unreadNotificationIds =
-      await this.notificationService.getUnreadNotificationIds(
-        userId,
-        category,
-        parsedTypes,
-      );
 
     await this.notificationService.markAllAsRead(userId, category, parsedTypes);
 
-    if (unreadNotificationIds.length > 0) {
-      await this.deliveryService.broadcastNotificationRead(
-        userId,
-        unreadNotificationIds,
-      );
-    }
+    await this.deliveryService.broadcastNotificationAllRead(
+      userId,
+      category,
+      parsedTypes,
+    );
 
     // Send updated counts
     const counts = await this.notificationService.getUnreadCounts(userId);

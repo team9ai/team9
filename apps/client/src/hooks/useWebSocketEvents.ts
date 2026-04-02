@@ -10,6 +10,7 @@ import type {
   NotificationNewEvent,
   NotificationCountsUpdatedEvent,
   NotificationReadEvent,
+  NotificationAllReadEvent,
   TaskStatusChangedEvent,
   TaskExecutionCreatedEvent,
   TrackingDeactivatedEvent,
@@ -246,6 +247,10 @@ export function useWebSocketEvents() {
       notificationActions.markAsRead(event.notificationIds);
     };
 
+    const handleNotificationAllRead = (event: NotificationAllReadEvent) => {
+      notificationActions.markAllAsRead(event.category, event.types);
+    };
+
     // ==================== Task Events ====================
 
     const handleTaskStatusChanged = (event: TaskStatusChangedEvent) => {
@@ -298,6 +303,7 @@ export function useWebSocketEvents() {
     wsService.onNotificationCountsUpdated(handleNotificationCountsUpdated);
     wsService.onNotificationNew(handleNotificationNew);
     wsService.onNotificationRead(handleNotificationRead);
+    wsService.onNotificationAllRead(handleNotificationAllRead);
 
     // Task events
     wsService.onTaskStatusChanged(handleTaskStatusChanged);
@@ -335,6 +341,7 @@ export function useWebSocketEvents() {
       wsService.offNotificationCountsUpdated(handleNotificationCountsUpdated);
       wsService.offNotificationNew(handleNotificationNew);
       wsService.offNotificationRead(handleNotificationRead);
+      wsService.offNotificationAllRead(handleNotificationAllRead);
 
       // Task events
       wsService.offTaskStatusChanged(handleTaskStatusChanged);

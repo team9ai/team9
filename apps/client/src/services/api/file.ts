@@ -1,5 +1,9 @@
 import http from "../http";
 
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api"
+).replace(/\/$/, "");
+
 export type FileVisibility = "private" | "channel" | "workspace" | "public";
 
 export interface PresignedUploadCredentials {
@@ -111,6 +115,13 @@ export const fileApi = {
     );
     return response.data;
   },
+
+  /**
+   * Get a stable Team9 URL for a public file.
+   * The backend redirects each request to a fresh download URL.
+   */
+  getStablePublicFileUrl: (fileId: string): string =>
+    `${API_BASE_URL}/v1/files/public/file/${encodeURIComponent(fileId)}`,
 
   /**
    * Update file visibility

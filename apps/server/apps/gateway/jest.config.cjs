@@ -21,6 +21,8 @@ module.exports = {
     '^@team9/redis$': '<rootDir>/../../libs/redis/src/index.ts',
     '^@team9/shared$': '<rootDir>/../../libs/shared/src/index.ts',
     '^@team9/database$': '<rootDir>/../../libs/database/src/index.ts',
+    '^@team9/database/schemas$':
+      '<rootDir>/../../libs/database/src/schemas/index.ts',
     '^@team9/rabbitmq$': '<rootDir>/../../libs/rabbitmq/src/index.ts',
     '^@team9/auth$': '<rootDir>/../../libs/auth/src/index.ts',
     '^@team9/email$': '<rootDir>/../../libs/email/src/index.ts',

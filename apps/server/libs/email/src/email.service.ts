@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Resend } from 'resend';
 import { env } from '@team9/shared';
 import { emailVerificationTemplate } from './templates/email-verification.template.js';
+import { emailChangeConfirmationTemplate } from './templates/email-change-confirmation.template.js';
 import { passwordResetTemplate } from './templates/password-reset.template.js';
 import { magicLoginTemplate } from './templates/magic-login.template.js';
 import { verificationCodeTemplate } from './templates/verification-code.template.js';
@@ -57,6 +58,33 @@ export class EmailService {
     return this.send({
       to: email,
       subject: 'Verify your Team9 email address',
+      html,
+      text,
+    });
+  }
+
+  async sendEmailChangeConfirmationEmail(
+    email: string,
+    username: string,
+    currentEmail: string,
+    confirmationLink: string,
+  ): Promise<boolean> {
+    if (!this.isEnabled()) {
+      this.logger.warn(
+        'Email service not configured, skipping email change confirmation email',
+      );
+      return false;
+    }
+
+    const { html, text } = emailChangeConfirmationTemplate({
+      username,
+      currentEmail,
+      confirmationLink,
+    });
+
+    return this.send({
+      to: email,
+      subject: 'Confirm your new Team9 email address',
       html,
       text,
     });

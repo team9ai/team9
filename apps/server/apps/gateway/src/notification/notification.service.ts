@@ -402,7 +402,8 @@ export class NotificationService {
     const rows = await this.db
       .select({ id: schema.notifications.id })
       .from(schema.notifications)
-      .where(and(...conditions));
+      .where(and(...conditions))
+      .limit(5000);
 
     return rows.map((row) => row.id);
   }

@@ -64,9 +64,9 @@ function createDbMock() {
   const selectChain = {
     from: jest.fn<any>().mockReturnThis(),
     leftJoin: jest.fn<any>().mockReturnThis(),
-    where: jest.fn<any>().mockResolvedValue([{ id: 'notif-1' }]),
+    where: jest.fn<any>().mockReturnThis(),
     orderBy: jest.fn<any>().mockReturnThis(),
-    limit: jest.fn<any>().mockResolvedValue([]),
+    limit: jest.fn<any>().mockResolvedValue([{ id: 'notif-1' }]),
     groupBy: jest.fn<any>().mockResolvedValue([]),
   };
   const insertChain = {

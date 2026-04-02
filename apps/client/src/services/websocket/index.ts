@@ -36,6 +36,7 @@ import {
   type NotificationNewEvent,
   type NotificationCountsUpdatedEvent,
   type NotificationReadEvent,
+  type NotificationAllReadEvent,
   type TaskStatusChangedEvent,
   type TaskExecutionCreatedEvent,
   type StreamingStartEvent,
@@ -545,6 +546,12 @@ class WebSocketService {
     this.on<NotificationReadEvent>(WS_EVENTS.NOTIFICATION.READ, callback);
   }
 
+  onNotificationAllRead(
+    callback: (event: NotificationAllReadEvent) => void,
+  ): void {
+    this.on(WS_EVENTS.NOTIFICATION.ALL_READ, callback);
+  }
+
   offNotificationNew(callback: (event: NotificationNewEvent) => void): void {
     this.off<NotificationNewEvent>(WS_EVENTS.NOTIFICATION.NEW, callback);
   }
@@ -560,6 +567,12 @@ class WebSocketService {
 
   offNotificationRead(callback: (event: NotificationReadEvent) => void): void {
     this.off<NotificationReadEvent>(WS_EVENTS.NOTIFICATION.READ, callback);
+  }
+
+  offNotificationAllRead(
+    callback: (event: NotificationAllReadEvent) => void,
+  ): void {
+    this.off(WS_EVENTS.NOTIFICATION.ALL_READ, callback);
   }
 
   // Task events

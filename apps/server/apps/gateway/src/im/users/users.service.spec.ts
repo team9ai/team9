@@ -6,7 +6,12 @@ import {
   it,
   jest,
 } from '@jest/globals';
-import { NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
+import { validate } from 'class-validator';
 
 const dbModule = {
   DATABASE_CONNECTION: Symbol('DATABASE_CONNECTION'),
@@ -20,9 +25,9 @@ const dbModule = {
   })),
   sql: jest.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({
     op: 'sql',
-    text: String.raw(strings, ...values.map((v) => String(v))),
+    text: String.raw(strings, ...values.map((value) => String(value))),
   })),
-  inArray: jest.fn((left: unknown, right: unknown) => ({
+  inArray: jest.fn((left: unknown, right: unknown[]) => ({
     op: 'inArray',
     left,
     right,
@@ -42,6 +47,11 @@ const schemaModule = {
     userType: 'users.userType',
     updatedAt: 'users.updatedAt',
   },
+  files: {
+    id: 'files.id',
+    visibility: 'files.visibility',
+    uploaderId: 'files.uploaderId',
+  },
   tenantMembers: {
     userId: 'tenantMembers.userId',
     tenantId: 'tenantMembers.tenantId',
@@ -53,12 +63,16 @@ jest.unstable_mockModule('@team9/database', () => dbModule);
 jest.unstable_mockModule('@team9/database/schemas', () => schemaModule);
 
 const { UsersService } = await import('./users.service.js');
+const { UpdateUserDto } = await import('./dto/update-user.dto.js');
 
 type MockFn = jest.Mock<(...args: any[]) => any>;
 
 function createQuery(result: unknown) {
   const query: Record<string, MockFn> & {
-    then: (resolve: (value: unknown) => unknown, reject?: unknown) => unknown;
+    then: (
+      resolve: (value: unknown) => unknown,
+      reject?: (reason: unknown) => unknown,
+    ) => Promise<unknown>;
   } = {
     from: jest.fn<any>(),
     where: jest.fn<any>(),
@@ -66,7 +80,15 @@ function createQuery(result: unknown) {
     update: jest.fn<any>(),
     set: jest.fn<any>(),
     returning: jest.fn<any>(),
-    then: (resolve) => Promise.resolve(resolve(result)),
+    then: (resolve, reject) => {
+      if (result instanceof Error) {
+        if (typeof reject === 'function') {
+          return Promise.resolve(reject(result));
+        }
+        return Promise.reject(result);
+      }
+      return Promise.resolve(resolve(result));
+    },
   };
 
   for (const key of [
@@ -85,8 +107,8 @@ function createQuery(result: unknown) {
 
 function mockDb() {
   const state = {
-    selectResults: [] as unknown[][],
-    updateResults: [] as unknown[][],
+    selectResults: [] as unknown[],
+    updateResults: [] as unknown[],
   };
 
   const db = {
@@ -97,13 +119,13 @@ function mockDb() {
     },
     select: jest.fn((...args: unknown[]) => {
       const query = createQuery(state.selectResults.shift());
-      (query as any).args = args;
+      Object.assign(query, { args });
       db.__queries.select.push(query);
       return query as never;
     }),
     update: jest.fn((...args: unknown[]) => {
       const query = createQuery(state.updateResults.shift());
-      (query as any).args = args;
+      Object.assign(query, { args });
       db.__queries.update.push(query);
       return query as never;
     }),
@@ -127,6 +149,7 @@ describe('UsersService', () => {
   let eventEmitter: {
     emit: MockFn;
   };
+  let originalEnv: NodeJS.ProcessEnv;
 
   const now = new Date('2026-04-02T00:00:00Z');
 
@@ -145,6 +168,9 @@ describe('UsersService', () => {
   }
 
   beforeEach(() => {
+    originalEnv = { ...process.env };
+    process.env.API_URL = 'https://api.team9.test';
+
     db = mockDb();
     redisService = {
       get: jest.fn<any>().mockResolvedValue(null),
@@ -171,6 +197,7 @@ describe('UsersService', () => {
   });
 
   afterEach(() => {
+    process.env = originalEnv;
     jest.useRealTimers();
     jest.restoreAllMocks();
   });
@@ -250,6 +277,100 @@ describe('UsersService', () => {
 
       expect(redisService.del).not.toHaveBeenCalled();
       expect(eventEmitter.emit).not.toHaveBeenCalled();
+    });
+
+    it('updates the current user username when it is unique', async () => {
+      const returnedUser = user({
+        id: 'user-uuid',
+        email: 'alice@test.com',
+        username: 'new-user-name',
+      });
+      db.__state.selectResults.push([]);
+      db.__state.updateResults.push([returnedUser]);
+
+      const result = await service.update('user-uuid', {
+        username: 'new-user-name',
+      });
+
+      expect(db.select).toHaveBeenCalledWith({ id: schemaModule.users.id });
+      expect(db.update).toHaveBeenCalledWith(schemaModule.users);
+      expect(db.__queries.update[0].set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          username: 'new-user-name',
+          updatedAt: now,
+        }),
+      );
+      expect(result).toEqual(returnedUser);
+    });
+
+    it('rejects a username that is already taken by another user', async () => {
+      db.__state.selectResults.push([{ id: 'other-user' }]);
+
+      await expect(
+        service.update('user-uuid', { username: 'taken-name' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('maps a late unique violation to a conflict error', async () => {
+      const uniqueViolation = Object.assign(
+        new Error('duplicate key value violates unique constraint'),
+        { code: '23505' },
+      );
+      db.__state.selectResults.push([]);
+      db.__state.updateResults.push(uniqueViolation);
+
+      await expect(
+        service.update('user-uuid', { username: 'race-name' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('accepts a Team9 public file avatar URL owned by the current user', async () => {
+      const fileId = '123e4567-e89b-12d3-a456-426614174000';
+      const returnedUser = user({
+        id: 'user-uuid',
+        email: 'alice@test.com',
+        avatarUrl: `https://api.team9.test/api/v1/files/public/file/${fileId}`,
+      });
+      db.__state.selectResults.push([
+        { id: fileId, visibility: 'public', uploaderId: 'user-uuid' },
+      ]);
+      db.__state.updateResults.push([returnedUser]);
+
+      await expect(
+        service.update('user-uuid', {
+          avatarUrl: `https://api.team9.test/api/v1/files/public/file/${fileId}`,
+        }),
+      ).resolves.toEqual(returnedUser);
+    });
+
+    it('rejects an arbitrary third-party avatar URL', async () => {
+      await expect(
+        service.update('user-uuid', {
+          avatarUrl: 'https://tracker.example.com/pixel.png',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('rejects a public-file-shaped avatar URL from an untrusted origin', async () => {
+      await expect(
+        service.update('user-uuid', {
+          avatarUrl:
+            'https://evil.example/api/v1/files/public/file/123e4567-e89b-12d3-a456-426614174000',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('rejects a Team9 public file avatar URL not owned by the current user', async () => {
+      const fileId = '123e4567-e89b-12d3-a456-426614174001';
+      db.__state.selectResults.push([
+        { id: fileId, visibility: 'public', uploaderId: 'other-user' },
+      ]);
+
+      await expect(
+        service.update('user-uuid', {
+          avatarUrl: `https://api.team9.test/api/v1/files/public/file/${fileId}`,
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
 
@@ -384,6 +505,28 @@ describe('UsersService', () => {
       expect(db.__queries.select[0].where).toHaveBeenCalledWith(
         expect.objectContaining({ op: 'sql' }),
       );
+    });
+  });
+
+  describe('UpdateUserDto validation', () => {
+    it('accepts usernames with underscores as well as lowercase letters, numbers, and hyphens', async () => {
+      const dto = Object.assign(new UpdateUserDto(), {
+        username: 'new_user-123',
+      });
+
+      const errors = await validate(dto);
+
+      expect(errors).toHaveLength(0);
+    });
+
+    it('rejects usernames with invalid characters', async () => {
+      const dto = Object.assign(new UpdateUserDto(), {
+        username: 'Bad_User',
+      });
+
+      const errors = await validate(dto);
+
+      expect(errors.some((error) => error.property === 'username')).toBe(true);
     });
   });
 });

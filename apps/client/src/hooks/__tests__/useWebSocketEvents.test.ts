@@ -47,6 +47,9 @@ const mockWsService = vi.hoisted(() => ({
   onNotificationRead: vi.fn((callback: (...args: any[]) => void) =>
     mockWsService.on("notification_read", callback),
   ),
+  onNotificationAllRead: vi.fn((callback: (...args: any[]) => void) =>
+    mockWsService.on("notification_all_read", callback),
+  ),
   onTaskStatusChanged: vi.fn((callback: (...args: any[]) => void) =>
     mockWsService.on("task:status_changed", callback),
   ),
@@ -59,6 +62,7 @@ const mockWsService = vi.hoisted(() => ({
   offNotificationCountsUpdated: vi.fn(),
   offNotificationNew: vi.fn(),
   offNotificationRead: vi.fn(),
+  offNotificationAllRead: vi.fn(),
   offTaskStatusChanged: vi.fn(),
   offTaskExecutionCreated: vi.fn(),
   offTrackingDeactivated: vi.fn(),
@@ -267,6 +271,67 @@ describe("useWebSocketEvents", () => {
     expect(state.notifications[0]).toMatchObject({
       id: "notif-1",
       isRead: true,
+    });
+  });
+
+  it("marks filtered notifications as read for notification_all_read", () => {
+    notificationActions.setNotifications(loadedNotifications);
+    notificationActions.setCounts({
+      total: 2,
+      byCategory: {
+        message: 2,
+        system: 0,
+        workspace: 0,
+      },
+      byType: {
+        mention: 1,
+        channel_mention: 0,
+        everyone_mention: 0,
+        here_mention: 0,
+        reply: 1,
+        thread_reply: 0,
+        dm_received: 0,
+        system_announcement: 0,
+        maintenance_notice: 0,
+        version_update: 0,
+        workspace_invitation: 0,
+        role_changed: 0,
+        member_joined: 0,
+        member_left: 0,
+        channel_invite: 0,
+      },
+    });
+
+    renderHook(() => useWebSocketEvents());
+
+    const callback = listeners.get("notification_all_read")?.[0];
+    expect(callback).toBeDefined();
+
+    callback?.({
+      category: "message",
+      types: ["mention"],
+      readAt: "2026-03-31T00:00:00.000Z",
+    });
+
+    const state = useNotificationStore.getState();
+
+    expect(state.counts.total).toBe(1);
+    expect(state.counts.byCategory).toEqual({
+      message: 1,
+      system: 0,
+      workspace: 0,
+    });
+    expect(state.counts.byType).toMatchObject({
+      mention: 0,
+      reply: 1,
+    });
+    expect(state.notifications[0]).toMatchObject({
+      id: "notif-1",
+      isRead: true,
+    });
+    expect(state.notifications[1]).toMatchObject({
+      id: "notif-2",
+      isRead: false,
     });
   });
 });
