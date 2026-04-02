@@ -153,15 +153,11 @@ describe("AccountSettingsContent", () => {
   it("renders the current avatar, display name, username, and email", async () => {
     render(<AccountSettingsContent />);
 
-    await waitFor(() => {
-      expect(screen.getByDisplayValue("Alice Wonder")).toBeInTheDocument();
-      expect(screen.getByDisplayValue("alice_wonder")).toBeInTheDocument();
-      expect(screen.getByText("alice@example.com")).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: "Save changes" }),
-      ).toBeDisabled();
-      expect(screen.getByText("AW")).toBeInTheDocument();
-    });
+    expect(await screen.findByDisplayValue("Alice Wonder")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("alice_wonder")).toBeInTheDocument();
+    expect(screen.getByText("alice@example.com")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+    expect(screen.getByText("AW")).toBeInTheDocument();
   });
 
   it("blocks an invalid username and shows a validation message", async () => {
