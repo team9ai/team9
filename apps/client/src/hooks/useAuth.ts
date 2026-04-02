@@ -16,6 +16,7 @@ import {
   homeActions,
   notificationActions,
 } from "@/stores";
+import { setAuthTokens } from "@/services/auth-session";
 
 // Sync user data to Zustand store and Sentry context
 const syncUserToStore = (user: User | null) => {
@@ -101,9 +102,10 @@ export const useLoginPolling = (
           result.refreshToken &&
           result.user
         ) {
-          // Store tokens
-          localStorage.setItem("auth_token", result.accessToken);
-          localStorage.setItem("refresh_token", result.refreshToken);
+          setAuthTokens({
+            accessToken: result.accessToken,
+            refreshToken: result.refreshToken,
+          });
           syncUserToStore(result.user);
           onSuccess({
             user: result.user,

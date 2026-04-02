@@ -161,6 +161,11 @@ export const env = {
     return process.env.SYSTEM_BOT_ENABLED === 'true';
   },
 
+  // Internal Auth (required for bot-token validation endpoint)
+  get INTERNAL_AUTH_VALIDATION_TOKEN() {
+    return getRequiredEnv('INTERNAL_AUTH_VALIDATION_TOKEN');
+  },
+
   // OpenClaw Hive (optional)
   get OPENCLAW_API_URL() {
     return process.env.OPENCLAW_API_URL; // e.g. http://localhost:3000

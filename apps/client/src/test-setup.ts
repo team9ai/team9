@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom/vitest";
+import { beforeEach } from "vitest";
 
 function createMemoryStorage(): Storage {
   const store = new Map<string, string>();
@@ -10,25 +11,25 @@ function createMemoryStorage(): Storage {
     clear() {
       store.clear();
     },
-    getItem(key) {
+    getItem(key: string) {
       return store.get(key) ?? null;
     },
-    key(index) {
+    key(index: number) {
       return Array.from(store.keys())[index] ?? null;
     },
-    removeItem(key) {
+    removeItem(key: string) {
       store.delete(key);
     },
-    setItem(key, value) {
+    setItem(key: string, value: string) {
       store.set(key, String(value));
     },
   };
 }
 
-function ensureStorage(name: "localStorage" | "sessionStorage"): void {
+function ensureStorage(name: "localStorage" | "sessionStorage") {
   const existing = globalThis[name];
   if (existing && typeof existing.getItem === "function") {
-    return;
+    return existing;
   }
 
   const storage = createMemoryStorage();
@@ -44,7 +45,14 @@ function ensureStorage(name: "localStorage" | "sessionStorage"): void {
       configurable: true,
     });
   }
+
+  return storage;
 }
 
-ensureStorage("localStorage");
-ensureStorage("sessionStorage");
+const localStorageRef = ensureStorage("localStorage");
+const sessionStorageRef = ensureStorage("sessionStorage");
+
+beforeEach(() => {
+  localStorageRef.clear();
+  sessionStorageRef.clear();
+});

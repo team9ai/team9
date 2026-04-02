@@ -30,6 +30,7 @@ import {
   AuthStartDto,
   VerifyCodeDto,
   CompleteDesktopSessionDto,
+  LogoutDto,
 } from './dto/index.js';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import type { JwtPayload } from '@team9/auth';
@@ -128,9 +129,10 @@ export class AuthController {
   @UseGuards(AuthGuard)
   @HttpCode(HttpStatus.OK)
   async logout(
+    @Body() dto: LogoutDto,
     @CurrentUser('sub') userId: string,
   ): Promise<{ success: boolean }> {
-    await this.authService.logout(userId);
+    await this.authService.logout(userId, dto.refreshToken);
     return { success: true };
   }
 

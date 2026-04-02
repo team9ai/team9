@@ -9,7 +9,7 @@ export interface UserListItemProps {
   /** Display name */
   name: string;
   /** Avatar text (initials) */
-  avatar: string;
+  avatar?: string;
   /** Avatar image URL */
   avatarUrl?: string;
   /** User ID for real-time online status detection */

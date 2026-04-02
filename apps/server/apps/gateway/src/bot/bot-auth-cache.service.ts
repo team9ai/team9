@@ -13,6 +13,8 @@ interface VersionedBotAuthContext {
   version: number | null;
 }
 
+type SafeGetResult = { ok: true; value: string | null } | { ok: false };
+
 type CachedBotAuthPayload =
   | { invalid: true }
   | VersionedBotAuthContext
@@ -22,6 +24,7 @@ type CachedBotAuthPayload =
 export class BotAuthCacheService {
   private readonly positiveTtlSeconds = 30;
   private readonly negativeTtlSeconds = 5;
+  private readonly mutationTtlSeconds = 30;
   private readonly inflight = new Map<string, Promise<BotAuthContext | null>>();
 
   constructor(private readonly redis: RedisService) {}
@@ -31,18 +34,18 @@ export class BotAuthCacheService {
     loader: () => Promise<BotAuthContext | VersionedBotAuthContext | null>,
   ): Promise<BotAuthContext | null> {
     const cacheKey = this.cacheKey(rawToken);
-    const cached = await this.safeGet(cacheKey);
-    const cachedContext = await this.getValidCachedContext(cacheKey, cached);
-    if (cachedContext !== undefined) {
-      return cachedContext;
-    }
-
     const existing = this.inflight.get(cacheKey);
     if (existing) {
       return existing;
     }
 
     const promise = (async () => {
+      const cached = await this.safeGet(cacheKey);
+      const cachedContext = await this.getValidCachedContext(cacheKey, cached);
+      if (cachedContext !== undefined) {
+        return cachedContext;
+      }
+
       const result = await loader();
       if (result) {
         const versioned = await this.resolveVersionedContext(result);
@@ -86,13 +89,33 @@ export class BotAuthCacheService {
     await this.safeDel(reverseIndexKey);
   }
 
+  async beginBotMutation(botId: string): Promise<void> {
+    await this.redis.set(this.mutationKey(botId), '1', this.mutationTtlSeconds);
+  }
+
+  async endBotMutation(botId: string): Promise<void> {
+    await this.safeDel(this.mutationKey(botId));
+  }
+
+  async isBotMutationInProgress(botId: string): Promise<boolean> {
+    try {
+      return (await this.redis.exists(this.mutationKey(botId))) > 0;
+    } catch {
+      return false;
+    }
+  }
+
   async getBotVersion(botId: string): Promise<number | null> {
     const raw = await this.safeGet(this.versionKey(botId));
-    if (raw === null) {
+    if (!raw.ok) {
+      return null;
+    }
+
+    if (raw.value === null) {
       return 0;
     }
 
-    const parsed = Number.parseInt(raw, 10);
+    const parsed = Number.parseInt(raw.value, 10);
     return Number.isNaN(parsed) ? null : parsed;
   }
 
@@ -108,16 +131,20 @@ export class BotAuthCacheService {
     return `auth:bot-token-version:${botId}`;
   }
 
+  private mutationKey(botId: string): string {
+    return `auth:bot-token-mutation:${botId}`;
+  }
+
   private async getValidCachedContext(
     cacheKey: string,
-    cached: string | null,
+    cached: SafeGetResult,
   ): Promise<BotAuthContext | null | undefined> {
-    if (cached === null) {
+    if (!cached.ok || cached.value === null) {
       return undefined;
     }
 
     try {
-      const parsed = JSON.parse(cached) as CachedBotAuthPayload;
+      const parsed = JSON.parse(cached.value) as CachedBotAuthPayload;
       if ('invalid' in parsed) {
         return null;
       }
@@ -125,6 +152,10 @@ export class BotAuthCacheService {
       if (!('context' in parsed)) {
         await this.safeDel(cacheKey);
         return undefined;
+      }
+
+      if (await this.isBotMutationInProgress(parsed.context.botId)) {
+        return null;
       }
 
       const currentVersion = await this.getBotVersion(parsed.context.botId);
@@ -156,11 +187,14 @@ export class BotAuthCacheService {
     };
   }
 
-  private async safeGet(key: string): Promise<string | null> {
+  private async safeGet(key: string): Promise<SafeGetResult> {
     try {
-      return await this.redis.get(key);
+      return {
+        ok: true,
+        value: await this.redis.get(key),
+      };
     } catch {
-      return null;
+      return { ok: false };
     }
   }
 

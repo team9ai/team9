@@ -10,7 +10,12 @@ import {
   LogOut,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -116,6 +121,9 @@ export function ChannelDetailsModal({
   if (!channel) return null;
 
   const ChannelIcon = channel.type === "private" ? Lock : Hash;
+  const dialogDescription =
+    channel.description ||
+    `${channel.type === "private" ? t("privateChannel") : t("publicChannel")}, ${t("members", { count: members.length })}`;
 
   return (
     <>
@@ -127,6 +135,9 @@ export function ChannelDetailsModal({
               <ChannelIcon size={20} className="text-muted-foreground" />
               <span>#{channel.name}</span>
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              {dialogDescription}
+            </DialogDescription>
           </div>
 
           {/* Tabs */}

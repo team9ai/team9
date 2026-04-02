@@ -58,11 +58,13 @@ class HttpClient {
     if (!params) return fullURL;
 
     const urlObj = new URL(fullURL);
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        urlObj.searchParams.append(key, String(value));
-      }
-    });
+    Object.entries(params as Record<string, unknown>).forEach(
+      ([key, value]) => {
+        if (value !== undefined && value !== null) {
+          urlObj.searchParams.append(key, String(value));
+        }
+      },
+    );
 
     return urlObj.toString();
   }

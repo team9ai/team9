@@ -1,11 +1,11 @@
 import * as Sentry from "@sentry/react";
 import type { HttpRequestConfig, HttpResponse, HttpError } from "./types";
 import { useWorkspaceStore } from "../../stores";
-
-interface RefreshTokenResponse {
-  accessToken: string;
-  refreshToken: string;
-}
+import {
+  getAuthToken,
+  redirectToLogin,
+  refreshAccessToken,
+} from "../auth-session";
 
 function parseRequestData(data: unknown): Record<string, unknown> | null {
   if (typeof data === "string") {
@@ -28,58 +28,6 @@ function hasDataEnvelope(value: unknown): value is { data: unknown } {
   return typeof value === "object" && value !== null && "data" in value;
 }
 
-// Token refresh management
-let isRefreshing = false;
-let refreshSubscribers: Array<(token: string) => void> = [];
-
-const subscribeTokenRefresh = (callback: (token: string) => void) => {
-  refreshSubscribers.push(callback);
-};
-
-const onTokenRefreshed = (newToken: string) => {
-  refreshSubscribers.forEach((callback) => callback(newToken));
-  refreshSubscribers = [];
-};
-
-const onRefreshFailed = () => {
-  refreshSubscribers = [];
-};
-
-// Directly call refresh API using fetch to avoid circular dependency
-const refreshAccessToken = async (): Promise<string | null> => {
-  const refreshToken = localStorage.getItem("refresh_token");
-
-  if (!refreshToken) {
-    return null;
-  }
-
-  try {
-    const baseURL =
-      import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
-    const response = await fetch(`${baseURL}/v1/auth/refresh`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ refreshToken }),
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const data = (await response.json()) as RefreshTokenResponse;
-
-    // Update stored tokens
-    localStorage.setItem("auth_token", data.accessToken);
-    localStorage.setItem("refresh_token", data.refreshToken);
-
-    return data.accessToken;
-  } catch {
-    return null;
-  }
-};
-
 export const requestLogger = (config: HttpRequestConfig): HttpRequestConfig => {
   if (import.meta.env.DEV) {
     console.log(`[HTTP Request] ${config.method} ${config.baseURL}`, config);
@@ -100,7 +48,6 @@ export const responseLogger = <T>(
 };
 
 export const errorLogger = async (error: HttpError): Promise<never> => {
-  // Report to Sentry (skip 401 as those are handled by auth refresh)
   if (error.status !== 401) {
     Sentry.captureException(error, {
       tags: {
@@ -125,7 +72,7 @@ export const errorLogger = async (error: HttpError): Promise<never> => {
 export const authInterceptor = (
   config: HttpRequestConfig,
 ): HttpRequestConfig => {
-  const token = localStorage.getItem("auth_token");
+  const token = getAuthToken();
 
   if (token) {
     config.headers = {
@@ -150,16 +97,13 @@ export const workspaceInterceptor = (
     if (import.meta.env.DEV) {
       console.log(`[HTTP Interceptor] Adding X-Tenant-Id: ${workspaceId}`);
     }
-  } else {
-    if (import.meta.env.DEV) {
-      console.warn(`[HTTP Interceptor] No workspace selected for request`);
-    }
+  } else if (import.meta.env.DEV) {
+    console.warn(`[HTTP Interceptor] No workspace selected for request`);
   }
 
   return config;
 };
 
-// Retry a failed request with new token
 const retryRequest = async <T = unknown>(
   config: HttpRequestConfig,
   newToken: string,
@@ -167,12 +111,10 @@ const retryRequest = async <T = unknown>(
   const baseURL =
     import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
 
-  // Build the full URL
   let url = config.baseURL
     ? `${config.baseURL}${config.url || ""}`
     : `${baseURL}${config.url || ""}`;
 
-  // Handle params if present
   if (config.params) {
     const urlObj = new URL(url);
     Object.entries(config.params).forEach(([key, value]) => {
@@ -226,20 +168,6 @@ const retryRequest = async <T = unknown>(
   };
 };
 
-const redirectToLogin = () => {
-  localStorage.removeItem("auth_token");
-  localStorage.removeItem("refresh_token");
-
-  // Don't redirect if already on auth pages (login, register, verify-email)
-  const authPaths = ["/login", "/register", "/verify-email"];
-  const currentPath = window.location.pathname;
-  if (authPaths.some((path) => currentPath.startsWith(path))) {
-    return;
-  }
-
-  window.location.href = "/login";
-};
-
 export const handleUnauthorized = async (
   error: HttpError,
 ): Promise<HttpResponse | never> => {
@@ -248,63 +176,32 @@ export const handleUnauthorized = async (
   }
 
   const originalConfig = error.config;
+  const isRefreshRequest =
+    originalConfig?.url?.includes("/v1/auth/refresh") ||
+    (originalConfig?.data &&
+      parseRequestData(originalConfig.data)?.refreshToken);
 
-  // Check if this is already a refresh token request to avoid infinite loop
-  if (originalConfig?.data) {
-    const data = parseRequestData(originalConfig.data);
-    if (data?.refreshToken) {
-      // Refresh token request itself failed, redirect to login
-      redirectToLogin();
-      throw error;
-    }
+  if (isRefreshRequest) {
+    redirectToLogin();
+    throw error;
   }
-
-  // If already refreshing, wait for the refresh to complete
-  if (isRefreshing) {
-    return new Promise((resolve, reject) => {
-      subscribeTokenRefresh(async (newToken: string) => {
-        try {
-          if (originalConfig) {
-            const response = await retryRequest(originalConfig, newToken);
-            resolve(response);
-          } else {
-            reject(error);
-          }
-        } catch (retryError) {
-          reject(retryError);
-        }
-      });
-    });
-  }
-
-  // Start refreshing
-  isRefreshing = true;
 
   try {
     const newToken = await refreshAccessToken();
 
     if (!newToken) {
-      // Refresh failed, redirect to login
-      onRefreshFailed();
       redirectToLogin();
       throw error;
     }
 
-    // Notify all waiting requests
-    onTokenRefreshed(newToken);
-
-    // Retry the original request
     if (originalConfig) {
       return await retryRequest(originalConfig, newToken);
     }
 
     throw error;
-  } catch (_refreshError) {
-    onRefreshFailed();
+  } catch {
     redirectToLogin();
     throw error;
-  } finally {
-    isRefreshing = false;
   }
 };
 

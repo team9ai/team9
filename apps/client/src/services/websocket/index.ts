@@ -2,6 +2,13 @@ import { io, Socket } from "socket.io-client";
 import * as Sentry from "@sentry/react";
 import { queryClient } from "@/lib/query-client";
 import {
+  getAuthToken,
+  getValidAccessToken,
+  hasStoredAuthSession,
+  redirectToLogin,
+  refreshAccessToken,
+} from "@/services/auth-session";
+import {
   WS_EVENTS,
   type MarkAsReadPayload,
   type TypingStartPayload,
@@ -45,15 +52,6 @@ type EventCallback<TEvent = unknown> = (event: TEvent) => void;
 export type ConnectionStatus = "connected" | "disconnected" | "reconnecting";
 type ConnectionChangeCallback = (status: ConnectionStatus) => void;
 
-function getLocalStorage(): Pick<Storage, "getItem"> | null {
-  const storage = globalThis.localStorage;
-  if (!storage || typeof storage.getItem !== "function") {
-    return null;
-  }
-
-  return storage;
-}
-
 class WebSocketService {
   private static readonly BASE_AUTH_RETRY_DELAY_MS = 1000;
   private static readonly MAX_AUTH_RETRY_DELAY_MS = 30000;
@@ -63,6 +61,7 @@ class WebSocketService {
   private isConnecting = false;
   private authErrorRetryTimer: ReturnType<typeof setTimeout> | null = null;
   private authErrorRetryCount = 0;
+  private authRecoveryInFlight: Promise<void> | null = null;
   // Queue for event listeners to register when connection is established
   private pendingListeners: Array<{ event: string; callback: EventCallback }> =
     [];
@@ -99,23 +98,33 @@ class WebSocketService {
   }
 
   private hasAuthToken(): boolean {
-    return !!getLocalStorage()?.getItem("auth_token");
+    return hasStoredAuthSession();
   }
 
   private getAuthToken(): string | null {
-    return getLocalStorage()?.getItem("auth_token") ?? null;
+    return getAuthToken();
   }
 
   connect(): void {
+    void this.connectInternal();
+  }
+
+  private async connectInternal(): Promise<void> {
     if (this.socket?.connected || this.isConnecting) {
       console.log("[WS] Already connected or connecting");
       return;
     }
 
-    const token = this.getAuthToken();
-    if (!token) {
-      console.error("[WS] No auth token available");
+    this.isConnecting = true;
+
+    const validAccessToken = await getValidAccessToken();
+    if (!validAccessToken) {
+      console.error("[WS] No valid auth token available");
+      this.isConnecting = false;
       this.setConnectionStatus("disconnected");
+      if (this.hasAuthToken()) {
+        redirectToLogin();
+      }
       return;
     }
 
@@ -129,7 +138,6 @@ class WebSocketService {
       this.socket = null;
     }
 
-    this.isConnecting = true;
     this.setConnectionStatus("reconnecting");
 
     // Remove /api suffix from baseURL for WebSocket connection
@@ -222,17 +230,44 @@ class WebSocketService {
         this.socket = null;
       }
       this.isConnecting = false;
+      void this.recoverFromAuthError();
+    });
+
+    this.socket.on("reconnect", () => {
+      // Also refresh on reconnect in case authenticated event doesn't fire
+      this.refreshQueriesAfterReconnect();
+    });
+  }
+
+  private async recoverFromAuthError(): Promise<void> {
+    if (this.authRecoveryInFlight) {
+      return this.authRecoveryInFlight;
+    }
+
+    this.authRecoveryInFlight = (async () => {
       this.authErrorRetryCount++;
       if (this.authErrorRetryCount > WebSocketService.MAX_AUTH_RETRIES) {
         console.error("[WS] Max auth retries reached, giving up");
         this.authErrorRetryCount = 0;
         this.setConnectionStatus("disconnected");
+        redirectToLogin();
         return;
       }
+
+      const newToken = await refreshAccessToken();
+      if (!newToken) {
+        console.error("[WS] Failed to refresh token after auth error");
+        this.authErrorRetryCount = 0;
+        this.setConnectionStatus("disconnected");
+        redirectToLogin();
+        return;
+      }
+
       this.setConnectionStatus("reconnecting");
       if (this.authErrorRetryTimer) {
         clearTimeout(this.authErrorRetryTimer);
       }
+
       const retryDelay = Math.min(
         WebSocketService.BASE_AUTH_RETRY_DELAY_MS *
           2 ** (this.authErrorRetryCount - 1),
@@ -247,12 +282,11 @@ class WebSocketService {
           this.connect();
         }
       }, retryDelay);
+    })().finally(() => {
+      this.authRecoveryInFlight = null;
     });
 
-    this.socket.on("reconnect", () => {
-      // Also refresh on reconnect in case authenticated event doesn't fire
-      this.refreshQueriesAfterReconnect();
-    });
+    return this.authRecoveryInFlight;
   }
 
   disconnect(): void {

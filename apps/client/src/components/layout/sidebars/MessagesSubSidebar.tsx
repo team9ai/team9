@@ -40,15 +40,12 @@ export function MessagesSubSidebar() {
       const otherUser = channel.otherUser;
       const displayName =
         otherUser?.displayName || otherUser?.username || "Direct Message";
-      const avatarText =
-        otherUser?.displayName?.[0] || otherUser?.username?.[0] || "D";
 
       return {
         id: channel.id,
         channelId: channel.id,
         userId: otherUser?.id,
         name: displayName,
-        avatar: avatarText,
         avatarUrl: otherUser?.avatarUrl,
         unreadCount: channel.unreadCount || 0,
         isBot: otherUser?.userType === "bot",
@@ -76,10 +73,6 @@ export function MessagesSubSidebar() {
     } catch (error) {
       console.error("Failed to create/open direct channel:", error);
     }
-  };
-
-  const getInitials = (name: string) => {
-    return name[0]?.toUpperCase() || "U";
   };
 
   const isLoading = isLoadingChannels || isLoadingMembers;
@@ -114,7 +107,6 @@ export function MessagesSubSidebar() {
                   <UserListItem
                     key={dm.id}
                     name={dm.name}
-                    avatar={dm.avatar}
                     avatarUrl={dm.avatarUrl}
                     userId={dm.userId}
                     isSelected={selectedChannelId === dm.channelId}
@@ -139,7 +131,6 @@ export function MessagesSubSidebar() {
                       <UserListItem
                         key={member.id}
                         name={displayName}
-                        avatar={getInitials(displayName)}
                         userId={member.userId}
                         subtitle={
                           member.displayName ? `@${member.username}` : undefined

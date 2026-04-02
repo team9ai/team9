@@ -8,6 +8,7 @@ import workspaceApi from "@/services/api/workspace";
 import type {
   CreateInvitationDto,
   CreateWorkspaceDto,
+  UpdateWorkspaceDto,
 } from "@/types/workspace";
 import { useSelectedWorkspaceId } from "@/stores";
 
@@ -18,6 +19,17 @@ export function useUserWorkspaces() {
   return useQuery({
     queryKey: ["user-workspaces"],
     queryFn: () => workspaceApi.getUserWorkspaces(),
+  });
+}
+
+/**
+ * Hook to fetch workspace details
+ */
+export function useWorkspace(workspaceId: string | undefined) {
+  return useQuery({
+    queryKey: ["workspace", workspaceId],
+    queryFn: () => workspaceApi.getWorkspace(workspaceId!),
+    enabled: !!workspaceId,
   });
 }
 
@@ -33,6 +45,31 @@ export function useCreateWorkspace() {
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ["user-workspaces"],
+      });
+    },
+  });
+}
+
+/**
+ * Hook to update a workspace
+ */
+export function useUpdateWorkspace() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      workspaceId,
+      data,
+    }: {
+      workspaceId: string;
+      data: UpdateWorkspaceDto;
+    }) => workspaceApi.updateWorkspace(workspaceId, data),
+    onSuccess: (_workspace, { workspaceId }) => {
+      queryClient.invalidateQueries({
+        queryKey: ["user-workspaces"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["workspace", workspaceId],
       });
     },
   });

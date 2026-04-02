@@ -6,6 +6,7 @@ export interface PresignedUploadCredentials {
   url: string;
   key: string;
   fields: Record<string, string>;
+  publicUrl: string;
 }
 
 export interface CreatePresignedUploadDto {
