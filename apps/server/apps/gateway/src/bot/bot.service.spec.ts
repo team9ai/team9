@@ -2,6 +2,7 @@ import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BotService } from './bot.service.js';
+import { BotAuthCacheService } from './bot-auth-cache.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { DATABASE_CONNECTION } from '@team9/database';
 
@@ -51,6 +52,14 @@ describe('BotService', () => {
     deleteDirectChannelsForUser: MockFn;
   };
   let eventEmitter: { emit: MockFn };
+  let botAuthCache: {
+    getOrSetValidation: MockFn;
+    invalidateBot: MockFn;
+    beginBotMutation: MockFn;
+    endBotMutation: MockFn;
+    isBotMutationInProgress: MockFn;
+    getBotVersion: MockFn;
+  };
 
   beforeEach(async () => {
     db = mockDb();
@@ -59,6 +68,14 @@ describe('BotService', () => {
       deleteDirectChannelsForUser: jest.fn<any>().mockResolvedValue(0),
     };
     eventEmitter = { emit: jest.fn<any>() };
+    botAuthCache = {
+      getOrSetValidation: jest.fn<any>(),
+      invalidateBot: jest.fn<any>().mockResolvedValue(undefined),
+      beginBotMutation: jest.fn<any>().mockResolvedValue(undefined),
+      endBotMutation: jest.fn<any>().mockResolvedValue(undefined),
+      isBotMutationInProgress: jest.fn<any>().mockResolvedValue(false),
+      getBotVersion: jest.fn<any>().mockResolvedValue(0),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -66,6 +83,7 @@ describe('BotService', () => {
         { provide: DATABASE_CONNECTION, useValue: db },
         { provide: ChannelsService, useValue: channelsService },
         { provide: EventEmitter2, useValue: eventEmitter },
+        { provide: BotAuthCacheService, useValue: botAuthCache },
       ],
     }).compile();
 

@@ -2,6 +2,7 @@ import { Module, Global, forwardRef } from '@nestjs/common';
 import { BOT_TOKEN_VALIDATOR } from '@team9/auth';
 import { BotService } from './bot.service.js';
 import { BotTokenValidatorService } from './bot-token-validator.service.js';
+import { BotAuthCacheService } from './bot-auth-cache.service.js';
 import { BotController } from './bot.controller.js';
 import { ChannelsModule } from '../im/channels/channels.module.js';
 
@@ -19,11 +20,12 @@ import { ChannelsModule } from '../im/channels/channels.module.js';
   providers: [
     BotService,
     BotTokenValidatorService,
+    BotAuthCacheService,
     {
       provide: BOT_TOKEN_VALIDATOR,
       useExisting: BotTokenValidatorService,
     },
   ],
-  exports: [BotService, BOT_TOKEN_VALIDATOR],
+  exports: [BotService, BotAuthCacheService, BOT_TOKEN_VALIDATOR],
 })
 export class BotModule {}

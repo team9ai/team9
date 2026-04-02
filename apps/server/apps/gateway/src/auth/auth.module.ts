@@ -5,6 +5,8 @@ import { AuthService } from './auth.service.js';
 import { AuthModule as SharedAuthModule } from '@team9/auth';
 import { EmailModule } from '@team9/email';
 import { env } from '@team9/shared';
+import { InternalAuthController } from './internal-auth.controller.js';
+import { InternalAuthGuard } from './internal-auth.guard.js';
 
 @Module({
   imports: [
@@ -22,8 +24,8 @@ import { env } from '@team9/shared';
       },
     }),
   ],
-  controllers: [AuthController],
-  providers: [AuthService],
+  controllers: [AuthController, InternalAuthController],
+  providers: [AuthService, InternalAuthGuard],
   exports: [AuthService, SharedAuthModule],
 })
 export class AuthModule {}
