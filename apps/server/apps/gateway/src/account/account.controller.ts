@@ -63,9 +63,9 @@ export class AccountController {
 
   @Get('confirm-email-change')
   @Redirect()
-  redirectConfirmEmailChange(
-    @Query() dto: ConfirmEmailChangeDto,
-  ): Promise<{ url: string }> {
+  redirectConfirmEmailChange(@Query() dto: ConfirmEmailChangeDto): {
+    url: string;
+  } {
     return {
       url: `${env.APP_URL}/confirm-email-change?token=${encodeURIComponent(dto.token)}`,
     };
