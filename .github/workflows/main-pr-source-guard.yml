@@ -1,0 +1,26 @@
+name: Main PR Source Guard
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  main-pr-from-dev:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate PR source branch
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          TARGET_REPO: ${{ github.repository }}
+        run: |
+          if [ "$HEAD_REPO" != "$TARGET_REPO" ] || [ "$HEAD_REF" != "dev" ]; then
+            echo "main only accepts pull requests from ${TARGET_REPO}:dev"
+            echo "got ${HEAD_REPO}:${HEAD_REF}"
+            exit 1
+          fi
