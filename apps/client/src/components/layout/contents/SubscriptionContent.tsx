@@ -36,7 +36,6 @@ type BillingView = "plans" | "credits";
 
 interface SubscriptionContentProps {
   workspaceIdFromSearch?: string;
-  result?: "success" | "cancel";
   view?: BillingView;
 }
 
@@ -346,7 +345,6 @@ function PlanCard({
 
 export function SubscriptionContent({
   workspaceIdFromSearch,
-  result,
   view,
 }: SubscriptionContentProps) {
   const navigate = useNavigate();
@@ -432,13 +430,6 @@ export function SubscriptionContent({
     const rightOrder = right.display.sortOrder ?? Number.MAX_SAFE_INTEGER;
     return leftOrder - rightOrder;
   });
-
-  const bannerMessage =
-    result === "success"
-      ? "Billing updated. Workspace data is refreshing from Billing Hub."
-      : result === "cancel"
-        ? "Billing flow was canceled. No changes were applied."
-        : null;
 
   const navigateToView = (nextView: BillingView) => {
     if (!workspaceId) {
@@ -578,12 +569,6 @@ export function SubscriptionContent({
 
         <ScrollArea className="min-h-0 flex-1 bg-secondary/20">
           <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-6">
-            {bannerMessage ? (
-              <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3 text-sm text-foreground">
-                {bannerMessage}
-              </div>
-            ) : null}
-
             <Card className="overflow-hidden border-slate-200 shadow-sm">
               <CardContent className="grid gap-4 p-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
                 <div>
@@ -937,12 +922,6 @@ export function SubscriptionContent({
 
       <ScrollArea className="min-h-0 flex-1 bg-secondary/20">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6">
-          {bannerMessage ? (
-            <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3 text-sm text-foreground">
-              {bannerMessage}
-            </div>
-          ) : null}
-
           {subscription?.cancelAtPeriodEnd ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               The current subscription will end on{" "}

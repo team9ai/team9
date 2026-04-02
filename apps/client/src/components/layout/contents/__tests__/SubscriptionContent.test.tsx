@@ -468,9 +468,8 @@ describe("SubscriptionContent", () => {
       portalUrl: "https://billing.stripe.com/session",
     });
 
-    render(<SubscriptionContent result="success" />);
+    render(<SubscriptionContent />);
 
-    expect(await screen.findByText(/billing updated/i)).toBeInTheDocument();
     expect(screen.getByText(/will end on/i)).toBeInTheDocument();
 
     fireEvent.click(
@@ -497,7 +496,7 @@ describe("SubscriptionContent", () => {
       error: null,
     });
 
-    render(<SubscriptionContent result="cancel" />);
+    render(<SubscriptionContent />);
 
     expect(
       await screen.findByText(/billing access required/i),
