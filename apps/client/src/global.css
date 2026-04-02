@@ -32,7 +32,7 @@
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0.01 60);
   --muted-foreground: oklch(0.556 0.02 60);
-  --accent: oklch(0.60 0.07 60);
+  --accent: oklch(0.6 0.07 60);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0.01 60);
@@ -51,13 +51,13 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0.01 60);
   --sidebar-ring: oklch(0.55 0.06 60);
-  --nav-bg: #CBB8A2;
-  --nav-sub-bg: #FAF8F6;
+  --nav-bg: #cbb8a2;
+  --nav-sub-bg: #faf8f6;
   --success: oklch(0.627 0.194 149.214);
   --warning: oklch(0.769 0.188 70.08);
   --info: oklch(0.546 0.245 262.881);
-  --link: #8B6914;
-  --link-hover: #6B4F0E;
+  --link: #8b6914;
+  --link-hover: #6b4f0e;
   --nav-foreground: rgba(60, 40, 20, 1);
   --nav-foreground-strong: rgba(60, 40, 20, 0.9);
   --nav-foreground-muted: rgba(60, 40, 20, 0.7);
@@ -94,7 +94,7 @@
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0.01 60);
   --muted-foreground: oklch(0.708 0.02 60);
-  --accent: oklch(0.70 0.09 60);
+  --accent: oklch(0.7 0.09 60);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
@@ -113,13 +113,13 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.65 0.08 60);
-  --nav-bg: #4A3828;
-  --nav-sub-bg: #2A2220;
+  --nav-bg: #4a3828;
+  --nav-sub-bg: #2a2220;
   --success: oklch(0.696 0.17 162.48);
   --warning: oklch(0.769 0.188 70.08);
   --info: oklch(0.627 0.265 263.9);
-  --link: #D4A96A;
-  --link-hover: #E0C08A;
+  --link: #d4a96a;
+  --link-hover: #e0c08a;
   --nav-foreground: rgba(255, 255, 255, 1);
   --nav-foreground-strong: rgba(255, 255, 255, 0.9);
   --nav-foreground-muted: rgba(255, 255, 255, 0.8);
@@ -250,6 +250,99 @@
   }
 }
 
+@layer components {
+  .dashboard-landing {
+    --dashboard-landing-border: rgba(145, 126, 101, 0.18);
+    --dashboard-landing-shadow: 0 24px 60px rgba(140, 121, 93, 0.12);
+    --dashboard-landing-surface: rgba(255, 255, 255, 0.92);
+    --dashboard-landing-pill-bg: rgba(255, 255, 255, 0.8);
+    background:
+      radial-gradient(
+        circle at top,
+        rgba(255, 255, 255, 0.76),
+        transparent 28%
+      ),
+      radial-gradient(
+        circle at 50% 24%,
+        rgba(228, 211, 186, 0.72),
+        transparent 46%
+      ),
+      linear-gradient(180deg, #faf5ed 0%, #f4ece1 56%, #efe3d5 100%);
+    box-shadow:
+      inset 1px 0 0 rgba(170, 149, 121, 0.18),
+      inset 24px 0 36px rgba(255, 255, 255, 0.22);
+  }
+
+  .dashboard-landing-shell {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .dashboard-landing-surface {
+    background: var(--dashboard-landing-surface);
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    box-shadow:
+      0 28px 60px rgba(146, 125, 97, 0.12),
+      0 8px 18px rgba(171, 151, 124, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.78);
+    backdrop-filter: blur(22px);
+  }
+
+  .dashboard-landing-pill {
+    background: var(--dashboard-landing-pill-bg);
+    border: 1px solid var(--dashboard-landing-border);
+    box-shadow: 0 12px 32px rgba(155, 138, 112, 0.06);
+    backdrop-filter: blur(16px);
+  }
+
+  .dashboard-composer-chip {
+    background: rgba(248, 246, 242, 0.92);
+    border: 1px solid rgba(208, 199, 186, 0.55);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  }
+
+  .dashboard-composer-plus {
+    background: rgba(249, 247, 243, 0.96);
+    border: 1px solid rgba(201, 191, 178, 0.65);
+    box-shadow:
+      0 8px 18px rgba(171, 151, 124, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  }
+
+  .dashboard-composer-model {
+    background: rgba(249, 247, 243, 0.96);
+    border: 1px solid rgba(201, 191, 178, 0.65);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  }
+
+  .dashboard-composer-send {
+    box-shadow:
+      0 18px 28px rgba(95, 102, 114, 0.24),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+
+  .dashboard-landing-title {
+    font-family:
+      "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    letter-spacing: -0.045em;
+  }
+
+  .dark .dashboard-landing {
+    --dashboard-landing-border: rgba(255, 255, 255, 0.08);
+    --dashboard-landing-shadow: 0 24px 60px rgba(0, 0, 0, 0.32);
+    --dashboard-landing-surface: rgba(43, 37, 33, 0.84);
+    --dashboard-landing-pill-bg: rgba(53, 46, 41, 0.76);
+    background:
+      radial-gradient(circle at top, rgba(115, 100, 81, 0.28), transparent 30%),
+      radial-gradient(
+        circle at 50% 28%,
+        rgba(84, 71, 59, 0.42),
+        transparent 40%
+      ),
+      linear-gradient(180deg, #211d1a 0%, #171412 100%);
+  }
+}
+
 /* Hide scrollbar while keeping scroll functionality */
 .scrollbar-hide {
   -ms-overflow-style: none;
@@ -293,13 +386,12 @@
 
 /* Message content HTML styles */
 .message-content-other {
-
   /* Styles for messages from others */
   p {
     margin: 0;
   }
 
-  p+p {
+  p + p {
     margin-top: 0.1rem;
   }
 
@@ -384,13 +476,12 @@
 }
 
 .message-content-own {
-
   /* Styles for own messages (white text on purple background) */
   p {
     margin: 0;
   }
 
-  p+p {
+  p + p {
     margin-top: 0.25rem;
   }
 
@@ -635,14 +726,25 @@
     color: var(--muted-foreground);
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-weight: 600;
     margin: 0.5rem 0 0.2rem;
   }
 
-  h1 { font-size: 1.25em; }
-  h2 { font-size: 1.125em; }
-  h3 { font-size: 1em; }
+  h1 {
+    font-size: 1.25em;
+  }
+  h2 {
+    font-size: 1.125em;
+  }
+  h3 {
+    font-size: 1em;
+  }
 
   table {
     border-collapse: collapse;
@@ -652,7 +754,8 @@
     max-width: 100%;
   }
 
-  th, td {
+  th,
+  td {
     border: 1px solid var(--border);
     padding: 0.25rem 0.5rem;
     font-size: 0.875em;
@@ -795,64 +898,184 @@
 }
 
 /* Editor code highlight tokens */
-.token-comment { color: #6a737d; }
-.token-punctuation { color: #24292e; }
-.token-property { color: #005cc5; }
-.token-boolean { color: #005cc5; }
-.token-number { color: #005cc5; }
-.token-constant { color: #005cc5; }
-.token-symbol { color: #005cc5; }
-.token-deleted { color: #005cc5; }
-.token-selector { color: #22863a; }
-.token-attr { color: #22863a; }
-.token-string { color: #22863a; }
-.token-char { color: #22863a; }
-.token-builtin { color: #22863a; }
-.token-inserted { color: #22863a; }
-.token-operator { color: #d73a49; }
-.token-keyword { color: #d73a49; }
-.token-atrule { color: #d73a49; }
-.token-function { color: #6f42c1; }
-.token-class-name { color: #6f42c1; }
-.token-class { color: #6f42c1; }
-.token-regex { color: #e36209; }
-.token-variable { color: #e36209; }
-.token-tag { color: #22863a; }
-.token-url { color: #005cc5; }
-.token-namespace { color: #6a737d; }
-.token-prolog { color: #6a737d; }
-.token-doctype { color: #6a737d; }
-.token-cdata { color: #6a737d; }
-.token-entity { color: #d73a49; }
-.token-important { color: #e36209; }
+.token-comment {
+  color: #6a737d;
+}
+.token-punctuation {
+  color: #24292e;
+}
+.token-property {
+  color: #005cc5;
+}
+.token-boolean {
+  color: #005cc5;
+}
+.token-number {
+  color: #005cc5;
+}
+.token-constant {
+  color: #005cc5;
+}
+.token-symbol {
+  color: #005cc5;
+}
+.token-deleted {
+  color: #005cc5;
+}
+.token-selector {
+  color: #22863a;
+}
+.token-attr {
+  color: #22863a;
+}
+.token-string {
+  color: #22863a;
+}
+.token-char {
+  color: #22863a;
+}
+.token-builtin {
+  color: #22863a;
+}
+.token-inserted {
+  color: #22863a;
+}
+.token-operator {
+  color: #d73a49;
+}
+.token-keyword {
+  color: #d73a49;
+}
+.token-atrule {
+  color: #d73a49;
+}
+.token-function {
+  color: #6f42c1;
+}
+.token-class-name {
+  color: #6f42c1;
+}
+.token-class {
+  color: #6f42c1;
+}
+.token-regex {
+  color: #e36209;
+}
+.token-variable {
+  color: #e36209;
+}
+.token-tag {
+  color: #22863a;
+}
+.token-url {
+  color: #005cc5;
+}
+.token-namespace {
+  color: #6a737d;
+}
+.token-prolog {
+  color: #6a737d;
+}
+.token-doctype {
+  color: #6a737d;
+}
+.token-cdata {
+  color: #6a737d;
+}
+.token-entity {
+  color: #d73a49;
+}
+.token-important {
+  color: #e36209;
+}
 
-.dark .token-comment { color: #8b949e; }
-.dark .token-punctuation { color: #c9d1d9; }
-.dark .token-property { color: #79c0ff; }
-.dark .token-boolean { color: #79c0ff; }
-.dark .token-number { color: #79c0ff; }
-.dark .token-constant { color: #79c0ff; }
-.dark .token-symbol { color: #79c0ff; }
-.dark .token-deleted { color: #79c0ff; }
-.dark .token-selector { color: #a5d6ff; }
-.dark .token-attr { color: #a5d6ff; }
-.dark .token-string { color: #a5d6ff; }
-.dark .token-char { color: #a5d6ff; }
-.dark .token-builtin { color: #a5d6ff; }
-.dark .token-inserted { color: #a5d6ff; }
-.dark .token-operator { color: #ff7b72; }
-.dark .token-keyword { color: #ff7b72; }
-.dark .token-atrule { color: #ff7b72; }
-.dark .token-function { color: #d2a8ff; }
-.dark .token-class-name { color: #d2a8ff; }
-.dark .token-class { color: #d2a8ff; }
-.dark .token-regex { color: #ffa657; }
-.dark .token-variable { color: #ffa657; }
-.dark .token-tag { color: #a5d6ff; }
-.dark .token-url { color: #79c0ff; }
-.dark .token-namespace { color: #8b949e; }
-.dark .token-prolog { color: #8b949e; }
-.dark .token-doctype { color: #8b949e; }
-.dark .token-cdata { color: #8b949e; }
-.dark .token-entity { color: #ff7b72; }
-.dark .token-important { color: #ffa657; }
+.dark .token-comment {
+  color: #8b949e;
+}
+.dark .token-punctuation {
+  color: #c9d1d9;
+}
+.dark .token-property {
+  color: #79c0ff;
+}
+.dark .token-boolean {
+  color: #79c0ff;
+}
+.dark .token-number {
+  color: #79c0ff;
+}
+.dark .token-constant {
+  color: #79c0ff;
+}
+.dark .token-symbol {
+  color: #79c0ff;
+}
+.dark .token-deleted {
+  color: #79c0ff;
+}
+.dark .token-selector {
+  color: #a5d6ff;
+}
+.dark .token-attr {
+  color: #a5d6ff;
+}
+.dark .token-string {
+  color: #a5d6ff;
+}
+.dark .token-char {
+  color: #a5d6ff;
+}
+.dark .token-builtin {
+  color: #a5d6ff;
+}
+.dark .token-inserted {
+  color: #a5d6ff;
+}
+.dark .token-operator {
+  color: #ff7b72;
+}
+.dark .token-keyword {
+  color: #ff7b72;
+}
+.dark .token-atrule {
+  color: #ff7b72;
+}
+.dark .token-function {
+  color: #d2a8ff;
+}
+.dark .token-class-name {
+  color: #d2a8ff;
+}
+.dark .token-class {
+  color: #d2a8ff;
+}
+.dark .token-regex {
+  color: #ffa657;
+}
+.dark .token-variable {
+  color: #ffa657;
+}
+.dark .token-tag {
+  color: #a5d6ff;
+}
+.dark .token-url {
+  color: #79c0ff;
+}
+.dark .token-namespace {
+  color: #8b949e;
+}
+.dark .token-prolog {
+  color: #8b949e;
+}
+.dark .token-doctype {
+  color: #8b949e;
+}
+.dark .token-cdata {
+  color: #8b949e;
+}
+.dark .token-entity {
+  color: #ff7b72;
+}
+.dark .token-important {
+  color: #ffa657;
+}

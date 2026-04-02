@@ -91,5 +91,22 @@
   "threadReplyLabel": "消息列回复",
   "activityLabel": "活动",
   "userJoinedWorkspace": "{{displayName}} 加入了 {{workspace}}",
-  "openclawWarmingUp": "您的 OpenClaw 正在做热身运动，大约2分钟就能上岗。准备好后，点击左侧的 {{name}}'s bot 开始唠嗑吧！"
+  "openclawWarmingUp": "您的 OpenClaw 正在做热身运动，大约2分钟就能上岗。准备好后，点击左侧的 {{name}}'s bot 开始唠嗑吧！",
+  "dashboardBrand": "Team9 Agent",
+  "dashboardUsageValue": "1,280",
+  "dashboardPlan": "Free plan",
+  "dashboardUpgrade": "Upgrade",
+  "dashboardTitle": "今天能帮你做什么？",
+  "dashboardPromptPlaceholder": "Message dashboard...",
+  "dashboardActionDeepResearch": "深度研究",
+  "dashboardActionGenerateImage": "生成图片",
+  "dashboardModelLabel": "GPT5.4",
+  "dashboardPromptHint": "按 Enter 发送，Shift+Enter 换行。",
+  "dashboardWarmupNotice": "你的 OpenClaw 正在热身，大约 2 分钟后可用。准备好后，在下方发送提示词即可和 {{name}} 开始聊天。",
+  "dashboardNoBotDescription": "需要先创建或激活一个 AI Staff，才能从 dashboard 直接开始聊天。",
+  "dashboardCreateAiStaffCta": "前往 AI Staff",
+  "dashboardMockLabel": "Mock",
+  "dashboardTaskEmptyValue": "无",
+  "dashboardNoActiveTask": "暂无活跃任务",
+  "dashboardCreateTask": "新建"
 }
