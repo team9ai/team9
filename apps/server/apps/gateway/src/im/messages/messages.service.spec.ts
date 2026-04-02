@@ -433,6 +433,260 @@ describe('MessagesService', () => {
     );
   });
 
+  it('throws when getMessageWithDetails cannot find the message', async () => {
+    db.chains.selectLimit.mockResolvedValueOnce([]);
+
+    await expect(
+      service.getMessageWithDetails('missing-message'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('includes sender details when getMessageWithDetails finds the sender row', async () => {
+    const messageRow = makeMessageRow({
+      senderId: 'user-1',
+      content: 'with sender',
+    });
+    const sender = {
+      id: 'user-1',
+      username: 'alice',
+      displayName: 'Alice',
+      avatarUrl: null,
+      userType: 'human',
+    };
+    const makeSelectChain = (returnValue: unknown) => ({
+      from: jest.fn<any>().mockReturnValue({
+        where: jest.fn<any>().mockReturnValue(returnValue),
+      }),
+    });
+
+    db.select
+      .mockReturnValueOnce(
+        makeSelectChain({
+          limit: jest.fn<any>().mockResolvedValue([messageRow]),
+        }),
+      )
+      .mockReturnValueOnce(
+        makeSelectChain({
+          limit: jest.fn<any>().mockResolvedValue([sender]),
+        }),
+      )
+      .mockReturnValueOnce(makeSelectChain([]))
+      .mockReturnValueOnce(makeSelectChain([]))
+      .mockReturnValueOnce(makeSelectChain([{ count: 0 }]))
+      .mockReturnValueOnce(
+        makeSelectChain({
+          orderBy: jest.fn<any>().mockResolvedValue([]),
+        }),
+      );
+
+    await expect(service.getMessageWithDetails('message-1')).resolves.toEqual(
+      expect.objectContaining({
+        sender,
+        attachments: [],
+        reactions: [],
+        replyCount: 0,
+        lastRepliers: [],
+        lastReplyAt: null,
+        content: 'with sender',
+      }),
+    );
+  });
+
+  it('returns an empty map when the batch detail helper receives no messages', async () => {
+    await expect(
+      (service as any).getMessagesWithDetailsBatch([]),
+    ).resolves.toEqual(new Map());
+
+    expect(db.select).not.toHaveBeenCalled();
+  });
+
+  it('batches message details with grouped attachments, reactions, reply counts, and last repliers', async () => {
+    const firstMessage = makeMessageRow({
+      id: 'message-1',
+      senderId: 'user-1',
+      metadata: { source: 'batch' },
+    });
+    const secondMessage = makeMessageRow({
+      id: 'message-2',
+      senderId: null,
+      content: 'without sender',
+    });
+    const makeSelectChain = (whereReturnValue: unknown) => ({
+      from: jest.fn<any>().mockReturnValue({
+        where: jest.fn<any>().mockReturnValue(whereReturnValue),
+      }),
+    });
+
+    db.select
+      .mockReturnValueOnce(
+        makeSelectChain([
+          {
+            id: 'user-1',
+            username: 'alice',
+            displayName: 'Alice',
+            avatarUrl: null,
+            userType: 'human',
+          },
+        ]),
+      )
+      .mockReturnValueOnce(
+        makeSelectChain([
+          {
+            id: 'att-1',
+            messageId: 'message-1',
+            fileName: 'report.pdf',
+            fileKey: 'file-key',
+            fileUrl: 'https://cdn.example.com/report.pdf',
+            fileSize: 128,
+            mimeType: 'application/pdf',
+            thumbnailUrl: null,
+            width: null,
+            height: null,
+          },
+          {
+            id: 'att-2',
+            messageId: 'message-2',
+            fileName: 'image.png',
+            fileKey: 'image-key',
+            fileUrl: 'https://cdn.example.com/image.png',
+            fileSize: 256,
+            mimeType: 'image/png',
+            thumbnailUrl: 'https://cdn.example.com/thumb.png',
+            width: 640,
+            height: 480,
+          },
+        ]),
+      )
+      .mockReturnValueOnce(
+        makeSelectChain([
+          { messageId: 'message-1', emoji: ':+1:', userId: 'user-1' },
+          { messageId: 'message-1', emoji: ':+1:', userId: 'user-3' },
+          { messageId: 'message-1', emoji: ':eyes:', userId: 'user-4' },
+        ]),
+      )
+      .mockReturnValueOnce(
+        makeSelectChain({
+          groupBy: jest.fn<any>().mockResolvedValue([
+            { parentId: 'message-1', count: 2 },
+            { parentId: null, count: 99 },
+          ]),
+        }),
+      )
+      .mockReturnValueOnce(
+        makeSelectChain({
+          orderBy: jest.fn<any>().mockResolvedValue([
+            {
+              parentId: 'message-1',
+              senderId: 'user-3',
+              createdAt: new Date('2026-04-02T10:33:00.000Z'),
+            },
+            {
+              parentId: 'message-1',
+              senderId: 'user-1',
+              createdAt: new Date('2026-04-02T10:32:00.000Z'),
+            },
+            {
+              parentId: 'message-1',
+              senderId: 'user-3',
+              createdAt: new Date('2026-04-02T10:31:00.000Z'),
+            },
+            {
+              parentId: null,
+              senderId: 'user-5',
+              createdAt: new Date('2026-04-02T10:30:00.000Z'),
+            },
+            {
+              parentId: 'message-2',
+              senderId: null,
+              createdAt: new Date('2026-04-02T10:29:00.000Z'),
+            },
+          ]),
+        }),
+      )
+      .mockReturnValueOnce(
+        makeSelectChain([
+          {
+            id: 'user-3',
+            username: 'carol',
+            displayName: 'Carol',
+            avatarUrl: null,
+            userType: 'bot',
+          },
+        ]),
+      );
+
+    const result = await (service as any).getMessagesWithDetailsBatch([
+      firstMessage,
+      secondMessage,
+    ]);
+
+    expect(result.get('message-1')).toEqual(
+      expect.objectContaining({
+        id: 'message-1',
+        sender: {
+          id: 'user-1',
+          username: 'alice',
+          displayName: 'Alice',
+          avatarUrl: null,
+          userType: 'human',
+        },
+        attachments: [
+          expect.objectContaining({
+            id: 'att-1',
+            messageId: 'message-1',
+          }),
+        ],
+        reactions: [
+          {
+            emoji: ':+1:',
+            count: 2,
+            userIds: ['user-1', 'user-3'],
+          },
+          {
+            emoji: ':eyes:',
+            count: 1,
+            userIds: ['user-4'],
+          },
+        ],
+        replyCount: 2,
+        lastRepliers: [
+          {
+            id: 'user-3',
+            username: 'carol',
+            displayName: 'Carol',
+            avatarUrl: null,
+            userType: 'bot',
+          },
+          {
+            id: 'user-1',
+            username: 'alice',
+            displayName: 'Alice',
+            avatarUrl: null,
+            userType: 'human',
+          },
+        ],
+        lastReplyAt: new Date('2026-04-02T10:33:00.000Z'),
+        metadata: { source: 'batch' },
+      }),
+    );
+    expect(result.get('message-2')).toEqual(
+      expect.objectContaining({
+        id: 'message-2',
+        sender: null,
+        attachments: [
+          expect.objectContaining({
+            id: 'att-2',
+            messageId: 'message-2',
+          }),
+        ],
+        reactions: [],
+        replyCount: 0,
+        lastRepliers: [],
+        lastReplyAt: null,
+      }),
+    );
+  });
+
   it('returns an empty thread response when there are no first-level replies', async () => {
     const rootMessage = makeMessageResponse({ id: 'root-1' });
     db.chains.selectOrderBy.mockResolvedValueOnce([]);
@@ -580,6 +834,53 @@ describe('MessagesService', () => {
         nextCursor: '2026-04-02T10:31:00.000Z',
       },
     );
+  });
+
+  it('filters first-level thread replies when a valid cursor is provided', async () => {
+    const rootMessage = makeMessageResponse({ id: 'root-1' });
+    db.chains.selectOrderBy.mockResolvedValueOnce([
+      {
+        id: 'reply-old',
+        parentId: 'root-1',
+        rootId: 'root-1',
+        createdAt: new Date('2026-04-02T10:30:00.000Z'),
+      },
+      {
+        id: 'reply-new',
+        parentId: 'root-1',
+        rootId: 'root-1',
+        createdAt: new Date('2026-04-02T10:32:00.000Z'),
+      },
+      {
+        id: 'sub-1',
+        parentId: 'reply-new',
+        rootId: 'root-1',
+        createdAt: new Date('2026-04-02T10:32:30.000Z'),
+      },
+    ]);
+    jest.spyOn(service, 'getMessageWithDetails').mockResolvedValue(rootMessage);
+    jest.spyOn(service as any, 'getMessagesWithDetailsBatch').mockResolvedValue(
+      new Map([
+        ['reply-new', makeMessageResponse({ id: 'reply-new' })],
+        ['sub-1', makeMessageResponse({ id: 'sub-1' })],
+      ]),
+    );
+
+    await expect(
+      service.getThread('root-1', 2, '2026-04-02T10:31:00.000Z'),
+    ).resolves.toEqual({
+      rootMessage,
+      replies: [
+        {
+          ...makeMessageResponse({ id: 'reply-new' }),
+          subReplies: [makeMessageResponse({ id: 'sub-1' })],
+          subReplyCount: 1,
+        },
+      ],
+      totalReplyCount: 2,
+      hasMore: false,
+      nextCursor: null,
+    });
   });
 
   it('throws when the message channel id cannot be resolved', async () => {
@@ -803,6 +1104,43 @@ describe('MessagesService', () => {
     ]);
 
     expect(olderRowsLimit).toHaveBeenCalledWith(2);
+  });
+
+  it('falls back to the latest channel messages when a valid before cursor cannot be resolved', async () => {
+    const latestRowsLimit = jest.fn<any>().mockResolvedValue([
+      makeMessageRow({
+        id: 'message-2',
+        createdAt: new Date('2026-04-02T10:32:00.000Z'),
+      }),
+      makeMessageRow({
+        id: 'message-1',
+        createdAt: new Date('2026-04-02T10:31:00.000Z'),
+      }),
+    ]);
+    db.chains.selectWhere.mockReturnValueOnce({
+      orderBy: jest.fn<any>().mockReturnValue({ limit: latestRowsLimit }),
+      limit: db.chains.selectLimit,
+    });
+    db.chains.selectLimit.mockResolvedValueOnce([]);
+    jest.spyOn(service as any, 'getMessagesWithDetailsBatch').mockResolvedValue(
+      new Map([
+        ['message-2', makeMessageResponse({ id: 'message-2' })],
+        ['message-1', makeMessageResponse({ id: 'message-1' })],
+      ]),
+    );
+
+    await expect(
+      service.getChannelMessages(
+        'channel-1',
+        2,
+        '11111111-1111-1111-1111-111111111111',
+      ),
+    ).resolves.toEqual([
+      makeMessageResponse({ id: 'message-2' }),
+      makeMessageResponse({ id: 'message-1' }),
+    ]);
+
+    expect(latestRowsLimit).toHaveBeenCalledWith(2);
   });
 
   it('returns thread replies through the batch detail helper', async () => {

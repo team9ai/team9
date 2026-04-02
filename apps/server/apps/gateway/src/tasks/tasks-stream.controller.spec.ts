@@ -284,4 +284,122 @@ describe('TasksStreamController', () => {
       expect(capturedUrl).toContain(`agent_task_exec_${specificExecId}`);
     });
   });
+
+  // ── SSE proxy ────────────────────────────────────────────────────────────
+
+  describe('SSE proxy', () => {
+    it('forwards Last-Event-ID, streams upstream chunks, and closes the response', async () => {
+      setupDbSequence(db, [
+        [{ id: EXEC_ID }],
+        [{ tenantId: TENANT_ID }],
+        [{ id: 'member-1' }],
+      ]);
+
+      const reader = {
+        read: jest
+          .fn<any>()
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode('data: hello\\n\\n'),
+          })
+          .mockResolvedValueOnce({ done: true, value: undefined }),
+      };
+      const mockFetch = jest.fn<any>().mockResolvedValue({
+        ok: true,
+        body: {
+          getReader: () => reader,
+        },
+      });
+      global.fetch = mockFetch as typeof fetch;
+
+      const req = mockReq({
+        headers: {
+          authorization: 'Bearer valid-token',
+          'last-event-id': 'event-123',
+        },
+      });
+      const res = mockRes();
+      let resolveEnded: (() => void) | undefined;
+      const ended = new Promise<void>((resolve) => {
+        resolveEnded = resolve;
+      });
+      res.end = jest.fn<any>(() => {
+        resolveEnded?.();
+        return res;
+      });
+
+      await controller.streamExecution(TASK_ID, EXEC_ID, undefined, req, res);
+      await ended;
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://localhost:3721/tasks/agent_task_exec_exec-1/events/stream',
+        expect.objectContaining({
+          headers: {
+            Accept: 'text/event-stream',
+            'Last-Event-ID': 'event-123',
+          },
+          signal: expect.any(AbortSignal),
+        }),
+      );
+      expect(req.on).toHaveBeenCalledWith('close', expect.any(Function));
+      expect(res.setHeader).toHaveBeenCalledWith(
+        'Content-Type',
+        'text/event-stream',
+      );
+      expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-cache');
+      expect(res.setHeader).toHaveBeenCalledWith('Connection', 'keep-alive');
+      expect(res.setHeader).toHaveBeenCalledWith('X-Accel-Buffering', 'no');
+      expect(res.flushHeaders).toHaveBeenCalled();
+      expect(res.write).toHaveBeenCalledWith('data: hello\\n\\n');
+      expect(res.end).toHaveBeenCalled();
+    });
+
+    it('returns early when fetch aborts after the client disconnects', async () => {
+      setupDbSequence(db, [
+        [{ id: EXEC_ID }],
+        [{ tenantId: TENANT_ID }],
+        [{ id: 'member-1' }],
+      ]);
+
+      const abortError = new Error('aborted');
+      abortError.name = 'AbortError';
+      global.fetch = jest
+        .fn<any>()
+        .mockRejectedValue(abortError) as typeof fetch;
+
+      const req = mockReq({
+        headers: { authorization: 'Bearer valid-token' },
+      });
+      const res = mockRes();
+
+      await controller.streamExecution(TASK_ID, EXEC_ID, undefined, req, res);
+
+      expect(res.status).not.toHaveBeenCalled();
+      expect(res.json).not.toHaveBeenCalled();
+    });
+
+    it('returns 502 when the upstream fetch throws a non-abort error', async () => {
+      setupDbSequence(db, [
+        [{ id: EXEC_ID }],
+        [{ tenantId: TENANT_ID }],
+        [{ id: 'member-1' }],
+      ]);
+
+      global.fetch = jest
+        .fn<any>()
+        .mockRejectedValue(new Error('upstream down')) as typeof fetch;
+
+      const req = mockReq({
+        headers: { authorization: 'Bearer valid-token' },
+      });
+      const res = mockRes();
+
+      await controller.streamExecution(TASK_ID, EXEC_ID, undefined, req, res);
+
+      expect(res.status).toHaveBeenCalledWith(502);
+      expect(res.json).toHaveBeenCalledWith({
+        error: 'TaskCast upstream unavailable',
+      });
+    });
+  });
 });

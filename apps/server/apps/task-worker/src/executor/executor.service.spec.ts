@@ -312,6 +312,39 @@ describe('ExecutorService', () => {
     );
   });
 
+  it('should persist trigger metadata and override document version when provided', async () => {
+    returningResultQueue = [[{ ...sampleTask, documentId: 'doc-001' }]];
+    selectResultQueue = [
+      [{ content: 'Document body', versionId: 'doc-version-001' }],
+      [sampleBot],
+    ];
+    service.registerStrategy('system', mockStrategy);
+
+    await service.triggerExecution('task-001', {
+      triggerId: 'trigger-001',
+      triggerType: 'manual',
+      triggerContext: { source: 'ui' },
+      sourceExecutionId: 'exec-source-001',
+      documentVersionId: 'override-version-001',
+    });
+
+    const executionInsert = insertValues.find(
+      (v) => v.taskVersion !== undefined,
+    );
+    expect(executionInsert).toMatchObject({
+      triggerId: 'trigger-001',
+      triggerType: 'manual',
+      triggerContext: { source: 'ui' },
+      sourceExecutionId: 'exec-source-001',
+      documentVersionId: 'override-version-001',
+    });
+    expect(mockStrategy.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentContent: 'Document body',
+      }),
+    );
+  });
+
   // ── stopExecution: hive strategy routing ─────────────────────────
 
   it('stopExecution: routes to "hive" strategy when managedProvider is "hive"', async () => {
@@ -412,6 +445,215 @@ describe('ExecutorService', () => {
     expect(mockStrategy.stop).toHaveBeenCalledWith(
       expect.objectContaining({ tenantId: 'tenant-abc' }),
     );
+  });
+
+  it('stopExecution: returns early when task is not found', async () => {
+    selectResultQueue = [[]];
+
+    await service.stopExecution('task-001');
+
+    expect(mockDb.update).not.toHaveBeenCalled();
+  });
+
+  it('stopExecution: returns early when task has no currentExecutionId', async () => {
+    selectResultQueue = [
+      [
+        {
+          id: 'task-001',
+          botId: 'bot-001',
+          tenantId: 'tenant-001',
+          title: 'My Test Task',
+          currentExecutionId: null,
+        },
+      ],
+    ];
+
+    await service.stopExecution('task-001');
+
+    expect(mockDb.update).not.toHaveBeenCalled();
+  });
+
+  it('stopExecution: returns early when task has no botId', async () => {
+    selectResultQueue = [
+      [
+        {
+          id: 'task-001',
+          botId: null,
+          tenantId: 'tenant-001',
+          title: 'My Test Task',
+          currentExecutionId: 'exec-001',
+        },
+      ],
+    ];
+
+    await service.stopExecution('task-001');
+
+    expect(mockDb.update).not.toHaveBeenCalled();
+  });
+
+  it('stopExecution: returns early when execution is not found', async () => {
+    selectResultQueue = [
+      [
+        {
+          id: 'task-001',
+          botId: 'bot-001',
+          tenantId: 'tenant-001',
+          title: 'My Test Task',
+          currentExecutionId: 'exec-missing',
+        },
+      ],
+      [],
+    ];
+
+    await service.stopExecution('task-001');
+
+    expect(mockDb.update).not.toHaveBeenCalled();
+  });
+
+  it('stopExecution: returns early when no strategy is registered', async () => {
+    const taskWithExecution = {
+      id: 'task-001',
+      botId: 'bot-001',
+      tenantId: 'tenant-001',
+      title: 'My Test Task',
+      currentExecutionId: 'exec-001',
+    };
+    const sampleExecution = {
+      id: 'exec-001',
+      channelId: 'chan-001',
+      taskcastTaskId: 'tc-001',
+      startedAt: new Date(),
+    };
+
+    selectResultQueue = [[taskWithExecution], [sampleExecution], [sampleBot]];
+
+    await service.stopExecution('task-001');
+
+    expect(mockDb.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'stopped' }),
+    );
+  });
+
+  it('stopExecution: logs and continues when strategy.stop throws', async () => {
+    const taskWithExecution = {
+      id: 'task-001',
+      botId: 'bot-001',
+      tenantId: 'tenant-001',
+      title: 'My Test Task',
+      currentExecutionId: 'exec-001',
+    };
+    const sampleExecution = {
+      id: 'exec-001',
+      channelId: 'chan-001',
+      taskcastTaskId: 'tc-001',
+      startedAt: new Date(),
+    };
+    const failingStrategy = {
+      execute: jest.fn<any>(),
+      pause: jest.fn<any>(),
+      resume: jest.fn<any>(),
+      stop: jest.fn<any>().mockRejectedValueOnce(new Error('stop failed')),
+    };
+
+    selectResultQueue = [[taskWithExecution], [sampleExecution], [sampleBot]];
+    service.registerStrategy('system', failingStrategy);
+
+    await service.stopExecution('task-001');
+
+    expect(failingStrategy.stop).toHaveBeenCalledWith(
+      expect.objectContaining({ taskId: 'task-001' }),
+    );
+    const stoppedTaskSet = updateSets.find((s) => s.status === 'stopped');
+    expect(stoppedTaskSet).toBeDefined();
+  });
+
+  it('stopExecution: includes duration when execution has a startedAt timestamp', async () => {
+    const startedAt = new Date('2026-04-02T00:00:00.000Z');
+    const stoppedAt = new Date('2026-04-02T00:00:05.000Z');
+    jest.useFakeTimers();
+    jest.setSystemTime(stoppedAt);
+
+    try {
+      const taskWithExecution = {
+        id: 'task-001',
+        botId: 'bot-001',
+        tenantId: 'tenant-001',
+        title: 'My Test Task',
+        currentExecutionId: 'exec-001',
+      };
+      const sampleExecution = {
+        id: 'exec-001',
+        channelId: 'chan-001',
+        taskcastTaskId: 'tc-001',
+        startedAt,
+      };
+
+      selectResultQueue = [[taskWithExecution], [sampleExecution], [sampleBot]];
+      service.registerStrategy('system', mockStrategy);
+
+      await service.stopExecution('task-001');
+
+      const stoppedExecutionSet = updateSets.find(
+        (s) => s.status === 'stopped' && 'completedAt' in s,
+      );
+      expect(stoppedExecutionSet).toMatchObject({
+        status: 'stopped',
+        duration: 5,
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('stopExecution: skips strategy.stop when execution has no channelId', async () => {
+    const taskWithExecution = {
+      id: 'task-001',
+      botId: 'bot-001',
+      tenantId: 'tenant-001',
+      title: 'My Test Task',
+      currentExecutionId: 'exec-001',
+    };
+    const sampleExecution = {
+      id: 'exec-001',
+      channelId: null,
+      taskcastTaskId: 'tc-001',
+      startedAt: new Date(),
+    };
+
+    selectResultQueue = [[taskWithExecution], [sampleExecution], [sampleBot]];
+    service.registerStrategy('system', mockStrategy);
+
+    await service.stopExecution('task-001');
+
+    expect(mockStrategy.stop).not.toHaveBeenCalled();
+    const stoppedTaskSet = updateSets.find((s) => s.status === 'stopped');
+    expect(stoppedTaskSet).toBeDefined();
+  });
+
+  it('stopExecution: omits duration when execution has no startedAt timestamp', async () => {
+    const taskWithExecution = {
+      id: 'task-001',
+      botId: 'bot-001',
+      tenantId: 'tenant-001',
+      title: 'My Test Task',
+      currentExecutionId: 'exec-001',
+    };
+    const sampleExecution = {
+      id: 'exec-001',
+      channelId: 'chan-001',
+      taskcastTaskId: 'tc-001',
+    };
+
+    selectResultQueue = [[taskWithExecution], [sampleExecution], [sampleBot]];
+    service.registerStrategy('system', mockStrategy);
+
+    await service.stopExecution('task-001');
+
+    const stoppedExecutionSet = updateSets.find(
+      (s) => s.status === 'stopped' && 'completedAt' in s,
+    );
+    expect(stoppedExecutionSet).toBeDefined();
+    expect(stoppedExecutionSet.duration).toBeUndefined();
   });
 
   // ── pauseExecution ────────────────────────────────────────────────
@@ -515,6 +757,44 @@ describe('ExecutorService', () => {
       const pausedSet = updateSets.find((s) => s.status === 'paused');
       expect(pausedSet).toBeUndefined();
     });
+
+    it('returns early when no strategy is registered', async () => {
+      const taskWithExec = {
+        ...sampleTask,
+        currentExecutionId: 'exec-001',
+        status: 'in_progress',
+      };
+      const execution = {
+        id: 'exec-001',
+        channelId: 'ch-001',
+        taskcastTaskId: null,
+      };
+      selectResultQueue = [[taskWithExec], [execution], [sampleBot]];
+
+      await service.pauseExecution('task-001');
+
+      expect(updateSets.find((s) => s.status === 'paused')).toBeUndefined();
+    });
+
+    it('returns early when execution has no channelId', async () => {
+      const taskWithExec = {
+        ...sampleTask,
+        currentExecutionId: 'exec-001',
+        status: 'in_progress',
+      };
+      const execution = {
+        id: 'exec-001',
+        channelId: null,
+        taskcastTaskId: null,
+      };
+      selectResultQueue = [[taskWithExec], [execution], [sampleBot]];
+      service.registerStrategy('system', mockStrategy);
+
+      await service.pauseExecution('task-001');
+
+      expect(mockStrategy.pause).not.toHaveBeenCalled();
+      expect(updateSets.find((s) => s.status === 'paused')).toBeUndefined();
+    });
   });
 
   // ── resumeExecution ───────────────────────────────────────────────
@@ -578,6 +858,19 @@ describe('ExecutorService', () => {
       expect(mockStrategy.resume).not.toHaveBeenCalled();
     });
 
+    it('returns early when execution is not found', async () => {
+      const taskWithExec = {
+        ...sampleTask,
+        currentExecutionId: 'exec-missing',
+        status: 'paused',
+      };
+      selectResultQueue = [[taskWithExec], []];
+
+      await service.resumeExecution('task-001');
+
+      expect(mockStrategy.resume).not.toHaveBeenCalled();
+    });
+
     it('returns early when bot is not found', async () => {
       const taskWithExec = {
         ...sampleTask,
@@ -617,6 +910,48 @@ describe('ExecutorService', () => {
       // Status should NOT be updated to 'in_progress' since strategy failed
       const inProgressSet = updateSets.find((s) => s.status === 'in_progress');
       expect(inProgressSet).toBeUndefined();
+    });
+
+    it('returns early when no strategy is registered', async () => {
+      const taskWithExec = {
+        ...sampleTask,
+        currentExecutionId: 'exec-001',
+        status: 'paused',
+      };
+      const execution = {
+        id: 'exec-001',
+        channelId: 'ch-001',
+        taskcastTaskId: null,
+      };
+      selectResultQueue = [[taskWithExec], [execution], [sampleBot]];
+
+      await service.resumeExecution('task-001', 'continue');
+
+      expect(
+        updateSets.find((s) => s.status === 'in_progress'),
+      ).toBeUndefined();
+    });
+
+    it('returns early when execution has no channelId', async () => {
+      const taskWithExec = {
+        ...sampleTask,
+        currentExecutionId: 'exec-001',
+        status: 'paused',
+      };
+      const execution = {
+        id: 'exec-001',
+        channelId: null,
+        taskcastTaskId: null,
+      };
+      selectResultQueue = [[taskWithExec], [execution], [sampleBot]];
+      service.registerStrategy('system', mockStrategy);
+
+      await service.resumeExecution('task-001', 'continue');
+
+      expect(mockStrategy.resume).not.toHaveBeenCalled();
+      expect(
+        updateSets.find((s) => s.status === 'in_progress'),
+      ).toBeUndefined();
     });
   });
 });

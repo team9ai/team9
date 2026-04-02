@@ -51,6 +51,34 @@ function mockDb() {
   return chain;
 }
 
+type SystemBotEnvKey =
+  | 'SYSTEM_BOT_EMAIL'
+  | 'SYSTEM_BOT_USERNAME'
+  | 'SYSTEM_BOT_PASSWORD'
+  | 'SYSTEM_BOT_DISPLAY_NAME';
+
+function snapshotSystemBotEnv(): Record<SystemBotEnvKey, string | undefined> {
+  return {
+    SYSTEM_BOT_EMAIL: process.env.SYSTEM_BOT_EMAIL,
+    SYSTEM_BOT_USERNAME: process.env.SYSTEM_BOT_USERNAME,
+    SYSTEM_BOT_PASSWORD: process.env.SYSTEM_BOT_PASSWORD,
+    SYSTEM_BOT_DISPLAY_NAME: process.env.SYSTEM_BOT_DISPLAY_NAME,
+  };
+}
+
+function restoreSystemBotEnv(
+  snapshot: Record<SystemBotEnvKey, string | undefined>,
+) {
+  for (const key of Object.keys(snapshot) as SystemBotEnvKey[]) {
+    const value = snapshot[key];
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
+}
+
 describe('BotService', () => {
   let service: BotService;
   let db: ReturnType<typeof mockDb>;
@@ -272,6 +300,121 @@ describe('BotService', () => {
     });
   });
 
+  describe('onModuleInit', () => {
+    it('logs when the system bot is disabled', () => {
+      const logSpy = jest
+        .spyOn((service as any).logger, 'log')
+        .mockImplementation(() => undefined);
+      const previousEnabled = process.env.SYSTEM_BOT_ENABLED;
+      process.env.SYSTEM_BOT_ENABLED = 'false';
+
+      try {
+        service.onModuleInit();
+      } finally {
+        if (previousEnabled === undefined) {
+          delete process.env.SYSTEM_BOT_ENABLED;
+        } else {
+          process.env.SYSTEM_BOT_ENABLED = previousEnabled;
+        }
+      }
+
+      expect(logSpy).toHaveBeenCalledWith(
+        'System bot is disabled (SYSTEM_BOT_ENABLED != true)',
+      );
+    });
+  });
+
+  describe('initializeSystemBot', () => {
+    it('warns and returns when required config is missing', async () => {
+      const snapshot = snapshotSystemBotEnv();
+      const warnSpy = jest
+        .spyOn((service as any).logger, 'warn')
+        .mockImplementation(() => undefined);
+
+      delete process.env.SYSTEM_BOT_EMAIL;
+      delete process.env.SYSTEM_BOT_USERNAME;
+      delete process.env.SYSTEM_BOT_PASSWORD;
+      delete process.env.SYSTEM_BOT_DISPLAY_NAME;
+
+      try {
+        await (service as any).initializeSystemBot();
+      } finally {
+        restoreSystemBotEnv(snapshot);
+      }
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        'System bot enabled but missing required config (SYSTEM_BOT_EMAIL, SYSTEM_BOT_USERNAME, SYSTEM_BOT_PASSWORD)',
+      );
+      expect(db.select).not.toHaveBeenCalled();
+    });
+
+    it('creates a new system bot when no existing user is found', async () => {
+      const snapshot = snapshotSystemBotEnv();
+      const createBotSpy = jest.spyOn(service, 'createBot').mockResolvedValue({
+        userId: 'bot-user-1',
+        botId: 'bot-1',
+        username: 'system-bot',
+        displayName: 'System Bot',
+        email: 'system-bot@team9.local',
+        type: 'system',
+        ownerId: null,
+        mentorId: null,
+        description: 'System bot',
+        capabilities: { canSendMessages: true, canReadMessages: true },
+        extra: null,
+        managedProvider: null,
+        managedMeta: null,
+        isActive: true,
+      } as any);
+
+      process.env.SYSTEM_BOT_EMAIL = 'system-bot@team9.local';
+      process.env.SYSTEM_BOT_USERNAME = 'system-bot';
+      process.env.SYSTEM_BOT_PASSWORD = 'secret';
+      process.env.SYSTEM_BOT_DISPLAY_NAME = 'System Bot';
+
+      db.limit.mockResolvedValueOnce([] as any);
+
+      try {
+        await (service as any).initializeSystemBot();
+      } finally {
+        restoreSystemBotEnv(snapshot);
+      }
+
+      expect(createBotSpy).toHaveBeenCalledWith({
+        username: 'system-bot',
+        displayName: 'System Bot',
+        email: 'system-bot@team9.local',
+        password: 'secret',
+        type: 'system',
+        description: 'System bot',
+        capabilities: { canSendMessages: true, canReadMessages: true },
+      });
+      expect(service.getSystemBotUserId()).toBe('bot-user-1');
+    });
+
+    it('reuses an existing system bot user and inserts the missing bot row', async () => {
+      const snapshot = snapshotSystemBotEnv();
+      process.env.SYSTEM_BOT_EMAIL = 'system-bot@team9.local';
+      process.env.SYSTEM_BOT_USERNAME = 'system-bot';
+      process.env.SYSTEM_BOT_PASSWORD = 'secret';
+      process.env.SYSTEM_BOT_DISPLAY_NAME = 'System Bot';
+
+      db.limit
+        .mockResolvedValueOnce([{ id: 'user-1' }] as any)
+        .mockResolvedValueOnce([] as any);
+
+      try {
+        await (service as any).initializeSystemBot();
+      } finally {
+        restoreSystemBotEnv(snapshot);
+      }
+
+      expect(db.update).toHaveBeenCalled();
+      expect(db.insert).toHaveBeenCalled();
+      expect(service.getSystemBotUserId()).toBe('user-1');
+    });
+  });
+
   // ── createBot ─────────────────────────────────────────────────────
 
   describe('createBot', () => {
@@ -373,6 +516,78 @@ describe('BotService', () => {
     });
   });
 
+  describe('validateAccessTokenWithContext', () => {
+    it('returns null without consulting the cache for malformed tokens', async () => {
+      await expect(
+        service.validateAccessTokenWithContext('not-a-token'),
+      ).resolves.toBeNull();
+
+      expect(botAuthCache.getOrSetValidation).not.toHaveBeenCalled();
+    });
+
+    it('returns a resolved context from the cache for a valid token', async () => {
+      const token = `t9bot_${'a'.repeat(96)}`;
+      const findSpy = jest
+        .spyOn(service as any, 'findValidatedAccessTokenMatch')
+        .mockResolvedValue({
+          botId: 'bot-1',
+          userId: 'user-1',
+          tenantId: 'tenant-1',
+          authVersion: 3,
+        });
+      botAuthCache.getOrSetValidation.mockImplementation(
+        async (_rawToken: string, resolve: () => Promise<any>) => resolve(),
+      );
+
+      await expect(
+        service.validateAccessTokenWithContext(token),
+      ).resolves.toEqual({
+        context: {
+          botId: 'bot-1',
+          userId: 'user-1',
+          tenantId: 'tenant-1',
+        },
+        version: 3,
+      });
+
+      expect(findSpy).toHaveBeenCalledWith(token);
+      expect(botAuthCache.getOrSetValidation).toHaveBeenCalledWith(
+        token,
+        expect.any(Function),
+      );
+    });
+  });
+
+  describe('validateAccessToken', () => {
+    it('returns null when no token match can be found', async () => {
+      jest
+        .spyOn(service as any, 'findValidatedAccessTokenMatch')
+        .mockResolvedValue(null);
+
+      await expect(
+        service.validateAccessToken('t9bot_' + 'b'.repeat(96)),
+      ).resolves.toBeNull();
+
+      expect(db.limit).not.toHaveBeenCalled();
+    });
+
+    it('returns null when the matched bot user row is missing', async () => {
+      jest
+        .spyOn(service as any, 'findValidatedAccessTokenMatch')
+        .mockResolvedValue({
+          botId: 'bot-1',
+          userId: 'user-1',
+          tenantId: 'tenant-1',
+          authVersion: 2,
+        });
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.validateAccessToken('t9bot_' + 'c'.repeat(96)),
+      ).resolves.toBeNull();
+    });
+  });
+
   // ── system bot helpers ────────────────────────────────────────────
 
   describe('system bot helpers', () => {
@@ -440,6 +655,32 @@ describe('BotService', () => {
       expect(
         channelsService.deleteDirectChannelsForUser,
       ).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('updateBotDisplayName', () => {
+    it('throws when the target bot does not exist', async () => {
+      jest.spyOn(service, 'getBotById').mockResolvedValueOnce(null);
+
+      await expect(
+        service.updateBotDisplayName('missing-bot', 'New Name'),
+      ).rejects.toThrow('Bot not found: missing-bot');
+
+      expect(db.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('revokeAccessToken', () => {
+    it('invalidates the cache and clears the stored access token', async () => {
+      await service.revokeAccessToken('bot-1');
+
+      expect(botAuthCache.invalidateBot).toHaveBeenCalledWith('bot-1');
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          accessToken: null,
+          updatedAt: expect.any(Date),
+        }),
+      );
     });
   });
 

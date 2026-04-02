@@ -100,6 +100,190 @@ describe('calculateNextRunAt', () => {
       })?.toISOString(),
     ).toBe('2026-04-06T09:00:00.000Z');
   });
+
+  it('uses the server local timezone when no timezone is provided', () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-04-02T10:00:00.000Z'));
+
+    const now = new Date();
+    const expected = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      23,
+      59,
+      0,
+      0,
+    );
+
+    expect(
+      calculateNextRunAt({
+        frequency: 'daily',
+        time: '23:59',
+      })?.toISOString(),
+    ).toBe(expected.toISOString());
+  });
+
+  it('defaults to midnight when the time is missing or invalid', () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-04-02T10:00:00.000Z'));
+
+    expect(
+      calculateNextRunAt({
+        frequency: 'daily',
+        timezone: 'UTC',
+      })?.toISOString(),
+    ).toBe('2026-04-03T00:00:00.000Z');
+
+    expect(
+      calculateNextRunAt({
+        frequency: 'daily',
+        time: 'not-a-time',
+        timezone: 'UTC',
+      })?.toISOString(),
+    ).toBe('2026-04-03T00:00:00.000Z');
+  });
+
+  it('falls back to zero offset when timezone formatting fails', () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-04-02T10:00:00.000Z'));
+
+    const realDateTimeFormat = Intl.DateTimeFormat;
+    const spy = jest.spyOn(Intl, 'DateTimeFormat').mockImplementation(((
+      locale: string,
+      options?: Intl.DateTimeFormatOptions,
+    ) => {
+      if (options?.second) {
+        throw new RangeError('timezone formatting failed');
+      }
+
+      return new realDateTimeFormat(locale, options);
+    }) as typeof Intl.DateTimeFormat);
+
+    try {
+      expect(
+        calculateNextRunAt({
+          frequency: 'daily',
+          time: '12:30',
+          timezone: 'UTC',
+        })?.toISOString(),
+      ).toBe('2026-04-02T12:30:00.000Z');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('rolls weekly, monthly, and yearly schedules forward when the slot already passed', () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-04-03T10:00:00.000Z'));
+
+    expect(
+      calculateNextRunAt({
+        frequency: 'weekly',
+        time: '08:00',
+        dayOfWeek: 5,
+        timezone: 'UTC',
+      })?.toISOString(),
+    ).toBe('2026-04-10T08:00:00.000Z');
+
+    jest.setSystemTime(new Date('2026-04-02T10:00:00.000Z'));
+
+    expect(
+      calculateNextRunAt({
+        frequency: 'monthly',
+        time: '09:00',
+        dayOfMonth: 15,
+        timezone: 'UTC',
+      })?.toISOString(),
+    ).toBe('2026-04-15T09:00:00.000Z');
+
+    expect(
+      calculateNextRunAt({
+        frequency: 'yearly',
+        time: '09:00',
+        dayOfMonth: 1,
+        timezone: 'UTC',
+      })?.toISOString(),
+    ).toBe('2027-04-01T09:00:00.000Z');
+  });
+
+  it('falls back to the next Monday path when weekday lookup never resolves', () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-04-02T10:00:00.000Z'));
+
+    const realDateTimeFormat = Intl.DateTimeFormat;
+    const spy = jest
+      .spyOn(Intl, 'DateTimeFormat')
+      .mockImplementation(
+        (locale: string, options?: Intl.DateTimeFormatOptions) => {
+          const formatter = new realDateTimeFormat(
+            locale,
+            options,
+          ) as Intl.DateTimeFormat & {
+            formatToParts: (date?: Date | number) => Intl.DateTimeFormatPart[];
+          };
+
+          if (options?.weekday) {
+            const originalFormatToParts =
+              formatter.formatToParts.bind(formatter);
+            formatter.formatToParts = (date?: Date | number) =>
+              originalFormatToParts(date).map((part) =>
+                part.type === 'weekday' ? { ...part, value: 'Sat' } : part,
+              );
+          }
+
+          return formatter;
+        },
+      ) as typeof Intl.DateTimeFormat;
+
+    try {
+      expect(
+        calculateNextRunAt({
+          frequency: 'weekdays',
+          time: '09:00',
+          timezone: 'UTC',
+        })?.toISOString(),
+      ).toBe('2026-04-04T09:00:00.000Z');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('treats unknown weekday labels as Sunday when resolving the next weekday', () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-04-02T10:00:00.000Z'));
+
+    const realDateTimeFormat = Intl.DateTimeFormat;
+    const spy = jest
+      .spyOn(Intl, 'DateTimeFormat')
+      .mockImplementation(
+        (locale: string, options?: Intl.DateTimeFormatOptions) => {
+          const formatter = new realDateTimeFormat(
+            locale,
+            options,
+          ) as Intl.DateTimeFormat & {
+            formatToParts: (date?: Date | number) => Intl.DateTimeFormatPart[];
+          };
+
+          if (options?.weekday) {
+            const originalFormatToParts =
+              formatter.formatToParts.bind(formatter);
+            formatter.formatToParts = (date?: Date | number) =>
+              originalFormatToParts(date).map((part) =>
+                part.type === 'weekday' ? { ...part, value: 'Funday' } : part,
+              );
+          }
+
+          return formatter;
+        },
+      ) as typeof Intl.DateTimeFormat;
+
+    try {
+      expect(
+        calculateNextRunAt({
+          frequency: 'weekdays',
+          time: '09:00',
+          timezone: 'UTC',
+        })?.toISOString(),
+      ).toBe('2026-04-03T09:00:00.000Z');
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });
 
 describe('SchedulerService', () => {
@@ -299,6 +483,25 @@ describe('SchedulerService', () => {
     });
   });
 
+  it('returns null when a trigger has no config', async () => {
+    const trigger = {
+      id: 'trigger-no-config',
+      taskId: 'task-no-config',
+      type: 'schedule',
+      config: null,
+      nextRunAt: null,
+    };
+    selectChain.where.mockResolvedValueOnce([{ trigger, taskStatus: 'idle' }]);
+
+    await (service as any).doScan();
+
+    expect(updateChain.set).toHaveBeenCalledWith({
+      nextRunAt: null,
+      lastRunAt: new Date('2026-04-02T10:00:00.000Z'),
+      updatedAt: new Date('2026-04-02T10:00:00.000Z'),
+    });
+  });
+
   it('continues scanning when one trigger execution fails', async () => {
     const triggerOne = {
       id: 'trigger-1',
@@ -327,5 +530,103 @@ describe('SchedulerService', () => {
     expect(executor.triggerExecution).toHaveBeenCalledTimes(2);
     expect(updateChain.set).toHaveBeenCalledTimes(1);
     expect(updateChain.where).toHaveBeenCalledWith(expect.anything());
+  });
+
+  it('supports all interval units when persisting the next scan time', async () => {
+    const triggerDefinitions = [
+      {
+        id: 'trigger-minutes',
+        taskId: 'task-minutes',
+        type: 'interval',
+        config: { every: 1, unit: 'minutes' },
+      },
+      {
+        id: 'trigger-hours',
+        taskId: 'task-hours',
+        type: 'interval',
+        config: { every: 2, unit: 'hours' },
+      },
+      {
+        id: 'trigger-days',
+        taskId: 'task-days',
+        type: 'interval',
+        config: { every: 3, unit: 'days' },
+      },
+      {
+        id: 'trigger-weeks',
+        taskId: 'task-weeks',
+        type: 'interval',
+        config: { every: 1, unit: 'weeks' },
+      },
+      {
+        id: 'trigger-months',
+        taskId: 'task-months',
+        type: 'interval',
+        config: { every: 1, unit: 'months' },
+      },
+      {
+        id: 'trigger-years',
+        taskId: 'task-years',
+        type: 'interval',
+        config: { every: 1, unit: 'years' },
+      },
+      {
+        id: 'trigger-default',
+        taskId: 'task-default',
+        type: 'interval',
+        config: { every: 2, unit: 'fortnights' },
+      },
+    ];
+
+    selectChain.where.mockResolvedValueOnce(
+      triggerDefinitions.map((trigger) => ({
+        trigger: {
+          ...trigger,
+          nextRunAt: null,
+        },
+        taskStatus: 'idle',
+      })),
+    );
+
+    await (service as any).doScan();
+
+    expect(executor.triggerExecution).toHaveBeenCalledTimes(
+      triggerDefinitions.length,
+    );
+    expect(updateChain.set).toHaveBeenNthCalledWith(1, {
+      nextRunAt: new Date('2026-04-02T10:01:00.000Z'),
+      lastRunAt: new Date('2026-04-02T10:00:00.000Z'),
+      updatedAt: new Date('2026-04-02T10:00:00.000Z'),
+    });
+    expect(updateChain.set).toHaveBeenNthCalledWith(2, {
+      nextRunAt: new Date('2026-04-02T12:00:00.000Z'),
+      lastRunAt: new Date('2026-04-02T10:00:00.000Z'),
+      updatedAt: new Date('2026-04-02T10:00:00.000Z'),
+    });
+    expect(updateChain.set).toHaveBeenNthCalledWith(3, {
+      nextRunAt: new Date('2026-04-05T10:00:00.000Z'),
+      lastRunAt: new Date('2026-04-02T10:00:00.000Z'),
+      updatedAt: new Date('2026-04-02T10:00:00.000Z'),
+    });
+    expect(updateChain.set).toHaveBeenNthCalledWith(4, {
+      nextRunAt: new Date('2026-04-09T10:00:00.000Z'),
+      lastRunAt: new Date('2026-04-02T10:00:00.000Z'),
+      updatedAt: new Date('2026-04-02T10:00:00.000Z'),
+    });
+    expect(updateChain.set).toHaveBeenNthCalledWith(5, {
+      nextRunAt: new Date('2026-05-02T10:00:00.000Z'),
+      lastRunAt: new Date('2026-04-02T10:00:00.000Z'),
+      updatedAt: new Date('2026-04-02T10:00:00.000Z'),
+    });
+    expect(updateChain.set).toHaveBeenNthCalledWith(6, {
+      nextRunAt: new Date('2027-04-02T10:00:00.000Z'),
+      lastRunAt: new Date('2026-04-02T10:00:00.000Z'),
+      updatedAt: new Date('2026-04-02T10:00:00.000Z'),
+    });
+    expect(updateChain.set).toHaveBeenNthCalledWith(7, {
+      nextRunAt: new Date('2026-04-04T10:00:00.000Z'),
+      lastRunAt: new Date('2026-04-02T10:00:00.000Z'),
+      updatedAt: new Date('2026-04-02T10:00:00.000Z'),
+    });
   });
 });

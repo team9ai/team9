@@ -310,6 +310,189 @@ describe('ChannelsService', () => {
     });
   });
 
+  describe('findById', () => {
+    it('returns a channel through the redis-backed lookup', async () => {
+      const redisService = (service as any).redis;
+      const channel = {
+        id: 'channel-1',
+        tenantId: 'tenant-1',
+        name: 'general',
+        description: null,
+        type: 'public',
+        avatarUrl: null,
+        createdBy: 'user-1',
+        sectionId: null,
+        order: 0,
+        isArchived: false,
+        isActivated: true,
+        snapshot: null,
+        createdAt: new Date('2026-03-22T00:00:00Z'),
+        updatedAt: new Date('2026-03-22T00:00:00Z'),
+      };
+
+      redisService.getOrSet = jest.fn<any>(async (_key, loader, ttl) => {
+        expect(ttl).toBe(120);
+        return loader();
+      });
+      db.limit.mockResolvedValueOnce([channel] as any);
+
+      await expect(service.findById('channel-1')).resolves.toEqual(channel);
+      expect(redisService.getOrSet).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns null when the channel does not exist', async () => {
+      const redisService = (service as any).redis;
+      redisService.getOrSet = jest.fn<any>(async (_key, loader) => loader());
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(service.findById('missing-channel')).resolves.toBeNull();
+    });
+  });
+
+  describe('findByNameAndTenant', () => {
+    it('returns the first matching channel for the given tenant', async () => {
+      const channel = {
+        id: 'channel-1',
+        tenantId: 'tenant-1',
+        name: 'general',
+        description: 'team chat',
+        type: 'public',
+        avatarUrl: null,
+        createdBy: 'user-1',
+        sectionId: null,
+        order: 0,
+        isArchived: false,
+        isActivated: true,
+        snapshot: null,
+        createdAt: new Date('2026-03-22T00:00:00Z'),
+        updatedAt: new Date('2026-03-22T00:00:00Z'),
+      };
+
+      db.limit.mockResolvedValueOnce([channel] as any);
+
+      await expect(
+        service.findByNameAndTenant('general', 'tenant-1'),
+      ).resolves.toEqual(channel);
+    });
+  });
+
+  describe('getChannelMemberIds', () => {
+    it('returns active member user ids', async () => {
+      db.where.mockResolvedValueOnce([
+        { userId: 'user-1' },
+        { userId: 'user-2' },
+      ] as any);
+
+      await expect(service.getChannelMemberIds('channel-1')).resolves.toEqual([
+        'user-1',
+        'user-2',
+      ]);
+    });
+  });
+
+  describe('getPublicChannels', () => {
+    it('returns public channels with membership metadata', async () => {
+      const rows = [
+        {
+          id: 'channel-1',
+          tenantId: 'tenant-1',
+          name: 'general',
+          description: null,
+          type: 'public',
+          avatarUrl: null,
+          createdBy: 'user-1',
+          sectionId: null,
+          order: 0,
+          isArchived: false,
+          isActivated: true,
+          snapshot: null,
+          createdAt: new Date('2026-03-23T00:00:00Z'),
+          updatedAt: new Date('2026-03-23T00:00:00Z'),
+          memberCount: 3,
+          isMember: true,
+        },
+      ];
+
+      db.where.mockResolvedValueOnce(rows as any);
+
+      await expect(
+        service.getPublicChannels('tenant-1', 'user-1'),
+      ).resolves.toEqual(rows);
+    });
+  });
+
+  describe('isBot', () => {
+    it('returns true for bot users and false for human users', async () => {
+      db.limit.mockResolvedValueOnce([{ userType: 'bot' }] as any);
+      await expect(service.isBot('bot-user')).resolves.toBe(true);
+
+      db.limit.mockResolvedValueOnce([{ userType: 'human' }] as any);
+      await expect(service.isBot('human-user')).resolves.toBe(false);
+    });
+  });
+
+  describe('update', () => {
+    it('updates a channel for authorized users and invalidates the cache', async () => {
+      const redisService = (service as any).redis;
+      const updatedChannel = {
+        id: 'channel-1',
+        tenantId: 'tenant-1',
+        name: 'renamed',
+        description: 'updated',
+        type: 'public',
+        avatarUrl: null,
+        createdBy: 'user-1',
+        sectionId: null,
+        order: 0,
+        isArchived: false,
+        isActivated: true,
+        snapshot: null,
+        createdAt: new Date('2026-03-24T00:00:00Z'),
+        updatedAt: new Date('2026-03-24T00:00:00Z'),
+      };
+
+      jest.spyOn(service, 'getMemberRole').mockResolvedValue('admin');
+      db.returning.mockResolvedValueOnce([updatedChannel] as any);
+
+      await expect(
+        service.update(
+          'channel-1',
+          { name: 'renamed', description: 'updated' } as any,
+          'user-1',
+        ),
+      ).resolves.toEqual(updatedChannel);
+
+      expect(db.update).toHaveBeenCalled();
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'renamed',
+          description: 'updated',
+          updatedAt: expect.any(Date),
+        }),
+      );
+      expect(redisService.invalidate).toHaveBeenCalled();
+    });
+
+    it('rejects updates from non-admin members', async () => {
+      jest.spyOn(service, 'getMemberRole').mockResolvedValue('member');
+
+      await expect(
+        service.update('channel-1', { name: 'renamed' } as any, 'user-1'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('throws when the channel no longer exists', async () => {
+      jest.spyOn(service, 'getMemberRole').mockResolvedValue('owner');
+      db.returning.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.update('channel-1', { name: 'renamed' } as any, 'user-1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
   // ── deactivateChannel ──────────────────────────────────────────────
 
   describe('deactivateChannel', () => {
@@ -758,6 +941,28 @@ describe('ChannelsService', () => {
       expect(memberCacheService.invalidate).not.toHaveBeenCalled();
       expect(redisService.invalidate).not.toHaveBeenCalled();
     });
+
+    it('inserts a new member when no record exists yet', async () => {
+      const redisService = (service as any).redis;
+      const memberCacheService = (service as any).channelMemberCacheService;
+
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.addMember('channel-1', 'user-1', 'member'),
+      ).resolves.toBeUndefined();
+
+      expect(db.insert).toHaveBeenCalled();
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channelId: 'channel-1',
+          userId: 'user-1',
+          role: 'member',
+        }),
+      );
+      expect(memberCacheService.invalidate).toHaveBeenCalledWith('channel-1');
+      expect(redisService.invalidate).toHaveBeenCalled();
+    });
   });
 
   describe('removeMember', () => {
@@ -1046,6 +1251,26 @@ describe('ChannelsService', () => {
 
       expect(db.delete).not.toHaveBeenCalled();
       expect(redisService.invalidate).not.toHaveBeenCalled();
+    });
+
+    it('deletes a private channel for the owner and invalidates cache', async () => {
+      const redisService = (service as any).redis;
+
+      jest.spyOn(service, 'getMemberRole').mockResolvedValue('owner');
+      jest.spyOn(service, 'findById').mockResolvedValue({
+        id: 'channel-1',
+        name: 'expected-name',
+        type: 'private',
+        tenantId: 'tenant-1',
+      } as any);
+      db.where.mockResolvedValueOnce(undefined as any);
+
+      await expect(
+        service.deleteChannel('channel-1', 'owner-1'),
+      ).resolves.toBeUndefined();
+
+      expect(db.delete).toHaveBeenCalled();
+      expect(redisService.invalidate).toHaveBeenCalled();
     });
   });
 

@@ -279,6 +279,135 @@ describe('MessageService', () => {
     expect(routerService.routeMessage).not.toHaveBeenCalled();
   });
 
+  it.each([
+    {
+      type: 'file',
+      payload: { fileName: 'spec.pdf' },
+      expectedContent: 'spec.pdf',
+    },
+    {
+      type: 'image',
+      payload: { imageUrl: 'https://cdn.example/image.png' },
+      expectedContent: 'https://cdn.example/image.png',
+    },
+    {
+      type: 'system',
+      payload: { content: 'system maintenance' },
+      expectedContent: 'system maintenance',
+    },
+  ])(
+    'stores $type payloads using the type-specific content field',
+    async ({ type, payload, expectedContent }) => {
+      const { service, db, redisService } = makeHarness();
+      const memberQuery = makeSelectChain();
+      const messageInsert = makeInsertChain();
+
+      redisService.get.mockResolvedValueOnce(null);
+      db.select.mockReturnValueOnce(memberQuery);
+      memberQuery.where.mockResolvedValueOnce([{ userId: 'user-1' }]);
+      db.insert.mockReturnValue(messageInsert);
+
+      const response = await service.processUpstreamMessage({
+        gatewayId: 'gateway-1',
+        userId: 'user-1',
+        socketId: 'socket-1',
+        receivedAt: 1710000000000,
+        message: {
+          msgId: `client-msg-${type}`,
+          clientMsgId: `client-msg-${type}`,
+          senderId: 'user-1',
+          targetType: 'channel',
+          targetId: 'channel-1',
+          type,
+          payload,
+          timestamp: 1710000000000,
+        },
+      } as never);
+
+      expect(response).toEqual({
+        msgId: expect.any(String),
+        clientMsgId: `client-msg-${type}`,
+        status: 'ok',
+        seqId: '7',
+        serverTime: 1710000000000,
+      });
+      expect(messageInsert.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expectedContent,
+          type,
+        }),
+      );
+    },
+  );
+
+  it.each([
+    {
+      title:
+        'uses the direct parent as rootId when the parent is a root message',
+      parentRow: { parentId: null, rootId: null },
+      expectedRootId: 'reply-1',
+    },
+    {
+      title: 'reuses the thread rootId when the parent is already a reply',
+      parentRow: { parentId: 'reply-1', rootId: 'thread-root-1' },
+      expectedRootId: 'thread-root-1',
+    },
+    {
+      title:
+        'falls back to the immediate parent when the parent record is missing',
+      parentRow: null,
+      expectedRootId: 'reply-1',
+    },
+  ])('$title', async ({ parentRow, expectedRootId }) => {
+    const { service, db, redisService } = makeHarness();
+    const memberQuery = makeSelectChain();
+    const parentQuery = makeSelectChain();
+    const messageInsert = makeInsertChain();
+
+    redisService.get.mockResolvedValueOnce(null);
+    db.select.mockReturnValueOnce(parentQuery).mockReturnValueOnce(memberQuery);
+    parentQuery.limit.mockResolvedValueOnce(parentRow ? [parentRow] : []);
+    memberQuery.where.mockResolvedValueOnce([{ userId: 'user-1' }]);
+    db.insert.mockReturnValue(messageInsert);
+
+    const response = await service.processUpstreamMessage({
+      gatewayId: 'gateway-1',
+      userId: 'user-1',
+      socketId: 'socket-1',
+      receivedAt: 1710000000000,
+      message: {
+        msgId: 'client-msg-reply',
+        clientMsgId: 'client-msg-reply',
+        senderId: 'user-1',
+        targetType: 'channel',
+        targetId: 'channel-1',
+        type: 'custom',
+        payload: {
+          content: 'fallback reply body',
+          parentId: 'reply-1',
+        },
+        timestamp: 1710000000000,
+      },
+    } as never);
+
+    expect(response).toEqual({
+      msgId: expect.any(String),
+      clientMsgId: 'client-msg-reply',
+      status: 'ok',
+      seqId: '7',
+      serverTime: 1710000000000,
+    });
+    expect(parentQuery.limit).toHaveBeenCalledWith(1);
+    expect(messageInsert.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: 'fallback reply body',
+        parentId: 'reply-1',
+        rootId: expectedRootId,
+        type: 'custom',
+      }),
+    );
+  });
+
   it('short-circuits duplicate HTTP creates before opening a transaction', async () => {
     const { service, db, redisService, sequenceService } = makeHarness();
 
@@ -304,6 +433,25 @@ describe('MessageService', () => {
     expect(sequenceService.generateChannelSeq).not.toHaveBeenCalled();
     expect(db.transaction).not.toHaveBeenCalled();
     expect(redisService.set).not.toHaveBeenCalled();
+  });
+
+  it('logs and rethrows HTTP persistence failures', async () => {
+    const { service, db, sequenceService } = makeHarness();
+
+    sequenceService.generateChannelSeq.mockResolvedValueOnce(19n);
+    db.transaction.mockRejectedValueOnce(new Error('tx failed'));
+
+    await expect(
+      service.createAndPersist({
+        clientMsgId: 'client-http-err',
+        channelId: 'channel-1',
+        senderId: 'user-1',
+        content: 'boom',
+        type: 'text',
+      }),
+    ).rejects.toThrow('tx failed');
+
+    expect(db.transaction).toHaveBeenCalledTimes(1);
   });
 
   it.each([

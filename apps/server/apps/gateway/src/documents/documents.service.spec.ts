@@ -493,6 +493,176 @@ describe('DocumentsService', () => {
   });
 
   // ────────────────────────────────────────────────────────────────
+  // read paths — getById / versions / suggestions
+  // ────────────────────────────────────────────────────────────────
+
+  describe('read paths', () => {
+    const now = new Date('2026-04-02T12:00:00.000Z');
+    const ownerDoc = makeDoc([{ identity: USER_ALICE, role: 'owner' }]);
+    const currentVersion = {
+      id: 'ver-1',
+      documentId: ownerDoc.id,
+      versionIndex: 1,
+      content: 'hello world',
+      summary: 'Initial version',
+      updatedBy: USER_ALICE,
+      createdAt: now,
+    };
+    const suggestionRow = {
+      id: 'sug-1',
+      documentId: ownerDoc.id,
+      fromVersionId: currentVersion.id,
+      suggestedBy: USER_BOB,
+      data: { type: 'replace' as const, content: 'updated' },
+      summary: 'Refine wording',
+      status: 'approved' as const,
+      reviewedBy: USER_ALICE,
+      reviewedAt: now,
+      resultVersionId: 'ver-2',
+      createdAt: now,
+    };
+
+    it('should return a document with its populated current version', async () => {
+      db.limit
+        .mockResolvedValueOnce([
+          {
+            ...ownerDoc,
+            currentVersionId: currentVersion.id,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ] as any)
+        .mockResolvedValueOnce([currentVersion] as any);
+
+      await expect(service.getById(ownerDoc.id)).resolves.toEqual({
+        id: ownerDoc.id,
+        tenantId: ownerDoc.tenantId,
+        documentType: ownerDoc.documentType,
+        title: ownerDoc.title,
+        privileges: ownerDoc.privileges,
+        createdBy: ownerDoc.createdBy,
+        currentVersion: {
+          id: currentVersion.id,
+          versionIndex: currentVersion.versionIndex,
+          content: currentVersion.content,
+          summary: currentVersion.summary,
+          updatedBy: currentVersion.updatedBy,
+          createdAt: currentVersion.createdAt,
+        },
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    it('should reject getById when the document is missing', async () => {
+      db.limit.mockResolvedValueOnce([]);
+
+      await expect(service.getById('missing-doc')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should return all versions in descending order', async () => {
+      db.limit.mockResolvedValueOnce([ownerDoc] as any);
+      db.orderBy.mockResolvedValueOnce([
+        currentVersion,
+        {
+          ...currentVersion,
+          id: 'ver-0',
+          versionIndex: 0,
+          content: 'draft',
+        },
+      ] as any);
+
+      await expect(service.getVersions(ownerDoc.id)).resolves.toEqual([
+        {
+          id: currentVersion.id,
+          documentId: currentVersion.documentId,
+          versionIndex: currentVersion.versionIndex,
+          content: currentVersion.content,
+          summary: currentVersion.summary,
+          updatedBy: currentVersion.updatedBy,
+          createdAt: currentVersion.createdAt,
+        },
+        {
+          id: 'ver-0',
+          documentId: currentVersion.documentId,
+          versionIndex: 0,
+          content: 'draft',
+          summary: currentVersion.summary,
+          updatedBy: currentVersion.updatedBy,
+          createdAt: currentVersion.createdAt,
+        },
+      ]);
+    });
+
+    it('should return a specific version by index', async () => {
+      db.limit.mockResolvedValueOnce([currentVersion] as any);
+
+      await expect(service.getVersion(ownerDoc.id, 1)).resolves.toEqual({
+        id: currentVersion.id,
+        documentId: currentVersion.documentId,
+        versionIndex: currentVersion.versionIndex,
+        content: currentVersion.content,
+        summary: currentVersion.summary,
+        updatedBy: currentVersion.updatedBy,
+        createdAt: currentVersion.createdAt,
+      });
+    });
+
+    it('should reject getVersion when the requested version is missing', async () => {
+      db.limit.mockResolvedValueOnce([]);
+
+      await expect(service.getVersion(ownerDoc.id, 99)).rejects.toThrow(
+        `Version 99 not found for document ${ownerDoc.id}`,
+      );
+    });
+
+    it('should reject suggestions for documents without a current version', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...ownerDoc,
+          currentVersionId: null,
+        },
+      ] as any);
+
+      await expect(
+        service.submitSuggestion(
+          ownerDoc.id,
+          {
+            data: { type: 'replace', content: 'updated' },
+            summary: 'Needs a base version',
+          },
+          USER_ALICE,
+        ),
+      ).rejects.toThrow('Document has no versions');
+    });
+
+    it('should filter suggestions by status and map them to the public response shape', async () => {
+      db.limit.mockResolvedValueOnce([ownerDoc] as any);
+      db.orderBy.mockResolvedValueOnce([suggestionRow] as any);
+
+      await expect(
+        service.getSuggestions(ownerDoc.id, 'approved'),
+      ).resolves.toEqual([
+        {
+          id: suggestionRow.id,
+          documentId: suggestionRow.documentId,
+          fromVersionId: suggestionRow.fromVersionId,
+          suggestedBy: suggestionRow.suggestedBy,
+          data: suggestionRow.data,
+          summary: suggestionRow.summary,
+          status: suggestionRow.status,
+          reviewedBy: suggestionRow.reviewedBy,
+          reviewedAt: suggestionRow.reviewedAt,
+          resultVersionId: suggestionRow.resultVersionId,
+          createdAt: suggestionRow.createdAt,
+        },
+      ]);
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────
   // getSuggestionWithDiff() — diff generation
   // ────────────────────────────────────────────────────────────────
 

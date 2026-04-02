@@ -65,14 +65,18 @@ describe('TasksService — TaskCast integration', () => {
   let db: ReturnType<typeof mockDb>;
   let taskCastService: { transitionStatus: MockFn; publishEvent: MockFn };
   let amqpConnection: { publish: MockFn };
-  let documentsService: object;
-  let triggersService: object;
+  let documentsService: { create: MockFn };
+  let triggersService: { createBatch: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
     amqpConnection = { publish: jest.fn<any>().mockResolvedValue(undefined) };
-    documentsService = {};
-    triggersService = {};
+    documentsService = {
+      create: jest.fn<any>().mockResolvedValue({ id: 'doc-1' }),
+    };
+    triggersService = {
+      createBatch: jest.fn<any>().mockResolvedValue(undefined),
+    };
     taskCastService = {
       transitionStatus: jest.fn<any>().mockResolvedValue(undefined),
       publishEvent: jest.fn<any>().mockResolvedValue(undefined),
@@ -190,6 +194,172 @@ describe('TasksService — TaskCast integration', () => {
 
       expect(db.orderBy).toHaveBeenCalledTimes(1);
     });
+
+    it('returns null currentExecution when the task points to a missing execution', async () => {
+      const task = {
+        ...BASE_TASK,
+        currentExecutionId: 'exec-missing',
+      };
+
+      db.limit.mockResolvedValueOnce([task] as any);
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(service.getById('task-1', 'tenant-1')).resolves.toEqual({
+        ...task,
+        currentExecution: null,
+      });
+
+      expect(db.orderBy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getExecutions', () => {
+    it('returns executions ordered by newest first', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+        },
+      ] as any);
+
+      const executions = [
+        {
+          id: 'exec-2',
+          taskId: 'task-1',
+          createdAt: new Date('2024-01-02T00:00:00.000Z'),
+        },
+        {
+          id: 'exec-1',
+          taskId: 'task-1',
+          createdAt: new Date('2024-01-01T00:00:00.000Z'),
+        },
+      ];
+      db.orderBy.mockResolvedValueOnce(executions as any);
+
+      await expect(
+        service.getExecutions('task-1', 'tenant-1'),
+      ).resolves.toEqual(executions);
+
+      expect(db.orderBy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('getExecution', () => {
+    it('returns a matching execution when it exists for the task', async () => {
+      const steps = [
+        {
+          id: 'step-1',
+          executionId: 'exec-1',
+          orderIndex: 1,
+        },
+      ];
+      const deliverables = [
+        {
+          id: 'del-1',
+          taskId: 'task-1',
+          executionId: 'exec-1',
+        },
+      ];
+      const interventions = [
+        {
+          id: 'int-1',
+          taskId: 'task-1',
+          executionId: 'exec-1',
+        },
+      ];
+      const execution = {
+        id: 'exec-1',
+        taskId: 'task-1',
+        status: 'completed',
+      };
+
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+        },
+      ] as any);
+      db.limit.mockResolvedValueOnce([execution] as any);
+      db.where
+        .mockImplementationOnce(() => db as any)
+        .mockImplementationOnce(() => db as any)
+        .mockImplementationOnce(() => db as any)
+        .mockResolvedValueOnce(deliverables as any)
+        .mockResolvedValueOnce(interventions as any);
+      db.orderBy.mockResolvedValueOnce(steps as any);
+
+      await expect(
+        service.getExecution('task-1', 'exec-1', 'tenant-1'),
+      ).resolves.toEqual({
+        ...execution,
+        steps,
+        deliverables,
+        interventions,
+      });
+    });
+
+    it('throws when the execution does not exist for the task', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+        },
+      ] as any);
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.getExecution('task-1', 'exec-missing', 'tenant-1'),
+      ).rejects.toThrow('Execution not found');
+    });
+  });
+
+  describe('getDeliverables', () => {
+    it('returns deliverables for the requested execution', async () => {
+      const deliverables = [
+        {
+          id: 'del-1',
+          taskId: 'task-1',
+          executionId: 'exec-1',
+          createdAt: new Date('2024-01-01T12:00:00.000Z'),
+        },
+      ];
+
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+        },
+      ] as any);
+      db.orderBy.mockResolvedValueOnce(deliverables as any);
+
+      await expect(
+        service.getDeliverables('task-1', 'exec-1', 'tenant-1'),
+      ).resolves.toEqual(deliverables);
+
+      expect(db.orderBy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('getInterventions', () => {
+    it('returns pending interventions ordered by newest first', async () => {
+      const interventions = [
+        {
+          id: 'int-1',
+          taskId: 'task-1',
+          status: 'pending',
+          createdAt: new Date('2024-01-01T13:00:00.000Z'),
+        },
+      ];
+
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+        },
+      ] as any);
+      db.orderBy.mockResolvedValueOnce(interventions as any);
+
+      await expect(
+        service.getInterventions('task-1', 'tenant-1'),
+      ).resolves.toEqual(interventions);
+
+      expect(db.orderBy).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('getExecutionEntries', () => {
@@ -266,6 +436,162 @@ describe('TasksService — TaskCast integration', () => {
     });
   });
 
+  describe('create', () => {
+    it('creates a linked document and skips trigger creation when none are provided', async () => {
+      const createdTask = {
+        id: 'task-new',
+        tenantId: 'tenant-1',
+        creatorId: 'user-1',
+        title: 'New task',
+        documentId: 'doc-new',
+      };
+
+      documentsService.create.mockResolvedValueOnce({ id: 'doc-new' } as any);
+      db.returning.mockResolvedValueOnce([createdTask] as any);
+
+      await expect(
+        service.create(
+          {
+            title: 'New task',
+            botId: 'bot-1',
+            description: 'plan it',
+          } as never,
+          'user-1',
+          'tenant-1',
+        ),
+      ).resolves.toEqual(createdTask);
+
+      expect(documentsService.create).toHaveBeenCalledWith(
+        { documentType: 'task', content: '', title: 'New task' },
+        { type: 'user', id: 'user-1' },
+        'tenant-1',
+      );
+      expect(triggersService.createBatch).not.toHaveBeenCalled();
+    });
+
+    it('creates triggers after inserting the task when triggers are provided', async () => {
+      const createdTask = {
+        id: 'task-new',
+        tenantId: 'tenant-1',
+        creatorId: 'user-1',
+        title: 'New task',
+        documentId: 'doc-new',
+      };
+      const triggers = [{ type: 'manual-trigger' }];
+
+      documentsService.create.mockResolvedValueOnce({ id: 'doc-new' } as any);
+      db.returning.mockResolvedValueOnce([createdTask] as any);
+
+      await service.create(
+        {
+          title: 'New task',
+          botId: 'bot-1',
+          triggers,
+        } as never,
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(triggersService.createBatch).toHaveBeenCalledWith(
+        expect.any(String),
+        triggers,
+        'tenant-1',
+      );
+    });
+  });
+
+  describe('update', () => {
+    it('rejects updates from non-creators before writing to the database', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+          creatorId: 'user-2',
+        },
+      ] as any);
+
+      await expect(
+        service.update(
+          'task-1',
+          { title: 'Updated title' } as never,
+          'user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow('You do not have permission to perform this action');
+
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('persists provided fields when the creator updates the task', async () => {
+      const task = {
+        ...BASE_TASK,
+        creatorId: 'user-1',
+      };
+      const updatedTask = {
+        ...task,
+        title: 'Updated title',
+        description: 'Updated description',
+      };
+
+      db.limit.mockResolvedValueOnce([task] as any);
+      db.returning.mockResolvedValueOnce([updatedTask] as any);
+
+      await expect(
+        service.update(
+          'task-1',
+          {
+            title: 'Updated title',
+            description: 'Updated description',
+          } as never,
+          'user-1',
+          'tenant-1',
+        ),
+      ).resolves.toEqual(updatedTask);
+
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Updated title',
+          description: 'Updated description',
+          updatedAt: expect.any(Date),
+        }),
+      );
+    });
+  });
+
+  describe('delete', () => {
+    it('rejects deleting active tasks until they are stopped', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+          status: 'pending_action' as const,
+        },
+      ] as any);
+
+      await expect(
+        service.delete('task-1', 'user-1', 'tenant-1'),
+      ).rejects.toThrow(
+        'Cannot delete task in pending_action status. Stop the task first.',
+      );
+
+      expect(db.delete).not.toHaveBeenCalled();
+    });
+
+    it('deletes inactive tasks owned by the requesting user', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+          creatorId: 'user-1',
+          status: 'completed' as const,
+        },
+      ] as any);
+
+      await expect(
+        service.delete('task-1', 'user-1', 'tenant-1'),
+      ).resolves.toEqual({ success: true });
+
+      expect(db.delete).toHaveBeenCalledTimes(1);
+    });
+  });
+
   // ── pause ─────────────────────────────────────────────────────────
 
   describe('start', () => {
@@ -314,6 +640,24 @@ describe('TasksService — TaskCast integration', () => {
           message: 'kick off',
         } as never),
       ).rejects.toThrow('Cannot start task without an assigned bot');
+
+      expect(amqpConnection.publish).not.toHaveBeenCalled();
+    });
+
+    it('rejects start when the task is not upcoming', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+          status: 'in_progress' as const,
+          botId: 'bot-1',
+        },
+      ] as any);
+
+      await expect(
+        service.start('task-1', 'user-1', 'tenant-1', {
+          message: 'kick off',
+        } as never),
+      ).rejects.toThrow('Cannot start task in in_progress status');
 
       expect(amqpConnection.publish).not.toHaveBeenCalled();
     });
@@ -566,6 +910,24 @@ describe('TasksService — TaskCast integration', () => {
       expect(amqpConnection.publish).not.toHaveBeenCalled();
       expect(taskCastService.transitionStatus).not.toHaveBeenCalled();
     });
+
+    it('bubbles up publish failures before syncing TaskCast', async () => {
+      const task = {
+        ...BASE_TASK,
+        status: 'in_progress' as const,
+        currentExecutionId: 'exec-1',
+      };
+      db.limit.mockResolvedValueOnce([task] as any);
+      amqpConnection.publish.mockRejectedValueOnce(new Error('broker down'));
+
+      await expect(
+        service.stop('task-1', 'user-1', 'tenant-1', {
+          reason: 'manual stop',
+        }),
+      ).rejects.toThrow('broker down');
+
+      expect(taskCastService.transitionStatus).not.toHaveBeenCalled();
+    });
   });
 
   describe('restart', () => {
@@ -594,6 +956,23 @@ describe('TasksService — TaskCast integration', () => {
         }),
         { persistent: true },
       );
+    });
+
+    it('rejects when task restart is requested for a non-terminal task', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+          status: 'in_progress' as const,
+        },
+      ] as any);
+
+      await expect(
+        service.restart('task-1', 'user-1', 'tenant-1', {
+          notes: 'retry with fixes',
+        }),
+      ).rejects.toThrow('Cannot restart task in in_progress status');
+
+      expect(amqpConnection.publish).not.toHaveBeenCalled();
     });
   });
 
@@ -689,6 +1068,35 @@ describe('TasksService — TaskCast integration', () => {
 
       expect(amqpConnection.publish).not.toHaveBeenCalled();
     });
+
+    it('rejects retry when the task has no assigned bot', async () => {
+      db.limit
+        .mockResolvedValueOnce([
+          {
+            ...BASE_TASK,
+            status: 'failed' as const,
+            botId: null,
+          },
+        ] as any)
+        .mockResolvedValueOnce([
+          {
+            id: 'exec-source',
+            taskId: 'task-1',
+            status: 'completed',
+          },
+        ] as any);
+
+      await expect(
+        service.retry(
+          'task-1',
+          { executionId: 'exec-source', notes: 'try again' } as never,
+          'user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow('Cannot retry task without an assigned bot');
+
+      expect(amqpConnection.publish).not.toHaveBeenCalled();
+    });
   });
 
   // ── resolveIntervention ───────────────────────────────────────────
@@ -715,22 +1123,22 @@ describe('TasksService — TaskCast integration', () => {
     };
 
     function setupResolveInterventionMocks({
-      interventionRow = intervention,
-    }: {
-      interventionRow?: typeof intervention | null;
-    } = {}) {
-      // task has pending_action status so that validateStatusTransition is satisfied
-      // (resolveIntervention doesn't call validateStatusTransition, so any status works)
-      const task = {
+      taskRow = {
         ...BASE_TASK,
         status: 'pending_action' as const,
         currentExecutionId: 'exec-1',
-      };
-
+      },
+      interventionRow = intervention,
+    }: {
+      taskRow?: typeof BASE_TASK | null;
+      interventionRow?: typeof intervention | null;
+    } = {}) {
       let limitCallCount = 0;
       db.limit.mockImplementation((() => {
         limitCallCount++;
-        if (limitCallCount === 1) return Promise.resolve([task]);
+        if (limitCallCount === 1) {
+          return Promise.resolve(taskRow ? [taskRow] : []);
+        }
         if (limitCallCount === 2) {
           return Promise.resolve(interventionRow ? [interventionRow] : []);
         }
@@ -838,6 +1246,20 @@ describe('TasksService — TaskCast integration', () => {
         expectedTcId,
         expect.any(Object),
       );
+    });
+
+    it('rejects when the task cannot be found', async () => {
+      setupResolveInterventionMocks({ taskRow: null });
+
+      await expect(
+        service.resolveIntervention('task-1', 'int-1', 'user-1', 'tenant-1', {
+          action: 'approve',
+        }),
+      ).rejects.toThrow('Task not found');
+
+      expect(amqpConnection.publish).not.toHaveBeenCalled();
+      expect(taskCastService.transitionStatus).not.toHaveBeenCalled();
+      expect(taskCastService.publishEvent).not.toHaveBeenCalled();
     });
 
     it('passes the resolved intervention data in the publishEvent payload', async () => {

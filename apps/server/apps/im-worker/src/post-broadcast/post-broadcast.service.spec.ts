@@ -351,6 +351,39 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     );
   });
 
+  it('warns when a bot webhook responds with a non-ok status', async () => {
+    const logger = {
+      debug: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    };
+    (service as any).logger = logger;
+    const fetchMock = jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue({ ok: false, status: 503 } as any);
+
+    await (service as any).deliverWebhook(
+      'https://example.test/webhook',
+      'bot-id-123',
+      { event: 'message.created' },
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://example.test/webhook',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Content-Type': 'application/json',
+          'X-Team9-Event': 'message.created',
+          'X-Team9-Bot-Id': 'bot-id-123',
+        }),
+      }),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Webhook returned 503 for bot bot-id-123',
+    );
+  });
+
   /** Helper: set up DB responses for one pushToHiveBots call */
   function setupDbForHivePush(opts: {
     bots: ReturnType<typeof makeHiveBot>[];
@@ -714,6 +747,86 @@ describe('PostBroadcastService — pushToHiveBots', () => {
           channelId: CHANNEL_ID,
           senderId: SENDER_ID,
           recipientId: 'recipient-user-uuid',
+        }),
+      }),
+    );
+  });
+
+  it('publishes mention, reply, and DM notifications for human-authored direct thread replies', async () => {
+    const targetUserId = '00000000-0000-0000-0000-000000000004';
+    const rootMessageId = 'root-message-uuid';
+    const rootSenderId = 'root-sender-uuid';
+    const parentSenderId = 'parent-sender-uuid';
+    const msg = makeMessage({
+      content: `<mention data-user-id="${targetUserId}">@Recipient</mention> thread reply`,
+      parentId: THREAD_PARENT_ID,
+      rootId: rootMessageId,
+    });
+    const parentMessage = {
+      id: THREAD_PARENT_ID,
+      senderId: parentSenderId,
+    };
+    setupDbForNotificationTasks({
+      message: msg,
+      sender: makeSender(),
+      channel: makeChannel('direct'),
+      parentMessage,
+    });
+    db.where.mockReturnValueOnce(db);
+    db.limit.mockResolvedValueOnce([
+      { id: rootMessageId, senderId: rootSenderId },
+    ]);
+    db.where.mockResolvedValueOnce([
+      { userId: targetUserId },
+      { userId: SENDER_ID },
+    ]);
+
+    await service.processNotificationTasks(MSG_ID, CHANNEL_ID, SENDER_ID);
+
+    expect(rabbitMQEventService.publishNotificationTask).toHaveBeenCalledTimes(
+      3,
+    );
+    expect(
+      rabbitMQEventService.publishNotificationTask,
+    ).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        type: 'mention',
+        payload: expect.objectContaining({
+          messageId: MSG_ID,
+          channelId: CHANNEL_ID,
+          tenantId: TENANT_ID,
+          mentions: [{ userId: targetUserId, type: 'user' }],
+        }),
+      }),
+    );
+    expect(
+      rabbitMQEventService.publishNotificationTask,
+    ).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        type: 'reply',
+        payload: expect.objectContaining({
+          messageId: MSG_ID,
+          channelId: CHANNEL_ID,
+          parentMessageId: THREAD_PARENT_ID,
+          parentSenderId,
+          rootMessageId,
+          rootSenderId,
+          isThreadReply: true,
+        }),
+      }),
+    );
+    expect(
+      rabbitMQEventService.publishNotificationTask,
+    ).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        type: 'dm',
+        payload: expect.objectContaining({
+          messageId: MSG_ID,
+          channelId: CHANNEL_ID,
+          recipientId: targetUserId,
         }),
       }),
     );
