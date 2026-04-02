@@ -17,6 +17,7 @@ import type {
   BotExtra,
   ManagedMeta,
 } from '@team9/database/schemas';
+import { ClawHiveService } from '@team9/claw-hive';
 import { env } from '@team9/shared';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { BotAuthCacheService } from './bot-auth-cache.service.js';
@@ -103,6 +104,7 @@ export class BotService implements OnModuleInit {
     private readonly eventEmitter: EventEmitter2,
     private readonly channelsService: ChannelsService,
     private readonly botAuthCache: BotAuthCacheService,
+    private readonly clawHiveService: ClawHiveService,
   ) {}
 
   onModuleInit(): void {
@@ -651,6 +653,32 @@ export class BotService implements OnModuleInit {
    * Update a bot's mentor (human user who oversees this AI Staff).
    */
   async updateBotMentor(botId: string, mentorId: string | null): Promise<void> {
+    const bot = await this.getBotMentorSyncRow(botId);
+    if (!bot) {
+      throw new Error(`Bot not found: ${botId}`);
+    }
+
+    if (bot.managedProvider === 'hive') {
+      const agentId = (bot.managedMeta as Record<string, unknown> | null)
+        ?.agentId as string | undefined;
+
+      if (!agentId) {
+        throw new Error(`Hive agentId not configured for bot ${botId}`);
+      }
+      if (!bot.tenantId) {
+        throw new Error(`Hive tenantId not configured for bot ${botId}`);
+      }
+
+      await this.clawHiveService.updateAgent(agentId, {
+        tenantId: bot.tenantId,
+        metadata: {
+          tenantId: bot.tenantId,
+          botId: bot.botId,
+          mentorId,
+        },
+      });
+    }
+
     await this.db
       .update(schema.bots)
       .set({ mentorId, updatedAt: new Date() })
@@ -829,6 +857,32 @@ export class BotService implements OnModuleInit {
       .limit(1);
 
     return row || null;
+  }
+
+  private async getBotMentorSyncRow(botId: string): Promise<{
+    botId: string;
+    mentorId: string | null;
+    managedProvider: string | null;
+    managedMeta: ManagedMeta | null;
+    tenantId: string | null;
+  } | null> {
+    const [row] = await this.db
+      .select({
+        botId: schema.bots.id,
+        mentorId: schema.bots.mentorId,
+        managedProvider: schema.bots.managedProvider,
+        managedMeta: schema.bots.managedMeta,
+        tenantId: schema.installedApplications.tenantId,
+      })
+      .from(schema.bots)
+      .leftJoin(
+        schema.installedApplications,
+        eq(schema.bots.installedApplicationId, schema.installedApplications.id),
+      )
+      .where(eq(schema.bots.id, botId))
+      .limit(1);
+
+    return row ?? null;
   }
 
   private async getStoredAccessToken(botId: string): Promise<string | null> {

@@ -1,5 +1,6 @@
 import { Module, Global, forwardRef } from '@nestjs/common';
 import { BOT_TOKEN_VALIDATOR } from '@team9/auth';
+import { ClawHiveModule } from '@team9/claw-hive';
 import { BotService } from './bot.service.js';
 import { BotTokenValidatorService } from './bot-token-validator.service.js';
 import { BotAuthCacheService } from './bot-auth-cache.service.js';
@@ -15,7 +16,7 @@ import { ChannelsModule } from '../im/channels/channels.module.js';
  */
 @Global()
 @Module({
-  imports: [forwardRef(() => ChannelsModule)],
+  imports: [forwardRef(() => ChannelsModule), ClawHiveModule],
   controllers: [BotController],
   providers: [
     BotService,
