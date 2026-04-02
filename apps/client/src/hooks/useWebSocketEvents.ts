@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import wsService from "@/services/websocket";
 import type { ChannelWithUnread, Message } from "@/types/im";
@@ -10,12 +10,14 @@ import type {
   NotificationNewEvent,
   NotificationCountsUpdatedEvent,
   NotificationReadEvent,
+  NotificationAllReadEvent,
   TaskStatusChangedEvent,
   TaskExecutionCreatedEvent,
   TrackingDeactivatedEvent,
 } from "@/types/ws-events";
 import { useSelectedWorkspaceId, useUser } from "@/stores";
 import {
+  useNotificationStore,
   notificationActions,
   type Notification,
   type NotificationCounts,
@@ -61,6 +63,11 @@ export function useWebSocketEvents() {
         queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
         queryClient.invalidateQueries({
           queryKey: ["publicChannels", workspaceId],
+        });
+        // Also refresh the installed-applications-with-bots query so the
+        // task agent dropdown picks up newly created bot agents.
+        queryClient.invalidateQueries({
+          queryKey: ["installed-applications-with-bots", workspaceId],
         });
       }, 500);
     };
@@ -190,7 +197,7 @@ export function useWebSocketEvents() {
       }
 
       // 1. Increment count in Zustand store
-      notificationActions.incrementCount(event.category);
+      notificationActions.incrementCount(event.category, 1, event.type);
 
       // 2. Update React Query cache for notification counts
       queryClient.setQueryData(
@@ -222,7 +229,26 @@ export function useWebSocketEvents() {
 
     // Handle notification read event
     const handleNotificationRead = (event: NotificationReadEvent) => {
+      const notifications = useNotificationStore.getState().notifications;
+      const readNotifications = notifications.filter(
+        (notification) =>
+          event.notificationIds.includes(notification.id) &&
+          !notification.isRead,
+      );
+
+      for (const notification of readNotifications) {
+        notificationActions.decrementCount(
+          notification.category,
+          1,
+          notification.type,
+        );
+      }
+
       notificationActions.markAsRead(event.notificationIds);
+    };
+
+    const handleNotificationAllRead = (event: NotificationAllReadEvent) => {
+      notificationActions.markAllAsRead(event.category, event.types);
     };
 
     // ==================== Task Events ====================
@@ -277,6 +303,7 @@ export function useWebSocketEvents() {
     wsService.onNotificationCountsUpdated(handleNotificationCountsUpdated);
     wsService.onNotificationNew(handleNotificationNew);
     wsService.onNotificationRead(handleNotificationRead);
+    wsService.onNotificationAllRead(handleNotificationAllRead);
 
     // Task events
     wsService.onTaskStatusChanged(handleTaskStatusChanged);
@@ -314,6 +341,7 @@ export function useWebSocketEvents() {
       wsService.offNotificationCountsUpdated(handleNotificationCountsUpdated);
       wsService.offNotificationNew(handleNotificationNew);
       wsService.offNotificationRead(handleNotificationRead);
+      wsService.offNotificationAllRead(handleNotificationAllRead);
 
       // Task events
       wsService.offTaskStatusChanged(handleTaskStatusChanged);

@@ -89,7 +89,7 @@ export class ImWorkerGrpcClientService
     this.maxRetries = parseInt(process.env.IM_WORKER_GRPC_RETRIES || '2', 10);
   }
 
-  async onModuleInit(): Promise<void> {
+  onModuleInit(): void {
     this.logger.log(`Initializing gRPC client, targeting: ${this.grpcUrl}`);
 
     try {
@@ -120,7 +120,7 @@ export class ImWorkerGrpcClientService
     }
   }
 
-  async onModuleDestroy(): Promise<void> {
+  onModuleDestroy(): void {
     // Close gRPC connection if needed
     if (
       this.grpcClient &&
@@ -161,9 +161,13 @@ export class ImWorkerGrpcClientService
             count: this.maxRetries,
             delay: 100, // 100ms between retries
           }),
-          catchError((error) => {
-            this.logger.error(`gRPC createMessage failed: ${error.message}`);
-            return throwError(() => error);
+          catchError((error: unknown) => {
+            const message =
+              error instanceof Error ? error.message : String(error);
+            this.logger.error(`gRPC createMessage failed: ${message}`);
+            return throwError(() =>
+              error instanceof Error ? error : new Error(message),
+            );
           }),
         ),
       );

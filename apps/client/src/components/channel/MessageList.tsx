@@ -110,8 +110,10 @@ export function MessageList({
 
   // Save scroll position on unmount (channel switch)
   useEffect(() => {
+    const virtuoso = virtuosoRef.current;
+
     return () => {
-      virtuosoRef.current?.getState((state) => {
+      virtuoso?.getState((state) => {
         scrollSnapshots.set(channelId, state);
       });
     };

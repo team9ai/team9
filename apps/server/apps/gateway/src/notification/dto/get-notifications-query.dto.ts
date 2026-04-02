@@ -8,6 +8,18 @@ import {
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
+function parseLimit(value: unknown): number | undefined {
+  if (typeof value === 'number') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    return parseInt(value, 10);
+  }
+
+  return undefined;
+}
+
 export class GetNotificationsQueryDto {
   @IsOptional()
   @IsString()
@@ -23,7 +35,7 @@ export class GetNotificationsQueryDto {
   isRead?: boolean;
 
   @IsOptional()
-  @Transform(({ value }) => parseInt(value, 10))
+  @Transform(({ value }: { value: unknown }) => parseLimit(value))
   @IsInt()
   @Min(1)
   @Max(100)

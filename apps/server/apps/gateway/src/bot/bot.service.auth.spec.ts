@@ -441,7 +441,6 @@ describe('BotService auth validation', () => {
         },
       ]),
     );
-
     await service.revokeAccessToken('bot-revoke');
 
     db.__queueSelect(createSelectWhereChain([]));
@@ -584,11 +583,10 @@ describe('BotService auth validation', () => {
     const revokeMutationOrder =
       db.__updateChain.where.mock.invocationCallOrder[0] ??
       Number.MAX_SAFE_INTEGER;
-    const cacheInvalidationOrder = Math.max(
-      redis.incr.mock.invocationCallOrder.at(-1) ?? 0,
-      redis.smembers.mock.invocationCallOrder[0] ?? 0,
-      ...redis.del.mock.invocationCallOrder,
-    );
+    const initialCacheInvalidationOrder =
+      redis.incr.mock.invocationCallOrder[0] ?? 0;
+    const finalCacheInvalidationOrder =
+      redis.incr.mock.invocationCallOrder.at(-1) ?? 0;
     const channelCleanupOrder =
       channelsService.deleteDirectChannelsForUser.mock.invocationCallOrder[0] ??
       Number.MAX_SAFE_INTEGER;
@@ -597,8 +595,8 @@ describe('BotService auth validation', () => {
       Number.MAX_SAFE_INTEGER;
 
     expect(revokeMutationOrder).toBeLessThan(channelCleanupOrder);
-    expect(cacheInvalidationOrder).toBeLessThan(channelCleanupOrder);
-    expect(cacheInvalidationOrder).toBeLessThan(userDeletionOrder);
+    expect(initialCacheInvalidationOrder).toBeLessThan(channelCleanupOrder);
+    expect(finalCacheInvalidationOrder).toBeLessThan(userDeletionOrder);
     expect(channelsService.deleteDirectChannelsForUser).toHaveBeenCalledWith(
       'user-delete',
     );

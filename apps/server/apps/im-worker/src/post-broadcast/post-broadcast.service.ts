@@ -54,7 +54,7 @@ export class PostBroadcastService {
    * Called immediately after Gateway broadcasts to online users
    */
   async processTask(task: PostBroadcastTask): Promise<void> {
-    const { msgId, channelId, senderId, workspaceId, broadcastAt } = task;
+    const { msgId, channelId, senderId, broadcastAt } = task;
     try {
       // 1. Get channel members (excluding sender)
       const memberIds = await this.getChannelMemberIds(channelId);
@@ -170,6 +170,21 @@ export class PostBroadcastService {
       }
 
       const { message, sender, channel, mentions, parentMessage } = messageData;
+
+      // Suppress noisy activity notifications for tracking channels and bot-authored DMs.
+      if (channel.type === 'tracking') {
+        this.logger.debug(
+          `Skipping notification tasks for tracking channel message ${msgId}`,
+        );
+        return;
+      }
+
+      if (channel.type === 'direct' && sender.userType === 'bot') {
+        this.logger.debug(
+          `Skipping notification tasks for bot-authored DM message ${msgId}`,
+        );
+        return;
+      }
 
       // Skip if channel has no tenant (DM channels handled separately)
       const tenantId = channel.tenantId;
@@ -413,9 +428,10 @@ export class PostBroadcastService {
           bot.botId,
           webhookPayload,
           customHeaders,
-        ).catch((err) => {
+        ).catch((err: unknown) => {
+          const errorMessage = err instanceof Error ? err.message : String(err);
           this.logger.warn(
-            `Webhook delivery failed for bot ${bot.botId}: ${err.message}`,
+            `Webhook delivery failed for bot ${bot.botId}: ${errorMessage}`,
           );
         });
       }

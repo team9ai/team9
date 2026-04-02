@@ -154,7 +154,7 @@ export class WorkspaceController {
   @UseGuards(AuthGuard)
   async debugOnlineStatus(
     @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
-    @CurrentUser('sub') userId: string,
+    @CurrentUser('sub') _userId: string,
   ) {
     return this.workspaceService.getOnlineOfflineMemberIds(workspaceId);
   }

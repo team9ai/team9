@@ -120,6 +120,21 @@ export interface WorkspaceResponse {
   updatedAt: Date;
 }
 
+interface WorkspaceWebsocketGateway {
+  broadcastToWorkspace(
+    workspaceId: string,
+    event: string,
+    data: unknown,
+  ): Promise<void>;
+  sendToChannelMembers(
+    channelId: string,
+    event: string,
+    data: unknown,
+    excludeUserId?: string,
+  ): Promise<void>;
+  sendToUser(userId: string, event: string, data: unknown): Promise<void>;
+}
+
 @Injectable()
 export class WorkspaceService {
   private readonly logger = new Logger(WorkspaceService.name);
@@ -128,12 +143,16 @@ export class WorkspaceService {
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
     @Inject(WEBSOCKET_GATEWAY)
-    private readonly websocketGateway: any,
+    private readonly websocketGateway: WorkspaceWebsocketGateway,
     private readonly redisService: RedisService,
     private readonly channelsService: ChannelsService,
     private readonly botService: BotService,
     private readonly installedApplicationsService: InstalledApplicationsService,
   ) {}
+
+  private getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+  }
 
   @OnEvent(USER_EVENTS.REGISTERED)
   async handleUserRegistered(event: UserRegisteredEvent): Promise<void> {
@@ -503,7 +522,9 @@ export class WorkspaceService {
           `Sent WORKSPACE_MEMBER_JOINED to ${onlineIds.length} online users via WebSocket`,
         );
       } catch (error) {
-        this.logger.warn(`Failed to broadcast via WebSocket: ${error.message}`);
+        this.logger.warn(
+          `Failed to broadcast via WebSocket: ${this.getErrorMessage(error)}`,
+        );
       }
     }
 
@@ -606,7 +627,7 @@ export class WorkspaceService {
     } catch (error) {
       // Don't fail the invitation if DM channel creation fails
       this.logger.warn(
-        `Failed to create DM channels for new member: ${error.message}`,
+        `Failed to create DM channels for new member: ${this.getErrorMessage(error)}`,
       );
     }
 
@@ -649,7 +670,7 @@ export class WorkspaceService {
     } catch (error) {
       // Don't fail the invitation if welcome channel operations fail
       this.logger.warn(
-        `Failed to add user to welcome channel: ${error.message}`,
+        `Failed to add user to welcome channel: ${this.getErrorMessage(error)}`,
       );
     }
 

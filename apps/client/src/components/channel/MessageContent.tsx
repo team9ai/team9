@@ -6,6 +6,7 @@ import {
   useEffect,
   memo,
   forwardRef,
+  type ComponentPropsWithoutRef,
 } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import ReactMarkdown from "react-markdown";
@@ -28,6 +29,26 @@ interface HoveredMention {
   displayName: string;
   rect: DOMRect;
 }
+
+interface MarkdownNodePosition {
+  start?: { line?: number };
+  end?: { line?: number };
+}
+
+interface MarkdownNode {
+  type?: string;
+  tagName?: string;
+  position?: MarkdownNodePosition;
+  children?: MarkdownNode[];
+}
+
+type MarkdownParagraphProps = ComponentPropsWithoutRef<"p"> & {
+  node?: MarkdownNode;
+};
+
+type MarkdownCodeProps = ComponentPropsWithoutRef<"code"> & {
+  node?: MarkdownNode;
+};
 
 // Detect HTML content from the Lexical editor
 const HTML_TAG_PATTERN =
@@ -281,10 +302,9 @@ function MarkdownMessageContent({ content, className }: MessageContentProps) {
             />
           ),
           // Prevent react-markdown from wrapping images in <p> tags that break layout
-          p: ({ children, node }) => {
+          p: ({ children, node }: MarkdownParagraphProps) => {
             const hasImage = node?.children?.some(
-              (child: any) =>
-                child.type === "element" && child.tagName === "img",
+              (child) => child.type === "element" && child.tagName === "img",
             );
             if (hasImage) {
               return <>{children}</>;
@@ -310,17 +330,21 @@ function MarkdownMessageContent({ content, className }: MessageContentProps) {
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function MarkdownCodeRenderer({ className, children, node, ...props }: any) {
+function MarkdownCodeRenderer({
+  className,
+  children,
+  node,
+  ...props
+}: MarkdownCodeProps) {
   const match = /language-(\w+)/.exec(className || "");
   const code = String(children).replace(/\n$/, "");
+  const firstChild = node?.children?.[0];
 
   // Check if this is a block code (has a language class or is inside <pre>)
   const isBlock =
-    match ||
+    !!match ||
     (node?.position &&
-      node?.children?.[0]?.position?.start.line !==
-        node?.children?.[0]?.position?.end.line);
+      firstChild?.position?.start?.line !== firstChild?.position?.end?.line);
 
   // Determine if parent is <pre> — react-markdown wraps code blocks in <pre>
   if (isBlock || code.includes("\n")) {

@@ -8,11 +8,11 @@ import {
   X,
   PanelLeft,
   PanelRight,
+  Crown,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Popover,
   PopoverContent,
@@ -32,7 +32,7 @@ import { QuickSearchResults } from "@/components/search/QuickSearchResults";
 export function GlobalTopBar() {
   const { t } = useTranslation("common");
   const navigate = useNavigate();
-  const user = useUser();
+  useUser();
   const { selectedWorkspaceId } = useWorkspaceStore();
   const { data: workspaces } = useUserWorkspaces();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -46,6 +46,8 @@ export function GlobalTopBar() {
     (w) => w.id === selectedWorkspaceId,
   );
   const workspaceName = currentWorkspace?.name || "Workspace";
+  const canManageBilling =
+    currentWorkspace?.role === "owner" || currentWorkspace?.role === "admin";
 
   // Navigate to search page for full search (default to messages)
   const handleDeepSearch = useCallback(() => {
@@ -214,8 +216,21 @@ export function GlobalTopBar() {
         </div>
       </div>
 
-      {/* Right section - Local device status */}
-      <div className="flex items-center">
+      {/* Right section - Subscription entry + Local device status */}
+      <div className="flex items-center gap-1">
+        {canManageBilling ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-nav-foreground-subtle hover:text-nav-foreground hover:bg-nav-hover gap-1"
+            onClick={() => navigate({ to: "/subscription" })}
+          >
+            <Crown size={14} />
+            <span className="text-xs hidden sm:inline">
+              {t("subscription", "Plan")}
+            </span>
+          </Button>
+        ) : null}
         <LocalDeviceStatus />
       </div>
     </header>

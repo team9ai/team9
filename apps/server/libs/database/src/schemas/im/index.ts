@@ -1,5 +1,6 @@
 export * from './users.js';
 export * from './email-verification-tokens.js';
+export * from './user-email-change-requests.js';
 export * from './channel-sections.js';
 export * from './channels.js';
 export * from './channel-members.js';

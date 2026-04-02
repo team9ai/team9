@@ -129,7 +129,7 @@ export interface OpenClawDeviceInfo {
   deviceId?: string;
   name?: string;
   status: "pending" | "approved";
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export const applicationsApi = {
@@ -340,10 +340,12 @@ export const applicationsApi = {
     displayName: string;
     mentorId: string;
   }> => {
-    const response = await http.post(
-      `/v1/installed-applications/${installedAppId}/openclaw/agents`,
-      data,
-    );
+    const response = await http.post<{
+      botId: string;
+      agentId: string | null;
+      displayName: string;
+      mentorId: string;
+    }>(`/v1/installed-applications/${installedAppId}/openclaw/agents`, data);
     return response.data;
   },
 

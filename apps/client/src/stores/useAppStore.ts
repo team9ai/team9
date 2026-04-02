@@ -59,6 +59,33 @@ const createEmptySectionPaths = (): SectionPaths =>
     ALL_SIDEBAR_SECTIONS.map((section) => [section, null]),
   ) as SectionPaths;
 
+export function isSidebarSection(value: unknown): value is SidebarSection {
+  return (
+    typeof value === "string" &&
+    ALL_SIDEBAR_SECTIONS.includes(value as SidebarSection)
+  );
+}
+
+export function isRestorableSectionPath(pathname: string | null | undefined) {
+  return Boolean(
+    pathname &&
+    pathname !== "/" &&
+    !pathname.startsWith("/search") &&
+    !pathname.startsWith("/profile"),
+  );
+}
+
+export function sanitizeLastVisitedPaths(
+  paths: Partial<Record<SidebarSection, string | null>> | null | undefined,
+): SectionPaths {
+  return Object.fromEntries(
+    ALL_SIDEBAR_SECTIONS.map((section) => {
+      const path = paths?.[section];
+      return [section, isRestorableSectionPath(path) ? path : null];
+    }),
+  ) as SectionPaths;
+}
+
 /**
  * Determines which section a path belongs to.
  */

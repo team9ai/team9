@@ -2,7 +2,6 @@ import {
   Home,
   MessageSquare,
   Bell,
-  FileText,
   MoreHorizontal,
   Smile,
   ChevronRight,
@@ -229,20 +228,9 @@ export function MainSidebar() {
       });
       // Note: Don't remove messages as they might be needed if user navigates back
 
-      // Reset last visited paths — detail pages belong to the old workspace
-      const sections: SidebarSection[] = [
-        "home",
-        "messages",
-        "activity",
-        "files",
-        "aiStaff",
-        "library",
-        "application",
-        "more",
-      ];
-      for (const section of sections) {
-        appActions.setLastVisitedPath(section, null);
-      }
+      // Reset last visited paths — persisted section routes may not exist
+      // or may point at stale detail pages in the next workspace.
+      appActions.resetNavigationForWorkspaceEntry();
 
       // Reset aHand setup state so it re-runs for the new workspace
       useAHandSetupStore.getState().reset();
@@ -258,7 +246,9 @@ export function MainSidebar() {
   const renderNavigationItems = () =>
     navigationItems.map((item) => {
       const Icon = item.icon;
-      const currentSection = getSectionFromPath(location.pathname);
+      const currentSection = location.pathname.startsWith("/profile")
+        ? null
+        : getSectionFromPath(location.pathname);
       const isActive = currentSection === item.id;
       const label = tNav(item.labelKey);
 
@@ -582,7 +572,13 @@ export function MainSidebar() {
 
                 {/* Profile & Settings */}
                 <div className="py-1">
-                  <button className="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-accent">
+                  <button
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      navigate({ to: "/profile" as never });
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-accent"
+                  >
                     <User size={16} />
                     <span>{tSettings("profile")}</span>
                   </button>

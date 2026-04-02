@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { Route } from "@/routes/_authenticated/skills/$skillId";
@@ -69,26 +69,34 @@ export function SkillDetailPage() {
   );
 
   const isViewingHistory = viewingVersion !== null;
-  const baseFiles: SkillFile[] = isViewingHistory
-    ? (historicalVersion?.files ?? [])
-    : (skill?.files ?? []);
+  const baseFiles = useMemo<SkillFile[]>(
+    () =>
+      isViewingHistory
+        ? (historicalVersion?.files ?? [])
+        : (skill?.files ?? []),
+    [historicalVersion?.files, isViewingHistory, skill?.files],
+  );
 
   // Merge in locally-added new files (files in editedFiles that don't exist in baseFiles)
-  const displayFiles: SkillFile[] = isViewingHistory
-    ? baseFiles
-    : [
-        ...baseFiles,
-        ...[...editedFiles.entries()]
-          .filter(([path]) => !baseFiles.find((f) => f.path === path))
-          .map(([path, content]) => ({
-            id: `new-${path}`,
-            skillId: skillId,
-            path,
-            content,
-            size: content.length,
-            createdAt: new Date().toISOString(),
-          })),
-      ];
+  const displayFiles = useMemo<SkillFile[]>(
+    () =>
+      isViewingHistory
+        ? baseFiles
+        : [
+            ...baseFiles,
+            ...[...editedFiles.entries()]
+              .filter(([path]) => !baseFiles.find((f) => f.path === path))
+              .map(([path, content]) => ({
+                id: `new-${path}`,
+                skillId,
+                path,
+                content,
+                size: content.length,
+                createdAt: new Date().toISOString(),
+              })),
+          ],
+    [baseFiles, editedFiles, isViewingHistory, skillId],
+  );
 
   const selectedFile = displayFiles.find((f) => f.path === selectedPath);
 

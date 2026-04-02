@@ -105,3 +105,88 @@ export interface PaginatedMembersResponse {
     totalPages: number;
   };
 }
+
+export interface BillingProductDisplay {
+  badge?: string;
+  description?: string;
+  features: string[];
+  sortOrder: number;
+}
+
+export interface BillingProductCustomAmount {
+  enabled: boolean;
+  minimumCents?: number | null;
+  maximumCents?: number | null;
+  presetCents?: number | null;
+}
+
+export interface BillingProduct {
+  stripePriceId: string;
+  name: string;
+  type?: "subscription" | "one_time";
+  credits?: number;
+  amountCents: number;
+  interval: string | null;
+  intervalCount?: number | null;
+  active: boolean;
+  metadata?: Record<string, unknown> | null;
+  customAmount?: BillingProductCustomAmount;
+  display: BillingProductDisplay;
+}
+
+export interface WorkspaceSubscription {
+  stripeSubscriptionId: string;
+  status: string;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  cancelAtPeriodEnd: boolean;
+  product: BillingProduct;
+}
+
+export interface WorkspaceBillingSummary {
+  subscription: WorkspaceSubscription | null;
+  managementAllowed: boolean;
+}
+
+export interface WorkspaceBillingAccount {
+  id: string;
+  ownerExternalId: string;
+  ownerType: "personal" | "organization";
+  ownerName: string | null;
+  balance: number;
+  quota: number;
+  quotaExpiresAt: string | null;
+  effectiveQuota: number;
+  available: number;
+  creditLimit: number;
+  status: "active" | "frozen";
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkspaceBillingTransaction {
+  id: string;
+  accountId: string;
+  type: string;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  operatorExternalId: string | null;
+  agentId: string | null;
+  referenceType: string | null;
+  referenceId: string | null;
+  description: string | null;
+  createdAt: string;
+  productName: string | null;
+  paymentAmountCents: number | null;
+  invoiceId: string | null;
+}
+
+export interface WorkspaceBillingOverview {
+  account: WorkspaceBillingAccount | null;
+  subscription: WorkspaceSubscription | null;
+  subscriptionProducts: BillingProduct[];
+  creditProducts: BillingProduct[];
+  recentTransactions: WorkspaceBillingTransaction[];
+}

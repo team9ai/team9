@@ -22,16 +22,20 @@ describe("parseApiDate", () => {
 });
 
 describe("parseLikelyPastDate", () => {
-  it("prefers the local-style candidate when the explicit timezone version is still in the future", () => {
+  it("prefers the candidate that is not still in the future", () => {
     const raw = "2026-03-28T01:42:00.000Z";
     const localCandidate = new Date("2026-03-28T01:42:00.000").getTime();
     const utcCandidate = new Date(raw).getTime();
-    const referenceTime = localCandidate + 43 * 60_000;
+    const earlierCandidate = Math.min(localCandidate, utcCandidate);
+    const laterCandidate = Math.max(localCandidate, utcCandidate);
+    const candidateGap = laterCandidate - earlierCandidate;
+    const referenceTime =
+      candidateGap > 60_000
+        ? earlierCandidate + Math.floor(candidateGap / 2)
+        : earlierCandidate;
+    const expected = candidateGap > 60_000 ? earlierCandidate : laterCandidate;
 
-    expect(parseLikelyPastDate(raw, referenceTime).getTime()).toBe(
-      localCandidate,
-    );
-    expect(utcCandidate).toBeGreaterThan(referenceTime);
+    expect(parseLikelyPastDate(raw, referenceTime).getTime()).toBe(expected);
   });
 
   it("falls back to the closest candidate when both interpretations are still in the future", () => {

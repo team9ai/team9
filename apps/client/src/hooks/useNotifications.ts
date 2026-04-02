@@ -7,6 +7,7 @@ import {
   useNotificationStore,
   notificationActions,
   type NotificationCategory,
+  type NotificationType,
 } from "@/stores/useNotificationStore";
 
 /**
@@ -93,25 +94,15 @@ export function useMarkNotificationsAsRead() {
     onSuccess: (notificationIds) => {
       // Update local state
       const notifications = useNotificationStore.getState().notifications;
-      const readNotifications = notifications.filter((n) =>
-        notificationIds.includes(n.id),
+      const unreadNotifications = notifications.filter(
+        (n) => notificationIds.includes(n.id) && !n.isRead,
       );
 
-      // Decrement counts by category
-      const countsByCategory = readNotifications.reduce(
-        (acc, n) => {
-          if (!n.isRead) {
-            acc[n.category] = (acc[n.category] || 0) + 1;
-          }
-          return acc;
-        },
-        {} as Record<NotificationCategory, number>,
-      );
-
-      for (const [category, count] of Object.entries(countsByCategory)) {
+      for (const notification of unreadNotifications) {
         notificationActions.decrementCount(
-          category as NotificationCategory,
-          count,
+          notification.category,
+          1,
+          notification.type,
         );
       }
 
@@ -131,12 +122,18 @@ export function useMarkAllNotificationsAsRead() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (category?: NotificationCategory) => {
-      await notificationApi.markAllAsRead(category);
-      return category;
+    mutationFn: async ({
+      category,
+      types,
+    }: {
+      category?: NotificationCategory;
+      types?: NotificationType[];
+    } = {}) => {
+      await notificationApi.markAllAsRead(category, types);
+      return { category, types };
     },
-    onSuccess: (category) => {
-      notificationActions.markAllAsRead(category);
+    onSuccess: (_, variables) => {
+      notificationActions.markAllAsRead(variables?.category, variables?.types);
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
       queryClient.invalidateQueries({ queryKey: ["notificationCounts"] });
     },

@@ -52,17 +52,19 @@ class HttpClient {
     };
   }
 
-  private buildURL(url: string, params?: Record<string, any>): string {
+  private buildURL(url: string, params?: object): string {
     const fullURL = url.startsWith("http") ? url : `${this.baseURL}${url}`;
 
     if (!params) return fullURL;
 
     const urlObj = new URL(fullURL);
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        urlObj.searchParams.append(key, String(value));
-      }
-    });
+    Object.entries(params as Record<string, unknown>).forEach(
+      ([key, value]) => {
+        if (value !== undefined && value !== null) {
+          urlObj.searchParams.append(key, String(value));
+        }
+      },
+    );
 
     return urlObj.toString();
   }
@@ -91,17 +93,18 @@ class HttpClient {
     return finalResponse;
   }
 
-  private async applyErrorInterceptors<T = any>(
-    error: HttpError,
+  private async applyErrorInterceptors<T>(
+    error: HttpError<T>,
   ): Promise<HttpResponse<T>> {
     let finalError = error;
 
     for (const { onRejected } of this.responseInterceptors) {
       if (onRejected) {
         try {
-          return (await onRejected(finalError)) as HttpResponse<T>;
+          const recoveredResponse = await onRejected(finalError);
+          return recoveredResponse as HttpResponse<T>;
         } catch (err) {
-          finalError = err as HttpError;
+          finalError = err as HttpError<T>;
         }
       }
     }
@@ -109,13 +112,13 @@ class HttpClient {
     throw finalError;
   }
 
-  private createError(
+  private createError<T = unknown>(
     message: string,
     config?: HttpRequestConfig,
     code?: string,
-    response?: HttpResponse,
-  ): HttpError {
-    const error = new Error(message) as HttpError;
+    response?: HttpResponse<T>,
+  ): HttpError<T> {
+    const error = new Error(message) as HttpError<T>;
     error.config = config;
     error.code = code;
     error.response = response;
@@ -123,16 +126,40 @@ class HttpClient {
     return error;
   }
 
-  private async request<T = any>(
+  private async parseResponseData<T>(response: Response): Promise<T> {
+    if (response.headers.get("content-type")?.includes("application/json")) {
+      return (await response.json()) as T;
+    }
+
+    return (await response.text()) as T;
+  }
+
+  private isAbortError(error: unknown): error is Error {
+    return error instanceof Error && error.name === "AbortError";
+  }
+
+  private isManagedHttpError(error: unknown): error is HttpError {
+    return (
+      error instanceof Error &&
+      ("config" in error ||
+        "code" in error ||
+        "status" in error ||
+        "response" in error)
+    );
+  }
+
+  private async request<T = unknown>(
     url: string,
     config: HttpRequestConfig = {},
   ): Promise<HttpResponse<T>> {
+    let requestConfig: HttpRequestConfig = {
+      ...config,
+      baseURL: this.baseURL,
+      url,
+    };
+
     try {
-      let requestConfig = await this.applyRequestInterceptors({
-        ...config,
-        baseURL: this.baseURL,
-        url, // Save the URL for potential retry
-      });
+      requestConfig = await this.applyRequestInterceptors(requestConfig);
 
       const fullURL = this.buildURL(url, requestConfig.params);
 
@@ -166,14 +193,7 @@ class HttpClient {
 
       clearTimeout(timeoutId);
 
-      const contentType = response.headers.get("content-type");
-      let data: T;
-
-      if (contentType?.includes("application/json")) {
-        data = await response.json();
-      } else {
-        data = (await response.text()) as any;
-      }
+      const data = await this.parseResponseData<T>(response);
 
       const httpResponse: HttpResponse<T> = {
         data,
@@ -193,51 +213,60 @@ class HttpClient {
       }
 
       return await this.applyResponseInterceptors(httpResponse);
-    } catch (error: any) {
-      if (error.name === "AbortError") {
-        throw this.createError("Request timeout", config, "ECONNABORTED");
+    } catch (error: unknown) {
+      if (this.isAbortError(error)) {
+        throw this.createError(
+          "Request timeout",
+          requestConfig,
+          "ECONNABORTED",
+        );
       }
 
-      if (error instanceof Error && !("config" in error)) {
-        throw this.createError(error.message, config, "ERR_NETWORK", undefined);
+      if (error instanceof Error && !this.isManagedHttpError(error)) {
+        throw this.createError(
+          error.message,
+          requestConfig,
+          "ERR_NETWORK",
+          undefined,
+        );
       }
 
-      return await this.applyErrorInterceptors<T>(error as HttpError);
+      return await this.applyErrorInterceptors(error as HttpError<T>);
     }
   }
 
-  async get<T = any>(
+  async get<T = unknown>(
     url: string,
     config?: HttpRequestConfig,
   ): Promise<HttpResponse<T>> {
     return this.request<T>(url, { ...config, method: "GET" });
   }
 
-  async post<T = any>(
+  async post<T = unknown>(
     url: string,
-    data?: any,
+    data?: unknown,
     config?: HttpRequestConfig,
   ): Promise<HttpResponse<T>> {
     return this.request<T>(url, { ...config, method: "POST", data });
   }
 
-  async put<T = any>(
+  async put<T = unknown>(
     url: string,
-    data?: any,
+    data?: unknown,
     config?: HttpRequestConfig,
   ): Promise<HttpResponse<T>> {
     return this.request<T>(url, { ...config, method: "PUT", data });
   }
 
-  async patch<T = any>(
+  async patch<T = unknown>(
     url: string,
-    data?: any,
+    data?: unknown,
     config?: HttpRequestConfig,
   ): Promise<HttpResponse<T>> {
     return this.request<T>(url, { ...config, method: "PATCH", data });
   }
 
-  async delete<T = any>(
+  async delete<T = unknown>(
     url: string,
     config?: HttpRequestConfig,
   ): Promise<HttpResponse<T>> {

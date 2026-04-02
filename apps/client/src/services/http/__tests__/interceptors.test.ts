@@ -54,7 +54,8 @@ describe("authInterceptor", () => {
 
     const config = authInterceptor({ url: "/test" });
 
-    expect(config.headers?.Authorization).toBeUndefined();
+    const headers = new Headers(config.headers);
+    expect(headers.get("Authorization")).toBeNull();
   });
 });
 

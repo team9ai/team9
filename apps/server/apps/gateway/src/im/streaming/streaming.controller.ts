@@ -32,6 +32,14 @@ import {
 
 const STREAM_TTL = 120;
 
+interface StreamingSession {
+  channelId: string;
+  senderId: string;
+  parentId?: string;
+  metadata?: Record<string, unknown>;
+  startedAt: number;
+}
+
 @Controller({ path: 'im', version: '1' })
 @UseGuards(AuthGuard)
 export class StreamingController {
@@ -48,6 +56,10 @@ export class StreamingController {
     private readonly eventEmitter: EventEmitter2,
     @Optional() private readonly gatewayMQService?: GatewayMQService,
   ) {}
+
+  private parseStreamingSession(sessionRaw: string): StreamingSession {
+    return JSON.parse(sessionRaw) as StreamingSession;
+  }
 
   /**
    * Ensure the authenticated user is a bot. Throws ForbiddenException otherwise.
@@ -108,7 +120,7 @@ export class StreamingController {
     );
 
     // Broadcast to channel via Socket.io
-    this.websocketGateway.sendToChannelMembers(
+    await this.websocketGateway.sendToChannelMembers(
       channelId,
       WS_EVENTS.STREAMING.START,
       {
@@ -140,7 +152,7 @@ export class StreamingController {
     if (!sessionRaw) {
       throw new ForbiddenException('Streaming session not found or expired');
     }
-    const session = JSON.parse(sessionRaw);
+    const session = this.parseStreamingSession(sessionRaw);
 
     if (session.senderId !== userId) {
       throw new ForbiddenException('Not the owner of this stream');
@@ -156,7 +168,7 @@ export class StreamingController {
       STREAM_TTL,
     );
 
-    this.websocketGateway.sendToChannelMembers(
+    await this.websocketGateway.sendToChannelMembers(
       session.channelId,
       WS_EVENTS.STREAMING.CONTENT,
       {
@@ -186,7 +198,7 @@ export class StreamingController {
     if (!sessionRaw) {
       throw new ForbiddenException('Streaming session not found or expired');
     }
-    const session = JSON.parse(sessionRaw);
+    const session = this.parseStreamingSession(sessionRaw);
 
     if (session.senderId !== userId) {
       throw new ForbiddenException('Not the owner of this stream');
@@ -220,7 +232,7 @@ export class StreamingController {
     );
 
     // Broadcast streaming_end with persisted message
-    this.websocketGateway.sendToChannelMembers(
+    await this.websocketGateway.sendToChannelMembers(
       channelId,
       WS_EVENTS.STREAMING.END,
       {
@@ -232,7 +244,7 @@ export class StreamingController {
     );
 
     // Also broadcast as new_message for clients that missed the stream
-    this.websocketGateway.sendToChannelMembers(
+    await this.websocketGateway.sendToChannelMembers(
       channelId,
       WS_EVENTS.MESSAGE.NEW,
       message,

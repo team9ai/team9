@@ -4,15 +4,17 @@ import { posthogBrowserConfig } from "./config";
 let posthogClientPromise: Promise<PostHog | null> | null = null;
 
 export const getPostHogBrowserClient = (): Promise<PostHog | null> => {
-  if (!posthogBrowserConfig) {
+  const config = posthogBrowserConfig;
+
+  if (!config) {
     return Promise.resolve(null);
   }
 
   if (!posthogClientPromise) {
     posthogClientPromise = import("posthog-js")
       .then(({ default: posthog }) => {
-        posthog.init(posthogBrowserConfig.key, {
-          api_host: posthogBrowserConfig.host,
+        posthog.init(config.key, {
+          api_host: config.host,
           defaults: "2026-01-30",
           autocapture: false,
           capture_pageview: false,

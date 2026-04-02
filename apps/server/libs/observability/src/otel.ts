@@ -75,11 +75,14 @@ export function initOtel(serviceName: string): void {
   console.log(`[OTel] OpenTelemetry initialized for service: ${serviceName}`);
 
   // Graceful shutdown
-  const shutdown = async () => {
-    if (sdk) {
-      await sdk.shutdown();
-      console.log('[OTel] OpenTelemetry shut down');
+  const shutdown = (): void => {
+    if (!sdk) {
+      return;
     }
+
+    void sdk.shutdown().then(() => {
+      console.log('[OTel] OpenTelemetry shut down');
+    });
   };
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);

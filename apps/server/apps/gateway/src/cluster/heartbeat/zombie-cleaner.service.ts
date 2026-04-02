@@ -34,10 +34,9 @@ export class ZombieCleanerService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit(): void {
     // Start periodic cleanup
-    this.cleanerInterval = setInterval(
-      () => this.cleanZombies(),
-      HEARTBEAT_CONFIG.ZOMBIE_CHECK_INTERVAL * 1000,
-    );
+    this.cleanerInterval = setInterval(() => {
+      void this.cleanZombies();
+    }, HEARTBEAT_CONFIG.ZOMBIE_CHECK_INTERVAL * 1000);
 
     this.logger.log(
       `Zombie cleaner started (interval: ${HEARTBEAT_CONFIG.ZOMBIE_CHECK_INTERVAL}s)`,

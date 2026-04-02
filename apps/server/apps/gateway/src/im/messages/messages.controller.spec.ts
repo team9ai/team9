@@ -1,0 +1,557 @@
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from '@jest/globals';
+import { ForbiddenException } from '@nestjs/common';
+import { RABBITMQ_ROUTING_KEYS } from '@team9/rabbitmq';
+import { WS_EVENTS } from '../websocket/events/events.constants.js';
+
+jest.unstable_mockModule('../websocket/websocket.gateway.js', () => ({
+  WebsocketGateway: class WebsocketGateway {},
+}));
+
+const { MessagesController } = await import('./messages.controller.js');
+
+type MockFn = jest.Mock<(...args: any[]) => any>;
+
+const USER_ID = 'user-1';
+const CHANNEL_ID = '550e8400-e29b-41d4-a716-446655440000';
+const MESSAGE_ID = '550e8400-e29b-41d4-a716-446655440001';
+const WORKSPACE_ID = 'workspace-1';
+const CLIENT_MSG_ID = 'client-msg-1';
+const NOW = 1_700_000_000_000;
+
+function makeMessage(overrides: Record<string, unknown> = {}) {
+  return {
+    id: MESSAGE_ID,
+    channelId: CHANNEL_ID,
+    senderId: USER_ID,
+    content: 'hello',
+    type: 'text',
+    isPinned: false,
+    parentId: null,
+    createdAt: new Date(NOW),
+    sender: {
+      id: USER_ID,
+      username: 'alice',
+      displayName: 'Alice',
+    },
+    ...overrides,
+  };
+}
+
+function makeChannel(overrides: Record<string, unknown> = {}) {
+  return {
+    id: CHANNEL_ID,
+    tenantId: WORKSPACE_ID,
+    isActivated: true,
+    ...overrides,
+  };
+}
+
+describe('MessagesController', () => {
+  let controller: MessagesController;
+  let messagesService: {
+    getChannelMessages: MockFn;
+    getChannelMessagesPaginated: MockFn;
+    markAsRead: MockFn;
+    getMessageWithDetails: MockFn;
+    update: MockFn;
+    getMessageChannelId: MockFn;
+    delete: MockFn;
+    getThread: MockFn;
+    getSubReplies: MockFn;
+    pinMessage: MockFn;
+    addReaction: MockFn;
+    removeReaction: MockFn;
+  };
+  let channelsService: {
+    assertReadAccess: MockFn;
+    isMember: MockFn;
+    findById: MockFn;
+    getMemberRole: MockFn;
+  };
+  let websocketGateway: {
+    sendToChannelMembers: MockFn;
+  };
+  let imWorkerGrpcClientService: {
+    createMessage: MockFn;
+  };
+  let eventEmitter: {
+    emit: MockFn;
+  };
+  let gatewayMQService:
+    | {
+        isReady: MockFn;
+        publishPostBroadcast: MockFn;
+        publishWorkspaceEvent: MockFn;
+      }
+    | undefined;
+  let dateSpy: jest.Spied<typeof Date.now>;
+
+  beforeEach(() => {
+    messagesService = {
+      getChannelMessages: jest.fn<any>().mockResolvedValue([makeMessage()]),
+      getChannelMessagesPaginated: jest.fn<any>().mockResolvedValue({
+        messages: [makeMessage()],
+        hasOlder: false,
+        hasNewer: false,
+      }),
+      markAsRead: jest.fn<any>().mockResolvedValue(undefined),
+      getMessageWithDetails: jest.fn<any>().mockResolvedValue(makeMessage()),
+      update: jest.fn<any>().mockResolvedValue(makeMessage()),
+      getMessageChannelId: jest.fn<any>().mockResolvedValue(CHANNEL_ID),
+      delete: jest.fn<any>().mockResolvedValue(undefined),
+      getThread: jest.fn<any>().mockResolvedValue({
+        rootMessage: makeMessage(),
+        replies: [],
+        totalReplyCount: 0,
+        hasMore: false,
+        nextCursor: null,
+      }),
+      getSubReplies: jest.fn<any>().mockResolvedValue({
+        replies: [],
+        hasMore: false,
+        nextCursor: null,
+      }),
+      pinMessage: jest.fn<any>().mockResolvedValue(undefined),
+      addReaction: jest.fn<any>().mockResolvedValue(undefined),
+      removeReaction: jest.fn<any>().mockResolvedValue(undefined),
+    };
+
+    channelsService = {
+      assertReadAccess: jest.fn<any>().mockResolvedValue(undefined),
+      isMember: jest.fn<any>().mockResolvedValue(true),
+      findById: jest.fn<any>().mockResolvedValue(makeChannel()),
+      getMemberRole: jest.fn<any>().mockResolvedValue('owner'),
+    };
+
+    websocketGateway = {
+      sendToChannelMembers: jest.fn<any>().mockResolvedValue(undefined),
+    };
+
+    imWorkerGrpcClientService = {
+      createMessage: jest.fn<any>().mockResolvedValue({ msgId: MESSAGE_ID }),
+    };
+
+    eventEmitter = {
+      emit: jest.fn<any>(),
+    };
+
+    gatewayMQService = {
+      isReady: jest.fn<any>().mockReturnValue(true),
+      publishPostBroadcast: jest.fn<any>().mockResolvedValue(undefined),
+      publishWorkspaceEvent: jest.fn<any>().mockResolvedValue(undefined),
+    };
+
+    dateSpy = jest.spyOn(Date, 'now').mockReturnValue(NOW);
+
+    controller = new MessagesController(
+      messagesService as never,
+      channelsService as never,
+      websocketGateway as never,
+      imWorkerGrpcClientService as never,
+      eventEmitter as never,
+      gatewayMQService as never,
+    );
+    (controller as any).logger = {
+      debug: jest.fn(),
+      warn: jest.fn(),
+    };
+  });
+
+  afterEach(() => {
+    dateSpy.mockRestore();
+  });
+
+  describe('getChannelMessages', () => {
+    it('uses legacy flat messages for the default path', async () => {
+      await expect(
+        controller.getChannelMessages(
+          USER_ID,
+          CHANNEL_ID,
+          undefined,
+          'cursor-1',
+        ),
+      ).resolves.toEqual([makeMessage()]);
+
+      expect(channelsService.assertReadAccess).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        USER_ID,
+      );
+      expect(messagesService.getChannelMessages).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        50,
+        'cursor-1',
+      );
+      expect(
+        messagesService.getChannelMessagesPaginated,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('uses the paginated path when after is present', async () => {
+      await expect(
+        controller.getChannelMessages(
+          USER_ID,
+          CHANNEL_ID,
+          '25',
+          undefined,
+          'after-cursor',
+          undefined,
+        ),
+      ).resolves.toEqual({
+        messages: [makeMessage()],
+        hasOlder: false,
+        hasNewer: false,
+      });
+
+      expect(messagesService.getChannelMessagesPaginated).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        25,
+        { before: undefined, after: 'after-cursor', around: undefined },
+      );
+      expect(messagesService.getChannelMessages).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('createMessage', () => {
+    it('rejects non-members before any message work happens', async () => {
+      channelsService.isMember.mockResolvedValueOnce(false);
+
+      await expect(
+        controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'hello',
+        } as never),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(channelsService.findById).not.toHaveBeenCalled();
+      expect(imWorkerGrpcClientService.createMessage).not.toHaveBeenCalled();
+      expect(websocketGateway.sendToChannelMembers).not.toHaveBeenCalled();
+    });
+
+    it('rejects deactivated channels after membership is confirmed', async () => {
+      channelsService.findById.mockResolvedValueOnce(
+        makeChannel({ isActivated: false }),
+      );
+
+      await expect(
+        controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'hello',
+        } as never),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(channelsService.isMember).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        USER_ID,
+      );
+      expect(imWorkerGrpcClientService.createMessage).not.toHaveBeenCalled();
+    });
+
+    it('broadcasts, publishes MQ work, and emits search events on success', async () => {
+      const dto = {
+        clientMsgId: CLIENT_MSG_ID,
+        content: 'hello',
+        attachments: [
+          {
+            fileKey: 'file-key-1',
+            fileName: 'report.pdf',
+            mimeType: 'application/pdf',
+            fileSize: 1234,
+          },
+        ],
+        metadata: { source: 'unit-test' },
+      } as never;
+      const fullMessage = makeMessage({
+        type: 'file',
+        content: 'report.pdf',
+      });
+      messagesService.getMessageWithDetails.mockResolvedValueOnce(fullMessage);
+
+      await expect(
+        controller.createMessage(USER_ID, CHANNEL_ID, dto),
+      ).resolves.toEqual(fullMessage);
+
+      expect(imWorkerGrpcClientService.createMessage).toHaveBeenCalledWith({
+        clientMsgId: CLIENT_MSG_ID,
+        channelId: CHANNEL_ID,
+        senderId: USER_ID,
+        content: 'hello',
+        parentId: undefined,
+        type: 'file',
+        workspaceId: WORKSPACE_ID,
+        attachments: dto.attachments,
+        metadata: dto.metadata,
+      });
+      expect(websocketGateway.sendToChannelMembers).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        WS_EVENTS.MESSAGE.NEW,
+        fullMessage,
+      );
+      expect(gatewayMQService?.publishPostBroadcast).toHaveBeenCalledWith({
+        msgId: MESSAGE_ID,
+        channelId: CHANNEL_ID,
+        senderId: USER_ID,
+        workspaceId: WORKSPACE_ID,
+        broadcastAt: NOW,
+      });
+      expect(eventEmitter.emit).toHaveBeenCalledWith('message.created', {
+        message: {
+          id: fullMessage.id,
+          channelId: fullMessage.channelId,
+          senderId: fullMessage.senderId,
+          content: fullMessage.content,
+          type: fullMessage.type,
+          isPinned: fullMessage.isPinned,
+          parentId: fullMessage.parentId,
+          createdAt: fullMessage.createdAt,
+        },
+        channel: makeChannel(),
+        sender: {
+          id: USER_ID,
+          username: 'alice',
+          displayName: 'Alice',
+        },
+      });
+      expect(gatewayMQService?.publishWorkspaceEvent).toHaveBeenCalledWith(
+        RABBITMQ_ROUTING_KEYS.MESSAGE_CREATED,
+        {
+          channelId: fullMessage.channelId,
+          messageId: fullMessage.id,
+          content: fullMessage.content,
+          senderId: fullMessage.senderId,
+        },
+      );
+    });
+
+    it('skips websocket broadcast and MQ publish when skipBroadcast is set and MQ is not ready', async () => {
+      gatewayMQService?.isReady.mockReturnValueOnce(false);
+
+      const fullMessage = makeMessage();
+      messagesService.getMessageWithDetails.mockResolvedValueOnce(fullMessage);
+
+      await expect(
+        controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'hello',
+          skipBroadcast: true,
+        } as never),
+      ).resolves.toEqual(fullMessage);
+
+      expect(websocketGateway.sendToChannelMembers).not.toHaveBeenCalled();
+      expect(gatewayMQService?.publishPostBroadcast).not.toHaveBeenCalled();
+      expect((controller as any).logger.warn).toHaveBeenCalledWith(
+        `[sendMessage] GatewayMQService not ready, skipping post-broadcast task`,
+      );
+      expect(gatewayMQService?.publishWorkspaceEvent).toHaveBeenCalledWith(
+        RABBITMQ_ROUTING_KEYS.MESSAGE_CREATED,
+        expect.objectContaining({
+          messageId: fullMessage.id,
+        }),
+      );
+    });
+  });
+
+  describe('message reads and details', () => {
+    it('marks a channel message as read', async () => {
+      await expect(
+        controller.markAsRead(USER_ID, CHANNEL_ID, { messageId: MESSAGE_ID }),
+      ).resolves.toEqual({ success: true });
+
+      expect(channelsService.assertReadAccess).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        USER_ID,
+      );
+      expect(messagesService.markAsRead).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        USER_ID,
+        MESSAGE_ID,
+      );
+    });
+
+    it('fetches a single message and checks read access', async () => {
+      const fullMessage = makeMessage();
+      messagesService.getMessageWithDetails.mockResolvedValueOnce(fullMessage);
+
+      await expect(controller.getMessage(USER_ID, MESSAGE_ID)).resolves.toEqual(
+        fullMessage,
+      );
+
+      expect(messagesService.getMessageWithDetails).toHaveBeenCalledWith(
+        MESSAGE_ID,
+      );
+      expect(channelsService.assertReadAccess).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        USER_ID,
+      );
+    });
+
+    it('updates a message, broadcasts it, and emits the update event', async () => {
+      const updatedMessage = makeMessage({
+        content: 'edited',
+      });
+      messagesService.update.mockResolvedValueOnce(updatedMessage);
+      channelsService.findById.mockResolvedValueOnce(makeChannel());
+
+      await expect(
+        controller.updateMessage(USER_ID, MESSAGE_ID, {
+          content: 'edited',
+        } as never),
+      ).resolves.toEqual(updatedMessage);
+
+      expect(messagesService.update).toHaveBeenCalledWith(MESSAGE_ID, USER_ID, {
+        content: 'edited',
+      });
+      expect(websocketGateway.sendToChannelMembers).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        WS_EVENTS.MESSAGE.UPDATED,
+        updatedMessage,
+      );
+      expect(eventEmitter.emit).toHaveBeenCalledWith('message.updated', {
+        message: {
+          id: updatedMessage.id,
+          channelId: updatedMessage.channelId,
+          senderId: updatedMessage.senderId,
+          content: updatedMessage.content,
+          type: updatedMessage.type,
+          isPinned: updatedMessage.isPinned,
+          parentId: updatedMessage.parentId,
+          createdAt: updatedMessage.createdAt,
+        },
+        channel: makeChannel(),
+        sender: {
+          id: USER_ID,
+          username: 'alice',
+          displayName: 'Alice',
+        },
+      });
+    });
+
+    it('deletes a message, broadcasts deletion, and emits the removal event', async () => {
+      messagesService.getMessageChannelId.mockResolvedValueOnce(CHANNEL_ID);
+
+      await expect(
+        controller.deleteMessage(USER_ID, MESSAGE_ID),
+      ).resolves.toEqual({ success: true });
+
+      expect(messagesService.delete).toHaveBeenCalledWith(MESSAGE_ID, USER_ID);
+      expect(websocketGateway.sendToChannelMembers).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        WS_EVENTS.MESSAGE.DELETED,
+        { messageId: MESSAGE_ID, channelId: CHANNEL_ID },
+      );
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        'message.deleted',
+        MESSAGE_ID,
+      );
+    });
+  });
+
+  describe('threading', () => {
+    it('loads a thread with parsed limit and cursor', async () => {
+      await expect(
+        controller.getThread(USER_ID, MESSAGE_ID, '12', 'cursor-12'),
+      ).resolves.toEqual({
+        rootMessage: makeMessage(),
+        replies: [],
+        totalReplyCount: 0,
+        hasMore: false,
+        nextCursor: null,
+      });
+
+      expect(messagesService.getMessageChannelId).toHaveBeenCalledWith(
+        MESSAGE_ID,
+      );
+      expect(channelsService.assertReadAccess).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        USER_ID,
+      );
+      expect(messagesService.getThread).toHaveBeenCalledWith(
+        MESSAGE_ID,
+        12,
+        'cursor-12',
+      );
+    });
+
+    it('loads sub-replies with the default limit', async () => {
+      await expect(
+        controller.getSubReplies(USER_ID, MESSAGE_ID, undefined, 'cursor-2'),
+      ).resolves.toEqual({
+        replies: [],
+        hasMore: false,
+        nextCursor: null,
+      });
+
+      expect(messagesService.getSubReplies).toHaveBeenCalledWith(
+        MESSAGE_ID,
+        20,
+        'cursor-2',
+      );
+    });
+  });
+
+  describe('pins and reactions', () => {
+    it('allows owners to pin and unpin messages', async () => {
+      await expect(controller.pinMessage(USER_ID, MESSAGE_ID)).resolves.toEqual(
+        {
+          success: true,
+        },
+      );
+      await expect(
+        controller.unpinMessage(USER_ID, MESSAGE_ID),
+      ).resolves.toEqual({ success: true });
+
+      expect(messagesService.pinMessage).toHaveBeenNthCalledWith(
+        1,
+        MESSAGE_ID,
+        true,
+      );
+      expect(messagesService.pinMessage).toHaveBeenNthCalledWith(
+        2,
+        MESSAGE_ID,
+        false,
+      );
+    });
+
+    it('rejects pin and unpin for non-admin members', async () => {
+      channelsService.getMemberRole.mockResolvedValueOnce('member');
+
+      await expect(
+        controller.pinMessage(USER_ID, MESSAGE_ID),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      channelsService.getMemberRole.mockResolvedValueOnce(undefined);
+
+      await expect(
+        controller.unpinMessage(USER_ID, MESSAGE_ID),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(messagesService.pinMessage).not.toHaveBeenCalled();
+    });
+
+    it('adds and removes reactions', async () => {
+      await expect(
+        controller.addReaction(USER_ID, MESSAGE_ID, { emoji: '👍' } as never),
+      ).resolves.toEqual({ success: true });
+      await expect(
+        controller.removeReaction(USER_ID, MESSAGE_ID, '👍'),
+      ).resolves.toEqual({ success: true });
+
+      expect(messagesService.addReaction).toHaveBeenCalledWith(
+        MESSAGE_ID,
+        USER_ID,
+        '👍',
+      );
+      expect(messagesService.removeReaction).toHaveBeenCalledWith(
+        MESSAGE_ID,
+        USER_ID,
+        '👍',
+      );
+    });
+  });
+});
