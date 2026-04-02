@@ -14,10 +14,14 @@ import type {
 import { BotService } from '../../bot/bot.service.js';
 import { OpenclawService } from '../../openclaw/openclaw.service.js';
 import { ChannelsService } from '../../im/channels/channels.service.js';
-import { WebsocketGateway } from '../../im/websocket/websocket.gateway.js';
 import { RedisService } from '@team9/redis';
 import { WS_EVENTS } from '../../im/websocket/events/events.constants.js';
 import { REDIS_KEYS } from '../../im/shared/constants/redis-keys.js';
+import { WEBSOCKET_GATEWAY } from '../../shared/constants/injection-tokens.js';
+
+interface ApplicationWebsocketGateway {
+  sendToUser(userId: string, event: string, data: unknown): Promise<void>;
+}
 
 /**
  * Handler for OpenClaw application installation.
@@ -39,7 +43,8 @@ export class OpenClawHandler implements ApplicationHandler {
     private readonly botService: BotService,
     private readonly openclawService: OpenclawService,
     private readonly channelsService: ChannelsService,
-    private readonly websocketGateway: WebsocketGateway,
+    @Inject(WEBSOCKET_GATEWAY)
+    private readonly websocketGateway: ApplicationWebsocketGateway,
     private readonly redisService: RedisService,
   ) {}
 

@@ -16,11 +16,15 @@ import {
   ChannelsService,
   type ChannelResponse,
 } from '../../im/channels/channels.service.js';
-import { WebsocketGateway } from '../../im/websocket/websocket.gateway.js';
 import { RedisService } from '@team9/redis';
 import { WS_EVENTS } from '../../im/websocket/events/events.constants.js';
 import { REDIS_KEYS } from '../../im/shared/constants/redis-keys.js';
 import { BASE_MODEL_PRESETS } from './base-model-staff.presets.js';
+import { WEBSOCKET_GATEWAY } from '../../shared/constants/injection-tokens.js';
+
+interface ApplicationWebsocketGateway {
+  sendToUser(userId: string, event: string, data: unknown): Promise<void>;
+}
 
 /**
  * Handler for Base Model Staff application installation.
@@ -42,7 +46,8 @@ export class BaseModelStaffHandler implements ApplicationHandler {
     private readonly botService: BotService,
     private readonly clawHiveService: ClawHiveService,
     private readonly channelsService: ChannelsService,
-    private readonly websocketGateway: WebsocketGateway,
+    @Inject(WEBSOCKET_GATEWAY)
+    private readonly websocketGateway: ApplicationWebsocketGateway,
     private readonly redisService: RedisService,
   ) {}
 

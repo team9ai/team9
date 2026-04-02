@@ -5,10 +5,10 @@ import { BaseModelStaffHandler } from './base-model-staff.handler.js';
 import { BotService } from '../../bot/bot.service.js';
 import { ClawHiveService } from '@team9/claw-hive';
 import { ChannelsService } from '../../im/channels/channels.service.js';
-import { WebsocketGateway } from '../../im/websocket/websocket.gateway.js';
 import { RedisService } from '@team9/redis';
 import { BASE_MODEL_PRESETS } from './base-model-staff.presets.js';
 import type { InstallContext } from './application-handler.interface.js';
+import { WEBSOCKET_GATEWAY } from '../../shared/constants/injection-tokens.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -118,7 +118,7 @@ describe('BaseModelStaffHandler', () => {
         { provide: BotService, useValue: botService },
         { provide: ClawHiveService, useValue: clawHiveService },
         { provide: ChannelsService, useValue: channelsService },
-        { provide: WebsocketGateway, useValue: websocketGateway },
+        { provide: WEBSOCKET_GATEWAY, useValue: websocketGateway },
         { provide: RedisService, useValue: redisService },
       ],
     }).compile();

@@ -14,9 +14,9 @@ import { OpenClawHandler } from './openclaw.handler.js';
 import { BotService } from '../../bot/bot.service.js';
 import { OpenclawService } from '../../openclaw/openclaw.service.js';
 import { ChannelsService } from '../../im/channels/channels.service.js';
-import { WebsocketGateway } from '../../im/websocket/websocket.gateway.js';
 import { RedisService } from '@team9/redis';
 import type { InstallContext } from './application-handler.interface.js';
+import { WEBSOCKET_GATEWAY } from '../../shared/constants/injection-tokens.js';
 
 // ── env stubs ────────────────────────────────────────────────────────────────
 
@@ -142,7 +142,7 @@ describe('OpenClawHandler', () => {
         { provide: BotService, useValue: botService },
         { provide: OpenclawService, useValue: openclawService },
         { provide: ChannelsService, useValue: channelsService },
-        { provide: WebsocketGateway, useValue: websocketGateway },
+        { provide: WEBSOCKET_GATEWAY, useValue: websocketGateway },
         { provide: RedisService, useValue: redisService },
       ],
     }).compile();
