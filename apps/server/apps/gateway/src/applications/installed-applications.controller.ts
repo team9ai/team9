@@ -41,6 +41,11 @@ import { ApplicationsService } from './applications.service.js';
 import { OpenclawService } from '../openclaw/openclaw.service.js';
 import { FileKeeperService } from '../file-keeper/file-keeper.service.js';
 import { BotService } from '../bot/bot.service.js';
+import { ChannelsService } from '../im/channels/channels.service.js';
+import { WebsocketGateway } from '../im/websocket/websocket.gateway.js';
+import { RedisService } from '@team9/redis';
+import { WS_EVENTS } from '../im/websocket/events/events.constants.js';
+import { REDIS_KEYS } from '../im/shared/constants/redis-keys.js';
 import { generateSlug, generateShortId } from '../common/utils/slug.util.js';
 
 @Controller({
@@ -59,6 +64,9 @@ export class InstalledApplicationsController {
     private readonly openclawService: OpenclawService,
     private readonly fileKeeperService: FileKeeperService,
     private readonly botService: BotService,
+    private readonly channelsService: ChannelsService,
+    private readonly websocketGateway: WebsocketGateway,
+    private readonly redisService: RedisService,
   ) {}
 
   /**
@@ -789,6 +797,49 @@ export class InstalledApplicationsController {
         .update(schema.bots)
         .set({ description: body.description.trim(), updatedAt: new Date() })
         .where(eq(schema.bots.id, bot.botId));
+    }
+
+    // 5. Create DM channels between new bot and all workspace members
+    try {
+      const members = await this.db
+        .select({ userId: schema.tenantMembers.userId })
+        .from(schema.tenantMembers)
+        .where(eq(schema.tenantMembers.tenantId, tenantId));
+
+      const memberUserIds = members
+        .map((m) => m.userId)
+        .filter((uid) => uid !== bot.userId);
+
+      if (memberUserIds.length > 0) {
+        const dmChannels = await this.channelsService.createDirectChannelsBatch(
+          bot.userId,
+          memberUserIds,
+          tenantId,
+        );
+
+        // Notify online users about new DM channels
+        const onlineUsersHash = await this.redisService.hgetall(
+          REDIS_KEYS.ONLINE_USERS,
+        );
+
+        await Promise.allSettled(
+          Array.from(dmChannels.entries()).map(([otherUserId, dmChannel]) => {
+            if (otherUserId in onlineUsersHash) {
+              return this.websocketGateway.sendToUser(
+                otherUserId,
+                WS_EVENTS.CHANNEL.CREATED,
+                dmChannel,
+              );
+            }
+            return Promise.resolve();
+          }),
+        );
+      }
+    } catch (error) {
+      // Don't fail agent creation if DM channel creation fails
+      this.logger.warn(
+        `Failed to create DM channels for new agent bot: ${error instanceof Error ? error.message : error}`,
+      );
     }
 
     return {
