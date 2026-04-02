@@ -12,8 +12,19 @@ import type {
 } from './application-handler.interface.js';
 import { BotService } from '../../bot/bot.service.js';
 import { ClawHiveService } from '@team9/claw-hive';
-import { ChannelsService } from '../../im/channels/channels.service.js';
+import {
+  ChannelsService,
+  type ChannelResponse,
+} from '../../im/channels/channels.service.js';
+import { RedisService } from '@team9/redis';
+import { WS_EVENTS } from '../../im/websocket/events/events.constants.js';
+import { REDIS_KEYS } from '../../im/shared/constants/redis-keys.js';
 import { BASE_MODEL_PRESETS } from './base-model-staff.presets.js';
+import { WEBSOCKET_GATEWAY } from '../../shared/constants/injection-tokens.js';
+
+interface ApplicationWebsocketGateway {
+  sendToUser(userId: string, event: string, data: unknown): Promise<void>;
+}
 
 /**
  * Handler for Base Model Staff application installation.
@@ -35,6 +46,9 @@ export class BaseModelStaffHandler implements ApplicationHandler {
     private readonly botService: BotService,
     private readonly clawHiveService: ClawHiveService,
     private readonly channelsService: ChannelsService,
+    @Inject(WEBSOCKET_GATEWAY)
+    private readonly websocketGateway: ApplicationWebsocketGateway,
+    private readonly redisService: RedisService,
   ) {}
 
   async onInstall(context: InstallContext): Promise<InstallResult> {
@@ -112,10 +126,10 @@ export class BaseModelStaffHandler implements ApplicationHandler {
         `Batch registered ${createdBotData.length} claw-hive agents for tenant ${tenantId}`,
       );
 
-      // Step 3: Parallel channel creation
+      // Step 3: Parallel channel creation + WebSocket notifications
       const memberUserIds = members.map((m) => m.userId);
 
-      await Promise.all(
+      const allDmChannelMaps = await Promise.all(
         createdBotData.map(({ bot }) => {
           const filteredMembers = memberUserIds.filter(
             (uid) => uid !== bot.userId,
@@ -127,9 +141,44 @@ export class BaseModelStaffHandler implements ApplicationHandler {
               tenantId,
             );
           }
-          return Promise.resolve();
+          return Promise.resolve(new Map<string, ChannelResponse>());
         }),
       );
+
+      // Notify online users about new DM channels
+      try {
+        const onlineUsersHash = await this.redisService.hgetall(
+          REDIS_KEYS.ONLINE_USERS,
+        );
+
+        await Promise.allSettled(
+          allDmChannelMaps.flatMap((dmChannels) =>
+            dmChannels
+              ? Array.from(dmChannels.entries()).flatMap(
+                  ([otherUserId, dmChannel]) => {
+                    const notifications: Promise<void>[] = [];
+                    // Notify the workspace member about the new bot DM
+                    if (otherUserId in onlineUsersHash) {
+                      notifications.push(
+                        this.websocketGateway.sendToUser(
+                          otherUserId,
+                          WS_EVENTS.CHANNEL.CREATED,
+                          dmChannel,
+                        ),
+                      );
+                    }
+                    return notifications;
+                  },
+                )
+              : [],
+          ),
+        );
+      } catch (error) {
+        // Don't fail installation if WebSocket notifications fail
+        this.logger.warn(
+          `Failed to send channel_created notifications: ${error instanceof Error ? error.message : error}`,
+        );
+      }
     } catch (error) {
       // Rollback: clean up any bots created before the failure
       this.logger.error(

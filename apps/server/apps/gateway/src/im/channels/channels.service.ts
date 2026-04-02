@@ -17,6 +17,7 @@ import {
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
+import type { ChannelSnapshot } from '@team9/database/schemas';
 import {
   CreateChannelDto,
   UpdateChannelDto,
@@ -72,16 +73,6 @@ export interface ChannelMemberResponse {
     userType: 'human' | 'bot' | 'system';
     createdAt: Date;
   };
-}
-
-interface ChannelSnapshot {
-  totalMessageCount: number;
-  latestMessages: Array<{
-    id: string;
-    content: string | null;
-    metadata: Record<string, unknown> | null;
-    createdAt: Date;
-  }>;
 }
 
 @Injectable()

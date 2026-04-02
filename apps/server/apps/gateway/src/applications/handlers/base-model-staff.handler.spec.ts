@@ -5,8 +5,10 @@ import { BaseModelStaffHandler } from './base-model-staff.handler.js';
 import { BotService } from '../../bot/bot.service.js';
 import { ClawHiveService } from '@team9/claw-hive';
 import { ChannelsService } from '../../im/channels/channels.service.js';
+import { RedisService } from '@team9/redis';
 import { BASE_MODEL_PRESETS } from './base-model-staff.presets.js';
 import type { InstallContext } from './application-handler.interface.js';
+import { WEBSOCKET_GATEWAY } from '../../shared/constants/injection-tokens.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -72,6 +74,8 @@ describe('BaseModelStaffHandler', () => {
     deleteAgents: MockFn;
   };
   let channelsService: { createDirectChannelsBatch: MockFn };
+  let websocketGateway: { sendToUser: MockFn };
+  let redisService: { hgetall: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
@@ -89,7 +93,15 @@ describe('BaseModelStaffHandler', () => {
     };
 
     channelsService = {
-      createDirectChannelsBatch: jest.fn<any>().mockResolvedValue(undefined),
+      createDirectChannelsBatch: jest.fn<any>().mockResolvedValue(new Map()),
+    };
+
+    websocketGateway = {
+      sendToUser: jest.fn<any>().mockResolvedValue(undefined),
+    };
+
+    redisService = {
+      hgetall: jest.fn<any>().mockResolvedValue({}),
     };
 
     // Default: createWorkspaceBot returns per-preset bot result
@@ -106,6 +118,8 @@ describe('BaseModelStaffHandler', () => {
         { provide: BotService, useValue: botService },
         { provide: ClawHiveService, useValue: clawHiveService },
         { provide: ChannelsService, useValue: channelsService },
+        { provide: WEBSOCKET_GATEWAY, useValue: websocketGateway },
+        { provide: RedisService, useValue: redisService },
       ],
     }).compile();
 
@@ -181,6 +195,57 @@ describe('BaseModelStaffHandler', () => {
       expect(channelsService.createDirectChannelsBatch).toHaveBeenCalledTimes(
         BASE_MODEL_PRESETS.length,
       );
+    });
+
+    it('emits channel_created events to online workspace members', async () => {
+      const memberIds = ['member-a', 'member-b'];
+      db.where.mockResolvedValueOnce(memberIds.map((userId) => ({ userId })));
+
+      // member-a is online, member-b is offline
+      redisService.hgetall.mockResolvedValueOnce({ 'member-a': 'online' });
+
+      const dmChannelA = { id: 'dm-a', type: 'direct' };
+      const dmChannelB = { id: 'dm-b', type: 'direct' };
+
+      // Each bot creates DM channels with the two members
+      for (let i = 0; i < BASE_MODEL_PRESETS.length; i++) {
+        channelsService.createDirectChannelsBatch.mockResolvedValueOnce(
+          new Map([
+            ['member-a', dmChannelA],
+            ['member-b', dmChannelB],
+          ]),
+        );
+      }
+
+      await handler.onInstall(makeContext());
+
+      // Should notify member-a (online) for each bot, but not member-b (offline)
+      expect(websocketGateway.sendToUser).toHaveBeenCalledWith(
+        'member-a',
+        'channel_created',
+        dmChannelA,
+      );
+      expect(websocketGateway.sendToUser).not.toHaveBeenCalledWith(
+        'member-b',
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
+    it('does not fail installation if WebSocket notifications fail', async () => {
+      const memberIds = ['member-a'];
+      db.where.mockResolvedValueOnce(memberIds.map((userId) => ({ userId })));
+      redisService.hgetall.mockRejectedValueOnce(new Error('Redis down'));
+
+      for (let i = 0; i < BASE_MODEL_PRESETS.length; i++) {
+        channelsService.createDirectChannelsBatch.mockResolvedValueOnce(
+          new Map([['member-a', { id: 'dm-a', type: 'direct' }]]),
+        );
+      }
+
+      // Should not throw — installation still succeeds
+      const result = await handler.onInstall(makeContext());
+      expect(result.config).toBeDefined();
     });
 
     it('returns config with all bot IDs', async () => {

@@ -40,13 +40,15 @@ export class TriggersService {
       nextRunAt = this.calculateInitialNextRunAt(dto.type, dto.config);
     }
 
+    const config = (dto.config ?? null) as schema.TriggerConfig | null;
+
     const [trigger] = await this.db
       .insert(schema.agentTaskTriggers)
       .values({
         id: triggerId,
         taskId,
         type: dto.type,
-        config: (dto.config ?? null) as schema.TriggerConfig | null,
+        config,
         enabled: dto.enabled ?? true,
         nextRunAt,
         createdAt: now,
@@ -69,12 +71,12 @@ export class TriggersService {
   async update(triggerId: string, dto: UpdateTriggerDto, tenantId: string) {
     const trigger = await this.getTriggerOrThrow(triggerId, tenantId);
 
-    const updateData: Record<string, unknown> = {
+    const updateData: Partial<schema.NewAgentTaskTrigger> = {
       updatedAt: new Date(),
     };
 
     if (dto.config !== undefined) {
-      updateData.config = dto.config;
+      updateData.config = dto.config as schema.TriggerConfig;
     }
     if (dto.enabled !== undefined) {
       updateData.enabled = dto.enabled;

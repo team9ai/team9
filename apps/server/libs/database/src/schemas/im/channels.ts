@@ -14,14 +14,6 @@ import { users } from './users.js';
 import { tenants } from '../tenant/tenants.js';
 import { channelSections } from './channel-sections.js';
 
-export const channelTypeEnum = pgEnum('channel_type', [
-  'direct',
-  'public',
-  'private',
-  'task',
-  'tracking',
-]);
-
 export interface ChannelSnapshotMessage {
   id: string;
   content: string | null;
@@ -33,6 +25,14 @@ export interface ChannelSnapshot {
   totalMessageCount: number;
   latestMessages: ChannelSnapshotMessage[];
 }
+
+export const channelTypeEnum = pgEnum('channel_type', [
+  'direct',
+  'public',
+  'private',
+  'task',
+  'tracking',
+]);
 
 export const channels = pgTable(
   'im_channels',
