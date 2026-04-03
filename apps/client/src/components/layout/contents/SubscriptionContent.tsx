@@ -1,16 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import {
-  ArrowLeft,
-  ArrowUpRight,
-  Coins,
-  Package,
-  Plus,
-  ReceiptText,
-  ShieldAlert,
-} from "lucide-react";
+import { Plus, ShieldAlert, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -20,7 +12,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import {
   useCreateWorkspaceBillingCheckout,
   useCreateWorkspaceBillingPortal,
@@ -312,6 +303,38 @@ function getPlanDescription(title: string) {
   return "适合先体验产品，保留最基本的额度与能力。";
 }
 
+function getCreditsPlanDescription(title: string) {
+  const normalizedTitle = title.trim().toLowerCase();
+
+  if (normalizedTitle.includes("starter")) {
+    return "Configurable monthly credits with priority support.";
+  }
+
+  if (
+    normalizedTitle.includes("pro") ||
+    normalizedTitle.includes("business") ||
+    normalizedTitle.includes("enterprise")
+  ) {
+    return "Higher monthly credits with stronger priority and reporting.";
+  }
+
+  return "Basic monthly credits for early workspace exploration.";
+}
+
+function getCreditsPlanActionLabel(title: string) {
+  const normalizedTitle = title.trim().toLowerCase();
+
+  if (
+    normalizedTitle.includes("pro") ||
+    normalizedTitle.includes("business") ||
+    normalizedTitle.includes("enterprise")
+  ) {
+    return "Change plan";
+  }
+
+  return "Upgrade";
+}
+
 function getPlanCardTheme(index: number, title: string): PlanCardTheme {
   const normalizedTitle = title.toLowerCase();
 
@@ -465,17 +488,6 @@ function SectionMessage({
     <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-6 text-center">
       <div className="text-sm font-medium text-slate-900">{title}</div>
       <p className="mt-2 text-sm text-slate-500">{description}</p>
-    </div>
-  );
-}
-
-function InfoStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-      <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">
-        {label}
-      </div>
-      <div className="mt-2 text-base font-semibold text-slate-950">{value}</div>
     </div>
   );
 }
@@ -857,140 +869,124 @@ export function SubscriptionContent({
   }
 
   if (currentView === "credits") {
-    return (
-      <main className="flex h-full flex-col overflow-hidden bg-background">
-        <header className="flex h-14 items-center gap-2 border-b bg-background px-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 px-2"
-            onClick={() => navigateToView("plans")}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to plans
-          </Button>
-          <Separator orientation="vertical" className="hidden h-5 sm:block" />
-          <div className="min-w-0">
-            <h1 className="text-lg font-semibold">Workspace credits</h1>
-            <p className="truncate text-xs text-muted-foreground">
-              {currentWorkspace.name} · shared across the workspace
-            </p>
-          </div>
-        </header>
+    const organizationName = account?.ownerName || currentWorkspace.name;
+    const currentPlanName = subscription?.product.name || "Free";
+    const currentPlanCreditsLabel = subscription
+      ? formatPlanCredits(subscription.product)
+      : account?.effectiveQuota
+        ? `${formatCredits(account.effectiveQuota)} / month`
+        : "No active paid subscription";
+    const canOpenInvoice = !!overview.data?.recentTransactions.some(
+      (transaction) =>
+        transaction.paymentAmountCents !== null || transaction.invoiceId,
+    );
 
-        <ScrollArea className="min-h-0 flex-1 bg-secondary/20">
-          <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-6">
-            <Card className="overflow-hidden border-slate-200 shadow-sm">
-              <CardContent className="grid gap-4 p-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
-                <div>
-                  <div className="text-sm font-medium text-slate-600">
-                    Shared workspace credits
+    return (
+      <main className="flex h-full flex-col overflow-hidden bg-[#f4f7fc]">
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="relative isolate">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.95),transparent_35%),radial-gradient(circle_at_top_right,rgba(230,239,255,0.95),transparent_40%),linear-gradient(180deg,#f9fbff_0%,#eef4fb_100%)]" />
+
+            <div className="relative mx-auto flex w-full max-w-[1560px] flex-col gap-6 px-6 py-8 xl:px-8">
+              <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                <div className="max-w-3xl">
+                  <h1 className="text-5xl font-semibold tracking-[-0.06em] text-[#111b35] sm:text-6xl">
+                    Organization Credits
+                  </h1>
+                  <p className="mt-3 text-lg text-[#6a7d9e]">
+                    Org Account: {organizationName}
+                  </p>
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-16 w-16 rounded-[1.5rem] border-white/80 bg-white/80 text-[#6a7d9e] shadow-[0_18px_40px_-32px_rgba(15,23,42,0.4)] backdrop-blur"
+                  onClick={() => navigateToView("plans")}
+                  aria-label="Back to plans"
+                >
+                  <X className="h-6 w-6" />
+                </Button>
+              </div>
+
+              <Card className="overflow-hidden rounded-[2rem] border-white/75 bg-[linear-gradient(180deg,#ffffff_0%,#f5f9ff_100%)] shadow-[0_24px_72px_-44px_rgba(15,23,42,0.35)]">
+                <CardContent className="p-7 sm:p-8">
+                  <div className="text-[1.8rem] font-semibold tracking-[-0.03em] text-[#111b35]">
+                    Organization Credits
                   </div>
-                  <div className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
+                  <div className="mt-4 text-[4.3rem] leading-none font-semibold tracking-[-0.07em] text-[#111b35] sm:text-[5.2rem]">
                     {formatCredits(totalCredits)}
                   </div>
-                  <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
-                    Prepaid credits belong to the workspace. Monthly quota comes
-                    from the current plan, and top-ups stay available until they
-                    are used.
-                  </p>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                  <InfoStat
-                    label="Prepaid balance"
-                    value={formatCredits(account?.balance ?? 0)}
-                  />
-                  <InfoStat
-                    label="Plan quota"
-                    value={formatCredits(account?.effectiveQuota ?? 0)}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-              <Card className="border-slate-200 shadow-sm">
-                <CardHeader className="space-y-2">
-                  <div className="flex items-center gap-2 text-slate-500">
-                    <Package className="h-4 w-4" />
-                    <span className="text-xs font-medium uppercase tracking-[0.22em]">
-                      Recharge
-                    </span>
+                  <div className="mt-6 flex flex-wrap gap-3 text-sm text-[#5d7295]">
+                    <div className="rounded-full border border-[#dbe6f6] bg-white/90 px-4 py-2">
+                      Prepaid balance: {formatCredits(account?.balance ?? 0)}
+                    </div>
+                    <div className="rounded-full border border-[#dbe6f6] bg-white/90 px-4 py-2">
+                      Plan quota: {formatCredits(account?.effectiveQuota ?? 0)}
+                    </div>
                   </div>
-                  <CardTitle className="text-2xl text-slate-950">
-                    Buy workspace credits
-                  </CardTitle>
-                  <p className="text-sm leading-6 text-slate-500">
-                    Recharge is charged to the workspace. Only owners and admins
-                    can complete the purchase.
-                  </p>
-                </CardHeader>
+                </CardContent>
+              </Card>
 
-                <CardContent className="space-y-4">
-                  {customAmountConfig ? (
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-                      <div className="text-xs font-medium uppercase tracking-[0.22em] text-slate-400">
-                        Custom amount
-                      </div>
+              <div className="grid gap-6 xl:grid-cols-[1.35fr_0.95fr]">
+                <Card className="overflow-hidden rounded-[2rem] border-white/75 bg-white/80 shadow-[0_24px_72px_-44px_rgba(15,23,42,0.35)] backdrop-blur">
+                  <CardContent className="space-y-6 p-7 sm:p-8">
+                    <div>
+                      <CardTitle className="text-[2rem] tracking-[-0.04em] text-[#111b35]">
+                        Buy Credits
+                      </CardTitle>
+                      <p className="mt-2 text-lg text-[#6a7d9e]">
+                        Add prepaid credits to your workspace balance.
+                      </p>
+                    </div>
 
-                      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-end">
-                        <div>
-                          <div className="text-sm font-medium text-slate-900">
-                            Amount in USD
-                          </div>
-                          <div className="relative mt-2">
-                            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-slate-500">
-                              $
-                            </span>
-                            <Input
-                              inputMode="decimal"
-                              placeholder={
-                                customAmountConfig.presetCents
-                                  ? formatUsdInputValue(
-                                      customAmountConfig.presetCents,
-                                    )
-                                  : "25"
-                              }
-                              value={customAmountInput}
-                              onChange={(event) =>
-                                setCustomAmountInput(event.target.value)
-                              }
-                              aria-invalid={
-                                customAmountInput.trim().length > 0 &&
-                                !!customAmountError
-                              }
-                              className="h-14 rounded-2xl border-slate-200 bg-white pl-9 text-lg font-semibold text-slate-950"
-                            />
-                          </div>
-                          <p
-                            className={cn(
-                              "mt-2 text-sm",
-                              customAmountInput.trim().length > 0 &&
-                                customAmountError
-                                ? "text-destructive"
-                                : "text-slate-500",
-                            )}
-                          >
-                            {customAmountInput.trim().length > 0 &&
-                            customAmountError
-                              ? customAmountError
-                              : customAmountHint ||
-                                "1 USD = 1,000 credits across all paid plans."}
-                          </p>
+                    {customAmountConfig ? (
+                      <div>
+                        <div className="text-sm font-medium text-[#4a5f83]">
+                          Amount in USD
                         </div>
 
-                        <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                          <div className="text-xs font-medium uppercase tracking-[0.22em] text-slate-400">
-                            You will receive
+                        <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px_220px]">
+                          <div className="rounded-[1.4rem] border border-[#d7e2f2] bg-white px-6 py-5 shadow-[0_16px_36px_-32px_rgba(15,23,42,0.35)]">
+                            <div className="relative">
+                              <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-[2rem] font-semibold text-[#54698d]">
+                                $
+                              </span>
+                              <Input
+                                inputMode="decimal"
+                                placeholder={
+                                  customAmountConfig.presetCents
+                                    ? formatUsdInputValue(
+                                        customAmountConfig.presetCents,
+                                      )
+                                    : "25"
+                                }
+                                value={customAmountInput}
+                                onChange={(event) =>
+                                  setCustomAmountInput(event.target.value)
+                                }
+                                aria-invalid={
+                                  customAmountInput.trim().length > 0 &&
+                                  !!customAmountError
+                                }
+                                className="h-auto border-0 bg-transparent pl-8 text-[2rem] font-semibold text-[#111b35] shadow-none ring-0 focus-visible:ring-0"
+                              />
+                            </div>
                           </div>
-                          <div className="mt-2 text-2xl font-semibold text-slate-950">
-                            {customAmountCents !== null
-                              ? formatCreditsFromCents(customAmountCents)
-                              : "—"}
+
+                          <div className="rounded-[1.4rem] bg-[#f3f6fb] px-6 py-5">
+                            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a9ab8]">
+                              You receive
+                            </div>
+                            <div className="mt-2 text-[1.9rem] font-semibold tracking-[-0.04em] text-[#111b35]">
+                              {customAmountCents !== null
+                                ? formatCreditsFromCents(customAmountCents)
+                                : "—"}
+                            </div>
                           </div>
+
                           <Button
-                            className="mt-4 h-11 w-full"
+                            className="h-[4.75rem] rounded-[1.4rem] bg-[#3e7df1] text-xl font-semibold text-white hover:bg-[#336fe0]"
                             onClick={() =>
                               customAmountProduct && customAmountCents !== null
                                 ? void handleCheckout(
@@ -1003,214 +999,233 @@ export function SubscriptionContent({
                             }
                             disabled={!canSubmitCustomAmount}
                           >
-                            Add credits
+                            Add Credits
                           </Button>
                         </div>
-                      </div>
-                    </div>
-                  ) : fixedCreditProducts.length > 0 ? (
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-600">
-                      Custom amount top-up is not configured for this workspace
-                      yet. Use a quick amount below.
-                    </div>
-                  ) : (
-                    <SectionMessage
-                      title="No usable top-up options configured"
-                      description="Billing Hub does not currently expose a custom top-up amount or any fixed credit packs."
-                    />
-                  )}
 
-                  {fixedCreditProducts.length > 0 ? (
-                    <div className="space-y-3">
-                      <div className="text-sm font-medium text-slate-900">
-                        Quick amounts
+                        <p
+                          className={cn(
+                            "mt-3 text-sm",
+                            customAmountInput.trim().length > 0 &&
+                              customAmountError
+                              ? "text-destructive"
+                              : "text-[#6a7d9e]",
+                          )}
+                        >
+                          {customAmountInput.trim().length > 0 &&
+                          customAmountError
+                            ? customAmountError
+                            : customAmountHint ||
+                              "1 USD = 1,000 credits across all paid plans."}
+                        </p>
                       </div>
-                      <div className="grid gap-3 md:grid-cols-2">
-                        {fixedCreditProducts.map((product) => (
-                          <button
-                            key={product.stripePriceId}
-                            type="button"
-                            className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition-colors hover:border-slate-300"
-                            onClick={() =>
-                              void handleCheckout(
-                                product.stripePriceId,
-                                "one_time",
-                                "credits",
-                              )
-                            }
-                            disabled={checkout.isPending}
-                            aria-label={`Add ${formatMoney(product.amountCents)}`}
-                          >
-                            <div className="text-2xl font-semibold text-slate-950">
-                              {formatMoney(product.amountCents)}
-                            </div>
-                            <div className="mt-2 text-sm font-medium text-slate-700">
-                              {formatCredits(product.credits ?? 0)}
-                            </div>
-                            <p className="mt-3 text-sm leading-6 text-slate-500">
-                              {product.display.description ||
-                                "Prepaid workspace credits that never expire."}
-                            </p>
-                          </button>
-                        ))}
+                    ) : fixedCreditProducts.length > 0 ? (
+                      <div className="rounded-[1.4rem] border border-[#d7e2f2] bg-[#f7faff] px-5 py-4 text-sm text-[#5d7295]">
+                        Custom amount top-up is not configured for this
+                        workspace yet. Use a quick amount below.
                       </div>
-                    </div>
-                  ) : null}
-                </CardContent>
-              </Card>
+                    ) : (
+                      <SectionMessage
+                        title="No usable top-up options configured"
+                        description="Billing Hub does not currently expose a custom top-up amount or any fixed credit packs."
+                      />
+                    )}
 
-              <Card className="border-slate-200 shadow-sm">
-                <CardHeader className="space-y-2">
-                  <div className="flex items-center gap-2 text-slate-500">
-                    <Coins className="h-4 w-4" />
-                    <span className="text-xs font-medium uppercase tracking-[0.22em]">
-                      Current plan
-                    </span>
-                  </div>
-                  <CardTitle className="text-2xl text-slate-950">
-                    {subscription ? subscription.product.name : "Free"}
-                  </CardTitle>
-                </CardHeader>
+                    {fixedCreditProducts.length > 0 ? (
+                      <div className="space-y-3">
+                        <div className="text-sm font-medium text-[#4a5f83]">
+                          Quick amounts
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          {fixedCreditProducts.map((product) => (
+                            <button
+                              key={product.stripePriceId}
+                              type="button"
+                              className="rounded-[1.4rem] border border-[#d7e2f2] bg-white px-5 py-4 text-left transition-colors hover:border-[#afc9fb]"
+                              onClick={() =>
+                                void handleCheckout(
+                                  product.stripePriceId,
+                                  "one_time",
+                                  "credits",
+                                )
+                              }
+                              disabled={checkout.isPending}
+                              aria-label={`Add ${formatMoney(product.amountCents)}`}
+                            >
+                              <div className="text-2xl font-semibold tracking-[-0.04em] text-[#111b35]">
+                                {formatMoney(product.amountCents)}
+                              </div>
+                              <div className="mt-2 text-base font-medium text-[#4a5f83]">
+                                {formatCredits(product.credits ?? 0)}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
 
-                <CardContent className="space-y-4">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-                    <div className="text-base font-semibold text-slate-950">
-                      {subscription
-                        ? formatPlanCredits(subscription.product)
-                        : "No active paid subscription"}
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-slate-500">
-                      {subscription?.product.display.description ||
-                        "Workspace billing is attached to the workspace, not an individual user."}
+                    <p className="text-base leading-7 text-[#5d7295]">
+                      This credit balance is shared across the entire workspace
+                      and never expires.
                     </p>
-                  </div>
+                  </CardContent>
+                </Card>
 
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <InfoStat
-                      label="Status"
-                      value={formatStatusLabel(
-                        subscription?.status || account?.status || "active",
-                      )}
-                    />
-                    <InfoStat
-                      label={subscription ? "Current period" : "Plan"}
-                      value={
-                        subscription
-                          ? `Ends ${formatDate(subscription.currentPeriodEnd)}`
-                          : "Free"
-                      }
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-3">
+                <Card className="overflow-hidden rounded-[2rem] border-white/75 bg-white/80 shadow-[0_24px_72px_-44px_rgba(15,23,42,0.35)] backdrop-blur">
+                  <CardContent className="space-y-5 p-7 sm:p-8">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a9ab8]">
+                      Current plan
+                    </div>
+                    <div className="text-[2.35rem] font-semibold tracking-[-0.05em] text-[#111b35]">
+                      {currentPlanName}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 text-[1.15rem] font-medium text-[#4a5f83]">
+                      <span>{currentPlanCreditsLabel}</span>
+                      <button
+                        type="button"
+                        className="text-[#3e7df1] transition-colors hover:text-[#336fe0]"
+                        onClick={() => navigateToView("plans")}
+                      >
+                        Change
+                      </button>
+                    </div>
+                    <p className="text-lg leading-8 text-[#6a7d9e]">
+                      {getCreditsPlanDescription(currentPlanName)}
+                    </p>
+                    <p className="text-sm text-[#7d8ead]">
+                      {subscription
+                        ? `Current period ends ${formatDate(subscription.currentPeriodEnd)}.`
+                        : "Workspace billing is attached to the organization, not an individual user."}
+                    </p>
                     <Button
-                      variant="outline"
-                      className="h-11 w-full justify-center"
+                      className="h-14 rounded-[1.2rem] bg-[#3e7df1] px-7 text-xl font-semibold text-white hover:bg-[#336fe0]"
                       onClick={() => navigateToView("plans")}
                     >
-                      Change plan
+                      {getCreditsPlanActionLabel(currentPlanName)}
                     </Button>
-                    <Button
-                      variant="ghost"
-                      className="h-11 w-full justify-center"
-                      onClick={() => void handleManageBilling("credits")}
-                      disabled={portal.isPending}
-                    >
-                      <ArrowUpRight className="h-4 w-4" />
-                      Open billing portal
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+                  </CardContent>
+                </Card>
+              </div>
 
-            <Card className="border-slate-200 shadow-sm">
-              <CardHeader className="space-y-2">
-                <div className="flex items-center gap-2 text-slate-500">
-                  <ReceiptText className="h-4 w-4" />
-                  <span className="text-xs font-medium uppercase tracking-[0.22em]">
-                    History
-                  </span>
-                </div>
-                <CardTitle className="text-2xl text-slate-950">
-                  Recent transactions
-                </CardTitle>
-              </CardHeader>
+              <div id="credits-history">
+                <Card className="overflow-hidden rounded-[2rem] border-white/75 bg-white/80 shadow-[0_24px_72px_-44px_rgba(15,23,42,0.35)] backdrop-blur">
+                  <CardContent className="p-7 sm:p-8">
+                    <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <CardTitle className="text-[2rem] tracking-[-0.04em] text-[#111b35]">
+                          Recent Transactions
+                        </CardTitle>
+                        <p className="mt-2 text-lg text-[#6a7d9e]">History</p>
+                      </div>
 
-              <CardContent>
-                {overview.data?.recentTransactions.length ? (
-                  <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                    <div className="hidden grid-cols-[1.1fr_0.7fr_0.8fr_1.4fr] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-[11px] font-medium uppercase tracking-[0.22em] text-slate-400 md:grid">
-                      <div>Date</div>
-                      <div>Amount</div>
-                      <div>Credits</div>
-                      <div>Details</div>
-                    </div>
-
-                    {overview.data.recentTransactions.map((transaction) => (
-                      <div
-                        key={transaction.id}
-                        className="grid gap-4 border-t border-slate-100 px-4 py-4 first:border-t-0 md:grid-cols-[1.1fr_0.7fr_0.8fr_1.4fr] md:items-center"
-                      >
-                        <div>
-                          <MobileTableLabel>Date</MobileTableLabel>
-                          <div className="text-sm font-medium text-slate-900">
-                            {formatDateTime(transaction.createdAt)}
-                          </div>
+                      <div className="inline-flex w-fit items-center rounded-[1.25rem] bg-[#f2f5fa] p-1.5">
+                        <div className="rounded-[1rem] bg-white px-6 py-3 text-lg font-medium text-[#111b35] shadow-[0_10px_26px_-22px_rgba(15,23,42,0.45)]">
+                          Transaction history
                         </div>
-
-                        <div>
-                          <MobileTableLabel>Amount</MobileTableLabel>
-                          <div className="text-sm text-slate-700">
-                            {getTransactionAmountLabel(transaction)}
-                          </div>
-                        </div>
-
-                        <div>
-                          <MobileTableLabel>Credits</MobileTableLabel>
-                          <div className="text-sm font-medium text-slate-900">
-                            {formatCredits(transaction.amount)}
-                          </div>
-                        </div>
-
-                        <div>
-                          <MobileTableLabel>Details</MobileTableLabel>
-                          <div className="text-sm font-medium text-slate-900">
-                            {getTransactionTitle(transaction)}
-                          </div>
-                          <div className="mt-1 text-sm text-slate-500">
-                            {getTransactionMeta(transaction)}
-                          </div>
+                        <div className="px-6 py-3 text-lg font-medium text-[#7e91b2]">
+                          Usage history
                         </div>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <SectionMessage
-                    title="No billing transactions yet"
-                    description="Completed recharges, subscriptions, and refunds will appear here."
-                  />
-                )}
-              </CardContent>
-            </Card>
+                    </div>
 
-            {checkout.error ? (
-              <div className="rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                {getErrorMessage(
-                  checkout.error,
-                  "Unable to start checkout right now.",
-                )}
-              </div>
-            ) : null}
+                    <div className="mt-7">
+                      {overview.data?.recentTransactions.length ? (
+                        <div className="overflow-hidden rounded-[1.6rem] border border-[#dbe6f6] bg-white">
+                          <div className="hidden grid-cols-[1.2fr_0.6fr_0.8fr_0.6fr] gap-4 border-b border-[#dbe6f6] bg-[#f7f9fc] px-6 py-4 text-[0.95rem] font-semibold uppercase tracking-[0.08em] text-[#7d8ead] md:grid">
+                            <div>Date</div>
+                            <div>Amount</div>
+                            <div>Credits</div>
+                            <div>Actions</div>
+                          </div>
 
-            {portal.error ? (
-              <div className="rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                {getErrorMessage(
-                  portal.error,
-                  "Unable to open billing management right now.",
-                )}
+                          {overview.data.recentTransactions.map(
+                            (transaction) => {
+                              const canManageInvoice =
+                                transaction.paymentAmountCents !== null ||
+                                !!transaction.invoiceId;
+
+                              return (
+                                <div
+                                  key={transaction.id}
+                                  className="grid gap-4 border-t border-[#edf2f9] px-6 py-5 first:border-t-0 md:grid-cols-[1.2fr_0.6fr_0.8fr_0.6fr] md:items-center"
+                                >
+                                  <div>
+                                    <MobileTableLabel>Date</MobileTableLabel>
+                                    <div className="text-[1.05rem] font-medium text-[#111b35]">
+                                      {formatDateTime(transaction.createdAt)}
+                                    </div>
+                                    <div className="mt-1 text-sm text-[#7d8ead]">
+                                      {getTransactionTitle(transaction)}
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <MobileTableLabel>Amount</MobileTableLabel>
+                                    <div className="text-[1.05rem] text-[#243247]">
+                                      {getTransactionAmountLabel(transaction)}
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <MobileTableLabel>Credits</MobileTableLabel>
+                                    <div className="text-[1.05rem] font-medium text-[#243247]">
+                                      {formatCredits(transaction.amount)}
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <MobileTableLabel>Actions</MobileTableLabel>
+                                    {canManageInvoice ? (
+                                      <button
+                                        type="button"
+                                        className="text-[1.05rem] font-medium text-[#3e7df1] transition-colors hover:text-[#336fe0]"
+                                        onClick={() =>
+                                          void handleManageBilling("credits")
+                                        }
+                                        disabled={portal.isPending}
+                                      >
+                                        Get invoice
+                                      </button>
+                                    ) : (
+                                      <div className="text-sm text-[#7d8ead]">
+                                        {getTransactionMeta(transaction)}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            },
+                          )}
+                        </div>
+                      ) : (
+                        <SectionMessage
+                          title="No billing transactions yet"
+                          description="Completed recharges, subscriptions, and refunds will appear here."
+                        />
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
-            ) : null}
+
+              {checkout.error ? (
+                <div className="rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                  {getErrorMessage(
+                    checkout.error,
+                    "Unable to start checkout right now.",
+                  )}
+                </div>
+              ) : null}
+
+              {portal.error && canOpenInvoice ? (
+                <div className="rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                  {getErrorMessage(
+                    portal.error,
+                    "Unable to open billing management right now.",
+                  )}
+                </div>
+              ) : null}
+            </div>
           </div>
         </ScrollArea>
       </main>
