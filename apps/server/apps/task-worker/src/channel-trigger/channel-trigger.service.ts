@@ -20,7 +20,10 @@ interface MessageCreatedEvent {
   channelId: string;
   messageId: string;
   content?: string;
+  messageType?: 'text' | 'file' | 'image' | 'system' | 'tracking';
   senderId: string;
+  senderUserType?: 'human' | 'bot' | 'system' | null;
+  senderAgentType?: 'base_model' | 'openclaw' | null;
 }
 
 @Injectable()
@@ -62,6 +65,10 @@ export class ChannelTriggerService implements OnModuleInit {
     }
   }
 
+  private shouldTriggerForMessage(msg: MessageCreatedEvent): boolean {
+    return msg.senderUserType === 'human' && msg.senderAgentType === null;
+  }
+
   @RabbitSubscribe({
     exchange: RABBITMQ_EXCHANGES.WORKSPACE_EVENTS,
     routingKey: RABBITMQ_ROUTING_KEYS.MESSAGE_CREATED,
@@ -75,6 +82,13 @@ export class ChannelTriggerService implements OnModuleInit {
   async handleMessage(msg: MessageCreatedEvent): Promise<void> {
     const triggers = this.channelTriggerMap.get(msg.channelId);
     if (!triggers?.length) return;
+
+    if (!this.shouldTriggerForMessage(msg)) {
+      this.logger.debug(
+        `Skipping channel-message triggers for non-human-authored message ${msg.messageId} from ${msg.senderId}`,
+      );
+      return;
+    }
 
     this.logger.log(
       `Message in channel ${msg.channelId} matched ${triggers.length} trigger(s)`,
@@ -90,7 +104,10 @@ export class ChannelTriggerService implements OnModuleInit {
             channelId: msg.channelId,
             messageId: msg.messageId,
             messageContent: msg.content?.slice(0, 500),
+            messageType: msg.messageType,
             senderId: msg.senderId,
+            senderUserType: msg.senderUserType ?? null,
+            senderAgentType: msg.senderAgentType ?? null,
           },
         });
 

@@ -18,7 +18,10 @@ import { RedisService } from '@team9/redis';
 import { GatewayMQService, RABBITMQ_ROUTING_KEYS } from '@team9/rabbitmq';
 import type { PostBroadcastTask } from '@team9/shared';
 import { ChannelsService } from '../channels/channels.service.js';
-import { MessagesService } from '../messages/messages.service.js';
+import {
+  MessagesService,
+  type MessageResponse,
+} from '../messages/messages.service.js';
 import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
 import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
@@ -56,6 +59,13 @@ export class StreamingController {
     private readonly eventEmitter: EventEmitter2,
     @Optional() private readonly gatewayMQService?: GatewayMQService,
   ) {}
+
+  private shouldPublishChannelMessageTrigger(
+    message: MessageResponse,
+  ): boolean {
+    const sender = message.sender;
+    return sender?.userType === 'human' && sender.agentType === null;
+  }
 
   private parseStreamingSession(sessionRaw: string): StreamingSession {
     return JSON.parse(sessionRaw) as StreamingSession;
@@ -274,16 +284,25 @@ export class StreamingController {
 
     // Publish to RabbitMQ (channel-message triggers + post-broadcast)
     if (this.gatewayMQService?.isReady()) {
-      this.gatewayMQService
-        .publishWorkspaceEvent(RABBITMQ_ROUTING_KEYS.MESSAGE_CREATED, {
-          channelId: message.channelId,
-          messageId: message.id,
-          content: message.content,
-          senderId: message.senderId,
-        })
-        .catch((err) => {
-          this.logger.warn(`Failed to publish message.created event: ${err}`);
-        });
+      if (this.shouldPublishChannelMessageTrigger(message)) {
+        this.gatewayMQService
+          .publishWorkspaceEvent(RABBITMQ_ROUTING_KEYS.MESSAGE_CREATED, {
+            channelId: message.channelId,
+            messageId: message.id,
+            content: message.content,
+            messageType: message.type,
+            senderId: message.senderId,
+            senderUserType: message.sender?.userType ?? null,
+            senderAgentType: message.sender?.agentType ?? null,
+          })
+          .catch((err) => {
+            this.logger.warn(`Failed to publish message.created event: ${err}`);
+          });
+      } else {
+        this.logger.debug(
+          `[endStreaming] Skipping channel-message trigger publish for non-human-authored message ${message.id}`,
+        );
+      }
 
       const postBroadcastTask: PostBroadcastTask = {
         msgId: result.msgId,

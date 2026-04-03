@@ -39,6 +39,8 @@ function makeMessage(overrides: Record<string, unknown> = {}) {
       id: USER_ID,
       username: 'alice',
       displayName: 'Alice',
+      userType: 'human',
+      agentType: null,
     },
     ...overrides,
   };
@@ -324,8 +326,44 @@ describe('MessagesController', () => {
           channelId: fullMessage.channelId,
           messageId: fullMessage.id,
           content: fullMessage.content,
+          messageType: fullMessage.type,
           senderId: fullMessage.senderId,
+          senderUserType: 'human',
+          senderAgentType: null,
         },
+      );
+    });
+
+    it('does not publish channel triggers for bot-authored messages', async () => {
+      const fullMessage = makeMessage({
+        senderId: 'bot-user-1',
+        sender: {
+          id: 'bot-user-1',
+          username: 'helper',
+          displayName: 'Helper',
+          userType: 'bot',
+          agentType: 'openclaw',
+        },
+      });
+      messagesService.getMessageWithDetails.mockResolvedValueOnce(fullMessage);
+
+      await expect(
+        controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: 'hello',
+        } as never),
+      ).resolves.toEqual(fullMessage);
+
+      expect(gatewayMQService?.publishWorkspaceEvent).not.toHaveBeenCalled();
+      expect(gatewayMQService?.publishPostBroadcast).toHaveBeenCalled();
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        'message.created',
+        expect.objectContaining({
+          message: expect.objectContaining({
+            id: fullMessage.id,
+            senderId: fullMessage.senderId,
+          }),
+        }),
       );
     });
 

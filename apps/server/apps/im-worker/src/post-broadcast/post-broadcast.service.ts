@@ -49,6 +49,10 @@ export class PostBroadcastService {
     private readonly sequenceService: SequenceService,
   ) {}
 
+  private isHumanAuthoredMessage(sender: schema.User): boolean {
+    return sender.userType === 'human';
+  }
+
   /**
    * Process a post-broadcast task
    * Called immediately after Gateway broadcasts to online users
@@ -393,6 +397,13 @@ export class PostBroadcastService {
 
       const { message, sender, channel } = messageData;
 
+      if (!this.isHumanAuthoredMessage(sender)) {
+        this.logger.debug(
+          `Skipping bot webhook fanout for non-human-authored message ${msgId}`,
+        );
+        return;
+      }
+
       const webhookPayload = {
         event: 'message.created',
         timestamp: new Date().toISOString(),
@@ -590,6 +601,13 @@ export class PostBroadcastService {
       if (!messageData) return;
 
       const { message, sender, channel, mentions, parentMessage } = messageData;
+
+      if (!this.isHumanAuthoredMessage(sender)) {
+        this.logger.debug(
+          `Skipping hive bot fanout for non-human-authored message ${msgId}`,
+        );
+        return;
+      }
 
       const isDm = channel.type === 'direct';
       const isTracking = channel.type === 'tracking';
