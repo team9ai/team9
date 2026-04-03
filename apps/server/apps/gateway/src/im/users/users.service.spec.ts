@@ -47,6 +47,16 @@ const schemaModule = {
     userType: 'users.userType',
     updatedAt: 'users.updatedAt',
   },
+  bots: {
+    userId: 'bots.userId',
+    installedApplicationId: 'bots.installedApplicationId',
+    managedProvider: 'bots.managedProvider',
+    managedMeta: 'bots.managedMeta',
+  },
+  installedApplications: {
+    id: 'installedApplications.id',
+    applicationId: 'installedApplications.applicationId',
+  },
   files: {
     id: 'files.id',
     visibility: 'files.visibility',
@@ -77,6 +87,8 @@ function createQuery(result: unknown) {
     from: jest.fn<any>(),
     where: jest.fn<any>(),
     limit: jest.fn<any>(),
+    leftJoin: jest.fn<any>(),
+    innerJoin: jest.fn<any>(),
     update: jest.fn<any>(),
     set: jest.fn<any>(),
     returning: jest.fn<any>(),
@@ -95,6 +107,8 @@ function createQuery(result: unknown) {
     'from',
     'where',
     'limit',
+    'leftJoin',
+    'innerJoin',
     'update',
     'set',
     'returning',
@@ -163,6 +177,7 @@ describe('UsersService', () => {
       status: 'offline',
       lastSeenAt: null,
       userType: 'human',
+      agentType: null,
       ...overrides,
     };
   }
@@ -215,15 +230,29 @@ describe('UsersService', () => {
     });
 
     it('queries the DB and writes the result to Redis on cache miss', async () => {
-      const dbUser = user({ status: 'online' });
-      db.__state.selectResults.push([dbUser]);
+      const expectedUser = user({
+        userType: 'bot',
+        status: 'online',
+        agentType: 'base_model',
+      });
+      db.__state.selectResults.push([
+        {
+          ...expectedUser,
+          applicationId: 'base-model-staff',
+          managedProvider: 'hive',
+          managedMeta: { agentId: 'base-model-claude-tenant-1' },
+        },
+      ]);
 
-      await expect(service.findById(dbUser.id)).resolves.toEqual(dbUser);
+      await expect(service.findById(expectedUser.id)).resolves.toEqual(
+        expectedUser,
+      );
 
       expect(db.select).toHaveBeenCalled();
+      expect(db.__queries.select[0].leftJoin).toHaveBeenCalledTimes(2);
       expect(redisService.set).toHaveBeenCalledWith(
         'im:user:user-1',
-        JSON.stringify(dbUser),
+        JSON.stringify(expectedUser),
         3600,
       );
     });

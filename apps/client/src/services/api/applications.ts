@@ -1,4 +1,5 @@
 import http from "../http";
+import type { AgentType } from "@/types/im";
 
 // Types matching server schemas
 export type ApplicationType = "managed" | "custom";
@@ -85,6 +86,7 @@ export interface FileKeeperListResponse {
 export interface BaseModelStaffBotInfo {
   botId: string;
   userId: string;
+  agentType: AgentType | null;
   username: string;
   displayName: string | null;
   isActive: boolean;
@@ -110,6 +112,7 @@ export interface OpenClawInstanceStatus {
 export interface OpenClawBotInfo {
   botId: string;
   userId: string;
+  agentType: AgentType | null;
   agentId: string | null;
   workspace: string | null;
   username: string;

@@ -26,6 +26,10 @@ import {
 import { RedisService } from '@team9/redis';
 import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
 import { ChannelMemberCacheService } from '../shared/channel-member-cache.service.js';
+import {
+  resolveAgentType,
+  type AgentType,
+} from '../../common/utils/agent-type.util.js';
 
 export interface ChannelResponse {
   id: string;
@@ -54,6 +58,7 @@ export interface ChannelWithUnread extends ChannelResponse {
     avatarUrl: string | null;
     status: 'online' | 'offline' | 'away' | 'busy';
     userType: 'human' | 'bot' | 'system';
+    agentType: AgentType | null;
   };
 }
 
@@ -71,9 +76,22 @@ export interface ChannelMemberResponse {
     avatarUrl: string | null;
     status: 'online' | 'offline' | 'away' | 'busy';
     userType: 'human' | 'bot' | 'system';
+    agentType: AgentType | null;
     createdAt: Date;
   };
 }
+
+type ChannelUserSummaryRow = {
+  userId: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  status: 'online' | 'offline' | 'away' | 'busy';
+  userType: 'human' | 'bot' | 'system';
+  applicationId: string | null;
+  managedProvider: string | null;
+  managedMeta: schema.ManagedMeta | null;
+};
 
 @Injectable()
 export class ChannelsService {
@@ -83,6 +101,23 @@ export class ChannelsService {
     private readonly redis: RedisService,
     private readonly channelMemberCacheService: ChannelMemberCacheService,
   ) {}
+
+  private mapChannelUserSummary(row: ChannelUserSummaryRow) {
+    return {
+      id: row.userId,
+      username: row.username,
+      displayName: row.displayName,
+      avatarUrl: row.avatarUrl,
+      status: row.status,
+      userType: row.userType,
+      agentType: resolveAgentType({
+        userType: row.userType,
+        applicationId: row.applicationId,
+        managedProvider: row.managedProvider,
+        managedMeta: row.managedMeta,
+      }),
+    };
+  }
 
   async create(
     dto: CreateChannelDto,
@@ -457,6 +492,7 @@ export class ChannelsService {
         avatarUrl: string | null;
         status: 'online' | 'offline' | 'away' | 'busy';
         userType: 'human' | 'bot' | 'system';
+        agentType: AgentType | null;
       }
     >();
 
@@ -470,11 +506,25 @@ export class ChannelsService {
           avatarUrl: schema.users.avatarUrl,
           status: schema.users.status,
           userType: schema.users.userType,
+          applicationId: schema.installedApplications.applicationId,
+          managedProvider: schema.bots.managedProvider,
+          managedMeta: schema.bots.managedMeta,
         })
         .from(schema.channelMembers)
         .innerJoin(
           schema.users,
           eq(schema.users.id, schema.channelMembers.userId),
+        )
+        .leftJoin(
+          schema.bots,
+          eq(schema.bots.userId, schema.channelMembers.userId),
+        )
+        .leftJoin(
+          schema.installedApplications,
+          eq(
+            schema.bots.installedApplicationId,
+            schema.installedApplications.id,
+          ),
         )
         .where(
           and(
@@ -485,14 +535,10 @@ export class ChannelsService {
 
       for (const member of allMembers) {
         if (member.userId !== userId) {
-          otherUserMap.set(member.channelId, {
-            id: member.userId,
-            username: member.username,
-            displayName: member.displayName,
-            avatarUrl: member.avatarUrl,
-            status: member.status,
-            userType: member.userType,
-          });
+          otherUserMap.set(
+            member.channelId,
+            this.mapChannelUserSummary(member),
+          );
         }
       }
     }
@@ -521,6 +567,7 @@ export class ChannelsService {
     avatarUrl: string | null;
     status: 'online' | 'offline' | 'away' | 'busy';
     userType: 'human' | 'bot' | 'system';
+    agentType: AgentType | null;
   } | null> {
     return this.redis.getOrSet(
       REDIS_KEYS.CHANNEL_DM_OTHER_USER(channelId, userId),
@@ -533,11 +580,25 @@ export class ChannelsService {
             avatarUrl: schema.users.avatarUrl,
             status: schema.users.status,
             userType: schema.users.userType,
+            applicationId: schema.installedApplications.applicationId,
+            managedProvider: schema.bots.managedProvider,
+            managedMeta: schema.bots.managedMeta,
           })
           .from(schema.channelMembers)
           .innerJoin(
             schema.users,
             eq(schema.users.id, schema.channelMembers.userId),
+          )
+          .leftJoin(
+            schema.bots,
+            eq(schema.bots.userId, schema.channelMembers.userId),
+          )
+          .leftJoin(
+            schema.installedApplications,
+            eq(
+              schema.bots.installedApplicationId,
+              schema.installedApplications.id,
+            ),
           )
           .where(
             and(
@@ -549,14 +610,7 @@ export class ChannelsService {
         const otherUser = members.find((m) => m.userId !== userId);
         if (!otherUser) return null;
 
-        return {
-          id: otherUser.userId,
-          username: otherUser.username,
-          displayName: otherUser.displayName,
-          avatarUrl: otherUser.avatarUrl,
-          status: otherUser.status,
-          userType: otherUser.userType,
-        };
+        return this.mapChannelUserSummary(otherUser);
       },
       120,
     );
@@ -714,20 +768,28 @@ export class ChannelsService {
         isMuted: schema.channelMembers.isMuted,
         notificationsEnabled: schema.channelMembers.notificationsEnabled,
         joinedAt: schema.channelMembers.joinedAt,
-        user: {
-          id: schema.users.id,
-          username: schema.users.username,
-          displayName: schema.users.displayName,
-          avatarUrl: schema.users.avatarUrl,
-          status: schema.users.status,
-          userType: schema.users.userType,
-          createdAt: schema.users.createdAt,
-        },
+        username: schema.users.username,
+        displayName: schema.users.displayName,
+        avatarUrl: schema.users.avatarUrl,
+        status: schema.users.status,
+        userType: schema.users.userType,
+        createdAt: schema.users.createdAt,
+        applicationId: schema.installedApplications.applicationId,
+        managedProvider: schema.bots.managedProvider,
+        managedMeta: schema.bots.managedMeta,
       })
       .from(schema.channelMembers)
       .innerJoin(
         schema.users,
         eq(schema.users.id, schema.channelMembers.userId),
+      )
+      .leftJoin(
+        schema.bots,
+        eq(schema.bots.userId, schema.channelMembers.userId),
+      )
+      .leftJoin(
+        schema.installedApplications,
+        eq(schema.bots.installedApplicationId, schema.installedApplications.id),
       )
       .where(
         and(
@@ -736,7 +798,18 @@ export class ChannelsService {
         ),
       );
 
-    return result;
+    return result.map((row) => ({
+      id: row.id,
+      userId: row.userId,
+      role: row.role,
+      isMuted: row.isMuted,
+      notificationsEnabled: row.notificationsEnabled,
+      joinedAt: row.joinedAt,
+      user: {
+        ...this.mapChannelUserSummary(row),
+        createdAt: row.createdAt,
+      },
+    }));
   }
 
   async updateMember(

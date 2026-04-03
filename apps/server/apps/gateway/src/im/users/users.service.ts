@@ -21,6 +21,10 @@ import * as schema from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
 import { env } from '@team9/shared';
 import { UpdateUserDto } from './dto/index.js';
+import {
+  resolveAgentType,
+  type AgentType,
+} from '../../common/utils/agent-type.util.js';
 
 export interface UserResponse {
   id: string;
@@ -31,7 +35,14 @@ export interface UserResponse {
   status: 'online' | 'offline' | 'away' | 'busy';
   lastSeenAt: Date | null;
   userType: 'human' | 'bot' | 'system';
+  agentType: AgentType | null;
 }
+
+type UserRowWithAgentContext = Omit<UserResponse, 'agentType'> & {
+  applicationId: string | null;
+  managedProvider: string | null;
+  managedMeta: schema.ManagedMeta | null;
+};
 
 @Injectable()
 export class UsersService {
@@ -57,16 +68,38 @@ export class UsersService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
+  private mapUserResponse(row: UserRowWithAgentContext): UserResponse {
+    return {
+      id: row.id,
+      email: row.email,
+      username: row.username,
+      displayName: row.displayName,
+      avatarUrl: row.avatarUrl,
+      status: row.status,
+      lastSeenAt: row.lastSeenAt,
+      userType: row.userType,
+      agentType: resolveAgentType({
+        userType: row.userType,
+        applicationId: row.applicationId,
+        managedProvider: row.managedProvider,
+        managedMeta: row.managedMeta,
+      }),
+    };
+  }
+
   async findById(id: string): Promise<UserResponse | null> {
     // Try cache first
     const cached = await this.redisService.get(
       `${this.USER_CACHE_PREFIX}${id}`,
     );
     if (cached) {
-      return JSON.parse(cached) as UserResponse;
+      const parsed = JSON.parse(cached) as Partial<UserResponse>;
+      if ('agentType' in parsed) {
+        return parsed as UserResponse;
+      }
     }
 
-    const [user] = await this.db
+    const [row] = await this.db
       .select({
         id: schema.users.id,
         email: schema.users.email,
@@ -76,10 +109,20 @@ export class UsersService {
         status: schema.users.status,
         lastSeenAt: schema.users.lastSeenAt,
         userType: schema.users.userType,
+        applicationId: schema.installedApplications.applicationId,
+        managedProvider: schema.bots.managedProvider,
+        managedMeta: schema.bots.managedMeta,
       })
       .from(schema.users)
+      .leftJoin(schema.bots, eq(schema.bots.userId, schema.users.id))
+      .leftJoin(
+        schema.installedApplications,
+        eq(schema.bots.installedApplicationId, schema.installedApplications.id),
+      )
       .where(eq(schema.users.id, id))
       .limit(1);
+
+    const user = row ? this.mapUserResponse(row) : null;
 
     if (user) {
       await this.redisService.set(
@@ -332,12 +375,20 @@ export class UsersService {
         status: schema.users.status,
         lastSeenAt: schema.users.lastSeenAt,
         userType: schema.users.userType,
+        applicationId: schema.installedApplications.applicationId,
+        managedProvider: schema.bots.managedProvider,
+        managedMeta: schema.bots.managedMeta,
       })
       .from(schema.users)
+      .leftJoin(schema.bots, eq(schema.bots.userId, schema.users.id))
+      .leftJoin(
+        schema.installedApplications,
+        eq(schema.bots.installedApplicationId, schema.installedApplications.id),
+      )
       .where(conditions)
       .limit(limit);
 
-    return users;
+    return users.map((row) => this.mapUserResponse(row));
   }
 
   async getMultipleByIds(ids: string[]): Promise<UserResponse[]> {
@@ -353,10 +404,18 @@ export class UsersService {
         status: schema.users.status,
         lastSeenAt: schema.users.lastSeenAt,
         userType: schema.users.userType,
+        applicationId: schema.installedApplications.applicationId,
+        managedProvider: schema.bots.managedProvider,
+        managedMeta: schema.bots.managedMeta,
       })
       .from(schema.users)
+      .leftJoin(schema.bots, eq(schema.bots.userId, schema.users.id))
+      .leftJoin(
+        schema.installedApplications,
+        eq(schema.bots.installedApplicationId, schema.installedApplications.id),
+      )
       .where(sql`${schema.users.id} = ANY(${ids})`);
 
-    return users;
+    return users.map((row) => this.mapUserResponse(row));
   }
 }
