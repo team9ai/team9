@@ -11,6 +11,25 @@ const mockUploadToS3 = vi.hoisted(() => vi.fn());
 const mockConfirmUpload = vi.hoisted(() => vi.fn());
 const mockGetPublicDownloadUrl = vi.hoisted(() => vi.fn());
 const mockGetStablePublicFileUrl = vi.hoisted(() => vi.fn());
+const desktopUpdaterState = vi.hoisted(() => ({
+  current: {
+    availableUpdate: null as null | {
+      currentVersion: string;
+      version: string;
+      notes: string | null;
+      pubDate: string | null;
+    },
+    currentVersion: null as string | null,
+    errorKey: null as "notConfigured" | null,
+    errorMessage: null as string | null,
+    isChecking: false,
+    isInstalling: false,
+    isSupported: false,
+    status: null as "upToDate" | "installing" | null,
+    checkForUpdates: vi.fn(async () => {}),
+    installUpdate: vi.fn(async () => {}),
+  },
+}));
 
 const currentUserState = vi.hoisted(() => ({
   current: {
@@ -100,6 +119,10 @@ vi.mock("@/services/api/file", () => ({
   },
 }));
 
+vi.mock("@/hooks/useDesktopUpdater", () => ({
+  useDesktopUpdater: () => desktopUpdaterState.current,
+}));
+
 describe("AccountSettingsContent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -148,6 +171,18 @@ describe("AccountSettingsContent", () => {
     mockCancelEmailChange.mockResolvedValue({
       message: "Pending email change cancelled.",
     });
+    desktopUpdaterState.current = {
+      availableUpdate: null,
+      currentVersion: null,
+      errorKey: null,
+      errorMessage: null,
+      isChecking: false,
+      isInstalling: false,
+      isSupported: false,
+      status: null,
+      checkForUpdates: vi.fn(async () => {}),
+      installUpdate: vi.fn(async () => {}),
+    };
   });
 
   it("renders the current avatar, display name, username, and email", async () => {
@@ -289,5 +324,21 @@ describe("AccountSettingsContent", () => {
     });
     expect(mockGetStablePublicFileUrl).toHaveBeenCalledWith("file-1");
     expect(mockGetPublicDownloadUrl).not.toHaveBeenCalled();
+  });
+
+  it("shows the desktop updater card for Tauri builds", () => {
+    desktopUpdaterState.current = {
+      ...desktopUpdaterState.current,
+      currentVersion: "1.0.0",
+      isSupported: true,
+    };
+
+    render(<AccountSettingsContent />);
+
+    expect(screen.getByText("Desktop app updates")).toBeInTheDocument();
+    expect(screen.getByText("v1.0.0")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Check for updates" }),
+    ).toBeInTheDocument();
   });
 });
