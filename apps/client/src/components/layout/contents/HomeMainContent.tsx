@@ -150,8 +150,8 @@ export function HomeMainContent() {
           {/* Welcome Section */}
           <div className="mb-10 flex items-center gap-6">
             <img
-              src="/whale.webp"
-              alt="Team9 Mascot"
+              src="/team9-block.png"
+              alt="Team9"
               loading="lazy"
               width={80}
               height={80}
