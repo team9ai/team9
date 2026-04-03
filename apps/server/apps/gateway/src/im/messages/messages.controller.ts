@@ -55,6 +55,13 @@ export class MessagesController {
     @Optional() private readonly gatewayMQService?: GatewayMQService,
   ) {}
 
+  private shouldPublishChannelMessageTrigger(
+    message: MessageResponse,
+  ): boolean {
+    const sender = message.sender;
+    return sender?.userType === 'human' && sender.agentType === null;
+  }
+
   @Get('channels/:channelId/messages')
   async getChannelMessages(
     @CurrentUser('sub') userId: string,
@@ -218,18 +225,29 @@ export class MessagesController {
         : undefined,
     });
 
-    // Publish to RabbitMQ for channel-message triggers (task-worker)
-    if (this.gatewayMQService) {
+    // Publish to RabbitMQ for channel-message triggers (task-worker).
+    // Only human-authored messages should trigger agent tasks.
+    if (
+      this.gatewayMQService &&
+      this.shouldPublishChannelMessageTrigger(message)
+    ) {
       this.gatewayMQService
         .publishWorkspaceEvent(RABBITMQ_ROUTING_KEYS.MESSAGE_CREATED, {
           channelId: message.channelId,
           messageId: message.id,
           content: message.content,
+          messageType: message.type,
           senderId: message.senderId,
+          senderUserType: message.sender?.userType ?? null,
+          senderAgentType: message.sender?.agentType ?? null,
         })
         .catch((err) => {
           this.logger.warn(`Failed to publish message.created event: ${err}`);
         });
+    } else if (this.gatewayMQService) {
+      this.logger.debug(
+        `[createMessage] Skipping channel-message trigger publish for non-human-authored message ${message.id}`,
+      );
     }
 
     return message;

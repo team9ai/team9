@@ -65,6 +65,13 @@ const makeMessage = () => ({
   content: 'Hello world',
   type: 'text',
   parentId: PARENT_ID,
+  sender: {
+    id: BOT_USER_ID,
+    username: 'helper',
+    displayName: 'Helper',
+    userType: 'bot',
+    agentType: 'openclaw',
+  },
 });
 
 // ── tests ────────────────────────────────────────────────────────────────────
@@ -406,6 +413,8 @@ describe('StreamingController', () => {
           }),
         }),
       );
+
+      expect(gatewayMQService.publishWorkspaceEvent).not.toHaveBeenCalled();
     });
 
     it('uses undefined workspaceId when channel has no tenantId', async () => {

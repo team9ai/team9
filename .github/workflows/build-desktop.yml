@@ -18,13 +18,20 @@ jobs:
           - target: aarch64-apple-darwin
             ahand-asset: ahandd-darwin-arm64
             artifact-suffix: arm64
+            update-platform: darwin-aarch64
+            update-target: ""
           - target: x86_64-apple-darwin
             ahand-asset: ahandd-darwin-x64
             artifact-suffix: x64
+            update-platform: darwin-x86_64
+            update-target: ""
           - target: universal-apple-darwin
             artifact-suffix: universal
+            update-platform: darwin-universal
+            update-target: darwin-universal
 
     runs-on: macos-latest
+    environment: ${{ startsWith(github.ref_name, 'v') && 'Team9 / production' || 'Team9 / development' }}
 
     steps:
       - name: Checkout
@@ -37,8 +44,12 @@ jobs:
           TAG=${GITHUB_REF#refs/tags/}
           if [[ "$TAG" == v* ]]; then
             echo "env_name=production" >> $GITHUB_OUTPUT
+            echo "update_endpoint=https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/latest.json" >> $GITHUB_OUTPUT
+            echo "manifest_name=latest.json" >> $GITHUB_OUTPUT
           else
             echo "env_name=development" >> $GITHUB_OUTPUT
+            echo "update_endpoint=https://github.com/${GITHUB_REPOSITORY}/releases/download/dev-latest/latest-dev.json" >> $GITHUB_OUTPUT
+            echo "manifest_name=latest-dev.json" >> $GITHUB_OUTPUT
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           # Extract semver from tag (strip leading v or dev prefix)
@@ -111,18 +122,35 @@ jobs:
           fi
 
       - name: Write .env.production
-        run: |
-          if [ "${{ steps.env.outputs.env_name }}" = "production" ]; then
-            echo "VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}" > apps/client/.env.production
-          else
-            echo "VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL_DEV }}" > apps/client/.env.production
-          fi
         shell: bash
+        run: |
+          echo "VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}" > apps/client/.env.production
+          echo "VITE_APP_URL=${{ secrets.VITE_APP_URL }}" >> apps/client/.env.production
 
       - name: Set app version from tag
         run: |
           cd apps/client/src-tauri
           jq '.version = "${{ steps.env.outputs.version }}"' tauri.conf.json > tauri.conf.tmp && mv tauri.conf.tmp tauri.conf.json
+
+      - name: Configure updater
+        shell: bash
+        env:
+          TAURI_UPDATE_PUBKEY: ${{ secrets.TAURI_UPDATE_PUBKEY }}
+          UPDATE_ENDPOINT: ${{ steps.env.outputs.update_endpoint }}
+        run: |
+          cd apps/client/src-tauri
+
+          test -n "$TAURI_UPDATE_PUBKEY"
+          test -n "$UPDATE_ENDPOINT"
+
+          jq \
+            --arg pubkey "$TAURI_UPDATE_PUBKEY" \
+            --arg endpoint "$UPDATE_ENDPOINT" \
+            '.plugins.updater = {
+              pubkey: $pubkey,
+              endpoints: [$endpoint]
+            }' \
+            tauri.conf.json > tauri.conf.tmp && mv tauri.conf.tmp tauri.conf.json
 
       - name: Build desktop app
         run: pnpm -C apps/client tauri build --target ${{ matrix.target }}
@@ -133,12 +161,42 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_WINREY_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TEAM9_TAURI_UPDATE_TARGET: ${{ matrix.update-target }}
+
+      - name: Prepare release assets
+        shell: bash
+        run: |
+          mkdir -p release-assets
+
+          VERSION="${{ steps.env.outputs.version }}"
+          TARGET="${{ matrix.target }}"
+          UPDATE_PLATFORM="${{ matrix.update-platform }}"
+          ARCH_SUFFIX="${{ matrix.artifact-suffix }}"
+
+          DMG_SRC=$(find "apps/client/src-tauri/target/$TARGET/release/bundle/dmg" -maxdepth 1 -name '*.dmg' -print -quit)
+          cp "$DMG_SRC" "release-assets/Team9_${VERSION}_${ARCH_SUFFIX}.dmg"
+
+          APP_TAR_SRC=$(find "apps/client/src-tauri/target/$TARGET/release/bundle/macos" -maxdepth 1 -name '*.app.tar.gz' -print -quit)
+          SIG_SRC="${APP_TAR_SRC}.sig"
+          UPDATE_ASSET="Team9_${VERSION}_${UPDATE_PLATFORM}.app.tar.gz"
+
+          cp "$APP_TAR_SRC" "release-assets/$UPDATE_ASSET"
+          cp "$SIG_SRC" "release-assets/$UPDATE_ASSET.sig"
+
+          jq -n \
+            --arg platform "$UPDATE_PLATFORM" \
+            --arg asset "$UPDATE_ASSET" \
+            --arg signature "$(tr -d '\n' < "$SIG_SRC")" \
+            '{platform: $platform, asset: $asset, signature: $signature}' \
+            > "release-assets/$UPDATE_PLATFORM.updater.json"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: team9-macos-${{ matrix.artifact-suffix }}-${{ steps.env.outputs.tag }}
-          path: apps/client/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+          path: release-assets/*
           if-no-files-found: error
 
   release:
@@ -147,11 +205,48 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
+
+      - name: Generate updater manifest
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION=$(echo "$TAG" | sed 's/^[a-zA-Z]*//')
+          PUB_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          if [[ "$TAG" == v* ]]; then
+            MANIFEST_NAME="latest.json"
+          else
+            MANIFEST_NAME="latest-dev.json"
+          fi
+
+          PLATFORMS=$(jq -s \
+            --arg repo "$GITHUB_REPOSITORY" \
+            --arg tag "$TAG" \
+            'map({
+              (.platform): {
+                signature: .signature,
+                url: ("https://github.com/" + $repo + "/releases/download/" + $tag + "/" + .asset)
+              }
+            }) | add' \
+            artifacts/*.updater.json)
+
+          jq -n \
+            --arg version "$VERSION" \
+            --arg notes "See GitHub release notes." \
+            --arg pub_date "$PUB_DATE" \
+            --argjson platforms "$PLATFORMS" \
+            '{version: $version, notes: $notes, pub_date: $pub_date, platforms: $platforms}' \
+            > "artifacts/$MANIFEST_NAME"
+
+          rm -f artifacts/*.updater.json
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -159,3 +254,19 @@ jobs:
           tag_name: ${{ github.ref_name }}
           files: artifacts/*
           generate_release_notes: true
+          prerelease: ${{ startsWith(github.ref_name, 'dev') }}
+
+      - name: Update dev-latest release
+        if: startsWith(github.ref_name, 'dev')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          # Delete existing dev-latest release and tag if present
+          gh release delete dev-latest --yes --cleanup-tag 2>/dev/null || true
+          # Create new dev-latest release with only the updater manifest
+          gh release create dev-latest \
+            "artifacts/latest-dev.json" \
+            --title "Dev Latest" \
+            --notes "Auto-updated updater manifest for the dev channel. Current: ${{ github.ref_name }}" \
+            --prerelease

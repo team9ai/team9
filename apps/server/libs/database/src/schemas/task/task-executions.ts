@@ -31,7 +31,10 @@ export interface ChannelMessageTriggerContext {
   channelId: string;
   messageId: string;
   messageContent?: string;
+  messageType?: 'text' | 'file' | 'image' | 'system' | 'tracking';
   senderId: string;
+  senderUserType?: 'human' | 'bot' | 'system' | null;
+  senderAgentType?: 'base_model' | 'openclaw' | null;
 }
 
 export interface RetryTriggerContext {

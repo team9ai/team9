@@ -351,6 +351,33 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     );
   });
 
+  it('does not push bot-authored messages to bot webhooks', async () => {
+    const botMember = {
+      userId: 'bot-user-uuid',
+      webhookUrl: 'https://example.test/webhook',
+      webhookHeaders: {},
+      botId: 'bot-id-123',
+    };
+    const getMessageWithContext = jest
+      .spyOn(service as any, 'getMessageWithContext')
+      .mockResolvedValue({
+        message: makeMessage({ content: 'bot webhook payload' }),
+        sender: makeBotSender(),
+        channel: makeChannel('public'),
+        mentions: [],
+        parentMessage: null,
+      });
+    db.where.mockResolvedValueOnce([botMember]);
+    const fetchMock = jest.spyOn(globalThis, 'fetch');
+
+    await (service as any).pushToBotWebhooks(MSG_ID, SENDER_ID, [
+      botMember.userId,
+    ]);
+
+    expect(getMessageWithContext).toHaveBeenCalledWith(MSG_ID);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('warns when a bot webhook responds with a non-ok status', async () => {
     const logger = {
       debug: jest.fn(),
@@ -464,6 +491,20 @@ describe('PostBroadcastService — pushToHiveBots', () => {
       expect.objectContaining({ type: 'team9:message.text' }),
       TENANT_ID,
     );
+  });
+
+  it('does not trigger hive bots for bot-authored messages', async () => {
+    const bot = makeHiveBot('claude');
+    setupDbForHivePush({
+      bots: [bot],
+      sender: makeBotSender(),
+      channel: makeChannel('direct'),
+    });
+
+    await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
+
+    expect(clawHiveService.sendInput).not.toHaveBeenCalled();
+    expect(db.transaction).not.toHaveBeenCalled();
   });
 
   it('builds correct session ID for a DM channel', async () => {

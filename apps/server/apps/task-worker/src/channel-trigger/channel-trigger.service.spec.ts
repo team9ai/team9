@@ -114,7 +114,10 @@ describe('ChannelTriggerService', () => {
       channelId: 'channel-a',
       messageId: 'message-1',
       content: longContent,
+      messageType: 'text',
       senderId: 'user-1',
+      senderUserType: 'human',
+      senderAgentType: null,
     });
 
     expect(executor.triggerExecution).toHaveBeenNthCalledWith(1, 'task-1', {
@@ -125,7 +128,10 @@ describe('ChannelTriggerService', () => {
         channelId: 'channel-a',
         messageId: 'message-1',
         messageContent: 'x'.repeat(500),
+        messageType: 'text',
         senderId: 'user-1',
+        senderUserType: 'human',
+        senderAgentType: null,
       },
     });
     expect(executor.triggerExecution).toHaveBeenNthCalledWith(2, 'task-2', {
@@ -136,7 +142,10 @@ describe('ChannelTriggerService', () => {
         channelId: 'channel-a',
         messageId: 'message-1',
         messageContent: 'x'.repeat(500),
+        messageType: 'text',
         senderId: 'user-1',
+        senderUserType: 'human',
+        senderAgentType: null,
       },
     });
     expect(updateChain.set).toHaveBeenCalledWith({
@@ -160,7 +169,10 @@ describe('ChannelTriggerService', () => {
       channelId: 'channel-a',
       messageId: 'message-1',
       content: 'hello',
+      messageType: 'text',
       senderId: 'user-1',
+      senderUserType: 'human',
+      senderAgentType: null,
     });
 
     expect(errorSpy).toHaveBeenCalledWith(
@@ -168,5 +180,28 @@ describe('ChannelTriggerService', () => {
     );
     expect(executor.triggerExecution).toHaveBeenCalledTimes(2);
     expect(updateChain.where).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips bot-authored messages before triggering executions', async () => {
+    const debugSpy = jest.spyOn((service as any).logger, 'debug');
+    (service as any).channelTriggerMap.set('channel-a', [
+      { id: 'trigger-1', taskId: 'task-1' },
+    ]);
+
+    await service.handleMessage({
+      channelId: 'channel-a',
+      messageId: 'message-1',
+      content: 'hello',
+      messageType: 'text',
+      senderId: 'bot-user-1',
+      senderUserType: 'bot',
+      senderAgentType: 'openclaw',
+    });
+
+    expect(executor.triggerExecution).not.toHaveBeenCalled();
+    expect(db.update).not.toHaveBeenCalled();
+    expect(debugSpy).toHaveBeenCalledWith(
+      'Skipping channel-message triggers for non-human-authored message message-1 from bot-user-1',
+    );
   });
 });
