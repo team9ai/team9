@@ -28,6 +28,17 @@ const APPLICATIONS: Application[] = [
     singleton: true,
     autoInstall: true,
   },
+  {
+    id: 'common-staff',
+    name: 'Common Staff',
+    description: 'AI employee system with profile, role, and mentor bootstrap',
+    iconUrl: '/icons/common-staff.svg',
+    categories: ['ai', 'bot'],
+    enabled: true,
+    type: 'managed',
+    singleton: true,
+    autoInstall: true,
+  },
 ];
 
 @Injectable()
