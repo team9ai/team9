@@ -3,7 +3,7 @@ import type { ComponentProps } from "react";
 import { getInitials, getSeededAvatarGradient } from "@/lib/avatar-colors";
 import chatgptLogo from "@/assets/base-model/chatgpt.svg";
 import claudeLogo from "@/assets/base-model/claude.png";
-import geminiLogo from "@/assets/base-model/gemini.webp";
+import geminiLogo from "@/assets/base-model/gemini.svg";
 import {
   getBaseModelProductKeyFromBotIdentity,
   type BaseModelProductKey,

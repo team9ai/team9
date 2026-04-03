@@ -2,7 +2,7 @@ import { Bot } from "lucide-react";
 
 import chatgptLogo from "@/assets/base-model/chatgpt.svg";
 import claudeLogo from "@/assets/base-model/claude.png";
-import geminiLogo from "@/assets/base-model/gemini.webp";
+import geminiLogo from "@/assets/base-model/gemini.svg";
 import {
   BASE_MODEL_PRODUCT_META,
   getBaseModelProductKey,

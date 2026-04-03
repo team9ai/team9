@@ -95,7 +95,7 @@ describe("UserAvatar", () => {
     const image = screen.getByRole("img", { name: "Gemini" });
 
     expect(image.getAttribute("src")).toContain(
-      "/src/assets/base-model/gemini.webp",
+      "/src/assets/base-model/gemini.svg",
     );
     expect(screen.queryByText("G")).not.toBeInTheDocument();
   });
