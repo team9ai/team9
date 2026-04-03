@@ -1,9 +1,5 @@
 import {
   Settings,
-  HelpCircle,
-  Info,
-  Bell,
-  Lock,
   Palette,
   Globe,
   ChevronRight,
@@ -43,19 +39,19 @@ const settingsGroups = [
   {
     title: "Preferences",
     items: [
-      { id: "notifications", label: "Notifications", icon: Bell },
-      { id: "privacy", label: "Privacy", icon: Lock },
+      // { id: "notifications", label: "Notifications", icon: Bell },
+      // { id: "privacy", label: "Privacy", icon: Lock },
       { id: "appearance", label: "Appearance", icon: Palette },
       { id: "language", label: "Language", icon: Globe },
     ],
   },
-  {
-    title: "Support",
-    items: [
-      { id: "help", label: "Help Center", icon: HelpCircle },
-      { id: "about", label: "About", icon: Info },
-    ],
-  },
+  // {
+  //   title: "Support",
+  //   items: [
+  //     { id: "help", label: "Help Center", icon: HelpCircle },
+  //     { id: "about", label: "About", icon: Info },
+  //   ],
+  // },
 ];
 
 export function MoreMainContent() {
@@ -159,17 +155,22 @@ export function MoreMainContent() {
 
             {/* App Info */}
             <Card className="p-6 text-center">
-              <div className="w-16 h-16 mx-auto mb-4 bg-primary rounded-2xl flex items-center justify-center">
-                <span className="text-3xl">🏋</span>
-              </div>
+              <img
+                src="/team9-block.png"
+                alt="Team9"
+                loading="lazy"
+                width={64}
+                height={64}
+                className="w-16 h-16 mx-auto mb-4 object-cover rounded-2xl"
+              />
               <h3 className="font-semibold text-lg mb-1 text-foreground">
-                Weight Watch
+                team9
               </h3>
               <p className="text-sm text-muted-foreground mb-2">
                 Version 1.0.0
               </p>
               <p className="text-xs text-muted-foreground/70">
-                © 2025 Weight Watch Team. All rights reserved.
+                © 2026 team9. All rights reserved.
               </p>
             </Card>
           </div>
