@@ -78,7 +78,7 @@ describe('InstalledApplicationsService — install', () => {
       findById: jest.fn<any>().mockReturnValue({
         id: APP_ID,
         name: 'Base Model Staff',
-        type: 'managed',
+        type: 'custom',
         singleton: true,
         enabled: true,
       }),
@@ -237,14 +237,14 @@ describe('InstalledApplicationsService — uninstall', () => {
 
   it('throws ForbiddenException when uninstalling a managed app', async () => {
     applicationsService.findById.mockReturnValueOnce({
-      id: 'openclaw',
-      name: 'OpenClaw',
+      id: 'some-managed-app',
+      name: 'Some Managed App',
       type: 'managed',
       singleton: true,
       enabled: true,
     });
     db.where.mockResolvedValueOnce([
-      { ...INSERTED_RECORD, applicationId: 'openclaw' },
+      { ...INSERTED_RECORD, applicationId: 'some-managed-app' },
     ]);
 
     await expect(

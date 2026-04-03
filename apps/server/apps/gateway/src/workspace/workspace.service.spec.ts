@@ -4,6 +4,7 @@ import { WorkspaceService } from './workspace.service.js';
 import { BotService } from '../bot/bot.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { InstalledApplicationsService } from '../applications/installed-applications.service.js';
+import { ApplicationsService } from '../applications/applications.service.js';
 import { RedisService } from '@team9/redis';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
@@ -57,6 +58,9 @@ describe('WorkspaceService', () => {
   let botService: {
     getBotUserId: MockFn;
   };
+  let applicationsService: {
+    findAutoInstall: MockFn;
+  };
   let installedApplicationsService: {
     install: MockFn;
     getInstalledApplicationsForTenant: MockFn;
@@ -81,6 +85,13 @@ describe('WorkspaceService', () => {
     db = mockDb();
     botService = {
       getBotUserId: jest.fn<any>().mockReturnValue(null),
+    };
+    applicationsService = {
+      findAutoInstall: jest
+        .fn<any>()
+        .mockReturnValue([
+          { id: 'base-model-staff', name: 'Base Model Staff' },
+        ]),
     };
     installedApplicationsService = {
       install: jest.fn<any>().mockResolvedValue(undefined),
@@ -126,6 +137,10 @@ describe('WorkspaceService', () => {
           provide: InstalledApplicationsService,
           useValue: installedApplicationsService,
         },
+        {
+          provide: ApplicationsService,
+          useValue: applicationsService,
+        },
       ],
     }).compile();
 
@@ -151,17 +166,18 @@ describe('WorkspaceService', () => {
       db.returning.mockResolvedValue([WORKSPACE_ROW] as any);
     });
 
-    it('should install openclaw application for the workspace', async () => {
+    it('should auto-install applications for the workspace', async () => {
       await service.create({ name: 'Test Workspace', ownerId: 'owner-1' });
 
+      expect(applicationsService.findAutoInstall).toHaveBeenCalled();
       expect(installedApplicationsService.install).toHaveBeenCalledWith(
         'ws-uuid',
         'owner-1',
-        { applicationId: 'openclaw' },
+        { applicationId: 'base-model-staff' },
       );
     });
 
-    it('should install openclaw even when system bot is disabled', async () => {
+    it('should auto-install even when system bot is disabled', async () => {
       botService.getBotUserId.mockReturnValue(null);
 
       await service.create({ name: 'Test Workspace', ownerId: 'owner-1' });
@@ -169,7 +185,36 @@ describe('WorkspaceService', () => {
       expect(installedApplicationsService.install).toHaveBeenCalledTimes(1);
     });
 
-    it('should add system bot alongside openclaw install when system bot is enabled', async () => {
+    it('should auto-install multiple apps when configured', async () => {
+      applicationsService.findAutoInstall.mockReturnValue([
+        { id: 'app-a', name: 'App A' },
+        { id: 'app-b', name: 'App B' },
+      ]);
+
+      await service.create({ name: 'Test Workspace', ownerId: 'owner-1' });
+
+      expect(installedApplicationsService.install).toHaveBeenCalledTimes(2);
+      expect(installedApplicationsService.install).toHaveBeenCalledWith(
+        'ws-uuid',
+        'owner-1',
+        { applicationId: 'app-a' },
+      );
+      expect(installedApplicationsService.install).toHaveBeenCalledWith(
+        'ws-uuid',
+        'owner-1',
+        { applicationId: 'app-b' },
+      );
+    });
+
+    it('should skip auto-install when no apps are configured', async () => {
+      applicationsService.findAutoInstall.mockReturnValue([]);
+
+      await service.create({ name: 'Test Workspace', ownerId: 'owner-1' });
+
+      expect(installedApplicationsService.install).not.toHaveBeenCalled();
+    });
+
+    it('should add system bot alongside auto-install when system bot is enabled', async () => {
       botService.getBotUserId.mockReturnValue('system-bot-user');
 
       await service.create({ name: 'Test Workspace', ownerId: 'owner-1' });
@@ -189,15 +234,15 @@ describe('WorkspaceService', () => {
         'ws-uuid',
       );
 
-      // OpenClaw also installed
+      // Auto-install apps also installed
       expect(installedApplicationsService.install).toHaveBeenCalledWith(
         'ws-uuid',
         'owner-1',
-        { applicationId: 'openclaw' },
+        { applicationId: 'base-model-staff' },
       );
     });
 
-    it('should not fail workspace creation if openclaw install fails', async () => {
+    it('should not fail workspace creation if auto-install fails', async () => {
       installedApplicationsService.install.mockRejectedValue(
         new Error('Install failed'),
       );
@@ -224,24 +269,24 @@ describe('WorkspaceService', () => {
       });
 
       expect(result).toEqual(WORKSPACE_ROW);
-      // OpenClaw should still be installed even if system bot fails
+      // Auto-install apps should still be installed even if system bot fails
       expect(installedApplicationsService.install).toHaveBeenCalled();
     });
 
-    it('should create welcome channel before app install', async () => {
+    it('should create welcome channel before app auto-install', async () => {
       const callOrder: string[] = [];
       channelsService.create.mockImplementation((() => {
         callOrder.push('welcome-channel');
         return Promise.resolve({});
       }) as any);
       installedApplicationsService.install.mockImplementation((() => {
-        callOrder.push('openclaw-install');
+        callOrder.push('auto-install');
         return Promise.resolve(undefined);
       }) as any);
 
       await service.create({ name: 'Test Workspace', ownerId: 'owner-1' });
 
-      expect(callOrder).toEqual(['welcome-channel', 'openclaw-install']);
+      expect(callOrder).toEqual(['welcome-channel', 'auto-install']);
     });
 
     it('should add owner as member with owner role', async () => {
