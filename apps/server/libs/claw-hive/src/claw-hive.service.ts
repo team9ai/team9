@@ -46,14 +46,24 @@ export class ClawHiveService {
     params: {
       tenantId: string;
       metadata: Record<string, unknown>;
+      name?: string;
+      model?: { provider: string; id: string };
+      componentConfigs?: Record<string, Record<string, unknown>>;
     },
   ): Promise<void> {
+    const { tenantId, metadata, name, model, componentConfigs } = params;
+    const body: Record<string, unknown> = { metadata };
+    if (name !== undefined) body.name = name;
+    if (model !== undefined) body.model = model;
+    if (componentConfigs !== undefined)
+      body.componentConfigs = componentConfigs;
+
     const res = await fetch(
       `${this.baseUrl}/api/agents/${encodeURIComponent(agentId)}`,
       {
         method: 'PUT',
-        headers: this.headers(params.tenantId),
-        body: JSON.stringify({ metadata: params.metadata }),
+        headers: this.headers(tenantId),
+        body: JSON.stringify(body),
       },
     );
 
