@@ -81,4 +81,22 @@ describe("UserAvatar", () => {
     expect(image).toHaveAttribute("src", "/bot.webp");
     expect(screen.queryByText("H")).not.toBeInTheDocument();
   });
+
+  it("renders the Gemini product logo for a base-model bot identity", () => {
+    render(
+      <UserAvatar
+        userId="bot-gemini"
+        name="Gemini"
+        username="gemini_bot_workspace"
+        isBot
+      />,
+    );
+
+    const image = screen.getByRole("img", { name: "Gemini" });
+
+    expect(image.getAttribute("src")).toContain(
+      "/src/assets/base-model/gemini.webp",
+    );
+    expect(screen.queryByText("G")).not.toBeInTheDocument();
+  });
 });

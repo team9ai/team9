@@ -31,3 +31,41 @@ export function getBaseModelProductMeta(agentId: string | null | undefined) {
     ? { key: productKey, ...BASE_MODEL_PRODUCT_META[productKey] }
     : null;
 }
+
+export function getBaseModelProductKeyFromBotIdentity({
+  isBot,
+  name,
+  username,
+}: {
+  isBot?: boolean;
+  name?: string | null;
+  username?: string | null;
+}): BaseModelProductKey | null {
+  if (!isBot) return null;
+
+  const normalizedName = name?.trim().toLowerCase() ?? "";
+  const normalizedUsername = username?.trim().toLowerCase() ?? "";
+
+  if (
+    normalizedName === "claude" ||
+    normalizedUsername.startsWith("claude_bot")
+  ) {
+    return "claude";
+  }
+
+  if (
+    normalizedName === "chatgpt" ||
+    normalizedUsername.startsWith("chatgpt_bot")
+  ) {
+    return "chatgpt";
+  }
+
+  if (
+    normalizedName === "gemini" ||
+    normalizedUsername.startsWith("gemini_bot")
+  ) {
+    return "gemini";
+  }
+
+  return null;
+}
