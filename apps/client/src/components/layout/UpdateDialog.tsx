@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowDownToLine, Loader2 } from "lucide-react";
 import {
@@ -27,15 +27,10 @@ export function UpdateDialog() {
   } = useDesktopUpdater();
 
   const [open, setOpen] = useState(false);
-  // Track the version that the user dismissed so we don't re-show immediately
-  const dismissedVersion = useRef<string | null>(null);
 
-  // Show dialog when a new update is detected
+  // Show dialog when a new update is detected — cannot be dismissed
   useEffect(() => {
-    if (
-      availableUpdate &&
-      availableUpdate.version !== dismissedVersion.current
-    ) {
+    if (availableUpdate) {
       setOpen(true);
     }
   }, [availableUpdate]);
@@ -59,13 +54,6 @@ export function UpdateDialog() {
     };
   }, [isSupported, checkForUpdates]);
 
-  const handleDismiss = useCallback(() => {
-    if (availableUpdate) {
-      dismissedVersion.current = availableUpdate.version;
-    }
-    setOpen(false);
-  }, [availableUpdate]);
-
   const handleInstall = useCallback(() => {
     void installUpdate();
   }, [installUpdate]);
@@ -73,16 +61,22 @@ export function UpdateDialog() {
   if (!isSupported || !availableUpdate) return null;
 
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && handleDismiss()}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open}>
+      <DialogContent
+        className="sm:max-w-md"
+        hideCloseButton
+        onEscapeKeyDown={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>
             {t("updateDialog.title", "Update Available")}
           </DialogTitle>
           <DialogDescription>
             {t(
-              "updateDialog.description",
-              "A new version of Team9 is available. Update now to get the latest features and fixes.",
+              "updateDialog.forceDescription",
+              "A new version of Team9 is available. You must update to continue using the app.",
             )}
           </DialogDescription>
         </DialogHeader>
@@ -114,14 +108,7 @@ export function UpdateDialog() {
           )}
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button
-            variant="outline"
-            onClick={handleDismiss}
-            disabled={isInstalling}
-          >
-            {t("updateDialog.later", "Later")}
-          </Button>
+        <DialogFooter>
           <Button onClick={handleInstall} disabled={isInstalling || isChecking}>
             {isInstalling ? (
               <Loader2 className="mr-2 size-4 animate-spin" />
