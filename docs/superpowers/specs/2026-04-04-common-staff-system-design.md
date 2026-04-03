@@ -6,25 +6,25 @@
 
 ## Overview
 
-为 Team9 接入正式的 AI 员工系统，对应 agent-hive 的 `team9-common-staff` blueprint。该应用是自动安装、不可卸载的 managed 单例组件。与现有 `base-model-staff`（基础模型直通）共存，`common-staff` 是有完整身份、角色、persona 的"正式员工"。
+Integrate a formal AI employee system into Team9, backed by the `team9-common-staff` blueprint from agent-hive. This application is an auto-installed, non-uninstallable, managed singleton component. It coexists with the existing `base-model-staff` (direct base-model pass-through); `common-staff` represents fully-profiled "formal employees" with identity, role, and persona.
 
-## 与现有系统的关系
+## Relationship with Existing System
 
-| 特性           | base-model-staff                 | common-staff (本设计)               |
-| -------------- | -------------------------------- | ----------------------------------- |
-| 类型           | singleton, autoInstall, custom   | singleton, autoInstall, **managed** |
-| 安装时创建 bot | 3 个固定 (Claude/ChatGPT/Gemini) | 0 个                                |
-| 用户可卸载     | 是 (type=custom)                 | **否** (type=managed)               |
-| Bot 可删除     | 否                               | **是**                              |
-| Blueprint      | `team9-hive-base-model`          | `team9-common-staff`                |
-| Profile 管理   | 无                               | 有 (name/role/persona)              |
-| Mentor 系统    | 隐式 (installer)                 | 显式 (可选任意成员)                 |
-| Model 选择     | 固定 per bot                     | 用户选择，默认 Claude Sonnet 4.6    |
-| Bootstrap 流程 | 无                               | 支持 mentor DM 引导                 |
+| Aspect                  | base-model-staff                | common-staff (this design)               |
+| ----------------------- | ------------------------------- | ---------------------------------------- |
+| Type                    | singleton, autoInstall, custom  | singleton, autoInstall, **managed**      |
+| Bots created on install | 3 fixed (Claude/ChatGPT/Gemini) | 0                                        |
+| User can uninstall      | Yes (type=custom)               | **No** (type=managed)                    |
+| Bots deletable          | No                              | **Yes**                                  |
+| Blueprint               | `team9-hive-base-model`         | `team9-common-staff`                     |
+| Profile management      | None                            | Yes (name/role/persona)                  |
+| Mentor system           | Implicit (installer)            | Explicit (any workspace member)          |
+| Model selection         | Fixed per bot                   | User-selected, default Claude Sonnet 4.6 |
+| Bootstrap flow          | None                            | Supported via mentor DM                  |
 
-## 1. Application 定义
+## 1. Application Definition
 
-在 `APPLICATIONS` 数组中新增：
+Add to the `APPLICATIONS` array:
 
 ```typescript
 {
@@ -34,52 +34,52 @@
   iconUrl: '/icons/common-staff.svg',
   categories: ['ai', 'bot'],
   enabled: true,
-  type: 'managed',        // 不可卸载、不可禁用
-  singleton: true,         // 每个 workspace 只有一个
-  autoInstall: true,       // workspace 创建时自动安装
+  type: 'managed',        // Cannot be uninstalled or disabled
+  singleton: true,         // One per workspace
+  autoInstall: true,       // Installed on workspace creation
 }
 ```
 
 ### CommonStaffHandler
 
 - `applicationId: 'common-staff'`
-- `onInstall()`: 空操作 — 不创建任何 bot，返回空 config
-- 卸载保护由 `type: 'managed'` 在 service 层自动处理（`ForbiddenException`）
+- `onInstall()`: No-op — creates zero bots, returns empty config. The app exists purely as a container.
+- Uninstall protection is handled automatically at the service layer via `type: 'managed'` (`ForbiddenException`).
 
 ## 2. Backend API — Staff CRUD
 
-所有端点在 `InstalledApplicationsController` 下，需 `JwtAuthGuard` 鉴权 + workspace 成员验证。
+All endpoints live under `InstalledApplicationsController`, require `JwtAuthGuard` + workspace membership verification.
 
-### 创建员工
+### Create Staff
 
 ```
 POST /v1/installed-applications/:id/common-staff/staff
 Body: {
-  displayName: string          // 必填
-  roleTitle?: string           // 可选（agentic 模式留空，UI 表单式必填由前端校验）
-  mentorId?: string            // 可选，服务端默认 currentUser
-  persona?: string             // 可选
-  jobDescription?: string      // 可选，岗位描述
-  model: {                     // 必填，默认 { provider: "anthropic", id: "claude-sonnet-4-6" }
+  displayName: string          // Required
+  roleTitle?: string           // Optional (left empty in agentic mode; required by frontend in form mode)
+  mentorId?: string            // Optional, server defaults to currentUser
+  persona?: string             // Optional
+  jobDescription?: string      // Optional
+  model: {                     // Required, default { provider: "anthropic", id: "claude-sonnet-4-6" }
     provider: string
     id: string
   }
-  avatarUrl?: string           // 可选
-  agenticBootstrap?: boolean   // true = 走 agentic 创建路径
+  avatarUrl?: string           // Optional
+  agenticBootstrap?: boolean   // true = agentic creation path
 }
 Response: { botId, userId, agentId, displayName }
 ```
 
-**流程：**
+**Flow:**
 
-1. 验证 app 是 `common-staff` 类型
-2. `createWorkspaceBot()` 创建 bot（含 access token）
-3. `clawHiveService.registerAgent()` 注册到 claw-hive
-4. 为所有 workspace 成员创建 DM channel
-5. 若 `agenticBootstrap === true`：触发 bootstrap 事件（见 Section 7）
-6. 返回 bot 信息
+1. Verify the app is `common-staff` type
+2. `createWorkspaceBot()` — create bot with access token
+3. `clawHiveService.registerAgent()` — register with claw-hive
+4. Create DM channels for all workspace members
+5. If `agenticBootstrap === true`: trigger bootstrap event (see Section 7)
+6. Return bot info
 
-### 更新员工
+### Update Staff
 
 ```
 PATCH /v1/installed-applications/:id/common-staff/staff/:botId
@@ -94,43 +94,43 @@ Body: {
 }
 ```
 
-同步更新 team9 bot + `clawHiveService.updateAgent()` 更新 claw-hive 侧。
+Syncs updates to both the team9 bot record and claw-hive agent via `clawHiveService.updateAgent()`.
 
-### 删除员工
+### Delete Staff
 
 ```
 DELETE /v1/installed-applications/:id/common-staff/staff/:botId
 ```
 
-1. `clawHiveService.deleteAgent()` 注销 claw-hive agent
-2. `botService.deleteBotAndCleanup()` 删除 bot + DM channel
+1. `clawHiveService.deleteAgent()` — unregister from claw-hive
+2. `botService.deleteBotAndCleanup()` — delete bot + DM channels
 
-### 列表查询
+### List Query
 
-复用 `GET /v1/installed-applications/with-bots`，在返回数据中包含 common-staff 类型 bot。
+Reuse existing `GET /v1/installed-applications/with-bots`, including common-staff bots in the response.
 
-## 3. Backend API — Persona 流式生成
+## 3. Backend API — Persona Streaming Generation
 
 ```
 POST /v1/installed-applications/:id/common-staff/generate-persona
 Body: {
   displayName?: string
   roleTitle?: string
-  existingPersona?: string    // 已有 persona，基于此扩充
-  prompt?: string              // 用户自由指令，如"要活泼一点"、"加入对咖啡的热爱"
+  existingPersona?: string    // Existing persona to expand upon
+  prompt?: string              // User instructions, e.g. "make it more cheerful", "add a love for coffee"
 }
 Response: SSE stream (text/event-stream)
 ```
 
-- 使用 Gateway 环境变量配置的 API key 调用 LLM
-- 所有字段可选，按提供的信息组合上下文
-- `prompt` 作为用户意见注入，优先级最高
-- `existingPersona` 存在时做扩充/调整而非重新生成
-- **生成风格：** 有性格、有趣，包含性格特点、沟通风格、工作习惯、小癖好等，不是干巴巴的职责描述
-- 不持久化 — 前端拿到结果后由用户确认填入表单
-- 需要 JwtAuthGuard 鉴权
+- Uses the API key configured via Gateway environment variables
+- All fields are optional; context is assembled from whatever is provided
+- `prompt` is injected as user guidance with highest priority
+- When `existingPersona` is present, expands/refines rather than regenerating from scratch
+- **Style:** Personality-rich and interesting — includes character traits, communication style, work habits, quirks. Not a dry job description.
+- Not persisted — frontend receives the stream and lets the user confirm before filling the form
+- Requires JwtAuthGuard authentication
 
-## 4. Backend API — 头像 AI 生成
+## 4. Backend API — Avatar AI Generation
 
 ```
 POST /v1/installed-applications/:id/common-staff/generate-avatar
@@ -139,26 +139,26 @@ Body: {
   displayName?: string
   roleTitle?: string
   persona?: string
-  prompt?: string              // 用户额外指令，如"戴眼镜"、"红色短发"
+  prompt?: string              // Extra instructions, e.g. "wears glasses", "short red hair"
 }
 Response: { avatarUrl: string }
 ```
 
-- 使用 Gateway 环境变量配置的 image generation API key
-- 根据 style 预设不同的基础 prompt 模板，结合员工信息生成
-- 生成结果上传到文件服务，返回 URL
-- 需要 JwtAuthGuard 鉴权
+- Uses image generation API key from Gateway environment variables
+- Each style has a base prompt template, combined with staff info for generation
+- Result is uploaded to the file service, returns a URL
+- Requires JwtAuthGuard authentication
 
-**四种预设风格：**
+**Preset Styles:**
 
-| style            | 说明              |
-| ---------------- | ----------------- |
-| `realistic`      | 真人风格肖像      |
-| `cartoon`        | 卡通插画风        |
-| `anime`          | 二次元风格        |
-| `notion-lineart` | Notion 黑白线条风 |
+| Style            | Description                         |
+| ---------------- | ----------------------------------- |
+| `realistic`      | Photorealistic portrait             |
+| `cartoon`        | Cartoon/illustration style          |
+| `anime`          | Anime style                         |
+| `notion-lineart` | Notion-style black & white line art |
 
-## 5. Backend API — 招聘式候选人生成
+## 5. Backend API — Candidate Generation (Recruitment Mode)
 
 ```
 POST /v1/installed-applications/:id/common-staff/generate-candidates
@@ -169,14 +169,14 @@ Body: {
 Response: SSE stream (text/event-stream)
 ```
 
-- 流式生成 3 个候选人角色卡（包含 displayName、roleTitle、persona、性格摘要）
-- 前端逐个渲染候选人工牌
-- 用户可选择其中一个，也可重新 roll
-- 需要 JwtAuthGuard 鉴权
+- Streams 3 candidate role cards (each with displayName, roleTitle, persona, personality summary)
+- Frontend renders candidates progressively as badge cards
+- User selects one candidate, or clicks "re-roll" to regenerate
+- Requires JwtAuthGuard authentication
 
-## 6. Claw-Hive 注册
+## 6. Claw-Hive Registration
 
-创建 bot 后调用 `clawHiveService.registerAgent()` 注册：
+After bot creation, register with claw-hive via `clawHiveService.registerAgent()`:
 
 ```typescript
 clawHiveService.registerAgent({
@@ -200,17 +200,17 @@ clawHiveService.registerAgent({
 });
 ```
 
-- **更新时：** `clawHiveService.updateAgent()` 同步 name、model、componentConfigs
-- **删除时：** `clawHiveService.deleteAgent()` 注销
+- **On update:** `clawHiveService.updateAgent()` to sync name, model, componentConfigs
+- **On delete:** `clawHiveService.deleteAgent()` to unregister
 
-### 数据存储
+### Data Storage
 
-roleTitle、persona、jobDescription、model 等 common-staff 特有字段存储在 `im_bots.extra` JSONB 中：
+Common-staff-specific fields (roleTitle, persona, jobDescription, model) are stored in the `im_bots.extra` JSONB column:
 
 ```typescript
 interface BotExtra {
-  openclaw?: { ... }           // 现有
-  commonStaff?: {              // 新增
+  openclaw?: { ... }           // Existing
+  commonStaff?: {              // New
     roleTitle?: string
     persona?: string
     jobDescription?: string
@@ -219,165 +219,164 @@ interface BotExtra {
 }
 ```
 
-同时这些信息通过 claw-hive 的 `componentConfigs` 同步到 agent 侧（team9-staff-profile 组件从 Team9 API 读取）。
+These fields are also synced to the agent side via claw-hive `componentConfigs` (the `team9-staff-profile` component reads them from the Team9 API).
 
-## 7. Agentic 创建路径
+## 7. Agentic Creation Path
 
-当 `agenticBootstrap === true` 时的额外流程：
+Additional flow when `agenticBootstrap === true`:
 
-### 临时身份
+### Temporary Identity
 
-- displayName 使用用户输入的名称，若未填则自动生成临时名（如"候选人1号"、"候选人2号"，递增）
-- roleTitle / persona 留空，由 bootstrap 流程补充
+- displayName uses the user-provided name; if empty, auto-generates a temp name (e.g. "Candidate #1", "Candidate #2", incrementing)
+- roleTitle / persona are left empty, to be filled during bootstrap
 
-### 触发 Bootstrap
+### Triggering Bootstrap
 
-创建完成后，team9 server 执行以下步骤：
+After creation, the team9 server:
 
-1. 找到 mentor 与 bot 的 DM channel
-2. 通过 WebSocket gateway 触发该 channel 的消息处理，创建 claw-hive session（复用现有的 DM 消息 → session 创建流程）
-3. Session 上下文中包含 `isMentorDm: true` 和 bootstrap 触发标记
+1. Finds the DM channel between the mentor and the bot
+2. Triggers a session via the WebSocket gateway, reusing the existing DM message → session creation flow
+3. Session context includes `isMentorDm: true` and a bootstrap trigger marker
 
-具体实现需匹配现有的 claw-hive session 创建机制（WebSocket gateway 中 DM 消息触发 session assign 的流程）。
+The implementation must match the existing claw-hive session creation mechanism (WebSocket gateway DM message triggering session assign).
 
-- Session 上下文标记 `isMentorDm: true`
-- `team9-staff-bootstrap` 组件据此启用 profile 编辑模式
-- Agent 发出欢迎消息，引导 mentor 逐步设置 name → role → persona
+- `team9-staff-bootstrap` component detects `isMentorDm: true` and enables profile editing
+- Agent sends a welcome message, guiding the mentor through name → role → persona setup
 
-### Bootstrap 结束
+### Bootstrap Completion
 
-- 当 identity.name + role.title + persona.markdown 都已填写
-- Agent 自动切换到正常工作模式
+- Once identity.name + role.title + persona.markdown are all filled
+- Agent automatically switches to normal working mode
 
-## 8. 前端 — 创建对话框（分步骤）
+## 8. Frontend — Create Dialog (Multi-Step)
 
-### Step 1（共用）：选择创建方式
+### Step 1 (Shared): Choose Creation Mode
 
-三个选项卡/卡片：
+Three option cards:
 
-- **UI 表单填写式** — 直接填写所有信息
-- **Agentic 交互式** — AI 在私聊中引导 mentor 完成设置
-- **招聘式** — 输入 JD，AI 生成候选人供挑选
+- **Form Mode** — Fill in all information directly
+- **Agentic Mode** — AI guides the mentor through setup in a private DM
+- **Recruitment Mode** — Enter a JD, AI generates candidates to choose from
 
-### UI 表单式
+### Form Mode
 
-**Step 2：基本信息**
+**Step 2: Basic Info**
 
-- Display Name（必填）
-- Role Title（必填）
-- 岗位描述（可选）
-- Mentor（下拉，默认当前用户）
-- Model（下拉，默认 Claude Sonnet 4.6）
+- Display Name (required)
+- Role Title (required)
+- Job Description (optional)
+- Mentor (dropdown, defaults to current user)
+- Model (dropdown, defaults to Claude Sonnet 4.6)
 
-**Step 3：性格与属性**
+**Step 3: Personality & Attributes**
 
-- Persona 文本框 + "AI 生成"按钮（流式填充，可多次生成扩充）
-- 可添加其他属性信息
+- Persona textarea + "AI Generate" button (streams content, can be invoked multiple times to expand)
+- Additional attribute fields
 
-**Step 4：头像**
+**Step 4: Avatar**
 
-- 上传自定义头像
-- 从预设选择
-- AI 生成（选择风格：realistic/cartoon/anime/notion-lineart）
-- 最终展示 3D 工牌预览
+- Upload custom avatar
+- Select from presets
+- AI generate (choose style: realistic/cartoon/anime/notion-lineart)
+- Final preview as 3D badge card
 
-### Agentic 交互式
+### Agentic Mode
 
-**Step 2：配置**
+**Step 2: Configuration**
 
-- Model（下拉，默认 Claude Sonnet 4.6）
-- 提交后创建 bot → 触发 bootstrap → 跳转 mentor DM
+- Model (dropdown, defaults to Claude Sonnet 4.6)
+- On submit: create bot → trigger bootstrap → navigate to mentor DM
 
-### 招聘式
+### Recruitment Mode
 
-**Step 2：职位需求**
+**Step 2: Job Requirements**
 
-- Job Title（可选）
-- JD / 岗位描述（可选）
+- Job Title (optional)
+- JD / Job Description (optional)
 
-**Step 3：候选人选择**
+**Step 3: Candidate Selection**
 
-- AI 流式生成 3 个候选人，以 3D 工牌形式展示
-- 生成完成后可编辑每个候选人信息
-- 选择一个候选人，或点击"重新生成"
+- AI streams 3 candidates, displayed as 3D badge cards
+- Candidates are editable after generation completes
+- Select one candidate, or click "re-roll" to regenerate
 
-**Step 4：配置确认**
+**Step 4: Configuration**
 
-- Model（下拉，默认 Claude Sonnet 4.6）
-- Mentor（下拉，默认当前用户）
-- 提交创建
+- Model (dropdown, defaults to Claude Sonnet 4.6)
+- Mentor (dropdown, defaults to current user)
+- Submit to create
 
-## 9. 前端 — 详情页
+## 9. Frontend — Detail Page
 
-在 `AIStaffDetailContent` 中为 common-staff 类型新增展示/编辑区块。
+Add common-staff sections to `AIStaffDetailContent`.
 
-### Profile 卡片区
+### Profile Card
 
-- 头像（可点击更换：上传/预设/AI 重新生成）
-- Display Name（inline 编辑）
-- Role Title（inline 编辑）
-- 状态 badge（online/offline）
-- "Chat" 按钮跳转 DM
+- Avatar (clickable to change: upload/preset/AI regenerate)
+- Display Name (inline edit)
+- Role Title (inline edit)
+- Status badge (online/offline)
+- "Chat" button to navigate to DM
 
-### 信息区
+### Info Section
 
-| 字段     | 可编辑 | 说明                       |
-| -------- | ------ | -------------------------- |
-| Persona  | 是     | 文本编辑 + AI 重新生成按钮 |
-| Model    | 是     | 下拉切换                   |
-| Mentor   | 是     | 下拉选择 workspace 成员    |
-| 岗位描述 | 是     | 文本编辑                   |
-| 创建时间 | 否     | 只读                       |
+| Field           | Editable | Notes                            |
+| --------------- | -------- | -------------------------------- |
+| Persona         | Yes      | Text edit + AI regenerate button |
+| Model           | Yes      | Dropdown switch                  |
+| Mentor          | Yes      | Dropdown, workspace members      |
+| Job Description | Yes      | Text edit                        |
+| Created At      | No       | Read-only                        |
 
-后续可扩展更多模块。
+More modules will be added in the future.
 
-### 操作
+### Actions
 
-- 编辑后同步更新 team9 bot + claw-hive agent
-- "删除员工"按钮，带确认对话框
+- Edits sync to both team9 bot and claw-hive agent
+- "Delete Staff" button with confirmation dialog
 
-### 类型区分
+### Type Discrimination
 
-新增 type guard 识别 common-staff bot：通过 `managedProvider === 'hive'` + `managedMeta.agentId` 以 `common-staff-` 前缀判断。
+New type guard for common-staff bots: check `managedProvider === 'hive'` + `managedMeta.agentId` starts with `common-staff-` prefix.
 
-## 10. 3D 工牌组件 — StaffBadgeCard
+## 10. 3D Badge Card Component — StaffBadgeCard
 
-参考 [Vercel 3D Event Badge](https://vercel.com/blog/building-an-interactive-3d-event-badge-with-react-three-fiber)。
+Reference: [Vercel 3D Event Badge](https://vercel.com/blog/building-an-interactive-3d-event-badge-with-react-three-fiber).
 
-### 技术栈
+### Tech Stack
 
 - React Three Fiber + Drei + react-three-rapier
-- 物理绳带（lanyard）悬挂效果，可拖拽晃动
-- 正反面翻转交互（点击或拖拽旋转）
-- Drei 的 RenderTexture 动态渲染文字内容
+- Physics-based lanyard suspension, draggable with swinging
+- Flip interaction (click or drag to rotate)
+- Dynamic text rendering via Drei's RenderTexture
 
-### 卡面内容
+### Card Content
 
-**正面：**
+**Front:**
 
-- 头像（大）
+- Avatar (large)
 - Display Name
 - Role Title
-- Mentor 姓名/头像
+- Mentor name/avatar
 
-**反面（flip 切换）：**
+**Back (flip to reveal):**
 
-- Persona 摘要
+- Persona summary
 - Model
 
-### 使用场景
+### Usage
 
-1. UI 表单式 Step 4 — 创建前工牌预览
-2. 招聘式 Step 3 — 三个候选人以工牌形式展示
-3. AI Staff 列表页 — 复用工牌组件展示员工卡片
+1. Form Mode Step 4 — preview before creation
+2. Recruitment Mode Step 3 — display 3 candidates as badge cards
+3. AI Staff list page — reuse badge component for staff cards
 
-### 降级方案
+### Fallback
 
-不支持 WebGL 的环境 fallback 到 2D 卡片（CSS flip 动画）。
+WebGL-unsupported environments fall back to 2D cards with CSS flip animation.
 
-## 11. 前端 — API Client
+## 11. Frontend — API Client
 
-在 `apps/client/src/services/api/applications.ts` 中新增：
+Add to `apps/client/src/services/api/applications.ts`:
 
 ```typescript
 // Staff CRUD
@@ -385,13 +384,13 @@ createCommonStaff(appId, body): Promise<{ botId, userId, agentId, displayName }>
 updateCommonStaff(appId, botId, body): Promise<void>
 deleteCommonStaff(appId, botId): Promise<void>
 
-// AI 生成
+// AI Generation
 generatePersona(appId, body): EventSource (SSE stream)
 generateAvatar(appId, body): Promise<{ avatarUrl: string }>
 generateCandidates(appId, body): EventSource (SSE stream)
 ```
 
-### 新增类型
+### New Types
 
 ```typescript
 interface CommonStaffBotInfo {
@@ -413,9 +412,9 @@ interface CommonStaffBotInfo {
 }
 ```
 
-## 12. 硬编码模型列表
+## 12. Hardcoded Model List
 
-Key 通过 OpenRouter 接入，team9 端只维护可选列表：
+Keys are managed via OpenRouter on the claw-hive side. Team9 only maintains the selectable list:
 
 ```typescript
 const COMMON_STAFF_MODELS = [
@@ -432,4 +431,4 @@ const COMMON_STAFF_MODELS = [
 ];
 ```
 
-运行时 key 由 claw-hive 侧管理，team9 不涉及。
+Runtime keys are managed by claw-hive; team9 is not involved.
