@@ -49,6 +49,12 @@ import { cn } from "@/lib/utils";
 import { useMemo, useState } from "react";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import { WorkspaceFileBrowserContent } from "./WorkspaceFileBrowserContent";
+import { BaseModelProductLogo } from "@/components/applications/BaseModelProductLogo";
+import { getBaseModelProductMeta } from "@/lib/base-model-agent";
+import type {
+  BaseModelStaffBotInfo,
+  OpenClawBotInfo,
+} from "@/services/api/applications";
 
 function statusBadgeVariant(status?: string) {
   switch (status) {
@@ -74,6 +80,16 @@ interface AIStaffDetailContentProps {
   staffId: string; // botId
 }
 
+type AIStaffBot = OpenClawBotInfo | BaseModelStaffBotInfo;
+
+function isOpenClawBot(bot: AIStaffBot): bot is OpenClawBotInfo {
+  return "agentId" in bot;
+}
+
+function isBaseModelStaffBot(bot: AIStaffBot): bot is BaseModelStaffBotInfo {
+  return "managedMeta" in bot;
+}
+
 export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -85,33 +101,46 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
   const [editingDesc, setEditingDesc] = useState(false);
   const [descInput, setDescInput] = useState("");
 
-  // 1. Get all installed apps → find the OpenClaw app
+  // 1. Get all installed apps with bots → find the current bot and app by botId
   const { data: installedApps, isLoading: appsLoading } = useQuery({
-    queryKey: ["installed-applications", workspaceId],
-    queryFn: () => api.applications.getInstalledApplications(),
+    queryKey: ["installed-applications-with-bots", workspaceId],
+    queryFn: () => api.applications.getInstalledApplicationsWithBots(),
     enabled: !!workspaceId,
   });
 
-  const openClawApp = installedApps?.find(
-    (a) => a.applicationId === "openclaw" && a.status === "active",
+  const currentStaff = useMemo(() => {
+    for (const app of installedApps ?? []) {
+      const bot = app.bots.find((candidate) => candidate.botId === staffId);
+      if (bot) {
+        return {
+          app,
+          bot,
+        };
+      }
+    }
+
+    return null;
+  }, [installedApps, staffId]);
+
+  const currentApp = currentStaff?.app ?? null;
+  const currentBot = currentStaff?.bot ?? null;
+  const openClawBot =
+    currentBot && isOpenClawBot(currentBot) ? currentBot : null;
+  const baseModelBot =
+    currentBot && isBaseModelStaffBot(currentBot) ? currentBot : null;
+  const isOpenClawStaff =
+    currentApp?.applicationId === "openclaw" && openClawBot !== null;
+  const appId = isOpenClawStaff ? currentApp.id : undefined;
+  const isDefault = openClawBot ? !openClawBot.agentId : true;
+  const baseModelMeta = getBaseModelProductMeta(
+    baseModelBot?.managedMeta?.agentId,
   );
-  const appId = openClawApp?.id;
-
-  // 2. Get bots for this app → find the current bot by staffId (botId)
-  const { data: bots, isLoading: botsLoading } = useQuery({
-    queryKey: ["openclaw-bots", workspaceId, appId],
-    queryFn: () => api.applications.getOpenClawBots(appId!),
-    enabled: !!appId,
-  });
-
-  const currentBot = bots?.find((b) => b.botId === staffId);
-  const isDefault = !currentBot?.agentId;
 
   // 3. Instance status (app-level)
   const { data: instanceStatus, isLoading: statusLoading } = useQuery({
     queryKey: ["openclaw-status", workspaceId, appId],
     queryFn: () => api.applications.getOpenClawStatus(appId!),
-    enabled: !!appId,
+    enabled: isOpenClawStaff && !!appId,
     refetchInterval: 10000,
   });
 
@@ -142,15 +171,12 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
 
   const renameBotMutation = useMutation({
     mutationFn: (displayName: string) => {
-      if (!currentBot?.botId || !appId) throw new Error("No bot to rename");
-      return api.applications.updateOpenClawBot(appId, currentBot.botId, {
+      if (!openClawBot?.botId || !appId) throw new Error("No bot to rename");
+      return api.applications.updateOpenClawBot(appId, openClawBot.botId, {
         displayName,
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["openclaw-bots", workspaceId, appId],
-      });
       queryClient.invalidateQueries({
         queryKey: ["installed-applications-with-bots", workspaceId],
       });
@@ -178,17 +204,14 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
 
   const mentorMutation = useMutation({
     mutationFn: (mentorId: string | null) => {
-      if (!currentBot?.botId || !appId) throw new Error("No bot");
+      if (!openClawBot?.botId || !appId) throw new Error("No bot");
       return api.applications.updateOpenClawBotMentor(
         appId,
-        currentBot.botId,
+        openClawBot.botId,
         mentorId,
       );
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["openclaw-bots", workspaceId, appId],
-      });
       queryClient.invalidateQueries({
         queryKey: ["installed-applications-with-bots", workspaceId],
       });
@@ -197,13 +220,10 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
 
   const deleteMutation = useMutation({
     mutationFn: () => {
-      if (!currentBot?.botId || !appId) throw new Error("No bot");
-      return api.applications.deleteOpenClawAgent(appId, currentBot.botId);
+      if (!openClawBot?.botId || !appId) throw new Error("No bot");
+      return api.applications.deleteOpenClawAgent(appId, openClawBot.botId);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["openclaw-bots", workspaceId, appId],
-      });
       queryClient.invalidateQueries({
         queryKey: ["installed-applications-with-bots", workspaceId],
       });
@@ -215,7 +235,7 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
   const { data: membersData } = useQuery({
     queryKey: ["workspace-members", workspaceId],
     queryFn: () => api.workspace.getMembers(workspaceId!, { limit: 100 }),
-    enabled: !!workspaceId,
+    enabled: isOpenClawStaff && !!workspaceId,
   });
 
   const humanMembers = useMemo(
@@ -239,10 +259,11 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
   const [stopDialogOpen, setStopDialogOpen] = useState(false);
   const [restartDialogOpen, setRestartDialogOpen] = useState(false);
 
-  const isLoading = appsLoading || botsLoading;
-  const displayName =
-    currentBot?.displayName || openClawApp?.name || "AI Staff";
-  const isRunning = instanceStatus?.status === "running";
+  const isLoading = appsLoading;
+  const displayName = currentBot?.displayName || currentApp?.name || "AI Staff";
+  const isRunning = isOpenClawStaff
+    ? instanceStatus?.status === "running"
+    : currentBot?.isActive;
 
   const restartDropdownItem = (
     <DropdownMenuItem
@@ -296,7 +317,7 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
             </Card>
           )}
 
-          {!isLoading && currentBot && openClawApp && (
+          {!isLoading && openClawBot && currentApp && isOpenClawStaff && (
             <div className="space-y-6">
               {/* Profile Card */}
               <Card>
@@ -381,13 +402,13 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
                       <div className="flex items-center gap-2 mt-1">
                         <Badge
                           variant={
-                            openClawApp.status === "active"
+                            currentApp.status === "active"
                               ? "default"
                               : "secondary"
                           }
                           className="text-xs"
                         >
-                          {openClawApp.status}
+                          {currentApp.status}
                         </Badge>
                         {instanceStatus && (
                           <Badge
@@ -420,7 +441,7 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
                       </span>
                     </div>
                     <Select
-                      value={currentBot.mentorId ?? "__none__"}
+                      value={openClawBot.mentorId ?? "__none__"}
                       onValueChange={(value) =>
                         mentorMutation.mutate(
                           value === "__none__" ? null : value,
@@ -481,12 +502,12 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
                       <div
                         className="group flex items-center gap-1 cursor-pointer"
                         onClick={() => {
-                          setDescInput(openClawApp.description ?? "");
+                          setDescInput(currentApp.description ?? "");
                           setEditingDesc(true);
                         }}
                       >
                         <p className="text-sm text-muted-foreground">
-                          {openClawApp.description || "Add a description..."}
+                          {currentApp.description || "Add a description..."}
                         </p>
                         <Pencil
                           size={12}
@@ -522,7 +543,7 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
                             <AlertDialogTitle>Delete Agent</AlertDialogTitle>
                             <AlertDialogDescription>
                               This will permanently delete the agent &quot;
-                              {currentBot.displayName}&quot; and its associated
+                              {openClawBot.displayName}&quot; and its associated
                               bot account. This action cannot be undone.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
@@ -736,7 +757,7 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
                     {appId && (
                       <WorkspaceFileBrowserContent
                         staffId={appId}
-                        workspaceName={currentBot?.workspace ?? "default"}
+                        workspaceName={openClawBot.workspace ?? "default"}
                         embedded
                       />
                     )}
@@ -745,6 +766,93 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
               </Tabs>
             </div>
           )}
+
+          {!isLoading &&
+            baseModelBot &&
+            currentApp?.applicationId === "base-model-staff" && (
+              <div className="space-y-6">
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-background ring-1 ring-border/50">
+                        <BaseModelProductLogo
+                          agentId={baseModelBot.managedMeta?.agentId}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-lg font-semibold text-foreground truncate">
+                            {displayName}
+                          </h3>
+                          <Badge variant="default" className="text-xs">
+                            Default
+                          </Badge>
+                        </div>
+                        {baseModelBot.username && (
+                          <p className="text-sm text-muted-foreground">
+                            @{baseModelBot.username}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge
+                            variant={
+                              currentApp.status === "active"
+                                ? "default"
+                                : "secondary"
+                            }
+                            className="text-xs"
+                          >
+                            {currentApp.status}
+                          </Badge>
+                          {baseModelMeta && (
+                            <Badge variant="outline" className="text-xs">
+                              {baseModelMeta.provider}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 space-y-3">
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-sm text-muted-foreground">
+                          Application
+                        </span>
+                        <span className="text-sm text-foreground">
+                          {currentApp.name}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-sm text-muted-foreground">
+                          Status
+                        </span>
+                        <span className="text-sm text-foreground">
+                          {baseModelBot.isActive ? "online" : "offline"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-sm text-muted-foreground">
+                          Created
+                        </span>
+                        <span className="text-sm text-foreground">
+                          {formatDate(baseModelBot.createdAt)}
+                        </span>
+                      </div>
+
+                      {currentApp.description && (
+                        <div className="pt-1">
+                          <p className="text-sm text-muted-foreground">
+                            {currentApp.description}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
         </div>
       </ScrollArea>
     </main>
