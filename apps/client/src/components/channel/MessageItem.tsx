@@ -11,6 +11,7 @@ import { ThreadReplyIndicator } from "./ThreadReplyIndicator";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { TrackingCard } from "./TrackingCard";
 import { TrackingEventItem } from "./TrackingEventItem";
+import { AgentTypeBadge } from "@/components/ui/agent-type-badge";
 import { formatMessageTime } from "@/lib/date-utils";
 import { getAgentMeta } from "@/lib/agent-events";
 import { cn } from "@/lib/utils";
@@ -208,8 +209,11 @@ export function MessageItem({
       />
 
       <div className="flex flex-col items-start flex-1 min-w-0">
-        <div className="flex items-baseline gap-2 mb-1">
-          <span className="font-semibold text-sm">{senderName}</span>
+        <div className="flex items-baseline gap-2 mb-1 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-semibold text-sm">{senderName}</span>
+            <AgentTypeBadge agentType={message.sender?.agentType} />
+          </div>
           <span className="text-xs text-muted-foreground">
             {formatMessageTime(new Date(message.createdAt))}
           </span>

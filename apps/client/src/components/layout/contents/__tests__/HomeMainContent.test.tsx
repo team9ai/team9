@@ -122,9 +122,7 @@ describe("HomeMainContent", () => {
         name: /welcome back to alpha workspace!/i,
       }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("img", { name: /team9 mascot/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /^team9$/i })).toBeInTheDocument();
     expect(screen.getByText(/supported tools/i)).toBeInTheDocument();
     expect(
       screen.getByText(/this month's development roadmap/i),

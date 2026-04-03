@@ -13,6 +13,7 @@ import * as schema from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
 import type { SyncMessagesResponse, SyncMessageItem } from '@team9/shared';
 import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
+import { resolveAgentType } from '../../common/utils/agent-type.util.js';
 
 @Injectable()
 export class SyncService {
@@ -225,6 +226,7 @@ export class SyncService {
         username: string;
         displayName: string | null;
         avatarUrl: string | null;
+        agentType: 'base_model' | 'openclaw' | null;
       }
     >();
 
@@ -235,11 +237,36 @@ export class SyncService {
           username: schema.users.username,
           displayName: schema.users.displayName,
           avatarUrl: schema.users.avatarUrl,
+          userType: schema.users.userType,
+          applicationId: schema.installedApplications.applicationId,
+          managedProvider: schema.bots.managedProvider,
+          managedMeta: schema.bots.managedMeta,
         })
         .from(schema.users)
+        .leftJoin(schema.bots, eq(schema.bots.userId, schema.users.id))
+        .leftJoin(
+          schema.installedApplications,
+          eq(
+            schema.bots.installedApplicationId,
+            schema.installedApplications.id,
+          ),
+        )
         .where(inArray(schema.users.id, senderIds));
 
-      senders.forEach((s) => sendersMap.set(s.id, s));
+      senders.forEach((sender) =>
+        sendersMap.set(sender.id, {
+          id: sender.id,
+          username: sender.username,
+          displayName: sender.displayName,
+          avatarUrl: sender.avatarUrl,
+          agentType: resolveAgentType({
+            userType: sender.userType,
+            applicationId: sender.applicationId,
+            managedProvider: sender.managedProvider,
+            managedMeta: sender.managedMeta,
+          }),
+        }),
+      );
     }
 
     // Build response

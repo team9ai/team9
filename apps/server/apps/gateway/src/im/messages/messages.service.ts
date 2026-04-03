@@ -23,6 +23,10 @@ import {
 import * as schema from '@team9/database/schemas';
 import { UpdateMessageDto } from './dto/index.js';
 import { ChannelSequenceService } from '../shared/channel-sequence.service.js';
+import {
+  resolveAgentType,
+  type AgentType,
+} from '../../common/utils/agent-type.util.js';
 
 export interface MessageSender {
   id: string;
@@ -30,6 +34,7 @@ export interface MessageSender {
   displayName: string | null;
   avatarUrl: string | null;
   userType: 'human' | 'bot' | 'system';
+  agentType: AgentType | null;
 }
 
 export interface MessageAttachmentResponse {
@@ -109,6 +114,67 @@ export class MessagesService {
     private readonly channelSequenceService: ChannelSequenceService,
   ) {}
 
+  private mapMessageSender(row: {
+    id: string;
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+    userType: 'human' | 'bot' | 'system';
+    applicationId: string | null;
+    managedProvider: string | null;
+    managedMeta: schema.ManagedMeta | null;
+  }): MessageSender {
+    return {
+      id: row.id,
+      username: row.username,
+      displayName: row.displayName,
+      avatarUrl: row.avatarUrl,
+      userType: row.userType,
+      agentType: resolveAgentType({
+        userType: row.userType,
+        applicationId: row.applicationId,
+        managedProvider: row.managedProvider,
+        managedMeta: row.managedMeta,
+      }),
+    };
+  }
+
+  private async getSendersByIds(
+    senderIds: string[],
+  ): Promise<Map<string, MessageSender>> {
+    const uniqueSenderIds = [...new Set(senderIds.filter(Boolean))];
+    const sendersMap = new Map<string, MessageSender>();
+
+    if (uniqueSenderIds.length === 0) {
+      return sendersMap;
+    }
+
+    const senders = await this.db
+      .select({
+        id: schema.users.id,
+        username: schema.users.username,
+        displayName: schema.users.displayName,
+        avatarUrl: schema.users.avatarUrl,
+        userType: schema.users.userType,
+        applicationId: schema.installedApplications.applicationId,
+        managedProvider: schema.bots.managedProvider,
+        managedMeta: schema.bots.managedMeta,
+      })
+      .from(schema.users)
+      .leftJoin(schema.bots, eq(schema.bots.userId, schema.users.id))
+      .leftJoin(
+        schema.installedApplications,
+        eq(schema.bots.installedApplicationId, schema.installedApplications.id),
+      )
+      .where(inArray(schema.users.id, uniqueSenderIds));
+
+    senders.forEach((sender) =>
+      sendersMap.set(sender.id, this.mapMessageSender(sender)),
+    );
+
+    return sendersMap;
+  }
+
   async getMessageWithDetails(messageId: string): Promise<MessageResponse> {
     const [message] = await this.db
       .select()
@@ -123,18 +189,8 @@ export class MessagesService {
     // Get sender
     let sender: MessageSender | null = null;
     if (message.senderId) {
-      const [user] = await this.db
-        .select({
-          id: schema.users.id,
-          username: schema.users.username,
-          displayName: schema.users.displayName,
-          avatarUrl: schema.users.avatarUrl,
-          userType: schema.users.userType,
-        })
-        .from(schema.users)
-        .where(eq(schema.users.id, message.senderId))
-        .limit(1);
-      sender = user || null;
+      const sendersMap = await this.getSendersByIds([message.senderId]);
+      sender = sendersMap.get(message.senderId) ?? null;
     }
 
     // Get attachments
@@ -199,18 +255,9 @@ export class MessagesService {
 
     const replierSenders: MessageSender[] = [];
     if (uniqueReplierIds.length > 0) {
-      const replierUsers = await this.db
-        .select({
-          id: schema.users.id,
-          username: schema.users.username,
-          displayName: schema.users.displayName,
-          avatarUrl: schema.users.avatarUrl,
-          userType: schema.users.userType,
-        })
-        .from(schema.users)
-        .where(inArray(schema.users.id, uniqueReplierIds));
+      const replierUsers = await this.getSendersByIds(uniqueReplierIds);
       for (const id of uniqueReplierIds) {
-        const found = replierUsers.find((u) => u.id === id);
+        const found = replierUsers.get(id);
         if (found) replierSenders.push(found);
       }
     }
@@ -256,21 +303,7 @@ export class MessagesService {
     ] as string[];
 
     // Batch query 1: Get all senders
-    const sendersMap = new Map<string, MessageSender>();
-    if (senderIds.length > 0) {
-      const senders = await this.db
-        .select({
-          id: schema.users.id,
-          username: schema.users.username,
-          displayName: schema.users.displayName,
-          avatarUrl: schema.users.avatarUrl,
-          userType: schema.users.userType,
-        })
-        .from(schema.users)
-        .where(inArray(schema.users.id, senderIds));
-
-      senders.forEach((s) => sendersMap.set(s.id, s));
-    }
+    const sendersMap = await this.getSendersByIds(senderIds);
 
     // Batch query 2: Get all attachments
     const attachmentsMap = new Map<string, MessageAttachmentResponse[]>();
@@ -381,18 +414,8 @@ export class MessagesService {
 
     // Batch-fetch any missing sender info
     if (missingSenderIds.size > 0) {
-      const missingSenders = await this.db
-        .select({
-          id: schema.users.id,
-          username: schema.users.username,
-          displayName: schema.users.displayName,
-          avatarUrl: schema.users.avatarUrl,
-          userType: schema.users.userType,
-        })
-        .from(schema.users)
-        .where(inArray(schema.users.id, [...missingSenderIds]));
-
-      missingSenders.forEach((s) => sendersMap.set(s.id, s));
+      const missingSenders = await this.getSendersByIds([...missingSenderIds]);
+      missingSenders.forEach((sender, id) => sendersMap.set(id, sender));
     }
 
     // Build lastRepliersMap and lastReplyAtMap

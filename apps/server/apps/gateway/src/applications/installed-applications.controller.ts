@@ -50,6 +50,7 @@ import { RedisService } from '@team9/redis';
 import { WS_EVENTS } from '../im/websocket/events/events.constants.js';
 import { REDIS_KEYS } from '../im/shared/constants/redis-keys.js';
 import { generateSlug, generateShortId } from '../common/utils/slug.util.js';
+import { resolveAgentTypeByApplicationId } from '../common/utils/agent-type.util.js';
 
 type InstalledApplicationBot = Awaited<
   ReturnType<BotService['getBotsByInstalledApplicationId']>
@@ -130,6 +131,7 @@ export class InstalledApplicationsController {
         }
 
         if (app.applicationId === 'openclaw') {
+          const agentType = resolveAgentTypeByApplicationId(app.applicationId);
           const instancesId = (app.config as { instancesId?: string })
             ?.instancesId;
           const [bots, instance] = await Promise.all([
@@ -144,6 +146,7 @@ export class InstalledApplicationsController {
             bots: bots.map((bot) => ({
               botId: bot.botId,
               userId: bot.userId,
+              agentType,
               agentId: bot.extra?.openclaw?.agentId ?? null,
               workspace: bot.extra?.openclaw?.workspace ?? null,
               username: bot.username,
@@ -167,12 +170,14 @@ export class InstalledApplicationsController {
         }
 
         if (app.applicationId === 'base-model-staff') {
+          const agentType = resolveAgentTypeByApplicationId(app.applicationId);
           const bots = await this.getBotsOrEmpty(app.id);
           return {
             ...app,
             bots: bots.map((bot) => ({
               botId: bot.botId,
               userId: bot.userId,
+              agentType,
               username: bot.username,
               displayName: bot.displayName,
               isActive: bot.isActive,

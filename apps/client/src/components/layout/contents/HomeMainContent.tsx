@@ -147,12 +147,12 @@ export function HomeMainContent() {
         <div className="p-8 max-w-6xl mx-auto">
           <div className="mb-10 flex items-center gap-6">
             <img
-              src="/whale.webp"
-              alt="Team9 Mascot"
+              src="/team9-block.png"
+              alt="Team9"
               loading="lazy"
               width={80}
               height={80}
-              className="w-20 h-20  object-cover shadow-md shrink-0"
+              className="w-20 h-20 object-cover shrink-0"
             />
             <div>
               <h1 className="text-3xl font-bold text-foreground mb-2">

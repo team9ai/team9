@@ -814,7 +814,11 @@ describe('ChannelsService', () => {
             displayName: 'Bob',
             avatarUrl: null,
             status: 'away',
-            userType: 'human',
+            userType: 'bot',
+            applicationId: 'openclaw',
+            managedProvider: null,
+            managedMeta: null,
+            agentType: 'openclaw',
           },
         ] as any);
 
@@ -830,7 +834,8 @@ describe('ChannelsService', () => {
           displayName: 'Bob',
           avatarUrl: null,
           status: 'away',
-          userType: 'human',
+          userType: 'bot',
+          agentType: 'openclaw',
         },
       });
       expect(result[1]).toMatchObject({

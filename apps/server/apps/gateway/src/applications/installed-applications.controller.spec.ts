@@ -953,6 +953,7 @@ describe('InstalledApplicationsController', () => {
         bots: [
           expect.objectContaining({
             botId: 'openclaw-bot',
+            agentType: 'openclaw',
             agentId: 'agent-123',
             workspace: 'workspace-123',
             username: 'bot_user',
@@ -977,6 +978,7 @@ describe('InstalledApplicationsController', () => {
         bots: [
           expect.objectContaining({
             botId: SECOND_BOT_ID,
+            agentType: 'base_model',
             username: 'staff_bot',
             displayName: 'Staff Bot',
             isActive: false,
