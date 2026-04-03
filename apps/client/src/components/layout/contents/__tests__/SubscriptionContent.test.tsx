@@ -325,7 +325,7 @@ describe("SubscriptionContent", () => {
 
     render(<SubscriptionContent view="credits" />);
 
-    expect(await screen.findByText(/amount in usd/i)).toBeInTheDocument();
+    expect(await screen.findByText(/buy credits/i)).toBeInTheDocument();
     expect(screen.getByDisplayValue("25")).toBeInTheDocument();
 
     fireEvent.change(screen.getByDisplayValue("25"), {

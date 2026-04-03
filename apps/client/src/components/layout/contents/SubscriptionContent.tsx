@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Plus, ShieldAlert, X } from "lucide-react";
+import { Plus, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -303,24 +303,6 @@ function getPlanDescription(title: string) {
   return "适合先体验产品，保留最基本的额度与能力。";
 }
 
-function getCreditsPlanDescription(title: string) {
-  const normalizedTitle = title.trim().toLowerCase();
-
-  if (normalizedTitle.includes("starter")) {
-    return "Configurable monthly credits with priority support.";
-  }
-
-  if (
-    normalizedTitle.includes("pro") ||
-    normalizedTitle.includes("business") ||
-    normalizedTitle.includes("enterprise")
-  ) {
-    return "Higher monthly credits with stronger priority and reporting.";
-  }
-
-  return "Basic monthly credits for early workspace exploration.";
-}
-
 function getCreditsPlanActionLabel(title: string) {
   const normalizedTitle = title.trim().toLowerCase();
 
@@ -389,12 +371,10 @@ function formatCustomAmountRange(config: BillingProductCustomAmount | null) {
   }
 
   if (config.maximumCents) {
-    return `Enter between ${formatMoney(config.minimumCents)} and ${formatMoney(
-      config.maximumCents,
-    )}.`;
+    return `${formatMoney(config.minimumCents)} - ${formatMoney(config.maximumCents)}`;
   }
 
-  return `Minimum top-up is ${formatMoney(config.minimumCents)}.`;
+  return `Min ${formatMoney(config.minimumCents)}`;
 }
 
 function getCustomAmountError(
@@ -485,16 +465,16 @@ function SectionMessage({
   description: string;
 }) {
   return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-6 text-center">
-      <div className="text-sm font-medium text-slate-900">{title}</div>
-      <p className="mt-2 text-sm text-slate-500">{description}</p>
+    <div className="rounded-xl border border-dashed border-[#d5dfef] bg-[#f0f4fb]/80 px-5 py-6 text-center">
+      <div className="text-sm font-medium text-[#111b35]">{title}</div>
+      <p className="mt-2 text-sm text-[#7e91b2]">{description}</p>
     </div>
   );
 }
 
 function MobileTableLabel({ children }: { children: string }) {
   return (
-    <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-slate-400 md:hidden">
+    <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-[#7e91b2] md:hidden">
       {children}
     </div>
   );
@@ -869,13 +849,12 @@ export function SubscriptionContent({
   }
 
   if (currentView === "credits") {
-    const organizationName = account?.ownerName || currentWorkspace.name;
     const currentPlanName = subscription?.product.name || "Free";
     const currentPlanCreditsLabel = subscription
       ? formatPlanCredits(subscription.product)
       : account?.effectiveQuota
         ? `${formatCredits(account.effectiveQuota)} / month`
-        : "No active paid subscription";
+        : "No paid plan";
     const canOpenInvoice = !!overview.data?.recentTransactions.some(
       (transaction) =>
         transaction.paymentAmountCents !== null || transaction.invoiceId,
@@ -887,69 +866,57 @@ export function SubscriptionContent({
           <div className="relative isolate">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.95),transparent_35%),radial-gradient(circle_at_top_right,rgba(230,239,255,0.95),transparent_40%),linear-gradient(180deg,#f9fbff_0%,#eef4fb_100%)]" />
 
-            <div className="relative mx-auto flex w-full max-w-[1120px] flex-col gap-4 px-4 py-5 sm:px-5 lg:px-6">
-              <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-                <div className="max-w-3xl">
-                  <h1 className="text-3xl font-semibold tracking-[-0.05em] text-[#111b35] sm:text-4xl">
-                    Organization Credits
-                  </h1>
-                  <p className="mt-2 text-sm text-[#6a7d9e] sm:text-base">
-                    Org Account: {organizationName}
-                  </p>
+            <div className="relative mx-auto flex w-full max-w-[960px] flex-col gap-5 px-4 pb-6 pt-7 sm:px-5 sm:pt-8 lg:px-6">
+              <div className="min-w-0">
+                <div className="text-sm font-medium uppercase tracking-[0.22em] text-[#7e91b2]">
+                  {account?.ownerName || currentWorkspace.name}
                 </div>
-
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-12 w-12 rounded-[1.1rem] border-white/80 bg-white/80 text-[#6a7d9e] shadow-[0_18px_40px_-32px_rgba(15,23,42,0.4)] backdrop-blur"
-                  onClick={() => navigateToView("plans")}
-                  aria-label="Back to plans"
-                >
-                  <X className="h-5 w-5" />
-                </Button>
+                <h1 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-[#111b35] sm:text-4xl">
+                  Workspace Credits
+                </h1>
               </div>
 
-              <Card className="overflow-hidden rounded-[1.35rem] border-white/75 bg-[linear-gradient(180deg,#ffffff_0%,#f5f9ff_100%)] shadow-[0_24px_72px_-44px_rgba(15,23,42,0.35)]">
-                <CardContent className="p-5 sm:p-6">
-                  <div className="text-[1.15rem] font-semibold tracking-[-0.03em] text-[#111b35] sm:text-[1.25rem]">
-                    Organization Credits
-                  </div>
-                  <div className="mt-3 text-[2.6rem] leading-none font-semibold tracking-[-0.06em] text-[#111b35] sm:text-[3.2rem]">
-                    {formatCredits(totalCredits)}
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2.5 text-sm text-[#5d7295]">
-                    <div className="rounded-full border border-[#dbe6f6] bg-white/90 px-4 py-2">
-                      Prepaid balance: {formatCredits(account?.balance ?? 0)}
+              <Card className="overflow-hidden rounded-[1.35rem] border-white/70 bg-white/75 shadow-[0_24px_72px_-44px_rgba(15,23,42,0.35)] backdrop-blur">
+                <CardContent className="flex flex-col gap-4 p-5 sm:p-6 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <div className="text-sm font-medium uppercase tracking-[0.22em] text-[#7e91b2]">
+                      Total balance
                     </div>
-                    <div className="rounded-full border border-[#dbe6f6] bg-white/90 px-4 py-2">
-                      Plan quota: {formatCredits(account?.effectiveQuota ?? 0)}
+                    <div className="mt-2 text-[2rem] leading-none font-semibold tracking-[-0.06em] text-[#111b35] sm:text-[2.6rem]">
+                      {formatCredits(totalCredits)}
                     </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                    <span className="rounded-full border border-[#d5dfef] bg-[#f0f4fb] px-3.5 py-1.5 text-xs font-medium text-[#4a6489]">
+                      Prepaid: {formatCredits(account?.balance ?? 0)}
+                    </span>
+                    <span className="rounded-full border border-[#d5dfef] bg-[#f0f4fb] px-3.5 py-1.5 text-xs font-medium text-[#4a6489]">
+                      Quota: {formatCredits(account?.effectiveQuota ?? 0)}
+                    </span>
                   </div>
                 </CardContent>
               </Card>
 
-              <div className="grid gap-5 xl:grid-cols-[1.35fr_0.95fr]">
-                <Card className="overflow-hidden rounded-[1.35rem] border-white/75 bg-white/80 shadow-[0_24px_72px_-44px_rgba(15,23,42,0.35)] backdrop-blur">
+              <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_260px]">
+                <Card className="overflow-hidden rounded-[1.35rem] border-white/70 bg-white/75 shadow-[0_24px_72px_-44px_rgba(15,23,42,0.35)] backdrop-blur">
                   <CardContent className="space-y-4 p-5 sm:p-6">
-                    <div>
-                      <CardTitle className="text-[1.35rem] tracking-[-0.04em] text-[#111b35] sm:text-[1.45rem]">
+                    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+                      <CardTitle className="text-lg font-semibold tracking-[-0.02em] text-[#111b35]">
                         Buy Credits
                       </CardTitle>
-                      <p className="mt-1.5 text-sm text-[#6a7d9e] sm:text-base">
-                        Add prepaid credits to your workspace balance.
-                      </p>
+                      {customAmountHint ? (
+                        <span className="rounded-full border border-[#d5dfef] bg-[#f0f4fb] px-3 py-1 text-xs font-medium text-[#4a6489]">
+                          {customAmountHint}
+                        </span>
+                      ) : null}
                     </div>
 
                     {customAmountConfig ? (
                       <div>
-                        <div className="text-sm font-medium text-[#4a5f83]">
-                          Amount in USD
-                        </div>
-
-                        <div className="mt-3.5 grid gap-3.5 xl:grid-cols-[minmax(0,1fr)_220px_180px]">
-                          <div className="rounded-[1.15rem] border border-[#d7e2f2] bg-white px-5 py-4 shadow-[0_16px_36px_-32px_rgba(15,23,42,0.35)]">
+                        <div className="grid gap-3 xl:w-fit xl:grid-cols-[180px_190px_140px]">
+                          <div className="rounded-xl border border-[#d5dfef] bg-white px-4 py-0 shadow-sm">
                             <div className="relative">
-                              <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-[1.45rem] font-semibold text-[#54698d]">
+                              <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-base font-medium text-[#7e91b2]">
                                 $
                               </span>
                               <Input
@@ -969,16 +936,16 @@ export function SubscriptionContent({
                                   customAmountInput.trim().length > 0 &&
                                   !!customAmountError
                                 }
-                                className="h-auto border-0 bg-transparent pl-7 text-[1.45rem] font-semibold text-[#111b35] shadow-none ring-0 focus-visible:ring-0"
+                                className="h-11 border-0 bg-transparent pl-5 text-base font-medium text-[#111b35] shadow-none ring-0 focus-visible:ring-0"
                               />
                             </div>
                           </div>
 
-                          <div className="rounded-[1.15rem] bg-[#f3f6fb] px-5 py-4">
-                            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a9ab8]">
+                          <div className="rounded-xl border border-[#d5dfef] bg-[#f0f4fb] px-4 py-2">
+                            <div className="text-[11px] font-medium uppercase tracking-[0.2em] text-[#7e91b2]">
                               You receive
                             </div>
-                            <div className="mt-2 text-[1.3rem] font-semibold tracking-[-0.04em] text-[#111b35]">
+                            <div className="mt-0.5 text-sm font-semibold tracking-[-0.02em] text-[#111b35]">
                               {customAmountCents !== null
                                 ? formatCreditsFromCents(customAmountCents)
                                 : "—"}
@@ -986,7 +953,7 @@ export function SubscriptionContent({
                           </div>
 
                           <Button
-                            className="h-[3.75rem] rounded-[1.05rem] bg-[#3e7df1] text-base font-semibold text-white hover:bg-[#336fe0]"
+                            className="h-11 rounded-full border border-black/10 bg-[#151515] px-5 text-sm font-semibold text-white shadow-none hover:bg-black/90"
                             onClick={() =>
                               customAmountProduct && customAmountCents !== null
                                 ? void handleCheckout(
@@ -1005,22 +972,21 @@ export function SubscriptionContent({
 
                         <p
                           className={cn(
-                            "mt-3 text-sm",
+                            "mt-2 text-xs",
                             customAmountInput.trim().length > 0 &&
                               customAmountError
                               ? "text-destructive"
-                              : "text-[#6a7d9e]",
+                              : "text-[#7e91b2]",
                           )}
                         >
                           {customAmountInput.trim().length > 0 &&
                           customAmountError
                             ? customAmountError
-                            : customAmountHint ||
-                              "1 USD = 1,000 credits across all paid plans."}
+                            : "1 USD = 1,000 credits"}
                         </p>
                       </div>
                     ) : fixedCreditProducts.length > 0 ? (
-                      <div className="rounded-[1.4rem] border border-[#d7e2f2] bg-[#f7faff] px-5 py-4 text-sm text-[#5d7295]">
+                      <div className="rounded-xl border border-[#d5dfef] bg-[#f0f4fb] px-5 py-4 text-sm text-[#6a7d9e]">
                         Custom amount top-up is not configured for this
                         workspace yet. Use a quick amount below.
                       </div>
@@ -1032,73 +998,54 @@ export function SubscriptionContent({
                     )}
 
                     {fixedCreditProducts.length > 0 ? (
-                      <div className="space-y-3">
-                        <div className="text-sm font-medium text-[#4a5f83]">
-                          Quick amounts
-                        </div>
-                        <div className="grid gap-3 md:grid-cols-2">
-                          {fixedCreditProducts.map((product) => (
-                            <button
-                              key={product.stripePriceId}
-                              type="button"
-                              className="rounded-[1rem] border border-[#d7e2f2] bg-white px-4 py-3.5 text-left transition-colors hover:border-[#afc9fb]"
-                              onClick={() =>
-                                void handleCheckout(
-                                  product.stripePriceId,
-                                  "one_time",
-                                  "credits",
-                                )
-                              }
-                              disabled={checkout.isPending}
-                              aria-label={`Add ${formatMoney(product.amountCents)}`}
-                            >
-                              <div className="text-[1.35rem] font-semibold tracking-[-0.04em] text-[#111b35]">
-                                {formatMoney(product.amountCents)}
-                              </div>
-                              <div className="mt-1.5 text-sm font-medium text-[#4a5f83]">
-                                {formatCredits(product.credits ?? 0)}
-                              </div>
-                            </button>
-                          ))}
-                        </div>
+                      <div className="flex flex-wrap gap-2.5">
+                        {fixedCreditProducts.map((product) => (
+                          <Button
+                            key={product.stripePriceId}
+                            variant="outline"
+                            className="h-auto rounded-full border-[#d5dfef] bg-white px-4 py-2.5 shadow-sm transition-all hover:border-[#9db8e2] hover:bg-[#f0f4fb] hover:shadow-md"
+                            onClick={() =>
+                              void handleCheckout(
+                                product.stripePriceId,
+                                "one_time",
+                                "credits",
+                              )
+                            }
+                            disabled={checkout.isPending}
+                            aria-label={`Add ${formatMoney(product.amountCents)}`}
+                          >
+                            <span className="text-sm font-semibold text-[#111b35]">
+                              {formatMoney(product.amountCents)}
+                            </span>
+                            <span className="ml-1.5 text-xs font-medium text-[#7e91b2]">
+                              {formatCredits(product.credits ?? 0)}
+                            </span>
+                          </Button>
+                        ))}
                       </div>
                     ) : null}
-
-                    <p className="text-base leading-7 text-[#5d7295]">
-                      This credit balance is shared across the entire workspace
-                      and never expires.
-                    </p>
                   </CardContent>
                 </Card>
 
-                <Card className="overflow-hidden rounded-[1.35rem] border-white/75 bg-white/80 shadow-[0_24px_72px_-44px_rgba(15,23,42,0.35)] backdrop-blur">
-                  <CardContent className="space-y-3.5 p-5 sm:p-6">
-                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a9ab8]">
+                <Card className="overflow-hidden rounded-[1.35rem] border-white/70 bg-white/75 shadow-[0_24px_72px_-44px_rgba(15,23,42,0.35)] backdrop-blur">
+                  <CardContent className="space-y-3 p-5 sm:p-6">
+                    <div className="text-sm font-medium uppercase tracking-[0.22em] text-[#7e91b2]">
                       Current plan
                     </div>
-                    <div className="text-[1.65rem] font-semibold tracking-[-0.05em] text-[#111b35]">
+                    <div className="text-[1.55rem] font-semibold tracking-[-0.04em] text-[#111b35]">
                       {currentPlanName}
                     </div>
-                    <div className="flex flex-wrap items-center gap-2.5 text-[0.95rem] font-medium text-[#4a5f83]">
-                      <span>{currentPlanCreditsLabel}</span>
-                      <button
-                        type="button"
-                        className="text-[#3e7df1] transition-colors hover:text-[#336fe0]"
-                        onClick={() => navigateToView("plans")}
-                      >
-                        Change
-                      </button>
+                    <div className="text-sm font-medium text-[#6a7d9e]">
+                      {currentPlanCreditsLabel}
                     </div>
-                    <p className="text-[0.95rem] leading-6 text-[#6a7d9e]">
-                      {getCreditsPlanDescription(currentPlanName)}
-                    </p>
-                    <p className="text-sm text-[#7d8ead]">
-                      {subscription
-                        ? `Current period ends ${formatDate(subscription.currentPeriodEnd)}.`
-                        : "Workspace billing is attached to the organization, not an individual user."}
-                    </p>
+                    {subscription ? (
+                      <p className="text-xs font-medium text-[#7e91b2]">
+                        Ends {formatDate(subscription.currentPeriodEnd)}
+                      </p>
+                    ) : null}
                     <Button
-                      className="h-11 rounded-[0.95rem] bg-[#3e7df1] px-5 text-base font-semibold text-white hover:bg-[#336fe0]"
+                      variant="outline"
+                      className="h-10 rounded-full border-[#d5dfef] bg-white px-5 text-sm font-medium text-[#35517d] hover:bg-[#f0f4fb]"
                       onClick={() => navigateToView("plans")}
                     >
                       {getCreditsPlanActionLabel(currentPlanName)}
@@ -1108,32 +1055,16 @@ export function SubscriptionContent({
               </div>
 
               <div id="credits-history">
-                <Card className="overflow-hidden rounded-[1.35rem] border-white/75 bg-white/80 shadow-[0_24px_72px_-44px_rgba(15,23,42,0.35)] backdrop-blur">
+                <Card className="overflow-hidden rounded-[1.35rem] border-white/70 bg-white/75 shadow-[0_24px_72px_-44px_rgba(15,23,42,0.35)] backdrop-blur">
                   <CardContent className="p-5 sm:p-6">
-                    <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                      <div>
-                        <CardTitle className="text-[1.35rem] tracking-[-0.04em] text-[#111b35] sm:text-[1.45rem]">
-                          Recent Transactions
-                        </CardTitle>
-                        <p className="mt-1.5 text-sm text-[#6a7d9e] sm:text-base">
-                          History
-                        </p>
-                      </div>
+                    <CardTitle className="text-lg font-semibold tracking-[-0.02em] text-[#111b35]">
+                      Recent Transactions
+                    </CardTitle>
 
-                      <div className="inline-flex w-fit items-center rounded-[1.25rem] bg-[#f2f5fa] p-1.5">
-                        <div className="rounded-[1rem] bg-white px-5 py-2.5 text-base font-medium text-[#111b35] shadow-[0_10px_26px_-22px_rgba(15,23,42,0.45)]">
-                          Transaction history
-                        </div>
-                        <div className="px-5 py-2.5 text-base font-medium text-[#7e91b2]">
-                          Usage history
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-7">
+                    <div className="mt-5">
                       {overview.data?.recentTransactions.length ? (
-                        <div className="overflow-hidden rounded-[1.6rem] border border-[#dbe6f6] bg-white">
-                          <div className="hidden grid-cols-[1.2fr_0.6fr_0.8fr_0.6fr] gap-4 border-b border-[#dbe6f6] bg-[#f7f9fc] px-6 py-4 text-[0.95rem] font-semibold uppercase tracking-[0.08em] text-[#7d8ead] md:grid">
+                        <div className="overflow-hidden rounded-xl border border-[#d5dfef] bg-white">
+                          <div className="hidden grid-cols-[1.2fr_0.6fr_0.8fr_0.6fr] gap-4 border-b border-[#e8edf5] bg-[#f0f4fb] px-5 py-3 text-[11px] font-medium uppercase tracking-[0.2em] text-[#7e91b2] md:grid">
                             <div>Date</div>
                             <div>Amount</div>
                             <div>Credits</div>
@@ -1149,28 +1080,28 @@ export function SubscriptionContent({
                               return (
                                 <div
                                   key={transaction.id}
-                                  className="grid gap-4 border-t border-[#edf2f9] px-6 py-5 first:border-t-0 md:grid-cols-[1.2fr_0.6fr_0.8fr_0.6fr] md:items-center"
+                                  className="grid gap-3 border-t border-[#e8edf5] px-5 py-3.5 first:border-t-0 md:grid-cols-[1.2fr_0.6fr_0.8fr_0.6fr] md:items-center"
                                 >
                                   <div>
                                     <MobileTableLabel>Date</MobileTableLabel>
-                                    <div className="text-[1.05rem] font-medium text-[#111b35]">
+                                    <div className="text-sm font-medium text-[#111b35]">
                                       {formatDateTime(transaction.createdAt)}
                                     </div>
-                                    <div className="mt-1 text-sm text-[#7d8ead]">
+                                    <div className="mt-1 text-xs text-[#7e91b2]">
                                       {getTransactionTitle(transaction)}
                                     </div>
                                   </div>
 
                                   <div>
                                     <MobileTableLabel>Amount</MobileTableLabel>
-                                    <div className="text-[1.05rem] text-[#243247]">
+                                    <div className="text-sm text-[#425675]">
                                       {getTransactionAmountLabel(transaction)}
                                     </div>
                                   </div>
 
                                   <div>
                                     <MobileTableLabel>Credits</MobileTableLabel>
-                                    <div className="text-[1.05rem] font-medium text-[#243247]">
+                                    <div className="text-sm font-medium text-[#425675]">
                                       {formatCredits(transaction.amount)}
                                     </div>
                                   </div>
@@ -1178,18 +1109,18 @@ export function SubscriptionContent({
                                   <div>
                                     <MobileTableLabel>Actions</MobileTableLabel>
                                     {canManageInvoice ? (
-                                      <button
-                                        type="button"
-                                        className="text-[1.05rem] font-medium text-[#3e7df1] transition-colors hover:text-[#336fe0]"
+                                      <Button
+                                        variant="link"
+                                        className="h-auto p-0 text-sm font-medium text-[#35517d] hover:text-[#111b35]"
                                         onClick={() =>
                                           void handleManageBilling("credits")
                                         }
                                         disabled={portal.isPending}
                                       >
                                         Get invoice
-                                      </button>
+                                      </Button>
                                     ) : (
-                                      <div className="text-sm text-[#7d8ead]">
+                                      <div className="text-sm text-[#7e91b2]">
                                         {getTransactionMeta(transaction)}
                                       </div>
                                     )}
@@ -1211,7 +1142,7 @@ export function SubscriptionContent({
               </div>
 
               {checkout.error ? (
-                <div className="rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                <div className="rounded-xl border border-destructive/20 bg-destructive/10 px-5 py-3.5 text-sm text-destructive">
                   {getErrorMessage(
                     checkout.error,
                     "Unable to start checkout right now.",
@@ -1220,7 +1151,7 @@ export function SubscriptionContent({
               ) : null}
 
               {portal.error && canOpenInvoice ? (
-                <div className="rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                <div className="rounded-xl border border-destructive/20 bg-destructive/10 px-5 py-3.5 text-sm text-destructive">
                   {getErrorMessage(
                     portal.error,
                     "Unable to open billing management right now.",
