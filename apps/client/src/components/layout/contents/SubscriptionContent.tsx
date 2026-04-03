@@ -3,18 +3,23 @@ import { useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
   ArrowUpRight,
-  Check,
   Coins,
-  CreditCard,
   Package,
+  Plus,
   ReceiptText,
   ShieldAlert,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import {
   useCreateWorkspaceBillingCheckout,
@@ -40,10 +45,27 @@ interface SubscriptionContentProps {
 }
 
 const FREE_PLAN_FEATURES = [
-  "No paid subscription required",
-  "Shared workspace billing subject",
-  "Upgrade when your team needs more credits",
+  "100 refresh credits every day",
+  "4,000 credits per month",
+  "In-depth research for everyday tasks",
+  "Professional websites for standard output",
+  "Insightful slides for regular content",
+  "Task scaling with Wide Research",
+  "Early access to beta features",
+  "20 concurrent tasks",
+  "20 scheduled tasks",
+  "Shared team workspace billing",
 ];
+
+type PlanGroup = {
+  key: string;
+  title: string;
+  badge: string;
+  products: BillingProduct[];
+  sortOrder: number;
+};
+
+type PlanCardTheme = "free" | "accent" | "dark";
 
 function formatMoney(amountCents: number) {
   const hasFraction = amountCents % 100 !== 0;
@@ -103,13 +125,6 @@ function formatStatusLabel(value: string | null | undefined) {
     .join(" ");
 }
 
-function formatPlanPrice(product: BillingProduct) {
-  const cycle = formatInterval(product.interval, product.intervalCount);
-  return cycle
-    ? `${formatMoney(product.amountCents)} / ${cycle}`
-    : formatMoney(product.amountCents);
-}
-
 function formatPlanCredits(product: BillingProduct) {
   if (!product.credits) {
     return "Credits configured in Billing Hub";
@@ -119,6 +134,207 @@ function formatPlanCredits(product: BillingProduct) {
   return cycle
     ? `${formatCredits(product.credits)} / ${cycle}`
     : formatCredits(product.credits);
+}
+
+function getPlanGroupTitle(product: BillingProduct) {
+  return product.name.trim();
+}
+
+function getPlanGroupKey(product: BillingProduct) {
+  return getPlanGroupTitle(product).toLowerCase();
+}
+
+function getPlanTierRank(productOrTitle: BillingProduct | string) {
+  const normalizedValue =
+    typeof productOrTitle === "string"
+      ? productOrTitle
+      : `${productOrTitle.name} ${productOrTitle.display.badge ?? ""}`;
+  const normalized = normalizedValue.trim().toLowerCase();
+
+  if (normalized.includes("starter")) {
+    return 10;
+  }
+
+  if (normalized.includes("pro")) {
+    return 20;
+  }
+
+  if (normalized.includes("business")) {
+    return 30;
+  }
+
+  if (normalized.includes("enterprise")) {
+    return 40;
+  }
+
+  return 100;
+}
+
+function groupPlanProducts(products: BillingProduct[]) {
+  const groups = new Map<string, PlanGroup>();
+
+  for (const product of products) {
+    const key = getPlanGroupKey(product);
+    const existingGroup = groups.get(key);
+
+    if (existingGroup) {
+      existingGroup.products.push(product);
+      existingGroup.sortOrder = Math.min(
+        existingGroup.sortOrder,
+        product.display.sortOrder ?? Number.MAX_SAFE_INTEGER,
+      );
+      continue;
+    }
+
+    groups.set(key, {
+      key,
+      title: getPlanGroupTitle(product),
+      badge: getPlanGroupTitle(product),
+      products: [product],
+      sortOrder: product.display.sortOrder ?? Number.MAX_SAFE_INTEGER,
+    });
+  }
+
+  return [...groups.values()]
+    .sort((left, right) => {
+      const tierRankDiff =
+        getPlanTierRank(left.title) - getPlanTierRank(right.title);
+
+      if (tierRankDiff !== 0) {
+        return tierRankDiff;
+      }
+
+      return left.sortOrder - right.sortOrder;
+    })
+    .map((group) => ({
+      ...group,
+      products: [...group.products].sort((left, right) => {
+        const tierRankDiff = getPlanTierRank(left) - getPlanTierRank(right);
+
+        if (tierRankDiff !== 0) {
+          return tierRankDiff;
+        }
+
+        const leftOrder = left.display.sortOrder ?? Number.MAX_SAFE_INTEGER;
+        const rightOrder = right.display.sortOrder ?? Number.MAX_SAFE_INTEGER;
+
+        if (leftOrder !== rightOrder) {
+          return leftOrder - rightOrder;
+        }
+
+        if ((left.credits ?? 0) !== (right.credits ?? 0)) {
+          return (left.credits ?? 0) - (right.credits ?? 0);
+        }
+
+        return left.amountCents - right.amountCents;
+      }),
+    }));
+}
+
+function formatPlanOptionLabel(product: BillingProduct) {
+  return formatPlanCredits(product);
+}
+
+function buildPlanFeatures(product: BillingProduct) {
+  const normalizedTitle = product.name.trim().toLowerCase();
+  const monthlyCredits = product.credits
+    ? `${new Intl.NumberFormat("en-US").format(product.credits)} credits per month`
+    : "Monthly credits configured in Billing Hub";
+
+  if (normalizedTitle.includes("starter")) {
+    return [
+      "300 refresh credits every day",
+      monthlyCredits,
+      "In-depth research with self-set usage",
+      "Professional websites for changing needs",
+      "Insightful slides for steady creation",
+      "Wide Research scaled to your chosen plan",
+      "Early access to beta features",
+      "20 concurrent tasks",
+      "20 scheduled tasks",
+      "Priority support for workspace admins",
+    ];
+  }
+
+  if (
+    normalizedTitle.includes("pro") ||
+    normalizedTitle.includes("business") ||
+    normalizedTitle.includes("enterprise")
+  ) {
+    return [
+      "300 refresh credits every day",
+      monthlyCredits,
+      "In-depth research for large-scale tasks",
+      "Professional websites with data analytics",
+      "Insightful slides for batch production",
+      "Wide Research for sustained heavy use",
+      "Early access to beta features",
+      "20 concurrent tasks",
+      "20 scheduled tasks",
+      "Advanced billing controls and reporting",
+    ];
+  }
+
+  const baseFeatures = product.display.features.filter(Boolean);
+  const features: string[] = [];
+
+  for (const feature of [
+    ...baseFeatures,
+    monthlyCredits,
+    "Shared workspace billing controls for owners and admins",
+    "Managed through Billing Hub checkout and portal",
+  ]) {
+    if (!feature || features.includes(feature)) {
+      continue;
+    }
+
+    features.push(feature);
+  }
+
+  return features.slice(0, 10);
+}
+
+function getPlanDescription(title: string) {
+  const normalizedTitle = title.trim().toLowerCase();
+
+  if (normalizedTitle.includes("starter")) {
+    return "适合稳定使用场景，能覆盖大部分日常需求。";
+  }
+
+  if (
+    normalizedTitle.includes("pro") ||
+    normalizedTitle.includes("business") ||
+    normalizedTitle.includes("enterprise")
+  ) {
+    return "适合重度使用团队，强调更高额度和更高优先级。";
+  }
+
+  return "适合先体验产品，保留最基本的额度与能力。";
+}
+
+function getPlanCardTheme(index: number, title: string): PlanCardTheme {
+  const normalizedTitle = title.toLowerCase();
+
+  if (normalizedTitle.includes("starter")) {
+    return "accent";
+  }
+
+  if (normalizedTitle.includes("pro")) {
+    return "dark";
+  }
+
+  if (
+    normalizedTitle.includes("business") ||
+    normalizedTitle.includes("enterprise")
+  ) {
+    return "dark";
+  }
+
+  if (index === 0) {
+    return "accent";
+  }
+
+  return index % 2 === 1 ? "dark" : "accent";
 }
 
 function formatUsdInputValue(amountCents: number) {
@@ -275,71 +491,167 @@ function MobileTableLabel({ children }: { children: string }) {
 function PlanCard({
   badge,
   title,
-  price,
-  creditsLabel,
+  priceAmount,
+  priceCycle,
   description,
   features,
   actionLabel,
   onAction,
   actionDisabled = false,
-  highlighted = false,
+  theme,
+  optionItems,
+  optionValue,
+  onOptionChange,
 }: {
   badge: string;
   title: string;
-  price: string;
-  creditsLabel: string;
+  priceAmount: string;
+  priceCycle?: string | null;
   description: string;
   features: string[];
   actionLabel: string;
   onAction?: () => void;
   actionDisabled?: boolean;
-  highlighted?: boolean;
+  theme: PlanCardTheme;
+  optionItems?: { value: string; label: string }[];
+  optionValue?: string;
+  onOptionChange?: (value: string) => void;
 }) {
+  const isDark = theme === "dark";
+
   return (
-    <Card
+    <section
       className={cn(
-        "h-full border-slate-200 shadow-sm",
-        highlighted && "border-primary/30 bg-primary/[0.04]",
+        "relative flex h-full flex-col overflow-hidden rounded-[2rem] border px-7 py-8 shadow-[0_28px_90px_-50px_rgba(15,23,42,0.3)]",
+        theme === "free" &&
+          "border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f4f8ff_100%)] text-slate-950",
+        theme === "accent" &&
+          "border-[#78a9ff] bg-[linear-gradient(180deg,#f8fbff_0%,#dfeafc_100%)] text-slate-950",
+        theme === "dark" &&
+          "border-slate-700 bg-[linear-gradient(180deg,#313f61_0%,#27395f_100%)] text-white",
       )}
     >
-      <CardContent className="flex h-full flex-col p-6">
-        <Badge
-          variant={highlighted ? "default" : "secondary"}
-          className="w-fit rounded-full px-3 py-1 text-sm"
+      <div
+        className={cn(
+          "pointer-events-none absolute inset-0",
+          theme === "free" &&
+            "bg-[radial-gradient(circle_at_top_left,rgba(225,235,255,0.95),transparent_40%),radial-gradient(circle_at_bottom_right,rgba(214,226,245,0.45),transparent_36%)]",
+          theme === "accent" &&
+            "bg-[radial-gradient(circle_at_top_center,rgba(255,255,255,0.95),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(116,169,255,0.18),transparent_38%)]",
+          theme === "dark" &&
+            "bg-[radial-gradient(circle_at_top_left,rgba(130,152,196,0.2),transparent_36%),radial-gradient(circle_at_bottom_right,rgba(14,23,43,0.15),transparent_32%)]",
+        )}
+      />
+
+      <div className="relative flex h-full flex-col">
+        <div
+          className={cn(
+            "w-fit rounded-full px-5 py-3 text-xl font-semibold tracking-tight",
+            theme === "free" && "bg-slate-100 text-slate-600",
+            theme === "accent" && "bg-[#d6e4ff] text-[#315d9f]",
+            theme === "dark" && "bg-white/12 text-white/90",
+          )}
         >
           {badge}
-        </Badge>
+        </div>
 
-        <div className="mt-5">
-          <div className="text-lg font-semibold text-slate-950">{title}</div>
-          <div className="text-3xl font-semibold tracking-tight text-slate-950">
-            {price}
+        <div className="mt-7">
+          <div
+            className={cn(
+              "text-[4.25rem] leading-none font-semibold tracking-[-0.06em]",
+              isDark ? "text-white" : "text-[#18325d]",
+            )}
+          >
+            {priceAmount}
+            {priceCycle ? (
+              <span
+                className={cn(
+                  "ml-3 text-2xl font-medium tracking-normal",
+                  isDark ? "text-white/85" : "text-[#54698d]",
+                )}
+              >
+                / {priceCycle}
+              </span>
+            ) : null}
           </div>
-          <div className="mt-3 text-base font-medium text-slate-700">
-            {creditsLabel}
-          </div>
-          <p className="mt-3 text-sm leading-6 text-slate-500">{description}</p>
+          <p
+            className={cn(
+              "mt-5 min-h-[5.2rem] text-[1.08rem] leading-7 font-medium",
+              isDark ? "text-white/86" : "text-[#5d7295]",
+            )}
+          >
+            {description}
+          </p>
         </div>
 
         <Button
-          className="mt-6 h-11 w-full"
-          variant={highlighted ? "default" : "outline"}
+          className={cn(
+            "mt-4 h-14 w-full rounded-full border border-black/10 bg-[#151515] text-xl font-semibold text-white shadow-none hover:bg-black/90",
+            actionDisabled && "opacity-100",
+          )}
           onClick={onAction}
           disabled={actionDisabled}
         >
           {actionLabel}
         </Button>
 
-        <div className="mt-6 space-y-3">
+        {optionItems?.length ? (
+          <div className="mt-5">
+            <Select value={optionValue} onValueChange={onOptionChange}>
+              <SelectTrigger
+                aria-label={`${title} plan credits`}
+                className={cn(
+                  "h-[4.6rem] rounded-[1.4rem] border px-6 text-left text-[1.05rem] font-semibold shadow-[0_18px_40px_-30px_rgba(15,23,42,0.35)] [&>svg]:size-6 [&>svg]:opacity-55",
+                  isDark
+                    ? "border-transparent bg-white text-[#383838]"
+                    : "border-[#8eb5ff] bg-[linear-gradient(180deg,#bfe6ff_0%,#ffffff_72%)] text-[#1b2b44]",
+                )}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent
+                className={cn(
+                  "rounded-[1.4rem] border p-2 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.45)]",
+                  isDark
+                    ? "border-slate-200 bg-white"
+                    : "border-[#8eb5ff] bg-[#f6fbff]",
+                )}
+              >
+                {optionItems.map((option) => (
+                  <SelectItem
+                    key={option.value}
+                    value={option.value}
+                    showIndicator={false}
+                    className="min-h-11 rounded-xl px-4 py-2.5 text-base font-medium text-[#243247] focus:bg-[#4b8eea] focus:text-white"
+                  >
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
+
+        <div className="mt-6 space-y-4">
           {features.map((feature) => (
-            <div key={feature} className="flex items-start gap-3 text-sm">
-              <Check className="mt-0.5 h-4 w-4 text-primary" />
-              <span className="text-slate-600">{feature}</span>
+            <div
+              key={feature}
+              className="flex items-start gap-3 text-[0.98rem] leading-7"
+            >
+              <Plus
+                className={cn(
+                  "mt-1.5 h-3.5 w-3.5 shrink-0",
+                  isDark ? "text-[#7fb4ff]" : "text-[#4588ee]",
+                )}
+              />
+              <span className={cn(isDark ? "text-white/84" : "text-[#607698]")}>
+                {feature}
+              </span>
             </div>
           ))}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
 
@@ -373,6 +685,9 @@ export function SubscriptionContent({
   );
 
   const [customAmountInput, setCustomAmountInput] = useState("");
+  const [selectedPlanPriceIds, setSelectedPlanPriceIds] = useState<
+    Record<string, string>
+  >({});
 
   useEffect(() => {
     if (!customAmountProduct?.customAmount?.enabled) {
@@ -425,11 +740,7 @@ export function SubscriptionContent({
   ) {
     planProducts.unshift(subscription.product);
   }
-  planProducts.sort((left, right) => {
-    const leftOrder = left.display.sortOrder ?? Number.MAX_SAFE_INTEGER;
-    const rightOrder = right.display.sortOrder ?? Number.MAX_SAFE_INTEGER;
-    return leftOrder - rightOrder;
-  });
+  const planGroups = groupPlanProducts(planProducts);
 
   const navigateToView = (nextView: BillingView) => {
     if (!workspaceId) {
@@ -907,171 +1218,180 @@ export function SubscriptionContent({
   }
 
   return (
-    <main className="flex h-full flex-col overflow-hidden bg-background">
-      <header className="flex h-14 items-center gap-3 border-b bg-background px-4">
-        <CreditCard size={18} className="text-primary" />
-        <div className="min-w-0">
-          <h1 className="text-lg font-semibold">Choose your workspace plan</h1>
-          <p className="truncate text-xs text-muted-foreground">
-            {currentWorkspace.name} · workspace billing
-          </p>
-        </div>
-      </header>
+    <main className="flex h-full flex-col overflow-hidden bg-[#f4f7fc]">
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="relative isolate">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.95),transparent_35%),radial-gradient(circle_at_top_right,rgba(230,239,255,0.95),transparent_40%),linear-gradient(180deg,#f9fbff_0%,#eef4fb_100%)]" />
 
-      <Separator />
+          <div className="relative mx-auto flex w-full max-w-[1560px] flex-col gap-6 px-6 py-8 xl:px-8">
+            {subscription?.cancelAtPeriodEnd ? (
+              <div className="rounded-full border border-amber-200 bg-amber-50/90 px-5 py-3 text-sm text-amber-800">
+                The current subscription will end on{" "}
+                {formatDate(subscription.currentPeriodEnd)}.
+              </div>
+            ) : null}
 
-      <ScrollArea className="min-h-0 flex-1 bg-secondary/20">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6">
-          {subscription?.cancelAtPeriodEnd ? (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              The current subscription will end on{" "}
-              {formatDate(subscription.currentPeriodEnd)}.
-            </div>
-          ) : null}
-
-          <Card className="border-slate-200 shadow-sm">
-            <CardContent className="flex flex-col gap-4 p-6 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <div className="text-3xl font-semibold tracking-tight text-slate-950">
-                  Choose the plan that fits your workspace
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+              <div className="max-w-3xl">
+                <div className="text-sm font-medium uppercase tracking-[0.22em] text-[#7e91b2]">
+                  {currentWorkspace.name} workspace billing
                 </div>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                  Billing is shared across {currentWorkspace.name}. Owners and
-                  admins can change the plan or top up prepaid credits for the
-                  whole workspace.
+                <h1 className="mt-3 text-5xl font-semibold tracking-[-0.06em] text-[#111b35] sm:text-6xl">
+                  Choose your plan
+                </h1>
+                <p className="mt-4 max-w-2xl text-lg text-[#6a7d9e]">
+                  Select the plan that fits your workload.
                 </p>
               </div>
 
-              <div className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600">
-                1 USD = 1,000 credits across paid plans
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="grid gap-6 xl:grid-cols-3">
-            <PlanCard
-              badge="Free"
-              title="Free"
-              price="$0 / month"
-              creditsLabel="Start with workspace billing enabled"
-              description="Best for early exploration and small workspace usage."
-              features={FREE_PLAN_FEATURES}
-              actionLabel={
-                subscription ? "Downgrade in billing" : "Current plan"
-              }
-              actionDisabled={!subscription}
-              onAction={
-                subscription
-                  ? () => {
-                      void handleManageBilling("plans");
-                    }
-                  : undefined
-              }
-            />
-
-            {planProducts.map((product) => {
-              const isCurrentPlan =
-                subscription?.product.stripePriceId === product.stripePriceId;
-
-              return (
-                <PlanCard
-                  key={product.stripePriceId}
-                  badge={product.display.badge || product.name}
-                  title={product.name}
-                  price={formatPlanPrice(product)}
-                  creditsLabel={formatPlanCredits(product)}
-                  description={
-                    product.display.description ||
-                    "Monthly workspace credits managed through Billing Hub."
-                  }
-                  features={
-                    product.display.features.length > 0
-                      ? product.display.features.slice(0, 6)
-                      : [
-                          "Workspace-wide monthly credits",
-                          "Shared billing controls for admins",
-                          "Upgrade anytime in checkout",
-                        ]
-                  }
-                  actionLabel={isCurrentPlan ? "Current plan" : "Choose plan"}
-                  actionDisabled={isCurrentPlan}
-                  highlighted={isCurrentPlan}
-                  onAction={
-                    isCurrentPlan
-                      ? undefined
-                      : () => {
-                          void handleCheckout(
-                            product.stripePriceId,
-                            "subscription",
-                            "plans",
-                          );
-                        }
-                  }
-                />
-              );
-            })}
-          </div>
-
-          {planProducts.length === 0 ? (
-            <SectionMessage
-              title="No paid plans configured"
-              description="Billing Hub does not currently expose any paid subscription products."
-            />
-          ) : null}
-
-          <Card className="border-slate-200 shadow-sm">
-            <CardContent className="flex flex-col gap-4 p-6 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <div className="text-sm font-medium text-slate-900">
-                  Current shared credits
+              <div className="flex flex-wrap items-center gap-3 xl:justify-end">
+                <div className="rounded-full border border-white/80 bg-white/80 px-5 py-3 text-sm font-medium text-[#6a7d9e] shadow-[0_18px_40px_-32px_rgba(15,23,42,0.4)] backdrop-blur">
+                  1 USD = 1,000 credits across all plans.
                 </div>
-                <div className="mt-2 text-2xl font-semibold text-slate-950">
-                  {formatCredits(totalCredits)}
-                </div>
-                <p className="mt-2 text-sm text-slate-500">
-                  Need a top-up or want to review recent transactions? Open the
-                  workspace credits page.
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-3 sm:flex-row">
                 <Button
                   variant="outline"
-                  className="h-11 px-5"
-                  onClick={() => navigateToView("credits")}
-                >
-                  Manage workspace credits
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="h-11 px-5"
+                  className="h-12 rounded-full border-white/80 bg-white/80 px-5 text-sm font-medium text-[#425675] shadow-[0_18px_40px_-32px_rgba(15,23,42,0.4)]"
                   onClick={() => void handleManageBilling("plans")}
                   disabled={portal.isPending}
                 >
-                  <ArrowUpRight className="h-4 w-4" />
-                  Open billing portal
+                  Manage billing
                 </Button>
               </div>
-            </CardContent>
-          </Card>
-
-          {checkout.error ? (
-            <div className="rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              {getErrorMessage(
-                checkout.error,
-                "Unable to start checkout right now.",
-              )}
             </div>
-          ) : null}
 
-          {portal.error ? (
-            <div className="rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              {getErrorMessage(
-                portal.error,
-                "Unable to open billing management right now.",
-              )}
+            <div className="grid gap-6 xl:grid-cols-3">
+              <PlanCard
+                badge="Free"
+                title="Free"
+                priceAmount="$0"
+                priceCycle="month"
+                description={getPlanDescription("free")}
+                features={FREE_PLAN_FEATURES}
+                actionLabel={subscription ? "Choose Free" : "Current plan"}
+                actionDisabled={!subscription}
+                onAction={
+                  subscription
+                    ? () => {
+                        void handleManageBilling("plans");
+                      }
+                    : undefined
+                }
+                theme="free"
+              />
+
+              {planGroups.map((group, groupIndex) => {
+                const defaultProduct =
+                  group.products.find(
+                    (product) =>
+                      product.stripePriceId ===
+                      subscription?.product.stripePriceId,
+                  ) ?? group.products[0];
+                const selectedProduct =
+                  group.products.find(
+                    (product) =>
+                      product.stripePriceId === selectedPlanPriceIds[group.key],
+                  ) ?? defaultProduct;
+                const cycle = formatInterval(
+                  selectedProduct.interval,
+                  selectedProduct.intervalCount,
+                );
+                const isCurrentPlan =
+                  subscription?.product.stripePriceId ===
+                  selectedProduct.stripePriceId;
+
+                return (
+                  <PlanCard
+                    key={group.key}
+                    badge={group.badge}
+                    title={group.title}
+                    priceAmount={formatMoney(selectedProduct.amountCents)}
+                    priceCycle={cycle}
+                    description={getPlanDescription(group.title)}
+                    features={buildPlanFeatures(selectedProduct)}
+                    actionLabel={
+                      isCurrentPlan ? "Current plan" : `Choose ${group.title}`
+                    }
+                    actionDisabled={isCurrentPlan}
+                    onAction={
+                      isCurrentPlan
+                        ? undefined
+                        : () => {
+                            void handleCheckout(
+                              selectedProduct.stripePriceId,
+                              "subscription",
+                              "plans",
+                            );
+                          }
+                    }
+                    theme={getPlanCardTheme(groupIndex, group.title)}
+                    optionItems={group.products.map((product) => ({
+                      value: product.stripePriceId,
+                      label: formatPlanOptionLabel(product),
+                    }))}
+                    optionValue={selectedProduct.stripePriceId}
+                    onOptionChange={(nextValue) =>
+                      setSelectedPlanPriceIds((current) => ({
+                        ...current,
+                        [group.key]: nextValue,
+                      }))
+                    }
+                  />
+                );
+              })}
             </div>
-          ) : null}
+
+            {planGroups.length === 0 ? (
+              <SectionMessage
+                title="No paid plans configured"
+                description="Billing Hub does not currently expose any paid subscription products."
+              />
+            ) : null}
+
+            <Card className="overflow-hidden rounded-[2rem] border-white/70 bg-white/75 shadow-[0_24px_72px_-44px_rgba(15,23,42,0.35)] backdrop-blur">
+              <CardContent className="flex flex-col gap-5 p-6 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="text-sm font-medium uppercase tracking-[0.22em] text-[#7e91b2]">
+                    Shared workspace credits
+                  </div>
+                  <div className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-[#111b35]">
+                    {formatCredits(totalCredits)}
+                  </div>
+                  <p className="mt-3 max-w-2xl text-sm leading-6 text-[#6a7d9e]">
+                    Need a top-up or want to review recent transactions? Open
+                    the workspace credits page.
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <Button
+                    variant="outline"
+                    className="h-12 rounded-full border-[#d5dfef] bg-white px-6 text-[#35517d]"
+                    onClick={() => navigateToView("credits")}
+                  >
+                    Manage workspace credits
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {checkout.error ? (
+              <div className="rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {getErrorMessage(
+                  checkout.error,
+                  "Unable to start checkout right now.",
+                )}
+              </div>
+            ) : null}
+
+            {portal.error ? (
+              <div className="rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {getErrorMessage(
+                  portal.error,
+                  "Unable to open billing management right now.",
+                )}
+              </div>
+            ) : null}
+          </div>
         </div>
       </ScrollArea>
     </main>
