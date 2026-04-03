@@ -53,6 +53,11 @@ import { useChannelsByType } from "@/hooks/useChannels";
 import { useDevtools } from "@/hooks/useDevtools";
 import { NotificationBadge } from "@/components/ui/badge";
 import { CreateWorkspaceDialog } from "@/components/dialog/CreateWorkspaceDialog";
+import {
+  getVisibleNavigationItems,
+  isHiddenNavUnlocked,
+  registerMoreTapUnlock,
+} from "./mainSidebarUnlock";
 import type { UserStatus } from "@/types/im";
 
 // Navigation items with i18n keys
@@ -84,6 +89,9 @@ export function MainSidebar() {
 
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [createWorkspaceOpen, setCreateWorkspaceOpen] = useState(false);
+  const [hiddenNavUnlocked, setHiddenNavUnlocked] = useState(() =>
+    isHiddenNavUnlocked(),
+  );
   const { data: currentUser } = useCurrentUser();
   const { mutate: logout } = useLogout();
   const { data: onlineUsers = {} } = useOnlineUsers();
@@ -233,47 +241,57 @@ export function MainSidebar() {
   const sidebarCollapsed = useSidebarCollapsed();
 
   const renderNavigationItems = () =>
-    navigationItems.map((item) => {
-      const Icon = item.icon;
-      const currentSection = location.pathname.startsWith("/profile")
-        ? null
-        : getSectionFromPath(location.pathname);
-      const isActive = currentSection === item.id;
-      const label = tNav(item.labelKey);
+    getVisibleNavigationItems(navigationItems, hiddenNavUnlocked).map(
+      (item) => {
+        const Icon = item.icon;
+        const currentSection = location.pathname.startsWith("/profile")
+          ? null
+          : getSectionFromPath(location.pathname);
+        const isActive = currentSection === item.id;
+        const label = tNav(item.labelKey);
 
-      const getBadgeCount = () => {
-        if (item.id === "activity") return activityUnreadCount;
-        if (item.id === "messages") return dmUnreadCount;
-        return 0;
-      };
-      const badgeCount = getBadgeCount();
+        const getBadgeCount = () => {
+          if (item.id === "activity") return activityUnreadCount;
+          if (item.id === "messages") return dmUnreadCount;
+          return 0;
+        };
+        const badgeCount = getBadgeCount();
 
-      return (
-        <Button
-          key={item.id}
-          variant="ghost"
-          size="icon"
-          onClick={() => {
-            const section = item.id as SidebarSection;
-            appActions.setActiveSidebar(section);
-            const targetPath =
-              section === "home" ? "/channels" : getLastVisitedPath(section);
-            navigate({ to: targetPath });
-          }}
-          className={cn(
-            "w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-nav-hover text-nav-foreground-subtle hover:text-nav-foreground relative",
-            isActive && "bg-nav-active text-nav-foreground",
-          )}
-          title={label}
-        >
-          <div className="relative">
-            <Icon size={20} />
-            <NotificationBadge count={badgeCount} />
-          </div>
-          <span className="text-xs mt-1.5">{label}</span>
-        </Button>
-      );
-    });
+        return (
+          <Button
+            key={item.id}
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              const section = item.id as SidebarSection;
+
+              if (section === "more" && !hiddenNavUnlocked) {
+                const unlocked = registerMoreTapUnlock();
+                if (unlocked) {
+                  setHiddenNavUnlocked(true);
+                }
+              }
+
+              appActions.setActiveSidebar(section);
+              const targetPath =
+                section === "home" ? "/channels" : getLastVisitedPath(section);
+              navigate({ to: targetPath });
+            }}
+            className={cn(
+              "w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-nav-hover text-nav-foreground-subtle hover:text-nav-foreground relative",
+              isActive && "bg-nav-active text-nav-foreground",
+            )}
+            title={label}
+          >
+            <div className="relative">
+              <Icon size={20} />
+              <NotificationBadge count={badgeCount} />
+            </div>
+            <span className="text-xs mt-1.5">{label}</span>
+          </Button>
+        );
+      },
+    );
 
   return (
     <TooltipProvider>
@@ -523,7 +541,6 @@ export function MainSidebar() {
                     </div>
                   </div>
                 </div>
-
                 {/* Temporary: hide status actions and preferences from the user menu. */}
                 <Separator />
 

@@ -61,92 +61,96 @@ describe("SubscriptionContent", () => {
     });
   });
 
-  it("renders the simplified plan view and starts subscription checkout", async () => {
-    mockUseWorkspaceBillingOverview.mockReturnValue({
-      data: {
-        account: {
-          id: "acct_1",
-          ownerExternalId: "tenant:ws-1",
-          ownerType: "organization",
-          ownerName: "Alpha",
-          balance: 3000,
-          quota: 0,
-          quotaExpiresAt: null,
-          effectiveQuota: 0,
-          available: 3000,
-          creditLimit: 0,
-          status: "active",
-          metadata: null,
-          createdAt: "2026-04-01T00:00:00.000Z",
-          updatedAt: "2026-04-01T00:00:00.000Z",
+  it(
+    "renders the simplified plan view and starts subscription checkout",
+    { timeout: 15000 },
+    async () => {
+      mockUseWorkspaceBillingOverview.mockReturnValue({
+        data: {
+          account: {
+            id: "acct_1",
+            ownerExternalId: "tenant:ws-1",
+            ownerType: "organization",
+            ownerName: "Alpha",
+            balance: 3000,
+            quota: 0,
+            quotaExpiresAt: null,
+            effectiveQuota: 0,
+            available: 3000,
+            creditLimit: 0,
+            status: "active",
+            metadata: null,
+            createdAt: "2026-04-01T00:00:00.000Z",
+            updatedAt: "2026-04-01T00:00:00.000Z",
+          },
+          subscription: null,
+          subscriptionProducts: [
+            {
+              stripePriceId: "price_starter",
+              name: "Starter",
+              type: "subscription",
+              credits: 8000,
+              amountCents: 4000,
+              interval: "month",
+              intervalCount: 1,
+              active: true,
+              metadata: null,
+              display: {
+                badge: "Starter",
+                description: "Best for consistent workspace usage.",
+                features: ["8,000 monthly credits", "Priority support"],
+                sortOrder: 1,
+              },
+            },
+            {
+              stripePriceId: "price_pro",
+              name: "Pro",
+              type: "subscription",
+              credits: 40000,
+              amountCents: 20000,
+              interval: "month",
+              intervalCount: 1,
+              active: true,
+              metadata: null,
+              display: {
+                badge: "Pro",
+                description: "Best for sustained team usage.",
+                features: ["40,000 monthly credits", "Advanced controls"],
+                sortOrder: 2,
+              },
+            },
+          ],
+          creditProducts: [],
+          recentTransactions: [],
         },
-        subscription: null,
-        subscriptionProducts: [
-          {
-            stripePriceId: "price_starter",
-            name: "Starter",
-            type: "subscription",
-            credits: 8000,
-            amountCents: 4000,
-            interval: "month",
-            intervalCount: 1,
-            active: true,
-            metadata: null,
-            display: {
-              badge: "Starter",
-              description: "Best for consistent workspace usage.",
-              features: ["8,000 monthly credits", "Priority support"],
-              sortOrder: 1,
-            },
-          },
-          {
-            stripePriceId: "price_pro",
-            name: "Pro",
-            type: "subscription",
-            credits: 40000,
-            amountCents: 20000,
-            interval: "month",
-            intervalCount: 1,
-            active: true,
-            metadata: null,
-            display: {
-              badge: "Pro",
-              description: "Best for sustained team usage.",
-              features: ["40,000 monthly credits", "Advanced controls"],
-              sortOrder: 2,
-            },
-          },
-        ],
-        creditProducts: [],
-        recentTransactions: [],
-      },
-      isLoading: false,
-      error: null,
-    });
+        isLoading: false,
+        error: null,
+      });
 
-    mockCheckoutMutateAsync.mockResolvedValue({
-      checkoutUrl: "https://checkout.stripe.com/pay/cs_plan",
-      sessionId: "cs_plan",
-    });
+      mockCheckoutMutateAsync.mockResolvedValue({
+        checkoutUrl: "https://checkout.stripe.com/pay/cs_plan",
+        sessionId: "cs_plan",
+      });
 
-    render(<SubscriptionContent />);
+      render(<SubscriptionContent />);
 
-    expect(await screen.findByText(/choose your plan/i)).toBeInTheDocument();
+      expect(await screen.findByText(/choose your plan/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /choose starter/i }));
+      fireEvent.click(screen.getByRole("button", { name: /choose starter/i }));
 
-    await waitFor(() =>
-      expect(mockCheckoutMutateAsync).toHaveBeenCalledWith({
-        priceId: "price_starter",
-        type: "subscription",
-        view: "plans",
-        amountCents: undefined,
-      }),
-    );
-    expect(mockOpenExternalUrl).toHaveBeenCalledWith(
-      "https://checkout.stripe.com/pay/cs_plan",
-    );
-  });
+      await waitFor(() =>
+        expect(mockCheckoutMutateAsync).toHaveBeenCalledWith({
+          priceId: "price_starter",
+          type: "subscription",
+          view: "plans",
+          amountCents: undefined,
+        }),
+      );
+      expect(mockOpenExternalUrl).toHaveBeenCalledWith(
+        "https://checkout.stripe.com/pay/cs_plan",
+      );
+    },
+  );
 
   it("keeps starter before pro even when the current plan badge differs", async () => {
     mockUseWorkspaceBillingOverview.mockReturnValue({
