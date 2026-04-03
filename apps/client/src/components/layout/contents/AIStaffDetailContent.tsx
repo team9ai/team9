@@ -815,9 +815,6 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
                           <h3 className="text-lg font-semibold text-foreground truncate">
                             {displayName}
                           </h3>
-                          <Badge variant="default" className="text-xs">
-                            Default
-                          </Badge>
                         </div>
                         {baseModelBot.username && (
                           <p className="text-sm text-muted-foreground">
