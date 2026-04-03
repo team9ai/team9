@@ -22,13 +22,15 @@ const navigationItems = [
 ];
 
 describe("mainSidebarUnlock", () => {
-  it("hides experimental tabs before unlock", () => {
+  it("keeps AI Staff and Tasks visible before unlock", () => {
     const visibleItems = getVisibleNavigationItems(navigationItems, false);
 
     expect(visibleItems.map((item) => item.id)).toEqual([
       "home",
       "messages",
       "activity",
+      "aiStaff",
+      "tasks",
       "application",
       "more",
     ]);
@@ -58,12 +60,6 @@ describe("mainSidebarUnlock", () => {
   });
 
   it("keeps the hidden-section list stable", () => {
-    expect(HIDDEN_NAV_SECTION_IDS).toEqual([
-      "aiStaff",
-      "tasks",
-      "skills",
-      "resources",
-      "library",
-    ]);
+    expect(HIDDEN_NAV_SECTION_IDS).toEqual(["skills", "resources", "library"]);
   });
 });

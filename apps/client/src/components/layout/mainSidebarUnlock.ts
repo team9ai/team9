@@ -9,8 +9,6 @@ export const HIDDEN_NAV_TAP_COUNT_STORAGE_KEY =
 export const MORE_TAP_UNLOCK_THRESHOLD = 5;
 
 export const HIDDEN_NAV_SECTION_IDS = [
-  "aiStaff",
-  "tasks",
   "skills",
   "resources",
   "library",

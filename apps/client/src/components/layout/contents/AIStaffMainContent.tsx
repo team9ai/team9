@@ -1,4 +1,11 @@
-import { Bot, Loader2, AlertCircle, User, Plus } from "lucide-react";
+import {
+  Bot,
+  Loader2,
+  AlertCircle,
+  User,
+  Plus,
+  MessageSquare,
+} from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Card } from "@/components/ui/card";
@@ -36,6 +43,7 @@ import { getHttpErrorMessage } from "@/lib/http-error";
 import { cn } from "@/lib/utils";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import { BaseModelProductLogo } from "@/components/applications/BaseModelProductLogo";
+import { useCreateDirectChannel } from "@/hooks/useChannels";
 
 // ── Type guard ────────────────────────────────────────────────────────
 
@@ -59,6 +67,7 @@ interface AIStaffBotCardProps {
 
 function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
   const navigate = useNavigate();
+  const createDirectChannel = useCreateDirectChannel();
 
   const displayName = bot.displayName || app.name || "AI Staff";
   const isRunning = instanceStatus?.status === "running";
@@ -66,6 +75,20 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
   const isOcBot = isOpenClawBot(bot);
   const isBaseModelBot = isBaseModelStaffBot(bot);
   const isDefault = isOcBot ? !bot.agentId : true;
+
+  const handleOpenChat = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+
+    try {
+      const channel = await createDirectChannel.mutateAsync(bot.userId);
+      navigate({
+        to: "/messages/$channelId",
+        params: { channelId: channel.id },
+      });
+    } catch (error) {
+      console.error("Failed to create/open direct channel:", error);
+    }
+  };
 
   return (
     <Card
@@ -147,6 +170,20 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
             </div>
           )}
         </div>
+
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="shrink-0"
+          disabled={createDirectChannel.isPending}
+          onClick={(event) => {
+            void handleOpenChat(event);
+          }}
+        >
+          <MessageSquare size={14} className="mr-1" />
+          Chat
+        </Button>
       </div>
     </Card>
   );
