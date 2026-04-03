@@ -153,7 +153,7 @@ jobs:
               }' \
               tauri.conf.json > tauri.conf.tmp && mv tauri.conf.tmp tauri.conf.json
           else
-            jq 'del(.plugins.updater)' tauri.conf.json > tauri.conf.tmp && mv tauri.conf.tmp tauri.conf.json
+            jq 'del(.plugins.updater) | .bundle.createUpdaterArtifacts = false' tauri.conf.json > tauri.conf.tmp && mv tauri.conf.tmp tauri.conf.json
           fi
 
       - name: Build desktop app
