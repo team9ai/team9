@@ -1,10 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { InstalledApplicationWithBots } from "@/services/api/applications";
 
 const mockNavigate = vi.hoisted(() => vi.fn());
 const mockUseQuery = vi.hoisted(() => vi.fn());
 const mockUseSelectedWorkspaceId = vi.hoisted(() => vi.fn());
+const mockCreateDirectChannelMutateAsync = vi.hoisted(() => vi.fn());
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -36,6 +37,13 @@ vi.mock("@/stores/useWorkspaceStore", () => ({
   useSelectedWorkspaceId: mockUseSelectedWorkspaceId,
 }));
 
+vi.mock("@/hooks/useChannels", () => ({
+  useCreateDirectChannel: () => ({
+    mutateAsync: mockCreateDirectChannelMutateAsync,
+    isPending: false,
+  }),
+}));
+
 vi.mock("../WorkspaceFileBrowserContent", () => ({
   WorkspaceFileBrowserContent: () => <div>workspace-browser</div>,
 }));
@@ -48,7 +56,7 @@ describe("AIStaffDetailContent", () => {
     mockUseSelectedWorkspaceId.mockReturnValue("workspace-1");
   });
 
-  it("renders base model staff details for a base-model-staff bot id", () => {
+  it("renders base model staff details and opens chat from the detail page", async () => {
     const installedApps: InstalledApplicationWithBots[] = [
       {
         id: "base-model-app-1",
@@ -107,6 +115,9 @@ describe("AIStaffDetailContent", () => {
         error: null,
       };
     });
+    mockCreateDirectChannelMutateAsync.mockResolvedValue({
+      id: "dm-channel-1",
+    });
 
     render(<AIStaffDetailContent staffId="bot-claude-1" />);
 
@@ -115,5 +126,18 @@ describe("AIStaffDetailContent", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Claude")).toBeInTheDocument();
     expect(screen.queryByText("Bot not found")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Chat" }));
+
+    await waitFor(() =>
+      expect(mockCreateDirectChannelMutateAsync).toHaveBeenCalledWith(
+        "user-claude-1",
+      ),
+    );
+
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/messages/$channelId",
+      params: { channelId: "dm-channel-1" },
+    });
   });
 });

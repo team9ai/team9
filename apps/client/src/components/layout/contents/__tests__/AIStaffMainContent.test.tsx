@@ -1,11 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { InstalledApplicationWithBots } from "@/services/api/applications";
 
 const mockNavigate = vi.hoisted(() => vi.fn());
 const mockUseQuery = vi.hoisted(() => vi.fn());
 const mockUseSelectedWorkspaceId = vi.hoisted(() => vi.fn());
-const mockCreateDirectChannelMutateAsync = vi.hoisted(() => vi.fn());
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -15,7 +14,6 @@ vi.mock("react-i18next", () => ({
           aiStaff: "AI Staff",
           createFirstAIStaff: "Create Your First AI Staff",
           aiStaffDescription: "Create AI staff members for your workspace.",
-          chat: "Chat",
         }) as const
       )[key] ?? key,
   }),
@@ -38,13 +36,6 @@ vi.mock("@tanstack/react-query", () => ({
 
 vi.mock("@/stores/useWorkspaceStore", () => ({
   useSelectedWorkspaceId: mockUseSelectedWorkspaceId,
-}));
-
-vi.mock("@/hooks/useChannels", () => ({
-  useCreateDirectChannel: () => ({
-    mutateAsync: mockCreateDirectChannelMutateAsync,
-    isPending: false,
-  }),
 }));
 
 import { AIStaffMainContent } from "../AIStaffMainContent";
@@ -101,68 +92,9 @@ describe("AIStaffMainContent", () => {
       screen.getByRole("img", { name: "Claude logo" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Claude")).toBeInTheDocument();
-  });
-
-  it("opens the bot chat from the Chat button without navigating to details", async () => {
-    const installedApps: InstalledApplicationWithBots[] = [
-      {
-        id: "base-model-app-1",
-        applicationId: "base-model-staff",
-        name: "Base Model Staff",
-        description: "Default AI staff",
-        tenantId: "workspace-1",
-        installedBy: "user-1",
-        config: {},
-        permissions: {},
-        status: "active",
-        isActive: true,
-        createdAt: "2026-04-03T00:00:00.000Z",
-        updatedAt: "2026-04-03T00:00:00.000Z",
-        type: "managed",
-        bots: [
-          {
-            botId: "bot-claude-1",
-            userId: "user-claude-1",
-            agentType: "base_model",
-            username: "claude_bot_workspace_1",
-            displayName: "Claude",
-            isActive: true,
-            createdAt: "2026-04-03T00:00:00.000Z",
-            managedMeta: {
-              agentId: "base-model-claude-workspace-1",
-            },
-          },
-        ],
-        instanceStatus: null,
-      },
-    ];
-
-    mockUseQuery.mockReturnValue({
-      data: installedApps,
-      isLoading: false,
-      error: null,
-    });
-    mockCreateDirectChannelMutateAsync.mockResolvedValue({
-      id: "dm-channel-1",
-    });
-
-    render(<AIStaffMainContent />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Chat" }));
-
-    await waitFor(() =>
-      expect(mockCreateDirectChannelMutateAsync).toHaveBeenCalledWith(
-        "user-claude-1",
-      ),
-    );
-
-    expect(mockNavigate).toHaveBeenCalledWith({
-      to: "/messages/$channelId",
-      params: { channelId: "dm-channel-1" },
-    });
-    expect(mockNavigate).not.toHaveBeenCalledWith({
-      to: "/ai-staff/$staffId",
-      params: { staffId: "bot-claude-1" },
-    });
+    expect(
+      screen.queryByRole("button", { name: "Chat" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Default")).not.toBeInTheDocument();
   });
 });

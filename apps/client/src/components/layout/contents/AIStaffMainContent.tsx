@@ -1,11 +1,4 @@
-import {
-  Bot,
-  Loader2,
-  AlertCircle,
-  User,
-  Plus,
-  MessageSquare,
-} from "lucide-react";
+import { Bot, Loader2, AlertCircle, User, Plus } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Card } from "@/components/ui/card";
@@ -43,7 +36,6 @@ import { getHttpErrorMessage } from "@/lib/http-error";
 import { cn } from "@/lib/utils";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import { BaseModelProductLogo } from "@/components/applications/BaseModelProductLogo";
-import { useCreateDirectChannel } from "@/hooks/useChannels";
 
 // ── Type guard ────────────────────────────────────────────────────────
 
@@ -67,28 +59,13 @@ interface AIStaffBotCardProps {
 
 function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
   const navigate = useNavigate();
-  const createDirectChannel = useCreateDirectChannel();
 
   const displayName = bot.displayName || app.name || "AI Staff";
   const isRunning = instanceStatus?.status === "running";
   const initials = displayName.slice(0, 2).toUpperCase();
   const isOcBot = isOpenClawBot(bot);
   const isBaseModelBot = isBaseModelStaffBot(bot);
-  const isDefault = isOcBot ? !bot.agentId : true;
-
-  const handleOpenChat = async (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
-
-    try {
-      const channel = await createDirectChannel.mutateAsync(bot.userId);
-      navigate({
-        to: "/messages/$channelId",
-        params: { channelId: channel.id },
-      });
-    } catch (error) {
-      console.error("Failed to create/open direct channel:", error);
-    }
-  };
+  const isDefault = isOcBot && !bot.agentId;
 
   return (
     <Card
@@ -128,12 +105,14 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
             <p className="text-sm font-semibold text-foreground truncate">
               {displayName}
             </p>
-            <Badge
-              variant={isDefault ? "default" : "secondary"}
-              className="shrink-0 text-[10px] px-1.5 py-0"
-            >
-              {isDefault ? "Default" : "Agent"}
-            </Badge>
+            {isOcBot && (
+              <Badge
+                variant={isDefault ? "default" : "secondary"}
+                className="shrink-0 text-[10px] px-1.5 py-0"
+              >
+                {isDefault ? "Default" : "Agent"}
+              </Badge>
+            )}
           </div>
           {bot.username && (
             <p className="text-xs text-muted-foreground truncate">
@@ -170,20 +149,6 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
             </div>
           )}
         </div>
-
-        <Button
-          type="button"
-          size="sm"
-          variant="secondary"
-          className="shrink-0"
-          disabled={createDirectChannel.isPending}
-          onClick={(event) => {
-            void handleOpenChat(event);
-          }}
-        >
-          <MessageSquare size={14} className="mr-1" />
-          Chat
-        </Button>
       </div>
     </Card>
   );
@@ -492,7 +457,7 @@ export function AIStaffMainContent() {
             !error &&
             installedApps &&
             installedApps.length > 0 && (
-              <div className="max-w-md space-y-2">
+              <div className="mx-auto max-w-md space-y-2">
                 {installedApps
                   .filter((app) => app.status === "active")
                   .flatMap((app) =>

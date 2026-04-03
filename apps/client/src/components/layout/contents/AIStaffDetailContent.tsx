@@ -12,6 +12,7 @@ import {
   Pencil,
   User,
   Trash2,
+  MessageSquare,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -51,6 +52,7 @@ import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import { WorkspaceFileBrowserContent } from "./WorkspaceFileBrowserContent";
 import { BaseModelProductLogo } from "@/components/applications/BaseModelProductLogo";
 import { getBaseModelProductMeta } from "@/lib/base-model-agent";
+import { useCreateDirectChannel } from "@/hooks/useChannels";
 import type {
   BaseModelStaffBotInfo,
   OpenClawBotInfo,
@@ -100,6 +102,7 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
   const [nameInput, setNameInput] = useState("");
   const [editingDesc, setEditingDesc] = useState(false);
   const [descInput, setDescInput] = useState("");
+  const createDirectChannel = useCreateDirectChannel();
 
   // 1. Get all installed apps with bots → find the current bot and app by botId
   const { data: installedApps, isLoading: appsLoading } = useQuery({
@@ -259,6 +262,20 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
   const [stopDialogOpen, setStopDialogOpen] = useState(false);
   const [restartDialogOpen, setRestartDialogOpen] = useState(false);
 
+  const handleOpenChat = async () => {
+    if (!currentBot?.userId) return;
+
+    try {
+      const channel = await createDirectChannel.mutateAsync(currentBot.userId);
+      navigate({
+        to: "/messages/$channelId",
+        params: { channelId: channel.id },
+      });
+    } catch (error) {
+      console.error("Failed to open AI staff chat", error);
+    }
+  };
+
   const isLoading = appsLoading;
   const displayName = currentBot?.displayName || currentApp?.name || "AI Staff";
   const isRunning = isOpenClawStaff
@@ -322,7 +339,7 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
               {/* Profile Card */}
               <Card>
                 <CardContent className="pt-6">
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-start gap-4">
                     <div className="relative">
                       <Avatar className="w-16 h-16">
                         <AvatarFallback className="bg-primary/10 text-primary font-bold text-lg">
@@ -420,6 +437,20 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
                         )}
                       </div>
                     </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0"
+                      disabled={
+                        createDirectChannel.isPending || !currentBot.userId
+                      }
+                      onClick={() => {
+                        void handleOpenChat();
+                      }}
+                    >
+                      <MessageSquare size={14} className="mr-1" />
+                      Chat
+                    </Button>
                   </div>
 
                   {/* Mentor */}
@@ -773,7 +804,7 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
               <div className="space-y-6">
                 <Card>
                   <CardContent className="pt-6">
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-start gap-4">
                       <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-background ring-1 ring-border/50">
                         <BaseModelProductLogo
                           agentId={baseModelBot.managedMeta?.agentId}
@@ -811,6 +842,20 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
                           )}
                         </div>
                       </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0"
+                        disabled={
+                          createDirectChannel.isPending || !currentBot.userId
+                        }
+                        onClick={() => {
+                          void handleOpenChat();
+                        }}
+                      >
+                        <MessageSquare size={14} className="mr-1" />
+                        Chat
+                      </Button>
                     </div>
 
                     <div className="mt-4 space-y-3">
