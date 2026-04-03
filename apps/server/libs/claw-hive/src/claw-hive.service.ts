@@ -26,6 +26,7 @@ export class ClawHiveService {
     name: string;
     blueprintId: string;
     tenantId: string;
+    metadata?: Record<string, unknown>;
     model: { provider: string; id: string };
     componentConfigs: Record<string, Record<string, unknown>>;
   }): Promise<void> {
@@ -37,6 +38,28 @@ export class ClawHiveService {
     if (!res.ok) {
       const text = await res.text();
       throw new Error(`Failed to register agent: ${res.status} ${text}`);
+    }
+  }
+
+  async updateAgent(
+    agentId: string,
+    params: {
+      tenantId: string;
+      metadata: Record<string, unknown>;
+    },
+  ): Promise<void> {
+    const res = await fetch(
+      `${this.baseUrl}/api/agents/${encodeURIComponent(agentId)}`,
+      {
+        method: 'PUT',
+        headers: this.headers(params.tenantId),
+        body: JSON.stringify({ metadata: params.metadata }),
+      },
+    );
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Failed to update agent: ${res.status} ${text}`);
     }
   }
 
@@ -92,6 +115,7 @@ export class ClawHiveService {
       name: string;
       blueprintId: string;
       tenantId: string;
+      metadata?: Record<string, unknown>;
       model: { provider: string; id: string };
       componentConfigs: Record<string, Record<string, unknown>>;
     }>;

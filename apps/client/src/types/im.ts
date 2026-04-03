@@ -5,6 +5,7 @@ export type MessageType = "text" | "file" | "image" | "system" | "tracking";
 export type MemberRole = "owner" | "admin" | "member";
 export type UserStatus = "online" | "offline" | "away" | "busy";
 export type MessageSendStatus = "sending" | "sent" | "failed";
+export type AgentType = "base_model" | "openclaw";
 
 export interface AgentEventMetadata {
   agentEventType:
@@ -43,6 +44,7 @@ export interface IMUser {
   lastSeenAt?: string;
   isActive: boolean;
   userType?: "human" | "bot" | "system";
+  agentType?: AgentType | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -75,6 +77,7 @@ export interface ChannelWithUnread extends Channel {
     avatarUrl?: string;
     status: UserStatus;
     userType?: "human" | "bot" | "system";
+    agentType?: AgentType | null;
   };
 }
 
@@ -143,6 +146,7 @@ export interface Message {
     displayName: string | null;
     avatarUrl: string | null;
     userType: string;
+    agentType?: AgentType | null;
   }[];
   lastReplyAt?: string;
   // Client-side only fields for optimistic updates
@@ -298,6 +302,7 @@ export interface SyncMessageItem {
     username: string;
     displayName: string | null;
     avatarUrl: string | null;
+    agentType?: AgentType | null;
   };
 }
 

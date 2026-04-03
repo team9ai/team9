@@ -677,6 +677,7 @@ export interface SyncMessageItem {
     username: string;
     displayName: string | null;
     avatarUrl: string | null;
+    agentType?: 'base_model' | 'openclaw' | null;
   };
 }
 

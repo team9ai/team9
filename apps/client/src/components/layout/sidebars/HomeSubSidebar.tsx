@@ -343,6 +343,7 @@ export function HomeSubSidebar() {
       userId: otherUser?.id,
       name: displayName,
       avatarUrl: otherUser?.avatarUrl,
+      agentType: otherUser?.agentType,
       status: otherUser?.status || ("offline" as const),
       unreadCount: channel.unreadCount || 0,
       isBot: otherUser?.userType === "bot",
@@ -640,8 +641,8 @@ export function HomeSubSidebar() {
                       isSelected={selectedChannelId === dm.channelId}
                       unreadCount={dm.unreadCount}
                       channelId={dm.channelId}
-                      avatarSize="sm"
                       isBot={dm.isBot}
+                      agentType={dm.agentType}
                     />
                   ))
                 )}

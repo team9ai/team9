@@ -41,8 +41,6 @@ export function HomeMainContent() {
   const navigate = useNavigate();
   const { directChannels = [] } = useChannelsByType();
   const user = useUser();
-
-  // Check if user registered within the last 10 minutes
   const isNewUser = useMemo(() => {
     if (!user?.createdAt) return false;
     const createdAt = new Date(user.createdAt);
@@ -147,15 +145,14 @@ export function HomeMainContent() {
     <main className="h-full flex flex-col bg-muted overflow-hidden">
       <ScrollArea className="flex-1 min-h-0">
         <div className="p-8 max-w-6xl mx-auto">
-          {/* Welcome Section */}
           <div className="mb-10 flex items-center gap-6">
             <img
-              src="/whale.webp"
-              alt="Team9 Mascot"
+              src="/team9-block.png"
+              alt="Team9"
               loading="lazy"
               width={80}
               height={80}
-              className="w-20 h-20  object-cover shadow-md shrink-0"
+              className="w-20 h-20 object-cover shrink-0"
             />
             <div>
               <h1 className="text-3xl font-bold text-foreground mb-2">
@@ -167,7 +164,6 @@ export function HomeMainContent() {
             </div>
           </div>
 
-          {/* OpenClaw Warm-up Notification */}
           {isNewUser && !isWarmupDismissed && (
             <div className="mb-6 flex items-center gap-3 px-4 py-3 rounded-lg bg-info/10 border border-info/20">
               <Loader2 size={18} className="text-info animate-spin shrink-0" />
@@ -183,9 +179,7 @@ export function HomeMainContent() {
             </div>
           )}
 
-          {/* Two Column Layout */}
           <div className="flex gap-8">
-            {/* Left Column */}
             <div className="w-72 shrink-0 flex flex-col gap-6">
               <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-5">
@@ -247,7 +241,6 @@ export function HomeMainContent() {
               </Card>
             </div>
 
-            {/* Right Column */}
             <div className="flex-1 grid grid-cols-2 gap-6 auto-rows-min">
               <Card className="border-0 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-5 flex flex-col h-full">
@@ -543,30 +536,6 @@ export function HomeMainContent() {
                   </div>
                 </CardContent>
               </Card>
-
-              {/* <Card className="col-span-2 border-0 shadow-sm hover:shadow-md transition-shadow">
-                <CardContent className="p-5 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                      <Sparkles size={20} className="text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-base">
-                        {t("navigation:createFirstAIStaff")}
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        {t("navigation:aiStaffDescription")}
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    size="sm"
-                    className="bg-info hover:bg-info/90 text-primary-foreground rounded-lg px-6 cursor-pointer"
-                  >
-                    {t("navigation:createAIStaff")}
-                  </Button>
-                </CardContent>
-              </Card> */}
             </div>
           </div>
         </div>

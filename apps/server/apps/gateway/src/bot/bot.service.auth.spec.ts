@@ -4,6 +4,7 @@ import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import * as bcrypt from 'bcrypt';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { RedisService } from '@team9/redis';
+import { ClawHiveService } from '@team9/claw-hive';
 import { BotAuthCacheService } from './bot-auth-cache.service.js';
 import { BotService } from './bot.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
@@ -163,6 +164,16 @@ describe('BotService auth validation', () => {
         { provide: RedisService, useValue: redis },
         { provide: ChannelsService, useValue: channelsService },
         { provide: EventEmitter2, useValue: eventEmitter },
+        {
+          provide: ClawHiveService,
+          useValue: {
+            registerAgent: jest.fn<any>(),
+            updateAgent: jest.fn<any>(),
+            deleteAgent: jest.fn<any>(),
+            registerAgents: jest.fn<any>(),
+            deleteAgents: jest.fn<any>(),
+          },
+        },
       ],
     }).compile();
 

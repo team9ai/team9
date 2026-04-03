@@ -56,6 +56,17 @@ const schemaModule = {
     username: 'users.username',
     displayName: 'users.displayName',
     avatarUrl: 'users.avatarUrl',
+    userType: 'users.userType',
+  },
+  bots: {
+    userId: 'bots.userId',
+    installedApplicationId: 'bots.installedApplicationId',
+    managedProvider: 'bots.managedProvider',
+    managedMeta: 'bots.managedMeta',
+  },
+  installedApplications: {
+    id: 'installedApplications.id',
+    applicationId: 'installedApplications.applicationId',
   },
   userChannelReadStatus: {
     id: 'userChannelReadStatus.id',
@@ -98,12 +109,14 @@ type MockFn = jest.Mock<(...args: any[]) => any>;
 function createSelectQuery(plan: SelectPlan) {
   const query: Record<string, MockFn> = {
     from: jest.fn<any>(),
+    leftJoin: jest.fn<any>(),
     where: jest.fn<any>(),
     orderBy: jest.fn<any>(),
     limit: jest.fn<any>(),
   };
 
   query.from.mockReturnValue(query as never);
+  query.leftJoin.mockReturnValue(query as never);
   query.orderBy.mockReturnValue(query as never);
   query.where.mockImplementation(() =>
     plan.terminal === 'where' ? Promise.resolve(plan.result) : (query as never),
@@ -192,6 +205,10 @@ function makeSenderRow(overrides: Record<string, unknown> = {}) {
     username: 'alice',
     displayName: 'Alice',
     avatarUrl: null,
+    userType: 'human',
+    applicationId: null,
+    managedProvider: null,
+    managedMeta: null,
     ...overrides,
   };
 }
@@ -338,6 +355,7 @@ describe('SyncService', () => {
             username: 'alice',
             displayName: 'Alice',
             avatarUrl: null,
+            agentType: null,
           },
         },
         {
@@ -359,6 +377,7 @@ describe('SyncService', () => {
             username: 'bob',
             displayName: 'Bob',
             avatarUrl: null,
+            agentType: null,
           },
         },
       ],

@@ -47,4 +47,26 @@ describe("MessageItem avatar fallback", () => {
     const fallback = screen.getByText("AS");
     expect(fallback).toHaveClass(getSeededAvatarGradient("user-seeded"));
   });
+
+  it("renders an agent type badge in the author row", () => {
+    const message = makeMessage({
+      sender: {
+        id: "bot-1",
+        email: "bot@example.com",
+        username: "claude_bot_workspace",
+        displayName: "Claude",
+        avatarUrl: undefined,
+        status: "online",
+        isActive: true,
+        userType: "bot",
+        createdAt: "2026-03-27T12:00:00Z",
+        updatedAt: "2026-03-27T12:00:00Z",
+        agentType: "base_model",
+      } as any,
+    });
+
+    render(<MessageItem message={message} />);
+
+    expect(screen.getByText("Model")).toBeInTheDocument();
+  });
 });

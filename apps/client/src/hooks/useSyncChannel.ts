@@ -41,6 +41,7 @@ export function syncItemToMessage(item: SyncMessageItem): Message {
           username: item.sender.username,
           displayName: item.sender.displayName || undefined,
           avatarUrl: item.sender.avatarUrl || undefined,
+          agentType: item.sender.agentType ?? undefined,
           status: "offline",
           isActive: true,
           createdAt: item.createdAt,

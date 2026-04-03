@@ -91,5 +91,22 @@
   "threadReplyLabel": "Thread reply",
   "activityLabel": "Activity",
   "userJoinedWorkspace": "{{displayName}} joined {{workspace}}",
-  "openclawWarmingUp": "Your OpenClaw is doing some stretches - about 2 minutes to get ready. Once it's warmed up, click {{name}}'s bot on the left to start chatting!"
+  "openclawWarmingUp": "Your OpenClaw is doing some stretches - about 2 minutes to get ready. Once it's warmed up, click {{name}}'s bot on the left to start chatting!",
+  "dashboardBrand": "Team9 Agent",
+  "dashboardUsageValue": "1,280",
+  "dashboardPlan": "Free plan",
+  "dashboardUpgrade": "Upgrade",
+  "dashboardTitle": "What can I help you with today?",
+  "dashboardPromptPlaceholder": "Message dashboard...",
+  "dashboardActionDeepResearch": "Deep research",
+  "dashboardActionGenerateImage": "Generate image",
+  "dashboardModelLabel": "GPT5.4",
+  "dashboardPromptHint": "Press Enter to send. Use Shift+Enter for a new line.",
+  "dashboardWarmupNotice": "Your OpenClaw is warming up. It should be ready in about 2 minutes. Once it is ready, send a prompt below to start chatting with {{name}}.",
+  "dashboardNoBotDescription": "Create or activate an AI staff member before you can start a chat from the dashboard.",
+  "dashboardCreateAiStaffCta": "Go to AI Staff",
+  "dashboardMockLabel": "Mock",
+  "dashboardTaskEmptyValue": "None",
+  "dashboardNoActiveTask": "No active task",
+  "dashboardCreateTask": "Create"
 }

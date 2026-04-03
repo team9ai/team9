@@ -110,6 +110,11 @@ export class BaseModelStaffHandler implements ApplicationHandler {
           name: preset.name,
           blueprintId: 'team9-hive-base-model',
           tenantId,
+          metadata: {
+            tenantId,
+            botId: bot.botId,
+            mentorId: installedBy,
+          },
           model: { provider: preset.provider, id: preset.modelId },
           componentConfigs: {
             'base-model-agent': { modelName: preset.name },

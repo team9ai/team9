@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Search, X, PanelLeft, PanelRight, Crown } from "lucide-react";
+import { Search, X, PanelLeft, PanelRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -37,9 +37,6 @@ export function GlobalTopBar() {
     (w) => w.id === selectedWorkspaceId,
   );
   const workspaceName = currentWorkspace?.name || "Workspace";
-  const canManageBilling =
-    currentWorkspace?.role === "owner" || currentWorkspace?.role === "admin";
-
   // Navigate to search page for full search (default to messages)
   const handleDeepSearch = useCallback(() => {
     if (searchQuery.trim()) {
@@ -207,21 +204,8 @@ export function GlobalTopBar() {
         </div>
       </div>
 
-      {/* Right section - Subscription entry + Local device status */}
+      {/* Right section - Local device status */}
       <div className="flex items-center gap-1">
-        {canManageBilling ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-nav-foreground-subtle hover:text-nav-foreground hover:bg-nav-hover gap-1"
-            onClick={() => navigate({ to: "/subscription" })}
-          >
-            <Crown size={14} />
-            <span className="text-xs hidden sm:inline">
-              {t("subscription", "Plan")}
-            </span>
-          </Button>
-        ) : null}
         <LocalDeviceStatus />
       </div>
     </header>

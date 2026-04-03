@@ -47,6 +47,7 @@ export function MessagesSubSidebar() {
         userId: otherUser?.id,
         name: displayName,
         avatarUrl: otherUser?.avatarUrl,
+        agentType: otherUser?.agentType,
         unreadCount: channel.unreadCount || 0,
         isBot: otherUser?.userType === "bot",
       };
@@ -114,6 +115,7 @@ export function MessagesSubSidebar() {
                     channelId={dm.channelId}
                     linkPrefix="/messages"
                     isBot={dm.isBot}
+                    agentType={dm.agentType}
                   />
                 ))}
 

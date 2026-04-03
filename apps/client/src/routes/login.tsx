@@ -56,17 +56,15 @@ function LogoBanner({ subtitle }: { subtitle?: string }) {
   return (
     <div className="flex flex-col items-center pt-2 pb-6 border-b border-border/40 mb-6">
       <img
-        src="/whale.webp"
-        alt="Team9"
-        className="w-14 h-14 mb-3 transition-transform duration-300 hover:scale-105"
+        src="/team9-logo.png"
+        alt="Team9 logo"
+        className="w-52 max-w-full h-auto mb-2 transition-transform duration-300 hover:scale-[1.02]"
         style={{
           filter:
             "drop-shadow(0 4px 12px oklch(from var(--primary) l c h / 20%))",
         }}
       />
-      <h1 className="text-2xl font-bold text-foreground tracking-tight">
-        Team9
-      </h1>
+      <h1 className="sr-only">Team9</h1>
       {subtitle && (
         <p className="text-muted-foreground mt-1 text-sm">{subtitle}</p>
       )}
