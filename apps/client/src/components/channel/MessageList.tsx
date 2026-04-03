@@ -371,7 +371,8 @@ export function MessageList({
         }
       }
 
-      // Hide tool_result already rendered in the combined block above
+      // Hide tool_result already rendered in the combined block above.
+      // Use min-h-px (1px) instead of h-0 to avoid react-virtuoso zero-size warnings.
       if (agentMeta?.agentEventType === "tool_result" && agentMeta.toolCallId) {
         const prevItem = listDataRef.current[itemIndex - 1];
         const prevMsg =
@@ -382,7 +383,9 @@ export function MessageList({
           prevMeta?.agentEventType === "tool_call" &&
           prevMeta.toolCallId === agentMeta.toolCallId
         ) {
-          return <div className="h-0 overflow-hidden" aria-hidden="true" />;
+          return (
+            <div className="min-h-px overflow-hidden" aria-hidden="true" />
+          );
         }
       }
 
