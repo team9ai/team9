@@ -1,6 +1,8 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { WorkspaceModule } from '../workspace/workspace.module.js';
 import { ChannelsModule } from '../im/channels/channels.module.js';
+import { WebsocketModule } from '../im/websocket/websocket.module.js';
+import { RedisModule } from '@team9/redis';
 import { ClawHiveModule } from '@team9/claw-hive';
 import { ApplicationsController } from './applications.controller.js';
 import { ApplicationsService } from './applications.service.js';
@@ -12,7 +14,13 @@ import {
 } from './handlers/index.js';
 
 @Module({
-  imports: [forwardRef(() => WorkspaceModule), ChannelsModule, ClawHiveModule],
+  imports: [
+    forwardRef(() => WorkspaceModule),
+    ChannelsModule,
+    forwardRef(() => WebsocketModule),
+    RedisModule,
+    ClawHiveModule,
+  ],
   controllers: [ApplicationsController, InstalledApplicationsController],
   providers: [
     ApplicationsService,

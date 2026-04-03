@@ -14,6 +14,18 @@ import { users } from './users.js';
 import { tenants } from '../tenant/tenants.js';
 import { channelSections } from './channel-sections.js';
 
+export interface ChannelSnapshotMessage {
+  id: string;
+  content: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: Date;
+}
+
+export interface ChannelSnapshot {
+  totalMessageCount: number;
+  latestMessages: ChannelSnapshotMessage[];
+}
+
 export const channelTypeEnum = pgEnum('channel_type', [
   'direct',
   'public',
@@ -40,7 +52,7 @@ export const channels = pgTable(
     order: integer('order').default(0).notNull(),
     isArchived: boolean('is_archived').default(false).notNull(),
     isActivated: boolean('is_activated').default(true).notNull(),
-    snapshot: jsonb('snapshot'),
+    snapshot: jsonb('snapshot').$type<ChannelSnapshot>(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },

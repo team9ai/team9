@@ -8,6 +8,7 @@ import {
 } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { ClawHiveService } from '@team9/claw-hive';
 import { BotService } from './bot.service.js';
 import { BotAuthCacheService } from './bot-auth-cache.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
@@ -31,6 +32,7 @@ function mockChain() {
     'update',
     'set',
     'innerJoin',
+    'leftJoin',
     'delete',
   ];
   for (const m of methods) {
@@ -95,6 +97,9 @@ describe('BotService', () => {
     isBotMutationInProgress: MockFn;
     getBotVersion: MockFn;
   };
+  let clawHiveService: {
+    updateAgent: MockFn;
+  };
 
   beforeEach(async () => {
     db = mockDb();
@@ -111,6 +116,9 @@ describe('BotService', () => {
       isBotMutationInProgress: jest.fn<any>().mockResolvedValue(false),
       getBotVersion: jest.fn<any>().mockResolvedValue(0),
     };
+    clawHiveService = {
+      updateAgent: jest.fn<any>().mockResolvedValue(undefined),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -119,6 +127,7 @@ describe('BotService', () => {
         { provide: ChannelsService, useValue: channelsService },
         { provide: EventEmitter2, useValue: eventEmitter },
         { provide: BotAuthCacheService, useValue: botAuthCache },
+        { provide: ClawHiveService, useValue: clawHiveService },
       ],
     }).compile();
 
@@ -304,6 +313,101 @@ describe('BotService', () => {
         ownerId,
         'bot-user-uuid',
         tenantId,
+      );
+    });
+  });
+
+  describe('updateBotMentor', () => {
+    it('updates unmanaged bots in Team9 only', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          botId: 'bot-1',
+          mentorId: 'old-mentor',
+          managedProvider: null,
+          managedMeta: null,
+          tenantId: null,
+        },
+      ] as any);
+
+      await service.updateBotMentor('bot-1', 'new-mentor');
+
+      expect(clawHiveService.updateAgent).not.toHaveBeenCalled();
+      expect(db.update).toHaveBeenCalledWith(expect.anything());
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mentorId: 'new-mentor',
+          updatedAt: expect.any(Date),
+        }),
+      );
+    });
+
+    it('updates hive metadata before persisting the new mentor', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          botId: 'bot-1',
+          mentorId: 'old-mentor',
+          managedProvider: 'hive',
+          managedMeta: { agentId: 'agent-1' },
+          tenantId: 'tenant-1',
+        },
+      ] as any);
+
+      await service.updateBotMentor('bot-1', 'new-mentor');
+
+      expect(clawHiveService.updateAgent).toHaveBeenCalledWith('agent-1', {
+        tenantId: 'tenant-1',
+        metadata: {
+          tenantId: 'tenant-1',
+          botId: 'bot-1',
+          mentorId: 'new-mentor',
+        },
+      });
+      expect(
+        clawHiveService.updateAgent.mock.invocationCallOrder[0],
+      ).toBeLessThan(db.update.mock.invocationCallOrder[0]);
+    });
+
+    it('rolls hive metadata back when the Team9 write fails', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          botId: 'bot-1',
+          mentorId: 'old-mentor',
+          managedProvider: 'hive',
+          managedMeta: { agentId: 'agent-1' },
+          tenantId: 'tenant-1',
+        },
+      ] as any);
+      db.where
+        .mockImplementationOnce(() => db as any)
+        .mockRejectedValueOnce(new Error('write failed'));
+
+      await expect(
+        service.updateBotMentor('bot-1', 'new-mentor'),
+      ).rejects.toThrow('write failed');
+
+      expect(clawHiveService.updateAgent).toHaveBeenNthCalledWith(
+        1,
+        'agent-1',
+        {
+          tenantId: 'tenant-1',
+          metadata: {
+            tenantId: 'tenant-1',
+            botId: 'bot-1',
+            mentorId: 'new-mentor',
+          },
+        },
+      );
+      expect(clawHiveService.updateAgent).toHaveBeenNthCalledWith(
+        2,
+        'agent-1',
+        {
+          tenantId: 'tenant-1',
+          metadata: {
+            tenantId: 'tenant-1',
+            botId: 'bot-1',
+            mentorId: 'old-mentor',
+          },
+        },
       );
     });
   });

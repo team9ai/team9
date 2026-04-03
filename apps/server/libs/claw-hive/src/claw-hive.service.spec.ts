@@ -124,6 +124,58 @@ describe('ClawHiveService', () => {
     });
   });
 
+  // ── updateAgent ──────────────────────────────────────────────────────────
+
+  describe('updateAgent', () => {
+    it('sends PUT to /api/agents/:id with tenant-scoped metadata', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({ id: 'agent-1' }));
+
+      await service.updateAgent('agent-1', {
+        tenantId: 'tenant-123',
+        metadata: {
+          tenantId: 'tenant-123',
+          botId: 'bot-123',
+          mentorId: 'mentor-123',
+        },
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://test-hive:9999/api/agents/agent-1',
+        expect.objectContaining({
+          method: 'PUT',
+          body: JSON.stringify({
+            metadata: {
+              tenantId: 'tenant-123',
+              botId: 'bot-123',
+              mentorId: 'mentor-123',
+            },
+          }),
+        }),
+      );
+
+      const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const headers = opts.headers as Record<string, string>;
+      expect(headers['Content-Type']).toBe('application/json');
+      expect(headers['X-Hive-Auth']).toBe('test-token');
+      expect(headers['X-Hive-Tenant']).toBe('tenant-123');
+    });
+
+    it('throws on non-ok responses', async () => {
+      mockFetch.mockResolvedValueOnce(textResponse('Bad Request', 400));
+
+      await expect(
+        service.updateAgent('agent-1', {
+          tenantId: 'tenant-123',
+          metadata: {
+            tenantId: 'tenant-123',
+            botId: 'bot-123',
+            mentorId: null,
+          },
+        }),
+      ).rejects.toThrow('Failed to update agent: 400 Bad Request');
+    });
+  });
+
   // ── deleteAgent ──────────────────────────────────────────────────────────
 
   describe('deleteAgent', () => {

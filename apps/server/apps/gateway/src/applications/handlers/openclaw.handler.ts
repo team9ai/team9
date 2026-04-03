@@ -13,6 +13,15 @@ import type {
 } from './application-handler.interface.js';
 import { BotService } from '../../bot/bot.service.js';
 import { OpenclawService } from '../../openclaw/openclaw.service.js';
+import { ChannelsService } from '../../im/channels/channels.service.js';
+import { RedisService } from '@team9/redis';
+import { WS_EVENTS } from '../../im/websocket/events/events.constants.js';
+import { REDIS_KEYS } from '../../im/shared/constants/redis-keys.js';
+import { WEBSOCKET_GATEWAY } from '../../shared/constants/injection-tokens.js';
+
+interface ApplicationWebsocketGateway {
+  sendToUser(userId: string, event: string, data: unknown): Promise<void>;
+}
 
 /**
  * Handler for OpenClaw application installation.
@@ -21,8 +30,7 @@ import { OpenclawService } from '../../openclaw/openclaw.service.js';
  * 1. Creates a bot user and bot record
  * 2. Generates an access token for the bot
  * 3. Creates an OpenClaw compute instance
- * 4. Adds the bot to the workspace
- * 5. Creates a DM channel between the installer and the bot
+ * 4. Creates DM channels between the bot and all workspace members
  */
 @Injectable()
 export class OpenClawHandler implements ApplicationHandler {
@@ -34,6 +42,10 @@ export class OpenClawHandler implements ApplicationHandler {
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly botService: BotService,
     private readonly openclawService: OpenclawService,
+    private readonly channelsService: ChannelsService,
+    @Inject(WEBSOCKET_GATEWAY)
+    private readonly websocketGateway: ApplicationWebsocketGateway,
+    private readonly redisService: RedisService,
   ) {}
 
   async onInstall(context: InstallContext): Promise<InstallResult> {
@@ -69,7 +81,51 @@ export class OpenClawHandler implements ApplicationHandler {
         );
       }
 
-      // 3. Return updated config/secrets
+      // 3. Create DM channels between the bot and all workspace members
+      try {
+        const members = await this.db
+          .select({ userId: schema.tenantMembers.userId })
+          .from(schema.tenantMembers)
+          .where(eq(schema.tenantMembers.tenantId, tenantId));
+
+        const memberUserIds = members
+          .map((m) => m.userId)
+          .filter((uid) => uid !== bot.userId);
+
+        if (memberUserIds.length > 0) {
+          const dmChannels =
+            await this.channelsService.createDirectChannelsBatch(
+              bot.userId,
+              memberUserIds,
+              tenantId,
+            );
+
+          // Notify online users about new DM channels
+          const onlineUsersHash = await this.redisService.hgetall(
+            REDIS_KEYS.ONLINE_USERS,
+          );
+
+          await Promise.allSettled(
+            Array.from(dmChannels.entries()).map(([otherUserId, dmChannel]) => {
+              if (otherUserId in onlineUsersHash) {
+                return this.websocketGateway.sendToUser(
+                  otherUserId,
+                  WS_EVENTS.CHANNEL.CREATED,
+                  dmChannel,
+                );
+              }
+              return Promise.resolve();
+            }),
+          );
+        }
+      } catch (error) {
+        // Don't fail installation if DM channel creation fails
+        this.logger.warn(
+          `Failed to create DM channels for OpenClaw bot: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+
+      // 4. Return updated config/secrets
       return {
         config: {
           instancesId,
