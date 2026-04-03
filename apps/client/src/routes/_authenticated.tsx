@@ -8,6 +8,7 @@ import { MainSidebar } from "@/components/layout/MainSidebar";
 import { DynamicSubSidebar } from "@/components/layout/DynamicSubSidebar";
 import { GlobalTopBar } from "@/components/layout/GlobalTopBar";
 import { ConnectionStatus } from "@/components/layout/ConnectionStatus";
+import { UpdateDialog } from "@/components/layout/UpdateDialog";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useWebSocketEvents } from "@/hooks/useWebSocketEvents";
 // import { useAHandSetupStore } from "@/stores/useAHandSetupStore";
@@ -151,6 +152,7 @@ function AuthenticatedLayout() {
       {/* Global top bar with search */}
       <GlobalTopBar />
       <ConnectionStatus />
+      <UpdateDialog />
 
       {/* Main content area with sidebars */}
       <div className="flex flex-1 overflow-hidden">
