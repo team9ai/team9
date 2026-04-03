@@ -1,6 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Plus, ShieldAlert } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -705,6 +715,8 @@ export function SubscriptionContent({
 
   const account = overview.data?.account ?? null;
   const subscription = overview.data?.subscription ?? null;
+  const [showSubscriptionRequired, setShowSubscriptionRequired] =
+    useState(false);
   const totalCredits = getWorkspaceCredits(account);
 
   const customAmountConfig = customAmountProduct?.customAmount?.enabled
@@ -751,6 +763,11 @@ export function SubscriptionContent({
     nextView: BillingView,
     amountCents?: number,
   ) => {
+    if (type === "one_time" && !subscription) {
+      setShowSubscriptionRequired(true);
+      return;
+    }
+
     const response = await checkout.mutateAsync({
       priceId,
       type,
@@ -954,17 +971,26 @@ export function SubscriptionContent({
 
                           <Button
                             className="h-11 rounded-full border border-black/10 bg-[#151515] px-5 text-sm font-semibold text-white shadow-none hover:bg-black/90"
-                            onClick={() =>
-                              customAmountProduct && customAmountCents !== null
-                                ? void handleCheckout(
-                                    customAmountProduct.stripePriceId,
-                                    "one_time",
-                                    "credits",
-                                    customAmountCents,
-                                  )
-                                : undefined
+                            onClick={() => {
+                              if (!subscription) {
+                                setShowSubscriptionRequired(true);
+                                return;
+                              }
+                              if (
+                                customAmountProduct &&
+                                customAmountCents !== null
+                              ) {
+                                void handleCheckout(
+                                  customAmountProduct.stripePriceId,
+                                  "one_time",
+                                  "credits",
+                                  customAmountCents,
+                                );
+                              }
+                            }}
+                            disabled={
+                              subscription ? !canSubmitCustomAmount : false
                             }
-                            disabled={!canSubmitCustomAmount}
                           >
                             Add Credits
                           </Button>
@@ -1342,6 +1368,27 @@ export function SubscriptionContent({
           </div>
         </div>
       </ScrollArea>
+
+      <AlertDialog
+        open={showSubscriptionRequired}
+        onOpenChange={setShowSubscriptionRequired}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Subscription Required</AlertDialogTitle>
+            <AlertDialogDescription>
+              You need an active subscription before purchasing credits. Please
+              subscribe to a plan first.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => navigateToView("plans")}>
+              View Plans
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   );
 }
