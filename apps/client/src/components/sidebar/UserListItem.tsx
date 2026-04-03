@@ -96,7 +96,7 @@ export function UserListItem({
       </div>
       <div className="flex-1 min-w-0 text-left">
         <div className="flex items-center gap-2 min-w-0">
-          <div className="truncate">{name}</div>
+          <div className="flex-1 min-w-0 truncate">{name}</div>
           <AgentTypeBadge agentType={agentType} />
         </div>
         {subtitle && (

@@ -24,4 +24,22 @@ describe("UserListItem avatar fallback", () => {
       getSeededAvatarGradient("user-seeded"),
     );
   });
+
+  it("keeps the agent badge visible when the name is long", () => {
+    render(
+      <UserListItem
+        name="123123123123123123123123123123"
+        userId="openclaw-user"
+        isBot
+        agentType="openclaw"
+      />,
+    );
+
+    expect(screen.getByText("123123123123123123123123123123")).toHaveClass(
+      "flex-1",
+      "min-w-0",
+      "truncate",
+    );
+    expect(screen.getByText("Openclaw")).toHaveClass("shrink-0");
+  });
 });
