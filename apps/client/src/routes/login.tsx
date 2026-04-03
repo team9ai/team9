@@ -302,6 +302,67 @@ function DesktopLoginView() {
     }
   };
 
+  // Waiting state: session exists and polling is active
+  if (sessionId && !sessionExpired) {
+    return (
+      <LoginLayout>
+        <GlassCard>
+          <LogoBanner subtitle="Team collaboration, reimagined" />
+          <div className="flex flex-col items-center gap-4 py-4">
+            <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+              <Loader2 className="w-7 h-7 text-primary animate-spin" />
+            </div>
+            <div className="text-center">
+              <p className="text-foreground font-medium text-lg">
+                {t("waitingForAuth")}
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {t("completeBrowserAuth")}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              onClick={handleOpenBrowser}
+              className="text-sm"
+            >
+              <Monitor className="w-4 h-4 mr-2" />
+              {t("signInWithBrowser")}
+            </Button>
+          </div>
+        </GlassCard>
+      </LoginLayout>
+    );
+  }
+
+  // Session expired
+  if (sessionExpired) {
+    return (
+      <LoginLayout>
+        <GlassCard>
+          <LogoBanner subtitle="Team collaboration, reimagined" />
+          <div className="flex flex-col items-center gap-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              {t("sessionExpired")}
+            </p>
+            <Button
+              onClick={handleSignInWithBrowser}
+              disabled={createSession.isPending}
+              className="w-full h-12 text-base font-semibold rounded-xl"
+            >
+              {createSession.isPending ? (
+                <Loader2 className="w-5 h-5 animate-spin mr-2" />
+              ) : (
+                <Monitor className="w-5 h-5 mr-2" />
+              )}
+              {t("accessToTeam9")}
+            </Button>
+          </div>
+        </GlassCard>
+      </LoginLayout>
+    );
+  }
+
+  // Initial state: no session yet
   return (
     <LoginLayout>
       <GlassCard>
