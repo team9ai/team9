@@ -764,6 +764,9 @@ importers:
       "@team9/database":
         specifier: workspace:*
         version: link:../../libs/database
+      "@team9/observability":
+        specifier: workspace:*
+        version: link:../../libs/observability
       "@team9/rabbitmq":
         specifier: workspace:*
         version: link:../../libs/rabbitmq
