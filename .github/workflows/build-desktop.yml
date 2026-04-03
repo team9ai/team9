@@ -31,6 +31,7 @@ jobs:
             update-target: darwin-universal
 
     runs-on: macos-latest
+    environment: ${{ startsWith(github.ref_name, 'v') && 'production' || 'development' }}
 
     steps:
       - name: Checkout
@@ -121,13 +122,10 @@ jobs:
           fi
 
       - name: Write .env.production
-        run: |
-          if [ "${{ steps.env.outputs.env_name }}" = "production" ]; then
-            echo "VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}" > apps/client/.env.production
-          else
-            echo "VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL_DEV }}" > apps/client/.env.production
-          fi
         shell: bash
+        run: |
+          echo "VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}" > apps/client/.env.production
+          echo "VITE_APP_URL=${{ secrets.VITE_APP_URL }}" >> apps/client/.env.production
 
       - name: Set app version from tag
         run: |
