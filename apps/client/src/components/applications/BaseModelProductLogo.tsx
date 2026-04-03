@@ -1,7 +1,7 @@
 import { Bot } from "lucide-react";
 
 import chatgptLogo from "@/assets/base-model/chatgpt.webp";
-import claudeLogo from "@/assets/base-model/claude.webp";
+import claudeLogo from "@/assets/base-model/claude.png";
 import geminiLogo from "@/assets/base-model/gemini.webp";
 import {
   BASE_MODEL_PRODUCT_META,
@@ -28,7 +28,7 @@ export function BaseModelProductLogo({ agentId }: BaseModelProductLogoProps) {
         <img
           src={PRODUCT_LOGOS[productKey]}
           alt={BASE_MODEL_PRODUCT_META[productKey].alt}
-          className="h-full w-full object-cover"
+          className="h-full w-full object-contain bg-white p-1.5"
         />
       ) : (
         <Bot size={20} aria-hidden="true" />

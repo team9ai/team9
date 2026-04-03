@@ -2,7 +2,7 @@ import type { ComponentProps } from "react";
 
 import { getInitials, getSeededAvatarGradient } from "@/lib/avatar-colors";
 import chatgptLogo from "@/assets/base-model/chatgpt.webp";
-import claudeLogo from "@/assets/base-model/claude.webp";
+import claudeLogo from "@/assets/base-model/claude.png";
 import geminiLogo from "@/assets/base-model/gemini.webp";
 import {
   getBaseModelProductKeyFromBotIdentity,
@@ -55,6 +55,7 @@ export function UserAvatar({
         <AvatarImage
           src={BASE_MODEL_PRODUCT_LOGOS[baseModelProductKey]}
           alt={displayName}
+          className="object-contain bg-white p-1.5"
         />
       ) : isBot ? (
         <AvatarImage src="/bot.webp" alt={displayName} />
