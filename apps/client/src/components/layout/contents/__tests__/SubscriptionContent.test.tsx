@@ -349,7 +349,7 @@ describe("SubscriptionContent", () => {
     );
   });
 
-  it("keeps fixed credit packs as quick amount buttons", async () => {
+  it("does not start fixed-pack checkout without an active subscription", async () => {
     mockUseWorkspaceBillingOverview.mockReturnValue({
       data: {
         account: {
@@ -425,14 +425,7 @@ describe("SubscriptionContent", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /add \$25/i }));
 
-    await waitFor(() =>
-      expect(mockCheckoutMutateAsync).toHaveBeenCalledWith({
-        priceId: "price_pack_25",
-        type: "one_time",
-        view: "credits",
-        amountCents: undefined,
-      }),
-    );
+    expect(mockCheckoutMutateAsync).not.toHaveBeenCalled();
   });
 
   it("falls back to fixed packs when custom amount is unavailable", async () => {
