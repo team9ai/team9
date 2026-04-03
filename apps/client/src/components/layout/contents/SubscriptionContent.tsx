@@ -534,7 +534,7 @@ function PlanCard({
   return (
     <section
       className={cn(
-        "relative flex h-full flex-col overflow-hidden rounded-[2rem] border px-7 py-8 shadow-[0_28px_90px_-50px_rgba(15,23,42,0.3)]",
+        "relative flex h-full flex-col overflow-hidden rounded-[1.4rem] border px-5 py-5 shadow-[0_28px_90px_-50px_rgba(15,23,42,0.3)]",
         theme === "free" &&
           "border-slate-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#f4f8ff_100%)] text-slate-950",
         theme === "accent" &&
@@ -558,7 +558,7 @@ function PlanCard({
       <div className="relative flex h-full flex-col">
         <div
           className={cn(
-            "w-fit rounded-full px-5 py-3 text-xl font-semibold tracking-tight",
+            "w-fit rounded-full px-4 py-2 text-base font-semibold tracking-tight",
             theme === "free" && "bg-slate-100 text-slate-600",
             theme === "accent" && "bg-[#d6e4ff] text-[#315d9f]",
             theme === "dark" && "bg-white/12 text-white/90",
@@ -567,10 +567,10 @@ function PlanCard({
           {badge}
         </div>
 
-        <div className="mt-7">
+        <div className="mt-5">
           <div
             className={cn(
-              "text-[4.25rem] leading-none font-semibold tracking-[-0.06em]",
+              "text-[2.8rem] leading-none font-semibold tracking-[-0.06em] sm:text-[3.15rem]",
               isDark ? "text-white" : "text-[#18325d]",
             )}
           >
@@ -578,7 +578,7 @@ function PlanCard({
             {priceCycle ? (
               <span
                 className={cn(
-                  "ml-3 text-2xl font-medium tracking-normal",
+                  "ml-2 text-lg font-medium tracking-normal",
                   isDark ? "text-white/85" : "text-[#54698d]",
                 )}
               >
@@ -588,7 +588,7 @@ function PlanCard({
           </div>
           <p
             className={cn(
-              "mt-5 min-h-[5.2rem] text-[1.08rem] leading-7 font-medium",
+              "mt-3.5 min-h-[4rem] text-[0.95rem] leading-6 font-medium",
               isDark ? "text-white/86" : "text-[#5d7295]",
             )}
           >
@@ -598,7 +598,7 @@ function PlanCard({
 
         <Button
           className={cn(
-            "mt-4 h-14 w-full rounded-full border border-black/10 bg-[#151515] text-xl font-semibold text-white shadow-none hover:bg-black/90",
+            "mt-3.5 h-11 w-full rounded-full border border-black/10 bg-[#151515] text-base font-semibold text-white shadow-none hover:bg-black/90",
             actionDisabled && "opacity-100",
           )}
           onClick={onAction}
@@ -608,12 +608,12 @@ function PlanCard({
         </Button>
 
         {optionItems?.length ? (
-          <div className="mt-5">
+          <div className="mt-3.5">
             <Select value={optionValue} onValueChange={onOptionChange}>
               <SelectTrigger
                 aria-label={`${title} plan credits`}
                 className={cn(
-                  "h-[4.6rem] rounded-[1.4rem] border px-6 text-left text-[1.05rem] font-semibold shadow-[0_18px_40px_-30px_rgba(15,23,42,0.35)] [&>svg]:size-6 [&>svg]:opacity-55",
+                  "h-[3.5rem] rounded-[1rem] border px-4 text-left text-[0.95rem] font-semibold shadow-[0_18px_40px_-30px_rgba(15,23,42,0.35)] [&>svg]:size-4 [&>svg]:opacity-55",
                   isDark
                     ? "border-transparent bg-white text-[#383838]"
                     : "border-[#8eb5ff] bg-[linear-gradient(180deg,#bfe6ff_0%,#ffffff_72%)] text-[#1b2b44]",
@@ -634,7 +634,7 @@ function PlanCard({
                     key={option.value}
                     value={option.value}
                     showIndicator={false}
-                    className="min-h-11 rounded-xl px-4 py-2.5 text-base font-medium text-[#243247] focus:bg-[#4b8eea] focus:text-white"
+                    className="min-h-9 rounded-lg px-4 py-2 text-sm font-medium text-[#243247] focus:bg-[#4b8eea] focus:text-white"
                   >
                     {option.label}
                   </SelectItem>
@@ -644,15 +644,15 @@ function PlanCard({
           </div>
         ) : null}
 
-        <div className="mt-6 space-y-4">
+        <div className="mt-4 space-y-3">
           {features.map((feature) => (
             <div
               key={feature}
-              className="flex items-start gap-3 text-[0.98rem] leading-7"
+              className="flex items-start gap-2.5 text-[0.88rem] leading-6"
             >
               <Plus
                 className={cn(
-                  "mt-1.5 h-3.5 w-3.5 shrink-0",
+                  "mt-1.5 h-3 w-3 shrink-0",
                   isDark ? "text-[#7fb4ff]" : "text-[#4588ee]",
                 )}
               />
@@ -887,13 +887,13 @@ export function SubscriptionContent({
           <div className="relative isolate">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.95),transparent_35%),radial-gradient(circle_at_top_right,rgba(230,239,255,0.95),transparent_40%),linear-gradient(180deg,#f9fbff_0%,#eef4fb_100%)]" />
 
-            <div className="relative mx-auto flex w-full max-w-[1560px] flex-col gap-6 px-6 py-8 xl:px-8">
+            <div className="relative mx-auto flex w-full max-w-[1120px] flex-col gap-4 px-4 py-5 sm:px-5 lg:px-6">
               <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                 <div className="max-w-3xl">
-                  <h1 className="text-5xl font-semibold tracking-[-0.06em] text-[#111b35] sm:text-6xl">
+                  <h1 className="text-3xl font-semibold tracking-[-0.05em] text-[#111b35] sm:text-4xl">
                     Organization Credits
                   </h1>
-                  <p className="mt-3 text-lg text-[#6a7d9e]">
+                  <p className="mt-2 text-sm text-[#6a7d9e] sm:text-base">
                     Org Account: {organizationName}
                   </p>
                 </div>
@@ -901,23 +901,23 @@ export function SubscriptionContent({
                 <Button
                   variant="outline"
                   size="icon"
-                  className="h-16 w-16 rounded-[1.5rem] border-white/80 bg-white/80 text-[#6a7d9e] shadow-[0_18px_40px_-32px_rgba(15,23,42,0.4)] backdrop-blur"
+                  className="h-12 w-12 rounded-[1.1rem] border-white/80 bg-white/80 text-[#6a7d9e] shadow-[0_18px_40px_-32px_rgba(15,23,42,0.4)] backdrop-blur"
                   onClick={() => navigateToView("plans")}
                   aria-label="Back to plans"
                 >
-                  <X className="h-6 w-6" />
+                  <X className="h-5 w-5" />
                 </Button>
               </div>
 
-              <Card className="overflow-hidden rounded-[2rem] border-white/75 bg-[linear-gradient(180deg,#ffffff_0%,#f5f9ff_100%)] shadow-[0_24px_72px_-44px_rgba(15,23,42,0.35)]">
-                <CardContent className="p-7 sm:p-8">
-                  <div className="text-[1.8rem] font-semibold tracking-[-0.03em] text-[#111b35]">
+              <Card className="overflow-hidden rounded-[1.35rem] border-white/75 bg-[linear-gradient(180deg,#ffffff_0%,#f5f9ff_100%)] shadow-[0_24px_72px_-44px_rgba(15,23,42,0.35)]">
+                <CardContent className="p-5 sm:p-6">
+                  <div className="text-[1.15rem] font-semibold tracking-[-0.03em] text-[#111b35] sm:text-[1.25rem]">
                     Organization Credits
                   </div>
-                  <div className="mt-4 text-[4.3rem] leading-none font-semibold tracking-[-0.07em] text-[#111b35] sm:text-[5.2rem]">
+                  <div className="mt-3 text-[2.6rem] leading-none font-semibold tracking-[-0.06em] text-[#111b35] sm:text-[3.2rem]">
                     {formatCredits(totalCredits)}
                   </div>
-                  <div className="mt-6 flex flex-wrap gap-3 text-sm text-[#5d7295]">
+                  <div className="mt-4 flex flex-wrap gap-2.5 text-sm text-[#5d7295]">
                     <div className="rounded-full border border-[#dbe6f6] bg-white/90 px-4 py-2">
                       Prepaid balance: {formatCredits(account?.balance ?? 0)}
                     </div>
@@ -928,14 +928,14 @@ export function SubscriptionContent({
                 </CardContent>
               </Card>
 
-              <div className="grid gap-6 xl:grid-cols-[1.35fr_0.95fr]">
-                <Card className="overflow-hidden rounded-[2rem] border-white/75 bg-white/80 shadow-[0_24px_72px_-44px_rgba(15,23,42,0.35)] backdrop-blur">
-                  <CardContent className="space-y-6 p-7 sm:p-8">
+              <div className="grid gap-5 xl:grid-cols-[1.35fr_0.95fr]">
+                <Card className="overflow-hidden rounded-[1.35rem] border-white/75 bg-white/80 shadow-[0_24px_72px_-44px_rgba(15,23,42,0.35)] backdrop-blur">
+                  <CardContent className="space-y-4 p-5 sm:p-6">
                     <div>
-                      <CardTitle className="text-[2rem] tracking-[-0.04em] text-[#111b35]">
+                      <CardTitle className="text-[1.35rem] tracking-[-0.04em] text-[#111b35] sm:text-[1.45rem]">
                         Buy Credits
                       </CardTitle>
-                      <p className="mt-2 text-lg text-[#6a7d9e]">
+                      <p className="mt-1.5 text-sm text-[#6a7d9e] sm:text-base">
                         Add prepaid credits to your workspace balance.
                       </p>
                     </div>
@@ -946,10 +946,10 @@ export function SubscriptionContent({
                           Amount in USD
                         </div>
 
-                        <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px_220px]">
-                          <div className="rounded-[1.4rem] border border-[#d7e2f2] bg-white px-6 py-5 shadow-[0_16px_36px_-32px_rgba(15,23,42,0.35)]">
+                        <div className="mt-3.5 grid gap-3.5 xl:grid-cols-[minmax(0,1fr)_220px_180px]">
+                          <div className="rounded-[1.15rem] border border-[#d7e2f2] bg-white px-5 py-4 shadow-[0_16px_36px_-32px_rgba(15,23,42,0.35)]">
                             <div className="relative">
-                              <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-[2rem] font-semibold text-[#54698d]">
+                              <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-[1.45rem] font-semibold text-[#54698d]">
                                 $
                               </span>
                               <Input
@@ -969,16 +969,16 @@ export function SubscriptionContent({
                                   customAmountInput.trim().length > 0 &&
                                   !!customAmountError
                                 }
-                                className="h-auto border-0 bg-transparent pl-8 text-[2rem] font-semibold text-[#111b35] shadow-none ring-0 focus-visible:ring-0"
+                                className="h-auto border-0 bg-transparent pl-7 text-[1.45rem] font-semibold text-[#111b35] shadow-none ring-0 focus-visible:ring-0"
                               />
                             </div>
                           </div>
 
-                          <div className="rounded-[1.4rem] bg-[#f3f6fb] px-6 py-5">
+                          <div className="rounded-[1.15rem] bg-[#f3f6fb] px-5 py-4">
                             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a9ab8]">
                               You receive
                             </div>
-                            <div className="mt-2 text-[1.9rem] font-semibold tracking-[-0.04em] text-[#111b35]">
+                            <div className="mt-2 text-[1.3rem] font-semibold tracking-[-0.04em] text-[#111b35]">
                               {customAmountCents !== null
                                 ? formatCreditsFromCents(customAmountCents)
                                 : "—"}
@@ -986,7 +986,7 @@ export function SubscriptionContent({
                           </div>
 
                           <Button
-                            className="h-[4.75rem] rounded-[1.4rem] bg-[#3e7df1] text-xl font-semibold text-white hover:bg-[#336fe0]"
+                            className="h-[3.75rem] rounded-[1.05rem] bg-[#3e7df1] text-base font-semibold text-white hover:bg-[#336fe0]"
                             onClick={() =>
                               customAmountProduct && customAmountCents !== null
                                 ? void handleCheckout(
@@ -1041,7 +1041,7 @@ export function SubscriptionContent({
                             <button
                               key={product.stripePriceId}
                               type="button"
-                              className="rounded-[1.4rem] border border-[#d7e2f2] bg-white px-5 py-4 text-left transition-colors hover:border-[#afc9fb]"
+                              className="rounded-[1rem] border border-[#d7e2f2] bg-white px-4 py-3.5 text-left transition-colors hover:border-[#afc9fb]"
                               onClick={() =>
                                 void handleCheckout(
                                   product.stripePriceId,
@@ -1052,10 +1052,10 @@ export function SubscriptionContent({
                               disabled={checkout.isPending}
                               aria-label={`Add ${formatMoney(product.amountCents)}`}
                             >
-                              <div className="text-2xl font-semibold tracking-[-0.04em] text-[#111b35]">
+                              <div className="text-[1.35rem] font-semibold tracking-[-0.04em] text-[#111b35]">
                                 {formatMoney(product.amountCents)}
                               </div>
-                              <div className="mt-2 text-base font-medium text-[#4a5f83]">
+                              <div className="mt-1.5 text-sm font-medium text-[#4a5f83]">
                                 {formatCredits(product.credits ?? 0)}
                               </div>
                             </button>
@@ -1071,15 +1071,15 @@ export function SubscriptionContent({
                   </CardContent>
                 </Card>
 
-                <Card className="overflow-hidden rounded-[2rem] border-white/75 bg-white/80 shadow-[0_24px_72px_-44px_rgba(15,23,42,0.35)] backdrop-blur">
-                  <CardContent className="space-y-5 p-7 sm:p-8">
+                <Card className="overflow-hidden rounded-[1.35rem] border-white/75 bg-white/80 shadow-[0_24px_72px_-44px_rgba(15,23,42,0.35)] backdrop-blur">
+                  <CardContent className="space-y-3.5 p-5 sm:p-6">
                     <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8a9ab8]">
                       Current plan
                     </div>
-                    <div className="text-[2.35rem] font-semibold tracking-[-0.05em] text-[#111b35]">
+                    <div className="text-[1.65rem] font-semibold tracking-[-0.05em] text-[#111b35]">
                       {currentPlanName}
                     </div>
-                    <div className="flex flex-wrap items-center gap-3 text-[1.15rem] font-medium text-[#4a5f83]">
+                    <div className="flex flex-wrap items-center gap-2.5 text-[0.95rem] font-medium text-[#4a5f83]">
                       <span>{currentPlanCreditsLabel}</span>
                       <button
                         type="button"
@@ -1089,7 +1089,7 @@ export function SubscriptionContent({
                         Change
                       </button>
                     </div>
-                    <p className="text-lg leading-8 text-[#6a7d9e]">
+                    <p className="text-[0.95rem] leading-6 text-[#6a7d9e]">
                       {getCreditsPlanDescription(currentPlanName)}
                     </p>
                     <p className="text-sm text-[#7d8ead]">
@@ -1098,7 +1098,7 @@ export function SubscriptionContent({
                         : "Workspace billing is attached to the organization, not an individual user."}
                     </p>
                     <Button
-                      className="h-14 rounded-[1.2rem] bg-[#3e7df1] px-7 text-xl font-semibold text-white hover:bg-[#336fe0]"
+                      className="h-11 rounded-[0.95rem] bg-[#3e7df1] px-5 text-base font-semibold text-white hover:bg-[#336fe0]"
                       onClick={() => navigateToView("plans")}
                     >
                       {getCreditsPlanActionLabel(currentPlanName)}
@@ -1108,21 +1108,23 @@ export function SubscriptionContent({
               </div>
 
               <div id="credits-history">
-                <Card className="overflow-hidden rounded-[2rem] border-white/75 bg-white/80 shadow-[0_24px_72px_-44px_rgba(15,23,42,0.35)] backdrop-blur">
-                  <CardContent className="p-7 sm:p-8">
+                <Card className="overflow-hidden rounded-[1.35rem] border-white/75 bg-white/80 shadow-[0_24px_72px_-44px_rgba(15,23,42,0.35)] backdrop-blur">
+                  <CardContent className="p-5 sm:p-6">
                     <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                       <div>
-                        <CardTitle className="text-[2rem] tracking-[-0.04em] text-[#111b35]">
+                        <CardTitle className="text-[1.35rem] tracking-[-0.04em] text-[#111b35] sm:text-[1.45rem]">
                           Recent Transactions
                         </CardTitle>
-                        <p className="mt-2 text-lg text-[#6a7d9e]">History</p>
+                        <p className="mt-1.5 text-sm text-[#6a7d9e] sm:text-base">
+                          History
+                        </p>
                       </div>
 
                       <div className="inline-flex w-fit items-center rounded-[1.25rem] bg-[#f2f5fa] p-1.5">
-                        <div className="rounded-[1rem] bg-white px-6 py-3 text-lg font-medium text-[#111b35] shadow-[0_10px_26px_-22px_rgba(15,23,42,0.45)]">
+                        <div className="rounded-[1rem] bg-white px-5 py-2.5 text-base font-medium text-[#111b35] shadow-[0_10px_26px_-22px_rgba(15,23,42,0.45)]">
                           Transaction history
                         </div>
-                        <div className="px-6 py-3 text-lg font-medium text-[#7e91b2]">
+                        <div className="px-5 py-2.5 text-base font-medium text-[#7e91b2]">
                           Usage history
                         </div>
                       </div>
@@ -1238,7 +1240,7 @@ export function SubscriptionContent({
         <div className="relative isolate">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.95),transparent_35%),radial-gradient(circle_at_top_right,rgba(230,239,255,0.95),transparent_40%),linear-gradient(180deg,#f9fbff_0%,#eef4fb_100%)]" />
 
-          <div className="relative mx-auto flex w-full max-w-[1560px] flex-col gap-6 px-6 py-8 xl:px-8">
+          <div className="relative mx-auto flex w-full max-w-[1120px] flex-col gap-4 px-4 py-5 sm:px-5 lg:px-6">
             {subscription?.cancelAtPeriodEnd ? (
               <div className="rounded-full border border-amber-200 bg-amber-50/90 px-5 py-3 text-sm text-amber-800">
                 The current subscription will end on{" "}
@@ -1251,10 +1253,10 @@ export function SubscriptionContent({
                 <div className="text-sm font-medium uppercase tracking-[0.22em] text-[#7e91b2]">
                   {currentWorkspace.name} workspace billing
                 </div>
-                <h1 className="mt-3 text-5xl font-semibold tracking-[-0.06em] text-[#111b35] sm:text-6xl">
+                <h1 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-[#111b35] sm:text-4xl">
                   Choose your plan
                 </h1>
-                <p className="mt-4 max-w-2xl text-lg text-[#6a7d9e]">
+                <p className="mt-2 max-w-2xl text-sm text-[#6a7d9e] sm:text-base">
                   Select the plan that fits your workload.
                 </p>
               </div>
@@ -1362,13 +1364,13 @@ export function SubscriptionContent({
               />
             ) : null}
 
-            <Card className="overflow-hidden rounded-[2rem] border-white/70 bg-white/75 shadow-[0_24px_72px_-44px_rgba(15,23,42,0.35)] backdrop-blur">
-              <CardContent className="flex flex-col gap-5 p-6 lg:flex-row lg:items-center lg:justify-between">
+            <Card className="overflow-hidden rounded-[1.35rem] border-white/70 bg-white/75 shadow-[0_24px_72px_-44px_rgba(15,23,42,0.35)] backdrop-blur">
+              <CardContent className="flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <div className="text-sm font-medium uppercase tracking-[0.22em] text-[#7e91b2]">
                     Shared workspace credits
                   </div>
-                  <div className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-[#111b35]">
+                  <div className="mt-2 text-[1.55rem] font-semibold tracking-[-0.04em] text-[#111b35]">
                     {formatCredits(totalCredits)}
                   </div>
                   <p className="mt-3 max-w-2xl text-sm leading-6 text-[#6a7d9e]">
