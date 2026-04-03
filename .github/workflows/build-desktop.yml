@@ -44,9 +44,11 @@ jobs:
           if [[ "$TAG" == v* ]]; then
             echo "env_name=production" >> $GITHUB_OUTPUT
             echo "update_endpoint=https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/latest.json" >> $GITHUB_OUTPUT
+            echo "manifest_name=latest.json" >> $GITHUB_OUTPUT
           else
             echo "env_name=development" >> $GITHUB_OUTPUT
-            echo "update_endpoint=" >> $GITHUB_OUTPUT
+            echo "update_endpoint=https://github.com/${GITHUB_REPOSITORY}/releases/download/dev-latest/latest-dev.json" >> $GITHUB_OUTPUT
+            echo "manifest_name=latest-dev.json" >> $GITHUB_OUTPUT
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           # Extract semver from tag (strip leading v or dev prefix)
@@ -140,21 +142,17 @@ jobs:
         run: |
           cd apps/client/src-tauri
 
-          if [ "${{ steps.env.outputs.env_name }}" = "production" ]; then
-            test -n "$TAURI_UPDATE_PUBKEY"
-            test -n "$UPDATE_ENDPOINT"
+          test -n "$TAURI_UPDATE_PUBKEY"
+          test -n "$UPDATE_ENDPOINT"
 
-            jq \
-              --arg pubkey "$TAURI_UPDATE_PUBKEY" \
-              --arg endpoint "$UPDATE_ENDPOINT" \
-              '.plugins.updater = {
-                pubkey: $pubkey,
-                endpoints: [$endpoint]
-              }' \
-              tauri.conf.json > tauri.conf.tmp && mv tauri.conf.tmp tauri.conf.json
-          else
-            jq 'del(.plugins.updater) | .bundle.createUpdaterArtifacts = false' tauri.conf.json > tauri.conf.tmp && mv tauri.conf.tmp tauri.conf.json
-          fi
+          jq \
+            --arg pubkey "$TAURI_UPDATE_PUBKEY" \
+            --arg endpoint "$UPDATE_ENDPOINT" \
+            '.plugins.updater = {
+              pubkey: $pubkey,
+              endpoints: [$endpoint]
+            }' \
+            tauri.conf.json > tauri.conf.tmp && mv tauri.conf.tmp tauri.conf.json
 
       - name: Build desktop app
         run: pnpm -C apps/client tauri build --target ${{ matrix.target }}
@@ -182,21 +180,19 @@ jobs:
           DMG_SRC=$(find "apps/client/src-tauri/target/$TARGET/release/bundle/dmg" -maxdepth 1 -name '*.dmg' -print -quit)
           cp "$DMG_SRC" "release-assets/Team9_${VERSION}_${ARCH_SUFFIX}.dmg"
 
-          if [ "${{ steps.env.outputs.env_name }}" = "production" ]; then
-            APP_TAR_SRC=$(find "apps/client/src-tauri/target/$TARGET/release/bundle/macos" -maxdepth 1 -name '*.app.tar.gz' -print -quit)
-            SIG_SRC="${APP_TAR_SRC}.sig"
-            UPDATE_ASSET="Team9_${VERSION}_${UPDATE_PLATFORM}.app.tar.gz"
+          APP_TAR_SRC=$(find "apps/client/src-tauri/target/$TARGET/release/bundle/macos" -maxdepth 1 -name '*.app.tar.gz' -print -quit)
+          SIG_SRC="${APP_TAR_SRC}.sig"
+          UPDATE_ASSET="Team9_${VERSION}_${UPDATE_PLATFORM}.app.tar.gz"
 
-            cp "$APP_TAR_SRC" "release-assets/$UPDATE_ASSET"
-            cp "$SIG_SRC" "release-assets/$UPDATE_ASSET.sig"
+          cp "$APP_TAR_SRC" "release-assets/$UPDATE_ASSET"
+          cp "$SIG_SRC" "release-assets/$UPDATE_ASSET.sig"
 
-            jq -n \
-              --arg platform "$UPDATE_PLATFORM" \
-              --arg asset "$UPDATE_ASSET" \
-              --arg signature "$(tr -d '\n' < "$SIG_SRC")" \
-              '{platform: $platform, asset: $asset, signature: $signature}' \
-              > "release-assets/$UPDATE_PLATFORM.updater.json"
-          fi
+          jq -n \
+            --arg platform "$UPDATE_PLATFORM" \
+            --arg asset "$UPDATE_ASSET" \
+            --arg signature "$(tr -d '\n' < "$SIG_SRC")" \
+            '{platform: $platform, asset: $asset, signature: $signature}' \
+            > "release-assets/$UPDATE_PLATFORM.updater.json"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -221,13 +217,14 @@ jobs:
         shell: bash
         run: |
           TAG="${GITHUB_REF_NAME}"
-          if [[ "$TAG" != v* ]]; then
-            rm -f artifacts/*.updater.json
-            exit 0
-          fi
-
           VERSION=$(echo "$TAG" | sed 's/^[a-zA-Z]*//')
           PUB_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          if [[ "$TAG" == v* ]]; then
+            MANIFEST_NAME="latest.json"
+          else
+            MANIFEST_NAME="latest-dev.json"
+          fi
 
           PLATFORMS=$(jq -s \
             --arg repo "$GITHUB_REPOSITORY" \
@@ -246,7 +243,7 @@ jobs:
             --arg pub_date "$PUB_DATE" \
             --argjson platforms "$PLATFORMS" \
             '{version: $version, notes: $notes, pub_date: $pub_date, platforms: $platforms}' \
-            > artifacts/latest.json
+            > "artifacts/$MANIFEST_NAME"
 
           rm -f artifacts/*.updater.json
 
@@ -257,3 +254,18 @@ jobs:
           files: artifacts/*
           generate_release_notes: true
           prerelease: ${{ startsWith(github.ref_name, 'dev') }}
+
+      - name: Update dev-latest release
+        if: startsWith(github.ref_name, 'dev')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          # Delete existing dev-latest release and tag if present
+          gh release delete dev-latest --yes --cleanup-tag 2>/dev/null || true
+          # Create new dev-latest release with only the updater manifest
+          gh release create dev-latest \
+            "artifacts/latest-dev.json" \
+            --title "Dev Latest" \
+            --notes "Auto-updated updater manifest for the dev channel. Current: ${{ github.ref_name }}" \
+            --prerelease
