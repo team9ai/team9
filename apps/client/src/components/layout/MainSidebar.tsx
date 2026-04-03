@@ -3,10 +3,7 @@ import {
   MessageSquare,
   Bell,
   MoreHorizontal,
-  Smile,
-  ChevronRight,
   User,
-  Settings,
   LogOut,
   Globe,
   Plus,
@@ -49,7 +46,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useCurrentUser, useLogout } from "@/hooks/useAuth";
-import { useUpdateStatus, useOnlineUsers } from "@/hooks/useIMUsers";
+import { useOnlineUsers } from "@/hooks/useIMUsers";
 import { useNotificationCounts } from "@/hooks/useNotifications";
 import { useAHandSetupStore } from "@/stores/useAHandSetupStore";
 import { useChannelsByType } from "@/hooks/useChannels";
@@ -77,7 +74,6 @@ export function MainSidebar() {
   const { t: tNav, i18n } = useTranslation("navigation");
   const { t: tSettings } = useTranslation("settings");
   const { t: tAuth } = useTranslation("auth");
-  const { t: tCommon } = useTranslation("common");
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -90,7 +86,6 @@ export function MainSidebar() {
   const [createWorkspaceOpen, setCreateWorkspaceOpen] = useState(false);
   const { data: currentUser } = useCurrentUser();
   const { mutate: logout } = useLogout();
-  const { mutate: updateStatus } = useUpdateStatus();
   const { data: onlineUsers = {} } = useOnlineUsers();
   const { data: notificationCounts } = useNotificationCounts();
   const { directChannels = [] } = useChannelsByType();
@@ -113,12 +108,6 @@ export function MainSidebar() {
     currentUser?.id && onlineUsers[currentUser.id]
       ? (onlineUsers[currentUser.id] as UserStatus)
       : "online";
-  const isOnline = userStatus === "online";
-
-  const handleStatusToggle = () => {
-    const newStatus: UserStatus = isOnline ? "offline" : "online";
-    updateStatus({ status: newStatus });
-  };
 
   const handleLogout = () => {
     setUserMenuOpen(false);
@@ -533,44 +522,12 @@ export function MainSidebar() {
                       </div>
                     </div>
                   </div>
-
-                  {/* Status Input */}
-                  <div className="mt-3">
-                    <div className="flex items-center gap-2 px-3 py-2 border rounded-md text-sm text-muted-foreground hover:bg-accent cursor-pointer">
-                      <Smile size={16} />
-                      <span>{tSettings("updateStatus")}</span>
-                    </div>
-                  </div>
                 </div>
 
+                {/* Temporary: hide status actions and preferences from the user menu. */}
                 <Separator />
 
-                {/* Status Toggle */}
-                <div className="py-1">
-                  <button
-                    onClick={handleStatusToggle}
-                    className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent"
-                  >
-                    <span>
-                      {tSettings("setStatus", {
-                        status: isOnline
-                          ? tSettings("status.offline")
-                          : tSettings("status.online"),
-                      })}
-                    </span>
-                  </button>
-                  <button className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent">
-                    <span>{tSettings("pauseNotifications")}</span>
-                    <div className="flex items-center gap-1 text-muted-foreground">
-                      <span>{tCommon("on")}</span>
-                      <ChevronRight size={14} />
-                    </div>
-                  </button>
-                </div>
-
-                <Separator />
-
-                {/* Profile & Settings */}
+                {/* Profile */}
                 <div className="py-1">
                   <button
                     onClick={() => {
@@ -581,13 +538,6 @@ export function MainSidebar() {
                   >
                     <User size={16} />
                     <span>{tSettings("profile")}</span>
-                  </button>
-                  <button className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent">
-                    <div className="flex items-center gap-3">
-                      <Settings size={16} />
-                      <span>{tSettings("preferences")}</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">⌘,</span>
                   </button>
                 </div>
 
