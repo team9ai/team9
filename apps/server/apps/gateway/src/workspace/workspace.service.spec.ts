@@ -122,7 +122,7 @@ describe('WorkspaceService', () => {
     websocketGateway = {
       broadcastToWorkspace: jest.fn<any>(),
       sendToUser: jest.fn<any>(),
-      sendToChannelMembers: jest.fn<any>().mockResolvedValue(undefined),
+      sendToChannelMembers: jest.fn<any>().mockResolvedValue(true),
     };
 
     const module: TestingModule = await Test.createTestingModule({

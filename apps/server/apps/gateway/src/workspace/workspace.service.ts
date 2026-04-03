@@ -132,7 +132,7 @@ interface WorkspaceWebsocketGateway {
     event: string,
     data: unknown,
     excludeUserId?: string,
-  ): Promise<void>;
+  ): Promise<boolean>;
   sendToUser(userId: string, event: string, data: unknown): Promise<void>;
 }
 

@@ -65,7 +65,7 @@ interface StreamingSessionPayload {
 
 @WebSocketGateway({
   cors: {
-    origin: env.CORS_ORIGIN,
+    origin: env.CORS_ORIGIN.split(',').map((o) => o.trim()),
     credentials: true,
   },
   namespace: '/im',
@@ -796,12 +796,17 @@ export class WebsocketGateway
     return Promise.resolve();
   }
 
+  /**
+   * Best-effort delivery to all members of a channel.
+   * Returns `true` when at least one emit was attempted,
+   * `false` when member lookup failed (callers can retry or log).
+   */
   async sendToChannelMembers(
     channelId: string,
     event: string,
     data: unknown,
     excludeUserId?: string,
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
       const memberIds =
         await this.channelMemberCacheService.getMemberIds(channelId);
@@ -809,10 +814,12 @@ export class WebsocketGateway
         if (userId === excludeUserId) continue;
         this.server.to(`user:${userId}`).emit(event, data);
       }
+      return true;
     } catch (error) {
       this.logger.error(
         `Failed to deliver ${event} to channel ${channelId}: ${(error as Error).message}`,
       );
+      return false;
     }
   }
 

@@ -920,17 +920,34 @@ describe('WebsocketGateway', () => {
       ]);
     });
 
-    it('swallows member lookup failures', async () => {
+    it('returns true on successful delivery', async () => {
+      const { gateway, deps } = createGateway();
+      deps.channelMemberCacheService.getMemberIds.mockResolvedValueOnce([
+        'user-1',
+      ]);
+
+      const result = await gateway.sendToChannelMembers(
+        'channel-1',
+        'custom:event',
+        { ok: true },
+      );
+
+      expect(result).toBe(true);
+    });
+
+    it('returns false and does not throw on member lookup failure', async () => {
       const { gateway, deps } = createGateway();
       deps.channelMemberCacheService.getMemberIds.mockRejectedValueOnce(
         new Error('cache down'),
       );
 
-      await expect(
-        gateway.sendToChannelMembers('channel-1', 'custom:event', {
-          ok: true,
-        }),
-      ).resolves.toBeUndefined();
+      const result = await gateway.sendToChannelMembers(
+        'channel-1',
+        'custom:event',
+        { ok: true },
+      );
+
+      expect(result).toBe(false);
     });
   });
 

@@ -133,7 +133,7 @@ describe('MessagesController', () => {
     };
 
     websocketGateway = {
-      sendToChannelMembers: jest.fn<any>().mockResolvedValue(undefined),
+      sendToChannelMembers: jest.fn<any>().mockResolvedValue(true),
     };
 
     imWorkerGrpcClientService = {

@@ -145,6 +145,26 @@ describe('ChannelMemberCacheService', () => {
       expect(redisService.set).not.toHaveBeenCalled();
     });
 
+    it('should return member IDs even when Redis cache write fails', async () => {
+      const channelId = 'channel-redis-fail';
+      const dbRows = [{ userId: 'user-x' }, { userId: 'user-y' }];
+      redisService.get.mockResolvedValue(null);
+      db.where.mockResolvedValue(dbRows);
+      redisService.set.mockRejectedValue(new Error('Redis OOM'));
+
+      // getMemberIds must resolve successfully — the Redis write failure
+      // should NOT prevent member IDs from being returned to the caller.
+      const result = await service.getMemberIds(channelId);
+      expect(result).toEqual(['user-x', 'user-y']);
+
+      // Redis set was attempted but failed
+      expect(redisService.set).toHaveBeenCalledWith(
+        `im:cache:channel_members:${channelId}`,
+        JSON.stringify(['user-x', 'user-y']),
+        300,
+      );
+    });
+
     it('should coalesce concurrent requests for uncached channel into single DB query', async () => {
       const channelId = 'channel-stampede';
       const dbRows = [{ userId: 'user-1' }, { userId: 'user-2' }];
