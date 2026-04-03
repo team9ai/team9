@@ -640,7 +640,6 @@ export function HomeSubSidebar() {
                       isSelected={selectedChannelId === dm.channelId}
                       unreadCount={dm.unreadCount}
                       channelId={dm.channelId}
-                      avatarSize="sm"
                       isBot={dm.isBot}
                     />
                   ))
