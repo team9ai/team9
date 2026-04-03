@@ -31,7 +31,7 @@ jobs:
             update-target: darwin-universal
 
     runs-on: macos-latest
-    environment: ${{ startsWith(github.ref_name, 'v') && 'production' || 'development' }}
+    environment: ${{ startsWith(github.ref_name, 'v') && 'Team9 / production' || 'Team9 / development' }}
 
     steps:
       - name: Checkout
