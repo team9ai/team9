@@ -23,7 +23,7 @@ import {
   useSidebarCollapsed,
   appActions,
 } from "@/stores";
-import { LocalDeviceStatus } from "./LocalDeviceStatus";
+// import { LocalDeviceStatus } from "./LocalDeviceStatus";
 import { useUserWorkspaces } from "@/hooks/useWorkspace";
 import { useDebouncedQuickSearch } from "@/hooks/useSearch";
 import { QuickSearchResults } from "@/components/search/QuickSearchResults";
@@ -212,10 +212,10 @@ export function GlobalTopBar() {
         </div>
       </div>
 
-      {/* Right section - Local device status */}
+      {/* [DISABLED] Local device status
       <div className="flex items-center gap-1">
         <LocalDeviceStatus />
-      </div>
+      </div> */}
     </header>
   );
 }
