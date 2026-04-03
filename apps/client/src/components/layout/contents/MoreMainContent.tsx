@@ -159,18 +159,15 @@ export function MoreMainContent() {
                 src="/team9-block.png"
                 alt="Team9"
                 loading="lazy"
-                width={64}
-                height={64}
-                className="w-16 h-16 mx-auto mb-4 object-cover rounded-2xl"
+                width={80}
+                height={80}
+                className="w-20 h-20 mx-auto mb-6 object-cover rounded-2xl"
               />
-              <h3 className="font-semibold text-lg mb-1 text-foreground">
-                team9
-              </h3>
               <p className="text-sm text-muted-foreground mb-2">
                 Version 1.0.0
               </p>
               <p className="text-xs text-muted-foreground/70">
-                © 2026 team9. All rights reserved.
+                © 2026 Team9. All rights reserved.
               </p>
             </Card>
           </div>

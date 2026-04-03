@@ -86,9 +86,13 @@ describe("MoreMainContent", () => {
       "src",
       "/team9-block.png",
     );
-    expect(screen.getByText(/^team9$/i)).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Team9" })).toHaveAttribute(
+      "width",
+      "80",
+    );
+    expect(screen.queryByText(/^team9$/i)).not.toBeInTheDocument();
     expect(
-      screen.getByText(/^© 2026 team9\. All rights reserved\.$/i),
+      screen.getByText(/^© 2026 Team9\. All rights reserved\.$/),
     ).toBeInTheDocument();
   });
 });
