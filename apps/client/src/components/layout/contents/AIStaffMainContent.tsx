@@ -35,6 +35,7 @@ import type {
 import { getHttpErrorMessage } from "@/lib/http-error";
 import { cn } from "@/lib/utils";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
+import { BaseModelProductLogo } from "@/components/applications/BaseModelProductLogo";
 
 // ── Type guard ────────────────────────────────────────────────────────
 
@@ -42,6 +43,10 @@ type AIStaffBot = OpenClawBotInfo | BaseModelStaffBotInfo;
 
 function isOpenClawBot(bot: AIStaffBot): bot is OpenClawBotInfo {
   return "agentId" in bot;
+}
+
+function isBaseModelStaffBot(bot: AIStaffBot): bot is BaseModelStaffBotInfo {
+  return "managedMeta" in bot;
 }
 
 // ── Per-bot card ─────────────────────────────────────────────────────
@@ -59,6 +64,7 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
   const isRunning = instanceStatus?.status === "running";
   const initials = displayName.slice(0, 2).toUpperCase();
   const isOcBot = isOpenClawBot(bot);
+  const isBaseModelBot = isBaseModelStaffBot(bot);
   const isDefault = isOcBot ? !bot.agentId : true;
 
   return (
@@ -74,11 +80,17 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
       <div className="flex items-center gap-4">
         {/* Avatar with status indicator */}
         <div className="relative">
-          <Avatar className="w-12 h-12">
-            <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
+          {isBaseModelBot ? (
+            <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-background ring-1 ring-border/50">
+              <BaseModelProductLogo agentId={bot.managedMeta?.agentId} />
+            </div>
+          ) : (
+            <Avatar className="w-12 h-12">
+              <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+          )}
           <div
             className={cn(
               "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-background",
