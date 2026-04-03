@@ -52,7 +52,7 @@ export const channels = pgTable(
     order: integer('order').default(0).notNull(),
     isArchived: boolean('is_archived').default(false).notNull(),
     isActivated: boolean('is_activated').default(true).notNull(),
-    snapshot: jsonb('snapshot').$type<ChannelSnapshot>(),
+    snapshot: jsonb('snapshot').$type<ChannelSnapshot | null>(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
