@@ -182,19 +182,21 @@ jobs:
           DMG_SRC=$(find "apps/client/src-tauri/target/$TARGET/release/bundle/dmg" -maxdepth 1 -name '*.dmg' -print -quit)
           cp "$DMG_SRC" "release-assets/Team9_${VERSION}_${ARCH_SUFFIX}.dmg"
 
-          APP_TAR_SRC=$(find "apps/client/src-tauri/target/$TARGET/release/bundle/macos" -maxdepth 1 -name '*.app.tar.gz' -print -quit)
-          SIG_SRC="${APP_TAR_SRC}.sig"
-          UPDATE_ASSET="Team9_${VERSION}_${UPDATE_PLATFORM}.app.tar.gz"
+          if [ "${{ steps.env.outputs.env_name }}" = "production" ]; then
+            APP_TAR_SRC=$(find "apps/client/src-tauri/target/$TARGET/release/bundle/macos" -maxdepth 1 -name '*.app.tar.gz' -print -quit)
+            SIG_SRC="${APP_TAR_SRC}.sig"
+            UPDATE_ASSET="Team9_${VERSION}_${UPDATE_PLATFORM}.app.tar.gz"
 
-          cp "$APP_TAR_SRC" "release-assets/$UPDATE_ASSET"
-          cp "$SIG_SRC" "release-assets/$UPDATE_ASSET.sig"
+            cp "$APP_TAR_SRC" "release-assets/$UPDATE_ASSET"
+            cp "$SIG_SRC" "release-assets/$UPDATE_ASSET.sig"
 
-          jq -n \
-            --arg platform "$UPDATE_PLATFORM" \
-            --arg asset "$UPDATE_ASSET" \
-            --arg signature "$(tr -d '\n' < "$SIG_SRC")" \
-            '{platform: $platform, asset: $asset, signature: $signature}' \
-            > "release-assets/$UPDATE_PLATFORM.updater.json"
+            jq -n \
+              --arg platform "$UPDATE_PLATFORM" \
+              --arg asset "$UPDATE_ASSET" \
+              --arg signature "$(tr -d '\n' < "$SIG_SRC")" \
+              '{platform: $platform, asset: $asset, signature: $signature}' \
+              > "release-assets/$UPDATE_PLATFORM.updater.json"
+          fi
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
