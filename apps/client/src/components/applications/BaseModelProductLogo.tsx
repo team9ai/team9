@@ -1,6 +1,6 @@
 import { Bot } from "lucide-react";
 
-import chatgptLogo from "@/assets/base-model/chatgpt.webp";
+import chatgptLogo from "@/assets/base-model/chatgpt.svg";
 import claudeLogo from "@/assets/base-model/claude.png";
 import geminiLogo from "@/assets/base-model/gemini.webp";
 import {
