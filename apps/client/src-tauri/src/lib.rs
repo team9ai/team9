@@ -3,8 +3,9 @@ mod ahand;
 use std::sync::Mutex;
 
 use serde::Serialize;
+use tauri::Manager;
 use tauri::State;
-use tauri_plugin_autostart::MacosLauncher;
+use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_updater::{Error as UpdaterError, Update, UpdaterExt};
 use time::format_description::well_known::Rfc3339;
 
@@ -203,7 +204,7 @@ pub fn run() {
                 let config_dir = app.path().app_config_dir().ok();
                 let marker = config_dir
                     .as_ref()
-                    .map(|d| d.join(".autostart_initialized"));
+                    .map(|d: &std::path::PathBuf| d.join(".autostart_initialized"));
 
                 // Use the same executable path that tauri-plugin-autostart
                 // registers. On Linux AppImage builds the plugin passes
