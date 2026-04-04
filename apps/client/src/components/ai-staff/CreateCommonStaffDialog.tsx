@@ -266,15 +266,25 @@ export function CreateCommonStaffDialog({
         jobDescription: jd || undefined,
       });
       for await (const event of stream) {
-        if (event.type === "candidate" && event.data.candidateIndex != null) {
-          const c = event.data as {
-            candidateIndex: number;
-            displayName: string;
-            roleTitle: string;
-            persona: string;
-            summary: string;
-          };
-          setCandidates((prev) => [...prev, c]);
+        if (event.type === "partial" || event.type === "complete") {
+          const partialCandidates = event.data?.candidates ?? [];
+          const complete = partialCandidates.filter(
+            (
+              c,
+            ): c is {
+              candidateIndex: number;
+              displayName: string;
+              roleTitle: string;
+              persona: string;
+              summary: string;
+            } =>
+              c.candidateIndex != null &&
+              !!c.displayName &&
+              !!c.roleTitle &&
+              !!c.persona &&
+              !!c.summary,
+          );
+          setCandidates(complete);
         }
       }
     } catch (error) {

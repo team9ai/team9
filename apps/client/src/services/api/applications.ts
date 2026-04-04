@@ -690,14 +690,15 @@ export const applicationsApi = {
       jobDescription?: string;
     },
   ): AsyncGenerator<{
-    type: "candidate" | "partial";
+    type: "partial" | "complete";
     data: {
-      candidateIndex?: number;
-      displayName?: string;
-      roleTitle?: string;
-      persona?: string;
-      summary?: string;
-      text?: string;
+      candidates?: Array<{
+        candidateIndex?: number;
+        displayName?: string;
+        roleTitle?: string;
+        persona?: string;
+        summary?: string;
+      }>;
     };
   }> {
     const token = await getValidAccessToken();
@@ -729,14 +730,15 @@ export const applicationsApi = {
           if (payload === "[DONE]") return;
           try {
             const parsed = JSON.parse(payload) as {
-              type: "candidate" | "partial";
+              type: "partial" | "complete";
               data: {
-                candidateIndex?: number;
-                displayName?: string;
-                roleTitle?: string;
-                persona?: string;
-                summary?: string;
-                text?: string;
+                candidates?: Array<{
+                  candidateIndex?: number;
+                  displayName?: string;
+                  roleTitle?: string;
+                  persona?: string;
+                  summary?: string;
+                }>;
               };
             };
             yield parsed;
