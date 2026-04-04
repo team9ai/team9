@@ -14,6 +14,7 @@ import {
 import * as schema from '@team9/database/schemas';
 import type { BotExtra } from '@team9/database/schemas';
 import { ClawHiveService } from '@team9/claw-hive';
+import { AiClientService, AIProvider } from '@team9/ai-client';
 import { BotService } from '../bot/bot.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { InstalledApplicationsService } from './installed-applications.service.js';
@@ -21,6 +22,7 @@ import type {
   CreateCommonStaffDto,
   UpdateCommonStaffDto,
 } from './dto/common-staff.dto.js';
+import type { GeneratePersonaDto } from './dto/generate-persona.dto.js';
 
 export interface CommonStaffResult {
   botId: string;
@@ -43,6 +45,7 @@ export class CommonStaffService {
     private readonly clawHiveService: ClawHiveService,
     private readonly channelsService: ChannelsService,
     private readonly installedApplicationsService: InstalledApplicationsService,
+    private readonly aiClientService: AiClientService,
   ) {}
 
   /**
@@ -352,5 +355,90 @@ export class CommonStaffService {
     // 3. Delete bot and cleanup
     await this.botService.deleteBotAndCleanup(botId);
     this.logger.log(`Deleted bot ${botId}`);
+  }
+
+  /**
+   * Generate a personality-rich persona via streaming AI response.
+   *
+   * When `existingPersona` is provided the AI expands/refines it rather than
+   * starting from scratch.  The user-supplied `prompt` is treated as the
+   * highest-priority guidance.
+   *
+   * @returns AsyncGenerator that yields text chunks suitable for an SSE stream.
+   */
+  async *generatePersona(
+    _appId: string,
+    _tenantId: string,
+    dto: GeneratePersonaDto,
+  ): AsyncGenerator<string> {
+    const { displayName, roleTitle, existingPersona, prompt } = dto;
+
+    // Build a rich system prompt
+    const systemPrompt = [
+      'You are a creative writer specialising in vivid, personality-rich AI staff personas.',
+      'Your output will be used verbatim as the "persona" field for an AI assistant.',
+      '',
+      'Rules:',
+      '• Write in second person ("You are …") or third person ("Alex is …") — be consistent.',
+      '• Include: core personality traits, communication style, work habits, and at least one quirk.',
+      '• Do NOT write a dry job description — focus on character, not duties.',
+      '• Keep the persona to 150–300 words.',
+      '• Output ONLY the persona text, no headings or meta-commentary.',
+    ].join('\n');
+
+    // Build the user message
+    const contextParts: string[] = [];
+
+    if (displayName) {
+      contextParts.push(`Name: ${displayName}`);
+    }
+    if (roleTitle) {
+      contextParts.push(`Role: ${roleTitle}`);
+    }
+
+    let userMessage: string;
+
+    if (existingPersona) {
+      userMessage = [
+        contextParts.length > 0 ? `Context:\n${contextParts.join('\n')}\n` : '',
+        'Existing persona (expand and refine — do NOT start over):',
+        existingPersona,
+        '',
+        prompt
+          ? `Additional guidance (highest priority): ${prompt}`
+          : 'Expand this persona with richer detail, more personality traits, and a memorable quirk.',
+      ]
+        .filter(Boolean)
+        .join('\n');
+    } else {
+      userMessage = [
+        contextParts.length > 0 ? `Context:\n${contextParts.join('\n')}\n` : '',
+        prompt
+          ? `Instructions: ${prompt}`
+          : 'Generate a compelling, personality-rich persona for this AI staff member.',
+      ]
+        .filter(Boolean)
+        .join('\n');
+    }
+
+    this.logger.log(
+      `Generating persona stream for displayName="${displayName ?? ''}", roleTitle="${roleTitle ?? ''}"`,
+    );
+
+    const stream = this.aiClientService.chat({
+      provider: AIProvider.CLAUDE,
+      model: 'claude-3-5-haiku-20241022',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage },
+      ],
+      temperature: 0.9,
+      maxTokens: 1024,
+      stream: true,
+    });
+
+    for await (const chunk of stream) {
+      yield chunk;
+    }
   }
 }

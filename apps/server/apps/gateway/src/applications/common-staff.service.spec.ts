@@ -2,6 +2,7 @@ import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '@team9/database';
+import { AiClientService } from '@team9/ai-client';
 import { CommonStaffService } from './common-staff.service.js';
 import { BotService } from '../bot/bot.service.js';
 import { ClawHiveService } from '@team9/claw-hive';
@@ -11,6 +12,7 @@ import type {
   CreateCommonStaffDto,
   UpdateCommonStaffDto,
 } from './dto/common-staff.dto.js';
+import type { GeneratePersonaDto } from './dto/generate-persona.dto.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -102,6 +104,13 @@ const makeUpdateDto = (
 
 // ── tests ─────────────────────────────────────────────────────────────────────
 
+/** Creates an async generator that yields the given strings */
+async function* makeChunkGenerator(chunks: string[]): AsyncGenerator<string> {
+  for (const chunk of chunks) {
+    yield chunk;
+  }
+}
+
 describe('CommonStaffService', () => {
   let service: CommonStaffService;
   let db: ReturnType<typeof mockDb>;
@@ -120,6 +129,7 @@ describe('CommonStaffService', () => {
   };
   let channelsService: { createDirectChannelsBatch: MockFn };
   let installedApplicationsService: { findById: MockFn };
+  let aiClientService: { chat: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
@@ -147,6 +157,12 @@ describe('CommonStaffService', () => {
       findById: jest.fn<any>().mockResolvedValue(makeInstalledApp()),
     };
 
+    aiClientService = {
+      chat: jest
+        .fn<any>()
+        .mockReturnValue(makeChunkGenerator(['Hello', ' world'])),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CommonStaffService,
@@ -158,6 +174,7 @@ describe('CommonStaffService', () => {
           provide: InstalledApplicationsService,
           useValue: installedApplicationsService,
         },
+        { provide: AiClientService, useValue: aiClientService },
       ],
     }).compile();
 
@@ -596,6 +613,184 @@ describe('CommonStaffService', () => {
       await expect(
         service.deleteStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ── generatePersona ──────────────────────────────────────────────────────────
+
+  describe('generatePersona', () => {
+    const makePersonaDto = (
+      overrides: Partial<GeneratePersonaDto> = {},
+    ): GeneratePersonaDto => ({
+      displayName: 'Alex',
+      roleTitle: 'Senior Engineer',
+      ...overrides,
+    });
+
+    it('yields chunks from the AI stream', async () => {
+      aiClientService.chat.mockReturnValueOnce(
+        makeChunkGenerator(['chunk1', 'chunk2', 'chunk3']),
+      );
+
+      const chunks: string[] = [];
+      for await (const chunk of service.generatePersona(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makePersonaDto(),
+      )) {
+        chunks.push(chunk);
+      }
+
+      expect(chunks).toEqual(['chunk1', 'chunk2', 'chunk3']);
+    });
+
+    it('calls aiClientService.chat with streaming enabled', async () => {
+      for await (const _ of service.generatePersona(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makePersonaDto(),
+      )) {
+        // consume
+      }
+
+      expect(aiClientService.chat).toHaveBeenCalledWith(
+        expect.objectContaining({ stream: true }),
+      );
+    });
+
+    it('passes displayName and roleTitle in the user message', async () => {
+      for await (const _ of service.generatePersona(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makePersonaDto({ displayName: 'Jordan', roleTitle: 'Product Manager' }),
+      )) {
+        // consume
+      }
+
+      const callArg = aiClientService.chat.mock.calls[0][0] as {
+        messages: { role: string; content: string }[];
+      };
+      const userMessage = callArg.messages.find((m) => m.role === 'user');
+      expect(userMessage?.content).toContain('Jordan');
+      expect(userMessage?.content).toContain('Product Manager');
+    });
+
+    it('includes existingPersona in the user message when provided', async () => {
+      const existingPersona = 'Thoughtful and methodical thinker.';
+
+      for await (const _ of service.generatePersona(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makePersonaDto({ existingPersona }),
+      )) {
+        // consume
+      }
+
+      const callArg = aiClientService.chat.mock.calls[0][0] as {
+        messages: { role: string; content: string }[];
+      };
+      const userMessage = callArg.messages.find((m) => m.role === 'user');
+      expect(userMessage?.content).toContain(existingPersona);
+    });
+
+    it('instructs AI to expand existing persona, not regenerate', async () => {
+      for await (const _ of service.generatePersona(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makePersonaDto({ existingPersona: 'Sharp and decisive.' }),
+      )) {
+        // consume
+      }
+
+      const callArg = aiClientService.chat.mock.calls[0][0] as {
+        messages: { role: string; content: string }[];
+      };
+      const userMessage = callArg.messages.find((m) => m.role === 'user');
+      // Should tell LLM to expand, not regenerate
+      expect(userMessage?.content.toLowerCase()).toMatch(/expand|refine/);
+    });
+
+    it('includes user prompt in the message when provided', async () => {
+      const userPrompt = 'Make the persona more formal and authoritative.';
+
+      for await (const _ of service.generatePersona(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makePersonaDto({ prompt: userPrompt }),
+      )) {
+        // consume
+      }
+
+      const callArg = aiClientService.chat.mock.calls[0][0] as {
+        messages: { role: string; content: string }[];
+      };
+      const userMessage = callArg.messages.find((m) => m.role === 'user');
+      expect(userMessage?.content).toContain(userPrompt);
+    });
+
+    it('works with all optional fields omitted', async () => {
+      for await (const _ of service.generatePersona(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        {},
+      )) {
+        // consume
+      }
+
+      expect(aiClientService.chat).toHaveBeenCalledTimes(1);
+    });
+
+    it('propagates errors from the AI stream', async () => {
+      async function* errorStream(): AsyncGenerator<string> {
+        yield 'start';
+        throw new Error('AI provider error');
+      }
+      aiClientService.chat.mockReturnValueOnce(errorStream());
+
+      const gen = service.generatePersona(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makePersonaDto(),
+      );
+
+      // First chunk should succeed
+      const first = await gen.next();
+      expect(first.value).toBe('start');
+
+      // Second iteration should throw
+      await expect(gen.next()).rejects.toThrow('AI provider error');
+    });
+
+    it('uses claude provider with streaming enabled', async () => {
+      for await (const _ of service.generatePersona(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makePersonaDto(),
+      )) {
+        // consume
+      }
+
+      expect(aiClientService.chat).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'claude',
+          stream: true,
+        }),
+      );
+    });
+
+    it('yields empty stream when AI returns no chunks', async () => {
+      aiClientService.chat.mockReturnValueOnce(makeChunkGenerator([]));
+
+      const chunks: string[] = [];
+      for await (const chunk of service.generatePersona(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makePersonaDto(),
+      )) {
+        chunks.push(chunk);
+      }
+
+      expect(chunks).toHaveLength(0);
     });
   });
 });
