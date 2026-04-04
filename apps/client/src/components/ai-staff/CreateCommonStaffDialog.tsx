@@ -98,6 +98,7 @@ export function CreateCommonStaffDialog({
   const [candidateGenerationError, setCandidateGenerationError] = useState<
     string | null
   >(null);
+  const [formError, setFormError] = useState<string | null>(null);
   // Editable candidate fields (keyed by candidateIndex)
   const [editedCandidates, setEditedCandidates] = useState<
     Record<number, { displayName: string; roleTitle: string; persona: string }>
@@ -109,12 +110,14 @@ export function CreateCommonStaffDialog({
     queryFn: () => api.workspace.getMembers(workspaceId!, { limit: 100 }),
     enabled: !!workspaceId && open,
   });
-  const humanMembers = membersData?.members ?? [];
+  const humanMembers = (membersData?.members ?? []).filter(
+    (m) => !m.userType || m.userType === "human",
+  );
 
-  // Default mentor to current user
+  // Default mentor to current user (only on mount)
   useEffect(() => {
-    if (currentUser?.id && !mentorId) setMentorId(currentUser.id);
-  }, [currentUser?.id, mentorId]);
+    if (currentUser?.id) setMentorId(currentUser.id);
+  }, [currentUser?.id]);
 
   // Reset form on close
   const resetForm = useCallback(() => {
@@ -137,11 +140,13 @@ export function CreateCommonStaffDialog({
     setIsGeneratingCandidates(false);
     setCandidateGenerationError(null);
     setEditedCandidates({});
+    setFormError(null);
   }, []);
 
   // Persona AI generation
   const handleGeneratePersona = useCallback(async () => {
     setIsGeneratingPersona(true);
+    setFormError(null);
     try {
       const stream = api.applications.generatePersona(appId, {
         displayName: displayName || "Staff",
@@ -153,6 +158,9 @@ export function CreateCommonStaffDialog({
         accumulated += chunk;
         setPersona(accumulated);
       }
+    } catch (error) {
+      setFormError("Failed to generate persona. Please try again.");
+      console.error("Persona generation failed:", error);
     } finally {
       setIsGeneratingPersona(false);
     }
@@ -161,6 +169,7 @@ export function CreateCommonStaffDialog({
   // Avatar AI generation
   const handleGenerateAvatar = useCallback(async () => {
     setIsGeneratingAvatar(true);
+    setFormError(null);
     try {
       const result = await api.applications.generateAvatar(appId, {
         style: avatarStyle,
@@ -169,6 +178,9 @@ export function CreateCommonStaffDialog({
         persona: persona || undefined,
       });
       setAvatarUrl(result.avatarUrl);
+    } catch (error) {
+      setFormError("Failed to generate avatar. Please try again.");
+      console.error("Avatar generation failed:", error);
     } finally {
       setIsGeneratingAvatar(false);
     }
@@ -194,6 +206,11 @@ export function CreateCommonStaffDialog({
       onOpenChange(false);
       resetForm();
     },
+    onError: (error) => {
+      setFormError(
+        error instanceof Error ? error.message : "Failed to create staff",
+      );
+    },
   });
 
   // Agentic submit mutation
@@ -201,6 +218,7 @@ export function CreateCommonStaffDialog({
     mutationFn: () =>
       api.applications.createCommonStaff(appId, {
         displayName: `Candidate #${Date.now() % 1000}`,
+        mentorId: mentorId || undefined,
         model: { provider: model.provider, id: model.id },
         agenticBootstrap: true,
       }),
@@ -211,6 +229,11 @@ export function CreateCommonStaffDialog({
       navigate({ to: "/ai-staff/$staffId", params: { staffId: data.botId } });
       onOpenChange(false);
       resetForm();
+    },
+    onError: (error) => {
+      setFormError(
+        error instanceof Error ? error.message : "Failed to create staff",
+      );
     },
   });
 
@@ -276,6 +299,11 @@ export function CreateCommonStaffDialog({
       navigate({ to: "/ai-staff/$staffId", params: { staffId: data.botId } });
       onOpenChange(false);
       resetForm();
+    },
+    onError: (error) => {
+      setFormError(
+        error instanceof Error ? error.message : "Failed to create staff",
+      );
     },
   });
 
@@ -844,6 +872,8 @@ export function CreateCommonStaffDialog({
         </DialogHeader>
 
         {renderCurrentStep()}
+
+        {formError && <p className="text-sm text-destructive">{formError}</p>}
 
         {step > 1 && (
           <DialogFooter className="flex justify-between sm:justify-between">
