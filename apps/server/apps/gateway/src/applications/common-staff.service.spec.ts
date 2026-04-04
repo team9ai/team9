@@ -1181,6 +1181,24 @@ describe('CommonStaffService', () => {
       await expect(gen.next()).rejects.toThrow('AI provider error');
     });
 
+    it('passes system prompt as a separate parameter', async () => {
+      for await (const _ of service.generatePersona(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makePersonaDto(),
+      )) {
+        // consume
+      }
+
+      const callArg = mockStreamText.mock.calls[0][0] as {
+        system: string;
+        messages: { role: string; content: string }[];
+      };
+      expect(callArg.system).toBeDefined();
+      expect(typeof callArg.system).toBe('string');
+      expect(callArg.system.length).toBeGreaterThan(0);
+    });
+
     it('uses OpenRouter model via streamText', async () => {
       for await (const _ of service.generatePersona(
         INSTALLED_APP_ID,
@@ -1352,7 +1370,7 @@ describe('CommonStaffService', () => {
       ...overrides,
     });
 
-    it('yields partial and complete events from streamObject', async () => {
+    it('yields partial and complete events from streamText with Output.object', async () => {
       const partials = [
         { candidates: [{ candidateIndex: 1, displayName: 'Alice' }] },
         {
@@ -1431,7 +1449,7 @@ describe('CommonStaffService', () => {
       await expect(gen.next()).rejects.toThrow(BadRequestException);
     });
 
-    it('calls streamObject with temperature and schema', async () => {
+    it('calls streamText with temperature and output schema', async () => {
       mockStreamText.mockReturnValueOnce(
         mockStreamTextWithOutputReturn([], { candidates: [] }),
       );

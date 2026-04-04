@@ -641,7 +641,7 @@ export class CommonStaffService {
   /**
    * Stream 3 diverse AI employee candidate role cards via SSE.
    *
-   * Uses Vercel AI SDK's streamObject with a Zod schema to generate and
+   * Uses Vercel AI SDK's streamText with Output.object and a Zod schema to generate and
    * stream structured candidate profiles.
    */
   async *generateCandidates(
