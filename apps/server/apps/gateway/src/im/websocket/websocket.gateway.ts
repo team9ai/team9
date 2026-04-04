@@ -799,7 +799,7 @@ export class WebsocketGateway
   /**
    * Best-effort delivery to all members of a channel.
    * Returns `true` when at least one emit was attempted,
-   * `false` when member lookup failed (callers can retry or log).
+   * `false` when member lookup failed or no members received the event.
    */
   async sendToChannelMembers(
     channelId: string,
@@ -810,11 +810,13 @@ export class WebsocketGateway
     try {
       const memberIds =
         await this.channelMemberCacheService.getMemberIds(channelId);
+      let emitted = 0;
       for (const userId of memberIds) {
         if (userId === excludeUserId) continue;
         this.server.to(`user:${userId}`).emit(event, data);
+        emitted++;
       }
-      return true;
+      return emitted > 0;
     } catch (error) {
       this.logger.error(
         `Failed to deliver ${event} to channel ${channelId}: ${(error as Error).message}`,

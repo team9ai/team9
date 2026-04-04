@@ -1,9 +1,6 @@
-import http from "../http";
+import http, { API_BASE_URL } from "../http";
 import { getValidAccessToken } from "../auth-session";
 import type { AgentType } from "@/types/im";
-
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
 
 // Types matching server schemas
 export type ApplicationType = "managed" | "custom";
