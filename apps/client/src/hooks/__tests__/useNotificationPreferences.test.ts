@@ -187,7 +187,7 @@ describe("useNotificationPreferences", () => {
   });
 
   it("applies optimistic update immediately to cache", async () => {
-    const { wrapper, queryClient } = createWrapper();
+    const { wrapper } = createWrapper();
 
     // Make mutation take longer so we can check intermediate state
     let resolveMutation!: (value: unknown) => void;
