@@ -4,6 +4,7 @@ const mockStreamText = jest.fn<any>();
 
 jest.unstable_mockModule('ai', () => ({
   streamText: mockStreamText,
+  Output: { object: jest.fn().mockReturnValue('mock-output-spec') },
 }));
 
 const { CommonStaffService } = await import('./common-staff.service.js');
@@ -197,6 +198,17 @@ function mockStreamTextReturn(chunks: string[]) {
   return { textStream: makeAsyncIterable(chunks) };
 }
 
+/** Builds a mock return value for streamText with structured output */
+function mockStreamTextWithOutputReturn(
+  partials: unknown[],
+  finalObj: unknown,
+) {
+  return {
+    partialOutputStream: makeAsyncIterable(partials),
+    output: Promise.resolve(finalObj),
+  };
+}
+
 /** Creates an error-producing textStream that yields one chunk then throws */
 function makeErrorTextStream(): AsyncIterable<string> {
   return {
@@ -267,11 +279,12 @@ describe('CommonStaffService', () => {
       findById: jest.fn<any>().mockResolvedValue(makeInstalledApp()),
     };
 
-    // For generatePersona (uses streamText via Vercel AI SDK)
+    // Default: streamText returns text stream (for generatePersona)
+    // Candidate tests override with mockStreamTextWithOutputReturn
     mockStreamText.mockReset();
     mockStreamText.mockReturnValue(mockStreamTextReturn(['Hello', ' world']));
 
-    // For generateCandidates (still uses aiClientService until Task 2)
+    // aiClientService is still injected via DI (will be removed in Task 3)
     aiClientService = {
       chat: jest
         .fn<any>()
@@ -1355,68 +1368,50 @@ describe('CommonStaffService', () => {
       ...overrides,
     });
 
-    /** Build a chunk generator that emits newline-delimited JSON candidates */
-    function makeCandidateChunkGenerator(
-      candidates: object[],
-    ): AsyncGenerator<string> {
-      const lines = candidates.map((c) => JSON.stringify(c)).join('\n');
-      return makeChunkGenerator([lines]);
-    }
-
-    it('yields candidate events for valid JSON lines', async () => {
-      const candidates = [
+    it('yields partial and complete events from streamObject', async () => {
+      const partials = [
+        { candidates: [{ candidateIndex: 1, displayName: 'Alice' }] },
         {
-          candidateIndex: 1,
-          displayName: 'Alice',
-          roleTitle: 'Backend Engineer',
-          persona: 'Detail-oriented and methodical',
-          summary: 'Alice builds reliable systems.',
-        },
-        {
-          candidateIndex: 2,
-          displayName: 'Bob',
-          roleTitle: 'Frontend Engineer',
-          persona: 'Creative and visual',
-          summary: 'Bob crafts delightful UIs.',
-        },
-        {
-          candidateIndex: 3,
-          displayName: 'Carol',
-          roleTitle: 'DevOps Engineer',
-          persona: 'Pragmatic and resilient',
-          summary: 'Carol keeps systems running.',
+          candidates: [
+            {
+              candidateIndex: 1,
+              displayName: 'Alice',
+              roleTitle: 'Backend Engineer',
+              persona: 'Detail-oriented',
+              summary: 'Alice builds reliable systems.',
+            },
+            { candidateIndex: 2, displayName: 'Bob' },
+          ],
         },
       ];
+      const final = {
+        candidates: [
+          {
+            candidateIndex: 1,
+            displayName: 'Alice',
+            roleTitle: 'Backend Engineer',
+            persona: 'Detail-oriented',
+            summary: 'Alice builds reliable systems.',
+          },
+          {
+            candidateIndex: 2,
+            displayName: 'Bob',
+            roleTitle: 'Frontend Engineer',
+            persona: 'Creative',
+            summary: 'Bob crafts UIs.',
+          },
+          {
+            candidateIndex: 3,
+            displayName: 'Carol',
+            roleTitle: 'DevOps Engineer',
+            persona: 'Pragmatic',
+            summary: 'Carol keeps systems running.',
+          },
+        ],
+      };
 
-      aiClientService.chat.mockReturnValueOnce(
-        makeCandidateChunkGenerator(candidates),
-      );
-
-      const events: { type: string; data: unknown }[] = [];
-      for await (const event of service.generateCandidates(
-        INSTALLED_APP_ID,
-        TENANT_ID,
-        makeCandidatesDto(),
-      )) {
-        events.push(event);
-      }
-
-      const candidateEvents = events.filter((e) => e.type === 'candidate');
-      expect(candidateEvents).toHaveLength(3);
-      expect(
-        (candidateEvents[0].data as Record<string, unknown>)['displayName'],
-      ).toBe('Alice');
-      expect(
-        (candidateEvents[1].data as Record<string, unknown>)['displayName'],
-      ).toBe('Bob');
-      expect(
-        (candidateEvents[2].data as Record<string, unknown>)['displayName'],
-      ).toBe('Carol');
-    });
-
-    it('yields partial events for non-JSON text lines', async () => {
-      aiClientService.chat.mockReturnValueOnce(
-        makeChunkGenerator(['not-json-text\n']),
+      mockStreamText.mockReturnValueOnce(
+        mockStreamTextWithOutputReturn(partials, final),
       );
 
       const events: { type: string; data: unknown }[] = [];
@@ -1429,36 +1424,13 @@ describe('CommonStaffService', () => {
       }
 
       const partialEvents = events.filter((e) => e.type === 'partial');
-      expect(partialEvents.length).toBeGreaterThan(0);
-    });
+      expect(partialEvents).toHaveLength(2);
 
-    it('processes remaining buffer content after stream ends', async () => {
-      // Single candidate with no trailing newline — lands in the buffer
-      const candidate = {
-        candidateIndex: 1,
-        displayName: 'Dana',
-        roleTitle: 'QA Engineer',
-        persona: 'Meticulous tester',
-        summary: 'Dana finds bugs before users do.',
-      };
-      aiClientService.chat.mockReturnValueOnce(
-        makeChunkGenerator([JSON.stringify(candidate)]), // no trailing newline
-      );
-
-      const events: { type: string; data: unknown }[] = [];
-      for await (const event of service.generateCandidates(
-        INSTALLED_APP_ID,
-        TENANT_ID,
-        makeCandidatesDto(),
-      )) {
-        events.push(event);
-      }
-
-      const candidateEvents = events.filter((e) => e.type === 'candidate');
-      expect(candidateEvents).toHaveLength(1);
+      const completeEvents = events.filter((e) => e.type === 'complete');
+      expect(completeEvents).toHaveLength(1);
       expect(
-        (candidateEvents[0].data as Record<string, unknown>)['displayName'],
-      ).toBe('Dana');
+        (completeEvents[0].data as { candidates: unknown[] }).candidates,
+      ).toHaveLength(3);
     });
 
     it('throws BadRequestException when application is not common-staff type', async () => {
@@ -1475,8 +1447,10 @@ describe('CommonStaffService', () => {
       await expect(gen.next()).rejects.toThrow(BadRequestException);
     });
 
-    it('calls aiClientService.chat with streaming enabled', async () => {
-      aiClientService.chat.mockReturnValueOnce(makeChunkGenerator([]));
+    it('calls streamObject with temperature and schema', async () => {
+      mockStreamText.mockReturnValueOnce(
+        mockStreamTextWithOutputReturn([], { candidates: [] }),
+      );
 
       for await (const _ of service.generateCandidates(
         INSTALLED_APP_ID,
@@ -1486,13 +1460,18 @@ describe('CommonStaffService', () => {
         // consume
       }
 
-      expect(aiClientService.chat).toHaveBeenCalledWith(
-        expect.objectContaining({ stream: true }),
+      expect(mockStreamText).toHaveBeenCalledWith(
+        expect.objectContaining({
+          temperature: 0.95,
+          output: expect.anything(),
+        }),
       );
     });
 
-    it('includes jobTitle and jobDescription in the user message', async () => {
-      aiClientService.chat.mockReturnValueOnce(makeChunkGenerator([]));
+    it('includes jobTitle and jobDescription in the prompt', async () => {
+      mockStreamText.mockReturnValueOnce(
+        mockStreamTextWithOutputReturn([], { candidates: [] }),
+      );
 
       for await (const _ of service.generateCandidates(
         INSTALLED_APP_ID,
@@ -1505,16 +1484,17 @@ describe('CommonStaffService', () => {
         // consume
       }
 
-      const callArg = aiClientService.chat.mock.calls[0][0] as {
-        messages: { role: string; content: string }[];
+      const callArg = mockStreamText.mock.calls[0][0] as {
+        prompt: string;
       };
-      const userMessage = callArg.messages.find((m) => m.role === 'user');
-      expect(userMessage?.content).toContain('Data Scientist');
-      expect(userMessage?.content).toContain('Build ML models');
+      expect(callArg.prompt).toContain('Data Scientist');
+      expect(callArg.prompt).toContain('Build ML models');
     });
 
-    it('uses a default message when no job info provided', async () => {
-      aiClientService.chat.mockReturnValueOnce(makeChunkGenerator([]));
+    it('uses default prompt when no job info provided', async () => {
+      mockStreamText.mockReturnValueOnce(
+        mockStreamTextWithOutputReturn([], { candidates: [] }),
+      );
 
       for await (const _ of service.generateCandidates(
         INSTALLED_APP_ID,
@@ -1524,19 +1504,15 @@ describe('CommonStaffService', () => {
         // consume
       }
 
-      const callArg = aiClientService.chat.mock.calls[0][0] as {
-        messages: { role: string; content: string }[];
+      const callArg = mockStreamText.mock.calls[0][0] as {
+        prompt: string;
       };
-      const userMessage = callArg.messages.find((m) => m.role === 'user');
-      expect(userMessage?.content).toBeTruthy();
+      expect(callArg.prompt).toBeTruthy();
     });
 
-    it('skips JSON objects without candidateIndex', async () => {
-      // Objects missing candidateIndex should not be yielded as candidates
-      aiClientService.chat.mockReturnValueOnce(
-        makeChunkGenerator([
-          '{"displayName": "NoIndex", "roleTitle": "Tester"}\n',
-        ]),
+    it('yields only complete event when no partials emitted', async () => {
+      mockStreamText.mockReturnValueOnce(
+        mockStreamTextWithOutputReturn([], { candidates: [] }),
       );
 
       const events: { type: string; data: unknown }[] = [];
@@ -1548,23 +1524,69 @@ describe('CommonStaffService', () => {
         events.push(event);
       }
 
-      const candidateEvents = events.filter((e) => e.type === 'candidate');
-      expect(candidateEvents).toHaveLength(0);
+      expect(events).toHaveLength(1);
+      expect(events[0].type).toBe('complete');
     });
 
-    it('yields empty when AI returns no output', async () => {
-      aiClientService.chat.mockReturnValueOnce(makeChunkGenerator([]));
+    it('verifies app before generating', async () => {
+      mockStreamText.mockReturnValueOnce(
+        mockStreamTextWithOutputReturn([], { candidates: [] }),
+      );
 
-      const events: { type: string; data: unknown }[] = [];
-      for await (const event of service.generateCandidates(
+      for await (const _ of service.generateCandidates(
         INSTALLED_APP_ID,
         TENANT_ID,
         makeCandidatesDto(),
       )) {
-        events.push(event);
+        // consume
       }
 
-      expect(events).toHaveLength(0);
+      expect(installedApplicationsService.findById).toHaveBeenCalledWith(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+      );
+    });
+
+    it('propagates errors from the partial output stream', async () => {
+      function makeErrorOutputStream(): AsyncIterable<unknown> {
+        return {
+          [Symbol.asyncIterator]() {
+            let yielded = false;
+            return {
+              async next() {
+                if (!yielded) {
+                  yielded = true;
+                  return {
+                    value: { candidates: [{ candidateIndex: 1 }] },
+                    done: false,
+                  };
+                }
+                throw new Error('Stream error');
+              },
+            };
+          },
+        };
+      }
+      mockStreamText.mockReturnValueOnce({
+        partialOutputStream: makeErrorOutputStream(),
+        output: Promise.reject(new Error('Stream error')).catch(() => {}),
+      });
+
+      const gen = service.generateCandidates(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makeCandidatesDto(),
+      );
+
+      // First partial should succeed
+      const first = await gen.next();
+      expect(first.value).toEqual({
+        type: 'partial',
+        data: { candidates: [{ candidateIndex: 1 }] },
+      });
+
+      // Second iteration should throw
+      await expect(gen.next()).rejects.toThrow('Stream error');
     });
   });
 });

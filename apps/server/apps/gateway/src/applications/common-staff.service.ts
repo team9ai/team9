@@ -14,8 +14,9 @@ import {
 import * as schema from '@team9/database/schemas';
 import type { BotExtra } from '@team9/database/schemas';
 import { ClawHiveService } from '@team9/claw-hive';
-import { AiClientService, AIProvider } from '@team9/ai-client';
-import { streamText } from 'ai';
+import { AiClientService } from '@team9/ai-client';
+import { streamText, Output } from 'ai';
+import { z } from 'zod';
 import { createOpenAI } from '@ai-sdk/openai';
 import { BotService } from '../bot/bot.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
@@ -40,6 +41,18 @@ export interface CommonStaffResult {
 const openrouter = createOpenAI({
   baseURL: 'https://openrouter.ai/api/v1',
   apiKey: process.env.OPENROUTER_API_KEY,
+});
+
+const candidateSchema = z.object({
+  candidates: z.array(
+    z.object({
+      candidateIndex: z.number(),
+      displayName: z.string(),
+      roleTitle: z.string(),
+      persona: z.string(),
+      summary: z.string(),
+    }),
+  ),
 });
 
 const COMMON_STAFF_APPLICATION_ID = 'common-staff';
@@ -630,15 +643,14 @@ export class CommonStaffService {
   /**
    * Stream 3 diverse AI employee candidate role cards via SSE.
    *
-   * Builds a prompt to generate 3 diverse candidate profiles and streams
-   * structured JSON objects for each candidate as they are parsed from the
-   * AI response.
+   * Uses Vercel AI SDK's streamObject with a Zod schema to generate and
+   * stream structured candidate profiles.
    */
   async *generateCandidates(
     appId: string,
     tenantId: string,
     dto: GenerateCandidatesDto,
-  ): AsyncGenerator<{ type: 'candidate' | 'partial'; data: unknown }> {
+  ): AsyncGenerator<{ type: 'partial' | 'complete'; data: unknown }> {
     // Verify app is common-staff type
     const app = await this.installedApplicationsService.findById(
       appId,
@@ -648,68 +660,30 @@ export class CommonStaffService {
       throw new BadRequestException('Not a common-staff application');
     }
 
-    // Build prompt for 3 candidates
-    const systemPrompt = `You are a creative HR consultant. Generate exactly 3 diverse AI employee candidate profiles.
-Each candidate should be unique and interesting with distinct personality traits.
+    // Build prompt parts
+    const promptParts: string[] = [
+      'Generate exactly 3 diverse AI employee candidate profiles.',
+      'Each candidate should be unique and interesting with distinct personality traits.',
+      'The persona should be personality-rich: include character traits, communication style, work habits, and quirks.',
+      "Each summary should be 1-2 sentences capturing the candidate's essence.",
+    ];
 
-Output EXACTLY 3 candidates as JSON objects, one per line, in this format:
-{"candidateIndex": 1, "displayName": "...", "roleTitle": "...", "persona": "...", "summary": "..."}
-{"candidateIndex": 2, "displayName": "...", "roleTitle": "...", "persona": "...", "summary": "..."}
-{"candidateIndex": 3, "displayName": "...", "roleTitle": "...", "persona": "...", "summary": "..."}
-
-The persona should be personality-rich: include character traits, communication style, work habits, and quirks.
-Each summary should be 1-2 sentences capturing the candidate's essence.`;
-
-    const userMessageParts: string[] = [];
-    if (dto.jobTitle) userMessageParts.push(`Job Title: ${dto.jobTitle}`);
+    if (dto.jobTitle) promptParts.push(`Job Title: ${dto.jobTitle}`);
     if (dto.jobDescription)
-      userMessageParts.push(`Job Description: ${dto.jobDescription}`);
-    if (userMessageParts.length === 0)
-      userMessageParts.push('Generate 3 diverse AI employee candidates.');
+      promptParts.push(`Job Description: ${dto.jobDescription}`);
 
-    // Stream from AI
-    const stream = this.aiClientService.chat({
-      provider: AIProvider.CLAUDE,
-      model: 'claude-3-5-haiku-20241022',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessageParts.join('\n') },
-      ],
-      stream: true,
+    const result = streamText({
+      model: openrouter('anthropic/claude-sonnet-4-6'),
+      output: Output.object({ schema: candidateSchema }),
+      prompt: promptParts.join('\n'),
       temperature: 0.95,
     });
 
-    // Accumulate and parse JSON lines
-    let buffer = '';
-    for await (const chunk of stream) {
-      buffer += chunk;
-      // Try to parse complete JSON lines
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        try {
-          const candidate = JSON.parse(trimmed) as Record<string, unknown>;
-          if (candidate['candidateIndex']) {
-            yield { type: 'candidate', data: candidate };
-          }
-        } catch {
-          // Partial JSON, yield as partial text
-          yield { type: 'partial', data: { text: trimmed } };
-        }
-      }
+    for await (const partial of result.partialOutputStream) {
+      yield { type: 'partial' as const, data: partial };
     }
-    // Process remaining buffer
-    if (buffer.trim()) {
-      try {
-        const candidate = JSON.parse(buffer.trim()) as Record<string, unknown>;
-        if (candidate['candidateIndex']) {
-          yield { type: 'candidate', data: candidate };
-        }
-      } catch {
-        yield { type: 'partial', data: { text: buffer.trim() } };
-      }
-    }
+
+    const final = await result.output;
+    yield { type: 'complete' as const, data: final };
   }
 }
