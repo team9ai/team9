@@ -53,6 +53,7 @@ import { WorkspaceFileBrowserContent } from "./WorkspaceFileBrowserContent";
 import { BaseModelProductLogo } from "@/components/applications/BaseModelProductLogo";
 import { getBaseModelProductMeta } from "@/lib/base-model-agent";
 import { useCreateDirectChannel } from "@/hooks/useChannels";
+import { CommonStaffDetailSection } from "@/components/ai-staff/CommonStaffDetailSection";
 import type {
   BaseModelStaffBotInfo,
   CommonStaffBotInfo,
@@ -93,6 +94,16 @@ function isBaseModelStaffBot(bot: AIStaffBot): bot is BaseModelStaffBotInfo {
   return "managedMeta" in bot && "agentType" in bot;
 }
 
+function isCommonStaffBot(bot: AIStaffBot): bot is CommonStaffBotInfo {
+  return (
+    "managedMeta" in bot &&
+    typeof (bot as CommonStaffBotInfo).managedMeta?.agentId === "string" &&
+    ((bot as CommonStaffBotInfo).managedMeta?.agentId ?? "").startsWith(
+      "common-staff-",
+    )
+  );
+}
+
 export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -128,6 +139,8 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
 
   const currentApp = currentStaff?.app ?? null;
   const currentBot = currentStaff?.bot ?? null;
+  const commonStaffBot =
+    currentBot && isCommonStaffBot(currentBot) ? currentBot : null;
   const openClawBot =
     currentBot && isOpenClawBot(currentBot) ? currentBot : null;
   const baseModelBot =
@@ -895,6 +908,16 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
                   </CardContent>
                 </Card>
               </div>
+            )}
+
+          {!isLoading &&
+            commonStaffBot &&
+            currentApp?.applicationId === "common-staff" && (
+              <CommonStaffDetailSection
+                bot={commonStaffBot}
+                app={currentApp}
+                workspaceId={workspaceId!}
+              />
             )}
         </div>
       </ScrollArea>

@@ -50,6 +50,16 @@ function isBaseModelStaffBot(bot: AIStaffBot): bot is BaseModelStaffBotInfo {
   return "managedMeta" in bot && "agentType" in bot;
 }
 
+function isCommonStaffBot(bot: AIStaffBot): bot is CommonStaffBotInfo {
+  return (
+    "managedMeta" in bot &&
+    typeof (bot as CommonStaffBotInfo).managedMeta?.agentId === "string" &&
+    ((bot as CommonStaffBotInfo).managedMeta?.agentId ?? "").startsWith(
+      "common-staff-",
+    )
+  );
+}
+
 // ── Per-bot card ─────────────────────────────────────────────────────
 
 interface AIStaffBotCardProps {
@@ -66,7 +76,11 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
   const initials = displayName.slice(0, 2).toUpperCase();
   const isOcBot = isOpenClawBot(bot);
   const isBaseModelBot = isBaseModelStaffBot(bot);
+  const isCommonStaff = isCommonStaffBot(bot);
   const isDefault = isOcBot && !bot.agentId;
+
+  // For common staff, derive status from bot.isActive since no instanceStatus
+  const isActiveBot = isCommonStaff ? bot.isActive : isRunning;
 
   return (
     <Card
@@ -85,6 +99,13 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
             <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-background ring-1 ring-border/50">
               <BaseModelProductLogo agentId={bot.managedMeta?.agentId} />
             </div>
+          ) : isCommonStaff && bot.avatarUrl ? (
+            <Avatar className="w-12 h-12">
+              <AvatarImage src={bot.avatarUrl} />
+              <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
           ) : (
             <Avatar className="w-12 h-12">
               <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
@@ -95,7 +116,7 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
           <div
             className={cn(
               "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-background",
-              isRunning ? "bg-success" : "bg-muted-foreground",
+              isActiveBot ? "bg-success" : "bg-muted-foreground",
             )}
           />
         </div>
@@ -112,6 +133,14 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
                 className="shrink-0 text-[10px] px-1.5 py-0"
               >
                 {isDefault ? "Default" : "Agent"}
+              </Badge>
+            )}
+            {isCommonStaff && bot.roleTitle && (
+              <Badge
+                variant="outline"
+                className="shrink-0 text-[10px] px-1.5 py-0"
+              >
+                {bot.roleTitle}
               </Badge>
             )}
           </div>
@@ -134,6 +163,22 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
             )}
           </p>
           {isOcBot && bot.mentorDisplayName && (
+            <div className="flex items-center gap-1 mt-1">
+              <Avatar className="w-4 h-4">
+                {bot.mentorAvatarUrl ? (
+                  <AvatarImage src={bot.mentorAvatarUrl} />
+                ) : (
+                  <AvatarFallback className="bg-muted text-muted-foreground text-[8px]">
+                    <User size={10} />
+                  </AvatarFallback>
+                )}
+              </Avatar>
+              <span className="text-xs text-muted-foreground truncate">
+                {bot.mentorDisplayName}
+              </span>
+            </div>
+          )}
+          {isCommonStaff && bot.mentorDisplayName && (
             <div className="flex items-center gap-1 mt-1">
               <Avatar className="w-4 h-4">
                 {bot.mentorAvatarUrl ? (
