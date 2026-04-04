@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
+import { VitePWA } from "vite-plugin-pwa";
 import { fileURLToPath, URL } from "node:url";
 
 const host = process.env.TAURI_DEV_HOST;
@@ -20,6 +21,17 @@ export default defineConfig(async () => ({
       project: process.env.SENTRY_PROJECT,
       authToken: process.env.SENTRY_AUTH_TOKEN,
       disable: !process.env.SENTRY_AUTH_TOKEN,
+    }),
+    VitePWA({
+      srcDir: "src",
+      filename: "sw.ts",
+      strategies: "injectManifest",
+      injectRegister: false,
+      manifest: false,
+      devOptions: {
+        enabled: true,
+        type: "module",
+      },
     }),
   ],
   resolve: {
