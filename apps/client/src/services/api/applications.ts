@@ -633,8 +633,10 @@ export const applicationsApi = {
   generatePersona: async function* (
     appId: string,
     body: {
-      displayName: string;
+      displayName?: string;
       roleTitle?: string;
+      existingPersona?: string;
+      prompt?: string;
       jobDescription?: string;
     },
   ): AsyncGenerator<string> {

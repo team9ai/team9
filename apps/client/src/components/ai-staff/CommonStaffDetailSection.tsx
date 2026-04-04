@@ -71,6 +71,8 @@ export function CommonStaffDetailSection({
   const [editingJobDescription, setEditingJobDescription] = useState(false);
   const [jobDescriptionInput, setJobDescriptionInput] = useState("");
   const [isGeneratingPersona, setIsGeneratingPersona] = useState(false);
+  // Track which field is currently being saved to scope the loading state
+  const [savingField, setSavingField] = useState<string | null>(null);
 
   const displayName = bot.displayName || "Common Staff";
   const initials = displayName.slice(0, 2).toUpperCase();
@@ -89,10 +91,12 @@ export function CommonStaffDetailSection({
     [membersData],
   );
 
-  // Current model value for the select
-  const currentModelValue = bot.model
-    ? `${bot.model.provider}::${bot.model.id}`
-    : "";
+  // Current model value for the select — fall back to the default model when null
+  const effectiveModel = bot.model ?? {
+    provider: "anthropic",
+    id: "claude-sonnet-4-6",
+  };
+  const currentModelValue = `${effectiveModel.provider}::${effectiveModel.id}`;
 
   // Update mutation (generic field update)
   const updateMutation = useMutation({
@@ -132,40 +136,48 @@ export function CommonStaffDetailSection({
   const handleSaveName = () => {
     const trimmed = nameInput.trim();
     if (!trimmed) return;
+    setSavingField("name");
     updateMutation.mutate(
       { displayName: trimmed },
       {
         onSuccess: () => setEditingName(false),
+        onSettled: () => setSavingField(null),
       },
     );
   };
 
   const handleSaveRoleTitle = () => {
     const trimmed = roleTitleInput.trim();
+    setSavingField("roleTitle");
     updateMutation.mutate(
       { roleTitle: trimmed || null },
       {
         onSuccess: () => setEditingRoleTitle(false),
+        onSettled: () => setSavingField(null),
       },
     );
   };
 
   const handleSavePersona = () => {
     const trimmed = personaInput.trim();
+    setSavingField("persona");
     updateMutation.mutate(
       { persona: trimmed || null },
       {
         onSuccess: () => setEditingPersona(false),
+        onSettled: () => setSavingField(null),
       },
     );
   };
 
   const handleSaveJobDescription = () => {
     const trimmed = jobDescriptionInput.trim();
+    setSavingField("jobDescription");
     updateMutation.mutate(
       { jobDescription: trimmed || null },
       {
         onSuccess: () => setEditingJobDescription(false),
+        onSettled: () => setSavingField(null),
       },
     );
   };
@@ -173,13 +185,19 @@ export function CommonStaffDetailSection({
   const handleModelChange = (value: string) => {
     const [provider, id] = value.split("::");
     if (!provider || !id) return;
-    updateMutation.mutate({ model: { provider, id } });
+    setSavingField("model");
+    updateMutation.mutate(
+      { model: { provider, id } },
+      { onSettled: () => setSavingField(null) },
+    );
   };
 
   const handleMentorChange = (value: string) => {
-    updateMutation.mutate({
-      mentorId: value === "__none__" ? null : value,
-    });
+    setSavingField("mentor");
+    updateMutation.mutate(
+      { mentorId: value === "__none__" ? null : value },
+      { onSettled: () => setSavingField(null) },
+    );
   };
 
   const handleGeneratePersona = async () => {
@@ -194,12 +212,16 @@ export function CommonStaffDetailSection({
         generated += chunk;
       }
       if (generated) {
+        const trimmedPersona = generated.trim();
+        setSavingField("persona");
         updateMutation.mutate(
-          { persona: generated.trim() },
+          { persona: trimmedPersona },
           {
             onSuccess: () => {
-              setPersonaInput(generated.trim());
+              setPersonaInput(trimmedPersona);
+              setEditingPersona(true);
             },
+            onSettled: () => setSavingField(null),
           },
         );
       }
@@ -255,10 +277,10 @@ export function CommonStaffDetailSection({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 shrink-0"
-                    disabled={!nameInput.trim() || updateMutation.isPending}
+                    disabled={!nameInput.trim() || savingField === "name"}
                     onClick={handleSaveName}
                   >
-                    {updateMutation.isPending ? (
+                    {savingField === "name" ? (
                       <Loader2 size={14} className="animate-spin" />
                     ) : (
                       <Check size={14} />
@@ -305,10 +327,10 @@ export function CommonStaffDetailSection({
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 shrink-0"
-                    disabled={updateMutation.isPending}
+                    disabled={savingField === "roleTitle"}
                     onClick={handleSaveRoleTitle}
                   >
-                    {updateMutation.isPending ? (
+                    {savingField === "roleTitle" ? (
                       <Loader2 size={12} className="animate-spin" />
                     ) : (
                       <Check size={12} />
@@ -414,7 +436,7 @@ export function CommonStaffDetailSection({
                 variant="ghost"
                 size="sm"
                 className="h-7 px-2 text-xs gap-1"
-                disabled={isGeneratingPersona || updateMutation.isPending}
+                disabled={isGeneratingPersona || savingField === "persona"}
                 onClick={() => {
                   void handleGeneratePersona();
                 }}
@@ -440,10 +462,10 @@ export function CommonStaffDetailSection({
                   <Button
                     size="sm"
                     className="h-7 text-xs"
-                    disabled={updateMutation.isPending}
+                    disabled={savingField === "persona"}
                     onClick={handleSavePersona}
                   >
-                    {updateMutation.isPending ? (
+                    {savingField === "persona" ? (
                       <Loader2 size={12} className="animate-spin mr-1" />
                     ) : (
                       <Check size={12} className="mr-1" />
@@ -489,7 +511,7 @@ export function CommonStaffDetailSection({
             <Select
               value={currentModelValue}
               onValueChange={handleModelChange}
-              disabled={updateMutation.isPending}
+              disabled={savingField === "model"}
             >
               <SelectTrigger className="w-52 h-8 text-sm">
                 <SelectValue placeholder="Select model..." />
@@ -515,7 +537,7 @@ export function CommonStaffDetailSection({
             <Select
               value={bot.mentorId ?? "__none__"}
               onValueChange={handleMentorChange}
-              disabled={updateMutation.isPending}
+              disabled={savingField === "mentor"}
             >
               <SelectTrigger className="w-52 h-8 text-sm">
                 <SelectValue placeholder="Select mentor..." />
@@ -549,10 +571,10 @@ export function CommonStaffDetailSection({
                   <Button
                     size="sm"
                     className="h-7 text-xs"
-                    disabled={updateMutation.isPending}
+                    disabled={savingField === "jobDescription"}
                     onClick={handleSaveJobDescription}
                   >
-                    {updateMutation.isPending ? (
+                    {savingField === "jobDescription" ? (
                       <Loader2 size={12} className="animate-spin mr-1" />
                     ) : (
                       <Check size={12} className="mr-1" />

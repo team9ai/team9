@@ -95,6 +95,9 @@ export function CreateCommonStaffDialog({
     null,
   );
   const [isGeneratingCandidates, setIsGeneratingCandidates] = useState(false);
+  const [candidateGenerationError, setCandidateGenerationError] = useState<
+    string | null
+  >(null);
   // Editable candidate fields (keyed by candidateIndex)
   const [editedCandidates, setEditedCandidates] = useState<
     Record<number, { displayName: string; roleTitle: string; persona: string }>
@@ -132,6 +135,7 @@ export function CreateCommonStaffDialog({
     setCandidates([]);
     setSelectedCandidate(null);
     setIsGeneratingCandidates(false);
+    setCandidateGenerationError(null);
     setEditedCandidates({});
   }, []);
 
@@ -216,6 +220,7 @@ export function CreateCommonStaffDialog({
     setCandidates([]);
     setSelectedCandidate(null);
     setEditedCandidates({});
+    setCandidateGenerationError(null);
     try {
       const stream = api.applications.generateCandidates(appId, {
         jobTitle: jobTitle || undefined,
@@ -233,6 +238,13 @@ export function CreateCommonStaffDialog({
           setCandidates((prev) => [...prev, c]);
         }
       }
+    } catch (error) {
+      console.error("Candidate generation failed:", error);
+      setCandidateGenerationError(
+        error instanceof Error
+          ? error.message
+          : "Failed to generate candidates",
+      );
     } finally {
       setIsGeneratingCandidates(false);
     }
@@ -267,7 +279,8 @@ export function CreateCommonStaffDialog({
     },
   });
 
-  const canProceedStep2 = displayName.trim().length > 0;
+  const canProceedStep2 =
+    displayName.trim().length > 0 && roleTitle.trim().length > 0;
   const totalSteps = mode === "form" ? 4 : mode === "agentic" ? 2 : 4;
 
   // ── Step 1: Mode Selection ──────────────────────────────────────────
@@ -329,7 +342,7 @@ export function CreateCommonStaffDialog({
       </div>
       <div>
         <label className="text-sm font-medium" htmlFor="roleTitle">
-          Role Title
+          Role Title *
         </label>
         <Input
           id="roleTitle"
@@ -591,6 +604,11 @@ export function CreateCommonStaffDialog({
         <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
           Generating candidates…
+        </div>
+      )}
+      {candidateGenerationError && (
+        <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {candidateGenerationError}
         </div>
       )}
       {candidates.length > 0 && (
@@ -888,6 +906,9 @@ export function CreateCommonStaffDialog({
                 }}
                 disabled={
                   (mode === "form" && step === 2 && !canProceedStep2) ||
+                  (mode === "recruitment" &&
+                    step === 3 &&
+                    isGeneratingCandidates) ||
                   (mode === "recruitment" &&
                     step === 3 &&
                     selectedCandidate === null &&
