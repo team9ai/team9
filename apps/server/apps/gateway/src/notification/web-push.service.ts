@@ -95,7 +95,7 @@ export class WebPushService implements OnModuleInit {
             await this.pushSubscriptionService.removeSubscription(sub.id);
           } else {
             this.logger.warn(
-              `Failed to send push to subscription ${sub.id}: ${error instanceof Error ? error.message : error}`,
+              `Failed to send push to subscription ${sub.id}: ${error instanceof Error ? error.message : String(error)}`,
             );
           }
         }

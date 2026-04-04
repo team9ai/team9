@@ -145,7 +145,7 @@ describe('NotificationPreferencesService', () => {
 
       expect(result.soundEnabled).toBe(false);
       // Verify onConflictDoUpdate was called with the right set fields
-      const callArgs = db.onConflictDoUpdate.mock.calls[0][0] as any;
+      const callArgs = db.onConflictDoUpdate.mock.calls[0][0];
       expect(callArgs.set).toHaveProperty('soundEnabled', false);
       expect(callArgs.set).toHaveProperty('updatedAt');
       expect(callArgs.set).not.toHaveProperty('mentionsEnabled');
@@ -173,7 +173,7 @@ describe('NotificationPreferencesService', () => {
       expect(result.dndStart).toEqual(new Date(dndStart));
       expect(result.dndEnd).toEqual(new Date(dndEnd));
 
-      const callArgs = db.onConflictDoUpdate.mock.calls[0][0] as any;
+      const callArgs = db.onConflictDoUpdate.mock.calls[0][0];
       expect(callArgs.set.dndStart).toEqual(new Date(dndStart));
       expect(callArgs.set.dndEnd).toEqual(new Date(dndEnd));
     });
@@ -213,7 +213,7 @@ describe('NotificationPreferencesService', () => {
 
       await service.upsertPreferences('user-uuid', {});
 
-      const callArgs = db.onConflictDoUpdate.mock.calls[0][0] as any;
+      const callArgs = db.onConflictDoUpdate.mock.calls[0][0];
       // Only updatedAt should be in the set clause
       expect(Object.keys(callArgs.set)).toEqual(['updatedAt']);
     });
@@ -233,12 +233,12 @@ describe('NotificationPreferencesService', () => {
       });
 
       // Insert fields should have null, not epoch Date
-      const insertCallArgs = db.values.mock.calls[0][0] as any;
+      const insertCallArgs = db.values.mock.calls[0][0];
       expect(insertCallArgs.dndStart).toBeNull();
       expect(insertCallArgs.dndEnd).toBeNull();
 
       // Update fields should also have null
-      const updateCallArgs = db.onConflictDoUpdate.mock.calls[0][0] as any;
+      const updateCallArgs = db.onConflictDoUpdate.mock.calls[0][0];
       expect(updateCallArgs.set.dndStart).toBeNull();
       expect(updateCallArgs.set.dndEnd).toBeNull();
     });
