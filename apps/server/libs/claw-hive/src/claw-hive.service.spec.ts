@@ -210,6 +210,103 @@ describe('ClawHiveService', () => {
     });
   });
 
+  // ── createSession ────────────────────────────────────────────────────────
+
+  describe('createSession', () => {
+    it('sends POST to /api/agents/:agentId/sessions with URL-encoded agent ID', async () => {
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({ sessionId: 'sess-abc' }, 201),
+      );
+
+      await service.createSession(
+        'common-staff-bot-1',
+        { userId: 'user-1' },
+        'tenant-123',
+      );
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://test-hive:9999/api/agents/common-staff-bot-1/sessions',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ userId: 'user-1' }),
+        }),
+      );
+    });
+
+    it('URL-encodes agent IDs with special characters', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({ sessionId: 'sess-1' }));
+
+      await service.createSession('common-staff/agent/with/slashes', {
+        userId: 'u1',
+      });
+
+      const calledUrl = (mockFetch.mock.calls[0] as any[])[0] as string;
+      expect(calledUrl).toBe(
+        'http://test-hive:9999/api/agents/common-staff%2Fagent%2Fwith%2Fslashes/sessions',
+      );
+    });
+
+    it('includes X-Hive-Tenant header when tenantId provided', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({ sessionId: 's1' }));
+
+      await service.createSession('agent-1', { userId: 'u1' }, 'tenant-abc');
+
+      const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const headers = opts.headers as Record<string, string>;
+      expect(headers['X-Hive-Tenant']).toBe('tenant-abc');
+    });
+
+    it('omits X-Hive-Tenant header when tenantId is not provided', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({ sessionId: 's1' }));
+
+      await service.createSession('agent-1', { userId: 'u1' });
+
+      const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const headers = opts.headers as Record<string, string>;
+      expect(headers['X-Hive-Tenant']).toBeUndefined();
+    });
+
+    it('forwards team9Context in the request body', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({ sessionId: 's1' }));
+
+      const team9Context = {
+        source: 'team9',
+        scopeType: 'dm',
+        scopeId: 'channel-1',
+        peerUserId: 'mentor-1',
+        isMentorDm: true,
+      };
+
+      await service.createSession(
+        'agent-1',
+        { userId: 'u1', team9Context },
+        'tenant-1',
+      );
+
+      const [, opts] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(opts.body as string) as Record<string, unknown>;
+      expect(body.team9Context).toEqual(team9Context);
+    });
+
+    it('returns the sessionId from the response', async () => {
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({ sessionId: 'new-session-id' }),
+      );
+
+      const result = await service.createSession('agent-1', { userId: 'u1' });
+
+      expect(result).toEqual({ sessionId: 'new-session-id' });
+    });
+
+    it('throws on non-ok response', async () => {
+      mockFetch.mockResolvedValueOnce(textResponse('Agent not found', 404));
+
+      await expect(
+        service.createSession('missing-agent', { userId: 'u1' }),
+      ).rejects.toThrow('Failed to create session: 404 Agent not found');
+    });
+  });
+
   // ── sendInput ────────────────────────────────────────────────────────────
 
   describe('sendInput', () => {

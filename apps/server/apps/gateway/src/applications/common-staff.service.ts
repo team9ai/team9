@@ -57,11 +57,13 @@ export class CommonStaffService {
    *
    * Steps:
    * 1. Verify the installed application is common-staff type
-   * 2. Create bot via BotService with managedProvider=hive
-   * 3. Set managedMeta.agentId = "common-staff-{botId}"
-   * 4. Set BotExtra.commonStaff via updateBotExtra
-   * 5. Register agent with claw-hive
-   * 6. Create DM channels for all workspace members
+   * 2. Auto-generate display name if agenticBootstrap is set and none provided
+   * 3. Create bot via BotService with managedProvider=hive
+   * 4. Set managedMeta.agentId = "common-staff-{botId}"
+   * 5. Set BotExtra.commonStaff via updateBotExtra
+   * 6. Register agent with claw-hive
+   * 7. Create DM channels for all workspace members
+   * 8. If agenticBootstrap, trigger a claw-hive session in the mentor DM
    */
   async createStaff(
     installedApplicationId: string,
@@ -85,7 +87,16 @@ export class CommonStaffService {
       );
     }
 
-    // 2. Create bot with managedProvider=hive
+    // 2. Auto-generate temporary display name for agentic bootstrap
+    if (dto.agenticBootstrap && !dto.displayName) {
+      const existingBots =
+        await this.botService.getBotsByInstalledApplicationId(
+          installedApplicationId,
+        );
+      dto.displayName = `Candidate #${existingBots.length + 1}`;
+    }
+
+    // 3. Create bot with managedProvider=hive
     const { bot, accessToken } = await this.botService.createWorkspaceBot({
       ownerId,
       tenantId,
@@ -100,7 +111,7 @@ export class CommonStaffService {
     const agentId = `common-staff-${bot.botId}`;
 
     try {
-      // 3. Update managedMeta with agentId
+      // 4. Update managedMeta with agentId
       await this.db
         .update(schema.bots)
         .set({
@@ -117,7 +128,7 @@ export class CommonStaffService {
           .where(eq(schema.users.id, bot.userId));
       }
 
-      // 4. Set BotExtra.commonStaff
+      // 5. Set BotExtra.commonStaff
       const extra: BotExtra = {
         commonStaff: {
           roleTitle: dto.roleTitle,
@@ -128,7 +139,7 @@ export class CommonStaffService {
       };
       await this.botService.updateBotExtra(bot.botId, extra);
 
-      // 5. Register agent with claw-hive
+      // 6. Register agent with claw-hive
       await this.clawHiveService.registerAgent({
         id: agentId,
         name: dto.displayName,
@@ -157,7 +168,7 @@ export class CommonStaffService {
         `Registered claw-hive agent ${agentId} for bot ${bot.botId}`,
       );
 
-      // 6. Create DM channels for workspace members
+      // 7. Create DM channels for workspace members
       const members = await this.db
         .select({ userId: schema.tenantMembers.userId })
         .from(schema.tenantMembers)
@@ -167,8 +178,9 @@ export class CommonStaffService {
         .map((m) => m.userId)
         .filter((uid) => uid !== bot.userId);
 
+      let dmChannelMap: Map<string, { id: string }> = new Map();
       if (memberUserIds.length > 0) {
-        await this.channelsService.createDirectChannelsBatch(
+        dmChannelMap = await this.channelsService.createDirectChannelsBatch(
           bot.userId,
           memberUserIds,
           tenantId,
@@ -176,6 +188,42 @@ export class CommonStaffService {
         this.logger.log(
           `Created DM channels for bot ${bot.botId} with ${memberUserIds.length} members`,
         );
+      }
+
+      // 8. Trigger bootstrap session in mentor DM if agenticBootstrap is set
+      if (dto.agenticBootstrap && dto.mentorId) {
+        const mentorDmChannel = dmChannelMap.get(dto.mentorId);
+        if (mentorDmChannel) {
+          try {
+            await this.clawHiveService.createSession(
+              agentId,
+              {
+                userId: dto.mentorId,
+                team9Context: {
+                  source: 'team9',
+                  scopeType: 'dm',
+                  scopeId: mentorDmChannel.id,
+                  peerUserId: dto.mentorId,
+                  isMentorDm: true,
+                },
+              },
+              tenantId,
+            );
+            this.logger.log(
+              `Triggered bootstrap session for agent ${agentId} in mentor DM channel ${mentorDmChannel.id}`,
+            );
+          } catch (bootstrapError) {
+            // Non-fatal: log warning but don't fail the entire creation
+            this.logger.warn(
+              `Failed to trigger bootstrap session for agent ${agentId}, continuing`,
+              bootstrapError,
+            );
+          }
+        } else {
+          this.logger.warn(
+            `agenticBootstrap set but no DM channel found for mentor ${dto.mentorId} — skipping bootstrap`,
+          );
+        }
       }
     } catch (error) {
       // Rollback: clean up bot

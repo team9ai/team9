@@ -121,6 +121,7 @@ describe('CommonStaffService', () => {
   let botService: {
     createWorkspaceBot: MockFn;
     getBotById: MockFn;
+    getBotsByInstalledApplicationId: MockFn;
     updateBotExtra: MockFn;
     updateBotDisplayName: MockFn;
     updateBotMentor: MockFn;
@@ -130,6 +131,7 @@ describe('CommonStaffService', () => {
     registerAgent: MockFn;
     updateAgent: MockFn;
     deleteAgent: MockFn;
+    createSession: MockFn;
   };
   let channelsService: { createDirectChannelsBatch: MockFn };
   let installedApplicationsService: { findById: MockFn };
@@ -141,6 +143,7 @@ describe('CommonStaffService', () => {
     botService = {
       createWorkspaceBot: jest.fn<any>().mockResolvedValue(makeBotResult()),
       getBotById: jest.fn<any>().mockResolvedValue(makeBotResult().bot),
+      getBotsByInstalledApplicationId: jest.fn<any>().mockResolvedValue([]),
       updateBotExtra: jest.fn<any>().mockResolvedValue(undefined),
       updateBotDisplayName: jest.fn<any>().mockResolvedValue(undefined),
       updateBotMentor: jest.fn<any>().mockResolvedValue(undefined),
@@ -151,6 +154,9 @@ describe('CommonStaffService', () => {
       registerAgent: jest.fn<any>().mockResolvedValue(undefined),
       updateAgent: jest.fn<any>().mockResolvedValue(undefined),
       deleteAgent: jest.fn<any>().mockResolvedValue(undefined),
+      createSession: jest
+        .fn<any>()
+        .mockResolvedValue({ sessionId: 'session-1234' }),
     };
 
     channelsService = {
@@ -324,12 +330,158 @@ describe('CommonStaffService', () => {
       );
     });
 
-    it('handles agenticBootstrap flag (flag stored in dto, no extra action)', async () => {
-      const dto = makeCreateDto({ agenticBootstrap: true });
-      // Should not throw; bootstrap trigger is Task 11
-      await expect(
-        service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto),
-      ).resolves.toBeDefined();
+    // ── agenticBootstrap ──────────────────────────────────────────────────────
+
+    describe('agenticBootstrap', () => {
+      const MENTOR_ID = OWNER_ID;
+      const DM_CHANNEL_ID = 'dm-channel-uuid-1234';
+
+      beforeEach(() => {
+        // Mentor DM channel is in the result map
+        channelsService.createDirectChannelsBatch.mockResolvedValue(
+          new Map([[MENTOR_ID, { id: DM_CHANNEL_ID }]]),
+        );
+        // tenant members includes mentor
+        db.where.mockResolvedValue([{ userId: MENTOR_ID }]);
+      });
+
+      it('triggers createSession with isMentorDm context when agenticBootstrap=true', async () => {
+        const dto = makeCreateDto({
+          agenticBootstrap: true,
+          mentorId: MENTOR_ID,
+        });
+        await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        expect(clawHiveService.createSession).toHaveBeenCalledWith(
+          AGENT_ID,
+          {
+            userId: MENTOR_ID,
+            team9Context: {
+              source: 'team9',
+              scopeType: 'dm',
+              scopeId: DM_CHANNEL_ID,
+              peerUserId: MENTOR_ID,
+              isMentorDm: true,
+            },
+          },
+          TENANT_ID,
+        );
+      });
+
+      it('does not trigger createSession when agenticBootstrap=false', async () => {
+        const dto = makeCreateDto({
+          agenticBootstrap: false,
+          mentorId: MENTOR_ID,
+        });
+        await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        expect(clawHiveService.createSession).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger createSession when agenticBootstrap is not set', async () => {
+        const dto = makeCreateDto({ mentorId: MENTOR_ID });
+        await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        expect(clawHiveService.createSession).not.toHaveBeenCalled();
+      });
+
+      it('does not trigger createSession when mentorId is not set', async () => {
+        const dto = makeCreateDto({
+          agenticBootstrap: true,
+          mentorId: undefined,
+        });
+        await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        expect(clawHiveService.createSession).not.toHaveBeenCalled();
+      });
+
+      it('skips bootstrap and warns when mentor has no DM channel', async () => {
+        // Return empty map — no DM for mentor
+        channelsService.createDirectChannelsBatch.mockResolvedValueOnce(
+          new Map(),
+        );
+
+        const dto = makeCreateDto({
+          agenticBootstrap: true,
+          mentorId: MENTOR_ID,
+        });
+        // Should not throw
+        await expect(
+          service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto),
+        ).resolves.toBeDefined();
+
+        expect(clawHiveService.createSession).not.toHaveBeenCalled();
+      });
+
+      it('does not fail entire creation when createSession throws', async () => {
+        clawHiveService.createSession.mockRejectedValueOnce(
+          new Error('Session service unavailable'),
+        );
+
+        const dto = makeCreateDto({
+          agenticBootstrap: true,
+          mentorId: MENTOR_ID,
+        });
+        // Should resolve successfully (bootstrap failure is non-fatal)
+        await expect(
+          service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto),
+        ).resolves.toBeDefined();
+      });
+
+      it('auto-generates displayName as "Candidate #N" when agenticBootstrap=true and displayName missing', async () => {
+        // 2 existing bots → next candidate is #3
+        botService.getBotsByInstalledApplicationId.mockResolvedValueOnce([
+          { botId: 'existing-1' },
+          { botId: 'existing-2' },
+        ]);
+
+        const dto: CreateCommonStaffDto = {
+          displayName: '',
+          model: { provider: 'anthropic', id: 'claude-3-5-sonnet-20241022' },
+          mentorId: MENTOR_ID,
+          agenticBootstrap: true,
+        };
+
+        await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        expect(botService.createWorkspaceBot).toHaveBeenCalledWith(
+          expect.objectContaining({ displayName: 'Candidate #3' }),
+        );
+      });
+
+      it('auto-generates "Candidate #1" when no existing bots', async () => {
+        botService.getBotsByInstalledApplicationId.mockResolvedValueOnce([]);
+
+        const dto: CreateCommonStaffDto = {
+          displayName: '',
+          model: { provider: 'anthropic', id: 'claude-3-5-sonnet-20241022' },
+          mentorId: MENTOR_ID,
+          agenticBootstrap: true,
+        };
+
+        await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        expect(botService.createWorkspaceBot).toHaveBeenCalledWith(
+          expect.objectContaining({ displayName: 'Candidate #1' }),
+        );
+      });
+
+      it('preserves provided displayName even when agenticBootstrap=true', async () => {
+        const dto = makeCreateDto({
+          agenticBootstrap: true,
+          displayName: 'Alice',
+          mentorId: MENTOR_ID,
+        });
+
+        await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        expect(
+          botService.getBotsByInstalledApplicationId,
+        ).not.toHaveBeenCalled();
+        expect(botService.createWorkspaceBot).toHaveBeenCalledWith(
+          expect.objectContaining({ displayName: 'Alice' }),
+        );
+      });
     });
 
     it('throws NotFoundException when installed application is not found', async () => {

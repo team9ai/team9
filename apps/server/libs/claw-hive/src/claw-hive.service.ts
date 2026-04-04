@@ -86,6 +86,30 @@ export class ClawHiveService {
     }
   }
 
+  async createSession(
+    agentId: string,
+    params: {
+      userId: string;
+      model?: { provider: string; id: string };
+      team9Context?: Record<string, unknown>;
+    },
+    tenantId?: string,
+  ): Promise<{ sessionId: string }> {
+    const res = await fetch(
+      `${this.baseUrl}/api/agents/${encodeURIComponent(agentId)}/sessions`,
+      {
+        method: 'POST',
+        headers: this.headers(tenantId),
+        body: JSON.stringify(params),
+      },
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Failed to create session: ${res.status} ${text}`);
+    }
+    return res.json() as Promise<{ sessionId: string }>;
+  }
+
   async sendInput(
     sessionId: string,
     event: {
