@@ -147,7 +147,7 @@ describe("useNotificationPreferences", () => {
     // undefined. onError should not attempt to set cache data in this case.
     mockGetPreferences.mockResolvedValue(undefined);
 
-    const { queryClient, wrapper } = createWrapper();
+    const { wrapper } = createWrapper();
 
     const { result } = renderHook(() => useNotificationPreferences(), {
       wrapper,
@@ -224,7 +224,7 @@ describe("useNotificationPreferences", () => {
     // Return no data on first fetch so the cache stays empty
     mockGetPreferences.mockResolvedValue(undefined);
 
-    const { queryClient, wrapper } = createWrapper();
+    const { wrapper } = createWrapper();
 
     const { result } = renderHook(() => useNotificationPreferences(), {
       wrapper,
@@ -245,11 +245,6 @@ describe("useNotificationPreferences", () => {
       await result.current.updatePreferences({ soundEnabled: false });
     });
 
-    // After mutation settles, invalidation triggers a refetch.
-    // The cache should still be undefined because the updater returned early.
-    const cacheBeforeRefetch = queryClient.getQueryData([
-      "notificationPreferences",
-    ]);
     // The important thing is the mutation completed without error;
     // the cache was not corrupted.
     expect(mockUpdatePreferences).toHaveBeenCalledWith({ soundEnabled: false });
