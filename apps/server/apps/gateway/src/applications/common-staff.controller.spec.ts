@@ -438,6 +438,7 @@ describe('CommonStaffController', () => {
     });
 
     it('writes error event and calls res.end() when stream throws', async () => {
+      // eslint-disable-next-line require-yield
       async function* errorStream(): AsyncGenerator<string> {
         throw new Error('Stream error');
       }
@@ -664,6 +665,7 @@ describe('CommonStaffController', () => {
     });
 
     it('writes error event and calls res.end() when stream throws', async () => {
+      // eslint-disable-next-line require-yield
       async function* errorStream(): AsyncGenerator<{
         type: 'candidate' | 'partial';
         data: unknown;

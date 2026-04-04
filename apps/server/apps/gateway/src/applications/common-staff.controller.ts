@@ -104,7 +104,7 @@ export class CommonStaffController {
         res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
       }
       res.write('data: [DONE]\n\n');
-    } catch (error) {
+    } catch (_error) {
       res.write(`data: ${JSON.stringify({ error: 'Stream error' })}\n\n`);
     } finally {
       res.end();
@@ -157,7 +157,7 @@ export class CommonStaffController {
         res.write(`data: ${JSON.stringify(chunk)}\n\n`);
       }
       res.write('data: [DONE]\n\n');
-    } catch (error) {
+    } catch (_error) {
       res.write(`data: ${JSON.stringify({ error: 'Stream error' })}\n\n`);
     } finally {
       res.end();

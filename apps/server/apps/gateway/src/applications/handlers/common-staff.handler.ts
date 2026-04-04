@@ -9,7 +9,7 @@ import type {
 export class CommonStaffHandler implements ApplicationHandler {
   readonly applicationId = 'common-staff';
 
-  async onInstall(_context: InstallContext): Promise<InstallResult> {
-    return {};
+  onInstall(_context: InstallContext): Promise<InstallResult> {
+    return Promise.resolve({});
   }
 }
