@@ -131,7 +131,7 @@ describe('CommonStaffService', () => {
     registerAgent: MockFn;
     updateAgent: MockFn;
     deleteAgent: MockFn;
-    createSession: MockFn;
+    sendInput: MockFn;
   };
   let channelsService: { createDirectChannelsBatch: MockFn };
   let installedApplicationsService: { findById: MockFn };
@@ -139,6 +139,8 @@ describe('CommonStaffService', () => {
 
   beforeEach(async () => {
     db = mockDb();
+    // Default: mentor membership check passes (limit(1) returns the mentor)
+    db.limit.mockResolvedValue([{ userId: OWNER_ID }]);
 
     botService = {
       createWorkspaceBot: jest.fn<any>().mockResolvedValue(makeBotResult()),
@@ -154,9 +156,7 @@ describe('CommonStaffService', () => {
       registerAgent: jest.fn<any>().mockResolvedValue(undefined),
       updateAgent: jest.fn<any>().mockResolvedValue(undefined),
       deleteAgent: jest.fn<any>().mockResolvedValue(undefined),
-      createSession: jest
-        .fn<any>()
-        .mockResolvedValue({ sessionId: 'session-1234' }),
+      sendInput: jest.fn<any>().mockResolvedValue({ messages: [] }),
     };
 
     channelsService = {
@@ -367,44 +367,44 @@ describe('CommonStaffService', () => {
         db.where.mockResolvedValue([{ userId: MENTOR_ID }]);
       });
 
-      it('triggers createSession with isMentorDm context when agenticBootstrap=true', async () => {
+      it('triggers sendInput with bootstrap event using deterministic sessionId when agenticBootstrap=true', async () => {
         const dto = makeCreateDto({
           agenticBootstrap: true,
           mentorId: MENTOR_ID,
         });
         await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
 
-        expect(clawHiveService.createSession).toHaveBeenCalledWith(
-          AGENT_ID,
-          {
-            userId: MENTOR_ID,
-            team9Context: {
-              source: 'team9',
-              scopeType: 'dm',
-              scopeId: DM_CHANNEL_ID,
-              peerUserId: MENTOR_ID,
+        const expectedSessionId = `team9/${TENANT_ID}/${AGENT_ID}/dm/${DM_CHANNEL_ID}`;
+        expect(clawHiveService.sendInput).toHaveBeenCalledWith(
+          expectedSessionId,
+          expect.objectContaining({
+            type: 'team9:bootstrap.start',
+            source: 'team9',
+            payload: {
+              mentorId: MENTOR_ID,
               isMentorDm: true,
+              channelId: DM_CHANNEL_ID,
             },
-          },
+          }),
           TENANT_ID,
         );
       });
 
-      it('does not trigger createSession when agenticBootstrap=false', async () => {
+      it('does not trigger sendInput when agenticBootstrap=false', async () => {
         const dto = makeCreateDto({
           agenticBootstrap: false,
           mentorId: MENTOR_ID,
         });
         await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
 
-        expect(clawHiveService.createSession).not.toHaveBeenCalled();
+        expect(clawHiveService.sendInput).not.toHaveBeenCalled();
       });
 
-      it('does not trigger createSession when agenticBootstrap is not set', async () => {
+      it('does not trigger sendInput when agenticBootstrap is not set', async () => {
         const dto = makeCreateDto({ mentorId: MENTOR_ID });
         await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
 
-        expect(clawHiveService.createSession).not.toHaveBeenCalled();
+        expect(clawHiveService.sendInput).not.toHaveBeenCalled();
       });
 
       it('falls back to ownerId when agenticBootstrap=true and mentorId is not set', async () => {
@@ -415,18 +415,18 @@ describe('CommonStaffService', () => {
         await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
 
         // Should fall back to ownerId (OWNER_ID === MENTOR_ID in this context)
-        expect(clawHiveService.createSession).toHaveBeenCalledWith(
-          AGENT_ID,
-          {
-            userId: OWNER_ID,
-            team9Context: {
-              source: 'team9',
-              scopeType: 'dm',
-              scopeId: DM_CHANNEL_ID,
-              peerUserId: OWNER_ID,
+        const expectedSessionId = `team9/${TENANT_ID}/${AGENT_ID}/dm/${DM_CHANNEL_ID}`;
+        expect(clawHiveService.sendInput).toHaveBeenCalledWith(
+          expectedSessionId,
+          expect.objectContaining({
+            type: 'team9:bootstrap.start',
+            source: 'team9',
+            payload: {
+              mentorId: OWNER_ID,
               isMentorDm: true,
+              channelId: DM_CHANNEL_ID,
             },
-          },
+          }),
           TENANT_ID,
         );
       });
@@ -446,11 +446,11 @@ describe('CommonStaffService', () => {
           service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto),
         ).resolves.toBeDefined();
 
-        expect(clawHiveService.createSession).not.toHaveBeenCalled();
+        expect(clawHiveService.sendInput).not.toHaveBeenCalled();
       });
 
-      it('does not fail entire creation when createSession throws', async () => {
-        clawHiveService.createSession.mockRejectedValueOnce(
+      it('does not fail entire creation when sendInput throws', async () => {
+        clawHiveService.sendInput.mockRejectedValueOnce(
           new Error('Session service unavailable'),
         );
 
@@ -518,6 +518,32 @@ describe('CommonStaffService', () => {
           expect.objectContaining({ displayName: 'Alice' }),
         );
       });
+    });
+
+    it('throws BadRequestException when mentorId is not a workspace member', async () => {
+      // Mentor validation uses db.limit(1) — return empty to simulate non-member
+      db.limit.mockResolvedValueOnce([]);
+
+      await expect(
+        service.createStaff(
+          INSTALLED_APP_ID,
+          TENANT_ID,
+          OWNER_ID,
+          makeCreateDto({ mentorId: 'non-member-user' }),
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('passes when mentorId is a valid workspace member', async () => {
+      // db.limit default already returns [{ userId: OWNER_ID }] from beforeEach
+      await expect(
+        service.createStaff(
+          INSTALLED_APP_ID,
+          TENANT_ID,
+          OWNER_ID,
+          makeCreateDto(),
+        ),
+      ).resolves.toBeDefined();
     });
 
     it('throws NotFoundException when installed application is not found', async () => {
@@ -620,6 +646,24 @@ describe('CommonStaffService', () => {
         BOT_ID,
         'new-mentor-id',
       );
+    });
+
+    it('throws BadRequestException when updated mentorId is not a workspace member', async () => {
+      // Mentor validation uses db.limit(1) — return empty to simulate non-member
+      db.limit.mockResolvedValueOnce([]);
+
+      const dto = makeUpdateDto({ mentorId: 'non-member-user' });
+      await expect(
+        service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('skips mentor validation when mentorId is empty string (clearing mentor)', async () => {
+      const dto = makeUpdateDto({ mentorId: '' });
+      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+
+      // Mentor cleared — no validation needed, sets to null
+      expect(botService.updateBotMentor).toHaveBeenCalledWith(BOT_ID, null);
     });
 
     it('sets mentor to null when mentorId is empty string', async () => {

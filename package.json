@@ -39,8 +39,12 @@
     "turbo": "^2.8.20"
   },
   "lint-staged": {
-    "*.{ts,tsx,js,jsx}": [
-      "eslint --fix",
+    "apps/client/**/*.{ts,tsx,js,jsx}": [
+      "eslint --fix --config apps/client/eslint.config.mjs",
+      "prettier --write"
+    ],
+    "apps/server/**/*.ts": [
+      "eslint --fix --config apps/server/eslint.config.mjs",
       "prettier --write"
     ],
     "*.{json,md,yaml,yml}": [

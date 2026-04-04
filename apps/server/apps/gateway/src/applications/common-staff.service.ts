@@ -100,6 +100,24 @@ export class CommonStaffService {
     // Default mentorId to the creating user if not provided
     const effectiveMentorId = dto.mentorId || ownerId;
 
+    // Validate mentor is a workspace member
+    const mentorMember = await this.db
+      .select({ userId: schema.tenantMembers.userId })
+      .from(schema.tenantMembers)
+      .where(
+        and(
+          eq(schema.tenantMembers.tenantId, tenantId),
+          eq(schema.tenantMembers.userId, effectiveMentorId),
+        ),
+      )
+      .limit(1);
+
+    if (mentorMember.length === 0) {
+      throw new BadRequestException(
+        `Mentor ${effectiveMentorId} is not a member of this workspace`,
+      );
+    }
+
     // 3. Create bot with managedProvider=hive
     const { bot, accessToken } = await this.botService.createWorkspaceBot({
       ownerId,
@@ -198,16 +216,17 @@ export class CommonStaffService {
         const mentorDmChannel = dmChannelMap.get(effectiveMentorId);
         if (mentorDmChannel) {
           try {
-            await this.clawHiveService.createSession(
-              agentId,
+            const sessionId = `team9/${tenantId}/${agentId}/dm/${mentorDmChannel.id}`;
+            await this.clawHiveService.sendInput(
+              sessionId,
               {
-                userId: effectiveMentorId,
-                team9Context: {
-                  source: 'team9',
-                  scopeType: 'dm',
-                  scopeId: mentorDmChannel.id,
-                  peerUserId: effectiveMentorId,
+                type: 'team9:bootstrap.start',
+                source: 'team9',
+                timestamp: new Date().toISOString(),
+                payload: {
+                  mentorId: effectiveMentorId,
                   isMentorDm: true,
+                  channelId: mentorDmChannel.id,
                 },
               },
               tenantId,
@@ -325,6 +344,25 @@ export class CommonStaffService {
     }
 
     if (dto.mentorId !== undefined) {
+      // Validate mentor is a workspace member (only when a non-empty mentorId is provided)
+      if (dto.mentorId) {
+        const mentorMember = await this.db
+          .select({ userId: schema.tenantMembers.userId })
+          .from(schema.tenantMembers)
+          .where(
+            and(
+              eq(schema.tenantMembers.tenantId, tenantId),
+              eq(schema.tenantMembers.userId, dto.mentorId),
+            ),
+          )
+          .limit(1);
+
+        if (mentorMember.length === 0) {
+          throw new BadRequestException(
+            `Mentor ${dto.mentorId} is not a member of this workspace`,
+          );
+        }
+      }
       await this.botService.updateBotMentor(botId, dto.mentorId || null);
     }
 

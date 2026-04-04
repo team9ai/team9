@@ -32,6 +32,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { api } from "@/services/api";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import { useCurrentUser } from "@/hooks/useAuth";
+import { useCreateDirectChannel } from "@/hooks/useChannels";
 import {
   COMMON_STAFF_MODELS,
   DEFAULT_STAFF_MODEL,
@@ -61,6 +62,7 @@ export function CreateCommonStaffDialog({
   const { data: currentUser } = useCurrentUser();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const createDirectChannel = useCreateDirectChannel();
 
   // Step state
   const [mode, setMode] = useState<CreationMode | null>(null);
@@ -223,13 +225,26 @@ export function CreateCommonStaffDialog({
         model: { provider: model.provider, id: model.id },
         agenticBootstrap: true,
       }),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       queryClient.invalidateQueries({
         queryKey: ["installed-applications-with-bots", workspaceId],
       });
-      navigate({ to: "/ai-staff/$staffId", params: { staffId: data.botId } });
       onOpenChange(false);
       resetForm();
+      // Navigate to the DM with the new bot so the bootstrap conversation is visible
+      try {
+        const channel = await createDirectChannel.mutateAsync(data.userId);
+        void navigate({
+          to: "/messages/$channelId",
+          params: { channelId: channel.id },
+        });
+      } catch {
+        // Fall back to the staff detail page if DM creation fails
+        void navigate({
+          to: "/ai-staff/$staffId",
+          params: { staffId: data.botId },
+        });
+      }
     },
     onError: (error) => {
       setFormError(
@@ -644,87 +659,15 @@ export function CreateCommonStaffDialog({
         <div className="space-y-3">
           {candidates.map((c) => {
             const edited = editedCandidates[c.candidateIndex];
-            const isSelected = selectedCandidate === c.candidateIndex;
             return (
-              <div
+              <StaffBadgeCard
                 key={c.candidateIndex}
-                className={`rounded-lg border p-3 cursor-pointer transition-all ${
-                  isSelected
-                    ? "border-primary bg-primary/5"
-                    : "hover:border-muted-foreground/40"
-                }`}
+                displayName={edited?.displayName ?? c.displayName}
+                roleTitle={edited?.roleTitle ?? c.roleTitle}
+                persona={edited?.persona ?? c.persona}
+                selected={selectedCandidate === c.candidateIndex}
                 onClick={() => setSelectedCandidate(c.candidateIndex)}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="flex-1 space-y-2">
-                    <div className="flex gap-2">
-                      <Input
-                        className="h-7 text-sm font-medium"
-                        value={edited?.displayName ?? c.displayName}
-                        onChange={(e) =>
-                          setEditedCandidates((prev) => ({
-                            ...prev,
-                            [c.candidateIndex]: {
-                              displayName: e.target.value,
-                              roleTitle:
-                                prev[c.candidateIndex]?.roleTitle ??
-                                c.roleTitle,
-                              persona:
-                                prev[c.candidateIndex]?.persona ?? c.persona,
-                            },
-                          }))
-                        }
-                        onClick={(e) => e.stopPropagation()}
-                        placeholder="Name"
-                      />
-                      <Input
-                        className="h-7 text-sm text-muted-foreground"
-                        value={edited?.roleTitle ?? c.roleTitle}
-                        onChange={(e) =>
-                          setEditedCandidates((prev) => ({
-                            ...prev,
-                            [c.candidateIndex]: {
-                              displayName:
-                                prev[c.candidateIndex]?.displayName ??
-                                c.displayName,
-                              roleTitle: e.target.value,
-                              persona:
-                                prev[c.candidateIndex]?.persona ?? c.persona,
-                            },
-                          }))
-                        }
-                        onClick={(e) => e.stopPropagation()}
-                        placeholder="Role"
-                      />
-                    </div>
-                    <textarea
-                      className="flex w-full rounded-md border border-input bg-background px-2 py-1 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      value={edited?.persona ?? c.persona}
-                      rows={2}
-                      onChange={(e) =>
-                        setEditedCandidates((prev) => ({
-                          ...prev,
-                          [c.candidateIndex]: {
-                            displayName:
-                              prev[c.candidateIndex]?.displayName ??
-                              c.displayName,
-                            roleTitle:
-                              prev[c.candidateIndex]?.roleTitle ?? c.roleTitle,
-                            persona: e.target.value,
-                          },
-                        }))
-                      }
-                      onClick={(e) => e.stopPropagation()}
-                      placeholder="Persona"
-                    />
-                    {c.summary && (
-                      <p className="text-xs text-muted-foreground">
-                        {c.summary}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
+              />
             );
           })}
         </div>

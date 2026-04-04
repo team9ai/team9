@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
+  Camera,
   Check,
   Pencil,
   Trash2,
@@ -21,6 +22,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,6 +54,11 @@ interface CommonStaffDetailSectionProps {
   workspaceId: string;
 }
 
+const DICEBEAR_PRESETS = Array.from({ length: 8 }, (_, i) => ({
+  url: `https://api.dicebear.com/9.x/avataaars/svg?seed=staff-${i}`,
+  seed: `staff-${i}`,
+}));
+
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleString();
 }
@@ -60,6 +71,9 @@ export function CommonStaffDetailSection({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const createDirectChannel = useCreateDirectChannel();
+
+  // Avatar popover state
+  const [avatarPopoverOpen, setAvatarPopoverOpen] = useState(false);
 
   // Inline editing state
   const [editingName, setEditingName] = useState(false);
@@ -203,6 +217,15 @@ export function CommonStaffDetailSection({
     );
   };
 
+  const handleAvatarSelect = (presetUrl: string) => {
+    setSavingField("avatar");
+    updateMutation.mutate(
+      { avatarUrl: presetUrl },
+      { onSettled: () => setSavingField(null) },
+    );
+    setAvatarPopoverOpen(false);
+  };
+
   const handleGeneratePersona = async () => {
     setIsGeneratingPersona(true);
     let generated = "";
@@ -243,17 +266,68 @@ export function CommonStaffDetailSection({
           <div className="flex items-start gap-4">
             {/* Avatar */}
             <div className="relative">
-              <Avatar className="w-16 h-16">
-                {bot.avatarUrl && (
-                  <AvatarImage
-                    src={bot.avatarUrl}
-                    alt={bot.displayName ?? "Staff avatar"}
-                  />
-                )}
-                <AvatarFallback className="bg-primary/10 text-primary font-bold text-lg">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
+              <Popover
+                open={avatarPopoverOpen}
+                onOpenChange={setAvatarPopoverOpen}
+              >
+                <PopoverTrigger asChild>
+                  <button
+                    className="group relative rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    aria-label="Change avatar"
+                    disabled={savingField === "avatar"}
+                  >
+                    <Avatar className="w-16 h-16">
+                      {bot.avatarUrl && (
+                        <AvatarImage
+                          src={bot.avatarUrl}
+                          alt={bot.displayName ?? "Staff avatar"}
+                        />
+                      )}
+                      <AvatarFallback className="bg-primary/10 text-primary font-bold text-lg">
+                        {savingField === "avatar" ? (
+                          <Loader2 size={20} className="animate-spin" />
+                        ) : (
+                          initials
+                        )}
+                      </AvatarFallback>
+                    </Avatar>
+                    {/* Hover overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+                      <Camera size={18} className="text-white" />
+                    </div>
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className="w-48 p-2"
+                  side="bottom"
+                  align="start"
+                >
+                  <p className="mb-2 px-1 text-xs font-medium text-muted-foreground">
+                    Choose avatar
+                  </p>
+                  <div className="grid grid-cols-4 gap-1">
+                    {DICEBEAR_PRESETS.map((preset) => (
+                      <button
+                        key={preset.seed}
+                        className={cn(
+                          "rounded-full overflow-hidden border-2 transition-all hover:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          bot.avatarUrl === preset.url
+                            ? "border-primary"
+                            : "border-transparent",
+                        )}
+                        onClick={() => handleAvatarSelect(preset.url)}
+                        aria-label={`Select avatar ${preset.seed}`}
+                      >
+                        <img
+                          src={preset.url}
+                          alt={preset.seed}
+                          className="h-9 w-9"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
               <div
                 className={cn(
                   "absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-background",
