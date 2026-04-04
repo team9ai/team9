@@ -2,9 +2,11 @@ import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 
 const mockStreamText = jest.fn<any>();
 
+const mockOutputObject = jest.fn<any>().mockReturnValue('mock-output-spec');
+
 jest.unstable_mockModule('ai', () => ({
   streamText: mockStreamText,
-  Output: { object: jest.fn().mockReturnValue('mock-output-spec') },
+  Output: { object: mockOutputObject },
 }));
 
 const { CommonStaffService } = await import('./common-staff.service.js');
@@ -275,6 +277,7 @@ describe('CommonStaffService', () => {
     // Candidate tests override with mockStreamTextWithOutputReturn
     mockStreamText.mockReset();
     mockStreamText.mockReturnValue(mockStreamTextReturn(['Hello', ' world']));
+    mockOutputObject.mockClear();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -1435,6 +1438,18 @@ describe('CommonStaffService', () => {
       ).toHaveLength(3);
     });
 
+    it('throws BadRequestException when application is not found', async () => {
+      installedApplicationsService.findById.mockResolvedValueOnce(null);
+
+      const gen = service.generateCandidates(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makeCandidatesDto(),
+      );
+
+      await expect(gen.next()).rejects.toThrow(BadRequestException);
+    });
+
     it('throws BadRequestException when application is not common-staff type', async () => {
       installedApplicationsService.findById.mockResolvedValueOnce(
         makeInstalledApp('openclaw'),
@@ -1465,9 +1480,15 @@ describe('CommonStaffService', () => {
       expect(mockStreamText).toHaveBeenCalledWith(
         expect.objectContaining({
           temperature: 0.95,
-          output: expect.anything(),
+          output: 'mock-output-spec',
         }),
       );
+      // Verify Output.object was called with the Zod schema
+      expect(mockOutputObject).toHaveBeenCalledTimes(1);
+      const schemaArg = mockOutputObject.mock.calls[0][0] as {
+        schema: { shape: Record<string, unknown> };
+      };
+      expect(schemaArg.schema).toBeDefined();
     });
 
     it('includes jobTitle and jobDescription in the prompt', async () => {
