@@ -8,6 +8,8 @@ import { ApplicationsController } from './applications.controller.js';
 import { ApplicationsService } from './applications.service.js';
 import { InstalledApplicationsController } from './installed-applications.controller.js';
 import { InstalledApplicationsService } from './installed-applications.service.js';
+import { CommonStaffController } from './common-staff.controller.js';
+import { CommonStaffService } from './common-staff.service.js';
 import {
   APPLICATION_HANDLERS,
   type ApplicationHandler,
@@ -21,10 +23,15 @@ import {
     RedisModule,
     ClawHiveModule,
   ],
-  controllers: [ApplicationsController, InstalledApplicationsController],
+  controllers: [
+    ApplicationsController,
+    InstalledApplicationsController,
+    CommonStaffController,
+  ],
   providers: [
     ApplicationsService,
     InstalledApplicationsService,
+    CommonStaffService,
     // Application handlers
     ...APPLICATION_HANDLERS,
     {
