@@ -37,6 +37,7 @@ import { getHttpErrorMessage } from "@/lib/http-error";
 import { cn } from "@/lib/utils";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import { BaseModelProductLogo } from "@/components/applications/BaseModelProductLogo";
+import { CreateCommonStaffDialog } from "@/components/ai-staff/CreateCommonStaffDialog";
 
 // ── Type guard ────────────────────────────────────────────────────────
 
@@ -428,6 +429,7 @@ export function AIStaffMainContent() {
   const { t } = useTranslation("navigation");
   const workspaceId = useSelectedWorkspaceId();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showCreateStaffDialog, setShowCreateStaffDialog] = useState(false);
 
   const {
     data: installedApps,
@@ -444,6 +446,10 @@ export function AIStaffMainContent() {
       (a) => a.applicationId === "openclaw" && a.status === "active",
     ) ?? [];
 
+  const commonStaffApp = installedApps?.find(
+    (a) => a.applicationId === "common-staff",
+  );
+
   return (
     <main className="h-full flex flex-col bg-background overflow-hidden">
       {/* Content Header */}
@@ -454,12 +460,24 @@ export function AIStaffMainContent() {
             {t("aiStaff")}
           </h2>
         </div>
-        {openClawApps.length > 0 && (
-          <Button size="sm" onClick={() => setShowCreateDialog(true)}>
-            <Plus size={14} className="mr-1" />
-            Create Agent
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {commonStaffApp && (
+            <Button size="sm" onClick={() => setShowCreateStaffDialog(true)}>
+              <Plus size={14} className="mr-1" />
+              Create Staff
+            </Button>
+          )}
+          {openClawApps.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowCreateDialog(true)}
+            >
+              <Plus size={14} className="mr-1" />
+              Create Agent
+            </Button>
+          )}
+        </div>
       </header>
 
       <Separator />
@@ -527,6 +545,14 @@ export function AIStaffMainContent() {
           workspaceId={workspaceId}
           open={showCreateDialog}
           onOpenChange={setShowCreateDialog}
+        />
+      )}
+
+      {commonStaffApp && (
+        <CreateCommonStaffDialog
+          appId={commonStaffApp.id}
+          open={showCreateStaffDialog}
+          onOpenChange={setShowCreateStaffDialog}
         />
       )}
     </main>
