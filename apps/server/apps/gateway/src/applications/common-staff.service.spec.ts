@@ -12,7 +12,11 @@ import type {
   CreateCommonStaffDto,
   UpdateCommonStaffDto,
 } from './dto/common-staff.dto.js';
-import type { GeneratePersonaDto } from './dto/generate-persona.dto.js';
+import type {
+  GeneratePersonaDto,
+  GenerateAvatarDto,
+  GenerateCandidatesDto,
+} from './dto/generate-persona.dto.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -791,6 +795,311 @@ describe('CommonStaffService', () => {
       }
 
       expect(chunks).toHaveLength(0);
+    });
+  });
+
+  // ── generateAvatar ────────────────────────────────────────────────────────────
+
+  describe('generateAvatar', () => {
+    const makeAvatarDto = (
+      overrides: Partial<GenerateAvatarDto> = {},
+    ): GenerateAvatarDto => ({
+      style: 'realistic',
+      displayName: 'Alex',
+      ...overrides,
+    });
+
+    it('returns an avatarUrl string', async () => {
+      const result = await service.generateAvatar(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makeAvatarDto(),
+      );
+
+      expect(result).toHaveProperty('avatarUrl');
+      expect(typeof result.avatarUrl).toBe('string');
+    });
+
+    it('encodes displayName in the placeholder URL', async () => {
+      const result = await service.generateAvatar(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makeAvatarDto({ displayName: 'Hello World' }),
+      );
+
+      expect(result.avatarUrl).toContain(encodeURIComponent('Hello World'));
+    });
+
+    it('falls back to "staff" seed when displayName is not provided', async () => {
+      const result = await service.generateAvatar(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makeAvatarDto({ displayName: undefined }),
+      );
+
+      expect(result.avatarUrl).toContain('staff');
+    });
+
+    it('throws BadRequestException when application is not common-staff type', async () => {
+      installedApplicationsService.findById.mockResolvedValueOnce(
+        makeInstalledApp('openclaw'),
+      );
+
+      await expect(
+        service.generateAvatar(INSTALLED_APP_ID, TENANT_ID, makeAvatarDto()),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('verifies app before generating (calls installedApplicationsService.findById)', async () => {
+      await service.generateAvatar(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makeAvatarDto(),
+      );
+
+      expect(installedApplicationsService.findById).toHaveBeenCalledWith(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+      );
+    });
+
+    it.each([
+      ['realistic', 'realistic'],
+      ['cartoon', 'cartoon'],
+      ['anime', 'anime'],
+      ['notion-lineart', 'notion-lineart'],
+    ] as const)('accepts style "%s" without throwing', async (style) => {
+      await expect(
+        service.generateAvatar(
+          INSTALLED_APP_ID,
+          TENANT_ID,
+          makeAvatarDto({ style }),
+        ),
+      ).resolves.toHaveProperty('avatarUrl');
+    });
+  });
+
+  // ── generateCandidates ────────────────────────────────────────────────────────
+
+  describe('generateCandidates', () => {
+    const makeCandidatesDto = (
+      overrides: Partial<GenerateCandidatesDto> = {},
+    ): GenerateCandidatesDto => ({
+      jobTitle: 'Software Engineer',
+      jobDescription: 'Write and review code',
+      ...overrides,
+    });
+
+    /** Build a chunk generator that emits newline-delimited JSON candidates */
+    function makeCandidateChunkGenerator(
+      candidates: object[],
+    ): AsyncGenerator<string> {
+      const lines = candidates.map((c) => JSON.stringify(c)).join('\n');
+      return makeChunkGenerator([lines]);
+    }
+
+    it('yields candidate events for valid JSON lines', async () => {
+      const candidates = [
+        {
+          candidateIndex: 1,
+          displayName: 'Alice',
+          roleTitle: 'Backend Engineer',
+          persona: 'Detail-oriented and methodical',
+          summary: 'Alice builds reliable systems.',
+        },
+        {
+          candidateIndex: 2,
+          displayName: 'Bob',
+          roleTitle: 'Frontend Engineer',
+          persona: 'Creative and visual',
+          summary: 'Bob crafts delightful UIs.',
+        },
+        {
+          candidateIndex: 3,
+          displayName: 'Carol',
+          roleTitle: 'DevOps Engineer',
+          persona: 'Pragmatic and resilient',
+          summary: 'Carol keeps systems running.',
+        },
+      ];
+
+      aiClientService.chat.mockReturnValueOnce(
+        makeCandidateChunkGenerator(candidates),
+      );
+
+      const events: { type: string; data: unknown }[] = [];
+      for await (const event of service.generateCandidates(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makeCandidatesDto(),
+      )) {
+        events.push(event);
+      }
+
+      const candidateEvents = events.filter((e) => e.type === 'candidate');
+      expect(candidateEvents).toHaveLength(3);
+      expect(
+        (candidateEvents[0].data as Record<string, unknown>)['displayName'],
+      ).toBe('Alice');
+      expect(
+        (candidateEvents[1].data as Record<string, unknown>)['displayName'],
+      ).toBe('Bob');
+      expect(
+        (candidateEvents[2].data as Record<string, unknown>)['displayName'],
+      ).toBe('Carol');
+    });
+
+    it('yields partial events for non-JSON text lines', async () => {
+      aiClientService.chat.mockReturnValueOnce(
+        makeChunkGenerator(['not-json-text\n']),
+      );
+
+      const events: { type: string; data: unknown }[] = [];
+      for await (const event of service.generateCandidates(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makeCandidatesDto(),
+      )) {
+        events.push(event);
+      }
+
+      const partialEvents = events.filter((e) => e.type === 'partial');
+      expect(partialEvents.length).toBeGreaterThan(0);
+    });
+
+    it('processes remaining buffer content after stream ends', async () => {
+      // Single candidate with no trailing newline — lands in the buffer
+      const candidate = {
+        candidateIndex: 1,
+        displayName: 'Dana',
+        roleTitle: 'QA Engineer',
+        persona: 'Meticulous tester',
+        summary: 'Dana finds bugs before users do.',
+      };
+      aiClientService.chat.mockReturnValueOnce(
+        makeChunkGenerator([JSON.stringify(candidate)]), // no trailing newline
+      );
+
+      const events: { type: string; data: unknown }[] = [];
+      for await (const event of service.generateCandidates(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makeCandidatesDto(),
+      )) {
+        events.push(event);
+      }
+
+      const candidateEvents = events.filter((e) => e.type === 'candidate');
+      expect(candidateEvents).toHaveLength(1);
+      expect(
+        (candidateEvents[0].data as Record<string, unknown>)['displayName'],
+      ).toBe('Dana');
+    });
+
+    it('throws BadRequestException when application is not common-staff type', async () => {
+      installedApplicationsService.findById.mockResolvedValueOnce(
+        makeInstalledApp('openclaw'),
+      );
+
+      const gen = service.generateCandidates(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makeCandidatesDto(),
+      );
+
+      await expect(gen.next()).rejects.toThrow(BadRequestException);
+    });
+
+    it('calls aiClientService.chat with streaming enabled', async () => {
+      aiClientService.chat.mockReturnValueOnce(makeChunkGenerator([]));
+
+      for await (const _ of service.generateCandidates(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makeCandidatesDto(),
+      )) {
+        // consume
+      }
+
+      expect(aiClientService.chat).toHaveBeenCalledWith(
+        expect.objectContaining({ stream: true }),
+      );
+    });
+
+    it('includes jobTitle and jobDescription in the user message', async () => {
+      aiClientService.chat.mockReturnValueOnce(makeChunkGenerator([]));
+
+      for await (const _ of service.generateCandidates(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makeCandidatesDto({
+          jobTitle: 'Data Scientist',
+          jobDescription: 'Build ML models',
+        }),
+      )) {
+        // consume
+      }
+
+      const callArg = aiClientService.chat.mock.calls[0][0] as {
+        messages: { role: string; content: string }[];
+      };
+      const userMessage = callArg.messages.find((m) => m.role === 'user');
+      expect(userMessage?.content).toContain('Data Scientist');
+      expect(userMessage?.content).toContain('Build ML models');
+    });
+
+    it('uses a default message when no job info provided', async () => {
+      aiClientService.chat.mockReturnValueOnce(makeChunkGenerator([]));
+
+      for await (const _ of service.generateCandidates(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        {},
+      )) {
+        // consume
+      }
+
+      const callArg = aiClientService.chat.mock.calls[0][0] as {
+        messages: { role: string; content: string }[];
+      };
+      const userMessage = callArg.messages.find((m) => m.role === 'user');
+      expect(userMessage?.content).toBeTruthy();
+    });
+
+    it('skips JSON objects without candidateIndex', async () => {
+      // Objects missing candidateIndex should not be yielded as candidates
+      aiClientService.chat.mockReturnValueOnce(
+        makeChunkGenerator([
+          '{"displayName": "NoIndex", "roleTitle": "Tester"}\n',
+        ]),
+      );
+
+      const events: { type: string; data: unknown }[] = [];
+      for await (const event of service.generateCandidates(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makeCandidatesDto(),
+      )) {
+        events.push(event);
+      }
+
+      const candidateEvents = events.filter((e) => e.type === 'candidate');
+      expect(candidateEvents).toHaveLength(0);
+    });
+
+    it('yields empty when AI returns no output', async () => {
+      aiClientService.chat.mockReturnValueOnce(makeChunkGenerator([]));
+
+      const events: { type: string; data: unknown }[] = [];
+      for await (const event of service.generateCandidates(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makeCandidatesDto(),
+      )) {
+        events.push(event);
+      }
+
+      expect(events).toHaveLength(0);
     });
   });
 });

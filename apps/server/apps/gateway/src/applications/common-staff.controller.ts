@@ -20,7 +20,11 @@ import {
   CreateCommonStaffDto,
   UpdateCommonStaffDto,
 } from './dto/common-staff.dto.js';
-import { GeneratePersonaDto } from './dto/generate-persona.dto.js';
+import {
+  GeneratePersonaDto,
+  GenerateAvatarDto,
+  GenerateCandidatesDto,
+} from './dto/generate-persona.dto.js';
 
 @Controller({
   path: 'installed-applications/:id/common-staff',
@@ -97,6 +101,54 @@ export class CommonStaffController {
     );
     for await (const chunk of stream) {
       res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
+    }
+    res.write('data: [DONE]\n\n');
+    res.end();
+  }
+
+  /**
+   * Generate a placeholder avatar URL for an AI staff member.
+   *
+   * Maps the requested style to a prompt template and combines it with staff
+   * info context.  Returns a placeholder URL until a real image generation API
+   * is integrated.
+   */
+  @Post('generate-avatar')
+  async generateAvatar(
+    @Param('id') appId: string,
+    @CurrentTenantId() tenantId: string,
+    @Body() dto: GenerateAvatarDto,
+  ) {
+    return this.commonStaffService.generateAvatar(appId, tenantId, dto);
+  }
+
+  /**
+   * Stream 3 AI employee candidate role cards via SSE.
+   *
+   * Each candidate event carries a structured JSON object with displayName,
+   * roleTitle, persona, and summary fields.  Partial text chunks are emitted
+   * as the AI streams its response.  The stream ends with a [DONE] sentinel.
+   */
+  @Post('generate-candidates')
+  @Header('Content-Type', 'text/event-stream')
+  @Header('Cache-Control', 'no-cache')
+  @Header('Connection', 'keep-alive')
+  async generateCandidates(
+    @Param('id') appId: string,
+    @CurrentTenantId() tenantId: string,
+    @Body() dto: GenerateCandidatesDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+
+    const stream = this.commonStaffService.generateCandidates(
+      appId,
+      tenantId,
+      dto,
+    );
+    for await (const chunk of stream) {
+      res.write(`data: ${JSON.stringify(chunk)}\n\n`);
     }
     res.write('data: [DONE]\n\n');
     res.end();

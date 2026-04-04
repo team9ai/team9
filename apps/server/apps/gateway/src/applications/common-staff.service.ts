@@ -22,7 +22,11 @@ import type {
   CreateCommonStaffDto,
   UpdateCommonStaffDto,
 } from './dto/common-staff.dto.js';
-import type { GeneratePersonaDto } from './dto/generate-persona.dto.js';
+import type {
+  GeneratePersonaDto,
+  GenerateAvatarDto,
+  GenerateCandidatesDto,
+} from './dto/generate-persona.dto.js';
 
 export interface CommonStaffResult {
   botId: string;
@@ -439,6 +443,137 @@ export class CommonStaffService {
 
     for await (const chunk of stream) {
       yield chunk;
+    }
+  }
+
+  /**
+   * Generate an avatar for a common-staff member.
+   *
+   * Maps the requested style to a prompt template and combines it with staff
+   * info context.  Returns a placeholder URL until a real image generation API
+   * is integrated.
+   */
+  async generateAvatar(
+    appId: string,
+    tenantId: string,
+    dto: GenerateAvatarDto,
+  ): Promise<{ avatarUrl: string }> {
+    // Verify app is common-staff type
+    const app = await this.installedApplicationsService.findById(
+      appId,
+      tenantId,
+    );
+    if (!app || app.applicationId !== COMMON_STAFF_APPLICATION_ID) {
+      throw new BadRequestException('Not a common-staff application');
+    }
+
+    // TODO: Integrate with image generation API (e.g., DALL-E, Midjourney API)
+    // For now return a placeholder based on style
+    const stylePrompts: Record<string, string> = {
+      realistic: 'Professional photorealistic portrait',
+      cartoon: 'Colorful cartoon illustration portrait',
+      anime: 'Anime style character portrait',
+      'notion-lineart': 'Minimalist black and white line art portrait',
+    };
+
+    const basePrompt = stylePrompts[dto.style] ?? stylePrompts['realistic'];
+    // Build full prompt combining style + context
+    const parts = [basePrompt];
+    if (dto.displayName) parts.push(`of ${dto.displayName}`);
+    if (dto.roleTitle) parts.push(`working as ${dto.roleTitle}`);
+    if (dto.prompt) parts.push(dto.prompt);
+
+    this.logger.log(`Avatar generation prompt: ${parts.join(', ')}`);
+
+    // Placeholder until image generation API is integrated
+    return {
+      avatarUrl: `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(dto.displayName ?? 'staff')}`,
+    };
+  }
+
+  /**
+   * Stream 3 diverse AI employee candidate role cards via SSE.
+   *
+   * Builds a prompt to generate 3 diverse candidate profiles and streams
+   * structured JSON objects for each candidate as they are parsed from the
+   * AI response.
+   */
+  async *generateCandidates(
+    appId: string,
+    tenantId: string,
+    dto: GenerateCandidatesDto,
+  ): AsyncGenerator<{ type: 'candidate' | 'partial'; data: unknown }> {
+    // Verify app is common-staff type
+    const app = await this.installedApplicationsService.findById(
+      appId,
+      tenantId,
+    );
+    if (!app || app.applicationId !== COMMON_STAFF_APPLICATION_ID) {
+      throw new BadRequestException('Not a common-staff application');
+    }
+
+    // Build prompt for 3 candidates
+    const systemPrompt = `You are a creative HR consultant. Generate exactly 3 diverse AI employee candidate profiles.
+Each candidate should be unique and interesting with distinct personality traits.
+
+Output EXACTLY 3 candidates as JSON objects, one per line, in this format:
+{"candidateIndex": 1, "displayName": "...", "roleTitle": "...", "persona": "...", "summary": "..."}
+{"candidateIndex": 2, "displayName": "...", "roleTitle": "...", "persona": "...", "summary": "..."}
+{"candidateIndex": 3, "displayName": "...", "roleTitle": "...", "persona": "...", "summary": "..."}
+
+The persona should be personality-rich: include character traits, communication style, work habits, and quirks.
+Each summary should be 1-2 sentences capturing the candidate's essence.`;
+
+    const userMessageParts: string[] = [];
+    if (dto.jobTitle) userMessageParts.push(`Job Title: ${dto.jobTitle}`);
+    if (dto.jobDescription)
+      userMessageParts.push(`Job Description: ${dto.jobDescription}`);
+    if (userMessageParts.length === 0)
+      userMessageParts.push('Generate 3 diverse AI employee candidates.');
+
+    // Stream from AI
+    const stream = this.aiClientService.chat({
+      provider: AIProvider.CLAUDE,
+      model: 'claude-3-5-haiku-20241022',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessageParts.join('\n') },
+      ],
+      stream: true,
+      temperature: 0.95,
+    });
+
+    // Accumulate and parse JSON lines
+    let buffer = '';
+    for await (const chunk of stream) {
+      buffer += chunk;
+      // Try to parse complete JSON lines
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          const candidate = JSON.parse(trimmed) as Record<string, unknown>;
+          if (candidate['candidateIndex']) {
+            yield { type: 'candidate', data: candidate };
+          }
+        } catch {
+          // Partial JSON, yield as partial text
+          yield { type: 'partial', data: { text: trimmed } };
+        }
+      }
+    }
+    // Process remaining buffer
+    if (buffer.trim()) {
+      try {
+        const candidate = JSON.parse(buffer.trim()) as Record<string, unknown>;
+        if (candidate['candidateIndex']) {
+          yield { type: 'candidate', data: candidate };
+        }
+      } catch {
+        yield { type: 'partial', data: { text: buffer.trim() } };
+      }
     }
   }
 }
