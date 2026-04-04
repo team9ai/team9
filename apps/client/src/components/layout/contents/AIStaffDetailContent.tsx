@@ -53,8 +53,10 @@ import { WorkspaceFileBrowserContent } from "./WorkspaceFileBrowserContent";
 import { BaseModelProductLogo } from "@/components/applications/BaseModelProductLogo";
 import { getBaseModelProductMeta } from "@/lib/base-model-agent";
 import { useCreateDirectChannel } from "@/hooks/useChannels";
+import { CommonStaffDetailSection } from "@/components/ai-staff/CommonStaffDetailSection";
 import type {
   BaseModelStaffBotInfo,
+  CommonStaffBotInfo,
   OpenClawBotInfo,
 } from "@/services/api/applications";
 
@@ -82,14 +84,24 @@ interface AIStaffDetailContentProps {
   staffId: string; // botId
 }
 
-type AIStaffBot = OpenClawBotInfo | BaseModelStaffBotInfo;
+type AIStaffBot = OpenClawBotInfo | BaseModelStaffBotInfo | CommonStaffBotInfo;
 
 function isOpenClawBot(bot: AIStaffBot): bot is OpenClawBotInfo {
-  return "agentId" in bot;
+  return "agentId" in bot && "workspace" in bot;
 }
 
 function isBaseModelStaffBot(bot: AIStaffBot): bot is BaseModelStaffBotInfo {
-  return "managedMeta" in bot;
+  return "managedMeta" in bot && "agentType" in bot;
+}
+
+function isCommonStaffBot(bot: AIStaffBot): bot is CommonStaffBotInfo {
+  return (
+    "managedMeta" in bot &&
+    typeof (bot as CommonStaffBotInfo).managedMeta?.agentId === "string" &&
+    ((bot as CommonStaffBotInfo).managedMeta?.agentId ?? "").startsWith(
+      "common-staff-",
+    )
+  );
 }
 
 export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
@@ -127,6 +139,8 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
 
   const currentApp = currentStaff?.app ?? null;
   const currentBot = currentStaff?.bot ?? null;
+  const commonStaffBot =
+    currentBot && isCommonStaffBot(currentBot) ? currentBot : null;
   const openClawBot =
     currentBot && isOpenClawBot(currentBot) ? currentBot : null;
   const baseModelBot =
@@ -242,7 +256,10 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
   });
 
   const humanMembers = useMemo(
-    () => membersData?.members?.filter((m) => m.userType === "human") ?? [],
+    () =>
+      membersData?.members?.filter(
+        (m) => !m.userType || m.userType === "human",
+      ) ?? [],
     [membersData],
   );
 
@@ -411,9 +428,9 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
                           />
                         </div>
                       )}
-                      {currentBot.username && (
+                      {openClawBot.username && (
                         <p className="text-sm text-muted-foreground">
-                          @{currentBot.username}
+                          @{openClawBot.username}
                         </p>
                       )}
                       <div className="flex items-center gap-2 mt-1">
@@ -442,7 +459,7 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
                       size="sm"
                       className="shrink-0"
                       disabled={
-                        createDirectChannel.isPending || !currentBot.userId
+                        createDirectChannel.isPending || !openClawBot.userId
                       }
                       onClick={() => {
                         void handleOpenChat();
@@ -456,9 +473,9 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
                   {/* Mentor */}
                   <div className="flex items-center justify-between mt-4">
                     <div className="flex items-center gap-2">
-                      {currentBot.mentorAvatarUrl ? (
+                      {openClawBot.mentorAvatarUrl ? (
                         <Avatar className="w-5 h-5">
-                          <AvatarImage src={currentBot.mentorAvatarUrl} />
+                          <AvatarImage src={openClawBot.mentorAvatarUrl} />
                         </Avatar>
                       ) : (
                         <Avatar className="w-5 h-5">
@@ -844,7 +861,7 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
                         size="sm"
                         className="shrink-0"
                         disabled={
-                          createDirectChannel.isPending || !currentBot.userId
+                          createDirectChannel.isPending || !baseModelBot.userId
                         }
                         onClick={() => {
                           void handleOpenChat();
@@ -894,6 +911,16 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
                   </CardContent>
                 </Card>
               </div>
+            )}
+
+          {!isLoading &&
+            commonStaffBot &&
+            currentApp?.applicationId === "common-staff" && (
+              <CommonStaffDetailSection
+                bot={commonStaffBot}
+                app={currentApp}
+                workspaceId={workspaceId!}
+              />
             )}
         </div>
       </ScrollArea>

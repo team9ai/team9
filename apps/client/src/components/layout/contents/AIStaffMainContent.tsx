@@ -28,6 +28,7 @@ import { slugify } from "transliteration";
 import { api } from "@/services/api";
 import type {
   BaseModelStaffBotInfo,
+  CommonStaffBotInfo,
   InstalledApplicationWithBots,
   OpenClawBotInfo,
   OpenClawInstanceStatus,
@@ -36,17 +37,28 @@ import { getHttpErrorMessage } from "@/lib/http-error";
 import { cn } from "@/lib/utils";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import { BaseModelProductLogo } from "@/components/applications/BaseModelProductLogo";
+import { CreateCommonStaffDialog } from "@/components/ai-staff/CreateCommonStaffDialog";
 
 // ── Type guard ────────────────────────────────────────────────────────
 
-type AIStaffBot = OpenClawBotInfo | BaseModelStaffBotInfo;
+type AIStaffBot = OpenClawBotInfo | BaseModelStaffBotInfo | CommonStaffBotInfo;
 
 function isOpenClawBot(bot: AIStaffBot): bot is OpenClawBotInfo {
-  return "agentId" in bot;
+  return "agentId" in bot && "workspace" in bot;
 }
 
 function isBaseModelStaffBot(bot: AIStaffBot): bot is BaseModelStaffBotInfo {
-  return "managedMeta" in bot;
+  return "managedMeta" in bot && "agentType" in bot;
+}
+
+function isCommonStaffBot(bot: AIStaffBot): bot is CommonStaffBotInfo {
+  return (
+    "managedMeta" in bot &&
+    typeof (bot as CommonStaffBotInfo).managedMeta?.agentId === "string" &&
+    ((bot as CommonStaffBotInfo).managedMeta?.agentId ?? "").startsWith(
+      "common-staff-",
+    )
+  );
 }
 
 // ── Per-bot card ─────────────────────────────────────────────────────
@@ -65,7 +77,11 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
   const initials = displayName.slice(0, 2).toUpperCase();
   const isOcBot = isOpenClawBot(bot);
   const isBaseModelBot = isBaseModelStaffBot(bot);
+  const isCommonStaff = isCommonStaffBot(bot);
   const isDefault = isOcBot && !bot.agentId;
+
+  // For common staff, derive status from bot.isActive since no instanceStatus
+  const isActiveBot = isCommonStaff ? bot.isActive : isRunning;
 
   return (
     <Card
@@ -84,6 +100,16 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
             <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-background ring-1 ring-border/50">
               <BaseModelProductLogo agentId={bot.managedMeta?.agentId} />
             </div>
+          ) : isCommonStaff && bot.avatarUrl ? (
+            <Avatar className="w-12 h-12">
+              <AvatarImage
+                src={bot.avatarUrl}
+                alt={bot.displayName ?? "Staff"}
+              />
+              <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
           ) : (
             <Avatar className="w-12 h-12">
               <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
@@ -94,7 +120,7 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
           <div
             className={cn(
               "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-background",
-              isRunning ? "bg-success" : "bg-muted-foreground",
+              isActiveBot ? "bg-success" : "bg-muted-foreground",
             )}
           />
         </div>
@@ -111,6 +137,14 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
                 className="shrink-0 text-[10px] px-1.5 py-0"
               >
                 {isDefault ? "Default" : "Agent"}
+              </Badge>
+            )}
+            {isCommonStaff && bot.roleTitle && (
+              <Badge
+                variant="outline"
+                className="shrink-0 text-[10px] px-1.5 py-0"
+              >
+                {bot.roleTitle}
               </Badge>
             )}
           </div>
@@ -132,11 +166,14 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
               </span>
             )}
           </p>
-          {isOcBot && bot.mentorDisplayName && (
+          {(isOcBot || isCommonStaff) && bot.mentorDisplayName && (
             <div className="flex items-center gap-1 mt-1">
               <Avatar className="w-4 h-4">
                 {bot.mentorAvatarUrl ? (
-                  <AvatarImage src={bot.mentorAvatarUrl} />
+                  <AvatarImage
+                    src={bot.mentorAvatarUrl}
+                    alt={bot.mentorDisplayName}
+                  />
                 ) : (
                   <AvatarFallback className="bg-muted text-muted-foreground text-[8px]">
                     <User size={10} />
@@ -382,6 +419,7 @@ export function AIStaffMainContent() {
   const { t } = useTranslation("navigation");
   const workspaceId = useSelectedWorkspaceId();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showCreateStaffDialog, setShowCreateStaffDialog] = useState(false);
 
   const {
     data: installedApps,
@@ -398,6 +436,10 @@ export function AIStaffMainContent() {
       (a) => a.applicationId === "openclaw" && a.status === "active",
     ) ?? [];
 
+  const commonStaffApp = installedApps?.find(
+    (a) => a.applicationId === "common-staff",
+  );
+
   return (
     <main className="h-full flex flex-col bg-background overflow-hidden">
       {/* Content Header */}
@@ -408,12 +450,24 @@ export function AIStaffMainContent() {
             {t("aiStaff")}
           </h2>
         </div>
-        {openClawApps.length > 0 && (
-          <Button size="sm" onClick={() => setShowCreateDialog(true)}>
-            <Plus size={14} className="mr-1" />
-            Create Agent
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {commonStaffApp && (
+            <Button size="sm" onClick={() => setShowCreateStaffDialog(true)}>
+              <Plus size={14} className="mr-1" />
+              Create Staff
+            </Button>
+          )}
+          {openClawApps.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowCreateDialog(true)}
+            >
+              <Plus size={14} className="mr-1" />
+              Create Agent
+            </Button>
+          )}
+        </div>
       </header>
 
       <Separator />
@@ -481,6 +535,14 @@ export function AIStaffMainContent() {
           workspaceId={workspaceId}
           open={showCreateDialog}
           onOpenChange={setShowCreateDialog}
+        />
+      )}
+
+      {commonStaffApp && (
+        <CreateCommonStaffDialog
+          appId={commonStaffApp.id}
+          open={showCreateStaffDialog}
+          onOpenChange={setShowCreateStaffDialog}
         />
       )}
     </main>

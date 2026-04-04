@@ -100,7 +100,7 @@ describe('ChannelsController', () => {
     websocketGateway = {
       broadcastToWorkspace: jest.fn<any>().mockResolvedValue(undefined),
       sendToUser: jest.fn<any>().mockResolvedValue(undefined),
-      sendToChannelMembers: jest.fn<any>().mockResolvedValue(undefined),
+      sendToChannelMembers: jest.fn<any>().mockResolvedValue(true),
     };
 
     eventEmitter = {

@@ -28,6 +28,12 @@ export interface BotExtra {
     agentId?: string; // OpenClaw agent ID; absent means default agent
     workspace?: string; // OpenClaw workspace name; absent means "default"
   };
+  commonStaff?: {
+    roleTitle?: string;
+    persona?: string;
+    jobDescription?: string;
+    model?: { provider: string; id: string };
+  };
 }
 
 export interface ManagedMeta {

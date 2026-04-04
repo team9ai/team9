@@ -1,4 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
 import {
   DATABASE_CONNECTION,
   and,
@@ -18,6 +18,8 @@ const CACHE_TTL_SECONDS = 300;
 
 @Injectable()
 export class ChannelMemberCacheService {
+  private readonly logger = new Logger(ChannelMemberCacheService.name);
+
   // Inflight map for stampede prevention: key -> Promise<string[]>
   private readonly inflight = new Map<string, Promise<string[]>>();
 
@@ -68,6 +70,8 @@ export class ChannelMemberCacheService {
   /**
    * Queries DB for active members and writes result to Redis.
    * Throws if DB query fails — does NOT write to Redis in that case.
+   * Redis cache write is best-effort: failure is logged but does not
+   * prevent member IDs from being returned to callers.
    */
   private async fetchAndCache(
     channelId: string,
@@ -88,12 +92,19 @@ export class ChannelMemberCacheService {
       (row: { userId: string }) => row.userId,
     );
 
-    // Write to Redis with TTL — only on success
-    await this.redisService.set(
-      cacheKey,
-      JSON.stringify(memberIds),
-      CACHE_TTL_SECONDS,
-    );
+    // Best-effort cache write — a Redis failure must not prevent
+    // the caller from receiving the member list and delivering messages.
+    try {
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(memberIds),
+        CACHE_TTL_SECONDS,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Failed to cache channel members for ${channelId}: ${(error as Error).message}`,
+      );
+    }
 
     return memberIds;
   }

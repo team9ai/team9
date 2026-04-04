@@ -7,15 +7,16 @@ import { BaseModelProductLogo } from "@/components/applications/BaseModelProduct
 import { getBaseModelProductMeta } from "@/lib/base-model-agent";
 import type {
   BaseModelStaffBotInfo,
+  CommonStaffBotInfo,
   OpenClawBotInfo,
 } from "@/services/api/applications";
 import type { AppConfigPanelProps } from "./registry";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 
 function isBaseModelStaffBot(
-  bot: OpenClawBotInfo | BaseModelStaffBotInfo,
+  bot: OpenClawBotInfo | BaseModelStaffBotInfo | CommonStaffBotInfo,
 ): bot is BaseModelStaffBotInfo {
-  return "managedMeta" in bot;
+  return "managedMeta" in bot && "agentType" in bot;
 }
 
 export function BaseModelStaffBotsTab({ installedApp }: AppConfigPanelProps) {

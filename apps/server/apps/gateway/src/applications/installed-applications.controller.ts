@@ -22,6 +22,7 @@ import {
   DATABASE_CONNECTION,
   eq,
   and,
+  inArray,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -180,6 +181,44 @@ export class InstalledApplicationsController {
               agentType,
               username: bot.username,
               displayName: bot.displayName,
+              isActive: bot.isActive,
+              createdAt: bot.createdAt,
+              managedMeta: bot.managedMeta,
+            })),
+            instanceStatus: null,
+          };
+        }
+
+        if (app.applicationId === 'common-staff') {
+          const bots = await this.getBotsOrEmpty(app.id);
+          // Fetch bot user avatar URLs via direct DB join
+          const botUserIds = bots.map((bot) => bot.userId);
+          let avatarMap: Map<string, string | null> = new Map();
+          if (botUserIds.length > 0) {
+            const userRows = await this.db
+              .select({
+                id: schema.users.id,
+                avatarUrl: schema.users.avatarUrl,
+              })
+              .from(schema.users)
+              .where(inArray(schema.users.id, botUserIds));
+            avatarMap = new Map(userRows.map((r) => [r.id, r.avatarUrl]));
+          }
+          return {
+            ...app,
+            bots: bots.map((bot) => ({
+              botId: bot.botId,
+              userId: bot.userId,
+              username: bot.username,
+              displayName: bot.displayName,
+              roleTitle: bot.extra?.commonStaff?.roleTitle ?? null,
+              persona: bot.extra?.commonStaff?.persona ?? null,
+              jobDescription: bot.extra?.commonStaff?.jobDescription ?? null,
+              avatarUrl: avatarMap.get(bot.userId) ?? null,
+              model: bot.extra?.commonStaff?.model ?? null,
+              mentorId: bot.mentorId,
+              mentorDisplayName: bot.mentorDisplayName,
+              mentorAvatarUrl: bot.mentorAvatarUrl,
               isActive: bot.isActive,
               createdAt: bot.createdAt,
               managedMeta: bot.managedMeta,

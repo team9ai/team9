@@ -1,3 +1,5 @@
+import { API_BASE_URL } from "@/constants/api-base-url";
+
 const AUTH_TOKEN_KEY = "auth_token";
 const REFRESH_TOKEN_KEY = "refresh_token";
 const LOGIN_PATHS = ["/login", "/register", "/verify-email"];
@@ -14,8 +16,7 @@ interface JwtPayload {
 
 let refreshPromise: Promise<string | null> | null = null;
 
-const getApiBaseUrl = () =>
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
+const getApiBaseUrl = () => API_BASE_URL;
 
 const decodeJwtPayload = (token: string): JwtPayload | null => {
   try {

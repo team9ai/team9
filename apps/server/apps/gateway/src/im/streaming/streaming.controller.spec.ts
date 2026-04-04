@@ -112,7 +112,7 @@ describe('StreamingController', () => {
     };
 
     websocketGateway = {
-      sendToChannelMembers: jest.fn<any>(),
+      sendToChannelMembers: jest.fn<any>().mockResolvedValue(true),
     };
 
     channelsService = {
@@ -518,6 +518,116 @@ describe('StreamingController', () => {
         expect.stringContaining('Failed to publish post-broadcast task'),
       );
       warnSpy.mockRestore();
+    });
+
+    // ── Regression: getMessageWithDetails failure ────────────────────────────
+
+    it('still broadcasts streaming_end with null message when getMessageWithDetails fails', async () => {
+      redisService.get.mockResolvedValueOnce(JSON.stringify(makeSession()));
+      messagesService.getMessageWithDetails.mockRejectedValueOnce(
+        new Error('DB pool exhausted'),
+      );
+      websocketGateway.sendToChannelMembers.mockResolvedValue(true);
+      const warnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => {});
+
+      const result = await controller.endStreaming(BOT_USER_ID, STREAM_ID, {
+        content: 'Final content',
+      });
+
+      expect(result).toEqual({ success: true, messageId: MSG_ID });
+
+      // streaming_end should still be broadcast (with null message)
+      expect(websocketGateway.sendToChannelMembers).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        WS_EVENTS.STREAMING.END,
+        {
+          streamId: STREAM_ID,
+          channelId: CHANNEL_ID,
+          senderId: BOT_USER_ID,
+          message: null,
+        },
+      );
+
+      // new_message should NOT be broadcast when message is null
+      expect(websocketGateway.sendToChannelMembers).not.toHaveBeenCalledWith(
+        CHANNEL_ID,
+        WS_EVENTS.MESSAGE.NEW,
+        expect.anything(),
+      );
+
+      // Should log warning about the failure
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('getMessageWithDetails failed'),
+      );
+
+      // message.created event should NOT be emitted when message is null
+      expect(eventEmitter.emit).not.toHaveBeenCalledWith(
+        'message.created',
+        expect.anything(),
+      );
+
+      warnSpy.mockRestore();
+    });
+
+    // ── Regression: broadcast failure isolation ──────────────────────────────
+
+    it('still attempts new_message broadcast even when streaming_end fails', async () => {
+      redisService.get.mockResolvedValueOnce(JSON.stringify(makeSession()));
+      const message = makeMessage();
+      messagesService.getMessageWithDetails.mockResolvedValueOnce(message);
+
+      // streaming_end fails, new_message succeeds
+      websocketGateway.sendToChannelMembers
+        .mockResolvedValueOnce(false) // streaming_end fails
+        .mockResolvedValueOnce(true); // new_message succeeds
+
+      const result = await controller.endStreaming(BOT_USER_ID, STREAM_ID, {
+        content: 'Final content',
+      });
+
+      expect(result).toEqual({ success: true, messageId: MSG_ID });
+
+      // Both broadcasts should have been attempted
+      expect(websocketGateway.sendToChannelMembers).toHaveBeenCalledTimes(2);
+      expect(websocketGateway.sendToChannelMembers).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        WS_EVENTS.STREAMING.END,
+        expect.objectContaining({ streamId: STREAM_ID }),
+      );
+      expect(websocketGateway.sendToChannelMembers).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        WS_EVENTS.MESSAGE.NEW,
+        message,
+      );
+    });
+
+    it('logs critical error when both streaming_end and new_message broadcasts fail', async () => {
+      redisService.get.mockResolvedValueOnce(JSON.stringify(makeSession()));
+      const message = makeMessage();
+      messagesService.getMessageWithDetails.mockResolvedValueOnce(message);
+      // Both broadcasts fail
+      websocketGateway.sendToChannelMembers.mockResolvedValue(false);
+
+      const errorSpy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => {});
+
+      const result = await controller.endStreaming(BOT_USER_ID, STREAM_ID, {
+        content: 'Final content',
+      });
+
+      expect(result).toEqual({ success: true, messageId: MSG_ID });
+
+      // Should log a critical error about both broadcasts failing
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'Both streaming_end and new_message broadcasts failed',
+        ),
+      );
+
+      errorSpy.mockRestore();
     });
   });
 
