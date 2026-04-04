@@ -14,7 +14,6 @@ import {
 import * as schema from '@team9/database/schemas';
 import type { BotExtra } from '@team9/database/schemas';
 import { ClawHiveService } from '@team9/claw-hive';
-import { AiClientService } from '@team9/ai-client';
 import { streamText, Output } from 'ai';
 import { z } from 'zod';
 import { createOpenAI } from '@ai-sdk/openai';
@@ -69,7 +68,6 @@ export class CommonStaffService {
     private readonly clawHiveService: ClawHiveService,
     private readonly channelsService: ChannelsService,
     private readonly installedApplicationsService: InstalledApplicationsService,
-    private readonly aiClientService: AiClientService,
   ) {}
 
   /**

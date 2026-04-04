@@ -11,7 +11,7 @@ const { CommonStaffService } = await import('./common-staff.service.js');
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '@team9/database';
-import { AiClientService } from '@team9/ai-client';
+
 import { BotService } from '../bot/bot.service.js';
 import { ClawHiveService } from '@team9/claw-hive';
 import { ChannelsService } from '../im/channels/channels.service.js';
@@ -171,13 +171,6 @@ const makeUpdateDto = (
 
 // ── tests ─────────────────────────────────────────────────────────────────────
 
-/** Creates an async generator that yields the given strings */
-async function* makeChunkGenerator(chunks: string[]): AsyncGenerator<string> {
-  for (const chunk of chunks) {
-    yield chunk;
-  }
-}
-
 /** Creates an async iterable that yields the given items */
 function makeAsyncIterable<T>(items: T[]): AsyncIterable<T> {
   return {
@@ -247,7 +240,6 @@ describe('CommonStaffService', () => {
   };
   let channelsService: { createDirectChannelsBatch: MockFn };
   let installedApplicationsService: { findById: MockFn };
-  let aiClientService: { chat: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
@@ -284,13 +276,6 @@ describe('CommonStaffService', () => {
     mockStreamText.mockReset();
     mockStreamText.mockReturnValue(mockStreamTextReturn(['Hello', ' world']));
 
-    // aiClientService is still injected via DI (will be removed in Task 3)
-    aiClientService = {
-      chat: jest
-        .fn<any>()
-        .mockReturnValue(makeChunkGenerator(['Hello', ' world'])),
-    };
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CommonStaffService,
@@ -302,7 +287,6 @@ describe('CommonStaffService', () => {
           provide: InstalledApplicationsService,
           useValue: installedApplicationsService,
         },
-        { provide: AiClientService, useValue: aiClientService },
       ],
     }).compile();
 
