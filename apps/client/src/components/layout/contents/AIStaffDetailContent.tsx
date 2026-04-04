@@ -256,7 +256,10 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
   });
 
   const humanMembers = useMemo(
-    () => membersData?.members?.filter((m) => m.userType === "human") ?? [],
+    () =>
+      membersData?.members?.filter(
+        (m) => !m.userType || m.userType === "human",
+      ) ?? [],
     [membersData],
   );
 

@@ -114,10 +114,10 @@ export function CreateCommonStaffDialog({
     (m) => !m.userType || m.userType === "human",
   );
 
-  // Default mentor to current user (only on mount)
+  // Default mentor to current user on dialog open
   useEffect(() => {
-    if (currentUser?.id) setMentorId(currentUser.id);
-  }, [currentUser?.id]);
+    if (open && currentUser?.id) setMentorId(currentUser.id);
+  }, [open, currentUser?.id]);
 
   // Reset form on close
   const resetForm = useCallback(() => {
@@ -152,6 +152,8 @@ export function CreateCommonStaffDialog({
         displayName: displayName || "Staff",
         roleTitle: roleTitle || undefined,
         jobDescription: jobDescription || undefined,
+        prompt: personaPrompt || undefined,
+        existingPersona: persona || undefined,
       });
       let accumulated = "";
       for await (const chunk of stream) {

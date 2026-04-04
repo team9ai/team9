@@ -4,6 +4,7 @@ import { ChannelsModule } from '../im/channels/channels.module.js';
 import { WebsocketModule } from '../im/websocket/websocket.module.js';
 import { RedisModule } from '@team9/redis';
 import { ClawHiveModule } from '@team9/claw-hive';
+import { AiClientModule } from '@team9/ai-client';
 import { ApplicationsController } from './applications.controller.js';
 import { ApplicationsService } from './applications.service.js';
 import { InstalledApplicationsController } from './installed-applications.controller.js';
@@ -22,6 +23,7 @@ import {
     forwardRef(() => WebsocketModule),
     RedisModule,
     ClawHiveModule,
+    AiClientModule,
   ],
   controllers: [
     ApplicationsController,

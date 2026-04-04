@@ -22,6 +22,7 @@ import type {
   CreateCommonStaffDto,
   UpdateCommonStaffDto,
 } from './dto/common-staff.dto.js';
+import { env } from '@team9/shared';
 import type {
   GeneratePersonaDto,
   GenerateAvatarDto,
@@ -32,7 +33,7 @@ export interface CommonStaffResult {
   botId: string;
   userId: string;
   agentId: string;
-  displayName: string;
+  displayName: string | undefined;
 }
 
 const COMMON_STAFF_APPLICATION_ID = 'common-staff';
@@ -88,19 +89,20 @@ export class CommonStaffService {
     }
 
     // 2. Auto-generate temporary display name for agentic bootstrap
+    let effectiveDisplayName: string = dto.displayName ?? 'New Staff';
     if (dto.agenticBootstrap && !dto.displayName) {
       const existingBots =
         await this.botService.getBotsByInstalledApplicationId(
           installedApplicationId,
         );
-      dto.displayName = `Candidate #${existingBots.length + 1}`;
+      effectiveDisplayName = `Candidate #${existingBots.length + 1}`;
     }
 
     // 3. Create bot with managedProvider=hive
     const { bot, accessToken } = await this.botService.createWorkspaceBot({
       ownerId,
       tenantId,
-      displayName: dto.displayName,
+      displayName: effectiveDisplayName,
       type: 'system',
       installedApplicationId,
       generateToken: true,
@@ -142,7 +144,7 @@ export class CommonStaffService {
       // 6. Register agent with claw-hive
       await this.clawHiveService.registerAgent({
         id: agentId,
-        name: dto.displayName,
+        name: effectiveDisplayName,
         blueprintId: HIVE_BLUEPRINT_ID,
         tenantId,
         metadata: {
@@ -156,7 +158,7 @@ export class CommonStaffService {
           team9: {
             team9AuthToken: accessToken!,
             botUserId: bot.userId,
-            team9BaseUrl: process.env.API_URL || '',
+            team9BaseUrl: env.API_URL,
           },
           'team9-staff-profile': {},
           'team9-staff-bootstrap': {},
@@ -248,7 +250,7 @@ export class CommonStaffService {
       botId: bot.botId,
       userId: bot.userId,
       agentId,
-      displayName: dto.displayName,
+      displayName: effectiveDisplayName,
     };
   }
 
@@ -350,6 +352,7 @@ export class CommonStaffService {
       metadata: {
         tenantId,
         botId,
+        mentorId: dto.mentorId ?? bot.mentorId ?? null,
       },
       ...(dto.displayName !== undefined ? { name: dto.displayName } : {}),
       ...(dto.model !== undefined ? { model: dto.model } : {}),
@@ -363,8 +366,9 @@ export class CommonStaffService {
    *
    * Steps:
    * 1. Verify installed application is common-staff type
-   * 2. Delete claw-hive agent
-   * 3. Delete bot and cleanup
+   * 2. Verify bot belongs to this installed application
+   * 3. Delete claw-hive agent
+   * 4. Delete bot and cleanup
    */
   async deleteStaff(
     installedApplicationId: string,
@@ -411,7 +415,7 @@ export class CommonStaffService {
       );
     }
 
-    // 4. Delete claw-hive agent first
+    // 3. Delete claw-hive agent first
     const agentId = `common-staff-${botId}`;
     try {
       await this.clawHiveService.deleteAgent(agentId);
@@ -423,7 +427,7 @@ export class CommonStaffService {
       );
     }
 
-    // 5. Delete bot and cleanup
+    // 4. Delete bot and cleanup
     await this.botService.deleteBotAndCleanup(botId);
     this.logger.log(`Deleted bot ${botId}`);
   }

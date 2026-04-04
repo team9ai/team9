@@ -87,7 +87,10 @@ export function CommonStaffDetailSection({
   });
 
   const humanMembers = useMemo(
-    () => membersData?.members?.filter((m) => m.userType === "human") ?? [],
+    () =>
+      membersData?.members?.filter(
+        (m) => !m.userType || m.userType === "human",
+      ) ?? [],
     [membersData],
   );
 
@@ -241,7 +244,12 @@ export function CommonStaffDetailSection({
             {/* Avatar */}
             <div className="relative">
               <Avatar className="w-16 h-16">
-                {bot.avatarUrl && <AvatarImage src={bot.avatarUrl} />}
+                {bot.avatarUrl && (
+                  <AvatarImage
+                    src={bot.avatarUrl}
+                    alt={bot.displayName ?? "Staff avatar"}
+                  />
+                )}
                 <AvatarFallback className="bg-primary/10 text-primary font-bold text-lg">
                   {initials}
                 </AvatarFallback>

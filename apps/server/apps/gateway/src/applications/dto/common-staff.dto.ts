@@ -18,8 +18,14 @@ class ModelDto {
 }
 
 export class CreateCommonStaffDto {
+  /**
+   * Display name for the staff member.
+   * Optional when agenticBootstrap is true — the service will auto-generate
+   * a temporary name (e.g. "Candidate #1") in that case.
+   */
+  @IsOptional()
   @IsString()
-  displayName: string;
+  displayName?: string;
 
   @IsOptional()
   @IsString()

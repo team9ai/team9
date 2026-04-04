@@ -102,7 +102,10 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
             </div>
           ) : isCommonStaff && bot.avatarUrl ? (
             <Avatar className="w-12 h-12">
-              <AvatarImage src={bot.avatarUrl} />
+              <AvatarImage
+                src={bot.avatarUrl}
+                alt={bot.displayName ?? "Staff"}
+              />
               <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
                 {initials}
               </AvatarFallback>
@@ -163,27 +166,14 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
               </span>
             )}
           </p>
-          {isOcBot && bot.mentorDisplayName && (
+          {(isOcBot || isCommonStaff) && bot.mentorDisplayName && (
             <div className="flex items-center gap-1 mt-1">
               <Avatar className="w-4 h-4">
                 {bot.mentorAvatarUrl ? (
-                  <AvatarImage src={bot.mentorAvatarUrl} />
-                ) : (
-                  <AvatarFallback className="bg-muted text-muted-foreground text-[8px]">
-                    <User size={10} />
-                  </AvatarFallback>
-                )}
-              </Avatar>
-              <span className="text-xs text-muted-foreground truncate">
-                {bot.mentorDisplayName}
-              </span>
-            </div>
-          )}
-          {isCommonStaff && bot.mentorDisplayName && (
-            <div className="flex items-center gap-1 mt-1">
-              <Avatar className="w-4 h-4">
-                {bot.mentorAvatarUrl ? (
-                  <AvatarImage src={bot.mentorAvatarUrl} />
+                  <AvatarImage
+                    src={bot.mentorAvatarUrl}
+                    alt={bot.mentorDisplayName}
+                  />
                 ) : (
                   <AvatarFallback className="bg-muted text-muted-foreground text-[8px]">
                     <User size={10} />
