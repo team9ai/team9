@@ -219,7 +219,6 @@ export function CreateCommonStaffDialog({
   const agenticMutation = useMutation({
     mutationFn: () =>
       api.applications.createCommonStaff(appId, {
-        displayName: `Candidate #${Date.now() % 1000}`,
         mentorId: mentorId || undefined,
         model: { provider: model.provider, id: model.id },
         agenticBootstrap: true,

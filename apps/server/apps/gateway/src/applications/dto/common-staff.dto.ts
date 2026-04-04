@@ -83,6 +83,5 @@ export class UpdateCommonStaffDto {
   avatarUrl?: string;
 
   @IsOptional()
-  @IsString()
-  mentorId?: string;
+  mentorId?: string | null;
 }

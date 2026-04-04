@@ -568,7 +568,7 @@ export const applicationsApi = {
   createCommonStaff: async (
     appId: string,
     body: {
-      displayName: string;
+      displayName?: string;
       roleTitle?: string;
       mentorId?: string;
       persona?: string;
