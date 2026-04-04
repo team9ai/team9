@@ -15,6 +15,8 @@ import * as schema from '@team9/database/schemas';
 import type { BotExtra } from '@team9/database/schemas';
 import { ClawHiveService } from '@team9/claw-hive';
 import { AiClientService, AIProvider } from '@team9/ai-client';
+import { streamText } from 'ai';
+import { createOpenAI } from '@ai-sdk/openai';
 import { BotService } from '../bot/bot.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { InstalledApplicationsService } from './installed-applications.service.js';
@@ -34,6 +36,11 @@ export interface CommonStaffResult {
   agentId: string;
   displayName: string | undefined;
 }
+
+const openrouter = createOpenAI({
+  baseURL: 'https://openrouter.ai/api/v1',
+  apiKey: process.env.OPENROUTER_API_KEY,
+});
 
 const COMMON_STAFF_APPLICATION_ID = 'common-staff';
 const HIVE_BLUEPRINT_ID = 'team9-common-staff';
@@ -562,19 +569,15 @@ export class CommonStaffService {
       `Generating persona stream for displayName="${displayName ?? ''}", roleTitle="${roleTitle ?? ''}"`,
     );
 
-    const stream = this.aiClientService.chat({
-      provider: AIProvider.CLAUDE,
-      model: 'claude-3-5-haiku-20241022',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage },
-      ],
+    const result = streamText({
+      model: openrouter('anthropic/claude-sonnet-4-6'),
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userMessage }],
       temperature: 0.9,
       maxTokens: 1024,
-      stream: true,
     });
 
-    for await (const chunk of stream) {
+    for await (const chunk of result.textStream) {
       yield chunk;
     }
   }

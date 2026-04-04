@@ -1,9 +1,16 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
+
+const mockStreamText = jest.fn<any>();
+
+jest.unstable_mockModule('ai', () => ({
+  streamText: mockStreamText,
+}));
+
+const { CommonStaffService } = await import('./common-staff.service.js');
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { AiClientService } from '@team9/ai-client';
-import { CommonStaffService } from './common-staff.service.js';
 import { BotService } from '../bot/bot.service.js';
 import { ClawHiveService } from '@team9/claw-hive';
 import { ChannelsService } from '../im/channels/channels.service.js';
@@ -170,6 +177,44 @@ async function* makeChunkGenerator(chunks: string[]): AsyncGenerator<string> {
   }
 }
 
+/** Creates an async iterable that yields the given items */
+function makeAsyncIterable<T>(items: T[]): AsyncIterable<T> {
+  return {
+    [Symbol.asyncIterator]() {
+      let i = 0;
+      return {
+        async next() {
+          if (i < items.length) return { value: items[i++], done: false };
+          return { value: undefined as any, done: true };
+        },
+      };
+    },
+  };
+}
+
+/** Builds a mock return value for streamText */
+function mockStreamTextReturn(chunks: string[]) {
+  return { textStream: makeAsyncIterable(chunks) };
+}
+
+/** Creates an error-producing textStream that yields one chunk then throws */
+function makeErrorTextStream(): AsyncIterable<string> {
+  return {
+    [Symbol.asyncIterator]() {
+      let yielded = false;
+      return {
+        async next() {
+          if (!yielded) {
+            yielded = true;
+            return { value: 'start', done: false };
+          }
+          throw new Error('AI provider error');
+        },
+      };
+    },
+  };
+}
+
 describe('CommonStaffService', () => {
   let service: CommonStaffService;
   let db: ReturnType<typeof mockDb>;
@@ -222,6 +267,11 @@ describe('CommonStaffService', () => {
       findById: jest.fn<any>().mockResolvedValue(makeInstalledApp()),
     };
 
+    // For generatePersona (uses streamText via Vercel AI SDK)
+    mockStreamText.mockReset();
+    mockStreamText.mockReturnValue(mockStreamTextReturn(['Hello', ' world']));
+
+    // For generateCandidates (still uses aiClientService until Task 2)
     aiClientService = {
       chat: jest
         .fn<any>()
@@ -979,8 +1029,8 @@ describe('CommonStaffService', () => {
     });
 
     it('yields chunks from the AI stream', async () => {
-      aiClientService.chat.mockReturnValueOnce(
-        makeChunkGenerator(['chunk1', 'chunk2', 'chunk3']),
+      mockStreamText.mockReturnValueOnce(
+        mockStreamTextReturn(['chunk1', 'chunk2', 'chunk3']),
       );
 
       const chunks: string[] = [];
@@ -995,7 +1045,7 @@ describe('CommonStaffService', () => {
       expect(chunks).toEqual(['chunk1', 'chunk2', 'chunk3']);
     });
 
-    it('calls aiClientService.chat with streaming enabled', async () => {
+    it('calls streamText with correct parameters', async () => {
       for await (const _ of service.generatePersona(
         INSTALLED_APP_ID,
         TENANT_ID,
@@ -1004,8 +1054,11 @@ describe('CommonStaffService', () => {
         // consume
       }
 
-      expect(aiClientService.chat).toHaveBeenCalledWith(
-        expect.objectContaining({ stream: true }),
+      expect(mockStreamText).toHaveBeenCalledWith(
+        expect.objectContaining({
+          temperature: 0.9,
+          maxTokens: 1024,
+        }),
       );
     });
 
@@ -1018,7 +1071,8 @@ describe('CommonStaffService', () => {
         // consume
       }
 
-      const callArg = aiClientService.chat.mock.calls[0][0] as {
+      const callArg = mockStreamText.mock.calls[0][0] as {
+        system: string;
         messages: { role: string; content: string }[];
       };
       const userMessage = callArg.messages.find((m) => m.role === 'user');
@@ -1037,7 +1091,8 @@ describe('CommonStaffService', () => {
         // consume
       }
 
-      const callArg = aiClientService.chat.mock.calls[0][0] as {
+      const callArg = mockStreamText.mock.calls[0][0] as {
+        system: string;
         messages: { role: string; content: string }[];
       };
       const userMessage = callArg.messages.find((m) => m.role === 'user');
@@ -1053,7 +1108,8 @@ describe('CommonStaffService', () => {
         // consume
       }
 
-      const callArg = aiClientService.chat.mock.calls[0][0] as {
+      const callArg = mockStreamText.mock.calls[0][0] as {
+        system: string;
         messages: { role: string; content: string }[];
       };
       const userMessage = callArg.messages.find((m) => m.role === 'user');
@@ -1072,11 +1128,29 @@ describe('CommonStaffService', () => {
         // consume
       }
 
-      const callArg = aiClientService.chat.mock.calls[0][0] as {
+      const callArg = mockStreamText.mock.calls[0][0] as {
+        system: string;
         messages: { role: string; content: string }[];
       };
       const userMessage = callArg.messages.find((m) => m.role === 'user');
       expect(userMessage?.content).toContain(userPrompt);
+    });
+
+    it('includes jobDescription in the user message when provided', async () => {
+      for await (const _ of service.generatePersona(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makePersonaDto({ jobDescription: 'Builds distributed systems' }),
+      )) {
+        // consume
+      }
+
+      const callArg = mockStreamText.mock.calls[0][0] as {
+        system: string;
+        messages: { role: string; content: string }[];
+      };
+      const userMessage = callArg.messages.find((m) => m.role === 'user');
+      expect(userMessage?.content).toContain('Builds distributed systems');
     });
 
     it('works with all optional fields omitted', async () => {
@@ -1088,15 +1162,13 @@ describe('CommonStaffService', () => {
         // consume
       }
 
-      expect(aiClientService.chat).toHaveBeenCalledTimes(1);
+      expect(mockStreamText).toHaveBeenCalledTimes(1);
     });
 
     it('propagates errors from the AI stream', async () => {
-      async function* errorStream(): AsyncGenerator<string> {
-        yield 'start';
-        throw new Error('AI provider error');
-      }
-      aiClientService.chat.mockReturnValueOnce(errorStream());
+      mockStreamText.mockReturnValueOnce({
+        textStream: makeErrorTextStream(),
+      });
 
       const gen = service.generatePersona(
         INSTALLED_APP_ID,
@@ -1112,7 +1184,7 @@ describe('CommonStaffService', () => {
       await expect(gen.next()).rejects.toThrow('AI provider error');
     });
 
-    it('uses claude provider with streaming enabled', async () => {
+    it('uses OpenRouter model via streamText', async () => {
       for await (const _ of service.generatePersona(
         INSTALLED_APP_ID,
         TENANT_ID,
@@ -1121,16 +1193,21 @@ describe('CommonStaffService', () => {
         // consume
       }
 
-      expect(aiClientService.chat).toHaveBeenCalledWith(
+      expect(mockStreamText).toHaveBeenCalledWith(
         expect.objectContaining({
-          provider: 'claude',
-          stream: true,
+          temperature: 0.9,
+          maxTokens: 1024,
         }),
       );
+      const callArg = mockStreamText.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect(callArg.model).toBeDefined();
     });
 
     it('yields empty stream when AI returns no chunks', async () => {
-      aiClientService.chat.mockReturnValueOnce(makeChunkGenerator([]));
+      mockStreamText.mockReturnValueOnce(mockStreamTextReturn([]));
 
       const chunks: string[] = [];
       for await (const chunk of service.generatePersona(
