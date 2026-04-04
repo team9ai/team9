@@ -22,6 +22,12 @@ import {
   type Notification,
   type NotificationCounts,
 } from "@/stores/useNotificationStore";
+import { isTauriApp } from "@/lib/tauri";
+import { showTauriNotification } from "@/services/tauri-notification";
+import {
+  getLocalNotificationPrefs,
+  isViewingCurrentChannel,
+} from "@/lib/notification-prefs-local";
 
 /**
  * Centralized WebSocket event handler hook.
@@ -225,6 +231,24 @@ export function useWebSocketEvents() {
         readAt: null,
       };
       notificationActions.addNotification(notification);
+
+      // 4. Show Tauri system notification (desktop app only)
+      if (isTauriApp()) {
+        const localPrefs = getLocalNotificationPrefs();
+        if (localPrefs.desktopEnabledLocal) {
+          // Focus suppression: skip notification if user is viewing this channel
+          const shouldSuppress =
+            localPrefs.focusSuppression &&
+            isViewingCurrentChannel(event.channelId);
+
+          if (!shouldSuppress) {
+            showTauriNotification({
+              title: event.title,
+              body: event.body || undefined,
+            });
+          }
+        }
+      }
     };
 
     // Handle notification read event

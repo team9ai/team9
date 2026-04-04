@@ -271,6 +271,8 @@ import documentsApi from "./documents";
 import tasksApi from "./tasks";
 import resourcesApi from "./resources";
 import skillsApi from "./skills";
+import * as pushSubscriptionApi from "./push-subscription";
+import * as notificationPreferencesApi from "./notification-preferences";
 
 export const api = {
   auth: authApi,
@@ -285,6 +287,8 @@ export const api = {
   tasks: tasksApi,
   resources: resourcesApi,
   skills: skillsApi,
+  pushSubscription: pushSubscriptionApi,
+  notificationPreferences: notificationPreferencesApi,
 };
 
 export default api;

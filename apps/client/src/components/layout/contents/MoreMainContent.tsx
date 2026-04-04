@@ -28,6 +28,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { InviteManagementDialog } from "@/components/workspace/InviteManagementDialog";
+import { NotificationPreferencesDialog } from "@/components/settings/NotificationPreferencesDialog";
 import { useWorkspaceStore } from "@/stores";
 import { useThemeToggle } from "@/hooks/useTheme";
 import { useCurrentWorkspaceRole } from "@/hooks/useWorkspace";
@@ -64,6 +65,8 @@ export function MoreMainContent() {
   const navigate = useNavigate();
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [isAppearanceDialogOpen, setIsAppearanceDialogOpen] = useState(false);
+  const [isNotificationDialogOpen, setIsNotificationDialogOpen] =
+    useState(false);
   const { theme, setTheme } = useThemeToggle();
   const { isOwnerOrAdmin } = useCurrentWorkspaceRole();
 
@@ -97,6 +100,8 @@ export function MoreMainContent() {
       navigate({ to: "/more/workspace-settings" });
     } else if (id === "appearance") {
       setIsAppearanceDialogOpen(true);
+    } else if (id === "notifications") {
+      setIsNotificationDialogOpen(true);
     }
     // Handle other settings...
   };
@@ -239,6 +244,12 @@ export function MoreMainContent() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Notification Preferences Dialog */}
+      <NotificationPreferencesDialog
+        open={isNotificationDialogOpen}
+        onOpenChange={setIsNotificationDialogOpen}
+      />
     </main>
   );
 }

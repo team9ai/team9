@@ -11,6 +11,9 @@ import { ConnectionStatus } from "@/components/layout/ConnectionStatus";
 import { UpdateDialog } from "@/components/layout/UpdateDialog";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useWebSocketEvents } from "@/hooks/useWebSocketEvents";
+import { useHeartbeat } from "@/hooks/useHeartbeat";
+import { useServiceWorkerMessages } from "@/hooks/useServiceWorkerMessages";
+import { registerServiceWorker } from "@/lib/push-notifications";
 // import { useAHandSetupStore } from "@/stores/useAHandSetupStore";
 // import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
 import { useEffect } from "react";
@@ -128,6 +131,17 @@ function AuthenticatedLayout() {
 
   // Set up centralized WebSocket event listeners for React Query cache updates
   useWebSocketEvents();
+
+  // Send periodic heartbeat to Service Worker for focus suppression
+  useHeartbeat();
+
+  // Register Service Worker for push notifications on mount
+  useEffect(() => {
+    registerServiceWorker();
+  }, []);
+
+  // Handle messages from Service Worker (e.g. notification clicks)
+  useServiceWorkerMessages();
 
   // Save current path as last visited for its corresponding section
   useEffect(() => {

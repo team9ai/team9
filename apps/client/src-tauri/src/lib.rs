@@ -1,4 +1,5 @@
 mod ahand;
+mod health_server;
 
 use std::sync::Mutex;
 
@@ -194,8 +195,11 @@ pub fn run() {
             MacosLauncher::LaunchAgent,
             None,
         ))
+        .plugin(tauri_plugin_notification::init())
         .manage(PendingUpdate::default())
         .setup(|app| {
+            tauri::async_runtime::spawn(health_server::start_health_server());
+
             #[cfg(debug_assertions)]
             let _ = &app;
 

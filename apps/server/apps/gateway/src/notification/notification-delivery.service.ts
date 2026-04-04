@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { RedisService } from '@team9/redis';
 import type { NotificationType } from '@team9/database/schemas';
 import { REDIS_KEYS } from '../im/shared/constants/redis-keys.js';
+import { WebPushService } from './web-push.service.js';
+import { NotificationPreferencesService } from '../notification-preferences/notification-preferences.service.js';
 
 // Forward reference to avoid circular dependency
 export const WEBSOCKET_GATEWAY_TOKEN = 'WEBSOCKET_GATEWAY';
@@ -69,7 +71,11 @@ export class NotificationDeliveryService {
   private readonly logger = new Logger(NotificationDeliveryService.name);
   private websocketGateway: NotificationWebsocketGateway | null = null;
 
-  constructor(private readonly redisService: RedisService) {}
+  constructor(
+    private readonly redisService: RedisService,
+    private readonly webPushService: WebPushService,
+    private readonly preferencesService: NotificationPreferencesService,
+  ) {}
 
   /**
    * Set the WebSocket gateway instance (called from module initialization)
@@ -81,46 +87,70 @@ export class NotificationDeliveryService {
   }
 
   /**
-   * Deliver notification to a user
-   * Uses WebSocket for online users
+   * Deliver notification to a user.
+   *
+   * 1. WebSocket delivery always happens (feeds the in-app activity panel).
+   * 2. Web Push delivery (OS-level notification) is gated by user preferences:
+   *    - shouldNotify (type/category + DND check)
+   *    - desktopEnabled preference
    */
   async deliverToUser(
     userId: string,
     notification: NotificationPayload,
   ): Promise<void> {
+    // 1. WebSocket delivery — always happens regardless of preferences
     if (!this.websocketGateway) {
-      this.logger.warn('WebSocket gateway not initialized, skipping delivery');
-      return;
-    }
-
-    const isOnline = await this.isUserOnline(userId);
-
-    if (isOnline) {
-      // Send via WebSocket
-      await this.websocketGateway.sendToUser(
-        userId,
-        WS_NOTIFICATION_EVENTS.NEW,
-        notification,
+      this.logger.warn(
+        'WebSocket gateway not initialized, skipping WS delivery',
       );
     } else {
-      // For offline users, the notification is already persisted in the database
-      // They will fetch it when they come online
-      this.logger.debug(
-        `User ${userId} is offline, notification persisted for later`,
-      );
+      const isOnline = await this.isUserOnline(userId);
+
+      if (isOnline) {
+        await this.websocketGateway.sendToUser(
+          userId,
+          WS_NOTIFICATION_EVENTS.NEW,
+          notification,
+        );
+      } else {
+        this.logger.debug(
+          `User ${userId} is offline, notification persisted for later`,
+        );
+      }
+    }
+
+    // 2. Web Push delivery — only if VAPID is configured and preferences allow
+    if (this.webPushService.isEnabled()) {
+      try {
+        const { allowed, preferences } =
+          await this.preferencesService.shouldNotify(
+            userId,
+            notification.type,
+            notification.category,
+          );
+
+        if (allowed && preferences.desktopEnabled) {
+          await this.webPushService.sendPush(userId, notification);
+        }
+      } catch (err) {
+        this.logger.warn(
+          `Web push failed for ${userId}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
     }
   }
 
   /**
-   * Deliver notification to multiple users
+   * Deliver notification to multiple users concurrently.
+   * Uses Promise.allSettled so one user's failure doesn't block others.
    */
   async deliverToUsers(
     userIds: string[],
     notification: NotificationPayload,
   ): Promise<void> {
-    for (const userId of userIds) {
-      await this.deliverToUser(userId, notification);
-    }
+    await Promise.allSettled(
+      userIds.map((userId) => this.deliverToUser(userId, notification)),
+    );
   }
 
   /**

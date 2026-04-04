@@ -35,6 +35,10 @@ vi.mock("@/components/workspace/InviteManagementDialog", () => ({
   InviteManagementDialog: () => null,
 }));
 
+vi.mock("@/components/settings/NotificationPreferencesDialog", () => ({
+  NotificationPreferencesDialog: () => null,
+}));
+
 import { MoreMainContent } from "../MoreMainContent";
 
 describe("MoreMainContent", () => {
