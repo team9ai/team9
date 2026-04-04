@@ -8,10 +8,7 @@ import {
   handleUnauthorized,
 } from "./interceptors";
 
-/** Single source of truth for the API base URL. */
-export const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api"
-).replace(/\/$/, "");
+import { API_BASE_URL } from "@/constants/api-base-url";
 
 const http = new HttpClient({
   baseURL: API_BASE_URL,
@@ -33,3 +30,4 @@ export { HttpClient };
 export * from "./types";
 export * from "./errors";
 export * from "./interceptors";
+export { API_BASE_URL } from "@/constants/api-base-url";

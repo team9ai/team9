@@ -1,6 +1,7 @@
 import { io, Socket } from "socket.io-client";
 import * as Sentry from "@sentry/react";
 import { queryClient } from "@/lib/query-client";
+import { API_BASE_URL } from "@/constants/api-base-url";
 import {
   getAuthToken,
   getValidAccessToken,
@@ -144,8 +145,7 @@ class WebSocketService {
     this.setConnectionStatus("reconnecting");
 
     // Remove /api suffix from baseURL for WebSocket connection
-    let baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
-    baseURL = baseURL.replace(/\/api\/?$/, "");
+    const baseURL = API_BASE_URL.replace(/\/api\/?$/, "");
 
     console.log("[WS] Connecting to:", `${baseURL}/im`);
 

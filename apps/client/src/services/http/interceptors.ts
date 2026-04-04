@@ -6,6 +6,7 @@ import {
   redirectToLogin,
   refreshAccessToken,
 } from "../auth-session";
+import { API_BASE_URL } from "@/constants/api-base-url";
 
 function parseRequestData(data: unknown): Record<string, unknown> | null {
   if (typeof data === "string") {
@@ -108,12 +109,9 @@ const retryRequest = async <T = unknown>(
   config: HttpRequestConfig,
   newToken: string,
 ): Promise<HttpResponse<T>> => {
-  const baseURL =
-    import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
-
   let url = config.baseURL
     ? `${config.baseURL}${config.url || ""}`
-    : `${baseURL}${config.url || ""}`;
+    : `${API_BASE_URL}${config.url || ""}`;
 
   if (config.params) {
     const urlObj = new URL(url);
