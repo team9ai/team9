@@ -398,7 +398,10 @@ export class CommonStaffService {
       metadata: {
         tenantId,
         botId,
-        mentorId: dto.mentorId ?? bot.mentorId ?? null,
+        mentorId:
+          dto.mentorId !== undefined
+            ? dto.mentorId || null
+            : (bot.mentorId ?? null),
       },
       ...(dto.displayName !== undefined ? { name: dto.displayName } : {}),
       ...(dto.model !== undefined ? { model: dto.model } : {}),
