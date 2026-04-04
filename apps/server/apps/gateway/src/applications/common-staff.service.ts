@@ -98,6 +98,9 @@ export class CommonStaffService {
       effectiveDisplayName = `Candidate #${existingBots.length + 1}`;
     }
 
+    // Default mentorId to the creating user if not provided
+    const effectiveMentorId = dto.mentorId || ownerId;
+
     // 3. Create bot with managedProvider=hive
     const { bot, accessToken } = await this.botService.createWorkspaceBot({
       ownerId,
@@ -106,7 +109,7 @@ export class CommonStaffService {
       type: 'system',
       installedApplicationId,
       generateToken: true,
-      mentorId: dto.mentorId,
+      mentorId: effectiveMentorId,
       managedProvider: 'hive',
     });
 
@@ -150,7 +153,7 @@ export class CommonStaffService {
         metadata: {
           tenantId,
           botId: bot.botId,
-          mentorId: dto.mentorId ?? null,
+          mentorId: effectiveMentorId,
         },
         model: dto.model,
         componentConfigs: {
@@ -193,8 +196,6 @@ export class CommonStaffService {
       }
 
       // 8. Trigger bootstrap session in mentor DM if agenticBootstrap is set
-      // Fall back to ownerId when mentorId is not explicitly provided
-      const effectiveMentorId = dto.mentorId ?? ownerId;
       if (dto.agenticBootstrap && effectiveMentorId) {
         const mentorDmChannel = dmChannelMap.get(effectiveMentorId);
         if (mentorDmChannel) {
@@ -230,11 +231,20 @@ export class CommonStaffService {
         }
       }
     } catch (error) {
-      // Rollback: clean up bot
+      // Rollback: clean up any created external resources
       this.logger.error(
         `Failed to create common-staff bot, rolling back bot ${bot.botId}`,
         error,
       );
+      // Best-effort: clean up claw-hive agent if it was registered
+      try {
+        await this.clawHiveService.deleteAgent(agentId);
+      } catch (agentCleanupError) {
+        this.logger.warn(
+          `Failed to clean up claw-hive agent ${agentId} during rollback`,
+          agentCleanupError,
+        );
+      }
       try {
         await this.botService.deleteBotAndCleanup(bot.botId);
       } catch (cleanupError) {
