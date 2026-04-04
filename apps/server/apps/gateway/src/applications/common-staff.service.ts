@@ -22,7 +22,6 @@ import type {
   CreateCommonStaffDto,
   UpdateCommonStaffDto,
 } from './dto/common-staff.dto.js';
-import { env } from '@team9/shared';
 import type {
   GeneratePersonaDto,
   GenerateAvatarDto,
@@ -161,7 +160,6 @@ export class CommonStaffService {
           team9: {
             team9AuthToken: accessToken!,
             botUserId: bot.userId,
-            team9BaseUrl: env.API_URL,
           },
           'team9-staff-profile': {},
           'team9-staff-bootstrap': {},
