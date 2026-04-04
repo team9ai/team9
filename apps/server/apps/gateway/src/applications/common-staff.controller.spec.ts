@@ -437,21 +437,24 @@ describe('CommonStaffController', () => {
       expect(res._written).toContain('data: [DONE]\n\n');
     });
 
-    it('propagates errors from service.generatePersona', async () => {
+    it('writes error event and calls res.end() when stream throws', async () => {
       async function* errorStream(): AsyncGenerator<string> {
         throw new Error('Stream error');
       }
       commonStaffService.generatePersona.mockReturnValueOnce(errorStream());
       const res = makeMockResponse();
 
-      await expect(
-        controller.generatePersona(
-          APP_ID,
-          TENANT_ID,
-          makePersonaDto(),
-          res as any,
-        ),
-      ).rejects.toThrow('Stream error');
+      await controller.generatePersona(
+        APP_ID,
+        TENANT_ID,
+        makePersonaDto(),
+        res as any,
+      );
+
+      expect(res._written).toContain(
+        `data: ${JSON.stringify({ error: 'Stream error' })}\n\n`,
+      );
+      expect(res.end).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -660,7 +663,7 @@ describe('CommonStaffController', () => {
       expect(res._written).toContain('data: [DONE]\n\n');
     });
 
-    it('propagates errors from service.generateCandidates', async () => {
+    it('writes error event and calls res.end() when stream throws', async () => {
       async function* errorStream(): AsyncGenerator<{
         type: 'candidate' | 'partial';
         data: unknown;
@@ -670,14 +673,17 @@ describe('CommonStaffController', () => {
       commonStaffService.generateCandidates.mockReturnValueOnce(errorStream());
       const res = makeMockResponse();
 
-      await expect(
-        controller.generateCandidates(
-          APP_ID,
-          TENANT_ID,
-          makeCandidatesDto(),
-          res as any,
-        ),
-      ).rejects.toThrow('Candidates stream error');
+      await controller.generateCandidates(
+        APP_ID,
+        TENANT_ID,
+        makeCandidatesDto(),
+        res as any,
+      );
+
+      expect(res._written).toContain(
+        `data: ${JSON.stringify({ error: 'Stream error' })}\n\n`,
+      );
+      expect(res.end).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -99,11 +99,16 @@ export class CommonStaffController {
       tenantId,
       dto,
     );
-    for await (const chunk of stream) {
-      res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
+    try {
+      for await (const chunk of stream) {
+        res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
+      }
+      res.write('data: [DONE]\n\n');
+    } catch (error) {
+      res.write(`data: ${JSON.stringify({ error: 'Stream error' })}\n\n`);
+    } finally {
+      res.end();
     }
-    res.write('data: [DONE]\n\n');
-    res.end();
   }
 
   /**
@@ -147,10 +152,15 @@ export class CommonStaffController {
       tenantId,
       dto,
     );
-    for await (const chunk of stream) {
-      res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+    try {
+      for await (const chunk of stream) {
+        res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+      }
+      res.write('data: [DONE]\n\n');
+    } catch (error) {
+      res.write(`data: ${JSON.stringify({ error: 'Stream error' })}\n\n`);
+    } finally {
+      res.end();
     }
-    res.write('data: [DONE]\n\n');
-    res.end();
   }
 }
