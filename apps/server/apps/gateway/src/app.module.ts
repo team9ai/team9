@@ -39,6 +39,7 @@ import { DocumentsModule } from './documents/documents.module.js';
 import { TasksModule } from './tasks/tasks.module.js';
 import { ResourcesModule } from './resources/resources.module.js';
 import { SkillsModule } from './skills/skills.module.js';
+import { PushModule } from './push/push.module.js';
 import { SentryUserInterceptor } from './common/interceptors/sentry-user.interceptor.js';
 import { ImSharedModule } from './im/shared/im-shared.module.js';
 import { PosthogModule } from '@team9/posthog';
@@ -83,6 +84,7 @@ import { AccountModule } from './account/account.module.js';
     TasksModule,
     ResourcesModule,
     SkillsModule,
+    PushModule,
   ],
   controllers: [AppController, HealthController],
   providers: [
