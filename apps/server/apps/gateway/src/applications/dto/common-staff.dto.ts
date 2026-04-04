@@ -2,15 +2,18 @@ import {
   IsString,
   IsOptional,
   IsBoolean,
+  IsNotEmpty,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class ModelDto {
   @IsString()
+  @IsNotEmpty()
   provider: string;
 
   @IsString()
+  @IsNotEmpty()
   id: string;
 }
 

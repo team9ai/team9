@@ -30,7 +30,7 @@ export interface CommonStaffResult {
 }
 
 const COMMON_STAFF_APPLICATION_ID = 'common-staff';
-const HIVE_BLUEPRINT_ID = 'team9-hive-common-staff';
+const HIVE_BLUEPRINT_ID = 'team9-common-staff';
 
 @Injectable()
 export class CommonStaffService {
@@ -98,7 +98,6 @@ export class CommonStaffService {
         .update(schema.bots)
         .set({
           managedMeta: { agentId },
-          ...(dto.avatarUrl !== undefined ? {} : {}),
           updatedAt: new Date(),
         })
         .where(eq(schema.bots.id, bot.botId));
@@ -288,24 +287,20 @@ export class CommonStaffService {
 
     // 5. Sync to claw-hive
     const agentId = `common-staff-${botId}`;
-    const currentBot = await this.botService.getBotById(botId);
-    const currentExtra = (currentBot?.extra as BotExtra) ?? {};
 
     await this.clawHiveService.updateAgent(agentId, {
       tenantId,
       metadata: {
         tenantId,
         botId,
-        mentorId:
-          dto.mentorId !== undefined ? dto.mentorId || null : bot.mentorId,
       },
       ...(dto.displayName !== undefined ? { name: dto.displayName } : {}),
       ...(dto.model !== undefined ? { model: dto.model } : {}),
       componentConfigs: {
         'common-staff-agent': {
-          roleTitle: currentExtra.commonStaff?.roleTitle ?? null,
-          persona: currentExtra.commonStaff?.persona ?? null,
-          jobDescription: currentExtra.commonStaff?.jobDescription ?? null,
+          roleTitle: updatedExtra.commonStaff?.roleTitle ?? null,
+          persona: updatedExtra.commonStaff?.persona ?? null,
+          jobDescription: updatedExtra.commonStaff?.jobDescription ?? null,
         },
       },
     });

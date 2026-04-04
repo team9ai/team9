@@ -238,12 +238,10 @@ describe('CommonStaffService', () => {
 
     it('creates DM channels for workspace members', async () => {
       const memberIds = ['member-a', 'member-b'];
-      db.where.mockResolvedValueOnce(
-        // First call: verify app; second call: get members
-        makeInstalledApp(),
-      );
-      // Reset: the DB mock is used for members query
-      db.where.mockResolvedValue(memberIds.map((userId) => ({ userId })));
+      // First DB call: update bots.managedMeta (returns nothing meaningful)
+      db.where.mockResolvedValueOnce([]);
+      // Second DB call: select tenant members
+      db.where.mockResolvedValueOnce(memberIds.map((userId) => ({ userId })));
 
       await service.createStaff(
         INSTALLED_APP_ID,
@@ -439,9 +437,7 @@ describe('CommonStaffService', () => {
           },
         },
       };
-      botService.getBotById
-        .mockResolvedValueOnce(existingBot) // first call for verification
-        .mockResolvedValueOnce(existingBot); // second call after updateBotExtra
+      botService.getBotById.mockResolvedValueOnce(existingBot); // first call for verification
 
       const dto = makeUpdateDto({ roleTitle: 'New Role' });
       await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
