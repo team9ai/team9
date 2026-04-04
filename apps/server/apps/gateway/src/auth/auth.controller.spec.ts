@@ -9,6 +9,7 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   INestApplication,
+  UnauthorizedException,
   ValidationPipe,
   VersioningType,
 } from '@nestjs/common';
@@ -34,6 +35,7 @@ function mockAuthService() {
     refreshToken: jest.fn<any>(),
     logout: jest.fn<any>(),
     getUserById: jest.fn<any>(),
+    getUserByClaims: jest.fn<any>(),
   };
 }
 
@@ -53,7 +55,11 @@ describe('AuthController (integration)', () => {
       .useValue({
         canActivate: (ctx: any) => {
           const req = ctx.switchToHttp().getRequest();
-          req.user = { sub: 'user-uuid', email: 'alice@test.com' };
+          req.user = {
+            sub: 'user-uuid',
+            email: 'alice@test.com',
+            username: 'alice',
+          };
           return true;
         },
       })
@@ -286,6 +292,43 @@ describe('AuthController (integration)', () => {
         .expect(200);
 
       expect(authService.logout).toHaveBeenCalledWith('user-uuid', undefined);
+    });
+  });
+
+  describe('GET /api/v1/auth/me', () => {
+    it('falls back to token identity when sub no longer resolves', async () => {
+      authService.getUserById.mockRejectedValueOnce(
+        new UnauthorizedException('User not found'),
+      );
+      authService.getUserByClaims.mockResolvedValueOnce({
+        id: 'new-user-uuid',
+        email: 'alice@test.com',
+        username: 'alice',
+        displayName: 'Alice',
+        avatarUrl: undefined,
+        isActive: true,
+        createdAt: '2026-04-03T00:00:00.000Z',
+        updatedAt: '2026-04-03T00:00:00.000Z',
+      });
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/auth/me')
+        .expect(200);
+
+      expect(res.body).toEqual({
+        id: 'new-user-uuid',
+        email: 'alice@test.com',
+        username: 'alice',
+        displayName: 'Alice',
+        isActive: true,
+        createdAt: '2026-04-03T00:00:00.000Z',
+        updatedAt: '2026-04-03T00:00:00.000Z',
+      });
+      expect(authService.getUserById).toHaveBeenCalledWith('user-uuid');
+      expect(authService.getUserByClaims).toHaveBeenCalledWith({
+        email: 'alice@test.com',
+        username: 'alice',
+      });
     });
   });
 });

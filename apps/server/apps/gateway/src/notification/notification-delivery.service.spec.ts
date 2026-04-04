@@ -17,6 +17,10 @@ describe('NotificationDeliveryService', () => {
     isEnabled: jest.Mock<any>;
     sendPush: jest.Mock<any>;
   };
+  let expoPushService: {
+    isEnabled: jest.Mock<any>;
+    sendPush: jest.Mock<any>;
+  };
   let preferencesService: {
     shouldNotify: jest.Mock<any>;
   };
@@ -85,6 +89,10 @@ describe('NotificationDeliveryService', () => {
       isEnabled: jest.fn<any>().mockReturnValue(false),
       sendPush: jest.fn<any>().mockResolvedValue(undefined),
     };
+    expoPushService = {
+      isEnabled: jest.fn<any>().mockReturnValue(false),
+      sendPush: jest.fn<any>().mockResolvedValue(undefined),
+    };
     preferencesService = {
       shouldNotify: jest
         .fn<any>()
@@ -93,6 +101,7 @@ describe('NotificationDeliveryService', () => {
     service = new NotificationDeliveryService(
       redisService as any,
       webPushService as any,
+      expoPushService as any,
       preferencesService as any,
     );
     warnSpy = jest

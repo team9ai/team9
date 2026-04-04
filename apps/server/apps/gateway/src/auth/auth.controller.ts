@@ -8,6 +8,7 @@ import {
   Get,
   Query,
   Req,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service.js';
 import type {
@@ -139,6 +140,17 @@ export class AuthController {
   @Get('me')
   @UseGuards(AuthGuard)
   async me(@CurrentUser() user: JwtPayload) {
-    return this.authService.getUserById(user.sub);
+    try {
+      return await this.authService.getUserById(user.sub);
+    } catch (error) {
+      if (!(error instanceof UnauthorizedException)) {
+        throw error;
+      }
+
+      return this.authService.getUserByClaims({
+        email: user.email,
+        username: user.username,
+      });
+    }
   }
 }

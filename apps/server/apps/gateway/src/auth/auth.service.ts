@@ -48,6 +48,17 @@ export interface AuthResponse extends TokenPair {
   };
 }
 
+export interface AuthenticatedUserResponse {
+  id: string;
+  email: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface RegisterResponse {
   message: string;
   email: string;
@@ -140,6 +151,28 @@ export class AuthService {
 
   private parseDesktopSession(raw: string): DesktopSessionState {
     return JSON.parse(raw) as DesktopSessionState;
+  }
+
+  private serializeAuthenticatedUser(user: {
+    id: string;
+    email: string;
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+    isActive: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  }): AuthenticatedUserResponse {
+    return {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      displayName: user.displayName,
+      avatarUrl: user.avatarUrl,
+      isActive: user.isActive,
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt.toISOString(),
+    };
   }
 
   async register(dto: RegisterDto): Promise<RegisterResponse> {
@@ -795,7 +828,7 @@ export class AuthService {
     });
   }
 
-  async getUserById(userId: string) {
+  async getUserById(userId: string): Promise<AuthenticatedUserResponse> {
     const [user] = await this.db
       .select()
       .from(schema.users)
@@ -806,16 +839,37 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
 
-    return {
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      displayName: user.displayName,
-      avatarUrl: user.avatarUrl,
-      isActive: user.isActive,
-      createdAt: user.createdAt.toISOString(),
-      updatedAt: user.updatedAt.toISOString(),
-    };
+    return this.serializeAuthenticatedUser(user);
+  }
+
+  async getUserByClaims(
+    claims: Pick<JwtPayload, 'email' | 'username'>,
+  ): Promise<AuthenticatedUserResponse> {
+    if (claims.username) {
+      const [userByUsername] = await this.db
+        .select()
+        .from(schema.users)
+        .where(eq(schema.users.username, claims.username))
+        .limit(1);
+
+      if (userByUsername) {
+        return this.serializeAuthenticatedUser(userByUsername);
+      }
+    }
+
+    if (claims.email) {
+      const [userByEmail] = await this.db
+        .select()
+        .from(schema.users)
+        .where(eq(schema.users.email, claims.email))
+        .limit(1);
+
+      if (userByEmail) {
+        return this.serializeAuthenticatedUser(userByEmail);
+      }
+    }
+
+    throw new UnauthorizedException('User not found');
   }
 
   async createLoginSession(userId: string): Promise<string> {
