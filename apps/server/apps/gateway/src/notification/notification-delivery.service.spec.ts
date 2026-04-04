@@ -321,6 +321,38 @@ describe('NotificationDeliveryService', () => {
         'Web push failed for user-1: push failed',
       );
     });
+
+    it('should log non-Error thrown values from sendPush directly', async () => {
+      redisService.smembers.mockResolvedValueOnce(['socket-1']);
+      webPushService.isEnabled.mockReturnValue(true);
+      preferencesService.shouldNotify.mockResolvedValue({
+        allowed: true,
+        preferences: defaultPrefs,
+      });
+      webPushService.sendPush.mockRejectedValue('string error from push');
+
+      await service.deliverToUser('user-1', notification as any);
+
+      expect(gateway.sendToUser).toHaveBeenCalledWith(
+        'user-1',
+        WS_NOTIFICATION_EVENTS.NEW,
+        notification,
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        'Web push failed for user-1: string error from push',
+      );
+    });
+
+    it('should log non-Error thrown values from shouldNotify directly', async () => {
+      redisService.smembers.mockResolvedValueOnce(['socket-1']);
+      webPushService.isEnabled.mockReturnValue(true);
+      preferencesService.shouldNotify.mockRejectedValue(42);
+
+      await service.deliverToUser('user-1', notification as any);
+
+      expect(gateway.sendToUser).toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalledWith('Web push failed for user-1: 42');
+    });
   });
 
   // ── deliverToUsers ────────────────────────────────────────────────
@@ -429,6 +461,20 @@ describe('NotificationDeliveryService', () => {
       await service.broadcastNotificationRead('user-4', ['notif-1']);
 
       expect(redisService.smembers).not.toHaveBeenCalled();
+    });
+
+    it('skips sending when user is offline', async () => {
+      redisService.smembers.mockResolvedValueOnce([]);
+
+      await service.broadcastNotificationRead('user-4', ['notif-1', 'notif-2']);
+
+      expect(redisService.smembers).toHaveBeenCalledWith(
+        REDIS_KEYS.USER_SOCKETS('user-4'),
+      );
+      expect(gateway.sendToUser).not.toHaveBeenCalled();
+      expect(debugSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('Sent notification read event'),
+      );
     });
   });
 

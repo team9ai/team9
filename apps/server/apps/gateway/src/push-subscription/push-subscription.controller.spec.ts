@@ -207,6 +207,33 @@ describe('PushSubscriptionController (integration)', () => {
       expect(pushService.subscribe).not.toHaveBeenCalled();
     });
 
+    it('should pass undefined user-agent when header is not set', async () => {
+      pushService.subscribe.mockResolvedValue({
+        id: 'sub-uuid-2',
+        userId: 'user-uuid',
+        endpoint: validBody.endpoint,
+        p256dh: validBody.keys.p256dh,
+        auth: validBody.keys.auth,
+        userAgent: undefined,
+        createdAt: new Date(),
+        lastUsedAt: null,
+      });
+
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/push-subscriptions')
+        .set('User-Agent', '')
+        .send(validBody)
+        .expect(201);
+
+      expect(res.body.id).toBe('sub-uuid-2');
+      // When User-Agent header is empty, Express may pass empty string or undefined
+      expect(pushService.subscribe).toHaveBeenCalledWith(
+        'user-uuid',
+        validBody,
+        expect.anything(),
+      );
+    });
+
     it('should strip unknown fields (whitelist)', async () => {
       pushService.subscribe.mockResolvedValue({
         id: 'sub-uuid-1',

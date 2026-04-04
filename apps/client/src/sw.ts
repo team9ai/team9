@@ -1,20 +1,14 @@
 /// <reference lib="webworker" />
 declare const self: ServiceWorkerGlobalScope;
 
-// === Tauri desktop app detection ===
-const TAURI_HEALTH_URL = "http://127.0.0.1:19876/health";
-let tauriActive = false;
+import {
+  probeTauri,
+  isViewingChannel,
+  buildNotificationOptions,
+} from "./lib/sw-utils";
 
-async function probeTauri(): Promise<boolean> {
-  try {
-    const res = await fetch(TAURI_HEALTH_URL, {
-      signal: AbortSignal.timeout(500),
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
+// === Tauri desktop app detection ===
+let tauriActive = false;
 
 // Probe on start and every 30 seconds
 probeTauri().then((v) => {
@@ -35,13 +29,6 @@ self.addEventListener("message", (event) => {
   }
 });
 
-function isViewingChannel(channelId: string | null): boolean {
-  if (!channelId) return false;
-  // Heartbeat is stale after 10 seconds
-  if (Date.now() - lastHeartbeat > 10_000) return false;
-  return activeChannelId === channelId;
-}
-
 // === Push event handler ===
 self.addEventListener("push", (event) => {
   const data = event.data?.json();
@@ -51,20 +38,19 @@ self.addEventListener("push", (event) => {
   // or if user is viewing this channel (focus suppression).
   // Must still call event.waitUntil() to satisfy the Web Push spec —
   // omitting it causes browsers to show a generic "updated in background" notification.
-  if (tauriActive || isViewingChannel(data.channelId)) {
+  if (
+    tauriActive ||
+    isViewingChannel(data.channelId, activeChannelId, lastHeartbeat)
+  ) {
     event.waitUntil(Promise.resolve());
     return;
   }
 
   event.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body || "",
-      icon: "/team9-block.png",
-      badge: "/team9-badge.png",
-      tag: data.id, // dedup by notification ID
-      renotify: false,
-      data: { actionUrl: data.actionUrl, id: data.id },
-    }),
+    self.registration.showNotification(
+      data.title,
+      buildNotificationOptions(data),
+    ),
   );
 });
 

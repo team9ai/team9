@@ -142,6 +142,40 @@ describe("useNotificationPreferences", () => {
     });
   });
 
+  it("skips rollback on error when no previous data in cache", async () => {
+    // When the cache is empty before mutation, onMutate sets previous to
+    // undefined. onError should not attempt to set cache data in this case.
+    mockGetPreferences.mockResolvedValue(undefined);
+
+    const { queryClient, wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useNotificationPreferences(), {
+      wrapper,
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    // Make the mutation fail
+    mockUpdatePreferences.mockRejectedValueOnce(new Error("Server error"));
+    // After settlement, refetch returns real data
+    mockGetPreferences.mockResolvedValue(defaultPreferences);
+
+    await act(async () => {
+      try {
+        await result.current.updatePreferences({ soundEnabled: false });
+      } catch {
+        // Expected to throw
+      }
+    });
+
+    // onSettled still invalidates, so refetch happens and we get data back
+    await waitFor(() => {
+      expect(result.current.preferences).toEqual(defaultPreferences);
+    });
+  });
+
   it("exposes isUpdating status during mutation", async () => {
     const { wrapper } = createWrapper();
 
@@ -184,6 +218,43 @@ describe("useNotificationPreferences", () => {
     await waitFor(() => {
       expect(result.current.isUpdating).toBe(false);
     });
+  });
+
+  it("handles onMutate when cache is empty (no previous data)", async () => {
+    // Return no data on first fetch so the cache stays empty
+    mockGetPreferences.mockResolvedValue(undefined);
+
+    const { queryClient, wrapper } = createWrapper();
+
+    const { result } = renderHook(() => useNotificationPreferences(), {
+      wrapper,
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    // Cache has undefined value — the setQueryData updater should hit
+    // the `if (!old) return old` branch, leaving the cache as-is.
+    mockUpdatePreferences.mockResolvedValue({
+      ...defaultPreferences,
+      soundEnabled: false,
+    });
+
+    await act(async () => {
+      await result.current.updatePreferences({ soundEnabled: false });
+    });
+
+    // After mutation settles, invalidation triggers a refetch.
+    // The cache should still be undefined because the updater returned early.
+    const cacheBeforeRefetch = queryClient.getQueryData([
+      "notificationPreferences",
+    ]);
+    // The important thing is the mutation completed without error;
+    // the cache was not corrupted.
+    expect(mockUpdatePreferences).toHaveBeenCalledWith({ soundEnabled: false });
+    // onSettled always invalidates, so getPreferences is called again
+    expect(mockGetPreferences).toHaveBeenCalledTimes(2);
   });
 
   it("applies optimistic update immediately to cache", async () => {

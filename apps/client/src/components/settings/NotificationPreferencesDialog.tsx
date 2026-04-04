@@ -17,13 +17,9 @@ import { usePushSubscription } from "@/hooks/usePushSubscription";
 /** Extract "HH:MM" from an ISO date string or return "" */
 function toTimeString(value: string | null | undefined): string {
   if (!value) return "";
-  try {
-    const d = new Date(value);
-    if (isNaN(d.getTime())) return "";
-    return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
-  } catch {
-    return "";
-  }
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return "";
+  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
 }
 
 interface NotificationPreferencesDialogProps {
