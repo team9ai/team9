@@ -234,6 +234,17 @@ export const env = {
     return process.env.POSTHOG_FEATURE_FLAGS_SECURE_API_KEY;
   },
 
+  // Web Push VAPID (optional)
+  get VAPID_PUBLIC_KEY() {
+    return process.env.VAPID_PUBLIC_KEY;
+  },
+  get VAPID_PRIVATE_KEY() {
+    return process.env.VAPID_PRIVATE_KEY;
+  },
+  get VAPID_SUBJECT() {
+    return process.env.VAPID_SUBJECT || 'mailto:noreply@team9.ai';
+  },
+
   // Development: Skip email verification (only works when APP_ENV=local)
   // When enabled, registration and login will return verification link directly instead of sending email
   get DEV_SKIP_EMAIL_VERIFICATION() {

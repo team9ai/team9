@@ -8,6 +8,24 @@ import {
   type Notification,
 } from "@/stores/useNotificationStore";
 
+const mockIsTauriApp = vi.hoisted(() => vi.fn());
+const mockShowTauriNotification = vi.hoisted(() => vi.fn());
+const mockGetLocalNotificationPrefs = vi.hoisted(() => vi.fn());
+const mockIsViewingCurrentChannel = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/tauri", () => ({
+  isTauriApp: mockIsTauriApp,
+}));
+
+vi.mock("@/services/tauri-notification", () => ({
+  showTauriNotification: mockShowTauriNotification,
+}));
+
+vi.mock("@/lib/notification-prefs-local", () => ({
+  getLocalNotificationPrefs: mockGetLocalNotificationPrefs,
+  isViewingCurrentChannel: mockIsViewingCurrentChannel,
+}));
+
 const listeners = vi.hoisted(
   () => new Map<string, Array<(...args: any[]) => void>>(),
 );
@@ -168,6 +186,14 @@ describe("useWebSocketEvents", () => {
     notificationActions.setNotifications([]);
     notificationActions.setCounts(baseCounts);
     queryCache.set(JSON.stringify(["notificationCounts"]), baseCounts);
+
+    // Default: not a Tauri app
+    mockIsTauriApp.mockReturnValue(false);
+    mockGetLocalNotificationPrefs.mockReturnValue({
+      focusSuppression: true,
+      desktopEnabledLocal: true,
+    });
+    mockIsViewingCurrentChannel.mockReturnValue(false);
   });
 
   it("keeps total, category, and type counts in sync for notification_new", () => {
@@ -333,5 +359,124 @@ describe("useWebSocketEvents", () => {
       id: "notif-2",
       isRead: false,
     });
+  });
+
+  // ==================== Tauri Notification Tests ====================
+
+  const sampleNotificationEvent = {
+    id: "notif-tauri-1",
+    category: "message" as const,
+    type: "mention" as const,
+    priority: "normal" as const,
+    title: "New mention",
+    body: "You were mentioned in #general",
+    actor: null,
+    tenantId: null,
+    channelId: "ch-123",
+    messageId: null,
+    actionUrl: null,
+    createdAt: "2026-04-01T00:00:00.000Z",
+  };
+
+  it("shows Tauri notification for new notification in Tauri app", () => {
+    mockIsTauriApp.mockReturnValue(true);
+
+    renderHook(() => useWebSocketEvents());
+
+    const callback = listeners.get("notification_new")?.[0];
+    callback?.(sampleNotificationEvent);
+
+    expect(mockShowTauriNotification).toHaveBeenCalledWith({
+      title: "New mention",
+      body: "You were mentioned in #general",
+    });
+  });
+
+  it("does not show Tauri notification when not in Tauri app", () => {
+    mockIsTauriApp.mockReturnValue(false);
+
+    renderHook(() => useWebSocketEvents());
+
+    const callback = listeners.get("notification_new")?.[0];
+    callback?.(sampleNotificationEvent);
+
+    expect(mockShowTauriNotification).not.toHaveBeenCalled();
+  });
+
+  it("does not show Tauri notification when desktopEnabledLocal is false", () => {
+    mockIsTauriApp.mockReturnValue(true);
+    mockGetLocalNotificationPrefs.mockReturnValue({
+      focusSuppression: true,
+      desktopEnabledLocal: false,
+    });
+
+    renderHook(() => useWebSocketEvents());
+
+    const callback = listeners.get("notification_new")?.[0];
+    callback?.(sampleNotificationEvent);
+
+    expect(mockShowTauriNotification).not.toHaveBeenCalled();
+  });
+
+  it("suppresses Tauri notification when user is viewing the channel", () => {
+    mockIsTauriApp.mockReturnValue(true);
+    mockIsViewingCurrentChannel.mockReturnValue(true);
+
+    renderHook(() => useWebSocketEvents());
+
+    const callback = listeners.get("notification_new")?.[0];
+    callback?.(sampleNotificationEvent);
+
+    expect(mockIsViewingCurrentChannel).toHaveBeenCalledWith("ch-123");
+    expect(mockShowTauriNotification).not.toHaveBeenCalled();
+  });
+
+  it("shows Tauri notification when focus suppression is disabled even if viewing channel", () => {
+    mockIsTauriApp.mockReturnValue(true);
+    mockIsViewingCurrentChannel.mockReturnValue(true);
+    mockGetLocalNotificationPrefs.mockReturnValue({
+      focusSuppression: false,
+      desktopEnabledLocal: true,
+    });
+
+    renderHook(() => useWebSocketEvents());
+
+    const callback = listeners.get("notification_new")?.[0];
+    callback?.(sampleNotificationEvent);
+
+    expect(mockShowTauriNotification).toHaveBeenCalledWith({
+      title: "New mention",
+      body: "You were mentioned in #general",
+    });
+  });
+
+  it("passes undefined body when notification body is null", () => {
+    mockIsTauriApp.mockReturnValue(true);
+
+    renderHook(() => useWebSocketEvents());
+
+    const callback = listeners.get("notification_new")?.[0];
+    callback?.({ ...sampleNotificationEvent, id: "notif-no-body", body: null });
+
+    expect(mockShowTauriNotification).toHaveBeenCalledWith({
+      title: "New mention",
+      body: undefined,
+    });
+  });
+
+  it("does not show Tauri notification for duplicate notification_new events", () => {
+    mockIsTauriApp.mockReturnValue(true);
+
+    renderHook(() => useWebSocketEvents());
+
+    const callback = listeners.get("notification_new")?.[0];
+
+    // First call: should show
+    callback?.(sampleNotificationEvent);
+    expect(mockShowTauriNotification).toHaveBeenCalledTimes(1);
+
+    // Second call with same ID: should be skipped by idempotency check
+    callback?.(sampleNotificationEvent);
+    expect(mockShowTauriNotification).toHaveBeenCalledTimes(1);
   });
 });
