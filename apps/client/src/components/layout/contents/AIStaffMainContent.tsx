@@ -28,6 +28,7 @@ import { slugify } from "transliteration";
 import { api } from "@/services/api";
 import type {
   BaseModelStaffBotInfo,
+  CommonStaffBotInfo,
   InstalledApplicationWithBots,
   OpenClawBotInfo,
   OpenClawInstanceStatus,
@@ -39,14 +40,14 @@ import { BaseModelProductLogo } from "@/components/applications/BaseModelProduct
 
 // ── Type guard ────────────────────────────────────────────────────────
 
-type AIStaffBot = OpenClawBotInfo | BaseModelStaffBotInfo;
+type AIStaffBot = OpenClawBotInfo | BaseModelStaffBotInfo | CommonStaffBotInfo;
 
 function isOpenClawBot(bot: AIStaffBot): bot is OpenClawBotInfo {
-  return "agentId" in bot;
+  return "agentId" in bot && "workspace" in bot;
 }
 
 function isBaseModelStaffBot(bot: AIStaffBot): bot is BaseModelStaffBotInfo {
-  return "managedMeta" in bot;
+  return "managedMeta" in bot && "agentType" in bot;
 }
 
 // ── Per-bot card ─────────────────────────────────────────────────────

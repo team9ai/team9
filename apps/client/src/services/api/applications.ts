@@ -1,5 +1,9 @@
 import http from "../http";
+import { getValidAccessToken } from "../auth-session";
 import type { AgentType } from "@/types/im";
+
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
 
 // Types matching server schemas
 export type ApplicationType = "managed" | "custom";
@@ -82,6 +86,25 @@ export interface FileKeeperListResponse {
   entries: FileKeeperDirEntry[];
 }
 
+// Common Staff types
+export interface CommonStaffBotInfo {
+  botId: string;
+  userId: string;
+  username: string;
+  displayName: string | null;
+  roleTitle: string | null;
+  persona: string | null;
+  jobDescription: string | null;
+  avatarUrl: string | null;
+  model: { provider: string; id: string } | null;
+  mentorId: string | null;
+  mentorDisplayName: string | null;
+  mentorAvatarUrl: string | null;
+  isActive: boolean;
+  createdAt: string;
+  managedMeta: { agentId: string } | null;
+}
+
 // Base Model Staff types
 export interface BaseModelStaffBotInfo {
   botId: string;
@@ -96,7 +119,7 @@ export interface BaseModelStaffBotInfo {
 
 // Aggregated app with bots (from /with-bots endpoint)
 export interface InstalledApplicationWithBots extends InstalledApplication {
-  bots: (OpenClawBotInfo | BaseModelStaffBotInfo)[];
+  bots: (OpenClawBotInfo | BaseModelStaffBotInfo | CommonStaffBotInfo)[];
   instanceStatus: OpenClawInstanceStatus | null;
 }
 
@@ -538,6 +561,142 @@ export const applicationsApi = {
       headers: { Authorization: `Bearer ${tokenData.token}` },
     });
     if (!res.ok) throw new Error(`Failed to create folder: ${res.status}`);
+  },
+
+  // Common Staff endpoints
+
+  createCommonStaff: async (
+    appId: string,
+    body: {
+      displayName: string;
+      roleTitle?: string;
+      mentorId?: string;
+      persona?: string;
+      jobDescription?: string;
+      model: { provider: string; id: string };
+      avatarUrl?: string;
+      agenticBootstrap?: boolean;
+    },
+  ): Promise<{
+    botId: string;
+    userId: string;
+    agentId: string;
+    displayName: string;
+  }> => {
+    const response = await http.post<{
+      botId: string;
+      userId: string;
+      agentId: string;
+      displayName: string;
+    }>(`/v1/installed-applications/${appId}/common-staff/staff`, body);
+    return response.data;
+  },
+
+  updateCommonStaff: async (
+    appId: string,
+    botId: string,
+    body: Record<string, unknown>,
+  ): Promise<void> => {
+    await http.patch(
+      `/v1/installed-applications/${appId}/common-staff/staff/${botId}`,
+      body,
+    );
+  },
+
+  deleteCommonStaff: async (appId: string, botId: string): Promise<void> => {
+    await http.delete(
+      `/v1/installed-applications/${appId}/common-staff/staff/${botId}`,
+    );
+  },
+
+  generateAvatar: async (
+    appId: string,
+    body: {
+      style: string;
+      displayName?: string;
+      roleTitle?: string;
+      persona?: string;
+      prompt?: string;
+    },
+  ): Promise<{ avatarUrl: string }> => {
+    const response = await http.post<{ avatarUrl: string }>(
+      `/v1/installed-applications/${appId}/common-staff/generate-avatar`,
+      body,
+    );
+    return response.data;
+  },
+
+  /**
+   * Streams persona generation text as an async iterable of string chunks.
+   * Usage: `for await (const chunk of applicationsApi.generatePersona(...)) { ... }`
+   */
+  generatePersona: async function* (
+    appId: string,
+    body: {
+      displayName: string;
+      roleTitle?: string;
+      jobDescription?: string;
+    },
+  ): AsyncGenerator<string> {
+    const token = await getValidAccessToken();
+    const url = `${API_BASE_URL}/v1/installed-applications/${appId}/common-staff/generate-persona`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`generatePersona failed: ${res.status}`);
+    const reader = res.body?.getReader();
+    if (!reader) return;
+    const decoder = new TextDecoder();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        yield decoder.decode(value, { stream: true });
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  },
+
+  /**
+   * Streams candidate staff generation as an async iterable of string chunks.
+   * Usage: `for await (const chunk of applicationsApi.generateCandidates(...)) { ... }`
+   */
+  generateCandidates: async function* (
+    appId: string,
+    body: {
+      count?: number;
+      context?: string;
+    },
+  ): AsyncGenerator<string> {
+    const token = await getValidAccessToken();
+    const url = `${API_BASE_URL}/v1/installed-applications/${appId}/common-staff/generate-candidates`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`generateCandidates failed: ${res.status}`);
+    const reader = res.body?.getReader();
+    if (!reader) return;
+    const decoder = new TextDecoder();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        yield decoder.decode(value, { stream: true });
+      }
+    } finally {
+      reader.releaseLock();
+    }
   },
 };
 
