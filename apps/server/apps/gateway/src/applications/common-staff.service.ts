@@ -152,15 +152,15 @@ export class CommonStaffService {
         },
         model: dto.model,
         componentConfigs: {
-          'common-staff-agent': {
-            roleTitle: dto.roleTitle ?? null,
-            persona: dto.persona ?? null,
-            jobDescription: dto.jobDescription ?? null,
-          },
+          'system-prompt': { prompt: 'You are a helpful AI assistant.' },
           team9: {
             team9AuthToken: accessToken!,
             botUserId: bot.userId,
+            team9BaseUrl: process.env.API_URL || '',
           },
+          'team9-staff-profile': {},
+          'team9-staff-bootstrap': {},
+          'team9-staff-soul': {},
         },
       });
 
@@ -191,19 +191,21 @@ export class CommonStaffService {
       }
 
       // 8. Trigger bootstrap session in mentor DM if agenticBootstrap is set
-      if (dto.agenticBootstrap && dto.mentorId) {
-        const mentorDmChannel = dmChannelMap.get(dto.mentorId);
+      // Fall back to ownerId when mentorId is not explicitly provided
+      const effectiveMentorId = dto.mentorId ?? ownerId;
+      if (dto.agenticBootstrap && effectiveMentorId) {
+        const mentorDmChannel = dmChannelMap.get(effectiveMentorId);
         if (mentorDmChannel) {
           try {
             await this.clawHiveService.createSession(
               agentId,
               {
-                userId: dto.mentorId,
+                userId: effectiveMentorId,
                 team9Context: {
                   source: 'team9',
                   scopeType: 'dm',
                   scopeId: mentorDmChannel.id,
-                  peerUserId: dto.mentorId,
+                  peerUserId: effectiveMentorId,
                   isMentorDm: true,
                 },
               },
@@ -221,7 +223,7 @@ export class CommonStaffService {
           }
         } else {
           this.logger.warn(
-            `agenticBootstrap set but no DM channel found for mentor ${dto.mentorId} — skipping bootstrap`,
+            `agenticBootstrap set but no DM channel found for mentor ${effectiveMentorId} — skipping bootstrap`,
           );
         }
       }
@@ -351,13 +353,6 @@ export class CommonStaffService {
       },
       ...(dto.displayName !== undefined ? { name: dto.displayName } : {}),
       ...(dto.model !== undefined ? { model: dto.model } : {}),
-      componentConfigs: {
-        'common-staff-agent': {
-          roleTitle: updatedExtra.commonStaff?.roleTitle ?? null,
-          persona: updatedExtra.commonStaff?.persona ?? null,
-          jobDescription: updatedExtra.commonStaff?.jobDescription ?? null,
-        },
-      },
     });
 
     this.logger.log(`Updated claw-hive agent ${agentId} for bot ${botId}`);
@@ -392,7 +387,31 @@ export class CommonStaffService {
       );
     }
 
-    // 2. Delete claw-hive agent first
+    // 2. Verify bot belongs to this installed application
+    const bot = await this.botService.getBotById(botId);
+    if (!bot) {
+      throw new NotFoundException(`Bot ${botId} not found`);
+    }
+    // Check the bot belongs to this installed application
+    const botRecords = await this.db
+      .select({
+        installedApplicationId: schema.bots.installedApplicationId,
+      })
+      .from(schema.bots)
+      .where(
+        and(
+          eq(schema.bots.id, botId),
+          eq(schema.bots.installedApplicationId, installedApplicationId),
+        ),
+      );
+
+    if (botRecords.length === 0) {
+      throw new BadRequestException(
+        `Bot ${botId} does not belong to installed application ${installedApplicationId}`,
+      );
+    }
+
+    // 4. Delete claw-hive agent first
     const agentId = `common-staff-${botId}`;
     try {
       await this.clawHiveService.deleteAgent(agentId);
@@ -404,7 +423,7 @@ export class CommonStaffService {
       );
     }
 
-    // 3. Delete bot and cleanup
+    // 5. Delete bot and cleanup
     await this.botService.deleteBotAndCleanup(botId);
     this.logger.log(`Deleted bot ${botId}`);
   }
@@ -419,10 +438,19 @@ export class CommonStaffService {
    * @returns AsyncGenerator that yields text chunks suitable for an SSE stream.
    */
   async *generatePersona(
-    _appId: string,
-    _tenantId: string,
+    appId: string,
+    tenantId: string,
     dto: GeneratePersonaDto,
   ): AsyncGenerator<string> {
+    // Verify app is common-staff type
+    const app = await this.installedApplicationsService.findById(
+      appId,
+      tenantId,
+    );
+    if (!app || app.applicationId !== COMMON_STAFF_APPLICATION_ID) {
+      throw new BadRequestException('Not a common-staff application');
+    }
+
     const { displayName, roleTitle, existingPersona, prompt } = dto;
 
     // Build a rich system prompt

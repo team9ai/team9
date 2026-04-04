@@ -259,8 +259,30 @@ describe('CommonStaffService', () => {
             tenantId: TENANT_ID,
             botId: BOT_ID,
           }),
+          componentConfigs: expect.objectContaining({
+            'system-prompt': { prompt: 'You are a helpful AI assistant.' },
+            team9: expect.objectContaining({
+              team9AuthToken: 'access-token-1234',
+              botUserId: BOT_USER_ID,
+            }),
+            'team9-staff-profile': {},
+            'team9-staff-bootstrap': {},
+            'team9-staff-soul': {},
+          }),
         }),
       );
+    });
+
+    it('registers claw-hive agent without common-staff-agent component', async () => {
+      const dto = makeCreateDto();
+      await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+      const call = clawHiveService.registerAgent.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      const configs = call['componentConfigs'] as Record<string, unknown>;
+      expect(configs).not.toHaveProperty('common-staff-agent');
     });
 
     it('creates DM channels for workspace members', async () => {
@@ -385,14 +407,28 @@ describe('CommonStaffService', () => {
         expect(clawHiveService.createSession).not.toHaveBeenCalled();
       });
 
-      it('does not trigger createSession when mentorId is not set', async () => {
+      it('falls back to ownerId when agenticBootstrap=true and mentorId is not set', async () => {
         const dto = makeCreateDto({
           agenticBootstrap: true,
           mentorId: undefined,
         });
         await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
 
-        expect(clawHiveService.createSession).not.toHaveBeenCalled();
+        // Should fall back to ownerId (OWNER_ID === MENTOR_ID in this context)
+        expect(clawHiveService.createSession).toHaveBeenCalledWith(
+          AGENT_ID,
+          {
+            userId: OWNER_ID,
+            team9Context: {
+              source: 'team9',
+              scopeType: 'dm',
+              scopeId: DM_CHANNEL_ID,
+              peerUserId: OWNER_ID,
+              isMentorDm: true,
+            },
+          },
+          TENANT_ID,
+        );
       });
 
       it('skips bootstrap and warns when mentor has no DM channel', async () => {
@@ -643,6 +679,35 @@ describe('CommonStaffService', () => {
       );
     });
 
+    it('does not pass componentConfigs to updateAgent', async () => {
+      const dto = makeUpdateDto({
+        roleTitle: 'New Role',
+        persona: 'New Persona',
+        jobDescription: 'New Desc',
+      });
+      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+
+      const call = clawHiveService.updateAgent.mock.calls[0][1] as Record<
+        string,
+        unknown
+      >;
+      expect(call).not.toHaveProperty('componentConfigs');
+    });
+
+    it('does not pass common-staff-agent componentConfig to updateAgent', async () => {
+      const dto = makeUpdateDto({ displayName: 'New Name' });
+      await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
+
+      const call = clawHiveService.updateAgent.mock.calls[0][1] as Record<
+        string,
+        unknown
+      >;
+      const configs = call['componentConfigs'] as
+        | Record<string, unknown>
+        | undefined;
+      expect(configs?.['common-staff-agent']).toBeUndefined();
+    });
+
     it('throws NotFoundException when installed application is not found', async () => {
       installedApplicationsService.findById.mockResolvedValueOnce(null);
 
@@ -715,6 +780,13 @@ describe('CommonStaffService', () => {
   // ── deleteStaff ──────────────────────────────────────────────────────────────
 
   describe('deleteStaff', () => {
+    beforeEach(() => {
+      // Default: bot belongs to the installed application
+      db.where.mockResolvedValue([
+        { installedApplicationId: INSTALLED_APP_ID },
+      ]);
+    });
+
     it('deletes claw-hive agent before bot', async () => {
       const deleteOrder: string[] = [];
       clawHiveService.deleteAgent.mockImplementation(async () => {
@@ -765,6 +837,23 @@ describe('CommonStaffService', () => {
       installedApplicationsService.findById.mockResolvedValueOnce(
         makeInstalledApp('base-model-staff'),
       );
+
+      await expect(
+        service.deleteStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws NotFoundException when bot is not found', async () => {
+      botService.getBotById.mockResolvedValueOnce(null);
+
+      await expect(
+        service.deleteStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws BadRequestException when bot does not belong to this installed application', async () => {
+      // Bot found but not linked to this installed application
+      db.where.mockResolvedValueOnce([]); // empty means no matching record
 
       await expect(
         service.deleteStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID),
@@ -947,6 +1036,47 @@ describe('CommonStaffService', () => {
       }
 
       expect(chunks).toHaveLength(0);
+    });
+
+    it('verifies app before generating (calls installedApplicationsService.findById)', async () => {
+      for await (const _ of service.generatePersona(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makePersonaDto(),
+      )) {
+        // consume
+      }
+
+      expect(installedApplicationsService.findById).toHaveBeenCalledWith(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+      );
+    });
+
+    it('throws BadRequestException when application is not common-staff type', async () => {
+      installedApplicationsService.findById.mockResolvedValueOnce(
+        makeInstalledApp('openclaw'),
+      );
+
+      const gen = service.generatePersona(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makePersonaDto(),
+      );
+
+      await expect(gen.next()).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when application is not found', async () => {
+      installedApplicationsService.findById.mockResolvedValueOnce(null);
+
+      const gen = service.generatePersona(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makePersonaDto(),
+      );
+
+      await expect(gen.next()).rejects.toThrow(BadRequestException);
     });
   });
 
