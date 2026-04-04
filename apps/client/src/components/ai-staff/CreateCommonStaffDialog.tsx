@@ -79,6 +79,27 @@ export function CreateCommonStaffDialog({
   const [isGeneratingAvatar, setIsGeneratingAvatar] = useState(false);
   const [avatarStyle, setAvatarStyle] = useState<string>("realistic");
 
+  // Recruitment state
+  const [jobTitle, setJobTitle] = useState("");
+  const [jd, setJd] = useState("");
+  const [candidates, setCandidates] = useState<
+    Array<{
+      candidateIndex: number;
+      displayName: string;
+      roleTitle: string;
+      persona: string;
+      summary: string;
+    }>
+  >([]);
+  const [selectedCandidate, setSelectedCandidate] = useState<number | null>(
+    null,
+  );
+  const [isGeneratingCandidates, setIsGeneratingCandidates] = useState(false);
+  // Editable candidate fields (keyed by candidateIndex)
+  const [editedCandidates, setEditedCandidates] = useState<
+    Record<number, { displayName: string; roleTitle: string; persona: string }>
+  >({});
+
   // Workspace members for mentor dropdown
   const { data: membersData } = useQuery({
     queryKey: ["workspace-members", workspaceId],
@@ -106,6 +127,12 @@ export function CreateCommonStaffDialog({
     setAvatarUrl(null);
     setIsGeneratingPersona(false);
     setIsGeneratingAvatar(false);
+    setJobTitle("");
+    setJd("");
+    setCandidates([]);
+    setSelectedCandidate(null);
+    setIsGeneratingCandidates(false);
+    setEditedCandidates({});
   }, []);
 
   // Persona AI generation
@@ -125,7 +152,7 @@ export function CreateCommonStaffDialog({
     } finally {
       setIsGeneratingPersona(false);
     }
-  }, [appId, displayName, roleTitle, persona, personaPrompt]);
+  }, [appId, displayName, roleTitle, jobDescription]);
 
   // Avatar AI generation
   const handleGenerateAvatar = useCallback(async () => {
@@ -155,6 +182,81 @@ export function CreateCommonStaffDialog({
         model: { provider: model.provider, id: model.id },
         avatarUrl: avatarUrl || undefined,
       }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({
+        queryKey: ["installed-applications-with-bots", workspaceId],
+      });
+      navigate({ to: "/ai-staff/$staffId", params: { staffId: data.botId } });
+      onOpenChange(false);
+      resetForm();
+    },
+  });
+
+  // Agentic submit mutation
+  const agenticMutation = useMutation({
+    mutationFn: () =>
+      api.applications.createCommonStaff(appId, {
+        displayName: `Candidate #${Date.now() % 1000}`,
+        model: { provider: model.provider, id: model.id },
+        agenticBootstrap: true,
+      }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({
+        queryKey: ["installed-applications-with-bots", workspaceId],
+      });
+      navigate({ to: "/ai-staff/$staffId", params: { staffId: data.botId } });
+      onOpenChange(false);
+      resetForm();
+    },
+  });
+
+  // Recruitment: generate candidates from SSE stream
+  const handleGenerateCandidates = async () => {
+    setIsGeneratingCandidates(true);
+    setCandidates([]);
+    setSelectedCandidate(null);
+    setEditedCandidates({});
+    try {
+      const stream = api.applications.generateCandidates(appId, {
+        jobTitle: jobTitle || undefined,
+        jobDescription: jd || undefined,
+      });
+      for await (const event of stream) {
+        if (event.type === "candidate" && event.data.candidateIndex != null) {
+          const c = event.data as {
+            candidateIndex: number;
+            displayName: string;
+            roleTitle: string;
+            persona: string;
+            summary: string;
+          };
+          setCandidates((prev) => [...prev, c]);
+        }
+      }
+    } finally {
+      setIsGeneratingCandidates(false);
+    }
+  };
+
+  // Recruitment: submit with selected candidate
+  const recruitmentMutation = useMutation({
+    mutationFn: () => {
+      const candidate = candidates.find(
+        (c) => c.candidateIndex === selectedCandidate,
+      );
+      if (!candidate) throw new Error("No candidate selected");
+      const edited =
+        selectedCandidate != null
+          ? editedCandidates[selectedCandidate]
+          : undefined;
+      return api.applications.createCommonStaff(appId, {
+        displayName: edited?.displayName ?? candidate.displayName,
+        roleTitle: edited?.roleTitle ?? candidate.roleTitle,
+        persona: edited?.persona ?? candidate.persona,
+        mentorId: mentorId || undefined,
+        model: { provider: model.provider, id: model.id },
+      });
+    },
     onSuccess: (data) => {
       queryClient.invalidateQueries({
         queryKey: ["installed-applications-with-bots", workspaceId],
@@ -421,7 +523,7 @@ export function CreateCommonStaffDialog({
     </div>
   );
 
-  // ── Agentic Step 2 (placeholder, functional in Task 9) ──────────────
+  // ── Agentic Step 2 ──────────────────────────────────────────────────
   const renderAgenticStep2 = () => (
     <div className="space-y-4">
       <div>
@@ -452,12 +554,215 @@ export function CreateCommonStaffDialog({
     </div>
   );
 
-  // ── Recruitment placeholder (functional in Task 9) ──────────────────
-  const renderRecruitmentStep = () => (
-    <div className="py-8 text-center text-sm text-muted-foreground">
-      Recruitment mode coming soon.
+  // ── Recruitment Step 2: JD input ────────────────────────────────────
+  const renderRecruitmentStep2 = () => (
+    <div className="space-y-4">
+      <div>
+        <label className="text-sm font-medium" htmlFor="recruitJobTitle">
+          Job Title
+        </label>
+        <Input
+          id="recruitJobTitle"
+          value={jobTitle}
+          onChange={(e) => setJobTitle(e.target.value)}
+          placeholder="e.g. Frontend Engineer"
+        />
+      </div>
+      <div>
+        <label className="text-sm font-medium" htmlFor="recruitJd">
+          Job Description
+        </label>
+        <textarea
+          className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          id="recruitJd"
+          value={jd}
+          onChange={(e) => setJd(e.target.value)}
+          placeholder="Optional — describe the role, responsibilities, and requirements..."
+          rows={5}
+        />
+      </div>
     </div>
   );
+
+  // ── Recruitment Step 3: Candidate cards ─────────────────────────────
+  const renderRecruitmentStep3 = () => (
+    <div className="space-y-4">
+      {isGeneratingCandidates && candidates.length === 0 && (
+        <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Generating candidates…
+        </div>
+      )}
+      {candidates.length > 0 && (
+        <div className="space-y-3">
+          {candidates.map((c) => {
+            const edited = editedCandidates[c.candidateIndex];
+            const isSelected = selectedCandidate === c.candidateIndex;
+            return (
+              <div
+                key={c.candidateIndex}
+                className={`rounded-lg border p-3 cursor-pointer transition-all ${
+                  isSelected
+                    ? "border-primary bg-primary/5"
+                    : "hover:border-muted-foreground/40"
+                }`}
+                onClick={() => setSelectedCandidate(c.candidateIndex)}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 space-y-2">
+                    <div className="flex gap-2">
+                      <Input
+                        className="h-7 text-sm font-medium"
+                        value={edited?.displayName ?? c.displayName}
+                        onChange={(e) =>
+                          setEditedCandidates((prev) => ({
+                            ...prev,
+                            [c.candidateIndex]: {
+                              displayName: e.target.value,
+                              roleTitle:
+                                prev[c.candidateIndex]?.roleTitle ??
+                                c.roleTitle,
+                              persona:
+                                prev[c.candidateIndex]?.persona ?? c.persona,
+                            },
+                          }))
+                        }
+                        onClick={(e) => e.stopPropagation()}
+                        placeholder="Name"
+                      />
+                      <Input
+                        className="h-7 text-sm text-muted-foreground"
+                        value={edited?.roleTitle ?? c.roleTitle}
+                        onChange={(e) =>
+                          setEditedCandidates((prev) => ({
+                            ...prev,
+                            [c.candidateIndex]: {
+                              displayName:
+                                prev[c.candidateIndex]?.displayName ??
+                                c.displayName,
+                              roleTitle: e.target.value,
+                              persona:
+                                prev[c.candidateIndex]?.persona ?? c.persona,
+                            },
+                          }))
+                        }
+                        onClick={(e) => e.stopPropagation()}
+                        placeholder="Role"
+                      />
+                    </div>
+                    <textarea
+                      className="flex w-full rounded-md border border-input bg-background px-2 py-1 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      value={edited?.persona ?? c.persona}
+                      rows={2}
+                      onChange={(e) =>
+                        setEditedCandidates((prev) => ({
+                          ...prev,
+                          [c.candidateIndex]: {
+                            displayName:
+                              prev[c.candidateIndex]?.displayName ??
+                              c.displayName,
+                            roleTitle:
+                              prev[c.candidateIndex]?.roleTitle ?? c.roleTitle,
+                            persona: e.target.value,
+                          },
+                        }))
+                      }
+                      onClick={(e) => e.stopPropagation()}
+                      placeholder="Persona"
+                    />
+                    {c.summary && (
+                      <p className="text-xs text-muted-foreground">
+                        {c.summary}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleGenerateCandidates}
+        disabled={isGeneratingCandidates}
+        className="w-full"
+      >
+        {isGeneratingCandidates ? (
+          <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+        ) : (
+          <Sparkles className="mr-1 h-4 w-4" />
+        )}
+        {candidates.length > 0 ? "Re-roll" : "Generate Candidates"}
+      </Button>
+    </div>
+  );
+
+  // ── Recruitment Step 4: Model + Mentor ──────────────────────────────
+  const renderRecruitmentStep4 = () => {
+    const selC = candidates.find((c) => c.candidateIndex === selectedCandidate);
+    const edited =
+      selectedCandidate != null
+        ? editedCandidates[selectedCandidate]
+        : undefined;
+    return (
+      <div className="space-y-4">
+        {selC && (
+          <div className="flex justify-center pb-2">
+            <StaffBadgeCard
+              displayName={edited?.displayName ?? selC.displayName}
+              roleTitle={edited?.roleTitle ?? selC.roleTitle}
+              mentorName={
+                humanMembers.find((m) => m.userId === mentorId)?.displayName ??
+                undefined
+              }
+              persona={edited?.persona ?? selC.persona}
+              modelLabel={model.label}
+            />
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-sm font-medium">Mentor</label>
+            <Select value={mentorId} onValueChange={setMentorId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select mentor..." />
+              </SelectTrigger>
+              <SelectContent>
+                {humanMembers.map((m) => (
+                  <SelectItem key={m.userId} value={m.userId}>
+                    {m.displayName || m.username}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-sm font-medium">Model</label>
+            <Select
+              value={model.id}
+              onValueChange={(id) => {
+                const found = COMMON_STAFF_MODELS.find((m) => m.id === id);
+                if (found) setModel(found);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {COMMON_STAFF_MODELS.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // ── Render current step ─────────────────────────────────────────────
   const renderCurrentStep = () => {
@@ -468,7 +773,11 @@ export function CreateCommonStaffDialog({
       if (step === 4) return renderFormStep4();
     }
     if (mode === "agentic" && step === 2) return renderAgenticStep2();
-    if (mode === "recruitment") return renderRecruitmentStep();
+    if (mode === "recruitment") {
+      if (step === 2) return renderRecruitmentStep2();
+      if (step === 3) return renderRecruitmentStep3();
+      if (step === 4) return renderRecruitmentStep4();
+    }
     return null;
   };
 
@@ -480,13 +789,23 @@ export function CreateCommonStaffDialog({
       if (step === 4) return "Avatar & Preview";
     }
     if (mode === "agentic") return "Agentic Setup";
-    if (mode === "recruitment") return "Recruitment";
+    if (mode === "recruitment") {
+      if (step === 2) return "Job Description";
+      if (step === 3) return "Choose a Candidate";
+      if (step === 4) return "Finalize";
+    }
     return "Create AI Staff";
   };
 
   const isLastStep = step === totalSteps;
   const canSubmit =
-    mode === "form" ? canProceedStep2 : mode === "agentic" ? true : false;
+    mode === "form"
+      ? canProceedStep2
+      : mode === "agentic"
+        ? true
+        : mode === "recruitment"
+          ? selectedCandidate != null
+          : false;
 
   return (
     <Dialog
@@ -525,21 +844,65 @@ export function CreateCommonStaffDialog({
             </Button>
 
             {isLastStep ? (
-              <Button
-                onClick={() => createMutation.mutate()}
-                disabled={!canSubmit || createMutation.isPending}
-              >
-                {createMutation.isPending && (
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                )}
-                Create
-              </Button>
+              mode === "agentic" ? (
+                <Button
+                  onClick={() => agenticMutation.mutate()}
+                  disabled={agenticMutation.isPending}
+                >
+                  {agenticMutation.isPending && (
+                    <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  )}
+                  Create &amp; Start Bootstrap
+                </Button>
+              ) : mode === "recruitment" ? (
+                <Button
+                  onClick={() => recruitmentMutation.mutate()}
+                  disabled={!canSubmit || recruitmentMutation.isPending}
+                >
+                  {recruitmentMutation.isPending && (
+                    <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  )}
+                  Create
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => createMutation.mutate()}
+                  disabled={!canSubmit || createMutation.isPending}
+                >
+                  {createMutation.isPending && (
+                    <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  )}
+                  Create
+                </Button>
+              )
             ) : (
               <Button
-                onClick={() => setStep((s) => s + 1)}
-                disabled={step === 2 && !canProceedStep2}
+                onClick={() => {
+                  if (mode === "recruitment" && step === 2) {
+                    // Advance to candidate step and kick off generation
+                    setStep((s) => s + 1);
+                    void handleGenerateCandidates();
+                  } else {
+                    setStep((s) => s + 1);
+                  }
+                }}
+                disabled={
+                  (mode === "form" && step === 2 && !canProceedStep2) ||
+                  (mode === "recruitment" &&
+                    step === 3 &&
+                    selectedCandidate === null &&
+                    candidates.length > 0)
+                }
               >
-                Next <ArrowRight className="ml-1 h-4 w-4" />
+                {mode === "recruitment" && step === 2 ? (
+                  <>
+                    Generate Candidates <ArrowRight className="ml-1 h-4 w-4" />
+                  </>
+                ) : (
+                  <>
+                    Next <ArrowRight className="ml-1 h-4 w-4" />
+                  </>
+                )}
               </Button>
             )}
           </DialogFooter>

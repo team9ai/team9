@@ -664,16 +664,27 @@ export const applicationsApi = {
   },
 
   /**
-   * Streams candidate staff generation as an async iterable of string chunks.
-   * Usage: `for await (const chunk of applicationsApi.generateCandidates(...)) { ... }`
+   * Streams candidate staff generation as an async iterable of structured events.
+   * The server sends SSE lines; this parser yields typed candidate events.
+   * Usage: `for await (const event of applicationsApi.generateCandidates(...)) { ... }`
    */
   generateCandidates: async function* (
     appId: string,
     body: {
-      count?: number;
-      context?: string;
+      jobTitle?: string;
+      jobDescription?: string;
     },
-  ): AsyncGenerator<string> {
+  ): AsyncGenerator<{
+    type: "candidate" | "partial";
+    data: {
+      candidateIndex?: number;
+      displayName?: string;
+      roleTitle?: string;
+      persona?: string;
+      summary?: string;
+      text?: string;
+    };
+  }> {
     const token = await getValidAccessToken();
     const url = `${API_BASE_URL}/v1/installed-applications/${appId}/common-staff/generate-candidates`;
     const res = await fetch(url, {
@@ -688,11 +699,36 @@ export const applicationsApi = {
     const reader = res.body?.getReader();
     if (!reader) return;
     const decoder = new TextDecoder();
+    let sseBuffer = "";
     try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        yield decoder.decode(value, { stream: true });
+        sseBuffer += decoder.decode(value, { stream: true });
+        // Parse SSE lines: each event is "data: <json>\n\n"
+        const lines = sseBuffer.split("\n");
+        sseBuffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const payload = line.slice(6).trim();
+          if (payload === "[DONE]") return;
+          try {
+            const parsed = JSON.parse(payload) as {
+              type: "candidate" | "partial";
+              data: {
+                candidateIndex?: number;
+                displayName?: string;
+                roleTitle?: string;
+                persona?: string;
+                summary?: string;
+                text?: string;
+              };
+            };
+            yield parsed;
+          } catch {
+            // ignore malformed lines
+          }
+        }
       }
     } finally {
       reader.releaseLock();
