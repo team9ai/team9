@@ -22,16 +22,57 @@ import type {
 
 type MockFn = jest.Mock<(...args: any[]) => any>;
 
-/** Minimal Drizzle chain mock */
+/**
+ * Minimal Drizzle chain mock.
+ *
+ * Each call to `where(...)` returns a fresh "terminal node" that:
+ *   - is thenable (so `await db.select().from().where()` works)
+ *   - exposes `.limit()` which resolves to the next queued limit result
+ *
+ * This allows both query patterns used in the service:
+ *   - `await db.select().from().where()`          → where-terminal (dequeues from whereQueue)
+ *   - `await db.select().from().where().limit(1)` → limit-terminal  (dequeues from limitQueue)
+ *
+ * Use `db.enqueue(value)` to schedule a result for the next where-terminal query.
+ * Use `db.limit.mockResolvedValueOnce(value)` for limit-terminal queries.
+ * Use `db.clearQueue()` to discard pending where-terminal queue entries.
+ */
 function mockDb() {
-  const chain: Record<string, MockFn> = {};
+  const whereQueue: unknown[] = [];
+
+  // Shared limit mock so tests can configure it with mockResolvedValueOnce
+  const limitMock: MockFn = jest.fn<any>();
+  limitMock.mockResolvedValue([]); // default
+
+  /** Creates a thenable terminal node returned by .where() */
+  function makeTerminalNode() {
+    const node: {
+      then: (
+        resolve: (v: unknown) => unknown,
+        reject?: (e: unknown) => unknown,
+      ) => Promise<unknown>;
+      limit: MockFn;
+    } = {
+      then(resolve, reject) {
+        const value = whereQueue.length > 0 ? whereQueue.shift() : [];
+        return Promise.resolve(value).then(resolve, reject);
+      },
+      limit: limitMock,
+    };
+    return node;
+  }
+
+  const chain: Record<string, MockFn> & {
+    enqueue: (value: unknown) => void;
+    clearQueue: () => void;
+    limit: MockFn;
+  } = {} as any;
+
   const methods = [
     'select',
     'from',
-    'where',
     'innerJoin',
     'leftJoin',
-    'limit',
     'update',
     'set',
     'delete',
@@ -39,9 +80,23 @@ function mockDb() {
   for (const m of methods) {
     chain[m] = jest.fn<any>().mockReturnValue(chain);
   }
-  // Default: return empty member list (used for all terminal calls)
-  chain.where.mockResolvedValue([]);
-  chain.limit.mockResolvedValue([]);
+
+  // where() returns a fresh terminal node each call
+  chain.where = jest.fn<any>().mockImplementation(() => makeTerminalNode());
+
+  // Expose the shared limit mock so tests can configure it
+  chain.limit = limitMock;
+
+  // Helper to schedule a result for the next where-terminal query
+  chain.enqueue = (value: unknown) => {
+    whereQueue.push(value);
+  };
+
+  // Helper to discard all pending where-terminal queue entries
+  chain.clearQueue = () => {
+    whereQueue.length = 0;
+  };
+
   return chain;
 }
 
@@ -287,10 +342,11 @@ describe('CommonStaffService', () => {
 
     it('creates DM channels for workspace members', async () => {
       const memberIds = ['member-a', 'member-b'];
-      // First DB call: update bots.managedMeta (returns nothing meaningful)
-      db.where.mockResolvedValueOnce([]);
-      // Second DB call: select tenant members
-      db.where.mockResolvedValueOnce(memberIds.map((userId) => ({ userId })));
+      // In createStaff, chain is awaited twice without .limit():
+      //   1st: update bots.managedMeta (no-op result)
+      //   2nd: members select → needs real member list
+      db.enqueue([]); // update managedMeta result (ignored)
+      db.enqueue(memberIds.map((userId) => ({ userId }))); // members select
 
       await service.createStaff(
         INSTALLED_APP_ID,
@@ -307,8 +363,11 @@ describe('CommonStaffService', () => {
     });
 
     it('skips DM creation when bot is the only member', async () => {
-      // Members list only has the bot itself
-      db.where.mockResolvedValue([{ userId: BOT_USER_ID }]);
+      // In createStaff, chain is awaited twice without .limit():
+      //   1st: update bots.managedMeta (no-op result)
+      //   2nd: members select → only the bot itself
+      db.enqueue([]); // update managedMeta result (ignored)
+      db.enqueue([{ userId: BOT_USER_ID }]); // members select → only bot
 
       await service.createStaff(
         INSTALLED_APP_ID,
@@ -363,8 +422,11 @@ describe('CommonStaffService', () => {
         channelsService.createDirectChannelsBatch.mockResolvedValue(
           new Map([[MENTOR_ID, { id: DM_CHANNEL_ID }]]),
         );
-        // tenant members includes mentor
-        db.where.mockResolvedValue([{ userId: MENTOR_ID }]);
+        // In createStaff, chain is awaited twice without .limit():
+        //   1st: update bots.managedMeta (no-op result)
+        //   2nd: members select (tenant members including mentor)
+        db.enqueue([]); // update managedMeta result (ignored)
+        db.enqueue([{ userId: MENTOR_ID }]); // members select result
       });
 
       it('triggers sendInput with bootstrap event using deterministic sessionId when agenticBootstrap=true', async () => {
@@ -616,9 +678,8 @@ describe('CommonStaffService', () => {
   describe('updateStaff', () => {
     beforeEach(() => {
       // Default: bot belongs to the installed application
-      db.where.mockResolvedValue([
-        { installedApplicationId: INSTALLED_APP_ID },
-      ]);
+      // (bot ownership check is the first/only `await chain` call in updateStaff)
+      db.enqueue([{ installedApplicationId: INSTALLED_APP_ID }]);
     });
 
     it('updates bot display name when provided', async () => {
@@ -794,8 +855,9 @@ describe('CommonStaffService', () => {
     });
 
     it('throws BadRequestException when bot does not belong to this installed application', async () => {
-      // Bot found but not linked to this installed application
-      db.where.mockResolvedValueOnce([]); // empty means no matching record
+      // Override the beforeEach default: bot ownership check returns empty
+      db.clearQueue();
+      db.enqueue([]); // empty means no matching record
 
       await expect(
         service.updateStaff(
@@ -826,9 +888,8 @@ describe('CommonStaffService', () => {
   describe('deleteStaff', () => {
     beforeEach(() => {
       // Default: bot belongs to the installed application
-      db.where.mockResolvedValue([
-        { installedApplicationId: INSTALLED_APP_ID },
-      ]);
+      // (bot ownership check is the only `await chain` call in deleteStaff)
+      db.enqueue([{ installedApplicationId: INSTALLED_APP_ID }]);
     });
 
     it('deletes claw-hive agent before bot', async () => {
@@ -896,8 +957,9 @@ describe('CommonStaffService', () => {
     });
 
     it('throws BadRequestException when bot does not belong to this installed application', async () => {
-      // Bot found but not linked to this installed application
-      db.where.mockResolvedValueOnce([]); // empty means no matching record
+      // Override the beforeEach default: bot ownership check returns empty
+      db.clearQueue();
+      db.enqueue([]); // empty means no matching record
 
       await expect(
         service.deleteStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID),
