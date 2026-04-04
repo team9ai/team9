@@ -1054,7 +1054,7 @@ describe('CommonStaffService', () => {
       expect(mockStreamText).toHaveBeenCalledWith(
         expect.objectContaining({
           temperature: 0.9,
-          maxTokens: 1024,
+          maxOutputTokens: 1024,
         }),
       );
     });
@@ -1193,7 +1193,7 @@ describe('CommonStaffService', () => {
       expect(mockStreamText).toHaveBeenCalledWith(
         expect.objectContaining({
           temperature: 0.9,
-          maxTokens: 1024,
+          maxOutputTokens: 1024,
         }),
       );
       const callArg = mockStreamText.mock.calls[0][0] as Record<

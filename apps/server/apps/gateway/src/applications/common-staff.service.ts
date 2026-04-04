@@ -585,7 +585,7 @@ export class CommonStaffService {
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }],
       temperature: 0.9,
-      maxTokens: 1024,
+      maxOutputTokens: 1024,
     });
 
     for await (const chunk of result.textStream) {
