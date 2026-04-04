@@ -166,7 +166,7 @@ export function CreateCommonStaffDialog({
     } finally {
       setIsGeneratingPersona(false);
     }
-  }, [appId, displayName, roleTitle, jobDescription]);
+  }, [appId, displayName, roleTitle, jobDescription, persona, personaPrompt]);
 
   // Avatar AI generation
   const handleGenerateAvatar = useCallback(async () => {

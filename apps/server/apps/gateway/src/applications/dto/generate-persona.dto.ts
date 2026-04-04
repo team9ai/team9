@@ -16,6 +16,10 @@ export class GeneratePersonaDto {
   @IsOptional()
   @IsString()
   prompt?: string;
+
+  @IsOptional()
+  @IsString()
+  jobDescription?: string;
 }
 
 export class GenerateAvatarDto {

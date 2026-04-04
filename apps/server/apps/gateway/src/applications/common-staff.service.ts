@@ -455,7 +455,8 @@ export class CommonStaffService {
       throw new BadRequestException('Not a common-staff application');
     }
 
-    const { displayName, roleTitle, existingPersona, prompt } = dto;
+    const { displayName, roleTitle, existingPersona, prompt, jobDescription } =
+      dto;
 
     // Build a rich system prompt
     const systemPrompt = [
@@ -478,6 +479,9 @@ export class CommonStaffService {
     }
     if (roleTitle) {
       contextParts.push(`Role: ${roleTitle}`);
+    }
+    if (jobDescription) {
+      contextParts.push(`Job Description: ${jobDescription}`);
     }
 
     let userMessage: string;

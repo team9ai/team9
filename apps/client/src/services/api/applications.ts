@@ -654,11 +654,27 @@ export const applicationsApi = {
     const reader = res.body?.getReader();
     if (!reader) return;
     const decoder = new TextDecoder();
+    let sseBuffer = "";
     try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        yield decoder.decode(value, { stream: true });
+        sseBuffer += decoder.decode(value, { stream: true });
+        // Parse SSE lines: "data: {json}\n\n"
+        const lines = sseBuffer.split("\n");
+        sseBuffer = lines.pop() ?? "";
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed === "data: [DONE]") continue;
+          if (trimmed.startsWith("data: ")) {
+            try {
+              const parsed = JSON.parse(trimmed.slice(6));
+              if (parsed.text) yield parsed.text as string;
+            } catch {
+              // Skip malformed SSE lines
+            }
+          }
+        }
       }
     } finally {
       reader.releaseLock();
