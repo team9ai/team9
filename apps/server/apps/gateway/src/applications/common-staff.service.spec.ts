@@ -1611,5 +1611,30 @@ describe('CommonStaffService', () => {
       // Second iteration should throw
       await expect(gen.next()).rejects.toThrow('Stream error');
     });
+
+    it('propagates errors from result.output when stream completes but output rejects', async () => {
+      mockStreamText.mockReturnValueOnce({
+        partialOutputStream: makeAsyncIterable([
+          { candidates: [{ candidateIndex: 1, displayName: 'A' }] },
+        ]),
+        output: Promise.reject(new Error('Validation failed')),
+      });
+
+      const gen = service.generateCandidates(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        makeCandidatesDto(),
+      );
+
+      // First partial should succeed
+      const first = await gen.next();
+      expect(first.value).toEqual({
+        type: 'partial',
+        data: { candidates: [{ candidateIndex: 1, displayName: 'A' }] },
+      });
+
+      // The complete event should throw since result.output rejected
+      await expect(gen.next()).rejects.toThrow('Validation failed');
+    });
   });
 });
