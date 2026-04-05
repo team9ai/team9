@@ -54,7 +54,7 @@ export function ChannelContent({
   showReadOnlyBar,
 }: ChannelContentProps) {
   return (
-    <>
+    <div className="flex-1 flex flex-col min-h-0">
       {hasMoreUnsynced && (
         <div className="bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800 px-4 py-2 text-sm text-amber-700 dark:text-amber-300">
           You have older unread messages. Scroll up to load more.
@@ -92,6 +92,6 @@ export function ChannelContent({
           initialDraft={initialDraft}
         />
       ) : null}
-    </>
+    </div>
   );
 }
