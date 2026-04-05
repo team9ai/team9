@@ -5,26 +5,10 @@ import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useState, useEffect, useRef, useMemo } from "react";
-import { slugify } from "transliteration";
+import { useState } from "react";
 import { api } from "@/services/api";
 import type {
   BaseModelStaffBotInfo,
@@ -33,7 +17,6 @@ import type {
   OpenClawBotInfo,
   OpenClawInstanceStatus,
 } from "@/services/api/applications";
-import { getHttpErrorMessage } from "@/lib/http-error";
 import { cn } from "@/lib/utils";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import { BaseModelProductLogo } from "@/components/applications/BaseModelProductLogo";
@@ -191,235 +174,12 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
   );
 }
 
-// ── Create Agent Dialog ──────────────────────────────────────────────
-
-interface CreateAgentDialogProps {
-  openClawApps: InstalledApplicationWithBots[];
-  workspaceId: string | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
-
-const USERNAME_REGEX = /^[a-z0-9_]{3,100}$/;
-
-function CreateAgentDialog({
-  openClawApps,
-  workspaceId,
-  open,
-  onOpenChange,
-}: CreateAgentDialogProps) {
-  const queryClient = useQueryClient();
-  const [selectedAppId, setSelectedAppId] = useState(
-    openClawApps.length === 1 ? openClawApps[0].id : "",
-  );
-  const [displayName, setDisplayName] = useState("");
-  const [username, setUsername] = useState("");
-  const [description, setDescription] = useState("");
-  const [usernameStatus, setUsernameStatus] = useState<
-    "idle" | "checking" | "available" | "taken" | "invalid"
-  >("idle");
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
-
-  // Debounced username availability check
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    const trimmed = username.trim();
-    if (!trimmed) {
-      setUsernameStatus("idle");
-      return;
-    }
-    if (!USERNAME_REGEX.test(trimmed)) {
-      setUsernameStatus("invalid");
-      return;
-    }
-
-    setUsernameStatus("checking");
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const { available } =
-          await api.applications.checkUsernameAvailable(trimmed);
-        setUsernameStatus(available ? "available" : "taken");
-      } catch {
-        setUsernameStatus("idle");
-      }
-    }, 400);
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [username]);
-
-  const [createError, setCreateError] = useState<string | null>(null);
-
-  const agentSlugPreview = useMemo(() => {
-    const trimmed = displayName.trim();
-    if (!trimmed) return "";
-    return slugify(trimmed, { lowercase: true, separator: "-" })
-      .replace(/^-+|-+$/g, "")
-      .substring(0, 40);
-  }, [displayName]);
-
-  const createMutation = useMutation({
-    mutationFn: () => {
-      setCreateError(null);
-      return api.applications.createOpenClawAgent(selectedAppId, {
-        displayName: displayName.trim(),
-        username: username.trim() || undefined,
-        description: description.trim() || undefined,
-        agentSlug: agentSlugPreview || undefined,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["installed-applications-with-bots", workspaceId],
-      });
-      setDisplayName("");
-      setUsername("");
-      setDescription("");
-      setCreateError(null);
-      setUsernameStatus("idle");
-      onOpenChange(false);
-    },
-    onError: (error: unknown) => {
-      const message = getHttpErrorMessage(error) || "Failed to create agent";
-      setCreateError(message);
-    },
-  });
-
-  const usernameInvalid =
-    usernameStatus === "invalid" || usernameStatus === "taken";
-  const canSubmit =
-    !!selectedAppId &&
-    !!displayName.trim() &&
-    !usernameInvalid &&
-    usernameStatus !== "checking" &&
-    !createMutation.isPending;
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Create New Agent</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">OpenClaw Instance</label>
-            <Select value={selectedAppId} onValueChange={setSelectedAppId}>
-              <SelectTrigger className="h-9 text-sm">
-                <SelectValue placeholder="Select instance..." />
-              </SelectTrigger>
-              <SelectContent>
-                {openClawApps.map((app) => (
-                  <SelectItem key={app.id} value={app.id}>
-                    {app.name || app.id}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Name</label>
-            <Input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Agent name..."
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && canSubmit) {
-                  createMutation.mutate();
-                }
-              }}
-            />
-            {agentSlugPreview &&
-              agentSlugPreview !== displayName.trim().toLowerCase() && (
-                <p className="text-xs text-muted-foreground">
-                  Agent ID: {agentSlugPreview}
-                </p>
-              )}
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">
-              Username{" "}
-              <span className="text-muted-foreground font-normal">
-                (optional)
-              </span>
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-                @
-              </span>
-              <Input
-                value={username}
-                onChange={(e) => setUsername(e.target.value.toLowerCase())}
-                placeholder="Leave blank for auto-generated"
-                className="pl-7"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && canSubmit) {
-                    createMutation.mutate();
-                  }
-                }}
-              />
-              {usernameStatus === "checking" && (
-                <Loader2
-                  size={14}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-muted-foreground"
-                />
-              )}
-            </div>
-            {usernameStatus === "invalid" && (
-              <p className="text-xs text-destructive">
-                Lowercase letters, numbers, and underscores only (3-100 chars)
-              </p>
-            )}
-            {usernameStatus === "taken" && (
-              <p className="text-xs text-destructive">
-                This username is already taken
-              </p>
-            )}
-            {usernameStatus === "available" && (
-              <p className="text-xs text-success">Username is available</p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">
-              Description{" "}
-              <span className="text-muted-foreground font-normal">
-                (optional)
-              </span>
-            </label>
-            <Input
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="What does this agent do..."
-            />
-          </div>
-        </div>
-        {createError && (
-          <p className="text-sm text-destructive">{createError}</p>
-        )}
-        <DialogFooter>
-          <Button onClick={() => createMutation.mutate()} disabled={!canSubmit}>
-            {createMutation.isPending ? (
-              <Loader2 size={14} className="mr-1 animate-spin" />
-            ) : (
-              <Plus size={14} className="mr-1" />
-            )}
-            Create
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 // ── Main Component ───────────────────────────────────────────────────
 
 export function AIStaffMainContent() {
   const { t } = useTranslation("navigation");
   const workspaceId = useSelectedWorkspaceId();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showCreateStaffDialog, setShowCreateStaffDialog] = useState(false);
 
   const {
     data: installedApps,
@@ -450,24 +210,12 @@ export function AIStaffMainContent() {
             {t("aiStaff")}
           </h2>
         </div>
-        <div className="flex items-center gap-2">
-          {commonStaffApp && (
-            <Button size="sm" onClick={() => setShowCreateStaffDialog(true)}>
-              <Plus size={14} className="mr-1" />
-              Create Staff
-            </Button>
-          )}
-          {openClawApps.length > 0 && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setShowCreateDialog(true)}
-            >
-              <Plus size={14} className="mr-1" />
-              Create Agent
-            </Button>
-          )}
-        </div>
+        {(commonStaffApp || openClawApps.length > 0) && (
+          <Button size="sm" onClick={() => setShowCreateDialog(true)}>
+            <Plus size={14} className="mr-1" />
+            Create
+          </Button>
+        )}
       </header>
 
       <Separator />
@@ -529,20 +277,12 @@ export function AIStaffMainContent() {
         </div>
       </ScrollArea>
 
-      {openClawApps.length > 0 && (
-        <CreateAgentDialog
+      {(commonStaffApp || openClawApps.length > 0) && (
+        <CreateCommonStaffDialog
+          appId={commonStaffApp?.id}
           openClawApps={openClawApps}
-          workspaceId={workspaceId}
           open={showCreateDialog}
           onOpenChange={setShowCreateDialog}
-        />
-      )}
-
-      {commonStaffApp && (
-        <CreateCommonStaffDialog
-          appId={commonStaffApp.id}
-          open={showCreateStaffDialog}
-          onOpenChange={setShowCreateStaffDialog}
         />
       )}
     </main>

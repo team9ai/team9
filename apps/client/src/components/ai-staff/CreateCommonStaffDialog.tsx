@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -23,13 +23,17 @@ import {
   ClipboardList,
   Loader2,
   MessageSquare,
+  Plus,
   Sparkles,
   Users,
   Wand2,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { slugify } from "transliteration";
 import { api } from "@/services/api";
+import type { InstalledApplicationWithBots } from "@/services/api/applications";
+import { getHttpErrorMessage } from "@/lib/http-error";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useCreateDirectChannel } from "@/hooks/useChannels";
@@ -40,10 +44,12 @@ import {
 } from "@/lib/common-staff-models";
 import { StaffBadgeCard } from "./StaffBadgeCard";
 
+type AgentType = "common-staff" | "openclaw";
 type CreationMode = "form" | "agentic" | "recruitment";
 
 interface CreateCommonStaffDialogProps {
-  appId: string;
+  appId?: string;
+  openClawApps?: InstalledApplicationWithBots[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -53,8 +59,11 @@ const DICEBEAR_PRESETS = Array.from({ length: 8 }, (_, i) => ({
   seed: `staff-${i}`,
 }));
 
+const USERNAME_REGEX = /^[a-z0-9_]{3,100}$/;
+
 export function CreateCommonStaffDialog({
   appId,
+  openClawApps = [],
   open,
   onOpenChange,
 }: CreateCommonStaffDialogProps) {
@@ -64,9 +73,92 @@ export function CreateCommonStaffDialog({
   const navigate = useNavigate();
   const createDirectChannel = useCreateDirectChannel();
 
-  // Step state
+  // Whether to show agent type selection
+  const hasCommonStaff = !!appId;
+  const hasOpenClaw = openClawApps.length > 0;
+
+  // Agent type & step state — default to openclaw if no common-staff app
+  const [agentType, setAgentType] = useState<AgentType>(
+    hasCommonStaff ? "common-staff" : "openclaw",
+  );
   const [mode, setMode] = useState<CreationMode | null>(null);
   const [step, setStep] = useState(1);
+
+  // OpenClaw agent fields
+  const [oclSelectedAppId, setOclSelectedAppId] = useState(
+    openClawApps.length === 1 ? openClawApps[0].id : "",
+  );
+  const [oclDisplayName, setOclDisplayName] = useState("");
+  const [oclUsername, setOclUsername] = useState("");
+  const [oclDescription, setOclDescription] = useState("");
+  const [oclUsernameStatus, setOclUsernameStatus] = useState<
+    "idle" | "checking" | "available" | "taken" | "invalid"
+  >("idle");
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  // Debounced username availability check for OpenClaw
+  useEffect(() => {
+    if (agentType !== "openclaw") return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    const trimmed = oclUsername.trim();
+    if (!trimmed) {
+      setOclUsernameStatus("idle");
+      return;
+    }
+    if (!USERNAME_REGEX.test(trimmed)) {
+      setOclUsernameStatus("invalid");
+      return;
+    }
+
+    setOclUsernameStatus("checking");
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const { available } =
+          await api.applications.checkUsernameAvailable(trimmed);
+        setOclUsernameStatus(available ? "available" : "taken");
+      } catch {
+        setOclUsernameStatus("idle");
+      }
+    }, 400);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [oclUsername, agentType]);
+
+  const [oclCreateError, setOclCreateError] = useState<string | null>(null);
+
+  const oclAgentSlugPreview = useMemo(() => {
+    const trimmed = oclDisplayName.trim();
+    if (!trimmed) return "";
+    return slugify(trimmed, { lowercase: true, separator: "-" })
+      .replace(/^-+|-+$/g, "")
+      .substring(0, 40);
+  }, [oclDisplayName]);
+
+  const oclCreateMutation = useMutation({
+    mutationFn: () => {
+      setOclCreateError(null);
+      return api.applications.createOpenClawAgent(oclSelectedAppId, {
+        displayName: oclDisplayName.trim(),
+        username: oclUsername.trim() || undefined,
+        description: oclDescription.trim() || undefined,
+        agentSlug: oclAgentSlugPreview || undefined,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["installed-applications-with-bots", workspaceId],
+      });
+      onOpenChange(false);
+      resetForm();
+    },
+    onError: (error: unknown) => {
+      const message = getHttpErrorMessage(error) || "Failed to create agent";
+      setOclCreateError(message);
+    },
+  });
 
   // Form fields
   const [displayName, setDisplayName] = useState("");
@@ -123,6 +215,7 @@ export function CreateCommonStaffDialog({
 
   // Reset form on close
   const resetForm = useCallback(() => {
+    setAgentType(hasCommonStaff ? "common-staff" : "openclaw");
     setMode(null);
     setStep(1);
     setDisplayName("");
@@ -143,14 +236,21 @@ export function CreateCommonStaffDialog({
     setCandidateGenerationError(null);
     setEditedCandidates({});
     setFormError(null);
-  }, []);
+    // OpenClaw reset
+    setOclSelectedAppId(openClawApps.length === 1 ? openClawApps[0].id : "");
+    setOclDisplayName("");
+    setOclUsername("");
+    setOclDescription("");
+    setOclUsernameStatus("idle");
+    setOclCreateError(null);
+  }, [openClawApps, hasCommonStaff]);
 
   // Persona AI generation
   const handleGeneratePersona = useCallback(async () => {
     setIsGeneratingPersona(true);
     setFormError(null);
     try {
-      const stream = api.applications.generatePersona(appId, {
+      const stream = api.applications.generatePersona(appId!, {
         displayName: displayName || "Staff",
         roleTitle: roleTitle || undefined,
         jobDescription: jobDescription || undefined,
@@ -175,7 +275,7 @@ export function CreateCommonStaffDialog({
     setIsGeneratingAvatar(true);
     setFormError(null);
     try {
-      const result = await api.applications.generateAvatar(appId, {
+      const result = await api.applications.generateAvatar(appId!, {
         style: avatarStyle,
         displayName: displayName || undefined,
         roleTitle: roleTitle || undefined,
@@ -193,7 +293,7 @@ export function CreateCommonStaffDialog({
   // Submit mutation
   const createMutation = useMutation({
     mutationFn: () =>
-      api.applications.createCommonStaff(appId, {
+      api.applications.createCommonStaff(appId!, {
         displayName,
         roleTitle: roleTitle || undefined,
         mentorId: mentorId || undefined,
@@ -220,7 +320,7 @@ export function CreateCommonStaffDialog({
   // Agentic submit mutation
   const agenticMutation = useMutation({
     mutationFn: () =>
-      api.applications.createCommonStaff(appId, {
+      api.applications.createCommonStaff(appId!, {
         mentorId: mentorId || undefined,
         model: { provider: model.provider, id: model.id },
         agenticBootstrap: true,
@@ -261,7 +361,7 @@ export function CreateCommonStaffDialog({
     setEditedCandidates({});
     setCandidateGenerationError(null);
     try {
-      const stream = api.applications.generateCandidates(appId, {
+      const stream = api.applications.generateCandidates(appId!, {
         jobTitle: jobTitle || undefined,
         jobDescription: jd || undefined,
       });
@@ -310,7 +410,7 @@ export function CreateCommonStaffDialog({
         selectedCandidate != null
           ? editedCandidates[selectedCandidate]
           : undefined;
-      return api.applications.createCommonStaff(appId, {
+      return api.applications.createCommonStaff(appId!, {
         displayName: edited?.displayName ?? candidate.displayName,
         roleTitle: edited?.roleTitle ?? candidate.roleTitle,
         persona: edited?.persona ?? candidate.persona,
@@ -337,46 +437,170 @@ export function CreateCommonStaffDialog({
     displayName.trim().length > 0 && roleTitle.trim().length > 0;
   const totalSteps = mode === "form" ? 4 : mode === "agentic" ? 2 : 4;
 
-  // ── Step 1: Mode Selection ──────────────────────────────────────────
-  const renderStep1 = () => (
-    <div className="grid grid-cols-3 gap-3">
-      {(
-        [
-          {
-            key: "form" as const,
-            icon: ClipboardList,
-            title: "Form Mode",
-            desc: "Fill in all information directly",
-          },
-          {
-            key: "agentic" as const,
-            icon: MessageSquare,
-            title: "Agentic Mode",
-            desc: "AI guides setup in private DM",
-          },
-          {
-            key: "recruitment" as const,
-            icon: Users,
-            title: "Recruitment",
-            desc: "Generate candidates from a JD",
-          },
-        ] as const
-      ).map(({ key, icon: Icon, title, desc }) => (
-        <Card
-          key={key}
-          className={`cursor-pointer p-4 text-center transition-all hover:border-primary ${
-            mode === key ? "border-primary bg-primary/5" : ""
-          }`}
-          onClick={() => {
-            setMode(key);
-            setStep(2);
+  // ── OpenClaw agent form (rendered when agentType === "openclaw" at step 1) ──
+  const oclUsernameInvalid =
+    oclUsernameStatus === "invalid" || oclUsernameStatus === "taken";
+  const oclCanSubmit =
+    !!oclSelectedAppId &&
+    !!oclDisplayName.trim() &&
+    !oclUsernameInvalid &&
+    oclUsernameStatus !== "checking" &&
+    !oclCreateMutation.isPending;
+
+  const renderOpenClawForm = () => (
+    <div className="space-y-4 py-2">
+      <div className="space-y-2">
+        <label className="text-sm font-medium">OpenClaw Instance</label>
+        <Select value={oclSelectedAppId} onValueChange={setOclSelectedAppId}>
+          <SelectTrigger className="h-9 text-sm">
+            <SelectValue placeholder="Select instance..." />
+          </SelectTrigger>
+          <SelectContent>
+            {openClawApps.map((app) => (
+              <SelectItem key={app.id} value={app.id}>
+                {app.name || app.id}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Name</label>
+        <Input
+          value={oclDisplayName}
+          onChange={(e) => setOclDisplayName(e.target.value)}
+          placeholder="Agent name..."
+          autoFocus
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && oclCanSubmit) oclCreateMutation.mutate();
           }}
+        />
+        {oclAgentSlugPreview &&
+          oclAgentSlugPreview !== oclDisplayName.trim().toLowerCase() && (
+            <p className="text-xs text-muted-foreground">
+              Agent ID: {oclAgentSlugPreview}
+            </p>
+          )}
+      </div>
+      <div className="space-y-2">
+        <label className="text-sm font-medium">
+          Username{" "}
+          <span className="text-muted-foreground font-normal">(optional)</span>
+        </label>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+            @
+          </span>
+          <Input
+            value={oclUsername}
+            onChange={(e) => setOclUsername(e.target.value.toLowerCase())}
+            placeholder="Leave blank for auto-generated"
+            className="pl-7"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && oclCanSubmit) oclCreateMutation.mutate();
+            }}
+          />
+          {oclUsernameStatus === "checking" && (
+            <Loader2
+              size={14}
+              className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-muted-foreground"
+            />
+          )}
+        </div>
+        {oclUsernameStatus === "invalid" && (
+          <p className="text-xs text-destructive">
+            Lowercase letters, numbers, and underscores only (3-100 chars)
+          </p>
+        )}
+        {oclUsernameStatus === "taken" && (
+          <p className="text-xs text-destructive">
+            This username is already taken
+          </p>
+        )}
+        {oclUsernameStatus === "available" && (
+          <p className="text-xs text-success">Username is available</p>
+        )}
+      </div>
+      <div className="space-y-2">
+        <label className="text-sm font-medium">
+          Description{" "}
+          <span className="text-muted-foreground font-normal">(optional)</span>
+        </label>
+        <Input
+          value={oclDescription}
+          onChange={(e) => setOclDescription(e.target.value)}
+          placeholder="What does this agent do..."
+        />
+      </div>
+      {oclCreateError && (
+        <p className="text-sm text-destructive">{oclCreateError}</p>
+      )}
+    </div>
+  );
+
+  // ── Step 1: Type Selection + Mode Selection ───────────────────────────
+  const renderStep1 = () => (
+    <div className="space-y-4">
+      {/* Agent type selector — only when both types are available */}
+      {hasCommonStaff && hasOpenClaw && (
+        <Select
+          value={agentType}
+          onValueChange={(v) => setAgentType(v as AgentType)}
         >
-          <Icon className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-          <p className="text-sm font-medium">{title}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{desc}</p>
-        </Card>
-      ))}
+          <SelectTrigger className="h-9 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="common-staff">Common Staff</SelectItem>
+            <SelectItem value="openclaw">OpenClaw Agent</SelectItem>
+          </SelectContent>
+        </Select>
+      )}
+
+      {/* Content based on agent type */}
+      {agentType === "common-staff" ? (
+        <div className="grid grid-cols-3 gap-3">
+          {(
+            [
+              {
+                key: "form" as const,
+                icon: ClipboardList,
+                title: "Form Mode",
+                desc: "Fill in all information directly",
+              },
+              {
+                key: "agentic" as const,
+                icon: MessageSquare,
+                title: "Agentic Mode",
+                desc: "AI guides setup in private DM",
+              },
+              {
+                key: "recruitment" as const,
+                icon: Users,
+                title: "Recruitment",
+                desc: "Generate candidates from a JD",
+              },
+            ] as const
+          ).map(({ key, icon: Icon, title, desc }) => (
+            <Card
+              key={key}
+              className={`cursor-pointer p-4 text-center transition-all hover:border-primary ${
+                mode === key ? "border-primary bg-primary/5" : ""
+              }`}
+              onClick={() => {
+                setMode(key);
+                setStep(2);
+              }}
+            >
+              <Icon className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
+              <p className="text-sm font-medium">{title}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{desc}</p>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        renderOpenClawForm()
+      )}
     </div>
   );
 
@@ -782,7 +1006,10 @@ export function CreateCommonStaffDialog({
   };
 
   const stepTitle = () => {
-    if (step === 1) return "Create AI Staff";
+    if (step === 1) {
+      if (agentType === "openclaw") return "Create OpenClaw Agent";
+      return "Create AI Staff";
+    }
     if (mode === "form") {
       if (step === 2) return "Basic Info";
       if (step === 3) return "Personality";
@@ -829,6 +1056,24 @@ export function CreateCommonStaffDialog({
 
         {formError && <p className="text-sm text-destructive">{formError}</p>}
 
+        {/* OpenClaw footer at step 1 */}
+        {step === 1 && agentType === "openclaw" && (
+          <DialogFooter>
+            <Button
+              onClick={() => oclCreateMutation.mutate()}
+              disabled={!oclCanSubmit}
+            >
+              {oclCreateMutation.isPending ? (
+                <Loader2 size={14} className="mr-1 animate-spin" />
+              ) : (
+                <Plus size={14} className="mr-1" />
+              )}
+              Create
+            </Button>
+          </DialogFooter>
+        )}
+
+        {/* Common Staff footer (step > 1) */}
         {step > 1 && (
           <DialogFooter className="flex justify-between sm:justify-between">
             <Button
