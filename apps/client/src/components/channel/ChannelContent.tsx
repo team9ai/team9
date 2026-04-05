@@ -40,7 +40,7 @@ export function ChannelContent({
   hasNewer,
   isLoadingNewer,
   highlightMessageId,
-  readOnly,
+  readOnly = false,
   thinkingBotIds,
   members,
   lastReadMessageId,
