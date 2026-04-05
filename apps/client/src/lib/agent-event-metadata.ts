@@ -22,6 +22,28 @@ const AGENT_EVENT_STATUSES = new Set<AgentEventMetadata["status"]>([
   "cancelled",
 ]);
 
+/** Validate and normalize selections — ensure each entry has selected: string[] */
+function normalizeSelections(
+  raw: Record<string, unknown>,
+): Record<string, { selected: string[]; otherText: string | null }> {
+  const result: Record<
+    string,
+    { selected: string[]; otherText: string | null }
+  > = {};
+  for (const [key, val] of Object.entries(raw)) {
+    if (typeof val === "object" && val !== null) {
+      const entry = val as Record<string, unknown>;
+      result[key] = {
+        selected: Array.isArray(entry.selected)
+          ? entry.selected.filter((v): v is string => typeof v === "string")
+          : [],
+        otherText: typeof entry.otherText === "string" ? entry.otherText : null,
+      };
+    }
+  }
+  return result;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -77,10 +99,9 @@ export function getAgentEventMetadata(
       : {}),
     ...(isRecord(value.selections)
       ? {
-          selections: value.selections as Record<
-            string,
-            { selected: string[]; otherText: string | null }
-          >,
+          selections: normalizeSelections(
+            value.selections as Record<string, unknown>,
+          ),
         }
       : {}),
     ...(typeof value.responderId === "string"

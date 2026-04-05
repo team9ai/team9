@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSendMessage } from "@/hooks/useMessages";
+import { useCurrentUser } from "@/hooks/useAuth";
 import type { AgentEventMetadata, Message } from "@/types/im";
 import {
   parseChoicesPayload,
@@ -61,6 +62,7 @@ function TabBar({
     <div className="flex gap-1 mb-2">
       {tabs.map((tab, i) => (
         <button
+          type="button"
           key={tab.title}
           onClick={() => onSelect(i)}
           className={cn(
@@ -111,7 +113,6 @@ function ReadOnlyChoicesForm({
               type={tab.type === "single-select" ? "radio" : "checkbox"}
               checked={selected.includes(opt.value)}
               disabled
-              readOnly
               className="mt-0.5"
             />
             <div>
@@ -131,7 +132,6 @@ function ReadOnlyChoicesForm({
                 type={tab.type === "single-select" ? "radio" : "checkbox"}
                 checked={selected.includes("__other__")}
                 disabled
-                readOnly
                 className="mt-0.5"
               />
               <span className="text-sm font-semibold">Other</span>
@@ -141,7 +141,6 @@ function ReadOnlyChoicesForm({
                 type="text"
                 value={otherText}
                 disabled
-                readOnly
                 className="mt-1 ml-5 w-full bg-card border border-border rounded px-2 py-1 text-xs opacity-60"
               />
             )}
@@ -210,7 +209,9 @@ function CollapsedHeader({
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden">
       <button
+        type="button"
         onClick={onToggle}
+        aria-expanded={expanded}
         className="w-full text-left px-3 py-2 flex items-center gap-2 hover:bg-accent/50 transition-colors group cursor-pointer"
       >
         <span className={cn("text-sm shrink-0", colorClass)}>{icon}</span>
@@ -260,6 +261,7 @@ function ActiveSurface({
 }) {
   const sendMessage = useSendMessage(channelId);
   const queryClient = useQueryClient();
+  const currentUser = useCurrentUser();
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [selectedValues, setSelectedValues] = useState<
     Record<string, string[]>
@@ -304,8 +306,21 @@ function ActiveSurface({
     setOtherTexts((prev) => ({ ...prev, [tabKey]: text }));
   };
 
+  const [validationError, setValidationError] = useState<string | null>(null);
+
   const handleSubmit = () => {
     if (sendMessage.isPending) return;
+
+    // Validate: single-select tabs must have a selection
+    for (const t of parsed.tabs) {
+      const sel = selectedValues[t.title] ?? [];
+      if (t.type === "single-select" && sel.length === 0) {
+        setValidationError(`Please select an option for "${t.title}"`);
+        return;
+      }
+    }
+    setValidationError(null);
+
     const selections: Record<
       string,
       { selected: string[]; otherText: string | null }
@@ -372,6 +387,10 @@ function ActiveSurface({
                               ...(m.metadata as Record<string, unknown>),
                               status: "resolved",
                               selections,
+                              responderId: currentUser.data?.id,
+                              responderName:
+                                currentUser.data?.displayName ??
+                                currentUser.data?.username,
                             },
                           }
                         : m,
@@ -394,7 +413,7 @@ function ActiveSurface({
       ref={containerRef}
       tabIndex={-1}
       onKeyDown={handleKeyDown}
-      className="bg-card border border-border rounded-lg overflow-hidden px-3 py-3 outline-none"
+      className="bg-card border border-border rounded-lg overflow-hidden px-3 py-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     >
       {parsed.tabs.length > 1 && (
         <TabBar
@@ -404,64 +423,75 @@ function ActiveSurface({
         />
       )}
 
-      <p className="text-sm font-medium mb-2">{tab.prompt}</p>
+      <fieldset className="border-none p-0 m-0">
+        <legend className="text-sm font-medium mb-2">{tab.prompt}</legend>
 
-      <div className="space-y-1.5">
-        {tab.options.map((opt) => (
-          <label
-            key={opt.value}
-            className="flex items-start gap-2 cursor-pointer"
-          >
-            <input
-              type={tab.type === "single-select" ? "radio" : "checkbox"}
-              name={`a2ui-${surfaceId}-${tabKey}`}
-              checked={selected.includes(opt.value)}
-              onChange={() => handleOptionChange(opt.value)}
-              className="mt-0.5"
-            />
-            <div>
-              <span className="text-sm font-semibold">{opt.label}</span>
-              {opt.description && (
-                <p className="text-xs text-muted-foreground">
-                  {opt.description}
-                </p>
-              )}
-            </div>
-          </label>
-        ))}
-
-        {tab.hasOther && (
-          <div>
-            <label className="flex items-start gap-2 cursor-pointer">
+        <div
+          className="space-y-1.5"
+          role={tab.type === "single-select" ? "radiogroup" : undefined}
+        >
+          {tab.options.map((opt) => (
+            <label
+              key={opt.value}
+              className="flex items-start gap-2 cursor-pointer"
+            >
               <input
                 type={tab.type === "single-select" ? "radio" : "checkbox"}
                 name={`a2ui-${surfaceId}-${tabKey}`}
-                checked={selected.includes("__other__")}
-                onChange={() => handleOptionChange("__other__")}
+                checked={selected.includes(opt.value)}
+                onChange={() => handleOptionChange(opt.value)}
                 className="mt-0.5"
               />
-              <span className="text-sm font-semibold">Other</span>
+              <div>
+                <span className="text-sm font-semibold">{opt.label}</span>
+                {opt.description && (
+                  <p className="text-xs text-muted-foreground">
+                    {opt.description}
+                  </p>
+                )}
+              </div>
             </label>
-            {selected.includes("__other__") && (
-              <input
-                type="text"
-                value={otherText}
-                onChange={(e) => handleOtherTextChange(e.target.value)}
-                placeholder="Enter your answer..."
-                className="mt-1 ml-5 w-full bg-card border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            )}
-          </div>
-        )}
-      </div>
+          ))}
+
+          {tab.hasOther && (
+            <div>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type={tab.type === "single-select" ? "radio" : "checkbox"}
+                  name={`a2ui-${surfaceId}-${tabKey}`}
+                  checked={selected.includes("__other__")}
+                  onChange={() => handleOptionChange("__other__")}
+                  className="mt-0.5"
+                />
+                <span className="text-sm font-semibold">Other</span>
+              </label>
+              {selected.includes("__other__") && (
+                <input
+                  type="text"
+                  value={otherText}
+                  onChange={(e) => handleOtherTextChange(e.target.value)}
+                  placeholder="Enter your answer..."
+                  className="mt-1 ml-5 w-full bg-card border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              )}
+            </div>
+          )}
+        </div>
+      </fieldset>
 
       <button
+        type="button"
         onClick={handleSubmit}
         disabled={sendMessage.isPending}
         className="w-full mt-3 bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {sendMessage.isPending ? "Submitting..." : "Submit answers"}
       </button>
+      {validationError && (
+        <p className="text-center text-xs text-red-500 mt-1">
+          {validationError}
+        </p>
+      )}
       {onCancel && (
         <p className="text-center text-xs text-muted-foreground mt-1">
           Press Esc to cancel
