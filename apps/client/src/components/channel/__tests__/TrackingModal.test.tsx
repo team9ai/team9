@@ -129,6 +129,7 @@ const defaultMutateAsync = vi.fn().mockResolvedValue(undefined);
 function setupDefaultMocks() {
   mockUseChannelMessages.mockReturnValue({
     data: { pages: [{ messages: [] }] },
+    isLoading: false,
     isFetchingNextPage: false,
     fetchNextPage: vi.fn(),
     hasNextPage: false,
@@ -194,6 +195,24 @@ describe("TrackingModal", () => {
     expect(content).toBeInTheDocument();
     expect(content).toHaveAttribute("data-channel-id", "tracking-ch-1");
     expect(content).toHaveAttribute("data-channel-type", "tracking");
+  });
+
+  it("shows loading spinner when messages are loading", () => {
+    mockUseChannelMessages.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isFetchingNextPage: false,
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      hasPreviousPage: false,
+      isFetchingPreviousPage: false,
+      fetchPreviousPage: vi.fn(),
+    });
+
+    render(<TrackingModal {...BASE_PROPS} />);
+
+    expect(screen.getByText("Loading messages...")).toBeInTheDocument();
+    expect(screen.queryByTestId("channel-content")).not.toBeInTheDocument();
   });
 
   // ── useChannelObserver ──────────────────────────────
@@ -514,6 +533,25 @@ describe("TrackingModal", () => {
 
     await act(async () => {
       await capturedProps.onSend!("", []);
+    });
+
+    expect(mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("handleSend skips when trackingChannelId is undefined", async () => {
+    const mutateAsync = vi.fn().mockResolvedValue(undefined);
+    mockUseSendMessage.mockReturnValue({ mutateAsync, isPending: false });
+
+    render(
+      <TrackingModal
+        {...BASE_PROPS}
+        trackingChannelId={undefined}
+        isActivated={true}
+      />,
+    );
+
+    await act(async () => {
+      await capturedProps.onSend!("hello", undefined);
     });
 
     expect(mutateAsync).not.toHaveBeenCalled();

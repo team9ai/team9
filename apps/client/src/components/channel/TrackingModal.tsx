@@ -43,6 +43,7 @@ export function TrackingModal({
   // Fetch messages + real-time WS listeners (new_message, streaming, reactions)
   const {
     data: messagesData,
+    isLoading: messagesLoading,
     isFetchingNextPage,
     fetchNextPage,
     hasNextPage,
@@ -137,27 +138,33 @@ export function TrackingModal({
 
         {/* Message area — uses shared ChannelContent */}
         <div className="flex-1 flex flex-col min-h-0">
-          <ChannelContent
-            channelId={trackingChannelId ?? ""}
-            channelType="tracking"
-            messages={messages}
-            isLoading={isFetchingNextPage}
-            onLoadMore={() => {
-              if (hasNextPage) fetchNextPage();
-            }}
-            hasMore={hasNextPage}
-            onLoadNewer={() => {
-              if (hasPreviousPage) fetchPreviousPage();
-            }}
-            hasNewer={hasPreviousPage}
-            isLoadingNewer={isFetchingPreviousPage}
-            readOnly={!isActivated}
-            members={members}
-            hasMoreUnsynced={hasMoreUnsynced}
-            onSend={isActivated ? handleSend : undefined}
-            isSendDisabled={sendMessage.isPending}
-            inputPlaceholder="Send guidance to agent..."
-          />
+          {messagesLoading && messages.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center">
+              <p className="text-muted-foreground">Loading messages...</p>
+            </div>
+          ) : (
+            <ChannelContent
+              channelId={trackingChannelId ?? ""}
+              channelType="tracking"
+              messages={messages}
+              isLoading={isFetchingNextPage}
+              onLoadMore={() => {
+                if (hasNextPage) fetchNextPage();
+              }}
+              hasMore={hasNextPage}
+              onLoadNewer={() => {
+                if (hasPreviousPage) fetchPreviousPage();
+              }}
+              hasNewer={hasPreviousPage}
+              isLoadingNewer={isFetchingPreviousPage}
+              readOnly={!isActivated}
+              members={members}
+              hasMoreUnsynced={hasMoreUnsynced}
+              onSend={isActivated ? handleSend : undefined}
+              isSendDisabled={sendMessage.isPending}
+              inputPlaceholder="Send guidance to agent..."
+            />
+          )}
         </div>
       </div>
     </div>
