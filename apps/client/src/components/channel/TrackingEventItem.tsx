@@ -18,12 +18,18 @@ const STATUS_DOT_CLASSES: Record<AgentEventMetadata["status"], string> = {
   running: "bg-emerald-500 animate-pulse",
   completed: "bg-emerald-500",
   failed: "bg-red-500",
+  resolved: "bg-emerald-500",
+  timeout: "bg-amber-500",
+  cancelled: "bg-red-500",
 };
 
 const LABEL_CLASSES: Record<AgentEventMetadata["status"], string> = {
   running: "text-yellow-400",
   completed: "text-emerald-500",
   failed: "text-red-500",
+  resolved: "text-emerald-500",
+  timeout: "text-amber-500",
+  cancelled: "text-red-500",
 };
 
 const EVENT_LABELS: Record<AgentEventMetadata["agentEventType"], string> = {
@@ -35,6 +41,8 @@ const EVENT_LABELS: Record<AgentEventMetadata["agentEventType"], string> = {
   agent_end: "Completed",
   error: "Error",
   turn_separator: "Turn",
+  a2ui_surface_update: "Choices",
+  a2ui_response: "Selected",
 };
 
 function truncateLine(str: string, maxLen: number): string {
