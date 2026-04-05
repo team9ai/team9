@@ -1,23 +1,10 @@
-import {
-  Bot,
-  Loader2,
-  AlertCircle,
-  User,
-  Plus,
-  ChevronDown,
-} from "lucide-react";
+import { Bot, Loader2, AlertCircle, User, Plus } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -463,31 +450,24 @@ export function AIStaffMainContent() {
             {t("aiStaff")}
           </h2>
         </div>
-        {(commonStaffApp || openClawApps.length > 0) && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm">
-                <Plus size={14} className="mr-1" />
-                Create
-                <ChevronDown size={14} className="ml-1" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {commonStaffApp && (
-                <DropdownMenuItem
-                  onClick={() => setShowCreateStaffDialog(true)}
-                >
-                  Common Staff
-                </DropdownMenuItem>
-              )}
-              {openClawApps.length > 0 && (
-                <DropdownMenuItem onClick={() => setShowCreateDialog(true)}>
-                  OpenClaw Agent
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+        <div className="flex items-center gap-2">
+          {commonStaffApp && (
+            <Button size="sm" onClick={() => setShowCreateStaffDialog(true)}>
+              <Plus size={14} className="mr-1" />
+              Create Staff
+            </Button>
+          )}
+          {openClawApps.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowCreateDialog(true)}
+            >
+              <Plus size={14} className="mr-1" />
+              Create Agent
+            </Button>
+          )}
+        </div>
       </header>
 
       <Separator />
