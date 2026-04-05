@@ -11,8 +11,7 @@ import { useThreadStore } from "@/hooks/useThread";
 import { useBotStartupCountdown } from "@/hooks/useBotStartupCountdown";
 import { useEffectOncePerKey } from "@/hooks/useEffectOncePerKey";
 import wsService from "@/services/websocket";
-import { MessageList } from "./MessageList";
-import { MessageInput } from "./MessageInput";
+import { ChannelContent } from "./ChannelContent";
 import { ChannelHeader } from "./ChannelHeader";
 import { ThreadPanel } from "./ThreadPanel";
 import { JoinChannelPrompt } from "./JoinChannelPrompt";
@@ -345,34 +344,30 @@ export function ChannelView({
             <p className="text-muted-foreground">Loading messages...</p>
           </div>
         ) : (
-          <>
-            {hasMoreUnsynced && (
-              <div className="bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800 px-4 py-2 text-sm text-amber-700 dark:text-amber-300">
-                You have older unread messages. Scroll up to load more.
-              </div>
-            )}
-            <MessageList
-              key={channelId}
-              messages={messages}
-              isLoading={isFetchingNextPage}
-              onLoadMore={() => {
-                if (hasNextPage) fetchNextPage();
-              }}
-              hasMore={hasNextPage}
-              onLoadNewer={() => {
-                if (hasPreviousPage) fetchPreviousPage();
-              }}
-              hasNewer={hasPreviousPage}
-              isLoadingNewer={isFetchingPreviousPage}
-              highlightMessageId={initialMessageId}
-              channelId={channelId}
-              channelType={channel?.type}
-              readOnly={isPreviewMode}
-              thinkingBotIds={thinkingBotIds}
-              members={members}
-              lastReadMessageId={unreadAnchor}
-            />
-          </>
+          <ChannelContent
+            channelId={channelId}
+            channelType={channel?.type}
+            messages={messages}
+            isLoading={isFetchingNextPage}
+            onLoadMore={() => {
+              if (hasNextPage) fetchNextPage();
+            }}
+            hasMore={hasNextPage}
+            onLoadNewer={() => {
+              if (hasPreviousPage) fetchPreviousPage();
+            }}
+            hasNewer={hasPreviousPage}
+            isLoadingNewer={isFetchingPreviousPage}
+            highlightMessageId={initialMessageId}
+            readOnly={isPreviewMode || readOnly}
+            thinkingBotIds={thinkingBotIds}
+            members={members}
+            lastReadMessageId={unreadAnchor}
+            hasMoreUnsynced={hasMoreUnsynced}
+            onSend={isPreviewMode || readOnly ? undefined : handleSendMessage}
+            isSendDisabled={sendMessage.isPending || showOverlay}
+            initialDraft={initialDraft}
+          />
         )}
 
         {(isInstanceStopped || isInstanceStarting) && (
@@ -384,21 +379,10 @@ export function ChannelView({
           />
         )}
 
-        {readOnly ? (
-          <div className="px-4 py-3 border-t border-border bg-muted/30 text-center">
-            <span className="text-sm text-muted-foreground">Read-only</span>
-          </div>
-        ) : isPreviewMode ? (
+        {isPreviewMode && (
           <JoinChannelPrompt
             channelId={channelId}
             channelName={channel.name || ""}
-          />
-        ) : (
-          <MessageInput
-            channelId={channelId}
-            onSend={handleSendMessage}
-            disabled={sendMessage.isPending || showOverlay}
-            initialDraft={initialDraft}
           />
         )}
       </div>
