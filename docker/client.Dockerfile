@@ -6,8 +6,9 @@ FROM node:20-alpine AS builder
 RUN corepack enable && corepack prepare pnpm@10.13.1 --activate
 WORKDIR /app
 
-# Copy workspace config
+# Copy workspace config and patches
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc ./
+COPY patches ./patches/
 
 # Copy all package.json files for workspace resolution
 COPY apps/client/package.json ./apps/client/
