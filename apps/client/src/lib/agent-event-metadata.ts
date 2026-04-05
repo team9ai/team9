@@ -9,6 +9,8 @@ const AGENT_EVENT_TYPES = new Set<AgentEventMetadata["agentEventType"]>([
   "agent_end",
   "error",
   "turn_separator",
+  "a2ui_surface_update",
+  "a2ui_response",
 ]);
 
 const AGENT_EVENT_STATUSES = new Set<AgentEventMetadata["status"]>([
@@ -63,6 +65,21 @@ export function getAgentEventMetadata(
       : {}),
     ...(isRecord(value.toolArgs) ? { toolArgs: value.toolArgs } : {}),
     ...(typeof value.success === "boolean" ? { success: value.success } : {}),
+    ...(typeof value.surfaceId === "string"
+      ? { surfaceId: value.surfaceId }
+      : {}),
+    ...(Array.isArray(value.payload) ? { payload: value.payload } : {}),
+    ...(isRecord(value.surfaceMetadata)
+      ? { surfaceMetadata: value.surfaceMetadata }
+      : {}),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...(isRecord(value.selections) ? { selections: value.selections as any } : {}),
+    ...(typeof value.responderId === "string"
+      ? { responderId: value.responderId }
+      : {}),
+    ...(typeof value.responderName === "string"
+      ? { responderName: value.responderName }
+      : {}),
   };
 }
 
