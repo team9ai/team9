@@ -66,10 +66,11 @@ export function TrackingModal({
 
   const handleSend = useCallback(
     async (content: string, attachments?: AttachmentDto[]) => {
+      if (!trackingChannelId) return;
       if (!content.trim() && (!attachments || attachments.length === 0)) return;
       await sendMessage.mutateAsync({ content, attachments });
     },
-    [sendMessage],
+    [sendMessage, trackingChannelId],
   );
 
   // Tracking-specific WS events
