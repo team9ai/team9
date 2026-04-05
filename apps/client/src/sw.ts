@@ -1,6 +1,10 @@
 /// <reference lib="webworker" />
 declare const self: ServiceWorkerGlobalScope;
 
+// Workbox precache manifest — vite-plugin-pwa injectManifest replaces this at build time.
+// Using console.debug to prevent tree-shaking.
+console.debug("SW precache entries:", self.__WB_MANIFEST);
+
 import {
   probeTauri,
   isViewingChannel,
