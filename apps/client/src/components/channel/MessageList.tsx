@@ -407,7 +407,11 @@ export function MessageList({
       // A2UI response — compact "User selected X" display
       if (agentMeta?.agentEventType === "a2ui_response") {
         return (
-          <div id={`message-${message.id}`} className="px-4 py-0.5">
+          <div
+            id={`message-${message.id}`}
+            className="ml-4 border-l-2 border-emerald-500/15 bg-emerald-500/[0.03] rounded-r-md pr-4 py-0.5"
+            style={{ paddingLeft: "13px" }}
+          >
             <A2UIResponseItem message={message} metadata={agentMeta} />
           </div>
         );

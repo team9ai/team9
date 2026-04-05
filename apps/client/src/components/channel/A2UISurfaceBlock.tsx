@@ -331,47 +331,51 @@ function ActiveSurface({
       })
       .join("; ");
 
-    sendMessage.mutate({
-      content: summary,
-      metadata: {
-        agentEventType: "a2ui_response",
-        status: "completed",
-        surfaceId,
-        selections,
+    sendMessage.mutate(
+      {
+        content: summary,
+        metadata: {
+          agentEventType: "a2ui_response",
+          status: "completed",
+          surfaceId,
+          selections,
+        },
       },
-    });
-
-    // Optimistic: mark this surface as resolved in local cache.
-    // The messages query is an InfiniteQuery with pages, not a flat array.
-    queryClient.setQueriesData(
-      { queryKey: ["messages", channelId] },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (old: any) => {
-        if (!old?.pages) return old;
-        return {
-          ...old,
-          pages: old.pages.map((page: unknown) => {
-            // Handle both Message[] and PaginatedMessagesResponse formats
-            const msgs: Message[] = Array.isArray(page)
-              ? page
-              : ((page as { messages: Message[] }).messages ?? []);
-            const updated = msgs.map((m: Message) =>
-              m.id === message.id
-                ? {
-                    ...m,
-                    metadata: {
-                      ...(m.metadata as Record<string, unknown>),
-                      status: "resolved",
-                      selections,
-                    },
-                  }
-                : m,
-            );
-            return Array.isArray(page)
-              ? updated
-              : { ...(page as object), messages: updated };
-          }),
-        };
+      {
+        onSuccess: () => {
+          // Mark surface as resolved only after message is sent successfully.
+          // If send fails, the surface stays interactive so the user can retry.
+          queryClient.setQueriesData(
+            { queryKey: ["messages", channelId] },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (old: any) => {
+              if (!old?.pages) return old;
+              return {
+                ...old,
+                pages: old.pages.map((page: unknown) => {
+                  const msgs: Message[] = Array.isArray(page)
+                    ? page
+                    : ((page as { messages: Message[] }).messages ?? []);
+                  const updated = msgs.map((m: Message) =>
+                    m.id === message.id
+                      ? {
+                          ...m,
+                          metadata: {
+                            ...(m.metadata as Record<string, unknown>),
+                            status: "resolved",
+                            selections,
+                          },
+                        }
+                      : m,
+                  );
+                  return Array.isArray(page)
+                    ? updated
+                    : { ...(page as object), messages: updated };
+                }),
+              };
+            },
+          );
+        },
       },
     );
   };
@@ -449,9 +453,11 @@ function ActiveSurface({
       >
         {sendMessage.isPending ? "Submitting..." : "Submit answers"}
       </button>
-      <p className="text-center text-xs text-muted-foreground mt-1">
-        Press Esc to cancel
-      </p>
+      {onCancel && (
+        <p className="text-center text-xs text-muted-foreground mt-1">
+          Press Esc to cancel
+        </p>
+      )}
     </div>
   );
 }
