@@ -305,6 +305,7 @@ function ActiveSurface({
   };
 
   const handleSubmit = () => {
+    if (sendMessage.isPending) return;
     const selections: Record<
       string,
       { selected: string[]; otherText: string | null }
@@ -331,7 +332,7 @@ function ActiveSurface({
       .join("; ");
 
     sendMessage.mutate({
-      content: `Selected: ${summary}`,
+      content: summary,
       metadata: {
         agentEventType: "a2ui_response",
         status: "completed",
@@ -350,8 +351,11 @@ function ActiveSurface({
         return {
           ...old,
           pages: old.pages.map((page: unknown) => {
-            if (!Array.isArray(page)) return page;
-            return page.map((m: Message) =>
+            // Handle both Message[] and PaginatedMessagesResponse formats
+            const msgs: Message[] = Array.isArray(page)
+              ? page
+              : ((page as { messages: Message[] }).messages ?? []);
+            const updated = msgs.map((m: Message) =>
               m.id === message.id
                 ? {
                     ...m,
@@ -363,6 +367,9 @@ function ActiveSurface({
                   }
                 : m,
             );
+            return Array.isArray(page)
+              ? updated
+              : { ...(page as object), messages: updated };
           }),
         };
       },
