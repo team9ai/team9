@@ -23,6 +23,7 @@ export interface A2UISurfaceBlockProps {
     >,
   ) => void;
   onCancel?: (surfaceId: string) => void;
+  readOnly?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -108,7 +109,7 @@ function ReadOnlyChoicesForm({
       <p className="text-sm font-medium mb-2">{tab.prompt}</p>
       <div className="space-y-1.5">
         {tab.options.map((opt) => (
-          <div key={opt.value} className="flex items-start gap-2 opacity-60">
+          <label key={opt.value} className="flex items-start gap-2 opacity-60">
             <input
               type={tab.type === "single-select" ? "radio" : "checkbox"}
               checked={selected.includes(opt.value)}
@@ -123,11 +124,11 @@ function ReadOnlyChoicesForm({
                 </p>
               )}
             </div>
-          </div>
+          </label>
         ))}
         {tab.hasOther && (
           <div className="opacity-60">
-            <div className="flex items-start gap-2">
+            <label className="flex items-start gap-2">
               <input
                 type={tab.type === "single-select" ? "radio" : "checkbox"}
                 checked={selected.includes("__other__")}
@@ -135,7 +136,7 @@ function ReadOnlyChoicesForm({
                 className="mt-0.5"
               />
               <span className="text-sm font-semibold">Other</span>
-            </div>
+            </label>
             {selected.includes("__other__") && (
               <input
                 type="text"
@@ -289,6 +290,7 @@ function ActiveSurface({
   const otherText = otherTexts[tabKey] ?? "";
 
   const handleOptionChange = (value: string) => {
+    if (validationError) setValidationError(null);
     setSelectedValues((prev) => {
       const current = prev[tabKey] ?? [];
       if (tab.type === "single-select") {
@@ -511,14 +513,15 @@ export function A2UISurfaceBlock({
   channelId,
   onSubmit,
   onCancel,
+  readOnly = false,
 }: A2UISurfaceBlockProps) {
   const [expanded, setExpanded] = useState(false);
 
   const payload = metadata.payload;
   const parsed = payload ? parseChoicesPayload(payload) : null;
 
-  // Active / running → interactive form
-  if (metadata.status === "running") {
+  // Active / running → interactive form (unless readOnly)
+  if (metadata.status === "running" && !readOnly) {
     if (!parsed) {
       return (
         <div className="bg-card border border-border rounded-lg px-3 py-2 text-sm">

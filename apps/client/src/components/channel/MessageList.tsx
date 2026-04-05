@@ -391,13 +391,14 @@ export function MessageList({
         }
       }
 
-      // A2UI surface block — interactive choices (skip in readOnly mode)
-      if (agentMeta?.agentEventType === "a2ui_surface_update" && !readOnly) {
+      // A2UI surface block — render always, pass readOnly to suppress interactivity
+      if (agentMeta?.agentEventType === "a2ui_surface_update") {
         return (
           <div id={`message-${message.id}`} className="px-4 py-1">
             <A2UISurfaceBlock
               message={message}
               metadata={agentMeta}
+              readOnly={readOnly}
               channelId={channelId}
             />
           </div>
