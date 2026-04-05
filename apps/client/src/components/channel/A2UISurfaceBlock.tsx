@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -168,12 +168,9 @@ function CollapsedHeader({
   onToggle: () => void;
 }) {
   const status = metadata.status as string;
-  const surfaceStatus = metadata.surfaceMetadata?.status as string | undefined;
-  const effectiveStatus = surfaceStatus ?? status;
 
-  const isResolved =
-    effectiveStatus === "resolved" || effectiveStatus === "completed";
-  const isTimeout = effectiveStatus === "timeout";
+  const isResolved = status === "resolved" || status === "completed";
+  const isTimeout = status === "timeout";
   // cancelled is whatever remains
 
   const icon = isResolved ? "\u2713" : isTimeout ? "\u23F1" : "\u2717";
@@ -281,11 +278,6 @@ function ActiveSurface({
     }
   };
 
-  // Auto-focus so Esc handler works immediately
-  useEffect(() => {
-    containerRef.current?.focus();
-  }, []);
-
   const tab = parsed.tabs[activeTabIndex];
   const tabKey = tab.title;
   const selected = selectedValues[tabKey] ?? [];
@@ -345,20 +337,32 @@ function ActiveSurface({
       },
     });
 
-    // Optimistic: mark this surface as resolved in local cache
-    queryClient.setQueryData<Message[]>(["messages", channelId], (old) =>
-      old?.map((m) =>
-        m.id === message.id
-          ? {
-              ...m,
-              metadata: {
-                ...(m.metadata as Record<string, unknown>),
-                status: "resolved",
-                selections,
-              },
-            }
-          : m,
-      ),
+    // Optimistic: mark this surface as resolved in local cache.
+    // The messages query is an InfiniteQuery with pages, not a flat array.
+    queryClient.setQueriesData(
+      { queryKey: ["messages", channelId] },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (old: any) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page: unknown) => {
+            if (!Array.isArray(page)) return page;
+            return page.map((m: Message) =>
+              m.id === message.id
+                ? {
+                    ...m,
+                    metadata: {
+                      ...(m.metadata as Record<string, unknown>),
+                      status: "resolved",
+                      selections,
+                    },
+                  }
+                : m,
+            );
+          }),
+        };
+      },
     );
   };
 
@@ -430,9 +434,10 @@ function ActiveSurface({
 
       <button
         onClick={handleSubmit}
-        className="w-full mt-3 bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
+        disabled={sendMessage.isPending}
+        className="w-full mt-3 bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        Submit answers
+        {sendMessage.isPending ? "Submitting..." : "Submit answers"}
       </button>
       <p className="text-center text-xs text-muted-foreground mt-1">
         Press Esc to cancel
