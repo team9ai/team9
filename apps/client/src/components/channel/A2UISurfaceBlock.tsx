@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSendMessage } from "@/hooks/useMessages";
 import type { AgentEventMetadata, Message } from "@/types/im";
 import {
   parseChoicesPayload,
@@ -242,16 +244,22 @@ function CollapsedHeader({
 // ---------------------------------------------------------------------------
 
 function ActiveSurface({
+  message,
   metadata,
   parsed,
+  channelId,
   onSubmit,
   onCancel,
 }: {
+  message: Message;
   metadata: AgentEventMetadata;
   parsed: ParsedChoicesSurface;
+  channelId: string;
   onSubmit?: A2UISurfaceBlockProps["onSubmit"];
   onCancel?: A2UISurfaceBlockProps["onCancel"];
 }) {
+  const sendMessage = useSendMessage(channelId);
+  const queryClient = useQueryClient();
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [selectedValues, setSelectedValues] = useState<
     Record<string, string[]>
@@ -316,10 +324,42 @@ function ActiveSurface({
     }
     if (onSubmit) {
       onSubmit(surfaceId, selections);
-    } else {
-      // Fallback: log to console when onSubmit is not wired
-      console.log("[A2UISurfaceBlock] submit", surfaceId, selections);
     }
+
+    // Send visible message to channel with a2ui_response metadata
+    const summary = Object.entries(selections)
+      .map(([title, sel]) => {
+        const parts = sel.selected.filter((v) => v !== "__other__");
+        if (sel.otherText) parts.push(`Other — "${sel.otherText}"`);
+        return `${title}: ${parts.join(", ")}`;
+      })
+      .join("; ");
+
+    sendMessage.mutate({
+      content: `Selected: ${summary}`,
+      metadata: {
+        agentEventType: "a2ui_response",
+        status: "completed",
+        surfaceId,
+        selections,
+      },
+    });
+
+    // Optimistic: mark this surface as resolved in local cache
+    queryClient.setQueryData<Message[]>(["messages", channelId], (old) =>
+      old?.map((m) =>
+        m.id === message.id
+          ? {
+              ...m,
+              metadata: {
+                ...(m.metadata as Record<string, unknown>),
+                status: "resolved",
+                selections,
+              },
+            }
+          : m,
+      ),
+    );
   };
 
   return (
@@ -406,9 +446,9 @@ function ActiveSurface({
 // ---------------------------------------------------------------------------
 
 export function A2UISurfaceBlock({
-  message: _message,
+  message,
   metadata,
-  channelId: _channelId,
+  channelId,
   onSubmit,
   onCancel,
 }: A2UISurfaceBlockProps) {
@@ -430,8 +470,10 @@ export function A2UISurfaceBlock({
     }
     return (
       <ActiveSurface
+        message={message}
         metadata={metadata}
         parsed={parsed}
+        channelId={channelId}
         onSubmit={onSubmit}
         onCancel={onCancel}
       />

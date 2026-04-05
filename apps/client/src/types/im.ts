@@ -19,7 +19,13 @@ export interface AgentEventMetadata {
     | "turn_separator"
     | "a2ui_surface_update"
     | "a2ui_response";
-  status: "running" | "completed" | "failed";
+  status:
+    | "running"
+    | "completed"
+    | "failed"
+    | "resolved"
+    | "timeout"
+    | "cancelled";
   toolName?: string;
   toolCallId?: string;
   toolArgs?: Record<string, unknown>;
@@ -225,6 +231,7 @@ export interface CreateMessageDto {
   clientMsgId?: string;
   parentId?: string;
   attachments?: AttachmentDto[];
+  metadata?: Record<string, unknown>;
 }
 
 export interface UpdateMessageDto {

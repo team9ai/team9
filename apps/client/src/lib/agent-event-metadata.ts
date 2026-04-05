@@ -17,6 +17,9 @@ const AGENT_EVENT_STATUSES = new Set<AgentEventMetadata["status"]>([
   "running",
   "completed",
   "failed",
+  "resolved",
+  "timeout",
+  "cancelled",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -73,7 +76,9 @@ export function getAgentEventMetadata(
       ? { surfaceMetadata: value.surfaceMetadata }
       : {}),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ...(isRecord(value.selections) ? { selections: value.selections as any } : {}),
+    ...(isRecord(value.selections)
+      ? { selections: value.selections as any }
+      : {}),
     ...(typeof value.responderId === "string"
       ? { responderId: value.responderId }
       : {}),
