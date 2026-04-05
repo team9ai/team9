@@ -40,11 +40,11 @@
   },
   "lint-staged": {
     "apps/client/**/*.{ts,tsx,js,jsx}": [
-      "eslint --fix --config apps/client/eslint.config.mjs",
+      "pnpm --filter @team9/client exec eslint --fix",
       "prettier --write"
     ],
     "apps/server/**/*.ts": [
-      "eslint --fix --config apps/server/eslint.config.mjs",
+      "pnpm --filter @team9/server exec eslint --fix",
       "prettier --write"
     ],
     "*.{json,md,yaml,yml}": [
