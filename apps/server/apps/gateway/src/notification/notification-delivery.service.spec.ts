@@ -101,7 +101,6 @@ describe('NotificationDeliveryService', () => {
     service = new NotificationDeliveryService(
       redisService as any,
       webPushService as any,
-      expoPushService as any,
       preferencesService as any,
     );
     warnSpy = jest

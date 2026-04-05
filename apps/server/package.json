@@ -33,6 +33,7 @@
     "submodule:update": "git submodule update --remote --merge"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.50",
     "@anthropic-ai/sdk": "^0.71.2",
     "@google/generative-ai": "^0.24.1",
     "@grpc/grpc-js": "^1.12.0",
@@ -50,6 +51,7 @@
     "@nestjs/websockets": "^11.1.10",
     "@socket.io/redis-adapter": "^8.3.0",
     "@types/uuid": "^11.0.0",
+    "ai": "^6.0.146",
     "axios": "^1.13.2",
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
@@ -63,7 +65,8 @@
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.3",
     "uuid": "^13.0.0",
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
