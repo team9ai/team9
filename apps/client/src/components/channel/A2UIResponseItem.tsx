@@ -15,7 +15,9 @@ export function A2UIResponseItem({ message, metadata }: A2UIResponseItemProps) {
   if (!summary && metadata.selections) {
     summary = Object.entries(metadata.selections)
       .map(([title, sel]) => {
-        const vals = (sel as { selected: string[] }).selected ?? [];
+        const raw = sel as { selected: string[]; otherText?: string | null };
+        const vals = (raw.selected ?? []).filter((v) => v !== "__other__");
+        if (raw.otherText) vals.push(`Other — "${raw.otherText}"`);
         return `${title}: ${vals.join(", ")}`;
       })
       .join("; ");

@@ -198,6 +198,9 @@ function CollapsedHeader({
     }
     const responder = metadata.responderName ?? "User";
     summary = `${responder} selected: ${parts.join("; ")}`;
+  } else if (isResolved) {
+    // Resolved but no parsed data (e.g., payload parse failed)
+    summary = "Choices submitted";
   } else if (isTimeout) {
     summary = "Selection timed out";
   } else {
