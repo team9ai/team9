@@ -1,18 +1,16 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { X } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { getAgentEventMetadata } from "@/lib/agent-event-metadata";
-import imApi from "@/services/api/im";
-import wsService from "@/services/websocket";
-import { WS_EVENTS } from "@/types/ws-events";
+import { useChannelMessages, useSendMessage } from "@/hooks/useMessages";
+import { useSyncChannel } from "@/hooks/useSyncChannel";
+import { useChannelMembers } from "@/hooks/useChannels";
 import { useChannelObserver } from "@/hooks/useChannelObserver";
-import { TrackingEventItem } from "./TrackingEventItem";
-import type { Message, IMUser } from "@/types/im";
+import wsService from "@/services/websocket";
+import { ChannelContent } from "./ChannelContent";
+import type { IMUser, AttachmentDto } from "@/types/im";
 import type {
-  StreamingStartEvent,
-  StreamingContentEvent,
-  StreamingEndEvent,
+  TrackingDeactivatedEvent,
+  TrackingActivatedEvent,
 } from "@/types/ws-events";
 
 interface TrackingModalProps {
@@ -21,11 +19,8 @@ interface TrackingModalProps {
   trackingChannelId: string | undefined;
   botUser?: IMUser;
   isActivated: boolean;
-  initialActiveStream?: {
-    streamId: string;
-    content: string;
-    metadata?: Record<string, unknown>;
-  } | null;
+  /** @deprecated No longer used — streaming handled by useChannelMessages */
+  initialActiveStream?: unknown;
 }
 
 export function TrackingModal({
@@ -33,108 +28,77 @@ export function TrackingModal({
   onClose,
   trackingChannelId,
   botUser,
-  isActivated,
-  initialActiveStream,
+  isActivated: initialIsActivated,
 }: TrackingModalProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [inputValue, setInputValue] = useState("");
-  const [activeStream, setActiveStream] = useState<{
-    streamId: string;
-    content: string;
-    metadata?: Record<string, unknown>;
-  } | null>(null);
+  const [isActivated, setIsActivated] = useState(initialIsActivated);
 
-  // Sync active stream from parent when modal opens
+  // Sync with parent prop
   useEffect(() => {
-    if (isOpen && initialActiveStream && !activeStream) {
-      setActiveStream(initialActiveStream);
-    }
-  }, [isOpen, initialActiveStream, activeStream]);
-  const scrollRef = useRef<HTMLDivElement>(null);
+    setIsActivated(initialIsActivated);
+  }, [initialIsActivated]);
 
-  // Observe channel when modal is open
+  // Observe the tracking channel's WS room (subscribe/unsubscribe)
   useChannelObserver(isOpen ? trackingChannelId : null);
 
-  // Fetch all messages when modal opens
-  const { data: fetchedMessages } = useQuery({
-    queryKey: ["trackingModalMessages", trackingChannelId],
-    queryFn: () =>
-      imApi.messages.getMessages(trackingChannelId!, { limit: 100 }),
-    enabled: isOpen && !!trackingChannelId,
-  });
+  // Fetch messages + real-time WS listeners (new_message, streaming, reactions)
+  const {
+    data: messagesData,
+    isFetchingNextPage,
+    fetchNextPage,
+    hasNextPage,
+    hasPreviousPage,
+    isFetchingPreviousPage,
+    fetchPreviousPage,
+  } = useChannelMessages(isOpen ? trackingChannelId : undefined);
 
-  useEffect(() => {
-    if (fetchedMessages) {
-      setMessages(fetchedMessages);
-    }
-  }, [fetchedMessages]);
+  // Catch-up sync
+  const { hasMoreUnsynced } = useSyncChannel(
+    isOpen ? trackingChannelId : undefined,
+  );
 
-  // Listen for real-time updates
+  // Channel members (for MessageList member display)
+  const { data: members = [] } = useChannelMembers(
+    isOpen ? trackingChannelId : undefined,
+  );
+
+  // Send messages
+  const sendMessage = useSendMessage(trackingChannelId ?? "");
+
+  const handleSend = useCallback(
+    async (content: string, attachments?: AttachmentDto[]) => {
+      if (!content.trim() && (!attachments || attachments.length === 0)) return;
+      await sendMessage.mutateAsync({ content, attachments });
+    },
+    [sendMessage],
+  );
+
+  // Tracking-specific WS events
   useEffect(() => {
     if (!isOpen || !trackingChannelId) return;
 
-    const handleNewMessage = (msg: Message) => {
-      if (msg.channelId !== trackingChannelId) return;
-      setMessages((prev) => [...prev, msg]);
-    };
-
-    const handleStreamStart = (event: StreamingStartEvent) => {
+    const handleDeactivated = (event: TrackingDeactivatedEvent) => {
       if (event.channelId !== trackingChannelId) return;
-      setActiveStream({
-        streamId: event.streamId,
-        content: "",
-        metadata: event.metadata,
-      });
+      setIsActivated(false);
     };
 
-    const handleStreamContent = (event: StreamingContentEvent) => {
-      setActiveStream((prev) => {
-        if (!prev || prev.streamId !== event.streamId) return prev;
-        return { ...prev, content: event.content };
-      });
+    const handleActivated = (event: TrackingActivatedEvent) => {
+      if (event.channelId !== trackingChannelId) return;
+      setIsActivated(true);
     };
 
-    const handleStreamEnd = (event: StreamingEndEvent) => {
-      setActiveStream((prev) => {
-        if (!prev || prev.streamId !== event.streamId) return prev;
-        return null;
-      });
-    };
-
-    wsService.on(WS_EVENTS.MESSAGE.NEW, handleNewMessage);
-    wsService.on(WS_EVENTS.STREAMING.START, handleStreamStart);
-    wsService.on(WS_EVENTS.STREAMING.CONTENT, handleStreamContent);
-    wsService.on(WS_EVENTS.STREAMING.END, handleStreamEnd);
+    wsService.onTrackingDeactivated(handleDeactivated);
+    wsService.onTrackingActivated(handleActivated);
 
     return () => {
-      wsService.off(WS_EVENTS.MESSAGE.NEW, handleNewMessage);
-      wsService.off(WS_EVENTS.STREAMING.START, handleStreamStart);
-      wsService.off(WS_EVENTS.STREAMING.CONTENT, handleStreamContent);
-      wsService.off(WS_EVENTS.STREAMING.END, handleStreamEnd);
+      wsService.offTrackingDeactivated(handleDeactivated);
+      wsService.offTrackingActivated(handleActivated);
     };
   }, [isOpen, trackingChannelId]);
 
-  // Auto-scroll to bottom on new messages
-  useEffect(() => {
-    scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: "smooth",
-    });
-  }, [messages.length, activeStream?.content]);
-
-  const handleSend = async () => {
-    if (!inputValue.trim() || !trackingChannelId) return;
-    try {
-      await imApi.messages.sendMessage(trackingChannelId, {
-        content: inputValue.trim(),
-      });
-      setInputValue("");
-    } catch {
-      // Handle error silently for now
-    }
-  };
-
   if (!isOpen) return null;
+
+  const messages = messagesData?.pages.flatMap((p) => p.messages) ?? [];
+  const displayName = botUser?.displayName ?? botUser?.username ?? "Bot";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -143,12 +107,10 @@ export function TrackingModal({
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-3">
             <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-xs text-primary-foreground font-bold">
-              {botUser?.displayName?.[0] ?? botUser?.username?.[0] ?? "B"}
+              {displayName[0]}
             </div>
             <div>
-              <div className="text-sm font-semibold">
-                {botUser?.displayName ?? botUser?.username ?? "Bot"}
-              </div>
+              <div className="text-sm font-semibold">{displayName}</div>
               <div className="text-xs text-muted-foreground">
                 Tracking Channel
               </div>
@@ -172,80 +134,30 @@ export function TrackingModal({
           </div>
         </div>
 
-        {/* Message list */}
-        <div
-          ref={scrollRef}
-          className="flex-1 overflow-y-auto px-5 py-4 space-y-3"
-        >
-          {messages.map((msg) => {
-            const meta = getAgentEventMetadata(msg.metadata, {
-              agentEventType: "writing",
-              status: "completed",
-            });
-
-            // Turn separator
-            if (meta.agentEventType === "turn_separator") {
-              return (
-                <div key={msg.id} className="flex items-center gap-2 py-1">
-                  <div className="flex-1 h-px bg-border" />
-                  <span className="text-[10px] text-muted-foreground">
-                    {msg.content}
-                  </span>
-                  <div className="flex-1 h-px bg-border" />
-                </div>
-              );
-            }
-
-            return (
-              <div
-                key={msg.id}
-                className="flex items-start gap-2.5 p-2 rounded-lg bg-muted/30"
-              >
-                <TrackingEventItem
-                  metadata={meta}
-                  content={msg.content ?? ""}
-                  compact={false}
-                />
-              </div>
-            );
-          })}
-
-          {/* Active streaming message */}
-          {activeStream && (
-            <div className="flex items-start gap-2.5 p-2 rounded-lg bg-muted/30">
-              <TrackingEventItem
-                metadata={getAgentEventMetadata(activeStream.metadata, {
-                  agentEventType: "writing",
-                  status: "running",
-                })}
-                content={activeStream.content}
-                isStreaming
-                compact={false}
-              />
-            </div>
-          )}
+        {/* Message area — uses shared ChannelContent */}
+        <div className="flex-1 flex flex-col min-h-0">
+          <ChannelContent
+            channelId={trackingChannelId ?? ""}
+            channelType="tracking"
+            messages={messages}
+            isLoading={isFetchingNextPage}
+            onLoadMore={() => {
+              if (hasNextPage) fetchNextPage();
+            }}
+            hasMore={hasNextPage}
+            onLoadNewer={() => {
+              if (hasPreviousPage) fetchPreviousPage();
+            }}
+            hasNewer={hasPreviousPage}
+            isLoadingNewer={isFetchingPreviousPage}
+            readOnly={!isActivated}
+            members={members}
+            hasMoreUnsynced={hasMoreUnsynced}
+            onSend={isActivated ? handleSend : undefined}
+            isSendDisabled={sendMessage.isPending}
+            inputPlaceholder="Send guidance to agent..."
+          />
         </div>
-
-        {/* Input area */}
-        {isActivated && (
-          <div className="flex items-center gap-2.5 px-5 py-3 border-t border-border">
-            <input
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSend()}
-              placeholder="Send guidance to agent..."
-              className="flex-1 bg-muted border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-primary"
-            />
-            <Button
-              size="sm"
-              onClick={handleSend}
-              disabled={!inputValue.trim()}
-            >
-              ↑
-            </Button>
-          </div>
-        )}
       </div>
     </div>
   );
