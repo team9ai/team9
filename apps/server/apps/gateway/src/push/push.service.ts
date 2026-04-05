@@ -7,6 +7,7 @@ import {
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import type { PushPlatform } from '@team9/database/schemas';
+import type { NotificationPayload } from '../notification/notification-delivery.service.js';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
@@ -34,13 +35,21 @@ export interface ExpoPushTicket {
 }
 
 @Injectable()
-export class PushService {
-  private readonly logger = new Logger(PushService.name);
+export class ExpoPushService {
+  private readonly logger = new Logger(ExpoPushService.name);
 
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
   ) {}
+
+  /**
+   * Whether Expo Push is enabled.
+   * Expo Push does not require VAPID keys — it is always available.
+   */
+  isEnabled(): boolean {
+    return true;
+  }
 
   /**
    * Register (upsert) a push token for the given user.
@@ -89,13 +98,12 @@ export class PushService {
   }
 
   /**
-   * Send a push notification to all registered devices for a user.
+   * Send a push notification to all registered mobile devices for a user.
+   * Matches the same signature as WebPushService.sendPush() for consistency.
    */
   async sendPush(
     userId: string,
-    title: string,
-    body: string,
-    data?: Record<string, unknown>,
+    notification: NotificationPayload,
   ): Promise<void> {
     const tokens = await this.db
       .select()
@@ -108,9 +116,15 @@ export class PushService {
 
     const messages: ExpoPushMessage[] = tokens.map((t) => ({
       to: t.token,
-      title,
-      body,
-      data,
+      title: notification.title,
+      body: notification.body ?? undefined,
+      data: {
+        type: notification.type,
+        category: notification.category,
+        actionUrl: notification.actionUrl ?? undefined,
+        channelId: notification.channelId ?? undefined,
+        messageId: notification.messageId ?? undefined,
+      },
       sound: 'default' as const,
     }));
 

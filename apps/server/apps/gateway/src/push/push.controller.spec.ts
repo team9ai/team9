@@ -15,10 +15,11 @@ import {
 import request from 'supertest';
 import { AuthGuard } from '@team9/auth';
 import { PushController } from './push.controller.js';
-import { PushService } from './push.service.js';
+import { ExpoPushService } from './push.service.js';
 
-function mockPushService() {
+function mockExpoPushService() {
   return {
+    isEnabled: jest.fn<any>().mockReturnValue(true),
     registerToken: jest.fn<any>(),
     unregisterToken: jest.fn<any>(),
     sendPush: jest.fn<any>(),
@@ -29,14 +30,14 @@ function mockPushService() {
 
 describe('PushController (integration)', () => {
   let app: INestApplication;
-  let pushService: ReturnType<typeof mockPushService>;
+  let expoPushService: ReturnType<typeof mockExpoPushService>;
 
   beforeEach(async () => {
-    pushService = mockPushService();
+    expoPushService = mockExpoPushService();
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [PushController],
-      providers: [{ provide: PushService, useValue: pushService }],
+      providers: [{ provide: ExpoPushService, useValue: expoPushService }],
     })
       .overrideGuard(AuthGuard)
       .useValue({
@@ -61,7 +62,7 @@ describe('PushController (integration)', () => {
 
   describe('POST /api/v1/push/register', () => {
     it('registers a push token for the authenticated user', async () => {
-      pushService.registerToken.mockResolvedValue({
+      expoPushService.registerToken.mockResolvedValue({
         message: 'Push token registered.',
       });
 
@@ -71,7 +72,7 @@ describe('PushController (integration)', () => {
         .expect(201);
 
       expect(res.body.message).toBe('Push token registered.');
-      expect(pushService.registerToken).toHaveBeenCalledWith(
+      expect(expoPushService.registerToken).toHaveBeenCalledWith(
         'user-uuid',
         'ExponentPushToken[abc123]',
         'ios',
@@ -79,7 +80,7 @@ describe('PushController (integration)', () => {
     });
 
     it('registers an android token', async () => {
-      pushService.registerToken.mockResolvedValue({
+      expoPushService.registerToken.mockResolvedValue({
         message: 'Push token registered.',
       });
 
@@ -89,7 +90,7 @@ describe('PushController (integration)', () => {
         .expect(201);
 
       expect(res.body.message).toBe('Push token registered.');
-      expect(pushService.registerToken).toHaveBeenCalledWith(
+      expect(expoPushService.registerToken).toHaveBeenCalledWith(
         'user-uuid',
         'ExponentPushToken[xyz789]',
         'android',
@@ -102,7 +103,7 @@ describe('PushController (integration)', () => {
         .send({ platform: 'ios' })
         .expect(400);
 
-      expect(pushService.registerToken).not.toHaveBeenCalled();
+      expect(expoPushService.registerToken).not.toHaveBeenCalled();
     });
 
     it('rejects an empty token', async () => {
@@ -111,7 +112,7 @@ describe('PushController (integration)', () => {
         .send({ token: '', platform: 'ios' })
         .expect(400);
 
-      expect(pushService.registerToken).not.toHaveBeenCalled();
+      expect(expoPushService.registerToken).not.toHaveBeenCalled();
     });
 
     it('rejects a missing platform', async () => {
@@ -120,7 +121,7 @@ describe('PushController (integration)', () => {
         .send({ token: 'ExponentPushToken[abc123]' })
         .expect(400);
 
-      expect(pushService.registerToken).not.toHaveBeenCalled();
+      expect(expoPushService.registerToken).not.toHaveBeenCalled();
     });
 
     it('rejects an invalid platform', async () => {
@@ -129,7 +130,7 @@ describe('PushController (integration)', () => {
         .send({ token: 'ExponentPushToken[abc123]', platform: 'web' })
         .expect(400);
 
-      expect(pushService.registerToken).not.toHaveBeenCalled();
+      expect(expoPushService.registerToken).not.toHaveBeenCalled();
     });
 
     it('rejects a non-string token', async () => {
@@ -138,11 +139,11 @@ describe('PushController (integration)', () => {
         .send({ token: 12345, platform: 'ios' })
         .expect(400);
 
-      expect(pushService.registerToken).not.toHaveBeenCalled();
+      expect(expoPushService.registerToken).not.toHaveBeenCalled();
     });
 
     it('strips unknown properties from the request body', async () => {
-      pushService.registerToken.mockResolvedValue({
+      expoPushService.registerToken.mockResolvedValue({
         message: 'Push token registered.',
       });
 
@@ -155,7 +156,7 @@ describe('PushController (integration)', () => {
         })
         .expect(201);
 
-      expect(pushService.registerToken).toHaveBeenCalledWith(
+      expect(expoPushService.registerToken).toHaveBeenCalledWith(
         'user-uuid',
         'ExponentPushToken[abc123]',
         'ios',
@@ -165,7 +166,7 @@ describe('PushController (integration)', () => {
 
   describe('DELETE /api/v1/push/register', () => {
     it('removes a push token for the authenticated user', async () => {
-      pushService.unregisterToken.mockResolvedValue({
+      expoPushService.unregisterToken.mockResolvedValue({
         message: 'Push token removed.',
       });
 
@@ -175,7 +176,7 @@ describe('PushController (integration)', () => {
         .expect(200);
 
       expect(res.body.message).toBe('Push token removed.');
-      expect(pushService.unregisterToken).toHaveBeenCalledWith(
+      expect(expoPushService.unregisterToken).toHaveBeenCalledWith(
         'user-uuid',
         'ExponentPushToken[abc123]',
       );
@@ -187,7 +188,7 @@ describe('PushController (integration)', () => {
         .send({})
         .expect(400);
 
-      expect(pushService.unregisterToken).not.toHaveBeenCalled();
+      expect(expoPushService.unregisterToken).not.toHaveBeenCalled();
     });
 
     it('rejects an empty token', async () => {
@@ -196,7 +197,7 @@ describe('PushController (integration)', () => {
         .send({ token: '' })
         .expect(400);
 
-      expect(pushService.unregisterToken).not.toHaveBeenCalled();
+      expect(expoPushService.unregisterToken).not.toHaveBeenCalled();
     });
   });
 });

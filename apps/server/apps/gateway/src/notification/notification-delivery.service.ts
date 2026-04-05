@@ -3,6 +3,7 @@ import { RedisService } from '@team9/redis';
 import type { NotificationType } from '@team9/database/schemas';
 import { REDIS_KEYS } from '../im/shared/constants/redis-keys.js';
 import { WebPushService } from './web-push.service.js';
+import { ExpoPushService } from '../push/push.service.js';
 import { NotificationPreferencesService } from '../notification-preferences/notification-preferences.service.js';
 
 // Forward reference to avoid circular dependency
@@ -74,6 +75,7 @@ export class NotificationDeliveryService {
   constructor(
     private readonly redisService: RedisService,
     private readonly webPushService: WebPushService,
+    private readonly expoPushService: ExpoPushService,
     private readonly preferencesService: NotificationPreferencesService,
   ) {}
 
@@ -135,6 +137,26 @@ export class NotificationDeliveryService {
       } catch (err) {
         this.logger.warn(
           `Web push failed for ${userId}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    }
+
+    // 3. Mobile Push delivery — preferences-gated like Web Push
+    if (this.expoPushService.isEnabled()) {
+      try {
+        const { allowed, preferences } =
+          await this.preferencesService.shouldNotify(
+            userId,
+            notification.type,
+            notification.category,
+          );
+
+        if (allowed && preferences.desktopEnabled) {
+          await this.expoPushService.sendPush(userId, notification);
+        }
+      } catch (err) {
+        this.logger.warn(
+          `Expo push failed for ${userId}: ${err instanceof Error ? err.message : err}`,
         );
       }
     }

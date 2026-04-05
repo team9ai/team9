@@ -9,15 +9,17 @@ import { WebsocketModule } from '../im/websocket/websocket.module.js';
 import { WebsocketGateway } from '../im/websocket/websocket.gateway.js';
 import { PushSubscriptionModule } from '../push-subscription/push-subscription.module.js';
 import { NotificationPreferencesModule } from '../notification-preferences/notification-preferences.module.js';
+import { PushModule } from '../push/push.module.js';
 
 /**
  * Notification Module for Gateway
  *
- * Handles notification delivery (WebSocket + Web Push) and read operations:
+ * Handles notification delivery (WebSocket + Web Push + Mobile Push) and read operations:
  * - NotificationService: CRUD operations for notifications (read, mark-read, archive)
- * - NotificationDeliveryService: WebSocket push to online users + Web Push to all subscriptions
+ * - NotificationDeliveryService: WebSocket push to online users + Web Push + Expo Push to all subscriptions
  * - NotificationDeliveryConsumerService: Consumes delivery tasks from RabbitMQ
  * - WebPushService: Sends OS-level push notifications via the Web Push protocol
+ * - ExpoPushService: Sends mobile push notifications via the Expo Push API
  *
  * Note: Notification creation/processing is handled by im-worker
  */
@@ -27,6 +29,7 @@ import { NotificationPreferencesModule } from '../notification-preferences/notif
     forwardRef(() => WebsocketModule),
     PushSubscriptionModule,
     NotificationPreferencesModule,
+    PushModule,
   ],
   controllers: [NotificationController],
   providers: [

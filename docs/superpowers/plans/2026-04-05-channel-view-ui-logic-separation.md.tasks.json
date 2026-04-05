@@ -4,23 +4,23 @@
     {
       "id": 0,
       "subject": "Task 1: Create ChannelContent component with tests",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Extract a pure UI component that renders MessageList + MessageInput + banners, accepting all data as props.\n\n**Files:**\n- Create: `apps/client/src/components/channel/ChannelContent.tsx`\n- Create: `apps/client/src/components/channel/__tests__/ChannelContent.test.tsx`\n\n**Acceptance Criteria:**\n- ChannelContent renders MessageList with all provided message props\n- ChannelContent renders MessageInput when onSend is provided and readOnly is false\n- ChannelContent renders read-only bar when readOnly=true\n- ChannelContent renders unsynced banner when hasMoreUnsynced=true\n- 100% test coverage\n\n**Verify:** `cd apps/client && npx vitest run src/components/channel/__tests__/ChannelContent.test.tsx`\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/channel/ChannelContent.tsx\", \"apps/client/src/components/channel/__tests__/ChannelContent.test.tsx\"], \"verifyCommand\": \"cd apps/client && npx vitest run src/components/channel/__tests__/ChannelContent.test.tsx\", \"acceptanceCriteria\": [\"ChannelContent renders MessageList with all provided message props\", \"ChannelContent renders MessageInput when onSend provided\", \"ChannelContent renders read-only bar when readOnly=true\", \"ChannelContent renders unsynced banner when hasMoreUnsynced=true\", \"100% test coverage\"]}\n```"
     },
     {
       "id": 1,
       "subject": "Task 2: Refactor ChannelView to use ChannelContent",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** Replace ChannelView's inline MessageList + MessageInput + banner rendering with ChannelContent, keeping all hooks and external API unchanged.\n\n**Files:**\n- Modify: `apps/client/src/components/channel/ChannelView.tsx`\n\n**Acceptance Criteria:**\n- ChannelView imports and renders ChannelContent instead of inline MessageList + MessageInput\n- All existing ChannelView behavior preserved\n- Existing tests still pass\n\n**Verify:** `cd apps/client && npx vitest run`\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/channel/ChannelView.tsx\"], \"verifyCommand\": \"cd apps/client && npx vitest run\", \"acceptanceCriteria\": [\"ChannelView uses ChannelContent for rendering\", \"No longer imports MessageList or MessageInput directly\", \"All existing tests pass\"]}\n```"
     },
     {
       "id": 2,
       "subject": "Task 3: Refactor TrackingModal to use ChannelContent with tests",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** Replace TrackingModal's custom message rendering with ChannelContent + standard hooks, keeping the modal shell and tracking-specific events.\n\n**Files:**\n- Modify: `apps/client/src/components/channel/TrackingModal.tsx`\n- Create: `apps/client/src/components/channel/__tests__/TrackingModal.test.tsx`\n\n**Acceptance Criteria:**\n- TrackingModal uses useChannelObserver, useChannelMessages, useSyncChannel, useSendMessage\n- TrackingModal renders ChannelContent for message display + input\n- Tracking-specific WS events handled in useEffect\n- Deactivated channel passes readOnly=true to ChannelContent\n- Modal header preserved\n- All manual WS streaming listeners removed\n- 100% test coverage\n\n**Verify:** `cd apps/client && npx vitest run src/components/channel/__tests__/TrackingModal.test.tsx`\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/channel/TrackingModal.tsx\", \"apps/client/src/components/channel/__tests__/TrackingModal.test.tsx\"], \"verifyCommand\": \"cd apps/client && npx vitest run src/components/channel/__tests__/TrackingModal.test.tsx\", \"acceptanceCriteria\": [\"Uses useChannelObserver + useChannelMessages + useSyncChannel + useSendMessage\", \"Renders ChannelContent for message display\", \"Tracking WS events handled in useEffect\", \"Deactivated = readOnly\", \"Modal header preserved\", \"100% test coverage\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-04-05T00:00:00Z"
+  "lastUpdated": "2026-04-05T19:00:00Z"
 }

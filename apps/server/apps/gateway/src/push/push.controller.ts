@@ -8,7 +8,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { AuthGuard, CurrentUser } from '@team9/auth';
-import { PushService } from './push.service.js';
+import { ExpoPushService } from './push.service.js';
 import {
   RegisterTokenDto,
   UnregisterTokenDto,
@@ -19,7 +19,7 @@ import {
   version: '1',
 })
 export class PushController {
-  constructor(private readonly pushService: PushService) {}
+  constructor(private readonly expoPushService: ExpoPushService) {}
 
   @Post('register')
   @UseGuards(AuthGuard)
@@ -27,7 +27,7 @@ export class PushController {
     @CurrentUser('sub') userId: string,
     @Body() dto: RegisterTokenDto,
   ): Promise<{ message: string }> {
-    return this.pushService.registerToken(userId, dto.token, dto.platform);
+    return this.expoPushService.registerToken(userId, dto.token, dto.platform);
   }
 
   @Delete('register')
@@ -37,6 +37,6 @@ export class PushController {
     @CurrentUser('sub') userId: string,
     @Body() dto: UnregisterTokenDto,
   ): Promise<{ message: string }> {
-    return this.pushService.unregisterToken(userId, dto.token);
+    return this.expoPushService.unregisterToken(userId, dto.token);
   }
 }

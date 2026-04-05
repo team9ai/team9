@@ -8,7 +8,7 @@ import {
 } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DATABASE_CONNECTION } from '@team9/database';
-import { PushService } from './push.service.js';
+import { ExpoPushService } from './push.service.js';
 import type { ExpoPushTicket } from './push.service.js';
 
 type MockFn = jest.Mock<(...args: any[]) => any>;
@@ -56,8 +56,8 @@ const TOKEN_ROW_2 = {
   updatedAt: new Date('2026-04-01T00:00:00.000Z'),
 };
 
-describe('PushService', () => {
-  let service: PushService;
+describe('ExpoPushService', () => {
+  let service: ExpoPushService;
   let db: ReturnType<typeof mockDb>;
   let originalFetch: typeof globalThis.fetch;
 
@@ -65,10 +65,13 @@ describe('PushService', () => {
     db = mockDb();
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [PushService, { provide: DATABASE_CONNECTION, useValue: db }],
+      providers: [
+        ExpoPushService,
+        { provide: DATABASE_CONNECTION, useValue: db },
+      ],
     }).compile();
 
-    service = module.get<PushService>(PushService);
+    service = module.get<ExpoPushService>(ExpoPushService);
 
     originalFetch = globalThis.fetch;
   });
@@ -76,6 +79,12 @@ describe('PushService', () => {
   afterEach(() => {
     globalThis.fetch = originalFetch;
     jest.restoreAllMocks();
+  });
+
+  describe('isEnabled', () => {
+    it('always returns true (Expo Push does not require VAPID keys)', () => {
+      expect(service.isEnabled()).toBe(true);
+    });
   });
 
   describe('registerToken', () => {
@@ -138,7 +147,24 @@ describe('PushService', () => {
     });
   });
 
-  describe('sendPush', () => {
+  describe('sendPush (NotificationPayload)', () => {
+    const notification = {
+      id: 'notif-1',
+      category: 'message',
+      type: 'mention',
+      title: 'New mention',
+      body: 'You were mentioned in #general',
+      actionUrl: '/channels/general',
+      channelId: 'ch-1',
+      messageId: 'msg-1',
+      actor: {
+        id: 'actor-1',
+        username: 'alice',
+        displayName: 'Alice',
+        avatarUrl: 'https://example.com/alice.png',
+      },
+    };
+
     it('sends push notifications to all user tokens via Expo API', async () => {
       db.where.mockResolvedValueOnce([TOKEN_ROW, TOKEN_ROW_2]);
 
@@ -152,7 +178,7 @@ describe('PushService', () => {
         json: () => Promise.resolve({ data: mockTickets }),
       });
 
-      await service.sendPush('user-uuid', 'Title', 'Body', { key: 'value' });
+      await service.sendPush('user-uuid', notification);
 
       expect(globalThis.fetch).toHaveBeenCalledWith(
         'https://exp.host/--/api/v2/push/send',
@@ -168,9 +194,15 @@ describe('PushService', () => {
       const sentBody = JSON.parse(fetchCall[1].body as string);
       expect(sentBody).toHaveLength(2);
       expect(sentBody[0].to).toBe('ExponentPushToken[abc123]');
-      expect(sentBody[0].title).toBe('Title');
-      expect(sentBody[0].body).toBe('Body');
-      expect(sentBody[0].data).toEqual({ key: 'value' });
+      expect(sentBody[0].title).toBe('New mention');
+      expect(sentBody[0].body).toBe('You were mentioned in #general');
+      expect(sentBody[0].data).toEqual({
+        type: 'mention',
+        category: 'message',
+        actionUrl: '/channels/general',
+        channelId: 'ch-1',
+        messageId: 'msg-1',
+      });
       expect(sentBody[0].sound).toBe('default');
       expect(sentBody[1].to).toBe('ExponentPushToken[xyz789]');
     });
@@ -180,7 +212,7 @@ describe('PushService', () => {
 
       globalThis.fetch = jest.fn<any>();
 
-      await service.sendPush('user-uuid', 'Title', 'Body');
+      await service.sendPush('user-uuid', notification);
 
       expect(globalThis.fetch).not.toHaveBeenCalled();
     });
@@ -202,10 +234,9 @@ describe('PushService', () => {
         json: () => Promise.resolve({ data: mockTickets }),
       });
 
-      await service.sendPush('user-uuid', 'Title', 'Body');
+      await service.sendPush('user-uuid', notification);
 
       // The service should delete the invalid token
-      // db.delete is called once for the invalid token removal
       expect(db.delete).toHaveBeenCalled();
     });
 
@@ -217,7 +248,7 @@ describe('PushService', () => {
         .mockRejectedValue(new Error('Network error'));
 
       // Should not throw
-      await service.sendPush('user-uuid', 'Title', 'Body');
+      await service.sendPush('user-uuid', notification);
     });
 
     it('handles Expo API non-OK response gracefully', async () => {
@@ -229,7 +260,33 @@ describe('PushService', () => {
       });
 
       // Should not throw
-      await service.sendPush('user-uuid', 'Title', 'Body');
+      await service.sendPush('user-uuid', notification);
+    });
+
+    it('handles null body in notification payload', async () => {
+      db.where.mockResolvedValueOnce([TOKEN_ROW]);
+
+      const mockTickets: ExpoPushTicket[] = [{ status: 'ok', id: 'ticket-1' }];
+
+      globalThis.fetch = jest.fn<any>().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data: mockTickets }),
+      });
+
+      await service.sendPush('user-uuid', {
+        ...notification,
+        body: null,
+        actionUrl: null,
+        channelId: null,
+        messageId: null,
+      });
+
+      const fetchCall = (globalThis.fetch as MockFn).mock.calls[0];
+      const sentBody = JSON.parse(fetchCall[1].body as string);
+      expect(sentBody[0].body).toBeUndefined();
+      expect(sentBody[0].data.actionUrl).toBeUndefined();
+      expect(sentBody[0].data.channelId).toBeUndefined();
+      expect(sentBody[0].data.messageId).toBeUndefined();
     });
   });
 
