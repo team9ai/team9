@@ -26,6 +26,8 @@ import { cn } from "@/lib/utils";
 import { MessageItem } from "./MessageItem";
 import { ToolCallBlock } from "./ToolCallBlock";
 import { StreamingMessageItem } from "./StreamingMessageItem";
+import { A2UISurfaceBlock } from "./A2UISurfaceBlock";
+import { A2UIResponseItem } from "./A2UIResponseItem";
 import { BotThinkingIndicator } from "./BotThinkingIndicator";
 import { NewMessagesIndicator } from "./NewMessagesIndicator";
 import { UnreadDivider } from "./UnreadDivider";
@@ -387,6 +389,28 @@ export function MessageList({
             <div className="min-h-px overflow-hidden" aria-hidden="true" />
           );
         }
+      }
+
+      // A2UI surface block — interactive choices
+      if (agentMeta?.agentEventType === "a2ui_surface_update") {
+        return (
+          <div id={`message-${message.id}`} className="px-4 py-1">
+            <A2UISurfaceBlock
+              message={message}
+              metadata={agentMeta}
+              channelId={channelId}
+            />
+          </div>
+        );
+      }
+
+      // A2UI response — compact "User selected X" display
+      if (agentMeta?.agentEventType === "a2ui_response") {
+        return (
+          <div id={`message-${message.id}`} className="px-4 py-0.5">
+            <A2UIResponseItem message={message} metadata={agentMeta} />
+          </div>
+        );
       }
 
       const hasReplies =
