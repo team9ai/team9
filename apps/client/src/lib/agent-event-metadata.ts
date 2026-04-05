@@ -75,9 +75,13 @@ export function getAgentEventMetadata(
     ...(isRecord(value.surfaceMetadata)
       ? { surfaceMetadata: value.surfaceMetadata }
       : {}),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ...(isRecord(value.selections)
-      ? { selections: value.selections as any }
+      ? {
+          selections: value.selections as Record<
+            string,
+            { selected: string[]; otherText: string | null }
+          >,
+        }
       : {}),
     ...(typeof value.responderId === "string"
       ? { responderId: value.responderId }
