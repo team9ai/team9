@@ -318,16 +318,17 @@ function ActiveSurface({
         otherText: hasOtherSelected ? (otherTexts[t.title] ?? "") : null,
       };
     }
-    if (onSubmit) {
-      onSubmit(surfaceId, selections);
-    }
-
-    // Send visible message to channel with a2ui_response metadata
+    // Build summary with human-readable labels (not raw values)
     const summary = Object.entries(selections)
       .map(([title, sel]) => {
-        const parts = sel.selected.filter((v) => v !== "__other__");
-        if (sel.otherText) parts.push(`Other — "${sel.otherText}"`);
-        return `${title}: ${parts.join(", ")}`;
+        const parsedTab = parsed.tabs.find((t) => t.title === title);
+        const labels = sel.selected
+          .filter((v) => v !== "__other__")
+          .map(
+            (v) => parsedTab?.options.find((o) => o.value === v)?.label ?? v,
+          );
+        if (sel.otherText) labels.push(`Other — "${sel.otherText}"`);
+        return `${title}: ${labels.join(", ")}`;
       })
       .join("; ");
 
@@ -343,38 +344,46 @@ function ActiveSurface({
       },
       {
         onSuccess: () => {
-          // Mark surface as resolved only after message is sent successfully.
-          // If send fails, the surface stays interactive so the user can retry.
-          queryClient.setQueriesData(
-            { queryKey: ["messages", channelId] },
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (old: any) => {
-              if (!old?.pages) return old;
-              return {
-                ...old,
-                pages: old.pages.map((page: unknown) => {
-                  const msgs: Message[] = Array.isArray(page)
-                    ? page
-                    : ((page as { messages: Message[] }).messages ?? []);
-                  const updated = msgs.map((m: Message) =>
-                    m.id === message.id
-                      ? {
-                          ...m,
-                          metadata: {
-                            ...(m.metadata as Record<string, unknown>),
-                            status: "resolved",
-                            selections,
-                          },
-                        }
-                      : m,
-                  );
-                  return Array.isArray(page)
-                    ? updated
-                    : { ...(page as object), messages: updated };
-                }),
-              };
-            },
-          );
+          // Notify parent (if handler provided)
+          if (onSubmit) onSubmit(surfaceId, selections);
+
+          // Mark surface as resolved in ALL matching message caches
+          // (covers both ["messages", channelId] and ["messages", channelId, anchor])
+          const matchingQueries = queryClient
+            .getQueryCache()
+            .findAll({ queryKey: ["messages", channelId] });
+          for (const query of matchingQueries) {
+            queryClient.setQueryData(
+              query.queryKey,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (old: any) => {
+                if (!old?.pages) return old;
+                return {
+                  ...old,
+                  pages: old.pages.map((page: unknown) => {
+                    const msgs: Message[] = Array.isArray(page)
+                      ? page
+                      : ((page as { messages: Message[] }).messages ?? []);
+                    const updated = msgs.map((m: Message) =>
+                      m.id === message.id
+                        ? {
+                            ...m,
+                            metadata: {
+                              ...(m.metadata as Record<string, unknown>),
+                              status: "resolved",
+                              selections,
+                            },
+                          }
+                        : m,
+                    );
+                    return Array.isArray(page)
+                      ? updated
+                      : { ...(page as object), messages: updated };
+                  }),
+                };
+              },
+            );
+          }
         },
       },
     );
