@@ -5,11 +5,6 @@ settings:
   excludeLinksFromLockfile: false
   injectWorkspacePackages: true
 
-patchedDependencies:
-  eventsource-parser@3.0.6:
-    hash: b3e18a4c67a62d1645fbe93860f8f0f79b821715cfcb370f79e3244e348fb979
-    path: patches/eventsource-parser@3.0.6.patch
-
 importers:
   .:
     devDependencies:
@@ -17195,7 +17190,7 @@ snapshots:
     dependencies:
       "@ai-sdk/provider": 3.0.8
       "@standard-schema/spec": 1.1.0
-      eventsource-parser: 3.0.6(patch_hash=b3e18a4c67a62d1645fbe93860f8f0f79b821715cfcb370f79e3244e348fb979)
+      eventsource-parser: 3.0.6
       zod: 4.3.6
 
   "@ai-sdk/provider@3.0.8":
@@ -24495,8 +24490,7 @@ snapshots:
 
   eventsource-parser@2.0.1: {}
 
-  eventsource-parser@3.0.6(patch_hash=b3e18a4c67a62d1645fbe93860f8f0f79b821715cfcb370f79e3244e348fb979):
-    {}
+  eventsource-parser@3.0.6: {}
 
   execa@5.1.1:
     dependencies:
