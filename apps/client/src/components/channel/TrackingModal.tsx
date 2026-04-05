@@ -158,6 +158,7 @@ export function TrackingModal({
               hasNewer={hasPreviousPage}
               isLoadingNewer={isFetchingPreviousPage}
               readOnly={!isActivated}
+              showReadOnlyBar={!isActivated}
               members={members}
               hasMoreUnsynced={hasMoreUnsynced}
               onSend={isActivated ? handleSend : undefined}

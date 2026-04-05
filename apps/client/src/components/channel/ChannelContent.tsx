@@ -25,8 +25,10 @@ export interface ChannelContentProps {
   inputPlaceholder?: string;
   initialDraft?: string;
 
-  // Optional banners
+  // Optional UI controls
   hasMoreUnsynced?: boolean;
+  /** Show read-only bar at bottom (independent of readOnly which controls MessageList) */
+  showReadOnlyBar?: boolean;
 }
 
 export function ChannelContent({
@@ -49,6 +51,7 @@ export function ChannelContent({
   inputPlaceholder,
   initialDraft,
   hasMoreUnsynced,
+  showReadOnlyBar,
 }: ChannelContentProps) {
   return (
     <>
@@ -76,7 +79,7 @@ export function ChannelContent({
         lastReadMessageId={lastReadMessageId}
       />
 
-      {readOnly ? (
+      {showReadOnlyBar ? (
         <div className="px-4 py-3 border-t border-border bg-muted/30 text-center">
           <span className="text-sm text-muted-foreground">Read-only</span>
         </div>

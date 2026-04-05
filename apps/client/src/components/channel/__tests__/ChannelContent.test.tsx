@@ -98,22 +98,40 @@ describe("ChannelContent", () => {
     expect(screen.queryByTestId("message-input")).not.toBeInTheDocument();
   });
 
-  it("renders read-only bar when readOnly=true", () => {
-    render(<ChannelContent {...BASE_PROPS} readOnly />);
+  it("renders read-only bar when showReadOnlyBar=true", () => {
+    render(<ChannelContent {...BASE_PROPS} showReadOnlyBar />);
 
     expect(screen.getByText("Read-only")).toBeInTheDocument();
     expect(screen.queryByTestId("message-input")).not.toBeInTheDocument();
   });
 
-  it("renders read-only bar even when onSend is provided if readOnly=true", () => {
+  it("renders read-only bar even when onSend is provided if showReadOnlyBar=true", () => {
+    const onSend = vi.fn<
+      [string, AttachmentDto[] | undefined],
+      Promise<void>
+    >();
+    render(<ChannelContent {...BASE_PROPS} onSend={onSend} showReadOnlyBar />);
+
+    expect(screen.getByText("Read-only")).toBeInTheDocument();
+    expect(screen.queryByTestId("message-input")).not.toBeInTheDocument();
+  });
+
+  it("readOnly only affects MessageList, not the input area", () => {
     const onSend = vi.fn<
       [string, AttachmentDto[] | undefined],
       Promise<void>
     >();
     render(<ChannelContent {...BASE_PROPS} onSend={onSend} readOnly />);
 
-    expect(screen.getByText("Read-only")).toBeInTheDocument();
-    expect(screen.queryByTestId("message-input")).not.toBeInTheDocument();
+    // MessageList gets readOnly
+    expect(screen.getByTestId("message-list")).toHaveAttribute(
+      "data-read-only",
+      "true",
+    );
+    // But MessageInput still renders (readOnly doesn't hide it)
+    expect(screen.getByTestId("message-input")).toBeInTheDocument();
+    // No read-only bar (showReadOnlyBar not set)
+    expect(screen.queryByText("Read-only")).not.toBeInTheDocument();
   });
 
   it("renders unsynced banner when hasMoreUnsynced=true", () => {
@@ -207,7 +225,7 @@ describe("ChannelContent", () => {
     expect(list).toHaveAttribute("data-read-only", "false");
   });
 
-  it("does not render read-only bar when readOnly is not set", () => {
+  it("does not render read-only bar when showReadOnlyBar is not set", () => {
     render(<ChannelContent {...BASE_PROPS} />);
 
     expect(screen.queryByText("Read-only")).not.toBeInTheDocument();

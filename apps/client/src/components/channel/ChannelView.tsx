@@ -359,11 +359,12 @@ export function ChannelView({
             hasNewer={hasPreviousPage}
             isLoadingNewer={isFetchingPreviousPage}
             highlightMessageId={initialMessageId}
-            readOnly={isPreviewMode || readOnly}
+            readOnly={isPreviewMode}
             thinkingBotIds={thinkingBotIds}
             members={members}
             lastReadMessageId={unreadAnchor}
             hasMoreUnsynced={hasMoreUnsynced}
+            showReadOnlyBar={isPreviewMode || readOnly}
             onSend={isPreviewMode || readOnly ? undefined : handleSendMessage}
             isSendDisabled={sendMessage.isPending || showOverlay}
             initialDraft={initialDraft}
