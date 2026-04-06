@@ -1,0 +1,68 @@
+{
+  "planPath": "docs/superpowers/plans/2026-04-07-task-to-routine-rename.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: Database Schema Rename (Drizzle definitions)",
+      "status": "pending",
+      "description": "**Goal:** Rename all Drizzle schema definitions from agentTask* to routine*, move directory from task/ to routine/.\n\n**Files:**\n- Rename dir: apps/server/libs/database/src/schemas/task/ → schemas/routine/\n- Rename all schema files (tasks.ts → routines.ts, etc.)\n- Modify: relations.ts, index.ts, schemas/index.ts\n\n**Verify:** `pnpm build:server` → compiles without errors\n\n```json:metadata\n{\"files\": [\"apps/server/libs/database/src/schemas/task/\"], \"verifyCommand\": \"pnpm build:server\", \"acceptanceCriteria\": [\"All Drizzle table/enum/type variables renamed\", \"Table name strings updated\", \"taskId→routineId fields updated\", \"taskcastTaskId unchanged\", \"Re-exports updated\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: Database Migration",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Generate and verify the Drizzle migration that renames tables, columns, enums, and indexes in PostgreSQL.\n\n**Files:**\n- Create: Migration file via pnpm db:generate\n\n**Verify:** `pnpm db:generate && pnpm db:migrate` → succeeds\n\n```json:metadata\n{\"files\": [\"apps/server/libs/database/\"], \"verifyCommand\": \"pnpm db:generate && pnpm db:migrate\", \"acceptanceCriteria\": [\"Migration contains ALTER TABLE RENAME for all 6 tables\", \"Migration renames columns task_id→routine_id and task_version→routine_version\", \"Migration renames enums\", \"taskcast_task_id unchanged\", \"Migration applies cleanly\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Shared Libraries (Events, WS constants)",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Rename task-related event types, WebSocket event names, and constants in shared libs.\n\n**Files:**\n- Rename: task.events.ts → routine.events.ts\n- Modify: domains/index.ts, event-names.ts, events/index.ts\n\n**Verify:** `pnpm build:server` → compiles without errors\n\n```json:metadata\n{\"files\": [\"apps/server/libs/shared/src/events/\"], \"verifyCommand\": \"pnpm build:server\", \"acceptanceCriteria\": [\"Event types renamed (RoutineStatusChangedEvent etc.)\", \"WS_EVENTS.TASK→ROUTINE\", \"Event strings renamed\", \"ServerToClientEvents updated\", \"RabbitMQ constants unchanged\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Backend Gateway Module Rename",
+      "status": "pending",
+      "blockedBy": [0, 2],
+      "description": "**Goal:** Rename the gateway tasks module directory, all controllers, services, DTOs, and route paths to routines.\n\n**Files:**\n- Rename dir: gateway/src/tasks/ → gateway/src/routines/\n- Rename all controller/service/DTO files\n- Modify: app.module.ts\n\n**Verify:** `pnpm build:server` → compiles without errors\n\n```json:metadata\n{\"files\": [\"apps/server/apps/gateway/src/tasks/\", \"apps/server/apps/gateway/src/app.module.ts\"], \"verifyCommand\": \"pnpm build:server\", \"acceptanceCriteria\": [\"Route prefix v1/tasks→v1/routines\", \"All class names renamed\", \"DTO classes renamed\", \"Internal taskId→routineId\", \"app.module.ts updated\", \"TaskCastService unchanged\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Task-Worker Internal References",
+      "status": "pending",
+      "blockedBy": [0, 2],
+      "description": "**Goal:** Update taskId→routineId variable names inside task-worker where they refer to the routine entity.\n\n**Files:**\n- Modify: consumer, executor, scheduler, channel-trigger, strategies in task-worker\n\n**Verify:** `pnpm build:server` → compiles without errors\n\n```json:metadata\n{\"files\": [\"apps/server/apps/task-worker/src/\"], \"verifyCommand\": \"pnpm build:server\", \"acceptanceCriteria\": [\"TaskCommand.taskId→routineId\", \"Schema references updated\", \"Event types updated\", \"WS_EVENTS updated\", \"Service class names unchanged\", \"RabbitMQ names unchanged\", \"Directory name unchanged\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Frontend Types & API Service",
+      "status": "pending",
+      "blockedBy": [],
+      "description": "**Goal:** Rename frontend type definitions and API service from task to routine.\n\n**Files:**\n- Rename: types/task.ts → types/routine.ts\n- Rename: services/api/tasks.ts → services/api/routines.ts\n- Rename: lib/task-trigger-keys.ts → lib/routine-trigger-keys.ts\n- Modify: services/api/index.ts\n\n**Verify:** `npx tsc --noEmit` in client dir\n\n```json:metadata\n{\"files\": [\"apps/client/src/types/task.ts\", \"apps/client/src/services/api/tasks.ts\", \"apps/client/src/lib/task-trigger-keys.ts\"], \"verifyCommand\": \"cd apps/client && npx tsc --noEmit\", \"acceptanceCriteria\": [\"All type names renamed\", \"tasksApi→routinesApi\", \"API paths updated\", \"Trigger key constants renamed\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Frontend Components Rename",
+      "status": "pending",
+      "blockedBy": [5],
+      "description": "**Goal:** Rename components/tasks/ to components/routines/, rename all component files and internal names.\n\n**Files:**\n- Rename dir: components/tasks/ → components/routines/\n- Rename all component files per spec\n\n**Verify:** `pnpm dev:client` → no compile errors\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/tasks/\"], \"verifyCommand\": \"pnpm dev:client\", \"acceptanceCriteria\": [\"All files renamed per spec\", \"Component names updated\", \"Type/API imports updated\", \"React Query keys updated\", \"i18n references updated\", \"Props interfaces updated\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Frontend Route, i18n, Navigation, WebSocket",
+      "status": "pending",
+      "blockedBy": [5, 6],
+      "description": "**Goal:** Update route path, i18n files, navigation labels, and WebSocket event handlers.\n\n**Files:**\n- Rename: routes/_authenticated/tasks/ → routines/\n- Rename: i18n files tasks.json → routines.json\n- Modify: i18n/index.ts, navigation.json, useWebSocketEvents.ts, websocket service\n\n**Verify:** `pnpm dev:client` → app loads, Routines tab navigable\n\n```json:metadata\n{\"files\": [\"apps/client/src/routes/_authenticated/tasks/\", \"apps/client/src/i18n/\", \"apps/client/src/hooks/useWebSocketEvents.ts\", \"apps/client/src/services/websocket/\"], \"verifyCommand\": \"pnpm dev:client\", \"acceptanceCriteria\": [\"Route /tasks→/routines\", \"i18n namespace tasks→routines\", \"UI copy Tasks→Routines 任务→日常\", \"WS handlers renamed\", \"Query invalidation keys updated\", \"routeTree.gen.ts regenerated\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: Full Build Verification & Cleanup",
+      "status": "pending",
+      "blockedBy": [1, 3, 4, 7],
+      "description": "**Goal:** Verify entire project builds, fix remaining broken imports, run tests.\n\n**Files:**\n- Any files with stale references\n\n**Verify:** `pnpm build && pnpm test` → all pass\n\n```json:metadata\n{\"files\": [], \"verifyCommand\": \"pnpm build && pnpm test\", \"acceptanceCriteria\": [\"pnpm build succeeds\", \"All tests pass\", \"No stale references in active code\", \"Routines tab loads in UI\", \"WebSocket events work\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-04-07T00:00:00Z"
+}
