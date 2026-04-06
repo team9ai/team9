@@ -17,8 +17,8 @@ import {
 import * as schema from '@team9/database/schemas';
 import type {
   ScheduleConfig,
-  AgentTaskStatus,
-  AgentTaskScheduleType,
+  RoutineStatus,
+  RoutineScheduleType,
 } from '@team9/database/schemas';
 import {
   AmqpConnection,
@@ -41,8 +41,8 @@ import { TaskCastService } from './taskcast.service.js';
 
 export interface TaskListFilters {
   botId?: string;
-  status?: AgentTaskStatus;
-  scheduleType?: AgentTaskScheduleType;
+  status?: RoutineStatus;
+  scheduleType?: RoutineScheduleType;
 }
 
 // ── Service ─────────────────────────────────────────────────────────
@@ -78,7 +78,7 @@ export class TasksService {
     const documentId = doc.id;
 
     const [task] = await this.db
-      .insert(schema.agentTasks)
+      .insert(schema.routines)
       .values({
         id: taskId,
         tenantId,
@@ -100,30 +100,30 @@ export class TasksService {
   }
 
   async list(tenantId: string, filters?: TaskListFilters) {
-    const conditions = [eq(schema.agentTasks.tenantId, tenantId)];
+    const conditions = [eq(schema.routines.tenantId, tenantId)];
 
     if (filters?.botId) {
-      conditions.push(eq(schema.agentTasks.botId, filters.botId));
+      conditions.push(eq(schema.routines.botId, filters.botId));
     }
     if (filters?.status) {
-      conditions.push(eq(schema.agentTasks.status, filters.status));
+      conditions.push(eq(schema.routines.status, filters.status));
     }
     if (filters?.scheduleType) {
-      conditions.push(eq(schema.agentTasks.scheduleType, filters.scheduleType));
+      conditions.push(eq(schema.routines.scheduleType, filters.scheduleType));
     }
 
     const rows = await this.db
       .select({
-        task: schema.agentTasks,
-        executionTokenUsage: schema.agentTaskExecutions.tokenUsage,
+        task: schema.routines,
+        executionTokenUsage: schema.routineExecutions.tokenUsage,
       })
-      .from(schema.agentTasks)
+      .from(schema.routines)
       .leftJoin(
-        schema.agentTaskExecutions,
-        eq(schema.agentTasks.currentExecutionId, schema.agentTaskExecutions.id),
+        schema.routineExecutions,
+        eq(schema.routines.currentExecutionId, schema.routineExecutions.id),
       )
       .where(and(...conditions))
-      .orderBy(desc(schema.agentTasks.createdAt));
+      .orderBy(desc(schema.routines.createdAt));
 
     return rows.map((row) => ({
       ...row.task,
@@ -136,35 +136,35 @@ export class TasksService {
 
     // Fetch current execution with steps, interventions, deliverables
     let currentExecution: {
-      execution: schema.AgentTaskExecution;
-      steps: schema.AgentTaskStep[];
-      interventions: schema.AgentTaskIntervention[];
-      deliverables: schema.AgentTaskDeliverable[];
+      execution: schema.RoutineExecution;
+      steps: schema.RoutineStep[];
+      interventions: schema.RoutineIntervention[];
+      deliverables: schema.RoutineDeliverable[];
     } | null = null;
 
     if (task.currentExecutionId) {
       const [execution] = await this.db
         .select()
-        .from(schema.agentTaskExecutions)
-        .where(eq(schema.agentTaskExecutions.id, task.currentExecutionId))
+        .from(schema.routineExecutions)
+        .where(eq(schema.routineExecutions.id, task.currentExecutionId))
         .limit(1);
 
       if (execution) {
         const steps = await this.db
           .select()
-          .from(schema.agentTaskSteps)
-          .where(eq(schema.agentTaskSteps.executionId, execution.id))
-          .orderBy(schema.agentTaskSteps.orderIndex);
+          .from(schema.routineSteps)
+          .where(eq(schema.routineSteps.executionId, execution.id))
+          .orderBy(schema.routineSteps.orderIndex);
 
         const interventions = await this.db
           .select()
-          .from(schema.agentTaskInterventions)
-          .where(eq(schema.agentTaskInterventions.executionId, execution.id));
+          .from(schema.routineInterventions)
+          .where(eq(schema.routineInterventions.executionId, execution.id));
 
         const deliverables = await this.db
           .select()
-          .from(schema.agentTaskDeliverables)
-          .where(eq(schema.agentTaskDeliverables.executionId, execution.id));
+          .from(schema.routineDeliverables)
+          .where(eq(schema.routineDeliverables.executionId, execution.id));
 
         currentExecution = { execution, steps, interventions, deliverables };
       }
@@ -195,9 +195,9 @@ export class TasksService {
       updateData.scheduleConfig = dto.scheduleConfig;
 
     const [updated] = await this.db
-      .update(schema.agentTasks)
+      .update(schema.routines)
       .set(updateData)
-      .where(eq(schema.agentTasks.id, taskId))
+      .where(eq(schema.routines.id, taskId))
       .returning();
 
     return updated;
@@ -219,9 +219,7 @@ export class TasksService {
       );
     }
 
-    await this.db
-      .delete(schema.agentTasks)
-      .where(eq(schema.agentTasks.id, taskId));
+    await this.db.delete(schema.routines).where(eq(schema.routines.id, taskId));
 
     return { success: true };
   }
@@ -233,9 +231,9 @@ export class TasksService {
 
     const executions = await this.db
       .select()
-      .from(schema.agentTaskExecutions)
-      .where(eq(schema.agentTaskExecutions.taskId, taskId))
-      .orderBy(desc(schema.agentTaskExecutions.createdAt));
+      .from(schema.routineExecutions)
+      .where(eq(schema.routineExecutions.routineId, taskId))
+      .orderBy(desc(schema.routineExecutions.createdAt));
 
     return executions;
   }
@@ -245,11 +243,11 @@ export class TasksService {
 
     const [execution] = await this.db
       .select()
-      .from(schema.agentTaskExecutions)
+      .from(schema.routineExecutions)
       .where(
         and(
-          eq(schema.agentTaskExecutions.id, executionId),
-          eq(schema.agentTaskExecutions.taskId, taskId),
+          eq(schema.routineExecutions.id, executionId),
+          eq(schema.routineExecutions.routineId, taskId),
         ),
       )
       .limit(1);
@@ -260,19 +258,19 @@ export class TasksService {
 
     const steps = await this.db
       .select()
-      .from(schema.agentTaskSteps)
-      .where(eq(schema.agentTaskSteps.executionId, executionId))
-      .orderBy(schema.agentTaskSteps.orderIndex);
+      .from(schema.routineSteps)
+      .where(eq(schema.routineSteps.executionId, executionId))
+      .orderBy(schema.routineSteps.orderIndex);
 
     const deliverables = await this.db
       .select()
-      .from(schema.agentTaskDeliverables)
-      .where(eq(schema.agentTaskDeliverables.executionId, executionId));
+      .from(schema.routineDeliverables)
+      .where(eq(schema.routineDeliverables.executionId, executionId));
 
     const interventions = await this.db
       .select()
-      .from(schema.agentTaskInterventions)
-      .where(eq(schema.agentTaskInterventions.executionId, executionId));
+      .from(schema.routineInterventions)
+      .where(eq(schema.routineInterventions.executionId, executionId));
 
     return { ...execution, steps, deliverables, interventions };
   }
@@ -286,11 +284,11 @@ export class TasksService {
 
     const [execution] = await this.db
       .select()
-      .from(schema.agentTaskExecutions)
+      .from(schema.routineExecutions)
       .where(
         and(
-          eq(schema.agentTaskExecutions.id, executionId),
-          eq(schema.agentTaskExecutions.taskId, taskId),
+          eq(schema.routineExecutions.id, executionId),
+          eq(schema.routineExecutions.routineId, taskId),
         ),
       )
       .limit(1);
@@ -302,16 +300,16 @@ export class TasksService {
     const [steps, interventions, deliverables] = await Promise.all([
       this.db
         .select()
-        .from(schema.agentTaskSteps)
-        .where(eq(schema.agentTaskSteps.executionId, executionId)),
+        .from(schema.routineSteps)
+        .where(eq(schema.routineSteps.executionId, executionId)),
       this.db
         .select()
-        .from(schema.agentTaskInterventions)
-        .where(eq(schema.agentTaskInterventions.executionId, executionId)),
+        .from(schema.routineInterventions)
+        .where(eq(schema.routineInterventions.executionId, executionId)),
       this.db
         .select()
-        .from(schema.agentTaskDeliverables)
-        .where(eq(schema.agentTaskDeliverables.executionId, executionId)),
+        .from(schema.routineDeliverables)
+        .where(eq(schema.routineDeliverables.executionId, executionId)),
     ]);
 
     // Merge into a unified timeline sorted by createdAt
@@ -376,18 +374,16 @@ export class TasksService {
   ) {
     await this.getTaskOrThrow(taskId, tenantId);
 
-    const conditions = [eq(schema.agentTaskDeliverables.taskId, taskId)];
+    const conditions = [eq(schema.routineDeliverables.routineId, taskId)];
     if (executionId) {
-      conditions.push(
-        eq(schema.agentTaskDeliverables.executionId, executionId),
-      );
+      conditions.push(eq(schema.routineDeliverables.executionId, executionId));
     }
 
     const deliverables = await this.db
       .select()
-      .from(schema.agentTaskDeliverables)
+      .from(schema.routineDeliverables)
       .where(and(...conditions))
-      .orderBy(desc(schema.agentTaskDeliverables.createdAt));
+      .orderBy(desc(schema.routineDeliverables.createdAt));
 
     return deliverables;
   }
@@ -399,14 +395,14 @@ export class TasksService {
 
     const interventions = await this.db
       .select()
-      .from(schema.agentTaskInterventions)
+      .from(schema.routineInterventions)
       .where(
         and(
-          eq(schema.agentTaskInterventions.taskId, taskId),
-          eq(schema.agentTaskInterventions.status, 'pending'),
+          eq(schema.routineInterventions.routineId, taskId),
+          eq(schema.routineInterventions.status, 'pending'),
         ),
       )
-      .orderBy(desc(schema.agentTaskInterventions.createdAt));
+      .orderBy(desc(schema.routineInterventions.createdAt));
 
     return interventions;
   }
@@ -540,11 +536,11 @@ export class TasksService {
     // Find the source execution
     const [sourceExec] = await this.db
       .select()
-      .from(schema.agentTaskExecutions)
+      .from(schema.routineExecutions)
       .where(
         and(
-          eq(schema.agentTaskExecutions.id, dto.executionId),
-          eq(schema.agentTaskExecutions.taskId, taskId),
+          eq(schema.routineExecutions.id, dto.executionId),
+          eq(schema.routineExecutions.routineId, taskId),
         ),
       )
       .limit(1);
@@ -593,11 +589,11 @@ export class TasksService {
 
     const [intervention] = await this.db
       .select()
-      .from(schema.agentTaskInterventions)
+      .from(schema.routineInterventions)
       .where(
         and(
-          eq(schema.agentTaskInterventions.id, interventionId),
-          eq(schema.agentTaskInterventions.taskId, taskId),
+          eq(schema.routineInterventions.id, interventionId),
+          eq(schema.routineInterventions.routineId, taskId),
         ),
       )
       .limit(1);
@@ -621,30 +617,30 @@ export class TasksService {
 
     // Update the intervention
     const [updated] = await this.db
-      .update(schema.agentTaskInterventions)
+      .update(schema.routineInterventions)
       .set({
         status: 'resolved',
         resolvedBy: userId,
         resolvedAt: new Date(),
         response: { action: dto.action, message: dto.message },
       })
-      .where(eq(schema.agentTaskInterventions.id, interventionId))
+      .where(eq(schema.routineInterventions.id, interventionId))
       .returning();
 
     // Update task status back to in_progress
     await this.db
-      .update(schema.agentTasks)
+      .update(schema.routines)
       .set({ status: 'in_progress', updatedAt: new Date() })
-      .where(eq(schema.agentTasks.id, taskId));
+      .where(eq(schema.routines.id, taskId));
 
     // Update execution status back to in_progress (only if still pending_action)
     await this.db
-      .update(schema.agentTaskExecutions)
+      .update(schema.routineExecutions)
       .set({ status: 'in_progress' })
       .where(
         and(
-          eq(schema.agentTaskExecutions.id, intervention.executionId),
-          eq(schema.agentTaskExecutions.status, 'pending_action'),
+          eq(schema.routineExecutions.id, intervention.executionId),
+          eq(schema.routineExecutions.status, 'pending_action'),
         ),
       );
 
@@ -679,15 +675,15 @@ export class TasksService {
   private async getTaskOrThrow(
     id: string,
     tenantId?: string,
-  ): Promise<schema.AgentTask> {
-    const conditions = [eq(schema.agentTasks.id, id)];
+  ): Promise<schema.Routine> {
+    const conditions = [eq(schema.routines.id, id)];
     if (tenantId) {
-      conditions.push(eq(schema.agentTasks.tenantId, tenantId));
+      conditions.push(eq(schema.routines.tenantId, tenantId));
     }
 
     const [task] = await this.db
       .select()
-      .from(schema.agentTasks)
+      .from(schema.routines)
       .where(and(...conditions))
       .limit(1);
 
@@ -698,7 +694,7 @@ export class TasksService {
     return task;
   }
 
-  private assertCreatorOwnership(task: schema.AgentTask, userId: string): void {
+  private assertCreatorOwnership(task: schema.Routine, userId: string): void {
     if (task.creatorId !== userId) {
       throw new ForbiddenException(
         'You do not have permission to perform this action',

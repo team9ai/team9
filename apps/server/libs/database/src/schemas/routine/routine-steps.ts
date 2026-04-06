@@ -7,12 +7,12 @@ import {
   index,
   pgEnum,
 } from 'drizzle-orm/pg-core';
-import { agentTaskExecutions } from './task-executions.js';
-import { agentTasks } from './tasks.js';
+import { routineExecutions } from './routine-executions.js';
+import { routines } from './routines.js';
 
 // ── Enums ───────────────────────────────────────────────────────────
 
-export const agentTaskStepStatusEnum = pgEnum('agent_task__step_status', [
+export const routineStepStatusEnum = pgEnum('routine__step_status', [
   'pending',
   'in_progress',
   'completed',
@@ -21,24 +21,24 @@ export const agentTaskStepStatusEnum = pgEnum('agent_task__step_status', [
 
 // ── Table ───────────────────────────────────────────────────────────
 
-export const agentTaskSteps = pgTable(
-  'agent_task__steps',
+export const routineSteps = pgTable(
+  'routine__steps',
   {
     id: uuid('id').primaryKey().notNull(),
 
     executionId: uuid('execution_id')
-      .references(() => agentTaskExecutions.id, { onDelete: 'cascade' })
+      .references(() => routineExecutions.id, { onDelete: 'cascade' })
       .notNull(),
 
-    taskId: uuid('task_id')
-      .references(() => agentTasks.id, { onDelete: 'cascade' })
+    routineId: uuid('routine_id')
+      .references(() => routines.id, { onDelete: 'cascade' })
       .notNull(),
 
     orderIndex: integer('order_index').notNull(),
 
     title: varchar('title', { length: 500 }).notNull(),
 
-    status: agentTaskStepStatusEnum('status').default('pending').notNull(),
+    status: routineStepStatusEnum('status').default('pending').notNull(),
 
     tokenUsage: integer('token_usage').default(0).notNull(),
 
@@ -50,12 +50,12 @@ export const agentTaskSteps = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [
-    index('idx_agent_task__steps_execution_id').on(table.executionId),
-    index('idx_agent_task__steps_task_id').on(table.taskId),
+    index('idx_routine__steps_execution_id').on(table.executionId),
+    index('idx_routine__steps_routine_id').on(table.routineId),
   ],
 );
 
-export type AgentTaskStep = typeof agentTaskSteps.$inferSelect;
-export type NewAgentTaskStep = typeof agentTaskSteps.$inferInsert;
-export type AgentTaskStepStatus =
-  (typeof agentTaskStepStatusEnum.enumValues)[number];
+export type RoutineStep = typeof routineSteps.$inferSelect;
+export type NewRoutineStep = typeof routineSteps.$inferInsert;
+export type RoutineStepStatus =
+  (typeof routineStepStatusEnum.enumValues)[number];

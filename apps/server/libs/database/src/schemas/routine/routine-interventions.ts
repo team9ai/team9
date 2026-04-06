@@ -7,15 +7,15 @@ import {
   index,
   pgEnum,
 } from 'drizzle-orm/pg-core';
-import { agentTaskExecutions } from './task-executions.js';
-import { agentTasks } from './tasks.js';
-import { agentTaskSteps } from './task-steps.js';
+import { routineExecutions } from './routine-executions.js';
+import { routines } from './routines.js';
+import { routineSteps } from './routine-steps.js';
 import { users } from '../im/users.js';
 
 // ── Enums ───────────────────────────────────────────────────────────
 
-export const agentTaskInterventionStatusEnum = pgEnum(
-  'agent_task__intervention_status',
+export const routineInterventionStatusEnum = pgEnum(
+  'routine__intervention_status',
   ['pending', 'resolved', 'expired'],
 );
 
@@ -33,20 +33,20 @@ export interface InterventionResponse {
 
 // ── Table ───────────────────────────────────────────────────────────
 
-export const agentTaskInterventions = pgTable(
-  'agent_task__interventions',
+export const routineInterventions = pgTable(
+  'routine__interventions',
   {
     id: uuid('id').primaryKey().notNull(),
 
     executionId: uuid('execution_id')
-      .references(() => agentTaskExecutions.id, { onDelete: 'cascade' })
+      .references(() => routineExecutions.id, { onDelete: 'cascade' })
       .notNull(),
 
-    taskId: uuid('task_id')
-      .references(() => agentTasks.id, { onDelete: 'cascade' })
+    routineId: uuid('routine_id')
+      .references(() => routines.id, { onDelete: 'cascade' })
       .notNull(),
 
-    stepId: uuid('step_id').references(() => agentTaskSteps.id),
+    stepId: uuid('step_id').references(() => routineSteps.id),
 
     prompt: text('prompt').notNull(),
 
@@ -54,7 +54,7 @@ export const agentTaskInterventions = pgTable(
 
     response: jsonb('response').$type<InterventionResponse>(),
 
-    status: agentTaskInterventionStatusEnum('status')
+    status: routineInterventionStatusEnum('status')
       .default('pending')
       .notNull(),
 
@@ -67,14 +67,13 @@ export const agentTaskInterventions = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [
-    index('idx_agent_task__interventions_execution_id').on(table.executionId),
-    index('idx_agent_task__interventions_task_id').on(table.taskId),
-    index('idx_agent_task__interventions_status').on(table.status),
+    index('idx_routine__interventions_execution_id').on(table.executionId),
+    index('idx_routine__interventions_routine_id').on(table.routineId),
+    index('idx_routine__interventions_status').on(table.status),
   ],
 );
 
-export type AgentTaskIntervention = typeof agentTaskInterventions.$inferSelect;
-export type NewAgentTaskIntervention =
-  typeof agentTaskInterventions.$inferInsert;
-export type AgentTaskInterventionStatus =
-  (typeof agentTaskInterventionStatusEnum.enumValues)[number];
+export type RoutineIntervention = typeof routineInterventions.$inferSelect;
+export type NewRoutineIntervention = typeof routineInterventions.$inferInsert;
+export type RoutineInterventionStatus =
+  (typeof routineInterventionStatusEnum.enumValues)[number];

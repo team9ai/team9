@@ -12,8 +12,8 @@ import {
 } from '@nestjs/common';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import type {
-  AgentTaskStatus,
-  AgentTaskScheduleType,
+  RoutineStatus,
+  RoutineScheduleType,
 } from '@team9/database/schemas';
 import { CurrentTenantId } from '../common/decorators/current-tenant.decorator.js';
 import { TasksService } from './tasks.service.js';
@@ -55,8 +55,8 @@ export class TasksController {
   async list(
     @CurrentTenantId() tenantId: string,
     @Query('botId') botId?: string,
-    @Query('status') status?: AgentTaskStatus,
-    @Query('scheduleType') scheduleType?: AgentTaskScheduleType,
+    @Query('status') status?: RoutineStatus,
+    @Query('scheduleType') scheduleType?: RoutineScheduleType,
   ) {
     return this.tasksService.list(tenantId, { botId, status, scheduleType });
   }

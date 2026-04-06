@@ -73,8 +73,8 @@ const EXECUTION_TERMINAL = {
 
 /**
  * Set up the `limit` mock so that the first three calls return:
- *   1. execution (for getExecutionDirect — select from agentTaskExecutions)
- *   2. task      (for getExecutionDirect — select from agentTasks)
+ *   1. execution (for getExecutionDirect — select from routineExecutions)
+ *   2. task      (for getExecutionDirect — select from routines)
  *   3. bot       (for verifyBotOwnership — select from bots)
  * Any subsequent calls (e.g. per-step look-ups in reportSteps) resolve to [].
  */
@@ -136,13 +136,13 @@ describe('TaskBotService — TaskCast integration', () => {
      * final select where) return the chain again.
      *
      * where call map for reportSteps with one step (no existing):
-     *   #1  getExecutionDirect: agentTaskExecutions.where → chain → .limit(1)
-     *   #2  getExecutionDirect: agentTasks.where → chain → .limit(1)
+     *   #1  getExecutionDirect: routineExecutions.where → chain → .limit(1)
+     *   #2  getExecutionDirect: routines.where → chain → .limit(1)
      *   #3  verifyBotOwnership: bots.where → chain → .limit(1)
-     *   #4  step lookup: agentTaskSteps.where(and(...)) → chain → .limit(1)
-     *   #5  sum query: agentTaskSteps.where(eq(executionId)) → awaited directly
-     *   #6  update execution: agentTaskExecutions.where → chain (awaited as update)
-     *   #7  final steps: agentTaskSteps.where → chain → .orderBy()
+     *   #4  step lookup: routineSteps.where(and(...)) → chain → .limit(1)
+     *   #5  sum query: routineSteps.where(eq(executionId)) → awaited directly
+     *   #6  update execution: routineExecutions.where → chain (awaited as update)
+     *   #7  final steps: routineSteps.where → chain → .orderBy()
      */
     function setupReportStepsMocks(db: ReturnType<typeof mockDb>) {
       let whereCallCount = 0;

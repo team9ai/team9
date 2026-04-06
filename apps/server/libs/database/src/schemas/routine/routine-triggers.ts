@@ -7,9 +7,9 @@ import {
   index,
   pgEnum,
 } from 'drizzle-orm/pg-core';
-import { agentTasks } from './tasks.js';
+import { routines } from './routines.js';
 
-export const agentTaskTriggerTypeEnum = pgEnum('agent_task__trigger_type', [
+export const routineTriggerTypeEnum = pgEnum('routine__trigger_type', [
   'manual',
   'interval',
   'schedule',
@@ -45,16 +45,16 @@ export type TriggerConfig =
 
 // ── Table ───────────────────────────────────────────────────────────
 
-export const agentTaskTriggers = pgTable(
-  'agent_task__triggers',
+export const routineTriggers = pgTable(
+  'routine__triggers',
   {
     id: uuid('id').primaryKey().notNull(),
 
-    taskId: uuid('task_id')
-      .references(() => agentTasks.id, { onDelete: 'cascade' })
+    routineId: uuid('routine_id')
+      .references(() => routines.id, { onDelete: 'cascade' })
       .notNull(),
 
-    type: agentTaskTriggerTypeEnum('type').notNull(),
+    type: routineTriggerTypeEnum('type').notNull(),
 
     config: jsonb('config').$type<TriggerConfig>(),
 
@@ -67,8 +67,8 @@ export const agentTaskTriggers = pgTable(
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
   (table) => [
-    index('idx_agent_task__triggers_task_id').on(table.taskId),
-    index('idx_agent_task__triggers_scan').on(
+    index('idx_routine__triggers_routine_id').on(table.routineId),
+    index('idx_routine__triggers_scan').on(
       table.type,
       table.enabled,
       table.nextRunAt,
@@ -76,7 +76,7 @@ export const agentTaskTriggers = pgTable(
   ],
 );
 
-export type AgentTaskTrigger = typeof agentTaskTriggers.$inferSelect;
-export type NewAgentTaskTrigger = typeof agentTaskTriggers.$inferInsert;
-export type AgentTaskTriggerType =
-  (typeof agentTaskTriggerTypeEnum.enumValues)[number];
+export type RoutineTrigger = typeof routineTriggers.$inferSelect;
+export type NewRoutineTrigger = typeof routineTriggers.$inferInsert;
+export type RoutineTriggerType =
+  (typeof routineTriggerTypeEnum.enumValues)[number];

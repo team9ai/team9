@@ -57,12 +57,12 @@ export class ExecutorService {
   ): Promise<void> {
     // ── 1. CAS: claim the task (must be first — before any resource creation) ──
     const claimed = await this.db
-      .update(schema.agentTasks)
+      .update(schema.routines)
       .set({ status: 'in_progress', updatedAt: new Date() })
       .where(
         and(
-          eq(schema.agentTasks.id, taskId),
-          notInArray(schema.agentTasks.status, [
+          eq(schema.routines.id, taskId),
+          notInArray(schema.routines.status, [
             'in_progress',
             'paused',
             'pending_action',
@@ -70,13 +70,13 @@ export class ExecutorService {
         ),
       )
       .returning({
-        id: schema.agentTasks.id,
-        botId: schema.agentTasks.botId,
-        tenantId: schema.agentTasks.tenantId,
-        documentId: schema.agentTasks.documentId,
-        creatorId: schema.agentTasks.creatorId,
-        title: schema.agentTasks.title,
-        version: schema.agentTasks.version,
+        id: schema.routines.id,
+        botId: schema.routines.botId,
+        tenantId: schema.routines.tenantId,
+        documentId: schema.routines.documentId,
+        creatorId: schema.routines.creatorId,
+        title: schema.routines.title,
+        version: schema.routines.version,
       });
 
     if (claimed.length === 0) {
@@ -93,9 +93,9 @@ export class ExecutorService {
       this.logger.error(`Task ${taskId} has no bot assigned, cannot execute`);
       // Release CAS — mark as failed so it can be retried
       await this.db
-        .update(schema.agentTasks)
+        .update(schema.routines)
         .set({ status: 'failed', updatedAt: new Date() })
-        .where(eq(schema.agentTasks.id, taskId));
+        .where(eq(schema.routines.id, taskId));
       return;
     }
 
@@ -152,10 +152,10 @@ export class ExecutorService {
       ttl: 86400,
     });
 
-    await this.db.insert(schema.agentTaskExecutions).values({
+    await this.db.insert(schema.routineExecutions).values({
       id: executionId,
-      taskId,
-      taskVersion: task.version,
+      routineId: taskId,
+      routineVersion: task.version,
       status: 'in_progress',
       channelId,
       taskcastTaskId,
@@ -170,9 +170,9 @@ export class ExecutorService {
 
     // ── 5. Update task with currentExecutionId ────────────────────────
     await this.db
-      .update(schema.agentTasks)
+      .update(schema.routines)
       .set({ currentExecutionId: executionId })
-      .where(eq(schema.agentTasks.id, taskId));
+      .where(eq(schema.routines.id, taskId));
 
     // ── 6. Look up bot's shadow userId ────────────────────────────────
     const [bot] = await this.db
@@ -234,18 +234,18 @@ export class ExecutorService {
 
         const now = new Date();
         await this.db
-          .update(schema.agentTaskExecutions)
+          .update(schema.routineExecutions)
           .set({
             status: 'failed',
             completedAt: now,
             error: { message: errorMessage, details: errorStack },
           })
-          .where(eq(schema.agentTaskExecutions.id, executionId));
+          .where(eq(schema.routineExecutions.id, executionId));
 
         await this.db
-          .update(schema.agentTasks)
+          .update(schema.routines)
           .set({ status: 'failed', updatedAt: now })
-          .where(eq(schema.agentTasks.id, taskId));
+          .where(eq(schema.routines.id, taskId));
 
         return;
       }
@@ -269,14 +269,14 @@ export class ExecutorService {
     // 1. Load task
     const [task] = await this.db
       .select({
-        id: schema.agentTasks.id,
-        botId: schema.agentTasks.botId,
-        tenantId: schema.agentTasks.tenantId,
-        title: schema.agentTasks.title,
-        currentExecutionId: schema.agentTasks.currentExecutionId,
+        id: schema.routines.id,
+        botId: schema.routines.botId,
+        tenantId: schema.routines.tenantId,
+        title: schema.routines.title,
+        currentExecutionId: schema.routines.currentExecutionId,
       })
-      .from(schema.agentTasks)
-      .where(eq(schema.agentTasks.id, taskId))
+      .from(schema.routines)
+      .where(eq(schema.routines.id, taskId))
       .limit(1);
 
     if (!task) {
@@ -297,8 +297,8 @@ export class ExecutorService {
     // 2. Load execution
     const [execution] = await this.db
       .select()
-      .from(schema.agentTaskExecutions)
-      .where(eq(schema.agentTaskExecutions.id, task.currentExecutionId))
+      .from(schema.routineExecutions)
+      .where(eq(schema.routineExecutions.id, task.currentExecutionId))
       .limit(1);
 
     if (!execution) {
@@ -359,7 +359,7 @@ export class ExecutorService {
     const now = new Date();
 
     await this.db
-      .update(schema.agentTaskExecutions)
+      .update(schema.routineExecutions)
       .set({
         status: 'stopped',
         completedAt: now,
@@ -371,15 +371,15 @@ export class ExecutorService {
             }
           : {}),
       })
-      .where(eq(schema.agentTaskExecutions.id, execution.id));
+      .where(eq(schema.routineExecutions.id, execution.id));
 
     await this.db
-      .update(schema.agentTasks)
+      .update(schema.routines)
       .set({
         status: 'stopped',
         updatedAt: now,
       })
-      .where(eq(schema.agentTasks.id, taskId));
+      .where(eq(schema.routines.id, taskId));
 
     this.logger.log(`Execution ${execution.id} stopped for task ${taskId}`);
   }
@@ -394,15 +394,15 @@ export class ExecutorService {
   async pauseExecution(taskId: string): Promise<void> {
     const [task] = await this.db
       .select({
-        id: schema.agentTasks.id,
-        botId: schema.agentTasks.botId,
-        tenantId: schema.agentTasks.tenantId,
-        title: schema.agentTasks.title,
-        currentExecutionId: schema.agentTasks.currentExecutionId,
-        status: schema.agentTasks.status,
+        id: schema.routines.id,
+        botId: schema.routines.botId,
+        tenantId: schema.routines.tenantId,
+        title: schema.routines.title,
+        currentExecutionId: schema.routines.currentExecutionId,
+        status: schema.routines.status,
       })
-      .from(schema.agentTasks)
-      .where(eq(schema.agentTasks.id, taskId))
+      .from(schema.routines)
+      .where(eq(schema.routines.id, taskId))
       .limit(1);
 
     if (!task) {
@@ -426,8 +426,8 @@ export class ExecutorService {
 
     const [execution] = await this.db
       .select()
-      .from(schema.agentTaskExecutions)
-      .where(eq(schema.agentTaskExecutions.id, task.currentExecutionId))
+      .from(schema.routineExecutions)
+      .where(eq(schema.routineExecutions.id, task.currentExecutionId))
       .limit(1);
 
     if (!execution) {
@@ -477,14 +477,14 @@ export class ExecutorService {
       await strategy.pause(context);
 
       await this.db
-        .update(schema.agentTaskExecutions)
+        .update(schema.routineExecutions)
         .set({ status: 'paused' })
-        .where(eq(schema.agentTaskExecutions.id, execution.id));
+        .where(eq(schema.routineExecutions.id, execution.id));
 
       await this.db
-        .update(schema.agentTasks)
+        .update(schema.routines)
         .set({ status: 'paused', updatedAt: new Date() })
-        .where(eq(schema.agentTasks.id, taskId));
+        .where(eq(schema.routines.id, taskId));
 
       this.logger.log(`Task ${taskId} paused`);
     } catch (error) {
@@ -502,15 +502,15 @@ export class ExecutorService {
   async resumeExecution(taskId: string, message?: string): Promise<void> {
     const [task] = await this.db
       .select({
-        id: schema.agentTasks.id,
-        botId: schema.agentTasks.botId,
-        tenantId: schema.agentTasks.tenantId,
-        title: schema.agentTasks.title,
-        currentExecutionId: schema.agentTasks.currentExecutionId,
-        status: schema.agentTasks.status,
+        id: schema.routines.id,
+        botId: schema.routines.botId,
+        tenantId: schema.routines.tenantId,
+        title: schema.routines.title,
+        currentExecutionId: schema.routines.currentExecutionId,
+        status: schema.routines.status,
       })
-      .from(schema.agentTasks)
-      .where(eq(schema.agentTasks.id, taskId))
+      .from(schema.routines)
+      .where(eq(schema.routines.id, taskId))
       .limit(1);
 
     if (!task) {
@@ -534,8 +534,8 @@ export class ExecutorService {
 
     const [execution] = await this.db
       .select()
-      .from(schema.agentTaskExecutions)
-      .where(eq(schema.agentTaskExecutions.id, task.currentExecutionId))
+      .from(schema.routineExecutions)
+      .where(eq(schema.routineExecutions.id, task.currentExecutionId))
       .limit(1);
 
     if (!execution) {
@@ -586,14 +586,14 @@ export class ExecutorService {
       await strategy.resume(context);
 
       await this.db
-        .update(schema.agentTaskExecutions)
+        .update(schema.routineExecutions)
         .set({ status: 'in_progress' })
-        .where(eq(schema.agentTaskExecutions.id, execution.id));
+        .where(eq(schema.routineExecutions.id, execution.id));
 
       await this.db
-        .update(schema.agentTasks)
+        .update(schema.routines)
         .set({ status: 'in_progress', updatedAt: new Date() })
-        .where(eq(schema.agentTasks.id, taskId));
+        .where(eq(schema.routines.id, taskId));
 
       this.logger.log(`Task ${taskId} resumed`);
     } catch (error) {
@@ -616,20 +616,20 @@ export class ExecutorService {
     const now = new Date();
 
     await this.db
-      .update(schema.agentTaskExecutions)
+      .update(schema.routineExecutions)
       .set({
         status: 'failed',
         completedAt: now,
         error,
       })
-      .where(eq(schema.agentTaskExecutions.id, executionId));
+      .where(eq(schema.routineExecutions.id, executionId));
 
     await this.db
-      .update(schema.agentTasks)
+      .update(schema.routines)
       .set({
         status: 'failed',
         updatedAt: now,
       })
-      .where(eq(schema.agentTasks.id, taskId));
+      .where(eq(schema.routines.id, taskId));
   }
 }

@@ -8,8 +8,8 @@ import {
   index,
   unique,
 } from 'drizzle-orm/pg-core';
-import { agentTasks, agentTaskStatusEnum } from './tasks.js';
-import { agentTaskTriggers } from './task-triggers.js';
+import { routines, routineStatusEnum } from './routines.js';
+import { routineTriggers } from './routine-triggers.js';
 import { channels } from '../im/channels.js';
 import { documentVersions } from '../document/document-versions.js';
 
@@ -59,18 +59,18 @@ export interface ExecutionError {
 
 // ── Table ───────────────────────────────────────────────────────────
 
-export const agentTaskExecutions = pgTable(
-  'agent_task__executions',
+export const routineExecutions = pgTable(
+  'routine__executions',
   {
     id: uuid('id').primaryKey().notNull(),
 
-    taskId: uuid('task_id')
-      .references(() => agentTasks.id, { onDelete: 'cascade' })
+    routineId: uuid('routine_id')
+      .references(() => routines.id, { onDelete: 'cascade' })
       .notNull(),
 
-    taskVersion: integer('task_version').notNull(),
+    routineVersion: integer('routine_version').notNull(),
 
-    status: agentTaskStatusEnum('status').default('in_progress').notNull(),
+    status: routineStatusEnum('status').default('in_progress').notNull(),
 
     channelId: uuid('channel_id').references(() => channels.id),
 
@@ -84,7 +84,7 @@ export const agentTaskExecutions = pgTable(
 
     error: jsonb('error').$type<ExecutionError>(),
 
-    triggerId: uuid('trigger_id').references(() => agentTaskTriggers.id),
+    triggerId: uuid('trigger_id').references(() => routineTriggers.id),
     triggerType: varchar('trigger_type', { length: 32 }),
     triggerContext: jsonb('trigger_context').$type<TriggerContext>(),
     documentVersionId: uuid('document_version_id').references(
@@ -95,15 +95,15 @@ export const agentTaskExecutions = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [
-    index('idx_agent_task__executions_task_id').on(table.taskId),
-    index('idx_agent_task__executions_status').on(table.status),
-    index('idx_agent_task__executions_task_version').on(
-      table.taskId,
-      table.taskVersion,
+    index('idx_routine__executions_routine_id').on(table.routineId),
+    index('idx_routine__executions_status').on(table.status),
+    index('idx_routine__executions_routine_version').on(
+      table.routineId,
+      table.routineVersion,
     ),
-    unique('uq_agent_task__executions_taskcast').on(table.taskcastTaskId),
+    unique('uq_routine__executions_taskcast').on(table.taskcastTaskId),
   ],
 );
 
-export type AgentTaskExecution = typeof agentTaskExecutions.$inferSelect;
-export type NewAgentTaskExecution = typeof agentTaskExecutions.$inferInsert;
+export type RoutineExecution = typeof routineExecutions.$inferSelect;
+export type NewRoutineExecution = typeof routineExecutions.$inferInsert;

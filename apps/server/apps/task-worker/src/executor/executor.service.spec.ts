@@ -166,10 +166,10 @@ describe('ExecutorService', () => {
 
     // insertValues: [channel, channelMember-creator, execution, channelMember-bot]
     const executionInsert = insertValues.find(
-      (v) => v.taskVersion !== undefined,
+      (v) => v.routineVersion !== undefined,
     );
     expect(executionInsert).toBeDefined();
-    expect(executionInsert.taskVersion).toBe(5);
+    expect(executionInsert.routineVersion).toBe(5);
   });
 
   // ── Bot not found ──────────────────────────────────────────────────
@@ -329,7 +329,7 @@ describe('ExecutorService', () => {
     });
 
     const executionInsert = insertValues.find(
-      (v) => v.taskVersion !== undefined,
+      (v) => v.routineVersion !== undefined,
     );
     expect(executionInsert).toMatchObject({
       triggerId: 'trigger-001',

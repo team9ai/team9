@@ -52,11 +52,11 @@ export class TaskBotService {
       // Check if a step already exists for this execution + orderIndex
       const [existing] = await this.db
         .select()
-        .from(schema.agentTaskSteps)
+        .from(schema.routineSteps)
         .where(
           and(
-            eq(schema.agentTaskSteps.executionId, execution.id),
-            eq(schema.agentTaskSteps.orderIndex, step.orderIndex),
+            eq(schema.routineSteps.executionId, execution.id),
+            eq(schema.routineSteps.orderIndex, step.orderIndex),
           ),
         )
         .limit(1);
@@ -83,16 +83,16 @@ export class TaskBotService {
         }
 
         await this.db
-          .update(schema.agentTaskSteps)
+          .update(schema.routineSteps)
           .set(updateData)
-          .where(eq(schema.agentTaskSteps.id, existing.id));
+          .where(eq(schema.routineSteps.id, existing.id));
       } else {
         // Create new step
         const now = new Date();
-        await this.db.insert(schema.agentTaskSteps).values({
+        await this.db.insert(schema.routineSteps).values({
           id: uuidv7(),
           executionId: execution.id,
-          taskId,
+          routineId: taskId,
           orderIndex: step.orderIndex,
           title: step.title,
           status: step.status,
@@ -110,22 +110,22 @@ export class TaskBotService {
     // Sum all step token usage and update execution total
     const [result] = await this.db
       .select({
-        total: sql<number>`COALESCE(SUM(${schema.agentTaskSteps.tokenUsage}), 0)::integer`,
+        total: sql<number>`COALESCE(SUM(${schema.routineSteps.tokenUsage}), 0)::integer`,
       })
-      .from(schema.agentTaskSteps)
-      .where(eq(schema.agentTaskSteps.executionId, execution.id));
+      .from(schema.routineSteps)
+      .where(eq(schema.routineSteps.executionId, execution.id));
 
     await this.db
-      .update(schema.agentTaskExecutions)
+      .update(schema.routineExecutions)
       .set({ tokenUsage: result.total })
-      .where(eq(schema.agentTaskExecutions.id, execution.id));
+      .where(eq(schema.routineExecutions.id, execution.id));
 
     // Return updated steps
     const steps = await this.db
       .select()
-      .from(schema.agentTaskSteps)
-      .where(eq(schema.agentTaskSteps.executionId, execution.id))
-      .orderBy(schema.agentTaskSteps.orderIndex);
+      .from(schema.routineSteps)
+      .where(eq(schema.routineSteps.executionId, execution.id))
+      .orderBy(schema.routineSteps.orderIndex);
 
     // Publish step progress to TaskCast
     if (execution.taskcastTaskId) {
@@ -181,19 +181,19 @@ export class TaskBotService {
     }
 
     const [updatedExecution] = await this.db
-      .update(schema.agentTaskExecutions)
+      .update(schema.routineExecutions)
       .set(executionUpdate)
-      .where(eq(schema.agentTaskExecutions.id, execution.id))
+      .where(eq(schema.routineExecutions.id, execution.id))
       .returning();
 
     // Update task status
     const [updatedTask] = await this.db
-      .update(schema.agentTasks)
+      .update(schema.routines)
       .set({
-        status: status as schema.AgentTaskStatus,
+        status: status as schema.RoutineStatus,
         updatedAt: now,
       })
-      .where(eq(schema.agentTasks.id, taskId))
+      .where(eq(schema.routines.id, taskId))
       .returning();
 
     // Emit WebSocket event to workspace
@@ -236,11 +236,11 @@ export class TaskBotService {
     const interventionId = uuidv7();
 
     const [intervention] = await this.db
-      .insert(schema.agentTaskInterventions)
+      .insert(schema.routineInterventions)
       .values({
         id: interventionId,
         executionId: execution.id,
-        taskId,
+        routineId: taskId,
         stepId: dto.stepId ?? null,
         prompt: dto.prompt,
         actions: dto.actions,
@@ -249,12 +249,12 @@ export class TaskBotService {
 
     // Set task status to pending_action
     await this.db
-      .update(schema.agentTasks)
+      .update(schema.routines)
       .set({
         status: 'pending_action',
         updatedAt: new Date(),
       })
-      .where(eq(schema.agentTasks.id, taskId));
+      .where(eq(schema.routines.id, taskId));
 
     // Emit WebSocket event
     await this.wsGateway.broadcastToWorkspace(
@@ -307,11 +307,11 @@ export class TaskBotService {
     const deliverableId = uuidv7();
 
     const [deliverable] = await this.db
-      .insert(schema.agentTaskDeliverables)
+      .insert(schema.routineDeliverables)
       .values({
         id: deliverableId,
         executionId: execution.id,
-        taskId,
+        routineId: taskId,
         fileName: data.fileName,
         fileSize: data.fileSize ?? null,
         mimeType: data.mimeType ?? null,
@@ -413,11 +413,11 @@ export class TaskBotService {
     // 1. Direct lookup by executionId + taskId
     const [execution] = await this.db
       .select()
-      .from(schema.agentTaskExecutions)
+      .from(schema.routineExecutions)
       .where(
         and(
-          eq(schema.agentTaskExecutions.id, executionId),
-          eq(schema.agentTaskExecutions.taskId, taskId),
+          eq(schema.routineExecutions.id, executionId),
+          eq(schema.routineExecutions.routineId, taskId),
         ),
       )
       .limit(1);
@@ -437,8 +437,8 @@ export class TaskBotService {
     // 3. Load task
     const [task] = await this.db
       .select()
-      .from(schema.agentTasks)
-      .where(eq(schema.agentTasks.id, taskId))
+      .from(schema.routines)
+      .where(eq(schema.routines.id, taskId))
       .limit(1);
 
     if (!task) {
@@ -461,11 +461,11 @@ export class TaskBotService {
     // Same as getExecutionDirect but without terminal status rejection
     const [execution] = await this.db
       .select()
-      .from(schema.agentTaskExecutions)
+      .from(schema.routineExecutions)
       .where(
         and(
-          eq(schema.agentTaskExecutions.id, executionId),
-          eq(schema.agentTaskExecutions.taskId, taskId),
+          eq(schema.routineExecutions.id, executionId),
+          eq(schema.routineExecutions.routineId, taskId),
         ),
       )
       .limit(1);
@@ -476,8 +476,8 @@ export class TaskBotService {
 
     const [task] = await this.db
       .select()
-      .from(schema.agentTasks)
-      .where(eq(schema.agentTasks.id, taskId))
+      .from(schema.routines)
+      .where(eq(schema.routines.id, taskId))
       .limit(1);
 
     if (!task) {

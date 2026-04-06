@@ -15,7 +15,7 @@ import { RedisService } from '@team9/redis';
 import { ExecutorService } from '../executor/executor.service.js';
 
 /** Statuses that should NOT be picked up by the scheduler. */
-const EXCLUDED_STATUSES: (typeof schema.agentTaskStatusEnum.enumValues)[number][] =
+const EXCLUDED_STATUSES: (typeof schema.routineStatusEnum.enumValues)[number][] =
   ['stopped', 'paused', 'in_progress', 'pending_action'];
 
 const SCHEDULER_LOCK_KEY = 'task-scheduler:scan-lock';
@@ -56,20 +56,20 @@ export class SchedulerService {
 
     const dueTriggers = await this.db
       .select({
-        trigger: schema.agentTaskTriggers,
-        taskStatus: schema.agentTasks.status,
+        trigger: schema.routineTriggers,
+        taskStatus: schema.routines.status,
       })
-      .from(schema.agentTaskTriggers)
+      .from(schema.routineTriggers)
       .innerJoin(
-        schema.agentTasks,
-        eq(schema.agentTaskTriggers.taskId, schema.agentTasks.id),
+        schema.routines,
+        eq(schema.routineTriggers.routineId, schema.routines.id),
       )
       .where(
         and(
-          eq(schema.agentTaskTriggers.enabled, true),
-          inArray(schema.agentTaskTriggers.type, ['interval', 'schedule']),
-          lte(schema.agentTaskTriggers.nextRunAt, now),
-          notInArray(schema.agentTasks.status, EXCLUDED_STATUSES),
+          eq(schema.routineTriggers.enabled, true),
+          inArray(schema.routineTriggers.type, ['interval', 'schedule']),
+          lte(schema.routineTriggers.nextRunAt, now),
+          notInArray(schema.routines.status, EXCLUDED_STATUSES),
         ),
       );
 
@@ -87,7 +87,7 @@ export class SchedulerService {
             trigger.nextRunAt?.toISOString() ?? new Date().toISOString(),
         };
 
-        await this.executor.triggerExecution(trigger.taskId, {
+        await this.executor.triggerExecution(trigger.routineId, {
           triggerId: trigger.id,
           triggerType: trigger.type,
           triggerContext,
@@ -97,13 +97,13 @@ export class SchedulerService {
         const nextRunAt = this.calculateNextRunForTrigger(trigger);
 
         await this.db
-          .update(schema.agentTaskTriggers)
+          .update(schema.routineTriggers)
           .set({
             nextRunAt,
             lastRunAt: now,
             updatedAt: now,
           })
-          .where(eq(schema.agentTaskTriggers.id, trigger.id));
+          .where(eq(schema.routineTriggers.id, trigger.id));
 
         if (nextRunAt) {
           this.logger.log(
@@ -119,7 +119,7 @@ export class SchedulerService {
   }
 
   private calculateNextRunForTrigger(
-    trigger: schema.AgentTaskTrigger,
+    trigger: schema.RoutineTrigger,
   ): Date | null {
     const config = trigger.config as Record<string, unknown> | null;
     if (!config) return null;

@@ -16,7 +16,7 @@ import { documents } from '../document/documents.js';
 
 // ── Enums ───────────────────────────────────────────────────────────
 
-export const agentTaskStatusEnum = pgEnum('agent_task__status', [
+export const routineStatusEnum = pgEnum('routine__status', [
   'upcoming',
   'in_progress',
   'paused',
@@ -27,7 +27,7 @@ export const agentTaskStatusEnum = pgEnum('agent_task__status', [
   'timeout',
 ]);
 
-export const agentTaskScheduleTypeEnum = pgEnum('agent_task__schedule_type', [
+export const routineScheduleTypeEnum = pgEnum('routine__schedule_type', [
   'once',
   'recurring',
 ]);
@@ -45,8 +45,8 @@ export interface ScheduleConfig {
 
 // ── Table ───────────────────────────────────────────────────────────
 
-export const agentTasks = pgTable(
-  'agent_task__tasks',
+export const routines = pgTable(
+  'routine__routines',
   {
     id: uuid('id').primaryKey().notNull(),
 
@@ -63,41 +63,41 @@ export const agentTasks = pgTable(
     title: varchar('title', { length: 500 }).notNull(),
     description: text('description'),
 
-    status: agentTaskStatusEnum('status').default('upcoming').notNull(),
-    /** @deprecated Use agent_task__triggers table instead */
-    scheduleType: agentTaskScheduleTypeEnum('schedule_type')
+    status: routineStatusEnum('status').default('upcoming').notNull(),
+    /** @deprecated Use routine__triggers table instead */
+    scheduleType: routineScheduleTypeEnum('schedule_type')
       .default('once')
       .notNull(),
-    /** @deprecated Use agent_task__triggers table instead */
+    /** @deprecated Use routine__triggers table instead */
     scheduleConfig: jsonb('schedule_config').$type<ScheduleConfig>(),
-    /** @deprecated Use agent_task__triggers.next_run_at instead */
+    /** @deprecated Use routine__triggers.next_run_at instead */
     nextRunAt: timestamp('next_run_at'),
 
     version: integer('version').default(1).notNull(),
 
     documentId: uuid('document_id').references(() => documents.id),
 
-    // Forward reference — FK to agent_task__executions added via relations
+    // Forward reference — FK to routine__executions added via relations
     currentExecutionId: uuid('current_execution_id'),
 
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
   (table) => [
-    index('idx_agent_task__tasks_tenant_id').on(table.tenantId),
-    index('idx_agent_task__tasks_bot_id').on(table.botId),
-    index('idx_agent_task__tasks_creator_id').on(table.creatorId),
-    index('idx_agent_task__tasks_status').on(table.status),
-    index('idx_agent_task__tasks_next_run_at').on(table.nextRunAt),
-    index('idx_agent_task__tasks_tenant_status').on(
+    index('idx_routine__routines_tenant_id').on(table.tenantId),
+    index('idx_routine__routines_bot_id').on(table.botId),
+    index('idx_routine__routines_creator_id').on(table.creatorId),
+    index('idx_routine__routines_status').on(table.status),
+    index('idx_routine__routines_next_run_at').on(table.nextRunAt),
+    index('idx_routine__routines_tenant_status').on(
       table.tenantId,
       table.status,
     ),
   ],
 );
 
-export type AgentTask = typeof agentTasks.$inferSelect;
-export type NewAgentTask = typeof agentTasks.$inferInsert;
-export type AgentTaskStatus = (typeof agentTaskStatusEnum.enumValues)[number];
-export type AgentTaskScheduleType =
-  (typeof agentTaskScheduleTypeEnum.enumValues)[number];
+export type Routine = typeof routines.$inferSelect;
+export type NewRoutine = typeof routines.$inferInsert;
+export type RoutineStatus = (typeof routineStatusEnum.enumValues)[number];
+export type RoutineScheduleType =
+  (typeof routineScheduleTypeEnum.enumValues)[number];

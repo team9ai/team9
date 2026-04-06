@@ -7,7 +7,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import type { AgentTaskScheduleType } from '@team9/database/schemas';
+import type { RoutineScheduleType } from '@team9/database/schemas';
 import { ScheduleConfigDto } from './create-task.dto.js';
 
 export class UpdateTaskDto {
@@ -27,7 +27,7 @@ export class UpdateTaskDto {
   /** @deprecated Use trigger CRUD API instead */
   @IsIn(['once', 'recurring'] as const)
   @IsOptional()
-  scheduleType?: AgentTaskScheduleType;
+  scheduleType?: RoutineScheduleType;
 
   /** @deprecated Use trigger CRUD API instead */
   @ValidateNested()

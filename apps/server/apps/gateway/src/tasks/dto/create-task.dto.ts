@@ -13,7 +13,7 @@ import {
 import { Type } from 'class-transformer';
 import type {
   ScheduleConfig,
-  AgentTaskScheduleType,
+  RoutineScheduleType,
 } from '@team9/database/schemas';
 import { CreateTriggerDto } from './trigger.dto.js';
 
@@ -64,7 +64,7 @@ export class CreateTaskDto {
 
   @IsIn(['once', 'recurring'] as const)
   @IsOptional()
-  scheduleType?: AgentTaskScheduleType;
+  scheduleType?: RoutineScheduleType;
 
   @ValidateNested()
   @Type(() => ScheduleConfigDto)

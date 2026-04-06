@@ -7,22 +7,22 @@ import {
   timestamp,
   index,
 } from 'drizzle-orm/pg-core';
-import { agentTaskExecutions } from './task-executions.js';
-import { agentTasks } from './tasks.js';
+import { routineExecutions } from './routine-executions.js';
+import { routines } from './routines.js';
 
 // ── Table ───────────────────────────────────────────────────────────
 
-export const agentTaskDeliverables = pgTable(
-  'agent_task__deliverables',
+export const routineDeliverables = pgTable(
+  'routine__deliverables',
   {
     id: uuid('id').primaryKey().notNull(),
 
     executionId: uuid('execution_id')
-      .references(() => agentTaskExecutions.id, { onDelete: 'cascade' })
+      .references(() => routineExecutions.id, { onDelete: 'cascade' })
       .notNull(),
 
-    taskId: uuid('task_id')
-      .references(() => agentTasks.id, { onDelete: 'cascade' })
+    routineId: uuid('routine_id')
+      .references(() => routines.id, { onDelete: 'cascade' })
       .notNull(),
 
     fileName: varchar('file_name', { length: 500 }).notNull(),
@@ -36,10 +36,10 @@ export const agentTaskDeliverables = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [
-    index('idx_agent_task__deliverables_execution_id').on(table.executionId),
-    index('idx_agent_task__deliverables_task_id').on(table.taskId),
+    index('idx_routine__deliverables_execution_id').on(table.executionId),
+    index('idx_routine__deliverables_routine_id').on(table.routineId),
   ],
 );
 
-export type AgentTaskDeliverable = typeof agentTaskDeliverables.$inferSelect;
-export type NewAgentTaskDeliverable = typeof agentTaskDeliverables.$inferInsert;
+export type RoutineDeliverable = typeof routineDeliverables.$inferSelect;
+export type NewRoutineDeliverable = typeof routineDeliverables.$inferInsert;

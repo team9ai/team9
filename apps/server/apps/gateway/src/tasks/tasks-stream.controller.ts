@@ -74,12 +74,12 @@ export class TasksStreamController {
 
     // ── Verify execution exists and belongs to this task ──
     const [execution] = await this.db
-      .select({ id: schema.agentTaskExecutions.id })
-      .from(schema.agentTaskExecutions)
+      .select({ id: schema.routineExecutions.id })
+      .from(schema.routineExecutions)
       .where(
         and(
-          eq(schema.agentTaskExecutions.id, execId),
-          eq(schema.agentTaskExecutions.taskId, taskId),
+          eq(schema.routineExecutions.id, execId),
+          eq(schema.routineExecutions.routineId, taskId),
         ),
       )
       .limit(1);
@@ -90,9 +90,9 @@ export class TasksStreamController {
 
     // ── Verify user belongs to the task's workspace ──
     const [task] = await this.db
-      .select({ tenantId: schema.agentTasks.tenantId })
-      .from(schema.agentTasks)
-      .where(eq(schema.agentTasks.id, taskId))
+      .select({ tenantId: schema.routines.tenantId })
+      .from(schema.routines)
+      .where(eq(schema.routines.id, taskId))
       .limit(1);
 
     if (task) {

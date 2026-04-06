@@ -8,7 +8,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import type { AgentTaskStepStatus } from '@team9/database/schemas';
+import type { RoutineStepStatus } from '@team9/database/schemas';
 
 export class StepReportItem {
   @IsInt()
@@ -19,7 +19,7 @@ export class StepReportItem {
   title: string;
 
   @IsIn(['pending', 'in_progress', 'completed', 'failed'] as const)
-  status: AgentTaskStepStatus;
+  status: RoutineStepStatus;
 
   @IsInt()
   @IsOptional()

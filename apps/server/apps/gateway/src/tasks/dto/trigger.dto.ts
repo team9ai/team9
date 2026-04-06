@@ -11,7 +11,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import type { AgentTaskTriggerType } from '@team9/database/schemas';
+import type { RoutineTriggerType } from '@team9/database/schemas';
 
 export class IntervalConfigDto {
   @IsInt()
@@ -54,7 +54,7 @@ export class ChannelMessageConfigDto {
 
 export class CreateTriggerDto {
   @IsIn(['manual', 'interval', 'schedule', 'channel_message'] as const)
-  type: AgentTaskTriggerType;
+  type: RoutineTriggerType;
 
   @IsOptional()
   @ValidateNested()

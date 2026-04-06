@@ -43,10 +43,10 @@ export class TriggersService {
     const config = (dto.config ?? null) as schema.TriggerConfig | null;
 
     const [trigger] = await this.db
-      .insert(schema.agentTaskTriggers)
+      .insert(schema.routineTriggers)
       .values({
         id: triggerId,
-        taskId,
+        routineId: taskId,
         type: dto.type,
         config,
         enabled: dto.enabled ?? true,
@@ -64,14 +64,14 @@ export class TriggersService {
 
     return this.db
       .select()
-      .from(schema.agentTaskTriggers)
-      .where(eq(schema.agentTaskTriggers.taskId, taskId));
+      .from(schema.routineTriggers)
+      .where(eq(schema.routineTriggers.routineId, taskId));
   }
 
   async update(triggerId: string, dto: UpdateTriggerDto, tenantId: string) {
     const trigger = await this.getTriggerOrThrow(triggerId, tenantId);
 
-    const updateData: Partial<schema.NewAgentTaskTrigger> = {
+    const updateData: Partial<schema.NewRoutineTrigger> = {
       updatedAt: new Date(),
     };
 
@@ -94,9 +94,9 @@ export class TriggersService {
     }
 
     const [updated] = await this.db
-      .update(schema.agentTaskTriggers)
+      .update(schema.routineTriggers)
       .set(updateData)
-      .where(eq(schema.agentTaskTriggers.id, triggerId))
+      .where(eq(schema.routineTriggers.id, triggerId))
       .returning();
 
     return updated;
@@ -106,8 +106,8 @@ export class TriggersService {
     await this.getTriggerOrThrow(triggerId, tenantId);
 
     await this.db
-      .delete(schema.agentTaskTriggers)
-      .where(eq(schema.agentTaskTriggers.id, triggerId));
+      .delete(schema.routineTriggers)
+      .where(eq(schema.routineTriggers.id, triggerId));
 
     return { success: true };
   }
@@ -117,7 +117,7 @@ export class TriggersService {
     dtos: CreateTriggerDto[],
     tenantId: string,
   ) {
-    const results: schema.AgentTaskTrigger[] = [];
+    const results: schema.RoutineTrigger[] = [];
     for (const dto of dtos) {
       const trigger = await this.create(taskId, dto, tenantId);
       results.push(trigger);
@@ -130,11 +130,11 @@ export class TriggersService {
   private async getTaskOrThrow(taskId: string, tenantId: string) {
     const [task] = await this.db
       .select()
-      .from(schema.agentTasks)
+      .from(schema.routines)
       .where(
         and(
-          eq(schema.agentTasks.id, taskId),
-          eq(schema.agentTasks.tenantId, tenantId),
+          eq(schema.routines.id, taskId),
+          eq(schema.routines.tenantId, tenantId),
         ),
       )
       .limit(1);
@@ -148,18 +148,18 @@ export class TriggersService {
   private async getTriggerOrThrow(triggerId: string, tenantId: string) {
     const [trigger] = await this.db
       .select({
-        trigger: schema.agentTaskTriggers,
-        tenantId: schema.agentTasks.tenantId,
+        trigger: schema.routineTriggers,
+        tenantId: schema.routines.tenantId,
       })
-      .from(schema.agentTaskTriggers)
+      .from(schema.routineTriggers)
       .innerJoin(
-        schema.agentTasks,
-        eq(schema.agentTaskTriggers.taskId, schema.agentTasks.id),
+        schema.routines,
+        eq(schema.routineTriggers.routineId, schema.routines.id),
       )
       .where(
         and(
-          eq(schema.agentTaskTriggers.id, triggerId),
-          eq(schema.agentTasks.tenantId, tenantId),
+          eq(schema.routineTriggers.id, triggerId),
+          eq(schema.routines.tenantId, tenantId),
         ),
       )
       .limit(1);
