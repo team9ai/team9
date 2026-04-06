@@ -14,7 +14,7 @@ use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_updater::{Error as UpdaterError, Update, UpdaterExt};
 use time::format_description::well_known::Rfc3339;
 
-const UPDATE_DOWNLOAD_TIMEOUT_SECS: u64 = 300; // 5 minutes
+const UPDATE_DOWNLOAD_TIMEOUT_SECS: u64 = 600; // 10 minutes
 
 const DESKTOP_UPDATER_NOT_CONFIGURED: &str = "Desktop updates are not configured for this build.";
 
@@ -206,7 +206,7 @@ async fn desktop_install_update(
         Ok(Ok(())) => app.restart(),
         Ok(Err(err)) => Err(format!("Failed to install update: {err}")),
         Err(_) => Err(
-            "Update download timed out. Please check your network connection and try again."
+            "Update download timed out. Please check your network connection and try again. You can also download the latest version manually from https://github.com/team9ai/team9/releases/latest"
                 .to_string(),
         ),
     }
