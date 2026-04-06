@@ -140,14 +140,19 @@ export function GlobalTopBar() {
   return (
     <header
       ref={headerRef}
+      data-tauri-drag-region
       className={cn(
         "shrink-0 border-b border-nav-border bg-nav-bg",
         isMacDesktop ? "h-12" : "h-11",
       )}
     >
-      <div className="flex h-full items-center gap-2 px-2">
+      <div
+        data-tauri-drag-region
+        className="flex h-full items-center gap-2 px-2"
+      >
         {/* Left section - Window controls gutter + navigation */}
         <div
+          data-tauri-drag-region
           className={cn(
             "flex shrink-0 items-center gap-1",
             !isMacDesktop && "ml-12",
@@ -176,7 +181,10 @@ export function GlobalTopBar() {
 
         {/* Center section - Search bar with drag area around it */}
         <div data-tauri-drag-region className="min-w-0 flex-1">
-          <div className="mx-auto flex max-w-2xl items-center justify-center gap-1">
+          <div
+            data-tauri-drag-region
+            className="mx-auto flex max-w-2xl items-center justify-center gap-1"
+          >
             <div className="flex-1">
               <Popover open={isOpen} onOpenChange={setIsOpen}>
                 <PopoverAnchor asChild>
