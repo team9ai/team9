@@ -3,6 +3,10 @@ mod health_server;
 
 use std::sync::Mutex;
 
+#[cfg(target_os = "macos")]
+use objc2::msg_send;
+#[cfg(target_os = "macos")]
+use objc2_app_kit::{NSView, NSWindow, NSWindowButton};
 use serde::Serialize;
 use tauri::Manager;
 use tauri::State;
@@ -180,6 +184,84 @@ async fn desktop_install_update(
     app.restart();
 }
 
+#[tauri::command]
+fn desktop_align_traffic_lights(
+    window: tauri::WebviewWindow,
+    x: f64,
+    title_bar_height: f64,
+) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let title_bar_height = title_bar_height.max(0.0);
+        let window_for_main = window.clone();
+
+        window
+            .run_on_main_thread(move || {
+                let result = (|| {
+                    // Mirror Tao's traffic-light handling, but also center the buttons
+                    // vertically inside our custom top bar height.
+                    let ns_window_ptr = window_for_main
+                        .ns_window()
+                        .map_err(|err| format!("Failed to access native window: {err}"))?;
+                    let ns_window: &NSWindow = unsafe { &*ns_window_ptr.cast() };
+
+                    let close = ns_window
+                        .standardWindowButton(NSWindowButton::CloseButton)
+                        .ok_or_else(|| "Failed to find close button.".to_string())?;
+                    let miniaturize = ns_window
+                        .standardWindowButton(NSWindowButton::MiniaturizeButton)
+                        .ok_or_else(|| "Failed to find minimize button.".to_string())?;
+                    let zoom = ns_window
+                        .standardWindowButton(NSWindowButton::ZoomButton)
+                        .ok_or_else(|| "Failed to find zoom button.".to_string())?;
+
+                    let title_bar_container_view = unsafe {
+                        close
+                            .superview()
+                            .and_then(|view| view.superview())
+                            .ok_or_else(|| "Failed to find title bar container.".to_string())?
+                    };
+
+                    let close_rect = NSView::frame(&close);
+                    let effective_height = title_bar_height.max(close_rect.size.height);
+
+                    let mut title_bar_rect = NSView::frame(&title_bar_container_view);
+                    title_bar_rect.size.height = effective_height;
+                    title_bar_rect.origin.y = ns_window.frame().size.height - effective_height;
+                    let _: () = unsafe { msg_send![&title_bar_container_view, setFrame: title_bar_rect] };
+
+                    let space_between =
+                        NSView::frame(&miniaturize).origin.x - close_rect.origin.x;
+                    let button_origin_y =
+                        ((effective_height - close_rect.size.height) / 2.0).max(0.0);
+
+                    let window_buttons = vec![close, miniaturize.clone(), zoom];
+                    for (i, button) in window_buttons.into_iter().enumerate() {
+                        let mut rect = NSView::frame(&button);
+                        rect.origin.x = x + (i as f64 * space_between);
+                        rect.origin.y = button_origin_y;
+                        button.setFrameOrigin(rect.origin);
+                    }
+
+                    Ok::<(), String>(())
+                })();
+
+                if let Err(err) = result {
+                    eprintln!("Failed to align macOS traffic lights: {err}");
+                }
+            })
+            .map_err(|err| format!("Failed to schedule traffic light alignment: {err}"))?;
+
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (window, x, title_bar_height);
+        Ok(())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut updater_plugin = tauri_plugin_updater::Builder::new();
@@ -296,6 +378,7 @@ pub fn run() {
             desktop_get_app_version,
             desktop_check_for_update,
             desktop_install_update,
+            desktop_align_traffic_lights,
         ])
         .on_window_event(|_win, event| {
             if let tauri::WindowEvent::Destroyed = event {
