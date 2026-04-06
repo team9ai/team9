@@ -108,5 +108,7 @@
   "dashboardMockLabel": "Mock",
   "dashboardTaskEmptyValue": "None",
   "dashboardNoActiveTask": "No active task",
-  "dashboardCreateTask": "Create"
+  "dashboardCreateTask": "Create",
+  "downloadDesktop": "Download Desktop App",
+  "downloading": "Downloading..."
 }
