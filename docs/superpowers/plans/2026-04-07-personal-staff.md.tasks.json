@@ -1,0 +1,75 @@
+{
+  "planPath": "docs/superpowers/plans/2026-04-07-personal-staff.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Claw-Hive — Personal Staff Blueprint + Soul Variant",
+      "status": "pending",
+      "description": "**Goal:** Register team9-personal-staff blueprint and add personal-assistant SOUL variant in agent-pi.\n\n**Files:**\n- Modify: packages/claw-hive/src/components/team9-staff-soul/default-soul.ts\n- Modify: packages/claw-hive/src/components/team9-staff-soul/component.ts\n- Modify: packages/claw-hive/src/blueprints/presets.ts\n\n```json:metadata\n{\"files\": [\"packages/claw-hive/src/blueprints/presets.ts\", \"packages/claw-hive/src/components/team9-staff-soul/default-soul.ts\", \"packages/claw-hive/src/components/team9-staff-soul/component.ts\"], \"verifyCommand\": \"cd /Users/winrey/Projects/weightwave/team9-agent-pi && pnpm build\", \"acceptanceCriteria\": [\"TEAM9_PERSONAL_ASSISTANT_SOUL constant exists\", \"Team9StaffSoulComponent reads variant from config\", \"TEAM9_PERSONAL_STAFF_BLUEPRINT registered in defaultBlueprints\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Backend — Extract StaffService Base Layer",
+      "status": "pending",
+      "blockedBy": [],
+      "description": "**Goal:** Extract shared bot CRUD, claw-hive registration, and AI generation logic from CommonStaffService into reusable StaffService.\n\n**Files:**\n- Create: apps/server/apps/gateway/src/applications/staff.service.ts\n- Modify: apps/server/apps/gateway/src/applications/common-staff.service.ts\n- Modify: apps/server/apps/gateway/src/applications/applications.module.ts\n\n```json:metadata\n{\"files\": [\"apps/server/apps/gateway/src/applications/staff.service.ts\", \"apps/server/apps/gateway/src/applications/common-staff.service.ts\"], \"verifyCommand\": \"cd apps/server && pnpm test -- --testPathPattern=common-staff\", \"acceptanceCriteria\": [\"StaffService contains createBotWithAgent, updateBotAndAgent, deleteBotAndAgent, generatePersona, generateAvatar\", \"CommonStaffService delegates shared operations to StaffService\", \"All existing common-staff tests pass\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Backend — Personal Staff App Registration + DTOs",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "**Goal:** Register personal-staff as managed app with auto-install, create DTOs and app handler.\n\n**Files:**\n- Modify: apps/server/apps/gateway/src/applications/applications.service.ts\n- Create: apps/server/apps/gateway/src/applications/dto/personal-staff.dto.ts\n- Create: apps/server/apps/gateway/src/applications/handlers/personal-staff.handler.ts\n- Modify: apps/server/apps/gateway/src/applications/handlers/index.ts\n\n```json:metadata\n{\"files\": [\"apps/server/apps/gateway/src/applications/applications.service.ts\", \"apps/server/apps/gateway/src/applications/dto/personal-staff.dto.ts\", \"apps/server/apps/gateway/src/applications/handlers/personal-staff.handler.ts\"], \"verifyCommand\": \"pnpm build:server\", \"acceptanceCriteria\": [\"personal-staff app definition with autoInstall true\", \"CreatePersonalStaffDto and UpdatePersonalStaffDto exist\", \"PersonalStaffHandler registered\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Backend — PersonalStaffService + Controller",
+      "status": "pending",
+      "blockedBy": [2, 3],
+      "description": "**Goal:** Implement core Personal Staff CRUD with uniqueness constraint, fixed fields, and bootstrap.\n\n**Files:**\n- Create: apps/server/apps/gateway/src/applications/personal-staff.service.ts\n- Create: apps/server/apps/gateway/src/applications/personal-staff.controller.ts\n- Modify: apps/server/apps/gateway/src/applications/applications.module.ts\n\n```json:metadata\n{\"files\": [\"apps/server/apps/gateway/src/applications/personal-staff.service.ts\", \"apps/server/apps/gateway/src/applications/personal-staff.controller.ts\"], \"verifyCommand\": \"pnpm build:server\", \"acceptanceCriteria\": [\"createStaff enforces uniqueness\", \"mentorId always equals ownerId\", \"roleTitle and jobDescription are hardcoded\", \"GET/PATCH/DELETE operate without botId\", \"Bootstrap auto-triggered\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Backend — DM Lazy Creation + Visibility Permissions",
+      "status": "pending",
+      "blockedBy": [4],
+      "description": "**Goal:** Remove DM batch creation from CommonStaffService, add permission checks for Personal Staff DM and @mention.\n\n**Files:**\n- Modify: apps/server/apps/gateway/src/applications/common-staff.service.ts\n- Modify: apps/server/apps/gateway/src/im/channels/channels.service.ts\n- Modify: apps/server/apps/gateway/src/im/websocket/websocket.gateway.ts\n- Modify: apps/server/apps/gateway/src/im/users/users.service.ts\n\n```json:metadata\n{\"files\": [\"apps/server/apps/gateway/src/applications/common-staff.service.ts\", \"apps/server/apps/gateway/src/im/channels/channels.service.ts\", \"apps/server/apps/gateway/src/im/websocket/websocket.gateway.ts\"], \"verifyCommand\": \"pnpm test --filter=gateway\", \"acceptanceCriteria\": [\"CommonStaffService no longer batch-creates DMs\", \"DM with restricted personal staff returns 403\", \"@mention restricted personal staff returns 400\", \"Search excludes restricted personal staff\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Backend — Member Lifecycle + Migration Script",
+      "status": "pending",
+      "blockedBy": [4],
+      "description": "**Goal:** Auto-create personal staff on member join, cleanup on leave, backfill old workspaces.\n\n**Files:**\n- Modify: apps/server/apps/gateway/src/workspace/workspace.service.ts\n- Create: apps/server/apps/gateway/src/scripts/backfill-managed-apps.ts\n\n```json:metadata\n{\"files\": [\"apps/server/apps/gateway/src/workspace/workspace.service.ts\", \"apps/server/apps/gateway/src/scripts/backfill-managed-apps.ts\"], \"verifyCommand\": \"pnpm build:server\", \"acceptanceCriteria\": [\"Member join creates personal staff with bootstrap DM\", \"Member leave deletes personal staff and deregisters agent\", \"Migration script installs missing managed apps for all tenants\", \"Migration creates personal staff for existing members\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Frontend — Personal Staff API Client + Hooks",
+      "status": "pending",
+      "blockedBy": [4],
+      "description": "**Goal:** Add Personal Staff API methods and React Query hooks.\n\n**Files:**\n- Modify: apps/client/src/services/api/applications.ts\n- Create: apps/client/src/hooks/usePersonalStaff.ts\n\n```json:metadata\n{\"files\": [\"apps/client/src/services/api/applications.ts\", \"apps/client/src/hooks/usePersonalStaff.ts\"], \"verifyCommand\": \"pnpm build:client\", \"acceptanceCriteria\": [\"CRUD API methods for personal staff exist\", \"React Query hooks with proper invalidation\", \"TypeScript types for PersonalStaffBotInfo\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: Frontend — Staff Sidebar Refactor",
+      "status": "pending",
+      "blockedBy": [7],
+      "description": "**Goal:** Rename AI Staff to Staff with categorized display: My Personal Staff / AI Staff / Members.\n\n**Files:**\n- Modify: apps/client/src/components/layout/MainSidebar.tsx\n- Modify: apps/client/src/components/layout/contents/AIStaffMainContent.tsx\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/layout/MainSidebar.tsx\", \"apps/client/src/components/layout/contents/AIStaffMainContent.tsx\"], \"verifyCommand\": \"pnpm build:client\", \"acceptanceCriteria\": [\"Sidebar shows Staff instead of AI Staff\", \"3 categorized sections render correctly\", \"Chat button creates DM on click\", \"Restricted personal staff not shown in AI Staff section\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: Frontend — Personal Staff Detail + Visibility Settings",
+      "status": "pending",
+      "blockedBy": [7],
+      "description": "**Goal:** Create Personal Staff detail view with profile editing and visibility toggles with privacy warning.\n\n**Files:**\n- Create: apps/client/src/components/ai-staff/PersonalStaffDetailSection.tsx\n- Modify: apps/client/src/components/layout/contents/AIStaffDetailContent.tsx\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/ai-staff/PersonalStaffDetailSection.tsx\", \"apps/client/src/components/layout/contents/AIStaffDetailContent.tsx\"], \"verifyCommand\": \"pnpm build:client\", \"acceptanceCriteria\": [\"Detail shows editable name/avatar/persona/model\", \"roleTitle and jobDescription shown as read-only\", \"No mentor selector\", \"Visibility toggles with privacy warning dialog\", \"Chat and Delete buttons work\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: Frontend — @Mention Autocomplete Filter",
+      "status": "pending",
+      "blockedBy": [5, 8],
+      "description": "**Goal:** Filter restricted personal staff from @mention autocomplete suggestions.\n\n**Files:**\n- Modify: apps/client/src/components/channel/editor/plugins/MentionsPlugin.tsx\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/channel/editor/plugins/MentionsPlugin.tsx\"], \"verifyCommand\": \"pnpm build:client\", \"acceptanceCriteria\": [\"@mention excludes restricted personal staff for non-owners\", \"@mention shows own personal staff\", \"@mention shows others personal staff when allowMention is true\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-04-07T00:00:00Z"
+}
