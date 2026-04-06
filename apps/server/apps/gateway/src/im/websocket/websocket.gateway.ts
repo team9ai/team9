@@ -65,7 +65,10 @@ interface StreamingSessionPayload {
 
 @WebSocketGateway({
   cors: {
-    origin: env.CORS_ORIGIN.split(',').map((o) => o.trim()),
+    origin:
+      env.CORS_ORIGIN === '*'
+        ? true
+        : env.CORS_ORIGIN.split(',').map((o) => o.trim()),
     credentials: true,
   },
   namespace: '/im',

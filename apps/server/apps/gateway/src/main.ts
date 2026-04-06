@@ -19,7 +19,10 @@ async function bootstrap() {
   }
 
   app.enableCors({
-    origin: env.CORS_ORIGIN.split(',').map((o) => o.trim()),
+    origin:
+      env.CORS_ORIGIN === '*'
+        ? true
+        : env.CORS_ORIGIN.split(',').map((o) => o.trim()),
     credentials: true,
   });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));

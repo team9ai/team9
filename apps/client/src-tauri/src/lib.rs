@@ -2,13 +2,19 @@ mod ahand;
 mod health_server;
 
 use std::sync::Mutex;
+use std::time::Duration;
 
+#[cfg(target_os = "macos")]
+use objc2::msg_send;
+#[cfg(target_os = "macos")]
+use objc2_app_kit::{NSView, NSWindow, NSWindowButton};
 use serde::Serialize;
-use tauri::Manager;
-use tauri::State;
+use tauri::{Emitter, Manager, State};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_updater::{Error as UpdaterError, Update, UpdaterExt};
 use time::format_description::well_known::Rfc3339;
+
+const UPDATE_DOWNLOAD_TIMEOUT_SECS: u64 = 600; // 10 minutes
 
 const DESKTOP_UPDATER_NOT_CONFIGURED: &str = "Desktop updates are not configured for this build.";
 
@@ -172,12 +178,116 @@ async fn desktop_install_update(
         return Err("Check for updates before installing a new version.".to_string());
     };
 
-    update
-        .download_and_install(|_, _| {}, || {})
-        .await
-        .map_err(|err| format!("Failed to install update: {err}"))?;
+    let app_for_progress = app.clone();
+    let app_for_finish = app.clone();
+    let mut downloaded: usize = 0;
 
-    app.restart();
+    let result = tokio::time::timeout(
+        Duration::from_secs(UPDATE_DOWNLOAD_TIMEOUT_SECS),
+        update.download_and_install(
+            move |chunk_length, content_length| {
+                downloaded += chunk_length;
+                let _ = app_for_progress.emit(
+                    "update-download-progress",
+                    serde_json::json!({
+                        "downloaded": downloaded,
+                        "contentLength": content_length,
+                    }),
+                );
+            },
+            move || {
+                let _ = app_for_finish.emit("update-download-finished", ());
+            },
+        ),
+    )
+    .await;
+
+    match result {
+        Ok(Ok(())) => app.restart(),
+        Ok(Err(err)) => Err(format!("Failed to install update: {err}")),
+        Err(_) => Err(
+            "Update download timed out. Please check your network connection and try again. You can also download the latest version manually from https://github.com/team9ai/team9/releases/latest"
+                .to_string(),
+        ),
+    }
+}
+
+#[tauri::command]
+fn desktop_align_traffic_lights(
+    window: tauri::WebviewWindow,
+    x: f64,
+    title_bar_height: f64,
+) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let title_bar_height = title_bar_height.max(0.0);
+        let window_for_main = window.clone();
+
+        window
+            .run_on_main_thread(move || {
+                let result = (|| {
+                    // Mirror Tao's traffic-light handling, but also center the buttons
+                    // vertically inside our custom top bar height.
+                    let ns_window_ptr = window_for_main
+                        .ns_window()
+                        .map_err(|err| format!("Failed to access native window: {err}"))?;
+                    let ns_window: &NSWindow = unsafe { &*ns_window_ptr.cast() };
+
+                    let close = ns_window
+                        .standardWindowButton(NSWindowButton::CloseButton)
+                        .ok_or_else(|| "Failed to find close button.".to_string())?;
+                    let miniaturize = ns_window
+                        .standardWindowButton(NSWindowButton::MiniaturizeButton)
+                        .ok_or_else(|| "Failed to find minimize button.".to_string())?;
+                    let zoom = ns_window
+                        .standardWindowButton(NSWindowButton::ZoomButton)
+                        .ok_or_else(|| "Failed to find zoom button.".to_string())?;
+
+                    let title_bar_container_view = unsafe {
+                        close
+                            .superview()
+                            .and_then(|view| view.superview())
+                            .ok_or_else(|| "Failed to find title bar container.".to_string())?
+                    };
+
+                    let close_rect = NSView::frame(&close);
+                    let effective_height = title_bar_height.max(close_rect.size.height);
+
+                    let mut title_bar_rect = NSView::frame(&title_bar_container_view);
+                    title_bar_rect.size.height = effective_height;
+                    title_bar_rect.origin.y = ns_window.frame().size.height - effective_height;
+                    let _: () = unsafe { msg_send![&title_bar_container_view, setFrame: title_bar_rect] };
+
+                    let space_between =
+                        NSView::frame(&miniaturize).origin.x - close_rect.origin.x;
+                    let button_origin_y =
+                        ((effective_height - close_rect.size.height) / 2.0).max(0.0);
+
+                    let window_buttons = vec![close, miniaturize.clone(), zoom];
+                    for (i, button) in window_buttons.into_iter().enumerate() {
+                        let mut rect = NSView::frame(&button);
+                        rect.origin.x = x + (i as f64 * space_between);
+                        rect.origin.y = button_origin_y;
+                        button.setFrameOrigin(rect.origin);
+                    }
+
+                    Ok::<(), String>(())
+                })();
+
+                if let Err(err) = result {
+                    eprintln!("Failed to align macOS traffic lights: {err}");
+                }
+            })
+            .map_err(|err| format!("Failed to schedule traffic light alignment: {err}"))?;
+
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (window, x, title_bar_height);
+        Ok(())
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -296,6 +406,7 @@ pub fn run() {
             desktop_get_app_version,
             desktop_check_for_update,
             desktop_install_update,
+            desktop_align_traffic_lights,
         ])
         .on_window_event(|_win, event| {
             if let tauri::WindowEvent::Destroyed = event {

@@ -108,5 +108,7 @@
   "dashboardMockLabel": "Mock",
   "dashboardTaskEmptyValue": "无",
   "dashboardNoActiveTask": "暂无活跃任务",
-  "dashboardCreateTask": "新建"
+  "dashboardCreateTask": "新建",
+  "downloadDesktop": "下载桌面客户端",
+  "downloading": "下载中..."
 }

@@ -272,4 +272,16 @@ describe("MainSidebar user menu", () => {
     expect(screen.getByText("Profile")).toBeInTheDocument();
     expect(screen.getByText("English")).toBeInTheDocument();
   });
+
+  it("keeps the workspace rail background draggable in desktop builds", () => {
+    const { container } = renderSidebar();
+
+    const workspaceRail = container.querySelector(
+      "aside[data-tauri-drag-region]",
+    );
+    expect(workspaceRail).not.toBeNull();
+    expect(
+      workspaceRail?.querySelectorAll("[data-tauri-drag-region]").length,
+    ).toBeGreaterThanOrEqual(2);
+  });
 });

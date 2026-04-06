@@ -13,13 +13,20 @@
     "windows": [
       {
         "title": "Team9",
-        "width": 1280,
-        "height": 800,
+        "width": 1360,
+        "height": 850,
         "minWidth": 375,
         "minHeight": 667,
         "resizable": true,
         "fullscreen": false,
         "decorations": true,
+        "titleBarStyle": "Overlay",
+        "trafficLightPosition": {
+          "x": 14,
+          "y": 31
+        },
+        "hiddenTitle": true,
+        "acceptFirstMouse": true,
         "alwaysOnTop": false,
         "contentProtected": false,
         "skipTaskbar": false
@@ -56,15 +63,15 @@
       "dmg": {
         "background": "icons/dmg-background.png",
         "windowSize": {
-          "width": 540,
-          "height": 380
+          "width": 660,
+          "height": 408
         },
         "appPosition": {
-          "x": 135,
+          "x": 180,
           "y": 175
         },
         "applicationFolderPosition": {
-          "x": 405,
+          "x": 480,
           "y": 175
         }
       }

@@ -282,10 +282,13 @@ function DesktopLoginView() {
       if (appUrl) {
         const { openUrl } = await import("@tauri-apps/plugin-opener");
         const url = `${appUrl}/login?desktopSessionId=${result.sessionId}`;
+        console.log("[desktop-login] opening URL:", url);
         await openUrl(url);
+      } else {
+        console.error("[desktop-login] VITE_APP_URL is not set");
       }
-    } catch {
-      // Error handled by mutation
+    } catch (err) {
+      console.error("[desktop-login] failed to open browser:", err);
     }
   };
 
@@ -642,7 +645,7 @@ function WebLoginView() {
             <button
               type="button"
               onClick={handleContinueInBrowser}
-              className="text-primary font-medium hover:underline"
+              className="text-blue-600 font-medium underline underline-offset-2 hover:text-blue-800 cursor-pointer"
             >
               {t("useInBrowser")}
             </button>

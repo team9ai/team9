@@ -1,6 +1,7 @@
 use axum::{routing::get, Json, Router};
 use serde_json::json;
 use std::net::SocketAddr;
+use tower_http::cors::CorsLayer;
 
 async fn health_handler() -> Json<serde_json::Value> {
     Json(json!({
@@ -11,12 +12,9 @@ async fn health_handler() -> Json<serde_json::Value> {
 }
 
 pub async fn start_health_server() {
-    // No CORS layer needed — the service worker's fetch() is a no-CORS
-    // opaque request so Access-Control headers are irrelevant. Omitting
-    // CORS prevents arbitrary websites from probing whether the desktop
-    // app is installed (fingerprinting / privacy concern).
     let app = Router::new()
-        .route("/health", get(health_handler));
+        .route("/health", get(health_handler))
+        .layer(CorsLayer::permissive());
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 19876));
 

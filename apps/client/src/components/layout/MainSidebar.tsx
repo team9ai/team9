@@ -301,8 +301,14 @@ export function MainSidebar() {
       />
       <div className="flex h-full">
         {/* Column 1: Workspace avatars - always visible */}
-        <aside className="w-16 h-full bg-nav-bg text-primary-foreground flex flex-col items-center overflow-hidden">
-          <div className="flex-1 min-h-0 w-full overflow-y-auto scrollbar-hide flex flex-col items-center pt-4 space-y-3">
+        <aside
+          data-tauri-drag-region
+          className="w-16 h-full bg-nav-bg text-primary-foreground flex flex-col items-center overflow-hidden"
+        >
+          <div
+            data-tauri-drag-region
+            className="flex-1 min-h-0 w-full overflow-y-auto scrollbar-hide flex flex-col items-center pt-4 space-y-3"
+          >
             {isLoading ? (
               <Avatar className="w-10 h-10">
                 <AvatarFallback className="bg-background text-foreground rounded-lg">
@@ -478,7 +484,7 @@ export function MainSidebar() {
           </div>
 
           {/* User Avatar at Bottom */}
-          <div className="shrink-0 py-4">
+          <div data-tauri-drag-region className="shrink-0 py-4">
             <Popover open={userMenuOpen} onOpenChange={setUserMenuOpen}>
               <PopoverTrigger asChild>
                 <div className="relative cursor-pointer">
