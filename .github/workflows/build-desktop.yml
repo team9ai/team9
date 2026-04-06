@@ -290,11 +290,17 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          # Delete existing dev-latest release and tag if present
-          gh release delete dev-latest --yes --cleanup-tag 2>/dev/null || true
-          # Create new dev-latest release with only the updater manifest
-          gh release create dev-latest \
-            "artifacts/latest-dev.json" \
-            --title "Dev Latest" \
+          # Ensure dev-latest release exists
+          if ! gh release view dev-latest &>/dev/null; then
+            gh release create dev-latest \
+              --title "Dev Latest" \
+              --notes "Auto-updated updater manifest for the dev channel." \
+              --prerelease
+          fi
+          # Remove old manifest and upload new one
+          gh release delete-asset dev-latest latest-dev.json --yes 2>/dev/null || true
+          gh release upload dev-latest "artifacts/latest-dev.json" --clobber
+          gh release edit dev-latest \
             --notes "Auto-updated updater manifest for the dev channel. Current: ${{ github.ref_name }}" \
-            --prerelease
+            --prerelease \
+            --draft=false
