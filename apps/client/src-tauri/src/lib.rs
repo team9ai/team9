@@ -2,17 +2,19 @@ mod ahand;
 mod health_server;
 
 use std::sync::Mutex;
+use std::time::Duration;
 
 #[cfg(target_os = "macos")]
 use objc2::msg_send;
 #[cfg(target_os = "macos")]
 use objc2_app_kit::{NSView, NSWindow, NSWindowButton};
 use serde::Serialize;
-use tauri::Manager;
-use tauri::State;
+use tauri::{Emitter, Manager, State};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_updater::{Error as UpdaterError, Update, UpdaterExt};
 use time::format_description::well_known::Rfc3339;
+
+const UPDATE_DOWNLOAD_TIMEOUT_SECS: u64 = 300; // 5 minutes
 
 const DESKTOP_UPDATER_NOT_CONFIGURED: &str = "Desktop updates are not configured for this build.";
 
@@ -176,12 +178,38 @@ async fn desktop_install_update(
         return Err("Check for updates before installing a new version.".to_string());
     };
 
-    update
-        .download_and_install(|_, _| {}, || {})
-        .await
-        .map_err(|err| format!("Failed to install update: {err}"))?;
+    let app_for_progress = app.clone();
+    let app_for_finish = app.clone();
+    let mut downloaded: usize = 0;
 
-    app.restart();
+    let result = tokio::time::timeout(
+        Duration::from_secs(UPDATE_DOWNLOAD_TIMEOUT_SECS),
+        update.download_and_install(
+            move |chunk_length, content_length| {
+                downloaded += chunk_length;
+                let _ = app_for_progress.emit(
+                    "update-download-progress",
+                    serde_json::json!({
+                        "downloaded": downloaded,
+                        "contentLength": content_length,
+                    }),
+                );
+            },
+            move || {
+                let _ = app_for_finish.emit("update-download-finished", ());
+            },
+        ),
+    )
+    .await;
+
+    match result {
+        Ok(Ok(())) => app.restart(),
+        Ok(Err(err)) => Err(format!("Failed to install update: {err}")),
+        Err(_) => Err(
+            "Update download timed out. Please check your network connection and try again."
+                .to_string(),
+        ),
+    }
 }
 
 #[tauri::command]

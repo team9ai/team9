@@ -4,6 +4,7 @@ import {
   Loader2,
   Mail,
   RefreshCw,
+  RotateCw,
   Save,
   User,
   X,
@@ -168,6 +169,7 @@ export function AccountSettingsContent() {
   const {
     availableUpdate,
     currentVersion,
+    downloadProgress,
     errorKey: updaterErrorKey,
     errorMessage: updaterErrorMessage,
     isChecking,
@@ -176,6 +178,7 @@ export function AccountSettingsContent() {
     status,
     checkForUpdates,
     installUpdate,
+    retryUpdate,
   } = useDesktopUpdater();
   const { data: pendingEmailData, isLoading: isPendingEmailLoading } =
     usePendingEmailChange();
@@ -741,14 +744,49 @@ export function AccountSettingsContent() {
                     </div>
                   )}
 
-                  {status && (
+                  {status === "upToDate" && (
                     <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-foreground">
-                      {t(`updateCard.status.${status}`, {
-                        defaultValue:
-                          status === "upToDate"
-                            ? "You already have the latest desktop version."
-                            : "Downloading and installing the update...",
-                      })}
+                      {t(
+                        "updateCard.status.upToDate",
+                        "You already have the latest desktop version.",
+                      )}
+                    </div>
+                  )}
+
+                  {status === "downloading" && (
+                    <div className="space-y-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2">
+                      <p className="text-sm text-foreground">
+                        {t(
+                          "updateCard.status.downloading",
+                          "Downloading update...",
+                        )}
+                      </p>
+                      {downloadProgress && (
+                        <div className="space-y-1">
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                            {downloadProgress.contentLength != null &&
+                            downloadProgress.contentLength > 0 ? (
+                              <div
+                                className="h-full rounded-full bg-primary transition-all duration-300"
+                                style={{
+                                  width: `${Math.min(100, Math.round((downloadProgress.downloaded / downloadProgress.contentLength) * 100))}%`,
+                                }}
+                              />
+                            ) : (
+                              <div className="h-full w-1/3 animate-pulse rounded-full bg-primary" />
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {status === "installing" && (
+                    <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-foreground">
+                      {t(
+                        "updateCard.status.installing",
+                        "Installing update...",
+                      )}
                     </div>
                   )}
 
@@ -779,20 +817,37 @@ export function AccountSettingsContent() {
                         : t("updateCard.check", "Check for updates")}
                     </Button>
 
-                    <Button
-                      type="button"
-                      onClick={() => void installUpdate()}
-                      disabled={!availableUpdate || isInstalling || isChecking}
-                    >
-                      {isInstalling ? (
-                        <Loader2 className="mr-2 size-4 animate-spin" />
-                      ) : (
-                        <ArrowDownToLine className="mr-2 size-4" />
-                      )}
-                      {isInstalling
-                        ? t("updateCard.installing", "Installing...")
-                        : t("updateCard.install", "Install update")}
-                    </Button>
+                    {updaterErrorMessage ? (
+                      <Button
+                        type="button"
+                        onClick={() => void retryUpdate()}
+                        disabled={isInstalling || isChecking}
+                      >
+                        {isInstalling || isChecking ? (
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                        ) : (
+                          <RotateCw className="mr-2 size-4" />
+                        )}
+                        {t("updateCard.retry", "Retry")}
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        onClick={() => void installUpdate()}
+                        disabled={
+                          !availableUpdate || isInstalling || isChecking
+                        }
+                      >
+                        {isInstalling ? (
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                        ) : (
+                          <ArrowDownToLine className="mr-2 size-4" />
+                        )}
+                        {isInstalling
+                          ? t("updateCard.installing", "Installing...")
+                          : t("updateCard.install", "Install update")}
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
