@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # Post-build script: replace symlink with Finder alias + set custom icon
+# Usage: fix-dmg-icon.sh <path-to-dmg>
+# This script modifies an existing DMG to use a Finder alias for Applications
+# (instead of a symlink) so the folder icon renders correctly.
 set -e
 
 DMG_PATH="$1"
@@ -8,8 +11,15 @@ if [[ -z "$DMG_PATH" ]]; then
   exit 1
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ICON_PATH="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/ApplicationsFolderIcon.icns"
+
+# Compile set_icon Swift tool if needed
 SET_ICON="/tmp/set_icon"
+if [[ ! -x "$SET_ICON" ]]; then
+  echo "Compiling set_icon tool..."
+  swiftc -o "$SET_ICON" "$SCRIPT_DIR/set_icon.swift" -framework AppKit
+fi
 
 echo "Fixing Applications icon in DMG: $DMG_PATH"
 
@@ -23,6 +33,12 @@ DEV_NAME=$(echo "$MOUNT_OUTPUT" | grep -E '^/dev/' | head -1 | awk '{print $1}')
 MOUNT_DIR=$(echo "$MOUNT_OUTPUT" | grep -o '/Volumes/.*' | head -1)
 
 echo "Mounted at: $MOUNT_DIR"
+
+cleanup() {
+  hdiutil detach "$DEV_NAME" -quiet 2>/dev/null || true
+  rm -f "$RW_DMG"
+}
+trap cleanup EXIT
 
 # Remove old symlink and .DS_Store
 rm -f "$MOUNT_DIR/Applications"
@@ -44,9 +60,9 @@ fi
 
 # Set custom icon using compiled Swift tool
 echo "Setting custom icon..."
-"$SET_ICON" "$ICON_PATH" "$MOUNT_DIR/Applications" || echo "Swift setIcon returned non-zero"
+"$SET_ICON" "$ICON_PATH" "$MOUNT_DIR/Applications" || echo "Warning: setIcon returned non-zero"
 
-# Also try: copy the icon as resource fork
+# Fallback: apply icon via resource fork
 cp "$ICON_PATH" /tmp/_app_icon.icns
 sips -i /tmp/_app_icon.icns 2>/dev/null || true
 DeRez -only icns /tmp/_app_icon.icns > /tmp/_app_icon.rsrc 2>/dev/null || true
@@ -80,7 +96,8 @@ EOF
 
 sleep 2
 
-# Unmount
+# Unmount (trap will handle cleanup on failure)
+trap - EXIT
 hdiutil detach "$DEV_NAME" -quiet
 
 # Convert back to compressed read-only
@@ -88,4 +105,4 @@ rm -f "$DMG_PATH"
 hdiutil convert "$RW_DMG" -format UDZO -imagekey zlib-level=9 -o "$DMG_PATH" -quiet
 rm -f "$RW_DMG"
 
-echo "Done!"
+echo "Done: $DMG_PATH"
