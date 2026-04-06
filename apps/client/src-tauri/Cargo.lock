@@ -4573,6 +4573,7 @@ dependencies = [
  "tauri-plugin-updater",
  "time",
  "tokio",
+ "tower-http",
 ]
 
 [[package]]
