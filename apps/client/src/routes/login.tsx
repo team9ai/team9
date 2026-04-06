@@ -645,7 +645,7 @@ function WebLoginView() {
             <button
               type="button"
               onClick={handleContinueInBrowser}
-              className="text-primary font-medium hover:underline"
+              className="text-blue-600 font-medium underline underline-offset-2 hover:text-blue-800 cursor-pointer"
             >
               {t("useInBrowser")}
             </button>
