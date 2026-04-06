@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { isTauriApp } from "@/lib/tauri";
 
 interface DesktopUpdateInfo {
@@ -58,6 +58,9 @@ export function useDesktopUpdater(): UseDesktopUpdaterResult {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
+  const isCheckingRef = useRef(false);
+  const isInstallingRef = useRef(false);
+  const availableUpdateRef = useRef<DesktopUpdateInfo | null>(null);
 
   useEffect(() => {
     if (!isSupported) {
@@ -83,12 +86,13 @@ export function useDesktopUpdater(): UseDesktopUpdaterResult {
     };
   }, [isSupported]);
 
-  const checkForUpdates = async () => {
-    if (!isSupported || isChecking || isInstalling) {
+  const checkForUpdates = useCallback(async () => {
+    if (!isSupported || isCheckingRef.current || isInstallingRef.current) {
       return;
     }
 
     try {
+      isCheckingRef.current = true;
       setIsChecking(true);
       setErrorKey(null);
       setErrorMessage(null);
@@ -98,25 +102,33 @@ export function useDesktopUpdater(): UseDesktopUpdaterResult {
         "desktop_check_for_update",
       );
 
+      availableUpdateRef.current = update;
       setAvailableUpdate(update);
       setStatus(update ? null : "upToDate");
     } catch (nextError) {
       const nextMessage = getErrorMessage(nextError);
+      availableUpdateRef.current = null;
       setAvailableUpdate(null);
       setStatus(null);
       setErrorKey(getErrorKey(nextMessage));
       setErrorMessage(nextMessage);
     } finally {
+      isCheckingRef.current = false;
       setIsChecking(false);
     }
-  };
+  }, [isSupported]);
 
-  const installUpdate = async () => {
-    if (!isSupported || !availableUpdate || isInstalling) {
+  const installUpdate = useCallback(async () => {
+    if (
+      !isSupported ||
+      !availableUpdateRef.current ||
+      isInstallingRef.current
+    ) {
       return;
     }
 
     try {
+      isInstallingRef.current = true;
       setIsInstalling(true);
       setErrorKey(null);
       setErrorMessage(null);
@@ -128,9 +140,10 @@ export function useDesktopUpdater(): UseDesktopUpdaterResult {
       setErrorKey(getErrorKey(nextMessage));
       setErrorMessage(nextMessage);
     } finally {
+      isInstallingRef.current = false;
       setIsInstalling(false);
     }
-  };
+  }, [isSupported]);
 
   return {
     availableUpdate,
