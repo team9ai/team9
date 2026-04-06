@@ -1,0 +1,103 @@
+{
+  "planPath": "docs/superpowers/plans/2026-04-07-folder9-implementation.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: Project Scaffolding",
+      "status": "pending",
+      "description": "**Goal:** Create folder9 Go project with chi server, config, health endpoint, Docker, Makefile.\n\n**Files:** go.mod, cmd/server/main.go, internal/config/config.go, Dockerfile, docker-compose.yml, Makefile\n\n```json:metadata\n{\"files\": [\"go.mod\", \"cmd/server/main.go\", \"internal/config/config.go\", \"internal/config/config_test.go\", \"Dockerfile\", \"docker-compose.yml\", \"Makefile\"], \"verifyCommand\": \"go test ./internal/config/ -v -count=1\", \"acceptanceCriteria\": [\"go build compiles\", \"GET /health returns 200\", \"docker compose up works\", \"make targets work\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: Database Foundation",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** PostgreSQL connection, migration runner, initial schema (all 6 tables).\n\n**Files:** internal/db/db.go, migrations/000001_initial_schema.up.sql, migrations/000001_initial_schema.down.sql\n\n```json:metadata\n{\"files\": [\"internal/db/db.go\", \"internal/db/db_test.go\", \"migrations/000001_initial_schema.up.sql\", \"migrations/000001_initial_schema.down.sql\"], \"verifyCommand\": \"go test ./internal/db/ -v -count=1 -tags=integration\", \"acceptanceCriteria\": [\"all 6 tables created\", \"migration rollback works\", \"integration test passes\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Authentication & Token Management",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** PSK middleware, opaque token CRUD, permission checking, token auth middleware.\n\n**Files:** internal/auth/*, internal/db/tokens.go, internal/api/middleware_*.go, internal/api/errors.go, internal/api/handlers_tokens.go\n\n```json:metadata\n{\"files\": [\"internal/auth/psk.go\", \"internal/auth/token.go\", \"internal/auth/permission.go\", \"internal/db/tokens.go\", \"internal/api/middleware_psk.go\", \"internal/api/middleware_token.go\", \"internal/api/errors.go\", \"internal/api/responses.go\", \"internal/api/handlers_tokens.go\"], \"verifyCommand\": \"go test ./internal/auth/... ./internal/api/... -v -count=1\", \"acceptanceCriteria\": [\"PSK middleware works\", \"token CRUD works\", \"permission hierarchy enforced\", \"AI-friendly error format\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Folder Management API",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "**Goal:** Folder CRUD and access management endpoints.\n\n**Files:** internal/db/folders.go, internal/db/access.go, internal/api/handlers_folders.go, internal/api/handlers_access.go, internal/api/router.go\n\n```json:metadata\n{\"files\": [\"internal/db/folders.go\", \"internal/db/access.go\", \"internal/api/handlers_folders.go\", \"internal/api/handlers_access.go\", \"internal/api/router.go\"], \"verifyCommand\": \"go test ./internal/db/... ./internal/api/... -v -count=1 -tags=integration\", \"acceptanceCriteria\": [\"folder CRUD works\", \"access CRUD works\", \"workspace isolation enforced\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Git Core Operations",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** Bare repo lifecycle, file reading, commit creation, branch management, diff, log using go-git.\n\n**Files:** internal/gitops/repo.go, files.go, commit.go, branch.go, diff.go, log.go\n\n```json:metadata\n{\"files\": [\"internal/gitops/repo.go\", \"internal/gitops/files.go\", \"internal/gitops/commit.go\", \"internal/gitops/branch.go\", \"internal/gitops/diff.go\", \"internal/gitops/log.go\"], \"verifyCommand\": \"go test ./internal/gitops/... -v -count=1\", \"acceptanceCriteria\": [\"bare repo create/delete\", \"read files from refs\", \"create commits\", \"branch management\", \"diff between refs\", \"commit log\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Light Directory Operations",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** Plain filesystem CRUD for light directories with path safety.\n\n**Files:** internal/lightdir/service.go\n\n```json:metadata\n{\"files\": [\"internal/lightdir/service.go\", \"internal/lightdir/service_test.go\"], \"verifyCommand\": \"go test ./internal/lightdir/... -v -count=1\", \"acceptanceCriteria\": [\"file CRUD works\", \"path traversal prevented\", \"auto-create parent dirs\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: File Operations REST API",
+      "status": "pending",
+      "blockedBy": [4, 5],
+      "description": "**Goal:** Wire REST endpoints for file browsing, commits, history, and light directory operations.\n\n**Files:** internal/api/handlers_files.go, internal/api/handlers_refs.go\n\n```json:metadata\n{\"files\": [\"internal/api/handlers_files.go\", \"internal/api/handlers_refs.go\"], \"verifyCommand\": \"go test ./internal/api/... -v -count=1 -tags=integration\", \"acceptanceCriteria\": [\"tree/blob/raw endpoints work\", \"commit endpoint respects approval_mode\", \"log/diff endpoints work\", \"light dir file ops work\", \"refs endpoint returns SHA\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Proposal System",
+      "status": "pending",
+      "blockedBy": [6],
+      "description": "**Goal:** Proposal lifecycle (PR model): CRUD, status transitions, comments, three-way merge.\n\n**Files:** internal/db/proposals.go, internal/db/comments.go, internal/proposal/service.go, internal/gitops/merge.go, internal/api/handlers_proposals.go, internal/api/handlers_comments.go\n\n```json:metadata\n{\"files\": [\"internal/db/proposals.go\", \"internal/db/comments.go\", \"internal/proposal/service.go\", \"internal/gitops/merge.go\", \"internal/api/handlers_proposals.go\", \"internal/api/handlers_comments.go\"], \"verifyCommand\": \"go test ./internal/proposal/... ./internal/gitops/... ./internal/api/... -v -count=1 -tags=integration\", \"acceptanceCriteria\": [\"proposal CRUD\", \"status machine enforced\", \"line-level comments\", \"three-way merge preview\", \"approve with conflict resolution\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: Git HTTP Smart Protocol",
+      "status": "pending",
+      "blockedBy": [4],
+      "description": "**Goal:** Git smart HTTP protocol server for clone/pull/push with server-side hooks.\n\n**Files:** internal/gitops/httpserver.go, internal/gitops/hooks.go\n\n```json:metadata\n{\"files\": [\"internal/gitops/httpserver.go\", \"internal/gitops/hooks.go\"], \"verifyCommand\": \"go test ./internal/gitops/... -v -count=1 -tags=integration\", \"acceptanceCriteria\": [\"git clone works\", \"git push works\", \"branch protection enforced\", \"auto-proposal creation on push to proposal/*\", \"permission matrix correct\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: WebDAV Server",
+      "status": "pending",
+      "blockedBy": [4, 5],
+      "description": "**Goal:** WebDAV endpoints — read-only for managed, read-write for light.\n\n**Files:** internal/webdav/handler.go\n\n```json:metadata\n{\"files\": [\"internal/webdav/handler.go\", \"internal/webdav/handler_test.go\"], \"verifyCommand\": \"go test ./internal/webdav/... -v -count=1 -tags=integration\", \"acceptanceCriteria\": [\"PROPFIND works\", \"GET serves files\", \"light dir PUT/DELETE/MKCOL work\", \"managed dir writes return 403 with guidance\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: Webhook System",
+      "status": "pending",
+      "blockedBy": [7],
+      "description": "**Goal:** Webhook registration API and async event dispatch with HMAC signing.\n\n**Files:** internal/db/webhooks.go, internal/webhook/events.go, internal/webhook/service.go, internal/api/handlers_webhooks.go\n\n```json:metadata\n{\"files\": [\"internal/db/webhooks.go\", \"internal/webhook/events.go\", \"internal/webhook/service.go\", \"internal/api/handlers_webhooks.go\"], \"verifyCommand\": \"go test ./internal/webhook/... ./internal/api/... -v -count=1 -tags=integration\", \"acceptanceCriteria\": [\"webhook CRUD\", \"events dispatched async\", \"HMAC-SHA256 signed\", \"event filter works\"]}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: AI-Friendly Error Responses & skill.md",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "**Goal:** Standardize all error responses with guidance, serve skill.md.\n\n**Files:** internal/api/errors.go, static/skill.md, cmd/server/main.go\n\n```json:metadata\n{\"files\": [\"internal/api/errors.go\", \"static/skill.md\", \"cmd/server/main.go\"], \"verifyCommand\": \"grep -r 'writeError' internal/api/ | wc -l\", \"acceptanceCriteria\": [\"all 4xx use structured format\", \"skill.md served at /skill.md\", \"docs URLs use config values\"]}\n```"
+    },
+    {
+      "id": 12,
+      "subject": "Task 12: CLI Client Foundation",
+      "status": "pending",
+      "blockedBy": [6, 7],
+      "description": "**Goal:** folder9 CLI with auth, browse, pull, push, proposal commands.\n\n**Files:** cmd/cli/main.go, internal/cli/*.go\n\n```json:metadata\n{\"files\": [\"cmd/cli/main.go\", \"internal/cli/client.go\", \"internal/cli/auth.go\", \"internal/cli/browse.go\", \"internal/cli/sync.go\", \"internal/cli/proposals.go\", \"internal/cli/config.go\"], \"verifyCommand\": \"go test ./internal/cli/... -v -count=1\", \"acceptanceCriteria\": [\"auth login/whoami work\", \"ls/tree/cat work\", \"pull/push work\", \"proposals commands work\", \"--help is helpful\"]}\n```"
+    },
+    {
+      "id": 13,
+      "subject": "Task 13: Daemon Mode",
+      "status": "pending",
+      "blockedBy": [12],
+      "description": "**Goal:** folder9 daemon for local directory sync.\n\n**Files:** cmd/daemon/main.go, internal/daemon/*.go\n\n```json:metadata\n{\"files\": [\"cmd/daemon/main.go\", \"internal/daemon/daemon.go\", \"internal/daemon/watcher.go\", \"internal/daemon/sync.go\"], \"verifyCommand\": \"go test ./internal/daemon/... -v -count=1\", \"acceptanceCriteria\": [\"pull sync works\", \"push sync (light) works\", \"bidirectional with conflict handling\", \"incremental sync\", \"auto-reconnect\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-04-07T00:00:00Z"
+}
