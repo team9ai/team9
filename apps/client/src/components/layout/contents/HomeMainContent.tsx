@@ -11,13 +11,26 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
+import { UserAvatar } from "@/components/ui/user-avatar";
+import { useCreateDirectChannel, useChannelsByType } from "@/hooks/useChannels";
+import {
+  type DashboardAgent,
+  useDashboardAgents,
+} from "@/hooks/useDashboardAgents";
+import { getHttpErrorMessage, getHttpErrorStatus } from "@/lib/http-error";
 import { useUser } from "@/stores";
-import { useChannelsByType } from "@/hooks/useChannels";
 import { cn } from "@/lib/utils";
 
 const DASHBOARD_ACTION_CHIPS = [
@@ -33,19 +46,91 @@ const DASHBOARD_ACTION_CHIPS = [
   },
 ] as const;
 
-function DashboardHeader() {
+function DashboardHeader({
+  agents,
+  selectedAgentUserId,
+  onSelectAgent,
+}: {
+  agents: DashboardAgent[];
+  selectedAgentUserId: string | null;
+  onSelectAgent: (userId: string) => void;
+}) {
   const { t } = useTranslation("navigation");
   const navigate = useNavigate();
+  const selectedAgent =
+    agents.find((agent) => agent.userId === selectedAgentUserId) ?? null;
 
   return (
     <header className="flex items-center justify-between gap-4">
-      <button
-        type="button"
-        className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-[#312c27] transition-colors hover:bg-white/50"
-      >
-        <span className="truncate">{t("dashboardBrand")}</span>
-        <ChevronDown size={14} className="text-[#8f8578]" />
-      </button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex max-w-[18rem] items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-[#312c27] transition-colors hover:bg-white/50 cursor-pointer"
+          >
+            {selectedAgent ? (
+              <UserAvatar
+                userId={selectedAgent.userId}
+                name={selectedAgent.label}
+                username={selectedAgent.username}
+                avatarUrl={selectedAgent.avatarUrl}
+                isBot
+                className="size-7 ring-1 ring-white/75"
+                fallbackClassName="text-[0.72rem] font-semibold"
+              />
+            ) : null}
+            <span className="truncate">
+              {selectedAgent?.label ?? t("dashboardBrand")}
+            </span>
+            <ChevronDown size={14} className="shrink-0 text-[#8f8578]" />
+          </button>
+        </DropdownMenuTrigger>
+
+        <DropdownMenuContent
+          align="start"
+          className="w-[18rem] rounded-3xl border-white/70 bg-white/95 p-2 shadow-[0_20px_50px_rgba(140,121,93,0.18)] backdrop-blur"
+        >
+          {agents.length > 0 ? (
+            <DropdownMenuRadioGroup
+              value={selectedAgentUserId ?? undefined}
+              onValueChange={onSelectAgent}
+            >
+              {agents.map((agent) => (
+                <DropdownMenuRadioItem
+                  key={agent.userId}
+                  value={agent.userId}
+                  className="!cursor-pointer rounded-2xl py-2.5 pr-3"
+                >
+                  <UserAvatar
+                    userId={agent.userId}
+                    name={agent.label}
+                    username={agent.username}
+                    avatarUrl={agent.avatarUrl}
+                    isBot
+                    className="size-9 shrink-0 ring-1 ring-black/5"
+                    fallbackClassName="text-[0.78rem] font-semibold"
+                  />
+
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-[#312c27]">
+                      {agent.label}
+                    </p>
+                    {agent.username && agent.username !== agent.label ? (
+                      <p className="truncate text-xs text-[#8f8578]">
+                        @{agent.username}
+                      </p>
+                    ) : null}
+                  </div>
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          ) : (
+            <p className="px-3 py-2 text-sm text-[#8f8578]">
+              {t("dashboardNoBotDescription")}
+            </p>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <Button
         variant="ghost"
@@ -125,33 +210,66 @@ function DashboardTaskPill() {
 }
 
 export function HomeMainContent() {
-  const { t } = useTranslation("navigation");
+  const { t } = useTranslation(["navigation", "message"]);
   const navigate = useNavigate();
   const { directChannels = [] } = useChannelsByType();
+  const createDirectChannel = useCreateDirectChannel();
+  const { agents } = useDashboardAgents(directChannels);
   const user = useUser();
   const [prompt, setPrompt] = useState("");
+  const [selectedAgentUserId, setSelectedAgentUserId] = useState<string | null>(
+    null,
+  );
   const [isWarmupDismissed, setIsWarmupDismissed] = useState(false);
 
-  const defaultBotChannel = directChannels.find(
-    (channel) => channel.otherUser?.userType === "bot",
-  );
   const isNewUser =
     !!user?.createdAt &&
     Date.now() - new Date(user.createdAt).getTime() < 10 * 60 * 1000;
-  const canSubmit = !!defaultBotChannel && prompt.trim().length > 0;
+  const selectedAgent =
+    agents.find((agent) => agent.userId === selectedAgentUserId) ??
+    agents[0] ??
+    null;
+  const canSubmit =
+    !!selectedAgent &&
+    prompt.trim().length > 0 &&
+    !createDirectChannel.isPending;
 
-  const handleSubmit = () => {
-    if (!defaultBotChannel) return;
+  useEffect(() => {
+    setSelectedAgentUserId((current) => {
+      if (current && agents.some((agent) => agent.userId === current)) {
+        return current;
+      }
 
+      return agents[0]?.userId ?? null;
+    });
+  }, [agents]);
+
+  const handleSubmit = async () => {
+    if (!selectedAgent) return;
     const draft = prompt.trim();
     if (!draft) return;
 
-    setPrompt("");
-    navigate({
-      to: "/channels/$channelId",
-      params: { channelId: defaultBotChannel.id },
-      search: { draft },
-    });
+    try {
+      const channelId =
+        selectedAgent.channelId ??
+        (await createDirectChannel.mutateAsync(selectedAgent.userId)).id;
+
+      setPrompt("");
+      navigate({
+        to: "/channels/$channelId",
+        params: { channelId },
+        search: { draft },
+      });
+    } catch (error: unknown) {
+      const status = getHttpErrorStatus(error);
+
+      if (status === 403) {
+        alert(t("dmPermissionDenied"));
+        return;
+      }
+
+      alert(getHttpErrorMessage(error) || "Failed to create conversation");
+    }
   };
 
   const handlePromptKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = (
@@ -167,7 +285,11 @@ export function HomeMainContent() {
     <main className="dashboard-landing h-full overflow-y-auto">
       <div className="dashboard-landing-shell min-h-full">
         <div className="flex min-h-full w-full flex-col px-4 pb-8 pt-4 sm:px-6 sm:pb-10 lg:px-8">
-          <DashboardHeader />
+          <DashboardHeader
+            agents={agents}
+            selectedAgentUserId={selectedAgent?.userId ?? null}
+            onSelectAgent={setSelectedAgentUserId}
+          />
 
           <div className="mx-auto flex w-full max-w-[1680px] flex-1 flex-col items-center justify-center gap-5 pb-8 pt-2 sm:gap-6 sm:pb-12 sm:pt-4 lg:pb-[4.5rem] lg:pt-3">
             <DashboardPlanBadge />
@@ -238,9 +360,14 @@ export function HomeMainContent() {
                       size="icon"
                       onClick={handleSubmit}
                       disabled={!canSubmit}
+                      aria-label={t("sendMessage", { ns: "message" })}
                       className="dashboard-composer-send h-[2.375rem] w-[2.375rem] rounded-full bg-[#818894] text-white shadow-none hover:bg-[#727885] disabled:bg-[#ddd7cf] disabled:text-[#a2998d]"
                     >
-                      <ArrowUp size={16} strokeWidth={2.2} />
+                      {createDirectChannel.isPending ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <ArrowUp size={16} strokeWidth={2.2} />
+                      )}
                     </Button>
                   </div>
                 </div>
