@@ -15,7 +15,6 @@ import {
 import * as schema from '@team9/database/schemas';
 import type { BotExtra } from '@team9/database/schemas';
 import { ClawHiveService } from '@team9/claw-hive';
-import { BotService } from '../bot/bot.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { InstalledApplicationsService } from './installed-applications.service.js';
 import { StaffService, type StaffBotResult } from './staff.service.js';
@@ -42,7 +41,6 @@ export class PersonalStaffService {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
-    private readonly botService: BotService,
     private readonly clawHiveService: ClawHiveService,
     private readonly channelsService: ChannelsService,
     private readonly installedApplicationsService: InstalledApplicationsService,
@@ -62,6 +60,7 @@ export class PersonalStaffService {
     botId: string;
     userId: string;
     displayName: string | null;
+    avatarUrl: string | null;
     ownerId: string | null;
     mentorId: string | null;
     extra: BotExtra | null;
@@ -72,6 +71,7 @@ export class PersonalStaffService {
         botId: schema.bots.id,
         userId: schema.bots.userId,
         displayName: schema.users.displayName,
+        avatarUrl: schema.users.avatarUrl,
         ownerId: schema.bots.ownerId,
         mentorId: schema.bots.mentorId,
         extra: schema.bots.extra,
@@ -147,7 +147,7 @@ export class PersonalStaffService {
         allowMention: false,
         allowDirectMessage: false,
       },
-      avatarUrl: null, // TODO: fetch from user record if needed
+      avatarUrl: bot.avatarUrl,
     };
   }
 
@@ -182,8 +182,7 @@ export class PersonalStaffService {
     }
 
     // 3. Create bot + register agent
-    const effectiveDisplayName =
-      dto.displayName ?? `${PERSONAL_STAFF_ROLE_TITLE}`;
+    const effectiveDisplayName = dto.displayName ?? PERSONAL_STAFF_ROLE_TITLE;
     const effectiveBootstrap = dto.agenticBootstrap ?? true;
 
     const extra: BotExtra = {
@@ -383,14 +382,7 @@ export class PersonalStaffService {
     tenantId: string,
     dto: GeneratePersonaDto,
   ): AsyncGenerator<string> {
-    // Verify app is personal-staff type
-    const app = await this.installedApplicationsService.findById(
-      appId,
-      tenantId,
-    );
-    if (!app || app.applicationId !== PERSONAL_STAFF_APPLICATION_ID) {
-      throw new BadRequestException('Not a personal-staff application');
-    }
+    await this.verifyPersonalStaffApp(appId, tenantId);
 
     yield* this.staffService.generatePersona({
       displayName: dto.displayName,
@@ -411,14 +403,7 @@ export class PersonalStaffService {
     tenantId: string,
     dto: GenerateAvatarDto,
   ): Promise<{ avatarUrl: string }> {
-    // Verify app is personal-staff type
-    const app = await this.installedApplicationsService.findById(
-      appId,
-      tenantId,
-    );
-    if (!app || app.applicationId !== PERSONAL_STAFF_APPLICATION_ID) {
-      throw new BadRequestException('Not a personal-staff application');
-    }
+    await this.verifyPersonalStaffApp(appId, tenantId);
 
     return this.staffService.generateAvatar({
       style: dto.style,

@@ -150,6 +150,7 @@ const makeExistingBot = (overrides: Record<string, unknown> = {}) => ({
   botId: BOT_ID,
   userId: BOT_USER_ID,
   displayName: 'Personal Assistant',
+  avatarUrl: 'https://example.com/avatar.png',
   ownerId: OWNER_ID,
   mentorId: OWNER_ID,
   extra: {
@@ -273,6 +274,7 @@ describe('PersonalStaffService', () => {
       expect(result.botId).toBe(BOT_ID);
       expect(result.userId).toBe(BOT_USER_ID);
       expect(result.persona).toBe('Friendly helper');
+      expect(result.avatarUrl).toBe('https://example.com/avatar.png');
       expect(result.visibility).toEqual({
         allowMention: false,
         allowDirectMessage: false,
@@ -836,14 +838,14 @@ describe('PersonalStaffService', () => {
       await expect(gen.next()).rejects.toThrow(BadRequestException);
     });
 
-    it('throws BadRequestException when app not found', async () => {
+    it('throws NotFoundException when app not found', async () => {
       installedApplicationsService.findById.mockResolvedValueOnce(null);
 
       const gen = service.generatePersona(INSTALLED_APP_ID, TENANT_ID, {
         displayName: 'PA',
       } as GeneratePersonaDto);
 
-      await expect(gen.next()).rejects.toThrow(BadRequestException);
+      await expect(gen.next()).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -872,14 +874,14 @@ describe('PersonalStaffService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('throws BadRequestException when app not found', async () => {
+    it('throws NotFoundException when app not found', async () => {
       installedApplicationsService.findById.mockResolvedValueOnce(null);
 
       await expect(
         service.generateAvatar(INSTALLED_APP_ID, TENANT_ID, {
           style: 'realistic',
         } as GenerateAvatarDto),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('passes hardcoded roleTitle to staffService.generateAvatar', async () => {
