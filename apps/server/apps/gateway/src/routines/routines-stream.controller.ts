@@ -114,7 +114,7 @@ export class RoutinesStreamController {
     }
 
     // ── Proxy SSE from TaskCast ──
-    const upstream = `${this.taskcastUrl}/tasks/${taskcastTaskId}/events/stream`;
+    const upstream = `${this.taskcastUrl}/tasks/${taskcastTaskId}/events`;
     const headers: Record<string, string> = {
       Accept: 'text/event-stream',
     };
@@ -136,6 +136,9 @@ export class RoutinesStreamController {
       });
 
       if (!upstreamRes.ok || !upstreamRes.body) {
+        this.logger.warn(
+          `TaskCast upstream returned ${upstreamRes.status} for task ${taskcastTaskId}`,
+        );
         res.status(502).json({ error: 'TaskCast upstream unavailable' });
         return;
       }

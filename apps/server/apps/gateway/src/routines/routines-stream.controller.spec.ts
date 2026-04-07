@@ -332,7 +332,7 @@ describe('RoutinesStreamController', () => {
       await ended;
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:3721/tasks/agent_task_exec_exec-1/events/stream',
+        'http://localhost:3721/tasks/agent_task_exec_exec-1/events',
         expect.objectContaining({
           headers: {
             Accept: 'text/event-stream',
