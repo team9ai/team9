@@ -22,6 +22,7 @@ import {
   DATABASE_CONNECTION,
   eq,
   and,
+  inArray,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -50,6 +51,7 @@ import { RedisService } from '@team9/redis';
 import { WS_EVENTS } from '../im/websocket/events/events.constants.js';
 import { REDIS_KEYS } from '../im/shared/constants/redis-keys.js';
 import { generateSlug, generateShortId } from '../common/utils/slug.util.js';
+import { resolveAgentTypeByApplicationId } from '../common/utils/agent-type.util.js';
 
 type InstalledApplicationBot = Awaited<
   ReturnType<BotService['getBotsByInstalledApplicationId']>
@@ -130,6 +132,7 @@ export class InstalledApplicationsController {
         }
 
         if (app.applicationId === 'openclaw') {
+          const agentType = resolveAgentTypeByApplicationId(app.applicationId);
           const instancesId = (app.config as { instancesId?: string })
             ?.instancesId;
           const [bots, instance] = await Promise.all([
@@ -144,6 +147,7 @@ export class InstalledApplicationsController {
             bots: bots.map((bot) => ({
               botId: bot.botId,
               userId: bot.userId,
+              agentType,
               agentId: bot.extra?.openclaw?.agentId ?? null,
               workspace: bot.extra?.openclaw?.workspace ?? null,
               username: bot.username,
@@ -167,7 +171,39 @@ export class InstalledApplicationsController {
         }
 
         if (app.applicationId === 'base-model-staff') {
+          const agentType = resolveAgentTypeByApplicationId(app.applicationId);
           const bots = await this.getBotsOrEmpty(app.id);
+          return {
+            ...app,
+            bots: bots.map((bot) => ({
+              botId: bot.botId,
+              userId: bot.userId,
+              agentType,
+              username: bot.username,
+              displayName: bot.displayName,
+              isActive: bot.isActive,
+              createdAt: bot.createdAt,
+              managedMeta: bot.managedMeta,
+            })),
+            instanceStatus: null,
+          };
+        }
+
+        if (app.applicationId === 'common-staff') {
+          const bots = await this.getBotsOrEmpty(app.id);
+          // Fetch bot user avatar URLs via direct DB join
+          const botUserIds = bots.map((bot) => bot.userId);
+          let avatarMap: Map<string, string | null> = new Map();
+          if (botUserIds.length > 0) {
+            const userRows = await this.db
+              .select({
+                id: schema.users.id,
+                avatarUrl: schema.users.avatarUrl,
+              })
+              .from(schema.users)
+              .where(inArray(schema.users.id, botUserIds));
+            avatarMap = new Map(userRows.map((r) => [r.id, r.avatarUrl]));
+          }
           return {
             ...app,
             bots: bots.map((bot) => ({
@@ -175,6 +211,14 @@ export class InstalledApplicationsController {
               userId: bot.userId,
               username: bot.username,
               displayName: bot.displayName,
+              roleTitle: bot.extra?.commonStaff?.roleTitle ?? null,
+              persona: bot.extra?.commonStaff?.persona ?? null,
+              jobDescription: bot.extra?.commonStaff?.jobDescription ?? null,
+              avatarUrl: avatarMap.get(bot.userId) ?? null,
+              model: bot.extra?.commonStaff?.model ?? null,
+              mentorId: bot.mentorId,
+              mentorDisplayName: bot.mentorDisplayName,
+              mentorAvatarUrl: bot.mentorAvatarUrl,
               isActive: bot.isActive,
               createdAt: bot.createdAt,
               managedMeta: bot.managedMeta,

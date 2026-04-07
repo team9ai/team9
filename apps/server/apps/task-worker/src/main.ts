@@ -1,4 +1,5 @@
 import './load-env.js';
+import './otel.js';
 import { NestFactory } from '@nestjs/core';
 import { VersioningType, Logger } from '@nestjs/common';
 import { AppModule } from './app.module.js';

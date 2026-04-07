@@ -209,15 +209,15 @@ export const WS_EVENTS = {
     MESSAGE_RETRY: 'message_retry',
   },
 
-  // ==================== Task Events ====================
+  // ==================== Routine Events ====================
   /**
-   * Task execution and status events
+   * Routine execution and status events
    */
-  TASK: {
-    /** Task status changed - broadcast by server */
-    STATUS_CHANGED: 'task:status_changed',
-    /** Task execution created - broadcast by server */
-    EXECUTION_CREATED: 'task:execution_created',
+  ROUTINE: {
+    /** Routine status changed - broadcast by server */
+    STATUS_CHANGED: 'routine:status_changed',
+    /** Routine execution created - broadcast by server */
+    EXECUTION_CREATED: 'routine:execution_created',
   },
 
   // ==================== Tracking Channel ====================
@@ -267,6 +267,6 @@ export type WsEventName =
   | (typeof WS_EVENTS.SYSTEM)[keyof typeof WS_EVENTS.SYSTEM]
   | (typeof WS_EVENTS.SESSION)[keyof typeof WS_EVENTS.SESSION]
   | (typeof WS_EVENTS.SYNC)[keyof typeof WS_EVENTS.SYNC]
-  | (typeof WS_EVENTS.TASK)[keyof typeof WS_EVENTS.TASK]
+  | (typeof WS_EVENTS.ROUTINE)[keyof typeof WS_EVENTS.ROUTINE]
   | (typeof WS_EVENTS.TRACKING)[keyof typeof WS_EVENTS.TRACKING]
   | (typeof WS_EVENTS.STREAMING)[keyof typeof WS_EVENTS.STREAMING];

@@ -8,8 +8,10 @@ import {
   handleUnauthorized,
 } from "./interceptors";
 
+import { API_BASE_URL } from "@/constants/api-base-url";
+
 const http = new HttpClient({
-  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api",
+  baseURL: API_BASE_URL,
   timeout: 30000,
   headers: {
     "Content-Type": "application/json",
@@ -28,3 +30,4 @@ export { HttpClient };
 export * from "./types";
 export * from "./errors";
 export * from "./interceptors";
+export { API_BASE_URL } from "@/constants/api-base-url";

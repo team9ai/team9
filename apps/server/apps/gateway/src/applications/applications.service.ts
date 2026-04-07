@@ -13,7 +13,7 @@ const APPLICATIONS: Application[] = [
     iconUrl: '/icons/openclaw.svg',
     categories: ['ai', 'bot'],
     enabled: true,
-    type: 'managed',
+    type: 'custom',
     singleton: true,
   },
   {
@@ -26,6 +26,18 @@ const APPLICATIONS: Application[] = [
     enabled: true,
     type: 'custom',
     singleton: true,
+    autoInstall: true,
+  },
+  {
+    id: 'common-staff',
+    name: 'Common Staff',
+    description: 'AI employee system with profile, role, and mentor bootstrap',
+    iconUrl: '/icons/common-staff.svg',
+    categories: ['ai', 'bot'],
+    enabled: true,
+    type: 'managed',
+    singleton: true,
+    autoInstall: true,
   },
 ];
 
@@ -43,5 +55,12 @@ export class ApplicationsService {
    */
   findById(id: string): Application | undefined {
     return APPLICATIONS.find((app) => app.id === id && app.enabled);
+  }
+
+  /**
+   * Get all applications that should be auto-installed when a workspace is created.
+   */
+  findAutoInstall(): Application[] {
+    return APPLICATIONS.filter((app) => app.autoInstall && app.enabled);
   }
 }

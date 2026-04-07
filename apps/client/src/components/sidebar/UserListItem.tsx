@@ -1,9 +1,11 @@
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { AgentTypeBadge } from "@/components/ui/agent-type-badge";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { Link } from "@tanstack/react-router";
 import { useIsUserOnline } from "@/hooks/useIMUsers";
+import type { AgentType } from "@/types/im";
 
 export interface UserListItemProps {
   /** Display name */
@@ -32,6 +34,8 @@ export interface UserListItemProps {
   avatarSize?: "sm" | "default";
   /** Whether this user is a bot */
   isBot?: boolean;
+  /** Managed agent category for badge display */
+  agentType?: AgentType | null;
 }
 
 /**
@@ -52,9 +56,10 @@ export function UserListItem({
   disabled = false,
   avatarSize = "default",
   isBot = false,
+  agentType,
 }: UserListItemProps) {
   const isOnline = useIsUserOnline(userId);
-  const avatarSizeClass = avatarSize === "sm" ? "w-6 h-6" : "w-8 h-8";
+  const avatarSizeClass = avatarSize === "sm" ? "w-6 h-6" : "w-9 h-9";
   const avatarTextClass = avatarSize === "sm" ? "text-xs" : "text-sm";
   const onlineIndicatorSize = avatarSize === "sm" ? "w-2.5 h-2.5" : "w-3 h-3";
   const username = subtitle?.startsWith("@") ? subtitle.slice(1) : undefined;
@@ -89,8 +94,11 @@ export function UserListItem({
           />
         )}
       </div>
-      <div className="flex-1 text-left truncate">
-        <div className="truncate">{name}</div>
+      <div className="flex-1 min-w-0 text-left">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="flex-1 min-w-0 truncate">{name}</div>
+          <AgentTypeBadge agentType={agentType} />
+        </div>
         {subtitle && (
           <div className="text-xs text-nav-foreground-faint truncate">
             {subtitle}

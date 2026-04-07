@@ -1,0 +1,123 @@
+{
+  "planPath": "docs/superpowers/plans/2026-04-04-team9-mobile-app.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: Project Scaffolding",
+      "status": "pending",
+      "description": "Initialize Expo project with deps, TS config, Jest, shared types"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: HTTP Client + Secure Token Storage",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "Fetch-based HTTP client with auth interceptor, token refresh, expo-secure-store"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Auth Store + Login & Verify Screens",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "Zustand auth store, auth API, login/verify screens with email code flow"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: WebSocket Service",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "Socket.io-client wrapper with auth, reconnection, typed events, RQ cache integration"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Channel List Screen",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "Messages tab with channel/DM list, unread badges, pull-to-refresh"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Chat Detail Screen",
+      "status": "pending",
+      "blockedBy": [4],
+      "description": "Inverted message list, send message, real-time via WS, infinite scroll"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Read Status + Typing Indicators",
+      "status": "pending",
+      "blockedBy": [5],
+      "description": "Auto mark-as-read, typing indicator component with timeout"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: @Mention Rendering + Emoji Reactions",
+      "status": "pending",
+      "blockedBy": [5],
+      "description": "Highlight @mentions, long-press reaction picker, reaction display"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: In-App Notification Screen",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "Notifications tab with cursor pagination, mark-read, real-time updates"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: Backend Push Notification Support",
+      "status": "pending",
+      "description": "user_push_tokens table, register/unregister API, im-worker push logic"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: Mobile Push Notification Integration",
+      "status": "pending",
+      "blockedBy": [2, 9],
+      "description": "Expo Notifications registration, foreground toast, background navigation"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: Settings Screen + Logout",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "Me tab with profile, notification toggle, logout"
+    },
+    {
+      "id": 12,
+      "subject": "Task 12: Google OAuth Login",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "expo-auth-session Google OAuth, send ID token to backend"
+    },
+    {
+      "id": 13,
+      "subject": "Task 13: Thread Drawer",
+      "status": "pending",
+      "blockedBy": [5],
+      "description": "Right-slide drawer (75% width) with reanimated, parent msg + replies"
+    },
+    {
+      "id": 14,
+      "subject": "Task 14: File & Image Upload",
+      "status": "pending",
+      "blockedBy": [5],
+      "description": "expo-image-picker + expo-document-picker, attachment preview, upload flow"
+    },
+    {
+      "id": 15,
+      "subject": "Task 15: Global Search Screen",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "Search tab with debounce, filter tabs, keyword highlight, navigation"
+    },
+    {
+      "id": 16,
+      "subject": "Task 16: Internationalization (i18n)",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "i18next with zh-Hans, zh-Hant, en, device locale detection, language switcher"
+    }
+  ],
+  "lastUpdated": "2026-04-04T00:00:00Z"
+}

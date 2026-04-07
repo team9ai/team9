@@ -16,4 +16,6 @@ export * from './notification-preferences.js';
 export * from './search-index.js';
 export * from './bots.js';
 export * from './installed-applications.js';
+export * from './push-subscriptions.js';
+export * from './user-push-tokens.js';
 export * from './relations.js';

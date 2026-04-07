@@ -26,6 +26,7 @@ export class ClawHiveService {
     name: string;
     blueprintId: string;
     tenantId: string;
+    metadata?: Record<string, unknown>;
     model: { provider: string; id: string };
     componentConfigs: Record<string, Record<string, unknown>>;
   }): Promise<void> {
@@ -40,6 +41,38 @@ export class ClawHiveService {
     }
   }
 
+  async updateAgent(
+    agentId: string,
+    params: {
+      tenantId: string;
+      metadata: Record<string, unknown>;
+      name?: string;
+      model?: { provider: string; id: string };
+      componentConfigs?: Record<string, Record<string, unknown>>;
+    },
+  ): Promise<void> {
+    const { tenantId, metadata, name, model, componentConfigs } = params;
+    const body: Record<string, unknown> = { metadata };
+    if (name !== undefined) body.name = name;
+    if (model !== undefined) body.model = model;
+    if (componentConfigs !== undefined)
+      body.componentConfigs = componentConfigs;
+
+    const res = await fetch(
+      `${this.baseUrl}/api/agents/${encodeURIComponent(agentId)}`,
+      {
+        method: 'PUT',
+        headers: this.headers(tenantId),
+        body: JSON.stringify(body),
+      },
+    );
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Failed to update agent: ${res.status} ${text}`);
+    }
+  }
+
   async deleteAgent(agentId: string): Promise<void> {
     const res = await fetch(
       `${this.baseUrl}/api/agents/${encodeURIComponent(agentId)}`,
@@ -51,6 +84,30 @@ export class ClawHiveService {
     if (!res.ok) {
       throw new Error(`Failed to delete agent: ${res.status}`);
     }
+  }
+
+  async createSession(
+    agentId: string,
+    params: {
+      userId: string;
+      model?: { provider: string; id: string };
+      team9Context?: Record<string, unknown>;
+    },
+    tenantId?: string,
+  ): Promise<{ sessionId: string }> {
+    const res = await fetch(
+      `${this.baseUrl}/api/agents/${encodeURIComponent(agentId)}/sessions`,
+      {
+        method: 'POST',
+        headers: this.headers(tenantId),
+        body: JSON.stringify(params),
+      },
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Failed to create session: ${res.status} ${text}`);
+    }
+    return res.json() as Promise<{ sessionId: string }>;
   }
 
   async sendInput(
@@ -92,6 +149,7 @@ export class ClawHiveService {
       name: string;
       blueprintId: string;
       tenantId: string;
+      metadata?: Record<string, unknown>;
       model: { provider: string; id: string };
       componentConfigs: Record<string, Record<string, unknown>>;
     }>;

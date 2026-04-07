@@ -268,9 +268,11 @@ import notificationApi from "./notification";
 import searchApi from "./search";
 import applicationsApi from "./applications";
 import documentsApi from "./documents";
-import tasksApi from "./tasks";
+import routinesApi from "./routines";
 import resourcesApi from "./resources";
 import skillsApi from "./skills";
+import * as pushSubscriptionApi from "./push-subscription";
+import * as notificationPreferencesApi from "./notification-preferences";
 
 export const api = {
   auth: authApi,
@@ -282,9 +284,11 @@ export const api = {
   search: searchApi,
   applications: applicationsApi,
   documents: documentsApi,
-  tasks: tasksApi,
+  routines: routinesApi,
   resources: resourcesApi,
   skills: skillsApi,
+  pushSubscription: pushSubscriptionApi,
+  notificationPreferences: notificationPreferencesApi,
 };
 
 export default api;

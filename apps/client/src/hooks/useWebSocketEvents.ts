@@ -11,8 +11,8 @@ import type {
   NotificationCountsUpdatedEvent,
   NotificationReadEvent,
   NotificationAllReadEvent,
-  TaskStatusChangedEvent,
-  TaskExecutionCreatedEvent,
+  RoutineStatusChangedEvent,
+  RoutineExecutionCreatedEvent,
   TrackingDeactivatedEvent,
 } from "@/types/ws-events";
 import { useSelectedWorkspaceId, useUser } from "@/stores";
@@ -22,6 +22,12 @@ import {
   type Notification,
   type NotificationCounts,
 } from "@/stores/useNotificationStore";
+import { isTauriApp } from "@/lib/tauri";
+import { showTauriNotification } from "@/services/tauri-notification";
+import {
+  getLocalNotificationPrefs,
+  isViewingCurrentChannel,
+} from "@/lib/notification-prefs-local";
 
 /**
  * Centralized WebSocket event handler hook.
@@ -65,7 +71,7 @@ export function useWebSocketEvents() {
           queryKey: ["publicChannels", workspaceId],
         });
         // Also refresh the installed-applications-with-bots query so the
-        // task agent dropdown picks up newly created bot agents.
+        // routine agent dropdown picks up newly created bot agents.
         queryClient.invalidateQueries({
           queryKey: ["installed-applications-with-bots", workspaceId],
         });
@@ -225,6 +231,24 @@ export function useWebSocketEvents() {
         readAt: null,
       };
       notificationActions.addNotification(notification);
+
+      // 4. Show Tauri system notification (desktop app only)
+      if (isTauriApp()) {
+        const localPrefs = getLocalNotificationPrefs();
+        if (localPrefs.desktopEnabledLocal) {
+          // Focus suppression: skip notification if user is viewing this channel
+          const shouldSuppress =
+            localPrefs.focusSuppression &&
+            isViewingCurrentChannel(event.channelId);
+
+          if (!shouldSuppress) {
+            showTauriNotification({
+              title: event.title,
+              body: event.body || undefined,
+            });
+          }
+        }
+      }
     };
 
     // Handle notification read event
@@ -251,16 +275,18 @@ export function useWebSocketEvents() {
       notificationActions.markAllAsRead(event.category, event.types);
     };
 
-    // ==================== Task Events ====================
+    // ==================== Routine Events ====================
 
-    const handleTaskStatusChanged = (event: TaskStatusChangedEvent) => {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["task", event.taskId] });
+    const handleRoutineStatusChanged = (event: RoutineStatusChangedEvent) => {
+      queryClient.invalidateQueries({ queryKey: ["routines"] });
+      queryClient.invalidateQueries({ queryKey: ["routine", event.routineId] });
     };
 
-    const handleTaskExecutionCreated = (event: TaskExecutionCreatedEvent) => {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["task", event.taskId] });
+    const handleRoutineExecutionCreated = (
+      event: RoutineExecutionCreatedEvent,
+    ) => {
+      queryClient.invalidateQueries({ queryKey: ["routines"] });
+      queryClient.invalidateQueries({ queryKey: ["routine", event.routineId] });
     };
 
     // ==================== Tracking Events ====================
@@ -305,9 +331,9 @@ export function useWebSocketEvents() {
     wsService.onNotificationRead(handleNotificationRead);
     wsService.onNotificationAllRead(handleNotificationAllRead);
 
-    // Task events
-    wsService.onTaskStatusChanged(handleTaskStatusChanged);
-    wsService.onTaskExecutionCreated(handleTaskExecutionCreated);
+    // Routine events
+    wsService.onRoutineStatusChanged(handleRoutineStatusChanged);
+    wsService.onRoutineExecutionCreated(handleRoutineExecutionCreated);
 
     // Tracking events
     wsService.onTrackingDeactivated(handleTrackingDeactivated);
@@ -343,9 +369,9 @@ export function useWebSocketEvents() {
       wsService.offNotificationRead(handleNotificationRead);
       wsService.offNotificationAllRead(handleNotificationAllRead);
 
-      // Task events
-      wsService.offTaskStatusChanged(handleTaskStatusChanged);
-      wsService.offTaskExecutionCreated(handleTaskExecutionCreated);
+      // Routine events
+      wsService.offRoutineStatusChanged(handleRoutineStatusChanged);
+      wsService.offRoutineExecutionCreated(handleRoutineExecutionCreated);
 
       // Tracking events
       wsService.offTrackingDeactivated(handleTrackingDeactivated);

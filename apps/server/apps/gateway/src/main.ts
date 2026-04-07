@@ -6,6 +6,7 @@ import { VersioningType, ValidationPipe, Logger } from '@nestjs/common';
 import { AppModule } from './app.module.js';
 import { SocketRedisAdapterService } from './cluster/adapter/socket-redis-adapter.service.js';
 import { WebsocketGateway } from './im/websocket/websocket.gateway.js';
+import { env } from '@team9/shared';
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
@@ -17,7 +18,13 @@ async function bootstrap() {
     app.useLogger(new OtelLogger());
   }
 
-  app.enableCors();
+  app.enableCors({
+    origin:
+      env.CORS_ORIGIN === '*'
+        ? true
+        : env.CORS_ORIGIN.split(',').map((o) => o.trim()),
+    credentials: true,
+  });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
   app.setGlobalPrefix('api');
   app.enableVersioning({

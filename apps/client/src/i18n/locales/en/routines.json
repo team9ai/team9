@@ -1,0 +1,283 @@
+{
+  "tabs": {
+    "all": "All",
+    "active": "In progress",
+    "upcoming": "Upcoming",
+    "finished": "Finished",
+    "info": "Info",
+    "triggers": "Triggers",
+    "document": "Document",
+    "runs": "Runs",
+    "run": "Run",
+    "settings": "Settings",
+    "history": "History"
+  },
+  "noRoutines": "No routines",
+  "create": {
+    "title": "New Routine",
+    "description": "Create a routine for an AI staff member to execute.",
+    "taskName": "Title",
+    "taskNamePlaceholder": "What should be done?",
+    "bot": "AI Staff",
+    "botPlaceholder": "Select AI staff...",
+    "noBot": "None (assign later)",
+    "document": "Document (optional)",
+    "documentPlaceholder": "Provide context or instructions...",
+    "cancel": "Cancel",
+    "submit": "Create",
+    "errorGeneric": "Failed to create routine"
+  },
+  "status": {
+    "in_progress": "In progress",
+    "upcoming": "Upcoming",
+    "paused": "Paused",
+    "pending_action": "Pending action",
+    "completed": "Completed",
+    "failed": "Failed",
+    "stopped": "Stopped",
+    "timeout": "Timeout"
+  },
+  "stepStatus": {
+    "pending": "Pending",
+    "in_progress": "In progress",
+    "completed": "Completed",
+    "failed": "Failed"
+  },
+  "schedule": {
+    "type": "Schedule",
+    "types": {
+      "once": "One-time",
+      "recurring": "Recurring"
+    },
+    "frequency": "Frequency",
+    "frequencies": {
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "monthly": "Monthly"
+    },
+    "time": "Time",
+    "dayOfWeek": "Day of week",
+    "dayOfMonth": "Day of month",
+    "days": {
+      "0": "Sun",
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri",
+      "6": "Sat"
+    }
+  },
+  "detail": {
+    "title": "Routine Details",
+    "loadError": "Failed to load routine details",
+    "start": "Start",
+    "pause": "Pause",
+    "resume": "Resume",
+    "stop": "Stop",
+    "restart": "Restart",
+    "delete": "Delete",
+    "deleteConfirm": "Are you sure you want to delete this routine?",
+    "assignBot": "AI Staff",
+    "noBot": "Not assigned",
+    "steps": "Steps",
+    "noSteps": "No steps yet",
+    "deliverables": "Deliverables",
+    "noDeliverables": "No deliverables yet",
+    "pendingInterventions": "Action Required",
+    "pastInterventions": "Past Interventions",
+    "interventionResolved": "Resolved",
+    "interventionExpired": "Expired",
+    "interventionPlaceholder": "Type a custom response...",
+    "messageInputPlaceholder": "Send a message to this routine...",
+    "finishedBanner": {
+      "completed": "Routine completed successfully",
+      "failed": "Routine failed",
+      "timeout": "Routine timed out",
+      "stopped": "Routine was stopped",
+      "in_progress": "",
+      "upcoming": "",
+      "paused": "",
+      "pending_action": ""
+    },
+    "completedAt": "Finished at {{time}}",
+    "duration": "Duration: {{duration}}",
+    "tokenUsage": "{{tokens}} tokens used",
+    "tokenCount": "{{count}} tokens",
+    "error": "Error",
+    "errorWithCode": "Error ({{code}})",
+    "document": {
+      "save": "Save",
+      "saving": "Saving...",
+      "unsavedChanges": "Unsaved changes",
+      "viewingVersion": "Viewing version {{version}}",
+      "backToCurrent": "Back to current",
+      "currentLabel": "Version {{version}} (current)",
+      "versionLabel": "Version {{version}} — {{time}}",
+      "discardTitle": "Unsaved changes",
+      "discardMessage": "You have unsaved changes. Discard them?",
+      "discardConfirm": "Discard",
+      "discardCancel": "Keep editing",
+      "saveSummaryPlaceholder": "Describe your changes (optional)...",
+      "placeholder": "Start writing...",
+      "createPlaceholder": "Start writing to create a document...",
+      "suggestions": {
+        "title": "AI Suggestions",
+        "count": "AI Suggestions ({{count}})",
+        "view": "View",
+        "approve": "Approve",
+        "reject": "Reject",
+        "current": "Current",
+        "suggested": "Suggested",
+        "outdated": "This suggestion is based on an older version",
+        "empty": "No pending suggestions"
+      },
+      "versionHistory": {
+        "loadError": "Failed to load versions",
+        "noVersions": "No versions yet"
+      }
+    }
+  },
+  "triggers": {
+    "title": "Triggers",
+    "add": "Add Trigger",
+    "empty": "No triggers configured",
+    "edit": "Edit",
+    "delete": "Delete",
+    "types": {
+      "manual": "Manual",
+      "interval": "Interval",
+      "schedule": "Schedule",
+      "channel_message": "Channel Message"
+    },
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "nextRun": "Next run: {{time}}",
+    "countdown": "in {{duration}}",
+    "lastRun": "Last run: {{time}}",
+    "interval": {
+      "every": "Every",
+      "units": {
+        "minutes": "minutes",
+        "hours": "hours",
+        "days": "days",
+        "weeks": "weeks",
+        "months": "months",
+        "years": "years"
+      }
+    },
+    "schedule": {
+      "frequencies": {
+        "daily": "Daily",
+        "weekly": "Weekly",
+        "monthly": "Monthly",
+        "yearly": "Yearly",
+        "weekdays": "Weekdays"
+      },
+      "time": "At",
+      "timezone": "Timezone",
+      "dayOfWeek": "Day",
+      "dayOfMonth": "Day of month"
+    },
+    "channelMessage": {
+      "channel": "Channel",
+      "selectChannel": "Select channel..."
+    },
+    "deleteConfirm": "Delete this trigger?",
+    "addTitle": "Add Trigger",
+    "selectType": "Select trigger type",
+    "configureTitle": "Configure {{type}}",
+    "back": "Back",
+    "create": "Create",
+    "manualNoConfig": "Manual triggers don't need configuration. Just create and trigger manually.",
+    "typeDesc": {
+      "manual": "Trigger on demand",
+      "interval": "Run at fixed intervals",
+      "schedule": "Run on a schedule",
+      "channel_message": "Run when a message is sent"
+    }
+  },
+  "runs": {
+    "title": "Runs",
+    "empty": "No runs yet",
+    "version": "v{{version}}",
+    "triggerType": {
+      "manual": "Manual",
+      "interval": "Interval",
+      "schedule": "Scheduled",
+      "channel_message": "Message",
+      "retry": "Retry"
+    },
+    "notes": "Notes",
+    "retry": "Retry",
+    "retryTitle": "Retry Run",
+    "retryNotes": "Add notes for retry (optional)",
+    "back": "Back to runs",
+    "documentVersion": "Document v{{version}}",
+    "triggeredAt": "Triggered at {{time}}",
+    "scheduledAt": "Scheduled for {{time}}",
+    "triggeredBy": "Triggered by {{user}}",
+    "messageFrom": "Message from {{user}}",
+    "retryOf": "Retry of v{{version}}"
+  },
+  "timeline": {
+    "empty": "No activity yet",
+    "statusChange": {
+      "started": "Routine started",
+      "completed": "Routine completed",
+      "failed": "Routine failed",
+      "stopped": "Routine stopped",
+      "timeout": "Routine timed out",
+      "paused": "Routine paused"
+    }
+  },
+  "chat": {
+    "placeholder": "Start the routine to chat with the bot"
+  },
+  "manualTrigger": {
+    "title": "Start Routine",
+    "notesPlaceholder": "Add notes or context for this run (optional)..."
+  },
+  "chatArea": {
+    "viewingHistory": "Viewing historical run",
+    "returnToCurrent": "Return to current run",
+    "lastRunCompleted": "Last run completed",
+    "lastRunFailed": "Last run failed",
+    "lastRunStopped": "Last run stopped",
+    "lastRunTimeout": "Last run timed out",
+    "rerun": "Rerun",
+    "readOnly": "Historical conversation (read-only)",
+    "finishedReadOnly": "Last run conversation (read-only)",
+    "start": "Start",
+    "noRunsYet": "No runs yet. Start your first run!",
+    "pause": "Pause",
+    "resume": "Resume",
+    "stop": "Stop"
+  },
+  "runTab": {
+    "title": "Run Details",
+    "status": "Status",
+    "duration": "Duration",
+    "triggerType": "Trigger",
+    "taskVersion": "Routine Version",
+    "tokenUsage": "Token Usage",
+    "timeline": "Timeline",
+    "noExecution": "No execution selected"
+  },
+  "settingsTab": {
+    "title": "Settings",
+    "taskTitle": "Title",
+    "taskDescription": "Description",
+    "deleteConfirm": "Are you sure you want to delete this routine? This action cannot be undone."
+  },
+  "historyTab": {
+    "title": "History",
+    "current": "Current",
+    "empty": "No runs yet",
+    "manual": "Manual",
+    "interval": "Interval",
+    "schedule": "Schedule",
+    "channelMessage": "Channel Message",
+    "retry": "Retry"
+  }
+}

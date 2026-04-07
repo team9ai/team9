@@ -90,9 +90,9 @@ import type {
   NotificationNewEvent,
   NotificationCountsUpdatedEvent,
   NotificationReadEvent,
-  // Task
-  TaskStatusChangedEvent,
-  TaskExecutionCreatedEvent,
+  // Routine
+  RoutineStatusChangedEvent,
+  RoutineExecutionCreatedEvent,
   // Streaming (AI bot)
   StreamingStartEvent,
   StreamingContentEvent,
@@ -179,9 +179,9 @@ export interface ServerToClientEvents {
   notification_new: NotificationNewEvent;
   notification_counts_updated: NotificationCountsUpdatedEvent;
   notification_read: NotificationReadEvent;
-  // Task
-  'task:status_changed': TaskStatusChangedEvent;
-  'task:execution_created': TaskExecutionCreatedEvent;
+  // Routine
+  'routine:status_changed': RoutineStatusChangedEvent;
+  'routine:execution_created': RoutineExecutionCreatedEvent;
   // Streaming (server -> client broadcast)
   streaming_start: StreamingStartEvent;
   streaming_content: StreamingContentEvent;

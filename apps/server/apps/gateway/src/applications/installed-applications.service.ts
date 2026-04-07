@@ -74,6 +74,49 @@ export class InstalledApplicationsService {
   }
 
   /**
+   * Backfill auto-install apps for all existing tenants.
+   * Called on module init to ensure new autoInstall apps are installed
+   * for workspaces that were created before the app was added.
+   */
+  async backfillAutoInstallApps(): Promise<void> {
+    const autoInstallApps = this.applicationsService.findAutoInstall();
+    if (autoInstallApps.length === 0) return;
+
+    // Get all distinct tenants
+    const tenants = await this.db
+      .selectDistinct({ tenantId: schema.installedApplications.tenantId })
+      .from(schema.installedApplications);
+
+    for (const { tenantId } of tenants) {
+      if (!tenantId) continue;
+      const installed = await this.findAllByTenant(tenantId);
+      const installedIds = new Set(installed.map((a) => a.applicationId));
+
+      for (const app of autoInstallApps) {
+        if (installedIds.has(app.id)) continue;
+        try {
+          // Use the first tenant member as the installer
+          const members = await this.db
+            .select({ userId: schema.tenantMembers.userId })
+            .from(schema.tenantMembers)
+            .where(eq(schema.tenantMembers.tenantId, tenantId))
+            .limit(1);
+          const installerId = members[0]?.userId;
+          if (!installerId) continue;
+
+          await this.install(tenantId, installerId, { applicationId: app.id });
+          this.logger.log(`Backfilled ${app.name} for tenant ${tenantId}`);
+        } catch (error) {
+          this.logger.warn(
+            `Failed to backfill ${app.name} for tenant ${tenantId}`,
+            error,
+          );
+        }
+      }
+    }
+  }
+
+  /**
    * Install an application for a tenant.
    * Requires a registered handler for the applicationId.
    */

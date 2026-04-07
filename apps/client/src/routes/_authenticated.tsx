@@ -8,12 +8,16 @@ import { MainSidebar } from "@/components/layout/MainSidebar";
 import { DynamicSubSidebar } from "@/components/layout/DynamicSubSidebar";
 import { GlobalTopBar } from "@/components/layout/GlobalTopBar";
 import { ConnectionStatus } from "@/components/layout/ConnectionStatus";
+import { UpdateDialog } from "@/components/layout/UpdateDialog";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useWebSocketEvents } from "@/hooks/useWebSocketEvents";
-import { useAHandSetupStore } from "@/stores/useAHandSetupStore";
-import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
+import { useHeartbeat } from "@/hooks/useHeartbeat";
+import { useServiceWorkerMessages } from "@/hooks/useServiceWorkerMessages";
+import { registerServiceWorker } from "@/lib/push-notifications";
+// import { useAHandSetupStore } from "@/stores/useAHandSetupStore";
+// import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
 import { useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
+// import { invoke } from "@tauri-apps/api/core";
 import {
   appActions,
   DEFAULT_SECTION_PATHS,
@@ -99,40 +103,45 @@ export const Route = createFileRoute("/_authenticated")({
 function AuthenticatedLayout() {
   const location = useLocation();
 
-  // Auto-start aHand setup on login (desktop app only).
-  // Wait for selectedWorkspaceId to be hydrated before running, otherwise
-  // API requests will lack the X-Tenant-Id header and fail with 403.
-  const ahandRun = useAHandSetupStore((s) => s.run);
-  const ahandOpenDialog = useAHandSetupStore((s) => s.openDialog);
-  const ahandHasRun = useAHandSetupStore((s) => s.hasRun);
-  const selectedWorkspaceId = useWorkspaceStore((s) => s.selectedWorkspaceId);
-
-  useEffect(() => {
-    const isTauri =
-      typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-    if (ahandHasRun || !isTauri || !selectedWorkspaceId) return;
-
-    ahandOpenDialog();
-    void ahandRun();
-  }, [ahandRun, ahandOpenDialog, ahandHasRun, selectedWorkspaceId]);
-
-  // Stop daemon when authenticated layout unmounts (user logs out).
-  // Separate effect so it only runs on unmount, not on workspace switches.
-  useEffect(() => {
-    const isTauri =
-      typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-    if (!isTauri) return;
-
-    return () => {
-      invoke("ahand_stop").catch(() => {});
-    };
-  }, []);
+  // [DISABLED] aHand auto-start and Local Device Setup dialog
+  // const ahandRun = useAHandSetupStore((s) => s.run);
+  // const ahandOpenDialog = useAHandSetupStore((s) => s.openDialog);
+  // const ahandHasRun = useAHandSetupStore((s) => s.hasRun);
+  // const selectedWorkspaceId = useWorkspaceStore((s) => s.selectedWorkspaceId);
+  //
+  // useEffect(() => {
+  //   const isTauri =
+  //     typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  //   if (ahandHasRun || !isTauri || !selectedWorkspaceId) return;
+  //   ahandOpenDialog();
+  //   void ahandRun();
+  // }, [ahandRun, ahandOpenDialog, ahandHasRun, selectedWorkspaceId]);
+  //
+  // useEffect(() => {
+  //   const isTauri =
+  //     typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  //   if (!isTauri) return;
+  //   return () => {
+  //     invoke("ahand_stop").catch(() => {});
+  //   };
+  // }, []);
 
   // Initialize WebSocket connection
   useWebSocket();
 
   // Set up centralized WebSocket event listeners for React Query cache updates
   useWebSocketEvents();
+
+  // Send periodic heartbeat to Service Worker for focus suppression
+  useHeartbeat();
+
+  // Register Service Worker for push notifications on mount
+  useEffect(() => {
+    registerServiceWorker();
+  }, []);
+
+  // Handle messages from Service Worker (e.g. notification clicks)
+  useServiceWorkerMessages();
 
   // Save current path as last visited for its corresponding section
   useEffect(() => {
@@ -157,6 +166,7 @@ function AuthenticatedLayout() {
       {/* Global top bar with search */}
       <GlobalTopBar />
       <ConnectionStatus />
+      <UpdateDialog />
 
       {/* Main content area with sidebars */}
       <div className="flex flex-1 overflow-hidden">

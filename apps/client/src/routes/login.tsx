@@ -56,17 +56,15 @@ function LogoBanner({ subtitle }: { subtitle?: string }) {
   return (
     <div className="flex flex-col items-center pt-2 pb-6 border-b border-border/40 mb-6">
       <img
-        src="/whale.webp"
-        alt="Team9"
-        className="w-14 h-14 mb-3 transition-transform duration-300 hover:scale-105"
+        src="/team9-logo.png"
+        alt="Team9 logo"
+        className="w-52 max-w-full h-auto mb-2 transition-transform duration-300 hover:scale-[1.02]"
         style={{
           filter:
             "drop-shadow(0 4px 12px oklch(from var(--primary) l c h / 20%))",
         }}
       />
-      <h1 className="text-2xl font-bold text-foreground tracking-tight">
-        Team9
-      </h1>
+      <h1 className="sr-only">Team9</h1>
       {subtitle && (
         <p className="text-muted-foreground mt-1 text-sm">{subtitle}</p>
       )}
@@ -284,10 +282,13 @@ function DesktopLoginView() {
       if (appUrl) {
         const { openUrl } = await import("@tauri-apps/plugin-opener");
         const url = `${appUrl}/login?desktopSessionId=${result.sessionId}`;
+        console.log("[desktop-login] opening URL:", url);
         await openUrl(url);
+      } else {
+        console.error("[desktop-login] VITE_APP_URL is not set");
       }
-    } catch {
-      // Error handled by mutation
+    } catch (err) {
+      console.error("[desktop-login] failed to open browser:", err);
     }
   };
 
@@ -304,6 +305,67 @@ function DesktopLoginView() {
     }
   };
 
+  // Waiting state: session exists and polling is active
+  if (sessionId && !sessionExpired) {
+    return (
+      <LoginLayout>
+        <GlassCard>
+          <LogoBanner subtitle="Team collaboration, reimagined" />
+          <div className="flex flex-col items-center gap-4 py-4">
+            <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+              <Loader2 className="w-7 h-7 text-primary animate-spin" />
+            </div>
+            <div className="text-center">
+              <p className="text-foreground font-medium text-lg">
+                {t("waitingForAuth")}
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {t("completeBrowserAuth")}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              onClick={handleOpenBrowser}
+              className="text-sm"
+            >
+              <Monitor className="w-4 h-4 mr-2" />
+              {t("signInWithBrowser")}
+            </Button>
+          </div>
+        </GlassCard>
+      </LoginLayout>
+    );
+  }
+
+  // Session expired
+  if (sessionExpired) {
+    return (
+      <LoginLayout>
+        <GlassCard>
+          <LogoBanner subtitle="Team collaboration, reimagined" />
+          <div className="flex flex-col items-center gap-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              {t("sessionExpired")}
+            </p>
+            <Button
+              onClick={handleSignInWithBrowser}
+              disabled={createSession.isPending}
+              className="w-full h-12 text-base font-semibold rounded-xl"
+            >
+              {createSession.isPending ? (
+                <Loader2 className="w-5 h-5 animate-spin mr-2" />
+              ) : (
+                <Monitor className="w-5 h-5 mr-2" />
+              )}
+              {t("accessToTeam9")}
+            </Button>
+          </div>
+        </GlassCard>
+      </LoginLayout>
+    );
+  }
+
+  // Initial state: no session yet
   return (
     <LoginLayout>
       <GlassCard>
@@ -583,7 +645,7 @@ function WebLoginView() {
             <button
               type="button"
               onClick={handleContinueInBrowser}
-              className="text-primary font-medium hover:underline"
+              className="text-blue-600 font-medium underline underline-offset-2 hover:text-blue-800 cursor-pointer"
             >
               {t("useInBrowser")}
             </button>

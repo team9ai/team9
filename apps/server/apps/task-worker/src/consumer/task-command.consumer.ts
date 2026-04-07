@@ -11,7 +11,7 @@ import { ExecutorService } from '../executor/executor.service.js';
 
 export interface TaskCommand {
   type: 'start' | 'pause' | 'resume' | 'stop' | 'restart' | 'retry';
-  taskId: string;
+  routineId: string;
   userId: string;
   message?: string;
   notes?: string;
@@ -48,13 +48,13 @@ export class TaskCommandConsumer {
   async handleCommand(command: TaskCommand): Promise<void | Nack> {
     try {
       this.logger.log(
-        `Received task command: ${command.type} for task ${command.taskId} from user ${command.userId}`,
+        `Received task command: ${command.type} for routine ${command.routineId} from user ${command.userId}`,
       );
 
       switch (command.type) {
         case 'start':
         case 'restart':
-          await this.executor.triggerExecution(command.taskId, {
+          await this.executor.triggerExecution(command.routineId, {
             triggerId: command.triggerId,
             triggerType: 'manual',
             triggerContext: {
@@ -65,7 +65,7 @@ export class TaskCommandConsumer {
           });
           break;
         case 'retry':
-          await this.executor.triggerExecution(command.taskId, {
+          await this.executor.triggerExecution(command.routineId, {
             triggerType: 'retry',
             triggerContext: {
               triggeredAt: new Date().toISOString(),
@@ -77,18 +77,21 @@ export class TaskCommandConsumer {
           });
           break;
         case 'pause':
-          await this.executor.pauseExecution(command.taskId);
+          await this.executor.pauseExecution(command.routineId);
           break;
         case 'resume':
-          await this.executor.resumeExecution(command.taskId, command.message);
+          await this.executor.resumeExecution(
+            command.routineId,
+            command.message,
+          );
           break;
         case 'stop':
-          await this.executor.stopExecution(command.taskId);
+          await this.executor.stopExecution(command.routineId);
           break;
       }
     } catch (error) {
       this.logger.error(
-        `Failed to process task command ${command.type} for task ${command.taskId}: ${error}`,
+        `Failed to process task command ${command.type} for routine ${command.routineId}: ${error}`,
       );
       // Nack without requeue - message will go to DLX
       return new Nack(false);

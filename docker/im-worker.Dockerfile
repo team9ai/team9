@@ -14,8 +14,9 @@ WORKDIR /app
 
 ENV NODE_ENV=development
 
-# Copy workspace config
+# Copy workspace config and patches
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc ./
+COPY patches ./patches/
 
 # Copy all package.json files for workspace resolution
 COPY apps/server/package.json ./apps/server/

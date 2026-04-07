@@ -1,4 +1,7 @@
-import http from "../http";
+import http, { API_BASE_URL } from "../http";
+import { getValidAccessToken } from "../auth-session";
+import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
+import type { AgentType } from "@/types/im";
 
 // Types matching server schemas
 export type ApplicationType = "managed" | "custom";
@@ -81,10 +84,30 @@ export interface FileKeeperListResponse {
   entries: FileKeeperDirEntry[];
 }
 
+// Common Staff types
+export interface CommonStaffBotInfo {
+  botId: string;
+  userId: string;
+  username: string;
+  displayName: string | null;
+  roleTitle: string | null;
+  persona: string | null;
+  jobDescription: string | null;
+  avatarUrl: string | null;
+  model: { provider: string; id: string } | null;
+  mentorId: string | null;
+  mentorDisplayName: string | null;
+  mentorAvatarUrl: string | null;
+  isActive: boolean;
+  createdAt: string;
+  managedMeta: { agentId: string } | null;
+}
+
 // Base Model Staff types
 export interface BaseModelStaffBotInfo {
   botId: string;
   userId: string;
+  agentType: AgentType | null;
   username: string;
   displayName: string | null;
   isActive: boolean;
@@ -94,7 +117,7 @@ export interface BaseModelStaffBotInfo {
 
 // Aggregated app with bots (from /with-bots endpoint)
 export interface InstalledApplicationWithBots extends InstalledApplication {
-  bots: (OpenClawBotInfo | BaseModelStaffBotInfo)[];
+  bots: (OpenClawBotInfo | BaseModelStaffBotInfo | CommonStaffBotInfo)[];
   instanceStatus: OpenClawInstanceStatus | null;
 }
 
@@ -110,6 +133,7 @@ export interface OpenClawInstanceStatus {
 export interface OpenClawBotInfo {
   botId: string;
   userId: string;
+  agentType: AgentType | null;
   agentId: string | null;
   workspace: string | null;
   username: string;
@@ -535,6 +559,202 @@ export const applicationsApi = {
       headers: { Authorization: `Bearer ${tokenData.token}` },
     });
     if (!res.ok) throw new Error(`Failed to create folder: ${res.status}`);
+  },
+
+  // Common Staff endpoints
+
+  createCommonStaff: async (
+    appId: string,
+    body: {
+      displayName?: string;
+      roleTitle?: string;
+      mentorId?: string;
+      persona?: string;
+      jobDescription?: string;
+      model: { provider: string; id: string };
+      avatarUrl?: string;
+      agenticBootstrap?: boolean;
+    },
+  ): Promise<{
+    botId: string;
+    userId: string;
+    agentId: string;
+    displayName: string;
+  }> => {
+    const response = await http.post<{
+      botId: string;
+      userId: string;
+      agentId: string;
+      displayName: string;
+    }>(`/v1/installed-applications/${appId}/common-staff/staff`, body);
+    return response.data;
+  },
+
+  updateCommonStaff: async (
+    appId: string,
+    botId: string,
+    body: Record<string, unknown>,
+  ): Promise<void> => {
+    await http.patch(
+      `/v1/installed-applications/${appId}/common-staff/staff/${botId}`,
+      body,
+    );
+  },
+
+  deleteCommonStaff: async (appId: string, botId: string): Promise<void> => {
+    await http.delete(
+      `/v1/installed-applications/${appId}/common-staff/staff/${botId}`,
+    );
+  },
+
+  generateAvatar: async (
+    appId: string,
+    body: {
+      style: string;
+      displayName?: string;
+      roleTitle?: string;
+      persona?: string;
+      prompt?: string;
+    },
+  ): Promise<{ avatarUrl: string }> => {
+    const response = await http.post<{ avatarUrl: string }>(
+      `/v1/installed-applications/${appId}/common-staff/generate-avatar`,
+      body,
+    );
+    return response.data;
+  },
+
+  /**
+   * Streams persona generation text as an async iterable of string chunks.
+   * Usage: `for await (const chunk of applicationsApi.generatePersona(...)) { ... }`
+   */
+  generatePersona: async function* (
+    appId: string,
+    body: {
+      displayName?: string;
+      roleTitle?: string;
+      existingPersona?: string;
+      prompt?: string;
+      jobDescription?: string;
+    },
+  ): AsyncGenerator<string> {
+    const token = await getValidAccessToken();
+    const url = `${API_BASE_URL}/v1/installed-applications/${appId}/common-staff/generate-persona`;
+    const workspaceId = useWorkspaceStore.getState().selectedWorkspaceId;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(workspaceId ? { "X-Tenant-Id": workspaceId } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`generatePersona failed: ${res.status}`);
+    const reader = res.body?.getReader();
+    if (!reader) return;
+    const decoder = new TextDecoder();
+    let sseBuffer = "";
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        sseBuffer += decoder.decode(value, { stream: true });
+        // Parse SSE lines: "data: {json}\n\n"
+        const lines = sseBuffer.split("\n");
+        sseBuffer = lines.pop() ?? "";
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed === "data: [DONE]") continue;
+          if (trimmed.startsWith("data: ")) {
+            try {
+              const parsed = JSON.parse(trimmed.slice(6));
+              if (parsed.text) yield parsed.text as string;
+            } catch {
+              // Skip malformed SSE lines
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  },
+
+  /**
+   * Streams candidate staff generation as an async iterable of structured events.
+   * The server sends SSE lines; this parser yields typed candidate events.
+   * Usage: `for await (const event of applicationsApi.generateCandidates(...)) { ... }`
+   */
+  generateCandidates: async function* (
+    appId: string,
+    body: {
+      jobTitle?: string;
+      jobDescription?: string;
+    },
+  ): AsyncGenerator<{
+    type: "partial" | "complete";
+    data: {
+      candidates?: Array<{
+        candidateIndex?: number;
+        displayName?: string;
+        roleTitle?: string;
+        persona?: string;
+        summary?: string;
+      }>;
+    };
+  }> {
+    const token = await getValidAccessToken();
+    const url = `${API_BASE_URL}/v1/installed-applications/${appId}/common-staff/generate-candidates`;
+    const workspaceId = useWorkspaceStore.getState().selectedWorkspaceId;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(workspaceId ? { "X-Tenant-Id": workspaceId } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`generateCandidates failed: ${res.status}`);
+    const reader = res.body?.getReader();
+    if (!reader) return;
+    const decoder = new TextDecoder();
+    let sseBuffer = "";
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        sseBuffer += decoder.decode(value, { stream: true });
+        // Parse SSE lines: each event is "data: <json>\n\n"
+        const lines = sseBuffer.split("\n");
+        sseBuffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const payload = line.slice(6).trim();
+          if (payload === "[DONE]") return;
+          try {
+            const parsed = JSON.parse(payload) as {
+              type: "partial" | "complete";
+              data: {
+                candidates?: Array<{
+                  candidateIndex?: number;
+                  displayName?: string;
+                  roleTitle?: string;
+                  persona?: string;
+                  summary?: string;
+                }>;
+              };
+            };
+            yield parsed;
+          } catch {
+            // ignore malformed lines
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
   },
 };
 

@@ -56,9 +56,9 @@ export const WS_EVENTS = {
     END: "streaming_end",
     ABORT: "streaming_abort",
   },
-  TASK: {
-    STATUS_CHANGED: "task:status_changed",
-    EXECUTION_CREATED: "task:execution_created",
+  ROUTINE: {
+    STATUS_CHANGED: "routine:status_changed",
+    EXECUTION_CREATED: "routine:execution_created",
   },
 } as const;
 
@@ -72,7 +72,7 @@ export type EventCategory =
   | "presence"
   | "reaction"
   | "system"
-  | "task"
+  | "routine"
   | "other";
 
 export function getEventCategory(eventName: string): EventCategory {
@@ -110,7 +110,7 @@ export function getEventCategory(eventName: string): EventCategory {
   )
     return "channel";
   if (eventName === "ping" || eventName === "pong") return "system";
-  if (eventName.startsWith("task:")) return "task";
+  if (eventName.startsWith("routine:")) return "routine";
   return "other";
 }
 
@@ -124,6 +124,6 @@ export const CATEGORY_COLORS: Record<EventCategory, string> = {
   presence: "#a78bfa",
   reaction: "#ec4899",
   system: "#64748b",
-  task: "#14b8a6",
+  routine: "#14b8a6",
   other: "#94a3b8",
 };

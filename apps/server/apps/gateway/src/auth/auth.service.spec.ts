@@ -1243,6 +1243,59 @@ describe('AuthService', () => {
     });
   });
 
+  describe('getUserByClaims', () => {
+    it('should resolve a user by username when sub-based lookup has drifted', async () => {
+      db.limit.mockResolvedValueOnce([USER_ROW]);
+
+      await expect(
+        service.getUserByClaims({
+          email: 'other@test.com',
+          username: USER_ROW.username,
+        }),
+      ).resolves.toEqual({
+        id: USER_ROW.id,
+        email: USER_ROW.email,
+        username: USER_ROW.username,
+        displayName: USER_ROW.displayName,
+        avatarUrl: USER_ROW.avatarUrl,
+        isActive: USER_ROW.isActive,
+        createdAt: USER_ROW.createdAt.toISOString(),
+        updatedAt: USER_ROW.updatedAt.toISOString(),
+      });
+    });
+
+    it('should fall back to email when username does not resolve', async () => {
+      db.limit.mockResolvedValueOnce([]).mockResolvedValueOnce([USER_ROW]);
+
+      await expect(
+        service.getUserByClaims({
+          email: USER_ROW.email,
+          username: 'missing-username',
+        }),
+      ).resolves.toEqual({
+        id: USER_ROW.id,
+        email: USER_ROW.email,
+        username: USER_ROW.username,
+        displayName: USER_ROW.displayName,
+        avatarUrl: USER_ROW.avatarUrl,
+        isActive: USER_ROW.isActive,
+        createdAt: USER_ROW.createdAt.toISOString(),
+        updatedAt: USER_ROW.updatedAt.toISOString(),
+      });
+    });
+
+    it('should reject when neither username nor email resolves', async () => {
+      db.limit.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+      await expect(
+        service.getUserByClaims({
+          email: 'missing@test.com',
+          username: 'missing-username',
+        }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
   describe('cleanupExpiredTokens', () => {
     it('should delete expired verification tokens', async () => {
       await expect(service.cleanupExpiredTokens()).resolves.toBeUndefined();

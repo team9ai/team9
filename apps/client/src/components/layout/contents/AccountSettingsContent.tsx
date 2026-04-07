@@ -1,4 +1,14 @@
-import { Camera, Loader2, Mail, RefreshCw, Save, User, X } from "lucide-react";
+import {
+  ArrowDownToLine,
+  Camera,
+  Loader2,
+  Mail,
+  RefreshCw,
+  RotateCw,
+  Save,
+  User,
+  X,
+} from "lucide-react";
 import {
   useEffect,
   useMemo,
@@ -10,6 +20,7 @@ import {
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useCurrentUser } from "@/hooks/useAuth";
+import { useDesktopUpdater } from "@/hooks/useDesktopUpdater";
 import {
   useCancelEmailChange,
   usePendingEmailChange,
@@ -51,7 +62,7 @@ function getInitials(value: string) {
     .toUpperCase();
 }
 
-function getUsernameError(username: string, t: TFunction) {
+function getUsernameError(username: string, t: TFunction<"settings">) {
   const trimmed = username.trim();
 
   if (trimmed.length === 0) {
@@ -72,7 +83,7 @@ function getUsernameError(username: string, t: TFunction) {
   return null;
 }
 
-function getAvatarError(file: File, t: TFunction) {
+function getAvatarError(file: File, t: TFunction<"settings">) {
   if (!ALLOWED_AVATAR_TYPES.has(file.type)) {
     return t(
       "profileCard.avatarInvalidType",
@@ -114,7 +125,7 @@ function getApiErrorMessage(error: unknown): string {
   return "";
 }
 
-function getProfileSaveError(error: unknown, t: TFunction): string {
+function getProfileSaveError(error: unknown, t: TFunction<"settings">): string {
   const message = getApiErrorMessage(error);
 
   if (message === "Username is already taken") {
@@ -139,7 +150,7 @@ function getProfileSaveError(error: unknown, t: TFunction): string {
   );
 }
 
-function getEmailChangeError(error: unknown, t: TFunction): string {
+function getEmailChangeError(error: unknown, t: TFunction<"settings">): string {
   const message = getApiErrorMessage(error);
 
   if (message === "Email already in use") {
@@ -155,6 +166,20 @@ function getEmailChangeError(error: unknown, t: TFunction): string {
 export function AccountSettingsContent() {
   const { t } = useTranslation("settings");
   const { data: currentUser, isLoading } = useCurrentUser();
+  const {
+    availableUpdate,
+    currentVersion,
+    downloadProgress,
+    errorKey: updaterErrorKey,
+    errorMessage: updaterErrorMessage,
+    isChecking,
+    isInstalling,
+    isSupported: isDesktopApp,
+    status,
+    checkForUpdates,
+    installUpdate,
+    retryUpdate,
+  } = useDesktopUpdater();
   const { data: pendingEmailData, isLoading: isPendingEmailLoading } =
     usePendingEmailChange();
   const { mutateAsync: updateCurrentUser } = useUpdateCurrentUser();
@@ -664,6 +689,169 @@ export function AccountSettingsContent() {
                 </CardContent>
               </Card>
             </form>
+
+            {isDesktopApp && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>
+                    {t("updateCard.title", "Desktop app updates")}
+                  </CardTitle>
+                  <CardDescription>
+                    {t(
+                      "updateCard.description",
+                      "Check for a newer desktop build and install it without leaving Team9.",
+                    )}
+                  </CardDescription>
+                </CardHeader>
+
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-lg border bg-muted/20 p-4">
+                      <p className="text-xs text-muted-foreground">
+                        {t("updateCard.currentVersion", "Current version")}
+                      </p>
+                      <p className="mt-1 text-base font-semibold">
+                        {currentVersion
+                          ? t("updateCard.versionValue", "v{{version}}", {
+                              version: currentVersion,
+                            })
+                          : "—"}
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg border bg-muted/20 p-4">
+                      <p className="text-xs text-muted-foreground">
+                        {t("updateCard.availableVersion", "Available version")}
+                      </p>
+                      <p className="mt-1 text-base font-semibold">
+                        {availableUpdate
+                          ? t("updateCard.versionValue", "v{{version}}", {
+                              version: availableUpdate.version,
+                            })
+                          : t("updateCard.noneAvailable", "No update detected")}
+                      </p>
+                    </div>
+                  </div>
+
+                  {availableUpdate?.notes && (
+                    <div className="rounded-lg border bg-muted/20 p-4">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        {t("updateCard.releaseNotes", "Release notes")}
+                      </p>
+                      <p className="mt-2 whitespace-pre-line text-sm text-foreground/90">
+                        {availableUpdate.notes}
+                      </p>
+                    </div>
+                  )}
+
+                  {status === "upToDate" && (
+                    <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-foreground">
+                      {t(
+                        "updateCard.status.upToDate",
+                        "You already have the latest desktop version.",
+                      )}
+                    </div>
+                  )}
+
+                  {status === "downloading" && (
+                    <div className="space-y-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2">
+                      <p className="text-sm text-foreground">
+                        {t(
+                          "updateCard.status.downloading",
+                          "Downloading update...",
+                        )}
+                      </p>
+                      {downloadProgress && (
+                        <div className="space-y-1">
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                            {downloadProgress.contentLength != null &&
+                            downloadProgress.contentLength > 0 ? (
+                              <div
+                                className="h-full rounded-full bg-primary transition-all duration-300"
+                                style={{
+                                  width: `${Math.min(100, Math.round((downloadProgress.downloaded / downloadProgress.contentLength) * 100))}%`,
+                                }}
+                              />
+                            ) : (
+                              <div className="h-full w-1/3 animate-pulse rounded-full bg-primary" />
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {status === "installing" && (
+                    <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-foreground">
+                      {t(
+                        "updateCard.status.installing",
+                        "Installing update...",
+                      )}
+                    </div>
+                  )}
+
+                  {updaterErrorMessage && (
+                    <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                      {updaterErrorKey
+                        ? t(`updateCard.error.${updaterErrorKey}`, {
+                            defaultValue: updaterErrorMessage,
+                          })
+                        : updaterErrorMessage}
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center justify-end gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void checkForUpdates()}
+                      disabled={isChecking || isInstalling}
+                    >
+                      {isChecking ? (
+                        <Loader2 className="mr-2 size-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="mr-2 size-4" />
+                      )}
+                      {isChecking
+                        ? t("updateCard.checking", "Checking...")
+                        : t("updateCard.check", "Check for updates")}
+                    </Button>
+
+                    {updaterErrorMessage ? (
+                      <Button
+                        type="button"
+                        onClick={() => void retryUpdate()}
+                        disabled={isInstalling || isChecking}
+                      >
+                        {isInstalling || isChecking ? (
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                        ) : (
+                          <RotateCw className="mr-2 size-4" />
+                        )}
+                        {t("updateCard.retry", "Retry")}
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        onClick={() => void installUpdate()}
+                        disabled={
+                          !availableUpdate || isInstalling || isChecking
+                        }
+                      >
+                        {isInstalling ? (
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                        ) : (
+                          <ArrowDownToLine className="mr-2 size-4" />
+                        )}
+                        {isInstalling
+                          ? t("updateCard.installing", "Installing...")
+                          : t("updateCard.install", "Install update")}
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </ScrollArea>

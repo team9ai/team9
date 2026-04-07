@@ -34,6 +34,9 @@ export interface Application {
 
   /** If true, only one instance can be installed per tenant */
   singleton?: boolean;
+
+  /** If true, this application is automatically installed when a workspace is created */
+  autoInstall?: boolean;
 }
 
 export type ApplicationCategory =

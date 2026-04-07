@@ -1,12 +1,12 @@
-import { ChevronDown, Settings, HelpCircle, Info } from "lucide-react";
+import { ChevronDown, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 
 const moreItems = [
   { id: "settings", label: "Settings", icon: Settings },
-  { id: "help", label: "Help", icon: HelpCircle },
-  { id: "about", label: "About", icon: Info },
+  // { id: "help", label: "Help", icon: HelpCircle },
+  // { id: "about", label: "About", icon: Info },
 ];
 
 export function MoreSubSidebar() {

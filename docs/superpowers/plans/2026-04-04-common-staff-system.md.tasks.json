@@ -1,0 +1,89 @@
+{
+  "planPath": "docs/superpowers/plans/2026-04-04-common-staff-system.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: Application Definition & Handler",
+      "status": "pending",
+      "description": "**Goal:** Register `common-staff` as a managed singleton auto-install application with a no-op handler.\n\n**Files:**\n- Modify: `apps/server/apps/gateway/src/applications/applications.service.ts`\n- Create: `apps/server/apps/gateway/src/applications/handlers/common-staff.handler.ts`\n- Modify: `apps/server/apps/gateway/src/applications/handlers/index.ts`\n- Create: `apps/server/apps/gateway/src/applications/handlers/common-staff.handler.spec.ts`\n\n**Acceptance Criteria:**\n- [ ] `common-staff` in APPLICATIONS with type=managed, singleton, autoInstall\n- [ ] CommonStaffHandler.onInstall() returns empty config\n- [ ] Handler registered in DI\n- [ ] Unit tests pass\n\n**Verify:** `cd apps/server && pnpm jest --testPathPattern=\"common-staff.handler\" --verbose`\n\n```json:metadata\n{\"files\": [\"apps/server/apps/gateway/src/applications/applications.service.ts\", \"apps/server/apps/gateway/src/applications/handlers/common-staff.handler.ts\", \"apps/server/apps/gateway/src/applications/handlers/index.ts\"], \"verifyCommand\": \"cd apps/server && pnpm jest --testPathPattern=\\\"common-staff.handler\\\" --verbose\", \"acceptanceCriteria\": [\"common-staff in APPLICATIONS array\", \"onInstall returns empty\", \"handler in DI\", \"tests pass\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: BotExtra Schema Extension & ClawHive Service Update",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Extend BotExtra with commonStaff field and enhance ClawHiveService.updateAgent().\n\n**Files:**\n- Modify: `apps/server/libs/database/src/schemas/im/bots.ts`\n- Modify: `apps/server/libs/claw-hive/src/claw-hive.service.ts`\n\n**Verify:** `cd apps/server && pnpm build`\n\n```json:metadata\n{\"files\": [\"apps/server/libs/database/src/schemas/im/bots.ts\", \"apps/server/libs/claw-hive/src/claw-hive.service.ts\"], \"verifyCommand\": \"cd apps/server && pnpm build\", \"acceptanceCriteria\": [\"BotExtra has commonStaff field\", \"updateAgent accepts name/model/componentConfigs\", \"build passes\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Staff CRUD DTOs & Service",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Implement business logic for creating, updating, and deleting common-staff bots with claw-hive sync.\n\n**Files:**\n- Create: `apps/server/apps/gateway/src/applications/dto/common-staff.dto.ts`\n- Create: `apps/server/apps/gateway/src/applications/common-staff.service.ts`\n- Create: `apps/server/apps/gateway/src/applications/common-staff.service.spec.ts`\n\n**Verify:** `cd apps/server && pnpm jest --testPathPattern=\"common-staff.service\" --verbose`\n\n```json:metadata\n{\"files\": [\"apps/server/apps/gateway/src/applications/dto/common-staff.dto.ts\", \"apps/server/apps/gateway/src/applications/common-staff.service.ts\"], \"verifyCommand\": \"cd apps/server && pnpm jest --testPathPattern=\\\"common-staff.service\\\" --verbose\", \"acceptanceCriteria\": [\"createStaff creates bot + registers claw-hive\", \"updateStaff syncs both sides\", \"deleteStaff cleans up\", \"tests pass\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Staff CRUD Controller & Module Wiring",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "**Goal:** Expose REST endpoints for common-staff CRUD and wire into NestJS module.\n\n**Files:**\n- Create: `apps/server/apps/gateway/src/applications/common-staff.controller.ts`\n- Modify: `apps/server/apps/gateway/src/applications/applications.module.ts`\n- Modify: `apps/server/apps/gateway/src/applications/installed-applications.controller.ts`\n\n**Verify:** `cd apps/server && pnpm jest --testPathPattern=\"common-staff\" --verbose`\n\n```json:metadata\n{\"files\": [\"apps/server/apps/gateway/src/applications/common-staff.controller.ts\", \"apps/server/apps/gateway/src/applications/applications.module.ts\"], \"verifyCommand\": \"cd apps/server && pnpm jest --testPathPattern=\\\"common-staff\\\" --verbose\", \"acceptanceCriteria\": [\"POST/PATCH/DELETE endpoints work\", \"with-bots includes common-staff\", \"JwtAuthGuard applied\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Persona Streaming Generation API",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** SSE endpoint streaming AI-generated persona text.\n\n**Files:**\n- Modify: `apps/server/apps/gateway/src/applications/common-staff.controller.ts`\n- Modify: `apps/server/apps/gateway/src/applications/common-staff.service.ts`\n- Create: `apps/server/apps/gateway/src/applications/dto/generate-persona.dto.ts`\n\n**Verify:** curl test against running server\n\n```json:metadata\n{\"files\": [\"apps/server/apps/gateway/src/applications/dto/generate-persona.dto.ts\"], \"verifyCommand\": \"cd apps/server && pnpm build\", \"acceptanceCriteria\": [\"SSE stream returns persona text\", \"supports existingPersona expansion\", \"personality-rich output\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Avatar & Candidate Generation APIs",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** Image generation for avatars and SSE for recruitment candidates.\n\n**Verify:** `cd apps/server && pnpm build`\n\n```json:metadata\n{\"files\": [\"apps/server/apps/gateway/src/applications/common-staff.controller.ts\", \"apps/server/apps/gateway/src/applications/common-staff.service.ts\"], \"verifyCommand\": \"cd apps/server && pnpm build\", \"acceptanceCriteria\": [\"generate-avatar returns avatarUrl\", \"generate-candidates streams 3 cards\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Frontend API Client & Types",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "**Goal:** Add common-staff API methods and TypeScript types to frontend.\n\n**Files:**\n- Modify: `apps/client/src/services/api/applications.ts`\n- Create: `apps/client/src/lib/common-staff-models.ts`\n\n**Verify:** `cd apps/client && pnpm tsc --noEmit`\n\n```json:metadata\n{\"files\": [\"apps/client/src/services/api/applications.ts\", \"apps/client/src/lib/common-staff-models.ts\"], \"verifyCommand\": \"cd apps/client && pnpm tsc --noEmit\", \"acceptanceCriteria\": [\"CommonStaffBotInfo type defined\", \"CRUD + generation methods\", \"model list exported\", \"TypeScript compiles\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: 3D Badge Card Component",
+      "status": "pending",
+      "blockedBy": [6],
+      "description": "**Goal:** Build 3D interactive badge card with React Three Fiber and 2D CSS fallback.\n\n**Files:**\n- Create: `apps/client/src/components/ai-staff/StaffBadgeCard3D.tsx`\n- Create: `apps/client/src/components/ai-staff/StaffBadgeCard2D.tsx`\n- Create: `apps/client/src/components/ai-staff/StaffBadgeCard.tsx`\n\n**Verify:** `cd apps/client && pnpm tsc --noEmit`\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/ai-staff/StaffBadgeCard.tsx\", \"apps/client/src/components/ai-staff/StaffBadgeCard3D.tsx\", \"apps/client/src/components/ai-staff/StaffBadgeCard2D.tsx\"], \"verifyCommand\": \"cd apps/client && pnpm tsc --noEmit\", \"acceptanceCriteria\": [\"3D badge with lanyard and flip\", \"2D CSS fallback\", \"WebGL auto-detection\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: Frontend Create Dialog — Form Mode",
+      "status": "pending",
+      "blockedBy": [7],
+      "description": "**Goal:** Multi-step create dialog with Form Mode.\n\n**Files:**\n- Create: `apps/client/src/components/ai-staff/CreateCommonStaffDialog.tsx`\n- Modify: `apps/client/src/components/layout/contents/AIStaffMainContent.tsx`\n\n**Verify:** `cd apps/client && pnpm tsc --noEmit`\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/ai-staff/CreateCommonStaffDialog.tsx\", \"apps/client/src/components/layout/contents/AIStaffMainContent.tsx\"], \"verifyCommand\": \"cd apps/client && pnpm tsc --noEmit\", \"acceptanceCriteria\": [\"3 mode selection cards\", \"Form steps 2-4 functional\", \"persona AI generation\", \"badge card preview\", \"submit creates staff\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: Frontend Create Dialog — Agentic & Recruitment Modes",
+      "status": "pending",
+      "blockedBy": [8],
+      "description": "**Goal:** Add agentic and recruitment creation paths.\n\n**Verify:** Visual verification in browser\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/ai-staff/CreateCommonStaffDialog.tsx\"], \"verifyCommand\": \"cd apps/client && pnpm tsc --noEmit\", \"acceptanceCriteria\": [\"Agentic mode creates + navigates to DM\", \"Recruitment streams 3 candidates\", \"Candidates editable and selectable\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: Frontend Detail Page — Common Staff Section",
+      "status": "pending",
+      "blockedBy": [6],
+      "description": "**Goal:** Add common-staff rendering branch to detail page with inline editing.\n\n**Files:**\n- Create: `apps/client/src/components/ai-staff/CommonStaffDetailSection.tsx`\n- Modify: `apps/client/src/components/layout/contents/AIStaffDetailContent.tsx`\n\n**Verify:** `cd apps/client && pnpm tsc --noEmit`\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/ai-staff/CommonStaffDetailSection.tsx\", \"apps/client/src/components/layout/contents/AIStaffDetailContent.tsx\"], \"verifyCommand\": \"cd apps/client && pnpm tsc --noEmit\", \"acceptanceCriteria\": [\"type guard distinguishes common-staff\", \"inline editing for all fields\", \"delete with confirmation\", \"AI persona regeneration\"]}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: Agentic Bootstrap Session Trigger",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** Server-side logic to trigger claw-hive bootstrap session in mentor DM.\n\n**Files:**\n- Modify: `apps/server/apps/gateway/src/applications/common-staff.service.ts`\n\n**Verify:** Manual test: agentic create → mentor receives DM\n\n```json:metadata\n{\"files\": [\"apps/server/apps/gateway/src/applications/common-staff.service.ts\"], \"verifyCommand\": \"manual test\", \"acceptanceCriteria\": [\"finds DM channel\", \"triggers claw-hive session with isMentorDm\", \"agent sends welcome message\", \"temp name auto-generated\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-04-04T12:00:00Z"
+}

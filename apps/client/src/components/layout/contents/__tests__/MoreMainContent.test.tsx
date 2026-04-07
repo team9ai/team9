@@ -35,6 +35,10 @@ vi.mock("@/components/workspace/InviteManagementDialog", () => ({
   InviteManagementDialog: () => null,
 }));
 
+vi.mock("@/components/settings/NotificationPreferencesDialog", () => ({
+  NotificationPreferencesDialog: () => null,
+}));
+
 import { MoreMainContent } from "../MoreMainContent";
 
 describe("MoreMainContent", () => {
@@ -67,5 +71,32 @@ describe("MoreMainContent", () => {
     expect(mockNavigate).toHaveBeenCalledWith({
       to: "/more/workspace-settings",
     });
+  });
+
+  it("hides unfinished settings entries and shows Team9 branding", () => {
+    mockUseCurrentWorkspaceRole.mockReturnValue({
+      isOwner: false,
+      isAdmin: false,
+      isOwnerOrAdmin: false,
+    });
+
+    render(<MoreMainContent />);
+
+    expect(screen.queryByText(/^Notifications$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Privacy$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Help Center$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^About$/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Team9" })).toHaveAttribute(
+      "src",
+      "/team9-block.png",
+    );
+    expect(screen.getByRole("img", { name: "Team9" })).toHaveAttribute(
+      "width",
+      "80",
+    );
+    expect(screen.queryByText(/^team9$/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/^© 2026 Team9\. All rights reserved\.$/),
+    ).toBeInTheDocument();
   });
 });

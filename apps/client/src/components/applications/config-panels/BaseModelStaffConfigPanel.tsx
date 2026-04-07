@@ -1,35 +1,22 @@
-import { Bot, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/services/api";
+import { BaseModelProductLogo } from "@/components/applications/BaseModelProductLogo";
+import { getBaseModelProductMeta } from "@/lib/base-model-agent";
 import type {
   BaseModelStaffBotInfo,
+  CommonStaffBotInfo,
   OpenClawBotInfo,
 } from "@/services/api/applications";
 import type { AppConfigPanelProps } from "./registry";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 
-/** Maps preset key → display metadata. */
-const MODEL_META: Record<string, { emoji: string; provider: string }> = {
-  claude: { emoji: "\u{1F7E0}", provider: "Anthropic" },
-  chatgpt: { emoji: "\u{1F7E2}", provider: "OpenAI" },
-  gemini: { emoji: "\u{1F535}", provider: "Google" },
-};
-
-function getModelMeta(agentId: string | undefined) {
-  if (!agentId) return null;
-  // agentId format: base-model-{key}-{tenantShort}
-  for (const key of Object.keys(MODEL_META)) {
-    if (agentId.includes(`-${key}-`)) return { key, ...MODEL_META[key] };
-  }
-  return null;
-}
-
 function isBaseModelStaffBot(
-  bot: OpenClawBotInfo | BaseModelStaffBotInfo,
+  bot: OpenClawBotInfo | BaseModelStaffBotInfo | CommonStaffBotInfo,
 ): bot is BaseModelStaffBotInfo {
-  return "managedMeta" in bot;
+  return "managedMeta" in bot && "agentType" in bot;
 }
 
 export function BaseModelStaffBotsTab({ installedApp }: AppConfigPanelProps) {
@@ -86,15 +73,13 @@ export function BaseModelStaffBotsTab({ installedApp }: AppConfigPanelProps) {
       <CardContent>
         <div className="space-y-3">
           {bots.map((bot) => {
-            const meta = getModelMeta(bot.managedMeta?.agentId);
+            const meta = getBaseModelProductMeta(bot.managedMeta?.agentId);
             return (
               <div
                 key={bot.botId}
                 className="flex items-center gap-3 p-3 rounded-lg bg-muted/50"
               >
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center text-xl bg-background shrink-0">
-                  {meta?.emoji ?? <Bot size={20} />}
-                </div>
+                <BaseModelProductLogo agentId={bot.managedMeta?.agentId} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">

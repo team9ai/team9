@@ -1,9 +1,7 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getValidAccessToken, redirectToLogin } from "@/services/auth-session";
-
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
+import { API_BASE_URL } from "@/constants/api-base-url";
 
 /**
  * Opens an SSE connection to the TaskCast proxy for a specific execution.
@@ -14,7 +12,7 @@ const API_BASE_URL =
  * The actual TaskCast ID is computed server-side from the execId (deterministic).
  */
 export function useExecutionStream(
-  taskId: string,
+  routineId: string,
   execId: string | undefined,
   taskcastTaskId: string | null | undefined,
   enabled: boolean,
@@ -40,18 +38,18 @@ export function useExecutionStream(
           data.type === "deliverable"
         ) {
           queryClient.invalidateQueries({
-            queryKey: ["task-execution-entries", taskId, execId],
+            queryKey: ["routine-execution-entries", routineId, execId],
           });
         }
 
         // Status change events invalidate the task and execution queries
         if (data.type === "status_changed") {
-          queryClient.invalidateQueries({ queryKey: ["task", taskId] });
+          queryClient.invalidateQueries({ queryKey: ["routine", routineId] });
           queryClient.invalidateQueries({
-            queryKey: ["task-executions", taskId],
+            queryKey: ["routine-executions", routineId],
           });
           queryClient.invalidateQueries({
-            queryKey: ["task-execution", taskId, execId],
+            queryKey: ["routine-execution", routineId, execId],
           });
         }
       } catch {
@@ -72,7 +70,7 @@ export function useExecutionStream(
         return;
       }
 
-      const url = `${API_BASE_URL}/v1/tasks/${taskId}/executions/${execId}/stream?token=${encodeURIComponent(accessToken)}`;
+      const url = `${API_BASE_URL}/v1/routines/${routineId}/executions/${execId}/stream?token=${encodeURIComponent(accessToken)}`;
       eventSource = new EventSource(url);
       eventSource.onmessage = handleMessage;
       eventSource.onerror = () => {
@@ -115,5 +113,5 @@ export function useExecutionStream(
       }
       eventSource?.close();
     };
-  }, [taskId, execId, taskcastTaskId, enabled, queryClient]);
+  }, [routineId, execId, taskcastTaskId, enabled, queryClient]);
 }

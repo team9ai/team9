@@ -1,9 +1,5 @@
 import {
   Settings,
-  HelpCircle,
-  Info,
-  Bell,
-  Lock,
   Palette,
   Globe,
   ChevronRight,
@@ -28,6 +24,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { InviteManagementDialog } from "@/components/workspace/InviteManagementDialog";
+import { NotificationPreferencesDialog } from "@/components/settings/NotificationPreferencesDialog";
 import { useWorkspaceStore } from "@/stores";
 import { useThemeToggle } from "@/hooks/useTheme";
 import { useCurrentWorkspaceRole } from "@/hooks/useWorkspace";
@@ -43,19 +40,19 @@ const settingsGroups = [
   {
     title: "Preferences",
     items: [
-      { id: "notifications", label: "Notifications", icon: Bell },
-      { id: "privacy", label: "Privacy", icon: Lock },
+      // { id: "notifications", label: "Notifications", icon: Bell },
+      // { id: "privacy", label: "Privacy", icon: Lock },
       { id: "appearance", label: "Appearance", icon: Palette },
       { id: "language", label: "Language", icon: Globe },
     ],
   },
-  {
-    title: "Support",
-    items: [
-      { id: "help", label: "Help Center", icon: HelpCircle },
-      { id: "about", label: "About", icon: Info },
-    ],
-  },
+  // {
+  //   title: "Support",
+  //   items: [
+  //     { id: "help", label: "Help Center", icon: HelpCircle },
+  //     { id: "about", label: "About", icon: Info },
+  //   ],
+  // },
 ];
 
 export function MoreMainContent() {
@@ -64,6 +61,8 @@ export function MoreMainContent() {
   const navigate = useNavigate();
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [isAppearanceDialogOpen, setIsAppearanceDialogOpen] = useState(false);
+  const [isNotificationDialogOpen, setIsNotificationDialogOpen] =
+    useState(false);
   const { theme, setTheme } = useThemeToggle();
   const { isOwnerOrAdmin } = useCurrentWorkspaceRole();
 
@@ -97,6 +96,8 @@ export function MoreMainContent() {
       navigate({ to: "/more/workspace-settings" });
     } else if (id === "appearance") {
       setIsAppearanceDialogOpen(true);
+    } else if (id === "notifications") {
+      setIsNotificationDialogOpen(true);
     }
     // Handle other settings...
   };
@@ -159,17 +160,19 @@ export function MoreMainContent() {
 
             {/* App Info */}
             <Card className="p-6 text-center">
-              <div className="w-16 h-16 mx-auto mb-4 bg-primary rounded-2xl flex items-center justify-center">
-                <span className="text-3xl">🏋</span>
-              </div>
-              <h3 className="font-semibold text-lg mb-1 text-foreground">
-                Weight Watch
-              </h3>
+              <img
+                src="/team9-block.png"
+                alt="Team9"
+                loading="lazy"
+                width={80}
+                height={80}
+                className="w-20 h-20 mx-auto mb-6 object-cover rounded-2xl"
+              />
               <p className="text-sm text-muted-foreground mb-2">
                 Version 1.0.0
               </p>
               <p className="text-xs text-muted-foreground/70">
-                © 2025 Weight Watch Team. All rights reserved.
+                © 2026 Team9. All rights reserved.
               </p>
             </Card>
           </div>
@@ -239,6 +242,12 @@ export function MoreMainContent() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Notification Preferences Dialog */}
+      <NotificationPreferencesDialog
+        open={isNotificationDialogOpen}
+        onOpenChange={setIsNotificationDialogOpen}
+      />
     </main>
   );
 }

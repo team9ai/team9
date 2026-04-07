@@ -131,11 +131,9 @@ describe("SubscriptionContent", () => {
 
     render(<SubscriptionContent />);
 
-    expect(
-      await screen.findByText(/choose your workspace plan/i),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/choose your plan/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getAllByRole("button", { name: /choose plan/i })[0]);
+    fireEvent.click(screen.getByRole("button", { name: /choose starter/i }));
 
     await waitFor(() =>
       expect(mockCheckoutMutateAsync).toHaveBeenCalledWith({
@@ -148,6 +146,86 @@ describe("SubscriptionContent", () => {
     expect(mockOpenExternalUrl).toHaveBeenCalledWith(
       "https://checkout.stripe.com/pay/cs_plan",
     );
+  });
+
+  it("keeps starter before pro even when the current plan badge differs", async () => {
+    mockUseWorkspaceBillingOverview.mockReturnValue({
+      data: {
+        account: {
+          id: "acct_1",
+          ownerExternalId: "tenant:ws-1",
+          ownerType: "organization",
+          ownerName: "Alpha",
+          balance: 3000,
+          quota: 8000,
+          quotaExpiresAt: "2026-05-01T00:00:00.000Z",
+          effectiveQuota: 8000,
+          available: 11000,
+          creditLimit: 0,
+          status: "active",
+          metadata: null,
+          createdAt: "2026-04-01T00:00:00.000Z",
+          updatedAt: "2026-04-01T00:00:00.000Z",
+        },
+        subscription: {
+          stripeSubscriptionId: "sub_123",
+          status: "active",
+          currentPeriodStart: "2026-04-01T00:00:00.000Z",
+          currentPeriodEnd: "2026-05-01T00:00:00.000Z",
+          cancelAtPeriodEnd: false,
+          product: {
+            stripePriceId: "price_starter",
+            name: "Starter",
+            type: "subscription",
+            credits: 8000,
+            amountCents: 4000,
+            interval: "month",
+            intervalCount: 1,
+            active: true,
+            metadata: null,
+            display: {
+              badge: "Current",
+              description: "Best for consistent workspace usage.",
+              features: ["Priority support"],
+              sortOrder: 10,
+            },
+          },
+        },
+        subscriptionProducts: [
+          {
+            stripePriceId: "price_pro",
+            name: "Pro",
+            type: "subscription",
+            credits: 40000,
+            amountCents: 20000,
+            interval: "month",
+            intervalCount: 1,
+            active: true,
+            metadata: null,
+            display: {
+              badge: "Popular",
+              description: "Best for sustained team usage.",
+              features: ["Advanced controls"],
+              sortOrder: 1,
+            },
+          },
+        ],
+        creditProducts: [],
+        recentTransactions: [],
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    render(<SubscriptionContent />);
+
+    const starterLabel = await screen.findByText("Starter");
+    const proLabel = screen.getByText("Pro");
+
+    expect(
+      starterLabel.compareDocumentPosition(proLabel) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("renders custom amount top-up and sends amountCents to checkout", async () => {
@@ -247,7 +325,7 @@ describe("SubscriptionContent", () => {
 
     render(<SubscriptionContent view="credits" />);
 
-    expect(await screen.findByText(/amount in usd/i)).toBeInTheDocument();
+    expect(await screen.findByText(/buy credits/i)).toBeInTheDocument();
     expect(screen.getByDisplayValue("25")).toBeInTheDocument();
 
     fireEvent.change(screen.getByDisplayValue("25"), {
@@ -271,7 +349,7 @@ describe("SubscriptionContent", () => {
     );
   });
 
-  it("keeps fixed credit packs as quick amount buttons", async () => {
+  it("does not start fixed-pack checkout without an active subscription", async () => {
     mockUseWorkspaceBillingOverview.mockReturnValue({
       data: {
         account: {
@@ -347,14 +425,7 @@ describe("SubscriptionContent", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /add \$25/i }));
 
-    await waitFor(() =>
-      expect(mockCheckoutMutateAsync).toHaveBeenCalledWith({
-        priceId: "price_pack_25",
-        type: "one_time",
-        view: "credits",
-        amountCents: undefined,
-      }),
-    );
+    expect(mockCheckoutMutateAsync).not.toHaveBeenCalled();
   });
 
   it("falls back to fixed packs when custom amount is unavailable", async () => {
@@ -413,7 +484,7 @@ describe("SubscriptionContent", () => {
     ).toBeInTheDocument();
   });
 
-  it("opens the billing portal from the simplified plan page", async () => {
+  it("opens billing management from the simplified plan page", async () => {
     mockUseWorkspaceBillingOverview.mockReturnValue({
       data: {
         account: {
@@ -472,9 +543,7 @@ describe("SubscriptionContent", () => {
 
     expect(screen.getByText(/will end on/i)).toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /open billing portal/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /manage billing/i }));
 
     await waitFor(() =>
       expect(mockPortalMutateAsync).toHaveBeenCalledWith({ view: "plans" }),

@@ -61,22 +61,22 @@ describe('ChannelTriggerService', () => {
     selectChain.where.mockResolvedValueOnce([
       {
         id: 'trigger-1',
-        taskId: 'task-1',
+        routineId: 'task-1',
         config: { channelId: 'channel-a' },
       },
       {
         id: 'trigger-2',
-        taskId: 'task-2',
+        routineId: 'task-2',
         config: { channelId: 'channel-a' },
       },
       {
         id: 'trigger-3',
-        taskId: 'task-3',
+        routineId: 'task-3',
         config: {},
       },
       {
         id: 'trigger-4',
-        taskId: 'task-4',
+        routineId: 'task-4',
         config: { channelId: 'channel-b' },
       },
     ]);
@@ -105,8 +105,8 @@ describe('ChannelTriggerService', () => {
 
   it('triggers executions and updates lastRunAt for matching channels', async () => {
     (service as any).channelTriggerMap.set('channel-a', [
-      { id: 'trigger-1', taskId: 'task-1' },
-      { id: 'trigger-2', taskId: 'task-2' },
+      { id: 'trigger-1', routineId: 'task-1' },
+      { id: 'trigger-2', routineId: 'task-2' },
     ]);
     const longContent = 'x'.repeat(700);
 
@@ -114,7 +114,10 @@ describe('ChannelTriggerService', () => {
       channelId: 'channel-a',
       messageId: 'message-1',
       content: longContent,
+      messageType: 'text',
       senderId: 'user-1',
+      senderUserType: 'human',
+      senderAgentType: null,
     });
 
     expect(executor.triggerExecution).toHaveBeenNthCalledWith(1, 'task-1', {
@@ -125,7 +128,10 @@ describe('ChannelTriggerService', () => {
         channelId: 'channel-a',
         messageId: 'message-1',
         messageContent: 'x'.repeat(500),
+        messageType: 'text',
         senderId: 'user-1',
+        senderUserType: 'human',
+        senderAgentType: null,
       },
     });
     expect(executor.triggerExecution).toHaveBeenNthCalledWith(2, 'task-2', {
@@ -136,7 +142,10 @@ describe('ChannelTriggerService', () => {
         channelId: 'channel-a',
         messageId: 'message-1',
         messageContent: 'x'.repeat(500),
+        messageType: 'text',
         senderId: 'user-1',
+        senderUserType: 'human',
+        senderAgentType: null,
       },
     });
     expect(updateChain.set).toHaveBeenCalledWith({
@@ -149,8 +158,8 @@ describe('ChannelTriggerService', () => {
   it('logs errors and keeps processing remaining triggers', async () => {
     const errorSpy = jest.spyOn((service as any).logger, 'error');
     (service as any).channelTriggerMap.set('channel-a', [
-      { id: 'trigger-1', taskId: 'task-1' },
-      { id: 'trigger-2', taskId: 'task-2' },
+      { id: 'trigger-1', routineId: 'task-1' },
+      { id: 'trigger-2', routineId: 'task-2' },
     ]);
     executor.triggerExecution
       .mockRejectedValueOnce(new Error('queue down'))
@@ -160,7 +169,10 @@ describe('ChannelTriggerService', () => {
       channelId: 'channel-a',
       messageId: 'message-1',
       content: 'hello',
+      messageType: 'text',
       senderId: 'user-1',
+      senderUserType: 'human',
+      senderAgentType: null,
     });
 
     expect(errorSpy).toHaveBeenCalledWith(
@@ -168,5 +180,28 @@ describe('ChannelTriggerService', () => {
     );
     expect(executor.triggerExecution).toHaveBeenCalledTimes(2);
     expect(updateChain.where).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips bot-authored messages before triggering executions', async () => {
+    const debugSpy = jest.spyOn((service as any).logger, 'debug');
+    (service as any).channelTriggerMap.set('channel-a', [
+      { id: 'trigger-1', routineId: 'task-1' },
+    ]);
+
+    await service.handleMessage({
+      channelId: 'channel-a',
+      messageId: 'message-1',
+      content: 'hello',
+      messageType: 'text',
+      senderId: 'bot-user-1',
+      senderUserType: 'bot',
+      senderAgentType: 'openclaw',
+    });
+
+    expect(executor.triggerExecution).not.toHaveBeenCalled();
+    expect(db.update).not.toHaveBeenCalled();
+    expect(debugSpy).toHaveBeenCalledWith(
+      'Skipping channel-message triggers for non-human-authored message message-1 from bot-user-1',
+    );
   });
 });

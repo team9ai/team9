@@ -12,11 +12,17 @@ import { MessagesService, type MessageResponse } from './messages.service.js';
 function createDbMock() {
   const selectLimit = jest.fn<any>().mockResolvedValue([]);
   const selectOrderBy = jest.fn<any>().mockResolvedValue([]);
+  const selectLeftJoin = jest.fn<any>();
   const selectWhere = jest.fn<any>().mockReturnValue({
     limit: selectLimit,
     orderBy: selectOrderBy,
   });
-  const selectFrom = jest.fn<any>().mockReturnValue({ where: selectWhere });
+  const selectQuery = {
+    leftJoin: selectLeftJoin,
+    where: selectWhere,
+  };
+  const selectFrom = jest.fn<any>().mockReturnValue(selectQuery);
+  selectLeftJoin.mockReturnValue(selectQuery);
 
   const insertOnConflictDoNothing = jest.fn<any>().mockResolvedValue(undefined);
   const insertOnConflictDoUpdate = jest.fn<any>().mockResolvedValue(undefined);
@@ -37,6 +43,7 @@ function createDbMock() {
     delete: jest.fn<any>().mockReturnValue({ where: deleteWhere }),
     chains: {
       selectFrom,
+      selectLeftJoin,
       selectWhere,
       selectLimit,
       selectOrderBy,
@@ -339,6 +346,7 @@ describe('MessagesService', () => {
         displayName: 'Carol',
         avatarUrl: null,
         userType: 'human',
+        agentType: null,
       },
       {
         id: 'user-b',
@@ -346,6 +354,7 @@ describe('MessagesService', () => {
         displayName: 'Bob',
         avatarUrl: null,
         userType: 'human',
+        agentType: null,
       },
       {
         id: 'user-a',
@@ -353,10 +362,12 @@ describe('MessagesService', () => {
         displayName: 'Alice',
         avatarUrl: null,
         userType: 'bot',
+        agentType: null,
       },
     ];
     const makeSelectChain = (whereReturnValue: unknown) => ({
       from: jest.fn<any>().mockReturnValue({
+        leftJoin: jest.fn<any>().mockReturnThis(),
         where: jest.fn<any>().mockReturnValue(whereReturnValue),
       }),
     });
@@ -367,11 +378,7 @@ describe('MessagesService', () => {
           limit: jest.fn<any>().mockResolvedValue([messageRow]),
         }),
       )
-      .mockReturnValueOnce(
-        makeSelectChain({
-          limit: jest.fn<any>().mockResolvedValue([]),
-        }),
-      )
+      .mockReturnValueOnce(makeSelectChain([]))
       .mockReturnValueOnce(makeSelectChain(attachments))
       .mockReturnValueOnce(makeSelectChain(reactions))
       .mockReturnValueOnce(makeSelectChain([{ count: 3 }]))
@@ -412,6 +419,7 @@ describe('MessagesService', () => {
             displayName: 'Carol',
             avatarUrl: null,
             userType: 'human',
+            agentType: null,
           },
           {
             id: 'user-b',
@@ -419,6 +427,7 @@ describe('MessagesService', () => {
             displayName: 'Bob',
             avatarUrl: null,
             userType: 'human',
+            agentType: null,
           },
           {
             id: 'user-a',
@@ -426,6 +435,7 @@ describe('MessagesService', () => {
             displayName: 'Alice',
             avatarUrl: null,
             userType: 'bot',
+            agentType: null,
           },
         ],
         metadata: { source: 'test' },
@@ -452,9 +462,11 @@ describe('MessagesService', () => {
       displayName: 'Alice',
       avatarUrl: null,
       userType: 'human',
+      agentType: null,
     };
     const makeSelectChain = (returnValue: unknown) => ({
       from: jest.fn<any>().mockReturnValue({
+        leftJoin: jest.fn<any>().mockReturnThis(),
         where: jest.fn<any>().mockReturnValue(returnValue),
       }),
     });
@@ -465,11 +477,7 @@ describe('MessagesService', () => {
           limit: jest.fn<any>().mockResolvedValue([messageRow]),
         }),
       )
-      .mockReturnValueOnce(
-        makeSelectChain({
-          limit: jest.fn<any>().mockResolvedValue([sender]),
-        }),
-      )
+      .mockReturnValueOnce(makeSelectChain([sender]))
       .mockReturnValueOnce(makeSelectChain([]))
       .mockReturnValueOnce(makeSelectChain([]))
       .mockReturnValueOnce(makeSelectChain([{ count: 0 }]))
@@ -513,6 +521,7 @@ describe('MessagesService', () => {
     });
     const makeSelectChain = (whereReturnValue: unknown) => ({
       from: jest.fn<any>().mockReturnValue({
+        leftJoin: jest.fn<any>().mockReturnThis(),
         where: jest.fn<any>().mockReturnValue(whereReturnValue),
       }),
     });
@@ -526,6 +535,7 @@ describe('MessagesService', () => {
             displayName: 'Alice',
             avatarUrl: null,
             userType: 'human',
+            agentType: null,
           },
         ]),
       )
@@ -611,6 +621,7 @@ describe('MessagesService', () => {
             displayName: 'Carol',
             avatarUrl: null,
             userType: 'bot',
+            agentType: null,
           },
         ]),
       );
@@ -629,6 +640,7 @@ describe('MessagesService', () => {
           displayName: 'Alice',
           avatarUrl: null,
           userType: 'human',
+          agentType: null,
         },
         attachments: [
           expect.objectContaining({
@@ -656,6 +668,7 @@ describe('MessagesService', () => {
             displayName: 'Carol',
             avatarUrl: null,
             userType: 'bot',
+            agentType: null,
           },
           {
             id: 'user-1',
@@ -663,6 +676,7 @@ describe('MessagesService', () => {
             displayName: 'Alice',
             avatarUrl: null,
             userType: 'human',
+            agentType: null,
           },
         ],
         lastReplyAt: new Date('2026-04-02T10:33:00.000Z'),

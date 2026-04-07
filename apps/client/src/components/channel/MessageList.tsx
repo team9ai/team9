@@ -26,6 +26,8 @@ import { cn } from "@/lib/utils";
 import { MessageItem } from "./MessageItem";
 import { ToolCallBlock } from "./ToolCallBlock";
 import { StreamingMessageItem } from "./StreamingMessageItem";
+import { A2UISurfaceBlock } from "./A2UISurfaceBlock";
+import { A2UIResponseItem } from "./A2UIResponseItem";
 import { BotThinkingIndicator } from "./BotThinkingIndicator";
 import { NewMessagesIndicator } from "./NewMessagesIndicator";
 import { UnreadDivider } from "./UnreadDivider";
@@ -371,7 +373,8 @@ export function MessageList({
         }
       }
 
-      // Hide tool_result already rendered in the combined block above
+      // Hide tool_result already rendered in the combined block above.
+      // Use min-h-px (1px) instead of h-0 to avoid react-virtuoso zero-size warnings.
       if (agentMeta?.agentEventType === "tool_result" && agentMeta.toolCallId) {
         const prevItem = listDataRef.current[itemIndex - 1];
         const prevMsg =
@@ -382,8 +385,37 @@ export function MessageList({
           prevMeta?.agentEventType === "tool_call" &&
           prevMeta.toolCallId === agentMeta.toolCallId
         ) {
-          return <div className="h-0 overflow-hidden" aria-hidden="true" />;
+          return (
+            <div className="min-h-px overflow-hidden" aria-hidden="true" />
+          );
         }
+      }
+
+      // A2UI surface block — render always, pass readOnly to suppress interactivity
+      if (agentMeta?.agentEventType === "a2ui_surface_update") {
+        return (
+          <div id={`message-${message.id}`} className="px-4 py-1">
+            <A2UISurfaceBlock
+              message={message}
+              metadata={agentMeta}
+              readOnly={readOnly}
+              channelId={channelId}
+            />
+          </div>
+        );
+      }
+
+      // A2UI response — compact "User selected X" display
+      if (agentMeta?.agentEventType === "a2ui_response") {
+        return (
+          <div
+            id={`message-${message.id}`}
+            className="ml-4 border-l-2 border-emerald-500/15 bg-emerald-500/[0.03] rounded-r-md pr-4 py-0.5"
+            style={{ paddingLeft: "13px" }}
+          >
+            <A2UIResponseItem message={message} metadata={agentMeta} />
+          </div>
+        );
       }
 
       const hasReplies =

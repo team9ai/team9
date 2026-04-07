@@ -18,7 +18,10 @@ import { RedisService } from '@team9/redis';
 import { GatewayMQService, RABBITMQ_ROUTING_KEYS } from '@team9/rabbitmq';
 import type { PostBroadcastTask } from '@team9/shared';
 import { ChannelsService } from '../channels/channels.service.js';
-import { MessagesService } from '../messages/messages.service.js';
+import {
+  MessagesService,
+  type MessageResponse,
+} from '../messages/messages.service.js';
 import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
 import { REDIS_KEYS } from '../shared/constants/redis-keys.js';
@@ -56,6 +59,13 @@ export class StreamingController {
     private readonly eventEmitter: EventEmitter2,
     @Optional() private readonly gatewayMQService?: GatewayMQService,
   ) {}
+
+  private shouldPublishChannelMessageTrigger(
+    message: MessageResponse,
+  ): boolean {
+    const sender = message.sender;
+    return sender?.userType === 'human' && sender.agentType === null;
+  }
 
   private parseStreamingSession(sessionRaw: string): StreamingSession {
     return JSON.parse(sessionRaw) as StreamingSession;
@@ -227,63 +237,99 @@ export class StreamingController {
       workspaceId,
     });
 
-    const message = await this.messagesService.getMessageWithDetails(
-      result.msgId,
-    );
+    // Fetch the persisted message with sender/attachment details.
+    // If this fails, we still have enough data to broadcast a minimal message.
+    let message: MessageResponse | null = null;
+    try {
+      message = await this.messagesService.getMessageWithDetails(result.msgId);
+    } catch (error) {
+      this.logger.warn(
+        `[endStreaming] getMessageWithDetails failed for ${result.msgId}: ${(error as Error).message}`,
+      );
+    }
 
-    // Broadcast streaming_end with persisted message
-    await this.websocketGateway.sendToChannelMembers(
-      channelId,
-      WS_EVENTS.STREAMING.END,
-      {
-        streamId,
+    // Broadcast streaming_end and new_message independently so that
+    // failure of one does not prevent the other from being attempted.
+    const streamingEndDelivered =
+      await this.websocketGateway.sendToChannelMembers(
         channelId,
-        senderId: userId,
-        message,
-      },
-    );
+        WS_EVENTS.STREAMING.END,
+        {
+          streamId,
+          channelId,
+          senderId: userId,
+          message,
+        },
+      );
 
-    // Also broadcast as new_message for clients that missed the stream
-    await this.websocketGateway.sendToChannelMembers(
-      channelId,
-      WS_EVENTS.MESSAGE.NEW,
-      message,
-    );
+    // Also broadcast as new_message for clients that missed the stream.
+    // This is the safety net — even if streaming_end had a null message
+    // or was not delivered, new_message is an independent attempt.
+    if (message) {
+      const newMsgDelivered = await this.websocketGateway.sendToChannelMembers(
+        channelId,
+        WS_EVENTS.MESSAGE.NEW,
+        message,
+      );
+
+      if (!streamingEndDelivered && !newMsgDelivered) {
+        this.logger.error(
+          `[endStreaming] Both streaming_end and new_message broadcasts failed for channel ${channelId}, message ${result.msgId}. ` +
+            `Message was persisted but clients will not see it until they refresh.`,
+        );
+      }
+    } else if (!streamingEndDelivered) {
+      this.logger.error(
+        `[endStreaming] streaming_end broadcast failed AND getMessageWithDetails returned null for channel ${channelId}, message ${result.msgId}. ` +
+          `Message was persisted but clients will not see it until they refresh.`,
+      );
+    }
 
     // Emit event for search indexing (same as MessagesController.createMessage)
-    this.eventEmitter.emit('message.created', {
-      message: {
-        id: message.id,
-        channelId: message.channelId,
-        senderId: message.senderId,
-        content: message.content,
-        type: message.type,
-        isPinned: message.isPinned,
-        parentId: message.parentId,
-        createdAt: message.createdAt,
-      },
-      channel,
-      sender: message.sender
-        ? {
-            id: message.sender.id,
-            username: message.sender.username,
-            displayName: message.sender.displayName,
-          }
-        : undefined,
-    });
+    if (message) {
+      this.eventEmitter.emit('message.created', {
+        message: {
+          id: message.id,
+          channelId: message.channelId,
+          senderId: message.senderId,
+          content: message.content,
+          type: message.type,
+          isPinned: message.isPinned,
+          parentId: message.parentId,
+          createdAt: message.createdAt,
+        },
+        channel,
+        sender: message.sender
+          ? {
+              id: message.sender.id,
+              username: message.sender.username,
+              displayName: message.sender.displayName,
+            }
+          : undefined,
+      });
+    }
 
     // Publish to RabbitMQ (channel-message triggers + post-broadcast)
     if (this.gatewayMQService?.isReady()) {
-      this.gatewayMQService
-        .publishWorkspaceEvent(RABBITMQ_ROUTING_KEYS.MESSAGE_CREATED, {
-          channelId: message.channelId,
-          messageId: message.id,
-          content: message.content,
-          senderId: message.senderId,
-        })
-        .catch((err) => {
-          this.logger.warn(`Failed to publish message.created event: ${err}`);
-        });
+      if (message && this.shouldPublishChannelMessageTrigger(message)) {
+        this.gatewayMQService
+          .publishWorkspaceEvent(RABBITMQ_ROUTING_KEYS.MESSAGE_CREATED, {
+            channelId: message.channelId,
+            messageId: message.id,
+            content: message.content,
+            messageType: message.type,
+            senderId: message.senderId,
+            senderUserType: message.sender?.userType ?? null,
+            senderAgentType: message.sender?.agentType ?? null,
+          })
+          .catch((err) => {
+            this.logger.warn(`Failed to publish message.created event: ${err}`);
+          });
+      } else if (message) {
+        this.logger.debug(
+          `[endStreaming] Skipping channel-message trigger publish for non-human-authored message ${message.id}`,
+        );
+      }
 
       const postBroadcastTask: PostBroadcastTask = {
         msgId: result.msgId,

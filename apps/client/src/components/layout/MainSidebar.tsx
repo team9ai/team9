@@ -3,10 +3,7 @@ import {
   MessageSquare,
   Bell,
   MoreHorizontal,
-  Smile,
-  ChevronRight,
   User,
-  Settings,
   LogOut,
   Globe,
   Plus,
@@ -49,13 +46,18 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useCurrentUser, useLogout } from "@/hooks/useAuth";
-import { useUpdateStatus, useOnlineUsers } from "@/hooks/useIMUsers";
+import { useOnlineUsers } from "@/hooks/useIMUsers";
 import { useNotificationCounts } from "@/hooks/useNotifications";
 import { useAHandSetupStore } from "@/stores/useAHandSetupStore";
 import { useChannelsByType } from "@/hooks/useChannels";
 import { useDevtools } from "@/hooks/useDevtools";
 import { NotificationBadge } from "@/components/ui/badge";
 import { CreateWorkspaceDialog } from "@/components/dialog/CreateWorkspaceDialog";
+import {
+  getVisibleNavigationItems,
+  isHiddenNavUnlocked,
+  registerMoreTapUnlock,
+} from "./mainSidebarUnlock";
 import type { UserStatus } from "@/types/im";
 
 // Navigation items with i18n keys
@@ -65,7 +67,7 @@ const navigationItems = [
   { id: "activity", labelKey: "activity" as const, icon: Bell },
   // { id: "files", labelKey: "files" as const, icon: FileText },
   { id: "aiStaff", labelKey: "aiStaff" as const, icon: Bot },
-  { id: "tasks", labelKey: "tasks" as const, icon: ListChecks },
+  { id: "routines", labelKey: "routines" as const, icon: ListChecks },
   { id: "skills", labelKey: "skills" as const, icon: Sparkles },
   { id: "resources", labelKey: "resources" as const, icon: Box },
   { id: "library", labelKey: "library" as const, icon: Library },
@@ -77,7 +79,6 @@ export function MainSidebar() {
   const { t: tNav, i18n } = useTranslation("navigation");
   const { t: tSettings } = useTranslation("settings");
   const { t: tAuth } = useTranslation("auth");
-  const { t: tCommon } = useTranslation("common");
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -88,9 +89,11 @@ export function MainSidebar() {
 
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [createWorkspaceOpen, setCreateWorkspaceOpen] = useState(false);
+  const [hiddenNavUnlocked, setHiddenNavUnlocked] = useState(() =>
+    isHiddenNavUnlocked(),
+  );
   const { data: currentUser } = useCurrentUser();
   const { mutate: logout } = useLogout();
-  const { mutate: updateStatus } = useUpdateStatus();
   const { data: onlineUsers = {} } = useOnlineUsers();
   const { data: notificationCounts } = useNotificationCounts();
   const { directChannels = [] } = useChannelsByType();
@@ -113,12 +116,6 @@ export function MainSidebar() {
     currentUser?.id && onlineUsers[currentUser.id]
       ? (onlineUsers[currentUser.id] as UserStatus)
       : "online";
-  const isOnline = userStatus === "online";
-
-  const handleStatusToggle = () => {
-    const newStatus: UserStatus = isOnline ? "offline" : "online";
-    updateStatus({ status: newStatus });
-  };
 
   const handleLogout = () => {
     setUserMenuOpen(false);
@@ -244,47 +241,57 @@ export function MainSidebar() {
   const sidebarCollapsed = useSidebarCollapsed();
 
   const renderNavigationItems = () =>
-    navigationItems.map((item) => {
-      const Icon = item.icon;
-      const currentSection = location.pathname.startsWith("/profile")
-        ? null
-        : getSectionFromPath(location.pathname);
-      const isActive = currentSection === item.id;
-      const label = tNav(item.labelKey);
+    getVisibleNavigationItems(navigationItems, hiddenNavUnlocked).map(
+      (item) => {
+        const Icon = item.icon;
+        const currentSection = location.pathname.startsWith("/profile")
+          ? null
+          : getSectionFromPath(location.pathname);
+        const isActive = currentSection === item.id;
+        const label = tNav(item.labelKey);
 
-      const getBadgeCount = () => {
-        if (item.id === "activity") return activityUnreadCount;
-        if (item.id === "messages") return dmUnreadCount;
-        return 0;
-      };
-      const badgeCount = getBadgeCount();
+        const getBadgeCount = () => {
+          if (item.id === "activity") return activityUnreadCount;
+          if (item.id === "messages") return dmUnreadCount;
+          return 0;
+        };
+        const badgeCount = getBadgeCount();
 
-      return (
-        <Button
-          key={item.id}
-          variant="ghost"
-          size="icon"
-          onClick={() => {
-            const section = item.id as SidebarSection;
-            appActions.setActiveSidebar(section);
-            const targetPath =
-              section === "home" ? "/channels" : getLastVisitedPath(section);
-            navigate({ to: targetPath });
-          }}
-          className={cn(
-            "w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-nav-hover text-nav-foreground-subtle hover:text-nav-foreground relative",
-            isActive && "bg-nav-active text-nav-foreground",
-          )}
-          title={label}
-        >
-          <div className="relative">
-            <Icon size={20} />
-            <NotificationBadge count={badgeCount} />
-          </div>
-          <span className="text-xs mt-1.5">{label}</span>
-        </Button>
-      );
-    });
+        return (
+          <Button
+            key={item.id}
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              const section = item.id as SidebarSection;
+
+              if (section === "more" && !hiddenNavUnlocked) {
+                const unlocked = registerMoreTapUnlock();
+                if (unlocked) {
+                  setHiddenNavUnlocked(true);
+                }
+              }
+
+              appActions.setActiveSidebar(section);
+              const targetPath =
+                section === "home" ? "/channels" : getLastVisitedPath(section);
+              navigate({ to: targetPath });
+            }}
+            className={cn(
+              "w-12 h-12 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all hover:bg-nav-hover text-nav-foreground-subtle hover:text-nav-foreground relative",
+              isActive && "bg-nav-active text-nav-foreground",
+            )}
+            title={label}
+          >
+            <div className="relative">
+              <Icon size={20} />
+              <NotificationBadge count={badgeCount} />
+            </div>
+            <span className="text-xs mt-1.5">{label}</span>
+          </Button>
+        );
+      },
+    );
 
   return (
     <TooltipProvider>
@@ -294,8 +301,14 @@ export function MainSidebar() {
       />
       <div className="flex h-full">
         {/* Column 1: Workspace avatars - always visible */}
-        <aside className="w-16 h-full bg-nav-bg text-primary-foreground flex flex-col items-center overflow-hidden">
-          <div className="flex-1 min-h-0 w-full overflow-y-auto scrollbar-hide flex flex-col items-center pt-4 space-y-3">
+        <aside
+          data-tauri-drag-region
+          className="w-16 h-full bg-nav-bg text-primary-foreground flex flex-col items-center overflow-hidden"
+        >
+          <div
+            data-tauri-drag-region
+            className="flex-1 min-h-0 w-full overflow-y-auto scrollbar-hide flex flex-col items-center pt-4 space-y-3"
+          >
             {isLoading ? (
               <Avatar className="w-10 h-10">
                 <AvatarFallback className="bg-background text-foreground rounded-lg">
@@ -471,7 +484,7 @@ export function MainSidebar() {
           </div>
 
           {/* User Avatar at Bottom */}
-          <div className="shrink-0 py-4">
+          <div data-tauri-drag-region className="shrink-0 py-4">
             <Popover open={userMenuOpen} onOpenChange={setUserMenuOpen}>
               <PopoverTrigger asChild>
                 <div className="relative cursor-pointer">
@@ -533,44 +546,11 @@ export function MainSidebar() {
                       </div>
                     </div>
                   </div>
-
-                  {/* Status Input */}
-                  <div className="mt-3">
-                    <div className="flex items-center gap-2 px-3 py-2 border rounded-md text-sm text-muted-foreground hover:bg-accent cursor-pointer">
-                      <Smile size={16} />
-                      <span>{tSettings("updateStatus")}</span>
-                    </div>
-                  </div>
                 </div>
-
+                {/* Temporary: hide status actions and preferences from the user menu. */}
                 <Separator />
 
-                {/* Status Toggle */}
-                <div className="py-1">
-                  <button
-                    onClick={handleStatusToggle}
-                    className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent"
-                  >
-                    <span>
-                      {tSettings("setStatus", {
-                        status: isOnline
-                          ? tSettings("status.offline")
-                          : tSettings("status.online"),
-                      })}
-                    </span>
-                  </button>
-                  <button className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent">
-                    <span>{tSettings("pauseNotifications")}</span>
-                    <div className="flex items-center gap-1 text-muted-foreground">
-                      <span>{tCommon("on")}</span>
-                      <ChevronRight size={14} />
-                    </div>
-                  </button>
-                </div>
-
-                <Separator />
-
-                {/* Profile & Settings */}
+                {/* Profile */}
                 <div className="py-1">
                   <button
                     onClick={() => {
@@ -581,13 +561,6 @@ export function MainSidebar() {
                   >
                     <User size={16} />
                     <span>{tSettings("profile")}</span>
-                  </button>
-                  <button className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent">
-                    <div className="flex items-center gap-3">
-                      <Settings size={16} />
-                      <span>{tSettings("preferences")}</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">⌘,</span>
                   </button>
                 </div>
 

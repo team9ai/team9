@@ -9,6 +9,7 @@ import {
   Plus,
   FolderPlus,
   Trash2,
+  Download,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -61,6 +62,30 @@ import {
   useDroppable,
 } from "@dnd-kit/core";
 import type { Channel, ChannelWithUnread } from "@/types/im";
+import { isTauriApp } from "@/lib/tauri";
+
+function isMacBrowser(): boolean {
+  return !isTauriApp() && /Mac/.test(navigator.userAgent);
+}
+
+function detectMacArch(): "arm64" | "x64" {
+  try {
+    const canvas = document.createElement("canvas");
+    const gl = canvas.getContext("webgl");
+    const ext = gl?.getExtension("WEBGL_debug_renderer_info");
+    if (gl && ext) {
+      const renderer = gl.getParameter(ext.UNMASKED_RENDERER_WEBGL);
+      if (/Apple/.test(renderer)) return "arm64";
+    }
+  } catch {
+    // fallback below
+  }
+  return "x64";
+}
+
+const GITHUB_RELEASES_API =
+  "https://api.github.com/repos/team9ai/team9/releases/latest";
+const GITHUB_RELEASES_PAGE = "https://github.com/team9ai/team9/releases/latest";
 
 const topItems: {
   id: string;
@@ -185,6 +210,51 @@ function DragOverlayContent({ channel }: { channel: Channel }) {
         </span>
       </Button>
     </div>
+  );
+}
+
+function DownloadDesktopButton() {
+  const { t: tNav } = useTranslation("navigation");
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const res = await fetch(GITHUB_RELEASES_API);
+      if (!res.ok) throw new Error("Failed to fetch release");
+      const release = await res.json();
+      const arch = detectMacArch();
+      const dmg = release.assets?.find(
+        (a: { name: string }) =>
+          a.name.endsWith(".dmg") && a.name.includes(`_${arch}`),
+      );
+      if (dmg) {
+        const a = document.createElement("a");
+        a.href = dmg.browser_download_url;
+        a.download = dmg.name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      } else {
+        window.open(GITHUB_RELEASES_PAGE, "_blank");
+      }
+    } catch {
+      window.open(GITHUB_RELEASES_PAGE, "_blank");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <Button
+      variant="ghost"
+      onClick={handleDownload}
+      disabled={downloading}
+      className="w-full justify-center gap-2 px-2 h-10 text-sm text-nav-foreground-strong hover:bg-nav-hover hover:text-nav-foreground rounded-full border border-nav-border-strong"
+    >
+      <Download size={16} />
+      <span>{downloading ? tNav("downloading") : tNav("downloadDesktop")}</span>
+    </Button>
   );
 }
 
@@ -343,6 +413,7 @@ export function HomeSubSidebar() {
       userId: otherUser?.id,
       name: displayName,
       avatarUrl: otherUser?.avatarUrl,
+      agentType: otherUser?.agentType,
       status: otherUser?.status || ("offline" as const),
       unreadCount: channel.unreadCount || 0,
       isBot: otherUser?.userType === "bot",
@@ -640,8 +711,8 @@ export function HomeSubSidebar() {
                       isSelected={selectedChannelId === dm.channelId}
                       unreadCount={dm.unreadCount}
                       channelId={dm.channelId}
-                      avatarSize="sm"
                       isBot={dm.isBot}
+                      agentType={dm.agentType}
                     />
                   ))
                 )}
@@ -667,16 +738,20 @@ export function HomeSubSidebar() {
         </nav>
       </ScrollArea>
 
-      {/* Add Button */}
+      {/* Bottom Action */}
       <div className="p-3 border-t border-nav-border">
-        <Button
-          variant="ghost"
-          onClick={() => setIsNewMessageOpen(true)}
-          className="w-full justify-center gap-2 px-2 h-10 text-sm text-nav-foreground-strong hover:bg-nav-hover hover:text-nav-foreground rounded-full border border-nav-border-strong"
-          title={tNav("newMessage")}
-        >
-          <Plus size={18} />
-        </Button>
+        {isTauriApp() ? (
+          <Button
+            variant="ghost"
+            onClick={() => setIsNewMessageOpen(true)}
+            className="w-full justify-center gap-2 px-2 h-10 text-sm text-nav-foreground-strong hover:bg-nav-hover hover:text-nav-foreground rounded-full border border-nav-border-strong"
+            title={tNav("newMessage")}
+          >
+            <Plus size={18} />
+          </Button>
+        ) : (
+          isMacBrowser() && <DownloadDesktopButton />
+        )}
       </div>
 
       {/* New Message Dialog */}

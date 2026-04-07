@@ -107,7 +107,19 @@ function makeDirectChannel(): ChannelWithUnread {
       displayName: "Alice Smith",
       avatarUrl: undefined,
       status: "online",
+      userType: "bot",
+      agentType: "openclaw",
+    } as any,
+  };
+}
+
+function makeHumanDirectChannel(): ChannelWithUnread {
+  return {
+    ...makeDirectChannel(),
+    otherUser: {
+      ...makeDirectChannel().otherUser!,
       userType: "human",
+      agentType: null,
     },
   };
 }
@@ -210,11 +222,17 @@ describe("seeded avatar channel surfaces", () => {
   });
 
   it("renders a seeded fallback in ChannelHeader for a DM user without an avatar", () => {
-    render(<ChannelHeader channel={makeDirectChannel()} />);
+    render(<ChannelHeader channel={makeHumanDirectChannel()} />);
 
     const fallback = screen.getByText("AS");
 
     expect(fallback).toHaveClass(getSeededAvatarGradient("user-seeded"));
+  });
+
+  it("renders an agent type badge in ChannelHeader for a DM user", () => {
+    render(<ChannelHeader channel={makeDirectChannel()} />);
+
+    expect(screen.getByText("Openclaw")).toBeInTheDocument();
   });
 
   it("renders the bot image in ChannelDetailsModal members when a bot has no avatar", () => {

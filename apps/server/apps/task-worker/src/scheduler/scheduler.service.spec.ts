@@ -420,7 +420,7 @@ describe('SchedulerService', () => {
   it('triggers due interval tasks and persists the next run time', async () => {
     const trigger = {
       id: 'trigger-1',
-      taskId: 'task-1',
+      routineId: 'task-1',
       type: 'interval',
       config: { every: 2, unit: 'hours' },
       nextRunAt: new Date('2026-04-02T09:00:00.000Z'),
@@ -448,7 +448,7 @@ describe('SchedulerService', () => {
   it('uses schedule configs and leaves nextRunAt null for unsupported trigger types', async () => {
     const scheduleTrigger = {
       id: 'trigger-schedule',
-      taskId: 'task-schedule',
+      routineId: 'task-schedule',
       type: 'schedule',
       config: {
         frequency: 'daily',
@@ -459,7 +459,7 @@ describe('SchedulerService', () => {
     };
     const unsupportedTrigger = {
       id: 'trigger-manual',
-      taskId: 'task-manual',
+      routineId: 'task-manual',
       type: 'manual',
       config: { every: 1, unit: 'days' },
       nextRunAt: null,
@@ -486,7 +486,7 @@ describe('SchedulerService', () => {
   it('returns null when a trigger has no config', async () => {
     const trigger = {
       id: 'trigger-no-config',
-      taskId: 'task-no-config',
+      routineId: 'task-no-config',
       type: 'schedule',
       config: null,
       nextRunAt: null,
@@ -505,14 +505,14 @@ describe('SchedulerService', () => {
   it('continues scanning when one trigger execution fails', async () => {
     const triggerOne = {
       id: 'trigger-1',
-      taskId: 'task-1',
+      routineId: 'task-1',
       type: 'interval',
       config: { every: 1, unit: 'days' },
       nextRunAt: null,
     };
     const triggerTwo = {
       id: 'trigger-2',
-      taskId: 'task-2',
+      routineId: 'task-2',
       type: 'interval',
       config: { every: 30, unit: 'minutes' },
       nextRunAt: null,
@@ -536,43 +536,43 @@ describe('SchedulerService', () => {
     const triggerDefinitions = [
       {
         id: 'trigger-minutes',
-        taskId: 'task-minutes',
+        routineId: 'task-minutes',
         type: 'interval',
         config: { every: 1, unit: 'minutes' },
       },
       {
         id: 'trigger-hours',
-        taskId: 'task-hours',
+        routineId: 'task-hours',
         type: 'interval',
         config: { every: 2, unit: 'hours' },
       },
       {
         id: 'trigger-days',
-        taskId: 'task-days',
+        routineId: 'task-days',
         type: 'interval',
         config: { every: 3, unit: 'days' },
       },
       {
         id: 'trigger-weeks',
-        taskId: 'task-weeks',
+        routineId: 'task-weeks',
         type: 'interval',
         config: { every: 1, unit: 'weeks' },
       },
       {
         id: 'trigger-months',
-        taskId: 'task-months',
+        routineId: 'task-months',
         type: 'interval',
         config: { every: 1, unit: 'months' },
       },
       {
         id: 'trigger-years',
-        taskId: 'task-years',
+        routineId: 'task-years',
         type: 'interval',
         config: { every: 1, unit: 'years' },
       },
       {
         id: 'trigger-default',
-        taskId: 'task-default',
+        routineId: 'task-default',
         type: 'interval',
         config: { every: 2, unit: 'fortnights' },
       },

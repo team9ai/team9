@@ -32,6 +32,7 @@ import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { BotService } from '../bot/bot.service.js';
 import { InstalledApplicationsService } from '../applications/installed-applications.service.js';
+import { ApplicationsService } from '../applications/applications.service.js';
 
 const MAX_WORKSPACES_PER_USER = 3;
 const MAX_MEMBERS_PER_WORKSPACE = 1000;
@@ -131,7 +132,7 @@ interface WorkspaceWebsocketGateway {
     event: string,
     data: unknown,
     excludeUserId?: string,
-  ): Promise<void>;
+  ): Promise<boolean>;
   sendToUser(userId: string, event: string, data: unknown): Promise<void>;
 }
 
@@ -148,6 +149,7 @@ export class WorkspaceService {
     private readonly channelsService: ChannelsService,
     private readonly botService: BotService,
     private readonly installedApplicationsService: InstalledApplicationsService,
+    private readonly applicationsService: ApplicationsService,
   ) {}
 
   private getErrorMessage(error: unknown): string {
@@ -935,16 +937,23 @@ export class WorkspaceService {
       }
     }
 
-    // Install OpenClaw application for the workspace
-    try {
-      await this.installedApplicationsService.install(
-        workspace.id,
-        data.ownerId,
-        { applicationId: 'openclaw' },
-      );
-      this.logger.log(`Installed OpenClaw for workspace: ${workspace.name}`);
-    } catch (error) {
-      this.logger.warn(`Failed to install OpenClaw for workspace: ${error}`);
+    // Auto-install applications for the workspace
+    const autoInstallApps = this.applicationsService.findAutoInstall();
+    for (const app of autoInstallApps) {
+      try {
+        await this.installedApplicationsService.install(
+          workspace.id,
+          data.ownerId,
+          { applicationId: app.id },
+        );
+        this.logger.log(
+          `Auto-installed ${app.name} for workspace: ${workspace.name}`,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Failed to auto-install ${app.name} for workspace: ${error}`,
+        );
+      }
     }
 
     this.logger.log(`Created workspace: ${workspace.name} (${workspace.slug})`);

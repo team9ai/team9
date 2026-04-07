@@ -39,7 +39,12 @@
     "turbo": "^2.8.20"
   },
   "lint-staged": {
-    "*.{ts,tsx,js,jsx}": [
+    "apps/client/**/*.{ts,tsx,js,jsx}": [
+      "pnpm --filter @team9/client exec eslint --fix",
+      "prettier --write"
+    ],
+    "apps/server/**/*.ts": [
+      "pnpm --filter @team9/server exec eslint --fix",
       "prettier --write"
     ],
     "*.{json,md,yaml,yml}": [
@@ -60,7 +65,10 @@
     "onlyBuiltDependencies": [
       "@nestjs/core",
       "@sentry/cli"
-    ]
+    ],
+    "patchedDependencies": {
+      "eventsource-parser@3.0.6": "patches/eventsource-parser@3.0.6.patch"
+    }
   },
   "engines": {
     "node": ">=18.0.0",

@@ -20,13 +20,16 @@ interface MessageCreatedEvent {
   channelId: string;
   messageId: string;
   content?: string;
+  messageType?: 'text' | 'file' | 'image' | 'system' | 'tracking';
   senderId: string;
+  senderUserType?: 'human' | 'bot' | 'system' | null;
+  senderAgentType?: 'base_model' | 'openclaw' | null;
 }
 
 @Injectable()
 export class ChannelTriggerService implements OnModuleInit {
   private readonly logger = new Logger(ChannelTriggerService.name);
-  private channelTriggerMap = new Map<string, schema.AgentTaskTrigger[]>();
+  private channelTriggerMap = new Map<string, schema.RoutineTrigger[]>();
 
   constructor(
     @Inject(DATABASE_CONNECTION)
@@ -44,11 +47,11 @@ export class ChannelTriggerService implements OnModuleInit {
   async refresh(): Promise<void> {
     const triggers = await this.db
       .select()
-      .from(schema.agentTaskTriggers)
+      .from(schema.routineTriggers)
       .where(
         and(
-          eq(schema.agentTaskTriggers.type, 'channel_message'),
-          eq(schema.agentTaskTriggers.enabled, true),
+          eq(schema.routineTriggers.type, 'channel_message'),
+          eq(schema.routineTriggers.enabled, true),
         ),
       );
 
@@ -60,6 +63,10 @@ export class ChannelTriggerService implements OnModuleInit {
       list.push(trigger);
       this.channelTriggerMap.set(config.channelId, list);
     }
+  }
+
+  private shouldTriggerForMessage(msg: MessageCreatedEvent): boolean {
+    return msg.senderUserType === 'human' && msg.senderAgentType === null;
   }
 
   @RabbitSubscribe({
@@ -76,13 +83,20 @@ export class ChannelTriggerService implements OnModuleInit {
     const triggers = this.channelTriggerMap.get(msg.channelId);
     if (!triggers?.length) return;
 
+    if (!this.shouldTriggerForMessage(msg)) {
+      this.logger.debug(
+        `Skipping channel-message triggers for non-human-authored message ${msg.messageId} from ${msg.senderId}`,
+      );
+      return;
+    }
+
     this.logger.log(
       `Message in channel ${msg.channelId} matched ${triggers.length} trigger(s)`,
     );
 
     for (const trigger of triggers) {
       try {
-        await this.executor.triggerExecution(trigger.taskId, {
+        await this.executor.triggerExecution(trigger.routineId, {
           triggerId: trigger.id,
           triggerType: 'channel_message',
           triggerContext: {
@@ -90,18 +104,21 @@ export class ChannelTriggerService implements OnModuleInit {
             channelId: msg.channelId,
             messageId: msg.messageId,
             messageContent: msg.content?.slice(0, 500),
+            messageType: msg.messageType,
             senderId: msg.senderId,
+            senderUserType: msg.senderUserType ?? null,
+            senderAgentType: msg.senderAgentType ?? null,
           },
         });
 
         // Update lastRunAt on the trigger
         await this.db
-          .update(schema.agentTaskTriggers)
+          .update(schema.routineTriggers)
           .set({
             lastRunAt: new Date(),
             updatedAt: new Date(),
           })
-          .where(eq(schema.agentTaskTriggers.id, trigger.id));
+          .where(eq(schema.routineTriggers.id, trigger.id));
       } catch (error) {
         this.logger.error(
           `Failed to trigger execution for trigger ${trigger.id}: ${error}`,

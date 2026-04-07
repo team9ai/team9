@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Hash, Lock, Info, Users, UserPlus } from "lucide-react";
+import { AgentTypeBadge } from "@/components/ui/agent-type-badge";
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { ChannelDetailsModal } from "./ChannelDetailsModal";
@@ -66,8 +67,11 @@ export function ChannelHeader({
           ) : (
             <ChannelIcon size={20} className="text-muted-foreground" />
           )}
-          <div className="flex flex-col">
-            <h2 className="font-semibold">{displayName}</h2>
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <h2 className="font-semibold truncate">{displayName}</h2>
+              <AgentTypeBadge agentType={otherUser?.agentType} />
+            </div>
             {isDirect && otherUser?.username && otherUser.displayName && (
               <p className="text-xs text-muted-foreground">
                 @{otherUser.username}

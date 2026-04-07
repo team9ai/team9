@@ -211,7 +211,7 @@ Channel Management:
 - PostgreSQL + Drizzle ORM
 - Socket.io, JWT + Passport
 - Redis, RabbitMQ
-- Anthropic AI SDK, Google Generative AI
+- Anthropic AI SDK, Vercel AI SDK (`ai`), Google Generative AI
 
 **Tooling:**
 

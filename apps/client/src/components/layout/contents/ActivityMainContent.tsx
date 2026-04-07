@@ -5,7 +5,7 @@ export function ActivityMainContent() {
   const { t } = useTranslation("navigation");
 
   return (
-    <main className="flex-1 flex flex-col bg-background dark:bg-background items-center justify-center">
+    <main className="flex h-full flex-col bg-background dark:bg-background items-center justify-center">
       <div className="text-center max-w-md px-4">
         <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
           <Bell size={32} className="text-primary" />

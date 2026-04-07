@@ -164,7 +164,7 @@ describe('BaseModelStaffHandler', () => {
       }
     });
 
-    it('batch-registers claw-hive agents for all presets', async () => {
+    it('batch-registers claw-hive agents with searchable metadata', async () => {
       await handler.onInstall(makeContext());
 
       expect(clawHiveService.registerAgents).toHaveBeenCalledTimes(1);
@@ -178,6 +178,11 @@ describe('BaseModelStaffHandler', () => {
                 name: preset.name,
                 blueprintId: 'team9-hive-base-model',
                 tenantId: TENANT_ID,
+                metadata: {
+                  tenantId: TENANT_ID,
+                  botId: `bot-id-${preset.key}`,
+                  mentorId: INSTALLED_BY,
+                },
                 model: { provider: preset.provider, id: preset.modelId },
               }),
             ),

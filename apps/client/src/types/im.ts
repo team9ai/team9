@@ -5,6 +5,7 @@ export type MessageType = "text" | "file" | "image" | "system" | "tracking";
 export type MemberRole = "owner" | "admin" | "member";
 export type UserStatus = "online" | "offline" | "away" | "busy";
 export type MessageSendStatus = "sending" | "sent" | "failed";
+export type AgentType = "base_model" | "openclaw";
 
 export interface AgentEventMetadata {
   agentEventType:
@@ -15,12 +16,26 @@ export interface AgentEventMetadata {
     | "agent_start"
     | "agent_end"
     | "error"
-    | "turn_separator";
-  status: "running" | "completed" | "failed";
+    | "turn_separator"
+    | "a2ui_surface_update"
+    | "a2ui_response";
+  status:
+    | "running"
+    | "completed"
+    | "failed"
+    | "resolved"
+    | "timeout"
+    | "cancelled";
   toolName?: string;
   toolCallId?: string;
   toolArgs?: Record<string, unknown>;
   success?: boolean;
+  surfaceId?: string;
+  payload?: unknown[];
+  surfaceMetadata?: Record<string, unknown>;
+  selections?: Record<string, { selected: string[]; otherText: string | null }>;
+  responderId?: string;
+  responderName?: string;
 }
 
 export interface ChannelSnapshot {
@@ -43,6 +58,7 @@ export interface IMUser {
   lastSeenAt?: string;
   isActive: boolean;
   userType?: "human" | "bot" | "system";
+  agentType?: AgentType | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -75,6 +91,7 @@ export interface ChannelWithUnread extends Channel {
     avatarUrl?: string;
     status: UserStatus;
     userType?: "human" | "bot" | "system";
+    agentType?: AgentType | null;
   };
 }
 
@@ -143,6 +160,7 @@ export interface Message {
     displayName: string | null;
     avatarUrl: string | null;
     userType: string;
+    agentType?: AgentType | null;
   }[];
   lastReplyAt?: string;
   // Client-side only fields for optimistic updates
@@ -213,6 +231,7 @@ export interface CreateMessageDto {
   clientMsgId?: string;
   parentId?: string;
   attachments?: AttachmentDto[];
+  metadata?: Record<string, unknown>;
 }
 
 export interface UpdateMessageDto {
@@ -298,6 +317,7 @@ export interface SyncMessageItem {
     username: string;
     displayName: string | null;
     avatarUrl: string | null;
+    agentType?: AgentType | null;
   };
 }
 
