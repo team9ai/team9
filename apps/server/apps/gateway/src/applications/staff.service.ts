@@ -7,9 +7,11 @@ import {
 import * as schema from '@team9/database/schemas';
 import type { BotExtra } from '@team9/database/schemas';
 import { ClawHiveService } from '@team9/claw-hive';
-import { streamText } from 'ai';
+import { streamText, Output } from 'ai';
+import { z } from 'zod';
 import { createOpenAI } from '@ai-sdk/openai';
 import { BotService } from '../bot/bot.service.js';
+import type { GenerateCandidatesDto } from './dto/generate-persona.dto.js';
 
 // ── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -96,6 +98,20 @@ export interface GenerateAvatarOptions {
 const openrouter = createOpenAI({
   baseURL: 'https://openrouter.ai/api/v1',
   apiKey: process.env.OPENROUTER_API_KEY,
+});
+
+// ── Candidate generation schema ──────────────────────────────────────────────
+
+const candidateSchema = z.object({
+  candidates: z.array(
+    z.object({
+      candidateIndex: z.number(),
+      displayName: z.string(),
+      roleTitle: z.string(),
+      persona: z.string(),
+      summary: z.string(),
+    }),
+  ),
 });
 
 // ── Service ──────────────────────────────────────────────────────────────────
@@ -431,5 +447,40 @@ export class StaffService {
     return {
       avatarUrl: `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(options.displayName ?? 'staff')}`,
     };
+  }
+
+  /**
+   * Stream 3 diverse AI employee candidate role cards via SSE.
+   *
+   * Uses Vercel AI SDK's streamText with Output.object and a Zod schema to generate and
+   * stream structured candidate profiles.
+   */
+  async *generateCandidates(
+    dto: GenerateCandidatesDto,
+  ): AsyncGenerator<{ type: 'partial' | 'complete'; data: unknown }> {
+    const promptParts: string[] = [
+      'Generate exactly 3 diverse AI employee candidate profiles.',
+      'Each candidate should be unique and interesting with distinct personality traits.',
+      'The persona should be personality-rich: include character traits, communication style, work habits, and quirks.',
+      "Each summary should be 1-2 sentences capturing the candidate's essence.",
+    ];
+
+    if (dto.jobTitle) promptParts.push(`Job Title: ${dto.jobTitle}`);
+    if (dto.jobDescription)
+      promptParts.push(`Job Description: ${dto.jobDescription}`);
+
+    const result = streamText({
+      model: openrouter('anthropic/claude-sonnet-4-6'),
+      output: Output.object({ schema: candidateSchema }),
+      prompt: promptParts.join('\n'),
+      temperature: 0.95,
+    });
+
+    for await (const partial of result.partialOutputStream) {
+      yield { type: 'partial' as const, data: partial };
+    }
+
+    const final = await result.output;
+    yield { type: 'complete' as const, data: final };
   }
 }

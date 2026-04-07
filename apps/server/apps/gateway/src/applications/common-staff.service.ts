@@ -14,13 +14,10 @@ import {
 import * as schema from '@team9/database/schemas';
 import type { BotExtra } from '@team9/database/schemas';
 import { ClawHiveService } from '@team9/claw-hive';
-import { streamText, Output } from 'ai';
-import { z } from 'zod';
-import { createOpenAI } from '@ai-sdk/openai';
 import { BotService } from '../bot/bot.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { InstalledApplicationsService } from './installed-applications.service.js';
-import { StaffService } from './staff.service.js';
+import { StaffService, type StaffBotResult } from './staff.service.js';
 import type {
   CreateCommonStaffDto,
   UpdateCommonStaffDto,
@@ -31,29 +28,7 @@ import type {
   GenerateCandidatesDto,
 } from './dto/generate-persona.dto.js';
 
-export interface CommonStaffResult {
-  botId: string;
-  userId: string;
-  agentId: string;
-  displayName: string | undefined;
-}
-
-const openrouter = createOpenAI({
-  baseURL: 'https://openrouter.ai/api/v1',
-  apiKey: process.env.OPENROUTER_API_KEY,
-});
-
-const candidateSchema = z.object({
-  candidates: z.array(
-    z.object({
-      candidateIndex: z.number(),
-      displayName: z.string(),
-      roleTitle: z.string(),
-      persona: z.string(),
-      summary: z.string(),
-    }),
-  ),
-});
+export type { StaffBotResult as CommonStaffResult };
 
 const COMMON_STAFF_APPLICATION_ID = 'common-staff';
 const HIVE_BLUEPRINT_ID = 'team9-common-staff';
@@ -87,7 +62,7 @@ export class CommonStaffService {
     tenantId: string,
     ownerId: string,
     dto: CreateCommonStaffDto,
-  ): Promise<CommonStaffResult> {
+  ): Promise<StaffBotResult> {
     // 1. Verify app is common-staff type
     const app = await this.installedApplicationsService.findById(
       installedApplicationId,
@@ -455,8 +430,7 @@ export class CommonStaffService {
   /**
    * Stream 3 diverse AI employee candidate role cards via SSE.
    *
-   * Uses Vercel AI SDK's streamText with Output.object and a Zod schema to generate and
-   * stream structured candidate profiles.
+   * Delegates to StaffService.generateCandidates after verifying the app type.
    */
   async *generateCandidates(
     appId: string,
@@ -472,30 +446,6 @@ export class CommonStaffService {
       throw new BadRequestException('Not a common-staff application');
     }
 
-    // Build prompt parts
-    const promptParts: string[] = [
-      'Generate exactly 3 diverse AI employee candidate profiles.',
-      'Each candidate should be unique and interesting with distinct personality traits.',
-      'The persona should be personality-rich: include character traits, communication style, work habits, and quirks.',
-      "Each summary should be 1-2 sentences capturing the candidate's essence.",
-    ];
-
-    if (dto.jobTitle) promptParts.push(`Job Title: ${dto.jobTitle}`);
-    if (dto.jobDescription)
-      promptParts.push(`Job Description: ${dto.jobDescription}`);
-
-    const result = streamText({
-      model: openrouter('anthropic/claude-sonnet-4-6'),
-      output: Output.object({ schema: candidateSchema }),
-      prompt: promptParts.join('\n'),
-      temperature: 0.95,
-    });
-
-    for await (const partial of result.partialOutputStream) {
-      yield { type: 'partial' as const, data: partial };
-    }
-
-    const final = await result.output;
-    yield { type: 'complete' as const, data: final };
+    yield* this.staffService.generateCandidates(dto);
   }
 }

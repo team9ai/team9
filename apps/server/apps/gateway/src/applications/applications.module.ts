@@ -44,7 +44,7 @@ import {
       inject: APPLICATION_HANDLERS,
     },
   ],
-  exports: [ApplicationsService, InstalledApplicationsService],
+  exports: [ApplicationsService, InstalledApplicationsService, StaffService],
 })
 export class ApplicationsModule implements OnModuleInit {
   private readonly logger = new Logger(ApplicationsModule.name);
