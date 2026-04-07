@@ -103,7 +103,7 @@ export class AppModule implements OnModuleInit, NestModule {
     // Rewrite legacy /v1/tasks → /v1/routines during rename rollout
     consumer
       .apply(LegacyTaskRoutesMiddleware)
-      .forRoutes('v1/tasks*', 'v1/bot/tasks*');
+      .forRoutes('v1/tasks/{*path}', 'v1/bot/tasks/{*path}');
     // Apply TenantMiddleware to all routes
     consumer.apply(TenantMiddleware).forRoutes('*');
   }
