@@ -431,7 +431,7 @@ export class RoutinesService {
 
     await this.publishTaskCommand({
       type: 'start',
-      taskId: routineId,
+      routineId,
       userId,
       message: dto.message,
       notes: 'notes' in dto ? dto.notes : undefined,
@@ -447,7 +447,7 @@ export class RoutinesService {
 
     await this.publishTaskCommand({
       type: 'pause',
-      taskId: routineId,
+      routineId,
       userId,
     });
 
@@ -471,7 +471,7 @@ export class RoutinesService {
 
     await this.publishTaskCommand({
       type: 'resume',
-      taskId: routineId,
+      routineId,
       userId,
       message: dto.message,
     });
@@ -496,7 +496,7 @@ export class RoutinesService {
 
     await this.publishTaskCommand({
       type: 'stop',
-      taskId: routineId,
+      routineId,
       userId,
       message: dto.reason,
     });
@@ -521,7 +521,7 @@ export class RoutinesService {
 
     await this.publishTaskCommand({
       type: 'restart',
-      taskId: routineId,
+      routineId,
       userId,
       notes: dto?.notes,
     });
@@ -573,7 +573,7 @@ export class RoutinesService {
 
     await this.publishTaskCommand({
       type: 'retry',
-      taskId: routineId,
+      routineId,
       userId,
       notes: dto.notes,
       sourceExecutionId: dto.executionId,
@@ -668,7 +668,7 @@ export class RoutinesService {
     // Publish resume command via RabbitMQ
     await this.publishTaskCommand({
       type: 'resume',
-      taskId: routineId,
+      routineId,
       userId,
       message: `Intervention resolved: ${dto.action}${dto.message ? ` - ${dto.message}` : ''}`,
     });
@@ -729,7 +729,7 @@ export class RoutinesService {
 
   private async publishTaskCommand(command: {
     type: string;
-    taskId: string;
+    routineId: string;
     userId: string;
     message?: string;
     notes?: string;
@@ -744,7 +744,7 @@ export class RoutinesService {
         { persistent: true },
       );
       this.logger.debug(
-        `Published task command: ${command.type} for task ${command.taskId}`,
+        `Published task command: ${command.type} for routine ${command.routineId}`,
       );
     } catch (error) {
       this.logger.error(`Failed to publish task command: ${error}`);

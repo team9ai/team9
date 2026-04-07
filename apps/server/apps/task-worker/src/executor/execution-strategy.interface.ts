@@ -1,5 +1,5 @@
 export interface ExecutionContext {
-  taskId: string;
+  routineId: string;
   executionId: string;
   botId: string;
   channelId: string;

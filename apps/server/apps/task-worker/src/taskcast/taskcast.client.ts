@@ -20,7 +20,7 @@ export class TaskCastClient {
    * Deterministic ID: `agent_task_exec_${executionId}`.
    */
   async createTask(params: {
-    taskId: string;
+    routineId: string;
     executionId: string;
     botId: string;
     tenantId: string;
@@ -30,10 +30,10 @@ export class TaskCastClient {
     try {
       const task = await this.client.createTask({
         id: deterministicId,
-        type: `agent_task.${params.taskId}`,
+        type: `agent_task.${params.routineId}`,
         ttl: params.ttl ?? 86400,
         metadata: {
-          taskId: params.taskId,
+          routineId: params.routineId,
           executionId: params.executionId,
           botId: params.botId,
           tenantId: params.tenantId,
