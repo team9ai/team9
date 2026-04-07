@@ -9,7 +9,7 @@ import type { Request, Response, NextFunction } from 'express';
  * already-deployed clients and agent runtimes (Hive / OpenClaw)
  * continue to work during the rename rollout.
  *
- * TODO: Remove once all clients and agent runtimes are updated.
+ * @deprecated Remove once all clients and agent runtimes are updated.
  */
 @Injectable()
 export class LegacyTaskRoutesMiddleware implements NestMiddleware {
