@@ -226,6 +226,28 @@ export class InstalledApplicationsService {
   }
 
   /**
+   * Find an installed application by its application definition ID (e.g. "personal-staff")
+   * for a given tenant.
+   */
+  async findByApplicationId(
+    tenantId: string,
+    applicationId: string,
+  ): Promise<SafeInstalledApplication | null> {
+    const [result] = await this.db
+      .select()
+      .from(schema.installedApplications)
+      .where(
+        and(
+          eq(schema.installedApplications.tenantId, tenantId),
+          eq(schema.installedApplications.applicationId, applicationId),
+        ),
+      )
+      .limit(1);
+
+    return result ? this.omitSecrets(result) : null;
+  }
+
+  /**
    * Get an installed application by ID.
    */
   async findById(

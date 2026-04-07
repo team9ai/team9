@@ -5,6 +5,7 @@ import { BotService } from '../bot/bot.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { InstalledApplicationsService } from '../applications/installed-applications.service.js';
 import { ApplicationsService } from '../applications/applications.service.js';
+import { PersonalStaffService } from '../applications/personal-staff.service.js';
 import { RedisService } from '@team9/redis';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
@@ -140,6 +141,13 @@ describe('WorkspaceService', () => {
         {
           provide: ApplicationsService,
           useValue: applicationsService,
+        },
+        {
+          provide: PersonalStaffService,
+          useValue: {
+            createStaff: jest.fn<any>().mockResolvedValue(undefined),
+            deleteStaff: jest.fn<any>().mockResolvedValue(undefined),
+          },
         },
       ],
     }).compile();
