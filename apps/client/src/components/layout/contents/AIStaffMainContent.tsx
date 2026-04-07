@@ -389,7 +389,7 @@ export function AIStaffMainContent() {
   }, [membersData, currentUser?.id]);
 
   // Categorize bots into sections
-  const { myPersonalStaff, aiStaffBots, personalStaffApp } = useMemo(() => {
+  const { myPersonalStaff, aiStaffBots } = useMemo(() => {
     if (!installedApps || !currentUser?.id) {
       return {
         myPersonalStaff: [] as {
@@ -401,7 +401,6 @@ export function AIStaffMainContent() {
           bot: AIStaffBot;
           isOtherPersonalStaff: boolean;
         }[],
-        personalStaffApp: undefined as InstalledApplicationWithBots | undefined,
       };
     }
 
@@ -411,13 +410,11 @@ export function AIStaffMainContent() {
       bot: AIStaffBot;
       isOtherPersonalStaff: boolean;
     }[] = [];
-    let psApp: InstalledApplicationWithBots | undefined;
 
     for (const app of installedApps) {
       if (app.status !== "active") continue;
 
       if (app.applicationId === "personal-staff") {
-        psApp = app;
         for (const bot of app.bots) {
           if (isPersonalStaffBot(bot) && bot.ownerId === currentUser.id) {
             // Current user's personal staff -> Section 1
@@ -443,7 +440,6 @@ export function AIStaffMainContent() {
     return {
       myPersonalStaff: myPS,
       aiStaffBots: aiStaff,
-      personalStaffApp: psApp,
     };
   }, [installedApps, currentUser?.id]);
 
@@ -456,8 +452,7 @@ export function AIStaffMainContent() {
     (a) => a.applicationId === "common-staff",
   );
 
-  const hasCreateButton =
-    !!commonStaffApp || openClawApps.length > 0 || !!personalStaffApp;
+  const hasCreateButton = !!commonStaffApp || openClawApps.length > 0;
 
   return (
     <main className="h-full flex flex-col bg-background overflow-hidden">

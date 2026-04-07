@@ -113,7 +113,7 @@ export interface CreatePersonalStaffDto {
 
 export interface UpdatePersonalStaffDto {
   displayName?: string;
-  persona?: string;
+  persona?: string | null;
   model?: { provider: string; id: string };
   avatarUrl?: string;
   visibility?: {

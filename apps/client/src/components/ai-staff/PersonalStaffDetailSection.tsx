@@ -48,6 +48,7 @@ import { COMMON_STAFF_MODELS } from "@/lib/common-staff-models";
 import type {
   PersonalStaffListBotInfo,
   InstalledApplicationWithBots,
+  UpdatePersonalStaffDto,
 } from "@/services/api/applications";
 
 interface PersonalStaffDetailSectionProps {
@@ -108,7 +109,7 @@ export function PersonalStaffDetailSection({
 
   // Update mutation
   const updateMutation = useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
+    mutationFn: (body: UpdatePersonalStaffDto) =>
       api.applications.updatePersonalStaff(appId, body),
     onSuccess: () => {
       queryClient.invalidateQueries({
