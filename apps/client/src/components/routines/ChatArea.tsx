@@ -179,7 +179,7 @@ export function ChatArea({
           </Badge>
           {selectedRun && (
             <span className="text-xs text-muted-foreground shrink-0">
-              v{selectedRun.taskVersion}
+              v{selectedRun.routineVersion}
               {selectedRun.tokenUsage > 0 &&
                 ` · ${selectedRun.tokenUsage} tokens`}
               {selectedRun.duration != null &&
@@ -285,7 +285,7 @@ export function ChatArea({
               {" · "}
               {t(`status.${selectedRun.status}`)}
               {" · v"}
-              {selectedRun.taskVersion}
+              {selectedRun.routineVersion}
             </span>
           </div>
           <Button variant="outline" size="sm" onClick={onReturnToCurrent}>

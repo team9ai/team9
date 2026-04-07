@@ -50,7 +50,7 @@ export function RunItem({ execution, isSelected, onClick }: RunItemProps) {
             isSelected ? "text-primary" : "text-foreground",
           )}
         >
-          v{execution.taskVersion}
+          v{execution.routineVersion}
         </span>
         {execution.startedAt && (
           <span className="text-[10px] text-muted-foreground ml-auto">

@@ -42,7 +42,7 @@ export class TaskCastService {
    * This lets all services compute the TaskCast ID without DB lookups.
    */
   async createTask(params: {
-    taskId: string;
+    routineId: string;
     executionId: string;
     botId: string;
     tenantId: string;
@@ -52,10 +52,10 @@ export class TaskCastService {
     try {
       const task = await this.client.createTask({
         id: deterministicId,
-        type: `agent_task.${params.taskId}`,
+        type: `agent_task.${params.routineId}`,
         ttl: params.ttl ?? 86400,
         metadata: {
-          taskId: params.taskId,
+          routineId: params.routineId,
           executionId: params.executionId,
           botId: params.botId,
           tenantId: params.tenantId,

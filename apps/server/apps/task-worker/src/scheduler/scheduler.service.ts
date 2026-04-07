@@ -57,7 +57,7 @@ export class SchedulerService {
     const dueTriggers = await this.db
       .select({
         trigger: schema.routineTriggers,
-        taskStatus: schema.routines.status,
+        routineStatus: schema.routines.status,
       })
       .from(schema.routineTriggers)
       .innerJoin(

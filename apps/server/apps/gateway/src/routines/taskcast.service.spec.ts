@@ -53,7 +53,7 @@ describe('TaskCastService', () => {
 
   describe('createTask', () => {
     const params = {
-      taskId: 'task-abc',
+      routineId: 'task-abc',
       executionId: 'exec-123',
       botId: 'bot-xyz',
       tenantId: 'tenant-999',
@@ -67,10 +67,10 @@ describe('TaskCastService', () => {
       expect(mockCreateTask).toHaveBeenCalledWith(
         expect.objectContaining({
           id: 'agent_task_exec_exec-123',
-          type: `agent_task.${params.taskId}`,
+          type: `agent_task.${params.routineId}`,
           ttl: 86400,
           metadata: {
-            taskId: params.taskId,
+            routineId: params.routineId,
             executionId: params.executionId,
             botId: params.botId,
             tenantId: params.tenantId,

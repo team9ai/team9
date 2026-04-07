@@ -77,7 +77,7 @@ export interface Routine {
 export interface RoutineExecution {
   id: string;
   routineId: string;
-  taskVersion: number;
+  routineVersion: number;
   status: RoutineStatus;
   channelId: string | null;
   taskcastTaskId: string | null;

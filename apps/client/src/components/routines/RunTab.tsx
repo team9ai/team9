@@ -93,7 +93,7 @@ export function RunTab({ routineId, execution }: RunTabProps) {
             {t(`status.${execution.status}`)}
           </Badge>
           <span className="text-xs text-muted-foreground">
-            v{execution.taskVersion}
+            v{execution.routineVersion}
           </span>
         </div>
 

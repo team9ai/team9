@@ -216,7 +216,7 @@ export class RoutineBotService {
       );
     }
 
-    return { task: updatedRoutine, execution: updatedExecution };
+    return { routine: updatedRoutine, execution: updatedExecution };
   }
 
   // ── Create intervention ──────────────────────────────────────────
