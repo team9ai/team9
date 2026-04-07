@@ -68,17 +68,27 @@ describe('UsersController', () => {
   });
 
   it('searches users with parsed limit and tenant scope', async () => {
-    await expect(controller.search('alice', '25', 'tenant-1')).resolves.toEqual(
-      [{ id: 'user-1' }],
-    );
+    await expect(
+      controller.search('user-1', 'alice', '25', 'tenant-1'),
+    ).resolves.toEqual([{ id: 'user-1' }]);
 
-    expect(usersService.search).toHaveBeenCalledWith('alice', 25, 'tenant-1');
+    expect(usersService.search).toHaveBeenCalledWith(
+      'alice',
+      25,
+      'tenant-1',
+      'user-1',
+    );
   });
 
   it('searches with empty query and default limit when query params are missing', async () => {
-    await controller.search(undefined as never, undefined, undefined);
+    await controller.search('user-1', undefined as never, undefined, undefined);
 
-    expect(usersService.search).toHaveBeenCalledWith('', 20, undefined);
+    expect(usersService.search).toHaveBeenCalledWith(
+      '',
+      20,
+      undefined,
+      'user-1',
+    );
   });
 
   it('returns online users', async () => {

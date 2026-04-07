@@ -392,14 +392,7 @@ describe('CommonStaffService', () => {
       expect(configs).not.toHaveProperty('common-staff-agent');
     });
 
-    it('creates DM channels for workspace members', async () => {
-      const memberIds = ['member-a', 'member-b'];
-      // In createStaff, chain is awaited twice without .limit():
-      //   1st: update bots.managedMeta (no-op result)
-      //   2nd: members select → needs real member list
-      db.enqueue([]); // update managedMeta result (ignored)
-      db.enqueue(memberIds.map((userId) => ({ userId }))); // members select
-
+    it('creates DM channel only for the mentor (not all workspace members)', async () => {
       await service.createStaff(
         INSTALLED_APP_ID,
         TENANT_ID,
@@ -409,26 +402,9 @@ describe('CommonStaffService', () => {
 
       expect(channelsService.createDirectChannelsBatch).toHaveBeenCalledWith(
         BOT_USER_ID,
-        expect.arrayContaining(memberIds),
+        [OWNER_ID],
         TENANT_ID,
       );
-    });
-
-    it('skips DM creation when bot is the only member', async () => {
-      // In createStaff, chain is awaited twice without .limit():
-      //   1st: update bots.managedMeta (no-op result)
-      //   2nd: members select → only the bot itself
-      db.enqueue([]); // update managedMeta result (ignored)
-      db.enqueue([{ userId: BOT_USER_ID }]); // members select → only bot
-
-      await service.createStaff(
-        INSTALLED_APP_ID,
-        TENANT_ID,
-        OWNER_ID,
-        makeCreateDto(),
-      );
-
-      expect(channelsService.createDirectChannelsBatch).not.toHaveBeenCalled();
     });
 
     it('returns correct result object', async () => {
@@ -474,11 +450,6 @@ describe('CommonStaffService', () => {
         channelsService.createDirectChannelsBatch.mockResolvedValue(
           new Map([[MENTOR_ID, { id: DM_CHANNEL_ID }]]),
         );
-        // In createStaff, chain is awaited twice without .limit():
-        //   1st: update bots.managedMeta (no-op result)
-        //   2nd: members select (tenant members including mentor)
-        db.enqueue([]); // update managedMeta result (ignored)
-        db.enqueue([{ userId: MENTOR_ID }]); // members select result
       });
 
       it('triggers sendInput with bootstrap event using deterministic sessionId when agenticBootstrap=true', async () => {

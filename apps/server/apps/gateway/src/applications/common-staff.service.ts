@@ -54,7 +54,7 @@ export class CommonStaffService {
    * 1. Verify the installed application is common-staff type
    * 2. Auto-generate display name if agenticBootstrap is set and none provided
    * 3. Create bot + register claw-hive agent via StaffService
-   * 4. Create DM channels for all workspace members
+   * 4. Create mentor DM channel (for agentic bootstrap)
    * 5. If agenticBootstrap, trigger a claw-hive session in the mentor DM
    */
   async createStaff(
@@ -138,31 +138,30 @@ export class CommonStaffService {
       },
     });
 
-    // 4. Create DM channels for workspace members
-    const members = await this.db
-      .select({ userId: schema.tenantMembers.userId })
-      .from(schema.tenantMembers)
-      .where(eq(schema.tenantMembers.tenantId, tenantId));
-
-    const memberUserIds = members
-      .map((m) => m.userId)
-      .filter((uid) => uid !== result.userId);
-
-    let dmChannelMap: Map<string, { id: string }> = new Map();
-    if (memberUserIds.length > 0) {
-      dmChannelMap = await this.channelsService.createDirectChannelsBatch(
-        result.userId,
-        memberUserIds,
-        tenantId,
-      );
-      this.logger.log(
-        `Created DM channels for bot ${result.botId} with ${memberUserIds.length} members`,
-      );
+    // 4. Create mentor DM channel (for agentic bootstrap)
+    let mentorDmChannel: { id: string } | undefined;
+    if (effectiveMentorId) {
+      try {
+        const dmChannelMap =
+          await this.channelsService.createDirectChannelsBatch(
+            result.userId,
+            [effectiveMentorId],
+            tenantId,
+          );
+        mentorDmChannel = dmChannelMap.get(effectiveMentorId);
+        this.logger.log(
+          `Created DM channel for bot ${result.botId} with mentor ${effectiveMentorId}`,
+        );
+      } catch (dmError) {
+        this.logger.warn(
+          `Failed to create DM channel for bot ${result.botId} with mentor ${effectiveMentorId}`,
+          dmError,
+        );
+      }
     }
 
     // 5. Trigger bootstrap session in mentor DM if agenticBootstrap is set
     if (dto.agenticBootstrap && effectiveMentorId) {
-      const mentorDmChannel = dmChannelMap.get(effectiveMentorId);
       if (mentorDmChannel) {
         try {
           const sessionId = `team9/${tenantId}/${result.agentId}/dm/${mentorDmChannel.id}`;

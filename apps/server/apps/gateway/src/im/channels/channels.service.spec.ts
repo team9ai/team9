@@ -159,6 +159,8 @@ describe('ChannelsService', () => {
       };
       const addMemberSpy = jest.spyOn(service, 'addMember');
 
+      // First limit call: assertDirectMessageAllowed bot lookup → not a bot
+      db.limit.mockResolvedValueOnce([] as any);
       db.having.mockResolvedValueOnce([{ channelId: 'dm-existing' }] as any);
       db.limit.mockResolvedValueOnce([existingChannel] as any);
 
@@ -168,6 +170,186 @@ describe('ChannelsService', () => {
 
       expect(db.insert).not.toHaveBeenCalled();
       expect(addMemberSpy).not.toHaveBeenCalled();
+    });
+
+    it('throws ForbiddenException when target is a restricted personal staff bot', async () => {
+      // Bot lookup returns a personal staff bot owned by someone else
+      db.limit.mockResolvedValueOnce([
+        {
+          ownerId: 'other-owner',
+          extra: {
+            personalStaff: {
+              visibility: { allowMention: false, allowDirectMessage: false },
+            },
+          },
+          applicationId: 'personal-staff',
+        },
+      ] as any);
+
+      await expect(
+        service.createDirectChannel('user-1', 'bot-user', 'tenant-1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('allows DM when target personal staff bot has allowDirectMessage=true', async () => {
+      const addMemberSpy = jest
+        .spyOn(service, 'addMember')
+        .mockResolvedValue(undefined);
+
+      // Bot lookup returns a personal staff bot with allowDirectMessage=true
+      db.limit.mockResolvedValueOnce([
+        {
+          ownerId: 'other-owner',
+          extra: {
+            personalStaff: {
+              visibility: { allowMention: false, allowDirectMessage: true },
+            },
+          },
+          applicationId: 'personal-staff',
+        },
+      ] as any);
+      // No existing channel
+      db.having.mockResolvedValueOnce([] as any);
+      // New channel creation
+      db.returning.mockResolvedValueOnce([
+        {
+          id: 'new-dm',
+          tenantId: 'tenant-1',
+          type: 'direct',
+          createdBy: 'user-1',
+        },
+      ] as any);
+
+      await expect(
+        service.createDirectChannel('user-1', 'bot-user', 'tenant-1'),
+      ).resolves.toBeDefined();
+
+      addMemberSpy.mockRestore();
+    });
+
+    it('allows DM when requester is the owner of the personal staff bot', async () => {
+      const addMemberSpy = jest
+        .spyOn(service, 'addMember')
+        .mockResolvedValue(undefined);
+
+      // Bot lookup returns a personal staff bot owned by the requester
+      db.limit.mockResolvedValueOnce([
+        {
+          ownerId: 'user-1',
+          extra: {
+            personalStaff: {
+              visibility: { allowMention: false, allowDirectMessage: false },
+            },
+          },
+          applicationId: 'personal-staff',
+        },
+      ] as any);
+      // No existing channel
+      db.having.mockResolvedValueOnce([] as any);
+      // New channel creation
+      db.returning.mockResolvedValueOnce([
+        {
+          id: 'new-dm',
+          tenantId: 'tenant-1',
+          type: 'direct',
+          createdBy: 'user-1',
+        },
+      ] as any);
+
+      await expect(
+        service.createDirectChannel('user-1', 'bot-user', 'tenant-1'),
+      ).resolves.toBeDefined();
+
+      addMemberSpy.mockRestore();
+    });
+  });
+
+  describe('assertMentionsAllowed', () => {
+    it('does nothing when no user IDs are provided', async () => {
+      await expect(
+        service.assertMentionsAllowed('sender-1', []),
+      ).resolves.toBeUndefined();
+    });
+
+    it('does nothing when mentioned users are not bots', async () => {
+      // Bot query returns empty (no matching bots)
+      db.where.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.assertMentionsAllowed('sender-1', ['user-a', 'user-b']),
+      ).resolves.toBeUndefined();
+    });
+
+    it('throws ForbiddenException when mentioning a restricted personal staff bot', async () => {
+      db.where.mockResolvedValueOnce([
+        {
+          userId: 'bot-user',
+          ownerId: 'other-owner',
+          extra: {
+            personalStaff: {
+              visibility: { allowMention: false, allowDirectMessage: false },
+            },
+          },
+          applicationId: 'personal-staff',
+        },
+      ] as any);
+
+      await expect(
+        service.assertMentionsAllowed('sender-1', ['bot-user']),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('allows mention when sender is the owner', async () => {
+      db.where.mockResolvedValueOnce([
+        {
+          userId: 'bot-user',
+          ownerId: 'sender-1',
+          extra: {
+            personalStaff: {
+              visibility: { allowMention: false, allowDirectMessage: false },
+            },
+          },
+          applicationId: 'personal-staff',
+        },
+      ] as any);
+
+      await expect(
+        service.assertMentionsAllowed('sender-1', ['bot-user']),
+      ).resolves.toBeUndefined();
+    });
+
+    it('allows mention when allowMention is true', async () => {
+      db.where.mockResolvedValueOnce([
+        {
+          userId: 'bot-user',
+          ownerId: 'other-owner',
+          extra: {
+            personalStaff: {
+              visibility: { allowMention: true, allowDirectMessage: false },
+            },
+          },
+          applicationId: 'personal-staff',
+        },
+      ] as any);
+
+      await expect(
+        service.assertMentionsAllowed('sender-1', ['bot-user']),
+      ).resolves.toBeUndefined();
+    });
+
+    it('skips non-personal-staff bots', async () => {
+      db.where.mockResolvedValueOnce([
+        {
+          userId: 'common-bot',
+          ownerId: 'other-owner',
+          extra: { commonStaff: {} },
+          applicationId: 'common-staff',
+        },
+      ] as any);
+
+      await expect(
+        service.assertMentionsAllowed('sender-1', ['common-bot']),
+      ).resolves.toBeUndefined();
     });
   });
 

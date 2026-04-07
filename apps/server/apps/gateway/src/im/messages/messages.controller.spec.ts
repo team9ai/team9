@@ -76,6 +76,7 @@ describe('MessagesController', () => {
     isMember: MockFn;
     findById: MockFn;
     getMemberRole: MockFn;
+    assertMentionsAllowed: MockFn;
   };
   let websocketGateway: {
     sendToChannelMembers: MockFn;
@@ -130,6 +131,7 @@ describe('MessagesController', () => {
       isMember: jest.fn<any>().mockResolvedValue(true),
       findById: jest.fn<any>().mockResolvedValue(makeChannel()),
       getMemberRole: jest.fn<any>().mockResolvedValue('owner'),
+      assertMentionsAllowed: jest.fn<any>().mockResolvedValue(undefined),
     };
 
     websocketGateway = {
@@ -392,6 +394,54 @@ describe('MessagesController', () => {
           messageId: fullMessage.id,
         }),
       );
+    });
+
+    it('calls assertMentionsAllowed when message contains @mentions', async () => {
+      const mentionedUserId = '550e8400-e29b-41d4-a716-446655440099';
+      const fullMessage = makeMessage({
+        content: `Hello @<${mentionedUserId}>`,
+      });
+      messagesService.getMessageWithDetails.mockResolvedValueOnce(fullMessage);
+
+      await controller.createMessage(USER_ID, CHANNEL_ID, {
+        clientMsgId: CLIENT_MSG_ID,
+        content: `Hello @<${mentionedUserId}>`,
+      } as never);
+
+      expect(channelsService.assertMentionsAllowed).toHaveBeenCalledWith(
+        USER_ID,
+        [mentionedUserId],
+      );
+    });
+
+    it('rejects message when mentioning a restricted personal staff bot', async () => {
+      const mentionedUserId = '550e8400-e29b-41d4-a716-446655440099';
+      channelsService.assertMentionsAllowed.mockRejectedValueOnce(
+        new ForbiddenException(
+          'This is a private assistant and is not open for @mentions.',
+        ),
+      );
+
+      await expect(
+        controller.createMessage(USER_ID, CHANNEL_ID, {
+          clientMsgId: CLIENT_MSG_ID,
+          content: `Hello @<${mentionedUserId}>`,
+        } as never),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(imWorkerGrpcClientService.createMessage).not.toHaveBeenCalled();
+    });
+
+    it('does not call assertMentionsAllowed when message has no @mentions', async () => {
+      const fullMessage = makeMessage();
+      messagesService.getMessageWithDetails.mockResolvedValueOnce(fullMessage);
+
+      await controller.createMessage(USER_ID, CHANNEL_ID, {
+        clientMsgId: CLIENT_MSG_ID,
+        content: 'hello world',
+      } as never);
+
+      expect(channelsService.assertMentionsAllowed).not.toHaveBeenCalled();
     });
   });
 
