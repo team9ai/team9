@@ -50,7 +50,7 @@ const makeCreateDto = (
   overrides: Partial<CreateCommonStaffDto> = {},
 ): CreateCommonStaffDto => ({
   displayName: 'Test Staff',
-  model: { provider: 'anthropic', id: 'claude-3-5-sonnet-20241022' },
+  model: { provider: 'openrouter', id: 'anthropic/claude-sonnet-4.6' },
   roleTitle: 'Software Engineer',
   mentorId: USER_ID,
   persona: 'Helpful assistant',
@@ -252,7 +252,7 @@ describe('CommonStaffController', () => {
         roleTitle: 'Senior Engineer',
         persona: 'Expert',
         jobDescription: 'Leads architecture',
-        model: { provider: 'openai', id: 'gpt-4o' },
+        model: { provider: 'openrouter', id: 'openai/gpt-4o' },
         avatarUrl: 'https://example.com/new-avatar.png',
         mentorId: 'new-mentor-id',
       });
@@ -266,7 +266,7 @@ describe('CommonStaffController', () => {
           roleTitle: 'Senior Engineer',
           persona: 'Expert',
           jobDescription: 'Leads architecture',
-          model: { provider: 'openai', id: 'gpt-4o' },
+          model: { provider: 'openrouter', id: 'openai/gpt-4o' },
           avatarUrl: 'https://example.com/new-avatar.png',
           mentorId: 'new-mentor-id',
         }),

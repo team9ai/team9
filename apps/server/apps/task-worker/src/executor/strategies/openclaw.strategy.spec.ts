@@ -21,7 +21,7 @@ mockDb.limit.mockReturnValue(Promise.resolve([]));
 const mockFetch = jest.fn<typeof globalThis.fetch>();
 
 const baseContext: ExecutionContext = {
-  taskId: 'task-001',
+  routineId: 'task-001',
   executionId: 'exec-001',
   botId: 'bot-001',
   channelId: 'ch-001',

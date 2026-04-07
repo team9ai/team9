@@ -110,8 +110,8 @@ export function CommonStaffDetailSection({
 
   // Current model value for the select — fall back to the default model when null
   const effectiveModel = bot.model ?? {
-    provider: "anthropic",
-    id: "claude-sonnet-4-6",
+    provider: "openrouter",
+    id: "anthropic/claude-sonnet-4.6",
   };
   const currentModelValue = `${effectiveModel.provider}::${effectiveModel.id}`;
 

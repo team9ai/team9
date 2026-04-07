@@ -31,11 +31,11 @@ export class TimeoutService {
 
     const staleExecutions = await this.db
       .select()
-      .from(schema.agentTaskExecutions)
+      .from(schema.routineExecutions)
       .where(
         and(
-          eq(schema.agentTaskExecutions.status, 'in_progress'),
-          lte(schema.agentTaskExecutions.startedAt, cutoff),
+          eq(schema.routineExecutions.status, 'in_progress'),
+          lte(schema.routineExecutions.startedAt, cutoff),
         ),
       );
 
@@ -53,15 +53,15 @@ export class TimeoutService {
       try {
         // Update execution status to timeout (only if still in_progress)
         const [updated] = await this.db
-          .update(schema.agentTaskExecutions)
+          .update(schema.routineExecutions)
           .set({
             status: 'timeout',
             completedAt: now,
           })
           .where(
             and(
-              eq(schema.agentTaskExecutions.id, execution.id),
-              eq(schema.agentTaskExecutions.status, 'in_progress'),
+              eq(schema.routineExecutions.id, execution.id),
+              eq(schema.routineExecutions.status, 'in_progress'),
             ),
           )
           .returning();
@@ -75,20 +75,20 @@ export class TimeoutService {
 
         // Update the parent task status to timeout
         await this.db
-          .update(schema.agentTasks)
+          .update(schema.routines)
           .set({
             status: 'timeout',
             updatedAt: now,
           })
           .where(
             and(
-              eq(schema.agentTasks.id, execution.taskId),
-              eq(schema.agentTasks.status, 'in_progress'),
+              eq(schema.routines.id, execution.routineId),
+              eq(schema.routines.status, 'in_progress'),
             ),
           );
 
         this.logger.warn(
-          `Execution ${execution.id} for task ${execution.taskId} marked as timeout (started at ${execution.startedAt?.toISOString()})`,
+          `Execution ${execution.id} for routine ${execution.routineId} marked as timeout (started at ${execution.startedAt?.toISOString()})`,
         );
       } catch (error) {
         this.logger.error(

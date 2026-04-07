@@ -15,7 +15,7 @@ const CATEGORY_OPTIONS: { value: EventCategory; label: string }[] = [
   { value: "channel", label: "Channel" },
   { value: "reaction", label: "Reaction" },
   { value: "auth", label: "Auth" },
-  { value: "task", label: "Task" },
+  { value: "routine", label: "Routine" },
   { value: "system", label: "System" },
 ];
 

@@ -1,4 +1,4 @@
-import { Module, forwardRef, type OnModuleInit, Logger } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { WorkspaceModule } from '../workspace/workspace.module.js';
 import { ChannelsModule } from '../im/channels/channels.module.js';
 import { WebsocketModule } from '../im/websocket/websocket.module.js';
@@ -44,18 +44,4 @@ import {
   ],
   exports: [ApplicationsService, InstalledApplicationsService],
 })
-export class ApplicationsModule implements OnModuleInit {
-  private readonly logger = new Logger(ApplicationsModule.name);
-
-  constructor(
-    private readonly installedApplicationsService: InstalledApplicationsService,
-  ) {}
-
-  async onModuleInit(): Promise<void> {
-    try {
-      await this.installedApplicationsService.backfillAutoInstallApps();
-    } catch (error) {
-      this.logger.warn('Auto-install backfill failed (non-fatal)', error);
-    }
-  }
-}
+export class ApplicationsModule {}

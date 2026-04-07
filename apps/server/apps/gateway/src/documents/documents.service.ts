@@ -279,12 +279,12 @@ export class DocumentsService {
 
     // Bump version on any task linked to this document
     await this.db
-      .update(schema.agentTasks)
+      .update(schema.routines)
       .set({
-        version: sql`${schema.agentTasks.version} + 1`,
+        version: sql`${schema.routines.version} + 1`,
         updatedAt: new Date(),
       })
-      .where(eq(schema.agentTasks.documentId, id));
+      .where(eq(schema.routines.documentId, id));
 
     return {
       id: version.id,

@@ -38,8 +38,8 @@ import {
   type NotificationCountsUpdatedEvent,
   type NotificationReadEvent,
   type NotificationAllReadEvent,
-  type TaskStatusChangedEvent,
-  type TaskExecutionCreatedEvent,
+  type RoutineStatusChangedEvent,
+  type RoutineExecutionCreatedEvent,
   type StreamingStartEvent,
   type StreamingContentEvent,
   type StreamingThinkingContentEvent,
@@ -593,31 +593,39 @@ class WebSocketService {
     this.off(WS_EVENTS.NOTIFICATION.ALL_READ, callback);
   }
 
-  // Task events
-  onTaskStatusChanged(callback: (event: TaskStatusChangedEvent) => void): void {
-    this.on<TaskStatusChangedEvent>(WS_EVENTS.TASK.STATUS_CHANGED, callback);
-  }
-
-  onTaskExecutionCreated(
-    callback: (event: TaskExecutionCreatedEvent) => void,
+  // Routine events
+  onRoutineStatusChanged(
+    callback: (event: RoutineStatusChangedEvent) => void,
   ): void {
-    this.on<TaskExecutionCreatedEvent>(
-      WS_EVENTS.TASK.EXECUTION_CREATED,
+    this.on<RoutineStatusChangedEvent>(
+      WS_EVENTS.ROUTINE.STATUS_CHANGED,
       callback,
     );
   }
 
-  offTaskStatusChanged(
-    callback: (event: TaskStatusChangedEvent) => void,
+  onRoutineExecutionCreated(
+    callback: (event: RoutineExecutionCreatedEvent) => void,
   ): void {
-    this.off<TaskStatusChangedEvent>(WS_EVENTS.TASK.STATUS_CHANGED, callback);
+    this.on<RoutineExecutionCreatedEvent>(
+      WS_EVENTS.ROUTINE.EXECUTION_CREATED,
+      callback,
+    );
   }
 
-  offTaskExecutionCreated(
-    callback: (event: TaskExecutionCreatedEvent) => void,
+  offRoutineStatusChanged(
+    callback: (event: RoutineStatusChangedEvent) => void,
   ): void {
-    this.off<TaskExecutionCreatedEvent>(
-      WS_EVENTS.TASK.EXECUTION_CREATED,
+    this.off<RoutineStatusChangedEvent>(
+      WS_EVENTS.ROUTINE.STATUS_CHANGED,
+      callback,
+    );
+  }
+
+  offRoutineExecutionCreated(
+    callback: (event: RoutineExecutionCreatedEvent) => void,
+  ): void {
+    this.off<RoutineExecutionCreatedEvent>(
+      WS_EVENTS.ROUTINE.EXECUTION_CREATED,
       callback,
     );
   }

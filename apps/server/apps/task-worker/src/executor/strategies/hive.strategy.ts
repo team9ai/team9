@@ -22,12 +22,12 @@ export class HiveStrategy implements ExecutionStrategy {
   ) {}
 
   async execute(context: ExecutionContext): Promise<void> {
-    this.logger.log(`Starting Hive agent for task ${context.taskId}`);
+    this.logger.log(`Starting Hive agent for routine ${context.routineId}`);
     const { agentId } = await this.resolveHiveConfig(context.botId);
     const sessionId = this.buildSessionId(
       context.tenantId,
       agentId,
-      context.taskId,
+      context.routineId,
     );
 
     await this.clawHiveService.sendInput(
@@ -37,7 +37,7 @@ export class HiveStrategy implements ExecutionStrategy {
         source: 'team9',
         timestamp: new Date().toISOString(),
         payload: {
-          taskId: context.taskId,
+          taskId: context.routineId,
           executionId: context.executionId,
           channelId: context.channelId,
           title: context.title,
@@ -52,12 +52,12 @@ export class HiveStrategy implements ExecutionStrategy {
   }
 
   async pause(context: ExecutionContext): Promise<void> {
-    this.logger.log(`Pausing Hive agent for task ${context.taskId}`);
+    this.logger.log(`Pausing Hive agent for routine ${context.routineId}`);
     const { agentId } = await this.resolveHiveConfig(context.botId);
     const sessionId = this.buildSessionId(
       context.tenantId,
       agentId,
-      context.taskId,
+      context.routineId,
     );
     try {
       await this.clawHiveService.interruptSession(sessionId, context.tenantId);
@@ -75,12 +75,12 @@ export class HiveStrategy implements ExecutionStrategy {
   }
 
   async resume(context: ExecutionContext): Promise<void> {
-    this.logger.log(`Resuming Hive agent for task ${context.taskId}`);
+    this.logger.log(`Resuming Hive agent for routine ${context.routineId}`);
     const { agentId } = await this.resolveHiveConfig(context.botId);
     const sessionId = this.buildSessionId(
       context.tenantId,
       agentId,
-      context.taskId,
+      context.routineId,
     );
     await this.clawHiveService.sendInput(
       sessionId,
@@ -89,7 +89,7 @@ export class HiveStrategy implements ExecutionStrategy {
         source: 'team9',
         timestamp: new Date().toISOString(),
         payload: {
-          taskId: context.taskId,
+          taskId: context.routineId,
           executionId: context.executionId,
           message: context.message,
         },
@@ -99,12 +99,12 @@ export class HiveStrategy implements ExecutionStrategy {
   }
 
   async stop(context: ExecutionContext): Promise<void> {
-    this.logger.log(`Stopping Hive agent for task ${context.taskId}`);
+    this.logger.log(`Stopping Hive agent for routine ${context.routineId}`);
     const { agentId } = await this.resolveHiveConfig(context.botId);
     const sessionId = this.buildSessionId(
       context.tenantId,
       agentId,
-      context.taskId,
+      context.routineId,
     );
     await this.clawHiveService.deleteSession(sessionId, context.tenantId);
   }
@@ -112,9 +112,9 @@ export class HiveStrategy implements ExecutionStrategy {
   private buildSessionId(
     tenantId: string,
     agentId: string,
-    taskId: string,
+    routineId: string,
   ): string {
-    return `team9/${tenantId}/${agentId}/task/${taskId}`;
+    return `team9/${tenantId}/${agentId}/task/${routineId}`;
   }
 
   private async resolveHiveConfig(botId: string): Promise<{ agentId: string }> {

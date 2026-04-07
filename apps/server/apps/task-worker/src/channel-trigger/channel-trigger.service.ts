@@ -29,7 +29,7 @@ interface MessageCreatedEvent {
 @Injectable()
 export class ChannelTriggerService implements OnModuleInit {
   private readonly logger = new Logger(ChannelTriggerService.name);
-  private channelTriggerMap = new Map<string, schema.AgentTaskTrigger[]>();
+  private channelTriggerMap = new Map<string, schema.RoutineTrigger[]>();
 
   constructor(
     @Inject(DATABASE_CONNECTION)
@@ -47,11 +47,11 @@ export class ChannelTriggerService implements OnModuleInit {
   async refresh(): Promise<void> {
     const triggers = await this.db
       .select()
-      .from(schema.agentTaskTriggers)
+      .from(schema.routineTriggers)
       .where(
         and(
-          eq(schema.agentTaskTriggers.type, 'channel_message'),
-          eq(schema.agentTaskTriggers.enabled, true),
+          eq(schema.routineTriggers.type, 'channel_message'),
+          eq(schema.routineTriggers.enabled, true),
         ),
       );
 
@@ -96,7 +96,7 @@ export class ChannelTriggerService implements OnModuleInit {
 
     for (const trigger of triggers) {
       try {
-        await this.executor.triggerExecution(trigger.taskId, {
+        await this.executor.triggerExecution(trigger.routineId, {
           triggerId: trigger.id,
           triggerType: 'channel_message',
           triggerContext: {
@@ -113,12 +113,12 @@ export class ChannelTriggerService implements OnModuleInit {
 
         // Update lastRunAt on the trigger
         await this.db
-          .update(schema.agentTaskTriggers)
+          .update(schema.routineTriggers)
           .set({
             lastRunAt: new Date(),
             updatedAt: new Date(),
           })
-          .where(eq(schema.agentTaskTriggers.id, trigger.id));
+          .where(eq(schema.routineTriggers.id, trigger.id));
       } catch (error) {
         this.logger.error(
           `Failed to trigger execution for trigger ${trigger.id}: ${error}`,

@@ -127,7 +127,7 @@ describe('WebhookController', () => {
 
   describe('TaskCast ID parsing', () => {
     it('parses executionId from agent_task_exec_ prefix correctly', async () => {
-      db.limit.mockResolvedValue([{ id: EXEC_ID, taskId: TASK_ID }]);
+      db.limit.mockResolvedValue([{ id: EXEC_ID, routineId: TASK_ID }]);
 
       await controller.handleTimeout(
         { taskId: TASKCAST_ID, status: 'timeout' },
@@ -174,7 +174,7 @@ describe('WebhookController', () => {
 
   describe('timeout status update', () => {
     it('updates both execution and task status to timeout on valid webhook', async () => {
-      db.limit.mockResolvedValue([{ id: EXEC_ID, taskId: TASK_ID }]);
+      db.limit.mockResolvedValue([{ id: EXEC_ID, routineId: TASK_ID }]);
 
       await controller.handleTimeout(
         { taskId: TASKCAST_ID, status: 'timeout' },
