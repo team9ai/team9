@@ -59,14 +59,14 @@ export class WebhookController {
       WebhookController.TASKCAST_ID_PREFIX.length,
     );
 
-    // Verify execution exists and get its taskId
+    // Verify execution exists and get its routineId
     const [execution] = await this.db
       .select({
-        id: schema.agentTaskExecutions.id,
-        taskId: schema.agentTaskExecutions.taskId,
+        id: schema.routineExecutions.id,
+        routineId: schema.routineExecutions.routineId,
       })
-      .from(schema.agentTaskExecutions)
-      .where(eq(schema.agentTaskExecutions.id, executionId))
+      .from(schema.routineExecutions)
+      .where(eq(schema.routineExecutions.id, executionId))
       .limit(1);
 
     if (!execution) {
@@ -78,24 +78,24 @@ export class WebhookController {
 
     // Update execution status
     await this.db
-      .update(schema.agentTaskExecutions)
+      .update(schema.routineExecutions)
       .set({
         status: 'timeout',
         completedAt: now,
       })
-      .where(eq(schema.agentTaskExecutions.id, executionId));
+      .where(eq(schema.routineExecutions.id, executionId));
 
-    // Update task status to timeout
+    // Update routine status to timeout
     await this.db
-      .update(schema.agentTasks)
+      .update(schema.routines)
       .set({
         status: 'timeout',
         updatedAt: now,
       })
-      .where(eq(schema.agentTasks.id, execution.taskId));
+      .where(eq(schema.routines.id, execution.routineId));
 
     this.logger.warn(
-      `Task ${execution.taskId} and execution ${executionId} marked as timeout via webhook`,
+      `Routine ${execution.routineId} and execution ${executionId} marked as timeout via webhook`,
     );
   }
 }

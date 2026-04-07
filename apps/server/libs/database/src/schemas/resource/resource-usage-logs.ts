@@ -8,8 +8,8 @@ import {
   index,
 } from 'drizzle-orm/pg-core';
 import { resources } from './resources.js';
-import { agentTasks } from '../task/tasks.js';
-import { agentTaskExecutions } from '../task/task-executions.js';
+import { routines } from '../routine/routines.js';
+import { routineExecutions } from '../routine/routine-executions.js';
 
 // ── Enums ────────────────────────────────────────────────────────────
 
@@ -33,9 +33,9 @@ export const resourceUsageLogs = pgTable(
 
     actorId: uuid('actor_id').notNull(),
 
-    taskId: uuid('task_id').references(() => agentTasks.id),
+    routineId: uuid('routine_id').references(() => routines.id),
 
-    executionId: uuid('execution_id').references(() => agentTaskExecutions.id),
+    executionId: uuid('execution_id').references(() => routineExecutions.id),
 
     action: varchar('action', { length: 64 }).notNull(),
 

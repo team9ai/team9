@@ -24,7 +24,7 @@ const mockClawHive = {
 // ── Base context ───────────────────────────────────────────────────────
 
 const baseContext: ExecutionContext = {
-  taskId: 'task-001',
+  routineId: 'task-001',
   executionId: 'exec-001',
   botId: 'bot-001',
   channelId: 'ch-task-001',

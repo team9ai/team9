@@ -1,6 +1,6 @@
 import http, { API_BASE_URL } from "../http";
 import { getValidAccessToken } from "../auth-session";
-import { useWorkspaceStore } from "../../stores";
+import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
 import type { AgentType } from "@/types/im";
 
 // Types matching server schemas
@@ -826,6 +826,7 @@ export const applicationsApi = {
     const token = await getValidAccessToken();
     const workspaceId = useWorkspaceStore.getState().selectedWorkspaceId;
     const url = `${API_BASE_URL}/v1/installed-applications/${appId}/common-staff/generate-persona`;
+    const workspaceId = useWorkspaceStore.getState().selectedWorkspaceId;
     const res = await fetch(url, {
       method: "POST",
       headers: {
@@ -892,6 +893,7 @@ export const applicationsApi = {
     const token = await getValidAccessToken();
     const workspaceId = useWorkspaceStore.getState().selectedWorkspaceId;
     const url = `${API_BASE_URL}/v1/installed-applications/${appId}/common-staff/generate-candidates`;
+    const workspaceId = useWorkspaceStore.getState().selectedWorkspaceId;
     const res = await fetch(url, {
       method: "POST",
       headers: {

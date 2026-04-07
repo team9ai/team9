@@ -68,11 +68,11 @@ const mockWsService = vi.hoisted(() => ({
   onNotificationAllRead: vi.fn((callback: (...args: any[]) => void) =>
     mockWsService.on("notification_all_read", callback),
   ),
-  onTaskStatusChanged: vi.fn((callback: (...args: any[]) => void) =>
-    mockWsService.on("task:status_changed", callback),
+  onRoutineStatusChanged: vi.fn((callback: (...args: any[]) => void) =>
+    mockWsService.on("routine:status_changed", callback),
   ),
-  onTaskExecutionCreated: vi.fn((callback: (...args: any[]) => void) =>
-    mockWsService.on("task:execution_created", callback),
+  onRoutineExecutionCreated: vi.fn((callback: (...args: any[]) => void) =>
+    mockWsService.on("routine:execution_created", callback),
   ),
   onTrackingDeactivated: vi.fn((callback: (...args: any[]) => void) =>
     mockWsService.on("tracking:deactivated", callback),
@@ -81,8 +81,8 @@ const mockWsService = vi.hoisted(() => ({
   offNotificationNew: vi.fn(),
   offNotificationRead: vi.fn(),
   offNotificationAllRead: vi.fn(),
-  offTaskStatusChanged: vi.fn(),
-  offTaskExecutionCreated: vi.fn(),
+  offRoutineStatusChanged: vi.fn(),
+  offRoutineExecutionCreated: vi.fn(),
   offTrackingDeactivated: vi.fn(),
 }));
 

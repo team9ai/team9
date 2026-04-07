@@ -75,16 +75,16 @@ function makeHarness() {
 }
 
 describe('MessageService', () => {
-  const originalS3Endpoint = process.env.S3_ENDPOINT;
+  const originalS3Endpoint = process.env.S3_PUBLIC_URL;
 
   beforeEach(() => {
     jest.spyOn(Date, 'now').mockReturnValue(1710000000000);
-    process.env.S3_ENDPOINT = 'https://cdn.example';
+    process.env.S3_PUBLIC_URL = 'https://cdn.example';
   });
 
   afterEach(() => {
     jest.restoreAllMocks();
-    process.env.S3_ENDPOINT = originalS3Endpoint;
+    process.env.S3_PUBLIC_URL = originalS3Endpoint;
   });
 
   it('short-circuits duplicate upstream messages before sequence generation', async () => {

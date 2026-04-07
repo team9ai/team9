@@ -166,10 +166,10 @@ describe('ExecutorService', () => {
 
     // insertValues: [channel, channelMember-creator, execution, channelMember-bot]
     const executionInsert = insertValues.find(
-      (v) => v.taskVersion !== undefined,
+      (v) => v.routineVersion !== undefined,
     );
     expect(executionInsert).toBeDefined();
-    expect(executionInsert.taskVersion).toBe(5);
+    expect(executionInsert.routineVersion).toBe(5);
   });
 
   // ── Bot not found ──────────────────────────────────────────────────
@@ -235,7 +235,7 @@ describe('ExecutorService', () => {
 
     expect(mockStrategy.execute).toHaveBeenCalledWith(
       expect.objectContaining({
-        taskId: 'task-001',
+        routineId: 'task-001',
         botId: 'bot-001',
       }),
     );
@@ -294,7 +294,7 @@ describe('ExecutorService', () => {
 
     expect(hiveStrategy.execute).toHaveBeenCalledWith(
       expect.objectContaining({
-        taskId: 'task-001',
+        routineId: 'task-001',
         tenantId: 'tenant-001',
       }),
     );
@@ -329,7 +329,7 @@ describe('ExecutorService', () => {
     });
 
     const executionInsert = insertValues.find(
-      (v) => v.taskVersion !== undefined,
+      (v) => v.routineVersion !== undefined,
     );
     expect(executionInsert).toMatchObject({
       triggerId: 'trigger-001',
@@ -378,7 +378,7 @@ describe('ExecutorService', () => {
 
     expect(hiveStrategy.stop).toHaveBeenCalledWith(
       expect.objectContaining({
-        taskId: 'task-001',
+        routineId: 'task-001',
         executionId: 'exec-001',
       }),
     );
@@ -561,7 +561,7 @@ describe('ExecutorService', () => {
     await service.stopExecution('task-001');
 
     expect(failingStrategy.stop).toHaveBeenCalledWith(
-      expect.objectContaining({ taskId: 'task-001' }),
+      expect.objectContaining({ routineId: 'task-001' }),
     );
     const stoppedTaskSet = updateSets.find((s) => s.status === 'stopped');
     expect(stoppedTaskSet).toBeDefined();
@@ -677,7 +677,10 @@ describe('ExecutorService', () => {
       await service.pauseExecution('task-001');
 
       expect(mockStrategy.pause).toHaveBeenCalledWith(
-        expect.objectContaining({ taskId: 'task-001', tenantId: 'tenant-001' }),
+        expect.objectContaining({
+          routineId: 'task-001',
+          tenantId: 'tenant-001',
+        }),
       );
       const pausedSets = updateSets.filter((s) => s.status === 'paused');
       // Both the execution record and the task record must be updated to 'paused'
@@ -819,7 +822,7 @@ describe('ExecutorService', () => {
 
       expect(mockStrategy.resume).toHaveBeenCalledWith(
         expect.objectContaining({
-          taskId: 'task-001',
+          routineId: 'task-001',
           message: 'please continue',
         }),
       );

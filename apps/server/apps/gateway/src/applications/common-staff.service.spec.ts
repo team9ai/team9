@@ -157,7 +157,7 @@ const makeCreateDto = (
   overrides: Partial<CreateCommonStaffDto> = {},
 ): CreateCommonStaffDto => ({
   displayName: 'Test Staff',
-  model: { provider: 'anthropic', id: 'claude-3-5-sonnet-20241022' },
+  model: { provider: 'openrouter', id: 'anthropic/claude-sonnet-4.6' },
   roleTitle: 'Software Engineer',
   mentorId: OWNER_ID,
   persona: 'Helpful assistant',
@@ -558,7 +558,7 @@ describe('CommonStaffService', () => {
 
         const dto: CreateCommonStaffDto = {
           displayName: '',
-          model: { provider: 'anthropic', id: 'claude-3-5-sonnet-20241022' },
+          model: { provider: 'openrouter', id: 'anthropic/claude-sonnet-4.6' },
           mentorId: MENTOR_ID,
           agenticBootstrap: true,
         };
@@ -575,7 +575,7 @@ describe('CommonStaffService', () => {
 
         const dto: CreateCommonStaffDto = {
           displayName: '',
-          model: { provider: 'anthropic', id: 'claude-3-5-sonnet-20241022' },
+          model: { provider: 'openrouter', id: 'anthropic/claude-sonnet-4.6' },
           mentorId: MENTOR_ID,
           agenticBootstrap: true,
         };
@@ -793,7 +793,7 @@ describe('CommonStaffService', () => {
     it('syncs to claw-hive after update', async () => {
       const dto = makeUpdateDto({
         displayName: 'New Name',
-        model: { provider: 'openai', id: 'gpt-4o' },
+        model: { provider: 'openrouter', id: 'openai/gpt-4o' },
       });
       await service.updateStaff(INSTALLED_APP_ID, TENANT_ID, BOT_ID, dto);
 
@@ -802,7 +802,7 @@ describe('CommonStaffService', () => {
         expect.objectContaining({
           tenantId: TENANT_ID,
           name: 'New Name',
-          model: { provider: 'openai', id: 'gpt-4o' },
+          model: { provider: 'openrouter', id: 'openai/gpt-4o' },
         }),
       );
     });
