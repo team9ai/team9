@@ -125,7 +125,7 @@ export const bots = pgTable(
     uniqueIndex('bots_owner_app_unique')
       .on(table.ownerId, table.installedApplicationId)
       .where(
-        sql`${table.ownerId} IS NOT NULL AND ${table.installedApplicationId} IS NOT NULL`,
+        sql`${table.ownerId} IS NOT NULL AND ${table.installedApplicationId} IS NOT NULL AND ${table.extra}->>'personalStaff' IS NOT NULL`,
       ),
   ],
 );

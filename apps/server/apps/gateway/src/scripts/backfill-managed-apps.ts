@@ -14,7 +14,7 @@
  */
 import '../load-env.js';
 import { NestFactory } from '@nestjs/core';
-import { Logger } from '@nestjs/common';
+import { Logger, ConflictException } from '@nestjs/common';
 import { AppModule } from '../app.module.js';
 import { InstalledApplicationsService } from '../applications/installed-applications.service.js';
 import { ApplicationsService } from '../applications/applications.service.js';
@@ -179,14 +179,14 @@ async function backfillManagedApps() {
           logger.log(`    Created personal staff for user ${member.userId}`);
           stats.personalStaffsCreated++;
         } catch (error) {
-          const msg = error instanceof Error ? error.message : String(error);
           // ConflictException means the user already has a personal staff — skip
-          if (msg.includes('already exists')) {
+          if (error instanceof ConflictException) {
             logger.log(
               `    Skipped user ${member.userId} — already has personal staff`,
             );
             stats.personalStaffsSkipped++;
           } else {
+            const msg = error instanceof Error ? error.message : String(error);
             logger.warn(
               `    Failed to create personal staff for user ${member.userId}: ${msg}`,
             );

@@ -217,11 +217,14 @@ export class PersonalStaffService {
       });
     } catch (error: unknown) {
       // Catch DB unique constraint violation (race condition fallback)
-      const isUniqueViolation =
+      const isPersonalStaffUniqueViolation =
         error instanceof Error &&
         'code' in error &&
-        (error as Record<string, unknown>).code === '23505';
-      if (isUniqueViolation) {
+        (error as Record<string, unknown>).code === '23505' &&
+        'constraint' in error &&
+        (error as Record<string, unknown>).constraint ===
+          'bots_owner_app_unique';
+      if (isPersonalStaffUniqueViolation) {
         throw new ConflictException(
           'A personal staff already exists for this user in this workspace',
         );

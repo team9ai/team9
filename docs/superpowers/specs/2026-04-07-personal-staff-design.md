@@ -1,7 +1,7 @@
 # Personal Staff + Staff Sidebar Refactor Design Spec
 
 **Date:** 2026-04-07
-**Status:** Draft
+**Status:** Implemented
 
 ## Overview
 
