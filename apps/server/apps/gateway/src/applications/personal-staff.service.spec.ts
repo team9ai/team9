@@ -465,6 +465,7 @@ describe('PersonalStaffService', () => {
     it('throws ConflictException on DB unique constraint violation (race condition)', async () => {
       const dbError = new Error('unique_violation') as any;
       dbError.code = '23505';
+      dbError.constraint = 'bots_owner_app_unique';
       botService.createWorkspaceBot.mockRejectedValueOnce(dbError);
 
       await expect(
