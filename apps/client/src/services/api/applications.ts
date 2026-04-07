@@ -83,6 +83,67 @@ export interface FileKeeperListResponse {
   entries: FileKeeperDirEntry[];
 }
 
+// Personal Staff types
+export interface PersonalStaffBotInfo {
+  botId: string;
+  userId: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  persona: string | null;
+  model: { provider: string; id: string } | null;
+  visibility: {
+    allowMention: boolean;
+    allowDirectMessage: boolean;
+  };
+  isActive: boolean;
+  createdAt: string;
+  managedMeta: { agentId: string } | null;
+  roleTitle: string;
+  jobDescription: string;
+}
+
+export interface CreatePersonalStaffDto {
+  displayName?: string;
+  persona?: string;
+  model: { provider: string; id: string };
+  avatarUrl?: string;
+  agenticBootstrap?: boolean;
+}
+
+export interface UpdatePersonalStaffDto {
+  displayName?: string;
+  persona?: string;
+  model?: { provider: string; id: string };
+  avatarUrl?: string;
+  visibility?: {
+    allowMention?: boolean;
+    allowDirectMessage?: boolean;
+  };
+}
+
+export interface StaffBotResult {
+  botId: string;
+  userId: string;
+  agentId: string;
+  displayName: string;
+}
+
+export interface GeneratePersonaDto {
+  displayName?: string;
+  roleTitle?: string;
+  existingPersona?: string;
+  prompt?: string;
+  jobDescription?: string;
+}
+
+export interface GenerateAvatarDto {
+  style: string;
+  displayName?: string;
+  roleTitle?: string;
+  persona?: string;
+  prompt?: string;
+}
+
 // Common Staff types
 export interface CommonStaffBotInfo {
   botId: string;
@@ -558,6 +619,102 @@ export const applicationsApi = {
       headers: { Authorization: `Bearer ${tokenData.token}` },
     });
     if (!res.ok) throw new Error(`Failed to create folder: ${res.status}`);
+  },
+
+  // Personal Staff endpoints
+
+  getPersonalStaff: async (appId: string): Promise<PersonalStaffBotInfo> => {
+    const response = await http.get<PersonalStaffBotInfo>(
+      `/v1/installed-applications/${appId}/personal-staff`,
+    );
+    return response.data;
+  },
+
+  createPersonalStaff: async (
+    appId: string,
+    body: CreatePersonalStaffDto,
+  ): Promise<StaffBotResult> => {
+    const response = await http.post<StaffBotResult>(
+      `/v1/installed-applications/${appId}/personal-staff`,
+      body,
+    );
+    return response.data;
+  },
+
+  updatePersonalStaff: async (
+    appId: string,
+    body: UpdatePersonalStaffDto,
+  ): Promise<PersonalStaffBotInfo> => {
+    const response = await http.patch<PersonalStaffBotInfo>(
+      `/v1/installed-applications/${appId}/personal-staff`,
+      body,
+    );
+    return response.data;
+  },
+
+  deletePersonalStaff: async (appId: string): Promise<void> => {
+    await http.delete(`/v1/installed-applications/${appId}/personal-staff`);
+  },
+
+  /**
+   * Streams personal staff persona generation text as an async iterable of string chunks.
+   * Usage: `for await (const chunk of applicationsApi.generatePersonalStaffPersona(...)) { ... }`
+   */
+  generatePersonalStaffPersona: async function* (
+    appId: string,
+    body: GeneratePersonaDto,
+  ): AsyncGenerator<string> {
+    const token = await getValidAccessToken();
+    const url = `${API_BASE_URL}/v1/installed-applications/${appId}/personal-staff/generate-persona`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok)
+      throw new Error(`generatePersonalStaffPersona failed: ${res.status}`);
+    const reader = res.body?.getReader();
+    if (!reader) return;
+    const decoder = new TextDecoder();
+    let sseBuffer = "";
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        sseBuffer += decoder.decode(value, { stream: true });
+        // Parse SSE lines: "data: {json}\n\n"
+        const lines = sseBuffer.split("\n");
+        sseBuffer = lines.pop() ?? "";
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed === "data: [DONE]") continue;
+          if (trimmed.startsWith("data: ")) {
+            try {
+              const parsed = JSON.parse(trimmed.slice(6));
+              if (parsed.text) yield parsed.text as string;
+            } catch {
+              // Skip malformed SSE lines
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  },
+
+  generatePersonalStaffAvatar: async (
+    appId: string,
+    body: GenerateAvatarDto,
+  ): Promise<{ avatarUrl: string }> => {
+    const response = await http.post<{ avatarUrl: string }>(
+      `/v1/installed-applications/${appId}/personal-staff/generate-avatar`,
+      body,
+    );
+    return response.data;
   },
 
   // Common Staff endpoints
