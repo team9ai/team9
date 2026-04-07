@@ -334,6 +334,7 @@ describe('PersonalStaffController', () => {
       await controller.generatePersona(
         APP_ID,
         TENANT_ID,
+        USER_ID,
         makePersonaDto(),
         res as any,
       );
@@ -352,6 +353,7 @@ describe('PersonalStaffController', () => {
       await controller.generatePersona(
         APP_ID,
         TENANT_ID,
+        USER_ID,
         makePersonaDto(),
         res as any,
       );
@@ -365,6 +367,7 @@ describe('PersonalStaffController', () => {
       await controller.generatePersona(
         APP_ID,
         TENANT_ID,
+        USER_ID,
         makePersonaDto(),
         res as any,
       );
@@ -378,6 +381,7 @@ describe('PersonalStaffController', () => {
       await controller.generatePersona(
         APP_ID,
         TENANT_ID,
+        USER_ID,
         makePersonaDto(),
         res as any,
       );
@@ -394,6 +398,7 @@ describe('PersonalStaffController', () => {
       await controller.generatePersona(
         APP_ID,
         TENANT_ID,
+        USER_ID,
         makePersonaDto(),
         res as any,
       );
@@ -401,15 +406,22 @@ describe('PersonalStaffController', () => {
       expect(order[0]).toBe('flush');
     });
 
-    it('delegates to service.generatePersona with correct args', async () => {
+    it('delegates to service.generatePersona with correct args including userId', async () => {
       const res = makeMockResponse();
       const dto = makePersonaDto({ prompt: 'Make it quirky' });
 
-      await controller.generatePersona(APP_ID, TENANT_ID, dto, res as any);
+      await controller.generatePersona(
+        APP_ID,
+        TENANT_ID,
+        USER_ID,
+        dto,
+        res as any,
+      );
 
       expect(personalStaffService.generatePersona).toHaveBeenCalledWith(
         APP_ID,
         TENANT_ID,
+        USER_ID,
         dto,
       );
     });
@@ -423,6 +435,7 @@ describe('PersonalStaffController', () => {
       await controller.generatePersona(
         APP_ID,
         TENANT_ID,
+        USER_ID,
         makePersonaDto(),
         res as any,
       );
@@ -445,6 +458,7 @@ describe('PersonalStaffController', () => {
       await controller.generatePersona(
         APP_ID,
         TENANT_ID,
+        USER_ID,
         makePersonaDto(),
         res as any,
       );
@@ -467,13 +481,14 @@ describe('PersonalStaffController', () => {
       ...overrides,
     });
 
-    it('calls service.generateAvatar with correct args', async () => {
+    it('calls service.generateAvatar with correct args including userId', async () => {
       const dto = makeAvatarDto();
-      await controller.generateAvatar(APP_ID, TENANT_ID, dto);
+      await controller.generateAvatar(APP_ID, TENANT_ID, USER_ID, dto);
 
       expect(personalStaffService.generateAvatar).toHaveBeenCalledWith(
         APP_ID,
         TENANT_ID,
+        USER_ID,
         dto,
       );
     });
@@ -487,6 +502,7 @@ describe('PersonalStaffController', () => {
       const result = await controller.generateAvatar(
         APP_ID,
         TENANT_ID,
+        USER_ID,
         makeAvatarDto(),
       );
 
@@ -499,7 +515,7 @@ describe('PersonalStaffController', () => {
       );
 
       await expect(
-        controller.generateAvatar(APP_ID, TENANT_ID, makeAvatarDto()),
+        controller.generateAvatar(APP_ID, TENANT_ID, USER_ID, makeAvatarDto()),
       ).rejects.toThrow('Avatar error');
     });
 
@@ -510,11 +526,12 @@ describe('PersonalStaffController', () => {
         persona: 'Energetic and curious',
         prompt: 'With blue eyes',
       });
-      await controller.generateAvatar(APP_ID, TENANT_ID, dto);
+      await controller.generateAvatar(APP_ID, TENANT_ID, USER_ID, dto);
 
       expect(personalStaffService.generateAvatar).toHaveBeenCalledWith(
         APP_ID,
         TENANT_ID,
+        USER_ID,
         expect.objectContaining({
           style: 'anime',
           displayName: 'Hikari',

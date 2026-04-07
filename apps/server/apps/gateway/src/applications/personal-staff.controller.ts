@@ -10,6 +10,7 @@ import {
   HttpCode,
   HttpStatus,
   Header,
+  Logger,
   Res,
 } from '@nestjs/common';
 import type { Response } from 'express';
@@ -32,6 +33,8 @@ import {
 })
 @UseGuards(AuthGuard, WorkspaceGuard)
 export class PersonalStaffController {
+  private readonly logger = new Logger(PersonalStaffController.name);
+
   constructor(private readonly personalStaffService: PersonalStaffService) {}
 
   /**
@@ -99,6 +102,7 @@ export class PersonalStaffController {
   async generatePersona(
     @Param('id') appId: string,
     @CurrentTenantId() tenantId: string,
+    @CurrentUser('sub') userId: string,
     @Body() dto: GeneratePersonaDto,
     @Res() res: Response,
   ): Promise<void> {
@@ -108,6 +112,7 @@ export class PersonalStaffController {
     const stream = this.personalStaffService.generatePersona(
       appId,
       tenantId,
+      userId,
       dto,
     );
     try {
@@ -115,7 +120,8 @@ export class PersonalStaffController {
         res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
       }
       res.write('data: [DONE]\n\n');
-    } catch (_error) {
+    } catch (error) {
+      this.logger.warn('generatePersona stream error', error);
       res.write(`data: ${JSON.stringify({ error: 'Stream error' })}\n\n`);
     } finally {
       res.end();
@@ -129,8 +135,14 @@ export class PersonalStaffController {
   async generateAvatar(
     @Param('id') appId: string,
     @CurrentTenantId() tenantId: string,
+    @CurrentUser('sub') userId: string,
     @Body() dto: GenerateAvatarDto,
   ) {
-    return this.personalStaffService.generateAvatar(appId, tenantId, dto);
+    return this.personalStaffService.generateAvatar(
+      appId,
+      tenantId,
+      userId,
+      dto,
+    );
   }
 }

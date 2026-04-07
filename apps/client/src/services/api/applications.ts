@@ -1,5 +1,6 @@
 import http, { API_BASE_URL } from "../http";
 import { getValidAccessToken } from "../auth-session";
+import { useWorkspaceStore } from "../../stores";
 import type { AgentType } from "@/types/im";
 
 // Types matching server schemas
@@ -691,12 +692,14 @@ export const applicationsApi = {
     body: GeneratePersonaDto,
   ): AsyncGenerator<string> {
     const token = await getValidAccessToken();
+    const workspaceId = useWorkspaceStore.getState().selectedWorkspaceId;
     const url = `${API_BASE_URL}/v1/installed-applications/${appId}/personal-staff/generate-persona`;
     const res = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(workspaceId ? { "X-Tenant-Id": workspaceId } : {}),
       },
       body: JSON.stringify(body),
     });
@@ -821,12 +824,14 @@ export const applicationsApi = {
     },
   ): AsyncGenerator<string> {
     const token = await getValidAccessToken();
+    const workspaceId = useWorkspaceStore.getState().selectedWorkspaceId;
     const url = `${API_BASE_URL}/v1/installed-applications/${appId}/common-staff/generate-persona`;
     const res = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(workspaceId ? { "X-Tenant-Id": workspaceId } : {}),
       },
       body: JSON.stringify(body),
     });
@@ -885,12 +890,14 @@ export const applicationsApi = {
     };
   }> {
     const token = await getValidAccessToken();
+    const workspaceId = useWorkspaceStore.getState().selectedWorkspaceId;
     const url = `${API_BASE_URL}/v1/installed-applications/${appId}/common-staff/generate-candidates`;
     const res = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(workspaceId ? { "X-Tenant-Id": workspaceId } : {}),
       },
       body: JSON.stringify(body),
     });

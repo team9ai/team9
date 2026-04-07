@@ -196,23 +196,38 @@ export class PersonalStaffService {
       },
     };
 
-    const result = await this.staffService.createBotWithAgent({
-      agentIdPrefix: 'personal-staff',
-      blueprintId: HIVE_BLUEPRINT_ID,
-      ownerId,
-      tenantId,
-      displayName: effectiveDisplayName,
-      installedApplicationId,
-      mentorId: ownerId, // Always the owner
-      avatarUrl: dto.avatarUrl,
-      model: dto.model,
-      botExtra: extra,
-      extraComponentConfigs: {
-        'team9-staff-profile': {},
-        'team9-staff-bootstrap': {},
-        'team9-staff-soul': {},
-      },
-    });
+    let result: StaffBotResult;
+    try {
+      result = await this.staffService.createBotWithAgent({
+        agentIdPrefix: 'personal-staff',
+        blueprintId: HIVE_BLUEPRINT_ID,
+        ownerId,
+        tenantId,
+        displayName: effectiveDisplayName,
+        installedApplicationId,
+        mentorId: ownerId, // Always the owner
+        avatarUrl: dto.avatarUrl,
+        model: dto.model,
+        botExtra: extra,
+        extraComponentConfigs: {
+          'team9-staff-profile': {},
+          'team9-staff-bootstrap': {},
+          'team9-staff-soul': {},
+        },
+      });
+    } catch (error: unknown) {
+      // Catch DB unique constraint violation (race condition fallback)
+      const isUniqueViolation =
+        error instanceof Error &&
+        'code' in error &&
+        (error as Record<string, unknown>).code === '23505';
+      if (isUniqueViolation) {
+        throw new ConflictException(
+          'A personal staff already exists for this user in this workspace',
+        );
+      }
+      throw error;
+    }
 
     // 4. Create owner↔bot DM channel
     let dmChannelMap: Map<string, { id: string }> = new Map();
@@ -377,14 +392,21 @@ export class PersonalStaffService {
   /**
    * Generate a personality-rich persona via streaming AI response.
    *
-   * Delegates to StaffService.generatePersona after verifying the app type.
+   * Delegates to StaffService.generatePersona after verifying the app type
+   * and ownership.
    */
   async *generatePersona(
     appId: string,
     tenantId: string,
+    ownerId: string,
     dto: GeneratePersonaDto,
   ): AsyncGenerator<string> {
     await this.verifyPersonalStaffApp(appId, tenantId);
+
+    const bot = await this.findPersonalStaffBot(ownerId, appId);
+    if (!bot) {
+      throw new NotFoundException('Personal staff not found for current user');
+    }
 
     yield* this.staffService.generatePersona({
       displayName: dto.displayName,
@@ -398,14 +420,21 @@ export class PersonalStaffService {
   /**
    * Generate an avatar for a personal staff member.
    *
-   * Delegates to StaffService.generateAvatar after verifying the app type.
+   * Delegates to StaffService.generateAvatar after verifying the app type
+   * and ownership.
    */
   async generateAvatar(
     appId: string,
     tenantId: string,
+    ownerId: string,
     dto: GenerateAvatarDto,
   ): Promise<{ avatarUrl: string }> {
     await this.verifyPersonalStaffApp(appId, tenantId);
+
+    const bot = await this.findPersonalStaffBot(ownerId, appId);
+    if (!bot) {
+      throw new NotFoundException('Personal staff not found for current user');
+    }
 
     return this.staffService.generateAvatar({
       style: dto.style,

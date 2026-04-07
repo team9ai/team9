@@ -462,6 +462,36 @@ describe('PersonalStaffService', () => {
       ).rejects.toThrow(ConflictException);
     });
 
+    it('throws ConflictException on DB unique constraint violation (race condition)', async () => {
+      const dbError = new Error('unique_violation') as any;
+      dbError.code = '23505';
+      botService.createWorkspaceBot.mockRejectedValueOnce(dbError);
+
+      await expect(
+        service.createStaff(
+          INSTALLED_APP_ID,
+          TENANT_ID,
+          OWNER_ID,
+          makeCreateDto(),
+        ),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('re-throws non-unique-constraint DB errors', async () => {
+      const dbError = new Error('connection_error') as any;
+      dbError.code = '08006';
+      botService.createWorkspaceBot.mockRejectedValueOnce(dbError);
+
+      await expect(
+        service.createStaff(
+          INSTALLED_APP_ID,
+          TENANT_ID,
+          OWNER_ID,
+          makeCreateDto(),
+        ),
+      ).rejects.toThrow('connection_error');
+    });
+
     it('throws NotFoundException when installed app not found', async () => {
       installedApplicationsService.findById.mockResolvedValueOnce(null);
 
@@ -790,11 +820,17 @@ describe('PersonalStaffService', () => {
   // ── generatePersona ─────────────────────────────────────────────────────────
 
   describe('generatePersona', () => {
+    beforeEach(() => {
+      // Default: findPersonalStaffBot returns existing bot via limit()
+      db.limit.mockResolvedValue([makeExistingBot()]);
+    });
+
     it('yields text chunks from the AI stream', async () => {
       const chunks: string[] = [];
       for await (const chunk of service.generatePersona(
         INSTALLED_APP_ID,
         TENANT_ID,
+        OWNER_ID,
         { displayName: 'PA' } as GeneratePersonaDto,
       )) {
         chunks.push(chunk);
@@ -806,9 +842,14 @@ describe('PersonalStaffService', () => {
     it('passes hardcoded roleTitle and jobDescription to staffService', async () => {
       mockStreamText.mockReturnValueOnce(mockStreamTextReturn(['ok']));
 
-      const gen = service.generatePersona(INSTALLED_APP_ID, TENANT_ID, {
-        displayName: 'PA',
-      } as GeneratePersonaDto);
+      const gen = service.generatePersona(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        OWNER_ID,
+        {
+          displayName: 'PA',
+        } as GeneratePersonaDto,
+      );
       // Consume the generator
       for await (const _ of gen) {
         // drain
@@ -831,9 +872,14 @@ describe('PersonalStaffService', () => {
         makeInstalledApp('common-staff'),
       );
 
-      const gen = service.generatePersona(INSTALLED_APP_ID, TENANT_ID, {
-        displayName: 'PA',
-      } as GeneratePersonaDto);
+      const gen = service.generatePersona(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        OWNER_ID,
+        {
+          displayName: 'PA',
+        } as GeneratePersonaDto,
+      );
 
       await expect(gen.next()).rejects.toThrow(BadRequestException);
     });
@@ -841,9 +887,29 @@ describe('PersonalStaffService', () => {
     it('throws NotFoundException when app not found', async () => {
       installedApplicationsService.findById.mockResolvedValueOnce(null);
 
-      const gen = service.generatePersona(INSTALLED_APP_ID, TENANT_ID, {
-        displayName: 'PA',
-      } as GeneratePersonaDto);
+      const gen = service.generatePersona(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        OWNER_ID,
+        {
+          displayName: 'PA',
+        } as GeneratePersonaDto,
+      );
+
+      await expect(gen.next()).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws NotFoundException when user has no personal staff bot', async () => {
+      db.limit.mockResolvedValueOnce([]);
+
+      const gen = service.generatePersona(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        OWNER_ID,
+        {
+          displayName: 'PA',
+        } as GeneratePersonaDto,
+      );
 
       await expect(gen.next()).rejects.toThrow(NotFoundException);
     });
@@ -852,11 +918,21 @@ describe('PersonalStaffService', () => {
   // ── generateAvatar ──────────────────────────────────────────────────────────
 
   describe('generateAvatar', () => {
+    beforeEach(() => {
+      // Default: findPersonalStaffBot returns existing bot via limit()
+      db.limit.mockResolvedValue([makeExistingBot()]);
+    });
+
     it('returns avatarUrl from staffService', async () => {
-      const result = await service.generateAvatar(INSTALLED_APP_ID, TENANT_ID, {
-        style: 'cartoon',
-        displayName: 'PA',
-      } as GenerateAvatarDto);
+      const result = await service.generateAvatar(
+        INSTALLED_APP_ID,
+        TENANT_ID,
+        OWNER_ID,
+        {
+          style: 'cartoon',
+          displayName: 'PA',
+        } as GenerateAvatarDto,
+      );
 
       expect(result).toHaveProperty('avatarUrl');
       expect(typeof result.avatarUrl).toBe('string');
@@ -868,7 +944,7 @@ describe('PersonalStaffService', () => {
       );
 
       await expect(
-        service.generateAvatar(INSTALLED_APP_ID, TENANT_ID, {
+        service.generateAvatar(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, {
           style: 'realistic',
         } as GenerateAvatarDto),
       ).rejects.toThrow(BadRequestException);
@@ -878,14 +954,24 @@ describe('PersonalStaffService', () => {
       installedApplicationsService.findById.mockResolvedValueOnce(null);
 
       await expect(
-        service.generateAvatar(INSTALLED_APP_ID, TENANT_ID, {
+        service.generateAvatar(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, {
+          style: 'realistic',
+        } as GenerateAvatarDto),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws NotFoundException when user has no personal staff bot', async () => {
+      db.limit.mockResolvedValueOnce([]);
+
+      await expect(
+        service.generateAvatar(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, {
           style: 'realistic',
         } as GenerateAvatarDto),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('passes hardcoded roleTitle to staffService.generateAvatar', async () => {
-      await service.generateAvatar(INSTALLED_APP_ID, TENANT_ID, {
+      await service.generateAvatar(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, {
         style: 'anime',
         displayName: 'Bot',
       } as GenerateAvatarDto);
