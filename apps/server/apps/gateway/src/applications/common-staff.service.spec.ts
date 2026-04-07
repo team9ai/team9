@@ -10,6 +10,7 @@ jest.unstable_mockModule('ai', () => ({
 }));
 
 const { CommonStaffService } = await import('./common-staff.service.js');
+const { StaffService } = await import('./staff.service.js');
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '@team9/database';
@@ -281,6 +282,7 @@ describe('CommonStaffService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        StaffService,
         CommonStaffService,
         { provide: DATABASE_CONNECTION, useValue: db },
         { provide: BotService, useValue: botService },
