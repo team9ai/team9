@@ -27,6 +27,7 @@
     "db:push": "pnpm -C apps/server db:push",
     "db:studio": "pnpm -C apps/server db:studio",
     "dev:debugger": "turbo run dev --filter=@team9/debugger",
+    "backfill:apps": "pnpm --filter @team9/gateway exec node scripts/backfill-auto-install-apps.mjs",
     "prepare": "husky"
   },
   "devDependencies": {
