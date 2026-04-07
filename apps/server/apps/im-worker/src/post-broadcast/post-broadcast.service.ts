@@ -301,6 +301,7 @@ export class PostBroadcastService {
     channel: schema.Channel;
     mentions: ParsedMention[];
     parentMessage: schema.Message | null;
+    attachments: schema.MessageAttachment[];
   } | null> {
     // Get message
     const [message] = await this.db
@@ -349,7 +350,13 @@ export class PostBroadcastService {
       parentMessage = parent ?? null;
     }
 
-    return { message, sender, channel, mentions, parentMessage };
+    // Get attachments
+    const attachments = await this.db
+      .select()
+      .from(schema.messageAttachments)
+      .where(eq(schema.messageAttachments.messageId, msgId));
+
+    return { message, sender, channel, mentions, parentMessage, attachments };
   }
 
   // ── Bot Webhook Push ─────────────────────────────────────────────
@@ -600,7 +607,8 @@ export class PostBroadcastService {
       const messageData = await this.getMessageWithContext(msgId);
       if (!messageData) return;
 
-      const { message, sender, channel, mentions, parentMessage } = messageData;
+      const { message, sender, channel, mentions, parentMessage, attachments } =
+        messageData;
 
       if (!this.isHumanAuthoredMessage(sender)) {
         this.logger.debug(
@@ -706,22 +714,58 @@ export class PostBroadcastService {
         const scopeId = isDm ? channel.id : (trackingChannelId ?? channel.id);
         const sessionId = `team9/${tenantId}/${agentId}/${scope}/${scopeId}`;
 
-        const event = {
-          type: 'team9:message.text' as const,
-          source: 'team9',
-          timestamp,
-          payload: {
-            messageId: message.id,
-            content: message.content ?? '',
-            sender: {
-              id: sender.id,
-              username: sender.username,
-              displayName: sender.displayName,
-            },
-            location,
-            ...(trackingChannelId ? { trackingChannelId } : {}),
-          },
+        const senderPayload = {
+          id: sender.id,
+          username: sender.username,
+          displayName: sender.displayName,
         };
+
+        const hasAttachments = attachments.length > 0;
+        const isFileMessage =
+          hasAttachments &&
+          (message.type === 'file' || message.type === 'image');
+
+        const event = isFileMessage
+          ? {
+              type: 'team9:message.file' as const,
+              source: 'team9',
+              timestamp,
+              payload: {
+                messageId: message.id,
+                content: message.content ?? '',
+                sender: senderPayload,
+                location,
+                file: {
+                  name: attachments[0].fileName,
+                  size: attachments[0].fileSize,
+                  mimeType: attachments[0].mimeType,
+                  url: attachments[0].fileUrl,
+                },
+                ...(trackingChannelId ? { trackingChannelId } : {}),
+              },
+            }
+          : {
+              type: 'team9:message.text' as const,
+              source: 'team9',
+              timestamp,
+              payload: {
+                messageId: message.id,
+                content: message.content ?? '',
+                sender: senderPayload,
+                location,
+                ...(hasAttachments
+                  ? {
+                      attachments: attachments.map((a) => ({
+                        name: a.fileName,
+                        size: a.fileSize,
+                        mimeType: a.mimeType,
+                        url: a.fileUrl,
+                      })),
+                    }
+                  : {}),
+                ...(trackingChannelId ? { trackingChannelId } : {}),
+              },
+            };
 
         this.clawHiveService
           .sendInput(sessionId, event, tenantId || undefined)
