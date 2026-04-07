@@ -1,4 +1,10 @@
-import { IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsEmail,
+  IsIn,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 export class AuthStartDto {
   @IsEmail()
@@ -8,4 +14,9 @@ export class AuthStartDto {
   @IsString()
   @MaxLength(255)
   displayName?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['self', 'invite'])
+  signupSource?: 'self' | 'invite';
 }

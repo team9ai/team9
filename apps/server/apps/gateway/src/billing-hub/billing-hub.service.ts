@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   HttpException,
   Injectable,
   Logger,
@@ -225,6 +226,8 @@ export class BillingHubService {
     type: BillingProductType = 'subscription',
     view: BillingView = 'plans',
     amountCents?: number,
+    successPath?: string,
+    cancelPath?: string,
   ): Promise<CheckoutSessionResponse> {
     const checkoutPath =
       type === 'one_time'
@@ -236,11 +239,13 @@ export class BillingHubService {
       body: JSON.stringify({
         ownerExternalId: this.ownerExternalId(workspaceId),
         priceId,
-        successUrl: this.buildSubscriptionUrl(workspaceId, {
+        successUrl: this.buildReturnUrl(workspaceId, {
+          path: successPath,
           result: 'success',
           view,
         }),
-        cancelUrl: this.buildSubscriptionUrl(workspaceId, {
+        cancelUrl: this.buildReturnUrl(workspaceId, {
+          path: cancelPath,
           result: 'cancel',
           view,
         }),
@@ -252,24 +257,36 @@ export class BillingHubService {
   async createWorkspacePortal(
     workspaceId: string,
     view: BillingView = 'plans',
+    returnPath?: string,
   ): Promise<BillingPortalResponse> {
     return this.request<BillingPortalResponse>('/api/billing/stripe/portal', {
       method: 'POST',
       body: JSON.stringify({
         ownerExternalId: this.ownerExternalId(workspaceId),
-        returnUrl: this.buildSubscriptionUrl(workspaceId, { view }),
+        returnUrl: this.buildReturnUrl(workspaceId, {
+          path: returnPath,
+          view,
+        }),
       }),
     });
   }
 
-  private buildSubscriptionUrl(
+  private buildReturnUrl(
     workspaceId: string,
     params: {
+      path?: string;
       result?: 'success' | 'cancel';
       view?: BillingView;
     } = {},
   ) {
-    const url = new URL('/subscription', env.APP_URL);
+    const url = new URL(params.path ?? '/subscription', env.APP_URL);
+
+    if (url.origin !== new URL(env.APP_URL).origin) {
+      throw new BadRequestException(
+        'Billing return path must stay on this app',
+      );
+    }
+
     url.searchParams.set('workspaceId', workspaceId);
 
     if (params.result) {

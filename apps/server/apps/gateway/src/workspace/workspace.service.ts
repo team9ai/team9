@@ -34,6 +34,7 @@ import { BotService } from '../bot/bot.service.js';
 import { InstalledApplicationsService } from '../applications/installed-applications.service.js';
 import { ApplicationsService } from '../applications/applications.service.js';
 import { PersonalStaffService } from '../applications/personal-staff.service.js';
+import { OnboardingService } from './onboarding.service.js';
 
 const MAX_WORKSPACES_PER_USER = 3;
 const MAX_MEMBERS_PER_WORKSPACE = 1000;
@@ -152,22 +153,51 @@ export class WorkspaceService {
     private readonly installedApplicationsService: InstalledApplicationsService,
     private readonly applicationsService: ApplicationsService,
     private readonly personalStaffService: PersonalStaffService,
+    private readonly onboardingService: OnboardingService,
   ) {}
 
   private getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
   }
 
-  @OnEvent(USER_EVENTS.REGISTERED)
-  async handleUserRegistered(event: UserRegisteredEvent): Promise<void> {
+  async provisionStarterWorkspaceForRegisteredUser(
+    event: UserRegisteredEvent,
+  ): Promise<void> {
     const workspaceName = `${event.displayName}'s Workspace`;
-    await this.create({
-      name: workspaceName,
-      ownerId: event.userId,
-    });
+    let workspace: WorkspaceResponse | null = null;
+
+    try {
+      workspace = await this.create({
+        name: workspaceName,
+        ownerId: event.userId,
+      });
+
+      if (event.onboardingEligible === false) {
+        await this.onboardingService.createSkippedRecord(
+          workspace.id,
+          event.userId,
+        );
+      } else {
+        await this.onboardingService.createStarterRecord(
+          workspace.id,
+          event.userId,
+        );
+      }
+    } catch (error) {
+      if (workspace) {
+        await this.safeDeleteWorkspace(workspace.id);
+      }
+      throw error;
+    }
+
     this.logger.log(
       `Created personal workspace for user ${event.userId}: ${workspaceName}`,
     );
+  }
+
+  @OnEvent(USER_EVENTS.REGISTERED)
+  async handleUserRegistered(event: UserRegisteredEvent): Promise<void> {
+    await this.provisionStarterWorkspaceForRegisteredUser(event);
   }
 
   private generateInviteCode(): string {
@@ -931,19 +961,24 @@ export class WorkspaceService {
       })
       .returning();
 
-    // Add owner as member
-    await this.addMember(workspace.id, data.ownerId, 'owner');
+    try {
+      // Add owner as member
+      await this.addMember(workspace.id, data.ownerId, 'owner');
 
-    // Create default welcome channel
-    await this.channelsService.create(
-      {
-        name: 'welcome',
-        description: 'Welcome to the workspace! Say hello to your teammates.',
-        type: 'public',
-      },
-      data.ownerId,
-      workspace.id,
-    );
+      // Create default welcome channel
+      await this.channelsService.create(
+        {
+          name: 'welcome',
+          description: 'Welcome to the workspace! Say hello to your teammates.',
+          type: 'public',
+        },
+        data.ownerId,
+        workspace.id,
+      );
+    } catch (error) {
+      await this.safeDeleteWorkspace(workspace.id);
+      throw error;
+    }
 
     // Add system bot to workspace if enabled
     const botUserId = this.botService.getBotUserId();
@@ -1106,6 +1141,16 @@ export class WorkspaceService {
 
   async delete(id: string): Promise<void> {
     await this.db.delete(schema.tenants).where(eq(schema.tenants.id, id));
+  }
+
+  private async safeDeleteWorkspace(id: string): Promise<void> {
+    try {
+      await this.delete(id);
+    } catch (error) {
+      this.logger.error(
+        `Failed to roll back workspace ${id}: ${this.getErrorMessage(error)}`,
+      );
+    }
   }
 
   // ===== Member Management =====

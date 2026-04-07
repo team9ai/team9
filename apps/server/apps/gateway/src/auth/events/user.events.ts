@@ -5,4 +5,5 @@ export const USER_EVENTS = {
 export interface UserRegisteredEvent {
   userId: string;
   displayName: string;
+  onboardingEligible?: boolean;
 }

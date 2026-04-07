@@ -190,3 +190,117 @@ export interface WorkspaceBillingOverview {
   creditProducts: BillingProduct[];
   recentTransactions: WorkspaceBillingTransaction[];
 }
+
+export type WorkspaceOnboardingStatus =
+  | "in_progress"
+  | "skipped"
+  | "completed"
+  | "provisioning"
+  | "provisioned"
+  | "failed";
+
+export type OnboardingRoleCategoryKey =
+  | "recommended"
+  | "finance"
+  | "legal"
+  | "consulting"
+  | "marketing"
+  | "sales"
+  | "ecommerce"
+  | "creator"
+  | "influencer"
+  | "design"
+  | "engineering"
+  | "ai"
+  | "education"
+  | "business_functions";
+
+export interface OnboardingRoleCatalogItem {
+  id: string;
+  slug: string;
+  emoji: string;
+  label: string;
+  categoryKey: OnboardingRoleCategoryKey | string;
+  category: string;
+  featured: boolean;
+}
+
+export interface OnboardingRoleSelection {
+  description?: string | null;
+  selectedRoleId?: string | null;
+  selectedRoleSlug?: string | null;
+  selectedRoleLabel?: string | null;
+  selectedTag?: string;
+  selectedRoleCategoryKey?: string | null;
+}
+
+export interface OnboardingGeneratedTask {
+  id: string;
+  emoji: string;
+  title: string;
+}
+
+export interface OnboardingTasksSelection {
+  generatedTasks?: OnboardingGeneratedTask[];
+  selectedTaskIds?: string[];
+  customTask?: string | null;
+}
+
+export interface OnboardingChannelDraft {
+  id: string;
+  name: string;
+}
+
+export interface OnboardingChannelsSelection {
+  channelDrafts?: OnboardingChannelDraft[];
+  activeChannelId?: string | null;
+}
+
+export interface OnboardingMainAgentDraft {
+  emoji: string;
+  name: string;
+  description: string;
+}
+
+export interface OnboardingChildAgentDraft {
+  id: string;
+  emoji: string;
+  name: string;
+}
+
+export interface OnboardingAgentsSelection {
+  main?: OnboardingMainAgentDraft;
+  children?: OnboardingChildAgentDraft[];
+}
+
+export interface OnboardingInviteSelection {
+  invitationCode?: string;
+  invitationUrl?: string;
+}
+
+export interface OnboardingPlanSelection {
+  selectedPlan?: string | null;
+  checkoutCompleted?: boolean;
+}
+
+export interface WorkspaceOnboardingStepData {
+  role?: OnboardingRoleSelection;
+  tasks?: OnboardingTasksSelection;
+  channels?: OnboardingChannelsSelection;
+  agents?: OnboardingAgentsSelection;
+  invite?: OnboardingInviteSelection;
+  plan?: OnboardingPlanSelection;
+}
+
+export interface WorkspaceOnboarding {
+  id: string;
+  tenantId: string;
+  userId: string;
+  status: WorkspaceOnboardingStatus;
+  currentStep: number;
+  stepData: WorkspaceOnboardingStepData;
+  version: number;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}

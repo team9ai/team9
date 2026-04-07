@@ -24,6 +24,14 @@ export interface TenantSettings {
     primaryColor?: string;
     logoUrl?: string;
   };
+  onboarding?: {
+    role?: Record<string, unknown> | null;
+    tasks?: {
+      selectedTaskIds?: string[];
+      selectedTaskTitles?: string[];
+      customTask?: string | null;
+    };
+  };
 }
 
 export const tenants = pgTable('tenants', {

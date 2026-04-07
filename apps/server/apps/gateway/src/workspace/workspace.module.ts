@@ -4,7 +4,12 @@ import {
   InvitationsController,
 } from './workspace.controller.js';
 import { WorkspaceBillingController } from './workspace-billing.controller.js';
+import {
+  OnboardingCatalogController,
+  WorkspaceOnboardingController,
+} from './onboarding.controller.js';
 import { WorkspaceService } from './workspace.service.js';
+import { OnboardingService } from './onboarding.service.js';
 import { WorkspaceGuard } from './guards/workspace.guard.js';
 import { WorkspaceRoleGuard } from './guards/workspace-role.guard.js';
 import { DatabaseModule } from '@team9/database';
@@ -27,8 +32,20 @@ import { BillingHubModule } from '../billing-hub/billing-hub.module.js';
     WorkspaceController,
     InvitationsController,
     WorkspaceBillingController,
+    OnboardingCatalogController,
+    WorkspaceOnboardingController,
   ],
-  providers: [WorkspaceService, WorkspaceGuard, WorkspaceRoleGuard],
-  exports: [WorkspaceService, WorkspaceGuard, WorkspaceRoleGuard],
+  providers: [
+    WorkspaceService,
+    OnboardingService,
+    WorkspaceGuard,
+    WorkspaceRoleGuard,
+  ],
+  exports: [
+    WorkspaceService,
+    OnboardingService,
+    WorkspaceGuard,
+    WorkspaceRoleGuard,
+  ],
 })
 export class WorkspaceModule {}

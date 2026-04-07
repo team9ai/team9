@@ -70,6 +70,7 @@ export interface PollLoginResponse {
 export interface AuthStartRequest {
   email: string;
   displayName?: string;
+  signupSource?: "self" | "invite";
 }
 
 export interface AuthStartResponse {
@@ -85,6 +86,11 @@ export interface VerifyCodeRequest {
   email: string;
   challengeId: string;
   code: string;
+}
+
+export interface GoogleLoginRequest {
+  credential: string;
+  signupSource?: "self" | "invite";
 }
 
 export interface DesktopSessionResponse {
@@ -168,10 +174,8 @@ export const authApi = {
     return authData;
   },
 
-  googleLogin: async (credential: string): Promise<AuthResponse> => {
-    const response = await http.post<AuthResponse>("/v1/auth/google", {
-      credential,
-    });
+  googleLogin: async (data: GoogleLoginRequest): Promise<AuthResponse> => {
+    const response = await http.post<AuthResponse>("/v1/auth/google", data);
 
     const authData = response.data;
 

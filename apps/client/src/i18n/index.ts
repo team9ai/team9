@@ -12,6 +12,7 @@ import zhWorkspace from "./locales/zh/workspace.json";
 import zhRoutines from "./locales/zh/routines.json";
 import zhResources from "./locales/zh/resources.json";
 import zhSkills from "./locales/zh/skills.json";
+import zhOnboarding from "./locales/zh/onboarding.json";
 
 import enCommon from "./locales/en/common.json";
 import enAuth from "./locales/en/auth.json";
@@ -24,6 +25,7 @@ import enWorkspace from "./locales/en/workspace.json";
 import enRoutines from "./locales/en/routines.json";
 import enResources from "./locales/en/resources.json";
 import enSkills from "./locales/en/skills.json";
+import enOnboarding from "./locales/en/onboarding.json";
 
 export const resources = {
   zh: {
@@ -38,6 +40,7 @@ export const resources = {
     routines: zhRoutines,
     resources: zhResources,
     skills: zhSkills,
+    onboarding: zhOnboarding,
   },
   en: {
     common: enCommon,
@@ -51,6 +54,7 @@ export const resources = {
     routines: enRoutines,
     resources: enResources,
     skills: enSkills,
+    onboarding: enOnboarding,
   },
 };
 
@@ -79,6 +83,7 @@ i18n
       "routines",
       "resources",
       "skills",
+      "onboarding",
     ],
     interpolation: {
       escapeValue: false,

@@ -532,6 +532,7 @@ function WebLoginView() {
       const result = await authStart.mutateAsync({
         email,
         ...(authState === "need_display_name" ? { displayName } : {}),
+        signupSource: invite ? "invite" : "self",
       });
 
       if (result.action === "need_display_name") {
@@ -574,6 +575,7 @@ function WebLoginView() {
       const result = await authStart.mutateAsync({
         email,
         ...(displayName ? { displayName } : {}),
+        signupSource: invite ? "invite" : "self",
       });
       if (result.action === "code_sent") {
         setChallengeId(result.challengeId!);
@@ -596,7 +598,10 @@ function WebLoginView() {
     }
 
     try {
-      await googleAuth.mutateAsync(credentialResponse.credential);
+      await googleAuth.mutateAsync({
+        credential: credentialResponse.credential,
+        signupSource: invite ? "invite" : "self",
+      });
       await navigateAfterAuth();
     } catch (err: unknown) {
       setError(getErrorMessage(err, t("googleLoginFailed")));

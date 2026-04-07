@@ -4,6 +4,8 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
+  MaxLength,
   Min,
 } from 'class-validator';
 
@@ -26,4 +28,20 @@ export class CreateWorkspaceBillingCheckoutDto {
   @IsInt()
   @Min(1)
   amountCents?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(512)
+  @Matches(/^\/(?!\/).*/, {
+    message: 'successPath must be an app-relative path',
+  })
+  successPath?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(512)
+  @Matches(/^\/(?!\/).*/, {
+    message: 'cancelPath must be an app-relative path',
+  })
+  cancelPath?: string;
 }

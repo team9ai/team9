@@ -37,11 +37,15 @@ export function useCreateWorkspaceBillingCheckout(
       type,
       view,
       amountCents,
+      successPath,
+      cancelPath,
     }: {
       priceId: string;
       type?: "subscription" | "one_time";
       view?: "plans" | "credits";
       amountCents?: number;
+      successPath?: string;
+      cancelPath?: string;
     }) =>
       workspaceApi.createBillingCheckout(
         workspaceId!,
@@ -49,6 +53,8 @@ export function useCreateWorkspaceBillingCheckout(
         type,
         view,
         amountCents,
+        successPath,
+        cancelPath,
       ),
   });
 }
@@ -57,7 +63,12 @@ export function useCreateWorkspaceBillingPortal(
   workspaceId: string | undefined,
 ) {
   return useMutation({
-    mutationFn: ({ view }: { view?: "plans" | "credits" } = {}) =>
-      workspaceApi.createBillingPortal(workspaceId!, view),
+    mutationFn: ({
+      view,
+      returnPath,
+    }: {
+      view?: "plans" | "credits";
+      returnPath?: string;
+    } = {}) => workspaceApi.createBillingPortal(workspaceId!, view, returnPath),
   });
 }

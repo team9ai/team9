@@ -1,0 +1,127 @@
+{
+  "eyebrow": "Workspace Onboarding",
+  "workspaceBadge": "Starter setup for {{name}}",
+  "stepLabel": "Step {{current}} / {{total}}",
+  "workspaceFallback": "Your new workspace",
+  "welcome": "Let Team9 shape the first version of your workspace around how you actually work.",
+  "actions": {
+    "back": "Back",
+    "continue": "Continue",
+    "next": "Next",
+    "regenerate": "Regenerate",
+    "retry": "Retry",
+    "edit": "Edit",
+    "copy": "Copy link",
+    "copied": "Copied",
+    "startCheckout": "Subscribe",
+    "continueWithoutPlan": "Continue without subscription",
+    "finish": "Enter workspace",
+    "retryProvision": "Retry setup",
+    "creating": "Creating…"
+  },
+  "steps": {
+    "1": {
+      "title": "Tell us what kind of work you do",
+      "description": "Write one sentence about your role, or start from the closest preset role."
+    },
+    "2": {
+      "title": "Pick the task that feels the most real",
+      "description": "We'll suggest a few recurring workflows that are worth automating first."
+    },
+    "3": {
+      "title": "Let's prepare a few channels for you",
+      "description": "These channels are generated from the way your work naturally flows."
+    },
+    "4": {
+      "title": "Confirm your agent setup",
+      "description": "Your main agent is fixed as Personal Staff, with a few focused helpers underneath."
+    },
+    "5": {
+      "title": "Invite your team to collaborate",
+      "description": "Share one invite link and bring everyone into the same workspace."
+    },
+    "6": {
+      "title": "Choose a plan for this workspace",
+      "description": "You can subscribe now, or continue into the workspace and set billing later."
+    }
+  },
+  "role": {
+    "inputLabel": "Describe your work",
+    "inputPlaceholder": "For example: I run B2B SaaS sales follow-up, proposals, and deal reviews.",
+    "customHint": "You can also use only free text and skip the presets.",
+    "or": "Or",
+    "featured": "Recommended",
+    "suggestions": "Role suggestions"
+  },
+  "tasks": {
+    "customLabel": "Or add the one workflow you most want to automate",
+    "customDivider": "Write your own",
+    "customPlaceholder": "For example: summarize daily client follow-up notes and suggest the next step.",
+    "empty": "No task suggestions yet.",
+    "loadingTitle": "Generating task options",
+    "loading": "Generating task suggestions tailored to your work…"
+  },
+  "channels": {
+    "renameHint": "You can rename any channel directly",
+    "previewTitle": "Channel preview",
+    "placeholder": "#new-channel",
+    "loadingTitle": "Preparing your starter channels",
+    "loading": "Generating your starter channel layout…",
+    "sidebarTitle": "Workspace",
+    "activeThread": "Today's focus",
+    "previewAuthorA": "Personal Staff",
+    "previewAuthorB": "System Draft",
+    "previewNow": "just now",
+    "previewToday": "today",
+    "previewLine1": "This is where role-specific collaboration will start to take shape.",
+    "previewLine2": "When setup finishes, these channels and agents will be provisioned into the real workspace.",
+    "previewPurpose": "This channel is where {{topic}} stays visible and easy to action.",
+    "previewInsight": "{{role}} can use this space to keep {{task}} moving without losing context.",
+    "previewThread": "Once setup is done, follow-ups for {{task}} can stay inside {{topic}} instead of getting buried elsewhere.",
+    "previewChecklistPrimary": "Primary workflow: {{task}}",
+    "previewChecklistSecondary": "Secondary thread: {{task}}",
+    "previewChecklistOwner": "Default owner: {{role}}"
+  },
+  "agents": {
+    "mainAgent": "Main agent",
+    "childAgents": "Supporting agents",
+    "mainDescriptionLabel": "Main agent description",
+    "mainDescriptionPlaceholder": "Describe how your Personal Staff should support you.",
+    "loadingTitle": "Preparing your agent lineup",
+    "empty": "No usable agent setup is available yet. Go back and try again.",
+    "loading": "Generating your agent lineup…"
+  },
+  "invite": {
+    "title": "Invite link",
+    "hint": "This link invites collaborators into the current workspace as members by default.",
+    "loading": "Preparing your invite link…"
+  },
+  "plan": {
+    "current": "Current plan",
+    "success": "Checkout completed. You can continue now.",
+    "cancel": "Checkout was cancelled. You can try again any time.",
+    "loadingTitle": "Loading workspace plans",
+    "note": "You can subscribe now, or enter the workspace first and add billing later.",
+    "empty": "No subscription plans are available right now.",
+    "perMonth": "/month",
+    "priceHint": "Approximately {{amount}} in real usage value",
+    "credits": "{{count}} credits"
+  },
+  "status": {
+    "provisioningTitle": "Setting up your workspace",
+    "provisioningDescription": "We're creating channels, configuring agents, and saving your preferences.",
+    "failedTitle": "Setup did not fully complete",
+    "failedDescription": "Provisioning failed partway through. You can retry without losing the preferences you've already saved."
+  },
+  "errors": {
+    "loadFailed": "Unable to load onboarding state.",
+    "saveFailed": "Unable to save onboarding progress right now.",
+    "roleRequired": "Add a role description or choose a preset role first.",
+    "taskRequired": "Select at least one task or add a custom task.",
+    "channelRequired": "Keep at least one channel draft.",
+    "workspaceRequired": "No workspace is available right now.",
+    "checkoutFailed": "Unable to start checkout right now.",
+    "copyFailed": "Unable to copy the invite link.",
+    "provisionFailed": "Workspace setup failed. Please retry."
+  }
+}

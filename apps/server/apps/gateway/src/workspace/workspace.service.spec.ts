@@ -6,6 +6,7 @@ import { ChannelsService } from '../im/channels/channels.service.js';
 import { InstalledApplicationsService } from '../applications/installed-applications.service.js';
 import { ApplicationsService } from '../applications/applications.service.js';
 import { PersonalStaffService } from '../applications/personal-staff.service.js';
+import { OnboardingService } from './onboarding.service.js';
 import { RedisService } from '@team9/redis';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
@@ -82,6 +83,10 @@ describe('WorkspaceService', () => {
     sendToUser: MockFn;
     sendToChannelMembers: MockFn;
   };
+  let onboardingService: {
+    createStarterRecord: MockFn;
+    createSkippedRecord: MockFn;
+  };
   beforeEach(async () => {
     db = mockDb();
     botService = {
@@ -125,6 +130,10 @@ describe('WorkspaceService', () => {
       sendToUser: jest.fn<any>(),
       sendToChannelMembers: jest.fn<any>().mockResolvedValue(true),
     };
+    onboardingService = {
+      createStarterRecord: jest.fn<any>().mockResolvedValue(undefined),
+      createSkippedRecord: jest.fn<any>().mockResolvedValue(undefined),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -149,6 +158,7 @@ describe('WorkspaceService', () => {
             deleteStaff: jest.fn<any>().mockResolvedValue(undefined),
           },
         },
+        { provide: OnboardingService, useValue: onboardingService },
       ],
     }).compile();
 
@@ -220,6 +230,16 @@ describe('WorkspaceService', () => {
       await service.create({ name: 'Test Workspace', ownerId: 'owner-1' });
 
       expect(installedApplicationsService.install).not.toHaveBeenCalled();
+    });
+
+    it('should roll back the workspace when critical starter setup fails', async () => {
+      channelsService.create.mockRejectedValueOnce(new Error('channel failed'));
+
+      await expect(
+        service.create({ name: 'Test Workspace', ownerId: 'owner-1' }),
+      ).rejects.toThrow('channel failed');
+
+      expect(db.delete).toHaveBeenCalled();
     });
 
     it('should add system bot alongside auto-install when system bot is enabled', async () => {
@@ -724,7 +744,7 @@ describe('WorkspaceService', () => {
   });
 
   describe('handleUserRegistered', () => {
-    it('should create a personal workspace for the new user', async () => {
+    it('should create a starter workspace and onboarding record for eligible users', async () => {
       const logger = { log: jest.fn<any>() };
       (service as any).logger = logger;
       jest.spyOn(service, 'create').mockResolvedValue(WORKSPACE_ROW as any);
@@ -740,9 +760,31 @@ describe('WorkspaceService', () => {
         name: "Alice's Workspace",
         ownerId: 'user-uuid',
       });
+      expect(onboardingService.createStarterRecord).toHaveBeenCalledWith(
+        WORKSPACE_ROW.id,
+        'user-uuid',
+      );
       expect(logger.log).toHaveBeenCalledWith(
         "Created personal workspace for user user-uuid: Alice's Workspace",
       );
+    });
+
+    it('should create a skipped onboarding record for invite signups', async () => {
+      jest.spyOn(service, 'create').mockResolvedValue(WORKSPACE_ROW as any);
+
+      await expect(
+        service.handleUserRegistered({
+          userId: 'user-uuid',
+          displayName: 'Alice',
+          onboardingEligible: false,
+        } as any),
+      ).resolves.toBeUndefined();
+
+      expect(onboardingService.createSkippedRecord).toHaveBeenCalledWith(
+        WORKSPACE_ROW.id,
+        'user-uuid',
+      );
+      expect(onboardingService.createStarterRecord).not.toHaveBeenCalled();
     });
   });
 

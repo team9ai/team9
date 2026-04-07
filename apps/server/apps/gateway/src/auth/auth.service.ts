@@ -5,6 +5,7 @@ import {
   ConflictException,
   NotFoundException,
   Inject,
+  Logger,
 } from '@nestjs/common';
 import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -100,6 +101,7 @@ interface AuthChallenge {
   attemptsRemaining: number;
   flow: 'login' | 'verify_existing_user' | 'signup';
   signupDisplayName?: string;
+  signupSource?: 'self' | 'invite';
 }
 
 interface DesktopPendingSession {
@@ -114,6 +116,7 @@ type DesktopSessionState = DesktopPendingSession | DesktopVerifiedSession;
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly TOKEN_BLACKLIST_PREFIX = 'im:token_blacklist:';
   private readonly VERIFICATION_RATE_LIMIT_PREFIX = 'im:verify_rate:';
   private readonly LOGIN_RATE_LIMIT_PREFIX = 'im:login_rate:';
@@ -173,6 +176,22 @@ export class AuthService {
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
     };
+  }
+
+  private async rollbackUserCreation(userId: string): Promise<void> {
+    try {
+      await this.db.delete(schema.users).where(eq(schema.users.id, userId));
+    } catch (error) {
+      this.logger.error(
+        `Failed to roll back user ${userId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  private async provisionRegisteredUserWorkspace(
+    event: UserRegisteredEvent,
+  ): Promise<void> {
+    await this.eventEmitter.emitAsync(USER_EVENTS.REGISTERED, event);
   }
 
   async register(dto: RegisterDto): Promise<RegisterResponse> {
@@ -237,10 +256,16 @@ export class AuthService {
       .returning();
 
     // Emit event to create a personal workspace for the user
-    this.eventEmitter.emit(USER_EVENTS.REGISTERED, {
-      userId: user.id,
-      displayName: dto.displayName || dto.username,
-    } satisfies UserRegisteredEvent);
+    try {
+      await this.provisionRegisteredUserWorkspace({
+        userId: user.id,
+        displayName: dto.displayName || dto.username,
+        onboardingEligible: true,
+      } satisfies UserRegisteredEvent);
+    } catch (error) {
+      await this.rollbackUserCreation(user.id);
+      throw error;
+    }
 
     // Emit event for search indexing
     this.eventEmitter.emit('user.created', { user });
@@ -635,10 +660,16 @@ export class AuthService {
       .returning();
 
     // Emit events (same as register flow)
-    this.eventEmitter.emit(USER_EVENTS.REGISTERED, {
-      userId: user.id,
-      displayName,
-    } satisfies UserRegisteredEvent);
+    try {
+      await this.provisionRegisteredUserWorkspace({
+        userId: user.id,
+        displayName,
+        onboardingEligible: dto.signupSource !== 'invite',
+      } satisfies UserRegisteredEvent);
+    } catch (error) {
+      await this.rollbackUserCreation(user.id);
+      throw error;
+    }
 
     this.eventEmitter.emit('user.created', { user });
 
@@ -974,6 +1005,7 @@ export class AuthService {
       dto.email,
       'signup',
       dto.displayName,
+      dto.signupSource,
     );
     await this.redisService.set(rateLimitKey, '1', 60);
 
@@ -992,6 +1024,7 @@ export class AuthService {
     email: string,
     flow: AuthChallenge['flow'],
     signupDisplayName?: string,
+    signupSource?: AuthChallenge['signupSource'],
   ): Promise<{ challengeId: string; code: string }> {
     const challengeId = crypto.randomBytes(16).toString('hex');
     // Generate 6-digit code
@@ -1005,6 +1038,7 @@ export class AuthService {
       attemptsRemaining: this.AUTH_CHALLENGE_MAX_ATTEMPTS,
       flow,
       ...(signupDisplayName && { signupDisplayName }),
+      ...(signupSource && { signupSource }),
     };
 
     await this.redisService.set(
@@ -1076,7 +1110,11 @@ export class AuthService {
 
     if (challenge.flow === 'signup') {
       // Create user now
-      return this.completeSignup(challenge.email, challenge.signupDisplayName!);
+      return this.completeSignup(
+        challenge.email,
+        challenge.signupDisplayName!,
+        challenge.signupSource,
+      );
     }
 
     // Login or verify existing user
@@ -1118,6 +1156,7 @@ export class AuthService {
   private async completeSignup(
     email: string,
     displayName: string,
+    signupSource?: 'self' | 'invite',
   ): Promise<AuthResponse> {
     // Double-check email is still available
     const [existing] = await this.db
@@ -1157,10 +1196,16 @@ export class AuthService {
       })
       .returning();
 
-    this.eventEmitter.emit(USER_EVENTS.REGISTERED, {
-      userId: user.id,
-      displayName,
-    } satisfies UserRegisteredEvent);
+    try {
+      await this.provisionRegisteredUserWorkspace({
+        userId: user.id,
+        displayName,
+        onboardingEligible: signupSource !== 'invite',
+      } satisfies UserRegisteredEvent);
+    } catch (error) {
+      await this.rollbackUserCreation(user.id);
+      throw error;
+    }
 
     this.eventEmitter.emit('user.created', { user });
 

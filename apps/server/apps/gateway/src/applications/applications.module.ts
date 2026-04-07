@@ -52,6 +52,7 @@ import {
     ApplicationsService,
     InstalledApplicationsService,
     StaffService,
+    CommonStaffService,
     PersonalStaffService,
   ],
 })

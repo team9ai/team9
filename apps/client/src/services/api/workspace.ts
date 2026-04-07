@@ -13,6 +13,11 @@ import type {
   BillingProduct,
   WorkspaceBillingOverview,
   WorkspaceBillingSummary,
+  OnboardingRoleCatalogItem,
+  OnboardingRoleSelection,
+  OnboardingTasksSelection,
+  WorkspaceOnboarding,
+  WorkspaceOnboardingStepData,
 } from "@/types/workspace";
 
 export const workspaceApi = {
@@ -165,6 +170,8 @@ export const workspaceApi = {
     type: "subscription" | "one_time" = "subscription",
     view: "plans" | "credits" = "plans",
     amountCents?: number,
+    successPath?: string,
+    cancelPath?: string,
   ): Promise<{ checkoutUrl: string; sessionId: string }> => {
     const response = await http.post<{
       checkoutUrl: string;
@@ -174,6 +181,8 @@ export const workspaceApi = {
       type,
       view,
       ...(amountCents !== undefined ? { amountCents } : {}),
+      ...(successPath ? { successPath } : {}),
+      ...(cancelPath ? { cancelPath } : {}),
     });
     return response.data;
   },
@@ -181,10 +190,109 @@ export const workspaceApi = {
   createBillingPortal: async (
     workspaceId: string,
     view: "plans" | "credits" = "plans",
+    returnPath?: string,
   ): Promise<{ portalUrl: string }> => {
     const response = await http.post<{ portalUrl: string }>(
       `/v1/workspaces/${workspaceId}/billing/portal`,
-      { view },
+      {
+        view,
+        ...(returnPath ? { returnPath } : {}),
+      },
+    );
+    return response.data;
+  },
+
+  getOnboardingRoles: async (
+    lang?: string,
+  ): Promise<OnboardingRoleCatalogItem[]> => {
+    const response = await http.get<OnboardingRoleCatalogItem[]>(
+      "/v1/onboarding/roles",
+      { params: lang ? { lang } : undefined },
+    );
+    return response.data;
+  },
+
+  getOnboardingState: async (
+    workspaceId: string,
+  ): Promise<WorkspaceOnboarding | null> => {
+    const response = await http.get<WorkspaceOnboarding | null>(
+      `/v1/workspaces/${workspaceId}/onboarding`,
+    );
+    return response.data;
+  },
+
+  updateOnboardingState: async (
+    workspaceId: string,
+    data: {
+      currentStep?: number;
+      status?: "in_progress" | "completed";
+      stepData?: WorkspaceOnboardingStepData;
+    },
+  ): Promise<WorkspaceOnboarding> => {
+    const response = await http.patch<WorkspaceOnboarding>(
+      `/v1/workspaces/${workspaceId}/onboarding`,
+      data,
+    );
+    return response.data;
+  },
+
+  generateOnboardingTasks: async (
+    workspaceId: string,
+    data: {
+      role: OnboardingRoleSelection;
+      tasks?: OnboardingTasksSelection;
+      lang?: string;
+    },
+  ): Promise<{ tasks: OnboardingTasksSelection["generatedTasks"] }> => {
+    const response = await http.post<{
+      tasks: OnboardingTasksSelection["generatedTasks"];
+    }>(`/v1/workspaces/${workspaceId}/onboarding/generate-tasks`, data);
+    return response.data;
+  },
+
+  generateOnboardingChannels: async (
+    workspaceId: string,
+    data: {
+      role: OnboardingRoleSelection;
+      tasks?: OnboardingTasksSelection;
+      lang?: string;
+    },
+  ): Promise<{
+    channels: NonNullable<
+      WorkspaceOnboardingStepData["channels"]
+    >["channelDrafts"];
+  }> => {
+    const response = await http.post<{
+      channels: NonNullable<
+        WorkspaceOnboardingStepData["channels"]
+      >["channelDrafts"];
+    }>(`/v1/workspaces/${workspaceId}/onboarding/generate-channels`, data);
+    return response.data;
+  },
+
+  generateOnboardingAgents: async (
+    workspaceId: string,
+    data: {
+      role: OnboardingRoleSelection;
+      tasks?: OnboardingTasksSelection;
+      lang?: string;
+    },
+  ): Promise<{
+    agents: WorkspaceOnboardingStepData["agents"];
+  }> => {
+    const response = await http.post<{
+      agents: WorkspaceOnboardingStepData["agents"];
+    }>(`/v1/workspaces/${workspaceId}/onboarding/generate-agents`, data);
+    return response.data;
+  },
+
+  completeOnboarding: async (
+    workspaceId: string,
+    data?: { lang?: string },
+  ): Promise<WorkspaceOnboarding> => {
+    const response = await http.post<WorkspaceOnboarding>(
+      `/v1/workspaces/${workspaceId}/onboarding/complete`,
+      data ?? {},
     );
     return response.data;
   },

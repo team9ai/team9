@@ -10,6 +10,7 @@ import api, {
   type LoginRequest,
   type RegisterRequest,
   type AuthStartRequest,
+  type GoogleLoginRequest,
   type VerifyCodeRequest,
   type CompleteDesktopSessionRequest,
   type User,
@@ -76,7 +77,7 @@ export const useGoogleAuth = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (credential: string) => api.auth.googleLogin(credential),
+    mutationFn: (data: GoogleLoginRequest) => api.auth.googleLogin(data),
     onSuccess: (data) => {
       // Tokens are stored in api.auth.googleLogin
       syncCurrentUser(data.user, queryClient);
