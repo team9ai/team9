@@ -571,6 +571,9 @@ importers:
 
   apps/server/apps/gateway:
     dependencies:
+      "@ai-sdk/openai":
+        specifier: ^3.0.50
+        version: 3.0.50(zod@4.3.6)
       "@grpc/grpc-js":
         specifier: ^1.12.0
         version: 1.14.3
@@ -652,6 +655,9 @@ importers:
       "@team9/storage":
         specifier: workspace:*
         version: link:../../libs/storage
+      ai:
+        specifier: ^6.0.146
+        version: 6.0.146(zod@4.3.6)
       axios:
         specifier: ^1.13.2
         version: 1.13.2
@@ -697,6 +703,9 @@ importers:
       web-push:
         specifier: ^3.6.7
         version: 3.6.7
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
     devDependencies:
       "@jest/globals":
         specifier: ^30.2.0
@@ -704,9 +713,18 @@ importers:
       "@types/diff":
         specifier: ^8.0.0
         version: 8.0.0
+      "@types/express":
+        specifier: ^5.0.0
+        version: 5.0.6
+      "@types/supertest":
+        specifier: ^6.0.2
+        version: 6.0.3
       "@types/web-push":
         specifier: ^3.6.4
         version: 3.6.4
+      supertest:
+        specifier: ^7.0.0
+        version: 7.1.4
       typescript:
         specifier: ^5.7.3
         version: 5.8.3
