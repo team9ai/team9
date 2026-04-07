@@ -23,9 +23,9 @@ import {
 import * as schema from '@team9/database/schemas';
 import { env } from '@team9/shared';
 
-@Controller({ path: 'tasks', version: '1' })
-export class TasksStreamController {
-  private readonly logger = new Logger(TasksStreamController.name);
+@Controller({ path: 'routines', version: '1' })
+export class RoutinesStreamController {
+  private readonly logger = new Logger(RoutinesStreamController.name);
   private readonly taskcastUrl: string;
 
   constructor(
@@ -40,9 +40,9 @@ export class TasksStreamController {
     );
   }
 
-  @Get(':taskId/executions/:execId/stream')
+  @Get(':routineId/executions/:execId/stream')
   async streamExecution(
-    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Param('routineId', ParseUUIDPipe) routineId: string,
     @Param('execId', ParseUUIDPipe) execId: string,
     @Query('token') queryToken: string | undefined,
     @Req() req: Request,
@@ -72,14 +72,14 @@ export class TasksStreamController {
     // ── Deterministic TaskCast ID — no DB lookup for taskcastTaskId ──
     const taskcastTaskId = `agent_task_exec_${execId}`;
 
-    // ── Verify execution exists and belongs to this task ──
+    // ── Verify execution exists and belongs to this routine ──
     const [execution] = await this.db
       .select({ id: schema.routineExecutions.id })
       .from(schema.routineExecutions)
       .where(
         and(
           eq(schema.routineExecutions.id, execId),
-          eq(schema.routineExecutions.routineId, taskId),
+          eq(schema.routineExecutions.routineId, routineId),
         ),
       )
       .limit(1);
@@ -88,20 +88,20 @@ export class TasksStreamController {
       throw new NotFoundException('Execution not found');
     }
 
-    // ── Verify user belongs to the task's workspace ──
-    const [task] = await this.db
+    // ── Verify user belongs to the routine's workspace ──
+    const [routine] = await this.db
       .select({ tenantId: schema.routines.tenantId })
       .from(schema.routines)
-      .where(eq(schema.routines.id, taskId))
+      .where(eq(schema.routines.id, routineId))
       .limit(1);
 
-    if (task) {
+    if (routine) {
       const [membership] = await this.db
         .select({ id: schema.tenantMembers.id })
         .from(schema.tenantMembers)
         .where(
           and(
-            eq(schema.tenantMembers.tenantId, task.tenantId),
+            eq(schema.tenantMembers.tenantId, routine.tenantId),
             eq(schema.tenantMembers.userId, userId),
           ),
         )

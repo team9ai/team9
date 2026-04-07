@@ -49,7 +49,7 @@ export class ScheduleConfigDto implements ScheduleConfig {
   cron?: string;
 }
 
-export class CreateTaskDto {
+export class CreateRoutineDto {
   @IsString()
   @MaxLength(500)
   title: string;

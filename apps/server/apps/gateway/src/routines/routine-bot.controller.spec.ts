@@ -5,50 +5,50 @@ jest.unstable_mockModule('@team9/auth', () => ({
   CurrentUser: () => () => undefined,
 }));
 
-const { TaskBotController } = await import('./task-bot.controller.js');
+const { RoutineBotController } = await import('./routine-bot.controller.js');
 
 type MockFn = jest.Mock<(...args: any[]) => any>;
 
-describe('TaskBotController', () => {
-  let controller: TaskBotController;
-  let taskBotService: {
+describe('RoutineBotController', () => {
+  let controller: RoutineBotController;
+  let routineBotService: {
     reportSteps: MockFn;
     updateStatus: MockFn;
     createIntervention: MockFn;
     addDeliverable: MockFn;
-    getTaskDocument: MockFn;
+    getRoutineDocument: MockFn;
   };
 
   beforeEach(() => {
-    taskBotService = {
+    routineBotService = {
       reportSteps: jest.fn<any>().mockResolvedValue({ success: true }),
       updateStatus: jest.fn<any>().mockResolvedValue({ success: true }),
       createIntervention: jest.fn<any>().mockResolvedValue({
         id: 'intervention-1',
       }),
       addDeliverable: jest.fn<any>().mockResolvedValue({ id: 'deliverable-1' }),
-      getTaskDocument: jest.fn<any>().mockResolvedValue({
+      getRoutineDocument: jest.fn<any>().mockResolvedValue({
         id: 'document-1',
       }),
     };
 
-    controller = new TaskBotController(taskBotService as never);
+    controller = new RoutineBotController(routineBotService as never);
   });
 
-  it('delegates reportSteps with task, execution, bot user, and dto', async () => {
+  it('delegates reportSteps with routine, execution, bot user, and dto', async () => {
     const dto = { steps: [{ title: 'Step 1', status: 'completed' }] };
 
     await expect(
       controller.reportSteps(
-        'task-1',
+        'routine-1',
         'execution-1',
         dto as never,
         'bot-user-1',
       ),
     ).resolves.toEqual({ success: true });
 
-    expect(taskBotService.reportSteps).toHaveBeenCalledWith(
-      'task-1',
+    expect(routineBotService.reportSteps).toHaveBeenCalledWith(
+      'routine-1',
       'execution-1',
       'bot-user-1',
       dto,
@@ -58,15 +58,15 @@ describe('TaskBotController', () => {
   it('delegates updateStatus and forwards status plus optional error', async () => {
     await expect(
       controller.updateStatus(
-        'task-1',
+        'routine-1',
         'execution-1',
         { status: 'failed', error: 'boom' } as never,
         'bot-user-1',
       ),
     ).resolves.toEqual({ success: true });
 
-    expect(taskBotService.updateStatus).toHaveBeenCalledWith(
-      'task-1',
+    expect(routineBotService.updateStatus).toHaveBeenCalledWith(
+      'routine-1',
       'execution-1',
       'bot-user-1',
       'failed',
@@ -79,15 +79,15 @@ describe('TaskBotController', () => {
 
     await expect(
       controller.createIntervention(
-        'task-1',
+        'routine-1',
         'execution-1',
         dto as never,
         'bot-user-1',
       ),
     ).resolves.toEqual({ id: 'intervention-1' });
 
-    expect(taskBotService.createIntervention).toHaveBeenCalledWith(
-      'task-1',
+    expect(routineBotService.createIntervention).toHaveBeenCalledWith(
+      'routine-1',
       'execution-1',
       'bot-user-1',
       dto,
@@ -99,15 +99,15 @@ describe('TaskBotController', () => {
 
     await expect(
       controller.addDeliverable(
-        'task-1',
+        'routine-1',
         'execution-1',
         dto as never,
         'bot-user-1',
       ),
     ).resolves.toEqual({ id: 'deliverable-1' });
 
-    expect(taskBotService.addDeliverable).toHaveBeenCalledWith(
-      'task-1',
+    expect(routineBotService.addDeliverable).toHaveBeenCalledWith(
+      'routine-1',
       'execution-1',
       'bot-user-1',
       dto,
@@ -116,11 +116,11 @@ describe('TaskBotController', () => {
 
   it('delegates document retrieval', async () => {
     await expect(
-      controller.getDocument('task-1', 'execution-1', 'bot-user-1'),
+      controller.getDocument('routine-1', 'execution-1', 'bot-user-1'),
     ).resolves.toEqual({ id: 'document-1' });
 
-    expect(taskBotService.getTaskDocument).toHaveBeenCalledWith(
-      'task-1',
+    expect(routineBotService.getRoutineDocument).toHaveBeenCalledWith(
+      'routine-1',
       'execution-1',
       'bot-user-1',
     );

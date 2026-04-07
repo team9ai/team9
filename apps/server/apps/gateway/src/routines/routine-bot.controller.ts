@@ -9,7 +9,7 @@ import {
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { AuthGuard, CurrentUser } from '@team9/auth';
-import { TaskBotService } from './task-bot.service.js';
+import { RoutineBotService } from './routine-bot.service.js';
 import {
   ReportStepsDto,
   CreateInterventionDto,
@@ -18,32 +18,37 @@ import {
 } from './dto/index.js';
 
 @Controller({
-  path: 'bot/tasks',
+  path: 'bot/routines',
   version: '1',
 })
 @UseGuards(AuthGuard)
-export class TaskBotController {
-  constructor(private readonly taskBotService: TaskBotService) {}
+export class RoutineBotController {
+  constructor(private readonly routineBotService: RoutineBotService) {}
 
-  @Post(':taskId/executions/:executionId/steps')
+  @Post(':routineId/executions/:executionId/steps')
   async reportSteps(
-    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Param('routineId', ParseUUIDPipe) routineId: string,
     @Param('executionId', ParseUUIDPipe) executionId: string,
     @Body() dto: ReportStepsDto,
     @CurrentUser('sub') botUserId: string,
   ) {
-    return this.taskBotService.reportSteps(taskId, executionId, botUserId, dto);
+    return this.routineBotService.reportSteps(
+      routineId,
+      executionId,
+      botUserId,
+      dto,
+    );
   }
 
-  @Patch(':taskId/executions/:executionId/status')
+  @Patch(':routineId/executions/:executionId/status')
   async updateStatus(
-    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Param('routineId', ParseUUIDPipe) routineId: string,
     @Param('executionId', ParseUUIDPipe) executionId: string,
     @Body() dto: UpdateStatusDto,
     @CurrentUser('sub') botUserId: string,
   ) {
-    return this.taskBotService.updateStatus(
-      taskId,
+    return this.routineBotService.updateStatus(
+      routineId,
       executionId,
       botUserId,
       dto.status,
@@ -51,42 +56,46 @@ export class TaskBotController {
     );
   }
 
-  @Post(':taskId/executions/:executionId/interventions')
+  @Post(':routineId/executions/:executionId/interventions')
   async createIntervention(
-    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Param('routineId', ParseUUIDPipe) routineId: string,
     @Param('executionId', ParseUUIDPipe) executionId: string,
     @Body() dto: CreateInterventionDto,
     @CurrentUser('sub') botUserId: string,
   ) {
-    return this.taskBotService.createIntervention(
-      taskId,
+    return this.routineBotService.createIntervention(
+      routineId,
       executionId,
       botUserId,
       dto,
     );
   }
 
-  @Post(':taskId/executions/:executionId/deliverables')
+  @Post(':routineId/executions/:executionId/deliverables')
   async addDeliverable(
-    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Param('routineId', ParseUUIDPipe) routineId: string,
     @Param('executionId', ParseUUIDPipe) executionId: string,
     @Body() dto: AddDeliverableDto,
     @CurrentUser('sub') botUserId: string,
   ) {
-    return this.taskBotService.addDeliverable(
-      taskId,
+    return this.routineBotService.addDeliverable(
+      routineId,
       executionId,
       botUserId,
       dto,
     );
   }
 
-  @Get(':taskId/executions/:executionId/document')
+  @Get(':routineId/executions/:executionId/document')
   async getDocument(
-    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Param('routineId', ParseUUIDPipe) routineId: string,
     @Param('executionId', ParseUUIDPipe) executionId: string,
     @CurrentUser('sub') botUserId: string,
   ) {
-    return this.taskBotService.getTaskDocument(taskId, executionId, botUserId);
+    return this.routineBotService.getRoutineDocument(
+      routineId,
+      executionId,
+      botUserId,
+    );
   }
 }

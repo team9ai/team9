@@ -16,39 +16,39 @@ import type {
   RoutineScheduleType,
 } from '@team9/database/schemas';
 import { CurrentTenantId } from '../common/decorators/current-tenant.decorator.js';
-import { TasksService } from './tasks.service.js';
-import { TriggersService } from './triggers.service.js';
+import { RoutinesService } from './routines.service.js';
+import { RoutineTriggersService } from './routine-triggers.service.js';
 import {
-  CreateTaskDto,
-  UpdateTaskDto,
-  StartTaskNewDto,
-  ResumeTaskDto,
-  StopTaskDto,
+  CreateRoutineDto,
+  UpdateRoutineDto,
+  StartRoutineNewDto,
+  ResumeRoutineDto,
+  StopRoutineDto,
   ResolveInterventionDto,
   CreateTriggerDto,
   UpdateTriggerDto,
   RetryExecutionDto,
-  RestartTaskDto,
+  RestartRoutineDto,
 } from './dto/index.js';
 
 @Controller({
-  path: 'tasks',
+  path: 'routines',
   version: '1',
 })
 @UseGuards(AuthGuard)
-export class TasksController {
+export class RoutinesController {
   constructor(
-    private readonly tasksService: TasksService,
-    private readonly triggersService: TriggersService,
+    private readonly routinesService: RoutinesService,
+    private readonly routineTriggersService: RoutineTriggersService,
   ) {}
 
   @Post()
   async create(
-    @Body() dto: CreateTaskDto,
+    @Body() dto: CreateRoutineDto,
     @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string,
   ) {
-    return this.tasksService.create(dto, userId, tenantId);
+    return this.routinesService.create(dto, userId, tenantId);
   }
 
   @Get()
@@ -58,7 +58,7 @@ export class TasksController {
     @Query('status') status?: RoutineStatus,
     @Query('scheduleType') scheduleType?: RoutineScheduleType,
   ) {
-    return this.tasksService.list(tenantId, { botId, status, scheduleType });
+    return this.routinesService.list(tenantId, { botId, status, scheduleType });
   }
 
   @Get(':id')
@@ -66,17 +66,17 @@ export class TasksController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenantId() tenantId: string,
   ) {
-    return this.tasksService.getById(id, tenantId);
+    return this.routinesService.getById(id, tenantId);
   }
 
   @Patch(':id')
   async update(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateTaskDto,
+    @Body() dto: UpdateRoutineDto,
     @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string,
   ) {
-    return this.tasksService.update(id, dto, userId, tenantId);
+    return this.routinesService.update(id, dto, userId, tenantId);
   }
 
   @Delete(':id')
@@ -85,7 +85,7 @@ export class TasksController {
     @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string,
   ) {
-    return this.tasksService.delete(id, userId, tenantId);
+    return this.routinesService.delete(id, userId, tenantId);
   }
 
   @Get(':id/executions')
@@ -93,7 +93,7 @@ export class TasksController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenantId() tenantId: string,
   ) {
-    return this.tasksService.getExecutions(id, tenantId);
+    return this.routinesService.getExecutions(id, tenantId);
   }
 
   @Get(':id/executions/:execId')
@@ -102,7 +102,7 @@ export class TasksController {
     @Param('execId', ParseUUIDPipe) execId: string,
     @CurrentTenantId() tenantId: string,
   ) {
-    return this.tasksService.getExecution(id, execId, tenantId);
+    return this.routinesService.getExecution(id, execId, tenantId);
   }
 
   @Get(':id/executions/:execId/entries')
@@ -111,7 +111,7 @@ export class TasksController {
     @Param('execId', ParseUUIDPipe) execId: string,
     @CurrentTenantId() tenantId: string,
   ) {
-    return this.tasksService.getExecutionEntries(id, execId, tenantId);
+    return this.routinesService.getExecutionEntries(id, execId, tenantId);
   }
 
   @Get(':id/deliverables')
@@ -120,7 +120,7 @@ export class TasksController {
     @CurrentTenantId() tenantId: string,
     @Query('executionId') executionId?: string,
   ) {
-    return this.tasksService.getDeliverables(id, executionId, tenantId);
+    return this.routinesService.getDeliverables(id, executionId, tenantId);
   }
 
   @Get(':id/interventions')
@@ -128,19 +128,19 @@ export class TasksController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentTenantId() tenantId: string,
   ) {
-    return this.tasksService.getInterventions(id, tenantId);
+    return this.routinesService.getInterventions(id, tenantId);
   }
 
-  // ── Task Control ──────────────────────────────────────────────
+  // ── Routine Control ──────────────────────────────────────────────
 
   @Post(':id/start')
   async start(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string,
-    @Body() dto: StartTaskNewDto,
+    @Body() dto: StartRoutineNewDto,
   ) {
-    return this.tasksService.start(id, userId, tenantId, dto);
+    return this.routinesService.start(id, userId, tenantId, dto);
   }
 
   @Post(':id/pause')
@@ -149,7 +149,7 @@ export class TasksController {
     @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string,
   ) {
-    return this.tasksService.pause(id, userId, tenantId);
+    return this.routinesService.pause(id, userId, tenantId);
   }
 
   @Post(':id/resume')
@@ -157,9 +157,9 @@ export class TasksController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string,
-    @Body() dto: ResumeTaskDto,
+    @Body() dto: ResumeRoutineDto,
   ) {
-    return this.tasksService.resume(id, userId, tenantId, dto);
+    return this.routinesService.resume(id, userId, tenantId, dto);
   }
 
   @Post(':id/stop')
@@ -167,9 +167,9 @@ export class TasksController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string,
-    @Body() dto: StopTaskDto,
+    @Body() dto: StopRoutineDto,
   ) {
-    return this.tasksService.stop(id, userId, tenantId, dto);
+    return this.routinesService.stop(id, userId, tenantId, dto);
   }
 
   @Post(':id/restart')
@@ -177,9 +177,9 @@ export class TasksController {
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('sub') userId: string,
     @CurrentTenantId() tenantId: string,
-    @Body() dto: RestartTaskDto,
+    @Body() dto: RestartRoutineDto,
   ) {
-    return this.tasksService.restart(id, userId, tenantId, dto);
+    return this.routinesService.restart(id, userId, tenantId, dto);
   }
 
   @Post(':id/interventions/:intId/resolve')
@@ -190,7 +190,7 @@ export class TasksController {
     @CurrentTenantId() tenantId: string,
     @Body() dto: ResolveInterventionDto,
   ) {
-    return this.tasksService.resolveIntervention(
+    return this.routinesService.resolveIntervention(
       id,
       intId,
       userId,
@@ -201,40 +201,40 @@ export class TasksController {
 
   // ── Trigger CRUD ──────────────────────────────────────────────
 
-  @Post(':taskId/triggers')
+  @Post(':routineId/triggers')
   async createTrigger(
-    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Param('routineId', ParseUUIDPipe) routineId: string,
     @Body() dto: CreateTriggerDto,
     @CurrentTenantId() tenantId: string,
   ) {
-    return this.triggersService.create(taskId, dto, tenantId);
+    return this.routineTriggersService.create(routineId, dto, tenantId);
   }
 
-  @Get(':taskId/triggers')
+  @Get(':routineId/triggers')
   async listTriggers(
-    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Param('routineId', ParseUUIDPipe) routineId: string,
     @CurrentTenantId() tenantId: string,
   ) {
-    return this.triggersService.listByTask(taskId, tenantId);
+    return this.routineTriggersService.listByRoutine(routineId, tenantId);
   }
 
-  @Patch(':taskId/triggers/:triggerId')
+  @Patch(':routineId/triggers/:triggerId')
   async updateTrigger(
-    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Param('routineId', ParseUUIDPipe) routineId: string,
     @Param('triggerId', ParseUUIDPipe) triggerId: string,
     @Body() dto: UpdateTriggerDto,
     @CurrentTenantId() tenantId: string,
   ) {
-    return this.triggersService.update(triggerId, dto, tenantId);
+    return this.routineTriggersService.update(triggerId, dto, tenantId);
   }
 
-  @Delete(':taskId/triggers/:triggerId')
+  @Delete(':routineId/triggers/:triggerId')
   async deleteTrigger(
-    @Param('taskId', ParseUUIDPipe) taskId: string,
+    @Param('routineId', ParseUUIDPipe) routineId: string,
     @Param('triggerId', ParseUUIDPipe) triggerId: string,
     @CurrentTenantId() tenantId: string,
   ) {
-    return this.triggersService.delete(triggerId, tenantId);
+    return this.routineTriggersService.delete(triggerId, tenantId);
   }
 
   // ── Retry ──────────────────────────────────────────────────────
@@ -246,6 +246,6 @@ export class TasksController {
     @CurrentTenantId() tenantId: string,
     @Body() dto: RetryExecutionDto,
   ) {
-    return this.tasksService.retry(id, dto, userId, tenantId);
+    return this.routinesService.retry(id, dto, userId, tenantId);
   }
 }

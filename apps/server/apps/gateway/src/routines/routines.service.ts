@@ -26,20 +26,20 @@ import {
   RABBITMQ_ROUTING_KEYS,
 } from '@team9/rabbitmq';
 import { DocumentsService } from '../documents/documents.service.js';
-import { TriggersService } from './triggers.service.js';
-import type { CreateTaskDto } from './dto/create-task.dto.js';
-import type { UpdateTaskDto } from './dto/update-task.dto.js';
-import type { StartTaskDto } from './dto/task-control.dto.js';
-import type { StartTaskNewDto } from './dto/trigger.dto.js';
-import type { ResumeTaskDto } from './dto/task-control.dto.js';
-import type { StopTaskDto } from './dto/task-control.dto.js';
+import { RoutineTriggersService } from './routine-triggers.service.js';
+import type { CreateRoutineDto } from './dto/create-routine.dto.js';
+import type { UpdateRoutineDto } from './dto/update-routine.dto.js';
+import type { StartRoutineDto } from './dto/routine-control.dto.js';
+import type { StartRoutineNewDto } from './dto/trigger.dto.js';
+import type { ResumeRoutineDto } from './dto/routine-control.dto.js';
+import type { StopRoutineDto } from './dto/routine-control.dto.js';
 import type { ResolveInterventionDto } from './dto/resolve-intervention.dto.js';
 import type { RetryExecutionDto } from './dto/trigger.dto.js';
 import { TaskCastService } from './taskcast.service.js';
 
 // ── Filter types ────────────────────────────────────────────────────
 
-export interface TaskListFilters {
+export interface RoutineListFilters {
   botId?: string;
   status?: RoutineStatus;
   scheduleType?: RoutineScheduleType;
@@ -48,24 +48,24 @@ export interface TaskListFilters {
 // ── Service ─────────────────────────────────────────────────────────
 
 @Injectable()
-export class TasksService {
-  private readonly logger = new Logger(TasksService.name);
+export class RoutinesService {
+  private readonly logger = new Logger(RoutinesService.name);
 
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly documentsService: DocumentsService,
     private readonly amqpConnection: AmqpConnection,
-    private readonly triggersService: TriggersService,
+    private readonly routineTriggersService: RoutineTriggersService,
     private readonly taskCastService: TaskCastService,
   ) {}
 
   // ── CRUD ────────────────────────────────────────────────────────
 
-  async create(dto: CreateTaskDto, userId: string, tenantId: string) {
-    const taskId = uuidv7();
+  async create(dto: CreateRoutineDto, userId: string, tenantId: string) {
+    const routineId = uuidv7();
 
-    // Always create a linked document for the task
+    // Always create a linked document for the routine
     const doc = await this.documentsService.create(
       {
         documentType: 'task',
@@ -77,10 +77,10 @@ export class TasksService {
     );
     const documentId = doc.id;
 
-    const [task] = await this.db
+    const [routine] = await this.db
       .insert(schema.routines)
       .values({
-        id: taskId,
+        id: routineId,
         tenantId,
         botId: dto.botId ?? null,
         creatorId: userId,
@@ -93,13 +93,17 @@ export class TasksService {
       .returning();
 
     if (dto.triggers?.length) {
-      await this.triggersService.createBatch(taskId, dto.triggers, tenantId);
+      await this.routineTriggersService.createBatch(
+        routineId,
+        dto.triggers,
+        tenantId,
+      );
     }
 
-    return task;
+    return routine;
   }
 
-  async list(tenantId: string, filters?: TaskListFilters) {
+  async list(tenantId: string, filters?: RoutineListFilters) {
     const conditions = [eq(schema.routines.tenantId, tenantId)];
 
     if (filters?.botId) {
@@ -114,7 +118,7 @@ export class TasksService {
 
     const rows = await this.db
       .select({
-        task: schema.routines,
+        routine: schema.routines,
         executionTokenUsage: schema.routineExecutions.tokenUsage,
       })
       .from(schema.routines)
@@ -126,13 +130,13 @@ export class TasksService {
       .orderBy(desc(schema.routines.createdAt));
 
     return rows.map((row) => ({
-      ...row.task,
+      ...row.routine,
       tokenUsage: row.executionTokenUsage ?? 0,
     }));
   }
 
-  async getById(taskId: string, tenantId: string) {
-    const task = await this.getTaskOrThrow(taskId, tenantId);
+  async getById(routineId: string, tenantId: string) {
+    const routine = await this.getRoutineOrThrow(routineId, tenantId);
 
     // Fetch current execution with steps, interventions, deliverables
     let currentExecution: {
@@ -142,11 +146,11 @@ export class TasksService {
       deliverables: schema.RoutineDeliverable[];
     } | null = null;
 
-    if (task.currentExecutionId) {
+    if (routine.currentExecutionId) {
       const [execution] = await this.db
         .select()
         .from(schema.routineExecutions)
-        .where(eq(schema.routineExecutions.id, task.currentExecutionId))
+        .where(eq(schema.routineExecutions.id, routine.currentExecutionId))
         .limit(1);
 
       if (execution) {
@@ -170,17 +174,17 @@ export class TasksService {
       }
     }
 
-    return { ...task, currentExecution };
+    return { ...routine, currentExecution };
   }
 
   async update(
-    taskId: string,
-    dto: UpdateTaskDto,
+    routineId: string,
+    dto: UpdateRoutineDto,
     userId: string,
     tenantId: string,
   ) {
-    const task = await this.getTaskOrThrow(taskId, tenantId);
-    this.assertCreatorOwnership(task, userId);
+    const routine = await this.getRoutineOrThrow(routineId, tenantId);
+    this.assertCreatorOwnership(routine, userId);
 
     const updateData: Record<string, unknown> = {
       updatedAt: new Date(),
@@ -197,49 +201,51 @@ export class TasksService {
     const [updated] = await this.db
       .update(schema.routines)
       .set(updateData)
-      .where(eq(schema.routines.id, taskId))
+      .where(eq(schema.routines.id, routineId))
       .returning();
 
     return updated;
   }
 
-  async delete(taskId: string, userId: string, tenantId: string) {
-    const task = await this.getTaskOrThrow(taskId, tenantId);
-    this.assertCreatorOwnership(task, userId);
+  async delete(routineId: string, userId: string, tenantId: string) {
+    const routine = await this.getRoutineOrThrow(routineId, tenantId);
+    this.assertCreatorOwnership(routine, userId);
 
-    // Prevent deletion of active tasks — must stop first
+    // Prevent deletion of active routines — must stop first
     const activeStatuses: string[] = [
       'in_progress',
       'paused',
       'pending_action',
     ];
-    if (activeStatuses.includes(task.status)) {
+    if (activeStatuses.includes(routine.status)) {
       throw new BadRequestException(
-        `Cannot delete task in ${task.status} status. Stop the task first.`,
+        `Cannot delete routine in ${routine.status} status. Stop the routine first.`,
       );
     }
 
-    await this.db.delete(schema.routines).where(eq(schema.routines.id, taskId));
+    await this.db
+      .delete(schema.routines)
+      .where(eq(schema.routines.id, routineId));
 
     return { success: true };
   }
 
   // ── Executions ──────────────────────────────────────────────────
 
-  async getExecutions(taskId: string, tenantId: string) {
-    await this.getTaskOrThrow(taskId, tenantId);
+  async getExecutions(routineId: string, tenantId: string) {
+    await this.getRoutineOrThrow(routineId, tenantId);
 
     const executions = await this.db
       .select()
       .from(schema.routineExecutions)
-      .where(eq(schema.routineExecutions.routineId, taskId))
+      .where(eq(schema.routineExecutions.routineId, routineId))
       .orderBy(desc(schema.routineExecutions.createdAt));
 
     return executions;
   }
 
-  async getExecution(taskId: string, executionId: string, tenantId: string) {
-    await this.getTaskOrThrow(taskId, tenantId);
+  async getExecution(routineId: string, executionId: string, tenantId: string) {
+    await this.getRoutineOrThrow(routineId, tenantId);
 
     const [execution] = await this.db
       .select()
@@ -247,7 +253,7 @@ export class TasksService {
       .where(
         and(
           eq(schema.routineExecutions.id, executionId),
-          eq(schema.routineExecutions.routineId, taskId),
+          eq(schema.routineExecutions.routineId, routineId),
         ),
       )
       .limit(1);
@@ -276,11 +282,11 @@ export class TasksService {
   }
 
   async getExecutionEntries(
-    taskId: string,
+    routineId: string,
     executionId: string,
     tenantId: string,
   ) {
-    await this.getTaskOrThrow(taskId, tenantId);
+    await this.getRoutineOrThrow(routineId, tenantId);
 
     const [execution] = await this.db
       .select()
@@ -288,7 +294,7 @@ export class TasksService {
       .where(
         and(
           eq(schema.routineExecutions.id, executionId),
-          eq(schema.routineExecutions.routineId, taskId),
+          eq(schema.routineExecutions.routineId, routineId),
         ),
       )
       .limit(1);
@@ -368,13 +374,13 @@ export class TasksService {
   // ── Deliverables ────────────────────────────────────────────────
 
   async getDeliverables(
-    taskId: string,
+    routineId: string,
     executionId?: string,
     tenantId?: string,
   ) {
-    await this.getTaskOrThrow(taskId, tenantId);
+    await this.getRoutineOrThrow(routineId, tenantId);
 
-    const conditions = [eq(schema.routineDeliverables.routineId, taskId)];
+    const conditions = [eq(schema.routineDeliverables.routineId, routineId)];
     if (executionId) {
       conditions.push(eq(schema.routineDeliverables.executionId, executionId));
     }
@@ -390,15 +396,15 @@ export class TasksService {
 
   // ── Interventions ───────────────────────────────────────────────
 
-  async getInterventions(taskId: string, tenantId: string) {
-    await this.getTaskOrThrow(taskId, tenantId);
+  async getInterventions(routineId: string, tenantId: string) {
+    await this.getRoutineOrThrow(routineId, tenantId);
 
     const interventions = await this.db
       .select()
       .from(schema.routineInterventions)
       .where(
         and(
-          eq(schema.routineInterventions.routineId, taskId),
+          eq(schema.routineInterventions.routineId, routineId),
           eq(schema.routineInterventions.status, 'pending'),
         ),
       )
@@ -407,25 +413,25 @@ export class TasksService {
     return interventions;
   }
 
-  // ── Task Control ──────────────────────────────────────────────
+  // ── Routine Control ──────────────────────────────────────────────
 
   async start(
-    taskId: string,
+    routineId: string,
     userId: string,
     tenantId: string,
-    dto: StartTaskDto | StartTaskNewDto,
+    dto: StartRoutineDto | StartRoutineNewDto,
   ) {
-    const task = await this.getTaskOrThrow(taskId, tenantId);
-    if (!task.botId) {
+    const routine = await this.getRoutineOrThrow(routineId, tenantId);
+    if (!routine.botId) {
       throw new BadRequestException(
-        'Cannot start task without an assigned bot',
+        'Cannot start routine without an assigned bot',
       );
     }
-    this.validateStatusTransition(task.status, 'start');
+    this.validateStatusTransition(routine.status, 'start');
 
     await this.publishTaskCommand({
       type: 'start',
-      taskId,
+      taskId: routineId,
       userId,
       message: dto.message,
       notes: 'notes' in dto ? dto.notes : undefined,
@@ -435,19 +441,19 @@ export class TasksService {
     return { success: true };
   }
 
-  async pause(taskId: string, userId: string, tenantId: string) {
-    const task = await this.getTaskOrThrow(taskId, tenantId);
-    this.validateStatusTransition(task.status, 'pause');
+  async pause(routineId: string, userId: string, tenantId: string) {
+    const routine = await this.getRoutineOrThrow(routineId, tenantId);
+    this.validateStatusTransition(routine.status, 'pause');
 
     await this.publishTaskCommand({
       type: 'pause',
-      taskId,
+      taskId: routineId,
       userId,
     });
 
     // Sync paused status to TaskCast (deterministic ID — no DB lookup)
-    if (task.currentExecutionId) {
-      const tcId = TaskCastService.taskcastId(task.currentExecutionId);
+    if (routine.currentExecutionId) {
+      const tcId = TaskCastService.taskcastId(routine.currentExecutionId);
       await this.taskCastService.transitionStatus(tcId, 'paused');
     }
 
@@ -455,24 +461,24 @@ export class TasksService {
   }
 
   async resume(
-    taskId: string,
+    routineId: string,
     userId: string,
     tenantId: string,
-    dto: ResumeTaskDto,
+    dto: ResumeRoutineDto,
   ) {
-    const task = await this.getTaskOrThrow(taskId, tenantId);
-    this.validateStatusTransition(task.status, 'resume');
+    const routine = await this.getRoutineOrThrow(routineId, tenantId);
+    this.validateStatusTransition(routine.status, 'resume');
 
     await this.publishTaskCommand({
       type: 'resume',
-      taskId,
+      taskId: routineId,
       userId,
       message: dto.message,
     });
 
     // Sync running status to TaskCast (deterministic ID — no DB lookup)
-    if (task.currentExecutionId) {
-      const tcId = TaskCastService.taskcastId(task.currentExecutionId);
+    if (routine.currentExecutionId) {
+      const tcId = TaskCastService.taskcastId(routine.currentExecutionId);
       await this.taskCastService.transitionStatus(tcId, 'in_progress');
     }
 
@@ -480,24 +486,24 @@ export class TasksService {
   }
 
   async stop(
-    taskId: string,
+    routineId: string,
     userId: string,
     tenantId: string,
-    dto: StopTaskDto,
+    dto: StopRoutineDto,
   ) {
-    const task = await this.getTaskOrThrow(taskId, tenantId);
-    this.validateStatusTransition(task.status, 'stop');
+    const routine = await this.getRoutineOrThrow(routineId, tenantId);
+    this.validateStatusTransition(routine.status, 'stop');
 
     await this.publishTaskCommand({
       type: 'stop',
-      taskId,
+      taskId: routineId,
       userId,
       message: dto.reason,
     });
 
     // Sync cancelled status to TaskCast (deterministic ID — no DB lookup)
-    if (task.currentExecutionId) {
-      const tcId = TaskCastService.taskcastId(task.currentExecutionId);
+    if (routine.currentExecutionId) {
+      const tcId = TaskCastService.taskcastId(routine.currentExecutionId);
       await this.taskCastService.transitionStatus(tcId, 'stopped');
     }
 
@@ -505,17 +511,17 @@ export class TasksService {
   }
 
   async restart(
-    taskId: string,
+    routineId: string,
     userId: string,
     tenantId: string,
     dto?: { notes?: string },
   ) {
-    const task = await this.getTaskOrThrow(taskId, tenantId);
-    this.validateStatusTransition(task.status, 'restart');
+    const routine = await this.getRoutineOrThrow(routineId, tenantId);
+    this.validateStatusTransition(routine.status, 'restart');
 
     await this.publishTaskCommand({
       type: 'restart',
-      taskId,
+      taskId: routineId,
       userId,
       notes: dto?.notes,
     });
@@ -526,12 +532,12 @@ export class TasksService {
   // ── Retry ───────────────────────────────────────────────────
 
   async retry(
-    taskId: string,
+    routineId: string,
     dto: RetryExecutionDto,
     userId: string,
     tenantId: string,
   ) {
-    const task = await this.getTaskOrThrow(taskId, tenantId);
+    const routine = await this.getRoutineOrThrow(routineId, tenantId);
 
     // Find the source execution
     const [sourceExec] = await this.db
@@ -540,7 +546,7 @@ export class TasksService {
       .where(
         and(
           eq(schema.routineExecutions.id, dto.executionId),
-          eq(schema.routineExecutions.routineId, taskId),
+          eq(schema.routineExecutions.routineId, routineId),
         ),
       )
       .limit(1);
@@ -557,17 +563,17 @@ export class TasksService {
       );
     }
 
-    if (!task.botId) {
+    if (!routine.botId) {
       throw new BadRequestException(
-        'Cannot retry task without an assigned bot',
+        'Cannot retry routine without an assigned bot',
       );
     }
 
-    this.validateStatusTransition(task.status, 'retry');
+    this.validateStatusTransition(routine.status, 'retry');
 
     await this.publishTaskCommand({
       type: 'retry',
-      taskId,
+      taskId: routineId,
       userId,
       notes: dto.notes,
       sourceExecutionId: dto.executionId,
@@ -579,13 +585,13 @@ export class TasksService {
   // ── Intervention Resolution ──────────────────────────────────
 
   async resolveIntervention(
-    taskId: string,
+    routineId: string,
     interventionId: string,
     userId: string,
     tenantId: string,
     dto: ResolveInterventionDto,
   ) {
-    const task = await this.getTaskOrThrow(taskId, tenantId);
+    const routine = await this.getRoutineOrThrow(routineId, tenantId);
 
     const [intervention] = await this.db
       .select()
@@ -593,7 +599,7 @@ export class TasksService {
       .where(
         and(
           eq(schema.routineInterventions.id, interventionId),
-          eq(schema.routineInterventions.routineId, taskId),
+          eq(schema.routineInterventions.routineId, routineId),
         ),
       )
       .limit(1);
@@ -609,7 +615,7 @@ export class TasksService {
     }
 
     // Verify intervention belongs to the current execution
-    if (task.currentExecutionId !== intervention.executionId) {
+    if (routine.currentExecutionId !== intervention.executionId) {
       throw new BadRequestException(
         'Intervention belongs to a previous execution. Cannot resolve.',
       );
@@ -627,11 +633,11 @@ export class TasksService {
       .where(eq(schema.routineInterventions.id, interventionId))
       .returning();
 
-    // Update task status back to in_progress
+    // Update routine status back to in_progress
     await this.db
       .update(schema.routines)
       .set({ status: 'in_progress', updatedAt: new Date() })
-      .where(eq(schema.routines.id, taskId));
+      .where(eq(schema.routines.id, routineId));
 
     // Update execution status back to in_progress (only if still pending_action)
     await this.db
@@ -662,7 +668,7 @@ export class TasksService {
     // Publish resume command via RabbitMQ
     await this.publishTaskCommand({
       type: 'resume',
-      taskId,
+      taskId: routineId,
       userId,
       message: `Intervention resolved: ${dto.action}${dto.message ? ` - ${dto.message}` : ''}`,
     });
@@ -672,7 +678,7 @@ export class TasksService {
 
   // ── Internal helpers ────────────────────────────────────────────
 
-  private async getTaskOrThrow(
+  private async getRoutineOrThrow(
     id: string,
     tenantId?: string,
   ): Promise<schema.Routine> {
@@ -681,21 +687,24 @@ export class TasksService {
       conditions.push(eq(schema.routines.tenantId, tenantId));
     }
 
-    const [task] = await this.db
+    const [routine] = await this.db
       .select()
       .from(schema.routines)
       .where(and(...conditions))
       .limit(1);
 
-    if (!task) {
-      throw new NotFoundException('Task not found');
+    if (!routine) {
+      throw new NotFoundException('Routine not found');
     }
 
-    return task;
+    return routine;
   }
 
-  private assertCreatorOwnership(task: schema.Routine, userId: string): void {
-    if (task.creatorId !== userId) {
+  private assertCreatorOwnership(
+    routine: schema.Routine,
+    userId: string,
+  ): void {
+    if (routine.creatorId !== userId) {
       throw new ForbiddenException(
         'You do not have permission to perform this action',
       );
@@ -713,7 +722,7 @@ export class TasksService {
     };
     if (!allowed[action]?.includes(currentStatus)) {
       throw new BadRequestException(
-        `Cannot ${action} task in ${currentStatus} status`,
+        `Cannot ${action} routine in ${currentStatus} status`,
       );
     }
   }

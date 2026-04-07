@@ -75,7 +75,7 @@ export class UpdateTriggerDto {
   enabled?: boolean;
 }
 
-export class StartTaskNewDto {
+export class StartRoutineNewDto {
   @IsString()
   @IsOptional()
   notes?: string;
@@ -89,7 +89,7 @@ export class StartTaskNewDto {
   message?: string;
 }
 
-export class RestartTaskDto {
+export class RestartRoutineDto {
   @IsString()
   @IsOptional()
   notes?: string;

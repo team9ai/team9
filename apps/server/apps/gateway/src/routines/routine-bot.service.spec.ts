@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
-import { TaskBotService } from './task-bot.service.js';
+import { RoutineBotService } from './routine-bot.service.js';
 import { TaskCastService } from './taskcast.service.js';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
@@ -93,8 +93,8 @@ function setupGetExecutionDirectMocks(
 
 // ── Tests ─────────────────────────────────────────────────────────────
 
-describe('TaskBotService — TaskCast integration', () => {
-  let service: TaskBotService;
+describe('RoutineBotService — TaskCast integration', () => {
+  let service: RoutineBotService;
   let db: ReturnType<typeof mockDb>;
   let wsGateway: { broadcastToWorkspace: MockFn };
   let taskCastService: { publishEvent: MockFn; transitionStatus: MockFn };
@@ -111,14 +111,14 @@ describe('TaskBotService — TaskCast integration', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        TaskBotService,
+        RoutineBotService,
         { provide: DATABASE_CONNECTION, useValue: db },
         { provide: WEBSOCKET_GATEWAY, useValue: wsGateway },
         { provide: TaskCastService, useValue: taskCastService },
       ],
     }).compile();
 
-    service = module.get<TaskBotService>(TaskBotService);
+    service = module.get<RoutineBotService>(RoutineBotService);
   });
 
   // ── reportSteps ──────────────────────────────────────────────────
@@ -357,14 +357,14 @@ describe('TaskBotService — TaskCast integration', () => {
     });
   });
 
-  // ── getTaskDocument ──────────────────────────────────────────────
+  // ── getRoutineDocument ──────────────────────────────────────────────
 
-  describe('getTaskDocument', () => {
+  describe('getRoutineDocument', () => {
     it('returns null when the task has no linked document', async () => {
       setupGetExecutionDirectMocks(db, EXECUTION_WITH_TASKCAST);
 
       await expect(
-        service.getTaskDocument('task-1', 'exec-1', 'bot-user-1'),
+        service.getRoutineDocument('task-1', 'exec-1', 'bot-user-1'),
       ).resolves.toBeNull();
 
       expect(db.select).toHaveBeenCalledTimes(3);
@@ -378,7 +378,7 @@ describe('TaskBotService — TaskCast integration', () => {
         .mockResolvedValueOnce([] as any);
 
       await expect(
-        service.getTaskDocument('task-1', 'exec-1', 'bot-user-1'),
+        service.getRoutineDocument('task-1', 'exec-1', 'bot-user-1'),
       ).rejects.toThrow('Document not found');
     });
 
@@ -397,7 +397,7 @@ describe('TaskBotService — TaskCast integration', () => {
         ] as any);
 
       await expect(
-        service.getTaskDocument('task-1', 'exec-1', 'bot-user-1'),
+        service.getRoutineDocument('task-1', 'exec-1', 'bot-user-1'),
       ).resolves.toEqual({
         id: 'doc-1',
         title: 'Runbook',
@@ -430,7 +430,7 @@ describe('TaskBotService — TaskCast integration', () => {
         ] as any);
 
       await expect(
-        service.getTaskDocument('task-1', 'exec-1', 'bot-user-1'),
+        service.getRoutineDocument('task-1', 'exec-1', 'bot-user-1'),
       ).resolves.toEqual({
         id: 'doc-1',
         title: 'Runbook',
@@ -452,8 +452,8 @@ describe('TaskBotService — TaskCast integration', () => {
         .mockResolvedValueOnce([{ userId: 'different-bot-user' }] as any);
 
       await expect(
-        service.getTaskDocument('task-1', 'exec-1', 'bot-user-1'),
-      ).rejects.toThrow('Bot does not own this task');
+        service.getRoutineDocument('task-1', 'exec-1', 'bot-user-1'),
+      ).rejects.toThrow('Bot does not own this routine');
     });
   });
 
@@ -529,7 +529,7 @@ describe('TaskBotService — TaskCast integration', () => {
             { orderIndex: 0, title: 'Step 1', status: 'completed' as const },
           ],
         }),
-      ).rejects.toThrow('Execution not found for this task');
+      ).rejects.toThrow('Execution not found for this routine');
     });
   });
 });

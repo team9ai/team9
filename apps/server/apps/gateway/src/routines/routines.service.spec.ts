@@ -1,10 +1,10 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
-import { TasksService } from './tasks.service.js';
+import { RoutinesService } from './routines.service.js';
 import { TaskCastService } from './taskcast.service.js';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { DocumentsService } from '../documents/documents.service.js';
-import { TriggersService } from './triggers.service.js';
+import { RoutineTriggersService } from './routine-triggers.service.js';
 import {
   AmqpConnection,
   RABBITMQ_EXCHANGES,
@@ -60,13 +60,13 @@ const BASE_TASK = {
   updatedAt: new Date(),
 };
 
-describe('TasksService — TaskCast integration', () => {
-  let service: TasksService;
+describe('RoutinesService — TaskCast integration', () => {
+  let service: RoutinesService;
   let db: ReturnType<typeof mockDb>;
   let taskCastService: { transitionStatus: MockFn; publishEvent: MockFn };
   let amqpConnection: { publish: MockFn };
   let documentsService: { create: MockFn };
-  let triggersService: { createBatch: MockFn };
+  let routineTriggersService: { createBatch: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
@@ -74,7 +74,7 @@ describe('TasksService — TaskCast integration', () => {
     documentsService = {
       create: jest.fn<any>().mockResolvedValue({ id: 'doc-1' }),
     };
-    triggersService = {
+    routineTriggersService = {
       createBatch: jest.fn<any>().mockResolvedValue(undefined),
     };
     taskCastService = {
@@ -84,16 +84,16 @@ describe('TasksService — TaskCast integration', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        TasksService,
+        RoutinesService,
         { provide: DATABASE_CONNECTION, useValue: db },
         { provide: AmqpConnection, useValue: amqpConnection },
         { provide: DocumentsService, useValue: documentsService },
-        { provide: TriggersService, useValue: triggersService },
+        { provide: RoutineTriggersService, useValue: routineTriggersService },
         { provide: TaskCastService, useValue: taskCastService },
       ],
     }).compile();
 
-    service = module.get<TasksService>(TasksService);
+    service = module.get<RoutinesService>(RoutinesService);
   });
 
   describe('list', () => {
@@ -110,8 +110,8 @@ describe('TasksService — TaskCast integration', () => {
       };
 
       db.orderBy.mockResolvedValueOnce([
-        { task: taskA, executionTokenUsage: null },
-        { task: taskB, executionTokenUsage: 17 },
+        { routine: taskA, executionTokenUsage: null },
+        { routine: taskB, executionTokenUsage: 17 },
       ] as any);
 
       await expect(service.list('tenant-1')).resolves.toEqual([
@@ -466,7 +466,7 @@ describe('TasksService — TaskCast integration', () => {
         { type: 'user', id: 'user-1' },
         'tenant-1',
       );
-      expect(triggersService.createBatch).not.toHaveBeenCalled();
+      expect(routineTriggersService.createBatch).not.toHaveBeenCalled();
     });
 
     it('creates triggers after inserting the task when triggers are provided', async () => {
@@ -492,7 +492,7 @@ describe('TasksService — TaskCast integration', () => {
         'tenant-1',
       );
 
-      expect(triggersService.createBatch).toHaveBeenCalledWith(
+      expect(routineTriggersService.createBatch).toHaveBeenCalledWith(
         expect.any(String),
         triggers,
         'tenant-1',
@@ -569,7 +569,7 @@ describe('TasksService — TaskCast integration', () => {
       await expect(
         service.delete('task-1', 'user-1', 'tenant-1'),
       ).rejects.toThrow(
-        'Cannot delete task in pending_action status. Stop the task first.',
+        'Cannot delete routine in pending_action status. Stop the routine first.',
       );
 
       expect(db.delete).not.toHaveBeenCalled();
@@ -639,7 +639,7 @@ describe('TasksService — TaskCast integration', () => {
         service.start('task-1', 'user-1', 'tenant-1', {
           message: 'kick off',
         } as never),
-      ).rejects.toThrow('Cannot start task without an assigned bot');
+      ).rejects.toThrow('Cannot start routine without an assigned bot');
 
       expect(amqpConnection.publish).not.toHaveBeenCalled();
     });
@@ -657,7 +657,7 @@ describe('TasksService — TaskCast integration', () => {
         service.start('task-1', 'user-1', 'tenant-1', {
           message: 'kick off',
         } as never),
-      ).rejects.toThrow('Cannot start task in in_progress status');
+      ).rejects.toThrow('Cannot start routine in in_progress status');
 
       expect(amqpConnection.publish).not.toHaveBeenCalled();
     });
@@ -714,7 +714,7 @@ describe('TasksService — TaskCast integration', () => {
 
       await expect(
         service.pause('task-1', 'user-1', 'tenant-1'),
-      ).rejects.toThrow('Cannot pause task in paused status');
+      ).rejects.toThrow('Cannot pause routine in paused status');
 
       expect(amqpConnection.publish).not.toHaveBeenCalled();
       expect(taskCastService.transitionStatus).not.toHaveBeenCalled();
@@ -795,7 +795,7 @@ describe('TasksService — TaskCast integration', () => {
 
       await expect(
         service.resume('task-1', 'user-1', 'tenant-1', { message: 'resuming' }),
-      ).rejects.toThrow('Cannot resume task in in_progress status');
+      ).rejects.toThrow('Cannot resume routine in in_progress status');
 
       expect(amqpConnection.publish).not.toHaveBeenCalled();
       expect(taskCastService.transitionStatus).not.toHaveBeenCalled();
@@ -905,7 +905,7 @@ describe('TasksService — TaskCast integration', () => {
 
       await expect(
         service.stop('task-1', 'user-1', 'tenant-1', { reason: 'manual stop' }),
-      ).rejects.toThrow('Cannot stop task in completed status');
+      ).rejects.toThrow('Cannot stop routine in completed status');
 
       expect(amqpConnection.publish).not.toHaveBeenCalled();
       expect(taskCastService.transitionStatus).not.toHaveBeenCalled();
@@ -970,7 +970,7 @@ describe('TasksService — TaskCast integration', () => {
         service.restart('task-1', 'user-1', 'tenant-1', {
           notes: 'retry with fixes',
         }),
-      ).rejects.toThrow('Cannot restart task in in_progress status');
+      ).rejects.toThrow('Cannot restart routine in in_progress status');
 
       expect(amqpConnection.publish).not.toHaveBeenCalled();
     });
@@ -1093,7 +1093,7 @@ describe('TasksService — TaskCast integration', () => {
           'user-1',
           'tenant-1',
         ),
-      ).rejects.toThrow('Cannot retry task without an assigned bot');
+      ).rejects.toThrow('Cannot retry routine without an assigned bot');
 
       expect(amqpConnection.publish).not.toHaveBeenCalled();
     });
@@ -1255,7 +1255,7 @@ describe('TasksService — TaskCast integration', () => {
         service.resolveIntervention('task-1', 'int-1', 'user-1', 'tenant-1', {
           action: 'approve',
         }),
-      ).rejects.toThrow('Task not found');
+      ).rejects.toThrow('Routine not found');
 
       expect(amqpConnection.publish).not.toHaveBeenCalled();
       expect(taskCastService.transitionStatus).not.toHaveBeenCalled();

@@ -7,7 +7,7 @@ import {
   jest,
 } from '@jest/globals';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { TriggersService } from './triggers.service.js';
+import { RoutineTriggersService } from './routine-triggers.service.js';
 
 function createDbMock() {
   const taskLimit = jest.fn<any>().mockResolvedValue([]);
@@ -59,15 +59,15 @@ function createDbMock() {
   };
 }
 
-describe('TriggersService', () => {
-  let service: TriggersService;
+describe('RoutineTriggersService', () => {
+  let service: RoutineTriggersService;
   let db: ReturnType<typeof createDbMock>;
 
   beforeEach(() => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-04-02T10:30:00.000Z'));
     db = createDbMock();
-    service = new TriggersService(db as never);
+    service = new RoutineTriggersService(db as never);
   });
 
   afterEach(() => {
@@ -100,7 +100,7 @@ describe('TriggersService', () => {
 
     expect(db.chains.insertValues).toHaveBeenCalledWith(
       expect.objectContaining({
-        taskId: 'task-1',
+        routineId: 'task-1',
         type: 'manual',
         enabled: true,
         nextRunAt: null,
@@ -222,7 +222,7 @@ describe('TriggersService', () => {
       { id: 'task-1', tenantId: 'tenant-1' },
     ]);
 
-    await expect(service.listByTask('task-1', 'tenant-1')).resolves.toEqual(
+    await expect(service.listByRoutine('task-1', 'tenant-1')).resolves.toEqual(
       rows,
     );
   });

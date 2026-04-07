@@ -16,17 +16,17 @@ import * as schema from '@team9/database/schemas';
 import type { CreateTriggerDto, UpdateTriggerDto } from './dto/trigger.dto.js';
 
 @Injectable()
-export class TriggersService {
-  private readonly logger = new Logger(TriggersService.name);
+export class RoutineTriggersService {
+  private readonly logger = new Logger(RoutineTriggersService.name);
 
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
   ) {}
 
-  async create(taskId: string, dto: CreateTriggerDto, tenantId: string) {
-    // Verify task exists and belongs to tenant
-    await this.getTaskOrThrow(taskId, tenantId);
+  async create(routineId: string, dto: CreateTriggerDto, tenantId: string) {
+    // Verify routine exists and belongs to tenant
+    await this.getRoutineOrThrow(routineId, tenantId);
 
     // Validate config based on trigger type
     this.validateConfig(dto.type, dto.config);
@@ -46,7 +46,7 @@ export class TriggersService {
       .insert(schema.routineTriggers)
       .values({
         id: triggerId,
-        routineId: taskId,
+        routineId,
         type: dto.type,
         config,
         enabled: dto.enabled ?? true,
@@ -59,13 +59,13 @@ export class TriggersService {
     return trigger;
   }
 
-  async listByTask(taskId: string, tenantId: string) {
-    await this.getTaskOrThrow(taskId, tenantId);
+  async listByRoutine(routineId: string, tenantId: string) {
+    await this.getRoutineOrThrow(routineId, tenantId);
 
     return this.db
       .select()
       .from(schema.routineTriggers)
-      .where(eq(schema.routineTriggers.routineId, taskId));
+      .where(eq(schema.routineTriggers.routineId, routineId));
   }
 
   async update(triggerId: string, dto: UpdateTriggerDto, tenantId: string) {
@@ -113,13 +113,13 @@ export class TriggersService {
   }
 
   async createBatch(
-    taskId: string,
+    routineId: string,
     dtos: CreateTriggerDto[],
     tenantId: string,
   ) {
     const results: schema.RoutineTrigger[] = [];
     for (const dto of dtos) {
-      const trigger = await this.create(taskId, dto, tenantId);
+      const trigger = await this.create(routineId, dto, tenantId);
       results.push(trigger);
     }
     return results;
@@ -127,22 +127,22 @@ export class TriggersService {
 
   // ── Internal helpers ────────────────────────────────────────────
 
-  private async getTaskOrThrow(taskId: string, tenantId: string) {
-    const [task] = await this.db
+  private async getRoutineOrThrow(routineId: string, tenantId: string) {
+    const [routine] = await this.db
       .select()
       .from(schema.routines)
       .where(
         and(
-          eq(schema.routines.id, taskId),
+          eq(schema.routines.id, routineId),
           eq(schema.routines.tenantId, tenantId),
         ),
       )
       .limit(1);
 
-    if (!task) {
-      throw new NotFoundException('Task not found');
+    if (!routine) {
+      throw new NotFoundException('Routine not found');
     }
-    return task;
+    return routine;
   }
 
   private async getTriggerOrThrow(triggerId: string, tenantId: string) {

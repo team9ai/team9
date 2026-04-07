@@ -25,7 +25,7 @@ import { TaskCastService } from './taskcast.service.js';
 // ── Service ─────────────────────────────────────────────────────────
 
 @Injectable()
-export class TaskBotService {
+export class RoutineBotService {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
@@ -37,13 +37,13 @@ export class TaskBotService {
   // ── Report step progress ─────────────────────────────────────────
 
   async reportSteps(
-    taskId: string,
+    routineId: string,
     executionId: string,
     botUserId: string,
     dto: ReportStepsDto,
   ) {
     const { execution } = await this.getExecutionDirect(
-      taskId,
+      routineId,
       executionId,
       botUserId,
     );
@@ -92,7 +92,7 @@ export class TaskBotService {
         await this.db.insert(schema.routineSteps).values({
           id: uuidv7(),
           executionId: execution.id,
-          routineId: taskId,
+          routineId,
           orderIndex: step.orderIndex,
           title: step.title,
           status: step.status,
@@ -143,14 +143,14 @@ export class TaskBotService {
   // ── Update execution status ──────────────────────────────────────
 
   async updateStatus(
-    taskId: string,
+    routineId: string,
     executionId: string,
     botUserId: string,
     status: string,
     error?: { code?: string; message: string },
   ) {
-    const { task, execution } = await this.getExecutionDirect(
-      taskId,
+    const { routine, execution } = await this.getExecutionDirect(
+      routineId,
       executionId,
       botUserId,
     );
@@ -186,25 +186,25 @@ export class TaskBotService {
       .where(eq(schema.routineExecutions.id, execution.id))
       .returning();
 
-    // Update task status
-    const [updatedTask] = await this.db
+    // Update routine status
+    const [updatedRoutine] = await this.db
       .update(schema.routines)
       .set({
         status: status as schema.RoutineStatus,
         updatedAt: now,
       })
-      .where(eq(schema.routines.id, taskId))
+      .where(eq(schema.routines.id, routineId))
       .returning();
 
     // Emit WebSocket event to workspace
     await this.wsGateway.broadcastToWorkspace(
-      task.tenantId,
-      WS_EVENTS.TASK.STATUS_CHANGED,
+      routine.tenantId,
+      WS_EVENTS.ROUTINE.STATUS_CHANGED,
       {
-        taskId,
+        routineId,
         executionId: execution.id,
         status,
-        previousStatus: task.status,
+        previousStatus: routine.status,
       },
     );
 
@@ -216,19 +216,19 @@ export class TaskBotService {
       );
     }
 
-    return { task: updatedTask, execution: updatedExecution };
+    return { task: updatedRoutine, execution: updatedExecution };
   }
 
   // ── Create intervention ──────────────────────────────────────────
 
   async createIntervention(
-    taskId: string,
+    routineId: string,
     executionId: string,
     botUserId: string,
     dto: CreateInterventionDto,
   ) {
-    const { task, execution } = await this.getExecutionDirect(
-      taskId,
+    const { routine, execution } = await this.getExecutionDirect(
+      routineId,
       executionId,
       botUserId,
     );
@@ -240,31 +240,31 @@ export class TaskBotService {
       .values({
         id: interventionId,
         executionId: execution.id,
-        routineId: taskId,
+        routineId,
         stepId: dto.stepId ?? null,
         prompt: dto.prompt,
         actions: dto.actions,
       })
       .returning();
 
-    // Set task status to pending_action
+    // Set routine status to pending_action
     await this.db
       .update(schema.routines)
       .set({
         status: 'pending_action',
         updatedAt: new Date(),
       })
-      .where(eq(schema.routines.id, taskId));
+      .where(eq(schema.routines.id, routineId));
 
     // Emit WebSocket event
     await this.wsGateway.broadcastToWorkspace(
-      task.tenantId,
-      WS_EVENTS.TASK.STATUS_CHANGED,
+      routine.tenantId,
+      WS_EVENTS.ROUTINE.STATUS_CHANGED,
       {
-        taskId,
+        routineId,
         executionId: execution.id,
         status: 'pending_action',
-        previousStatus: task.status,
+        previousStatus: routine.status,
       },
     );
 
@@ -288,7 +288,7 @@ export class TaskBotService {
   // ── Add deliverable ──────────────────────────────────────────────
 
   async addDeliverable(
-    taskId: string,
+    routineId: string,
     executionId: string,
     botUserId: string,
     data: {
@@ -299,7 +299,7 @@ export class TaskBotService {
     },
   ) {
     const { execution } = await this.getExecutionDirect(
-      taskId,
+      routineId,
       executionId,
       botUserId,
     );
@@ -311,7 +311,7 @@ export class TaskBotService {
       .values({
         id: deliverableId,
         executionId: execution.id,
-        routineId: taskId,
+        routineId,
         fileName: data.fileName,
         fileSize: data.fileSize ?? null,
         mimeType: data.mimeType ?? null,
@@ -330,27 +330,27 @@ export class TaskBotService {
     return deliverable;
   }
 
-  // ── Get task document ────────────────────────────────────────────
+  // ── Get routine document ────────────────────────────────────────────
 
-  async getTaskDocument(
-    taskId: string,
+  async getRoutineDocument(
+    routineId: string,
     executionId: string,
     botUserId: string,
   ) {
-    const { task } = await this.getExecutionReadOnly(
-      taskId,
+    const { routine } = await this.getExecutionReadOnly(
+      routineId,
       executionId,
       botUserId,
     );
 
-    if (!task.documentId) {
+    if (!routine.documentId) {
       return null;
     }
 
     const [document] = await this.db
       .select()
       .from(schema.documents)
-      .where(eq(schema.documents.id, task.documentId))
+      .where(eq(schema.documents.id, routine.documentId))
       .limit(1);
 
     if (!document) {
@@ -401,29 +401,29 @@ export class TaskBotService {
       .limit(1);
 
     if (!bot || bot.userId !== botUserId) {
-      throw new ForbiddenException('Bot does not own this task');
+      throw new ForbiddenException('Bot does not own this routine');
     }
   }
 
   private async getExecutionDirect(
-    taskId: string,
+    routineId: string,
     executionId: string,
     botUserId?: string,
   ) {
-    // 1. Direct lookup by executionId + taskId
+    // 1. Direct lookup by executionId + routineId
     const [execution] = await this.db
       .select()
       .from(schema.routineExecutions)
       .where(
         and(
           eq(schema.routineExecutions.id, executionId),
-          eq(schema.routineExecutions.routineId, taskId),
+          eq(schema.routineExecutions.routineId, routineId),
         ),
       )
       .limit(1);
 
     if (!execution) {
-      throw new NotFoundException('Execution not found for this task');
+      throw new NotFoundException('Execution not found for this routine');
     }
 
     // 2. Reject writes to terminal executions
@@ -434,27 +434,27 @@ export class TaskBotService {
       );
     }
 
-    // 3. Load task
-    const [task] = await this.db
+    // 3. Load routine
+    const [routine] = await this.db
       .select()
       .from(schema.routines)
-      .where(eq(schema.routines.id, taskId))
+      .where(eq(schema.routines.id, routineId))
       .limit(1);
 
-    if (!task) {
-      throw new NotFoundException('Task not found');
+    if (!routine) {
+      throw new NotFoundException('Routine not found');
     }
 
     // 4. Verify bot ownership
-    if (botUserId && task.botId) {
-      await this.verifyBotOwnership(task.botId, botUserId);
+    if (botUserId && routine.botId) {
+      await this.verifyBotOwnership(routine.botId, botUserId);
     }
 
-    return { task, execution };
+    return { routine, execution };
   }
 
   private async getExecutionReadOnly(
-    taskId: string,
+    routineId: string,
     executionId: string,
     botUserId?: string,
   ) {
@@ -465,29 +465,29 @@ export class TaskBotService {
       .where(
         and(
           eq(schema.routineExecutions.id, executionId),
-          eq(schema.routineExecutions.routineId, taskId),
+          eq(schema.routineExecutions.routineId, routineId),
         ),
       )
       .limit(1);
 
     if (!execution) {
-      throw new NotFoundException('Execution not found for this task');
+      throw new NotFoundException('Execution not found for this routine');
     }
 
-    const [task] = await this.db
+    const [routine] = await this.db
       .select()
       .from(schema.routines)
-      .where(eq(schema.routines.id, taskId))
+      .where(eq(schema.routines.id, routineId))
       .limit(1);
 
-    if (!task) {
-      throw new NotFoundException('Task not found');
+    if (!routine) {
+      throw new NotFoundException('Routine not found');
     }
 
-    if (botUserId && task.botId) {
-      await this.verifyBotOwnership(task.botId, botUserId);
+    if (botUserId && routine.botId) {
+      await this.verifyBotOwnership(routine.botId, botUserId);
     }
 
-    return { task, execution };
+    return { routine, execution };
   }
 }

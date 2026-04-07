@@ -4,7 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { NotFoundException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '@team9/database';
-import { TasksStreamController } from './tasks-stream.controller.js';
+import { RoutinesStreamController } from './routines-stream.controller.js';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -68,8 +68,8 @@ function setupDbSequence(
 
 // ── Tests ──────────────────────────────────────────────────────────────────
 
-describe('TasksStreamController', () => {
-  let controller: TasksStreamController;
+describe('RoutinesStreamController', () => {
+  let controller: RoutinesStreamController;
   let jwtService: { verify: MockFn };
   let db: ReturnType<typeof mockDb>;
 
@@ -84,7 +84,7 @@ describe('TasksStreamController', () => {
     jwtService = { verify: jest.fn<any>().mockReturnValue({ sub: USER_ID }) };
 
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [TasksStreamController],
+      controllers: [RoutinesStreamController],
       providers: [
         { provide: DATABASE_CONNECTION, useValue: db },
         { provide: JwtService, useValue: jwtService },
@@ -97,7 +97,7 @@ describe('TasksStreamController', () => {
       ],
     }).compile();
 
-    controller = module.get<TasksStreamController>(TasksStreamController);
+    controller = module.get<RoutinesStreamController>(RoutinesStreamController);
   });
 
   // ── Auth: no token ───────────────────────────────────────────────────────

@@ -8,9 +8,9 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import type { RoutineScheduleType } from '@team9/database/schemas';
-import { ScheduleConfigDto } from './create-task.dto.js';
+import { ScheduleConfigDto } from './create-routine.dto.js';
 
-export class UpdateTaskDto {
+export class UpdateRoutineDto {
   @IsString()
   @MaxLength(500)
   @IsOptional()

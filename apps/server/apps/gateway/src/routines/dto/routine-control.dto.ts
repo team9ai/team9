@@ -1,18 +1,18 @@
 import { IsString, IsOptional } from 'class-validator';
 
-export class StartTaskDto {
+export class StartRoutineDto {
   @IsString()
   @IsOptional()
   message?: string;
 }
 
-export class ResumeTaskDto {
+export class ResumeRoutineDto {
   @IsString()
   @IsOptional()
   message?: string;
 }
 
-export class StopTaskDto {
+export class StopRoutineDto {
   @IsString()
   @IsOptional()
   reason?: string;
