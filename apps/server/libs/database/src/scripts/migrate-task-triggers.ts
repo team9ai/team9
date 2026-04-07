@@ -50,12 +50,12 @@ async function migrateTaskTriggers() {
     // 1. Fetch all tasks
     const tasks = await db
       .select({
-        id: schema.agentTasks.id,
-        scheduleType: schema.agentTasks.scheduleType,
-        scheduleConfig: schema.agentTasks.scheduleConfig,
-        nextRunAt: schema.agentTasks.nextRunAt,
+        id: schema.routines.id,
+        scheduleType: schema.routines.scheduleType,
+        scheduleConfig: schema.routines.scheduleConfig,
+        nextRunAt: schema.routines.nextRunAt,
       })
-      .from(schema.agentTasks);
+      .from(schema.routines);
 
     console.log(`Found ${tasks.length} tasks\n`);
 
@@ -68,9 +68,9 @@ async function migrateTaskTriggers() {
       try {
         // Check if task already has triggers (idempotent)
         const existingTriggers = await db
-          .select({ id: schema.agentTaskTriggers.id })
-          .from(schema.agentTaskTriggers)
-          .where(eq(schema.agentTaskTriggers.taskId, task.id))
+          .select({ id: schema.routineTriggers.id })
+          .from(schema.routineTriggers)
+          .where(eq(schema.routineTriggers.routineId, task.id))
           .limit(1);
 
         if (existingTriggers.length > 0) {
@@ -82,9 +82,9 @@ async function migrateTaskTriggers() {
         const now = new Date();
 
         // Always create a manual trigger
-        await db.insert(schema.agentTaskTriggers).values({
+        await db.insert(schema.routineTriggers).values({
           id: uuidv7(),
-          taskId: task.id,
+          routineId: task.id,
           type: 'manual',
           config: {},
           enabled: true,
@@ -110,9 +110,9 @@ async function migrateTaskTriggers() {
             schedTriggerConfig.dayOfMonth = config.dayOfMonth;
           }
 
-          await db.insert(schema.agentTaskTriggers).values({
+          await db.insert(schema.routineTriggers).values({
             id: uuidv7(),
-            taskId: task.id,
+            routineId: task.id,
             type: 'schedule',
             config:
               schedTriggerConfig as unknown as schema.ScheduleTriggerConfig,

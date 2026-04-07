@@ -77,7 +77,7 @@ describe('TimeoutService', () => {
   it('marks stale executions and parent tasks as timeout', async () => {
     const staleExecution = {
       id: 'exec-1',
-      taskId: 'task-1',
+      routineId: 'task-1',
       startedAt: new Date('2026-04-01T08:00:00.000Z'),
     };
     selectChain.where.mockResolvedValueOnce([staleExecution]);
@@ -100,7 +100,7 @@ describe('TimeoutService', () => {
     selectChain.where.mockResolvedValueOnce([
       {
         id: 'exec-1',
-        taskId: 'task-1',
+        routineId: 'task-1',
         startedAt: new Date('2026-04-01T08:00:00.000Z'),
       },
     ]);
@@ -120,12 +120,12 @@ describe('TimeoutService', () => {
     const staleExecutions = [
       {
         id: 'exec-1',
-        taskId: 'task-1',
+        routineId: 'task-1',
         startedAt: new Date('2026-04-01T08:00:00.000Z'),
       },
       {
         id: 'exec-2',
-        taskId: 'task-2',
+        routineId: 'task-2',
         startedAt: new Date('2026-04-01T07:00:00.000Z'),
       },
     ];

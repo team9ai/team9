@@ -46,12 +46,12 @@ export class OpenclawStrategy implements ExecutionStrategy {
   ) {}
 
   async execute(context: ExecutionContext): Promise<void> {
-    this.logger.log(`Starting OpenClaw agent for task ${context.taskId}`);
+    this.logger.log(`Starting OpenClaw agent for routine ${context.routineId}`);
 
     const message = context.documentContent?.trim() || context.title?.trim();
     if (!message) {
       throw new Error(
-        `Task ${context.taskId} has no document content or title — cannot execute without instructions`,
+        `Routine ${context.routineId} has no document content or title — cannot execute without instructions`,
       );
     }
 
@@ -61,11 +61,11 @@ export class OpenclawStrategy implements ExecutionStrategy {
     const body = {
       message,
       idempotencyKey: context.taskcastTaskId ?? `exec_${context.executionId}`,
-      sessionKey: `agent:${agentId}:task:${context.taskId}`,
+      sessionKey: `agent:${agentId}:task:${context.routineId}`,
       channelId: context.channelId,
       timeout: 86400,
       task: {
-        taskId: context.taskId,
+        taskId: context.routineId,
         executionId: context.executionId,
       },
     };
@@ -111,20 +111,20 @@ export class OpenclawStrategy implements ExecutionStrategy {
 
   pause(context: ExecutionContext): Promise<void> {
     this.logger.warn(
-      `Pause not yet supported for task ${context.taskId} — OpenClaw does not support agent checkpointing`,
+      `Pause not yet supported for routine ${context.routineId} — OpenClaw does not support agent checkpointing`,
     );
     return Promise.resolve();
   }
 
   resume(context: ExecutionContext): Promise<void> {
     this.logger.warn(
-      `Resume not yet supported for task ${context.taskId} — OpenClaw does not support agent checkpointing`,
+      `Resume not yet supported for routine ${context.routineId} — OpenClaw does not support agent checkpointing`,
     );
     return Promise.resolve();
   }
 
   async stop(context: ExecutionContext): Promise<void> {
-    this.logger.log(`Stopping OpenClaw agent for task ${context.taskId}`);
+    this.logger.log(`Stopping OpenClaw agent for routine ${context.routineId}`);
 
     const { agentId, openclawUrl, gatewayToken } =
       await this.resolveOpenclawConfig(context.botId);
@@ -143,7 +143,7 @@ export class OpenclawStrategy implements ExecutionStrategy {
           method: 'POST',
           headers,
           body: JSON.stringify({
-            sessionKey: `agent:${agentId}:task:${context.taskId}`,
+            sessionKey: `agent:${agentId}:task:${context.routineId}`,
           }),
           signal: AbortSignal.timeout(10_000),
         },
@@ -151,7 +151,7 @@ export class OpenclawStrategy implements ExecutionStrategy {
       // Don't throw on non-2xx — the run may have already finished
     } catch (error) {
       this.logger.warn(
-        `Failed to stop OpenClaw agent for task ${context.taskId}: ${error}`,
+        `Failed to stop OpenClaw agent for routine ${context.routineId}: ${error}`,
       );
     }
   }

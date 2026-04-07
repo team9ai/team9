@@ -13,7 +13,7 @@ const navigationItems = [
   { id: "messages" },
   { id: "activity" },
   { id: "aiStaff" },
-  { id: "tasks" },
+  { id: "routines" },
   { id: "skills" },
   { id: "resources" },
   { id: "library" },
@@ -22,7 +22,7 @@ const navigationItems = [
 ];
 
 describe("mainSidebarUnlock", () => {
-  it("keeps AI Staff and Tasks visible before unlock", () => {
+  it("keeps AI Staff and Routines visible before unlock", () => {
     const visibleItems = getVisibleNavigationItems(navigationItems, false);
 
     expect(visibleItems.map((item) => item.id)).toEqual([
@@ -30,7 +30,7 @@ describe("mainSidebarUnlock", () => {
       "messages",
       "activity",
       "aiStaff",
-      "tasks",
+      "routines",
       "application",
       "more",
     ]);

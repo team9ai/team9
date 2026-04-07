@@ -61,22 +61,22 @@ describe('ChannelTriggerService', () => {
     selectChain.where.mockResolvedValueOnce([
       {
         id: 'trigger-1',
-        taskId: 'task-1',
+        routineId: 'task-1',
         config: { channelId: 'channel-a' },
       },
       {
         id: 'trigger-2',
-        taskId: 'task-2',
+        routineId: 'task-2',
         config: { channelId: 'channel-a' },
       },
       {
         id: 'trigger-3',
-        taskId: 'task-3',
+        routineId: 'task-3',
         config: {},
       },
       {
         id: 'trigger-4',
-        taskId: 'task-4',
+        routineId: 'task-4',
         config: { channelId: 'channel-b' },
       },
     ]);
@@ -105,8 +105,8 @@ describe('ChannelTriggerService', () => {
 
   it('triggers executions and updates lastRunAt for matching channels', async () => {
     (service as any).channelTriggerMap.set('channel-a', [
-      { id: 'trigger-1', taskId: 'task-1' },
-      { id: 'trigger-2', taskId: 'task-2' },
+      { id: 'trigger-1', routineId: 'task-1' },
+      { id: 'trigger-2', routineId: 'task-2' },
     ]);
     const longContent = 'x'.repeat(700);
 
@@ -158,8 +158,8 @@ describe('ChannelTriggerService', () => {
   it('logs errors and keeps processing remaining triggers', async () => {
     const errorSpy = jest.spyOn((service as any).logger, 'error');
     (service as any).channelTriggerMap.set('channel-a', [
-      { id: 'trigger-1', taskId: 'task-1' },
-      { id: 'trigger-2', taskId: 'task-2' },
+      { id: 'trigger-1', routineId: 'task-1' },
+      { id: 'trigger-2', routineId: 'task-2' },
     ]);
     executor.triggerExecution
       .mockRejectedValueOnce(new Error('queue down'))
@@ -185,7 +185,7 @@ describe('ChannelTriggerService', () => {
   it('skips bot-authored messages before triggering executions', async () => {
     const debugSpy = jest.spyOn((service as any).logger, 'debug');
     (service as any).channelTriggerMap.set('channel-a', [
-      { id: 'trigger-1', taskId: 'task-1' },
+      { id: 'trigger-1', routineId: 'task-1' },
     ]);
 
     await service.handleMessage({

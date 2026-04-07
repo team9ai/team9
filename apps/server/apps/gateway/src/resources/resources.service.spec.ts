@@ -336,7 +336,7 @@ describe('ResourcesService', () => {
         actorType: 'user',
         actorId: 'user-1',
         action: 'access',
-        taskId: null,
+        routineId: null,
         executionId: null,
         metadata: null,
       }),
