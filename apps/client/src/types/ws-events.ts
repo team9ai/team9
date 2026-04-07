@@ -111,10 +111,10 @@ export const WS_EVENTS = {
     ALL_READ: "notification_all_read",
   },
 
-  // Task events
-  TASK: {
-    STATUS_CHANGED: "task:status_changed",
-    EXECUTION_CREATED: "task:execution_created",
+  // Routine events
+  ROUTINE: {
+    STATUS_CHANGED: "routine:status_changed",
+    EXECUTION_CREATED: "routine:execution_created",
   },
 
   // AI Streaming (Bot)
@@ -489,19 +489,19 @@ export interface NotificationAllReadEvent {
   readAt: string;
 }
 
-// ==================== Task Event Types ====================
+// ==================== Routine Event Types ====================
 
-/** Task status changed event */
-export interface TaskStatusChangedEvent {
-  taskId: string;
+/** Routine status changed event */
+export interface RoutineStatusChangedEvent {
+  routineId: string;
   executionId: string;
   status: string;
   previousStatus: string;
 }
 
-/** Task execution created event */
-export interface TaskExecutionCreatedEvent {
-  taskId: string;
+/** Routine execution created event */
+export interface RoutineExecutionCreatedEvent {
+  routineId: string;
   execution: {
     id: string;
     version: number;
@@ -630,9 +630,9 @@ export interface ServerToClientEvents {
   notification_counts_updated: NotificationCountsUpdatedEvent;
   notification_read: NotificationReadEvent;
   notification_all_read: NotificationAllReadEvent;
-  // Task
-  "task:status_changed": TaskStatusChangedEvent;
-  "task:execution_created": TaskExecutionCreatedEvent;
+  // Routine
+  "routine:status_changed": RoutineStatusChangedEvent;
+  "routine:execution_created": RoutineExecutionCreatedEvent;
   // Streaming (AI bot)
   streaming_start: StreamingStartEvent;
   streaming_content: StreamingContentEvent;

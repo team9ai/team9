@@ -9,7 +9,7 @@ import zhMessage from "./locales/zh/message.json";
 import zhSettings from "./locales/zh/settings.json";
 import zhThread from "./locales/zh/thread.json";
 import zhWorkspace from "./locales/zh/workspace.json";
-import zhTasks from "./locales/zh/tasks.json";
+import zhRoutines from "./locales/zh/routines.json";
 import zhResources from "./locales/zh/resources.json";
 import zhSkills from "./locales/zh/skills.json";
 
@@ -21,7 +21,7 @@ import enMessage from "./locales/en/message.json";
 import enSettings from "./locales/en/settings.json";
 import enThread from "./locales/en/thread.json";
 import enWorkspace from "./locales/en/workspace.json";
-import enTasks from "./locales/en/tasks.json";
+import enRoutines from "./locales/en/routines.json";
 import enResources from "./locales/en/resources.json";
 import enSkills from "./locales/en/skills.json";
 
@@ -35,7 +35,7 @@ export const resources = {
     settings: zhSettings,
     thread: zhThread,
     workspace: zhWorkspace,
-    tasks: zhTasks,
+    routines: zhRoutines,
     resources: zhResources,
     skills: zhSkills,
   },
@@ -48,7 +48,7 @@ export const resources = {
     settings: enSettings,
     thread: enThread,
     workspace: enWorkspace,
-    tasks: enTasks,
+    routines: enRoutines,
     resources: enResources,
     skills: enSkills,
   },
@@ -76,7 +76,7 @@ i18n
       "settings",
       "thread",
       "workspace",
-      "tasks",
+      "routines",
       "resources",
       "skills",
     ],

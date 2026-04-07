@@ -25,7 +25,7 @@ describe('TaskCommandConsumer', () => {
   it('calls triggerExecution for start command', async () => {
     const command: TaskCommand = {
       type: 'start',
-      taskId: 'task-001',
+      routineId: 'task-001',
       userId: 'user-001',
     };
 
@@ -40,7 +40,7 @@ describe('TaskCommandConsumer', () => {
   it('calls triggerExecution for restart command', async () => {
     const command: TaskCommand = {
       type: 'restart',
-      taskId: 'task-002',
+      routineId: 'task-002',
       userId: 'user-001',
       triggerId: 'trigger-1',
       notes: 'restart it',
@@ -60,7 +60,7 @@ describe('TaskCommandConsumer', () => {
   it('calls triggerExecution with retry triggerType for retry command', async () => {
     const command: TaskCommand = {
       type: 'retry',
-      taskId: 'task-003',
+      routineId: 'task-003',
       userId: 'user-001',
       sourceExecutionId: 'exec-old',
     };
@@ -79,7 +79,7 @@ describe('TaskCommandConsumer', () => {
   it('calls pauseExecution for pause command', async () => {
     const command: TaskCommand = {
       type: 'pause',
-      taskId: 'task-004',
+      routineId: 'task-004',
       userId: 'user-001',
     };
 
@@ -91,7 +91,7 @@ describe('TaskCommandConsumer', () => {
   it('calls resumeExecution for resume command', async () => {
     const command: TaskCommand = {
       type: 'resume',
-      taskId: 'task-005',
+      routineId: 'task-005',
       userId: 'user-001',
       message: 'please continue',
     };
@@ -107,7 +107,7 @@ describe('TaskCommandConsumer', () => {
   it('calls stopExecution for stop command', async () => {
     const command: TaskCommand = {
       type: 'stop',
-      taskId: 'task-006',
+      routineId: 'task-006',
       userId: 'user-001',
     };
 
@@ -123,7 +123,7 @@ describe('TaskCommandConsumer', () => {
 
     const command: TaskCommand = {
       type: 'start',
-      taskId: 'task-err',
+      routineId: 'task-err',
       userId: 'user-001',
     };
 
@@ -137,7 +137,7 @@ describe('TaskCommandConsumer', () => {
   it('does not throw for unknown command type', async () => {
     const command = {
       type: 'unknown-type',
-      taskId: 'task-x',
+      routineId: 'task-x',
       userId: 'user-001',
     } as unknown as TaskCommand;
 

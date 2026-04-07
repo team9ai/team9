@@ -14,7 +14,7 @@ export function SuggestionsList({
   documentId,
   onViewSuggestion,
 }: SuggestionsListProps) {
-  const { t } = useTranslation("tasks");
+  const { t } = useTranslation("routines");
   const [expanded, setExpanded] = useState(false);
 
   const { data: suggestions } = useDocumentSuggestions(documentId, "pending");

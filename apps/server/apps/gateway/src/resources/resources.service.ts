@@ -190,7 +190,7 @@ export class ResourcesService {
       actorType: 'agent' | 'user';
       actorId: string;
       action: string;
-      taskId?: string;
+      routineId?: string;
       executionId?: string;
       metadata?: Record<string, unknown>;
     },
@@ -203,7 +203,7 @@ export class ResourcesService {
         actorType: data.actorType,
         actorId: data.actorId,
         action: data.action,
-        taskId: data.taskId ?? null,
+        routineId: data.routineId ?? null,
         executionId: data.executionId ?? null,
         metadata: data.metadata ?? null,
       })

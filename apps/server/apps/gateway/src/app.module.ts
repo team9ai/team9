@@ -28,6 +28,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { WorkspaceModule } from './workspace/workspace.module.js';
 import { ClusterModule } from './cluster/cluster.module.js';
 import { TenantMiddleware } from './common/middleware/tenant.middleware.js';
+import { LegacyTaskRoutesMiddleware } from './common/middleware/legacy-task-routes.middleware.js';
 import { FileModule } from './file/file.module.js';
 import { NotificationModule } from './notification/notification.module.js';
 import { SearchModule } from './search/search.module.js';
@@ -36,7 +37,7 @@ import { OpenclawModule } from './openclaw/openclaw.module.js';
 import { FileKeeperModule } from './file-keeper/file-keeper.module.js';
 import { ApplicationsModule } from './applications/applications.module.js';
 import { DocumentsModule } from './documents/documents.module.js';
-import { TasksModule } from './tasks/tasks.module.js';
+import { RoutinesModule } from './routines/routines.module.js';
 import { ResourcesModule } from './resources/resources.module.js';
 import { SkillsModule } from './skills/skills.module.js';
 import { PushModule } from './push/push.module.js';
@@ -81,7 +82,7 @@ import { AccountModule } from './account/account.module.js';
     NotificationModule,
     SearchModule,
     DocumentsModule,
-    TasksModule,
+    RoutinesModule,
     ResourcesModule,
     SkillsModule,
     PushModule,
@@ -99,6 +100,10 @@ export class AppModule implements OnModuleInit, NestModule {
   constructor(private readonly configService: DbConfigService) {}
 
   configure(consumer: MiddlewareConsumer) {
+    // Rewrite legacy /v1/tasks → /v1/routines during rename rollout
+    consumer
+      .apply(LegacyTaskRoutesMiddleware)
+      .forRoutes('v1/tasks*', 'v1/bot/tasks*');
     // Apply TenantMiddleware to all routes
     consumer.apply(TenantMiddleware).forRoutes('*');
   }

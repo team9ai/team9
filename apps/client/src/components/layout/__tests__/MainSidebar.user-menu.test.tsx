@@ -17,7 +17,7 @@ vi.mock("react-i18next", () => ({
         dms: "DMs",
         activity: "Activity",
         aiStaff: "AI Staff",
-        tasks: "Tasks",
+        routines: "Routines",
         skills: "Skills",
         resources: "Resources",
         library: "Library",

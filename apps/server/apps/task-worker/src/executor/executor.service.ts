@@ -34,19 +34,19 @@ export class ExecutorService {
   }
 
   /**
-   * Trigger a full execution lifecycle for the given task.
+   * Trigger a full execution lifecycle for the given routine.
    *
-   * 1. CAS: claim the task atomically (must be first — prevents duplicate executions)
+   * 1. CAS: claim the routine atomically (must be first — prevents duplicate executions)
    * 2. Create task channel (type='task')
    * 3. Fetch document content (if linked)
-   * 4. Create execution record in DB (with task version snapshot)
-   * 5. Update task with currentExecutionId
+   * 4. Create execution record in DB (with routine version snapshot)
+   * 5. Update routine with currentExecutionId
    * 6. Look up bot's shadow userId from bots table
    * 7. Delegate to strategy
    * 8. Log completion
    */
   async triggerExecution(
-    taskId: string,
+    routineId: string,
     opts?: {
       triggerId?: string;
       triggerType?: string;
@@ -55,14 +55,14 @@ export class ExecutorService {
       documentVersionId?: string;
     },
   ): Promise<void> {
-    // ── 1. CAS: claim the task (must be first — before any resource creation) ──
+    // ── 1. CAS: claim the routine atomically (must be first — prevents duplicate executions) ──
     const claimed = await this.db
-      .update(schema.agentTasks)
+      .update(schema.routines)
       .set({ status: 'in_progress', updatedAt: new Date() })
       .where(
         and(
-          eq(schema.agentTasks.id, taskId),
-          notInArray(schema.agentTasks.status, [
+          eq(schema.routines.id, routineId),
+          notInArray(schema.routines.status, [
             'in_progress',
             'paused',
             'pending_action',
@@ -70,32 +70,36 @@ export class ExecutorService {
         ),
       )
       .returning({
-        id: schema.agentTasks.id,
-        botId: schema.agentTasks.botId,
-        tenantId: schema.agentTasks.tenantId,
-        documentId: schema.agentTasks.documentId,
-        creatorId: schema.agentTasks.creatorId,
-        title: schema.agentTasks.title,
-        version: schema.agentTasks.version,
+        id: schema.routines.id,
+        botId: schema.routines.botId,
+        tenantId: schema.routines.tenantId,
+        documentId: schema.routines.documentId,
+        creatorId: schema.routines.creatorId,
+        title: schema.routines.title,
+        version: schema.routines.version,
       });
 
     if (claimed.length === 0) {
       this.logger.warn(
-        `Task ${taskId} cannot start execution — status not eligible or already active`,
+        `Routine ${routineId} cannot start execution — status not eligible or already active`,
       );
       return;
     }
 
-    const task = claimed[0];
-    this.logger.log(`Starting execution for task ${taskId} ("${task.title}")`);
+    const routine = claimed[0];
+    this.logger.log(
+      `Starting execution for routine ${routineId} ("${routine.title}")`,
+    );
 
-    if (!task.botId) {
-      this.logger.error(`Task ${taskId} has no bot assigned, cannot execute`);
+    if (!routine.botId) {
+      this.logger.error(
+        `Routine ${routineId} has no bot assigned, cannot execute`,
+      );
       // Release CAS — mark as failed so it can be retried
       await this.db
-        .update(schema.agentTasks)
+        .update(schema.routines)
         .set({ status: 'failed', updatedAt: new Date() })
-        .where(eq(schema.agentTasks.id, taskId));
+        .where(eq(schema.routines.id, routineId));
       return;
     }
 
@@ -103,24 +107,24 @@ export class ExecutorService {
     const channelId = uuidv7();
     await this.db.insert(schema.channels).values({
       id: channelId,
-      tenantId: task.tenantId,
-      name: `task-${task.title.slice(0, 60).replace(/\s+/g, '-').toLowerCase()}-${channelId.slice(-6)}`,
+      tenantId: routine.tenantId,
+      name: `task-${routine.title.slice(0, 60).replace(/\s+/g, '-').toLowerCase()}-${channelId.slice(-6)}`,
       type: 'task',
-      createdBy: task.creatorId,
+      createdBy: routine.creatorId,
     });
 
-    // Add the task creator as a channel member
+    // Add the routine creator as a channel member
     await this.db.insert(schema.channelMembers).values({
       id: uuidv7(),
       channelId,
-      userId: task.creatorId,
+      userId: routine.creatorId,
       role: 'owner',
     });
 
     // ── 3. Fetch document content (if linked) ─────────────────────────
     let documentContent: string | undefined;
     let documentVersionId: string | undefined;
-    if (task.documentId) {
+    if (routine.documentId) {
       const [docVersion] = await this.db
         .select({
           content: schema.documentVersions.content,
@@ -131,7 +135,7 @@ export class ExecutorService {
           schema.documentVersions,
           eq(schema.documentVersions.id, schema.documents.currentVersionId),
         )
-        .where(eq(schema.documents.id, task.documentId))
+        .where(eq(schema.documents.id, routine.documentId))
         .limit(1);
 
       documentContent = docVersion?.content;
@@ -145,17 +149,17 @@ export class ExecutorService {
     // ── 4. Create execution record ────────────────────────────────────
     const executionId = uuidv7();
     const taskcastTaskId = await this.taskCastClient.createTask({
-      taskId,
+      routineId,
       executionId,
-      botId: task.botId,
-      tenantId: task.tenantId,
+      botId: routine.botId,
+      tenantId: routine.tenantId,
       ttl: 86400,
     });
 
-    await this.db.insert(schema.agentTaskExecutions).values({
+    await this.db.insert(schema.routineExecutions).values({
       id: executionId,
-      taskId,
-      taskVersion: task.version,
+      routineId,
+      routineVersion: routine.version,
       status: 'in_progress',
       channelId,
       taskcastTaskId,
@@ -168,11 +172,11 @@ export class ExecutorService {
       startedAt: new Date(),
     });
 
-    // ── 5. Update task with currentExecutionId ────────────────────────
+    // ── 5. Update routine with currentExecutionId ────────────────────────
     await this.db
-      .update(schema.agentTasks)
+      .update(schema.routines)
       .set({ currentExecutionId: executionId })
-      .where(eq(schema.agentTasks.id, taskId));
+      .where(eq(schema.routines.id, routineId));
 
     // ── 6. Look up bot's shadow userId ────────────────────────────────
     const [bot] = await this.db
@@ -182,14 +186,14 @@ export class ExecutorService {
         managedProvider: schema.bots.managedProvider,
       })
       .from(schema.bots)
-      .where(eq(schema.bots.id, task.botId))
+      .where(eq(schema.bots.id, routine.botId))
       .limit(1);
 
     if (!bot) {
-      this.logger.error(`Bot not found: ${task.botId}`);
-      await this.markExecutionFailed(executionId, taskId, {
+      this.logger.error(`Bot not found: ${routine.botId}`);
+      await this.markExecutionFailed(executionId, routineId, {
         code: 'BOT_NOT_FOUND',
-        message: `Bot ${task.botId} not found`,
+        message: `Bot ${routine.botId} not found`,
       });
       return;
     }
@@ -206,14 +210,14 @@ export class ExecutorService {
     const strategyKey = this.resolveStrategyKey(bot);
     const strategy = this.strategies.get(strategyKey);
     const context: ExecutionContext = {
-      taskId,
+      routineId,
       executionId,
-      botId: task.botId,
+      botId: routine.botId,
       channelId,
-      title: task.title,
+      title: routine.title,
       documentContent,
       taskcastTaskId,
-      tenantId: task.tenantId,
+      tenantId: routine.tenantId,
     };
 
     if (strategy) {
@@ -228,30 +232,30 @@ export class ExecutorService {
         const errorStack = error instanceof Error ? error.stack : undefined;
 
         this.logger.error(
-          `Strategy execution failed for task ${taskId}: ${errorMessage}`,
+          `Strategy execution failed for routine ${routineId}: ${errorMessage}`,
           errorStack,
         );
 
         const now = new Date();
         await this.db
-          .update(schema.agentTaskExecutions)
+          .update(schema.routineExecutions)
           .set({
             status: 'failed',
             completedAt: now,
             error: { message: errorMessage, details: errorStack },
           })
-          .where(eq(schema.agentTaskExecutions.id, executionId));
+          .where(eq(schema.routineExecutions.id, executionId));
 
         await this.db
-          .update(schema.agentTasks)
+          .update(schema.routines)
           .set({ status: 'failed', updatedAt: now })
-          .where(eq(schema.agentTasks.id, taskId));
+          .where(eq(schema.routines.id, routineId));
 
         return;
       }
     } else {
       this.logger.error(`No strategy registered for bot type "${strategyKey}"`);
-      await this.markExecutionFailed(executionId, taskId, {
+      await this.markExecutionFailed(executionId, routineId, {
         code: 'NO_STRATEGY',
         message: `No execution strategy registered for bot type "${strategyKey}"`,
       });
@@ -259,50 +263,52 @@ export class ExecutorService {
     }
 
     // ── 8. Log completion ──────────────────────────────────────────────
-    this.logger.log(`Execution ${executionId} initiated for task ${taskId}`);
+    this.logger.log(
+      `Execution ${executionId} initiated for routine ${routineId}`,
+    );
   }
 
   /**
-   * Stop the currently active execution for the given task.
+   * Stop the currently active execution for the given routine.
    */
-  async stopExecution(taskId: string): Promise<void> {
-    // 1. Load task
-    const [task] = await this.db
+  async stopExecution(routineId: string): Promise<void> {
+    // 1. Load routine
+    const [routine] = await this.db
       .select({
-        id: schema.agentTasks.id,
-        botId: schema.agentTasks.botId,
-        tenantId: schema.agentTasks.tenantId,
-        title: schema.agentTasks.title,
-        currentExecutionId: schema.agentTasks.currentExecutionId,
+        id: schema.routines.id,
+        botId: schema.routines.botId,
+        tenantId: schema.routines.tenantId,
+        title: schema.routines.title,
+        currentExecutionId: schema.routines.currentExecutionId,
       })
-      .from(schema.agentTasks)
-      .where(eq(schema.agentTasks.id, taskId))
+      .from(schema.routines)
+      .where(eq(schema.routines.id, routineId))
       .limit(1);
 
-    if (!task) {
-      this.logger.error(`Task not found for stop: ${taskId}`);
+    if (!routine) {
+      this.logger.error(`Routine not found for stop: ${routineId}`);
       return;
     }
 
-    if (!task.currentExecutionId) {
-      this.logger.warn(`Task ${taskId} has no active execution to stop`);
+    if (!routine.currentExecutionId) {
+      this.logger.warn(`Routine ${routineId} has no active execution to stop`);
       return;
     }
 
-    if (!task.botId) {
-      this.logger.error(`Task ${taskId} has no bot assigned`);
+    if (!routine.botId) {
+      this.logger.error(`Routine ${routineId} has no bot assigned`);
       return;
     }
 
     // 2. Load execution
     const [execution] = await this.db
       .select()
-      .from(schema.agentTaskExecutions)
-      .where(eq(schema.agentTaskExecutions.id, task.currentExecutionId))
+      .from(schema.routineExecutions)
+      .where(eq(schema.routineExecutions.id, routine.currentExecutionId))
       .limit(1);
 
     if (!execution) {
-      this.logger.error(`Execution ${task.currentExecutionId} not found`);
+      this.logger.error(`Execution ${routine.currentExecutionId} not found`);
       return;
     }
 
@@ -313,14 +319,14 @@ export class ExecutorService {
         managedProvider: schema.bots.managedProvider,
       })
       .from(schema.bots)
-      .where(eq(schema.bots.id, task.botId))
+      .where(eq(schema.bots.id, routine.botId))
       .limit(1);
 
     if (!bot) {
-      this.logger.error(`Bot not found: ${task.botId}`);
-      await this.markExecutionFailed(task.currentExecutionId, taskId, {
+      this.logger.error(`Bot not found: ${routine.botId}`);
+      await this.markExecutionFailed(routine.currentExecutionId, routineId, {
         code: 'BOT_NOT_FOUND',
-        message: `Bot ${task.botId} not found`,
+        message: `Bot ${routine.botId} not found`,
       });
       return;
     }
@@ -335,31 +341,33 @@ export class ExecutorService {
     // 4. Call strategy.stop() (only if we have a valid channelId)
     if (!execution.channelId) {
       this.logger.warn(
-        `Execution ${execution.id} for task ${taskId} has no channelId; skipping strategy.stop`,
+        `Execution ${execution.id} for routine ${routineId} has no channelId; skipping strategy.stop`,
       );
     } else {
       const context: ExecutionContext = {
-        taskId,
+        routineId,
         executionId: execution.id,
-        botId: task.botId,
+        botId: routine.botId,
         channelId: execution.channelId,
-        title: task.title,
+        title: routine.title,
         taskcastTaskId: execution.taskcastTaskId,
-        tenantId: task.tenantId,
+        tenantId: routine.tenantId,
       };
 
       try {
         await strategy.stop(context);
       } catch (error) {
-        this.logger.warn(`Strategy stop failed for task ${taskId}: ${error}`);
+        this.logger.warn(
+          `Strategy stop failed for routine ${routineId}: ${error}`,
+        );
       }
     }
 
-    // 5. Update execution + task status to stopped
+    // 5. Update execution + routine status to stopped
     const now = new Date();
 
     await this.db
-      .update(schema.agentTaskExecutions)
+      .update(schema.routineExecutions)
       .set({
         status: 'stopped',
         completedAt: now,
@@ -371,17 +379,19 @@ export class ExecutorService {
             }
           : {}),
       })
-      .where(eq(schema.agentTaskExecutions.id, execution.id));
+      .where(eq(schema.routineExecutions.id, execution.id));
 
     await this.db
-      .update(schema.agentTasks)
+      .update(schema.routines)
       .set({
         status: 'stopped',
         updatedAt: now,
       })
-      .where(eq(schema.agentTasks.id, taskId));
+      .where(eq(schema.routines.id, routineId));
 
-    this.logger.log(`Execution ${execution.id} stopped for task ${taskId}`);
+    this.logger.log(
+      `Execution ${execution.id} stopped for routine ${routineId}`,
+    );
   }
 
   /**
@@ -391,47 +401,47 @@ export class ExecutorService {
    * Duplicate pause commands are harmless — interruptSession is idempotent
    * (404 swallowed by HiveStrategy) and DB writes are idempotent.
    */
-  async pauseExecution(taskId: string): Promise<void> {
-    const [task] = await this.db
+  async pauseExecution(routineId: string): Promise<void> {
+    const [routine] = await this.db
       .select({
-        id: schema.agentTasks.id,
-        botId: schema.agentTasks.botId,
-        tenantId: schema.agentTasks.tenantId,
-        title: schema.agentTasks.title,
-        currentExecutionId: schema.agentTasks.currentExecutionId,
-        status: schema.agentTasks.status,
+        id: schema.routines.id,
+        botId: schema.routines.botId,
+        tenantId: schema.routines.tenantId,
+        title: schema.routines.title,
+        currentExecutionId: schema.routines.currentExecutionId,
+        status: schema.routines.status,
       })
-      .from(schema.agentTasks)
-      .where(eq(schema.agentTasks.id, taskId))
+      .from(schema.routines)
+      .where(eq(schema.routines.id, routineId))
       .limit(1);
 
-    if (!task) {
-      this.logger.error(`Task ${taskId} not found`);
+    if (!routine) {
+      this.logger.error(`Routine ${routineId} not found`);
       return;
     }
 
-    if (!task.currentExecutionId || !task.botId) {
+    if (!routine.currentExecutionId || !routine.botId) {
       this.logger.warn(
-        `Task ${taskId} cannot be paused — no active execution or bot`,
+        `Routine ${routineId} cannot be paused — no active execution or bot`,
       );
       return;
     }
 
-    if (task.status !== 'in_progress') {
+    if (routine.status !== 'in_progress') {
       this.logger.warn(
-        `Task ${taskId} cannot be paused — current status is ${task.status}`,
+        `Routine ${routineId} cannot be paused — current status is ${routine.status}`,
       );
       return;
     }
 
     const [execution] = await this.db
       .select()
-      .from(schema.agentTaskExecutions)
-      .where(eq(schema.agentTaskExecutions.id, task.currentExecutionId))
+      .from(schema.routineExecutions)
+      .where(eq(schema.routineExecutions.id, routine.currentExecutionId))
       .limit(1);
 
     if (!execution) {
-      this.logger.error(`Execution ${task.currentExecutionId} not found`);
+      this.logger.error(`Execution ${routine.currentExecutionId} not found`);
       return;
     }
 
@@ -441,11 +451,11 @@ export class ExecutorService {
         managedProvider: schema.bots.managedProvider,
       })
       .from(schema.bots)
-      .where(eq(schema.bots.id, task.botId))
+      .where(eq(schema.bots.id, routine.botId))
       .limit(1);
 
     if (!bot) {
-      this.logger.error(`Bot not found: ${task.botId}`);
+      this.logger.error(`Bot not found: ${routine.botId}`);
       return;
     }
 
@@ -464,31 +474,33 @@ export class ExecutorService {
     }
 
     const context: ExecutionContext = {
-      taskId,
+      routineId,
       executionId: execution.id,
-      botId: task.botId,
+      botId: routine.botId,
       channelId: execution.channelId,
-      title: task.title,
+      title: routine.title,
       taskcastTaskId: execution.taskcastTaskId,
-      tenantId: task.tenantId,
+      tenantId: routine.tenantId,
     };
 
     try {
       await strategy.pause(context);
 
       await this.db
-        .update(schema.agentTaskExecutions)
+        .update(schema.routineExecutions)
         .set({ status: 'paused' })
-        .where(eq(schema.agentTaskExecutions.id, execution.id));
+        .where(eq(schema.routineExecutions.id, execution.id));
 
       await this.db
-        .update(schema.agentTasks)
+        .update(schema.routines)
         .set({ status: 'paused', updatedAt: new Date() })
-        .where(eq(schema.agentTasks.id, taskId));
+        .where(eq(schema.routines.id, routineId));
 
-      this.logger.log(`Task ${taskId} paused`);
+      this.logger.log(`Routine ${routineId} paused`);
     } catch (error) {
-      this.logger.warn(`Strategy pause failed for task ${taskId}: ${error}`);
+      this.logger.warn(
+        `Strategy pause failed for routine ${routineId}: ${error}`,
+      );
     }
   }
 
@@ -499,47 +511,47 @@ export class ExecutorService {
    * Duplicate resume commands are harmless — sendInput is idempotent
    * and DB writes are idempotent.
    */
-  async resumeExecution(taskId: string, message?: string): Promise<void> {
-    const [task] = await this.db
+  async resumeExecution(routineId: string, message?: string): Promise<void> {
+    const [routine] = await this.db
       .select({
-        id: schema.agentTasks.id,
-        botId: schema.agentTasks.botId,
-        tenantId: schema.agentTasks.tenantId,
-        title: schema.agentTasks.title,
-        currentExecutionId: schema.agentTasks.currentExecutionId,
-        status: schema.agentTasks.status,
+        id: schema.routines.id,
+        botId: schema.routines.botId,
+        tenantId: schema.routines.tenantId,
+        title: schema.routines.title,
+        currentExecutionId: schema.routines.currentExecutionId,
+        status: schema.routines.status,
       })
-      .from(schema.agentTasks)
-      .where(eq(schema.agentTasks.id, taskId))
+      .from(schema.routines)
+      .where(eq(schema.routines.id, routineId))
       .limit(1);
 
-    if (!task) {
-      this.logger.error(`Task ${taskId} not found`);
+    if (!routine) {
+      this.logger.error(`Routine ${routineId} not found`);
       return;
     }
 
-    if (!task.currentExecutionId || !task.botId) {
+    if (!routine.currentExecutionId || !routine.botId) {
       this.logger.warn(
-        `Task ${taskId} cannot be resumed — no active execution or bot`,
+        `Routine ${routineId} cannot be resumed — no active execution or bot`,
       );
       return;
     }
 
-    if (task.status !== 'paused') {
+    if (routine.status !== 'paused') {
       this.logger.warn(
-        `Task ${taskId} cannot be resumed — current status is ${task.status}`,
+        `Routine ${routineId} cannot be resumed — current status is ${routine.status}`,
       );
       return;
     }
 
     const [execution] = await this.db
       .select()
-      .from(schema.agentTaskExecutions)
-      .where(eq(schema.agentTaskExecutions.id, task.currentExecutionId))
+      .from(schema.routineExecutions)
+      .where(eq(schema.routineExecutions.id, routine.currentExecutionId))
       .limit(1);
 
     if (!execution) {
-      this.logger.error(`Execution ${task.currentExecutionId} not found`);
+      this.logger.error(`Execution ${routine.currentExecutionId} not found`);
       return;
     }
 
@@ -549,11 +561,11 @@ export class ExecutorService {
         managedProvider: schema.bots.managedProvider,
       })
       .from(schema.bots)
-      .where(eq(schema.bots.id, task.botId))
+      .where(eq(schema.bots.id, routine.botId))
       .limit(1);
 
     if (!bot) {
-      this.logger.error(`Bot not found: ${task.botId}`);
+      this.logger.error(`Bot not found: ${routine.botId}`);
       return;
     }
 
@@ -572,13 +584,13 @@ export class ExecutorService {
     }
 
     const context: ExecutionContext = {
-      taskId,
+      routineId,
       executionId: execution.id,
-      botId: task.botId,
+      botId: routine.botId,
       channelId: execution.channelId,
-      title: task.title,
+      title: routine.title,
       taskcastTaskId: execution.taskcastTaskId,
-      tenantId: task.tenantId,
+      tenantId: routine.tenantId,
       message,
     };
 
@@ -586,18 +598,20 @@ export class ExecutorService {
       await strategy.resume(context);
 
       await this.db
-        .update(schema.agentTaskExecutions)
+        .update(schema.routineExecutions)
         .set({ status: 'in_progress' })
-        .where(eq(schema.agentTaskExecutions.id, execution.id));
+        .where(eq(schema.routineExecutions.id, execution.id));
 
       await this.db
-        .update(schema.agentTasks)
+        .update(schema.routines)
         .set({ status: 'in_progress', updatedAt: new Date() })
-        .where(eq(schema.agentTasks.id, taskId));
+        .where(eq(schema.routines.id, routineId));
 
-      this.logger.log(`Task ${taskId} resumed`);
+      this.logger.log(`Routine ${routineId} resumed`);
     } catch (error) {
-      this.logger.warn(`Strategy resume failed for task ${taskId}: ${error}`);
+      this.logger.warn(
+        `Strategy resume failed for routine ${routineId}: ${error}`,
+      );
     }
   }
 
@@ -610,26 +624,26 @@ export class ExecutorService {
 
   private async markExecutionFailed(
     executionId: string,
-    taskId: string,
+    routineId: string,
     error: { code: string; message: string },
   ): Promise<void> {
     const now = new Date();
 
     await this.db
-      .update(schema.agentTaskExecutions)
+      .update(schema.routineExecutions)
       .set({
         status: 'failed',
         completedAt: now,
         error,
       })
-      .where(eq(schema.agentTaskExecutions.id, executionId));
+      .where(eq(schema.routineExecutions.id, executionId));
 
     await this.db
-      .update(schema.agentTasks)
+      .update(schema.routines)
       .set({
         status: 'failed',
         updatedAt: now,
       })
-      .where(eq(schema.agentTasks.id, taskId));
+      .where(eq(schema.routines.id, routineId));
   }
 }
