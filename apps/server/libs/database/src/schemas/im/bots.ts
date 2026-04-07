@@ -34,6 +34,14 @@ export interface BotExtra {
     jobDescription?: string;
     model?: { provider: string; id: string };
   };
+  personalStaff?: {
+    persona?: string;
+    model?: { provider: string; id: string };
+    visibility?: {
+      allowMention?: boolean;
+      allowDirectMessage?: boolean;
+    };
+  };
 }
 
 export interface ManagedMeta {
