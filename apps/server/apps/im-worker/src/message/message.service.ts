@@ -465,7 +465,7 @@ export class MessageService {
             messageId: msgId,
             fileKey: att.fileKey,
             fileName: att.fileName,
-            fileUrl: `${env.S3_ENDPOINT}/${att.fileKey}`,
+            fileUrl: `${env.S3_PUBLIC_URL}/${att.fileKey}`,
             mimeType: att.mimeType,
             fileSize: att.fileSize,
           }));

@@ -118,6 +118,11 @@ export const env = {
   get S3_CORS_ORIGINS() {
     return process.env.S3_CORS_ORIGINS || '';
   },
+  // Public base URL for serving S3 files (e.g. CloudFront custom domain).
+  // Falls back to S3_ENDPOINT for backward compatibility (MinIO local dev).
+  get S3_PUBLIC_URL() {
+    return process.env.S3_PUBLIC_URL || process.env.S3_ENDPOINT || undefined;
+  },
   // Shared S3 bucket name (single bucket for all workspaces)
   get S3_BUCKET() {
     return process.env.S3_BUCKET || `t9-${getAppEnv()}`;

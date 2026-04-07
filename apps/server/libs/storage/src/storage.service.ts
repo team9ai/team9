@@ -153,10 +153,10 @@ const DEFAULT_EXPIRES_IN = 300; // 5 minutes
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
-  private readonly endpoint: string | undefined;
+  private readonly publicUrl: string | undefined;
 
   constructor(@Inject(S3_CLIENT) private readonly s3Client: S3Client) {
-    this.endpoint = env.S3_ENDPOINT;
+    this.publicUrl = env.S3_PUBLIC_URL;
   }
 
   // ==================== Frontend Direct Upload ====================
@@ -284,8 +284,8 @@ export class StorageService {
    * For AWS S3 (no endpoint): https://{bucket}.s3.{region}.amazonaws.com/{key}
    */
   getObjectUrl(bucket: string, key: string): string {
-    if (this.endpoint) {
-      return `${this.endpoint}/${bucket}/${key}`;
+    if (this.publicUrl) {
+      return `${this.publicUrl}/${bucket}/${key}`;
     }
     // AWS S3 URL format
     const region = env.S3_REGION;
