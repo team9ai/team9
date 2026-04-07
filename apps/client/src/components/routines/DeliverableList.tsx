@@ -10,10 +10,10 @@ import {
   FileVideo,
   FileAudio,
 } from "lucide-react";
-import type { AgentTaskDeliverable } from "@/types/task";
+import type { RoutineDeliverable } from "@/types/routine";
 
-interface TaskDeliverableListProps {
-  deliverables: AgentTaskDeliverable[];
+interface DeliverableListProps {
+  deliverables: RoutineDeliverable[];
 }
 
 function getFileIcon(mimeType: string | null, fileName: string) {
@@ -129,10 +129,8 @@ function formatFileSize(bytes: number | null): string {
   return `${size.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
-export function TaskDeliverableList({
-  deliverables,
-}: TaskDeliverableListProps) {
-  const { t } = useTranslation("tasks");
+export function DeliverableList({ deliverables }: DeliverableListProps) {
+  const { t } = useTranslation("routines");
 
   if (deliverables.length === 0) {
     return (

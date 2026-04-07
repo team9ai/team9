@@ -44,7 +44,7 @@ export function SuggestionDiffModal({
   suggestion,
   onClose,
 }: SuggestionDiffModalProps) {
-  const { t } = useTranslation("tasks");
+  const { t } = useTranslation("routines");
 
   const { data: detail, isLoading } = useSuggestionDetail(
     suggestion ? documentId : undefined,

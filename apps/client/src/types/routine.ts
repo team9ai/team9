@@ -1,8 +1,8 @@
-// Tasks Module Types — matching backend schemas in libs/database/src/schemas/task/
+// Routines Module Types — matching backend schemas in libs/database/src/schemas/routine/
 
 // ── Enum types (string unions) ──────────────────────────────────────
 
-export type AgentTaskStatus =
+export type RoutineStatus =
   | "upcoming"
   | "in_progress"
   | "paused"
@@ -12,15 +12,15 @@ export type AgentTaskStatus =
   | "stopped"
   | "timeout";
 
-export type AgentTaskScheduleType = "once" | "recurring";
+export type RoutineScheduleType = "once" | "recurring";
 
-export type AgentTaskStepStatus =
+export type RoutineStepStatus =
   | "pending"
   | "in_progress"
   | "completed"
   | "failed";
 
-export type AgentTaskInterventionStatus = "pending" | "resolved" | "expired";
+export type RoutineInterventionStatus = "pending" | "resolved" | "expired";
 
 // ── Supporting types ────────────────────────────────────────────────
 
@@ -51,16 +51,16 @@ export interface InterventionResponse {
 
 // ── Entity interfaces ───────────────────────────────────────────────
 
-export interface AgentTask {
+export interface Routine {
   id: string;
   tenantId: string;
   botId: string | null;
   creatorId: string;
   title: string;
   description: string | null;
-  status: AgentTaskStatus;
+  status: RoutineStatus;
   /** @deprecated Use triggers table instead */
-  scheduleType: AgentTaskScheduleType;
+  scheduleType: RoutineScheduleType;
   /** @deprecated Use triggers table instead */
   scheduleConfig: ScheduleConfig | null;
   /** @deprecated Use triggers table instead */
@@ -74,11 +74,11 @@ export interface AgentTask {
   updatedAt: string;
 }
 
-export interface AgentTaskExecution {
+export interface RoutineExecution {
   id: string;
-  taskId: string;
+  routineId: string;
   taskVersion: number;
-  status: AgentTaskStatus;
+  status: RoutineStatus;
   channelId: string | null;
   taskcastTaskId: string | null;
   tokenUsage: number;
@@ -95,10 +95,10 @@ export interface AgentTaskExecution {
 }
 
 /** Execution with nested steps, interventions, and deliverables (getExecution response) */
-export interface AgentTaskExecutionDetail extends AgentTaskExecution {
-  steps: AgentTaskStep[];
-  interventions: AgentTaskIntervention[];
-  deliverables: AgentTaskDeliverable[];
+export interface RoutineExecutionDetail extends RoutineExecution {
+  steps: RoutineStep[];
+  interventions: RoutineIntervention[];
+  deliverables: RoutineDeliverable[];
 }
 
 // ── Unified execution entry (timeline) ─────────────────────────────
@@ -109,20 +109,20 @@ export interface StatusChangeData {
 }
 
 export type ExecutionEntry =
-  | { type: "step"; data: AgentTaskStep }
-  | { type: "intervention"; data: AgentTaskIntervention }
-  | { type: "deliverable"; data: AgentTaskDeliverable }
+  | { type: "step"; data: RoutineStep }
+  | { type: "intervention"; data: RoutineIntervention }
+  | { type: "deliverable"; data: RoutineDeliverable }
   | { type: "status_change"; data: StatusChangeData };
 
 // ── Entity interfaces (continued) ──────────────────────────────────
 
-export interface AgentTaskStep {
+export interface RoutineStep {
   id: string;
   executionId: string;
-  taskId: string;
+  routineId: string;
   orderIndex: number;
   title: string;
-  status: AgentTaskStepStatus;
+  status: RoutineStepStatus;
   tokenUsage: number;
   duration: number | null;
   startedAt: string | null;
@@ -130,10 +130,10 @@ export interface AgentTaskStep {
   createdAt: string;
 }
 
-export interface AgentTaskDeliverable {
+export interface RoutineDeliverable {
   id: string;
   executionId: string;
-  taskId: string;
+  routineId: string;
   fileName: string;
   fileSize: number | null;
   mimeType: string | null;
@@ -141,15 +141,15 @@ export interface AgentTaskDeliverable {
   createdAt: string;
 }
 
-export interface AgentTaskIntervention {
+export interface RoutineIntervention {
   id: string;
   executionId: string;
-  taskId: string;
+  routineId: string;
   stepId: string | null;
   prompt: string;
   actions: InterventionAction[];
   response: InterventionResponse | null;
-  status: AgentTaskInterventionStatus;
+  status: RoutineInterventionStatus;
   resolvedBy: string | null;
   resolvedAt: string | null;
   expiresAt: string | null;
@@ -158,35 +158,35 @@ export interface AgentTaskIntervention {
 
 // ── Detail type (getById response) ──────────────────────────────────
 
-export interface AgentTaskDetail extends AgentTask {
+export interface RoutineDetail extends Routine {
   currentExecution: {
-    execution: AgentTaskExecution;
-    steps: AgentTaskStep[];
-    interventions: AgentTaskIntervention[];
-    deliverables: AgentTaskDeliverable[];
+    execution: RoutineExecution;
+    steps: RoutineStep[];
+    interventions: RoutineIntervention[];
+    deliverables: RoutineDeliverable[];
   } | null;
 }
 
 // ── DTO types for mutations ─────────────────────────────────────────
 
-export interface CreateTaskDto {
+export interface CreateRoutineDto {
   title: string;
   botId?: string;
   description?: string;
   /** @deprecated Use triggers field instead */
-  scheduleType?: AgentTaskScheduleType;
+  scheduleType?: RoutineScheduleType;
   /** @deprecated Use triggers field instead */
   scheduleConfig?: ScheduleConfig;
   documentContent?: string;
   triggers?: CreateTriggerDto[];
 }
 
-export interface UpdateTaskDto {
+export interface UpdateRoutineDto {
   title?: string;
   botId?: string | null;
   description?: string;
   /** @deprecated Use trigger CRUD API instead */
-  scheduleType?: AgentTaskScheduleType;
+  scheduleType?: RoutineScheduleType;
   /** @deprecated Use trigger CRUD API instead */
   scheduleConfig?: ScheduleConfig;
 }
@@ -198,16 +198,16 @@ export interface ResolveInterventionDto {
 
 // ── Trigger types ──────────────────────────────────────────────────
 
-export type AgentTaskTriggerType =
+export type RoutineTriggerType =
   | "manual"
   | "interval"
   | "schedule"
   | "channel_message";
 
-export interface AgentTaskTrigger {
+export interface RoutineTrigger {
   id: string;
-  taskId: string;
-  type: AgentTaskTriggerType;
+  routineId: string;
+  type: RoutineTriggerType;
   config: Record<string, unknown> | null;
   enabled: boolean;
   nextRunAt: string | null;
@@ -254,7 +254,7 @@ export type TriggerContext =
 // ── Trigger DTOs ───────────────────────────────────────────────────
 
 export interface CreateTriggerDto {
-  type: AgentTaskTriggerType;
+  type: RoutineTriggerType;
   config?: Record<string, unknown>;
   enabled?: boolean;
 }

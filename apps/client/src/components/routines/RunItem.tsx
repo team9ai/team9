@@ -2,11 +2,11 @@ import { useTranslation } from "react-i18next";
 import {
   HISTORY_TRIGGER_TYPE_LABEL_KEYS,
   isHistoryTriggerType,
-} from "@/lib/task-trigger-keys";
+} from "@/lib/routine-trigger-keys";
 import { cn } from "@/lib/utils";
-import type { AgentTaskExecution, AgentTaskStatus } from "@/types/task";
+import type { RoutineExecution, RoutineStatus } from "@/types/routine";
 
-const STATUS_COLORS: Record<AgentTaskStatus, string> = {
+const STATUS_COLORS: Record<RoutineStatus, string> = {
   in_progress: "bg-blue-500",
   upcoming: "bg-gray-400",
   paused: "bg-yellow-500",
@@ -17,18 +17,14 @@ const STATUS_COLORS: Record<AgentTaskStatus, string> = {
   timeout: "bg-red-400",
 };
 
-interface TaskRunItemProps {
-  execution: AgentTaskExecution;
+interface RunItemProps {
+  execution: RoutineExecution;
   isSelected: boolean;
   onClick: () => void;
 }
 
-export function TaskRunItem({
-  execution,
-  isSelected,
-  onClick,
-}: TaskRunItemProps) {
-  const { t } = useTranslation("tasks");
+export function RunItem({ execution, isSelected, onClick }: RunItemProps) {
+  const { t } = useTranslation("routines");
 
   return (
     <button

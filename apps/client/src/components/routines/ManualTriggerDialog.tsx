@@ -11,10 +11,10 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { tasksApi } from "@/services/api/tasks";
+import { routinesApi } from "@/services/api/routines";
 
 interface ManualTriggerDialogProps {
-  taskId: string;
+  routineId: string;
   isOpen: boolean;
   onClose: () => void;
   /** "start" for upcoming tasks, "restart" for terminal-state tasks. Defaults to "start". */
@@ -22,12 +22,12 @@ interface ManualTriggerDialogProps {
 }
 
 export function ManualTriggerDialog({
-  taskId,
+  routineId,
   isOpen,
   onClose,
   mode = "start",
 }: ManualTriggerDialogProps) {
-  const { t } = useTranslation("tasks");
+  const { t } = useTranslation("routines");
   const queryClient = useQueryClient();
   const [notes, setNotes] = useState("");
 
@@ -35,12 +35,12 @@ export function ManualTriggerDialog({
     mutationFn: () => {
       const opts = { notes: notes.trim() || undefined };
       return mode === "restart"
-        ? tasksApi.restart(taskId, opts)
-        : tasksApi.start(taskId, opts);
+        ? routinesApi.restart(routineId, opts)
+        : routinesApi.start(routineId, opts);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["task", taskId] });
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["routine", routineId] });
+      queryClient.invalidateQueries({ queryKey: ["routines"] });
       handleClose();
     },
   });
@@ -53,7 +53,7 @@ export function ManualTriggerDialog({
 
   const title =
     mode === "restart"
-      ? t("manualTrigger.rerunTitle", "Rerun Task")
+      ? t("manualTrigger.rerunTitle", "Rerun Routine")
       : t("manualTrigger.title");
   const submitLabel =
     mode === "restart" ? t("chatArea.rerun", "Rerun") : t("detail.start");

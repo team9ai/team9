@@ -31,18 +31,18 @@ import { DocumentEditor } from "@/components/documents/DocumentEditor";
 import { SuggestionsList } from "@/components/documents/SuggestionsList";
 import { SuggestionDiffModal } from "@/components/documents/SuggestionDiffModal";
 import { formatMessageTime } from "@/lib/date-utils";
-import type { AgentTaskDetail } from "@/types/task";
+import type { RoutineDetail } from "@/types/routine";
 import type { SuggestionResponse } from "@/types/document";
 
-interface TaskDocumentTabProps {
-  task: AgentTaskDetail;
+interface RoutineDocumentTabProps {
+  routine: RoutineDetail;
 }
 
 const DRAFT_KEY = (id: string) => `doc-draft-${id}`;
 
-export function TaskDocumentTab({ task }: TaskDocumentTabProps) {
-  const { t } = useTranslation("tasks");
-  const documentId = task.documentId;
+export function RoutineDocumentTab({ routine }: RoutineDocumentTabProps) {
+  const { t } = useTranslation("routines");
+  const documentId = routine.documentId;
 
   // ── Data fetching ───────────────────────────────────────
   const { data: doc, isLoading: docLoading } = useDocument(

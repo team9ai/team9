@@ -34,32 +34,32 @@ import {
   INTERVAL_UNIT_LABEL_KEYS,
   SCHEDULE_DAY_OPTIONS,
   SCHEDULE_FREQUENCY_LABEL_KEYS,
-  TASK_TRIGGER_TYPE_LABEL_KEYS,
+  ROUTINE_TRIGGER_TYPE_LABEL_KEYS,
   type IntervalUnit,
   type ScheduleFrequency,
   isIntervalUnit,
   isScheduleFrequency,
-} from "@/lib/task-trigger-keys";
+} from "@/lib/routine-trigger-keys";
 import { api } from "@/services/api";
 import { channelsApi } from "@/services/api/im";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
-import type { AgentTaskTriggerType, CreateTriggerDto } from "@/types/task";
+import type { RoutineTriggerType, CreateTriggerDto } from "@/types/routine";
 
-interface CreateTaskDialogProps {
+interface CreateRoutineDialogProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
 const NO_BOT = "__none__";
 
-const TRIGGER_TYPE_ICON: Record<AgentTaskTriggerType, typeof Hand> = {
+const TRIGGER_TYPE_ICON: Record<RoutineTriggerType, typeof Hand> = {
   manual: Hand,
   interval: Timer,
   schedule: CalendarClock,
   channel_message: MessageSquare,
 };
 
-const TRIGGER_TYPE_OPTIONS: AgentTaskTriggerType[] = [
+const TRIGGER_TYPE_OPTIONS: RoutineTriggerType[] = [
   "manual",
   "interval",
   "schedule",
@@ -72,8 +72,11 @@ const SCHEDULE_FREQUENCIES = Object.keys(
   SCHEDULE_FREQUENCY_LABEL_KEYS,
 ) as ScheduleFrequency[];
 
-export function CreateTaskDialog({ isOpen, onClose }: CreateTaskDialogProps) {
-  const { t } = useTranslation("tasks");
+export function CreateRoutineDialog({
+  isOpen,
+  onClose,
+}: CreateRoutineDialogProps) {
+  const { t } = useTranslation("routines");
   const queryClient = useQueryClient();
   const workspaceId = useSelectedWorkspaceId();
 
@@ -86,7 +89,7 @@ export function CreateTaskDialog({ isOpen, onClose }: CreateTaskDialogProps) {
   const [showTriggersSection, setShowTriggersSection] = useState(false);
   const [addingTrigger, setAddingTrigger] = useState(false);
   const [newTriggerType, setNewTriggerType] =
-    useState<AgentTaskTriggerType>("manual");
+    useState<RoutineTriggerType>("manual");
   const [intervalValue, setIntervalValue] = useState(1);
   const [intervalUnit, setIntervalUnit] = useState<IntervalUnit>("hours");
   const [scheduleFrequency, setScheduleFrequency] =
@@ -119,14 +122,14 @@ export function CreateTaskDialog({ isOpen, onClose }: CreateTaskDialogProps) {
 
   const createMutation = useMutation({
     mutationFn: () =>
-      api.tasks.create({
+      api.routines.create({
         title: title.trim(),
         botId: botId === NO_BOT ? undefined : botId,
         documentContent: documentContent.trim() || undefined,
         triggers: triggers.length > 0 ? triggers : undefined,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["routines"] });
       handleClose();
     },
   });
@@ -195,7 +198,7 @@ export function CreateTaskDialog({ isOpen, onClose }: CreateTaskDialogProps) {
     const config = trigger.config ?? {};
     switch (trigger.type) {
       case "manual":
-        return t(TASK_TRIGGER_TYPE_LABEL_KEYS.manual);
+        return t(ROUTINE_TRIGGER_TYPE_LABEL_KEYS.manual);
       case "interval": {
         const unit = typeof config.unit === "string" ? config.unit : "hours";
         const unitLabel = isIntervalUnit(unit)
@@ -235,9 +238,9 @@ export function CreateTaskDialog({ isOpen, onClose }: CreateTaskDialogProps) {
         <div className="space-y-4 py-2">
           {/* Title */}
           <div className="space-y-1.5">
-            <Label htmlFor="task-title">{t("create.taskName")}</Label>
+            <Label htmlFor="routine-title">{t("create.taskName")}</Label>
             <Input
-              id="task-title"
+              id="routine-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               maxLength={500}
@@ -275,9 +278,9 @@ export function CreateTaskDialog({ isOpen, onClose }: CreateTaskDialogProps) {
 
           {/* Document content */}
           <div className="space-y-1.5">
-            <Label htmlFor="task-doc">{t("create.document")}</Label>
+            <Label htmlFor="routine-doc">{t("create.document")}</Label>
             <Textarea
-              id="task-doc"
+              id="routine-doc"
               value={documentContent}
               onChange={(e) => setDocumentContent(e.target.value)}
               placeholder={t("create.documentPlaceholder")}
@@ -344,7 +347,7 @@ export function CreateTaskDialog({ isOpen, onClose }: CreateTaskDialogProps) {
                       <Select
                         value={newTriggerType}
                         onValueChange={(v) =>
-                          setNewTriggerType(v as AgentTaskTriggerType)
+                          setNewTriggerType(v as RoutineTriggerType)
                         }
                       >
                         <SelectTriggerUI>
@@ -353,7 +356,7 @@ export function CreateTaskDialog({ isOpen, onClose }: CreateTaskDialogProps) {
                         <SelectContent>
                           {TRIGGER_TYPE_OPTIONS.map((type) => (
                             <SelectItem key={type} value={type}>
-                              {t(TASK_TRIGGER_TYPE_LABEL_KEYS[type])}
+                              {t(ROUTINE_TRIGGER_TYPE_LABEL_KEYS[type])}
                             </SelectItem>
                           ))}
                         </SelectContent>

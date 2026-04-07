@@ -13,15 +13,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { tasksApi } from "@/services/api/tasks";
-import type { AgentTaskTriggerType } from "@/types/task";
+import { routinesApi } from "@/services/api/routines";
+import type { RoutineTriggerType } from "@/types/routine";
 import { AddTriggerDialog } from "./AddTriggerDialog";
 
-interface TaskTriggersTabProps {
-  taskId: string;
+interface RoutineTriggersTabProps {
+  routineId: string;
 }
 
-const TRIGGER_TYPE_ICON: Record<AgentTaskTriggerType, typeof Hand> = {
+const TRIGGER_TYPE_ICON: Record<RoutineTriggerType, typeof Hand> = {
   manual: Hand,
   interval: Timer,
   schedule: CalendarClock,
@@ -41,21 +41,23 @@ function formatCountdown(targetDate: string): string {
   return `${minutes}m`;
 }
 
-export function TaskTriggersTab({ taskId }: TaskTriggersTabProps) {
-  const { t } = useTranslation("tasks");
+export function RoutineTriggersTab({ routineId }: RoutineTriggersTabProps) {
+  const { t } = useTranslation("routines");
   const queryClient = useQueryClient();
   const [showAddDialog, setShowAddDialog] = useState(false);
 
   const { data: triggers = [], isLoading } = useQuery({
-    queryKey: ["task-triggers", taskId],
-    queryFn: () => tasksApi.listTriggers(taskId),
+    queryKey: ["routine-triggers", routineId],
+    queryFn: () => routinesApi.listTriggers(routineId),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (triggerId: string) =>
-      tasksApi.deleteTrigger(taskId, triggerId),
+      routinesApi.deleteTrigger(routineId, triggerId),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["task-triggers", taskId] }),
+      queryClient.invalidateQueries({
+        queryKey: ["routine-triggers", routineId],
+      }),
   });
 
   const toggleMutation = useMutation({
@@ -65,9 +67,11 @@ export function TaskTriggersTab({ taskId }: TaskTriggersTabProps) {
     }: {
       triggerId: string;
       enabled: boolean;
-    }) => tasksApi.updateTrigger(taskId, triggerId, { enabled }),
+    }) => routinesApi.updateTrigger(routineId, triggerId, { enabled }),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["task-triggers", taskId] }),
+      queryClient.invalidateQueries({
+        queryKey: ["routine-triggers", routineId],
+      }),
   });
 
   if (isLoading) {
@@ -228,7 +232,7 @@ export function TaskTriggersTab({ taskId }: TaskTriggersTabProps) {
       </Button>
 
       <AddTriggerDialog
-        taskId={taskId}
+        routineId={routineId}
         isOpen={showAddDialog}
         onClose={() => setShowAddDialog(false)}
       />

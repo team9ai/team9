@@ -11,8 +11,8 @@ import {
   User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ExecutionEntry, AgentTaskStepStatus } from "@/types/task";
-import { TaskInterventionCard } from "./TaskInterventionCard";
+import type { ExecutionEntry, RoutineStepStatus } from "@/types/routine";
+import { InterventionCard } from "./InterventionCard";
 
 export interface TimelineUserMessage {
   text: string;
@@ -24,13 +24,13 @@ export interface TimelineUserMessage {
 
 interface ExecutionTimelineProps {
   entries: ExecutionEntry[];
-  taskId: string;
+  routineId: string;
   userMessages?: TimelineUserMessage[];
 }
 
 // ── Icon helpers ───────────────────────────────────────────────────
 
-function StepIcon({ status }: { status: AgentTaskStepStatus }) {
+function StepIcon({ status }: { status: RoutineStepStatus }) {
   const base = "flex items-center justify-center w-6 h-6 rounded-full";
   switch (status) {
     case "completed":
@@ -136,10 +136,10 @@ function formatDuration(totalSeconds: number): string {
 
 export function ExecutionTimeline({
   entries,
-  taskId,
+  routineId,
   userMessages = [],
 }: ExecutionTimelineProps) {
-  const { t } = useTranslation("tasks");
+  const { t } = useTranslation("routines");
 
   const totalItems = entries.length + userMessages.length;
 
@@ -177,9 +177,9 @@ export function ExecutionTimeline({
             <div className={cn("flex-1 min-w-0", !isLast && "pb-4")}>
               {entry.type === "step" && <StepEntry entry={entry} />}
               {entry.type === "intervention" && (
-                <TaskInterventionCard
+                <InterventionCard
                   intervention={entry.data}
-                  taskId={taskId}
+                  routineId={routineId}
                 />
               )}
               {entry.type === "deliverable" && (
@@ -238,7 +238,7 @@ function StepEntry({
 }: {
   entry: Extract<ExecutionEntry, { type: "step" }>;
 }) {
-  const { t } = useTranslation("tasks");
+  const { t } = useTranslation("routines");
   const step = entry.data;
   return (
     <div>
@@ -296,7 +296,7 @@ function StatusEntry({
 }: {
   entry: Extract<ExecutionEntry, { type: "status_change" }>;
 }) {
-  const { t } = useTranslation("tasks");
+  const { t } = useTranslation("routines");
   const STATUS_KEYS: Record<string, string> = {
     started: "timeline.statusChange.started",
     completed: "timeline.statusChange.completed",

@@ -10,15 +10,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatMessageTime } from "@/lib/date-utils";
-import { TaskRunItem } from "./TaskRunItem";
+import { RunItem } from "./RunItem";
 import { ManualTriggerDialog } from "./ManualTriggerDialog";
-import type {
-  AgentTask,
-  AgentTaskExecution,
-  AgentTaskStatus,
-} from "@/types/task";
+import type { Routine, RoutineExecution, RoutineStatus } from "@/types/routine";
 
-const STATUS_COLORS: Record<AgentTaskStatus, string> = {
+const STATUS_COLORS: Record<RoutineStatus, string> = {
   in_progress: "bg-blue-500",
   upcoming: "bg-gray-400",
   paused: "bg-yellow-500",
@@ -29,7 +25,7 @@ const STATUS_COLORS: Record<AgentTaskStatus, string> = {
   timeout: "bg-red-400",
 };
 
-const SHOW_TOKEN_STATUSES: AgentTaskStatus[] = [
+const SHOW_TOKEN_STATUSES: RoutineStatus[] = [
   "in_progress",
   "completed",
   "failed",
@@ -41,20 +37,20 @@ const SHOW_TOKEN_STATUSES: AgentTaskStatus[] = [
 
 const DEFAULT_VISIBLE_RUNS = 3;
 
-interface TaskCardProps {
-  task: AgentTask;
+interface RoutineCardProps {
+  routine: Routine;
   isExpanded: boolean;
   isActive: boolean;
   selectedRunId: string | null;
-  executions: AgentTaskExecution[];
+  executions: RoutineExecution[];
   botName?: string | null;
   onToggleExpand: () => void;
   onSelectRun: (runId: string) => void;
   onOpenSettings: () => void;
 }
 
-function StatusIndicator({ status }: { status: AgentTaskStatus }) {
-  const { t } = useTranslation("tasks");
+function StatusIndicator({ status }: { status: RoutineStatus }) {
+  const { t } = useTranslation("routines");
   return (
     <span
       className={cn(
@@ -66,8 +62,8 @@ function StatusIndicator({ status }: { status: AgentTaskStatus }) {
   );
 }
 
-export function TaskCard({
-  task,
+export function RoutineCard({
+  routine,
   isExpanded,
   isActive,
   selectedRunId,
@@ -76,15 +72,15 @@ export function TaskCard({
   onToggleExpand,
   onSelectRun,
   onOpenSettings,
-}: TaskCardProps) {
-  const { t } = useTranslation("tasks");
+}: RoutineCardProps) {
+  const { t } = useTranslation("routines");
   const [showAllRuns, setShowAllRuns] = useState(false);
   const [showStartDialog, setShowStartDialog] = useState(false);
 
   const showTokens =
-    SHOW_TOKEN_STATUSES.includes(task.status) &&
-    task.tokenUsage != null &&
-    task.tokenUsage > 0;
+    SHOW_TOKEN_STATUSES.includes(routine.status) &&
+    routine.tokenUsage != null &&
+    routine.tokenUsage > 0;
 
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Enter" || e.key === " ") {
@@ -133,9 +129,9 @@ export function TaskCard({
               <ChevronRight size={14} />
             )}
           </span>
-          <StatusIndicator status={task.status} />
+          <StatusIndicator status={routine.status} />
           <span className="font-medium text-sm truncate flex-1">
-            {task.title}
+            {routine.title}
           </span>
           {/* Action buttons — visible on hover */}
           <button
@@ -153,13 +149,13 @@ export function TaskCard({
             <Settings size={14} className="text-muted-foreground" />
           </button>
         </div>
-        {task.description && (
+        {routine.description && (
           <p className="text-xs text-muted-foreground mt-1 truncate pl-6">
-            {task.description}
+            {routine.description}
           </p>
         )}
         <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1.5 pl-6">
-          <span>{formatMessageTime(new Date(task.createdAt))}</span>
+          <span>{formatMessageTime(new Date(routine.createdAt))}</span>
           {botName && (
             <span className="inline-flex items-center gap-1 truncate">
               <Bot size={12} className="shrink-0" />
@@ -169,17 +165,17 @@ export function TaskCard({
           {showTokens && (
             <span className="inline-flex items-center gap-1">
               <Coins size={12} />
-              {t("detail.tokenCount", { count: task.tokenUsage })}
+              {t("detail.tokenCount", { count: routine.tokenUsage })}
             </span>
           )}
         </div>
       </div>
 
       <ManualTriggerDialog
-        taskId={task.id}
+        routineId={routine.id}
         isOpen={showStartDialog}
         mode={
-          ["completed", "failed", "stopped", "timeout"].includes(task.status)
+          ["completed", "failed", "stopped", "timeout"].includes(routine.status)
             ? "restart"
             : "start"
         }
@@ -204,7 +200,7 @@ export function TaskCard({
             ) : (
               <>
                 {visibleRuns.map((exec) => (
-                  <TaskRunItem
+                  <RunItem
                     key={exec.id}
                     execution={exec}
                     isSelected={exec.id === selectedRunId}

@@ -10,15 +10,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { AgentTaskScheduleType, ScheduleConfig } from "@/types/task";
+import type { RoutineScheduleType, ScheduleConfig } from "@/types/routine";
 
 const DAYS_OF_WEEK = [0, 1, 2, 3, 4, 5, 6] as const;
 const FREQUENCIES = ["daily", "weekly", "monthly"] as const;
 
 interface ScheduleConfigFormProps {
-  scheduleType: AgentTaskScheduleType;
+  scheduleType: RoutineScheduleType;
   scheduleConfig?: ScheduleConfig;
-  onScheduleTypeChange: (type: AgentTaskScheduleType) => void;
+  onScheduleTypeChange: (type: RoutineScheduleType) => void;
   onConfigChange: (config: ScheduleConfig) => void;
 }
 
@@ -28,7 +28,7 @@ export function ScheduleConfigForm({
   onScheduleTypeChange,
   onConfigChange,
 }: ScheduleConfigFormProps) {
-  const { t } = useTranslation("tasks");
+  const { t } = useTranslation("routines");
 
   const frequency = scheduleConfig?.frequency ?? "daily";
   const time = scheduleConfig?.time ?? "09:00";

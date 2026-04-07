@@ -5,15 +5,15 @@ import { Separator } from "@/components/ui/separator";
 import {
   HISTORY_TRIGGER_TYPE_LABEL_KEYS,
   isHistoryTriggerType,
-} from "@/lib/task-trigger-keys";
-import { tasksApi } from "@/services/api/tasks";
+} from "@/lib/routine-trigger-keys";
+import { routinesApi } from "@/services/api/routines";
 import { ExecutionTimeline } from "./ExecutionTimeline";
-import { TaskInterventionCard } from "./TaskInterventionCard";
+import { InterventionCard } from "./InterventionCard";
 import { useExecutionStream } from "@/hooks/useExecutionStream";
-import type { AgentTaskStatus, AgentTaskExecution } from "@/types/task";
+import type { RoutineStatus, RoutineExecution } from "@/types/routine";
 
 const STATUS_BADGE_VARIANT: Record<
-  AgentTaskStatus,
+  RoutineStatus,
   "default" | "secondary" | "destructive" | "outline"
 > = {
   in_progress: "default",
@@ -26,19 +26,19 @@ const STATUS_BADGE_VARIANT: Record<
   timeout: "destructive",
 };
 
-const ACTIVE_STATUSES: AgentTaskStatus[] = [
+const ACTIVE_STATUSES: RoutineStatus[] = [
   "in_progress",
   "pending_action",
   "paused",
 ];
 
-interface TaskRunTabProps {
-  taskId: string;
-  execution: AgentTaskExecution | null;
+interface RunTabProps {
+  routineId: string;
+  execution: RoutineExecution | null;
 }
 
-export function TaskRunTab({ taskId, execution }: TaskRunTabProps) {
-  const { t } = useTranslation("tasks");
+export function RunTab({ routineId, execution }: RunTabProps) {
+  const { t } = useTranslation("routines");
 
   const isActive = execution
     ? ACTIVE_STATUSES.includes(execution.status)
@@ -46,7 +46,7 @@ export function TaskRunTab({ taskId, execution }: TaskRunTabProps) {
 
   // SSE streaming for active runs
   useExecutionStream(
-    taskId,
+    routineId,
     execution?.id,
     execution?.taskcastTaskId,
     isActive,
@@ -54,16 +54,16 @@ export function TaskRunTab({ taskId, execution }: TaskRunTabProps) {
 
   // Fetch timeline entries
   const { data: entries = [] } = useQuery({
-    queryKey: ["task-execution-entries", taskId, execution?.id],
-    queryFn: () => tasksApi.getExecutionEntries(taskId, execution!.id),
+    queryKey: ["routine-execution-entries", routineId, execution?.id],
+    queryFn: () => routinesApi.getExecutionEntries(routineId, execution!.id),
     enabled: !!execution,
     refetchInterval: execution?.taskcastTaskId ? 30000 : 5000,
   });
 
   // Fetch execution detail for interventions
   const { data: executionDetail } = useQuery({
-    queryKey: ["task-execution", taskId, execution?.id],
-    queryFn: () => tasksApi.getExecution(taskId, execution!.id),
+    queryKey: ["routine-execution", routineId, execution?.id],
+    queryFn: () => routinesApi.getExecution(routineId, execution!.id),
     enabled: !!execution,
     refetchInterval: execution?.taskcastTaskId ? 30000 : 5000,
   });
@@ -144,10 +144,10 @@ export function TaskRunTab({ taskId, execution }: TaskRunTabProps) {
               {t("detail.pendingInterventions")}
             </h4>
             {pendingInterventions.map((intervention) => (
-              <TaskInterventionCard
+              <InterventionCard
                 key={intervention.id}
                 intervention={intervention}
-                taskId={taskId}
+                routineId={routineId}
               />
             ))}
           </div>
@@ -162,7 +162,7 @@ export function TaskRunTab({ taskId, execution }: TaskRunTabProps) {
             <h4 className="text-xs font-semibold text-muted-foreground mb-2">
               {t("runTab.timeline")}
             </h4>
-            <ExecutionTimeline entries={entries} taskId={taskId} />
+            <ExecutionTimeline entries={entries} routineId={routineId} />
           </div>
         </>
       )}

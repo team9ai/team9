@@ -1,10 +1,10 @@
 import { useTranslation } from "react-i18next";
 import { Check, X, Loader2, Circle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { AgentTaskStep, AgentTaskStepStatus } from "@/types/task";
+import type { RoutineStep, RoutineStepStatus } from "@/types/routine";
 
-interface TaskStepTimelineProps {
-  steps: AgentTaskStep[];
+interface StepTimelineProps {
+  steps: RoutineStep[];
 }
 
 function formatDuration(totalSeconds: number): string {
@@ -16,7 +16,7 @@ function formatDuration(totalSeconds: number): string {
     : `${minutes}m`;
 }
 
-function StepIcon({ status }: { status: AgentTaskStepStatus }) {
+function StepIcon({ status }: { status: RoutineStepStatus }) {
   switch (status) {
     case "completed":
       return (
@@ -46,8 +46,8 @@ function StepIcon({ status }: { status: AgentTaskStepStatus }) {
   }
 }
 
-export function TaskStepTimeline({ steps }: TaskStepTimelineProps) {
-  const { t } = useTranslation("tasks");
+export function StepTimeline({ steps }: StepTimelineProps) {
+  const { t } = useTranslation("routines");
   const sorted = [...steps].sort((a, b) => a.orderIndex - b.orderIndex);
 
   if (sorted.length === 0) {

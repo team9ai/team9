@@ -1,15 +1,15 @@
 import { useTranslation } from "react-i18next";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { TaskRunTab } from "./TaskRunTab";
-import type { AgentTaskExecution } from "@/types/task";
+import { RunTab } from "./RunTab";
+import type { RoutineExecution } from "@/types/routine";
 
-interface TaskRightPanelProps {
-  taskId: string;
-  selectedRun: AgentTaskExecution | null;
+interface RightPanelProps {
+  routineId: string;
+  selectedRun: RoutineExecution | null;
 }
 
-export function TaskRightPanel({ taskId, selectedRun }: TaskRightPanelProps) {
-  const { t } = useTranslation("tasks");
+export function RightPanel({ routineId, selectedRun }: RightPanelProps) {
+  const { t } = useTranslation("routines");
 
   return (
     <div className="w-65 border-l border-border bg-background flex flex-col h-full shrink-0">
@@ -18,7 +18,7 @@ export function TaskRightPanel({ taskId, selectedRun }: TaskRightPanelProps) {
       </div>
       <ScrollArea className="flex-1 min-h-0">
         <div className="p-3">
-          <TaskRunTab taskId={taskId} execution={selectedRun} />
+          <RunTab routineId={routineId} execution={selectedRun} />
         </div>
       </ScrollArea>
     </div>

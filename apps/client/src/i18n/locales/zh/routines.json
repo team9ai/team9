@@ -12,10 +12,10 @@
     "settings": "设置",
     "history": "历史"
   },
-  "noTasks": "暂无任务",
+  "noRoutines": "暂无日常",
   "create": {
-    "title": "新建任务",
-    "description": "创建一个任务，交给 AI 员工执行。",
+    "title": "新建日常",
+    "description": "创建一个日常，交给 AI 员工执行。",
     "taskName": "标题",
     "taskNamePlaceholder": "需要完成什么？",
     "bot": "AI 员工",
@@ -25,7 +25,7 @@
     "documentPlaceholder": "提供上下文或说明...",
     "cancel": "取消",
     "submit": "创建",
-    "errorGeneric": "创建任务失败"
+    "errorGeneric": "创建日常失败"
   },
   "status": {
     "in_progress": "进行中",
@@ -69,15 +69,15 @@
     }
   },
   "detail": {
-    "title": "任务详情",
-    "loadError": "加载任务详情失败",
+    "title": "日常详情",
+    "loadError": "加载日常详情失败",
     "start": "开始",
     "pause": "暂停",
     "resume": "继续",
     "stop": "停止",
     "restart": "重新开始",
     "delete": "删除",
-    "deleteConfirm": "确定删除此任务吗？",
+    "deleteConfirm": "确定删除此日常吗？",
     "assignBot": "AI 员工",
     "noBot": "未指定",
     "steps": "步骤",
@@ -89,12 +89,12 @@
     "interventionResolved": "已处理",
     "interventionExpired": "已过期",
     "interventionPlaceholder": "输入自定义回复...",
-    "messageInputPlaceholder": "向此任务发送消息...",
+    "messageInputPlaceholder": "向此日常发送消息...",
     "finishedBanner": {
-      "completed": "任务已成功完成",
-      "failed": "任务执行失败",
-      "timeout": "任务执行超时",
-      "stopped": "任务已被停止",
+      "completed": "日常已成功完成",
+      "failed": "日常执行失败",
+      "timeout": "日常执行超时",
+      "stopped": "日常已被停止",
       "in_progress": "",
       "upcoming": "",
       "paused": "",
@@ -223,19 +223,19 @@
   "timeline": {
     "empty": "暂无活动",
     "statusChange": {
-      "started": "任务已开始",
-      "completed": "任务已完成",
-      "failed": "任务执行失败",
-      "stopped": "任务已停止",
-      "timeout": "任务执行超时",
-      "paused": "任务已暂停"
+      "started": "日常已开始",
+      "completed": "日常已完成",
+      "failed": "日常执行失败",
+      "stopped": "日常已停止",
+      "timeout": "日常执行超时",
+      "paused": "日常已暂停"
     }
   },
   "chat": {
-    "placeholder": "启动任务后即可与 Bot 对话"
+    "placeholder": "启动日常后即可与 Bot 对话"
   },
   "manualTrigger": {
-    "title": "启动任务",
+    "title": "启动日常",
     "notesPlaceholder": "添加本次运行的备注或说明（可选）..."
   },
   "chatArea": {
@@ -259,7 +259,7 @@
     "status": "状态",
     "duration": "耗时",
     "triggerType": "触发方式",
-    "taskVersion": "任务版本",
+    "taskVersion": "日常版本",
     "tokenUsage": "Token 用量",
     "timeline": "时间线",
     "noExecution": "未选择执行"
@@ -268,7 +268,7 @@
     "title": "设置",
     "taskTitle": "标题",
     "taskDescription": "描述",
-    "deleteConfirm": "确定要删除此任务吗？此操作无法撤销。"
+    "deleteConfirm": "确定要删除此日常吗？此操作无法撤销。"
   },
   "historyTab": {
     "title": "历史",

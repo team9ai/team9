@@ -5,16 +5,16 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
-import { tasksApi } from "@/services/api/tasks";
+import { routinesApi } from "@/services/api/routines";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
-import { TaskCard } from "./TaskCard";
-import { TaskChatArea } from "./TaskChatArea";
-import { TaskRightPanel } from "./TaskRightPanel";
-import { CreateTaskDialog } from "./CreateTaskDialog";
-import { TaskSettingsDialog } from "./TaskSettingsDialog";
-import type { AgentTask, AgentTaskStatus } from "@/types/task";
+import { RoutineCard } from "./RoutineCard";
+import { ChatArea } from "./ChatArea";
+import { RightPanel } from "./RightPanel";
+import { CreateRoutineDialog } from "./CreateRoutineDialog";
+import { RoutineSettingsDialog } from "./RoutineSettingsDialog";
+import type { Routine, RoutineStatus } from "@/types/routine";
 
-const STATUS_FILTERS: Record<string, AgentTaskStatus[]> = {
+const STATUS_FILTERS: Record<string, RoutineStatus[]> = {
   active: ["in_progress", "paused", "pending_action"],
   upcoming: ["upcoming"],
   finished: ["completed", "failed", "stopped", "timeout"],
@@ -23,36 +23,36 @@ const STATUS_FILTERS: Record<string, AgentTaskStatus[]> = {
 const TAB_KEYS = ["all", "active", "upcoming", "finished"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
 
-const ACTIVE_STATUSES: AgentTaskStatus[] = [
+const ACTIVE_STATUSES: RoutineStatus[] = [
   "in_progress",
   "pending_action",
   "paused",
 ];
 
-interface TaskListProps {
+interface RoutineListProps {
   botId?: string;
 }
 
-export function TaskList({ botId }: TaskListProps) {
-  const { t } = useTranslation("tasks");
+export function RoutineList({ botId }: RoutineListProps) {
+  const { t } = useTranslation("routines");
   const workspaceId = useSelectedWorkspaceId();
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
-  // activeTaskId tracks which task owns the selected run
-  // (set alongside selectedRunId to avoid needing cross-task execution lookups)
-  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
-  const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(
+  // activeRoutineId tracks which routine owns the selected run
+  // (set alongside selectedRunId to avoid needing cross-routine execution lookups)
+  const [activeRoutineId, setActiveRoutineId] = useState<string | null>(null);
+  const [expandedRoutineIds, setExpandedRoutineIds] = useState<Set<string>>(
     new Set(),
   );
-  const [showSettingsTaskId, setShowSettingsTaskId] = useState<string | null>(
-    null,
-  );
+  const [showSettingsRoutineId, setShowSettingsRoutineId] = useState<
+    string | null
+  >(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [tab, setTab] = useState<TabKey>("all");
 
   // Fetch all tasks
-  const { data: allTasks = [], isLoading } = useQuery({
-    queryKey: ["tasks", { botId }],
-    queryFn: () => tasksApi.list({ botId }),
+  const { data: allRoutines = [], isLoading } = useQuery({
+    queryKey: ["routines", { botId }],
+    queryFn: () => routinesApi.list({ botId }),
   });
 
   // Build botId → displayName lookup from installed apps
@@ -68,22 +68,22 @@ export function TaskList({ botId }: TaskListProps) {
       }
       return map;
     },
-    enabled: allTasks.length > 0 && !!workspaceId,
+    enabled: allRoutines.length > 0 && !!workspaceId,
     staleTime: 60_000,
   });
 
   // Filter tasks by selected tab
-  const filteredTasks = useMemo(() => {
-    if (tab === "all") return allTasks;
+  const filteredRoutines = useMemo(() => {
+    if (tab === "all") return allRoutines;
     const statuses = STATUS_FILTERS[tab];
-    return allTasks.filter((task) => statuses.includes(task.status));
-  }, [allTasks, tab]);
+    return allRoutines.filter((routine) => statuses.includes(routine.status));
+  }, [allRoutines, tab]);
 
-  // Fetch selected task detail (for chat area + right panel)
-  const { data: selectedTask } = useQuery({
-    queryKey: ["task", activeTaskId],
-    queryFn: () => tasksApi.getById(activeTaskId!),
-    enabled: !!activeTaskId,
+  // Fetch selected routine detail (for chat area + right panel)
+  const { data: selectedRoutine } = useQuery({
+    queryKey: ["routine", activeRoutineId],
+    queryFn: () => routinesApi.getById(activeRoutineId!),
+    enabled: !!activeRoutineId,
     refetchInterval: (query) =>
       query.state.data?.currentExecution?.execution.taskcastTaskId
         ? 30000
@@ -91,85 +91,85 @@ export function TaskList({ botId }: TaskListProps) {
   });
 
   // Derive active execution
-  const activeExecution = selectedTask?.currentExecution?.execution ?? null;
+  const activeExecution = selectedRoutine?.currentExecution?.execution ?? null;
 
-  // Fetch executions for the active task (for selectedRun lookup)
-  const { data: activeTaskExecutions = [] } = useQuery({
-    queryKey: ["task-executions", activeTaskId],
-    queryFn: () => tasksApi.getExecutions(activeTaskId!),
-    enabled: !!activeTaskId,
+  // Fetch executions for the active routine (for selectedRun lookup)
+  const { data: activeRoutineExecutions = [] } = useQuery({
+    queryKey: ["routine-executions", activeRoutineId],
+    queryFn: () => routinesApi.getExecutions(activeRoutineId!),
+    enabled: !!activeRoutineId,
     refetchInterval: 5000,
   });
 
   const selectedRun = useMemo(() => {
     if (!selectedRunId) return null;
     if (activeExecution?.id === selectedRunId) return activeExecution;
-    return activeTaskExecutions.find((e) => e.id === selectedRunId) ?? null;
-  }, [selectedRunId, activeExecution, activeTaskExecutions]);
+    return activeRoutineExecutions.find((e) => e.id === selectedRunId) ?? null;
+  }, [selectedRunId, activeExecution, activeRoutineExecutions]);
 
   const isViewingHistory =
     !!selectedRun && !!activeExecution && selectedRunId !== activeExecution.id;
 
-  // Handle expanding a task
+  // Handle expanding a routine
   const handleToggleExpand = useCallback(
-    (taskId: string) => {
-      setExpandedTaskIds((prev) => {
+    (routineId: string) => {
+      setExpandedRoutineIds((prev) => {
         const next = new Set(prev);
-        if (next.has(taskId)) {
-          next.delete(taskId);
-          // If collapsing the task that owns the selected run, deselect
-          if (activeTaskId === taskId) {
+        if (next.has(routineId)) {
+          next.delete(routineId);
+          // If collapsing the routine that owns the selected run, deselect
+          if (activeRoutineId === routineId) {
             setSelectedRunId(null);
-            setActiveTaskId(null);
+            setActiveRoutineId(null);
           }
         } else {
-          next.add(taskId);
-          // Set activeTaskId immediately so the center panel renders
+          next.add(routineId);
+          // Set activeRoutineId immediately so the center panel renders
           // (tasks with no runs still need to show the Start button)
-          setActiveTaskId(taskId);
+          setActiveRoutineId(routineId);
           setSelectedRunId(null);
-          // Auto-select run will happen via ExpandableTaskCard's useEffect
+          // Auto-select run will happen via ExpandableRoutineCard's useEffect
         }
         return next;
       });
     },
-    [activeTaskId],
+    [activeRoutineId],
   );
 
   // Handle run selection — stable ref to avoid re-triggering effects
-  const handleSelectRun = useCallback((taskId: string, runId: string) => {
+  const handleSelectRun = useCallback((routineId: string, runId: string) => {
     setSelectedRunId(runId);
-    setActiveTaskId(taskId);
+    setActiveRoutineId(routineId);
   }, []);
 
   const handleReturnToCurrent = useCallback(() => {
     if (activeExecution) {
       setSelectedRunId(activeExecution.id);
-    } else if (activeTaskExecutions.length > 0) {
-      setSelectedRunId(activeTaskExecutions[0].id);
+    } else if (activeRoutineExecutions.length > 0) {
+      setSelectedRunId(activeRoutineExecutions[0].id);
     }
-  }, [activeExecution, activeTaskExecutions]);
+  }, [activeExecution, activeRoutineExecutions]);
 
   const handleSettingsDeleted = useCallback(() => {
-    const deletedTaskId = showSettingsTaskId;
-    setShowSettingsTaskId(null);
-    // If the deleted task was the active one, clear selection
-    if (activeTaskId === deletedTaskId) {
+    const deletedRoutineId = showSettingsRoutineId;
+    setShowSettingsRoutineId(null);
+    // If the deleted routine was the active one, clear selection
+    if (activeRoutineId === deletedRoutineId) {
       setSelectedRunId(null);
-      setActiveTaskId(null);
+      setActiveRoutineId(null);
     }
-  }, [activeTaskId, showSettingsTaskId]);
+  }, [activeRoutineId, showSettingsRoutineId]);
 
-  // Fetch task detail for settings dialog (needs AgentTaskDetail)
-  const { data: settingsTaskDetail } = useQuery({
-    queryKey: ["task", showSettingsTaskId],
-    queryFn: () => tasksApi.getById(showSettingsTaskId!),
-    enabled: !!showSettingsTaskId,
+  // Fetch routine detail for settings dialog (needs RoutineDetail)
+  const { data: settingsRoutineDetail } = useQuery({
+    queryKey: ["routine", showSettingsRoutineId],
+    queryFn: () => routinesApi.getById(showSettingsRoutineId!),
+    enabled: !!showSettingsRoutineId,
   });
 
   return (
     <div className="flex h-full">
-      {/* Left column: task list */}
+      {/* Left column: routine list */}
       <div className="flex flex-col w-70 shrink-0 min-w-0 h-full border-r border-border">
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-border">
@@ -191,15 +191,15 @@ export function TaskList({ botId }: TaskListProps) {
         )}
 
         {/* Empty */}
-        {!isLoading && allTasks.length === 0 && (
+        {!isLoading && allRoutines.length === 0 && (
           <div className="flex flex-col items-center justify-center py-8 gap-2">
             <ListChecks size={24} className="text-muted-foreground/50" />
-            <p className="text-sm text-muted-foreground">{t("noTasks")}</p>
+            <p className="text-sm text-muted-foreground">{t("noRoutines")}</p>
           </div>
         )}
 
         {/* Task list */}
-        {!isLoading && allTasks.length > 0 && (
+        {!isLoading && allRoutines.length > 0 && (
           <>
             {/* Filter tabs */}
             <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border">
@@ -221,25 +221,27 @@ export function TaskList({ botId }: TaskListProps) {
 
             {/* Task cards */}
             <div className="flex-1 overflow-y-auto">
-              {filteredTasks.length === 0 ? (
+              {filteredRoutines.length === 0 ? (
                 <div className="flex items-center justify-center py-8">
                   <p className="text-xs text-muted-foreground">
-                    {t("noTasks")}
+                    {t("noRoutines")}
                   </p>
                 </div>
               ) : (
                 <div className="px-2 py-1 space-y-1">
-                  {filteredTasks.map((task) => (
-                    <ExpandableTaskCard
-                      key={task.id}
-                      task={task}
-                      isExpanded={expandedTaskIds.has(task.id)}
-                      isActive={activeTaskId === task.id}
+                  {filteredRoutines.map((routine) => (
+                    <ExpandableRoutineCard
+                      key={routine.id}
+                      routine={routine}
+                      isExpanded={expandedRoutineIds.has(routine.id)}
+                      isActive={activeRoutineId === routine.id}
                       selectedRunId={selectedRunId}
                       botNameMap={botNameMap}
-                      onToggleExpand={() => handleToggleExpand(task.id)}
+                      onToggleExpand={() => handleToggleExpand(routine.id)}
                       onSelectRun={handleSelectRun}
-                      onOpenSettings={() => setShowSettingsTaskId(task.id)}
+                      onOpenSettings={() =>
+                        setShowSettingsRoutineId(routine.id)
+                      }
                     />
                   ))}
                 </div>
@@ -250,49 +252,49 @@ export function TaskList({ botId }: TaskListProps) {
       </div>
 
       {/* Center + Right: shown when a run is selected */}
-      {activeTaskId && selectedTask && (
+      {activeRoutineId && selectedRoutine && (
         <>
-          <TaskChatArea
-            task={selectedTask}
+          <ChatArea
+            routine={selectedRoutine}
             selectedRun={selectedRun}
             activeExecution={activeExecution}
             isViewingHistory={isViewingHistory}
             onReturnToCurrent={handleReturnToCurrent}
           />
-          <TaskRightPanel taskId={activeTaskId} selectedRun={selectedRun} />
+          <RightPanel routineId={activeRoutineId} selectedRun={selectedRun} />
         </>
       )}
 
-      <CreateTaskDialog
+      <CreateRoutineDialog
         isOpen={showCreateDialog}
         onClose={() => setShowCreateDialog(false)}
       />
 
-      <TaskSettingsDialog
-        task={settingsTaskDetail ?? null}
-        open={!!showSettingsTaskId}
-        onClose={() => setShowSettingsTaskId(null)}
+      <RoutineSettingsDialog
+        routine={settingsRoutineDetail ?? null}
+        open={!!showSettingsRoutineId}
+        onClose={() => setShowSettingsRoutineId(null)}
         onDeleted={handleSettingsDeleted}
       />
     </div>
   );
 }
 
-// --- Inner component: fetches executions for each expanded task ---
+// --- Inner component: fetches executions for each expanded routine ---
 
-interface ExpandableTaskCardProps {
-  task: AgentTask;
+interface ExpandableRoutineCardProps {
+  routine: Routine;
   isExpanded: boolean;
   isActive: boolean;
   selectedRunId: string | null;
   botNameMap: Map<string, string>;
   onToggleExpand: () => void;
-  onSelectRun: (taskId: string, runId: string) => void;
+  onSelectRun: (routineId: string, runId: string) => void;
   onOpenSettings: () => void;
 }
 
-function ExpandableTaskCard({
-  task,
+function ExpandableRoutineCard({
+  routine,
   isExpanded,
   isActive,
   selectedRunId,
@@ -300,13 +302,13 @@ function ExpandableTaskCard({
   onToggleExpand,
   onSelectRun,
   onOpenSettings,
-}: ExpandableTaskCardProps) {
+}: ExpandableRoutineCardProps) {
   // Fetch executions only when expanded
   const { data: executions = [] } = useQuery({
-    queryKey: ["task-executions", task.id],
-    queryFn: () => tasksApi.getExecutions(task.id),
+    queryKey: ["routine-executions", routine.id],
+    queryFn: () => routinesApi.getExecutions(routine.id),
     enabled: isExpanded,
-    // Poll only for the active (selected) task
+    // Poll only for the active (selected) routine
     refetchInterval: isActive ? 5000 : false,
   });
 
@@ -321,28 +323,28 @@ function ExpandableTaskCard({
       const activeRun = executions.find((e) =>
         ACTIVE_STATUSES.includes(e.status),
       );
-      onSelectRunRef.current(task.id, activeRun?.id ?? executions[0].id);
+      onSelectRunRef.current(routine.id, activeRun?.id ?? executions[0].id);
       setHasAutoSelected(true);
     }
     if (!isExpanded) {
       setHasAutoSelected(false);
     }
-  }, [isExpanded, executions, hasAutoSelected, task.id]);
+  }, [isExpanded, executions, hasAutoSelected, routine.id]);
 
-  // Stable callback for TaskCard — wraps taskId into onSelectRun
+  // Stable callback for TaskCard — wraps routineId into onSelectRun
   const handleSelectRun = useCallback(
-    (runId: string) => onSelectRun(task.id, runId),
-    [onSelectRun, task.id],
+    (runId: string) => onSelectRun(routine.id, runId),
+    [onSelectRun, routine.id],
   );
 
   return (
-    <TaskCard
-      task={task}
+    <RoutineCard
+      routine={routine}
       isExpanded={isExpanded}
       isActive={isActive}
       selectedRunId={selectedRunId}
       executions={executions}
-      botName={task.botId ? botNameMap.get(task.botId) : null}
+      botName={routine.botId ? botNameMap.get(routine.botId) : null}
       onToggleExpand={onToggleExpand}
       onSelectRun={handleSelectRun}
       onOpenSettings={onOpenSettings}

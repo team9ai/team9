@@ -10,37 +10,41 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { tasksApi } from "@/services/api/tasks";
+import { routinesApi } from "@/services/api/routines";
 import { api } from "@/services/api";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
-import { TaskTriggersTab } from "./TaskTriggersTab";
-import { TaskDocumentTab } from "./TaskDocumentTab";
-import type { AgentTaskDetail } from "@/types/task";
+import { RoutineTriggersTab } from "./RoutineTriggersTab";
+import { RoutineDocumentTab } from "./RoutineDocumentTab";
+import type { RoutineDetail } from "@/types/routine";
 
-interface TaskSettingsTabProps {
-  task: AgentTaskDetail;
+interface RoutineSettingsTabProps {
+  routine: RoutineDetail;
   onClose: () => void;
 }
 
-export function TaskSettingsTab({ task, onClose }: TaskSettingsTabProps) {
-  const { t } = useTranslation("tasks");
+export function RoutineSettingsTab({
+  routine,
+  onClose,
+}: RoutineSettingsTabProps) {
+  const { t } = useTranslation("routines");
   const queryClient = useQueryClient();
   const workspaceId = useSelectedWorkspaceId();
 
   // Bot assignment mutation
   const updateBotMutation = useMutation({
-    mutationFn: (botId: string | null) => tasksApi.update(task.id, { botId }),
+    mutationFn: (botId: string | null) =>
+      routinesApi.update(routine.id, { botId }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["task", task.id] });
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["routine", routine.id] });
+      queryClient.invalidateQueries({ queryKey: ["routines"] });
     },
   });
 
   // Delete mutation
   const deleteMutation = useMutation({
-    mutationFn: () => tasksApi.delete(task.id),
+    mutationFn: () => routinesApi.delete(routine.id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["routines"] });
       onClose();
     },
   });
@@ -56,19 +60,19 @@ export function TaskSettingsTab({ task, onClose }: TaskSettingsTabProps) {
   });
 
   const canDelete =
-    task.status === "upcoming" ||
-    task.status === "completed" ||
-    task.status === "failed" ||
-    task.status === "stopped" ||
-    task.status === "timeout";
+    routine.status === "upcoming" ||
+    routine.status === "completed" ||
+    routine.status === "failed" ||
+    routine.status === "stopped" ||
+    routine.status === "timeout";
 
   return (
     <div className="space-y-5">
       {/* Task info */}
       <div className="space-y-2">
-        <h3 className="text-sm font-semibold">{task.title}</h3>
-        {task.description && (
-          <p className="text-xs text-muted-foreground">{task.description}</p>
+        <h3 className="text-sm font-semibold">{routine.title}</h3>
+        {routine.description && (
+          <p className="text-xs text-muted-foreground">{routine.description}</p>
         )}
       </div>
 
@@ -78,7 +82,7 @@ export function TaskSettingsTab({ task, onClose }: TaskSettingsTabProps) {
           {t("detail.assignBot")}
         </span>
         <Select
-          value={task.botId ?? "__none__"}
+          value={routine.botId ?? "__none__"}
           onValueChange={(val) =>
             updateBotMutation.mutate(val === "__none__" ? null : val)
           }
@@ -102,12 +106,12 @@ export function TaskSettingsTab({ task, onClose }: TaskSettingsTabProps) {
       <Separator />
 
       {/* Triggers */}
-      <TaskTriggersTab taskId={task.id} />
+      <RoutineTriggersTab routineId={routine.id} />
 
       <Separator />
 
       {/* Document */}
-      <TaskDocumentTab task={task} />
+      <RoutineDocumentTab routine={routine} />
 
       {/* Delete */}
       {canDelete && (

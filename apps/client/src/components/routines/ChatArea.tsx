@@ -13,17 +13,17 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ChannelView } from "@/components/channel/ChannelView";
-import { TaskChatPlaceholder } from "./TaskChatPlaceholder";
+import { ChatPlaceholder } from "./ChatPlaceholder";
 import { ManualTriggerDialog } from "./ManualTriggerDialog";
-import { tasksApi } from "@/services/api/tasks";
+import { routinesApi } from "@/services/api/routines";
 import type {
-  AgentTaskStatus,
-  AgentTaskDetail,
-  AgentTaskExecution,
-} from "@/types/task";
+  RoutineStatus,
+  RoutineDetail,
+  RoutineExecution,
+} from "@/types/routine";
 
 const STATUS_BADGE_VARIANT: Record<
-  AgentTaskStatus,
+  RoutineStatus,
   "default" | "secondary" | "destructive" | "outline"
 > = {
   in_progress: "default",
@@ -38,7 +38,7 @@ const STATUS_BADGE_VARIANT: Record<
 
 const FINISHED_BANNER_CONFIG: Partial<
   Record<
-    AgentTaskStatus,
+    RoutineStatus,
     {
       key:
         | "lastRunCompleted"
@@ -72,22 +72,22 @@ const FINISHED_BANNER_CONFIG: Partial<
   },
 };
 
-interface TaskChatAreaProps {
-  task: AgentTaskDetail;
-  selectedRun: AgentTaskExecution | null;
-  activeExecution: AgentTaskExecution | null;
+interface ChatAreaProps {
+  routine: RoutineDetail;
+  selectedRun: RoutineExecution | null;
+  activeExecution: RoutineExecution | null;
   isViewingHistory: boolean;
   onReturnToCurrent: () => void;
 }
 
-export function TaskChatArea({
-  task,
+export function ChatArea({
+  routine,
   selectedRun,
   activeExecution,
   isViewingHistory,
   onReturnToCurrent,
-}: TaskChatAreaProps) {
-  const { t } = useTranslation("tasks");
+}: ChatAreaProps) {
+  const { t } = useTranslation("routines");
   const queryClient = useQueryClient();
   const [dialogMode, setDialogMode] = useState<"start" | "restart" | null>(
     null,
@@ -95,23 +95,23 @@ export function TaskChatArea({
 
   const isReadOnly = !activeExecution || isViewingHistory;
   const channelId = selectedRun?.channelId ?? null;
-  const displayStatus = selectedRun?.status ?? task.status;
+  const displayStatus = selectedRun?.status ?? routine.status;
 
   // Control mutations
   const pauseMutation = useMutation({
-    mutationFn: () => tasksApi.pause(task.id),
+    mutationFn: () => routinesApi.pause(routine.id),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["task", task.id] }),
+      queryClient.invalidateQueries({ queryKey: ["routine", routine.id] }),
   });
   const resumeMutation = useMutation({
-    mutationFn: () => tasksApi.resume(task.id),
+    mutationFn: () => routinesApi.resume(routine.id),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["task", task.id] }),
+      queryClient.invalidateQueries({ queryKey: ["routine", routine.id] }),
   });
   const stopMutation = useMutation({
-    mutationFn: () => tasksApi.stop(task.id),
+    mutationFn: () => routinesApi.stop(routine.id),
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["task", task.id] }),
+      queryClient.invalidateQueries({ queryKey: ["routine", routine.id] }),
   });
 
   const isMutating =
@@ -125,15 +125,17 @@ export function TaskChatArea({
       <div className="flex-1 flex flex-col min-w-0 h-full">
         <div className="px-4 py-2 border-b border-border flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold truncate">{task.title}</span>
+            <span className="text-sm font-semibold truncate">
+              {routine.title}
+            </span>
             <Badge
-              variant={STATUS_BADGE_VARIANT[task.status]}
+              variant={STATUS_BADGE_VARIANT[routine.status]}
               className="text-xs"
             >
-              {t(`status.${task.status}`)}
+              {t(`status.${routine.status}`)}
             </Badge>
           </div>
-          {task.status === "upcoming" && (
+          {routine.status === "upcoming" && (
             <Button
               variant="default"
               size="sm"
@@ -145,9 +147,9 @@ export function TaskChatArea({
             </Button>
           )}
         </div>
-        <TaskChatPlaceholder />
+        <ChatPlaceholder />
         <ManualTriggerDialog
-          taskId={task.id}
+          routineId={routine.id}
           isOpen={!!dialogMode}
           mode={dialogMode ?? "start"}
           onClose={() => setDialogMode(null)}
@@ -166,7 +168,9 @@ export function TaskChatArea({
       {/* Custom top bar */}
       <div className="px-4 py-2 border-b border-border flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-sm font-semibold truncate">{task.title}</span>
+          <span className="text-sm font-semibold truncate">
+            {routine.title}
+          </span>
           <Badge
             variant={STATUS_BADGE_VARIANT[displayStatus]}
             className="text-xs shrink-0"
@@ -185,7 +189,7 @@ export function TaskChatArea({
           )}
         </div>
         <div className="flex gap-1 shrink-0">
-          {task.status === "in_progress" && !isViewingHistory && (
+          {routine.status === "in_progress" && !isViewingHistory && (
             <>
               <Button
                 variant="outline"
@@ -207,7 +211,7 @@ export function TaskChatArea({
               </Button>
             </>
           )}
-          {task.status === "paused" && !isViewingHistory && (
+          {routine.status === "paused" && !isViewingHistory && (
             <>
               <Button
                 variant="default"
@@ -229,7 +233,7 @@ export function TaskChatArea({
               </Button>
             </>
           )}
-          {task.status === "pending_action" && !isViewingHistory && (
+          {routine.status === "pending_action" && !isViewingHistory && (
             <Button
               variant="destructive"
               size="sm"
@@ -240,7 +244,7 @@ export function TaskChatArea({
               {t("chatArea.stop")}
             </Button>
           )}
-          {task.status === "upcoming" && !isViewingHistory && (
+          {routine.status === "upcoming" && !isViewingHistory && (
             <Button
               variant="default"
               size="sm"
@@ -252,7 +256,7 @@ export function TaskChatArea({
             </Button>
           )}
           {["completed", "failed", "stopped", "timeout"].includes(
-            task.status,
+            routine.status,
           ) &&
             !isViewingHistory && (
               <Button
@@ -330,11 +334,11 @@ export function TaskChatArea({
           />
         </div>
       ) : (
-        <TaskChatPlaceholder />
+        <ChatPlaceholder />
       )}
 
       <ManualTriggerDialog
-        taskId={task.id}
+        routineId={routine.id}
         isOpen={!!dialogMode}
         mode={dialogMode ?? "start"}
         onClose={() => setDialogMode(null)}

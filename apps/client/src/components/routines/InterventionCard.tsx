@@ -5,30 +5,30 @@ import { AlertCircle, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { tasksApi } from "@/services/api/tasks";
-import type { AgentTaskIntervention } from "@/types/task";
+import { routinesApi } from "@/services/api/routines";
+import type { RoutineIntervention } from "@/types/routine";
 
-interface TaskInterventionCardProps {
-  intervention: AgentTaskIntervention;
-  taskId: string;
+interface InterventionCardProps {
+  intervention: RoutineIntervention;
+  routineId: string;
 }
 
-export function TaskInterventionCard({
+export function InterventionCard({
   intervention,
-  taskId,
-}: TaskInterventionCardProps) {
-  const { t } = useTranslation("tasks");
+  routineId,
+}: InterventionCardProps) {
+  const { t } = useTranslation("routines");
   const queryClient = useQueryClient();
   const [customMessage, setCustomMessage] = useState("");
 
   const resolveMutation = useMutation({
     mutationFn: (params: { action: string; message?: string }) =>
-      tasksApi.resolveIntervention(taskId, intervention.id, {
+      routinesApi.resolveIntervention(routineId, intervention.id, {
         action: params.action,
         message: params.message,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["task", taskId] });
+      queryClient.invalidateQueries({ queryKey: ["routine", routineId] });
     },
   });
 

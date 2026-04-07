@@ -12,10 +12,10 @@
     "settings": "Settings",
     "history": "History"
   },
-  "noTasks": "No tasks",
+  "noRoutines": "No routines",
   "create": {
-    "title": "New Task",
-    "description": "Create a task for an AI staff member to execute.",
+    "title": "New Routine",
+    "description": "Create a routine for an AI staff member to execute.",
     "taskName": "Title",
     "taskNamePlaceholder": "What should be done?",
     "bot": "AI Staff",
@@ -25,7 +25,7 @@
     "documentPlaceholder": "Provide context or instructions...",
     "cancel": "Cancel",
     "submit": "Create",
-    "errorGeneric": "Failed to create task"
+    "errorGeneric": "Failed to create routine"
   },
   "status": {
     "in_progress": "In progress",
@@ -69,15 +69,15 @@
     }
   },
   "detail": {
-    "title": "Task Details",
-    "loadError": "Failed to load task details",
+    "title": "Routine Details",
+    "loadError": "Failed to load routine details",
     "start": "Start",
     "pause": "Pause",
     "resume": "Resume",
     "stop": "Stop",
     "restart": "Restart",
     "delete": "Delete",
-    "deleteConfirm": "Are you sure you want to delete this task?",
+    "deleteConfirm": "Are you sure you want to delete this routine?",
     "assignBot": "AI Staff",
     "noBot": "Not assigned",
     "steps": "Steps",
@@ -89,12 +89,12 @@
     "interventionResolved": "Resolved",
     "interventionExpired": "Expired",
     "interventionPlaceholder": "Type a custom response...",
-    "messageInputPlaceholder": "Send a message to this task...",
+    "messageInputPlaceholder": "Send a message to this routine...",
     "finishedBanner": {
-      "completed": "Task completed successfully",
-      "failed": "Task failed",
-      "timeout": "Task timed out",
-      "stopped": "Task was stopped",
+      "completed": "Routine completed successfully",
+      "failed": "Routine failed",
+      "timeout": "Routine timed out",
+      "stopped": "Routine was stopped",
       "in_progress": "",
       "upcoming": "",
       "paused": "",
@@ -223,19 +223,19 @@
   "timeline": {
     "empty": "No activity yet",
     "statusChange": {
-      "started": "Task started",
-      "completed": "Task completed",
-      "failed": "Task failed",
-      "stopped": "Task stopped",
-      "timeout": "Task timed out",
-      "paused": "Task paused"
+      "started": "Routine started",
+      "completed": "Routine completed",
+      "failed": "Routine failed",
+      "stopped": "Routine stopped",
+      "timeout": "Routine timed out",
+      "paused": "Routine paused"
     }
   },
   "chat": {
-    "placeholder": "Start the task to chat with the bot"
+    "placeholder": "Start the routine to chat with the bot"
   },
   "manualTrigger": {
-    "title": "Start Task",
+    "title": "Start Routine",
     "notesPlaceholder": "Add notes or context for this run (optional)..."
   },
   "chatArea": {
@@ -259,7 +259,7 @@
     "status": "Status",
     "duration": "Duration",
     "triggerType": "Trigger",
-    "taskVersion": "Task Version",
+    "taskVersion": "Routine Version",
     "tokenUsage": "Token Usage",
     "timeline": "Timeline",
     "noExecution": "No execution selected"
@@ -268,7 +268,7 @@
     "title": "Settings",
     "taskTitle": "Title",
     "taskDescription": "Description",
-    "deleteConfirm": "Are you sure you want to delete this task? This action cannot be undone."
+    "deleteConfirm": "Are you sure you want to delete this routine? This action cannot be undone."
   },
   "historyTab": {
     "title": "History",

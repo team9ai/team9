@@ -30,25 +30,25 @@ import {
   INTERVAL_UNIT_LABEL_KEYS,
   SCHEDULE_DAY_OPTIONS,
   SCHEDULE_FREQUENCY_LABEL_KEYS,
-  TASK_TRIGGER_DESCRIPTION_KEYS,
-  TASK_TRIGGER_TYPE_LABEL_KEYS,
+  ROUTINE_TRIGGER_DESCRIPTION_KEYS,
+  ROUTINE_TRIGGER_TYPE_LABEL_KEYS,
   type IntervalUnit,
   type ScheduleFrequency,
   isIntervalUnit,
   isScheduleFrequency,
-} from "@/lib/task-trigger-keys";
-import { tasksApi } from "@/services/api/tasks";
+} from "@/lib/routine-trigger-keys";
+import { routinesApi } from "@/services/api/routines";
 import { channelsApi } from "@/services/api/im";
-import type { AgentTaskTriggerType } from "@/types/task";
+import type { RoutineTriggerType } from "@/types/routine";
 
 interface AddTriggerDialogProps {
-  taskId: string;
+  routineId: string;
   isOpen: boolean;
   onClose: () => void;
 }
 
 const TRIGGER_TYPES: {
-  type: AgentTaskTriggerType;
+  type: RoutineTriggerType;
   icon: typeof Hand;
 }[] = [
   { type: "manual", icon: Hand },
@@ -64,16 +64,16 @@ const SCHEDULE_FREQUENCIES = Object.keys(
 ) as ScheduleFrequency[];
 
 export function AddTriggerDialog({
-  taskId,
+  routineId,
   isOpen,
   onClose,
 }: AddTriggerDialogProps) {
-  const { t } = useTranslation("tasks");
+  const { t } = useTranslation("routines");
   const queryClient = useQueryClient();
 
   // Dialog state
   const [step, setStep] = useState<1 | 2>(1);
-  const [selectedType, setSelectedType] = useState<AgentTaskTriggerType | null>(
+  const [selectedType, setSelectedType] = useState<RoutineTriggerType | null>(
     null,
   );
 
@@ -133,14 +133,16 @@ export function AddTriggerDialog({
           break;
       }
 
-      return tasksApi.createTrigger(taskId, {
+      return routinesApi.createTrigger(routineId, {
         type: selectedType!,
         config,
         enabled: true,
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["task-triggers", taskId] });
+      queryClient.invalidateQueries({
+        queryKey: ["routine-triggers", routineId],
+      });
       handleClose();
     },
   });
@@ -160,7 +162,7 @@ export function AddTriggerDialog({
     onClose();
   }
 
-  function handleSelectType(type: AgentTaskTriggerType) {
+  function handleSelectType(type: RoutineTriggerType) {
     setSelectedType(type);
     setStep(2);
   }
@@ -183,7 +185,7 @@ export function AddTriggerDialog({
               ? t("triggers.addTitle")
               : selectedType
                 ? t("triggers.configureTitle", {
-                    type: t(TASK_TRIGGER_TYPE_LABEL_KEYS[selectedType]),
+                    type: t(ROUTINE_TRIGGER_TYPE_LABEL_KEYS[selectedType]),
                   })
                 : t("triggers.addTitle")}
           </DialogTitle>
@@ -205,10 +207,10 @@ export function AddTriggerDialog({
                 >
                   <Icon size={20} className="text-muted-foreground" />
                   <span className="text-sm font-medium">
-                    {t(TASK_TRIGGER_TYPE_LABEL_KEYS[type])}
+                    {t(ROUTINE_TRIGGER_TYPE_LABEL_KEYS[type])}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {t(TASK_TRIGGER_DESCRIPTION_KEYS[type])}
+                    {t(ROUTINE_TRIGGER_DESCRIPTION_KEYS[type])}
                   </span>
                 </button>
               ))}

@@ -1,4 +1,4 @@
-import type { AgentTaskTriggerType } from "@/types/task";
+import type { RoutineTriggerType } from "@/types/routine";
 
 function hasOwnKey<T extends object>(
   object: T,
@@ -7,19 +7,19 @@ function hasOwnKey<T extends object>(
   return Object.prototype.hasOwnProperty.call(object, key);
 }
 
-export const TASK_TRIGGER_TYPE_LABEL_KEYS = {
+export const ROUTINE_TRIGGER_TYPE_LABEL_KEYS = {
   manual: "triggers.types.manual",
   interval: "triggers.types.interval",
   schedule: "triggers.types.schedule",
   channel_message: "triggers.types.channel_message",
-} as const satisfies Record<AgentTaskTriggerType, string>;
+} as const satisfies Record<RoutineTriggerType, string>;
 
-export const TASK_TRIGGER_DESCRIPTION_KEYS = {
+export const ROUTINE_TRIGGER_DESCRIPTION_KEYS = {
   manual: "triggers.typeDesc.manual",
   interval: "triggers.typeDesc.interval",
   schedule: "triggers.typeDesc.schedule",
   channel_message: "triggers.typeDesc.channel_message",
-} as const satisfies Record<AgentTaskTriggerType, string>;
+} as const satisfies Record<RoutineTriggerType, string>;
 
 export const HISTORY_TRIGGER_TYPE_LABEL_KEYS = {
   manual: "historyTab.manual",
