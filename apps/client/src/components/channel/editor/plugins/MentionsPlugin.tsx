@@ -185,6 +185,22 @@ export function MentionsPlugin({ channelId }: MentionsPluginProps) {
   const { users, isLoading } = useMentionLookupService(queryString);
 
   const suggestions = useMemo(() => {
+    // Defense-in-depth filter: exclude other users' personal staff bots when allowMention is false.
+    //
+    // NOTE: The search API (/v1/im/users) does NOT currently return `botExtra` or `botOwnerId`
+    // fields in its response — those fields are used server-side for filtering only (see
+    // UsersService.search()). The server-side filter (Task 5) is therefore the primary
+    // enforcement mechanism for personal staff visibility in @mention autocomplete.
+    //
+    // If the API is updated to return `botExtra` and `botOwnerId`, uncomment the filter below:
+    //
+    // const filtered = users.filter((user) => {
+    //   if (user.botExtra?.personalStaff && user.botOwnerId !== currentUser?.id) {
+    //     return user.botExtra.personalStaff.visibility?.allowMention === true;
+    //   }
+    //   return true;
+    // });
+    // return filtered.slice(0, 10);
     return users.slice(0, 10);
   }, [users]);
 
