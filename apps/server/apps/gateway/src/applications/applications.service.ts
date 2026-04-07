@@ -39,6 +39,17 @@ const APPLICATIONS: Application[] = [
     singleton: true,
     autoInstall: true,
   },
+  {
+    id: 'personal-staff',
+    name: 'Personal Staff',
+    description: 'Private AI assistant — one per user per workspace',
+    iconUrl: '/icons/personal-staff.svg',
+    categories: ['ai', 'bot'],
+    enabled: true,
+    type: 'managed',
+    singleton: true,
+    autoInstall: true,
+  },
 ];
 
 @Injectable()

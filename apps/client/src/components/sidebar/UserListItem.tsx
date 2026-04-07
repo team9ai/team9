@@ -96,7 +96,9 @@ export function UserListItem({
       </div>
       <div className="flex-1 min-w-0 text-left">
         <div className="flex items-center gap-2 min-w-0">
-          <div className="flex-1 min-w-0 truncate">{name}</div>
+          <div className="flex-1 min-w-0 truncate" title={name}>
+            {name}
+          </div>
           <AgentTypeBadge agentType={agentType} />
         </div>
         {subtitle && (
@@ -117,7 +119,7 @@ export function UserListItem({
         ? "/messages/$channelId"
         : "/channels/$channelId";
     return (
-      <Link to={linkTo} params={{ channelId }}>
+      <Link to={linkTo} params={{ channelId }} className="block min-w-0">
         {content}
       </Link>
     );

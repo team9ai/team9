@@ -31,7 +31,11 @@ import {
 } from './dto/index.js';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import { GatewayMQService, RABBITMQ_ROUTING_KEYS } from '@team9/rabbitmq';
-import type { PostBroadcastTask } from '@team9/shared';
+import {
+  type PostBroadcastTask,
+  parseMentions,
+  extractMentionedUserIds,
+} from '@team9/shared';
 import { ChannelsService } from '../channels/channels.service.js';
 import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
@@ -128,6 +132,15 @@ export class MessagesController {
       throw new ForbiddenException(
         'Channel is deactivated — execution has completed',
       );
+    }
+
+    // Validate @mention permissions (block mentions of restricted personal staff)
+    if (dto.content) {
+      const mentions = parseMentions(dto.content);
+      const mentionedIds = extractMentionedUserIds(mentions);
+      if (mentionedIds.length > 0) {
+        await this.channelsService.assertMentionsAllowed(userId, mentionedIds);
+      }
     }
 
     // Determine message type based on attachments

@@ -33,6 +33,7 @@ import { ChannelsService } from '../im/channels/channels.service.js';
 import { BotService } from '../bot/bot.service.js';
 import { InstalledApplicationsService } from '../applications/installed-applications.service.js';
 import { ApplicationsService } from '../applications/applications.service.js';
+import { PersonalStaffService } from '../applications/personal-staff.service.js';
 
 const MAX_WORKSPACES_PER_USER = 3;
 const MAX_MEMBERS_PER_WORKSPACE = 1000;
@@ -150,6 +151,7 @@ export class WorkspaceService {
     private readonly botService: BotService,
     private readonly installedApplicationsService: InstalledApplicationsService,
     private readonly applicationsService: ApplicationsService,
+    private readonly personalStaffService: PersonalStaffService,
   ) {}
 
   private getErrorMessage(error: unknown): string {
@@ -676,6 +678,33 @@ export class WorkspaceService {
       );
     }
 
+    // Auto-create personal staff for new member
+    try {
+      const personalStaffApp =
+        await this.installedApplicationsService.findByApplicationId(
+          invitation.tenantId,
+          'personal-staff',
+        );
+      if (personalStaffApp) {
+        await this.personalStaffService.createStaff(
+          personalStaffApp.id,
+          invitation.tenantId,
+          userId,
+          {
+            model: { provider: 'anthropic', id: 'claude-sonnet-4-6' },
+            agenticBootstrap: true,
+          },
+        );
+        this.logger.log(
+          `Auto-created personal staff for user ${userId} in workspace ${invitation.tenantId}`,
+        );
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to auto-create personal staff for user ${userId}: ${this.getErrorMessage(error)}`,
+      );
+    }
+
     return {
       workspace: {
         id: workspace.id,
@@ -956,6 +985,33 @@ export class WorkspaceService {
       }
     }
 
+    // Auto-create personal staff for workspace owner
+    try {
+      const personalStaffApp =
+        await this.installedApplicationsService.findByApplicationId(
+          workspace.id,
+          'personal-staff',
+        );
+      if (personalStaffApp) {
+        await this.personalStaffService.createStaff(
+          personalStaffApp.id,
+          workspace.id,
+          data.ownerId,
+          {
+            model: { provider: 'anthropic', id: 'claude-sonnet-4-6' },
+            agenticBootstrap: true,
+          },
+        );
+        this.logger.log(
+          `Auto-created personal staff for workspace owner ${data.ownerId}`,
+        );
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to auto-create personal staff for workspace owner ${data.ownerId}: ${this.getErrorMessage(error)}`,
+      );
+    }
+
     this.logger.log(`Created workspace: ${workspace.name} (${workspace.slug})`);
 
     return workspace as WorkspaceResponse;
@@ -1088,6 +1144,29 @@ export class WorkspaceService {
   }
 
   async removeMember(workspaceId: string, userId: string): Promise<void> {
+    // Cleanup personal staff before marking member as left
+    try {
+      const personalStaffApp =
+        await this.installedApplicationsService.findByApplicationId(
+          workspaceId,
+          'personal-staff',
+        );
+      if (personalStaffApp) {
+        await this.personalStaffService.deleteStaff(
+          personalStaffApp.id,
+          workspaceId,
+          userId,
+        );
+      }
+    } catch (error) {
+      // Member may not have a personal staff — that's OK
+      if (!(error instanceof NotFoundException)) {
+        this.logger.warn(
+          `Failed to cleanup personal staff for user ${userId}: ${this.getErrorMessage(error)}`,
+        );
+      }
+    }
+
     // Mark as left rather than hard delete
     await this.db
       .update(schema.tenantMembers)

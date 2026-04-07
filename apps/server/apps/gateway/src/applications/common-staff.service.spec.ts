@@ -10,6 +10,7 @@ jest.unstable_mockModule('ai', () => ({
 }));
 
 const { CommonStaffService } = await import('./common-staff.service.js');
+const { StaffService } = await import('./staff.service.js');
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '@team9/database';
@@ -240,7 +241,7 @@ describe('CommonStaffService', () => {
     deleteAgent: MockFn;
     sendInput: MockFn;
   };
-  let channelsService: { createDirectChannelsBatch: MockFn };
+  let channelsService: { createDirectChannel: MockFn };
   let installedApplicationsService: { findById: MockFn };
 
   beforeEach(async () => {
@@ -266,7 +267,7 @@ describe('CommonStaffService', () => {
     };
 
     channelsService = {
-      createDirectChannelsBatch: jest.fn<any>().mockResolvedValue(new Map()),
+      createDirectChannel: jest.fn<any>().mockResolvedValue(undefined),
     };
 
     installedApplicationsService = {
@@ -281,6 +282,7 @@ describe('CommonStaffService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        StaffService,
         CommonStaffService,
         { provide: DATABASE_CONNECTION, useValue: db },
         { provide: BotService, useValue: botService },
@@ -390,14 +392,7 @@ describe('CommonStaffService', () => {
       expect(configs).not.toHaveProperty('common-staff-agent');
     });
 
-    it('creates DM channels for workspace members', async () => {
-      const memberIds = ['member-a', 'member-b'];
-      // In createStaff, chain is awaited twice without .limit():
-      //   1st: update bots.managedMeta (no-op result)
-      //   2nd: members select → needs real member list
-      db.enqueue([]); // update managedMeta result (ignored)
-      db.enqueue(memberIds.map((userId) => ({ userId }))); // members select
-
+    it('creates DM channel only for the mentor (not all workspace members)', async () => {
       await service.createStaff(
         INSTALLED_APP_ID,
         TENANT_ID,
@@ -405,28 +400,11 @@ describe('CommonStaffService', () => {
         makeCreateDto(),
       );
 
-      expect(channelsService.createDirectChannelsBatch).toHaveBeenCalledWith(
+      expect(channelsService.createDirectChannel).toHaveBeenCalledWith(
         BOT_USER_ID,
-        expect.arrayContaining(memberIds),
-        TENANT_ID,
-      );
-    });
-
-    it('skips DM creation when bot is the only member', async () => {
-      // In createStaff, chain is awaited twice without .limit():
-      //   1st: update bots.managedMeta (no-op result)
-      //   2nd: members select → only the bot itself
-      db.enqueue([]); // update managedMeta result (ignored)
-      db.enqueue([{ userId: BOT_USER_ID }]); // members select → only bot
-
-      await service.createStaff(
-        INSTALLED_APP_ID,
-        TENANT_ID,
         OWNER_ID,
-        makeCreateDto(),
+        TENANT_ID,
       );
-
-      expect(channelsService.createDirectChannelsBatch).not.toHaveBeenCalled();
     });
 
     it('returns correct result object', async () => {
@@ -468,15 +446,10 @@ describe('CommonStaffService', () => {
       const DM_CHANNEL_ID = 'dm-channel-uuid-1234';
 
       beforeEach(() => {
-        // Mentor DM channel is in the result map
-        channelsService.createDirectChannelsBatch.mockResolvedValue(
-          new Map([[MENTOR_ID, { id: DM_CHANNEL_ID }]]),
-        );
-        // In createStaff, chain is awaited twice without .limit():
-        //   1st: update bots.managedMeta (no-op result)
-        //   2nd: members select (tenant members including mentor)
-        db.enqueue([]); // update managedMeta result (ignored)
-        db.enqueue([{ userId: MENTOR_ID }]); // members select result
+        // Mentor DM channel returned directly
+        channelsService.createDirectChannel.mockResolvedValue({
+          id: DM_CHANNEL_ID,
+        });
       });
 
       it('triggers sendInput with bootstrap event using deterministic sessionId when agenticBootstrap=true', async () => {
@@ -543,17 +516,17 @@ describe('CommonStaffService', () => {
         );
       });
 
-      it('skips bootstrap and warns when mentor has no DM channel', async () => {
-        // Return empty map — no DM for mentor
-        channelsService.createDirectChannelsBatch.mockResolvedValueOnce(
-          new Map(),
+      it('skips bootstrap and warns when DM channel creation fails', async () => {
+        // Simulate DM channel creation failure
+        channelsService.createDirectChannel.mockRejectedValueOnce(
+          new Error('DM creation failed'),
         );
 
         const dto = makeCreateDto({
           agenticBootstrap: true,
           mentorId: MENTOR_ID,
         });
-        // Should not throw
+        // Should not throw — DM failure is non-fatal
         await expect(
           service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto),
         ).resolves.toBeDefined();

@@ -337,10 +337,23 @@ export class UsersService {
     return status === 'online';
   }
 
+  /**
+   * Search for users by username or display name.
+   *
+   * @param query - The search string matched against username and displayName.
+   * @param limit - Maximum number of results to return (default 20).
+   * @param tenantId - When provided, restricts results to members of this tenant.
+   * @param searcherId - The ID of the user performing the search. When provided,
+   *   personal staff bots that are not owned by the searcher and have both
+   *   `allowMention` and `allowDirectMessage` set to false are excluded from
+   *   results. Omitting this parameter disables the personal staff visibility
+   *   filter entirely (all bots are included).
+   */
   async search(
     query: string,
     limit = 20,
     tenantId?: string,
+    searcherId?: string,
   ): Promise<UserResponse[]> {
     const searchCondition = or(
       like(schema.users.username, `%${query}%`),
@@ -378,6 +391,8 @@ export class UsersService {
         applicationId: schema.installedApplications.applicationId,
         managedProvider: schema.bots.managedProvider,
         managedMeta: schema.bots.managedMeta,
+        botOwnerId: schema.bots.ownerId,
+        botExtra: schema.bots.extra,
       })
       .from(schema.users)
       .leftJoin(schema.bots, eq(schema.bots.userId, schema.users.id))
@@ -388,7 +403,24 @@ export class UsersService {
       .where(conditions)
       .limit(limit);
 
-    return users.map((row) => this.mapUserResponse(row));
+    return users
+      .filter((row) => {
+        // Filter out restricted personal staff bots that the searcher cannot access
+        if (
+          searcherId &&
+          row.applicationId === 'personal-staff' &&
+          row.botOwnerId !== searcherId
+        ) {
+          const extra = row.botExtra ?? {};
+          const visibility = extra.personalStaff?.visibility;
+          // Exclude if neither mention nor DM is allowed
+          if (!visibility?.allowMention && !visibility?.allowDirectMessage) {
+            return false;
+          }
+        }
+        return true;
+      })
+      .map((row) => this.mapUserResponse(row));
   }
 
   async getMultipleByIds(ids: string[]): Promise<UserResponse[]> {
