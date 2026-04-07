@@ -144,7 +144,7 @@ describe('RoutinesService — TaskCast integration', () => {
       };
       const execution = {
         id: 'exec-1',
-        taskId: 'task-1',
+        routineId: 'task-1',
         status: 'completed',
         startedAt: new Date('2024-01-01T10:00:00.000Z'),
         completedAt: new Date('2024-01-01T12:00:00.000Z'),
@@ -224,12 +224,12 @@ describe('RoutinesService — TaskCast integration', () => {
       const executions = [
         {
           id: 'exec-2',
-          taskId: 'task-1',
+          routineId: 'task-1',
           createdAt: new Date('2024-01-02T00:00:00.000Z'),
         },
         {
           id: 'exec-1',
-          taskId: 'task-1',
+          routineId: 'task-1',
           createdAt: new Date('2024-01-01T00:00:00.000Z'),
         },
       ];
@@ -255,20 +255,20 @@ describe('RoutinesService — TaskCast integration', () => {
       const deliverables = [
         {
           id: 'del-1',
-          taskId: 'task-1',
+          routineId: 'task-1',
           executionId: 'exec-1',
         },
       ];
       const interventions = [
         {
           id: 'int-1',
-          taskId: 'task-1',
+          routineId: 'task-1',
           executionId: 'exec-1',
         },
       ];
       const execution = {
         id: 'exec-1',
-        taskId: 'task-1',
+        routineId: 'task-1',
         status: 'completed',
       };
 
@@ -315,7 +315,7 @@ describe('RoutinesService — TaskCast integration', () => {
       const deliverables = [
         {
           id: 'del-1',
-          taskId: 'task-1',
+          routineId: 'task-1',
           executionId: 'exec-1',
           createdAt: new Date('2024-01-01T12:00:00.000Z'),
         },
@@ -341,7 +341,7 @@ describe('RoutinesService — TaskCast integration', () => {
       const interventions = [
         {
           id: 'int-1',
-          taskId: 'task-1',
+          routineId: 'task-1',
           status: 'pending',
           createdAt: new Date('2024-01-01T13:00:00.000Z'),
         },
@@ -370,7 +370,7 @@ describe('RoutinesService — TaskCast integration', () => {
       };
       const execution = {
         id: 'exec-1',
-        taskId: 'task-1',
+        routineId: 'task-1',
         status: 'completed',
         startedAt: new Date('2024-01-01T10:00:00.000Z'),
         completedAt: new Date('2024-01-01T12:00:00.000Z'),
@@ -616,7 +616,7 @@ describe('RoutinesService — TaskCast integration', () => {
         RABBITMQ_ROUTING_KEYS.TASK_COMMAND,
         expect.objectContaining({
           type: 'start',
-          taskId: 'task-1',
+          routineId: 'task-1',
           userId: 'user-1',
           message: 'kick off',
           notes: 'from trigger',
@@ -684,7 +684,7 @@ describe('RoutinesService — TaskCast integration', () => {
         RABBITMQ_ROUTING_KEYS.TASK_COMMAND,
         expect.objectContaining({
           type: 'pause',
-          taskId: 'task-1',
+          routineId: 'task-1',
           userId: 'user-1',
         }),
         { persistent: true },
@@ -762,7 +762,7 @@ describe('RoutinesService — TaskCast integration', () => {
         RABBITMQ_ROUTING_KEYS.TASK_COMMAND,
         expect.objectContaining({
           type: 'resume',
-          taskId: 'task-1',
+          routineId: 'task-1',
           userId: 'user-1',
           message: 'resuming',
         }),
@@ -827,7 +827,7 @@ describe('RoutinesService — TaskCast integration', () => {
         RABBITMQ_ROUTING_KEYS.TASK_COMMAND,
         expect.objectContaining({
           type: 'stop',
-          taskId: 'task-1',
+          routineId: 'task-1',
           userId: 'user-1',
           message: 'manual stop',
         }),
@@ -871,7 +871,7 @@ describe('RoutinesService — TaskCast integration', () => {
         RABBITMQ_ROUTING_KEYS.TASK_COMMAND,
         expect.objectContaining({
           type: 'stop',
-          taskId: 'task-1',
+          routineId: 'task-1',
           userId: 'user-1',
           message: 'manual stop',
         }),
@@ -950,7 +950,7 @@ describe('RoutinesService — TaskCast integration', () => {
         RABBITMQ_ROUTING_KEYS.TASK_COMMAND,
         expect.objectContaining({
           type: 'restart',
-          taskId: 'task-1',
+          routineId: 'task-1',
           userId: 'user-1',
           notes: 'retry with fixes',
         }),
@@ -989,7 +989,7 @@ describe('RoutinesService — TaskCast integration', () => {
         .mockResolvedValueOnce([
           {
             id: 'exec-source',
-            taskId: 'task-1',
+            routineId: 'task-1',
             status: 'stopped',
           },
         ] as any);
@@ -1008,7 +1008,7 @@ describe('RoutinesService — TaskCast integration', () => {
         RABBITMQ_ROUTING_KEYS.TASK_COMMAND,
         expect.objectContaining({
           type: 'retry',
-          taskId: 'task-1',
+          routineId: 'task-1',
           userId: 'user-1',
           notes: 'try again',
           sourceExecutionId: 'exec-source',
@@ -1052,7 +1052,7 @@ describe('RoutinesService — TaskCast integration', () => {
         .mockResolvedValueOnce([
           {
             id: 'exec-source',
-            taskId: 'task-1',
+            routineId: 'task-1',
             status: 'in_progress',
           },
         ] as any);
@@ -1081,7 +1081,7 @@ describe('RoutinesService — TaskCast integration', () => {
         .mockResolvedValueOnce([
           {
             id: 'exec-source',
-            taskId: 'task-1',
+            routineId: 'task-1',
             status: 'completed',
           },
         ] as any);
@@ -1104,7 +1104,7 @@ describe('RoutinesService — TaskCast integration', () => {
   describe('resolveIntervention', () => {
     const intervention = {
       id: 'int-1',
-      taskId: 'task-1',
+      routineId: 'task-1',
       executionId: 'exec-1',
       status: 'pending',
       createdAt: new Date(),
@@ -1175,7 +1175,7 @@ describe('RoutinesService — TaskCast integration', () => {
         RABBITMQ_ROUTING_KEYS.TASK_COMMAND,
         expect.objectContaining({
           type: 'resume',
-          taskId: 'task-1',
+          routineId: 'task-1',
           userId: 'user-1',
           message: 'Intervention resolved: approve - looks good',
         }),

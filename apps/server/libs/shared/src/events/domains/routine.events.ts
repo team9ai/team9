@@ -1,35 +1,35 @@
 /**
- * Task WebSocket event type definitions
+ * Routine WebSocket event type definitions
  *
- * Events for task execution lifecycle including status changes
+ * Events for routine execution lifecycle including status changes
  * and new execution creation.
  *
- * @module events/domains/task
+ * @module events/domains/routine
  */
 
-// ==================== Task Events ====================
+// ==================== Routine Events ====================
 
 /**
- * Task status changed event
+ * Routine status changed event
  *
- * Sent by the server when a task execution's status changes
+ * Sent by the server when a routine execution's status changes
  * (e.g., from 'running' to 'completed').
  *
- * @event task:status_changed
+ * @event routine:status_changed
  * @direction Server -> Client
  *
  * @example
  * ```typescript
- * socket.on('task:status_changed', (event: TaskStatusChangedEvent) => {
- *   // Invalidate task queries to refresh UI
- *   queryClient.invalidateQueries({ queryKey: ['tasks'] });
- *   queryClient.invalidateQueries({ queryKey: ['task', event.taskId] });
+ * socket.on('routine:status_changed', (event: RoutineStatusChangedEvent) => {
+ *   // Invalidate routine queries to refresh UI
+ *   queryClient.invalidateQueries({ queryKey: ['routines'] });
+ *   queryClient.invalidateQueries({ queryKey: ['routine', event.routineId] });
  * });
  * ```
  */
-export interface TaskStatusChangedEvent {
-  /** Task ID */
-  taskId: string;
+export interface RoutineStatusChangedEvent {
+  /** Routine ID */
+  routineId: string;
   /** Execution ID */
   executionId: string;
   /** New status */
@@ -39,25 +39,25 @@ export interface TaskStatusChangedEvent {
 }
 
 /**
- * Task execution created event
+ * Routine execution created event
  *
- * Sent by the server when a new execution is created for a task.
+ * Sent by the server when a new execution is created for a routine.
  *
- * @event task:execution_created
+ * @event routine:execution_created
  * @direction Server -> Client
  *
  * @example
  * ```typescript
- * socket.on('task:execution_created', (event: TaskExecutionCreatedEvent) => {
- *   // Invalidate task queries to refresh UI
- *   queryClient.invalidateQueries({ queryKey: ['tasks'] });
- *   queryClient.invalidateQueries({ queryKey: ['task', event.taskId] });
+ * socket.on('routine:execution_created', (event: RoutineExecutionCreatedEvent) => {
+ *   // Invalidate routine queries to refresh UI
+ *   queryClient.invalidateQueries({ queryKey: ['routines'] });
+ *   queryClient.invalidateQueries({ queryKey: ['routine', event.routineId] });
  * });
  * ```
  */
-export interface TaskExecutionCreatedEvent {
-  /** Task ID */
-  taskId: string;
+export interface RoutineExecutionCreatedEvent {
+  /** Routine ID */
+  routineId: string;
   /** Execution details */
   execution: {
     /** Execution ID */
