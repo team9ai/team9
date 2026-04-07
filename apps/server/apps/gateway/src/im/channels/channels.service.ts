@@ -3,6 +3,7 @@ import {
   Inject,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
   ConflictException,
 } from '@nestjs/common';
 import { v7 as uuidv7 } from 'uuid';
@@ -17,7 +18,7 @@ import {
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
-import type { ChannelSnapshot } from '@team9/database/schemas';
+import type { ChannelSnapshot, BotExtra } from '@team9/database/schemas';
 import {
   CreateChannelDto,
   UpdateChannelDto,
@@ -102,6 +103,87 @@ export class ChannelsService {
     private readonly channelMemberCacheService: ChannelMemberCacheService,
   ) {}
 
+  /**
+   * Check if a target user is a personal staff bot with restricted DM access.
+   * Throws ForbiddenException if the requester is not the owner and DMs are not allowed.
+   */
+  async assertDirectMessageAllowed(
+    requesterId: string,
+    targetUserId: string,
+  ): Promise<void> {
+    const [botRow] = await this.db
+      .select({
+        ownerId: schema.bots.ownerId,
+        extra: schema.bots.extra,
+        applicationId: schema.installedApplications.applicationId,
+      })
+      .from(schema.bots)
+      .leftJoin(
+        schema.installedApplications,
+        eq(schema.bots.installedApplicationId, schema.installedApplications.id),
+      )
+      .where(eq(schema.bots.userId, targetUserId))
+      .limit(1);
+
+    if (!botRow) return; // Not a bot — no restriction
+    if (botRow.applicationId !== 'personal-staff') return; // Not a personal staff bot
+
+    const extra = (botRow.extra as BotExtra) ?? {};
+    const visibility = extra.personalStaff?.visibility;
+
+    // Owner is always allowed
+    if (botRow.ownerId === requesterId) return;
+
+    if (!visibility?.allowDirectMessage) {
+      throw new ForbiddenException(
+        'This is a private assistant and is not open for direct messages.',
+      );
+    }
+  }
+
+  /**
+   * Check if mentioning a set of user IDs is allowed for the given sender.
+   * Throws BadRequestException if any mentioned user is a personal staff bot
+   * with restricted mention access and the sender is not the owner.
+   */
+  async assertMentionsAllowed(
+    senderId: string,
+    mentionedUserIds: string[],
+  ): Promise<void> {
+    if (mentionedUserIds.length === 0) return;
+
+    // Fetch bot rows for all mentioned user IDs in a single query
+    const botRows = await this.db
+      .select({
+        userId: schema.bots.userId,
+        ownerId: schema.bots.ownerId,
+        extra: schema.bots.extra,
+        applicationId: schema.installedApplications.applicationId,
+      })
+      .from(schema.bots)
+      .leftJoin(
+        schema.installedApplications,
+        eq(schema.bots.installedApplicationId, schema.installedApplications.id),
+      )
+      .where(inArray(schema.bots.userId, mentionedUserIds));
+
+    for (const botRow of botRows) {
+      if (botRow.applicationId !== 'personal-staff') continue;
+
+      const extra = (botRow.extra as BotExtra) ?? {};
+      const visibility = extra.personalStaff?.visibility;
+
+      // Owner is always allowed
+      if (botRow.ownerId === senderId) continue;
+
+      if (!visibility?.allowMention) {
+        throw new BadRequestException(
+          'This is a private assistant and is not open for @mentions.',
+        );
+      }
+    }
+  }
+
   private mapChannelUserSummary(row: ChannelUserSummaryRow) {
     return {
       id: row.userId,
@@ -148,6 +230,10 @@ export class ChannelsService {
     userId2: string,
     tenantId?: string,
   ): Promise<ChannelResponse> {
+    // Permission check: verify the requester can DM the target
+    // (blocks DMs to restricted personal staff bots)
+    await this.assertDirectMessageAllowed(userId1, userId2);
+
     // Check if direct channel already exists
     const existingChannels = await this.db
       .select({ channelId: schema.channelMembers.channelId })
@@ -200,6 +286,10 @@ export class ChannelsService {
    * Uses 3 queries instead of N*3 for N members.
    *
    * Returns all DM channels (existing + newly created) mapped by the other user's ID.
+   *
+   * NOTE: This method does NOT run assertDirectMessageAllowed permission checks.
+   * It is intended for trusted server-side flows (bot creation, workspace join).
+   * Use createDirectChannel for user-initiated single-pair DM creation.
    */
   async createDirectChannelsBatch(
     newUserId: string,

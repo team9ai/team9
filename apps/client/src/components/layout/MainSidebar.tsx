@@ -66,7 +66,7 @@ const navigationItems = [
   { id: "messages", labelKey: "dms" as const, icon: MessageSquare },
   { id: "activity", labelKey: "activity" as const, icon: Bell },
   // { id: "files", labelKey: "files" as const, icon: FileText },
-  { id: "aiStaff", labelKey: "aiStaff" as const, icon: Bot },
+  { id: "aiStaff", labelKey: "staff" as const, icon: Bot },
   { id: "routines", labelKey: "routines" as const, icon: ListChecks },
   { id: "skills", labelKey: "skills" as const, icon: Sparkles },
   { id: "resources", labelKey: "resources" as const, icon: Box },

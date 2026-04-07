@@ -513,6 +513,107 @@ describe('UsersService', () => {
       expect(dbModule.inArray).toHaveBeenCalled();
       expect(db.__queries.select[1].limit).toHaveBeenCalledWith(5);
     });
+
+    it('excludes restricted personal staff bots from non-owner search results', async () => {
+      const humanUser = user({ id: 'user-1' });
+      const restrictedBot = user({
+        id: 'bot-1',
+        userType: 'bot',
+        applicationId: 'personal-staff',
+        botOwnerId: 'other-owner',
+        botExtra: {
+          personalStaff: {
+            visibility: { allowMention: false, allowDirectMessage: false },
+          },
+        },
+      });
+      db.__state.selectResults.push([humanUser, restrictedBot]);
+
+      const result = await service.search('', 20, undefined, 'searcher-1');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('user-1');
+    });
+
+    it('includes personal staff bots when searcher is the owner', async () => {
+      const ownedBot = user({
+        id: 'bot-1',
+        userType: 'bot',
+        applicationId: 'personal-staff',
+        botOwnerId: 'searcher-1',
+        botExtra: {
+          personalStaff: {
+            visibility: { allowMention: false, allowDirectMessage: false },
+          },
+        },
+      });
+      db.__state.selectResults.push([ownedBot]);
+
+      const result = await service.search('', 20, undefined, 'searcher-1');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('bot-1');
+    });
+
+    it('includes personal staff bots when allowMention is true', async () => {
+      const accessibleBot = user({
+        id: 'bot-1',
+        userType: 'bot',
+        applicationId: 'personal-staff',
+        botOwnerId: 'other-owner',
+        botExtra: {
+          personalStaff: {
+            visibility: { allowMention: true, allowDirectMessage: false },
+          },
+        },
+      });
+      db.__state.selectResults.push([accessibleBot]);
+
+      const result = await service.search('', 20, undefined, 'searcher-1');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('bot-1');
+    });
+
+    it('includes personal staff bots when allowDirectMessage is true', async () => {
+      const accessibleBot = user({
+        id: 'bot-1',
+        userType: 'bot',
+        applicationId: 'personal-staff',
+        botOwnerId: 'other-owner',
+        botExtra: {
+          personalStaff: {
+            visibility: { allowMention: false, allowDirectMessage: true },
+          },
+        },
+      });
+      db.__state.selectResults.push([accessibleBot]);
+
+      const result = await service.search('', 20, undefined, 'searcher-1');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('bot-1');
+    });
+
+    it('does not filter when searcherId is not provided', async () => {
+      const restrictedBot = user({
+        id: 'bot-1',
+        userType: 'bot',
+        applicationId: 'personal-staff',
+        botOwnerId: 'other-owner',
+        botExtra: {
+          personalStaff: {
+            visibility: { allowMention: false, allowDirectMessage: false },
+          },
+        },
+      });
+      db.__state.selectResults.push([restrictedBot]);
+
+      // Without searcherId, no filtering should occur
+      const result = await service.search('', 20);
+
+      expect(result).toHaveLength(1);
+    });
   });
 
   describe('getMultipleByIds', () => {

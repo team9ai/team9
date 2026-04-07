@@ -54,10 +54,12 @@ import { BaseModelProductLogo } from "@/components/applications/BaseModelProduct
 import { getBaseModelProductMeta } from "@/lib/base-model-agent";
 import { useCreateDirectChannel } from "@/hooks/useChannels";
 import { CommonStaffDetailSection } from "@/components/ai-staff/CommonStaffDetailSection";
+import { PersonalStaffDetailSection } from "@/components/ai-staff/PersonalStaffDetailSection";
 import type {
   BaseModelStaffBotInfo,
   CommonStaffBotInfo,
   OpenClawBotInfo,
+  PersonalStaffListBotInfo,
 } from "@/services/api/applications";
 
 function statusBadgeVariant(status?: string) {
@@ -84,7 +86,11 @@ interface AIStaffDetailContentProps {
   staffId: string; // botId
 }
 
-type AIStaffBot = OpenClawBotInfo | BaseModelStaffBotInfo | CommonStaffBotInfo;
+type AIStaffBot =
+  | OpenClawBotInfo
+  | BaseModelStaffBotInfo
+  | CommonStaffBotInfo
+  | PersonalStaffListBotInfo;
 
 function isOpenClawBot(bot: AIStaffBot): bot is OpenClawBotInfo {
   return "agentId" in bot && "workspace" in bot;
@@ -102,6 +108,10 @@ function isCommonStaffBot(bot: AIStaffBot): bot is CommonStaffBotInfo {
       "common-staff-",
     )
   );
+}
+
+function isPersonalStaffBot(bot: AIStaffBot): bot is PersonalStaffListBotInfo {
+  return "ownerId" in bot && "visibility" in bot;
 }
 
 export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
@@ -145,6 +155,8 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
     currentBot && isOpenClawBot(currentBot) ? currentBot : null;
   const baseModelBot =
     currentBot && isBaseModelStaffBot(currentBot) ? currentBot : null;
+  const personalStaffBot =
+    currentBot && isPersonalStaffBot(currentBot) ? currentBot : null;
   const isOpenClawStaff =
     currentApp?.applicationId === "openclaw" && openClawBot !== null;
   const appId = isOpenClawStaff ? currentApp.id : undefined;
@@ -918,6 +930,16 @@ export function AIStaffDetailContent({ staffId }: AIStaffDetailContentProps) {
             currentApp?.applicationId === "common-staff" && (
               <CommonStaffDetailSection
                 bot={commonStaffBot}
+                app={currentApp}
+                workspaceId={workspaceId!}
+              />
+            )}
+
+          {!isLoading &&
+            personalStaffBot &&
+            currentApp?.applicationId === "personal-staff" && (
+              <PersonalStaffDetailSection
+                bot={personalStaffBot}
                 app={currentApp}
                 workspaceId={workspaceId!}
               />

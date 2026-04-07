@@ -34,6 +34,7 @@ export class UsersController {
 
   @Get()
   async search(
+    @CurrentUser('sub') userId: string,
     @Query('q') query: string,
     @Query('limit') limit?: string,
     @CurrentTenantId() tenantId?: string,
@@ -42,6 +43,7 @@ export class UsersController {
       query || '',
       limit ? parseInt(limit, 10) : 20,
       tenantId,
+      userId,
     );
   }
 

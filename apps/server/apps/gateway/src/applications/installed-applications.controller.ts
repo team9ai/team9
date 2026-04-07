@@ -189,6 +189,46 @@ export class InstalledApplicationsController {
           };
         }
 
+        if (app.applicationId === 'personal-staff') {
+          const bots = await this.getBotsOrEmpty(app.id);
+          const botUserIds = bots.map((bot) => bot.userId);
+          let avatarMap: Map<string, string | null> = new Map();
+          if (botUserIds.length > 0) {
+            const userRows = await this.db
+              .select({
+                id: schema.users.id,
+                avatarUrl: schema.users.avatarUrl,
+              })
+              .from(schema.users)
+              .where(inArray(schema.users.id, botUserIds));
+            avatarMap = new Map(userRows.map((r) => [r.id, r.avatarUrl]));
+          }
+          return {
+            ...app,
+            bots: bots.map((bot) => ({
+              botId: bot.botId,
+              userId: bot.userId,
+              username: bot.username,
+              displayName: bot.displayName,
+              avatarUrl: avatarMap.get(bot.userId) ?? null,
+              ownerId: bot.ownerId,
+              persona: bot.extra?.personalStaff?.persona ?? null,
+              model: bot.extra?.personalStaff?.model ?? null,
+              visibility: {
+                allowMention:
+                  bot.extra?.personalStaff?.visibility?.allowMention ?? false,
+                allowDirectMessage:
+                  bot.extra?.personalStaff?.visibility?.allowDirectMessage ??
+                  false,
+              },
+              isActive: bot.isActive,
+              createdAt: bot.createdAt,
+              managedMeta: bot.managedMeta,
+            })),
+            instanceStatus: null,
+          };
+        }
+
         if (app.applicationId === 'common-staff') {
           const bots = await this.getBotsOrEmpty(app.id);
           // Fetch bot user avatar URLs via direct DB join

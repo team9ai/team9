@@ -7,7 +7,9 @@ import {
   pgEnum,
   jsonb,
   index,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { users } from './users.js';
 import { installedApplications } from './installed-applications.js';
 
@@ -33,6 +35,14 @@ export interface BotExtra {
     persona?: string;
     jobDescription?: string;
     model?: { provider: string; id: string };
+  };
+  personalStaff?: {
+    persona?: string;
+    model?: { provider: string; id: string };
+    visibility?: {
+      allowMention?: boolean;
+      allowDirectMessage?: boolean;
+    };
   };
 }
 
@@ -112,6 +122,11 @@ export const bots = pgTable(
       'btree',
       table.accessToken.op('text_pattern_ops'),
     ),
+    uniqueIndex('bots_owner_app_unique')
+      .on(table.ownerId, table.installedApplicationId)
+      .where(
+        sql`${table.ownerId} IS NOT NULL AND ${table.installedApplicationId} IS NOT NULL AND ${table.extra}->>'personalStaff' IS NOT NULL`,
+      ),
   ],
 );
 

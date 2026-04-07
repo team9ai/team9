@@ -11,6 +11,9 @@ import { InstalledApplicationsController } from './installed-applications.contro
 import { InstalledApplicationsService } from './installed-applications.service.js';
 import { CommonStaffController } from './common-staff.controller.js';
 import { CommonStaffService } from './common-staff.service.js';
+import { PersonalStaffController } from './personal-staff.controller.js';
+import { PersonalStaffService } from './personal-staff.service.js';
+import { StaffService } from './staff.service.js';
 import {
   APPLICATION_HANDLERS,
   type ApplicationHandler,
@@ -29,11 +32,14 @@ import {
     ApplicationsController,
     InstalledApplicationsController,
     CommonStaffController,
+    PersonalStaffController,
   ],
   providers: [
     ApplicationsService,
     InstalledApplicationsService,
+    StaffService,
     CommonStaffService,
+    PersonalStaffService,
     // Application handlers
     ...APPLICATION_HANDLERS,
     {
@@ -42,6 +48,11 @@ import {
       inject: APPLICATION_HANDLERS,
     },
   ],
-  exports: [ApplicationsService, InstalledApplicationsService],
+  exports: [
+    ApplicationsService,
+    InstalledApplicationsService,
+    StaffService,
+    PersonalStaffService,
+  ],
 })
 export class ApplicationsModule {}

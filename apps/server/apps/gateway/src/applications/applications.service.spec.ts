@@ -43,6 +43,17 @@ describe('ApplicationsService', () => {
       expect(commonStaff!.singleton).toBe(true);
       expect(commonStaff!.autoInstall).toBe(true);
     });
+
+    it('should include personal-staff as a managed singleton app with autoInstall', () => {
+      const personalStaff = service
+        .findAll()
+        .find((app) => app.id === 'personal-staff');
+
+      expect(personalStaff).toBeDefined();
+      expect(personalStaff!.type).toBe('managed');
+      expect(personalStaff!.singleton).toBe(true);
+      expect(personalStaff!.autoInstall).toBe(true);
+    });
   });
 
   describe('findById', () => {
@@ -76,6 +87,12 @@ describe('ApplicationsService', () => {
       const autoApps = service.findAutoInstall();
 
       expect(autoApps.some((app) => app.id === 'common-staff')).toBe(true);
+    });
+
+    it('should include personal-staff', () => {
+      const autoApps = service.findAutoInstall();
+
+      expect(autoApps.some((app) => app.id === 'personal-staff')).toBe(true);
     });
 
     it('should not include openclaw', () => {

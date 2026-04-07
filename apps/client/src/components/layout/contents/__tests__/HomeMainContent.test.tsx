@@ -2,9 +2,6 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockNavigate = vi.hoisted(() => vi.fn());
-const mockUseUserWorkspaces = vi.hoisted(() => vi.fn());
-const mockUseWorkspaceInvitations = vi.hoisted(() => vi.fn());
-const mockUseCreateInvitation = vi.hoisted(() => vi.fn());
 const mockUseChannelsByType = vi.hoisted(() => vi.fn());
 const mockUseSelectedWorkspaceId = vi.hoisted(() => vi.fn());
 const mockUseUser = vi.hoisted(() => vi.fn());
@@ -13,36 +10,25 @@ const translationMap: Record<
   string,
   string | ((options?: Record<string, unknown>) => string)
 > = {
-  welcomeBackTo: (options) => `Welcome back to ${options?.workspace}!`,
-  workspaceActivity: "Here's what's happening in your workspace.",
-  weeklyRoadmap: "This Month's Development Roadmap",
-  roadmapCreateAIStaff: "Create AI Staff",
-  roadmapAIStaffOnComputer: "AI Staff on Your Computer",
-  roadmapBigToolUpdate: "Big Tool Update",
-  roadmapNewUI: "New UI",
-  roadmapDesktopApp: "Desktop App",
-  roadmapGoogleWorkspace: "Google Workspace",
-  roadmapMessagingIntegration: "Messaging Integration",
-  roadmapScheduledTasks: "Scheduled Tasks",
-  roadmapSkills: "Skills",
-  roadmapModelSwitching: "Model Switching",
-  supportedTools: "Supported Tools",
-  chatWithOpenClaw: "Chat with OpenClaw",
-  inviteFriends: "Add Teammates to Your Workspace",
-  copied: "Copied",
-  copyLink: "Copy Invite Link",
-  createFirstChannel: "Create Your First Channel",
-  createOwnAIStaff: "Create Your Own AI Staff",
-  createChannelDescription:
-    "Set up a channel and invite OpenClaw to collaborate with your team",
-  joinBetaFeedback: "Join Early Beta Feedback",
-  joinDiscord: "Join Discord",
-  createChannel: "Create Channel",
-  createAIStaff: "Create AI Staff",
-  openclawWarmingUp: "Warm-up notice",
-  "common:loading": "Loading",
-  "navigation:copied": "Copied",
-  "navigation:copyLink": "Copy Invite Link",
+  dashboardTitle: "What can I help you with today?",
+  dashboardPromptPlaceholder: "Message dashboard...",
+  dashboardModelLabel: "GPT5.4",
+  dashboardPromptHint: "Press Enter to send. Use Shift+Enter for a new line.",
+  dashboardActionDeepResearch: "Deep research",
+  dashboardActionGenerateImage: "Generate image",
+  dashboardPlan: "Free plan",
+  dashboardUpgrade: "Upgrade",
+  dashboardUsageValue: "1,280",
+  dashboardBrand: "Team9 Agent",
+  dashboardWarmupNotice: (options) =>
+    `Your OpenClaw is warming up. ${options?.name ?? ""}`,
+  dashboardNoBotDescription: "Create or activate an AI staff member",
+  dashboardCreateAiStaffCta: "Go to AI Staff",
+  dashboardMockLabel: "Mock",
+  dashboardTaskEmptyValue: "None",
+  dashboardNoActiveTask: "No active task",
+  dashboardCreateTask: "Create",
+  cancel: "Cancel",
 };
 
 vi.mock("react-i18next", () => ({
@@ -63,12 +49,6 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
 }));
 
-vi.mock("@/hooks/useWorkspace", () => ({
-  useUserWorkspaces: mockUseUserWorkspaces,
-  useWorkspaceInvitations: mockUseWorkspaceInvitations,
-  useCreateInvitation: mockUseCreateInvitation,
-}));
-
 vi.mock("@/hooks/useChannels", () => ({
   useChannelsByType: mockUseChannelsByType,
 }));
@@ -78,10 +58,6 @@ vi.mock("@/stores", () => ({
   useUser: mockUseUser,
 }));
 
-vi.mock("@/components/dialog/CreateChannelDialog", () => ({
-  CreateChannelDialog: () => null,
-}));
-
 import { HomeMainContent } from "../HomeMainContent";
 
 describe("HomeMainContent", () => {
@@ -89,22 +65,6 @@ describe("HomeMainContent", () => {
     vi.clearAllMocks();
 
     mockUseSelectedWorkspaceId.mockReturnValue("ws-1");
-    mockUseUserWorkspaces.mockReturnValue({
-      data: [{ id: "ws-1", name: "Alpha Workspace" }],
-    });
-    mockUseWorkspaceInvitations.mockReturnValue({
-      data: [
-        {
-          id: "inv-1",
-          url: "https://team9.ai/invite/abc",
-          isActive: true,
-          expiresAt: null,
-          maxUses: null,
-          usedCount: 0,
-        },
-      ],
-    });
-    mockUseCreateInvitation.mockReturnValue({ mutate: vi.fn() });
     mockUseChannelsByType.mockReturnValue({
       directChannels: [{ id: "bot-ch-1", otherUser: { userType: "bot" } }],
     });
@@ -114,21 +74,18 @@ describe("HomeMainContent", () => {
     });
   });
 
-  it("renders the workspace overview instead of the dashboard landing draft", () => {
+  it("renders the dashboard with title and prompt input", () => {
     render(<HomeMainContent />);
 
     expect(
       screen.getByRole("heading", {
-        name: /welcome back to alpha workspace!/i,
+        name: /what can i help you with today\?/i,
       }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: /^team9$/i })).toBeInTheDocument();
-    expect(screen.getByText(/supported tools/i)).toBeInTheDocument();
     expect(
-      screen.getByText(/this month's development roadmap/i),
+      screen.getByPlaceholderText(/message dashboard/i),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByText(/what can i help you with today\?/i),
-    ).not.toBeInTheDocument();
+    expect(screen.getByText(/deep research/i)).toBeInTheDocument();
+    expect(screen.getByText(/generate image/i)).toBeInTheDocument();
   });
 });
