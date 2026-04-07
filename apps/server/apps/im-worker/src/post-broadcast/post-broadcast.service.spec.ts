@@ -466,6 +466,7 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     if (message.parentId) {
       db.where.mockReturnValueOnce(db); // parent message query
     }
+    db.where.mockResolvedValueOnce([]); // attachments query (no .limit())
 
     db.limit
       .mockResolvedValueOnce([message]) // messages table
