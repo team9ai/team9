@@ -33,7 +33,7 @@ export const resourceUsageLogs = pgTable(
 
     actorId: uuid('actor_id').notNull(),
 
-    taskId: uuid('task_id').references(() => routines.id),
+    routineId: uuid('routine_id').references(() => routines.id),
 
     executionId: uuid('execution_id').references(() => routineExecutions.id),
 

@@ -5401,8 +5401,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "task_id": {
-          "name": "task_id",
+        "routine_id": {
+          "name": "routine_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
@@ -5487,10 +5487,10 @@
           "onUpdate": "no action",
           "onDelete": "cascade"
         },
-        "resource_usage_logs_task_id_routine__routines_id_fk": {
-          "name": "resource_usage_logs_task_id_routine__routines_id_fk",
+        "resource_usage_logs_routine_id_routine__routines_id_fk": {
+          "name": "resource_usage_logs_routine_id_routine__routines_id_fk",
           "tableFrom": "resource_usage_logs",
-          "columnsFrom": ["task_id"],
+          "columnsFrom": ["routine_id"],
           "tableTo": "routine__routines",
           "columnsTo": ["id"],
           "onUpdate": "no action",
