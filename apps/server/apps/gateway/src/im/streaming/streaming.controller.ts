@@ -30,6 +30,7 @@ import { BotService } from '../../bot/bot.service.js';
 import {
   StartStreamingDto,
   UpdateStreamingContentDto,
+  UpdateStreamingThinkingContentDto,
   EndStreamingDto,
 } from './dto/streaming.dto.js';
 
@@ -181,6 +182,52 @@ export class StreamingController {
     await this.websocketGateway.sendToChannelMembers(
       session.channelId,
       WS_EVENTS.STREAMING.CONTENT,
+      {
+        streamId,
+        channelId: session.channelId,
+        senderId: userId,
+        content: dto.content,
+      },
+    );
+
+    return { success: true };
+  }
+
+  // ── POST /v1/im/streaming/:streamId/thinking ────────────────────────
+
+  @Post('streaming/:streamId/thinking')
+  async updateThinkingContent(
+    @CurrentUser('sub') userId: string,
+    @Param('streamId') streamId: string,
+    @Body() dto: UpdateStreamingThinkingContentDto,
+  ): Promise<{ success: true }> {
+    await this.assertBot(userId);
+
+    const sessionRaw = await this.redisService.get(
+      REDIS_KEYS.STREAMING_SESSION(streamId),
+    );
+    if (!sessionRaw) {
+      throw new ForbiddenException('Streaming session not found or expired');
+    }
+    const session = this.parseStreamingSession(sessionRaw);
+
+    if (session.senderId !== userId) {
+      throw new ForbiddenException('Not the owner of this stream');
+    }
+
+    // Refresh TTL on both session and active-streams set
+    await this.redisService.expire(
+      REDIS_KEYS.STREAMING_SESSION(streamId),
+      STREAM_TTL,
+    );
+    await this.redisService.expire(
+      REDIS_KEYS.BOT_ACTIVE_STREAMS(userId),
+      STREAM_TTL,
+    );
+
+    await this.websocketGateway.sendToChannelMembers(
+      session.channelId,
+      WS_EVENTS.STREAMING.THINKING_CONTENT,
       {
         streamId,
         channelId: session.channelId,

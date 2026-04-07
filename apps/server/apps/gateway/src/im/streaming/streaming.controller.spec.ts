@@ -340,6 +340,82 @@ describe('StreamingController', () => {
     });
   });
 
+  // ── updateThinkingContent ────────────────────────────────────────────────────
+
+  describe('updateThinkingContent', () => {
+    it('refreshes TTL, broadcasts streaming_thinking_content, and returns success', async () => {
+      redisService.get.mockResolvedValueOnce(JSON.stringify(makeSession()));
+
+      const result = await controller.updateThinkingContent(
+        BOT_USER_ID,
+        STREAM_ID,
+        { content: 'thinking about the problem...' },
+      );
+
+      expect(result).toEqual({ success: true });
+
+      // Refreshes session TTL
+      expect(redisService.expire).toHaveBeenCalledWith(
+        REDIS_KEYS.STREAMING_SESSION(STREAM_ID),
+        120,
+      );
+
+      // Refreshes active streams TTL
+      expect(redisService.expire).toHaveBeenCalledWith(
+        REDIS_KEYS.BOT_ACTIVE_STREAMS(BOT_USER_ID),
+        120,
+      );
+
+      // Broadcasts thinking content to channel
+      expect(websocketGateway.sendToChannelMembers).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        WS_EVENTS.STREAMING.THINKING_CONTENT,
+        {
+          streamId: STREAM_ID,
+          channelId: CHANNEL_ID,
+          senderId: BOT_USER_ID,
+          content: 'thinking about the problem...',
+        },
+      );
+    });
+
+    it('rejects non-bot users with ForbiddenException', async () => {
+      botService.isBot.mockResolvedValue(false);
+
+      await expect(
+        controller.updateThinkingContent(NON_BOT_USER_ID, STREAM_ID, {
+          content: 'thinking',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(redisService.get).not.toHaveBeenCalled();
+    });
+
+    it('rejects expired/missing session with ForbiddenException', async () => {
+      await expect(
+        controller.updateThinkingContent(BOT_USER_ID, STREAM_ID, {
+          content: 'thinking',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(websocketGateway.sendToChannelMembers).not.toHaveBeenCalled();
+    });
+
+    it('rejects non-owner with ForbiddenException', async () => {
+      redisService.get.mockResolvedValueOnce(
+        JSON.stringify(makeSession({ senderId: OTHER_USER_ID })),
+      );
+
+      await expect(
+        controller.updateThinkingContent(BOT_USER_ID, STREAM_ID, {
+          content: 'thinking',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(websocketGateway.sendToChannelMembers).not.toHaveBeenCalled();
+    });
+  });
+
   // ── endStreaming ─────────────────────────────────────────────────────────────
 
   describe('endStreaming', () => {

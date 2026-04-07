@@ -24,6 +24,13 @@ export class UpdateStreamingContentDto {
   content: string;
 }
 
+export class UpdateStreamingThinkingContentDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100000)
+  content: string;
+}
+
 export class EndStreamingDto {
   @IsString()
   @IsNotEmpty()
