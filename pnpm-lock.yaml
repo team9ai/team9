@@ -694,6 +694,9 @@ importers:
       uuid:
         specifier: ^13.0.0
         version: 13.0.0
+      web-push:
+        specifier: ^3.6.7
+        version: 3.6.7
     devDependencies:
       "@jest/globals":
         specifier: ^30.2.0
@@ -701,6 +704,9 @@ importers:
       "@types/diff":
         specifier: ^8.0.0
         version: 8.0.0
+      "@types/web-push":
+        specifier: ^3.6.4
+        version: 3.6.4
       typescript:
         specifier: ^5.7.3
         version: 5.8.3
