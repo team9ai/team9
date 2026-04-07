@@ -163,6 +163,25 @@ export interface CommonStaffBotInfo {
   managedMeta: { agentId: string } | null;
 }
 
+// Personal Staff bot info (from with-bots list endpoint)
+export interface PersonalStaffListBotInfo {
+  botId: string;
+  userId: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  ownerId: string | null;
+  persona: string | null;
+  model: { provider: string; id: string } | null;
+  visibility: {
+    allowMention: boolean;
+    allowDirectMessage: boolean;
+  };
+  isActive: boolean;
+  createdAt: string;
+  managedMeta: { agentId: string } | null;
+}
+
 // Base Model Staff types
 export interface BaseModelStaffBotInfo {
   botId: string;
@@ -177,7 +196,12 @@ export interface BaseModelStaffBotInfo {
 
 // Aggregated app with bots (from /with-bots endpoint)
 export interface InstalledApplicationWithBots extends InstalledApplication {
-  bots: (OpenClawBotInfo | BaseModelStaffBotInfo | CommonStaffBotInfo)[];
+  bots: (
+    | OpenClawBotInfo
+    | BaseModelStaffBotInfo
+    | CommonStaffBotInfo
+    | PersonalStaffListBotInfo
+  )[];
   instanceStatus: OpenClawInstanceStatus | null;
 }
 

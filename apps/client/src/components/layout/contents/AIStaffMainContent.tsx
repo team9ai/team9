@@ -1,14 +1,26 @@
-import { Bot, Loader2, AlertCircle, User, Plus } from "lucide-react";
+import {
+  Bot,
+  Loader2,
+  AlertCircle,
+  User,
+  Plus,
+  MessageSquare,
+  Lock,
+  ChevronDown,
+  ChevronRight,
+  Shield,
+} from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { api } from "@/services/api";
 import type {
   BaseModelStaffBotInfo,
@@ -16,15 +28,24 @@ import type {
   InstalledApplicationWithBots,
   OpenClawBotInfo,
   OpenClawInstanceStatus,
+  PersonalStaffListBotInfo,
 } from "@/services/api/applications";
 import { cn } from "@/lib/utils";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import { BaseModelProductLogo } from "@/components/applications/BaseModelProductLogo";
 import { CreateCommonStaffDialog } from "@/components/ai-staff/CreateCommonStaffDialog";
+import { useCreateDirectChannel } from "@/hooks/useChannels";
+import { useCurrentUser } from "@/hooks/useAuth";
+import { useWorkspaceMembers } from "@/hooks/useWorkspace";
+import { getHttpErrorMessage, getHttpErrorStatus } from "@/lib/http-error";
 
 // ── Type guard ────────────────────────────────────────────────────────
 
-type AIStaffBot = OpenClawBotInfo | BaseModelStaffBotInfo | CommonStaffBotInfo;
+type AIStaffBot =
+  | OpenClawBotInfo
+  | BaseModelStaffBotInfo
+  | CommonStaffBotInfo
+  | PersonalStaffListBotInfo;
 
 function isOpenClawBot(bot: AIStaffBot): bot is OpenClawBotInfo {
   return "agentId" in bot && "workspace" in bot;
@@ -44,15 +65,111 @@ function isCommonStaffBot(bot: AIStaffBot): bot is CommonStaffBotInfo {
   );
 }
 
+function isPersonalStaffBot(bot: AIStaffBot): bot is PersonalStaffListBotInfo {
+  return "ownerId" in bot && "visibility" in bot;
+}
+
+// ── Section header ──────────────────────────────────────────────────
+
+interface SectionHeaderProps {
+  title: string;
+  count: number;
+  expanded: boolean;
+  onToggle: () => void;
+  pinned?: boolean;
+}
+
+function SectionHeader({
+  title,
+  count,
+  expanded,
+  onToggle,
+  pinned,
+}: SectionHeaderProps) {
+  return (
+    <button
+      onClick={onToggle}
+      className="flex items-center gap-2 w-full py-2 px-1 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
+    >
+      {pinned ? null : expanded ? (
+        <ChevronDown size={14} />
+      ) : (
+        <ChevronRight size={14} />
+      )}
+      <span>{title}</span>
+      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-auto">
+        {count}
+      </Badge>
+    </button>
+  );
+}
+
+// ── Chat button ─────────────────────────────────────────────────────
+
+interface ChatButtonProps {
+  targetUserId: string;
+  disabled?: boolean;
+  isRestricted?: boolean;
+}
+
+function ChatButton({ targetUserId, disabled, isRestricted }: ChatButtonProps) {
+  const { t } = useTranslation("navigation");
+  const navigate = useNavigate();
+  const createDM = useCreateDirectChannel();
+
+  const handleChat = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const channel = await createDM.mutateAsync(targetUserId);
+      navigate({
+        to: "/messages/$channelId",
+        params: { channelId: channel.id },
+      });
+    } catch (error: unknown) {
+      const status = getHttpErrorStatus(error);
+      if (status === 403) {
+        alert(t("dmPermissionDenied"));
+      } else {
+        const message = getHttpErrorMessage(error);
+        alert(message || "Failed to create conversation");
+      }
+    }
+  };
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={handleChat}
+      disabled={disabled || createDM.isPending}
+      className="shrink-0 gap-1 text-xs"
+      title={isRestricted ? t("dmPermissionDenied") : t("chatButton")}
+    >
+      <MessageSquare size={14} />
+      {t("chatButton")}
+    </Button>
+  );
+}
+
 // ── Per-bot card ─────────────────────────────────────────────────────
 
 interface AIStaffBotCardProps {
   app: InstalledApplicationWithBots;
   bot: AIStaffBot;
   instanceStatus?: OpenClawInstanceStatus;
+  showChatButton?: boolean;
+  isOtherPersonalStaff?: boolean;
+  badge?: string;
 }
 
-function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
+function AIStaffBotCard({
+  app,
+  bot,
+  instanceStatus,
+  showChatButton,
+  isOtherPersonalStaff,
+  badge,
+}: AIStaffBotCardProps) {
   const navigate = useNavigate();
 
   const displayName = bot.displayName || app.name || "AI Staff";
@@ -61,10 +178,15 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
   const isOcBot = isOpenClawBot(bot);
   const isBaseModelBot = isBaseModelStaffBot(bot);
   const isCommonStaff = isCommonStaffBot(bot);
+  const isPsBot = isPersonalStaffBot(bot);
   const isDefault = isOcBot && !bot.agentId;
 
   // For common staff, derive status from bot.isActive since no instanceStatus
-  const isActiveBot = isCommonStaff ? bot.isActive : isRunning;
+  const isActiveBot = isCommonStaff || isPsBot ? bot.isActive : isRunning;
+
+  // Check if DM is restricted for other users' personal staff
+  const isRestricted =
+    isPsBot && isOtherPersonalStaff && !bot.visibility.allowDirectMessage;
 
   return (
     <Card
@@ -83,7 +205,9 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
             <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-background ring-1 ring-border/50">
               <BaseModelProductLogo agentId={bot.managedMeta?.agentId} />
             </div>
-          ) : isCommonStaff && bot.avatarUrl ? (
+          ) : (isCommonStaff || isPsBot) &&
+            "avatarUrl" in bot &&
+            bot.avatarUrl ? (
             <Avatar className="w-12 h-12">
               <AvatarImage
                 src={bot.avatarUrl}
@@ -114,6 +238,9 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
             <p className="text-sm font-semibold text-foreground truncate">
               {displayName}
             </p>
+            {isOtherPersonalStaff && (
+              <Lock size={12} className="text-muted-foreground shrink-0" />
+            )}
             {isOcBot && (
               <Badge
                 variant={isDefault ? "default" : "secondary"}
@@ -122,7 +249,7 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
                 {isDefault ? "Default" : "Agent"}
               </Badge>
             )}
-            {isCommonStaff && bot.roleTitle && (
+            {isCommonStaff && "roleTitle" in bot && bot.roleTitle && (
               <Badge
                 variant="outline"
                 className="shrink-0 text-[10px] px-1.5 py-0"
@@ -130,8 +257,17 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
                 {bot.roleTitle}
               </Badge>
             )}
+            {badge && (
+              <Badge
+                variant="outline"
+                className="shrink-0 text-[10px] px-1.5 py-0"
+              >
+                <Shield size={8} className="mr-0.5" />
+                {badge}
+              </Badge>
+            )}
           </div>
-          {bot.username && (
+          {"username" in bot && bot.username && (
             <p className="text-xs text-muted-foreground truncate">
               @{bot.username}
             </p>
@@ -149,26 +285,70 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
               </span>
             )}
           </p>
-          {(isOcBot || isCommonStaff) && bot.mentorDisplayName && (
-            <div className="flex items-center gap-1 mt-1">
-              <Avatar className="w-4 h-4">
-                {bot.mentorAvatarUrl ? (
-                  <AvatarImage
-                    src={bot.mentorAvatarUrl}
-                    alt={bot.mentorDisplayName}
-                  />
-                ) : (
-                  <AvatarFallback className="bg-muted text-muted-foreground text-[8px]">
-                    <User size={10} />
-                  </AvatarFallback>
-                )}
-              </Avatar>
-              <span className="text-xs text-muted-foreground truncate">
-                {bot.mentorDisplayName}
-              </span>
-            </div>
-          )}
+          {(isOcBot || isCommonStaff) &&
+            "mentorDisplayName" in bot &&
+            bot.mentorDisplayName && (
+              <div className="flex items-center gap-1 mt-1">
+                <Avatar className="w-4 h-4">
+                  {"mentorAvatarUrl" in bot && bot.mentorAvatarUrl ? (
+                    <AvatarImage
+                      src={bot.mentorAvatarUrl}
+                      alt={bot.mentorDisplayName}
+                    />
+                  ) : (
+                    <AvatarFallback className="bg-muted text-muted-foreground text-[8px]">
+                      <User size={10} />
+                    </AvatarFallback>
+                  )}
+                </Avatar>
+                <span className="text-xs text-muted-foreground truncate">
+                  {bot.mentorDisplayName}
+                </span>
+              </div>
+            )}
         </div>
+
+        {/* Chat button */}
+        {showChatButton && (
+          <ChatButton targetUserId={bot.userId} isRestricted={isRestricted} />
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// ── Member card ──────────────────────────────────────────────────────
+
+interface MemberCardProps {
+  member: {
+    userId: string;
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+    role: string;
+  };
+}
+
+function MemberCard({ member }: MemberCardProps) {
+  return (
+    <Card className="p-4 transition-all hover:shadow-md">
+      <div className="flex items-center gap-4">
+        <UserAvatar
+          userId={member.userId}
+          name={member.displayName}
+          username={member.username}
+          avatarUrl={member.avatarUrl}
+          className="w-12 h-12"
+        />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-foreground truncate">
+            {member.displayName || member.username}
+          </p>
+          <p className="text-xs text-muted-foreground truncate">
+            @{member.username}
+          </p>
+        </div>
+        <ChatButton targetUserId={member.userId} />
       </div>
     </Card>
   );
@@ -179,8 +359,12 @@ function AIStaffBotCard({ app, bot, instanceStatus }: AIStaffBotCardProps) {
 export function AIStaffMainContent() {
   const { t } = useTranslation("navigation");
   const workspaceId = useSelectedWorkspaceId();
+  const { data: currentUser } = useCurrentUser();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [aiStaffExpanded, setAiStaffExpanded] = useState(true);
+  const [membersExpanded, setMembersExpanded] = useState(true);
 
+  // Fetch installed applications with bots
   const {
     data: installedApps,
     isLoading,
@@ -191,6 +375,78 @@ export function AIStaffMainContent() {
     enabled: !!workspaceId,
   });
 
+  // Fetch workspace members (human only)
+  const { data: membersData, isLoading: membersLoading } = useWorkspaceMembers(
+    workspaceId || undefined,
+    { limit: 50 },
+  );
+
+  const humanMembers = useMemo(() => {
+    const all = membersData?.pages.flatMap((page) => page.members) ?? [];
+    return all.filter(
+      (m) => m.userType === "human" && m.userId !== currentUser?.id,
+    );
+  }, [membersData, currentUser?.id]);
+
+  // Categorize bots into sections
+  const { myPersonalStaff, aiStaffBots, personalStaffApp } = useMemo(() => {
+    if (!installedApps || !currentUser?.id) {
+      return {
+        myPersonalStaff: [] as {
+          app: InstalledApplicationWithBots;
+          bot: AIStaffBot;
+        }[],
+        aiStaffBots: [] as {
+          app: InstalledApplicationWithBots;
+          bot: AIStaffBot;
+          isOtherPersonalStaff: boolean;
+        }[],
+        personalStaffApp: undefined as InstalledApplicationWithBots | undefined,
+      };
+    }
+
+    const myPS: { app: InstalledApplicationWithBots; bot: AIStaffBot }[] = [];
+    const aiStaff: {
+      app: InstalledApplicationWithBots;
+      bot: AIStaffBot;
+      isOtherPersonalStaff: boolean;
+    }[] = [];
+    let psApp: InstalledApplicationWithBots | undefined;
+
+    for (const app of installedApps) {
+      if (app.status !== "active") continue;
+
+      if (app.applicationId === "personal-staff") {
+        psApp = app;
+        for (const bot of app.bots) {
+          if (isPersonalStaffBot(bot) && bot.ownerId === currentUser.id) {
+            // Current user's personal staff -> Section 1
+            myPS.push({ app, bot });
+          } else if (isPersonalStaffBot(bot)) {
+            // Other user's personal staff -> Section 2 (if visible)
+            const visible =
+              bot.visibility.allowMention || bot.visibility.allowDirectMessage;
+            if (visible) {
+              aiStaff.push({ app, bot, isOtherPersonalStaff: true });
+            }
+          }
+        }
+        continue;
+      }
+
+      // Common staff, openclaw, base-model-staff -> Section 2
+      for (const bot of app.bots) {
+        aiStaff.push({ app, bot, isOtherPersonalStaff: false });
+      }
+    }
+
+    return {
+      myPersonalStaff: myPS,
+      aiStaffBots: aiStaff,
+      personalStaffApp: psApp,
+    };
+  }, [installedApps, currentUser?.id]);
+
   const openClawApps =
     installedApps?.filter(
       (a) => a.applicationId === "openclaw" && a.status === "active",
@@ -200,6 +456,9 @@ export function AIStaffMainContent() {
     (a) => a.applicationId === "common-staff",
   );
 
+  const hasCreateButton =
+    !!commonStaffApp || openClawApps.length > 0 || !!personalStaffApp;
+
   return (
     <main className="h-full flex flex-col bg-background overflow-hidden">
       {/* Content Header */}
@@ -207,10 +466,10 @@ export function AIStaffMainContent() {
         <div className="flex items-center gap-2">
           <Bot size={18} className="text-primary" />
           <h2 className="font-semibold text-lg text-foreground">
-            {t("aiStaff")}
+            {t("staff")}
           </h2>
         </div>
-        {(commonStaffApp || openClawApps.length > 0) && (
+        {hasCreateButton && (
           <Button size="sm" onClick={() => setShowCreateDialog(true)}>
             <Plus size={14} className="mr-1" />
             Create
@@ -233,47 +492,114 @@ export function AIStaffMainContent() {
             <Card className="p-6 text-center">
               <AlertCircle className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
-                Failed to load AI Staff
+                Failed to load Staff
               </p>
             </Card>
           )}
 
-          {!isLoading &&
-            !error &&
-            installedApps &&
-            installedApps.length === 0 && (
-              <Card className="p-6 text-center">
-                <div className="w-16 h-16 mx-auto mb-4 bg-primary/10 rounded-full flex items-center justify-center">
-                  <Bot size={32} className="text-primary" />
-                </div>
-                <h3 className="font-medium text-foreground mb-1">
-                  {t("createFirstAIStaff")}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {t("aiStaffDescription")}
-                </p>
-              </Card>
-            )}
-
-          {!isLoading &&
-            !error &&
-            installedApps &&
-            installedApps.length > 0 && (
-              <div className="mx-auto max-w-md space-y-2">
-                {installedApps
-                  .filter((app) => app.status === "active")
-                  .flatMap((app) =>
-                    app.bots.map((bot) => (
+          {!isLoading && !error && (
+            <div className="mx-auto max-w-md space-y-4">
+              {/* Section 1: My Personal Staff */}
+              <div>
+                <SectionHeader
+                  title={t("myPersonalStaff")}
+                  count={myPersonalStaff.length}
+                  expanded={true}
+                  onToggle={() => {}}
+                  pinned
+                />
+                <div className="space-y-2">
+                  {myPersonalStaff.length === 0 ? (
+                    <Card className="p-4 text-center border-dashed">
+                      <p className="text-sm text-muted-foreground">
+                        {t("aiStaffDescription")}
+                      </p>
+                    </Card>
+                  ) : (
+                    myPersonalStaff.map(({ app, bot }) => (
                       <AIStaffBotCard
                         key={bot.botId}
                         app={app}
                         bot={bot}
-                        instanceStatus={app.instanceStatus ?? undefined}
+                        showChatButton
+                        badge={t("personalAssistant")}
                       />
-                    )),
+                    ))
                   )}
+                </div>
               </div>
-            )}
+
+              <Separator />
+
+              {/* Section 2: AI Staff */}
+              <div>
+                <SectionHeader
+                  title={t("aiStaffSection")}
+                  count={aiStaffBots.length}
+                  expanded={aiStaffExpanded}
+                  onToggle={() => setAiStaffExpanded((p) => !p)}
+                />
+                {aiStaffExpanded && (
+                  <div className="space-y-2">
+                    {aiStaffBots.length === 0 ? (
+                      <Card className="p-4 text-center border-dashed">
+                        <p className="text-sm text-muted-foreground">
+                          No AI staff members yet
+                        </p>
+                      </Card>
+                    ) : (
+                      aiStaffBots.map(({ app, bot, isOtherPersonalStaff }) => (
+                        <AIStaffBotCard
+                          key={bot.botId}
+                          app={app}
+                          bot={bot}
+                          instanceStatus={app.instanceStatus ?? undefined}
+                          showChatButton
+                          isOtherPersonalStaff={isOtherPersonalStaff}
+                          badge={
+                            isOtherPersonalStaff
+                              ? t("personalAssistant")
+                              : undefined
+                          }
+                        />
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <Separator />
+
+              {/* Section 3: Members */}
+              <div>
+                <SectionHeader
+                  title={t("membersSection")}
+                  count={humanMembers.length}
+                  expanded={membersExpanded}
+                  onToggle={() => setMembersExpanded((p) => !p)}
+                />
+                {membersExpanded && (
+                  <div className="space-y-2">
+                    {membersLoading ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : humanMembers.length === 0 ? (
+                      <Card className="p-4 text-center border-dashed">
+                        <p className="text-sm text-muted-foreground">
+                          No other members
+                        </p>
+                      </Card>
+                    ) : (
+                      humanMembers.map((member) => (
+                        <MemberCard key={member.userId} member={member} />
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </ScrollArea>
 
