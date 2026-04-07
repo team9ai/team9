@@ -2,6 +2,7 @@ import {
   IsString,
   IsOptional,
   IsBoolean,
+  IsDefined,
   IsNotEmpty,
   ValidateNested,
 } from 'class-validator';
@@ -36,6 +37,7 @@ export class CreatePersonalStaffDto {
   @IsString()
   persona?: string;
 
+  @IsDefined()
   @ValidateNested()
   @Type(() => ModelDto)
   model: ModelDto;

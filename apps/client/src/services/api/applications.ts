@@ -649,7 +649,7 @@ export const applicationsApi = {
 
   getPersonalStaff: async (appId: string): Promise<PersonalStaffBotInfo> => {
     const response = await http.get<PersonalStaffBotInfo>(
-      `/v1/installed-applications/${appId}/personal-staff`,
+      `/v1/installed-applications/${appId}/personal-staff/staff`,
     );
     return response.data;
   },
@@ -659,7 +659,7 @@ export const applicationsApi = {
     body: CreatePersonalStaffDto,
   ): Promise<StaffBotResult> => {
     const response = await http.post<StaffBotResult>(
-      `/v1/installed-applications/${appId}/personal-staff`,
+      `/v1/installed-applications/${appId}/personal-staff/staff`,
       body,
     );
     return response.data;
@@ -670,14 +670,16 @@ export const applicationsApi = {
     body: UpdatePersonalStaffDto,
   ): Promise<PersonalStaffBotInfo> => {
     const response = await http.patch<PersonalStaffBotInfo>(
-      `/v1/installed-applications/${appId}/personal-staff`,
+      `/v1/installed-applications/${appId}/personal-staff/staff`,
       body,
     );
     return response.data;
   },
 
   deletePersonalStaff: async (appId: string): Promise<void> => {
-    await http.delete(`/v1/installed-applications/${appId}/personal-staff`);
+    await http.delete(
+      `/v1/installed-applications/${appId}/personal-staff/staff`,
+    );
   },
 
   /**

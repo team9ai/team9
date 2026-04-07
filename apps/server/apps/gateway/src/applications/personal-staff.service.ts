@@ -289,7 +289,7 @@ export class PersonalStaffService {
     tenantId: string,
     ownerId: string,
     dto: UpdatePersonalStaffDto,
-  ): Promise<void> {
+  ) {
     // 1. Verify app type
     await this.verifyPersonalStaffApp(installedApplicationId, tenantId);
 
@@ -338,6 +338,8 @@ export class PersonalStaffService {
       botExtra: updatedExtra,
       currentMentorId: ownerId, // Mentor is always the owner
     });
+
+    return this.getStaff(installedApplicationId, tenantId, ownerId);
   }
 
   /**

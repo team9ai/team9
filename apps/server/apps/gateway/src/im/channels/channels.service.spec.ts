@@ -1,6 +1,7 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   NotFoundException,
@@ -280,7 +281,7 @@ describe('ChannelsService', () => {
       ).resolves.toBeUndefined();
     });
 
-    it('throws ForbiddenException when mentioning a restricted personal staff bot', async () => {
+    it('throws BadRequestException when mentioning a restricted personal staff bot', async () => {
       db.where.mockResolvedValueOnce([
         {
           userId: 'bot-user',
@@ -296,7 +297,7 @@ describe('ChannelsService', () => {
 
       await expect(
         service.assertMentionsAllowed('sender-1', ['bot-user']),
-      ).rejects.toThrow(ForbiddenException);
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('allows mention when sender is the owner', async () => {

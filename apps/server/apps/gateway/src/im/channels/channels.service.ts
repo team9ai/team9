@@ -3,6 +3,7 @@ import {
   Inject,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
   ConflictException,
 } from '@nestjs/common';
 import { v7 as uuidv7 } from 'uuid';
@@ -142,7 +143,7 @@ export class ChannelsService {
 
   /**
    * Check if mentioning a set of user IDs is allowed for the given sender.
-   * Throws ForbiddenException if any mentioned user is a personal staff bot
+   * Throws BadRequestException if any mentioned user is a personal staff bot
    * with restricted mention access and the sender is not the owner.
    */
   async assertMentionsAllowed(
@@ -176,7 +177,7 @@ export class ChannelsService {
       if (botRow.ownerId === senderId) continue;
 
       if (!visibility?.allowMention) {
-        throw new ForbiddenException(
+        throw new BadRequestException(
           'This is a private assistant and is not open for @mentions.',
         );
       }

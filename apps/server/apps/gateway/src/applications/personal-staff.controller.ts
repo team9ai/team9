@@ -72,7 +72,7 @@ export class PersonalStaffController {
     @CurrentUser('sub') userId: string,
     @Body() dto: UpdatePersonalStaffDto,
   ) {
-    await this.personalStaffService.updateStaff(appId, tenantId, userId, dto);
+    return this.personalStaffService.updateStaff(appId, tenantId, userId, dto);
   }
 
   /**

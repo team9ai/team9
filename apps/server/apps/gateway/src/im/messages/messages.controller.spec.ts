@@ -6,7 +6,7 @@ import {
   it,
   jest,
 } from '@jest/globals';
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { RABBITMQ_ROUTING_KEYS } from '@team9/rabbitmq';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
 
@@ -417,7 +417,7 @@ describe('MessagesController', () => {
     it('rejects message when mentioning a restricted personal staff bot', async () => {
       const mentionedUserId = '550e8400-e29b-41d4-a716-446655440099';
       channelsService.assertMentionsAllowed.mockRejectedValueOnce(
-        new ForbiddenException(
+        new BadRequestException(
           'This is a private assistant and is not open for @mentions.',
         ),
       );
@@ -427,7 +427,7 @@ describe('MessagesController', () => {
           clientMsgId: CLIENT_MSG_ID,
           content: `Hello @<${mentionedUserId}>`,
         } as never),
-      ).rejects.toBeInstanceOf(ForbiddenException);
+      ).rejects.toBeInstanceOf(BadRequestException);
 
       expect(imWorkerGrpcClientService.createMessage).not.toHaveBeenCalled();
     });
