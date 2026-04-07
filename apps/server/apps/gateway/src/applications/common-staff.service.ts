@@ -142,13 +142,11 @@ export class CommonStaffService {
     let mentorDmChannel: { id: string } | undefined;
     if (effectiveMentorId) {
       try {
-        const dmChannelMap =
-          await this.channelsService.createDirectChannelsBatch(
-            result.userId,
-            [effectiveMentorId],
-            tenantId,
-          );
-        mentorDmChannel = dmChannelMap.get(effectiveMentorId);
+        mentorDmChannel = await this.channelsService.createDirectChannel(
+          result.userId,
+          effectiveMentorId,
+          tenantId,
+        );
         this.logger.log(
           `Created DM channel for bot ${result.botId} with mentor ${effectiveMentorId}`,
         );

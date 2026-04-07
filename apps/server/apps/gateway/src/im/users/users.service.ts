@@ -337,6 +337,18 @@ export class UsersService {
     return status === 'online';
   }
 
+  /**
+   * Search for users by username or display name.
+   *
+   * @param query - The search string matched against username and displayName.
+   * @param limit - Maximum number of results to return (default 20).
+   * @param tenantId - When provided, restricts results to members of this tenant.
+   * @param searcherId - The ID of the user performing the search. When provided,
+   *   personal staff bots that are not owned by the searcher and have both
+   *   `allowMention` and `allowDirectMessage` set to false are excluded from
+   *   results. Omitting this parameter disables the personal staff visibility
+   *   filter entirely (all bots are included).
+   */
   async search(
     query: string,
     limit = 20,

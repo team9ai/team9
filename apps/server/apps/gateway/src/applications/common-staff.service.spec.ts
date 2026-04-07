@@ -241,7 +241,7 @@ describe('CommonStaffService', () => {
     deleteAgent: MockFn;
     sendInput: MockFn;
   };
-  let channelsService: { createDirectChannelsBatch: MockFn };
+  let channelsService: { createDirectChannel: MockFn };
   let installedApplicationsService: { findById: MockFn };
 
   beforeEach(async () => {
@@ -267,7 +267,7 @@ describe('CommonStaffService', () => {
     };
 
     channelsService = {
-      createDirectChannelsBatch: jest.fn<any>().mockResolvedValue(new Map()),
+      createDirectChannel: jest.fn<any>().mockResolvedValue(undefined),
     };
 
     installedApplicationsService = {
@@ -400,9 +400,9 @@ describe('CommonStaffService', () => {
         makeCreateDto(),
       );
 
-      expect(channelsService.createDirectChannelsBatch).toHaveBeenCalledWith(
+      expect(channelsService.createDirectChannel).toHaveBeenCalledWith(
         BOT_USER_ID,
-        [OWNER_ID],
+        OWNER_ID,
         TENANT_ID,
       );
     });
@@ -446,10 +446,10 @@ describe('CommonStaffService', () => {
       const DM_CHANNEL_ID = 'dm-channel-uuid-1234';
 
       beforeEach(() => {
-        // Mentor DM channel is in the result map
-        channelsService.createDirectChannelsBatch.mockResolvedValue(
-          new Map([[MENTOR_ID, { id: DM_CHANNEL_ID }]]),
-        );
+        // Mentor DM channel returned directly
+        channelsService.createDirectChannel.mockResolvedValue({
+          id: DM_CHANNEL_ID,
+        });
       });
 
       it('triggers sendInput with bootstrap event using deterministic sessionId when agenticBootstrap=true', async () => {
@@ -516,17 +516,17 @@ describe('CommonStaffService', () => {
         );
       });
 
-      it('skips bootstrap and warns when mentor has no DM channel', async () => {
-        // Return empty map — no DM for mentor
-        channelsService.createDirectChannelsBatch.mockResolvedValueOnce(
-          new Map(),
+      it('skips bootstrap and warns when DM channel creation fails', async () => {
+        // Simulate DM channel creation failure
+        channelsService.createDirectChannel.mockRejectedValueOnce(
+          new Error('DM creation failed'),
         );
 
         const dto = makeCreateDto({
           agenticBootstrap: true,
           mentorId: MENTOR_ID,
         });
-        // Should not throw
+        // Should not throw — DM failure is non-fatal
         await expect(
           service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto),
         ).resolves.toBeDefined();

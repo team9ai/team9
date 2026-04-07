@@ -285,6 +285,10 @@ export class ChannelsService {
    * Uses 3 queries instead of N*3 for N members.
    *
    * Returns all DM channels (existing + newly created) mapped by the other user's ID.
+   *
+   * NOTE: This method does NOT run assertDirectMessageAllowed permission checks.
+   * It is intended for trusted server-side flows (bot creation, workspace join).
+   * Use createDirectChannel for user-initiated single-pair DM creation.
    */
   async createDirectChannelsBatch(
     newUserId: string,
