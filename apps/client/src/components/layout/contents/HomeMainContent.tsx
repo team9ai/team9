@@ -27,9 +27,18 @@ import { UserAvatar } from "@/components/ui/user-avatar";
 import { useCreateDirectChannel, useChannelsByType } from "@/hooks/useChannels";
 import {
   type DashboardAgent,
+  type DashboardAgentModel,
   useDashboardAgents,
 } from "@/hooks/useDashboardAgents";
 import { getHttpErrorMessage, getHttpErrorStatus } from "@/lib/http-error";
+import {
+  COMMON_STAFF_MODELS,
+  DEFAULT_STAFF_MODEL,
+} from "@/lib/common-staff-models";
+import {
+  getBaseModelProductKey,
+  getBaseModelProductKeyFromBotIdentity,
+} from "@/lib/base-model-agent";
 import { useUser } from "@/stores";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +54,112 @@ const DASHBOARD_ACTION_CHIPS = [
     className: "text-[#675f56]",
   },
 ] as const;
+
+const FIXED_BASE_MODEL_LABELS = {
+  claude: "Claude Sonnet 4.6",
+  chatgpt: "GPT-5.4 Mini",
+  gemini: "Gemini 3 Flash Preview",
+} as const;
+
+function getAgentModelLabel(
+  agent: DashboardAgent | null,
+  fallbackLabel: string,
+) {
+  if (!agent) return fallbackLabel;
+
+  if (agent.model) {
+    const matchedModel = COMMON_STAFF_MODELS.find(
+      (model) =>
+        model.provider === agent.model?.provider && model.id === agent.model.id,
+    );
+
+    return matchedModel?.label ?? agent.model.id;
+  }
+
+  if (agent.canSwitchModel) {
+    return DEFAULT_STAFF_MODEL.label;
+  }
+
+  const productKey =
+    getBaseModelProductKey(agent.managedAgentId) ??
+    getBaseModelProductKeyFromBotIdentity({
+      isBot: true,
+      name: agent.label,
+      username: agent.username,
+    });
+
+  return productKey ? FIXED_BASE_MODEL_LABELS[productKey] : fallbackLabel;
+}
+
+function DashboardModelControl({
+  agent,
+  fallbackLabel,
+  isUpdating,
+  onSelectModel,
+}: {
+  agent: DashboardAgent | null;
+  fallbackLabel: string;
+  isUpdating: boolean;
+  onSelectModel: (model: DashboardAgentModel) => Promise<void>;
+}) {
+  const currentLabel = getAgentModelLabel(agent, fallbackLabel);
+  const currentValue = agent?.model
+    ? `${agent.model.provider}::${agent.model.id}`
+    : undefined;
+
+  if (!agent?.canSwitchModel) {
+    return (
+      <div className="dashboard-composer-model inline-flex h-[2.05rem] items-center gap-1.5 rounded-full px-3 text-[0.76rem] text-[#50627f]">
+        <Sparkles size={12} className="text-[#2c3647]" />
+        <span>{currentLabel}</span>
+      </div>
+    );
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          disabled={isUpdating}
+          className="dashboard-composer-model inline-flex h-[2.05rem] items-center gap-1.5 rounded-full px-3 text-[0.76rem] text-[#50627f] cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isUpdating ? (
+            <Loader2 size={12} className="animate-spin text-[#2c3647]" />
+          ) : (
+            <Sparkles size={12} className="text-[#2c3647]" />
+          )}
+          <span>{currentLabel}</span>
+          <ChevronDown size={11} className="text-[#93887b]" />
+        </button>
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent
+        align="end"
+        className="w-[15rem] rounded-3xl border-white/70 bg-white/95 p-2 shadow-[0_20px_50px_rgba(140,121,93,0.18)] backdrop-blur"
+      >
+        <DropdownMenuRadioGroup
+          value={currentValue}
+          onValueChange={(value) => {
+            const [provider, id] = value.split("::");
+            if (!provider || !id) return;
+            void onSelectModel({ provider, id });
+          }}
+        >
+          {COMMON_STAFF_MODELS.map((model) => (
+            <DropdownMenuRadioItem
+              key={`${model.provider}::${model.id}`}
+              value={`${model.provider}::${model.id}`}
+              className="!cursor-pointer rounded-2xl py-2.5 pr-3"
+            >
+              {model.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 function DashboardHeader({
   agents,
@@ -214,7 +329,8 @@ export function HomeMainContent() {
   const navigate = useNavigate();
   const { directChannels = [] } = useChannelsByType();
   const createDirectChannel = useCreateDirectChannel();
-  const { agents } = useDashboardAgents(directChannels);
+  const { agents, updateAgentModel, updatingAgentUserId } =
+    useDashboardAgents(directChannels);
   const user = useUser();
   const [prompt, setPrompt] = useState("");
   const [selectedAgentUserId, setSelectedAgentUserId] = useState<string | null>(
@@ -233,6 +349,8 @@ export function HomeMainContent() {
     !!selectedAgent &&
     prompt.trim().length > 0 &&
     !createDirectChannel.isPending;
+  const isUpdatingSelectedAgentModel =
+    !!selectedAgent && updatingAgentUserId === selectedAgent.userId;
 
   useEffect(() => {
     setSelectedAgentUserId((current) => {
@@ -278,6 +396,23 @@ export function HomeMainContent() {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       handleSubmit();
+    }
+  };
+
+  const handleModelChange = async (model: DashboardAgentModel) => {
+    if (!selectedAgent?.canSwitchModel) return;
+
+    if (
+      selectedAgent.model?.provider === model.provider &&
+      selectedAgent.model?.id === model.id
+    ) {
+      return;
+    }
+
+    try {
+      await updateAgentModel(selectedAgent, model);
+    } catch (error: unknown) {
+      alert(getHttpErrorMessage(error) || "Failed to update model");
     }
   };
 
@@ -349,11 +484,12 @@ export function HomeMainContent() {
                   </div>
 
                   <div className="flex items-center justify-between gap-1.5 sm:justify-end">
-                    <div className="dashboard-composer-model inline-flex h-[2.05rem] items-center gap-1.5 rounded-full px-3 text-[0.76rem] text-[#50627f]">
-                      <Sparkles size={12} className="text-[#2c3647]" />
-                      <span>{t("dashboardModelLabel")}</span>
-                      <ChevronDown size={11} className="text-[#93887b]" />
-                    </div>
+                    <DashboardModelControl
+                      agent={selectedAgent}
+                      fallbackLabel={t("dashboardModelLabel")}
+                      isUpdating={isUpdatingSelectedAgentModel}
+                      onSelectModel={handleModelChange}
+                    />
 
                     <Button
                       type="button"
