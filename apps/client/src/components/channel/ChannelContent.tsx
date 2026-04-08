@@ -1,6 +1,7 @@
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import type { AttachmentDto, Message, ChannelMember } from "@/types/im";
+import type { useBotModelSwitch } from "@/hooks/useBotModelSwitch";
 
 export interface ChannelContentProps {
   // MessageList props
@@ -26,6 +27,10 @@ export interface ChannelContentProps {
   initialDraft?: string;
   autoSendInitialDraft?: boolean;
   onInitialDraftAutoSent?: () => void;
+  /** Whether this is a bot DM channel */
+  isBotDm?: boolean;
+  /** Bot model switching info */
+  botModelSwitch?: ReturnType<typeof useBotModelSwitch>;
 
   // Optional UI controls
   hasMoreUnsynced?: boolean;
@@ -56,6 +61,8 @@ export function ChannelContent({
   onInitialDraftAutoSent,
   hasMoreUnsynced,
   showReadOnlyBar,
+  isBotDm,
+  botModelSwitch,
 }: ChannelContentProps) {
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -96,6 +103,8 @@ export function ChannelContent({
           initialDraft={initialDraft}
           autoSendInitialDraft={autoSendInitialDraft}
           onInitialDraftAutoSent={onInitialDraftAutoSent}
+          isBotDm={isBotDm}
+          botModelSwitch={botModelSwitch}
         />
       ) : null}
     </div>

@@ -18,6 +18,7 @@ import { JoinChannelPrompt } from "./JoinChannelPrompt";
 import { BotStartupOverlay } from "./BotStartupOverlay";
 import { BotInstanceStoppedBanner } from "./BotInstanceStoppedBanner";
 import { useOpenClawBotInstanceStatus } from "@/hooks/useOpenClawBotInstanceStatus";
+import { useBotModelSwitch } from "@/hooks/useBotModelSwitch";
 import type {
   AttachmentDto,
   ChannelWithUnread,
@@ -149,6 +150,9 @@ export function ChannelView({
     if (!isBotDm) return null;
     return dmOtherUser?.id ?? null;
   }, [dmOtherUser, isBotDm]);
+
+  // Bot model switching for bot DM channels
+  const botModelSwitch = useBotModelSwitch(isBotDm ? botDmUserId : null);
 
   // OpenClaw instance status for bot DM channels (to detect stopped instances)
   const {
@@ -388,6 +392,8 @@ export function ChannelView({
             initialDraft={initialDraft}
             autoSendInitialDraft={autoSendInitialDraft}
             onInitialDraftAutoSent={onInitialDraftAutoSent}
+            isBotDm={isBotDm}
+            botModelSwitch={isBotDm ? botModelSwitch : undefined}
           />
         )}
 

@@ -18,7 +18,16 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { $getRoot, $createParagraphNode, $createTextNode } from "lexical";
 import type { EditorState, LexicalEditor } from "lexical";
 import type { InitialConfigType } from "@lexical/react/LexicalComposer";
-import { Send } from "lucide-react";
+import { ArrowUp, Sparkles, ChevronDown, Loader2 } from "lucide-react";
+import type { useBotModelSwitch } from "@/hooks/useBotModelSwitch";
+import { COMMON_STAFF_MODELS } from "@/lib/common-staff-models";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { hasContent } from "./utils/exportContent";
 import { CHAT_MARKDOWN_TRANSFORMERS } from "./utils/markdownTransformers";
 import { submitEditorContent } from "./utils/submitEditorContent";
@@ -51,11 +60,20 @@ interface RichTextEditorProps {
   autoSendInitialDraft?: boolean;
   /** Called after the initial draft auto-send succeeds */
   onInitialDraftAutoSent?: () => void;
+  /** Whether this is a bot DM channel - shows AI feature buttons */
+  isBotDm?: boolean;
+  /** Bot model switching info */
+  botModelSwitch?: ReturnType<typeof useBotModelSwitch>;
 }
 
-function Placeholder({ text }: { text: string }) {
+function Placeholder({ text, compact }: { text: string; compact?: boolean }) {
   return (
-    <div className="absolute top-0 left-0 text-muted-foreground pointer-events-none select-none text-sm">
+    <div
+      className={cn(
+        "absolute top-0 left-0 text-muted-foreground/60 pointer-events-none select-none text-sm",
+        compact ? "" : "px-5 pt-4",
+      )}
+    >
       {text}
     </div>
   );
@@ -248,14 +266,14 @@ function SendButton({
       onClick={handleClick}
       disabled={!canSend}
       className={cn(
-        "p-2 rounded-md transition-colors",
+        "h-8 w-8 rounded-full flex items-center justify-center transition-all duration-200",
         canSend
-          ? "bg-info hover:bg-info/90 text-primary-foreground"
+          ? "bg-foreground hover:bg-foreground/80 text-background"
           : "bg-muted text-muted-foreground cursor-not-allowed",
       )}
       title="Send message"
     >
-      <Send size={18} />
+      <ArrowUp size={16} strokeWidth={2.5} />
     </button>
   );
 }
@@ -274,6 +292,8 @@ export function RichTextEditor({
   initialDraft,
   autoSendInitialDraft,
   onInitialDraftAutoSent,
+  isBotDm = false,
+  botModelSwitch,
 }: RichTextEditorProps) {
   const editorRef = useRef<LexicalEditor | null>(null);
   const hasAttachments = uploadingFiles.some((f) => f.status === "completed");
@@ -305,12 +325,11 @@ export function RichTextEditor({
   return (
     <LexicalComposer initialConfig={initialConfig}>
       <div className={cn("relative", className)}>
-        {!compact && <EditorToolbar onFileSelect={onFileSelect} />}
-
+        {/* Editor area */}
         <div
           className={cn(
             "relative overflow-y-auto",
-            compact ? "min-h-10 max-h-30" : "min-h-20 max-h-50",
+            compact ? "min-h-10 max-h-30" : "min-h-10 max-h-40",
           )}
         >
           <RichTextPlugin
@@ -318,11 +337,13 @@ export function RichTextEditor({
               <ContentEditable
                 className={cn(
                   "outline-none text-sm leading-relaxed",
-                  compact ? "min-h-10 px-0 py-0" : "min-h-20 px-0 py-0",
+                  compact ? "min-h-10" : "min-h-14 px-5 pt-4 pb-2",
                   disabled && "opacity-50 cursor-not-allowed",
                 )}
                 aria-placeholder={placeholder}
-                placeholder={<Placeholder text={placeholder} />}
+                placeholder={
+                  <Placeholder text={placeholder} compact={compact} />
+                }
               />
             }
             ErrorBoundary={LexicalErrorBoundary}
@@ -359,13 +380,80 @@ export function RichTextEditor({
           />
         )}
 
-        {/* Send button */}
-        <div className="flex justify-end mt-2">
-          <SendButton
-            onSubmit={onSubmit}
-            disabled={disabled}
-            hasAttachments={hasAttachments}
-          />
+        {/* Bottom row: tools on left, model selector + send on right */}
+        <div
+          className={cn(
+            "flex items-center justify-between",
+            compact ? "pt-1" : "px-3 pb-3 pt-1",
+          )}
+        >
+          {!compact ? (
+            <EditorToolbar onFileSelect={onFileSelect} isBotDm={isBotDm} />
+          ) : (
+            <div />
+          )}
+          <div className="flex items-center gap-2">
+            {isBotDm && botModelSwitch && botModelSwitch.canSwitchModel && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    disabled={botModelSwitch.isUpdating}
+                    className="flex items-center gap-1.5 h-8 px-3 rounded-full border border-border/60 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {botModelSwitch.isUpdating ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Sparkles size={14} />
+                    )}
+                    <span>{botModelSwitch.currentModelLabel}</span>
+                    <ChevronDown size={11} />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-60 rounded-xl p-1.5"
+                >
+                  <DropdownMenuRadioGroup
+                    value={
+                      botModelSwitch.currentModel
+                        ? `${botModelSwitch.currentModel.provider}::${botModelSwitch.currentModel.id}`
+                        : undefined
+                    }
+                    onValueChange={(value) => {
+                      const [provider, id] = value.split("::");
+                      if (!provider || !id) return;
+                      void botModelSwitch.updateModel({ provider, id });
+                    }}
+                  >
+                    {COMMON_STAFF_MODELS.map((model) => (
+                      <DropdownMenuRadioItem
+                        key={`${model.provider}::${model.id}`}
+                        value={`${model.provider}::${model.id}`}
+                        className="cursor-pointer rounded-lg py-2.5"
+                      >
+                        {model.label}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            {isBotDm &&
+              botModelSwitch &&
+              !botModelSwitch.canSwitchModel &&
+              botModelSwitch.currentModelLabel && (
+                <div className="flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium text-muted-foreground">
+                  <Sparkles size={14} />
+                  <span>{botModelSwitch.currentModelLabel}</span>
+                </div>
+              )}
+            <SendButton
+              onSubmit={onSubmit}
+              disabled={disabled}
+              hasAttachments={hasAttachments}
+            />
+          </div>
         </div>
 
         <KeyboardShortcutsPlugin
