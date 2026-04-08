@@ -458,7 +458,7 @@ export function HomeMainContent() {
             onSelectAgent={setSelectedAgentUserId}
           />
 
-          <div className="mx-auto flex w-full max-w-[1680px] flex-1 flex-col items-center justify-center gap-5 pb-8 pt-2 sm:gap-6 sm:pb-12 sm:pt-4 lg:pb-[4.5rem] lg:pt-3">
+          <div className="mx-auto flex w-full max-w-[1680px] flex-1 flex-col items-center justify-center gap-5 pb-8 pt-14 sm:gap-6 sm:pb-12 sm:pt-16 lg:pb-[4.5rem] lg:pt-20">
             <DashboardPlanBadge planLabel={currentPlanLabel} />
 
             {isNewUser && !isWarmupDismissed ? (
@@ -493,7 +493,7 @@ export function HomeMainContent() {
                   onKeyDown={handlePromptKeyDown}
                   rows={3}
                   placeholder={t("dashboardPromptPlaceholder")}
-                  className="min-h-[7rem] resize-none border-0 bg-transparent px-2.5 py-1.5 text-[0.82rem] leading-[1.2rem] text-[#3f3a35] shadow-none placeholder:text-[#c8d5e6] focus-visible:border-transparent focus-visible:ring-0 md:text-[0.82rem]"
+                  className="min-h-[4rem] resize-none border-0 bg-transparent px-2.5 py-1.5 text-[0.82rem] leading-[1.2rem] text-[#3f3a35] shadow-none placeholder:text-[#c8d5e6] focus-visible:border-transparent focus-visible:ring-0 md:text-[0.82rem]"
                 />
 
                 <div className="mt-3 flex flex-col gap-2.5 px-0.5 pt-0.5 sm:flex-row sm:items-end sm:justify-between">
