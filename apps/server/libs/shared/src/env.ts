@@ -258,4 +258,12 @@ export const env = {
       getAppEnv() === 'local'
     );
   },
+
+  // Auto-migrate and auto-seed (optional - defaults to false)
+  get AUTO_MIGRATE() {
+    return process.env.AUTO_MIGRATE === 'true';
+  },
+  get AUTO_SEED() {
+    return process.env.AUTO_SEED === 'true';
+  },
 };
