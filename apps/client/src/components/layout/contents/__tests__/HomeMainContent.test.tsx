@@ -6,6 +6,8 @@ const mockUseChannelsByType = vi.hoisted(() => vi.fn());
 const mockUseCreateDirectChannel = vi.hoisted(() => vi.fn());
 const mockUseDashboardAgents = vi.hoisted(() => vi.fn());
 const mockUpdateAgentModel = vi.hoisted(() => vi.fn());
+const mockUseWorkspaceBillingOverview = vi.hoisted(() => vi.fn());
+const mockUseWorkspaceBillingSummary = vi.hoisted(() => vi.fn());
 const mockUseSelectedWorkspaceId = vi.hoisted(() => vi.fn());
 const mockUseUser = vi.hoisted(() => vi.fn());
 
@@ -62,6 +64,11 @@ vi.mock("@/hooks/useDashboardAgents", () => ({
   useDashboardAgents: mockUseDashboardAgents,
 }));
 
+vi.mock("@/hooks/useWorkspaceBilling", () => ({
+  useWorkspaceBillingOverview: mockUseWorkspaceBillingOverview,
+  useWorkspaceBillingSummary: mockUseWorkspaceBillingSummary,
+}));
+
 vi.mock("@/stores", () => ({
   useSelectedWorkspaceId: mockUseSelectedWorkspaceId,
   useUser: mockUseUser,
@@ -74,6 +81,24 @@ describe("HomeMainContent", () => {
     vi.clearAllMocks();
 
     mockUseSelectedWorkspaceId.mockReturnValue("ws-1");
+    mockUseWorkspaceBillingSummary.mockReturnValue({
+      data: {
+        subscription: {
+          product: {
+            name: "Starter",
+          },
+        },
+        managementAllowed: true,
+      },
+    });
+    mockUseWorkspaceBillingOverview.mockReturnValue({
+      data: {
+        account: {
+          balance: 4321,
+          effectiveQuota: 555,
+        },
+      },
+    });
     mockUseChannelsByType.mockReturnValue({
       directChannels: [{ id: "bot-ch-1", otherUser: { userType: "bot" } }],
     });
@@ -134,6 +159,8 @@ describe("HomeMainContent", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/deep research/i)).toBeInTheDocument();
     expect(screen.getByText(/generate image/i)).toBeInTheDocument();
+    expect(screen.getByText("Starter")).toBeInTheDocument();
+    expect(screen.getByText("4,876")).toBeInTheDocument();
     const trigger = screen.getByRole("button", { name: /alpha agent/i });
     expect(trigger).toBeInTheDocument();
     expect(trigger.className).toContain("cursor-pointer");
@@ -202,5 +229,22 @@ describe("HomeMainContent", () => {
         id: "openai/o3",
       },
     );
+  });
+
+  it("falls back to the free plan label when no subscription exists", () => {
+    mockUseWorkspaceBillingSummary.mockReturnValue({
+      data: {
+        subscription: null,
+        managementAllowed: false,
+      },
+    });
+    mockUseWorkspaceBillingOverview.mockReturnValue({
+      data: null,
+    });
+
+    render(<HomeMainContent />);
+
+    expect(screen.getByText("Free plan")).toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
   });
 });

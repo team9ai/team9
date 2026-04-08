@@ -30,6 +30,10 @@ import {
   type DashboardAgentModel,
   useDashboardAgents,
 } from "@/hooks/useDashboardAgents";
+import {
+  useWorkspaceBillingOverview,
+  useWorkspaceBillingSummary,
+} from "@/hooks/useWorkspaceBilling";
 import { getHttpErrorMessage, getHttpErrorStatus } from "@/lib/http-error";
 import {
   COMMON_STAFF_MODELS,
@@ -39,7 +43,8 @@ import {
   getBaseModelProductKey,
   getBaseModelProductKeyFromBotIdentity,
 } from "@/lib/base-model-agent";
-import { useUser } from "@/stores";
+import type { WorkspaceBillingAccount } from "@/types/workspace";
+import { useSelectedWorkspaceId, useUser } from "@/stores";
 import { cn } from "@/lib/utils";
 
 const DASHBOARD_ACTION_CHIPS = [
@@ -164,10 +169,12 @@ function DashboardModelControl({
 function DashboardHeader({
   agents,
   selectedAgentUserId,
+  creditsLabel,
   onSelectAgent,
 }: {
   agents: DashboardAgent[];
   selectedAgentUserId: string | null;
+  creditsLabel: string;
   onSelectAgent: (userId: string) => void;
 }) {
   const { t } = useTranslation("navigation");
@@ -255,19 +262,19 @@ function DashboardHeader({
         className="dashboard-landing-pill inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm text-[#8f8578] hover:bg-white/50 hover:text-[#8f8578] h-auto cursor-pointer"
       >
         <Sparkles size={14} className="text-[#9c8f80]" />
-        <span>{t("dashboardUsageValue")}</span>
+        <span>{creditsLabel}</span>
       </Button>
     </header>
   );
 }
 
-function DashboardPlanBadge() {
+function DashboardPlanBadge({ planLabel }: { planLabel: string }) {
   const { t } = useTranslation("navigation");
   const navigate = useNavigate();
 
   return (
     <div className="dashboard-landing-pill inline-flex items-center rounded-full p-[0.2rem] text-[0.8rem] text-[#8d8274]">
-      <span className="rounded-full px-4 py-1.5">{t("dashboardPlan")}</span>
+      <span className="rounded-full px-4 py-1.5">{planLabel}</span>
       <span className="h-4 w-px bg-[#e7ddd0]" />
       <Button
         variant="ghost"
@@ -324,13 +331,29 @@ function DashboardTaskPill() {
   );
 }
 
+function getWorkspaceCredits(
+  account: WorkspaceBillingAccount | null | undefined,
+) {
+  return (account?.balance ?? 0) + (account?.effectiveQuota ?? 0);
+}
+
+function formatDashboardCredits(value: number) {
+  return new Intl.NumberFormat("en-US").format(value);
+}
+
 export function HomeMainContent() {
   const { t } = useTranslation(["navigation", "message"]);
   const navigate = useNavigate();
+  const workspaceId = useSelectedWorkspaceId();
   const { directChannels = [] } = useChannelsByType();
   const createDirectChannel = useCreateDirectChannel();
   const { agents, updateAgentModel, updatingAgentUserId } =
     useDashboardAgents(directChannels);
+  const billingSummary = useWorkspaceBillingSummary(workspaceId ?? undefined);
+  const billingOverview = useWorkspaceBillingOverview(
+    workspaceId ?? undefined,
+    billingSummary.data?.managementAllowed ?? false,
+  );
   const user = useUser();
   const [prompt, setPrompt] = useState("");
   const [selectedAgentUserId, setSelectedAgentUserId] = useState<string | null>(
@@ -351,6 +374,14 @@ export function HomeMainContent() {
     !createDirectChannel.isPending;
   const isUpdatingSelectedAgentModel =
     !!selectedAgent && updatingAgentUserId === selectedAgent.userId;
+  const currentPlanLabel =
+    billingSummary.data?.subscription?.product.name || t("dashboardPlan");
+  const creditsLabel =
+    billingSummary.data?.managementAllowed && billingOverview.data?.account
+      ? formatDashboardCredits(
+          getWorkspaceCredits(billingOverview.data.account),
+        )
+      : "—";
 
   useEffect(() => {
     setSelectedAgentUserId((current) => {
@@ -423,11 +454,12 @@ export function HomeMainContent() {
           <DashboardHeader
             agents={agents}
             selectedAgentUserId={selectedAgent?.userId ?? null}
+            creditsLabel={creditsLabel}
             onSelectAgent={setSelectedAgentUserId}
           />
 
           <div className="mx-auto flex w-full max-w-[1680px] flex-1 flex-col items-center justify-center gap-5 pb-8 pt-2 sm:gap-6 sm:pb-12 sm:pt-4 lg:pb-[4.5rem] lg:pt-3">
-            <DashboardPlanBadge />
+            <DashboardPlanBadge planLabel={currentPlanLabel} />
 
             {isNewUser && !isWarmupDismissed ? (
               <div className="dashboard-landing-pill flex w-full max-w-[36rem] items-start gap-2.5 rounded-[1.2rem] px-3.5 py-2.5 text-[0.78rem] text-[#6e655b] sm:items-center">
