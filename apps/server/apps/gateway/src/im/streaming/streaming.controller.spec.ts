@@ -506,6 +506,44 @@ describe('StreamingController', () => {
       );
     });
 
+    it('persists thinking content to message metadata when provided', async () => {
+      redisService.get.mockResolvedValueOnce(JSON.stringify(makeSession()));
+      const message = makeMessage();
+      messagesService.getMessageWithDetails.mockResolvedValueOnce(message);
+      (uuid.v7 as unknown as jest.Mock<any>).mockReturnValueOnce(CLIENT_MSG_ID);
+
+      const thinkingContent = 'Let me analyze this problem...';
+      await controller.endStreaming(BOT_USER_ID, STREAM_ID, {
+        content: 'Final response',
+        thinking: thinkingContent,
+      });
+
+      expect(imWorkerGrpcClientService.createMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: 'Final response',
+          metadata: { thinking: thinkingContent },
+        }),
+      );
+    });
+
+    it('omits metadata when thinking content is not provided', async () => {
+      redisService.get.mockResolvedValueOnce(JSON.stringify(makeSession()));
+      const message = makeMessage();
+      messagesService.getMessageWithDetails.mockResolvedValueOnce(message);
+      (uuid.v7 as unknown as jest.Mock<any>).mockReturnValueOnce(CLIENT_MSG_ID);
+
+      await controller.endStreaming(BOT_USER_ID, STREAM_ID, {
+        content: 'Final response',
+      });
+
+      expect(imWorkerGrpcClientService.createMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: 'Final response',
+          metadata: undefined,
+        }),
+      );
+    });
+
     it('rejects non-bot users with ForbiddenException', async () => {
       botService.isBot.mockResolvedValue(false);
 

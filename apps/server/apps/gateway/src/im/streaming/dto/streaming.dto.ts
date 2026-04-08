@@ -36,4 +36,9 @@ export class EndStreamingDto {
   @IsNotEmpty()
   @MaxLength(100000)
   content: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(100000)
+  thinking?: string;
 }
