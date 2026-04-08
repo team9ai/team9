@@ -407,7 +407,7 @@ export function HomeMainContent() {
       navigate({
         to: "/channels/$channelId",
         params: { channelId },
-        search: { draft },
+        search: { draft, autoSend: true },
       });
     } catch (error: unknown) {
       const status = getHttpErrorStatus(error);

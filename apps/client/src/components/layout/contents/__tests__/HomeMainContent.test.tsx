@@ -182,7 +182,7 @@ describe("HomeMainContent", () => {
     expect(mockNavigate).toHaveBeenCalledWith({
       to: "/channels/$channelId",
       params: { channelId: "bot-ch-2" },
-      search: { draft: "hello beta" },
+      search: { draft: "hello beta", autoSend: true },
     });
   });
 

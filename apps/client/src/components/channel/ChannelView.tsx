@@ -46,6 +46,10 @@ interface ChannelViewProps {
   initialMessageId?: string;
   // Draft text to pre-fill in the message input
   initialDraft?: string;
+  // Automatically send the initial draft once after mounting
+  autoSendInitialDraft?: boolean;
+  // Called after the initial draft auto-send succeeds
+  onInitialDraftAutoSent?: () => void;
   // Preview channel data for non-members (public channel preview mode)
   previewChannel?: PublicChannelPreview;
   // Hide the built-in ChannelHeader (e.g. when a parent component provides its own header)
@@ -63,6 +67,8 @@ export function ChannelView({
   initialThreadId,
   initialMessageId,
   initialDraft,
+  autoSendInitialDraft,
+  onInitialDraftAutoSent,
   previewChannel,
   hideHeader,
   readOnly,
@@ -185,6 +191,18 @@ export function ChannelView({
   useEffect(() => {
     setThinkingBotIds([]);
   }, [channelId]);
+
+  // Dashboard auto-send should surface the bot thinking indicator immediately,
+  // instead of waiting for the send path to resolve bot DM metadata.
+  useEffect(() => {
+    if (!autoSendInitialDraft || !initialDraft || !isBotDm || !botDmUserId) {
+      return;
+    }
+
+    setThinkingBotIds((prev) =>
+      prev.includes(botDmUserId) ? prev : [...prev, botDmUserId],
+    );
+  }, [autoSendInitialDraft, botDmUserId, initialDraft, isBotDm]);
 
   // Listen for bot replies or streaming start via WebSocket to dismiss thinking indicator
   useEffect(() => {
@@ -366,8 +384,10 @@ export function ChannelView({
             hasMoreUnsynced={hasMoreUnsynced}
             showReadOnlyBar={isPreviewMode || readOnly}
             onSend={isPreviewMode || readOnly ? undefined : handleSendMessage}
-            isSendDisabled={sendMessage.isPending || showOverlay}
+            isSendDisabled={showOverlay}
             initialDraft={initialDraft}
+            autoSendInitialDraft={autoSendInitialDraft}
+            onInitialDraftAutoSent={onInitialDraftAutoSent}
           />
         )}
 

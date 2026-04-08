@@ -24,6 +24,8 @@ export interface ChannelContentProps {
   isSendDisabled?: boolean;
   inputPlaceholder?: string;
   initialDraft?: string;
+  autoSendInitialDraft?: boolean;
+  onInitialDraftAutoSent?: () => void;
 
   // Optional UI controls
   hasMoreUnsynced?: boolean;
@@ -50,6 +52,8 @@ export function ChannelContent({
   isSendDisabled,
   inputPlaceholder,
   initialDraft,
+  autoSendInitialDraft,
+  onInitialDraftAutoSent,
   hasMoreUnsynced,
   showReadOnlyBar,
 }: ChannelContentProps) {
@@ -90,6 +94,8 @@ export function ChannelContent({
           disabled={isSendDisabled}
           placeholder={inputPlaceholder}
           initialDraft={initialDraft}
+          autoSendInitialDraft={autoSendInitialDraft}
+          onInitialDraftAutoSent={onInitialDraftAutoSent}
         />
       ) : null}
     </div>

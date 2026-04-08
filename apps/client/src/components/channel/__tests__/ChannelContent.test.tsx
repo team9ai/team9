@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { ChannelContent } from "../ChannelContent";
-import type { Message, ChannelMember, AttachmentDto } from "@/types/im";
+import { ChannelContent, type ChannelContentProps } from "../ChannelContent";
+import type { Message, ChannelMember } from "@/types/im";
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -30,14 +30,17 @@ vi.mock("../MessageInput", () => ({
   MessageInput: ({
     disabled,
     placeholder,
+    autoSendInitialDraft,
   }: {
     disabled?: boolean;
     placeholder?: string;
+    autoSendInitialDraft?: boolean;
   }) => (
     <div
       data-testid="message-input"
       data-disabled={disabled ? "true" : "false"}
       data-placeholder={placeholder ?? ""}
+      data-auto-send={autoSendInitialDraft ? "true" : "false"}
     />
   ),
 }));
@@ -68,6 +71,10 @@ const BASE_PROPS = {
   onLoadMore: vi.fn(),
 };
 
+function makeOnSendMock(): NonNullable<ChannelContentProps["onSend"]> {
+  return vi.fn(async () => undefined);
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -83,10 +90,7 @@ describe("ChannelContent", () => {
   });
 
   it("renders MessageInput when onSend is provided", () => {
-    const onSend = vi.fn<
-      [string, AttachmentDto[] | undefined],
-      Promise<void>
-    >();
+    const onSend = makeOnSendMock();
     render(<ChannelContent {...BASE_PROPS} onSend={onSend} />);
 
     expect(screen.getByTestId("message-input")).toBeInTheDocument();
@@ -106,10 +110,7 @@ describe("ChannelContent", () => {
   });
 
   it("renders read-only bar even when onSend is provided if showReadOnlyBar=true", () => {
-    const onSend = vi.fn<
-      [string, AttachmentDto[] | undefined],
-      Promise<void>
-    >();
+    const onSend = makeOnSendMock();
     render(<ChannelContent {...BASE_PROPS} onSend={onSend} showReadOnlyBar />);
 
     expect(screen.getByText("Read-only")).toBeInTheDocument();
@@ -117,10 +118,7 @@ describe("ChannelContent", () => {
   });
 
   it("readOnly only affects MessageList, not the input area", () => {
-    const onSend = vi.fn<
-      [string, AttachmentDto[] | undefined],
-      Promise<void>
-    >();
+    const onSend = makeOnSendMock();
     render(<ChannelContent {...BASE_PROPS} onSend={onSend} readOnly />);
 
     // MessageList gets readOnly
@@ -162,10 +160,7 @@ describe("ChannelContent", () => {
   });
 
   it("passes isSendDisabled to MessageInput as disabled", () => {
-    const onSend = vi.fn<
-      [string, AttachmentDto[] | undefined],
-      Promise<void>
-    >();
+    const onSend = makeOnSendMock();
     render(<ChannelContent {...BASE_PROPS} onSend={onSend} isSendDisabled />);
 
     const input = screen.getByTestId("message-input");
@@ -173,10 +168,7 @@ describe("ChannelContent", () => {
   });
 
   it("passes inputPlaceholder to MessageInput", () => {
-    const onSend = vi.fn<
-      [string, AttachmentDto[] | undefined],
-      Promise<void>
-    >();
+    const onSend = makeOnSendMock();
     render(
       <ChannelContent
         {...BASE_PROPS}
@@ -187,6 +179,21 @@ describe("ChannelContent", () => {
 
     const input = screen.getByTestId("message-input");
     expect(input).toHaveAttribute("data-placeholder", "Type something...");
+  });
+
+  it("passes autoSendInitialDraft to MessageInput", () => {
+    const onSend = makeOnSendMock();
+    render(
+      <ChannelContent
+        {...BASE_PROPS}
+        onSend={onSend}
+        initialDraft="hello from dashboard"
+        autoSendInitialDraft
+      />,
+    );
+
+    const input = screen.getByTestId("message-input");
+    expect(input).toHaveAttribute("data-auto-send", "true");
   });
 
   it("renders with empty messages array", () => {
@@ -242,10 +249,7 @@ describe("ChannelContent", () => {
   });
 
   it("does not pass disabled to MessageInput when isSendDisabled is false", () => {
-    const onSend = vi.fn<
-      [string, AttachmentDto[] | undefined],
-      Promise<void>
-    >();
+    const onSend = makeOnSendMock();
     render(
       <ChannelContent {...BASE_PROPS} onSend={onSend} isSendDisabled={false} />,
     );

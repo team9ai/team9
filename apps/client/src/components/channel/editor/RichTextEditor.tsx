@@ -19,8 +19,9 @@ import { $getRoot, $createParagraphNode, $createTextNode } from "lexical";
 import type { EditorState, LexicalEditor } from "lexical";
 import type { InitialConfigType } from "@lexical/react/LexicalComposer";
 import { Send } from "lucide-react";
-import { exportToHtml, hasContent } from "./utils/exportContent";
+import { hasContent } from "./utils/exportContent";
 import { CHAT_MARKDOWN_TRANSFORMERS } from "./utils/markdownTransformers";
+import { submitEditorContent } from "./utils/submitEditorContent";
 
 import { editorTheme } from "./themes/editorTheme";
 import { MentionNode } from "./nodes/MentionNode";
@@ -46,6 +47,10 @@ interface RichTextEditorProps {
   onRetryFile?: (id: string) => void;
   /** Draft text to pre-fill in the editor */
   initialDraft?: string;
+  /** Automatically send the initial draft once after mount */
+  autoSendInitialDraft?: boolean;
+  /** Called after the initial draft auto-send succeeds */
+  onInitialDraftAutoSent?: () => void;
 }
 
 function Placeholder({ text }: { text: string }) {
@@ -91,24 +96,113 @@ function CodeHighlightPlugin() {
   return null;
 }
 
-function InitialDraftPlugin({ draft }: { draft?: string }) {
-  const [editor] = useLexicalComposerContext();
-  const hasApplied = useRef(false);
-
-  useEffect(() => {
-    if (!draft || hasApplied.current) return;
-    hasApplied.current = true;
-
-    editor.update(() => {
+function writeDraftToEditor(editor: LexicalEditor, draft: string) {
+  editor.update(
+    () => {
       const root = $getRoot();
       root.clear();
       const paragraph = $createParagraphNode();
       paragraph.append($createTextNode(draft));
       root.append(paragraph);
-      // Move cursor to end
       paragraph.selectEnd();
-    });
-  }, [editor, draft]);
+    },
+    { discrete: true },
+  );
+}
+
+function InitialDraftPlugin({
+  channelId,
+  draft,
+}: {
+  channelId?: string;
+  draft?: string;
+}) {
+  const [editor] = useLexicalComposerContext();
+  const appliedDraftKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!draft) {
+      appliedDraftKeyRef.current = null;
+      return;
+    }
+
+    const draftKey = `${channelId ?? "default"}::${draft}`;
+
+    if (appliedDraftKeyRef.current === draftKey) {
+      return;
+    }
+
+    writeDraftToEditor(editor, draft);
+    appliedDraftKeyRef.current = draftKey;
+  }, [channelId, draft, editor]);
+
+  return null;
+}
+
+function AutoSendDraftPlugin({
+  channelId,
+  draft,
+  enabled,
+  onSubmit,
+  disabled,
+  hasAttachments,
+  onAutoSent,
+}: {
+  channelId?: string;
+  draft?: string;
+  enabled?: boolean;
+  onSubmit: (content: string) => Promise<void>;
+  disabled?: boolean;
+  hasAttachments?: boolean;
+  onAutoSent?: () => void;
+}) {
+  const [editor] = useLexicalComposerContext();
+  const autoSubmittedDraftKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!draft) {
+      autoSubmittedDraftKeyRef.current = null;
+      return;
+    }
+
+    if (!enabled || disabled) {
+      return;
+    }
+
+    const draftKey = `${channelId ?? "default"}::${draft}`;
+    if (autoSubmittedDraftKeyRef.current === draftKey) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void submitEditorContent({
+        editor,
+        onSubmit,
+        disabled,
+        hasAttachments,
+      })
+        .then((didSubmit) => {
+          if (didSubmit) {
+            autoSubmittedDraftKeyRef.current = draftKey;
+            onAutoSent?.();
+          }
+        })
+        .catch((error) => {
+          console.error("Failed to auto-send draft:", error);
+        });
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    channelId,
+    disabled,
+    draft,
+    editor,
+    enabled,
+    hasAttachments,
+    onAutoSent,
+    onSubmit,
+  ]);
 
   return null;
 }
@@ -138,22 +232,15 @@ function SendButton({
   const handleClick = useCallback(() => {
     if (!canSend) return;
 
-    const content = editorHasContent ? exportToHtml(editor) : "";
-
-    // Clear editor immediately for better UX
-    editor.update(() => {
-      const root = $getRoot();
-      root.clear();
-      const paragraph = $createParagraphNode();
-      root.append(paragraph);
-      paragraph.select();
-    });
-
-    // Send message asynchronously (optimistic update handles UI feedback)
-    onSubmit(content).catch((error) => {
+    void submitEditorContent({
+      editor,
+      onSubmit,
+      disabled,
+      hasAttachments,
+    }).catch((error) => {
       console.error("Failed to send message:", error);
     });
-  }, [editor, onSubmit, canSend, editorHasContent]);
+  }, [editor, onSubmit, canSend, disabled, hasAttachments]);
 
   return (
     <button
@@ -185,8 +272,11 @@ export function RichTextEditor({
   onRemoveFile,
   onRetryFile,
   initialDraft,
+  autoSendInitialDraft,
+  onInitialDraftAutoSent,
 }: RichTextEditorProps) {
   const editorRef = useRef<LexicalEditor | null>(null);
+  const hasAttachments = uploadingFiles.some((f) => f.status === "completed");
 
   const initialConfig: InitialConfigType = {
     namespace: "MessageEditor",
@@ -245,7 +335,16 @@ export function RichTextEditor({
           <OnChangePlugin onChange={handleChange} />
           <AutoFocusPlugin />
           <EditorRefPlugin editorRef={editorRef} />
-          <InitialDraftPlugin draft={initialDraft} />
+          <InitialDraftPlugin channelId={channelId} draft={initialDraft} />
+          <AutoSendDraftPlugin
+            channelId={channelId}
+            draft={initialDraft}
+            enabled={autoSendInitialDraft}
+            onSubmit={onSubmit}
+            disabled={disabled}
+            hasAttachments={hasAttachments}
+            onAutoSent={onInitialDraftAutoSent}
+          />
         </div>
 
         {/* Mentions dropdown container - must be outside overflow-y-auto to avoid clipping */}
@@ -265,16 +364,14 @@ export function RichTextEditor({
           <SendButton
             onSubmit={onSubmit}
             disabled={disabled}
-            hasAttachments={uploadingFiles.some(
-              (f) => f.status === "completed",
-            )}
+            hasAttachments={hasAttachments}
           />
         </div>
 
         <KeyboardShortcutsPlugin
           onSubmit={onSubmit}
           disabled={disabled}
-          hasAttachments={uploadingFiles.some((f) => f.status === "completed")}
+          hasAttachments={hasAttachments}
         />
       </div>
     </LexicalComposer>

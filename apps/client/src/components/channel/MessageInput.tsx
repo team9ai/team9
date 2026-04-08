@@ -24,6 +24,10 @@ interface MessageInputProps {
   placeholder?: string;
   /** Draft text to pre-fill in the editor */
   initialDraft?: string;
+  /** Automatically send the initial draft once after mount */
+  autoSendInitialDraft?: boolean;
+  /** Called after the initial draft auto-send succeeds */
+  onInitialDraftAutoSent?: () => void;
 }
 
 export function MessageInput({
@@ -35,6 +39,8 @@ export function MessageInput({
   onClearReplyingTo,
   placeholder,
   initialDraft,
+  autoSendInitialDraft,
+  onInitialDraftAutoSent,
 }: MessageInputProps) {
   const { t } = useTranslation(["message", "thread"]);
   const [isDragging, setIsDragging] = useState(false);
@@ -221,6 +227,8 @@ export function MessageInput({
           onRemoveFile={removeFile}
           onRetryFile={retryFile}
           initialDraft={initialDraft}
+          autoSendInitialDraft={autoSendInitialDraft}
+          onInitialDraftAutoSent={onInitialDraftAutoSent}
         />
       </div>
     );
@@ -261,6 +269,8 @@ export function MessageInput({
         onRemoveFile={removeFile}
         onRetryFile={retryFile}
         initialDraft={initialDraft}
+        autoSendInitialDraft={autoSendInitialDraft}
+        onInitialDraftAutoSent={onInitialDraftAutoSent}
       />
     </div>
   );
