@@ -1,15 +1,21 @@
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 
 describe('bootstrap', () => {
   beforeEach(() => {
     jest.resetModules();
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   async function getBootstrapWithMocks(envOverrides: Record<string, any> = {}) {
     const mockRunMigrations = jest
       .fn<() => Promise<void>>()
-      .mockResolvedValue();
-    const mockRunSeed = jest.fn<() => Promise<void>>().mockResolvedValue();
+      .mockResolvedValue(undefined);
+    const mockRunSeed = jest
+      .fn<() => Promise<void>>()
+      .mockResolvedValue(undefined);
 
     const mockApp = {
       listen: jest.fn().mockResolvedValue(),

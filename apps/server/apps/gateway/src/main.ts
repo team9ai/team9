@@ -7,8 +7,7 @@ import { AppModule } from './app.module.js';
 import { SocketRedisAdapterService } from './cluster/adapter/socket-redis-adapter.service.js';
 import { WebsocketGateway } from './im/websocket/websocket.gateway.js';
 import { env } from '@team9/shared';
-import { runMigrations } from '@team9/database';
-import { runSeed } from '@team9/database';
+import { runMigrations, runSeed } from '@team9/database';
 
 const logger = new Logger('Bootstrap');
 
