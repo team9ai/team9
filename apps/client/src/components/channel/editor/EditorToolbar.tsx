@@ -9,6 +9,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { EmojiPicker } from "./EmojiPicker";
+import { cn } from "@/lib/utils";
 import { $createTextNode, $insertNodes } from "lexical";
 
 interface EditorToolbarProps {
@@ -67,8 +68,8 @@ export function EditorToolbar({
   const toolbarBtnClass =
     "h-8 w-8 p-0 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/80";
 
-  const aiPillClass =
-    "h-8 px-3 rounded-full border border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/60 gap-1.5 text-xs font-medium";
+  const aiBtnClass =
+    "group h-8 w-8 hover:w-auto p-0 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-all duration-200 overflow-hidden";
 
   return (
     <div className="flex items-center gap-1">
@@ -93,32 +94,6 @@ export function EditorToolbar({
         >
           <Paperclip size={16} />
         </Button>
-      )}
-
-      {isBotDm && (
-        <>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className={aiPillClass}
-            title="Deep research"
-          >
-            <Search size={14} />
-            <span>Deep research</span>
-          </Button>
-
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className={aiPillClass}
-            title="Generate image"
-          >
-            <ImagePlus size={14} />
-            <span>Generate image</span>
-          </Button>
-        </>
       )}
 
       <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
@@ -152,6 +127,36 @@ export function EditorToolbar({
       >
         <AtSign size={16} />
       </Button>
+
+      {isBotDm && (
+        <>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={cn(aiBtnClass, "group/ai")}
+            title="Deep research"
+          >
+            <Search size={16} className="shrink-0" />
+            <span className="max-w-0 opacity-0 group-hover/ai:max-w-32 group-hover/ai:opacity-100 group-hover/ai:ml-1 group-hover/ai:mr-1 transition-all duration-200 text-xs whitespace-nowrap">
+              Deep research
+            </span>
+          </Button>
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={cn(aiBtnClass, "group/ai2")}
+            title="Generate image"
+          >
+            <ImagePlus size={16} className="shrink-0" />
+            <span className="max-w-0 opacity-0 group-hover/ai2:max-w-36 group-hover/ai2:opacity-100 group-hover/ai2:ml-1 group-hover/ai2:mr-1 transition-all duration-200 text-xs whitespace-nowrap">
+              Generate image
+            </span>
+          </Button>
+        </>
+      )}
     </div>
   );
 }
