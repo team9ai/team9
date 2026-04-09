@@ -37,7 +37,9 @@ describe("MessageItem - agent event rendering", () => {
 
     render(<MessageItem message={msg} />);
 
-    expect(screen.getByText("Calling")).toBeInTheDocument();
+    // tool_call events now use getLabel for localized labels;
+    // "SearchFiles" is not in toolNameLabels so it falls back to invoke_tool.success
+    expect(screen.getByText("工具调用完成")).toBeInTheDocument();
     expect(screen.getByText("SearchFiles")).toBeInTheDocument();
     // Should NOT render avatar/sender
     expect(screen.queryByText("Unknown User")).not.toBeInTheDocument();

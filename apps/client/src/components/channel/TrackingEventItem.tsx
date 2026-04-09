@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getLabel, type StatusType } from "@/config/toolLabels";
 import type { AgentEventMetadata } from "@/types/im";
 
 interface TrackingEventItemProps {
@@ -50,6 +51,16 @@ function truncateLine(str: string, maxLen: number): string {
   return str.slice(0, maxLen);
 }
 
+/**
+ * Map an AgentEventMetadata status to the StatusType expected by getLabel().
+ * running -> loading, completed/resolved -> success, everything else -> error.
+ */
+function toLabelStatus(status: AgentEventMetadata["status"]): StatusType {
+  if (status === "running") return "loading";
+  if (status === "completed" || status === "resolved") return "success";
+  return "error";
+}
+
 export function TrackingEventItem({
   metadata,
   content,
@@ -59,9 +70,25 @@ export function TrackingEventItem({
 }: TrackingEventItemProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
+  // Turn separators are internal markers and should not be shown to users.
+  if (metadata.agentEventType === "turn_separator") {
+    return null;
+  }
+
   const status = isStreaming ? "running" : metadata.status;
+
+  // For tool_call events, use the localized label system from toolLabels.
+  // This replaces the hardcoded "Calling" label with tool-specific copy
+  // (e.g. "正在发送消息" / "消息发送完成" / "消息发送失败").
+  const toolCallLabel =
+    metadata.agentEventType === "tool_call"
+      ? getLabel("invoke_tool", metadata.toolName, toLabelStatus(status))
+      : null;
+
   const label =
-    EVENT_LABELS[metadata.agentEventType] ?? metadata.agentEventType;
+    toolCallLabel ??
+    EVENT_LABELS[metadata.agentEventType] ??
+    metadata.agentEventType;
 
   const isThinking = metadata.agentEventType === "thinking";
   const labelColorClass =
