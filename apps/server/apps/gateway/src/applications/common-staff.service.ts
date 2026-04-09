@@ -173,6 +173,16 @@ export class CommonStaffService {
                 mentorId: effectiveMentorId,
                 isMentorDm: true,
                 channelId: mentorDmChannel.id,
+                // Standard session context consumed by Team9Component.onEvent.
+                // Without this, team9-staff-bootstrap cannot tell it is in the
+                // mentor DM and UpdateStaffProfile stays disabled.
+                team9Context: {
+                  source: 'team9',
+                  scopeType: 'dm',
+                  scopeId: mentorDmChannel.id,
+                  peerUserId: effectiveMentorId,
+                  isMentorDm: true,
+                },
               },
             },
             tenantId,

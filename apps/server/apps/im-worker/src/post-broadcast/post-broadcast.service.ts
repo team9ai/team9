@@ -587,6 +587,7 @@ export class PostBroadcastService {
           userId: schema.bots.userId,
           botId: schema.bots.id,
           managedMeta: schema.bots.managedMeta,
+          mentorId: schema.bots.mentorId,
         })
         .from(schema.bots)
         .innerJoin(schema.users, eq(schema.bots.userId, schema.users.id))
@@ -714,6 +715,17 @@ export class PostBroadcastService {
         const scopeId = isDm ? channel.id : (trackingChannelId ?? channel.id);
         const sessionId = `team9/${tenantId}/${agentId}/${scope}/${scopeId}`;
 
+        // Derive session-level team9Context for this event.
+        // The gateway recomputes this on every forwarded message so that
+        // dynamic fields like `isMentorDm` always reflect the current DB state
+        // (e.g. after a mentor change, the next message will automatically
+        // flip the flag — no session delete/recreate required).
+        const team9Context = this.deriveTeam9Context({
+          channel,
+          bot: { userId: bot.userId, mentorId: bot.mentorId },
+          sender,
+        });
+
         const senderPayload = {
           id: sender.id,
           username: sender.username,
@@ -742,6 +754,7 @@ export class PostBroadcastService {
                   url: attachments[0].fileUrl,
                 },
                 ...(trackingChannelId ? { trackingChannelId } : {}),
+                team9Context,
               },
             }
           : {
@@ -764,6 +777,7 @@ export class PostBroadcastService {
                     }
                   : {}),
                 ...(trackingChannelId ? { trackingChannelId } : {}),
+                team9Context,
               },
             };
 
@@ -831,5 +845,39 @@ export class PostBroadcastService {
     } finally {
       clearTimeout(timeoutId);
     }
+  }
+
+  /**
+   * Derive session-level team9Context for a message forwarded to a hive bot.
+   *
+   * This runs on every forwarded message, so `isMentorDm` is always computed
+   * against the current `bot.mentorId` state. If an admin changes the bot's
+   * mentor, the next message will automatically carry the updated flag —
+   * the claw-hive worker stores this in the Team9Component instance and
+   * `team9-staff-bootstrap` reads it via dependency, so the `UpdateStaffProfile`
+   * gate flips correctly without any explicit session management.
+   */
+  private deriveTeam9Context(params: {
+    channel: Pick<schema.Channel, 'id' | 'type'>;
+    bot: { userId: string; mentorId: string | null };
+    sender: Pick<schema.User, 'id'>;
+  }): {
+    source: 'team9';
+    scopeType: 'dm' | 'channel' | 'task';
+    scopeId: string;
+    peerUserId: string;
+    isMentorDm: boolean;
+  } {
+    const { channel, bot, sender } = params;
+    const isDm = channel.type === 'direct';
+    const isMentorDm =
+      isDm && bot.mentorId !== null && sender.id === bot.mentorId;
+    return {
+      source: 'team9',
+      scopeType: isDm ? 'dm' : 'channel',
+      scopeId: channel.id,
+      peerUserId: sender.id,
+      isMentorDm,
+    };
   }
 }
