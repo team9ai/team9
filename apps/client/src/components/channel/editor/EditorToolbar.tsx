@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $getSelection, $isRangeSelection } from "lexical";
-import { Smile, Paperclip, AtSign, Search, ImagePlus } from "lucide-react";
+import { Smile, Plus, AtSign, Search, ImagePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -92,7 +92,7 @@ export function EditorToolbar({
           className={toolbarBtnClass}
           title="Attach file"
         >
-          <Paperclip size={16} />
+          <Plus size={16} />
         </Button>
       )}
 
