@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getLabel, type StatusType } from "@/config/toolLabels";
+import { formatParams } from "@/config/toolParamConfig";
 import type { AgentEventMetadata } from "@/types/im";
 
 interface ToolCallBlockProps {
@@ -40,15 +42,23 @@ function formatJson(text: string): string {
   }
 }
 
-function summarizeArgs(args: Record<string, unknown>): string {
-  for (const value of Object.values(args)) {
-    if (typeof value === "string" && value.length > 0) {
-      return value.length > 60 ? value.slice(0, 57) + "..." : value;
-    }
+/**
+ * Derive the label status from the runtime state.
+ * - running (or missing result) => loading
+ * - failed => error
+ * - otherwise => success
+ */
+function deriveLabelStatus(
+  resultMetadata: AgentEventMetadata,
+  hasResultContent: boolean,
+): StatusType {
+  if (resultMetadata.status === "running" || !hasResultContent) {
+    return "loading";
   }
-  const json = JSON.stringify(args);
-  if (json.length <= 60) return json;
-  return json.slice(0, 57) + "...";
+  if (resultMetadata.status === "failed") {
+    return "error";
+  }
+  return "success";
 }
 
 export function ToolCallBlock({
@@ -60,19 +70,47 @@ export function ToolCallBlock({
 
   const toolName = callMetadata.toolName ?? "Unknown tool";
   const toolArgs = callMetadata.toolArgs;
-  const resultFailed = resultMetadata.status === "failed";
-  const unwrapped = unwrapResultContent(resultContent);
-  const resultSummary =
-    unwrapped.length > 80 ? unwrapped.slice(0, 80) + " ..." : unwrapped;
 
-  // Collapsed: toolName(argsSummary) or just toolName
-  const callSummary = toolArgs
-    ? `${toolName}(${summarizeArgs(toolArgs)})`
-    : toolName;
+  const hasResultContent = resultContent !== undefined && resultContent !== "";
+  const labelStatus = deriveLabelStatus(resultMetadata, hasResultContent);
+
+  const isRunning = labelStatus === "loading";
+  const isError = labelStatus === "error";
+  const isSuccess = labelStatus === "success";
+
+  // Friendly label from toolLabels (e.g. "正在发送消息", "消息发送完成", "消息发送失败")
+  const label = getLabel("invoke_tool", callMetadata.toolName, labelStatus);
+
+  // Params summary using formatParams (friendly key="value" for configured tools,
+  // JSON fallback for unknown tools).
+  const paramsSummary = toolArgs ? formatParams(toolName, toolArgs) : "";
+
+  // One-line display: toolName(paramsSummary) or just toolName
+  const displayLine = toolArgs ? `${toolName}(${paramsSummary})` : toolName;
+
+  const unwrapped = hasResultContent ? unwrapResultContent(resultContent) : "";
+
+  // Status dot style - animated while running, red on failure, green on success.
+  const statusDotClass = isError
+    ? "bg-red-500"
+    : isRunning
+      ? "bg-emerald-500 animate-pulse"
+      : "bg-emerald-500";
+
+  // Label colour - red on failure, yellow while running, green on success.
+  const labelColorClass = isError
+    ? "text-red-500"
+    : isRunning
+      ? "text-yellow-400"
+      : "text-emerald-500";
+
+  // Success/failure indicator tail icon. Hidden while running.
+  const indicatorChar = isError ? "\u2718" : isSuccess ? "\u2714" : "";
+  const indicatorColorClass = isError ? "text-red-400" : "text-emerald-500/70";
 
   return (
     <div>
-      {/* Line 1: tool call */}
+      {/* Single-line tool call display */}
       <div
         className="flex items-center min-h-6 cursor-pointer group"
         onClick={() => setIsExpanded(!isExpanded)}
@@ -81,32 +119,34 @@ export function ToolCallBlock({
         <div
           className={cn(
             "w-2 h-2 rounded-full shrink-0 mr-[26px]",
-            resultFailed ? "bg-red-500" : "bg-emerald-500",
+            statusDotClass,
           )}
         />
-        {/* Label */}
+        {/* Friendly label */}
         <span
           className={cn(
-            "text-xs font-semibold shrink-0 w-[72px]",
-            resultFailed ? "text-red-500" : "text-emerald-500",
+            "text-xs font-semibold shrink-0 whitespace-nowrap",
+            labelColorClass,
           )}
         >
-          Calling
+          {label}
         </span>
-        {/* Tool name + args summary */}
-        <span className="text-xs truncate flex-1 min-w-0 ml-2 font-mono text-foreground/80">
-          {callSummary}
-        </span>
-        {/* Result status indicator */}
+        {/* Tool name + params summary */}
         <span
           className={cn(
-            "text-xs shrink-0 ml-2",
-            resultFailed ? "text-red-400" : "text-emerald-500/70",
+            "text-xs truncate flex-1 min-w-0 ml-2 font-mono",
+            isError ? "text-red-400" : "text-foreground/80",
           )}
         >
-          {resultFailed ? "\u2718" : "\u2714"}
+          {displayLine}
         </span>
-        {/* Chevron */}
+        {/* Result status indicator (checkmark / cross) */}
+        {indicatorChar && (
+          <span className={cn("text-xs shrink-0 ml-2", indicatorColorClass)}>
+            {indicatorChar}
+          </span>
+        )}
+        {/* Chevron (always present so users can always toggle) */}
         <ChevronRight
           size={12}
           className={cn(
@@ -117,33 +157,7 @@ export function ToolCallBlock({
         />
       </div>
 
-      {/* Line 2: result summary (collapsed only) */}
-      {!isExpanded && resultSummary && (
-        <div
-          className="flex items-center min-h-5 cursor-pointer"
-          onClick={() => setIsExpanded(true)}
-        >
-          <div className="w-2 shrink-0 mr-[26px]" />
-          <span
-            className={cn(
-              "text-xs font-semibold shrink-0 w-[72px]",
-              resultFailed ? "text-red-500" : "text-emerald-500",
-            )}
-          >
-            Result
-          </span>
-          <span
-            className={cn(
-              "text-xs truncate flex-1 min-w-0 ml-2 font-mono",
-              resultFailed ? "text-red-400" : "text-foreground/80",
-            )}
-          >
-            {resultSummary}
-          </span>
-        </div>
-      )}
-
-      {/* Expanded: args + result */}
+      {/* Expanded: full args + result (including error detail on failure) */}
       {isExpanded && (
         <div className="mt-1 mb-1.5 space-y-2">
           {toolArgs && (
@@ -161,26 +175,28 @@ export function ToolCallBlock({
               </pre>
             </div>
           )}
-          <div>
-            <span
-              className={cn(
-                "text-xs font-semibold",
-                resultFailed ? "text-red-500" : "text-emerald-500",
-              )}
-            >
-              Result
-            </span>
-            <pre
-              className={cn(
-                "mt-0.5 p-2 rounded-md text-xs leading-relaxed max-h-44 overflow-y-auto whitespace-pre-wrap break-all",
-                resultFailed
-                  ? "bg-red-500/5 border border-red-500/20 text-red-300"
-                  : "bg-black/30 border border-border font-mono text-muted-foreground",
-              )}
-            >
-              {formatJson(unwrapped)}
-            </pre>
-          </div>
+          {hasResultContent && (
+            <div>
+              <span
+                className={cn(
+                  "text-xs font-semibold",
+                  isError ? "text-red-500" : "text-emerald-500",
+                )}
+              >
+                Result
+              </span>
+              <pre
+                className={cn(
+                  "mt-0.5 p-2 rounded-md text-xs leading-relaxed max-h-44 overflow-y-auto whitespace-pre-wrap break-all",
+                  isError
+                    ? "bg-red-500/5 border border-red-500/20 text-red-300"
+                    : "bg-black/30 border border-border font-mono text-muted-foreground",
+                )}
+              >
+                {formatJson(unwrapped)}
+              </pre>
+            </div>
+          )}
         </div>
       )}
     </div>
