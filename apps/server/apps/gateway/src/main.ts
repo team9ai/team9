@@ -88,7 +88,11 @@ if (isDirectRun) {
       logger.log('Bootstrap completed');
     })
     .catch((err) => {
-      logger.error('Bootstrap failed:', err);
+      if (err instanceof Error) {
+        logger.error(`Bootstrap failed: ${err.message}`, err.stack);
+      } else {
+        logger.error(`Bootstrap failed: ${String(err)}`);
+      }
       process.exit(1);
     });
 }

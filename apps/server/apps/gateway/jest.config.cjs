@@ -12,6 +12,12 @@ module.exports = {
       },
     ],
   },
+  collectCoverageFrom: [
+    'src/**/*.(t|j)s',
+    '!src/**/*.spec.(t|j)s',
+    '!src/scripts/**',
+  ],
+  coverageDirectory: 'coverage',
   testEnvironment: 'node',
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {

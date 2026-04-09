@@ -260,10 +260,13 @@ export const env = {
   },
 
   // Auto-migrate and auto-seed (optional - defaults to false)
+  // Lenient truthy parsing: 1/true/yes/on (case-insensitive)
   get AUTO_MIGRATE() {
-    return process.env.AUTO_MIGRATE === 'true';
+    const value = process.env.AUTO_MIGRATE?.toLowerCase().trim();
+    return ['1', 'true', 'yes', 'on', 'y', 't'].includes(value ?? '');
   },
   get AUTO_SEED() {
-    return process.env.AUTO_SEED === 'true';
+    const value = process.env.AUTO_SEED?.toLowerCase().trim();
+    return ['1', 'true', 'yes', 'on', 'y', 't'].includes(value ?? '');
   },
 };

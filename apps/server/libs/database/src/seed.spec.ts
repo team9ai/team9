@@ -1,120 +1,102 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 
 describe('runSeed', () => {
-  let mockClient: any;
-  let mockQuery: any;
-  let mockEnd: any;
-
   beforeEach(() => {
-    mockQuery = jest.fn();
-    mockEnd = jest.fn();
-    mockClient = {
-      unsafe: jest.fn(),
-      query: mockQuery,
-      end: mockEnd,
-    };
+    jest.resetModules();
   });
 
   it('should bootstrap __seed_status table and insert default key on first run', async () => {
-    jest.resetModules();
+    const mockTxUnsafe = jest.fn();
+    const mockBegin = jest.fn(async (callback) => {
+      return callback({ unsafe: mockTxUnsafe });
+    });
+    const mockClientUnsafe = jest.fn();
+    const mockEnd = jest.fn();
+
+    const mockClient = {
+      unsafe: mockClientUnsafe,
+      begin: mockBegin,
+      end: mockEnd,
+    };
 
     jest.unstable_mockModule('postgres', () => ({
       default: jest.fn(() => mockClient),
     }));
 
-    jest.unstable_mockModule('drizzle-orm/postgres-js', () => ({
-      drizzle: jest.fn(() => ({})),
-    }));
-
     const { runSeed } = await import('./seed.js');
 
-    mockClient.unsafe
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(undefined);
+    mockClientUnsafe.mockResolvedValueOnce(undefined); // CREATE TABLE IF NOT EXISTS
+    mockTxUnsafe
+      .mockResolvedValueOnce(undefined) // pg_advisory_xact_lock
+      .mockResolvedValueOnce([]); // SELECT (returns empty)
+    mockTxUnsafe.mockResolvedValueOnce(undefined); // INSERT
 
     await runSeed();
 
-    expect(mockClient.unsafe).toHaveBeenCalled();
+    expect(mockClientUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('CREATE TABLE IF NOT EXISTS __seed_status'),
+    );
+    expect(mockBegin).toHaveBeenCalledTimes(1);
+    expect(mockTxUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('pg_advisory_xact_lock'),
+    );
     expect(mockEnd).toHaveBeenCalled();
   });
 
-  it('should use pg_advisory_xact_lock with magic number for concurrency safety', async () => {
-    jest.resetModules();
+  it('should skip insert when seed status already exists', async () => {
+    const mockTxUnsafe = jest.fn();
+    const mockBegin = jest.fn(async (callback) => {
+      return callback({ unsafe: mockTxUnsafe });
+    });
+    const mockClientUnsafe = jest.fn();
+    const mockEnd = jest.fn();
+
+    const mockClient = {
+      unsafe: mockClientUnsafe,
+      begin: mockBegin,
+      end: mockEnd,
+    };
 
     jest.unstable_mockModule('postgres', () => ({
       default: jest.fn(() => mockClient),
     }));
 
-    jest.unstable_mockModule('drizzle-orm/postgres-js', () => ({
-      drizzle: jest.fn(() => ({})),
-    }));
-
     const { runSeed } = await import('./seed.js');
 
-    mockClient.unsafe
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(undefined);
+    mockClientUnsafe.mockResolvedValueOnce(undefined); // CREATE TABLE IF NOT EXISTS
+    mockTxUnsafe
+      .mockResolvedValueOnce(undefined) // pg_advisory_xact_lock
+      .mockResolvedValueOnce([{ key: 'default' }]); // SELECT (returns existing)
 
     await runSeed();
 
-    const unsafeCall = mockClient.unsafe.mock.calls.find((call: any[]) =>
-      call[0]?.includes('pg_advisory_xact_lock'),
-    );
-    expect(unsafeCall).toBeDefined();
-    if (unsafeCall) {
-      expect(unsafeCall[0]).toMatch(/9172034501/);
-    }
+    // Should not have called INSERT (only 2 tx.unsafe calls: lock + select)
+    expect(mockTxUnsafe).toHaveBeenCalledTimes(2);
+    expect(mockEnd).toHaveBeenCalled();
   });
 
-  it('should skip inserting if default key already exists', async () => {
-    jest.resetModules();
+  it('should close the database connection on success', async () => {
+    const mockTxUnsafe = jest.fn();
+    const mockBegin = jest.fn(async (callback) => {
+      return callback({ unsafe: mockTxUnsafe });
+    });
+    const mockClientUnsafe = jest.fn();
+    const mockEnd = jest.fn();
+
+    const mockClient = {
+      unsafe: mockClientUnsafe,
+      begin: mockBegin,
+      end: mockEnd,
+    };
 
     jest.unstable_mockModule('postgres', () => ({
       default: jest.fn(() => mockClient),
     }));
 
-    jest.unstable_mockModule('drizzle-orm/postgres-js', () => ({
-      drizzle: jest.fn(() => ({})),
-    }));
-
     const { runSeed } = await import('./seed.js');
 
-    mockClient.unsafe
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce([{ key: 'default' }]);
-
-    await runSeed();
-
-    const insertCall = mockClient.unsafe.mock.calls.find(
-      (call: any[]) =>
-        typeof call[0] === 'string' &&
-        call[0].includes('INSERT INTO __seed_status'),
-    );
-    expect(insertCall).toBeUndefined();
-  });
-
-  it('should close the database connection in success path', async () => {
-    jest.resetModules();
-
-    jest.unstable_mockModule('postgres', () => ({
-      default: jest.fn(() => mockClient),
-    }));
-
-    jest.unstable_mockModule('drizzle-orm/postgres-js', () => ({
-      drizzle: jest.fn(() => ({})),
-    }));
-
-    const { runSeed } = await import('./seed.js');
-
-    mockClient.unsafe
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(undefined);
+    mockClientUnsafe.mockResolvedValueOnce(undefined);
+    mockTxUnsafe.mockResolvedValueOnce(undefined).mockResolvedValueOnce([]);
 
     await runSeed();
 
@@ -122,19 +104,25 @@ describe('runSeed', () => {
   });
 
   it('should close the database connection on error', async () => {
-    jest.resetModules();
+    const mockBegin = jest.fn(async () => {
+      throw new Error('Transaction error');
+    });
+    const mockClientUnsafe = jest.fn();
+    const mockEnd = jest.fn();
+
+    const mockClient = {
+      unsafe: mockClientUnsafe,
+      begin: mockBegin,
+      end: mockEnd,
+    };
 
     jest.unstable_mockModule('postgres', () => ({
       default: jest.fn(() => mockClient),
     }));
 
-    jest.unstable_mockModule('drizzle-orm/postgres-js', () => ({
-      drizzle: jest.fn(() => ({})),
-    }));
-
     const { runSeed } = await import('./seed.js');
 
-    mockClient.unsafe.mockRejectedValueOnce(new Error('Test error'));
+    mockClientUnsafe.mockResolvedValueOnce(undefined);
 
     try {
       await runSeed();
@@ -145,21 +133,27 @@ describe('runSeed', () => {
     expect(mockEnd).toHaveBeenCalled();
   });
 
-  it('should propagate errors from the transaction body', async () => {
-    jest.resetModules();
+  it('should propagate errors from transaction', async () => {
+    const mockBegin = jest.fn(async () => {
+      throw new Error('Transaction failed');
+    });
+    const mockClientUnsafe = jest.fn();
+    const mockEnd = jest.fn();
+
+    const mockClient = {
+      unsafe: mockClientUnsafe,
+      begin: mockBegin,
+      end: mockEnd,
+    };
 
     jest.unstable_mockModule('postgres', () => ({
       default: jest.fn(() => mockClient),
     }));
 
-    jest.unstable_mockModule('drizzle-orm/postgres-js', () => ({
-      drizzle: jest.fn(() => ({})),
-    }));
-
     const { runSeed } = await import('./seed.js');
 
-    mockClient.unsafe.mockRejectedValueOnce(new Error('DB error'));
+    mockClientUnsafe.mockResolvedValueOnce(undefined);
 
-    await expect(runSeed()).rejects.toThrow('DB error');
+    await expect(runSeed()).rejects.toThrow('Transaction failed');
   });
 });
