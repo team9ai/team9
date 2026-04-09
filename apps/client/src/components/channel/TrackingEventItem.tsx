@@ -1,8 +1,16 @@
 import { useState, useEffect } from "react";
 import { ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { cn } from "@/lib/utils";
-import { getLabel, type StatusType } from "@/config/toolLabels";
+import { getLabelKey, type StatusType } from "@/config/toolLabels";
 import type { AgentEventMetadata } from "@/types/im";
+
+// Namespace-scoped TFunction used by the formatDuration / buildThinkingStats
+// helpers. Typing the helpers against the `channel` namespace keeps the
+// i18next type autocomplete happy while still letting callers pass the
+// namespace-specific `t` returned from `useTranslation("channel")`.
+type ChannelTFunction = TFunction<"channel">;
 
 interface TrackingEventItemProps {
   metadata: AgentEventMetadata;
@@ -33,17 +41,24 @@ const LABEL_CLASSES: Record<AgentEventMetadata["status"], string> = {
   cancelled: "text-red-500",
 };
 
-const EVENT_LABELS: Record<AgentEventMetadata["agentEventType"], string> = {
-  thinking: "Thinking",
-  writing: "Writing",
-  tool_call: "Calling",
-  tool_result: "Result",
-  agent_start: "Started",
-  agent_end: "Completed",
-  error: "Error",
-  turn_separator: "Turn",
-  a2ui_surface_update: "Choices",
-  a2ui_response: "Selected",
+// i18n key mapping for each agent event type. The actual copy is resolved
+// through react-i18next so both en and zh work (see tracking.eventLabels in
+// channel.json). Some entries are effectively dead code — `thinking` takes a
+// dedicated buildThinkingStats path, `tool_call` is resolved via getLabelKey
+// in this file, and `turn_separator` returns null before the label is used —
+// but keeping the map exhaustive keeps TypeScript happy and avoids silent
+// regressions if any of those paths change in the future.
+const EVENT_LABEL_KEYS: Record<AgentEventMetadata["agentEventType"], string> = {
+  thinking: "tracking.eventLabels.thinking",
+  writing: "tracking.eventLabels.writing",
+  tool_call: "tracking.eventLabels.toolCall",
+  tool_result: "tracking.eventLabels.toolResult",
+  agent_start: "tracking.eventLabels.agentStart",
+  agent_end: "tracking.eventLabels.agentEnd",
+  error: "tracking.eventLabels.error",
+  turn_separator: "tracking.eventLabels.turn",
+  a2ui_surface_update: "tracking.eventLabels.choices",
+  a2ui_response: "tracking.eventLabels.selected",
 };
 
 function truncateLine(str: string, maxLen: number): string {
@@ -52,24 +67,29 @@ function truncateLine(str: string, maxLen: number): string {
 }
 
 /**
- * Format a duration in milliseconds into a human-readable Chinese string.
- * - < 60 seconds: "45秒"
- * - >= 60 seconds: "2分3秒"
- * Millisecond values are floored to whole seconds.
+ * Format a duration in milliseconds into a human-readable localized string.
+ * - < 60 seconds: e.g. "45s" (en) / "45 秒" (zh)
+ * - >= 60 seconds: e.g. "2m 3s" (en) / "2 分 3 秒" (zh)
+ * Millisecond values are floored to whole seconds and clamped to 0.
+ *
+ * Exposed as a helper so unit tests can exercise the formatting logic
+ * directly without mounting a component tree.
  */
-export function formatDuration(ms: number): string {
+export function formatDuration(ms: number, t: ChannelTFunction): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  if (totalSeconds < 60) return `${totalSeconds}秒`;
+  if (totalSeconds < 60) {
+    return t("tracking.thinking.seconds", { count: totalSeconds });
+  }
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  return `${minutes}分${seconds}秒`;
+  return t("tracking.thinking.minutesSeconds", { minutes, seconds });
 }
 
 /**
- * Build the stats label for a thinking event, e.g.
- *   "Thinking (1200 tokens, 2分3秒)"
+ * Build the stats label for a thinking event. Examples (en):
+ *   "Thinking (1200 tokens, 2m 3s)"
  *   "Thinking (1200 tokens)"
- *   "Thinking (2分3秒)"
+ *   "Thinking (2m 3s)"
  *   "Thinking"
  *
  * When `isStreaming` and `metadata.startedAt` is present, the duration is
@@ -79,6 +99,7 @@ export function formatDuration(ms: number): string {
 export function buildThinkingStats(
   metadata: AgentEventMetadata,
   isStreaming: boolean,
+  t: ChannelTFunction,
   nowMs: number = Date.now(),
 ): string {
   const parts: string[] = [];
@@ -89,7 +110,7 @@ export function buildThinkingStats(
       ? metadata.totalTokens
       : metadata.outputTokens;
   if (typeof tokens === "number" && tokens > 0) {
-    parts.push(`${tokens} tokens`);
+    parts.push(t("tracking.thinking.tokens", { count: tokens }));
   }
 
   // Duration: while streaming, compute from startedAt; otherwise use
@@ -99,22 +120,22 @@ export function buildThinkingStats(
     if (!Number.isNaN(startTs)) {
       const elapsed = nowMs - startTs;
       if (elapsed > 0) {
-        parts.push(formatDuration(elapsed));
+        parts.push(formatDuration(elapsed, t));
       }
     }
   } else if (
     typeof metadata.durationMs === "number" &&
     metadata.durationMs > 0
   ) {
-    parts.push(formatDuration(metadata.durationMs));
+    parts.push(formatDuration(metadata.durationMs, t));
   }
 
-  if (parts.length === 0) return "Thinking";
-  return `Thinking (${parts.join(", ")})`;
+  if (parts.length === 0) return t("tracking.thinking.label");
+  return t("tracking.thinking.labelWithStats", { stats: parts.join(", ") });
 }
 
 /**
- * Map an AgentEventMetadata status to the StatusType expected by getLabel().
+ * Map an AgentEventMetadata status to the StatusType expected by getLabelKey().
  * running -> loading, completed/resolved -> success, everything else -> error.
  */
 function toLabelStatus(status: AgentEventMetadata["status"]): StatusType {
@@ -130,6 +151,7 @@ export function TrackingEventItem({
   compact: _compact = true,
   collapsible = false,
 }: TrackingEventItemProps) {
+  const { t } = useTranslation("channel");
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Live-updating tick for streaming thinking events so the elapsed
@@ -153,19 +175,37 @@ export function TrackingEventItem({
 
   const status = isStreaming ? "running" : metadata.status;
 
+  // `t` values we pass to the next two blocks are computed at runtime, so they
+  // aren't literals known to i18next's resource typing. The loose cast bypasses
+  // the strict key narrowing and lets the `t(key, options)` overload accept
+  // the dynamic keys + interpolation values.
+  const loosenedT = t as (
+    key: string,
+    options?: Record<string, unknown>,
+  ) => string;
+
   // For tool_call events, use the localized label system from toolLabels.
   // This replaces the hardcoded "Calling" label with tool-specific copy
-  // (e.g. "正在发送消息" / "消息发送完成" / "消息发送失败").
-  const toolCallLabel =
-    metadata.agentEventType === "tool_call"
-      ? getLabel("invoke_tool", metadata.toolName, toLabelStatus(status))
-      : null;
+  // (e.g. "Sending message" / "Message sent" / "Failed to send message").
+  let toolCallLabel: string | null = null;
+  if (metadata.agentEventType === "tool_call") {
+    const descriptor = getLabelKey(
+      "invoke_tool",
+      metadata.toolName,
+      toLabelStatus(status),
+    );
+    toolCallLabel = loosenedT(descriptor.key, descriptor.values);
+  }
+
+  // Resolve the event-type label via i18n. The key is a dynamic lookup from
+  // EVENT_LABEL_KEYS.
+  const eventTypeLabel = EVENT_LABEL_KEYS[metadata.agentEventType]
+    ? loosenedT(EVENT_LABEL_KEYS[metadata.agentEventType])
+    : metadata.agentEventType;
 
   const label = isThinking
-    ? buildThinkingStats(metadata, isStreaming)
-    : (toolCallLabel ??
-      EVENT_LABELS[metadata.agentEventType] ??
-      metadata.agentEventType);
+    ? buildThinkingStats(metadata, isStreaming, t)
+    : (toolCallLabel ?? eventTypeLabel);
 
   const labelColorClass =
     isThinking && status !== "failed"

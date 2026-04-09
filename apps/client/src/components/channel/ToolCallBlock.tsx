@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import { getLabel, type StatusType } from "@/config/toolLabels";
+import { getLabelKey, type StatusType } from "@/config/toolLabels";
 import { formatParams } from "@/config/toolParamConfig";
 import type { AgentEventMetadata } from "@/types/im";
 
@@ -66,9 +67,10 @@ export function ToolCallBlock({
   resultMetadata,
   resultContent,
 }: ToolCallBlockProps) {
+  const { t } = useTranslation("channel");
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const toolName = callMetadata.toolName ?? "Unknown tool";
+  const toolName = callMetadata.toolName ?? t("tracking.toolCall.unknownTool");
   const toolArgs = callMetadata.toolArgs;
 
   const hasResultContent = resultContent !== undefined && resultContent !== "";
@@ -78,8 +80,21 @@ export function ToolCallBlock({
   const isError = labelStatus === "error";
   const isSuccess = labelStatus === "success";
 
-  // Friendly label from toolLabels (e.g. "正在发送消息", "消息发送完成", "消息发送失败")
-  const label = getLabel("invoke_tool", callMetadata.toolName, labelStatus);
+  // Friendly label from toolLabels (e.g. "Sending message", "Message sent",
+  // "Failed to send message"). The raw key/values come from getLabelKey and
+  // the actual copy is resolved via react-i18next so both en and zh work.
+  const labelDescriptor = getLabelKey(
+    "invoke_tool",
+    callMetadata.toolName,
+    labelStatus,
+  );
+  // `labelDescriptor.key` is computed dynamically, so it doesn't match the
+  // literal keys in i18next's resource typing. Cast `t` to a loose signature
+  // so we can pass the dynamic key + interpolation values without tripping
+  // on the narrow overload typings.
+  const label = (
+    t as (key: string, options?: Record<string, unknown>) => string
+  )(labelDescriptor.key, labelDescriptor.values);
 
   // Params summary using formatParams (friendly key="value" for configured tools,
   // JSON fallback for unknown tools).
@@ -163,7 +178,7 @@ export function ToolCallBlock({
           {toolArgs && (
             <div>
               <span className="text-xs font-semibold text-muted-foreground">
-                Args
+                {t("tracking.toolCall.argsLabel")}
               </span>
               <pre
                 className={cn(
@@ -183,7 +198,7 @@ export function ToolCallBlock({
                   isError ? "text-red-500" : "text-emerald-500",
                 )}
               >
-                Result
+                {t("tracking.toolCall.resultLabel")}
               </span>
               <pre
                 className={cn(

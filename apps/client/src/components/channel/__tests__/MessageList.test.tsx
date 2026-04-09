@@ -19,8 +19,22 @@ import type { Message, AgentEventMetadata, MessageType } from "@/types/im";
 // Mocks — collaborators we don't care about
 // ---------------------------------------------------------------------------
 
+// Minimal `t()` stand-in: returns the key by default, but expands the
+// tracking keys that MessageList's round-fold tests rely on (RoundCollapseSummary)
+// so the accessible name remains human-readable. This keeps the mock narrow
+// while still letting the existing /Expand execution process/i matchers work.
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (k: string) => k }),
+  useTranslation: () => ({
+    t: (key: string, values?: Record<string, unknown>) => {
+      if (key === "tracking.round.expandAriaLabel") {
+        return `Expand execution process (${values?.count ?? ""} steps)`;
+      }
+      if (key === "tracking.round.collapseSummary") {
+        return `... Show execution (${values?.count ?? ""} steps)`;
+      }
+      return key;
+    },
+  }),
 }));
 
 // Virtuoso: render the list synchronously; ignore scrolling, headers, etc.

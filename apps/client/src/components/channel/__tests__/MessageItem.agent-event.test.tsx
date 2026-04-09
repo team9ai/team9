@@ -37,9 +37,13 @@ describe("MessageItem - agent event rendering", () => {
 
     render(<MessageItem message={msg} />);
 
-    // tool_call events now use getLabel for localized labels;
-    // "SearchFiles" is not in toolNameLabels so it falls back to invoke_tool.success
-    expect(screen.getByText("工具调用完成")).toBeInTheDocument();
+    // tool_call events now use getLabelKey for localized labels; this test
+    // uses the simple `t: (key) => key` mock above, so the label resolves to
+    // the raw i18n key. "SearchFiles" is not registered in toolNameLabelKeys,
+    // so it falls back to the invoke_tool success key.
+    expect(
+      screen.getByText("tracking.ops.invokeTool.success"),
+    ).toBeInTheDocument();
     expect(screen.getByText("SearchFiles")).toBeInTheDocument();
     // Should NOT render avatar/sender
     expect(screen.queryByText("Unknown User")).not.toBeInTheDocument();
@@ -139,7 +143,11 @@ describe("MessageItem - agent event rendering", () => {
 
     render(<MessageItem message={msg} />);
 
-    expect(screen.getByText("Result")).toBeInTheDocument();
+    // Event-type labels now go through i18n. This test uses the `t: (k) => k`
+    // mock above, so the label resolves to the raw i18n key.
+    expect(
+      screen.getByText("tracking.eventLabels.toolResult"),
+    ).toBeInTheDocument();
     // Should show truncated with ...
     expect(screen.getByText(/\.\.\./)).toBeInTheDocument();
   });
@@ -152,6 +160,10 @@ describe("MessageItem - agent event rendering", () => {
 
     render(<MessageItem message={msg} />);
 
-    expect(screen.getByText("Started")).toBeInTheDocument();
+    // Event-type labels now go through i18n. This test uses the `t: (k) => k`
+    // mock above, so the label resolves to the raw i18n key.
+    expect(
+      screen.getByText("tracking.eventLabels.agentStart"),
+    ).toBeInTheDocument();
   });
 });

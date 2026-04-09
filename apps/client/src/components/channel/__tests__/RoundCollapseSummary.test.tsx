@@ -1,11 +1,22 @@
-import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import i18n from "@/i18n";
 import { RoundCollapseSummary } from "../RoundCollapseSummary";
 
+beforeEach(async () => {
+  if (i18n.language !== "en") {
+    await act(async () => {
+      await i18n.changeLanguage("en");
+    });
+  }
+});
+
 describe("RoundCollapseSummary", () => {
-  it("displays step count text with the standard copy", () => {
+  it("displays step count text with the standard en copy", () => {
     render(<RoundCollapseSummary stepCount={3} onClick={() => {}} />);
-    expect(screen.getByText("... 查看执行过程（3 步）")).toBeInTheDocument();
+    expect(
+      screen.getByText("... Show execution (3 steps)"),
+    ).toBeInTheDocument();
   });
 
   it("renders as a button element for accessibility", () => {
@@ -67,24 +78,28 @@ describe("RoundCollapseSummary", () => {
   });
 
   describe("different step counts", () => {
-    it("renders 1 step correctly", () => {
+    it("renders 1 step correctly (singular)", () => {
       render(<RoundCollapseSummary stepCount={1} onClick={() => {}} />);
-      expect(screen.getByText("... 查看执行过程（1 步）")).toBeInTheDocument();
+      expect(
+        screen.getByText("... Show execution (1 step)"),
+      ).toBeInTheDocument();
       expect(screen.getByRole("button")).toHaveAttribute(
         "aria-label",
-        "Expand execution process (1 steps)",
+        "Expand execution process (1 step)",
       );
     });
 
     it("renders 5 steps correctly", () => {
       render(<RoundCollapseSummary stepCount={5} onClick={() => {}} />);
-      expect(screen.getByText("... 查看执行过程（5 步）")).toBeInTheDocument();
+      expect(
+        screen.getByText("... Show execution (5 steps)"),
+      ).toBeInTheDocument();
     });
 
     it("renders 100 steps correctly", () => {
       render(<RoundCollapseSummary stepCount={100} onClick={() => {}} />);
       expect(
-        screen.getByText("... 查看执行过程（100 步）"),
+        screen.getByText("... Show execution (100 steps)"),
       ).toBeInTheDocument();
       expect(screen.getByRole("button")).toHaveAttribute(
         "aria-label",
@@ -94,7 +109,9 @@ describe("RoundCollapseSummary", () => {
 
     it("renders 0 steps (edge case)", () => {
       render(<RoundCollapseSummary stepCount={0} onClick={() => {}} />);
-      expect(screen.getByText("... 查看执行过程（0 步）")).toBeInTheDocument();
+      expect(
+        screen.getByText("... Show execution (0 steps)"),
+      ).toBeInTheDocument();
     });
   });
 
@@ -106,5 +123,40 @@ describe("RoundCollapseSummary", () => {
     // so we know the chevron visual affordance is rendered.
     const svgs = container.querySelectorAll("svg");
     expect(svgs.length).toBe(1);
+  });
+
+  describe("i18n integration", () => {
+    it("renders the zh localized summary when the language is set to zh", async () => {
+      await act(async () => {
+        await i18n.changeLanguage("zh");
+      });
+      try {
+        render(<RoundCollapseSummary stepCount={3} onClick={() => {}} />);
+        expect(
+          screen.getByText("... 查看执行过程（3 步）"),
+        ).toBeInTheDocument();
+      } finally {
+        await act(async () => {
+          await i18n.changeLanguage("en");
+        });
+      }
+    });
+
+    it("keeps the aria-label in English for assistive tech even in zh", async () => {
+      await act(async () => {
+        await i18n.changeLanguage("zh");
+      });
+      try {
+        render(<RoundCollapseSummary stepCount={4} onClick={() => {}} />);
+        expect(screen.getByRole("button")).toHaveAttribute(
+          "aria-label",
+          "Expand execution process (4 steps)",
+        );
+      } finally {
+        await act(async () => {
+          await i18n.changeLanguage("en");
+        });
+      }
+    });
   });
 });

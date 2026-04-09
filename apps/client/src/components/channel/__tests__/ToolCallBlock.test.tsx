@@ -1,7 +1,16 @@
-import { describe, it, expect } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, beforeEach } from "vitest";
+import { act, render, screen, fireEvent } from "@testing-library/react";
+import i18n from "@/i18n";
 import { ToolCallBlock } from "../ToolCallBlock";
 import type { AgentEventMetadata } from "@/types/im";
+
+beforeEach(async () => {
+  if (i18n.language !== "en") {
+    await act(async () => {
+      await i18n.changeLanguage("en");
+    });
+  }
+});
 
 function makeCallMeta(
   toolName: string,
@@ -29,7 +38,7 @@ function makeResultMeta(
 
 describe("ToolCallBlock", () => {
   describe("label copy", () => {
-    it("shows the success label ('工具调用完成') when the result is completed", () => {
+    it("shows the success label when the result is completed", () => {
       render(
         <ToolCallBlock
           callMetadata={makeCallMeta("SearchFiles")}
@@ -38,10 +47,10 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      expect(screen.getByText("工具调用完成")).toBeInTheDocument();
+      expect(screen.getByText("Tool call completed")).toBeInTheDocument();
     });
 
-    it("shows the error label ('工具调用失败') when the result is failed", () => {
+    it("shows the error label when the result is failed", () => {
       render(
         <ToolCallBlock
           callMetadata={makeCallMeta("SearchFiles")}
@@ -50,10 +59,10 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      expect(screen.getByText("工具调用失败")).toBeInTheDocument();
+      expect(screen.getByText("Tool call failed")).toBeInTheDocument();
     });
 
-    it("shows the loading label ('正在调用工具') when the result is still running", () => {
+    it("shows the loading label when the result is still running", () => {
       render(
         <ToolCallBlock
           callMetadata={makeCallMeta("SearchFiles")}
@@ -62,7 +71,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      expect(screen.getByText("正在调用工具")).toBeInTheDocument();
+      expect(screen.getByText("Calling tool")).toBeInTheDocument();
     });
 
     it("treats missing result content as running (loading label)", () => {
@@ -75,7 +84,7 @@ describe("ToolCallBlock", () => {
       );
 
       // Missing result content → still loading regardless of status
-      expect(screen.getByText("正在调用工具")).toBeInTheDocument();
+      expect(screen.getByText("Calling tool")).toBeInTheDocument();
     });
 
     it("uses tool-specific copy when the tool has a dedicated label (send_message success)", () => {
@@ -87,7 +96,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      expect(screen.getByText("消息发送完成")).toBeInTheDocument();
+      expect(screen.getByText("Message sent")).toBeInTheDocument();
     });
 
     it("uses tool-specific loading copy (send_message running)", () => {
@@ -99,7 +108,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      expect(screen.getByText("正在发送消息")).toBeInTheDocument();
+      expect(screen.getByText("Sending message")).toBeInTheDocument();
     });
 
     it("uses tool-specific error copy (send_message failed)", () => {
@@ -111,7 +120,28 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      expect(screen.getByText("消息发送失败")).toBeInTheDocument();
+      expect(screen.getByText("Failed to send message")).toBeInTheDocument();
+    });
+
+    it("renders the zh localized label when the language is set to zh", async () => {
+      await act(async () => {
+        await i18n.changeLanguage("zh");
+      });
+      try {
+        render(
+          <ToolCallBlock
+            callMetadata={makeCallMeta("send_message", { message: "hi" })}
+            resultMetadata={makeResultMeta("completed")}
+            resultContent="ok"
+          />,
+        );
+
+        expect(screen.getByText("消息发送完成")).toBeInTheDocument();
+      } finally {
+        await act(async () => {
+          await i18n.changeLanguage("en");
+        });
+      }
     });
   });
 
@@ -264,7 +294,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("工具调用完成"));
+      fireEvent.click(screen.getByText("Tool call completed"));
 
       expect(screen.getByText("Args")).toBeInTheDocument();
       expect(screen.getByText(/"channelId": "ch-456"/)).toBeInTheDocument();
@@ -281,7 +311,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("工具调用完成"));
+      fireEvent.click(screen.getByText("Tool call completed"));
 
       expect(screen.queryByText("Args")).not.toBeInTheDocument();
       expect(screen.getByText("Result")).toBeInTheDocument();
@@ -296,7 +326,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("正在调用工具"));
+      fireEvent.click(screen.getByText("Calling tool"));
 
       expect(screen.getByText("Args")).toBeInTheDocument();
       expect(screen.queryByText("Result")).not.toBeInTheDocument();
@@ -311,7 +341,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("工具调用失败"));
+      fireEvent.click(screen.getByText("Tool call failed"));
 
       expect(screen.getByText("Args")).toBeInTheDocument();
       expect(screen.getByText("Result")).toBeInTheDocument();
@@ -327,7 +357,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      const label = screen.getByText("工具调用完成");
+      const label = screen.getByText("Tool call completed");
 
       // Expand
       fireEvent.click(label);
@@ -371,7 +401,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("工具调用完成"));
+      fireEvent.click(screen.getByText("Tool call completed"));
 
       // The expanded Result pre shows the unwrapped + re-formatted JSON
       expect(screen.getByText(/"success": true/)).toBeInTheDocument();
@@ -390,7 +420,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("工具调用完成"));
+      fireEvent.click(screen.getByText("Tool call completed"));
 
       // No text-type blocks → unwrap falls through to raw content
       expect(screen.getByText(/"type": "image"/)).toBeInTheDocument();
@@ -405,7 +435,7 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("工具调用完成"));
+      fireEvent.click(screen.getByText("Tool call completed"));
 
       expect(screen.getByText("plain text")).toBeInTheDocument();
     });

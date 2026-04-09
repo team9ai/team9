@@ -1,5 +1,10 @@
 import "@testing-library/jest-dom/vitest";
 import { beforeEach } from "vitest";
+// Initialize i18next once for the test environment so components that call
+// `useTranslation(...)` receive real translations. Tests that prefer to
+// bypass translation can still `vi.mock("react-i18next", ...)` locally;
+// that mock continues to take precedence over the real module.
+import "@/i18n";
 
 function createMemoryStorage(): Storage {
   const store = new Map<string, string>();

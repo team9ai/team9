@@ -1,249 +1,242 @@
 import { describe, expect, it } from "vitest";
 import {
-  getLabel,
-  operationLabels,
-  toolNameLabels,
-  StatusType,
+  FALLBACK_KEY_BASE,
+  getLabelKey,
+  operationLabelKeys,
+  toolNameLabelKeys,
+  type StatusType,
 } from "../toolLabels";
 
+const STATUSES: StatusType[] = ["loading", "success", "error"];
+
 describe("toolLabels", () => {
-  describe("operationLabels", () => {
+  describe("operationLabelKeys", () => {
     it("should contain all required operation types", () => {
-      expect(operationLabels).toHaveProperty("load_tools");
-      expect(operationLabels).toHaveProperty("search_tools");
-      expect(operationLabels).toHaveProperty("invoke_tool");
+      expect(operationLabelKeys).toHaveProperty("load_tools");
+      expect(operationLabelKeys).toHaveProperty("search_tools");
+      expect(operationLabelKeys).toHaveProperty("invoke_tool");
     });
 
-    it("should have nested structure with all status types", () => {
-      expect(operationLabels.load_tools).toHaveProperty("loading");
-      expect(operationLabels.load_tools).toHaveProperty("success");
-      expect(operationLabels.load_tools).toHaveProperty("error");
-      expect(operationLabels.search_tools).toHaveProperty("loading");
-      expect(operationLabels.search_tools).toHaveProperty("success");
-      expect(operationLabels.search_tools).toHaveProperty("error");
-      expect(operationLabels.invoke_tool).toHaveProperty("loading");
-      expect(operationLabels.invoke_tool).toHaveProperty("success");
-      expect(operationLabels.invoke_tool).toHaveProperty("error");
+    it("should map each operation to a namespaced i18n key", () => {
+      expect(operationLabelKeys.load_tools).toBe("tracking.ops.loadTools");
+      expect(operationLabelKeys.search_tools).toBe("tracking.ops.searchTools");
+      expect(operationLabelKeys.invoke_tool).toBe("tracking.ops.invokeTool");
     });
 
-    it("should have non-empty labels for each status", () => {
-      const statuses: StatusType[] = ["loading", "success", "error"];
-      Object.values(operationLabels).forEach((labels) => {
-        statuses.forEach((status) => {
-          expect(labels[status]).toBeTruthy();
-          expect(typeof labels[status]).toBe("string");
-        });
-      });
-    });
-
-    it("should have descriptive Chinese labels", () => {
-      const statuses: StatusType[] = ["loading", "success", "error"];
-      Object.values(operationLabels).forEach((labels) => {
-        statuses.forEach((status) => {
-          expect(labels[status]).toMatch(/[\u4e00-\u9fff]/); // Contains Chinese characters
-        });
+    it("should expose only string values", () => {
+      Object.values(operationLabelKeys).forEach((key) => {
+        expect(typeof key).toBe("string");
+        expect(key.length).toBeGreaterThan(0);
       });
     });
   });
 
-  describe("toolNameLabels", () => {
+  describe("toolNameLabelKeys", () => {
     it("should contain common tool names", () => {
-      expect(toolNameLabels).toHaveProperty("search_docs");
-      expect(toolNameLabels).toHaveProperty("send_message");
-      expect(toolNameLabels).toHaveProperty("generate_reply");
+      expect(toolNameLabelKeys).toHaveProperty("search_docs");
+      expect(toolNameLabelKeys).toHaveProperty("send_message");
+      expect(toolNameLabelKeys).toHaveProperty("generate_reply");
     });
 
-    it("should have nested structure with all status types", () => {
-      expect(toolNameLabels.search_docs).toHaveProperty("loading");
-      expect(toolNameLabels.search_docs).toHaveProperty("success");
-      expect(toolNameLabels.search_docs).toHaveProperty("error");
-      expect(toolNameLabels.send_message).toHaveProperty("loading");
-      expect(toolNameLabels.send_message).toHaveProperty("success");
-      expect(toolNameLabels.send_message).toHaveProperty("error");
-      expect(toolNameLabels.generate_reply).toHaveProperty("loading");
-      expect(toolNameLabels.generate_reply).toHaveProperty("success");
-      expect(toolNameLabels.generate_reply).toHaveProperty("error");
+    it("should map each tool to a namespaced i18n key", () => {
+      expect(toolNameLabelKeys.search_docs).toBe("tracking.tools.searchDocs");
+      expect(toolNameLabelKeys.send_message).toBe("tracking.tools.sendMessage");
+      expect(toolNameLabelKeys.generate_reply).toBe(
+        "tracking.tools.generateReply",
+      );
     });
 
-    it("should have non-empty labels for each status", () => {
-      const statuses: StatusType[] = ["loading", "success", "error"];
-      Object.values(toolNameLabels).forEach((labels) => {
-        statuses.forEach((status) => {
-          expect(labels[status]).toBeTruthy();
-          expect(typeof labels[status]).toBe("string");
-        });
-      });
-    });
-
-    it("should have descriptive Chinese labels", () => {
-      const statuses: StatusType[] = ["loading", "success", "error"];
-      Object.values(toolNameLabels).forEach((labels) => {
-        statuses.forEach((status) => {
-          expect(labels[status]).toMatch(/[\u4e00-\u9fff]/);
-        });
+    it("should expose only string values", () => {
+      Object.values(toolNameLabelKeys).forEach((key) => {
+        expect(typeof key).toBe("string");
+        expect(key.length).toBeGreaterThan(0);
       });
     });
   });
 
-  describe("getLabel function", () => {
+  describe("getLabelKey function", () => {
     describe("priority 1: toolName", () => {
-      it("should return tool-specific label when toolName exists in toolNameLabels", () => {
-        const label = getLabel("load_tools", "search_docs", "loading");
-        expect(label).toBe(toolNameLabels.search_docs.loading);
+      it("should return tool-specific key when toolName exists in toolNameLabelKeys", () => {
+        const descriptor = getLabelKey("load_tools", "search_docs", "loading");
+        expect(descriptor.key).toBe("tracking.tools.searchDocs.loading");
+        expect(descriptor.values).toBeUndefined();
       });
 
-      it("should return tool-specific label with different statuses", () => {
-        const statuses: StatusType[] = ["loading", "success", "error"];
-        statuses.forEach((status) => {
-          const label = getLabel("load_tools", "search_docs", status);
-          expect(label).toBe(toolNameLabels.search_docs[status]);
+      it("should return tool-specific key with different statuses", () => {
+        STATUSES.forEach((status) => {
+          const descriptor = getLabelKey("load_tools", "search_docs", status);
+          expect(descriptor.key).toBe(`tracking.tools.searchDocs.${status}`);
         });
       });
 
-      it("should return tool-specific label even if operation type is unknown", () => {
-        const label = getLabel(
-          "unknown_operation" as any,
+      it("should return tool-specific key even if operation type is unknown", () => {
+        const descriptor = getLabelKey(
+          "unknown_operation",
           "send_message",
           "success",
         );
-        expect(label).toBe(toolNameLabels.send_message.success);
+        expect(descriptor.key).toBe("tracking.tools.sendMessage.success");
       });
 
-      it("should return tool-specific label for all known tools with all statuses", () => {
-        const statuses: StatusType[] = ["loading", "success", "error"];
-        Object.entries(toolNameLabels).forEach(([toolName, expectedLabels]) => {
-          statuses.forEach((status) => {
-            const label = getLabel("invoke_tool", toolName as any, status);
-            expect(label).toBe(expectedLabels[status]);
-          });
-        });
+      it("should return tool-specific key for all known tools with all statuses", () => {
+        Object.entries(toolNameLabelKeys).forEach(
+          ([toolName, expectedBase]) => {
+            STATUSES.forEach((status) => {
+              const descriptor = getLabelKey("invoke_tool", toolName, status);
+              expect(descriptor.key).toBe(`${expectedBase}.${status}`);
+            });
+          },
+        );
       });
     });
 
     describe("priority 2: operationType", () => {
-      it("should return operation label when toolName is not in toolNameLabels", () => {
-        const label = getLabel("load_tools", "unknown_tool", "loading");
-        expect(label).toBe(operationLabels.load_tools.loading);
+      it("should return operation key when toolName is not in toolNameLabelKeys", () => {
+        const descriptor = getLabelKey("load_tools", "unknown_tool", "loading");
+        expect(descriptor.key).toBe("tracking.ops.loadTools.loading");
+        expect(descriptor.values).toBeUndefined();
       });
 
-      it("should return operation label with different statuses when toolName is not in toolNameLabels", () => {
-        const statuses: StatusType[] = ["loading", "success", "error"];
-        statuses.forEach((status) => {
-          const label = getLabel("load_tools", "unknown_tool", status);
-          expect(label).toBe(operationLabels.load_tools[status]);
+      it("should return operation key with different statuses when toolName is not in toolNameLabelKeys", () => {
+        STATUSES.forEach((status) => {
+          const descriptor = getLabelKey("load_tools", "unknown_tool", status);
+          expect(descriptor.key).toBe(`tracking.ops.loadTools.${status}`);
         });
       });
 
-      it("should return operation label when toolName is undefined", () => {
-        const label = getLabel("search_tools", undefined, "success");
-        expect(label).toBe(operationLabels.search_tools.success);
+      it("should return operation key when toolName is undefined", () => {
+        const descriptor = getLabelKey("search_tools", undefined, "success");
+        expect(descriptor.key).toBe("tracking.ops.searchTools.success");
       });
 
-      it("should return operation label when toolName is empty string", () => {
-        const label = getLabel("invoke_tool", "", "error");
-        expect(label).toBe(operationLabels.invoke_tool.error);
+      it("should return operation key when toolName is empty string", () => {
+        const descriptor = getLabelKey("invoke_tool", "", "error");
+        expect(descriptor.key).toBe("tracking.ops.invokeTool.error");
       });
 
-      it("should return operation label for all operation types and statuses with unknown tool", () => {
-        const statuses: StatusType[] = ["loading", "success", "error"];
-        Object.entries(operationLabels).forEach(([opType, expectedLabels]) => {
-          statuses.forEach((status) => {
-            const label = getLabel(opType as any, "unknown_tool", status);
-            expect(label).toBe(expectedLabels[status]);
+      it("should return operation key for all operation types and statuses with unknown tool", () => {
+        Object.entries(operationLabelKeys).forEach(([opType, expectedBase]) => {
+          STATUSES.forEach((status) => {
+            const descriptor = getLabelKey(opType, "unknown_tool", status);
+            expect(descriptor.key).toBe(`${expectedBase}.${status}`);
           });
         });
       });
     });
 
-    describe("priority 3: fallback format", () => {
-      it("should return formatted fallback when operation type is unknown and tool name is not in toolNameLabels", () => {
-        const label = getLabel(
-          "unknown_operation" as any,
+    describe("priority 3: fallback key", () => {
+      it("should return fallback key when operation type is unknown and tool name is not registered", () => {
+        const descriptor = getLabelKey(
+          "unknown_operation",
           "unknown_tool",
           "loading",
         );
-        expect(label).toContain("unknown_operation");
-        expect(label).toContain("unknown_tool");
+        expect(descriptor.key).toBe(`${FALLBACK_KEY_BASE}.loading`);
+        expect(descriptor.values).toEqual({ name: "unknown_tool" });
       });
 
-      it("should return formatted fallback with different statuses", () => {
-        const statuses: StatusType[] = ["loading", "success", "error"];
-        statuses.forEach((status) => {
-          const label = getLabel("custom_op" as any, "custom_tool", status);
-          expect(typeof label).toBe("string");
-          expect(label).toContain("custom_op");
+      it("should return fallback key with different statuses", () => {
+        STATUSES.forEach((status) => {
+          const descriptor = getLabelKey("custom_op", "custom_tool", status);
+          expect(descriptor.key).toBe(`${FALLBACK_KEY_BASE}.${status}`);
+          expect(descriptor.values).toEqual({ name: "custom_tool" });
         });
       });
 
-      it("should return formatted fallback with undefined operation", () => {
-        const label = getLabel(undefined as any, "unknown_tool", "loading");
-        expect(typeof label).toBe("string");
-        expect(label).toContain("unknown");
+      it("should use 'unknown' as op name when operationType is undefined and no tool provided", () => {
+        const descriptor = getLabelKey(undefined, undefined, "loading");
+        expect(descriptor.key).toBe(`${FALLBACK_KEY_BASE}.loading`);
+        expect(descriptor.values).toEqual({ name: "unknown" });
       });
 
-      it("should return formatted fallback with empty operation", () => {
-        const label = getLabel("" as any, "unknown_tool", "success");
-        expect(typeof label).toBe("string");
+      it("should fall back to operation name when tool name is not provided", () => {
+        const descriptor = getLabelKey("custom_op", undefined, "success");
+        expect(descriptor.key).toBe(`${FALLBACK_KEY_BASE}.success`);
+        expect(descriptor.values).toEqual({ name: "custom_op" });
       });
 
-      it("should handle edge case with both operation and tool unknown and different statuses", () => {
-        const label1 = getLabel("custom_op" as any, "custom_tool", "loading");
-        const label2 = getLabel("custom_op" as any, "custom_tool", "error");
-        expect(label1).toContain("custom_op");
-        expect(label2).toContain("custom_op");
-        expect(label1).not.toBe(label2); // Different status should produce different fallback
+      it("should interpolate the tool name when both tool and op are unknown", () => {
+        const descriptor = getLabelKey("custom_op", "custom_tool", "error");
+        expect(descriptor.key).toBe(`${FALLBACK_KEY_BASE}.error`);
+        expect(descriptor.values).toEqual({ name: "custom_tool" });
+      });
+
+      it("should produce different keys for different statuses", () => {
+        const loading = getLabelKey("custom_op", "custom_tool", "loading");
+        const error = getLabelKey("custom_op", "custom_tool", "error");
+        expect(loading.key).not.toBe(error.key);
       });
     });
 
     describe("mixed scenarios", () => {
       it("should prioritize toolName over operationType when both exist", () => {
-        const label = getLabel("load_tools", "search_docs", "loading");
-        expect(label).toBe(toolNameLabels.search_docs.loading);
-        expect(label).not.toBe(operationLabels.load_tools.loading);
+        const descriptor = getLabelKey("load_tools", "search_docs", "loading");
+        expect(descriptor.key).toBe("tracking.tools.searchDocs.loading");
+        expect(descriptor.key).not.toBe("tracking.ops.loadTools.loading");
       });
 
-      it("should fall back to operationType when toolName is not available but operation is", () => {
-        const label = getLabel("search_tools", "nonexistent_tool", "success");
-        expect(label).toBe(operationLabels.search_tools.success);
+      it("should fall back to operationType when toolName is not registered but operation is", () => {
+        const descriptor = getLabelKey(
+          "search_tools",
+          "nonexistent_tool",
+          "success",
+        );
+        expect(descriptor.key).toBe("tracking.ops.searchTools.success");
       });
 
       it("should use default status (loading) when status is not provided", () => {
-        const label1 = getLabel("invoke_tool", "send_message");
-        const label2 = getLabel("invoke_tool", "send_message", "loading");
-        expect(label1).toBe(label2);
-        expect(label1).toBe(toolNameLabels.send_message.loading);
+        const descriptor1 = getLabelKey("invoke_tool", "send_message");
+        const descriptor2 = getLabelKey(
+          "invoke_tool",
+          "send_message",
+          "loading",
+        );
+        expect(descriptor1.key).toBe(descriptor2.key);
+        expect(descriptor1.key).toBe("tracking.tools.sendMessage.loading");
       });
 
       it("should handle status parameter with all valid values", () => {
-        const statuses: StatusType[] = ["loading", "success", "error"];
-        statuses.forEach((status) => {
-          const label = getLabel("invoke_tool", "send_message", status);
-          expect(label).toBe(toolNameLabels.send_message[status]);
+        STATUSES.forEach((status) => {
+          const descriptor = getLabelKey("invoke_tool", "send_message", status);
+          expect(descriptor.key).toBe(`tracking.tools.sendMessage.${status}`);
         });
       });
 
       it("should be case-sensitive for toolName matching", () => {
-        const label1 = getLabel("invoke_tool", "search_docs", "loading");
-        const label2 = getLabel("invoke_tool", "Search_Docs", "loading");
-        const label3 = getLabel("invoke_tool", "SEARCH_DOCS", "loading");
+        const descriptor1 = getLabelKey(
+          "invoke_tool",
+          "search_docs",
+          "loading",
+        );
+        const descriptor2 = getLabelKey(
+          "invoke_tool",
+          "Search_Docs",
+          "loading",
+        );
+        const descriptor3 = getLabelKey(
+          "invoke_tool",
+          "SEARCH_DOCS",
+          "loading",
+        );
 
-        // Only exact match should use toolNameLabel
-        expect(label1).toBe(toolNameLabels.search_docs.loading);
-        expect(label2).not.toBe(toolNameLabels.search_docs.loading);
-        expect(label3).not.toBe(toolNameLabels.search_docs.loading);
+        // Only exact match should use the tool-specific key
+        expect(descriptor1.key).toBe("tracking.tools.searchDocs.loading");
+        expect(descriptor2.key).toBe("tracking.ops.invokeTool.loading");
+        expect(descriptor3.key).toBe("tracking.ops.invokeTool.loading");
       });
 
       it("should handle all combinations of operation types, tools, and statuses", () => {
-        const operations = Object.keys(operationLabels) as any[];
-        const tools = Object.keys(toolNameLabels) as any[];
-        const statuses: StatusType[] = ["loading", "success", "error"];
+        const operations = Object.keys(operationLabelKeys);
+        const tools = Object.keys(toolNameLabelKeys);
 
         operations.forEach((op) => {
           tools.forEach((tool) => {
-            statuses.forEach((status) => {
-              const label = getLabel(op, tool, status);
-              // Should always return tool-specific label
-              expect(label).toBe(toolNameLabels[tool][status]);
+            STATUSES.forEach((status) => {
+              const descriptor = getLabelKey(op, tool, status);
+              // Tool-specific always wins when tool is registered
+              expect(descriptor.key).toBe(
+                `${toolNameLabelKeys[tool]}.${status}`,
+              );
             });
           });
         });
@@ -252,46 +245,67 @@ describe("toolLabels", () => {
 
     describe("null and undefined handling", () => {
       it("should handle null operationType with valid toolName", () => {
-        const label = getLabel(null as any, "send_message", "loading");
-        expect(label).toBe(toolNameLabels.send_message.loading);
+        const descriptor = getLabelKey(
+          null as unknown as string,
+          "send_message",
+          "loading",
+        );
+        expect(descriptor.key).toBe("tracking.tools.sendMessage.loading");
       });
 
       it("should handle null operationType with invalid toolName", () => {
-        const label = getLabel(null as any, "invalid_tool", "error");
-        expect(typeof label).toBe("string");
+        const descriptor = getLabelKey(
+          null as unknown as string,
+          "invalid_tool",
+          "error",
+        );
+        expect(descriptor.key).toBe(`${FALLBACK_KEY_BASE}.error`);
+        expect(descriptor.values).toEqual({ name: "invalid_tool" });
       });
 
       it("should handle null toolName with valid operationType", () => {
-        const label = getLabel("load_tools", null as any, "success");
-        expect(label).toBe(operationLabels.load_tools.success);
+        const descriptor = getLabelKey(
+          "load_tools",
+          null as unknown as string,
+          "success",
+        );
+        expect(descriptor.key).toBe("tracking.ops.loadTools.success");
       });
 
       it("should handle both null", () => {
-        const label = getLabel(null as any, null as any, "loading");
-        expect(typeof label).toBe("string");
+        const descriptor = getLabelKey(
+          null as unknown as string,
+          null as unknown as string,
+          "loading",
+        );
+        expect(descriptor.key).toBe(`${FALLBACK_KEY_BASE}.loading`);
       });
 
       it("should handle undefined operationType", () => {
-        const label = getLabel(undefined as any, "send_message", "success");
-        expect(label).toBe(toolNameLabels.send_message.success);
+        const descriptor = getLabelKey(undefined, "send_message", "success");
+        expect(descriptor.key).toBe("tracking.tools.sendMessage.success");
       });
 
       it("should handle undefined toolName", () => {
-        const label = getLabel("load_tools", undefined, "error");
-        expect(label).toBe(operationLabels.load_tools.error);
+        const descriptor = getLabelKey("load_tools", undefined, "error");
+        expect(descriptor.key).toBe("tracking.ops.loadTools.error");
       });
 
       it("should handle whitespace-only toolName as invalid", () => {
-        const label = getLabel("invoke_tool", "   ", "loading");
-        // Whitespace-only should not match toolNameLabels
-        expect(label).toBe(operationLabels.invoke_tool.loading);
+        const descriptor = getLabelKey("invoke_tool", "   ", "loading");
+        // Whitespace-only should not match the tool-specific registry
+        expect(descriptor.key).toBe("tracking.ops.invokeTool.loading");
       });
 
       it("should not crash with null status and default to loading", () => {
-        const label = getLabel("load_tools", "search_docs", null as any);
-        const expectedLabel = getLabel("load_tools", "search_docs", "loading");
-        expect(label).toBe(expectedLabel);
-        expect(label).toBe(toolNameLabels.search_docs.loading);
+        const descriptor = getLabelKey(
+          "load_tools",
+          "search_docs",
+          null as unknown as StatusType,
+        );
+        const expected = getLabelKey("load_tools", "search_docs", "loading");
+        expect(descriptor.key).toBe(expected.key);
+        expect(descriptor.key).toBe("tracking.tools.searchDocs.loading");
       });
 
       it("should handle invalid status values by defaulting to loading", () => {
@@ -302,15 +316,15 @@ describe("toolLabels", () => {
           123,
           {},
           [],
-        ] as any[];
+        ] as unknown[];
         invalidStatuses.forEach((invalidStatus) => {
-          const label = getLabel("load_tools", "search_docs", invalidStatus);
-          const expectedLabel = getLabel(
+          const descriptor = getLabelKey(
             "load_tools",
             "search_docs",
-            "loading",
+            invalidStatus as StatusType,
           );
-          expect(label).toBe(expectedLabel);
+          const expected = getLabelKey("load_tools", "search_docs", "loading");
+          expect(descriptor.key).toBe(expected.key);
         });
       });
     });

@@ -1,10 +1,11 @@
 import { ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
 export interface RoundCollapseSummaryProps {
-  /** 步骤数量，用于显示 "N 步" */
+  /** Step count used to render "N 步" / "N steps" copy */
   stepCount: number;
-  /** 点击展开时触发 */
+  /** Fired when the user clicks/activates the summary row */
   onClick: () => void;
 }
 
@@ -12,10 +13,16 @@ export interface RoundCollapseSummaryProps {
  * A compact summary row shown in place of a collapsed agent execution round.
  *
  * When agent execution steps are auto-collapsed in DM channels, this component
- * renders a single clickable row like "... 查看执行过程（3 步）". Clicking the
- * row invokes `onClick` so the parent can expand the full tracking events.
+ * renders a single clickable row like "... Show execution (3 steps)". Clicking
+ * the row invokes `onClick` so the parent can expand the full tracking events.
  *
- * The visual style intentionally mirrors {@link TrackingEventItem}'s container
+ * The visible copy is translated via react-i18next so the row adapts to the
+ * user's selected language. The `aria-label` is intentionally kept in English
+ * across all locales for better screen reader compatibility — most screen
+ * readers default to English pronunciation and keeping the label in English
+ * avoids mixed-language speech artefacts when the UI language changes. This
+ * is why `zh/channel.json` keeps `tracking.round.expandAriaLabel_other` in
+ * English. The visual style mirrors {@link TrackingEventItem}'s container
  * (emerald-500/15 left border, faint emerald background) so collapsed and
  * expanded states feel like part of the same agent event stack.
  */
@@ -23,6 +30,8 @@ export function RoundCollapseSummary({
   stepCount,
   onClick,
 }: RoundCollapseSummaryProps) {
+  const { t } = useTranslation("channel");
+
   return (
     <button
       type="button"
@@ -36,10 +45,10 @@ export function RoundCollapseSummary({
         "transition-colors duration-150 cursor-pointer",
       )}
       style={{ paddingLeft: "13px" }}
-      aria-label={`Expand execution process (${stepCount} steps)`}
+      aria-label={t("tracking.round.expandAriaLabel", { count: stepCount })}
     >
       <ChevronRight size={12} className="shrink-0" />
-      <span>... 查看执行过程（{stepCount} 步）</span>
+      <span>{t("tracking.round.collapseSummary", { count: stepCount })}</span>
     </button>
   );
 }

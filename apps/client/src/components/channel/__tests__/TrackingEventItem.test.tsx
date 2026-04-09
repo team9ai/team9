@@ -1,11 +1,22 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
+import i18n from "@/i18n";
 import {
   TrackingEventItem,
   formatDuration,
   buildThinkingStats,
 } from "../TrackingEventItem";
 import type { AgentEventMetadata } from "@/types/im";
+
+// Use the real i18next instance so we exercise the en/zh JSON resources.
+// Tests rely on the default "en" language; switch language per-test if needed.
+const t = i18n.getFixedT("en", "channel");
+
+beforeEach(async () => {
+  if (i18n.language !== "en") {
+    await i18n.changeLanguage("en");
+  }
+});
 
 describe("TrackingEventItem", () => {
   it("should render a thinking event label (body hidden until expanded)", () => {
@@ -41,7 +52,7 @@ describe("TrackingEventItem", () => {
     render(<TrackingEventItem metadata={meta} content="raw content" />);
 
     // Unknown tool name falls back to operation-type label ("invoke_tool")
-    expect(screen.getByText("工具调用完成")).toBeInTheDocument();
+    expect(screen.getByText("Tool call completed")).toBeInTheDocument();
     expect(screen.getByText("SearchFiles")).toBeInTheDocument();
     expect(screen.queryByText("raw content")).not.toBeInTheDocument();
     // Old hardcoded label should no longer be used
@@ -106,8 +117,8 @@ describe("TrackingEventItem", () => {
     }> = [
       { type: "thinking", label: "Thinking" },
       { type: "writing", label: "Writing" },
-      // tool_call uses getLabel -> operationLabels.invoke_tool.success
-      { type: "tool_call", label: "工具调用完成" },
+      // tool_call uses getLabelKey -> tracking.ops.invokeTool.success (en)
+      { type: "tool_call", label: "Tool call completed" },
       { type: "tool_result", label: "Result" },
       { type: "agent_start", label: "Started" },
       { type: "agent_end", label: "Completed" },
@@ -188,7 +199,7 @@ describe("TrackingEventItem", () => {
     });
   });
 
-  describe("tool_call label mapping via getLabel", () => {
+  describe("tool_call label mapping via getLabelKey", () => {
     it("should use localized loading label for known tool with running status", () => {
       const meta: AgentEventMetadata = {
         agentEventType: "tool_call",
@@ -196,7 +207,7 @@ describe("TrackingEventItem", () => {
         toolName: "send_message",
       };
       render(<TrackingEventItem metadata={meta} content="" />);
-      expect(screen.getByText("正在发送消息")).toBeInTheDocument();
+      expect(screen.getByText("Sending message")).toBeInTheDocument();
     });
 
     it("should use localized success label for known tool with completed status", () => {
@@ -206,7 +217,7 @@ describe("TrackingEventItem", () => {
         toolName: "send_message",
       };
       render(<TrackingEventItem metadata={meta} content="" />);
-      expect(screen.getByText("消息发送完成")).toBeInTheDocument();
+      expect(screen.getByText("Message sent")).toBeInTheDocument();
     });
 
     it("should use localized error label for known tool with failed status", () => {
@@ -216,7 +227,7 @@ describe("TrackingEventItem", () => {
         toolName: "send_message",
       };
       render(<TrackingEventItem metadata={meta} content="" />);
-      expect(screen.getByText("消息发送失败")).toBeInTheDocument();
+      expect(screen.getByText("Failed to send message")).toBeInTheDocument();
     });
 
     it("should treat resolved status as success for tool_call labels", () => {
@@ -226,7 +237,7 @@ describe("TrackingEventItem", () => {
         toolName: "search_docs",
       };
       render(<TrackingEventItem metadata={meta} content="" />);
-      expect(screen.getByText("文档搜索完成")).toBeInTheDocument();
+      expect(screen.getByText("Documents found")).toBeInTheDocument();
     });
 
     it("should treat timeout status as error for tool_call labels", () => {
@@ -236,7 +247,7 @@ describe("TrackingEventItem", () => {
         toolName: "generate_reply",
       };
       render(<TrackingEventItem metadata={meta} content="" />);
-      expect(screen.getByText("回复生成失败")).toBeInTheDocument();
+      expect(screen.getByText("Reply generation failed")).toBeInTheDocument();
     });
 
     it("should treat cancelled status as error for tool_call labels", () => {
@@ -246,7 +257,7 @@ describe("TrackingEventItem", () => {
         toolName: "send_message",
       };
       render(<TrackingEventItem metadata={meta} content="" />);
-      expect(screen.getByText("消息发送失败")).toBeInTheDocument();
+      expect(screen.getByText("Failed to send message")).toBeInTheDocument();
     });
 
     it("should force loading label when isStreaming overrides status", () => {
@@ -256,8 +267,8 @@ describe("TrackingEventItem", () => {
         toolName: "send_message",
       };
       render(<TrackingEventItem metadata={meta} content="" isStreaming />);
-      expect(screen.getByText("正在发送消息")).toBeInTheDocument();
-      expect(screen.queryByText("消息发送完成")).not.toBeInTheDocument();
+      expect(screen.getByText("Sending message")).toBeInTheDocument();
+      expect(screen.queryByText("Message sent")).not.toBeInTheDocument();
     });
 
     it("should fall back to operation-type label for unknown tool names", () => {
@@ -267,7 +278,7 @@ describe("TrackingEventItem", () => {
         toolName: "UnknownCustomTool",
       };
       render(<TrackingEventItem metadata={meta} content="" />);
-      expect(screen.getByText("正在调用工具")).toBeInTheDocument();
+      expect(screen.getByText("Calling tool")).toBeInTheDocument();
     });
 
     it("should fall back to operation-type label when toolName is missing", () => {
@@ -276,10 +287,10 @@ describe("TrackingEventItem", () => {
         status: "completed",
       };
       render(<TrackingEventItem metadata={meta} content="fallback content" />);
-      expect(screen.getByText("工具调用完成")).toBeInTheDocument();
+      expect(screen.getByText("Tool call completed")).toBeInTheDocument();
     });
 
-    it("should not apply getLabel to non-tool_call events", () => {
+    it("should not apply getLabelKey to non-tool_call events", () => {
       // thinking events should retain the original EVENT_LABELS mapping
       render(
         <TrackingEventItem
@@ -288,7 +299,26 @@ describe("TrackingEventItem", () => {
         />,
       );
       expect(screen.getByText("Thinking")).toBeInTheDocument();
-      expect(screen.queryByText("工具调用完成")).not.toBeInTheDocument();
+      expect(screen.queryByText("Tool call completed")).not.toBeInTheDocument();
+    });
+
+    it("should honour the active language (zh) for tool_call labels", async () => {
+      await act(async () => {
+        await i18n.changeLanguage("zh");
+      });
+      try {
+        const meta: AgentEventMetadata = {
+          agentEventType: "tool_call",
+          status: "completed",
+          toolName: "send_message",
+        };
+        render(<TrackingEventItem metadata={meta} content="" />);
+        expect(screen.getByText("消息发送完成")).toBeInTheDocument();
+      } finally {
+        await act(async () => {
+          await i18n.changeLanguage("en");
+        });
+      }
     });
   });
 });
@@ -362,35 +392,41 @@ describe("TrackingEventItem - collapsible", () => {
 
 describe("formatDuration helper", () => {
   it("formats sub-minute durations in seconds", () => {
-    expect(formatDuration(45_000)).toBe("45秒");
+    expect(formatDuration(45_000, t)).toBe("45s");
   });
 
   it("formats exactly 59 seconds without promoting to minutes", () => {
-    expect(formatDuration(59_999)).toBe("59秒");
+    expect(formatDuration(59_999, t)).toBe("59s");
   });
 
-  it("formats exactly 60 seconds as 1分0秒", () => {
-    expect(formatDuration(60_000)).toBe("1分0秒");
+  it("formats exactly 60 seconds as 1m 0s", () => {
+    expect(formatDuration(60_000, t)).toBe("1m 0s");
   });
 
-  it("formats >= 60 seconds as Chinese 分秒 format", () => {
-    expect(formatDuration(123_000)).toBe("2分3秒");
+  it("formats >= 60 seconds as minutes/seconds format", () => {
+    expect(formatDuration(123_000, t)).toBe("2m 3s");
   });
 
-  it("formats whole minutes with 0秒 suffix", () => {
-    expect(formatDuration(120_000)).toBe("2分0秒");
+  it("formats whole minutes with 0s suffix", () => {
+    expect(formatDuration(120_000, t)).toBe("2m 0s");
   });
 
   it("floors millisecond values to whole seconds", () => {
-    expect(formatDuration(45_999)).toBe("45秒");
+    expect(formatDuration(45_999, t)).toBe("45s");
   });
 
-  it("clamps negative values to 0秒", () => {
-    expect(formatDuration(-5_000)).toBe("0秒");
+  it("clamps negative values to 0s", () => {
+    expect(formatDuration(-5_000, t)).toBe("0s");
   });
 
-  it("returns 0秒 for zero", () => {
-    expect(formatDuration(0)).toBe("0秒");
+  it("returns 0s for zero", () => {
+    expect(formatDuration(0, t)).toBe("0s");
+  });
+
+  it("honours the zh locale when translating", async () => {
+    const zhT = i18n.getFixedT("zh", "channel");
+    expect(formatDuration(45_000, zhT)).toBe("45 秒");
+    expect(formatDuration(123_000, zhT)).toBe("2 分 3 秒");
   });
 });
 
@@ -400,7 +436,7 @@ describe("buildThinkingStats helper", () => {
       agentEventType: "thinking",
       status: "completed",
     };
-    expect(buildThinkingStats(meta, false)).toBe("Thinking");
+    expect(buildThinkingStats(meta, false, t)).toBe("Thinking");
   });
 
   it("uses totalTokens when available", () => {
@@ -410,7 +446,7 @@ describe("buildThinkingStats helper", () => {
       totalTokens: 1200,
       outputTokens: 800,
     };
-    expect(buildThinkingStats(meta, false)).toBe("Thinking (1200 tokens)");
+    expect(buildThinkingStats(meta, false, t)).toBe("Thinking (1200 tokens)");
   });
 
   it("falls back to outputTokens when totalTokens missing", () => {
@@ -419,7 +455,16 @@ describe("buildThinkingStats helper", () => {
       status: "completed",
       outputTokens: 512,
     };
-    expect(buildThinkingStats(meta, false)).toBe("Thinking (512 tokens)");
+    expect(buildThinkingStats(meta, false, t)).toBe("Thinking (512 tokens)");
+  });
+
+  it("renders singular 'token' for exactly one token", () => {
+    const meta: AgentEventMetadata = {
+      agentEventType: "thinking",
+      status: "completed",
+      totalTokens: 1,
+    };
+    expect(buildThinkingStats(meta, false, t)).toBe("Thinking (1 token)");
   });
 
   it("ignores zero/negative token counts", () => {
@@ -428,7 +473,7 @@ describe("buildThinkingStats helper", () => {
       status: "completed",
       totalTokens: 0,
     };
-    expect(buildThinkingStats(meta, false)).toBe("Thinking");
+    expect(buildThinkingStats(meta, false, t)).toBe("Thinking");
   });
 
   it("includes only duration when tokens missing", () => {
@@ -437,7 +482,7 @@ describe("buildThinkingStats helper", () => {
       status: "completed",
       durationMs: 123_000,
     };
-    expect(buildThinkingStats(meta, false)).toBe("Thinking (2分3秒)");
+    expect(buildThinkingStats(meta, false, t)).toBe("Thinking (2m 3s)");
   });
 
   it("combines tokens and duration when both present", () => {
@@ -447,8 +492,8 @@ describe("buildThinkingStats helper", () => {
       totalTokens: 1200,
       durationMs: 123_000,
     };
-    expect(buildThinkingStats(meta, false)).toBe(
-      "Thinking (1200 tokens, 2分3秒)",
+    expect(buildThinkingStats(meta, false, t)).toBe(
+      "Thinking (1200 tokens, 2m 3s)",
     );
   });
 
@@ -460,7 +505,7 @@ describe("buildThinkingStats helper", () => {
       status: "running",
       startedAt: started,
     };
-    expect(buildThinkingStats(meta, true, now)).toBe("Thinking (45秒)");
+    expect(buildThinkingStats(meta, true, t, now)).toBe("Thinking (45s)");
   });
 
   it("combines live elapsed with tokens when streaming", () => {
@@ -472,8 +517,8 @@ describe("buildThinkingStats helper", () => {
       totalTokens: 300,
       startedAt: started,
     };
-    expect(buildThinkingStats(meta, true, now)).toBe(
-      "Thinking (300 tokens, 30秒)",
+    expect(buildThinkingStats(meta, true, t, now)).toBe(
+      "Thinking (300 tokens, 30s)",
     );
   });
 
@@ -483,7 +528,7 @@ describe("buildThinkingStats helper", () => {
       status: "running",
       startedAt: "not-a-date",
     };
-    expect(buildThinkingStats(meta, true, Date.now())).toBe("Thinking");
+    expect(buildThinkingStats(meta, true, t, Date.now())).toBe("Thinking");
   });
 
   it("omits live elapsed when startedAt missing while streaming", () => {
@@ -492,7 +537,7 @@ describe("buildThinkingStats helper", () => {
       status: "running",
       totalTokens: 10,
     };
-    expect(buildThinkingStats(meta, true, Date.now())).toBe(
+    expect(buildThinkingStats(meta, true, t, Date.now())).toBe(
       "Thinking (10 tokens)",
     );
   });
@@ -504,7 +549,7 @@ describe("buildThinkingStats helper", () => {
       status: "running",
       startedAt: new Date(now).toISOString(),
     };
-    expect(buildThinkingStats(meta, true, now)).toBe("Thinking");
+    expect(buildThinkingStats(meta, true, t, now)).toBe("Thinking");
   });
 
   it("prefers durationMs over startedAt when not streaming", () => {
@@ -514,7 +559,22 @@ describe("buildThinkingStats helper", () => {
       durationMs: 45_000,
       startedAt: new Date(0).toISOString(),
     };
-    expect(buildThinkingStats(meta, false, Date.now())).toBe("Thinking (45秒)");
+    expect(buildThinkingStats(meta, false, t, Date.now())).toBe(
+      "Thinking (45s)",
+    );
+  });
+
+  it("honours the zh locale when rendering stats", () => {
+    const zhT = i18n.getFixedT("zh", "channel");
+    const meta: AgentEventMetadata = {
+      agentEventType: "thinking",
+      status: "completed",
+      totalTokens: 1200,
+      durationMs: 123_000,
+    };
+    expect(buildThinkingStats(meta, false, zhT)).toBe(
+      "Thinking (1200 tokens, 2 分 3 秒)",
+    );
   });
 });
 
@@ -586,7 +646,7 @@ describe("thinking event display", () => {
     render(<TrackingEventItem metadata={meta} content="" />);
 
     expect(
-      screen.getByText("Thinking (1200 tokens, 2分3秒)"),
+      screen.getByText("Thinking (1200 tokens, 2m 3s)"),
     ).toBeInTheDocument();
   });
 
@@ -609,7 +669,7 @@ describe("thinking event display", () => {
     };
     render(<TrackingEventItem metadata={meta} content="" />);
 
-    expect(screen.getByText("Thinking (2分3秒)")).toBeInTheDocument();
+    expect(screen.getByText("Thinking (2m 3s)")).toBeInTheDocument();
   });
 
   it("shows bare Thinking label when nothing is available", () => {
@@ -622,7 +682,7 @@ describe("thinking event display", () => {
     expect(screen.getByText("Thinking")).toBeInTheDocument();
   });
 
-  it("formats sub-minute durations as 秒", () => {
+  it("formats sub-minute durations in seconds", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "thinking",
       status: "completed",
@@ -630,10 +690,10 @@ describe("thinking event display", () => {
     };
     render(<TrackingEventItem metadata={meta} content="" />);
 
-    expect(screen.getByText("Thinking (45秒)")).toBeInTheDocument();
+    expect(screen.getByText("Thinking (45s)")).toBeInTheDocument();
   });
 
-  it("formats durations >= 60s as 分秒", () => {
+  it("formats durations >= 60s with minutes and seconds", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "thinking",
       status: "completed",
@@ -641,10 +701,10 @@ describe("thinking event display", () => {
     };
     render(<TrackingEventItem metadata={meta} content="" />);
 
-    expect(screen.getByText("Thinking (2分5秒)")).toBeInTheDocument();
+    expect(screen.getByText("Thinking (2m 5s)")).toBeInTheDocument();
   });
 
-  it("formats whole minutes as 2分0秒", () => {
+  it("formats whole minutes as 2m 0s", () => {
     const meta: AgentEventMetadata = {
       agentEventType: "thinking",
       status: "completed",
@@ -652,7 +712,7 @@ describe("thinking event display", () => {
     };
     render(<TrackingEventItem metadata={meta} content="" />);
 
-    expect(screen.getByText("Thinking (2分0秒)")).toBeInTheDocument();
+    expect(screen.getByText("Thinking (2m 0s)")).toBeInTheDocument();
   });
 
   it("expands on click and shows metadata.thinking body", () => {
@@ -739,16 +799,16 @@ describe("thinking event display", () => {
       render(<TrackingEventItem metadata={meta} content="" isStreaming />);
 
       // Initial render: 5 seconds elapsed.
-      expect(screen.getByText("Thinking (5秒)")).toBeInTheDocument();
+      expect(screen.getByText("Thinking (5s)")).toBeInTheDocument();
 
-      // Advance time by 10 seconds — total elapsed should become 15秒.
+      // Advance time by 10 seconds — total elapsed should become 15s.
       act(() => {
         vi.advanceTimersByTime(10_000);
       });
-      expect(screen.getByText("Thinking (15秒)")).toBeInTheDocument();
+      expect(screen.getByText("Thinking (15s)")).toBeInTheDocument();
     });
 
-    it("promotes seconds to 分秒 format as time crosses 60s", () => {
+    it("promotes seconds to m/s format as time crosses 60s", () => {
       const fixedNow = new Date("2026-04-09T10:00:00.000Z").getTime();
       vi.setSystemTime(fixedNow);
 
@@ -759,12 +819,12 @@ describe("thinking event display", () => {
       };
       render(<TrackingEventItem metadata={meta} content="" isStreaming />);
 
-      expect(screen.getByText("Thinking (55秒)")).toBeInTheDocument();
+      expect(screen.getByText("Thinking (55s)")).toBeInTheDocument();
 
       act(() => {
         vi.advanceTimersByTime(10_000);
       });
-      expect(screen.getByText("Thinking (1分5秒)")).toBeInTheDocument();
+      expect(screen.getByText("Thinking (1m 5s)")).toBeInTheDocument();
     });
 
     it("does not start an interval when not streaming", () => {
