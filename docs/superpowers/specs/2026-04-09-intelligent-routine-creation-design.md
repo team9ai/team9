@@ -1,16 +1,17 @@
 # Intelligent Routine Creation Design
 
 **Date:** 2026-04-09 (revised 2026-04-10)
-**Status:** Design — Revision 2
+**Status:** Design — Revision 3
 
 ## Overview
 
-Currently, Routine creation only supports a basic form interface. This spec introduces an intelligent creation experience with two complementary paths:
+Currently, Routine creation only supports a basic form interface. This spec introduces an intelligent creation experience with two complementary paths, plus a bridge that turns existing onboarding flows into the system's first large-scale producer of draft routines:
 
 1. **DM Creation (轻量)** — The user chats with any agent in a DM and asks for a routine. The agent gathers the requirements through conversation and calls a single `createRoutine` tool once it has enough information. One round trip, no temporary state.
 2. **Routine UI Creation (结构化)** — The user clicks "Create with Agentic" from the Routine list, picks an executing agent, and is taken to a dedicated **creation channel**. A purpose-built agent clone walks them through multiple rounds of refinement. A `draft` routine is persisted from the start and refined via `updateRoutine` tool calls until `complete-creation` transitions it to `upcoming`.
+3. **Onboarding → Draft Routines (Phase 1.5)** — When a user completes workspace onboarding, each selected task becomes a `draft` routine assigned to their personal-staff bot. The user arrives at the Routine list with N drafts ready for "Complete Creation", turning onboarding intent into a concrete actionable path instead of string-only settings.
 
-Both paths share the same `team9-routine-creation` claw-hive component, which provides the tool suite. The difference between the two paths is **how the component is configured**, not what it does.
+Paths 1 and 2 share the same `team9-routine-creation` claw-hive component, which provides the tool suite. The difference between the two paths is **how the component is configured**, not what it does. Path 3 reuses the Path 2 flow for the "Complete Creation" step — users refine onboarding-provisioned drafts via exactly the same creation channel experience.
 
 ## Key Corrections From Initial Review
 
@@ -26,11 +27,11 @@ This spec is Revision 2. Revision 1 (the original 2026-04-09 draft) contained se
 
 ## Scope
 
-### In Scope (Phase 1)
+### In Scope (Phase 1 — Routine Creation Core)
 
 - Two creation entry points (DM + Routine UI)
 - `draft` status added to `routine__routines.status` enum
-- Two new columns: `creation_channel_id`, `creation_session_id` (both nullable, FK where applicable)
+- Three new columns: `creation_channel_id`, `creation_session_id`, `source_ref` (all nullable)
 - Backend endpoints: `POST /v1/routines/with-creation-task`, `POST /v1/routines/:id/complete-creation`
 - Enhanced `create` / `update` / `delete` to handle `draft` state correctly
 - Claw-hive `team9-routine-creation` component + `createRoutine`, `getRoutine`, `updateRoutine` tools
@@ -41,6 +42,15 @@ This spec is Revision 2. Revision 1 (the original 2026-04-09 draft) contained se
 - Draft routines are filtered to creator-only in the list API
 - Multi-turn agentic creation flow (DM one-shot + Routine UI multi-turn both work)
 
+### In Scope (Phase 1.5 — Onboarding Integration)
+
+- `OnboardingService.provisionRoutines()`: new step in the `provisionOnboardingResources` pipeline that converts selected onboarding tasks into draft routines
+- Idempotent provisioning via `routine__routines.source_ref = onboarding:{workspaceOnboardingId}:{taskId}`
+- Each selected onboarding task becomes one draft routine, with `botId` defaulting to the user's personal-staff bot
+- `customTask` (user-entered free text) also becomes a draft
+- Removes the string-only `tenant.settings.onboarding.tasks.selectedTaskTitles` persistence path — the draft routines themselves become the source of truth for the user's chosen tasks
+- Users arriving at the Routine list after onboarding see N draft routines ready for "Complete Creation"
+
 ### Out of Scope (Phase 2+)
 
 - 4-step form with AI assistance (the structured manual form)
@@ -49,6 +59,8 @@ This spec is Revision 2. Revision 1 (the original 2026-04-09 draft) contained se
 - Collaborative creation (multiple users working on one draft)
 - Draft sharing
 - Auto-generation of trigger suggestions from NL descriptions (beyond what the agent parses itself)
+- AI-generated starter `documentContent` for onboarding-provisioned drafts (Phase 1.5 drafts start with empty document; the creation conversation fills it)
+- Letting the user pick which agent executes each onboarding-provisioned draft (Phase 1.5 always assigns personal-staff; user can reassign via "Complete Creation" flow if they want a different agent)
 
 ## Design Decisions
 
@@ -149,6 +161,7 @@ creationChannelId: uuid('creation_channel_id').references(
   { onDelete: 'set null' },
 ),
 creationSessionId: varchar('creation_session_id', { length: 255 }),
+sourceRef: varchar('source_ref', { length: 255 }),
 ```
 
 Enum additions:
@@ -167,13 +180,16 @@ export const routineStatusEnum = pgEnum("routine__status", [
 ]);
 ```
 
-Index:
+Indexes:
 
 ```typescript
 index('idx_routine__routines_creation_channel_id').on(table.creationChannelId),
+index('idx_routine__routines_source_ref').on(table.sourceRef),
 ```
 
 **`onDelete: 'set null'`** — if the creation channel is hard-deleted for any reason, the routine stays (just loses the backlink). We never want channel deletion to cascade into routine deletion.
+
+**`sourceRef`** — optional origin marker used for idempotent provisioning from external flows. Format is `{sourceType}:{sourceId}:{childId?}`. For onboarding-provisioned drafts (Phase 1.5), the value is `onboarding:{workspaceOnboardingId}:{onboardingTaskId}`. Indexed so we can de-dupe efficiently on re-provision. `sourceRef` is nullable because routines created via DM path / Routine UI path / direct API calls have no external source.
 
 ### No `creation_tasks` Table
 
@@ -397,6 +413,163 @@ Total: 3–5 turns. No draft state. No cleanup needed.
 
 Total: 6–12 turns, persistent through any interruption (user can close the tab and come back; the draft is still there with the same channel).
 
+## Onboarding Integration (Phase 1.5)
+
+### Why This Is Part Of The Same Spec
+
+The current onboarding flow has a design gap: users select task titles ("Daily team digest", "Weekly KPI review") during onboarding, but these choices are persisted as **plain strings in `tenant.settings.onboarding.tasks.selectedTaskTitles`** — they're only used later as prompt context when generating agent personas. There is no bridge between "the user said they want this task" and "this task is an executable routine in the system".
+
+The `draft` status introduced by Phase 1 is the exact primitive needed to fix this: onboarding-selected tasks should become draft routines that the user can then refine via the "Complete Creation" flow. This makes onboarding the **first large-scale producer** of draft routines, validates the Phase 1 architecture end-to-end, and delivers a product closed loop (onboarding → draft → creation channel → ready → running) without any new concepts.
+
+Phase 1.5 is a small, focused addition to the same spec rather than a separate project because (a) the core architectural decisions of Phase 1 (creator-only drafts, per-routine clone, `source_ref` field) were specifically chosen to accommodate this integration, and (b) shipping Phase 1 without fixing onboarding would leave the onboarding "task" concept half-working forever.
+
+### Data Flow
+
+```
+Onboarding step 2                Provisioning step                 Routine list
+─────────────────                ─────────────────                 ────────────
+AI generates 3 task titles  →    provisionRoutines() creates  →    User sees 3 draft
+User picks some + adds one       one draft per selected task       routines with DRAFT
+customTask                       (status='draft', botId=           badge and "Complete
+                                 personalStaff.id,                 Creation" button
+                                 sourceRef='onboarding:{id}:{id}')
+```
+
+### New Service Method: `OnboardingService.provisionRoutines()`
+
+Called from the existing `provisionOnboardingResources` pipeline (between `provisionCommonStaff` and `persistPreferences`).
+
+**Pseudocode:**
+
+```typescript
+private async provisionRoutines(
+  workspaceId: string,
+  userId: string,
+  onboardingRecordId: string,
+  stepData: WorkspaceOnboardingStepData,
+): Promise<void> {
+  const tasks = stepData.tasks;
+  if (!tasks) return;
+
+  // 1. Collect the user's intended tasks:
+  //    - Any of the AI-generated tasks whose id is in selectedTaskIds
+  //    - The user's customTask if present
+  const selectedGenerated =
+    tasks.generatedTasks?.filter((t) =>
+      tasks.selectedTaskIds?.includes(t.id),
+    ) ?? [];
+
+  type IntendedTask = { sourceChildId: string; title: string };
+  const intended: IntendedTask[] = [
+    ...selectedGenerated.map((t) => ({ sourceChildId: t.id, title: t.title })),
+    ...(tasks.customTask?.trim()
+      ? [{ sourceChildId: 'custom', title: tasks.customTask.trim() }]
+      : []),
+  ];
+  if (intended.length === 0) return;
+
+  // 2. Find the user's personal-staff bot (provisioned earlier in
+  //    the pipeline by provisionPersonalStaff).
+  const personalStaffApp =
+    await this.installedApplicationsService.findByApplicationId(
+      workspaceId,
+      'personal-staff',
+    );
+  if (!personalStaffApp) {
+    this.logger.warn(
+      `Skipping routine provisioning: no personal-staff app for workspace ${workspaceId}`,
+    );
+    return;
+  }
+  const personalBot = await this.personalStaffService.findPersonalStaffBot(
+    userId,
+    personalStaffApp.id,
+  );
+  if (!personalBot) {
+    this.logger.warn(
+      `Skipping routine provisioning: user ${userId} has no personal-staff bot`,
+    );
+    return;
+  }
+
+  // 3. For each intended task, idempotently create a draft routine.
+  //    Re-provision safe: sourceRef uniquely identifies each task origin.
+  for (const task of intended) {
+    const sourceRef = `onboarding:${onboardingRecordId}:${task.sourceChildId}`;
+
+    const [existing] = await this.db
+      .select({ id: schema.routines.id })
+      .from(schema.routines)
+      .where(
+        and(
+          eq(schema.routines.tenantId, workspaceId),
+          eq(schema.routines.sourceRef, sourceRef),
+        ),
+      )
+      .limit(1);
+    if (existing) continue; // idempotent: already provisioned
+
+    await this.routinesService.create(
+      {
+        title: task.title,
+        botId: personalBot.id,
+        status: 'draft',
+        // No triggers — user will configure via "Complete Creation" flow.
+        // No documentContent — same reason. Draft routines allow both
+        // to be empty until complete-creation validates them.
+      },
+      userId,
+      workspaceId,
+      { sourceRef }, // new optional 3rd arg to RoutinesService.create
+    );
+  }
+}
+```
+
+### `RoutinesService.create` Signature Change
+
+`create` gains an optional third argument for internal callers to set `sourceRef`:
+
+```typescript
+async create(
+  dto: CreateRoutineDto,
+  userId: string,
+  tenantId: string,
+  options?: { sourceRef?: string },
+): Promise<Routine>
+```
+
+- Not exposed in the HTTP DTO (gateway API consumers should never set this directly — they don't know about onboarding's internal IDs)
+- When set, written to `routine__routines.source_ref`
+- `options.sourceRef` is undefined for all existing callers, so behavior is unchanged
+
+### Removing The String Persistence
+
+[`onboarding.service.ts:597-637`](apps/server/apps/gateway/src/workspace/onboarding.service.ts#L597-L637) `persistPreferences` currently writes `selectedTaskTitles` to `tenant.settings.onboarding.tasks`. Phase 1.5 replaces that section:
+
+- **Before:** `tenant.settings.onboarding.tasks = { selectedTaskIds, selectedTaskTitles, customTask }`
+- **After:** `tenant.settings.onboarding.tasks = { selectedTaskIds, customTask }` — we keep the IDs and customTask text for audit/debug, but remove `selectedTaskTitles` since the draft routines are now the canonical representation of the user's chosen tasks
+- Other preference fields (`role`) are unchanged
+
+Any code that currently reads `tenant.settings.onboarding.tasks.selectedTaskTitles` for prompt context must be updated to query `routine__routines WHERE source_ref LIKE 'onboarding:%' AND creator_id = userId` instead. A grep during implementation will surface all call sites.
+
+### Edge Cases
+
+- **User has no personal-staff bot** (shouldn't happen because `provisionPersonalStaff` runs first in the pipeline, but defensive): log a warning and skip routine provisioning. Onboarding completion still succeeds.
+- **Personal-staff provisioning failed** upstream: the pipeline aborts before reaching `provisionRoutines`, so there's nothing to clean up.
+- **Re-provision** (onboarding re-run or provisioning retry after failure): `sourceRef` lookup catches existing drafts and skips them. New drafts are added for any new tasks the user selected since the last run.
+- **Onboarding skipped**: `provisionRoutines` is not called (same as the other provisioning methods — only runs when status is `completed` or `failed`).
+- **User deletes a draft after it was auto-created from onboarding**: deletion works normally; re-provisioning will recreate it unless the user disables re-provision. (Not a concern for Phase 1.5 — re-provision is a rare manual operation.)
+
+### What Users See
+
+1. User completes onboarding → clicks "Provision workspace"
+2. Backend runs: channels → personal-staff → common-staff → **routines (NEW)** → persistPreferences
+3. User lands on the workspace home, clicks into the Routine list
+4. They see a **"Draft (3)"** group at the top containing the 3 tasks they selected during onboarding
+5. Each draft card shows the task title, a "DRAFT" badge, and "Complete Creation" + "Delete" actions
+6. Clicking "Complete Creation" opens an agent picker (pre-selected: personal-staff), confirms, and drops them into a creation channel where the agent guides them through filling in `documentContent`, `triggers`, etc. — the full Routine UI flow from Phase 1
+
 ## Form Creation Flow (Phase 2)
 
 Deferred. See §Scope for the planned 4-step structure.
@@ -458,11 +631,11 @@ All changes live inside the existing Routine UI — no new top-level pages.
 
 ## Implementation Sequence
 
-### Phase 1 (MVP) — In This Spec
+### Phase 1 (MVP) — Routine Creation Core
 
-1. **Database migration.** Add `draft` enum value + `creation_channel_id` + `creation_session_id` columns. `onDelete: set null` on the channel FK.
+1. **Database migration.** Add `draft` enum value + `creation_channel_id` + `creation_session_id` + `source_ref` columns. `onDelete: set null` on the channel FK. Index `source_ref`.
 2. **`ChannelsService.archive()`** helper.
-3. **`RoutinesService.create/update/delete` draft handling.** Accept `status` in DTO. Skip trigger registration for drafts. Reject `start` on drafts. List API filters drafts to creator-only.
+3. **`RoutinesService.create/update/delete` draft handling.** Accept `status` in DTO. Accept optional `options.sourceRef` on `create` (not in HTTP DTO — internal only). Skip trigger registration for drafts. Reject `start` on drafts. List API filters drafts to creator-only.
 4. **`POST /v1/routines/:id/complete-creation` endpoint and service method.** Validates required fields, transitions status, archives channel, deletes clone agent.
 5. **`POST /v1/routines/with-creation-task` endpoint and service method.** Creates draft + channel + clone agent + session + sends bootstrap event. Rollback on partial failure.
 6. **`team9-routine-creation` claw-hive component.** Config schema, `createRoutine`/`getRoutine`/`updateRoutine` tools, bootstrap event handler, system prompt injection.
@@ -473,11 +646,24 @@ All changes live inside the existing Routine UI — no new top-level pages.
 11. **Frontend: Draft banner on routine detail page.** Links to creation channel.
 12. **Integration tests.** End-to-end: create-with-creation-task → simulate agent calling updateRoutine → complete-creation → verify routine is `upcoming`, channel archived, clone agent deleted.
 
+### Phase 1.5 — Onboarding Integration
+
+Depends on Phase 1 Tasks 1 (schema with `source_ref`) and 3 (`create` accepting `options.sourceRef`).
+
+13. **New method `OnboardingService.provisionRoutines`.** Takes `{ workspaceId, userId, onboardingRecordId, stepData }`. Resolves the user's personal-staff bot, iterates selected tasks + `customTask`, idempotently creates drafts via `RoutinesService.create(..., { sourceRef })`. See §Onboarding Integration (Phase 1.5) for pseudocode.
+14. **Wire `provisionRoutines` into `provisionOnboardingResources` pipeline.** Call it after `provisionCommonStaff`, before `persistPreferences`. Failures are logged but non-fatal — onboarding still completes even if routine provisioning fails (drafts can be added later).
+15. **Update `persistPreferences` to drop `selectedTaskTitles` from `tenant.settings.onboarding.tasks`.** Keep `selectedTaskIds` and `customTask` for audit; the draft routines themselves become the canonical representation.
+16. **Grep for `selectedTaskTitles` readers.** Update any code that currently reads the string array (e.g. prompt generators for post-onboarding AI runs) to query `routine__routines WHERE source_ref LIKE 'onboarding:%' AND creator_id = userId` instead.
+17. **Unit tests for `provisionRoutines`.** Cover: happy path (2 selected + customTask → 3 drafts), idempotency (re-run produces no duplicates), no personal-staff bot (graceful skip), empty selection (no-op), skipped onboarding (never called).
+18. **Integration test.** Complete onboarding → run provision → verify N drafts exist with correct `sourceRef`, correct `botId`, `status='draft'`, creator visible in their routine list.
+
 ### Phase 2 (Deferred)
 
 - 4-step form UI
 - "Edit Manually" button on draft routines
 - Inline trigger UI widgets (A2UI)
+- AI-generated starter `documentContent` for onboarding-provisioned drafts
+- Allowing the user to pick executing agent per onboarding draft (instead of always personal-staff)
 - Polish: error messages, i18n, empty states
 
 ## Open Questions / TBD
@@ -487,6 +673,13 @@ All changes live inside the existing Routine UI — no new top-level pages.
 - **Agent picker default.** Personal staff if available, else the first active common-staff bot. Needs user verification during implementation.
 
 ## Changelog
+
+### Revision 3 (2026-04-10, later)
+
+- Added **Phase 1.5: Onboarding Integration**. The existing onboarding flow stores selected task titles as plain strings in `tenant.settings.onboarding.tasks.selectedTaskTitles` and never makes them actionable. Phase 1.5 fixes this by having `provisionOnboardingResources` create a draft routine per selected task (and per `customTask`), so the user arrives at the Routine list with N drafts ready for "Complete Creation".
+- Added `source_ref` column (nullable varchar, indexed) to `routine__routines` to make re-provisioning idempotent. Format: `onboarding:{workspaceOnboardingId}:{onboardingTaskId}`.
+- Added an optional `options.sourceRef` parameter to `RoutinesService.create` for internal callers (not exposed in HTTP DTO).
+- Updated Scope, Implementation Sequence, and Data Model sections to reflect Phase 1.5 scope.
 
 ### Revision 2 (2026-04-10)
 
