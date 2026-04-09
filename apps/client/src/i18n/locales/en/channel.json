@@ -79,6 +79,20 @@
   "botInstanceStart": "Start",
   "botInstanceStarting": "Starting...",
   "botInstanceStartingMessage": "The bot's instance is starting up, please wait a moment...",
+  "botThinking": {
+    "texts": {
+      "thinking": "Thinking",
+      "analyzing": "Analyzing",
+      "reasoning": "Reasoning",
+      "computing": "Computing",
+      "parsing": "Parsing",
+      "brewing": "Brewing",
+      "crafting": "Crafting",
+      "decoding": "Decoding",
+      "imagining": "Imagining",
+      "composing": "Composing"
+    }
+  },
   "tracking": {
     "ops": {
       "loadTools": {

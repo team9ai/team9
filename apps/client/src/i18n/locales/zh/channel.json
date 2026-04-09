@@ -79,6 +79,20 @@
   "botInstanceStart": "启动",
   "botInstanceStarting": "启动中...",
   "botInstanceStartingMessage": "机器人实例正在启动中，请稍候...",
+  "botThinking": {
+    "texts": {
+      "thinking": "正在思考",
+      "analyzing": "正在分析",
+      "reasoning": "正在推理",
+      "computing": "正在计算",
+      "parsing": "正在解析",
+      "brewing": "正在酝酿",
+      "crafting": "正在构思",
+      "decoding": "正在解码",
+      "imagining": "正在想象",
+      "composing": "正在组织"
+    }
+  },
   "tracking": {
     "ops": {
       "loadTools": {
