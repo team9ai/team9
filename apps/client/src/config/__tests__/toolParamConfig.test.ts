@@ -86,10 +86,8 @@ describe("formatParams function", () => {
         userId: "user123",
       };
       const result = formatParams("SendToChannel", params);
-      expect(result).toContain("channelName");
-      expect(result).toContain("general");
-      expect(result).toContain("message");
-      expect(result).toContain("Hello world");
+      expect(result).toContain('channelName="general"');
+      expect(result).toContain('message="Hello world"');
       expect(result).not.toContain("userId");
       expect(result).not.toContain("user123");
     });
@@ -101,10 +99,8 @@ describe("formatParams function", () => {
         offset: 0,
       };
       const result = formatParams("SearchDocs", params);
-      expect(result).toContain("query");
-      expect(result).toContain("machine learning");
-      expect(result).toContain("limit");
-      expect(result).toContain("10");
+      expect(result).toContain('query="machine learning"');
+      expect(result).toContain('limit="10"');
       expect(result).not.toContain("offset");
     });
 
@@ -116,8 +112,7 @@ describe("formatParams function", () => {
         timeout: 5000,
       };
       const result = formatParams("InvokeAPI", params);
-      expect(result).toContain("endpoint");
-      expect(result).toContain("/api/users");
+      expect(result).toContain('endpoint="/api/users"');
       expect(result).toContain("query");
       expect(result).not.toContain("method");
       expect(result).not.toContain("timeout");

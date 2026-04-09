@@ -102,7 +102,7 @@ function truncateValue(value: string, limit: number): string {
  *   message: "Hello world",
  *   userId: "user123"
  * })
- * // Returns: "channelName: general, message: Hello world"
+ * // Returns: "channelName=\"general\", message=\"Hello world\""
  *
  * @example
  * // With truncation
@@ -110,7 +110,7 @@ function truncateValue(value: string, limit: number): string {
  *   channelName: "general",
  *   message: "a".repeat(100)
  * })
- * // Returns: "channelName: general, message: aaaa...aaaa(50 words more)"
+ * // Returns: "channelName=\"general\", message=\"aaaa...aaaa(50 words more)\""
  */
 export function formatParams(
   toolName: string,
@@ -141,7 +141,7 @@ export function formatParams(
         stringValue = truncateValue(stringValue, limit);
       }
 
-      return `${paramName}: ${stringValue}`;
+      return `${paramName}="${stringValue}"`;
     })
     .join(", ");
 
