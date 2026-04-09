@@ -4,8 +4,8 @@
     {
       "id": 0,
       "subject": "Task 1: 创建工具文案映射配置",
-      "status": "pending",
-      "description": "**Goal:** 建立可扩展的工具文案映射系统，支持操作类型和工具名两层映射\n\n**Files:**\n- Create: apps/client/src/config/toolLabels.ts\n- Create: apps/client/src/config/__tests__/toolLabels.test.ts\n\n**Acceptance Criteria:**\n- [ ] 文案映射包含 load_tools、search_tools、invoke_tool 操作类型\n- [ ] 支持工具名特定文案\n- [ ] getLabel 函数正确处理三层 fallback\n- [ ] 100% 覆盖率\n\n**Verify:** pnpm test --testPathPattern=\"toolLabels.test\" -- --coverage\n\n```json:metadata\n{\"files\": [\"apps/client/src/config/toolLabels.ts\", \"apps/client/src/config/__tests__/toolLabels.test.ts\"], \"verifyCommand\": \"pnpm test --testPathPattern=\\\"toolLabels.test\\\" -- --coverage\", \"acceptanceCriteria\": [\"Two-tier mapping system\", \"Three-level fallback\", \"100% coverage\"]}\n```"
+      "status": "completed",
+      "description": "**Goal:** 建立可扩展的工具文案映射系统，支持操作类型和工具名两层映射\n\n**Files:**\n- Create: apps/client/src/config/toolLabels.ts\n- Create: apps/client/src/config/__tests__/toolLabels.test.ts\n\n**Acceptance Criteria:**\n- [x] 文案映射包含 load_tools、search_tools、invoke_tool 操作类型\n- [x] 支持工具名特定文案\n- [x] getLabel 函数正确处理三层 fallback\n- [x] 100% 覆盖率\n\n**Verify:** pnpm test --testPathPattern=\"toolLabels.test\" -- --coverage\n\n```json:metadata\n{\"files\": [\"apps/client/src/config/toolLabels.ts\", \"apps/client/src/config/__tests__/toolLabels.test.ts\"], \"verifyCommand\": \"pnpm test --testPathPattern=\\\"toolLabels.test\\\" -- --coverage\", \"acceptanceCriteria\": [\"Two-tier mapping system\", \"Three-level fallback\", \"100% coverage\"]}\n```"
     },
     {
       "id": 1,
@@ -84,5 +84,5 @@
       "description": "**Goal:** 编写文档，预留 agent 侧扩展接口\n\n**Files:**\n- Create: docs/tracking-steps-ux/IMPLEMENTATION.md\n- Update: CLAUDE.md 相关部分\n\n**Acceptance Criteria:**\n- [ ] 文档说明如何扩展工具文案配置\n- [ ] 说明如何添加新工具参数配置\n- [ ] 预留 agent 侧接管接口\n- [ ] 列出所有可配置项\n\n**Verify:** 文档完整，提供清晰的扩展指南\n\n```json:metadata\n{\"files\": [\"docs/tracking-steps-ux/IMPLEMENTATION.md\"], \"verifyCommand\": \"\", \"acceptanceCriteria\": [\"Extension guide\", \"Configuration points\", \"Agent-side integration\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-04-09T00:00:00Z"
+  "lastUpdated": "2026-04-09T04:00:00Z"
 }
