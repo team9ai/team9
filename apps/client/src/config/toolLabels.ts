@@ -79,6 +79,13 @@ export function getLabel(
   toolName?: string,
   status: StatusType = "loading",
 ): string {
+  // Validate and sanitize status - default to 'loading' if null/invalid
+  const safeStatus: StatusType = (
+    ["loading", "success", "error"] as const
+  ).includes(status as StatusType)
+    ? status
+    : "loading";
+
   // Priority 1: Tool-specific label
   if (
     toolName &&
@@ -86,7 +93,7 @@ export function getLabel(
     toolName.trim() &&
     toolName in toolNameLabels
   ) {
-    return toolNameLabels[toolName][status];
+    return toolNameLabels[toolName][safeStatus];
   }
 
   // Priority 2: Operation-type label
@@ -95,7 +102,7 @@ export function getLabel(
     typeof operationType === "string" &&
     operationType in operationLabels
   ) {
-    return operationLabels[operationType][status];
+    return operationLabels[operationType][safeStatus];
   }
 
   // Priority 3: Formatted fallback
@@ -106,5 +113,5 @@ export function getLabel(
     success: "已完成",
     error: "失败",
   };
-  return `${actionMap[status]}${opType} {${toolPart}}`;
+  return `${actionMap[safeStatus]}${opType} {${toolPart}}`;
 }

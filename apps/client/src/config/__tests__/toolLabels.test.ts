@@ -287,10 +287,31 @@ describe("toolLabels", () => {
         expect(label).toBe(operationLabels.invoke_tool.loading);
       });
 
-      it("should not crash with null status", () => {
-        expect(() =>
-          getLabel("load_tools", "search_docs", null as any),
-        ).not.toThrow();
+      it("should not crash with null status and default to loading", () => {
+        const label = getLabel("load_tools", "search_docs", null as any);
+        const expectedLabel = getLabel("load_tools", "search_docs", "loading");
+        expect(label).toBe(expectedLabel);
+        expect(label).toBe(toolNameLabels.search_docs.loading);
+      });
+
+      it("should handle invalid status values by defaulting to loading", () => {
+        const invalidStatuses = [
+          "invalid",
+          "pending",
+          "failed",
+          123,
+          {},
+          [],
+        ] as any[];
+        invalidStatuses.forEach((invalidStatus) => {
+          const label = getLabel("load_tools", "search_docs", invalidStatus);
+          const expectedLabel = getLabel(
+            "load_tools",
+            "search_docs",
+            "loading",
+          );
+          expect(label).toBe(expectedLabel);
+        });
       });
     });
   });
