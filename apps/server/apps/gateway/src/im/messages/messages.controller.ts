@@ -40,6 +40,7 @@ import { ChannelsService } from '../channels/channels.service.js';
 import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
 import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
+import { determineMessageType } from './message-utils.js';
 
 @Controller({
   path: 'im',
@@ -143,8 +144,11 @@ export class MessagesController {
       }
     }
 
-    // Determine message type based on attachments
-    const messageType = dto.attachments?.length ? 'file' : 'text';
+    // Determine message type based on attachments and content length
+    const messageType = determineMessageType(
+      dto.content,
+      !!dto.attachments?.length,
+    );
 
     // Create message via gRPC
     const result = await this.imWorkerGrpcClientService.createMessage({

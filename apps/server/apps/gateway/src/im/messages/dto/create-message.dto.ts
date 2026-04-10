@@ -33,7 +33,7 @@ export class CreateMessageDto {
   clientMsgId?: string;
 
   @IsString()
-  @MaxLength(10000)
+  @MaxLength(100000)
   content: string;
 
   @IsUUID()

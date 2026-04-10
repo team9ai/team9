@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
+import { determineMessageType } from './message-utils.js';
 import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
@@ -880,6 +881,7 @@ export class MessagesService {
       .update(schema.messages)
       .set({
         content: dto.content,
+        type: determineMessageType(dto.content, false),
         isEdited: true,
         seqId: newSeqId,
         updatedAt: new Date(),
