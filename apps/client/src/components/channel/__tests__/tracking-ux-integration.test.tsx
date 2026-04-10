@@ -99,6 +99,7 @@ vi.mock("@/hooks/useMessages", () => ({
   useRemoveFailedMessage: () => vi.fn(),
   useAddReaction: () => ({ mutate: vi.fn() }),
   useRemoveReaction: () => ({ mutate: vi.fn() }),
+  useFullContent: () => ({ data: undefined, isLoading: false, isError: false }),
 }));
 
 // Channel scroll state machine — no indicators, no interactions.

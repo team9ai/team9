@@ -8,6 +8,9 @@ import { vi } from "vitest";
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
+vi.mock("@/hooks/useMessages", () => ({
+  useFullContent: () => ({ data: undefined, isLoading: false, isError: false }),
+}));
 
 function makeMessage(overrides: Partial<Message> = {}): Message {
   return {
