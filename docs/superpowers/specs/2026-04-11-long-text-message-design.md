@@ -1,7 +1,7 @@
 # Long Text Message Feature Design
 
 **Date:** 2026-04-11
-**Status:** Approved
+**Status:** Implemented
 
 ## Problem
 
