@@ -1687,7 +1687,7 @@ describe('RoutinesService — TaskCast integration', () => {
         service.start('task-1', 'user-1', 'tenant-1', {
           message: 'kick off',
         } as never),
-      ).rejects.toThrow('Cannot start a draft routine. Publish the routine first.');
+      ).rejects.toThrow('Cannot start routine in draft status. Complete creation first via POST /v1/routines/:id/complete-creation.');
 
       expect(amqpConnection.publish).not.toHaveBeenCalled();
     });
@@ -1713,6 +1713,58 @@ describe('RoutinesService — TaskCast integration', () => {
     });
   });
 
+  describe('delete — draft handling', () => {
+    const ROUTINE_ID = 'task-1';
+    const DRAFT_WITH_CHANNEL = {
+      ...BASE_TASK,
+      id: ROUTINE_ID,
+      status: 'draft' as const,
+      creatorId: 'user-1',
+      creationChannelId: 'channel-1',
+    };
+
+    it('deletes clone agent and archives creation channel when deleting a draft', async () => {
+      db.limit.mockResolvedValueOnce([DRAFT_WITH_CHANNEL] as any);
+
+      await expect(
+        service.delete(ROUTINE_ID, 'user-1', 'tenant-1'),
+      ).resolves.toEqual({ success: true });
+
+      expect(clawHiveService.deleteAgent).toHaveBeenCalledWith(
+        `routine-creation-${ROUTINE_ID}`,
+      );
+      expect(channelsService.archiveCreationChannel).toHaveBeenCalledWith(
+        'channel-1',
+        'tenant-1',
+      );
+    });
+
+    it('still succeeds when clone agent deletion fails during draft delete', async () => {
+      db.limit.mockResolvedValueOnce([DRAFT_WITH_CHANNEL] as any);
+      clawHiveService.deleteAgent.mockRejectedValueOnce(new Error('gone') as any);
+
+      await expect(
+        service.delete(ROUTINE_ID, 'user-1', 'tenant-1'),
+      ).resolves.toEqual({ success: true });
+
+      expect(db.delete).toHaveBeenCalled();
+    });
+
+    it('skips channel archive when draft has no creationChannelId', async () => {
+      const draftWithoutChannel = { ...DRAFT_WITH_CHANNEL, creationChannelId: null };
+      db.limit.mockResolvedValueOnce([draftWithoutChannel] as any);
+
+      await expect(
+        service.delete(ROUTINE_ID, 'user-1', 'tenant-1'),
+      ).resolves.toEqual({ success: true });
+
+      expect(channelsService.archiveCreationChannel).not.toHaveBeenCalled();
+      expect(clawHiveService.deleteAgent).toHaveBeenCalledWith(
+        `routine-creation-${ROUTINE_ID}`,
+      );
+    });
+  });
+
   // ── completeCreation ──────────────────────────────────────────────
 
   describe('completeCreation', () => {
@@ -1731,6 +1783,13 @@ describe('RoutinesService — TaskCast integration', () => {
       ...DRAFT_ROUTINE,
       status: 'upcoming' as const,
     };
+
+    beforeEach(() => {
+      // By default, getBotById returns a valid bot so completeCreation doesn't
+      // reject with "executing agent no longer exists". Individual tests that
+      // need the bot to be missing override with mockResolvedValueOnce(null).
+      botsService.getBotById.mockResolvedValue({ botId: 'bot-1', userId: 'user-1' } as any);
+    });
 
     it('transitions draft → upcoming, archives channel, and deletes clone agent', async () => {
       db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
@@ -1903,6 +1962,23 @@ describe('RoutinesService — TaskCast integration', () => {
         'routine-creation-routine-1',
       );
     });
+
+    it('returns 400 when executing bot no longer exists', async () => {
+      db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+      documentsService.getById.mockResolvedValueOnce({ id: 'doc-1', content: 'some content' } as any);
+      botsService.getBotById.mockResolvedValue(null as any);
+
+      await expect(
+        service.completeCreation('routine-1', {}, 'user-1', 'tenant-1'),
+      ).rejects.toMatchObject({
+        response: {
+          message: 'Missing required fields',
+          errors: expect.arrayContaining([
+            expect.stringMatching(/executing agent/i),
+          ]),
+        },
+      });
+    });
   });
 
   // ── createWithCreationTask ────────────────────────────────────────
@@ -2028,7 +2104,7 @@ describe('RoutinesService — TaskCast integration', () => {
           source: 'team9',
           payload: expect.objectContaining({
             routineId: 'routine-new-1',
-            userId: 'user-1',
+            creatorUserId: 'user-1',
             tenantId: 'tenant-1',
           }),
         }),
