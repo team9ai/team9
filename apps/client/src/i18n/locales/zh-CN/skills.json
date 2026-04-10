@@ -78,6 +78,35 @@
     "prompt_template": "提示词模板",
     "general": "通用"
   },
+  "createStaff": {
+    "createAIStaff": "创建 AI 员工",
+    "createOpenClawAgent": "创建 OpenClaw Agent",
+    "basicInfo": "基本信息",
+    "personality": "性格设定",
+    "avatarPreview": "头像与预览",
+    "agenticSetup": "智能引导设置",
+    "jobDescription": "职位描述",
+    "chooseCandidate": "选择候选人",
+    "finalize": "最终确认",
+    "formMode": "表单模式",
+    "formModeDesc": "直接填写所有信息",
+    "agenticMode": "智能引导模式",
+    "agenticModeDesc": "AI 在私信中引导完成设置",
+    "recruitment": "招聘模式",
+    "recruitmentDesc": "根据职位描述生成候选人",
+    "regenerate": "重新生成",
+    "aiGenerate": "AI 生成",
+    "newStaff": "新员工",
+    "reroll": "重新随机",
+    "generateCandidates": "生成候选人",
+    "namePlaceholder": "留空则自动生成"
+  },
+  "badge": {
+    "about": "关于",
+    "persona": "人设",
+    "noPersona": "暂无人设描述。",
+    "model": "模型"
+  },
   "template": {
     "selectTemplate": "选择模板",
     "claudeCodeSkill": "Claude Code 技能",

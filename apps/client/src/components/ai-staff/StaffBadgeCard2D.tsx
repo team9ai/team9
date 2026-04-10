@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import type { StaffBadgeCardProps } from "./StaffBadgeCard";
@@ -23,6 +24,7 @@ export function StaffBadgeCard2D({
   selected,
   onClick,
 }: StaffBadgeCardProps) {
+  const { t } = useTranslation("skills");
   const [flipped, setFlipped] = useState(false);
   const initials = getInitials(displayName);
   const mentorInitials = mentorName ? getInitials(mentorName) : "?";
@@ -134,17 +136,17 @@ export function StaffBadgeCard2D({
           {/* Gradient header strip (accent color) */}
           <div className="h-16 bg-gradient-to-br from-secondary via-secondary/80 to-primary/10 flex-shrink-0 flex items-end px-5 pb-3">
             <h4 className="text-sm font-semibold text-foreground/80 uppercase tracking-wide">
-              About
+              {t("badge.about")}
             </h4>
           </div>
 
           {/* Persona */}
           <div className="flex-1 px-5 pt-4 overflow-hidden">
             <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">
-              Persona
+              {t("badge.persona")}
             </p>
             <p className="text-sm text-foreground leading-relaxed line-clamp-[9]">
-              {persona?.slice(0, 250) || "No persona description available."}
+              {persona?.slice(0, 250) || t("badge.noPersona")}
             </p>
           </div>
 
@@ -152,7 +154,7 @@ export function StaffBadgeCard2D({
           <div className="flex-shrink-0 px-5 pb-5 pt-3 border-t border-border mt-auto">
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted-foreground uppercase tracking-wide">
-                Model
+                {t("badge.model")}
               </span>
               <span className="text-xs font-mono text-foreground/80 bg-muted px-2 py-0.5 rounded">
                 {modelLabel ?? "—"}

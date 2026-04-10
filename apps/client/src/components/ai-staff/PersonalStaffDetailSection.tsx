@@ -45,6 +45,7 @@ import { api } from "@/services/api";
 import { cn } from "@/lib/utils";
 import { useCreateDirectChannel } from "@/hooks/useChannels";
 import { COMMON_STAFF_MODELS } from "@/lib/common-staff-models";
+import { formatDateTime } from "@/lib/date-format";
 import type {
   PersonalStaffListBotInfo,
   InstalledApplicationWithBots,
@@ -63,7 +64,7 @@ const DICEBEAR_PRESETS = Array.from({ length: 8 }, (_, i) => ({
 }));
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleString();
+  return formatDateTime(dateStr);
 }
 
 const VISIBILITY_WARNING =

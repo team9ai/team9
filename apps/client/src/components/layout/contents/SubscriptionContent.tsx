@@ -31,6 +31,10 @@ import { useUserWorkspaces } from "@/hooks/useWorkspace";
 import { openExternalUrl } from "@/lib/open-external-url";
 import { cn } from "@/lib/utils";
 import { useWorkspaceStore } from "@/stores";
+import {
+  formatDate as formatDateLocale,
+  formatDateTime as formatDateTimeLocale,
+} from "@/lib/date-format";
 import type {
   BillingProduct,
   BillingProductCustomAmount,
@@ -88,16 +92,11 @@ function formatCreditsFromCents(amountCents: number) {
 }
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-  }).format(new Date(value));
+  return formatDateLocale(value);
 }
 
 function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return formatDateTimeLocale(value);
 }
 
 function formatInterval(
