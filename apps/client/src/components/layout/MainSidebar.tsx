@@ -13,10 +13,11 @@ import {
   Library,
   LayoutGrid,
   Sparkles,
+  Loader2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
-import { changeLanguage } from "@/i18n/loadLanguage";
+import { changeLanguage, useLanguageLoading } from "@/i18n/loadLanguage";
 import { getInitials, getSeededAvatarGradient } from "@/lib/avatar-colors";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -80,6 +81,7 @@ export function MainSidebar() {
   const { t: tNav, i18n } = useTranslation("navigation");
   const { t: tSettings } = useTranslation("settings");
   const { t: tAuth } = useTranslation("auth");
+  const { isLoading: isLanguageLoading } = useLanguageLoading();
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -569,15 +571,19 @@ export function MainSidebar() {
 
                 {/* Language Switcher */}
                 <div className="py-1">
-                  <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground">
+                  <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground flex items-center gap-2">
                     {tSettings("language")}
+                    {isLanguageLoading && (
+                      <Loader2 size={12} className="animate-spin" />
+                    )}
                   </div>
                   {supportedLanguages.map((lang) => (
                     <button
                       key={lang.code}
                       onClick={() => changeLanguage(lang.code)}
+                      disabled={isLanguageLoading}
                       className={cn(
-                        "w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent",
+                        "w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent disabled:opacity-50 disabled:pointer-events-none",
                         i18n.language === lang.code && "bg-accent",
                       )}
                     >
