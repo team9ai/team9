@@ -72,6 +72,7 @@ interface StreamingSessionPayload {
     credentials: true,
   },
   namespace: '/im',
+  maxHttpBufferSize: 1_000_000, // 1 MB — support long text messages up to 100K chars
 })
 export class WebsocketGateway
   implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
