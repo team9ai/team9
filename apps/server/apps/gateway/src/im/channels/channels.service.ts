@@ -1,6 +1,7 @@
 import {
   Injectable,
   Inject,
+  Logger,
   NotFoundException,
   ForbiddenException,
   BadRequestException,
@@ -96,6 +97,8 @@ type ChannelUserSummaryRow = {
 
 @Injectable()
 export class ChannelsService {
+  private readonly logger = new Logger(ChannelsService.name);
+
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
@@ -984,6 +987,54 @@ export class ChannelsService {
     await this.redis.invalidate(REDIS_KEYS.CHANNEL_CACHE(channelId));
 
     return updated;
+  }
+
+  /**
+   * System helper to archive a routine creation channel.
+   *
+   * Unlike archiveChannel, this method:
+   * - Does NOT enforce owner/admin role (system-initiated)
+   * - ACCEPTS direct channels (creation channels are DMs)
+   * - Is idempotent: no-op if channel missing or already archived
+   */
+  async archiveCreationChannel(
+    channelId: string,
+    tenantId?: string,
+  ): Promise<void> {
+    const conditions = [eq(schema.channels.id, channelId)];
+    if (tenantId) {
+      conditions.push(eq(schema.channels.tenantId, tenantId));
+    }
+
+    const [channel] = await this.db
+      .select({
+        id: schema.channels.id,
+        type: schema.channels.type,
+        isArchived: schema.channels.isArchived,
+      })
+      .from(schema.channels)
+      .where(and(...conditions))
+      .limit(1);
+
+    if (!channel) {
+      this.logger.debug(
+        `archiveCreationChannel: channel ${channelId} not found, skipping`,
+      );
+      return;
+    }
+    if (channel.isArchived) {
+      this.logger.debug(
+        `archiveCreationChannel: channel ${channelId} already archived, skipping`,
+      );
+      return;
+    }
+
+    await this.db
+      .update(schema.channels)
+      .set({ isArchived: true, updatedAt: new Date() })
+      .where(and(...conditions));
+
+    await this.redis.invalidate(REDIS_KEYS.CHANNEL_CACHE(channelId));
   }
 
   /**
