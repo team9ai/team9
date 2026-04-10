@@ -7,6 +7,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { supportedLanguages } from "@/i18n";
+import { changeLanguage } from "@/i18n/loadLanguage";
 import { cn } from "@/lib/utils";
 
 interface LanguageSwitcherProps {
@@ -24,8 +25,8 @@ export function LanguageSwitcher({
     (lang) => lang.code === i18n.language,
   );
 
-  const handleLanguageChange = (langCode: string) => {
-    i18n.changeLanguage(langCode);
+  const handleLanguageChange = async (langCode: string) => {
+    await changeLanguage(langCode);
   };
 
   return (

@@ -25,6 +25,20 @@ vi.mock("i18next-browser-languagedetector", () => {
 
 vi.mock("../loadLanguage", () => ({
   loadLanguage: vi.fn().mockResolvedValue(undefined),
+  NAMESPACES: [
+    "common",
+    "auth",
+    "navigation",
+    "channel",
+    "message",
+    "settings",
+    "thread",
+    "workspace",
+    "routines",
+    "resources",
+    "skills",
+    "onboarding",
+  ],
 }));
 
 describe("i18n/index", () => {

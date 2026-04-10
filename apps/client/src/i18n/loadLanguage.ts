@@ -1,7 +1,7 @@
 import i18n from "i18next";
 import { create } from "zustand";
 
-const NAMESPACES = [
+export const NAMESPACES = [
   "common",
   "auth",
   "navigation",
