@@ -15,7 +15,7 @@ import enResources from "./locales/en/resources.json";
 import enSkills from "./locales/en/skills.json";
 import enOnboarding from "./locales/en/onboarding.json";
 
-import { loadLanguage } from "./loadLanguage";
+import { loadLanguage, NAMESPACES } from "./loadLanguage";
 
 // Backward compat: remap legacy "zh" to "zh-CN"
 const stored = localStorage.getItem("i18nextLng");
@@ -59,20 +59,7 @@ i18n
     fallbackLng: "en",
     supportedLngs: supportedLanguages.map((l) => l.code),
     defaultNS: "common",
-    ns: [
-      "common",
-      "auth",
-      "navigation",
-      "channel",
-      "message",
-      "settings",
-      "thread",
-      "workspace",
-      "routines",
-      "resources",
-      "skills",
-      "onboarding",
-    ],
+    ns: [...NAMESPACES],
     interpolation: { escapeValue: false },
     detection: {
       order: ["localStorage", "navigator", "htmlTag"],
