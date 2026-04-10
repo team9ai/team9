@@ -21,9 +21,6 @@ import type { WebsocketGateway } from '../im/websocket/websocket.gateway.js';
 import type { ReportStepsDto } from './dto/report-steps.dto.js';
 import type { CreateInterventionDto } from './dto/create-intervention.dto.js';
 import { TaskCastService } from './taskcast.service.js';
-import { RoutinesService } from './routines.service.js';
-import type { CreateRoutineDto } from './dto/create-routine.dto.js';
-import type { UpdateRoutineDto } from './dto/update-routine.dto.js';
 
 // ── Service ─────────────────────────────────────────────────────────
 
@@ -35,7 +32,6 @@ export class RoutineBotService {
     @Inject(WEBSOCKET_GATEWAY)
     private readonly wsGateway: WebsocketGateway,
     private readonly taskCastService: TaskCastService,
-    private readonly routinesService: RoutinesService,
   ) {}
 
   // ── Report step progress ─────────────────────────────────────────
@@ -393,126 +389,6 @@ export class RoutineBotService {
       documentType: document.documentType,
       currentVersion,
     };
-  }
-
-  // ── CRUD proxies (for claw-hive agent tools) ─────────────────────
-
-  async createRoutine(
-    dto: CreateRoutineDto,
-    botUserId: string,
-    tenantId: string,
-  ) {
-    // Resolve bots.id from the shadow user (botUserId is im_users.id, but
-    // routines.bot_id is a FK to im_bots.id — these are different UUIDs).
-    const [callerBot] = await this.db
-      .select({
-        id: schema.bots.id,
-        mentorId: schema.bots.mentorId,
-        ownerId: schema.bots.ownerId,
-      })
-      .from(schema.bots)
-      .where(eq(schema.bots.userId, botUserId))
-      .limit(1);
-
-    if (!callerBot) {
-      throw new NotFoundException('Bot not found');
-    }
-
-    // Resolve the botId to use for the routine.
-    // If the caller explicitly supplied a botId, validate that it refers to a
-    // real bots.id (not a users.id or any other stray UUID). If omitted,
-    // default to the calling bot's own bots.id.
-    let resolvedBotId: string = callerBot.id;
-    if (dto.botId) {
-      const [targetBot] = await this.db
-        .select({ id: schema.bots.id, tenantId: schema.installedApplications.tenantId })
-        .from(schema.bots)
-        .leftJoin(schema.installedApplications, eq(schema.bots.installedApplicationId, schema.installedApplications.id))
-        .where(eq(schema.bots.id, dto.botId))
-        .limit(1);
-
-      if (!targetBot) {
-        throw new BadRequestException(`Invalid botId: not found`);
-      }
-      if (targetBot.tenantId !== tenantId) {
-        throw new ForbiddenException(`Bot does not belong to current tenant`);
-      }
-      resolvedBotId = targetBot.id;
-    }
-
-    // In DM mode the routine must be attributed to the human user (mentor/owner)
-    // so they can see and manage it. Fall back to botUserId for backward compat
-    // (e.g. system bots that have no mentor/owner).
-    const effectiveCreatorId =
-      callerBot.mentorId ?? callerBot.ownerId ?? botUserId;
-
-    return this.routinesService.create(
-      { ...dto, botId: resolvedBotId },
-      effectiveCreatorId,
-      tenantId,
-    );
-  }
-
-  async getRoutineById(
-    routineId: string,
-    botUserId: string,
-    tenantId: string,
-  ) {
-    const result = await this.routinesService.getById(routineId, tenantId);
-
-    // Verify the calling bot is the routine's assigned bot
-    const [callerBot] = await this.db
-      .select({ id: schema.bots.id })
-      .from(schema.bots)
-      .where(eq(schema.bots.userId, botUserId))
-      .limit(1);
-
-    if (!callerBot || result.botId !== callerBot.id) {
-      throw new ForbiddenException(
-        'Bot is not the assigned agent for this routine',
-      );
-    }
-
-    // Enrich with document content so the agent's getRoutine tool can read instructions
-    let documentContent: string | null = null;
-    if (result.documentId) {
-      try {
-        const [doc] = await this.db
-          .select()
-          .from(schema.documents)
-          .where(eq(schema.documents.id, result.documentId))
-          .limit(1);
-
-        if (doc?.currentVersionId) {
-          const [ver] = await this.db
-            .select({ content: schema.documentVersions.content })
-            .from(schema.documentVersions)
-            .where(eq(schema.documentVersions.id, doc.currentVersionId))
-            .limit(1);
-          documentContent = ver?.content ?? null;
-        }
-      } catch {
-        // Non-fatal: return routine without document content
-        documentContent = null;
-      }
-    }
-
-    // Enrich with triggers
-    const triggers = await this.db
-      .select()
-      .from(schema.routineTriggers)
-      .where(eq(schema.routineTriggers.routineId, routineId));
-
-    return { ...result, documentContent, triggers };
-  }
-
-  async updateRoutine(
-    routineId: string,
-    dto: UpdateRoutineDto,
-    botUserId: string,
-    tenantId: string,
-  ) {
-    return this.routinesService.updateByBot(routineId, dto, botUserId, tenantId);
   }
 
   // ── Private helpers ──────────────────────────────────────────────

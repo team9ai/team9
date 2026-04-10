@@ -79,7 +79,7 @@ describe('RoutinesController', () => {
       createWithCreationTask: jest.fn<any>().mockResolvedValue({
         routineId,
         creationChannelId: 'channel-1',
-        creationSessionId: `team9/tenant-1/routine-creation-${routineId}/dm/channel-1`,
+        creationSessionId: `team9/tenant-1/source-agent-id/dm/channel-1`,
       }),
     };
 
@@ -444,7 +444,7 @@ describe('RoutinesController', () => {
       expect(result).toEqual({
         routineId,
         creationChannelId: 'channel-1',
-        creationSessionId: `team9/tenant-1/routine-creation-${routineId}/dm/channel-1`,
+        creationSessionId: `team9/tenant-1/source-agent-id/dm/channel-1`,
       });
     });
   });

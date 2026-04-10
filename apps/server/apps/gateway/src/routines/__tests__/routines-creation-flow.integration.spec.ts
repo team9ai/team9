@@ -2,14 +2,15 @@
  * End-to-end integration test for the Routine creation flow.
  *
  * Exercises the full Routine UI path in sequence:
- *   1. createWithCreationTask — creates draft routine + DM channel + clone agent
+ *   1. createWithCreationTask — creates draft routine + DM channel, sends kickoff
+ *      to the ORIGINAL bot's session (no clone agent)
  *   2. update — simulates agent refinement (title, documentContent, triggers)
- *   3. completeCreation — transitions to upcoming, archives channel, deletes clone
+ *   3. completeCreation — transitions to upcoming (no channel archival, no clone)
  *
  * This is a mock-based test (no real DB). The key thing it verifies that
  * individual unit tests don't: the routineId returned from createWithCreationTask
- * flows correctly into update and completeCreation, and the clone agent ID
- * (`routine-creation-<routineId>`) is consistent across create and complete.
+ * flows correctly into update and completeCreation, and the session ID uses the
+ * original bot's agentId (matching what post-broadcast derives).
  */
 
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
@@ -61,8 +62,9 @@ const ROUTINE_ID = 'routine-flow-1';
 const TENANT_ID = 'tenant-1';
 const USER_ID = 'user-1';
 const CHANNEL_ID = 'channel-flow-1';
-const SESSION_ID = `team9/${TENANT_ID}/routine-creation-${ROUTINE_ID}/dm/${CHANNEL_ID}`;
-const CLONE_AGENT_ID = `routine-creation-${ROUTINE_ID}`;
+const AGENT_ID = 'source-agent-id';
+// Session ID uses the original bot's agentId (not a clone)
+const SESSION_ID = `team9/${TENANT_ID}/${AGENT_ID}/dm/${CHANNEL_ID}`;
 
 const SOURCE_BOT = {
   userId: 'bot-user-1',
@@ -77,17 +79,8 @@ const SOURCE_BOT = {
   capabilities: null,
   extra: null,
   managedProvider: 'hive',
-  managedMeta: { agentId: 'source-agent-id' },
+  managedMeta: { agentId: AGENT_ID },
   isActive: true,
-};
-
-const SOURCE_AGENT = {
-  id: 'source-agent-id',
-  name: 'My Bot Agent',
-  blueprintId: 'blueprint-abc',
-  tenantId: TENANT_ID,
-  model: { provider: 'openrouter', id: 'anthropic/claude-sonnet-4' },
-  componentConfigs: { 'system-prompt': { prompt: 'You are helpful.' } },
 };
 
 /** Draft routine returned from db.insert().values().returning() */
@@ -138,7 +131,6 @@ describe('Routine Creation Flow — integration', () => {
     deleteAgent: MockFn;
     registerAgent: MockFn;
     sendInput: MockFn;
-    getAgent: MockFn;
   };
   let botsService: { getBotById: MockFn };
 
@@ -166,7 +158,6 @@ describe('Routine Creation Flow — integration', () => {
       deleteAgent: jest.fn<any>().mockResolvedValue(undefined),
       registerAgent: jest.fn<any>().mockResolvedValue(undefined),
       sendInput: jest.fn<any>().mockResolvedValue({ messages: [] }),
-      getAgent: jest.fn<any>().mockResolvedValue(null),
     };
     botsService = {
       getBotById: jest.fn<any>().mockResolvedValue(null),
@@ -205,24 +196,20 @@ describe('Routine Creation Flow — integration', () => {
     // Mock: db.select().from().where() — count query (terminal, resolves directly)
     db.where.mockResolvedValueOnce([{ count: 0 }] as any);
 
-    // Mock: clawHiveService.getAgent → returns source agent
-    (clawHiveService as any).getAgent.mockResolvedValueOnce(SOURCE_AGENT);
-
     // Mock: documentsService.create → called by this.create() internally
     documentsService.create.mockResolvedValueOnce({ id: 'doc-flow-1' } as any);
 
     // Mock: db.insert().values().returning() — the draft routine row
     db.returning.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
 
+    // Mock: draft-conflict check — no existing draft
+    db.limit.mockResolvedValueOnce([] as any);
+
     // Mock: channelsService.createDirectChannel
     channelsService.createDirectChannel.mockResolvedValueOnce({ id: CHANNEL_ID } as any);
 
-    // Mock: clawHiveService.registerAgent (no return value needed)
-    clawHiveService.registerAgent.mockResolvedValueOnce(undefined as any);
-
     // Mock: db.update().set().where() — persist creationChannelId + creationSessionId
-    // (no .returning() called in step 9 of createWithCreationTask)
-    // The chain already returns chain by default; no special mock needed.
+    // (no .returning() called; chain returns chain by default)
 
     // Mock: clawHiveService.sendInput
     clawHiveService.sendInput.mockResolvedValueOnce({ messages: [] } as any);
@@ -233,7 +220,7 @@ describe('Routine Creation Flow — integration', () => {
       TENANT_ID,
     );
 
-    // Verify the return shape
+    // Verify the return shape — session ID uses original bot's agentId
     expect(createResult).toEqual({
       routineId: ROUTINE_ID,
       creationChannelId: CHANNEL_ID,
@@ -247,24 +234,10 @@ describe('Routine Creation Flow — integration', () => {
       TENANT_ID,
     );
 
-    // Verify clone agent was registered with deterministic ID and correct config
-    expect(clawHiveService.registerAgent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: CLONE_AGENT_ID,
-        blueprintId: SOURCE_AGENT.blueprintId,
-        tenantId: TENANT_ID,
-        model: SOURCE_AGENT.model,
-        componentConfigs: expect.objectContaining({
-          'system-prompt': SOURCE_AGENT.componentConfigs['system-prompt'],
-          'team9-routine-creation': {
-            routineId: ROUTINE_ID,
-            isCreationChannel: true,
-          },
-        }),
-      }),
-    );
+    // Verify NO clone agent was registered
+    expect(clawHiveService.registerAgent).not.toHaveBeenCalled();
 
-    // Verify kickoff event was sent with the correct session ID and payload
+    // Verify kickoff event was sent to the original bot's session ID
     expect(clawHiveService.sendInput).toHaveBeenCalledWith(
       SESSION_ID,
       expect.objectContaining({
@@ -338,8 +311,8 @@ describe('Routine Creation Flow — integration', () => {
 
     // ─────────────────────────────────────────────────────────────────
     // STEP 3: completeCreation
-    // The routineId from Step 1 is used, and the clone agent ID
-    // (`routine-creation-<routineId>`) must match what was registered in Step 1.
+    // The routineId from Step 1 is used to look up and transition the routine.
+    // No clone agent exists, so no deleteAgent call. DM channel is never archived.
     // ─────────────────────────────────────────────────────────────────
 
     // Mock: getRoutineOrThrow → updated draft routine with creationChannelId set
@@ -357,12 +330,6 @@ describe('Routine Creation Flow — integration', () => {
     // Mock: db.update().set().where().returning() → upcoming routine
     db.returning.mockResolvedValueOnce([UPCOMING_ROUTINE] as any);
 
-    // Mock: channelsService.archiveCreationChannel
-    channelsService.archiveCreationChannel.mockResolvedValueOnce(undefined as any);
-
-    // Mock: clawHiveService.deleteAgent
-    clawHiveService.deleteAgent.mockResolvedValueOnce(undefined as any);
-
     const completeResult = await service.completeCreation(
       routineId,
       { notes: 'Looks good!' },
@@ -378,16 +345,10 @@ describe('Routine Creation Flow — integration', () => {
     expect(completeResult).toEqual(UPCOMING_ROUTINE);
     expect(completeResult.status).toBe('upcoming');
 
-    // Verify creation channel was archived using the channel ID from Step 1
-    expect(channelsService.archiveCreationChannel).toHaveBeenCalledWith(
-      CHANNEL_ID,
-      TENANT_ID,
-    );
+    // Verify DM channel was NOT archived (DMs are persistent, never archived)
+    expect(channelsService.archiveCreationChannel).not.toHaveBeenCalled();
 
-    // Verify clone agent was deleted using the SAME ID that was registered in Step 1.
-    // This is the cross-step consistency check: `routine-creation-<routineId>`
-    // must be identical in both registerAgent (Step 1) and deleteAgent (Step 3).
-    expect(clawHiveService.deleteAgent).toHaveBeenCalledWith(CLONE_AGENT_ID);
-    expect(CLONE_AGENT_ID).toBe(`routine-creation-${routineId}`);
+    // Verify no clone agent was deleted (there is no clone in the new architecture)
+    expect(clawHiveService.deleteAgent).not.toHaveBeenCalled();
   });
 });

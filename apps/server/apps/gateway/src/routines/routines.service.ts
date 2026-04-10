@@ -224,63 +224,7 @@ export class RoutinesService {
   ) {
     const routine = await this.getRoutineOrThrow(routineId, tenantId);
     this.assertCreatorOwnership(routine, userId);
-    return this.performUpdate(routine, routineId, dto, userId, tenantId);
-  }
 
-  /**
-   * Bot-scoped update: checks that the calling bot (`botUserId`) is the
-   * shadow user of the bot assigned to this routine (`routine.botId`),
-   * then performs the same update logic as `update()`.
-   *
-   * The document identity uses the routine's `creatorId` because the bot
-   * acts on behalf of the human creator.
-   */
-  async updateByBot(
-    routineId: string,
-    dto: UpdateRoutineDto,
-    botUserId: string,
-    tenantId: string,
-  ) {
-    const routine = await this.getRoutineOrThrow(routineId, tenantId);
-
-    if (!routine.botId) {
-      throw new ForbiddenException(
-        'This routine has no assigned bot; bot updates are not allowed.',
-      );
-    }
-
-    // Verify the caller's shadow user ID matches the bot assigned to this routine
-    const [bot] = await this.db
-      .select({ userId: schema.bots.userId })
-      .from(schema.bots)
-      .where(eq(schema.bots.id, routine.botId))
-      .limit(1);
-
-    if (!bot || bot.userId !== botUserId) {
-      throw new ForbiddenException(
-        'Bot is not the assigned agent for this routine',
-      );
-    }
-
-    // Act on behalf of the human creator for document identity
-    return this.performUpdate(
-      routine,
-      routineId,
-      dto,
-      routine.creatorId,
-      tenantId,
-    );
-  }
-
-  // ── Shared update logic ─────────────────────────────────────────
-
-  private async performUpdate(
-    routine: schema.Routine,
-    routineId: string,
-    dto: UpdateRoutineDto,
-    userId: string,
-    tenantId: string,
-  ) {
     // Reject status transitions — status can only be the same value as current
     if (dto.status !== undefined && dto.status !== routine.status) {
       throw new BadRequestException(
@@ -339,66 +283,6 @@ export class RoutinesService {
     // Drafts can always be deleted directly — no active-status guard needed
     if ((routine.status as string) === 'draft') {
       this.logger.debug(`Deleting draft routine ${routineId}`);
-
-      // Clean up clone agent (non-fatal)
-      const cloneAgentId = `routine-creation-${routineId}`;
-      try {
-        await this.clawHiveService.deleteAgent(cloneAgentId);
-      } catch (err) {
-        this.logger.warn(
-          `delete: failed to delete clone agent ${cloneAgentId}: ${err}`,
-        );
-      }
-
-      // Archive creation channel (non-fatal, only if no other draft shares it
-      // and the channel is not a direct (DM) channel).
-      const creationChannelId = routine.creationChannelId;
-      if (creationChannelId) {
-        // Guard: never archive direct (DM) channels. DMs are reusable persistent
-        // conversations — the user may have pre-existing messages that would be
-        // hidden. Only non-direct channels (e.g., future dedicated creation
-        // channels) should be archived.
-        const [channelRow] = await this.db
-          .select({ type: schema.channels.type })
-          .from(schema.channels)
-          .where(eq(schema.channels.id, creationChannelId))
-          .limit(1);
-
-        if (!channelRow || channelRow.type === 'direct') {
-          this.logger.debug(
-            `delete: skipping archive of direct channel ${creationChannelId}`,
-          );
-        } else {
-          const [otherDraft] = await this.db
-            .select({ id: schema.routines.id })
-            .from(schema.routines)
-            .where(
-              and(
-                eq(schema.routines.creationChannelId, creationChannelId),
-                ne(schema.routines.id, routineId),
-                eq(schema.routines.status, 'draft'),
-              ),
-            )
-            .limit(1);
-
-          if (!otherDraft) {
-            try {
-              await this.channelsService.archiveCreationChannel(
-                creationChannelId,
-                tenantId,
-              );
-            } catch (err) {
-              this.logger.warn(
-                `delete: failed to archive creation channel ${creationChannelId}: ${err}`,
-              );
-            }
-          } else {
-            this.logger.debug(
-              `delete: skipping channel archive — other drafts share channel ${creationChannelId}`,
-            );
-          }
-        }
-      }
 
       await this.db
         .delete(schema.routines)
@@ -953,66 +837,7 @@ export class RoutinesService {
       .where(eq(schema.routines.id, routineId))
       .returning();
 
-    // Step 7: Archive creation channel (non-fatal, only if no other draft shares it
-    // and the channel is not a direct (DM) channel).
-    if (routine.creationChannelId) {
-      // Guard: never archive direct (DM) channels. DMs are reusable persistent
-      // conversations — the user may have pre-existing messages that would be
-      // hidden. Only non-direct channels (e.g., future dedicated creation
-      // channels) should be archived.
-      const [channelRow] = await this.db
-        .select({ type: schema.channels.type })
-        .from(schema.channels)
-        .where(eq(schema.channels.id, routine.creationChannelId))
-        .limit(1);
-
-      if (!channelRow || channelRow.type === 'direct') {
-        this.logger.debug(
-          `completeCreation: skipping archive of direct channel ${routine.creationChannelId}`,
-        );
-      } else {
-        const [otherDraft] = await this.db
-          .select({ id: schema.routines.id })
-          .from(schema.routines)
-          .where(
-            and(
-              eq(schema.routines.creationChannelId, routine.creationChannelId),
-              ne(schema.routines.id, routineId),
-              eq(schema.routines.status, 'draft'),
-            ),
-          )
-          .limit(1);
-
-        if (!otherDraft) {
-          try {
-            await this.channelsService.archiveCreationChannel(
-              routine.creationChannelId,
-              tenantId,
-            );
-          } catch (error) {
-            this.logger.warn(
-              `completeCreation: failed to archive creation channel ${routine.creationChannelId} for routine ${routineId}: ${error}`,
-            );
-          }
-        } else {
-          this.logger.debug(
-            `completeCreation: skipping channel archive — other drafts share channel ${routine.creationChannelId}`,
-          );
-        }
-      }
-    }
-
-    // Step 8: Delete clone agent (non-fatal)
-    const cloneAgentId = `routine-creation-${routineId}`;
-    try {
-      await this.clawHiveService.deleteAgent(cloneAgentId);
-    } catch (error) {
-      this.logger.warn(
-        `completeCreation: failed to delete clone agent ${cloneAgentId} for routine ${routineId}: ${error}`,
-      );
-    }
-
-    // Step 9: Log completion
+    // Step 7: Log completion
     this.logger.log(
       `completeCreation: routine ${routineId} transitioned to upcoming${dto.notes ? ` — notes: ${dto.notes}` : ''}`,
     );
@@ -1054,34 +879,12 @@ export class RoutinesService {
       );
     }
 
-    // Step 3: Get source agent from claw-hive
+    // Step 3: Extract agentId from managedMeta (used for session ID)
     const agentId = (sourceBot.managedMeta as Record<string, unknown> | null)
       ?.agentId as string | undefined;
     if (!agentId) {
       throw new BadRequestException(
         'Bot is not a managed hive agent (no agentId in managedMeta)',
-      );
-    }
-    // Cast to bypass stale type resolution in pnpm workspaces / worktrees environment
-    const sourceAgent = await (
-      this.clawHiveService as unknown as {
-        getAgent: (
-          agentId: string,
-          tenantId?: string,
-        ) => Promise<{
-          id: string;
-          name: string;
-          blueprintId: string;
-          tenantId: string;
-          model: { provider: string; id: string };
-          componentConfigs: Record<string, Record<string, unknown>>;
-          metadata?: Record<string, unknown>;
-        } | null>;
-      }
-    ).getAgent(agentId, tenantId);
-    if (!sourceAgent) {
-      throw new BadRequestException(
-        `Source agent not found in claw-hive: ${agentId}`,
       );
     }
 
@@ -1105,10 +908,27 @@ export class RoutinesService {
       tenantId,
     );
 
-    // Steps 6-10: with rollback on failure
-    let cloneRegistered = false;
-    const cloneAgentId = `routine-creation-${draft.id}`;
+    // Step 5b: Check for existing in-progress draft with same bot
+    const [existingDraft] = await this.db
+      .select({ id: schema.routines.id })
+      .from(schema.routines)
+      .where(
+        and(
+          eq(schema.routines.botId, dto.agentId),
+          eq(schema.routines.creatorId, userId),
+          eq(schema.routines.status, 'draft'),
+          sql`${schema.routines.creationSessionId} IS NOT NULL`,
+        ),
+      )
+      .limit(1);
 
+    if (existingDraft) {
+      throw new BadRequestException(
+        'You already have a draft routine being created with this agent. Complete or delete it first.',
+      );
+    }
+
+    // Steps 6-9: with rollback on failure
     try {
       // Step 6: Create/reuse DM channel between user and bot shadow user
       const channel = await this.channelsService.createDirectChannel(
@@ -1117,27 +937,11 @@ export class RoutinesService {
         tenantId,
       );
 
-      // Step 7: Build deterministic session ID
-      const sessionId = `team9/${tenantId}/routine-creation-${draft.id}/dm/${channel.id}`;
+      // Step 7: Build deterministic session ID using the original bot's agentId
+      // so it matches what post-broadcast derives from the bot member's managedMeta.agentId
+      const sessionId = `team9/${tenantId}/${agentId}/dm/${channel.id}`;
 
-      // Step 8: Register clone agent
-      await this.clawHiveService.registerAgent({
-        id: cloneAgentId,
-        name: `Routine Creation - ${title}`,
-        blueprintId: sourceAgent.blueprintId,
-        tenantId,
-        model: sourceAgent.model,
-        componentConfigs: {
-          ...sourceAgent.componentConfigs,
-          'team9-routine-creation': {
-            routineId: draft.id,
-            isCreationChannel: true,
-          },
-        },
-      });
-      cloneRegistered = true;
-
-      // Step 9: Persist creation metadata
+      // Step 8: Persist creation metadata
       await this.db
         .update(schema.routines)
         .set({
@@ -1147,7 +951,7 @@ export class RoutinesService {
         } as Record<string, unknown>)
         .where(eq(schema.routines.id, draft.id));
 
-      // Step 10: Send kickoff event
+      // Step 9: Send kickoff event to the original bot's session
       await this.clawHiveService.sendInput(
         sessionId,
         {
@@ -1170,17 +974,6 @@ export class RoutinesService {
         creationSessionId: sessionId,
       };
     } catch (error) {
-      // Rollback: delete clone agent if registered
-      if (cloneRegistered) {
-        try {
-          await this.clawHiveService.deleteAgent(cloneAgentId);
-        } catch (deleteError) {
-          this.logger.error(
-            `createWithCreationTask: failed to delete clone agent ${cloneAgentId} during rollback: ${deleteError}`,
-          );
-        }
-      }
-
       // Rollback: delete draft routine row. Note: the document created
       // by this.create() is intentionally NOT deleted — orphaned documents
       // are low-risk (not user-visible, can be GC'd by a future cleanup
