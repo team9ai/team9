@@ -24,6 +24,7 @@ function mockDb() {
     'set',
     'and',
     'orderBy',
+    'leftJoin',
   ];
   for (const m of methods) {
     chain[m] = jest.fn<any>().mockReturnValue(chain);
@@ -658,10 +659,16 @@ describe('RoutineBotService — CRUD proxy methods', () => {
       );
     });
 
-    it('does not override an explicit botId provided in the DTO', async () => {
-      db.limit.mockResolvedValueOnce([
-        { id: 'bots-uuid-resolved', mentorId: 'mentor-user-1', ownerId: null },
-      ] as any);
+    it('does not override an explicit botId provided in the DTO when it belongs to the same tenant', async () => {
+      // limit call #1: callerBot lookup by userId
+      // limit call #2: targetBot lookup via bots JOIN installedApplications (leftJoin path)
+      db.limit
+        .mockResolvedValueOnce([
+          { id: 'bots-uuid-resolved', mentorId: 'mentor-user-1', ownerId: null },
+        ] as any)
+        .mockResolvedValueOnce([
+          { id: 'explicit-bot-id', tenantId: 'tenant-1' },
+        ] as any);
       const dtoWithBotId = { ...makeDto(), botId: 'explicit-bot-id' };
 
       await service.createRoutine(dtoWithBotId, 'shadow-user-1', 'tenant-1');
@@ -673,16 +680,50 @@ describe('RoutineBotService — CRUD proxy methods', () => {
       );
     });
 
-    it('handles missing bot row gracefully (botId stays undefined, creatorId = botUserId)', async () => {
+    it('throws BadRequestException when explicit botId is not found', async () => {
+      const { BadRequestException } = await import('@nestjs/common');
+
+      // limit call #1: callerBot lookup
+      // limit call #2: targetBot lookup returns empty
+      db.limit
+        .mockResolvedValueOnce([
+          { id: 'bots-uuid-resolved', mentorId: 'mentor-user-1', ownerId: null },
+        ] as any)
+        .mockResolvedValueOnce([] as any);
+      const dtoWithBotId = { ...makeDto(), botId: 'nonexistent-bot' };
+
+      await expect(
+        service.createRoutine(dtoWithBotId, 'shadow-user-1', 'tenant-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws ForbiddenException when explicit botId belongs to a different tenant', async () => {
+      const { ForbiddenException } = await import('@nestjs/common');
+
+      // limit call #1: callerBot lookup
+      // limit call #2: targetBot belongs to different tenant
+      db.limit
+        .mockResolvedValueOnce([
+          { id: 'bots-uuid-resolved', mentorId: 'mentor-user-1', ownerId: null },
+        ] as any)
+        .mockResolvedValueOnce([
+          { id: 'cross-tenant-bot', tenantId: 'other-tenant' },
+        ] as any);
+      const dtoWithBotId = { ...makeDto(), botId: 'cross-tenant-bot' };
+
+      await expect(
+        service.createRoutine(dtoWithBotId, 'shadow-user-1', 'tenant-1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws NotFoundException when caller bot row is not found', async () => {
+      const { NotFoundException } = await import('@nestjs/common');
+
       db.limit.mockResolvedValueOnce([] as any);
 
-      await service.createRoutine(makeDto(), 'shadow-user-1', 'tenant-1');
-
-      expect(routinesService.create).toHaveBeenCalledWith(
-        expect.not.objectContaining({ botId: expect.anything() }),
-        'shadow-user-1',
-        'tenant-1',
-      );
+      await expect(
+        service.createRoutine(makeDto(), 'shadow-user-1', 'tenant-1'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -716,20 +757,26 @@ describe('RoutineBotService — CRUD proxy methods', () => {
     });
   });
 
-  // ── getRoutineById enriches with documentContent ──────────────────
+  // ── getRoutineById enriches with documentContent and triggers ────────
 
   describe('getRoutineById', () => {
+    // ROUTINE_ROW.botId is 'bot-1', so callerBot must have id: 'bot-1' to pass
+    // ownership check. The signature is getRoutineById(routineId, botUserId, tenantId).
+    const CALLER_BOT = { id: 'bot-1' };
+
     it('returns documentContent from the linked document when available', async () => {
       const doc = { id: 'doc-1', currentVersionId: 'ver-1' };
       const ver = { content: 'Do the thing every day.' };
 
-      // 1st limit call: document lookup
-      // 2nd limit call: version lookup
+      // limit call #1: callerBot lookup
+      // limit call #2: document lookup
+      // limit call #3: version lookup
       db.limit
+        .mockResolvedValueOnce([CALLER_BOT] as any)
         .mockResolvedValueOnce([doc] as any)
         .mockResolvedValueOnce([ver] as any);
 
-      const result = await service.getRoutineById('routine-1', 'tenant-1');
+      const result = await service.getRoutineById('routine-1', 'bot-user-1', 'tenant-1');
 
       expect(result.documentContent).toBe('Do the thing every day.');
     });
@@ -741,52 +788,90 @@ describe('RoutineBotService — CRUD proxy methods', () => {
         currentExecution: null,
       } as any);
 
-      const result = await service.getRoutineById('routine-1', 'tenant-1');
+      // limit call #1: callerBot lookup only (no document fetching since documentId is null)
+      db.limit.mockResolvedValueOnce([CALLER_BOT] as any);
+
+      const result = await service.getRoutineById('routine-1', 'bot-user-1', 'tenant-1');
 
       expect(result.documentContent).toBeNull();
-      // No DB calls for document lookup
-      expect(db.limit).not.toHaveBeenCalled();
+      // Only the callerBot lookup should have happened
+      expect(db.limit).toHaveBeenCalledTimes(1);
     });
 
     it('returns documentContent as null when the document has no currentVersionId', async () => {
       const doc = { id: 'doc-1', currentVersionId: null };
 
-      db.limit.mockResolvedValueOnce([doc] as any);
+      // limit call #1: callerBot lookup
+      // limit call #2: document lookup (returns doc with no currentVersionId)
+      db.limit
+        .mockResolvedValueOnce([CALLER_BOT] as any)
+        .mockResolvedValueOnce([doc] as any);
 
-      const result = await service.getRoutineById('routine-1', 'tenant-1');
+      const result = await service.getRoutineById('routine-1', 'bot-user-1', 'tenant-1');
 
       expect(result.documentContent).toBeNull();
     });
 
     it('returns documentContent as null when the document row is missing', async () => {
-      db.limit.mockResolvedValueOnce([] as any);
+      // limit call #1: callerBot lookup
+      // limit call #2: document lookup returns empty
+      db.limit
+        .mockResolvedValueOnce([CALLER_BOT] as any)
+        .mockResolvedValueOnce([] as any);
 
-      const result = await service.getRoutineById('routine-1', 'tenant-1');
+      const result = await service.getRoutineById('routine-1', 'bot-user-1', 'tenant-1');
 
       expect(result.documentContent).toBeNull();
     });
 
     it('returns documentContent as null (non-fatal) when DB throws during lookup', async () => {
-      db.limit.mockRejectedValueOnce(new Error('DB error') as any);
+      // limit call #1: callerBot lookup succeeds
+      // limit call #2: document lookup throws
+      db.limit
+        .mockResolvedValueOnce([CALLER_BOT] as any)
+        .mockRejectedValueOnce(new Error('DB error') as any);
 
-      const result = await service.getRoutineById('routine-1', 'tenant-1');
+      const result = await service.getRoutineById('routine-1', 'bot-user-1', 'tenant-1');
 
       expect(result.documentContent).toBeNull();
     });
 
-    it('spreads all routine fields alongside documentContent', async () => {
+    it('spreads all routine fields alongside documentContent and triggers', async () => {
       const doc = { id: 'doc-1', currentVersionId: 'ver-1' };
       db.limit
+        .mockResolvedValueOnce([CALLER_BOT] as any)
         .mockResolvedValueOnce([doc] as any)
         .mockResolvedValueOnce([{ content: 'instructions' }] as any);
 
-      const result = await service.getRoutineById('routine-1', 'tenant-1');
+      const result = await service.getRoutineById('routine-1', 'bot-user-1', 'tenant-1');
 
       expect(result).toMatchObject({
         id: 'routine-1',
         title: 'My Routine',
         documentContent: 'instructions',
       });
+      expect(result).toHaveProperty('triggers');
+    });
+
+    it('throws ForbiddenException when the calling bot is not the assigned bot', async () => {
+      const { ForbiddenException } = await import('@nestjs/common');
+
+      // callerBot has a different id from ROUTINE_ROW.botId ('bot-1')
+      db.limit.mockResolvedValueOnce([{ id: 'different-bot-id' }] as any);
+
+      await expect(
+        service.getRoutineById('routine-1', 'wrong-bot-user', 'tenant-1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws ForbiddenException when callerBot row is not found', async () => {
+      const { ForbiddenException } = await import('@nestjs/common');
+
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.getRoutineById('routine-1', 'nonexistent-bot-user', 'tenant-1'),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 });

@@ -425,15 +425,17 @@ export class RoutineBotService {
     let resolvedBotId: string = callerBot.id;
     if (dto.botId) {
       const [targetBot] = await this.db
-        .select({ id: schema.bots.id })
+        .select({ id: schema.bots.id, tenantId: schema.installedApplications.tenantId })
         .from(schema.bots)
+        .leftJoin(schema.installedApplications, eq(schema.bots.installedApplicationId, schema.installedApplications.id))
         .where(eq(schema.bots.id, dto.botId))
         .limit(1);
 
       if (!targetBot) {
-        throw new BadRequestException(
-          `Invalid botId: ${dto.botId} is not a valid bot ID`,
-        );
+        throw new BadRequestException(`Invalid botId: not found`);
+      }
+      if (targetBot.tenantId !== tenantId) {
+        throw new ForbiddenException(`Bot does not belong to current tenant`);
       }
       resolvedBotId = targetBot.id;
     }
@@ -495,7 +497,13 @@ export class RoutineBotService {
       }
     }
 
-    return { ...result, documentContent };
+    // Enrich with triggers
+    const triggers = await this.db
+      .select()
+      .from(schema.routineTriggers)
+      .where(eq(schema.routineTriggers.routineId, routineId));
+
+    return { ...result, documentContent, triggers };
   }
 
   async updateRoutine(
