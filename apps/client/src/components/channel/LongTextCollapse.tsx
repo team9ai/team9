@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, memo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown } from "lucide-react";
 import { useFullContent } from "@/hooks/useMessages";
@@ -11,94 +11,115 @@ interface LongTextCollapseProps {
 
 const COLLAPSED_MAX_HEIGHT = "15rem"; // ~10 lines at 1.5rem line-height
 
-export function LongTextCollapse({ message, children }: LongTextCollapseProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [fetchEnabled, setFetchEnabled] = useState(false);
-  const queryClient = useQueryClient();
+export const LongTextCollapse = memo(
+  function LongTextCollapse({ message, children }: LongTextCollapseProps) {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const [fetchEnabled, setFetchEnabled] = useState(false);
+    const queryClient = useQueryClient();
 
-  const {
-    data: fullContentData,
-    isLoading,
-    isError,
-  } = useFullContent(message.id, fetchEnabled && !!message.isTruncated);
+    const {
+      data: fullContentData,
+      isLoading,
+      isError,
+    } = useFullContent(message.id, fetchEnabled && !!message.isTruncated);
 
-  const remainingChars = message.fullContentLength
-    ? message.fullContentLength - (message.content?.length ?? 0)
-    : 0;
+    // Auto-expand once full content is fetched
+    useEffect(() => {
+      if (fullContentData) {
+        setIsExpanded(true);
+      }
+    }, [fullContentData]);
 
-  const handleExpand = useCallback(() => {
-    if (message.isTruncated) {
-      setFetchEnabled(true);
-    }
-    setIsExpanded(true);
-  }, [message.isTruncated]);
+    const remainingChars = message.fullContentLength
+      ? message.fullContentLength - (message.content?.length ?? 0)
+      : 0;
 
-  const handleRetry = useCallback(() => {
-    queryClient.invalidateQueries({
-      queryKey: ["message-full-content", message.id],
-    });
-  }, [queryClient, message.id]);
+    const handleExpand = useCallback(() => {
+      if (message.isTruncated) {
+        setFetchEnabled(true);
+        // Don't set isExpanded here — useEffect will do it when data arrives
+      } else {
+        setIsExpanded(true);
+      }
+    }, [message.isTruncated]);
 
-  const isContentReady = !message.isTruncated || !!fullContentData;
-  const shouldShowFull = isExpanded && isContentReady;
+    const handleRetry = useCallback(() => {
+      queryClient.invalidateQueries({
+        queryKey: ["message-full-content", message.id],
+      });
+    }, [queryClient, message.id]);
 
-  return (
-    <div className="relative">
-      <div
-        className="overflow-hidden transition-[max-height] duration-300 ease-in-out"
-        style={{
-          maxHeight: shouldShowFull ? "none" : COLLAPSED_MAX_HEIGHT,
-        }}
-      >
-        {children}
-      </div>
+    const isContentReady = !message.isTruncated || !!fullContentData;
+    const shouldShowFull = isExpanded && isContentReady;
 
-      {/* Gradient overlay when collapsed */}
-      {!shouldShowFull && (
+    return (
+      <div className="relative">
         <div
-          className="absolute bottom-0 left-0 right-0 h-16 pointer-events-none"
+          className="overflow-hidden transition-[max-height] duration-300 ease-in-out"
           style={{
-            background: "linear-gradient(transparent, hsl(var(--background)))",
+            maxHeight: shouldShowFull ? "9999px" : COLLAPSED_MAX_HEIGHT,
           }}
-        />
-      )}
-
-      {/* Expand button */}
-      {!isExpanded && (
-        <button
-          type="button"
-          onClick={handleExpand}
-          className="mt-1 flex items-center gap-1 text-xs text-info hover:text-info/80 transition-colors"
         >
-          <ChevronDown size={14} />
-          <span>
-            展开全文
-            {remainingChars > 0 &&
-              `（还有约 ${formatCharCount(remainingChars)} 字）`}
-          </span>
-        </button>
-      )}
-
-      {/* Loading state */}
-      {isExpanded && isLoading && !isContentReady && (
-        <div className="mt-1 text-xs text-muted-foreground animate-pulse">
-          加载中...
+          {children}
         </div>
-      )}
 
-      {/* Error state */}
-      {isExpanded && isError && (
-        <button
-          type="button"
-          onClick={handleRetry}
-          className="mt-1 text-xs text-destructive hover:text-destructive/80 transition-colors"
-        >
-          加载失败，点击重试
-        </button>
-      )}
-    </div>
-  );
-}
+        {/* Gradient overlay when collapsed */}
+        {!shouldShowFull && (
+          <div
+            className="absolute bottom-0 left-0 right-0 h-16 pointer-events-none"
+            style={{
+              background:
+                "linear-gradient(transparent, hsl(var(--background)))",
+            }}
+          />
+        )}
+
+        {/* Expand button — visible when not expanded and not currently fetching */}
+        {!isExpanded && (!fetchEnabled || isError) && (
+          <button
+            type="button"
+            onClick={handleExpand}
+            className="mt-1 flex items-center gap-1 text-xs text-info hover:text-info/80 transition-colors"
+          >
+            <ChevronDown size={14} />
+            <span>
+              展开全文
+              {remainingChars > 0 &&
+                `（还有约 ${formatCharCount(remainingChars)} 字）`}
+            </span>
+          </button>
+        )}
+
+        {/* Loading state — show while fetching, before expand */}
+        {fetchEnabled && isLoading && (
+          <div className="mt-1 text-xs text-muted-foreground animate-pulse">
+            加载中...
+          </div>
+        )}
+
+        {/* Error state */}
+        {fetchEnabled && isError && (
+          <button
+            type="button"
+            onClick={handleRetry}
+            className="mt-1 text-xs text-destructive hover:text-destructive/80 transition-colors"
+          >
+            加载失败，点击重试
+          </button>
+        )}
+      </div>
+    );
+  },
+  (prev, next) => {
+    return (
+      prev.message.id === next.message.id &&
+      prev.message.isTruncated === next.message.isTruncated &&
+      prev.message.fullContentLength === next.message.fullContentLength &&
+      prev.message.content?.length === next.message.content?.length &&
+      prev.children === next.children
+    );
+  },
+);
 
 function formatCharCount(count: number): string {
   if (count >= 10000) return `${Math.round(count / 1000)}k`;
