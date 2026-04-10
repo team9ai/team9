@@ -112,7 +112,7 @@ function OnboardingRoute() {
     workspaces.find((item) => item.id === workspaceId) ?? workspaces[0] ?? null;
   const language = (i18n.resolvedLanguage ?? i18n.language).startsWith("en")
     ? "en"
-    : "zh";
+    : "zh-CN";
 
   const onboardingQuery = useWorkspaceOnboarding(workspaceId);
   const rolesQuery = useOnboardingRoles(language);

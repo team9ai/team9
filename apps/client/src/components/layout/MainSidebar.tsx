@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
+import { changeLanguage } from "@/i18n/loadLanguage";
 import { getInitials, getSeededAvatarGradient } from "@/lib/avatar-colors";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -571,28 +572,24 @@ export function MainSidebar() {
                   <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground">
                     {tSettings("language")}
                   </div>
-                  {supportedLanguages.map((lang) =>
-                    lang.code === "zh" ? (
-                      <></>
-                    ) : (
-                      <button
-                        key={lang.code}
-                        onClick={() => i18n.changeLanguage(lang.code)}
-                        className={cn(
-                          "w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent",
-                          i18n.language === lang.code && "bg-accent",
-                        )}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Globe size={16} />
-                          <span>{lang.nativeName}</span>
-                        </div>
-                        {i18n.language === lang.code && (
-                          <span className="text-primary">✓</span>
-                        )}
-                      </button>
-                    ),
-                  )}
+                  {supportedLanguages.map((lang) => (
+                    <button
+                      key={lang.code}
+                      onClick={() => changeLanguage(lang.code)}
+                      className={cn(
+                        "w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent",
+                        i18n.language === lang.code && "bg-accent",
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Globe size={16} />
+                        <span>{lang.nativeName}</span>
+                      </div>
+                      {i18n.language === lang.code && (
+                        <span className="text-primary">✓</span>
+                      )}
+                    </button>
+                  ))}
                 </div>
 
                 <Separator />
