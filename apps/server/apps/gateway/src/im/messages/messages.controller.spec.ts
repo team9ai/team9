@@ -650,7 +650,7 @@ describe('MessagesController', () => {
   });
 
   describe('getFullContent', () => {
-    it('returns full content when user is a channel member', async () => {
+    it('returns full content when user has read access', async () => {
       await expect(
         controller.getFullContent(USER_ID, MESSAGE_ID),
       ).resolves.toEqual({ content: 'full content' });
@@ -658,15 +658,17 @@ describe('MessagesController', () => {
       expect(messagesService.getMessageChannelId).toHaveBeenCalledWith(
         MESSAGE_ID,
       );
-      expect(channelsService.isMember).toHaveBeenCalledWith(
+      expect(channelsService.assertReadAccess).toHaveBeenCalledWith(
         CHANNEL_ID,
         USER_ID,
       );
       expect(messagesService.getFullContent).toHaveBeenCalledWith(MESSAGE_ID);
     });
 
-    it('throws ForbiddenException when user is not a channel member', async () => {
-      channelsService.isMember.mockResolvedValueOnce(false);
+    it('throws ForbiddenException when user lacks read access', async () => {
+      channelsService.assertReadAccess.mockRejectedValueOnce(
+        new ForbiddenException('Access denied'),
+      );
 
       await expect(
         controller.getFullContent(USER_ID, MESSAGE_ID),
@@ -675,7 +677,7 @@ describe('MessagesController', () => {
       expect(messagesService.getMessageChannelId).toHaveBeenCalledWith(
         MESSAGE_ID,
       );
-      expect(channelsService.isMember).toHaveBeenCalledWith(
+      expect(channelsService.assertReadAccess).toHaveBeenCalledWith(
         CHANNEL_ID,
         USER_ID,
       );
