@@ -91,6 +91,7 @@ export class HiveStrategy implements ExecutionStrategy {
         payload: {
           taskId: context.routineId,
           executionId: context.executionId,
+          channelId: context.channelId,
           message: context.message,
         },
       },

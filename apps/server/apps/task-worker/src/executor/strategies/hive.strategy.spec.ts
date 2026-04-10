@@ -156,7 +156,7 @@ describe('HiveStrategy', () => {
   // ── resume() ───────────────────────────────────────────────────────
 
   describe('resume()', () => {
-    it('sends team9:task.resume event', async () => {
+    it('sends team9:task.resume event with channelId', async () => {
       await strategy.resume({ ...baseContext, message: 'Please continue' });
 
       expect(mockClawHive.sendInput).toHaveBeenCalledWith(
@@ -166,6 +166,7 @@ describe('HiveStrategy', () => {
           payload: expect.objectContaining({
             taskId: 'task-001',
             executionId: 'exec-001',
+            channelId: 'ch-task-001',
             message: 'Please continue',
           }),
         }),

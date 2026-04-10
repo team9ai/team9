@@ -465,14 +465,34 @@ describe('CommonStaffService', () => {
           expect.objectContaining({
             type: 'team9:bootstrap.start',
             source: 'team9',
-            payload: {
+            payload: expect.objectContaining({
               mentorId: MENTOR_ID,
               isMentorDm: true,
               channelId: DM_CHANNEL_ID,
-            },
+            }),
           }),
           TENANT_ID,
         );
+      });
+
+      it('includes a standard team9Context in the bootstrap payload for Team9Component.onEvent extraction', async () => {
+        const dto = makeCreateDto({
+          agenticBootstrap: true,
+          mentorId: MENTOR_ID,
+        });
+        await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        const call = clawHiveService.sendInput.mock.calls[0];
+        const event = call[1] as {
+          payload: { team9Context: Record<string, unknown> };
+        };
+        expect(event.payload.team9Context).toEqual({
+          source: 'team9',
+          scopeType: 'dm',
+          scopeId: DM_CHANNEL_ID,
+          peerUserId: MENTOR_ID,
+          isMentorDm: true,
+        });
       });
 
       it('does not trigger sendInput when agenticBootstrap=false', async () => {
@@ -506,11 +526,11 @@ describe('CommonStaffService', () => {
           expect.objectContaining({
             type: 'team9:bootstrap.start',
             source: 'team9',
-            payload: {
+            payload: expect.objectContaining({
               mentorId: OWNER_ID,
               isMentorDm: true,
               channelId: DM_CHANNEL_ID,
-            },
+            }),
           }),
           TENANT_ID,
         );

@@ -78,5 +78,91 @@
   "botInstanceStoppedMemberMessage": "The bot's instance is currently stopped. Please contact a workspace admin to start it.",
   "botInstanceStart": "Start",
   "botInstanceStarting": "Starting...",
-  "botInstanceStartingMessage": "The bot's instance is starting up, please wait a moment..."
+  "botInstanceStartingMessage": "The bot's instance is starting up, please wait a moment...",
+  "botThinking": {
+    "texts": {
+      "thinking": "Thinking",
+      "analyzing": "Analyzing",
+      "reasoning": "Reasoning",
+      "computing": "Computing",
+      "parsing": "Parsing",
+      "brewing": "Brewing",
+      "crafting": "Crafting",
+      "decoding": "Decoding",
+      "imagining": "Imagining",
+      "composing": "Composing"
+    }
+  },
+  "tracking": {
+    "ops": {
+      "loadTools": {
+        "loading": "Loading tools",
+        "success": "Tools loaded",
+        "error": "Failed to load tools"
+      },
+      "searchTools": {
+        "loading": "Searching tools",
+        "success": "Tools found",
+        "error": "Tool search failed"
+      },
+      "invokeTool": {
+        "loading": "Calling tool",
+        "success": "Tool call completed",
+        "error": "Tool call failed"
+      },
+      "fallback": {
+        "loading": "Loading {{name}}",
+        "success": "{{name}} done",
+        "error": "{{name}} failed"
+      }
+    },
+    "tools": {
+      "searchDocs": {
+        "loading": "Searching documents",
+        "success": "Documents found",
+        "error": "Document search failed"
+      },
+      "sendMessage": {
+        "loading": "Sending message",
+        "success": "Message sent",
+        "error": "Failed to send message"
+      },
+      "generateReply": {
+        "loading": "Generating reply",
+        "success": "Reply generated",
+        "error": "Reply generation failed"
+      }
+    },
+    "thinking": {
+      "label": "Thinking",
+      "labelWithStats": "Thinking ({{stats}})",
+      "tokens_one": "{{count}} token",
+      "tokens_other": "{{count}} tokens",
+      "seconds": "{{count}}s",
+      "minutesSeconds": "{{minutes}}m {{seconds}}s"
+    },
+    "toolCall": {
+      "argsLabel": "Args",
+      "resultLabel": "Result",
+      "unknownTool": "Unknown tool"
+    },
+    "eventLabels": {
+      "thinking": "Thinking",
+      "writing": "Writing",
+      "toolCall": "Calling",
+      "toolResult": "Result",
+      "agentStart": "Started",
+      "agentEnd": "Completed",
+      "error": "Error",
+      "turn": "Turn",
+      "choices": "Choices",
+      "selected": "Selected"
+    },
+    "round": {
+      "collapseSummary_one": "... Show execution ({{count}} step)",
+      "collapseSummary_other": "... Show execution ({{count}} steps)",
+      "expandAriaLabel_one": "Expand execution process ({{count}} step)",
+      "expandAriaLabel_other": "Expand execution process ({{count}} steps)"
+    }
+  }
 }

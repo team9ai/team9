@@ -1,4 +1,4 @@
-import { useRef, useMemo, useCallback, useEffect } from "react";
+import { useRef, useMemo, useCallback, useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useTranslation } from "react-i18next";
 import {
@@ -30,7 +30,13 @@ import { A2UISurfaceBlock } from "./A2UISurfaceBlock";
 import { A2UIResponseItem } from "./A2UIResponseItem";
 import { BotThinkingIndicator } from "./BotThinkingIndicator";
 import { NewMessagesIndicator } from "./NewMessagesIndicator";
+import { RoundCollapseSummary } from "./RoundCollapseSummary";
 import { UnreadDivider } from "./UnreadDivider";
+import {
+  computeRoundFoldMaps,
+  decideRoundRender,
+  toggleExpandedRound,
+} from "./message-list-fold";
 
 interface MessageListProps {
   messages: Message[];
@@ -156,6 +162,46 @@ export function MessageList({
   // Ref to listData for prevMessage lookup — avoids adding listData to useCallback deps
   const listDataRef = useRef(listData);
   listDataRef.current = listData;
+
+  // Auto-fold state: in DM channels, non-latest agent rounds are collapsed
+  // into a single "view execution process (N steps)" summary row. Users can
+  // explicitly expand a collapsed round by clicking the summary, and we
+  // remember that choice here so subsequent renders keep it expanded.
+  //
+  // Implementation: a Set of roundIds the user has expanded. The set is
+  // reset whenever `channelId` changes (see useEffect below) so it cannot
+  // grow unboundedly across channel switches. Within a single channel the
+  // set only accumulates entries for rounds the user has actively expanded,
+  // which is bounded by the number of rounds they click.
+  const [userExpandedRounds, setUserExpandedRounds] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  // Reset expanded-round state when switching channels. If MessageList is
+  // unmounted+remounted on channel switch this is a harmless no-op; if it
+  // stays mounted (e.g. re-keyed parent) we still clear stale ids that no
+  // longer exist in the new channel's message list.
+  useEffect(() => {
+    setUserExpandedRounds(new Set());
+  }, [channelId]);
+
+  const foldMaps = useMemo(
+    () =>
+      computeRoundFoldMaps({
+        channelType,
+        chronoMessages,
+        userExpandedRounds,
+      }),
+    [channelType, chronoMessages, userExpandedRounds],
+  );
+
+  // Ref to foldMaps for use inside stable itemContent callback.
+  const foldMapsRef = useRef(foldMaps);
+  foldMapsRef.current = foldMaps;
+
+  const toggleRoundExpanded = useCallback((roundId: string) => {
+    setUserExpandedRounds((prev) => toggleExpandedRound(prev, roundId));
+  }, []);
 
   // Stable firstItemIndex: only decreases when older messages are prepended (loaded
   // via infinite scroll at the top), NOT when new messages are appended at the bottom.
@@ -336,6 +382,31 @@ export function MessageList({
       const itemIndex = index - firstItemIndex;
       const agentMeta = getAgentMeta(message);
 
+      // Round auto-fold (DM only): if this message belongs to a folded round,
+      // either render the collapse summary (for the round's first message) or
+      // a 1px placeholder (for the rest). Non-DM channels and latest rounds
+      // fall through to normal rendering.
+      const foldDecision = decideRoundRender(message.id, foldMapsRef.current);
+      if (foldDecision.kind === "summary") {
+        return (
+          <div className="py-0.5" data-round-summary-id={foldDecision.roundId}>
+            <RoundCollapseSummary
+              stepCount={foldDecision.stepCount}
+              onClick={() => toggleRoundExpanded(foldDecision.roundId)}
+            />
+          </div>
+        );
+      }
+      if (foldDecision.kind === "hidden") {
+        return (
+          <div
+            className="min-h-px overflow-hidden"
+            aria-hidden="true"
+            data-round-hidden-id={foldDecision.roundId}
+          />
+        );
+      }
+
       // Combined tool_call + tool_result block: render both in one card,
       // then hide the standalone tool_result item that follows.
       if (agentMeta?.agentEventType === "tool_call" && agentMeta.toolCallId) {
@@ -463,6 +534,10 @@ export function MessageList({
         </div>
       );
     },
+    // foldMaps drives summary/hidden rendering. We read via foldMapsRef but
+    // still list the memoised maps as a dep so Virtuoso sees a fresh
+    // itemContent identity when a user expands/collapses a round.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       highlightMessageId,
       readOnly,
@@ -474,6 +549,8 @@ export function MessageList({
       firstItemIndex,
       members,
       thinkingBotIds,
+      toggleRoundExpanded,
+      foldMaps,
     ],
   );
 

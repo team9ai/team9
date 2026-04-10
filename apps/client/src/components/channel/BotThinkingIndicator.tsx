@@ -1,20 +1,21 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "motion/react";
 import type { Variants } from "motion/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { ChannelMember } from "@/types/im";
 
-const THINKING_TEXTS = [
-  "Thinking",
-  "Analyzing",
-  "Reasoning",
-  "Computing",
-  "Parsing",
-  "Brewing",
-  "Crafting",
-  "Decoding",
-  "Imagining",
-  "Composing",
+const THINKING_TEXT_KEYS = [
+  "botThinking.texts.thinking",
+  "botThinking.texts.analyzing",
+  "botThinking.texts.reasoning",
+  "botThinking.texts.computing",
+  "botThinking.texts.parsing",
+  "botThinking.texts.brewing",
+  "botThinking.texts.crafting",
+  "botThinking.texts.decoding",
+  "botThinking.texts.imagining",
+  "botThinking.texts.composing",
 ] as const;
 
 const CYCLE_INTERVAL_MS = 3000;
@@ -49,6 +50,7 @@ export function BotThinkingIndicator({
   thinkingBotIds,
   members,
 }: BotThinkingIndicatorProps) {
+  const { t } = useTranslation("channel");
   const [textIndex, setTextIndex] = useState(0);
 
   useEffect(() => {
@@ -56,7 +58,7 @@ export function BotThinkingIndicator({
     setTextIndex(0);
 
     const interval = setInterval(() => {
-      setTextIndex((prev) => (prev + 1) % THINKING_TEXTS.length);
+      setTextIndex((prev) => (prev + 1) % THINKING_TEXT_KEYS.length);
     }, CYCLE_INTERVAL_MS);
 
     return () => clearInterval(interval);
@@ -128,7 +130,7 @@ export function BotThinkingIndicator({
                     exit={{ opacity: 0, y: -8 }}
                     transition={{ duration: 0.25, ease: "easeInOut" }}
                   >
-                    {THINKING_TEXTS[textIndex]}
+                    {t(THINKING_TEXT_KEYS[textIndex])}
                   </motion.span>
                 </AnimatePresence>
               </div>

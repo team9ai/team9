@@ -36,6 +36,20 @@ export interface AgentEventMetadata {
   selections?: Record<string, { selected: string[]; otherText: string | null }>;
   responderId?: string;
   responderName?: string;
+
+  // === Thinking event fields ===
+  /** Thinking content text (for thinking events) — Agent 的思考内容文本 */
+  thinking?: string;
+  /** Input tokens consumed during thinking — Thinking 过程消耗的输入 token 数 */
+  inputTokens?: number;
+  /** Output tokens produced during thinking — Thinking 过程产生的输出 token 数 */
+  outputTokens?: number;
+  /** Total tokens (input + output, for convenience) — 总 token 数（input + output） */
+  totalTokens?: number;
+  /** Duration in milliseconds — Thinking 持续时长（毫秒） */
+  durationMs?: number;
+  /** ISO timestamp when thinking started (for live elapsed display) — Thinking 开始时间（ISO 格式，用于实时显示已耗时） */
+  startedAt?: string;
 }
 
 export interface ChannelSnapshot {

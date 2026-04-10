@@ -25,6 +25,7 @@
   "scripts": {
     "build": "tsc",
     "build:schemas": "tsc -p tsconfig.schemas.json",
+    "test": "NODE_OPTIONS='--experimental-vm-modules' pnpm --dir ../.. exec jest --config libs/database/jest.config.cjs",
     "db:generate": "rm -rf dist tsconfig.schemas.tsbuildinfo && pnpm build:schemas && dotenv -e ../../.env -- drizzle-kit generate --config=drizzle.config.mjs",
     "db:migrate": "dotenv -e ../../.env -- drizzle-kit migrate --config=drizzle.config.mjs",
     "db:push": "rm -rf dist tsconfig.schemas.tsbuildinfo && pnpm build:schemas && dotenv -e ../../.env -- drizzle-kit push --config=drizzle.config.mjs",
@@ -36,6 +37,7 @@
     "@team9/shared": "workspace:*"
   },
   "devDependencies": {
+    "@jest/globals": "^30.0.0",
     "dotenv-cli": "^8.0.0",
     "drizzle-kit": "^0.31.8",
     "typescript": "^5.7.3"

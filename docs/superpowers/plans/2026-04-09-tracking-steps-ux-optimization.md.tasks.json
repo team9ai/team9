@@ -1,0 +1,88 @@
+{
+  "planPath": "docs/superpowers/plans/2026-04-09-tracking-steps-ux-optimization.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 1: 创建工具文案映射配置",
+      "status": "completed",
+      "description": "**Goal:** 建立可扩展的工具文案映射系统，支持操作类型和工具名两层映射\n\n**Files:**\n- Create: apps/client/src/config/toolLabels.ts\n- Create: apps/client/src/config/__tests__/toolLabels.test.ts\n\n**Acceptance Criteria:**\n- [x] 文案映射包含 load_tools、search_tools、invoke_tool 操作类型\n- [x] 支持工具名特定文案\n- [x] getLabel 函数正确处理三层 fallback\n- [x] 100% 覆盖率\n\n**Verify:** pnpm test --testPathPattern=\"toolLabels.test\" -- --coverage\n\n```json:metadata\n{\"files\": [\"apps/client/src/config/toolLabels.ts\", \"apps/client/src/config/__tests__/toolLabels.test.ts\"], \"verifyCommand\": \"pnpm test --testPathPattern=\\\"toolLabels.test\\\" -- --coverage\", \"acceptanceCriteria\": [\"Two-tier mapping system\", \"Three-level fallback\", \"100% coverage\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 2: 创建工具参数配置",
+      "status": "pending",
+      "description": "**Goal:** 建立参数摘要配置，支持关键参数选择和截断规则\n\n**Files:**\n- Create: apps/client/src/config/toolParamConfig.ts\n- Create: apps/client/src/config/__tests__/toolParamConfig.test.ts\n\n**Acceptance Criteria:**\n- [ ] 参数配置支持关键参数列表和截断规则\n- [ ] formatParams 函数正确提取关键参数\n- [ ] 超长参数截断并显示 \"(N words more)\"\n- [ ] 100% 覆盖率\n\n**Verify:** pnpm test --testPathPattern=\"toolParamConfig.test\" -- --coverage\n\n```json:metadata\n{\"files\": [\"apps/client/src/config/toolParamConfig.ts\", \"apps/client/src/config/__tests__/toolParamConfig.test.ts\"], \"verifyCommand\": \"pnpm test --testPathPattern=\\\"toolParamConfig.test\\\" -- --coverage\", \"acceptanceCriteria\": [\"Key param extraction\", \"Truncation logic\", \"100% coverage\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 3: 创建 useTrackingFold Hook",
+      "status": "pending",
+      "blockedBy": [0, 1],
+      "description": "**Goal:** 管理折叠状态，实现自动折叠逻辑\n\n**Files:**\n- Create: apps/client/src/hooks/useTrackingFold.ts\n- Create: apps/client/src/hooks/__tests__/useTrackingFold.test.ts\n\n**Acceptance Criteria:**\n- [ ] Hook 跟踪每轮回复的折叠状态\n- [ ] 自动折叠上一轮功能\n- [ ] 最新一轮永不折叠\n- [ ] 100% 覆盖率\n\n**Verify:** pnpm test --testPathPattern=\"useTrackingFold.test\" -- --coverage\n\n```json:metadata\n{\"files\": [\"apps/client/src/hooks/useTrackingFold.ts\", \"apps/client/src/hooks/__tests__/useTrackingFold.test.ts\"], \"verifyCommand\": \"pnpm test --testPathPattern=\\\"useTrackingFold.test\\\" -- --coverage\", \"acceptanceCriteria\": [\"Fold state tracking\", \"Auto fold logic\", \"100% coverage\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 4: 修改 TrackingEventItem - Turn 隐藏和文案系统",
+      "status": "pending",
+      "blockedBy": [0, 1, 2],
+      "description": "**Goal:** 隐藏 Turn 标记，集成工具文案映射\n\n**Files:**\n- Modify: apps/client/src/components/channel/TrackingEventItem.tsx\n- Modify: apps/client/src/components/channel/TrackingEventItem.test.tsx\n\n**Acceptance Criteria:**\n- [ ] Turn N 标记完全不显示\n- [ ] 使用 getLabel 获取文案\n- [ ] Thinking 默认折叠箭头\n- [ ] 测试覆盖所有新逻辑\n\n**Verify:** pnpm test --testPathPattern=\"TrackingEventItem.test\" -- --coverage\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/channel/TrackingEventItem.tsx\"], \"verifyCommand\": \"pnpm test --testPathPattern=\\\"TrackingEventItem.test\\\" -- --coverage\", \"acceptanceCriteria\": [\"Turn hidden\", \"Label mapping\", \"Thinking collapse\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 5: 修改 ToolCallBlock - 一行展示和参数摘要",
+      "status": "pending",
+      "blockedBy": [0, 1, 2],
+      "description": "**Goal:** 合并工具调用为一行，显示关键参数\n\n**Files:**\n- Modify: apps/client/src/components/channel/ToolCallBlock.tsx\n- Modify: apps/client/src/components/channel/ToolCallBlock.test.tsx\n\n**Acceptance Criteria:**\n- [ ] 工具调用一行显示含参数摘要\n- [ ] 点击展开显示完整参数和结果\n- [ ] 使用 formatParams 显示参数\n- [ ] 失败时必须展开显示错误\n\n**Verify:** pnpm test --testPathPattern=\"ToolCallBlock.test\" -- --coverage\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/channel/ToolCallBlock.tsx\"], \"verifyCommand\": \"pnpm test --testPathPattern=\\\"ToolCallBlock.test\\\" -- --coverage\", \"acceptanceCriteria\": [\"One-line display\", \"Parameter summary\", \"Expand/collapse\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 6: 修改 TrackingEventItem - Thinking 折叠和统计",
+      "status": "pending",
+      "blockedBy": [0, 1, 2, 3],
+      "description": "**Goal:** 实现 Thinking 默认折叠，显示 token 和耗时\n\n**Files:**\n- Modify: apps/client/src/components/channel/TrackingEventItem.tsx\n- Modify: apps/client/src/components/channel/TrackingEventItem.test.tsx\n\n**Acceptance Criteria:**\n- [ ] Thinking 默认折叠，显示箭头\n- [ ] 显示 token 数和耗时 (分M秒S)\n- [ ] 点击可展开看完整内容\n- [ ] 进行中和完成状态有视觉区分\n\n**Verify:** pnpm test --testPathPattern=\"TrackingEventItem.test\" -- --coverage\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/channel/TrackingEventItem.tsx\"], \"verifyCommand\": \"pnpm test --testPathPattern=\\\"TrackingEventItem.test\\\" -- --coverage\", \"acceptanceCriteria\": [\"Thinking collapse\", \"Stats display\", \"Visual distinction\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 7: 修改 TrackingModal - 自动折叠逻辑",
+      "status": "pending",
+      "blockedBy": [2, 3, 4, 5],
+      "description": "**Goal:** 实现回复返回时自动折叠上一轮步骤\n\n**Files:**\n- Modify: apps/client/src/components/channel/TrackingModal.tsx\n- Modify: apps/client/src/components/channel/TrackingModal.test.tsx\n\n**Acceptance Criteria:**\n- [ ] 新回复返回时自动调用 autoFoldPrevious\n- [ ] 最新一轮永不折叠\n- [ ] useTrackingFold Hook 集成\n- [ ] 测试自动折叠触发\n\n**Verify:** pnpm test --testPathPattern=\"TrackingModal.test\" -- --coverage\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/channel/TrackingModal.tsx\"], \"verifyCommand\": \"pnpm test --testPathPattern=\\\"TrackingModal.test\\\" -- --coverage\", \"acceptanceCriteria\": [\"Auto fold trigger\", \"Latest round always open\", \"Hook integration\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 8: 修改 TrackingCard - 摘要显示",
+      "status": "pending",
+      "blockedBy": [2, 3, 4, 5, 6],
+      "description": "**Goal:** 在卡片中显示折叠摘要 \"... 查看执行过程（N 步）\"\n\n**Files:**\n- Modify: apps/client/src/components/channel/TrackingCard.tsx\n- Modify: apps/client/src/components/channel/TrackingCard.test.tsx\n\n**Acceptance Criteria:**\n- [ ] 折叠状态显示摘要条\n- [ ] 摘要显示步骤数\n- [ ] 点击摘要可展开\n- [ ] 展开时显示所有步骤\n\n**Verify:** pnpm test --testPathPattern=\"TrackingCard.test\" -- --coverage\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/channel/TrackingCard.tsx\"], \"verifyCommand\": \"pnpm test --testPathPattern=\\\"TrackingCard.test\\\" -- --coverage\", \"acceptanceCriteria\": [\"Summary display\", \"Step count\", \"Expand/collapse\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 9: 处理 Warming up 状态",
+      "status": "pending",
+      "blockedBy": [3, 4, 5, 7],
+      "description": "**Goal:** 显示 \"AI正在warming up...\" 状态，第一条回复返回时隐藏\n\n**Files:**\n- Modify: apps/client/src/components/channel/TrackingCard.tsx\n- Modify: apps/client/src/components/channel/TrackingModal.tsx\n- Modify: apps/client/src/components/channel/TrackingCard.test.tsx\n\n**Acceptance Criteria:**\n- [ ] Session 初始化时显示 warming up\n- [ ] 第一条回复返回时自动隐藏\n- [ ] 后续回复不显示 warming up\n- [ ] 测试 warming up 生命周期\n\n**Verify:** pnpm test --testPathPattern=\"TrackingCard.test|TrackingModal.test\" -- --coverage\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/channel/TrackingCard.tsx\", \"apps/client/src/components/channel/TrackingModal.tsx\"], \"verifyCommand\": \"pnpm test --testPathPattern=\\\"TrackingCard.test\\\" -- --coverage\", \"acceptanceCriteria\": [\"Warming up display\", \"Auto hide on first reply\", \"Lifecycle management\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 10: 修改 ChannelContent - warming up 集成",
+      "status": "pending",
+      "blockedBy": [8],
+      "description": "**Goal:** 在 ChannelContent 中集成 warming up 显示\n\n**Files:**\n- Modify: apps/client/src/components/channel/ChannelContent.tsx\n- Modify: apps/client/src/components/channel/__tests__/ChannelContent.test.tsx\n\n**Acceptance Criteria:**\n- [ ] warming up 在消息列表上方显示\n- [ ] 支持 tracking 频道类型\n- [ ] 与 TrackingCard 协调显示\n\n**Verify:** pnpm test --testPathPattern=\"ChannelContent.test\" -- --coverage\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/channel/ChannelContent.tsx\"], \"verifyCommand\": \"pnpm test --testPathPattern=\\\"ChannelContent.test\\\" -- --coverage\", \"acceptanceCriteria\": [\"Display position\", \"Tracking channel support\", \"Coordination\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 11: 集成测试 - 完整流程",
+      "status": "pending",
+      "blockedBy": [3, 4, 5, 6, 7, 8, 9],
+      "description": "**Goal:** 编写集成测试验证完整的执行流程和自动折叠\n\n**Files:**\n- Create: apps/client/src/components/channel/__tests__/tracking-integration.test.ts\n\n**Acceptance Criteria:**\n- [ ] 测试从 warming up 到多轮回复的完整流程\n- [ ] 验证自动折叠逻辑\n- [ ] 验证文案显示\n- [ ] 验证参数摘要显示\n\n**Verify:** pnpm test --testPathPattern=\"tracking-integration.test\" -- --coverage\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/channel/__tests__/tracking-integration.test.ts\"], \"verifyCommand\": \"pnpm test --testPathPattern=\\\"tracking-integration.test\\\" -- --coverage\", \"acceptanceCriteria\": [\"Full flow test\", \"Auto fold verification\", \"Label verification\"]}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 12: 文档和后续扩展预留",
+      "status": "pending",
+      "blockedBy": [10],
+      "description": "**Goal:** 编写文档，预留 agent 侧扩展接口\n\n**Files:**\n- Create: docs/tracking-steps-ux/IMPLEMENTATION.md\n- Update: CLAUDE.md 相关部分\n\n**Acceptance Criteria:**\n- [ ] 文档说明如何扩展工具文案配置\n- [ ] 说明如何添加新工具参数配置\n- [ ] 预留 agent 侧接管接口\n- [ ] 列出所有可配置项\n\n**Verify:** 文档完整，提供清晰的扩展指南\n\n```json:metadata\n{\"files\": [\"docs/tracking-steps-ux/IMPLEMENTATION.md\"], \"verifyCommand\": \"\", \"acceptanceCriteria\": [\"Extension guide\", \"Configuration points\", \"Agent-side integration\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-04-09T04:00:00Z"
+}

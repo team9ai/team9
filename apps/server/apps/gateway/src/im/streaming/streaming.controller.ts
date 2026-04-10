@@ -274,6 +274,12 @@ export class StreamingController {
     const channel = await this.channelsService.findById(channelId);
     const workspaceId = channel?.tenantId ?? undefined;
 
+    // Build message metadata with thinking content if provided
+    const metadata: Record<string, unknown> = {};
+    if (dto.thinking) {
+      metadata.thinking = dto.thinking;
+    }
+
     const result = await this.imWorkerGrpcClientService.createMessage({
       clientMsgId: uuidv7(),
       channelId,
@@ -282,6 +288,7 @@ export class StreamingController {
       parentId: session.parentId,
       type: 'text',
       workspaceId,
+      metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
     });
 
     // Fetch the persisted message with sender/attachment details.

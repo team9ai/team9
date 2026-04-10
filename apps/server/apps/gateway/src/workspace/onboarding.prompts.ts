@@ -98,6 +98,62 @@ export function buildGenerateTasksPrompt(args: {
   description?: string | null;
   lang: 'zh' | 'en';
 }) {
+  const roleContextMap: Record<string, string> = {
+    finance:
+      args.lang === 'zh'
+        ? '金融专业人士经常处理的是：市场分析与研究、投资组合管理、风险评估、合规审查、报告与数据汇总、客户沟通与需求确认。'
+        : 'Finance professionals regularly work on: market analysis and research, portfolio management, risk assessment, compliance reviews, report generation and data consolidation, client communication and needs confirmation.',
+    legal:
+      args.lang === 'zh'
+        ? '法律专业人士经常处理的是：案件/事务管理、法律文件起草与审查、合规监控、法律研究、客户咨询、诉讼准备。'
+        : 'Legal professionals regularly work on: case/matter management, legal document drafting and review, compliance monitoring, legal research, client consultation, litigation preparation.',
+    consulting:
+      args.lang === 'zh'
+        ? '咨询顾问经常处理的是：项目进展跟踪、客户访谈与需求调研、数据分析与建议整理、提案撰写、内部协调与同步。'
+        : 'Consultants regularly work on: project progress tracking, client interviews and needs research, data analysis and recommendations, proposal writing, internal coordination and sync.',
+    marketing:
+      args.lang === 'zh'
+        ? '营销专业人士经常处理的是：内容规划与创建、活动运营、数据分析与优化、渠道管理、竞争对手监控、客户互动。'
+        : 'Marketing professionals regularly work on: content planning and creation, campaign execution, data analysis and optimization, channel management, competitor monitoring, customer engagement.',
+    sales:
+      args.lang === 'zh'
+        ? '销售专业人士经常处理的是：客户管理与跟进、销售漏斗管理、提案准备、合同协商、交易推进、客户维护。'
+        : 'Sales professionals regularly work on: customer management and follow-up, sales pipeline management, proposal preparation, contract negotiation, deal advancement, customer retention.',
+    ecommerce:
+      args.lang === 'zh'
+        ? '电商专业人士经常处理的是：数据监控与优化、库存管理、商品上新与优化、营销活动、客户服务与反馈、供应链协调。'
+        : 'E-commerce professionals regularly work on: data monitoring and optimization, inventory management, product listing and optimization, marketing campaigns, customer service and feedback, supply chain coordination.',
+    creator:
+      args.lang === 'zh'
+        ? '内容创作者经常处理的是：内容创意与策划、内容制作与编辑、内容分发与发布、读者/观众互动、数据反馈分析。'
+        : 'Content creators regularly work on: content ideation and planning, content production and editing, content distribution and publishing, audience interaction, performance analytics.',
+    design:
+      args.lang === 'zh'
+        ? '设计专业人士经常处理的是：设计需求沟通、创意方案设计、版本迭代与反馈、设计规范维护、交付与标注。'
+        : 'Design professionals regularly work on: design requirement communication, creative concept development, version iteration and feedback, design system maintenance, delivery and annotation.',
+    engineering:
+      args.lang === 'zh'
+        ? '工程师经常处理的是：功能开发、代码审查、bug 修复、测试与部署、技术文档、团队协作与问题排查。'
+        : 'Engineers regularly work on: feature development, code review, bug fixes, testing and deployment, technical documentation, team collaboration and troubleshooting.',
+    ai:
+      args.lang === 'zh'
+        ? 'AI 专业人士经常处理的是：AI 工具评估、提示词优化、自动化工作流设计、数据准备、效果评测、团队培训。'
+        : 'AI professionals regularly work on: AI tool evaluation, prompt optimization, automation workflow design, data preparation, performance evaluation, team training.',
+    education:
+      args.lang === 'zh'
+        ? '教育工作者经常处理的是：课程设计与备课、教学实施与评估、学生管理与反馈、教材准备、专业发展。'
+        : 'Educators regularly work on: curriculum design and lesson planning, teaching delivery and assessment, student management and feedback, material preparation, professional development.',
+  };
+
+  const categoryContext = args.categoryKey
+    ? roleContextMap[args.categoryKey]
+    : '';
+  const contextStr =
+    categoryContext ||
+    (args.lang === 'zh'
+      ? '根据用户的角色和描述，推断其真实的工作流程。'
+      : "Based on the user's role and description, infer their actual recurring workflows.");
+
   return `
 ${buildSharedOnboardingPrompt(args)}
 
@@ -105,22 +161,34 @@ Current onboarding step:
 - Step 2: Task Selection
 
 Step goal:
-- Generate 3 task candidates that feel close to the user's real recurring work, so they can confidently pick one or more with minimal editing.
+- Generate 3 task candidates that reflect the user's actual, recurring daily/weekly/monthly work—the kind of work they'd genuinely come back to often.
 
-Good case:
-- Each task is a recurring workflow, responsibility, or cadence the user would plausibly revisit often.
-- The 3 tasks are meaningfully different from each other rather than paraphrases.
-- Titles are concrete enough that the user can picture the work behind them.
-- The set reflects this user's actual work context, not just the broad industry label.
+Work context for this role category:
+${contextStr}
 
-Bad case:
-- Generic productivity/admin tasks that could fit almost anyone.
-- One-off projects, strategic slogans, or aspirational goals.
-- Titles that are too vague, too broad, or overloaded with multiple ideas.
-- Three tasks that all point to the same narrow workflow.
+Definition of a real task:
+- A recurring workflow, responsibility, or cadence the user would plausibly revisit on a regular basis (not a one-off project).
+- Something that recurs weekly, bi-weekly, monthly, or more frequently—not aspirational goals or abstract strategies.
+- A concrete action or output the user can picture themselves doing, not a generic label like "admin" or "planning".
+- Tied to this user's specific role/description context, not applicable to any job in any industry.
+
+Good case examples (by role type):
+- For a Product Manager: "Review user feedback weekly", "Prioritize roadmap backlog", "Conduct user interviews"
+- For a Designer: "Design spec review and feedback loop", "Create design mockups for new features", "Maintain component library"
+- For a Lawyer: "Contract review and negotiation", "Compliance audit and reporting", "Legal research for case preparation"
+- For a Salesperson: "Qualify and nurture sales leads", "Prepare client proposals", "Track pipeline and forecast"
+
+Bad case (what NOT to generate):
+- Generic tasks: "Plan your day", "Review goals", "Team meeting", "Admin work"
+- One-off projects: "Launch new product", "Rebranding initiative", "Office relocation"
+- Vague or too broad: "Stay organized", "Improve performance", "Drive growth"
+- Repeated ideas: "Content creation", "Content planning", "Content management" (all the same workflow)
+- Disconnected from role: A designer being asked to "manage payroll" or a lawyer being asked to "run paid ads"
 
 Output requirements:
 - Return exactly 3 tasks.
+- Ensure each task is concretely specific and role-aware—the user should immediately recognize themselves in at least one.
+- Tasks should span different responsibilities or phases of this role's work (not three flavors of the same thing).
 - Put the emoji in the "emoji" field and keep the "title" field plain text.
 - Keep titles concise, natural, and UI-friendly.
 
@@ -141,6 +209,18 @@ export function buildGenerateChannelsPrompt(args: {
   tasks?: OnboardingTasksContextDto;
   lang: 'zh' | 'en';
 }) {
+  const selectedTaskTitles =
+    args.tasks?.generatedTasks
+      ?.filter((task) => args.tasks?.selectedTaskIds?.includes(task.id))
+      .map((task) => task.title.trim()) ?? [];
+
+  const tasksContext =
+    selectedTaskTitles.length > 0
+      ? args.lang === 'zh'
+        ? `用户选中的任务：${selectedTaskTitles.join('、')}。这些任务反映了用户的关键工作流程，频道应该支持这些工作流。`
+        : `User's selected tasks: ${selectedTaskTitles.join(', ')}. These reflect key workflows that channels should support.`
+      : '';
+
   return `
 ${buildSharedOnboardingPrompt(args)}
 
@@ -148,22 +228,35 @@ Current onboarding step:
 - Step 3: Channel Setup
 
 Step goal:
-- Generate channel drafts that make the workspace feel structured and tailored from day one.
+- Generate 4 channel names that serve as stable workstreams where this user would actually conduct work—not generic catch-alls, but real functional spaces tied to their role.
 
-Good case:
-- Channels represent stable workstreams, recurring conversations, client groupings, operating cadences, or knowledge areas the user would revisit.
-- The set feels complementary, with each channel having a clear reason to exist.
-- A new user could immediately imagine where messages, files, and updates would go.
+${tasksContext}
 
-Bad case:
-- Generic buckets such as "todo", "ideas", "notes", "resources", or "chat".
-- Multiple channels that are basically the same thing at different abstraction levels.
-- Names that sound like one-off projects instead of reusable spaces.
-- Taxonomy that feels too abstract, too corporate, or detached from the user's actual work.
+Definition of a real channel:
+- A durable, recurring place for a specific work function, project, client, or operating cadence (not a one-off topic).
+- Named to make the purpose immediately clear: A new team member joining could instantly know what conversation belongs here.
+- Useful for both one-to-one collaboration and team-wide coordination around that function.
+- Tied to this user's actual work, not universal productivity labels.
+
+Good case examples (by role type):
+- For Sales: "Deal Pipeline", "Client Success", "Proposal Review", "Sales Metrics"
+- For Legal: "Contract Review Queue", "Compliance Tracking", "Litigation Cases", "Client Matters"
+- For Design: "Design Critiques", "Component Library", "Feedback Rounds", "Asset Management"
+- For Engineering: "Code Review", "Bug Tracking", "Release Planning", "Technical Discussions"
+- For Marketing: "Campaign Calendar", "Content Review", "Performance Analytics", "Campaign Briefs"
+
+Bad case (what NOT to generate):
+- Generic buckets: "General", "Announcements", "Random", "Chat", "To-Do", "Ideas", "Notes", "Resources"
+- Abstract catch-alls: "Collaboration", "Discussions", "Updates", "Meetings"
+- Too broad: "Work", "Project", "Team", "Office"
+- One-off projects: "Website Redesign", "Q3 Campaign", "New Hire Onboarding" (unless this is a permanent function)
+- Redundant or overlapping: "Feedback" and "Review" and "Critiques" (all the same function)
 
 Output requirements:
 - Return exactly 4 channel names.
-- Keep names short, clear, and UI-friendly.
+- Each channel must serve a distinct, functional purpose tied to this user's work.
+- Names should be noun-based (e.g., "Client Reviews" not "Review Clients").
+- Short, clear, and immediately understandable.
 - Plain channel names are enough; the product will handle formatting.
 
 JSON shape:
@@ -183,6 +276,50 @@ export function buildGenerateAgentsPrompt(args: {
   tasks?: OnboardingTasksContextDto;
   lang: 'zh' | 'en';
 }) {
+  const selectedTaskTitles =
+    args.tasks?.generatedTasks
+      ?.filter((task) => args.tasks?.selectedTaskIds?.includes(task.id))
+      .map((task) => task.title.trim()) ?? [];
+
+  const tasksContext =
+    selectedTaskTitles.length > 0
+      ? args.lang === 'zh'
+        ? `用户选中的任务：${selectedTaskTitles.join('、')}。这些任务反映了用户最常做的工作，agent 应该直接支持这些工作流。`
+        : `User's selected tasks: ${selectedTaskTitles.join(', ')}. These are the user's most frequent workflows; agents should directly support them.`
+      : '';
+
+  const mainAgentContextMap: Record<string, string> = {
+    finance:
+      args.lang === 'zh'
+        ? '私人秘书应该协调投资分析、合规检查、客户沟通等核心工作，确保所有金融决策和交互有据可依。'
+        : 'Personal Staff should coordinate investment analysis, compliance checks, client communication, and ensure all financial decisions and interactions are well-documented.',
+    legal:
+      args.lang === 'zh'
+        ? '私人秘书应该协调案件管理、法律研究、合规监控，确保每个法律事务都有清晰的进展追踪。'
+        : 'Personal Staff should coordinate case management, legal research, compliance monitoring, and ensure clear progress tracking on every legal matter.',
+    consulting:
+      args.lang === 'zh'
+        ? '私人秘书应该协调项目进展、客户互动、数据整理，确保咨询工作有条理且客户反馈被及时处理。'
+        : 'Personal Staff should coordinate project progress, client engagement, data organization, and ensure consulting work stays organized with timely client feedback.',
+    sales:
+      args.lang === 'zh'
+        ? '私人秘书应该协调销售漏斗管理、客户跟进、交易推进，确保每条线索都被妥善跟踪和推进。'
+        : 'Personal Staff should coordinate sales pipeline management, customer follow-up, deal advancement, and ensure every lead is tracked and progressed.',
+    marketing:
+      args.lang === 'zh'
+        ? '私人秘书应该协调活动运营、内容发布、数据分析，确保营销工作有节奏且数据驱动。'
+        : 'Personal Staff should coordinate campaign execution, content publishing, data analysis, and ensure marketing work stays rhythmic and data-driven.',
+  };
+
+  const mainAgentContext = args.categoryKey
+    ? mainAgentContextMap[args.categoryKey]
+    : '';
+  const mainAgentStr =
+    mainAgentContext ||
+    (args.lang === 'zh'
+      ? '私人秘书应该根据用户的角色和工作特点，协调和优化用户的核心工作流程。'
+      : "Personal Staff should coordinate and optimize the user's core workflows based on their role and work patterns.");
+
   return `
 ${buildSharedOnboardingPrompt(args)}
 
@@ -190,24 +327,38 @@ Current onboarding step:
 - Step 4: Agent Configuration
 
 Step goal:
-- Generate a starter agent lineup that feels like a genuinely useful delegation system for this user's work.
+- Generate a starter agent lineup where each agent is a concrete, actionable delegate for a distinct part of this user's work—not generic assistants, but functional specialists.
 
-Good case:
-- The main agent description clearly explains what the main agent coordinates or protects for this workspace.
-- The 3 child agents are complementary and cover different responsibilities, phases, or functions of the user's workflow.
-- Child agent names feel like concrete functions the user would actually delegate.
-- The lineup reflects the role, description, and selected tasks instead of falling back to generic assistant archetypes.
+Main agent context:
+${mainAgentStr}
 
-Bad case:
-- Three child agents that are near-synonyms or all do the same kind of work.
-- Generic labels like "assistant", "helper", or "operator" without a clear functional qualifier.
-- Cute mascot-style names that hide the actual responsibility.
-- Roles that are too abstract, too senior, or disconnected from the user's real day-to-day work.
+${tasksContext}
+
+Definition of a useful child agent:
+- A clear, single responsibility tied to the user's actual work (not a generic "assistant" or "helper").
+- Something the user would realistically delegate or automate in their daily workflow.
+- Named after the function it performs, not a cute mascot or abstract title.
+- Complementary to the other agents—covers a different phase, client type, or workflow aspect.
+
+Good case examples (by role type):
+- For Sales: "Lead Qualifier" (researches and scores leads), "Proposal Generator" (drafts custom proposals), "Client Tracker" (monitors deal status and next steps)
+- For Legal: "Contract Analyst" (reviews and flags issues in contracts), "Case Manager" (tracks deadlines and document status), "Compliance Auditor" (monitors regulatory changes)
+- For Design: "Design Reviewer" (gathers and synthesizes feedback), "Component Manager" (maintains design system), "Asset Organizer" (catalogs and tags assets)
+- For Marketing: "Content Scheduler" (plans and publishes content), "Analytics Monitor" (tracks performance and reports), "Campaign Manager" (oversees campaign execution)
+- For Engineering: "Code Reviewer" (reviews code and suggests improvements), "Bug Tracker" (triages and prioritizes bugs), "Deploy Manager" (coordinates releases)
+
+Bad case (what NOT to generate):
+- Generic titles: "Assistant", "Helper", "Operator", "Agent", "Support"
+- Overlapping functions: "Content Creator", "Content Manager", "Content Coordinator" (all the same role)
+- Too abstract: "Strategist", "Organizer", "Optimizer" (meaningless without context)
+- Disconnected from role: A lawyer with a "Marketing Specialist" agent, a designer with a "Sales Closer" agent
+- Cute/unclear: "Bobby the Buddy", "Charlie the Chatbot" (hide actual responsibility)
 
 Output requirements:
-- The main agent already exists and is fixed to ${onboardingMainAgentName(args.lang)}.
-- Return one short main description and exactly 3 child agents.
-- Every child agent must include one fitting emoji and one clear functional name.
+- The main agent name is fixed to ${onboardingMainAgentName(args.lang)}.
+- Return one short, clear main description (1 sentence, no marketing speak).
+- Generate exactly 3 child agents, each with one fitting emoji and one clear functional name.
+- Each child agent name should be a role title or function (e.g., "Lead Qualifier", not "Qualify Leads").
 
 JSON shape:
 {
