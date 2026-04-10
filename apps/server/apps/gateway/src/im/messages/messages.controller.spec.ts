@@ -124,6 +124,10 @@ describe('MessagesController', () => {
       pinMessage: jest.fn<any>().mockResolvedValue(undefined),
       addReaction: jest.fn<any>().mockResolvedValue(undefined),
       removeReaction: jest.fn<any>().mockResolvedValue(undefined),
+      truncateForPreview: jest.fn<any>().mockImplementation((msg) => msg),
+      getFullContent: jest
+        .fn<any>()
+        .mockResolvedValue({ content: 'full content' }),
     };
 
     channelsService = {

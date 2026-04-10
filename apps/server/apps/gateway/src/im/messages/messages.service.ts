@@ -5,7 +5,7 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
-import { determineMessageType } from './message-utils.js';
+import { determineMessageType, truncateContent } from './message-utils.js';
 import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
@@ -1055,5 +1055,29 @@ export class MessagesService {
     }
 
     return message.channelId;
+  }
+
+  truncateForPreview(message: MessageResponse): MessageResponse {
+    if (message.type !== 'long_text' || !message.content) {
+      return message;
+    }
+    const { content, isTruncated, fullContentLength } = truncateContent(
+      message.content,
+    );
+    return { ...message, content, isTruncated, fullContentLength };
+  }
+
+  async getFullContent(messageId: string): Promise<{ content: string }> {
+    const [message] = await this.db
+      .select({ content: schema.messages.content })
+      .from(schema.messages)
+      .where(eq(schema.messages.id, messageId))
+      .limit(1);
+
+    if (!message) {
+      throw new NotFoundException('Message not found');
+    }
+
+    return { content: message.content ?? '' };
   }
 }

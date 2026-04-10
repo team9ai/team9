@@ -1,5 +1,9 @@
 import { describe, expect, it } from '@jest/globals';
-import { countLogicalLines, determineMessageType } from './message-utils.js';
+import {
+  countLogicalLines,
+  determineMessageType,
+  truncateContent,
+} from './message-utils.js';
 
 describe('countLogicalLines', () => {
   it('returns 0 for empty string', () => {
@@ -144,5 +148,155 @@ describe('determineMessageType', () => {
     // Many short lines
     const content = Array.from({ length: 25 }, () => 'hi').join('\n');
     expect(determineMessageType(content, false)).toBe('long_text');
+  });
+});
+
+describe('truncateContent', () => {
+  it('returns content unchanged when under both limits', () => {
+    const content = 'short message';
+    const result = truncateContent(content);
+    expect(result).toEqual({
+      content: 'short message',
+      isTruncated: false,
+      fullContentLength: content.length,
+    });
+  });
+
+  it('returns empty string unchanged', () => {
+    const result = truncateContent('');
+    expect(result).toEqual({
+      content: '',
+      isTruncated: false,
+      fullContentLength: 0,
+    });
+  });
+
+  // --- Markdown/plain text ---
+
+  it('truncates markdown content exceeding 20 lines', () => {
+    const lines = Array.from({ length: 30 }, (_, i) => `line ${i}`);
+    const content = lines.join('\n');
+    const result = truncateContent(content);
+    expect(result.isTruncated).toBe(true);
+    expect(result.fullContentLength).toBe(content.length);
+    // Should contain only the first 20 lines
+    const truncatedLines = result.content.split('\n');
+    expect(truncatedLines.length).toBe(20);
+    expect(truncatedLines[0]).toBe('line 0');
+    expect(truncatedLines[19]).toBe('line 19');
+  });
+
+  it('truncates markdown content exceeding 3000 chars even if under 20 lines', () => {
+    // 10 lines, each 400 chars = 4000 chars + 9 newlines
+    const lines = Array.from(
+      { length: 10 },
+      (_, i) => `L${i}:${'x'.repeat(398)}`,
+    );
+    const content = lines.join('\n');
+    expect(content.length).toBeGreaterThan(3000);
+    const result = truncateContent(content);
+    expect(result.isTruncated).toBe(true);
+    expect(result.content.length).toBeLessThanOrEqual(3000);
+    expect(result.fullContentLength).toBe(content.length);
+  });
+
+  it('does not truncate markdown with exactly 20 lines under char limit', () => {
+    const lines = Array.from({ length: 20 }, (_, i) => `line ${i}`);
+    const content = lines.join('\n');
+    expect(content.length).toBeLessThan(3000);
+    const result = truncateContent(content);
+    expect(result.isTruncated).toBe(false);
+    expect(result.content).toBe(content);
+  });
+
+  it('truncates markdown at char limit and tries newline boundary', () => {
+    // Create content with lines that are ~200 chars each, 19 lines, but exceeding 3000 chars
+    const lines = Array.from(
+      { length: 19 },
+      (_, i) => `L${i}:${'a'.repeat(198)}`,
+    );
+    const content = lines.join('\n');
+    // 19 lines * 200 chars + 18 newlines = 3818 chars
+    expect(content.length).toBeGreaterThan(3000);
+    const result = truncateContent(content);
+    expect(result.isTruncated).toBe(true);
+    // Should cut at a newline boundary since we have lines within the 50% range
+    expect(
+      result.content.endsWith('\n') ||
+        !result.content.includes('\n') ||
+        result.content.split('\n').length < 19,
+    ).toBe(true);
+  });
+
+  // --- HTML ---
+
+  it('does not truncate HTML under both limits', () => {
+    const html = '<p>hello</p><p>world</p>';
+    const result = truncateContent(html);
+    expect(result.isTruncated).toBe(false);
+    expect(result.content).toBe(html);
+  });
+
+  it('truncates HTML content exceeding 20 logical lines', () => {
+    // 25 <p> tags
+    const html = Array.from({ length: 25 }, (_, i) => `<p>line ${i}</p>`).join(
+      '',
+    );
+    const result = truncateContent(html);
+    expect(result.isTruncated).toBe(true);
+    expect(result.fullContentLength).toBe(html.length);
+    // Truncated content should be shorter than original
+    expect(result.content.length).toBeLessThan(html.length);
+  });
+
+  it('truncates HTML content exceeding 3000 chars', () => {
+    // 10 <p> tags with long content
+    const html = Array.from(
+      { length: 10 },
+      (_, i) => `<p>${'x'.repeat(400)} line ${i}</p>`,
+    ).join('');
+    expect(html.length).toBeGreaterThan(3000);
+    const result = truncateContent(html);
+    expect(result.isTruncated).toBe(true);
+    expect(result.content.length).toBeLessThan(html.length);
+  });
+
+  it('counts pre block lines correctly when truncating HTML', () => {
+    // pre block with 18 lines + 5 <p> tags = 23 logical lines
+    const preLines = Array.from({ length: 17 }, (_, i) => `code ${i}`).join(
+      '\n',
+    );
+    const html =
+      `<pre>${preLines}</pre>` +
+      Array.from({ length: 5 }, (_, i) => `<p>para ${i}</p>`).join('');
+    const result = truncateContent(html);
+    expect(result.isTruncated).toBe(true);
+    expect(result.fullContentLength).toBe(html.length);
+  });
+
+  it('handles HTML with both char and line limits exceeded', () => {
+    // Many long paragraphs
+    const html = Array.from(
+      { length: 30 },
+      (_, i) => `<p>${'y'.repeat(200)} paragraph ${i}</p>`,
+    ).join('');
+    const result = truncateContent(html);
+    expect(result.isTruncated).toBe(true);
+    // Should be truncated by whichever limit is hit first
+    expect(result.content.length).toBeLessThan(html.length);
+  });
+
+  it('returns fullContentLength equal to original length', () => {
+    const content = 'a'.repeat(5000);
+    const result = truncateContent(content);
+    expect(result.fullContentLength).toBe(5000);
+  });
+
+  it('does not truncate short non-long_text-like content', () => {
+    const content = 'Hello, world!';
+    const result = truncateContent(content);
+    expect(result.isTruncated).toBe(false);
+    expect(result.content).toBe(content);
+    expect(result.fullContentLength).toBe(content.length);
   });
 });

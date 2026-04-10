@@ -9,6 +9,7 @@ import {
   type ComponentPropsWithoutRef,
 } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import linkifyHtml from "linkify-html";
@@ -16,12 +17,15 @@ import Prism from "@/lib/prism";
 import { UserProfileCard } from "./UserProfileCard";
 import { CodeBlock } from "./CodeBlock";
 import { ImagePreviewDialog } from "./ImagePreviewDialog";
+import { LongTextCollapse } from "./LongTextCollapse";
 import { useCreateDirectChannel } from "@/hooks/useChannels";
 import { SelectionCopyPopup } from "./SelectionCopyPopup";
+import type { Message } from "@/types/im";
 
 interface MessageContentProps {
   content: string;
   className?: string;
+  message?: Message;
 }
 
 interface HoveredMention {
@@ -364,8 +368,24 @@ function MarkdownCodeRenderer({
  * - HTML messages (from Lexical editor): rendered with dangerouslySetInnerHTML + Prism code highlighting
  * - Plain text / Markdown messages (from bots/API): rendered with react-markdown
  */
-export function MessageContent({ content, className }: MessageContentProps) {
-  const isHtml = HTML_TAG_PATTERN.test(content);
+export function MessageContent({
+  content,
+  className,
+  message,
+}: MessageContentProps) {
+  const queryClient = useQueryClient();
+
+  // For long_text messages, check if full content has been fetched and cached
+  const fullContentData =
+    message?.type === "long_text"
+      ? queryClient.getQueryData<{ content: string }>([
+          "message-full-content",
+          message.id,
+        ])
+      : undefined;
+  const displayContent = fullContentData?.content ?? content;
+
+  const isHtml = HTML_TAG_PATTERN.test(displayContent);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [selectionState, setSelectionState] = useState<{
     rect: DOMRect;
@@ -377,12 +397,25 @@ export function MessageContent({ content, className }: MessageContentProps) {
   const contentElement = useMemo(
     () =>
       isHtml ? (
-        <HtmlMessageContent content={content} className={className} />
+        <HtmlMessageContent content={displayContent} className={className} />
       ) : (
-        <MarkdownMessageContent content={content} className={className} />
+        <MarkdownMessageContent
+          content={displayContent}
+          className={className}
+        />
       ),
-    [isHtml, content, className],
+    [isHtml, displayContent, className],
   );
+
+  // Wrap in LongTextCollapse for long_text messages
+  const wrappedElement = useMemo(() => {
+    if (message?.type === "long_text") {
+      return (
+        <LongTextCollapse message={message}>{contentElement}</LongTextCollapse>
+      );
+    }
+    return contentElement;
+  }, [message, contentElement]);
 
   const handleMouseUp = useCallback(() => {
     // Small delay to let browser finalize selection
@@ -409,7 +442,7 @@ export function MessageContent({ content, className }: MessageContentProps) {
 
   return (
     <div ref={wrapperRef} onMouseUp={handleMouseUp}>
-      {contentElement}
+      {wrappedElement}
       {selectionState && (
         <SelectionCopyPopup
           anchorRect={selectionState.rect}
