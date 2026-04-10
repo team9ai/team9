@@ -167,7 +167,7 @@ describe("ToolCallBlock", () => {
       ).toBeInTheDocument();
     });
 
-    it("truncates long params with '(N words more)' hint", () => {
+    it("truncates long params with '(N more)' hint", () => {
       const longMessage = "a".repeat(100);
       render(
         <ToolCallBlock
@@ -180,9 +180,9 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      // truncate limit for message is 50 → "aaaa...aaa...(50 words more)"
+      // truncate limit for message is 50 → "aaaa...aaa...(50 more)"
       expect(screen.getByText(/channelName="general"/)).toBeInTheDocument();
-      expect(screen.getByText(/\(50 words more\)/)).toBeInTheDocument();
+      expect(screen.getByText(/\(50 more\)/)).toBeInTheDocument();
     });
 
     it("falls back to JSON representation for unknown tools", () => {

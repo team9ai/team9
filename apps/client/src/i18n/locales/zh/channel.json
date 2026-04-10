@@ -134,8 +134,8 @@
       }
     },
     "thinking": {
-      "label": "Thinking",
-      "labelWithStats": "Thinking ({{stats}})",
+      "label": "正在思考",
+      "labelWithStats": "正在思考（{{stats}}）",
       "tokens_one": "{{count}} token",
       "tokens_other": "{{count}} tokens",
       "seconds": "{{count}} 秒",
