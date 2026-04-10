@@ -65,6 +65,34 @@ describe("loadLanguage", () => {
     expect(i18n.addResourceBundle).not.toHaveBeenCalled();
   });
 
+  it("should reset isLoading to false if a loader rejects", async () => {
+    const { loadLanguage, useLanguageLoading } = await importModule();
+
+    // Spy on addResourceBundle to throw on the first call, simulating a
+    // loader whose dynamic import resolves but whose content triggers an
+    // error during bundle registration. However, we need the *loader*
+    // itself to reject. The real loaders come from import.meta.glob and
+    // resolve to actual JSON files. For zh-CN the loaders exist.  We can
+    // make addResourceBundle throw synchronously inside the loader's
+    // `.then` handler — but that still only covers the happy-ish path.
+    //
+    // The most realistic way: make addResourceBundle throw, which
+    // propagates out of the `await loader()` chain and into Promise.all,
+    // exercising the try/finally error branch.
+    (i18n.addResourceBundle as Mock).mockImplementationOnce(() => {
+      throw new Error("bundle registration failed");
+    });
+
+    expect(useLanguageLoading.getState().isLoading).toBe(false);
+
+    await expect(loadLanguage("zh-CN")).rejects.toThrow(
+      "bundle registration failed",
+    );
+
+    // The finally block should have reset isLoading to false
+    expect(useLanguageLoading.getState().isLoading).toBe(false);
+  });
+
   it("should set loading state during async load", async () => {
     const { loadLanguage, useLanguageLoading } = await importModule();
 
