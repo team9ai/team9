@@ -948,6 +948,9 @@ importers:
         specifier: ^3.4.7
         version: 3.4.7
     devDependencies:
+      "@jest/globals":
+        specifier: ^30.0.0
+        version: 30.2.0
       dotenv-cli:
         specifier: ^8.0.0
         version: 8.0.0
