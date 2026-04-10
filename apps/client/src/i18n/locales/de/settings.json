@@ -95,5 +95,12 @@
   "pushPermissionDenied": "Berechtigung in Browser-Einstellungen verweigert",
   "pushPermissionPrompt": "Klicken Sie auf den Schalter zum Aktivieren",
   "pushEnabled": "Aktiviert",
-  "pushUnsupported": "Push-Benachrichtigungen werden in dieser Umgebung nicht unterstützt"
+  "pushUnsupported": "Push-Benachrichtigungen werden in dieser Umgebung nicht unterstützt",
+  "settingsAndMore": "Einstellungen & mehr",
+  "workspace": "Workspace",
+  "invitations": "Einladungen",
+  "members": "Mitglieder",
+  "appearance": "Darstellung",
+  "version": "Version {{version}}",
+  "copyright": "© {{year}} Team9. Alle Rechte vorbehalten."
 }

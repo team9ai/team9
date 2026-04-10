@@ -95,5 +95,12 @@
   "pushPermissionDenied": "ブラウザ設定で通知が拒否されています",
   "pushPermissionPrompt": "トグルをクリックして有効化",
   "pushEnabled": "有効",
-  "pushUnsupported": "この環境ではプッシュ通知がサポートされていません"
+  "pushUnsupported": "この環境ではプッシュ通知がサポートされていません",
+  "settingsAndMore": "設定とその他",
+  "workspace": "ワークスペース",
+  "invitations": "招待",
+  "members": "メンバー",
+  "appearance": "外観",
+  "version": "バージョン {{version}}",
+  "copyright": "© {{year}} Team9. All rights reserved."
 }
