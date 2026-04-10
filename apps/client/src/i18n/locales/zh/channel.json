@@ -161,6 +161,10 @@
     "round": {
       "collapseSummary_other": "... 查看执行过程（{{count}} 步）",
       "expandAriaLabel_other": "Expand execution process ({{count}} steps)"
+    },
+    "card": {
+      "moreDetails_other": "查看 {{count}} 项详细信息 ›",
+      "loading": "加载中..."
     }
   }
 }
