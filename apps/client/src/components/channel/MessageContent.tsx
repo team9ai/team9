@@ -9,7 +9,7 @@ import {
   type ComponentPropsWithoutRef,
 } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useFullContent } from "@/hooks/useMessages";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import linkifyHtml from "linkify-html";
@@ -373,17 +373,18 @@ export function MessageContent({
   className,
   message,
 }: MessageContentProps) {
-  const queryClient = useQueryClient();
-
-  // For long_text messages, check if full content has been fetched and cached
-  const fullContentData =
-    message?.type === "long_text"
-      ? queryClient.getQueryData<{ content: string }>([
-          "message-full-content",
-          message.id,
-        ])
-      : undefined;
-  const displayContent = fullContentData?.content ?? content;
+  // For long_text messages, reactively subscribe to the full-content cache.
+  // enabled: false means this hook never initiates a fetch — LongTextCollapse
+  // handles that. But it does subscribe to cache updates, so when the full
+  // content arrives, this component re-renders with the complete text.
+  const { data: fullContentData } = useFullContent(
+    message?.id ?? "",
+    false, // never fetch from here — LongTextCollapse controls fetching
+  );
+  const displayContent =
+    message?.type === "long_text" && fullContentData?.content
+      ? fullContentData.content
+      : content;
 
   const isHtml = HTML_TAG_PATTERN.test(displayContent);
   const wrapperRef = useRef<HTMLDivElement>(null);
