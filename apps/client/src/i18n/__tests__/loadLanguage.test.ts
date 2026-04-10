@@ -60,8 +60,8 @@ describe("loadLanguage", () => {
 
   it("should not call addResourceBundle for a language without locale files", async () => {
     const { loadLanguage } = await importModule();
-    // "de" has no locale files yet
-    await loadLanguage("de");
+    // Use a language code that has no locale files
+    await loadLanguage("pt-BR");
     expect(i18n.addResourceBundle).not.toHaveBeenCalled();
   });
 
