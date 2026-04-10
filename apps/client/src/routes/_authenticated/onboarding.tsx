@@ -15,6 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { queryClient } from "@/lib/query-client";
+import { usePostHogAnalytics } from "@/analytics/posthog/hooks";
 import { openExternalUrl } from "@/lib/open-external-url";
 import { getErrorMessage } from "@/services/http";
 import {
@@ -126,6 +127,7 @@ function OnboardingRoute() {
   const createInvitation = useCreateInvitation(workspaceId);
   const checkout = useCreateWorkspaceBillingCheckout(workspaceId);
   const completeOnboarding = useCompleteWorkspaceOnboarding(workspaceId);
+  const { capture } = usePostHogAnalytics();
 
   const [currentStep, setCurrentStep] = useState(1);
   const [roleState, setRoleState] = useState<OnboardingRoleSelection>({
@@ -714,6 +716,9 @@ function OnboardingRoute() {
       try {
         await persistProgress({ nextStep: 6, status: "completed" });
         const result = await completeOnboarding.mutateAsync({ lang: language });
+        capture("onboarding_completed", {
+          workspace_id: workspaceId,
+        });
         queryClient.setQueryData(["workspace-onboarding", workspaceId], result);
 
         if (result.status === "failed") {
@@ -731,6 +736,10 @@ function OnboardingRoute() {
 
     const nextStep = currentStep + 1;
     await persistProgress({ nextStep });
+    capture("onboarding_step_completed", {
+      step: currentStep,
+      workspace_id: workspaceId,
+    });
     setCurrentStep(nextStep);
   };
 
