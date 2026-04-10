@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 import {
+  closeUnclosedTags,
   countLogicalLines,
   determineMessageType,
   truncateContent,
@@ -89,6 +90,21 @@ describe('countLogicalLines', () => {
     const html = '<pre></pre>';
     // pre content is empty: 0 newlines + 1 = 1
     expect(countLogicalLines(html)).toBe(1);
+  });
+
+  it('does not double-count <p> tags inside <pre> blocks', () => {
+    // <pre> contains <p> tags — they should only be counted as \n lines, not as <p> lines
+    const html = '<p>intro</p><pre><p>code paragraph</p>\nline2</pre>';
+    // Outside pre: 1 <p> = 1
+    // Inside pre: 1 \n + 1 = 2
+    // Total = 3 (NOT 4 — the <p> inside <pre> must not be counted twice)
+    expect(countLogicalLines(html)).toBe(3);
+  });
+
+  it('does not double-count <br> tags inside <pre> blocks', () => {
+    const html = '<pre>line1<br>line2\nline3</pre>';
+    // Inside pre: 1 \n + 1 = 2; <br> inside pre should NOT add extra
+    expect(countLogicalLines(html)).toBe(2);
   });
 });
 
@@ -298,5 +314,68 @@ describe('truncateContent', () => {
     expect(result.isTruncated).toBe(false);
     expect(result.content).toBe(content);
     expect(result.fullContentLength).toBe(content.length);
+  });
+
+  it('closes unclosed tags after HTML truncation by line limit', () => {
+    const html = Array.from({ length: 25 }, (_, i) => `<p>line ${i}</p>`).join(
+      '',
+    );
+    const result = truncateContent(html);
+    expect(result.isTruncated).toBe(true);
+    const openCount = (result.content.match(/<p[\s>]/gi) || []).length;
+    const closeCount = (result.content.match(/<\/p>/gi) || []).length;
+    expect(openCount).toBe(closeCount);
+  });
+
+  it('closes deeply nested unclosed tags after char-limit truncation', () => {
+    // 3100 chars inside ensures we exceed the 3000 char limit
+    const longInner = 'x'.repeat(3100);
+    const html = `<div><p><strong>${longInner}</strong></p></div><p>more</p>`;
+    const result = truncateContent(html);
+    expect(result.isTruncated).toBe(true);
+    // The slice cuts mid-nesting; closeUnclosedTags should close all open tags
+    expect(result.content).toMatch(/<\/strong><\/p><\/div>$/);
+  });
+});
+
+describe('closeUnclosedTags', () => {
+  it('returns unchanged HTML when all tags are closed', () => {
+    expect(closeUnclosedTags('<p>hello</p>')).toBe('<p>hello</p>');
+  });
+
+  it('closes a single unclosed tag', () => {
+    expect(closeUnclosedTags('<p>hello')).toBe('<p>hello</p>');
+  });
+
+  it('closes multiple unclosed tags in reverse order', () => {
+    expect(closeUnclosedTags('<div><p>hello')).toBe('<div><p>hello</p></div>');
+  });
+
+  it('ignores self-closing tags', () => {
+    expect(closeUnclosedTags('<p>hello<br/>world')).toBe(
+      '<p>hello<br/>world</p>',
+    );
+  });
+
+  it('ignores void elements like <br>', () => {
+    expect(closeUnclosedTags('<p>hello<br>world')).toBe(
+      '<p>hello<br>world</p>',
+    );
+  });
+
+  it('handles already-closed nested tags', () => {
+    expect(closeUnclosedTags('<div><p>text</p>')).toBe(
+      '<div><p>text</p></div>',
+    );
+  });
+
+  it('returns empty string unchanged', () => {
+    expect(closeUnclosedTags('')).toBe('');
+  });
+
+  it('handles tags with attributes', () => {
+    expect(closeUnclosedTags('<div class="foo"><p id="bar">text')).toBe(
+      '<div class="foo"><p id="bar">text</p></div>',
+    );
   });
 });

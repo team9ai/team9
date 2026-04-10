@@ -10,10 +10,20 @@ export function countLogicalLines(content: string): number {
     return content.split('\n').length;
   }
   let lineCount = 0;
-  const pMatches = content.match(/<p[\s>]/gi);
+
+  // Strip <pre>...</pre> block contents before counting <p> and <br>,
+  // so tags inside <pre> are not double-counted.
+  const strippedContent = content.replace(
+    /<pre[^>]*>[\s\S]*?<\/pre>/gi,
+    '<pre></pre>',
+  );
+
+  const pMatches = strippedContent.match(/<p[\s>]/gi);
   if (pMatches) lineCount += pMatches.length;
-  const brMatches = content.match(/<br\s*\/?>/gi);
+  const brMatches = strippedContent.match(/<br\s*\/?>/gi);
   if (brMatches) lineCount += brMatches.length;
+
+  // Count \n inside original <pre> blocks separately
   const preRegex = /<pre[^>]*>([\s\S]*?)<\/pre>/gi;
   let match: RegExpExecArray | null;
   while ((match = preRegex.exec(content)) !== null) {
@@ -76,10 +86,14 @@ export function truncateContent(content: string): TruncateResult {
   // Check char limit
   if (content.length > PREVIEW_CHAR_LIMIT) {
     cutPoint = PREVIEW_CHAR_LIMIT;
-    // Try to cut at a tag boundary
-    const lastClose = content.lastIndexOf('>', cutPoint);
-    if (lastClose > cutPoint * 0.5) {
-      cutPoint = lastClose + 1;
+    // Try to cut at a closing-tag boundary (search for last '</')
+    // Using '</' avoids matching '>' inside <pre> code blocks (e.g. `if (a > b)`)
+    const lastCloseTag = content.lastIndexOf('</', cutPoint);
+    if (lastCloseTag > cutPoint * 0.5) {
+      const closeEnd = content.indexOf('>', lastCloseTag);
+      if (closeEnd !== -1 && closeEnd <= cutPoint + 50) {
+        cutPoint = closeEnd + 1;
+      }
     }
   }
 
@@ -110,10 +124,66 @@ export function truncateContent(content: string): TruncateResult {
   }
 
   return {
-    content: content.slice(0, cutPoint),
+    content: closeUnclosedTags(content.slice(0, cutPoint)),
     isTruncated: true,
     fullContentLength,
   };
+}
+
+/** Self-closing / void HTML elements that never need a closing tag. */
+const VOID_ELEMENTS = new Set([
+  'br',
+  'hr',
+  'img',
+  'input',
+  'meta',
+  'link',
+  'area',
+  'base',
+  'col',
+  'embed',
+  'source',
+  'track',
+  'wbr',
+]);
+
+/**
+ * Close any unclosed HTML tags in a truncated HTML string.
+ * Scans for open/close tags, maintains a stack, and appends
+ * closing tags in reverse order.
+ */
+export function closeUnclosedTags(html: string): string {
+  const tagRegex = /<\/?([a-zA-Z][a-zA-Z0-9]*)\b[^>]*\/?>/g;
+  const stack: string[] = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = tagRegex.exec(html)) !== null) {
+    const fullMatch = match[0];
+    const tagName = match[1].toLowerCase();
+
+    // Skip self-closing tags (e.g. <br/>, <img ... />) and void elements
+    if (fullMatch.endsWith('/>') || VOID_ELEMENTS.has(tagName)) {
+      continue;
+    }
+
+    if (fullMatch.startsWith('</')) {
+      // Closing tag — pop from stack if it matches
+      const lastIdx = stack.lastIndexOf(tagName);
+      if (lastIdx !== -1) {
+        stack.splice(lastIdx, 1);
+      }
+    } else {
+      // Opening tag
+      stack.push(tagName);
+    }
+  }
+
+  // Close remaining open tags in reverse order
+  let result = html;
+  for (let i = stack.length - 1; i >= 0; i--) {
+    result += `</${stack[i]}>`;
+  }
+  return result;
 }
 
 // --- Message type determination ---
