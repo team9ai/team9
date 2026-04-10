@@ -1,0 +1,283 @@
+{
+  "tabs": {
+    "all": "すべて",
+    "active": "進行中",
+    "upcoming": "予定",
+    "finished": "完了",
+    "info": "情報",
+    "triggers": "トリガー",
+    "document": "ドキュメント",
+    "runs": "実行履歴",
+    "run": "実行",
+    "settings": "設定",
+    "history": "履歴"
+  },
+  "noRoutines": "ルーティンはありません",
+  "create": {
+    "title": "新規ルーティン",
+    "description": "AI スタッフに実行させるルーティンを作成します。",
+    "taskName": "タイトル",
+    "taskNamePlaceholder": "何をしますか？",
+    "bot": "AI スタッフ",
+    "botPlaceholder": "AI スタッフを選択...",
+    "noBot": "なし（後で割り当て）",
+    "document": "ドキュメント（任意）",
+    "documentPlaceholder": "コンテキストや手順を入力...",
+    "cancel": "キャンセル",
+    "submit": "作成",
+    "errorGeneric": "ルーティンの作成に失敗しました"
+  },
+  "status": {
+    "in_progress": "進行中",
+    "upcoming": "予定",
+    "paused": "一時停止",
+    "pending_action": "対応待ち",
+    "completed": "完了",
+    "failed": "失敗",
+    "stopped": "停止",
+    "timeout": "タイムアウト"
+  },
+  "stepStatus": {
+    "pending": "待機中",
+    "in_progress": "実行中",
+    "completed": "完了",
+    "failed": "失敗"
+  },
+  "schedule": {
+    "type": "スケジュール",
+    "types": {
+      "once": "1回のみ",
+      "recurring": "繰り返し"
+    },
+    "frequency": "頻度",
+    "frequencies": {
+      "daily": "毎日",
+      "weekly": "毎週",
+      "monthly": "毎月"
+    },
+    "time": "時間",
+    "dayOfWeek": "曜日",
+    "dayOfMonth": "日",
+    "days": {
+      "0": "日",
+      "1": "月",
+      "2": "火",
+      "3": "水",
+      "4": "木",
+      "5": "金",
+      "6": "土"
+    }
+  },
+  "detail": {
+    "title": "ルーティン詳細",
+    "loadError": "ルーティン詳細の読み込みに失敗しました",
+    "start": "開始",
+    "pause": "一時停止",
+    "resume": "再開",
+    "stop": "停止",
+    "restart": "再起動",
+    "delete": "削除",
+    "deleteConfirm": "このルーティンを削除しますか？",
+    "assignBot": "AI スタッフ",
+    "noBot": "未割り当て",
+    "steps": "ステップ",
+    "noSteps": "ステップはまだありません",
+    "deliverables": "成果物",
+    "noDeliverables": "成果物はまだありません",
+    "pendingInterventions": "対応が必要",
+    "pastInterventions": "過去の介入",
+    "interventionResolved": "解決済み",
+    "interventionExpired": "期限切れ",
+    "interventionPlaceholder": "カスタム回答を入力...",
+    "messageInputPlaceholder": "このルーティンにメッセージを送信...",
+    "finishedBanner": {
+      "completed": "ルーティンが正常に完了しました",
+      "failed": "ルーティンが失敗しました",
+      "timeout": "ルーティンがタイムアウトしました",
+      "stopped": "ルーティンが停止されました",
+      "in_progress": "",
+      "upcoming": "",
+      "paused": "",
+      "pending_action": ""
+    },
+    "completedAt": "完了：{{time}}",
+    "duration": "所要時間：{{duration}}",
+    "tokenUsage": "{{tokens}} トークン使用",
+    "tokenCount": "{{count}} トークン",
+    "error": "エラー",
+    "errorWithCode": "エラー（{{code}}）",
+    "document": {
+      "save": "保存",
+      "saving": "保存中...",
+      "unsavedChanges": "未保存の変更があります",
+      "viewingVersion": "バージョン {{version}} を表示中",
+      "backToCurrent": "現在のバージョンに戻る",
+      "currentLabel": "バージョン {{version}}（現在）",
+      "versionLabel": "バージョン {{version}} — {{time}}",
+      "discardTitle": "未保存の変更",
+      "discardMessage": "未保存の変更があります。破棄しますか？",
+      "discardConfirm": "破棄",
+      "discardCancel": "編集を続ける",
+      "saveSummaryPlaceholder": "変更内容を記述（任意）...",
+      "placeholder": "入力を開始...",
+      "createPlaceholder": "入力してドキュメントを作成...",
+      "suggestions": {
+        "title": "AI の提案",
+        "count": "AI の提案（{{count}}）",
+        "view": "表示",
+        "approve": "承認",
+        "reject": "却下",
+        "current": "現在の内容",
+        "suggested": "提案内容",
+        "outdated": "この提案は古いバージョンに基づいています",
+        "empty": "保留中の提案はありません"
+      },
+      "versionHistory": {
+        "loadError": "バージョンの読み込みに失敗しました",
+        "noVersions": "バージョンはまだありません"
+      }
+    }
+  },
+  "triggers": {
+    "title": "トリガー",
+    "add": "トリガーを追加",
+    "empty": "トリガーは設定されていません",
+    "edit": "編集",
+    "delete": "削除",
+    "types": {
+      "manual": "手動",
+      "interval": "インターバル",
+      "schedule": "スケジュール",
+      "channel_message": "チャンネルメッセージ"
+    },
+    "enabled": "有効",
+    "disabled": "無効",
+    "nextRun": "次回実行：{{time}}",
+    "countdown": "{{duration}}後",
+    "lastRun": "前回実行：{{time}}",
+    "interval": {
+      "every": "毎",
+      "units": {
+        "minutes": "分",
+        "hours": "時間",
+        "days": "日",
+        "weeks": "週",
+        "months": "ヶ月",
+        "years": "年"
+      }
+    },
+    "schedule": {
+      "frequencies": {
+        "daily": "毎日",
+        "weekly": "毎週",
+        "monthly": "毎月",
+        "yearly": "毎年",
+        "weekdays": "平日"
+      },
+      "time": "時間",
+      "timezone": "タイムゾーン",
+      "dayOfWeek": "曜日",
+      "dayOfMonth": "日"
+    },
+    "channelMessage": {
+      "channel": "チャンネル",
+      "selectChannel": "チャンネルを選択..."
+    },
+    "deleteConfirm": "このトリガーを削除しますか？",
+    "addTitle": "トリガーを追加",
+    "selectType": "トリガータイプを選択",
+    "configureTitle": "{{type}}を設定",
+    "back": "戻る",
+    "create": "作成",
+    "manualNoConfig": "手動トリガーは設定不要です。作成後、いつでも手動で実行できます。",
+    "typeDesc": {
+      "manual": "オンデマンドで実行",
+      "interval": "固定間隔で実行",
+      "schedule": "スケジュールに沿って実行",
+      "channel_message": "メッセージ受信時に実行"
+    }
+  },
+  "runs": {
+    "title": "実行履歴",
+    "empty": "実行履歴はまだありません",
+    "version": "v{{version}}",
+    "triggerType": {
+      "manual": "手動",
+      "interval": "インターバル",
+      "schedule": "スケジュール",
+      "channel_message": "メッセージ",
+      "retry": "リトライ"
+    },
+    "notes": "メモ",
+    "retry": "リトライ",
+    "retryTitle": "実行をリトライ",
+    "retryNotes": "リトライのメモを追加（任意）",
+    "back": "実行一覧に戻る",
+    "documentVersion": "ドキュメント v{{version}}",
+    "triggeredAt": "トリガー時刻：{{time}}",
+    "scheduledAt": "スケジュール時刻：{{time}}",
+    "triggeredBy": "トリガー者：{{user}}",
+    "messageFrom": "{{user}} からのメッセージ",
+    "retryOf": "v{{version}} のリトライ"
+  },
+  "timeline": {
+    "empty": "アクティビティはまだありません",
+    "statusChange": {
+      "started": "ルーティンが開始されました",
+      "completed": "ルーティンが完了しました",
+      "failed": "ルーティンが失敗しました",
+      "stopped": "ルーティンが停止されました",
+      "timeout": "ルーティンがタイムアウトしました",
+      "paused": "ルーティンが一時停止されました"
+    }
+  },
+  "chat": {
+    "placeholder": "ルーティンを開始するとボットとチャットできます"
+  },
+  "manualTrigger": {
+    "title": "ルーティンを開始",
+    "notesPlaceholder": "今回の実行に関するメモやコンテキストを追加（任意）..."
+  },
+  "chatArea": {
+    "viewingHistory": "過去の実行を表示中",
+    "returnToCurrent": "現在の実行に戻る",
+    "lastRunCompleted": "前回の実行が完了しました",
+    "lastRunFailed": "前回の実行が失敗しました",
+    "lastRunStopped": "前回の実行が停止されました",
+    "lastRunTimeout": "前回の実行がタイムアウトしました",
+    "rerun": "再実行",
+    "readOnly": "過去の会話（読み取り専用）",
+    "finishedReadOnly": "前回の実行の会話（読み取り専用）",
+    "start": "開始",
+    "noRunsYet": "まだ実行履歴がありません。最初の実行を始めましょう！",
+    "pause": "一時停止",
+    "resume": "再開",
+    "stop": "停止"
+  },
+  "runTab": {
+    "title": "実行詳細",
+    "status": "ステータス",
+    "duration": "所要時間",
+    "triggerType": "トリガー",
+    "taskVersion": "ルーティンバージョン",
+    "tokenUsage": "トークン使用量",
+    "timeline": "タイムライン",
+    "noExecution": "実行が選択されていません"
+  },
+  "settingsTab": {
+    "title": "設定",
+    "taskTitle": "タイトル",
+    "taskDescription": "説明",
+    "deleteConfirm": "このルーティンを削除しますか？この操作は取り消せません。"
+  },
+  "historyTab": {
+    "title": "履歴",
+    "current": "現在",
+    "empty": "実行履歴はまだありません",
+    "manual": "手動",
+    "interval": "インターバル",
+    "schedule": "スケジュール",
+    "channelMessage": "チャンネルメッセージ",
+    "retry": "リトライ"
+  }
+}

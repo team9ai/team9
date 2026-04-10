@@ -1,0 +1,127 @@
+{
+  "eyebrow": "Configuración del espacio de trabajo",
+  "workspaceBadge": "Configuración inicial de {{name}}",
+  "stepLabel": "Paso {{current}} / {{total}}",
+  "workspaceFallback": "Su nuevo espacio de trabajo",
+  "welcome": "Permita que Team9 configure la primera versión de su espacio de trabajo según su forma de trabajar.",
+  "actions": {
+    "back": "Atrás",
+    "continue": "Continuar",
+    "next": "Siguiente",
+    "regenerate": "Regenerar",
+    "retry": "Reintentar",
+    "edit": "Editar",
+    "copy": "Copiar enlace",
+    "copied": "Copiado",
+    "startCheckout": "Suscribirse",
+    "continueWithoutPlan": "Continuar sin suscripción",
+    "finish": "Entrar al espacio de trabajo",
+    "retryProvision": "Reintentar configuración",
+    "creating": "Creando…"
+  },
+  "steps": {
+    "1": {
+      "title": "Cuéntenos qué tipo de trabajo hace",
+      "description": "Escriba una oración sobre su rol, o comience desde el rol predefinido más cercano."
+    },
+    "2": {
+      "title": "Elija la tarea que le parezca más real",
+      "description": "Le sugeriremos algunos flujos de trabajo recurrentes que vale la pena automatizar primero."
+    },
+    "3": {
+      "title": "Preparemos algunos canales para usted",
+      "description": "Estos canales se generan a partir del flujo natural de su trabajo."
+    },
+    "4": {
+      "title": "Confirme la configuración de su agente",
+      "description": "Su agente principal está fijado como Personal Staff, con algunos ayudantes especializados debajo."
+    },
+    "5": {
+      "title": "Invite a su equipo a colaborar",
+      "description": "Comparta un enlace de invitación y traiga a todos al mismo espacio de trabajo."
+    },
+    "6": {
+      "title": "Elija un plan para este espacio de trabajo",
+      "description": "Puede suscribirse ahora, o continuar al espacio de trabajo y configurar la facturación después."
+    }
+  },
+  "role": {
+    "inputLabel": "Describa su trabajo",
+    "inputPlaceholder": "Por ejemplo: Me encargo del seguimiento de ventas B2B SaaS, propuestas y revisión de negocios.",
+    "customHint": "También puede usar solo texto libre y omitir los roles predefinidos.",
+    "or": "O",
+    "featured": "Recomendado",
+    "suggestions": "Sugerencias de roles"
+  },
+  "tasks": {
+    "customLabel": "O agregue el flujo de trabajo que más desea automatizar",
+    "customDivider": "Escriba el suyo",
+    "customPlaceholder": "Por ejemplo: resumir las notas de seguimiento diario de clientes y sugerir el siguiente paso.",
+    "empty": "Sin sugerencias de tareas aún.",
+    "loadingTitle": "Generando opciones de tareas",
+    "loading": "Generando sugerencias de tareas adaptadas a su trabajo…"
+  },
+  "channels": {
+    "renameHint": "Puede renombrar cualquier canal directamente",
+    "previewTitle": "Vista previa del canal",
+    "placeholder": "#nuevo-canal",
+    "loadingTitle": "Preparando sus canales iniciales",
+    "loading": "Generando la estructura de canales inicial…",
+    "sidebarTitle": "Espacio de trabajo",
+    "activeThread": "Enfoque de hoy",
+    "previewAuthorA": "Personal Staff",
+    "previewAuthorB": "Borrador del sistema",
+    "previewNow": "ahora mismo",
+    "previewToday": "hoy",
+    "previewLine1": "Aquí es donde la colaboración específica del rol comenzará a tomar forma.",
+    "previewLine2": "Cuando termine la configuración, estos canales y agentes se aprovisionarán en el espacio de trabajo real.",
+    "previewPurpose": "Este canal es donde {{topic}} se mantiene visible y fácil de gestionar.",
+    "previewInsight": "{{role}} puede usar este espacio para mantener {{task}} en movimiento sin perder contexto.",
+    "previewThread": "Una vez completada la configuración, los seguimientos de {{task}} se mantendrán dentro de {{topic}}.",
+    "previewChecklistPrimary": "Flujo de trabajo principal: {{task}}",
+    "previewChecklistSecondary": "Hilo secundario: {{task}}",
+    "previewChecklistOwner": "Responsable predeterminado: {{role}}"
+  },
+  "agents": {
+    "mainAgent": "Agente principal",
+    "childAgents": "Agentes de apoyo",
+    "mainDescriptionLabel": "Descripción del agente principal",
+    "mainDescriptionPlaceholder": "Describa cómo debe apoyarle su Personal Staff.",
+    "loadingTitle": "Preparando su equipo de agentes",
+    "empty": "No hay configuración de agente disponible aún. Vuelva atrás e intente de nuevo.",
+    "loading": "Generando su equipo de agentes…"
+  },
+  "invite": {
+    "title": "Enlace de invitación",
+    "hint": "Este enlace invita a colaboradores al espacio de trabajo actual como miembros por defecto.",
+    "loading": "Preparando su enlace de invitación…"
+  },
+  "plan": {
+    "current": "Plan actual",
+    "success": "Pago completado. Puede continuar ahora.",
+    "cancel": "Pago cancelado. Puede intentarlo de nuevo en cualquier momento.",
+    "loadingTitle": "Cargando planes del espacio de trabajo",
+    "note": "Puede suscribirse ahora, o entrar al espacio de trabajo primero y agregar la facturación después.",
+    "empty": "No hay planes de suscripción disponibles en este momento.",
+    "perMonth": "/mes",
+    "priceHint": "Aproximadamente {{amount}} en valor de uso real",
+    "credits": "{{count}} créditos"
+  },
+  "status": {
+    "provisioningTitle": "Configurando su espacio de trabajo",
+    "provisioningDescription": "Estamos creando canales, configurando agentes y guardando sus preferencias.",
+    "failedTitle": "La configuración no se completó",
+    "failedDescription": "El aprovisionamiento falló a mitad de camino. Puede reintentar sin perder las preferencias ya guardadas."
+  },
+  "errors": {
+    "loadFailed": "No se puede cargar el estado de configuración.",
+    "saveFailed": "No se puede guardar el progreso de configuración.",
+    "roleRequired": "Agregue una descripción del rol o elija un rol predefinido primero.",
+    "taskRequired": "Seleccione al menos una tarea o agregue una tarea personalizada.",
+    "channelRequired": "Mantenga al menos un borrador de canal.",
+    "workspaceRequired": "No hay un espacio de trabajo disponible en este momento.",
+    "checkoutFailed": "No se puede iniciar el pago en este momento.",
+    "copyFailed": "No se puede copiar el enlace de invitación.",
+    "provisionFailed": "La configuración del espacio de trabajo falló. Intente de nuevo."
+  }
+}

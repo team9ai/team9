@@ -1,0 +1,278 @@
+{
+  "tabs": {
+    "all": "Tout",
+    "active": "En cours",
+    "upcoming": "À venir",
+    "finished": "Terminées",
+    "info": "Info",
+    "triggers": "Déclencheurs",
+    "document": "Document",
+    "runs": "Exécutions",
+    "run": "Exécution",
+    "settings": "Paramètres",
+    "history": "Historique"
+  },
+  "noRoutines": "Aucune routine",
+  "create": {
+    "title": "Nouvelle routine",
+    "description": "Créez une routine à faire exécuter par un membre du personnel IA.",
+    "taskName": "Titre",
+    "taskNamePlaceholder": "Que faut-il faire ?",
+    "bot": "Personnel IA",
+    "botPlaceholder": "Sélectionner le personnel IA...",
+    "noBot": "Aucun (assigner plus tard)",
+    "document": "Document (facultatif)",
+    "documentPlaceholder": "Fournissez du contexte ou des instructions...",
+    "cancel": "Annuler",
+    "submit": "Créer",
+    "errorGeneric": "Échec de la création de la routine"
+  },
+  "status": {
+    "in_progress": "En cours",
+    "upcoming": "À venir",
+    "paused": "En pause",
+    "pending_action": "Action requise",
+    "completed": "Terminé",
+    "failed": "Échoué",
+    "stopped": "Arrêté",
+    "timeout": "Expiré"
+  },
+  "stepStatus": {
+    "pending": "En attente",
+    "in_progress": "En cours",
+    "completed": "Terminé",
+    "failed": "Échoué"
+  },
+  "schedule": {
+    "type": "Planification",
+    "types": { "once": "Une fois", "recurring": "Récurrent" },
+    "frequency": "Fréquence",
+    "frequencies": {
+      "daily": "Quotidien",
+      "weekly": "Hebdomadaire",
+      "monthly": "Mensuel"
+    },
+    "time": "Heure",
+    "dayOfWeek": "Jour de la semaine",
+    "dayOfMonth": "Jour du mois",
+    "days": {
+      "0": "Dim",
+      "1": "Lun",
+      "2": "Mar",
+      "3": "Mer",
+      "4": "Jeu",
+      "5": "Ven",
+      "6": "Sam"
+    }
+  },
+  "detail": {
+    "title": "Détails de la routine",
+    "loadError": "Échec du chargement des détails de la routine",
+    "start": "Démarrer",
+    "pause": "Pause",
+    "resume": "Reprendre",
+    "stop": "Arrêter",
+    "restart": "Redémarrer",
+    "delete": "Supprimer",
+    "deleteConfirm": "Êtes-vous sûr de vouloir supprimer cette routine ?",
+    "assignBot": "Personnel IA",
+    "noBot": "Non assigné",
+    "steps": "Étapes",
+    "noSteps": "Aucune étape pour le moment",
+    "deliverables": "Livrables",
+    "noDeliverables": "Aucun livrable pour le moment",
+    "pendingInterventions": "Action requise",
+    "pastInterventions": "Interventions passées",
+    "interventionResolved": "Résolu",
+    "interventionExpired": "Expiré",
+    "interventionPlaceholder": "Saisissez une réponse personnalisée...",
+    "messageInputPlaceholder": "Envoyer un message à cette routine...",
+    "finishedBanner": {
+      "completed": "Routine terminée avec succès",
+      "failed": "La routine a échoué",
+      "timeout": "La routine a expiré",
+      "stopped": "La routine a été arrêtée",
+      "in_progress": "",
+      "upcoming": "",
+      "paused": "",
+      "pending_action": ""
+    },
+    "completedAt": "Terminé à {{time}}",
+    "duration": "Durée : {{duration}}",
+    "tokenUsage": "{{tokens}} tokens utilisés",
+    "tokenCount": "{{count}} tokens",
+    "error": "Erreur",
+    "errorWithCode": "Erreur ({{code}})",
+    "document": {
+      "save": "Enregistrer",
+      "saving": "Enregistrement...",
+      "unsavedChanges": "Modifications non enregistrées",
+      "viewingVersion": "Affichage de la version {{version}}",
+      "backToCurrent": "Retour à la version actuelle",
+      "currentLabel": "Version {{version}} (actuelle)",
+      "versionLabel": "Version {{version}} — {{time}}",
+      "discardTitle": "Modifications non enregistrées",
+      "discardMessage": "Vous avez des modifications non enregistrées. Les supprimer ?",
+      "discardConfirm": "Supprimer",
+      "discardCancel": "Continuer à modifier",
+      "saveSummaryPlaceholder": "Décrivez vos modifications (facultatif)...",
+      "placeholder": "Commencez à écrire...",
+      "createPlaceholder": "Commencez à écrire pour créer un document...",
+      "suggestions": {
+        "title": "Suggestions IA",
+        "count": "Suggestions IA ({{count}})",
+        "view": "Voir",
+        "approve": "Approuver",
+        "reject": "Rejeter",
+        "current": "Actuel",
+        "suggested": "Suggéré",
+        "outdated": "Cette suggestion est basée sur une version antérieure",
+        "empty": "Aucune suggestion en attente"
+      },
+      "versionHistory": {
+        "loadError": "Échec du chargement des versions",
+        "noVersions": "Aucune version pour le moment"
+      }
+    }
+  },
+  "triggers": {
+    "title": "Déclencheurs",
+    "add": "Ajouter un déclencheur",
+    "empty": "Aucun déclencheur configuré",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "types": {
+      "manual": "Manuel",
+      "interval": "Intervalle",
+      "schedule": "Planifié",
+      "channel_message": "Message de canal"
+    },
+    "enabled": "Activé",
+    "disabled": "Désactivé",
+    "nextRun": "Prochaine exécution : {{time}}",
+    "countdown": "dans {{duration}}",
+    "lastRun": "Dernière exécution : {{time}}",
+    "interval": {
+      "every": "Toutes les",
+      "units": {
+        "minutes": "minutes",
+        "hours": "heures",
+        "days": "jours",
+        "weeks": "semaines",
+        "months": "mois",
+        "years": "années"
+      }
+    },
+    "schedule": {
+      "frequencies": {
+        "daily": "Quotidien",
+        "weekly": "Hebdomadaire",
+        "monthly": "Mensuel",
+        "yearly": "Annuel",
+        "weekdays": "Jours ouvrés"
+      },
+      "time": "Heure",
+      "timezone": "Fuseau horaire",
+      "dayOfWeek": "Jour",
+      "dayOfMonth": "Jour du mois"
+    },
+    "channelMessage": {
+      "channel": "Canal",
+      "selectChannel": "Sélectionner un canal..."
+    },
+    "deleteConfirm": "Supprimer ce déclencheur ?",
+    "addTitle": "Ajouter un déclencheur",
+    "selectType": "Sélectionner le type de déclencheur",
+    "configureTitle": "Configurer {{type}}",
+    "back": "Retour",
+    "create": "Créer",
+    "manualNoConfig": "Les déclencheurs manuels n'ont pas besoin de configuration. Créez et déclenchez manuellement.",
+    "typeDesc": {
+      "manual": "Déclencher à la demande",
+      "interval": "Exécuter à intervalles fixes",
+      "schedule": "Exécuter selon un planning",
+      "channel_message": "Exécuter quand un message est envoyé"
+    }
+  },
+  "runs": {
+    "title": "Exécutions",
+    "empty": "Aucune exécution pour le moment",
+    "version": "v{{version}}",
+    "triggerType": {
+      "manual": "Manuel",
+      "interval": "Intervalle",
+      "schedule": "Planifié",
+      "channel_message": "Message",
+      "retry": "Nouvelle tentative"
+    },
+    "notes": "Notes",
+    "retry": "Réessayer",
+    "retryTitle": "Réessayer l'exécution",
+    "retryNotes": "Ajouter des notes pour la nouvelle tentative (facultatif)",
+    "back": "Retour aux exécutions",
+    "documentVersion": "Document v{{version}}",
+    "triggeredAt": "Déclenché à {{time}}",
+    "scheduledAt": "Planifié pour {{time}}",
+    "triggeredBy": "Déclenché par {{user}}",
+    "messageFrom": "Message de {{user}}",
+    "retryOf": "Nouvelle tentative de v{{version}}"
+  },
+  "timeline": {
+    "empty": "Aucune activité pour le moment",
+    "statusChange": {
+      "started": "Routine démarrée",
+      "completed": "Routine terminée",
+      "failed": "Routine échouée",
+      "stopped": "Routine arrêtée",
+      "timeout": "Routine expirée",
+      "paused": "Routine en pause"
+    }
+  },
+  "chat": { "placeholder": "Démarrez la routine pour discuter avec le bot" },
+  "manualTrigger": {
+    "title": "Démarrer la routine",
+    "notesPlaceholder": "Ajoutez des notes ou du contexte pour cette exécution (facultatif)..."
+  },
+  "chatArea": {
+    "viewingHistory": "Affichage de l'exécution historique",
+    "returnToCurrent": "Retour à l'exécution actuelle",
+    "lastRunCompleted": "Dernière exécution terminée",
+    "lastRunFailed": "Dernière exécution échouée",
+    "lastRunStopped": "Dernière exécution arrêtée",
+    "lastRunTimeout": "Dernière exécution expirée",
+    "rerun": "Réexécuter",
+    "readOnly": "Conversation historique (lecture seule)",
+    "finishedReadOnly": "Conversation de la dernière exécution (lecture seule)",
+    "start": "Démarrer",
+    "noRunsYet": "Aucune exécution pour le moment. Lancez votre première exécution !",
+    "pause": "Pause",
+    "resume": "Reprendre",
+    "stop": "Arrêter"
+  },
+  "runTab": {
+    "title": "Détails de l'exécution",
+    "status": "Statut",
+    "duration": "Durée",
+    "triggerType": "Déclencheur",
+    "taskVersion": "Version de la routine",
+    "tokenUsage": "Utilisation des tokens",
+    "timeline": "Chronologie",
+    "noExecution": "Aucune exécution sélectionnée"
+  },
+  "settingsTab": {
+    "title": "Paramètres",
+    "taskTitle": "Titre",
+    "taskDescription": "Description",
+    "deleteConfirm": "Êtes-vous sûr de vouloir supprimer cette routine ? Cette action est irréversible."
+  },
+  "historyTab": {
+    "title": "Historique",
+    "current": "Actuel",
+    "empty": "Aucune exécution pour le moment",
+    "manual": "Manuel",
+    "interval": "Intervalle",
+    "schedule": "Planifié",
+    "channelMessage": "Message de canal",
+    "retry": "Nouvelle tentative"
+  }
+}

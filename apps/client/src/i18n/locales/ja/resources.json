@@ -1,0 +1,92 @@
+{
+  "title": "リソース",
+  "tabs": {
+    "all": "すべて",
+    "agent_computer": "Agent コンピュータ",
+    "api": "API"
+  },
+  "noResources": "リソースはまだありません",
+  "status": {
+    "online": "オンライン",
+    "offline": "オフライン",
+    "error": "エラー",
+    "configuring": "設定中"
+  },
+  "type": {
+    "agent_computer": "Agent コンピュータ",
+    "api": "API"
+  },
+  "connectionType": {
+    "ahand": "Ahand",
+    "ssh": "SSH",
+    "cloud": "Cloud"
+  },
+  "create": {
+    "title": "リソースを追加",
+    "selectType": "リソースタイプ",
+    "name": "名前",
+    "namePlaceholder": "リソース名を入力",
+    "description": "説明",
+    "descriptionPlaceholder": "任意の説明",
+    "connectionType": "接続タイプ",
+    "host": "ホスト",
+    "hostPlaceholder": "例：192.168.1.100",
+    "port": "ポート",
+    "provider": "プロバイダー",
+    "providerPlaceholder": "例：openai, google, custom",
+    "apiKey": "API Key",
+    "apiKeyPlaceholder": "API Key を入力",
+    "baseUrl": "Base URL",
+    "baseUrlPlaceholder": "任意のカスタム Base URL",
+    "model": "モデル",
+    "modelPlaceholder": "例：gpt-4, claude-3",
+    "submit": "作成",
+    "cancel": "キャンセル"
+  },
+  "detail": {
+    "title": "リソース詳細",
+    "loadError": "リソースの読み込みに失敗しました",
+    "basicInfo": "基本情報",
+    "authorizations": "認可",
+    "noAuthorizations": "認可はまだありません",
+    "addAuthorization": "追加",
+    "usageLogs": "使用ログ",
+    "noUsageLogs": "使用ログはまだありません",
+    "delete": "削除",
+    "deleteConfirm": "このリソースを削除しますか？",
+    "lastHeartbeat": "最終ハートビート：{{time}}",
+    "authCount": "{{count}} 件の認可",
+    "maskedKey": "{{prefix}}...{{suffix}}",
+    "granteeType": {
+      "user": "ユーザー",
+      "task": "タスク"
+    },
+    "permissionLevel": {
+      "full": "フルアクセス",
+      "readonly": "読み取り専用"
+    }
+  },
+  "auth": {
+    "granteeType": "付与先タイプ",
+    "granteeId": "付与先 ID",
+    "granteeIdPlaceholder": "ユーザーまたはタスク ID を入力",
+    "permissionLevel": "権限レベル",
+    "grant": "アクセスを付与"
+  },
+  "edit": {
+    "save": "保存",
+    "cancel": "キャンセル"
+  },
+  "ahand": {
+    "localDeviceSetup": "ローカルデバイスセットアップ",
+    "connection": "aHand 接続",
+    "browserComponents": "ブラウザコンポーネント",
+    "activation": "アクティベーション"
+  },
+  "actions": {
+    "connect": "接続",
+    "disconnect": "切断",
+    "api_call": "API 呼び出し",
+    "error": "エラー"
+  }
+}

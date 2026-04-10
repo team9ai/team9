@@ -1,0 +1,127 @@
+{
+  "eyebrow": "Workspace Onboarding",
+  "workspaceBadge": "{{name}} 的啟動設定",
+  "stepLabel": "Step {{current}} / {{total}}",
+  "workspaceFallback": "您的新 Workspace",
+  "welcome": "讓 Team9 先依照您的工作方式把第一版空間建立起來。",
+  "actions": {
+    "back": "返回",
+    "continue": "繼續",
+    "next": "下一步",
+    "regenerate": "重新產生",
+    "retry": "重試",
+    "edit": "修改",
+    "copy": "複製連結",
+    "copied": "已複製",
+    "startCheckout": "訂閱",
+    "continueWithoutPlan": "先不訂閱，直接進入",
+    "finish": "進入 Workspace",
+    "retryProvision": "重新建立",
+    "creating": "正在建立…"
+  },
+  "steps": {
+    "1": {
+      "title": "先告訴我們您的工作內容",
+      "description": "用一句話描述您的職位，或先選擇一個最接近的角色。"
+    },
+    "2": {
+      "title": "選一個最貼近實際工作的任務",
+      "description": "我們會依據您的角色，建議幾項最值得自動化的日常工作。"
+    },
+    "3": {
+      "title": "我們先幫您準備一些頻道",
+      "description": "這些頻道會圍繞您的實際業務流程來產生。"
+    },
+    "4": {
+      "title": "確認您的 Agent 組合",
+      "description": "主 Agent 固定為私人秘書，下方是為您準備的協作 Agent。"
+    },
+    "5": {
+      "title": "邀請夥伴一起協作",
+      "description": "分享邀請連結，對方就能加入同一個 Workspace。"
+    },
+    "6": {
+      "title": "為您的 Workspace 選擇方案",
+      "description": "您可以現在訂閱，也可以先進入 Workspace，之後再設定帳務。"
+    }
+  },
+  "role": {
+    "inputLabel": "您的工作內容",
+    "inputPlaceholder": "例如：我負責 B2B SaaS 的銷售跟進、提案和客戶複盤。",
+    "customHint": "也可以只寫自由描述，不選預設角色。",
+    "or": "或者",
+    "featured": "推薦",
+    "suggestions": "角色建議"
+  },
+  "tasks": {
+    "customLabel": "或者補充一個您最想自動化的任務",
+    "customDivider": "自行填寫",
+    "customPlaceholder": "例如：整理每天的客戶跟進記錄並建議下一步行動。",
+    "empty": "尚未產生任務建議。",
+    "loadingTitle": "正在產生任務選項",
+    "loading": "正在產生貼近您工作的任務建議…"
+  },
+  "channels": {
+    "renameHint": "頻道名稱可直接修改",
+    "previewTitle": "頻道預覽",
+    "placeholder": "#新頻道",
+    "loadingTitle": "正在為您準備頻道",
+    "loading": "正在產生頻道結構…",
+    "sidebarTitle": "Workspace",
+    "activeThread": "今日重點",
+    "previewAuthorA": "私人秘書",
+    "previewAuthorB": "系統草稿",
+    "previewNow": "剛剛",
+    "previewToday": "今天",
+    "previewLine1": "這裡會承接與您角色最相關的協作訊息。",
+    "previewLine2": "後續建立完成後，頻道和 Agent 會一起部署到實際 Workspace 中。",
+    "previewPurpose": "這個頻道會把 {{topic}} 相關協作集中起來，方便持續推進。",
+    "previewInsight": "{{role}} 可以在這裡持續跟進「{{task}}」，避免上下文分散。",
+    "previewThread": "建立完成後，和「{{task}}」相關的後續討論會沉澱在 {{topic}}，不會散落到別處。",
+    "previewChecklistPrimary": "主要流程：{{task}}",
+    "previewChecklistSecondary": "次要協作：{{task}}",
+    "previewChecklistOwner": "預設負責人：{{role}}"
+  },
+  "agents": {
+    "mainAgent": "主 Agent",
+    "childAgents": "協作 Agent",
+    "mainDescriptionLabel": "主 Agent 說明",
+    "mainDescriptionPlaceholder": "描述您的私人秘書應如何協助您。",
+    "loadingTitle": "正在為您準備 Agent",
+    "empty": "尚未產生可用的 Agent 方案，請返回上一步重試。",
+    "loading": "正在產生 Agent 組合…"
+  },
+  "invite": {
+    "title": "邀請連結",
+    "hint": "此連結會預設以成員身分邀請夥伴加入目前 Workspace。",
+    "loading": "正在準備邀請連結…"
+  },
+  "plan": {
+    "current": "目前方案",
+    "success": "訂閱已完成，可以直接繼續。",
+    "cancel": "您已取消本次訂閱，可以稍後再試。",
+    "loadingTitle": "正在載入訂閱方案",
+    "note": "您可以現在訂閱，也可以先進入 Workspace，之後再設定帳務。",
+    "empty": "目前沒有可訂閱的方案。",
+    "perMonth": "/月",
+    "priceHint": "約等於 {{amount}} 實際額度",
+    "credits": "{{count}} credits"
+  },
+  "status": {
+    "provisioningTitle": "正在佈置您的 Workspace",
+    "provisioningDescription": "我們正在建立頻道、設定 Agent 並寫入偏好設定。",
+    "failedTitle": "設定未全部完成",
+    "failedDescription": "資源建立中途失敗了。您可以直接重試，已儲存的偏好不會遺失。"
+  },
+  "errors": {
+    "loadFailed": "無法載入 onboarding 狀態。",
+    "saveFailed": "儲存 onboarding 進度失敗，請稍後重試。",
+    "roleRequired": "請先填寫您的工作內容或選擇一個角色。",
+    "taskRequired": "請至少選擇一個任務，或補充一個自訂任務。",
+    "channelRequired": "請至少保留一個頻道草稿。",
+    "workspaceRequired": "目前沒有可用的 Workspace。",
+    "checkoutFailed": "無法發起訂閱流程。",
+    "copyFailed": "複製連結失敗。",
+    "provisionFailed": "資源建立失敗，請重試。"
+  }
+}
