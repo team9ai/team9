@@ -1,15 +1,17 @@
+import { useTranslation } from "react-i18next";
 import { ChevronDown, FileText, Image, File } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 
 const fileCategories = [
-  { id: "all-files", label: "All files", icon: FileText },
-  { id: "images", label: "Images", icon: Image },
-  { id: "documents", label: "Documents", icon: File },
-];
+  { id: "all-files", labelKey: "filesAllFiles", icon: FileText },
+  { id: "images", labelKey: "filesImages", icon: Image },
+  { id: "documents", labelKey: "filesDocuments", icon: File },
+] as const;
 
 export function FilesSubSidebar() {
+  const { t } = useTranslation("navigation");
   return (
     <aside className="w-64 h-full overflow-hidden bg-nav-sub-bg text-primary-foreground flex flex-col">
       {/* Header */}
@@ -18,7 +20,7 @@ export function FilesSubSidebar() {
           variant="ghost"
           className="w-full justify-between text-nav-foreground hover:bg-nav-hover px-2 h-auto py-1.5"
         >
-          <span className="font-semibold text-lg">Files</span>
+          <span className="font-semibold text-lg">{t("files")}</span>
           <ChevronDown size={16} className="text-nav-foreground-subtle" />
         </Button>
       </div>
@@ -37,7 +39,7 @@ export function FilesSubSidebar() {
                 className="w-full justify-start gap-2 px-2 h-auto py-2 text-sm text-nav-foreground-muted hover:bg-nav-hover hover:text-nav-foreground"
               >
                 <Icon size={16} />
-                <span className="truncate">{item.label}</span>
+                <span className="truncate">{t(item.labelKey)}</span>
               </Button>
             );
           })}
