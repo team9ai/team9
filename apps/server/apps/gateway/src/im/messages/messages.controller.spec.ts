@@ -70,6 +70,8 @@ describe('MessagesController', () => {
     pinMessage: MockFn;
     addReaction: MockFn;
     removeReaction: MockFn;
+    truncateForPreview: MockFn;
+    getFullContent: MockFn;
   };
   let channelsService: {
     assertReadAccess: MockFn;
@@ -644,6 +646,51 @@ describe('MessagesController', () => {
         USER_ID,
         '👍',
       );
+    });
+  });
+
+  describe('getFullContent', () => {
+    it('returns full content when user is a channel member', async () => {
+      await expect(
+        controller.getFullContent(USER_ID, MESSAGE_ID),
+      ).resolves.toEqual({ content: 'full content' });
+
+      expect(messagesService.getMessageChannelId).toHaveBeenCalledWith(
+        MESSAGE_ID,
+      );
+      expect(channelsService.isMember).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        USER_ID,
+      );
+      expect(messagesService.getFullContent).toHaveBeenCalledWith(MESSAGE_ID);
+    });
+
+    it('throws ForbiddenException when user is not a channel member', async () => {
+      channelsService.isMember.mockResolvedValueOnce(false);
+
+      await expect(
+        controller.getFullContent(USER_ID, MESSAGE_ID),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(messagesService.getMessageChannelId).toHaveBeenCalledWith(
+        MESSAGE_ID,
+      );
+      expect(channelsService.isMember).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        USER_ID,
+      );
+      expect(messagesService.getFullContent).not.toHaveBeenCalled();
+    });
+
+    it('delegates to messagesService.getFullContent with the message id', async () => {
+      const customContent = { content: 'very long text'.repeat(100) };
+      messagesService.getFullContent.mockResolvedValueOnce(customContent);
+
+      const result = await controller.getFullContent(USER_ID, MESSAGE_ID);
+
+      expect(result).toEqual(customContent);
+      expect(messagesService.getFullContent).toHaveBeenCalledTimes(1);
+      expect(messagesService.getFullContent).toHaveBeenCalledWith(MESSAGE_ID);
     });
   });
 });
