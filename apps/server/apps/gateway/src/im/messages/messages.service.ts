@@ -63,7 +63,9 @@ export interface MessageResponse {
   parentId: string | null;
   rootId: string | null;
   content: string | null;
-  type: 'text' | 'file' | 'image' | 'system' | 'tracking';
+  type: 'text' | 'file' | 'image' | 'system' | 'tracking' | 'long_text';
+  isTruncated?: boolean;
+  fullContentLength?: number;
   isPinned: boolean;
   isEdited: boolean;
   isDeleted: boolean;
