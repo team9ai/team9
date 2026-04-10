@@ -153,7 +153,7 @@ importers:
         version: 1.143.11(@tanstack/react-router@1.143.11(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@tanstack/router-core@1.143.6)(csstype@3.2.3)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(solid-js@1.9.10)
       "@tanstack/router-plugin":
         specifier: ^1.141.7
-        version: 1.143.11(@tanstack/react-router@1.143.11(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(vite@7.3.0(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))(webpack@5.103.0(@swc/core@1.15.7))
+        version: 1.143.11(@tanstack/react-router@1.143.11(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(vite@7.3.0(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))(webpack@5.103.0)
       "@taskcast/client":
         specifier: ^1.1.0
         version: 1.1.0(@taskcast/core@1.1.0)
@@ -217,9 +217,6 @@ importers:
       react-dom:
         specifier: ^19.1.0
         version: 19.2.3(react@19.2.3)
-      react-gtm-module:
-        specifier: ^2.0.11
-        version: 2.0.11
       react-i18next:
         specifier: ^16.0.0
         version: 16.5.3(i18next@25.7.4(typescript@5.8.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.8.3)
@@ -284,9 +281,6 @@ importers:
       "@types/react-dom":
         specifier: ^19.1.6
         version: 19.2.3(@types/react@19.2.7)
-      "@types/react-gtm-module":
-        specifier: ^2.0.4
-        version: 2.0.4
       "@types/three":
         specifier: ^0.183.1
         version: 0.183.1
@@ -1107,73 +1101,6 @@ importers:
         specifier: workspace:*
         version: link:../shared
     devDependencies:
-      typescript:
-        specifier: ^5.7.3
-        version: 5.8.3
-
-  enterprise/libs/analytics:
-    dependencies:
-      "@nestjs/common":
-        specifier: ^11.0.0
-        version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      "@nestjs/core":
-        specifier: ^11.0.0
-        version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-    devDependencies:
-      "@types/node":
-        specifier: ^22.0.0
-        version: 22.19.3
-      typescript:
-        specifier: ^5.7.3
-        version: 5.8.3
-
-  enterprise/libs/audit:
-    dependencies:
-      "@nestjs/common":
-        specifier: ^11.0.0
-        version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      "@nestjs/core":
-        specifier: ^11.0.0
-        version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      uuid:
-        specifier: ^11.0.0
-        version: 11.1.0
-    devDependencies:
-      "@types/node":
-        specifier: ^22.0.0
-        version: 22.19.3
-      typescript:
-        specifier: ^5.7.3
-        version: 5.8.3
-
-  enterprise/libs/license:
-    dependencies:
-      "@nestjs/common":
-        specifier: ^11.0.0
-        version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      "@nestjs/core":
-        specifier: ^11.0.0
-        version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-    devDependencies:
-      "@types/node":
-        specifier: ^22.0.0
-        version: 22.19.3
-      typescript:
-        specifier: ^5.7.3
-        version: 5.8.3
-
-  enterprise/libs/sso:
-    dependencies:
-      "@nestjs/common":
-        specifier: ^11.0.0
-        version: 11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      "@nestjs/core":
-        specifier: ^11.0.0
-        version: 11.1.10(@nestjs/common@11.1.10(class-transformer@0.5.1)(class-validator@0.14.3)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/microservices@11.1.11)(@nestjs/platform-express@11.1.10)(@nestjs/websockets@11.1.10)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-    devDependencies:
-      "@types/node":
-        specifier: ^22.0.0
-        version: 22.19.3
       typescript:
         specifier: ^5.7.3
         version: 5.8.3
@@ -8691,12 +8618,6 @@ packages:
     peerDependencies:
       "@types/react": ^19.2.0
 
-  "@types/react-gtm-module@2.0.4":
-    resolution:
-      {
-        integrity: sha512-5wPMWsUE5AI6O0B0K1/zbs0rFHBKu+7NWXQwDXhqvA12ooLD6W1AYiWZqR4UiOd7ixZDV1H5Ys301zEsqyIfNg==,
-      }
-
   "@types/react-reconciler@0.28.9":
     resolution:
       {
@@ -14725,12 +14646,6 @@ packages:
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
 
-  react-gtm-module@2.0.11:
-    resolution:
-      {
-        integrity: sha512-8gyj4TTxeP7eEyc2QKawEuQoAZdjKvMY4pgWfycGmqGByhs17fR+zEBs0JUDq4US/l+vbTl+6zvUIx27iDo/Vw==,
-      }
-
   react-i18next@16.5.3:
     resolution:
       {
@@ -16597,13 +16512,6 @@ packages:
         integrity: sha512-pMZTvIkT1d+TFGvDOqodOclx0QWkkgi6Tdoa8gC8ffGAAqz9pzPTZWAybbsHHoED/ztMtkv/VoYTYyShUn81hA==,
       }
     engines: { node: ">= 0.4.0" }
-
-  uuid@11.1.0:
-    resolution:
-      {
-        integrity: sha512-0/A9rDy9P7cJ+8w1c9WD9V//9Wj15Ce2MPz8Ri6032usz+NfePxx5AcN3bN+r6ZL6jEo066/yNYB3tn4pQEx+A==,
-      }
-    hasBin: true
 
   uuid@13.0.0:
     resolution:
@@ -22612,7 +22520,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  "@tanstack/router-plugin@1.143.11(@tanstack/react-router@1.143.11(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(vite@7.3.0(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))(webpack@5.103.0(@swc/core@1.15.7))":
+  "@tanstack/router-plugin@1.143.11(@tanstack/react-router@1.143.11(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(vite@7.3.0(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))(webpack@5.103.0)":
     dependencies:
       "@babel/core": 7.28.5
       "@babel/plugin-syntax-jsx": 7.27.1(@babel/core@7.28.5)
@@ -22631,7 +22539,7 @@ snapshots:
     optionalDependencies:
       "@tanstack/react-router": 1.143.11(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       vite: 7.3.0(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(sass@1.97.3)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2)
-      webpack: 5.103.0(@swc/core@1.15.7)
+      webpack: 5.103.0
     transitivePeerDependencies:
       - supports-color
 
@@ -23033,8 +22941,6 @@ snapshots:
   "@types/react-dom@19.2.3(@types/react@19.2.7)":
     dependencies:
       "@types/react": 19.2.7
-
-  "@types/react-gtm-module@2.0.4": {}
 
   "@types/react-reconciler@0.28.9(@types/react@19.2.7)":
     dependencies:
@@ -25760,7 +25666,7 @@ snapshots:
 
   jest-worker@27.5.1:
     dependencies:
-      "@types/node": 22.19.3
+      "@types/node": 25.0.3
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
@@ -27011,8 +26917,6 @@ snapshots:
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
 
-  react-gtm-module@2.0.11: {}
-
   react-i18next@16.5.3(i18next@25.7.4(typescript@5.8.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.8.3):
     dependencies:
       "@babel/runtime": 7.28.4
@@ -27831,16 +27735,14 @@ snapshots:
       "@swc/core": 1.15.7
       esbuild: 0.27.2
 
-  terser-webpack-plugin@5.3.16(@swc/core@1.15.7)(webpack@5.103.0(@swc/core@1.15.7)):
+  terser-webpack-plugin@5.3.16(webpack@5.103.0):
     dependencies:
       "@jridgewell/trace-mapping": 0.3.31
       jest-worker: 27.5.1
       schema-utils: 4.3.3
       serialize-javascript: 6.0.2
       terser: 5.44.1
-      webpack: 5.103.0(@swc/core@1.15.7)
-    optionalDependencies:
-      "@swc/core": 1.15.7
+      webpack: 5.103.0
     optional: true
 
   terser@5.44.1:
@@ -28301,8 +28203,6 @@ snapshots:
 
   utils-merge@1.0.1: {}
 
-  uuid@11.1.0: {}
-
   uuid@13.0.0: {}
 
   uuid@9.0.1: {}
@@ -28446,7 +28346,7 @@ snapshots:
 
   webpack-virtual-modules@0.6.2: {}
 
-  webpack@5.103.0(@swc/core@1.15.7):
+  webpack@5.103.0:
     dependencies:
       "@types/eslint-scope": 3.7.7
       "@types/estree": 1.0.8
@@ -28470,7 +28370,7 @@ snapshots:
       neo-async: 2.6.2
       schema-utils: 4.3.3
       tapable: 2.3.0
-      terser-webpack-plugin: 5.3.16(@swc/core@1.15.7)(webpack@5.103.0(@swc/core@1.15.7))
+      terser-webpack-plugin: 5.3.16(webpack@5.103.0)
       watchpack: 2.5.0
       webpack-sources: 3.3.3
     transitivePeerDependencies:

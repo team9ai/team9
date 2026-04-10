@@ -10,6 +10,7 @@ import { OnboardingService } from './onboarding.service.js';
 import { RedisService } from '@team9/redis';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
+import { PosthogService } from '@team9/posthog';
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -159,6 +160,13 @@ describe('WorkspaceService', () => {
           },
         },
         { provide: OnboardingService, useValue: onboardingService },
+        {
+          provide: PosthogService,
+          useValue: {
+            capture: jest.fn(),
+            isEnabled: jest.fn().mockReturnValue(false),
+          },
+        },
       ],
     }).compile();
 
