@@ -129,7 +129,7 @@ describe("formatParams function", () => {
       const result = formatParams("SendToChannel", params);
       // Should show truncated message with indication
       expect(result).toContain("...");
-      expect(result).toContain("words more");
+      expect(result).toContain("more)");
     });
 
     it("should show correct word count for truncated message", () => {
@@ -139,8 +139,8 @@ describe("formatParams function", () => {
         message: longMessage,
       };
       const result = formatParams("SendToChannel", params);
-      const moreWords = 100 - 50;
-      expect(result).toContain(`${moreWords} words more`);
+      const moreChars = 100 - 50;
+      expect(result).toContain(`${moreChars} more)`);
     });
 
     it("should truncate query parameter in SearchDocs to 80 chars", () => {
@@ -151,9 +151,9 @@ describe("formatParams function", () => {
       };
       const result = formatParams("SearchDocs", params);
       expect(result).toContain("...");
-      expect(result).toContain("words more");
-      const moreWords = 150 - 80;
-      expect(result).toContain(`${moreWords} words more`);
+      expect(result).toContain("more)");
+      const moreChars = 150 - 80;
+      expect(result).toContain(`${moreChars} more)`);
     });
 
     it("should truncate query parameter in InvokeAPI to 60 chars", () => {
@@ -164,9 +164,9 @@ describe("formatParams function", () => {
       };
       const result = formatParams("InvokeAPI", params);
       expect(result).toContain("...");
-      expect(result).toContain("words more");
-      const moreWords = 120 - 60;
-      expect(result).toContain(`${moreWords} words more`);
+      expect(result).toContain("more)");
+      const moreChars = 120 - 60;
+      expect(result).toContain(`${moreChars} more)`);
     });
 
     it("should not truncate parameters shorter than limit", () => {
@@ -188,7 +188,7 @@ describe("formatParams function", () => {
       const result = formatParams("SendToChannel", params);
       // Should not truncate when exactly at limit
       expect(result).toContain(message);
-      expect(result).not.toContain("words more");
+      expect(result).not.toContain("more)");
     });
 
     it("should handle one char over truncate limit", () => {
@@ -199,7 +199,7 @@ describe("formatParams function", () => {
       };
       const result = formatParams("SendToChannel", params);
       expect(result).toContain("...");
-      expect(result).toContain("1 words more");
+      expect(result).toContain("1 more)");
     });
   });
 
@@ -442,7 +442,7 @@ describe("formatParams function", () => {
       const result = formatParams("SendToChannel", params);
       expect(typeof result).toBe("string");
       expect(result).toContain("...");
-      expect(result).toContain("words more");
+      expect(result).toContain("more)");
     });
 
     it("should handle nested truncation with multiple long parameters", () => {
@@ -462,21 +462,21 @@ describe("formatParams function", () => {
       const message = "a".repeat(51);
       const params = { channelName: "test", message };
       const result = formatParams("SendToChannel", params);
-      expect(result).toContain("1 words more");
+      expect(result).toContain("1 more)");
     });
 
     it("should calculate correct word count for 10 characters over limit", () => {
       const message = "a".repeat(60);
       const params = { channelName: "test", message };
       const result = formatParams("SendToChannel", params);
-      expect(result).toContain("10 words more");
+      expect(result).toContain("10 more)");
     });
 
     it("should calculate correct word count for 100 characters over limit", () => {
       const message = "a".repeat(150);
       const params = { channelName: "test", message };
       const result = formatParams("SendToChannel", params);
-      expect(result).toContain("100 words more");
+      expect(result).toContain("100 more)");
     });
   });
 });

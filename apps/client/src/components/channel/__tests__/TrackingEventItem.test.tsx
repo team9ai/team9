@@ -573,7 +573,7 @@ describe("buildThinkingStats helper", () => {
       durationMs: 123_000,
     };
     expect(buildThinkingStats(meta, false, zhT)).toBe(
-      "Thinking (1200 tokens, 2 分 3 秒)",
+      "正在思考（1200 tokens, 2 分 3 秒）",
     );
   });
 });
