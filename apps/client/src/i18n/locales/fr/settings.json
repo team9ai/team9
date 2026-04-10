@@ -95,5 +95,12 @@
   "pushPermissionDenied": "Permission refusée dans les paramètres du navigateur",
   "pushPermissionPrompt": "Cliquez sur le bouton pour activer",
   "pushEnabled": "Activé",
-  "pushUnsupported": "Les notifications push ne sont pas prises en charge dans cet environnement"
+  "pushUnsupported": "Les notifications push ne sont pas prises en charge dans cet environnement",
+  "settingsAndMore": "Paramètres et plus",
+  "workspace": "Espace de travail",
+  "invitations": "Invitations",
+  "members": "Membres",
+  "appearance": "Apparence",
+  "version": "Version {{version}}",
+  "copyright": "© {{year}} Team9. Tous droits réservés."
 }

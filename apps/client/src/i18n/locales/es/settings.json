@@ -95,5 +95,12 @@
   "pushPermissionDenied": "Permiso denegado en la configuración del navegador",
   "pushPermissionPrompt": "Haga clic en el interruptor para habilitar",
   "pushEnabled": "Habilitado",
-  "pushUnsupported": "Las notificaciones push no son compatibles en este entorno"
+  "pushUnsupported": "Las notificaciones push no son compatibles en este entorno",
+  "settingsAndMore": "Ajustes y más",
+  "workspace": "Espacio de trabajo",
+  "invitations": "Invitaciones",
+  "members": "Miembros",
+  "appearance": "Apariencia",
+  "version": "Versión {{version}}",
+  "copyright": "© {{year}} Team9. Todos los derechos reservados."
 }

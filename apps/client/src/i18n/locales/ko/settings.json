@@ -95,5 +95,12 @@
   "pushPermissionDenied": "브라우저 설정에서 알림 권한이 거부되었습니다",
   "pushPermissionPrompt": "토글을 클릭하여 활성화",
   "pushEnabled": "활성화됨",
-  "pushUnsupported": "이 환경에서는 푸시 알림이 지원되지 않습니다"
+  "pushUnsupported": "이 환경에서는 푸시 알림이 지원되지 않습니다",
+  "settingsAndMore": "설정 및 기타",
+  "workspace": "워크스페이스",
+  "invitations": "초대",
+  "members": "멤버",
+  "appearance": "외관",
+  "version": "버전 {{version}}",
+  "copyright": "© {{year}} Team9. All rights reserved."
 }
