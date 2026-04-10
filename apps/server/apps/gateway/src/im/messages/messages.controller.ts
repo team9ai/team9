@@ -315,10 +315,7 @@ export class MessagesController {
     @Param('id', ParseUUIDPipe) messageId: string,
   ): Promise<{ content: string }> {
     const channelId = await this.messagesService.getMessageChannelId(messageId);
-    const isMember = await this.channelsService.isMember(channelId, userId);
-    if (!isMember) {
-      throw new ForbiddenException('Access denied');
-    }
+    await this.channelsService.assertReadAccess(channelId, userId);
     return this.messagesService.getFullContent(messageId);
   }
 
