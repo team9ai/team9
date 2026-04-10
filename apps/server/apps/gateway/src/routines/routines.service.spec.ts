@@ -1978,7 +1978,7 @@ describe('RoutinesService — TaskCast integration', () => {
      *   1. getBotById
      *   2. db bot-tenant validation: where().limit()
      *   3. db count query: where() → resolves directly
-     *   4. draft-conflict check: where().limit()  ← NEW
+     *   4. draft-conflict check: where().limit()  (before create — no orphan risk)
      *   5. create() → documentsService.create() + db.insert().values().returning()
      */
     function setupHappyPath(overrides: {
@@ -2001,12 +2001,12 @@ describe('RoutinesService — TaskCast integration', () => {
       // Count query: db.select().from().where() — terminal, must return Promise
       db.where.mockResolvedValueOnce([{ count: 0 }] as any);
 
+      // Draft-conflict check: db.select().from().where().limit() → no existing draft
+      db.limit.mockResolvedValueOnce([] as any);
+
       // create() → documentsService.create() + db.insert().values().returning()
       documentsService.create.mockResolvedValueOnce({ id: 'doc-1' } as any);
       db.returning.mockResolvedValueOnce([draftRoutine] as any);
-
-      // Draft-conflict check: db.select().from().where().limit() → no existing draft
-      db.limit.mockResolvedValueOnce([] as any);
     }
 
     it('happy path: creates draft + channel + sends kickoff event to original bot session', async () => {
@@ -2107,7 +2107,7 @@ describe('RoutinesService — TaskCast integration', () => {
       ).rejects.toThrow('Bot is not a managed hive agent');
     });
 
-    it('throws 400 when there is already a draft in progress for this bot', async () => {
+    it('throws 400 when there is already a draft in progress for this bot — before creating new draft', async () => {
       botsService.getBotById.mockResolvedValueOnce(SOURCE_BOT as any);
 
       // Bot-tenant validation succeeds
@@ -2117,17 +2117,16 @@ describe('RoutinesService — TaskCast integration', () => {
       // Count query
       db.where.mockResolvedValueOnce([{ count: 1 }] as any);
 
-      // create() step
-      documentsService.create.mockResolvedValueOnce({ id: 'doc-1' } as any);
-      db.returning.mockResolvedValueOnce([DRAFT_NEW_ROUTINE] as any);
-
-      // Draft-conflict check returns an existing draft
+      // Draft-conflict check returns an existing draft (checked BEFORE create)
       db.limit.mockResolvedValueOnce([{ id: 'existing-draft' }] as any);
 
       await expect(
         service.createWithCreationTask({ agentId: 'bot-1' }, 'user-1', 'tenant-1'),
       ).rejects.toThrow('You already have a draft routine being created with this agent');
 
+      // No draft was created because conflict check runs first
+      expect(db.insert).not.toHaveBeenCalled();
+      expect(documentsService.create).not.toHaveBeenCalled();
       expect(channelsService.createDirectChannel).not.toHaveBeenCalled();
     });
 

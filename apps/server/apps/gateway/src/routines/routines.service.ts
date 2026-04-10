@@ -901,14 +901,7 @@ export class RoutinesService {
     const count = Number(countRow?.count ?? 0);
     const title = `Routine #${count + 1}`;
 
-    // Step 5: Create draft routine
-    const draft = await this.create(
-      { title, botId: dto.agentId, status: 'draft' },
-      userId,
-      tenantId,
-    );
-
-    // Step 5b: Check for existing in-progress draft with same bot
+    // Step 5: Check for existing in-progress draft with same bot (before creating)
     const [existingDraft] = await this.db
       .select({ id: schema.routines.id })
       .from(schema.routines)
@@ -928,20 +921,27 @@ export class RoutinesService {
       );
     }
 
-    // Steps 6-9: with rollback on failure
+    // Step 6: Create draft routine
+    const draft = await this.create(
+      { title, botId: dto.agentId, status: 'draft' },
+      userId,
+      tenantId,
+    );
+
+    // Steps 7-10: with rollback on failure
     try {
-      // Step 6: Create/reuse DM channel between user and bot shadow user
+      // Step 7: Create/reuse DM channel between user and bot shadow user
       const channel = await this.channelsService.createDirectChannel(
         userId,
         sourceBot.userId,
         tenantId,
       );
 
-      // Step 7: Build deterministic session ID using the original bot's agentId
+      // Step 8: Build deterministic session ID using the original bot's agentId
       // so it matches what post-broadcast derives from the bot member's managedMeta.agentId
       const sessionId = `team9/${tenantId}/${agentId}/dm/${channel.id}`;
 
-      // Step 8: Persist creation metadata
+      // Step 9: Persist creation metadata
       await this.db
         .update(schema.routines)
         .set({
@@ -951,7 +951,7 @@ export class RoutinesService {
         } as Record<string, unknown>)
         .where(eq(schema.routines.id, draft.id));
 
-      // Step 9: Send kickoff event to the original bot's session
+      // Step 10: Send kickoff event to the original bot's session
       await this.clawHiveService.sendInput(
         sessionId,
         {
