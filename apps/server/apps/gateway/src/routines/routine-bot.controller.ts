@@ -9,8 +9,11 @@ import {
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { AuthGuard, CurrentUser } from '@team9/auth';
+import { CurrentTenantId } from '../common/decorators/current-tenant.decorator.js';
 import { RoutineBotService } from './routine-bot.service.js';
 import {
+  CreateRoutineDto,
+  UpdateRoutineDto,
   ReportStepsDto,
   CreateInterventionDto,
   UpdateStatusDto,
@@ -24,6 +27,33 @@ import {
 @UseGuards(AuthGuard)
 export class RoutineBotController {
   constructor(private readonly routineBotService: RoutineBotService) {}
+
+  @Post()
+  async create(
+    @Body() dto: CreateRoutineDto,
+    @CurrentUser('sub') botUserId: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    return this.routineBotService.createRoutine(dto, botUserId, tenantId);
+  }
+
+  @Get(':routineId')
+  async getById(
+    @Param('routineId', ParseUUIDPipe) routineId: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    return this.routineBotService.getRoutineById(routineId, tenantId);
+  }
+
+  @Patch(':routineId')
+  async update(
+    @Param('routineId', ParseUUIDPipe) routineId: string,
+    @Body() dto: UpdateRoutineDto,
+    @CurrentUser('sub') botUserId: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    return this.routineBotService.updateRoutine(routineId, dto, botUserId, tenantId);
+  }
 
   @Post(':routineId/executions/:executionId/steps')
   async reportSteps(

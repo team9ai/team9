@@ -294,17 +294,35 @@ export class RoutinesService {
         );
       }
 
-      // Archive creation channel (non-fatal)
+      // Archive creation channel (non-fatal, only if no other draft shares it)
       const creationChannelId = routine.creationChannelId;
       if (creationChannelId) {
-        try {
-          await this.channelsService.archiveCreationChannel(
-            creationChannelId,
-            tenantId,
-          );
-        } catch (err) {
-          this.logger.warn(
-            `delete: failed to archive creation channel ${creationChannelId}: ${err}`,
+        const [otherDraft] = await this.db
+          .select({ id: schema.routines.id })
+          .from(schema.routines)
+          .where(
+            and(
+              eq(schema.routines.creationChannelId, creationChannelId),
+              ne(schema.routines.id, routineId),
+              eq(schema.routines.status, 'draft'),
+            ),
+          )
+          .limit(1);
+
+        if (!otherDraft) {
+          try {
+            await this.channelsService.archiveCreationChannel(
+              creationChannelId,
+              tenantId,
+            );
+          } catch (err) {
+            this.logger.warn(
+              `delete: failed to archive creation channel ${creationChannelId}: ${err}`,
+            );
+          }
+        } else {
+          this.logger.debug(
+            `delete: skipping channel archive — other drafts share channel ${creationChannelId}`,
           );
         }
       }
@@ -862,16 +880,34 @@ export class RoutinesService {
       .where(eq(schema.routines.id, routineId))
       .returning();
 
-    // Step 7: Archive creation channel (non-fatal)
+    // Step 7: Archive creation channel (non-fatal, only if no other draft shares it)
     if (routine.creationChannelId) {
-      try {
-        await this.channelsService.archiveCreationChannel(
-          routine.creationChannelId,
-          tenantId,
-        );
-      } catch (error) {
-        this.logger.warn(
-          `completeCreation: failed to archive creation channel ${routine.creationChannelId} for routine ${routineId}: ${error}`,
+      const [otherDraft] = await this.db
+        .select({ id: schema.routines.id })
+        .from(schema.routines)
+        .where(
+          and(
+            eq(schema.routines.creationChannelId, routine.creationChannelId),
+            ne(schema.routines.id, routineId),
+            eq(schema.routines.status, 'draft'),
+          ),
+        )
+        .limit(1);
+
+      if (!otherDraft) {
+        try {
+          await this.channelsService.archiveCreationChannel(
+            routine.creationChannelId,
+            tenantId,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `completeCreation: failed to archive creation channel ${routine.creationChannelId} for routine ${routineId}: ${error}`,
+          );
+        }
+      } else {
+        this.logger.debug(
+          `completeCreation: skipping channel archive — other drafts share channel ${routine.creationChannelId}`,
         );
       }
     }

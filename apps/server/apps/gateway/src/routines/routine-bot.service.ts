@@ -21,6 +21,9 @@ import type { WebsocketGateway } from '../im/websocket/websocket.gateway.js';
 import type { ReportStepsDto } from './dto/report-steps.dto.js';
 import type { CreateInterventionDto } from './dto/create-intervention.dto.js';
 import { TaskCastService } from './taskcast.service.js';
+import { RoutinesService } from './routines.service.js';
+import type { CreateRoutineDto } from './dto/create-routine.dto.js';
+import type { UpdateRoutineDto } from './dto/update-routine.dto.js';
 
 // ── Service ─────────────────────────────────────────────────────────
 
@@ -32,6 +35,7 @@ export class RoutineBotService {
     @Inject(WEBSOCKET_GATEWAY)
     private readonly wsGateway: WebsocketGateway,
     private readonly taskCastService: TaskCastService,
+    private readonly routinesService: RoutinesService,
   ) {}
 
   // ── Report step progress ─────────────────────────────────────────
@@ -389,6 +393,29 @@ export class RoutineBotService {
       documentType: document.documentType,
       currentVersion,
     };
+  }
+
+  // ── CRUD proxies (for claw-hive agent tools) ─────────────────────
+
+  async createRoutine(
+    dto: CreateRoutineDto,
+    botUserId: string,
+    tenantId: string,
+  ) {
+    return this.routinesService.create(dto, botUserId, tenantId);
+  }
+
+  async getRoutineById(routineId: string, tenantId: string) {
+    return this.routinesService.getById(routineId, tenantId);
+  }
+
+  async updateRoutine(
+    routineId: string,
+    dto: UpdateRoutineDto,
+    botUserId: string,
+    tenantId: string,
+  ) {
+    return this.routinesService.update(routineId, dto, botUserId, tenantId);
   }
 
   // ── Private helpers ──────────────────────────────────────────────
