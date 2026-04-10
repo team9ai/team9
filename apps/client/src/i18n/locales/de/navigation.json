@@ -1,9 +1,9 @@
 {
-  "home": "Startseite",
-  "dms": "Direktnachrichten",
-  "activity": "Aktivitäten",
+  "home": "Start",
+  "dms": "DMs",
+  "activity": "Aktivität",
   "files": "Dateien",
-  "aiStaff": "KI-Personal",
+  "aiStaff": "KI",
   "staff": "Personal",
   "myPersonalStaff": "Mein persönliches Personal",
   "aiStaffSection": "KI-Personal",

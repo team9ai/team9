@@ -95,5 +95,12 @@
   "pushPermissionDenied": "浏览器已拒绝通知权限",
   "pushPermissionPrompt": "点击开关以启用",
   "pushEnabled": "已启用",
-  "pushUnsupported": "当前环境不支持推送通知"
+  "pushUnsupported": "当前环境不支持推送通知",
+  "settingsAndMore": "设置与更多",
+  "workspace": "工作区",
+  "invitations": "邀请",
+  "members": "成员",
+  "appearance": "外观",
+  "version": "版本 {{version}}",
+  "copyright": "© {{year}} Team9. 保留所有权利。"
 }
