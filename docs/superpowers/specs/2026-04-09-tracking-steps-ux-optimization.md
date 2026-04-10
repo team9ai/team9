@@ -2,7 +2,7 @@
 
 **日期：** 2026-04-09  
 **作者：** Claude Code  
-**状态：** 设计阶段
+**状态：** 已实现（PR [#24](https://github.com/team9ai/team9/pull/24)）
 
 ---
 

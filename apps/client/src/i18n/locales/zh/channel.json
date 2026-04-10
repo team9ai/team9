@@ -134,8 +134,8 @@
       }
     },
     "thinking": {
-      "label": "Thinking",
-      "labelWithStats": "Thinking ({{stats}})",
+      "label": "正在思考",
+      "labelWithStats": "正在思考（{{stats}}）",
       "tokens_one": "{{count}} token",
       "tokens_other": "{{count}} tokens",
       "seconds": "{{count}} 秒",
@@ -161,6 +161,10 @@
     "round": {
       "collapseSummary_other": "... 查看执行过程（{{count}} 步）",
       "expandAriaLabel_other": "Expand execution process ({{count}} steps)"
+    },
+    "card": {
+      "moreDetails_other": "查看 {{count}} 项详细信息 ›",
+      "loading": "加载中..."
     }
   }
 }

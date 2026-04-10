@@ -163,6 +163,11 @@
       "collapseSummary_other": "... Show execution ({{count}} steps)",
       "expandAriaLabel_one": "Expand execution process ({{count}} step)",
       "expandAriaLabel_other": "Expand execution process ({{count}} steps)"
+    },
+    "card": {
+      "moreDetails_one": "View {{count}} more detail ›",
+      "moreDetails_other": "View {{count}} more details ›",
+      "loading": "Loading..."
     }
   }
 }
