@@ -350,36 +350,55 @@ export class RoutinesService {
         );
       }
 
-      // Archive creation channel (non-fatal, only if no other draft shares it)
+      // Archive creation channel (non-fatal, only if no other draft shares it
+      // and the channel was created around the same time as the routine)
       const creationChannelId = routine.creationChannelId;
       if (creationChannelId) {
-        const [otherDraft] = await this.db
-          .select({ id: schema.routines.id })
-          .from(schema.routines)
-          .where(
-            and(
-              eq(schema.routines.creationChannelId, creationChannelId),
-              ne(schema.routines.id, routineId),
-              eq(schema.routines.status, 'draft'),
-            ),
-          )
+        // Guard: don't archive a pre-existing DM that was merely reused.
+        const [channelRow] = await this.db
+          .select({ createdAt: schema.channels.createdAt })
+          .from(schema.channels)
+          .where(eq(schema.channels.id, creationChannelId))
           .limit(1);
 
-        if (!otherDraft) {
-          try {
-            await this.channelsService.archiveCreationChannel(
-              creationChannelId,
-              tenantId,
-            );
-          } catch (err) {
-            this.logger.warn(
-              `delete: failed to archive creation channel ${creationChannelId}: ${err}`,
+        const routineCreatedAt = routine.createdAt?.getTime() ?? 0;
+        const channelCreatedAt = channelRow?.createdAt?.getTime() ?? 0;
+        const isCreationChannel =
+          Math.abs(routineCreatedAt - channelCreatedAt) < 60_000;
+
+        if (!isCreationChannel) {
+          this.logger.debug(
+            `delete: skipping archive of pre-existing channel ${creationChannelId} (channel predates routine by ${routineCreatedAt - channelCreatedAt}ms)`,
+          );
+        } else {
+          const [otherDraft] = await this.db
+            .select({ id: schema.routines.id })
+            .from(schema.routines)
+            .where(
+              and(
+                eq(schema.routines.creationChannelId, creationChannelId),
+                ne(schema.routines.id, routineId),
+                eq(schema.routines.status, 'draft'),
+              ),
+            )
+            .limit(1);
+
+          if (!otherDraft) {
+            try {
+              await this.channelsService.archiveCreationChannel(
+                creationChannelId,
+                tenantId,
+              );
+            } catch (err) {
+              this.logger.warn(
+                `delete: failed to archive creation channel ${creationChannelId}: ${err}`,
+              );
+            }
+          } else {
+            this.logger.debug(
+              `delete: skipping channel archive — other drafts share channel ${creationChannelId}`,
             );
           }
-        } else {
-          this.logger.debug(
-            `delete: skipping channel archive — other drafts share channel ${creationChannelId}`,
-          );
         }
       }
 
@@ -936,35 +955,57 @@ export class RoutinesService {
       .where(eq(schema.routines.id, routineId))
       .returning();
 
-    // Step 7: Archive creation channel (non-fatal, only if no other draft shares it)
+    // Step 7: Archive creation channel (non-fatal, only if no other draft shares it
+    // and the channel was created around the same time as the routine)
     if (routine.creationChannelId) {
-      const [otherDraft] = await this.db
-        .select({ id: schema.routines.id })
-        .from(schema.routines)
-        .where(
-          and(
-            eq(schema.routines.creationChannelId, routine.creationChannelId),
-            ne(schema.routines.id, routineId),
-            eq(schema.routines.status, 'draft'),
-          ),
-        )
+      // Guard: don't archive a pre-existing DM that was merely reused.
+      // A channel created more than 60 s before the routine was not spawned
+      // specifically for this routine — archiving it would destroy the user's
+      // existing conversation history.
+      const [channelRow] = await this.db
+        .select({ createdAt: schema.channels.createdAt })
+        .from(schema.channels)
+        .where(eq(schema.channels.id, routine.creationChannelId))
         .limit(1);
 
-      if (!otherDraft) {
-        try {
-          await this.channelsService.archiveCreationChannel(
-            routine.creationChannelId,
-            tenantId,
-          );
-        } catch (error) {
-          this.logger.warn(
-            `completeCreation: failed to archive creation channel ${routine.creationChannelId} for routine ${routineId}: ${error}`,
+      const routineCreatedAt = routine.createdAt?.getTime() ?? 0;
+      const channelCreatedAt = channelRow?.createdAt?.getTime() ?? 0;
+      const isCreationChannel =
+        Math.abs(routineCreatedAt - channelCreatedAt) < 60_000;
+
+      if (!isCreationChannel) {
+        this.logger.debug(
+          `completeCreation: skipping archive of pre-existing channel ${routine.creationChannelId} (channel predates routine by ${routineCreatedAt - channelCreatedAt}ms)`,
+        );
+      } else {
+        const [otherDraft] = await this.db
+          .select({ id: schema.routines.id })
+          .from(schema.routines)
+          .where(
+            and(
+              eq(schema.routines.creationChannelId, routine.creationChannelId),
+              ne(schema.routines.id, routineId),
+              eq(schema.routines.status, 'draft'),
+            ),
+          )
+          .limit(1);
+
+        if (!otherDraft) {
+          try {
+            await this.channelsService.archiveCreationChannel(
+              routine.creationChannelId,
+              tenantId,
+            );
+          } catch (error) {
+            this.logger.warn(
+              `completeCreation: failed to archive creation channel ${routine.creationChannelId} for routine ${routineId}: ${error}`,
+            );
+          }
+        } else {
+          this.logger.debug(
+            `completeCreation: skipping channel archive — other drafts share channel ${routine.creationChannelId}`,
           );
         }
-      } else {
-        this.logger.debug(
-          `completeCreation: skipping channel archive — other drafts share channel ${routine.creationChannelId}`,
-        );
       }
     }
 

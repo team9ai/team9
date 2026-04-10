@@ -594,6 +594,98 @@ describe('RoutineBotService — CRUD proxy methods', () => {
     service = module.get<RoutineBotService>(RoutineBotService);
   });
 
+  // ── createRoutine resolves bots.id and creatorId ─────────────────
+
+  describe('createRoutine', () => {
+    // Use a factory to avoid mutation across tests — createRoutine mutates dto.botId in-place
+    const makeDto = () => ({ title: 'My Routine', status: 'draft' as const });
+
+    it('resolves bots.id from shadow user and passes it as botId', async () => {
+      // db.limit call #1: bots lookup by userId
+      db.limit.mockResolvedValueOnce([
+        { id: 'bots-uuid-1', mentorId: 'mentor-user-1', ownerId: null },
+      ] as any);
+
+      await service.createRoutine(makeDto(), 'shadow-user-1', 'tenant-1');
+
+      // routinesService.create must receive the resolved bots.id, not the shadow user id
+      expect(routinesService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ botId: 'bots-uuid-1' }),
+        'mentor-user-1',
+        'tenant-1',
+      );
+    });
+
+    it('uses mentorId as creatorId when bot has a mentor', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'bots-uuid-1', mentorId: 'mentor-user-1', ownerId: 'owner-user-1' },
+      ] as any);
+
+      await service.createRoutine(makeDto(), 'shadow-user-1', 'tenant-1');
+
+      expect(routinesService.create).toHaveBeenCalledWith(
+        expect.anything(),
+        'mentor-user-1',
+        'tenant-1',
+      );
+    });
+
+    it('falls back to ownerId as creatorId when bot has no mentor', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'bots-uuid-1', mentorId: null, ownerId: 'owner-user-1' },
+      ] as any);
+
+      await service.createRoutine(makeDto(), 'shadow-user-1', 'tenant-1');
+
+      expect(routinesService.create).toHaveBeenCalledWith(
+        expect.anything(),
+        'owner-user-1',
+        'tenant-1',
+      );
+    });
+
+    it('falls back to botUserId as creatorId when bot has neither mentor nor owner', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'bots-uuid-1', mentorId: null, ownerId: null },
+      ] as any);
+
+      await service.createRoutine(makeDto(), 'shadow-user-1', 'tenant-1');
+
+      expect(routinesService.create).toHaveBeenCalledWith(
+        expect.anything(),
+        'shadow-user-1',
+        'tenant-1',
+      );
+    });
+
+    it('does not override an explicit botId provided in the DTO', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'bots-uuid-resolved', mentorId: 'mentor-user-1', ownerId: null },
+      ] as any);
+      const dtoWithBotId = { ...makeDto(), botId: 'explicit-bot-id' };
+
+      await service.createRoutine(dtoWithBotId, 'shadow-user-1', 'tenant-1');
+
+      expect(routinesService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ botId: 'explicit-bot-id' }),
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
+    it('handles missing bot row gracefully (botId stays undefined, creatorId = botUserId)', async () => {
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await service.createRoutine(makeDto(), 'shadow-user-1', 'tenant-1');
+
+      expect(routinesService.create).toHaveBeenCalledWith(
+        expect.not.objectContaining({ botId: expect.anything() }),
+        'shadow-user-1',
+        'tenant-1',
+      );
+    });
+  });
+
   // ── updateRoutine delegates to updateByBot ────────────────────────
 
   describe('updateRoutine', () => {

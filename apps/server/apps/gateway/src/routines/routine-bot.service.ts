@@ -402,7 +402,30 @@ export class RoutineBotService {
     botUserId: string,
     tenantId: string,
   ) {
-    return this.routinesService.create(dto, botUserId, tenantId);
+    // Resolve bots.id from the shadow user (botUserId is im_users.id, but
+    // routines.bot_id is a FK to im_bots.id — these are different UUIDs).
+    const [botRow] = await this.db
+      .select({
+        id: schema.bots.id,
+        mentorId: schema.bots.mentorId,
+        ownerId: schema.bots.ownerId,
+      })
+      .from(schema.bots)
+      .where(eq(schema.bots.userId, botUserId))
+      .limit(1);
+
+    // Auto-set botId to the resolved bots.id if the caller didn't supply one.
+    if (!dto.botId && botRow?.id) {
+      dto.botId = botRow.id;
+    }
+
+    // In DM mode the routine must be attributed to the human user (mentor/owner)
+    // so they can see and manage it. Fall back to botUserId for backward compat
+    // (e.g. system bots that have no mentor/owner).
+    const effectiveCreatorId =
+      botRow?.mentorId ?? botRow?.ownerId ?? botUserId;
+
+    return this.routinesService.create(dto, effectiveCreatorId, tenantId);
   }
 
   async getRoutineById(routineId: string, tenantId: string) {
