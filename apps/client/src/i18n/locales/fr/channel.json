@@ -1,0 +1,184 @@
+{
+  "createChannel": "Créer un canal",
+  "createChannelDescription": "Les canaux sont l'endroit où votre équipe communique. Ils fonctionnent mieux organisés par thème — #projet-mars, par exemple.",
+  "channelName": "Nom du canal",
+  "channelNamePlaceholder": "ex. projet-mars",
+  "channelNameRequired": "Le nom du canal est requis",
+  "channelNameInvalid": "Doit commencer par une lettre ou un chiffre",
+  "channelNameHint": "Ne peut contenir que des lettres minuscules, des chiffres et des tirets",
+  "channelDescription": "Description",
+  "channelDescriptionPlaceholder": "De quoi parle ce canal ?",
+  "channelDescriptionOptional": "(facultatif)",
+  "chooseVisibility": "Choisir la visibilité",
+  "public": "Public",
+  "publicDescription": "Tout le monde peut voir et rejoindre ce canal",
+  "private": "Privé",
+  "privateDescription": "Seuls les membres invités peuvent voir ce canal",
+  "creating": "Création en cours...",
+  "browseChannels": "Parcourir les canaux",
+  "noChannels": "Aucun canal",
+  "noChannelsYet": "Aucun canal pour le moment",
+  "viewChannel": "Voir le canal",
+  "leaveChannel": "Quitter le canal",
+  "deleteChannel": "Supprimer le canal",
+  "channelSettings": "Paramètres du canal",
+  "channelMembers": "Membres du canal",
+  "addMembers": "Ajouter des membres",
+  "members": "{{count}} membres",
+  "unread": "non lu",
+  "searchMember": "Rechercher un nom d'utilisateur ou surnom...",
+  "noMatchingUsers": "Aucun utilisateur correspondant trouvé",
+  "allMembersInChannel": "Tous les membres sont déjà dans le canal",
+  "selectedCount": "{{count}} sélectionnés",
+  "selectMembersToAdd": "Sélectionnez les membres à ajouter",
+  "adding": "Ajout en cours...",
+  "addCount": "Ajouter {{count}}",
+  "add": "Ajouter",
+  "about": "À propos",
+  "settings": "Paramètres",
+  "noDescription": "Aucune description",
+  "type": "Type",
+  "privateChannel": "Canal privé",
+  "publicChannel": "Canal public",
+  "createdAt": "Créé le",
+  "findMember": "Trouver un membre",
+  "addPeople": "Ajouter des personnes",
+  "you": "(Vous)",
+  "channelAdmin": "Administrateur du canal",
+  "admin": "Administrateur",
+  "dangerZone": "Zone de danger",
+  "deleteChannelWarning": "Après la suppression du canal, tous les messages et fichiers seront définitivement supprimés et ne pourront pas être récupérés.",
+  "deleteThisChannel": "Supprimer ce canal",
+  "save": "Enregistrer",
+  "saving": "Enregistrement...",
+  "edit": "Modifier",
+  "joinChannel": "Rejoindre le canal",
+  "joining": "Rejoindre...",
+  "leaving": "Départ en cours...",
+  "leaveChannelWarning": "Vous n'aurez plus accès aux messages et fichiers de ce canal.",
+  "leaveThisChannel": "Quitter ce canal",
+  "deleteChannelDescription": "Cette action est irréversible. Tous les messages de ce canal seront définitivement supprimés.",
+  "deleteChannelWarningTitle": "La suppression de ce canal :",
+  "deleteWarningMessages": "Supprimera tous les messages et fichiers",
+  "deleteWarningMembers": "Retirera tous les membres du canal",
+  "deleteWarningNoRecovery": "Cette action est irréversible",
+  "typeToConfirm": "Tapez {{name}} pour confirmer",
+  "enterChannelName": "Entrez le nom du canal",
+  "permanentDelete": "Supprimer définitivement (irréversible)",
+  "deleting": "Suppression en cours...",
+  "channelNotFound": "Canal introuvable",
+  "loadingChannel": "Chargement du canal...",
+  "loadingMessages": "Chargement des messages...",
+  "loadingMoreMessages": "Chargement de plus de messages...",
+  "noMessagesYet": "Aucun message pour le moment. Rejoignez le canal pour commencer la conversation !",
+  "botStartupCountdownMessage": "Bonjour, votre OpenClaw Bot est en cours de démarrage. Veuillez attendre la fin du compte à rebours avant de discuter.",
+  "botStartupSuccessMessage": "Bonjour, votre OpenClaw Bot a démarré avec succès !",
+  "botStartChatting": "Commencer à discuter",
+  "noMessagesYetDefault": "Aucun message pour le moment",
+  "emptyPublicChannelTitle": "Discutez avec le Bot !",
+  "emptyPublicChannelDesc": "Ce canal dispose d'un Bot IA prêt à vous aider. Tapez @ pour mentionner le bot dans votre message et commencer une conversation.",
+  "emptyPublicChannelHintExample": "demandez-moi n'importe quoi...",
+  "emptyPublicChannelGotIt": "Compris",
+  "botNotMemberTitle": "{{botName}} n'est pas membre du canal",
+  "botNotMemberPublicDesc": "{{botName}} n'est pas membre de ce canal et ne recevra pas votre message. Voulez-vous d'abord l'ajouter au canal ?",
+  "botNotMemberPrivateAdminDesc": "{{botName}} n'est pas membre de ce canal privé et ne recevra pas votre message. Voulez-vous d'abord l'ajouter au canal ?",
+  "botNotMemberPrivateDesc": "{{botName}} n'est pas membre de ce canal privé et ne recevra pas votre message. Contactez un administrateur du canal pour ajouter le bot.",
+  "addBotToChannel": "Ajouter au canal",
+  "addingBot": "Ajout en cours...",
+  "botInstanceStoppedMessage": "L'instance du bot est actuellement arrêtée. Démarrez-la pour reprendre la discussion.",
+  "botInstanceStoppedMemberMessage": "L'instance du bot est actuellement arrêtée. Contactez un administrateur de l'espace de travail pour la démarrer.",
+  "botInstanceStart": "Démarrer",
+  "botInstanceStarting": "Démarrage...",
+  "botInstanceStartingMessage": "L'instance du bot est en cours de démarrage, veuillez patienter...",
+  "botThinking": {
+    "texts": {
+      "thinking": "Réflexion",
+      "analyzing": "Analyse",
+      "reasoning": "Raisonnement",
+      "computing": "Calcul",
+      "parsing": "Traitement",
+      "brewing": "Préparation",
+      "crafting": "Élaboration",
+      "decoding": "Décodage",
+      "imagining": "Imagination",
+      "composing": "Composition"
+    }
+  },
+  "tracking": {
+    "ops": {
+      "loadTools": {
+        "loading": "Chargement des outils",
+        "success": "Outils chargés",
+        "error": "Échec du chargement des outils"
+      },
+      "searchTools": {
+        "loading": "Recherche des outils",
+        "success": "Outils trouvés",
+        "error": "Échec de la recherche d'outils"
+      },
+      "invokeTool": {
+        "loading": "Appel de l'outil",
+        "success": "Appel de l'outil terminé",
+        "error": "Échec de l'appel de l'outil"
+      },
+      "fallback": {
+        "loading": "Chargement de {{name}}",
+        "success": "{{name}} terminé",
+        "error": "{{name}} a échoué"
+      }
+    },
+    "tools": {
+      "searchDocs": {
+        "loading": "Recherche de documents",
+        "success": "Documents trouvés",
+        "error": "Échec de la recherche de documents"
+      },
+      "sendMessage": {
+        "loading": "Envoi du message",
+        "success": "Message envoyé",
+        "error": "Échec de l'envoi du message"
+      },
+      "generateReply": {
+        "loading": "Génération de la réponse",
+        "success": "Réponse générée",
+        "error": "Échec de la génération de la réponse"
+      }
+    },
+    "thinking": {
+      "label": "Réflexion",
+      "labelWithStats": "Réflexion ({{stats}})",
+      "tokens_one": "{{count}} token",
+      "tokens_other": "{{count}} tokens",
+      "seconds": "{{count}}s",
+      "minutesSeconds": "{{minutes}}m {{seconds}}s"
+    },
+    "toolCall": {
+      "argsLabel": "Arguments",
+      "resultLabel": "Résultat",
+      "unknownTool": "Outil inconnu"
+    },
+    "eventLabels": {
+      "thinking": "Réflexion",
+      "writing": "Rédaction",
+      "toolCall": "Appel",
+      "toolResult": "Résultat",
+      "agentStart": "Démarré",
+      "agentEnd": "Terminé",
+      "error": "Erreur",
+      "turn": "Tour",
+      "choices": "Choix",
+      "selected": "Sélectionné"
+    },
+    "round": {
+      "collapseSummary_one": "... Afficher l'exécution ({{count}} étape)",
+      "collapseSummary_other": "... Afficher l'exécution ({{count}} étapes)",
+      "expandAriaLabel_one": "Développer le processus d'exécution ({{count}} étape)",
+      "expandAriaLabel_other": "Développer le processus d'exécution ({{count}} étapes)"
+    },
+    "card": {
+      "moreDetails_one": "Voir {{count}} détail supplémentaire ›",
+      "moreDetails_other": "Voir {{count}} détails supplémentaires ›",
+      "loading": "Chargement..."
+    }
+  }
+}

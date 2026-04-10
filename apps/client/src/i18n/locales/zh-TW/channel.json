@@ -1,0 +1,184 @@
+{
+  "createChannel": "建立頻道",
+  "createChannelDescription": "頻道是團隊溝通的地方。最好圍繞一個主題建立頻道，例如 #專案-火星。",
+  "channelName": "頻道名稱",
+  "channelNamePlaceholder": "例如：project-mars",
+  "channelNameRequired": "頻道名稱為必填",
+  "channelNameInvalid": "必須以字母或數字開頭",
+  "channelNameHint": "只能包含小寫字母、數字和連字號",
+  "channelDescription": "頻道描述",
+  "channelDescriptionPlaceholder": "這個頻道是關於什麼的？",
+  "channelDescriptionOptional": "（選填）",
+  "chooseVisibility": "選擇可見性",
+  "public": "公開",
+  "publicDescription": "任何人都可以檢視和加入此頻道",
+  "private": "私有",
+  "privateDescription": "只有被邀請的成員可以檢視此頻道",
+  "creating": "建立中...",
+  "browseChannels": "瀏覽頻道",
+  "noChannels": "暫無頻道",
+  "noChannelsYet": "還沒有頻道",
+  "viewChannel": "檢視頻道",
+  "leaveChannel": "離開頻道",
+  "deleteChannel": "刪除頻道",
+  "channelSettings": "頻道設定",
+  "channelMembers": "頻道成員",
+  "addMembers": "新增成員",
+  "members": "{{count}} 位成員",
+  "unread": "未讀",
+  "searchMember": "搜尋使用者名稱或暱稱...",
+  "noMatchingUsers": "找不到符合的使用者",
+  "allMembersInChannel": "所有成員都已在頻道中",
+  "selectedCount": "已選取 {{count}} 人",
+  "selectMembersToAdd": "選擇要新增的成員",
+  "adding": "新增中...",
+  "addCount": "新增 {{count}} 人",
+  "add": "新增",
+  "about": "關於",
+  "settings": "設定",
+  "noDescription": "暫無描述",
+  "type": "類型",
+  "privateChannel": "私有頻道",
+  "publicChannel": "公開頻道",
+  "createdAt": "建立時間",
+  "findMember": "尋找成員",
+  "addPeople": "新增人員",
+  "you": "（您）",
+  "channelAdmin": "頻道管理者",
+  "admin": "管理員",
+  "dangerZone": "危險操作",
+  "deleteChannelWarning": "刪除頻道後，所有訊息和檔案都將被永久刪除，無法復原。",
+  "deleteThisChannel": "刪除此頻道",
+  "save": "儲存",
+  "saving": "儲存中...",
+  "edit": "編輯",
+  "joinChannel": "加入頻道",
+  "joining": "加入中...",
+  "leaving": "離開中...",
+  "leaveChannelWarning": "離開後，您將無法存取此頻道的訊息和檔案。",
+  "leaveThisChannel": "離開此頻道",
+  "deleteChannelDescription": "此操作無法復原。該頻道中的所有訊息將被永久刪除。",
+  "deleteChannelWarningTitle": "刪除此頻道將會：",
+  "deleteWarningMessages": "刪除所有訊息和檔案",
+  "deleteWarningMembers": "移除頻道中的所有成員",
+  "deleteWarningNoRecovery": "操作無法復原",
+  "typeToConfirm": "輸入 {{name}} 以確認",
+  "enterChannelName": "輸入頻道名稱",
+  "permanentDelete": "永久刪除（無法復原）",
+  "deleting": "刪除中...",
+  "channelNotFound": "找不到頻道",
+  "loadingChannel": "載入頻道中...",
+  "loadingMessages": "載入訊息中...",
+  "loadingMoreMessages": "載入更多訊息...",
+  "noMessagesYet": "暫無訊息。加入頻道開始聊天吧！",
+  "botStartupCountdownMessage": "HI，您的專屬 OpenClaw Bot 正在啟動中，請等待倒數結束後再開始使用。",
+  "botStartupSuccessMessage": "HI，您的專屬 OpenClaw Bot 已成功啟動！",
+  "botStartChatting": "開始聊天",
+  "noMessagesYetDefault": "暫無訊息",
+  "emptyPublicChannelTitle": "和機器人聊天吧！",
+  "emptyPublicChannelDesc": "此頻道有 AI 機器人，輸入 @ 提及機器人即可開始對話。",
+  "emptyPublicChannelHintExample": "隨便問點什麼...",
+  "emptyPublicChannelGotIt": "知道了",
+  "botNotMemberTitle": "{{botName}} 不是頻道成員",
+  "botNotMemberPublicDesc": "{{botName}} 不是此頻道的成員，無法收到您的訊息。是否要先將它加入頻道？",
+  "botNotMemberPrivateAdminDesc": "{{botName}} 不是此私有頻道的成員，無法收到您的訊息。是否要先將它加入頻道？",
+  "botNotMemberPrivateDesc": "{{botName}} 不是此私有頻道的成員，無法收到您的訊息。請聯繫頻道管理員將機器人加入頻道。",
+  "addBotToChannel": "加入頻道",
+  "addingBot": "新增中...",
+  "botInstanceStoppedMessage": "機器人實例目前已停止，請啟動實例以恢復聊天。",
+  "botInstanceStoppedMemberMessage": "機器人實例目前已停止，請聯繫工作空間管理員啟動實例。",
+  "botInstanceStart": "啟動",
+  "botInstanceStarting": "啟動中...",
+  "botInstanceStartingMessage": "機器人實例正在啟動中，請稍候...",
+  "botThinking": {
+    "texts": {
+      "thinking": "正在思考",
+      "analyzing": "正在分析",
+      "reasoning": "正在推理",
+      "computing": "正在計算",
+      "parsing": "正在解析",
+      "brewing": "正在醞釀",
+      "crafting": "正在構思",
+      "decoding": "正在解碼",
+      "imagining": "正在想像",
+      "composing": "正在組織"
+    }
+  },
+  "tracking": {
+    "ops": {
+      "loadTools": {
+        "loading": "正在載入工具",
+        "success": "工具載入完成",
+        "error": "工具載入失敗"
+      },
+      "searchTools": {
+        "loading": "正在搜尋工具",
+        "success": "工具搜尋完成",
+        "error": "工具搜尋失敗"
+      },
+      "invokeTool": {
+        "loading": "正在呼叫工具",
+        "success": "工具呼叫完成",
+        "error": "工具呼叫失敗"
+      },
+      "fallback": {
+        "loading": "正在載入 {{name}}",
+        "success": "{{name}} 已完成",
+        "error": "{{name}} 失敗"
+      }
+    },
+    "tools": {
+      "searchDocs": {
+        "loading": "正在搜尋文件",
+        "success": "文件搜尋完成",
+        "error": "文件搜尋失敗"
+      },
+      "sendMessage": {
+        "loading": "正在傳送訊息",
+        "success": "訊息傳送完成",
+        "error": "訊息傳送失敗"
+      },
+      "generateReply": {
+        "loading": "正在產生回覆",
+        "success": "回覆產生完成",
+        "error": "回覆產生失敗"
+      }
+    },
+    "thinking": {
+      "label": "正在思考",
+      "labelWithStats": "正在思考（{{stats}}）",
+      "tokens_one": "{{count}} token",
+      "tokens_other": "{{count}} tokens",
+      "seconds": "{{count}} 秒",
+      "minutesSeconds": "{{minutes}} 分 {{seconds}} 秒"
+    },
+    "toolCall": {
+      "argsLabel": "參數",
+      "resultLabel": "結果",
+      "unknownTool": "未知工具"
+    },
+    "eventLabels": {
+      "thinking": "思考",
+      "writing": "撰寫",
+      "toolCall": "呼叫",
+      "toolResult": "結果",
+      "agentStart": "開始",
+      "agentEnd": "完成",
+      "error": "錯誤",
+      "turn": "輪次",
+      "choices": "選項",
+      "selected": "已選"
+    },
+    "round": {
+      "collapseSummary_one": "... 檢視執行過程（{{count}} 步）",
+      "collapseSummary_other": "... 檢視執行過程（{{count}} 步）",
+      "expandAriaLabel_one": "展開執行過程（{{count}} 步）",
+      "expandAriaLabel_other": "展開執行過程（{{count}} 步）"
+    },
+    "card": {
+      "moreDetails_one": "檢視 {{count}} 項詳細資訊 ›",
+      "moreDetails_other": "檢視 {{count}} 項詳細資訊 ›",
+      "loading": "載入中..."
+    }
+  }
+}

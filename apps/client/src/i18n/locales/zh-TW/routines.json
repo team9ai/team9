@@ -1,0 +1,283 @@
+{
+  "tabs": {
+    "all": "全部",
+    "active": "進行中",
+    "upcoming": "即將開始",
+    "finished": "已完成",
+    "info": "基本資訊",
+    "triggers": "觸發條件",
+    "document": "文件",
+    "runs": "執行記錄",
+    "run": "執行",
+    "settings": "設定",
+    "history": "歷史"
+  },
+  "noRoutines": "暫無例行工作",
+  "create": {
+    "title": "新增例行工作",
+    "description": "建立一個例行工作，交給 AI 員工執行。",
+    "taskName": "標題",
+    "taskNamePlaceholder": "需要完成什麼？",
+    "bot": "AI 員工",
+    "botPlaceholder": "選擇 AI 員工...",
+    "noBot": "暫不指定（稍後分配）",
+    "document": "文件（選填）",
+    "documentPlaceholder": "提供背景資訊或說明...",
+    "cancel": "取消",
+    "submit": "建立",
+    "errorGeneric": "建立例行工作失敗"
+  },
+  "status": {
+    "in_progress": "進行中",
+    "upcoming": "即將開始",
+    "paused": "已暫停",
+    "pending_action": "待處理",
+    "completed": "已完成",
+    "failed": "失敗",
+    "stopped": "已停止",
+    "timeout": "已逾時"
+  },
+  "stepStatus": {
+    "pending": "待執行",
+    "in_progress": "執行中",
+    "completed": "已完成",
+    "failed": "失敗"
+  },
+  "schedule": {
+    "type": "排程設定",
+    "types": {
+      "once": "單次執行",
+      "recurring": "週期執行"
+    },
+    "frequency": "頻率",
+    "frequencies": {
+      "daily": "每天",
+      "weekly": "每週",
+      "monthly": "每月"
+    },
+    "time": "時間",
+    "dayOfWeek": "星期",
+    "dayOfMonth": "日期",
+    "days": {
+      "0": "日",
+      "1": "一",
+      "2": "二",
+      "3": "三",
+      "4": "四",
+      "5": "五",
+      "6": "六"
+    }
+  },
+  "detail": {
+    "title": "例行工作詳情",
+    "loadError": "載入例行工作詳情失敗",
+    "start": "開始",
+    "pause": "暫停",
+    "resume": "繼續",
+    "stop": "停止",
+    "restart": "重新開始",
+    "delete": "刪除",
+    "deleteConfirm": "確定刪除此例行工作嗎？",
+    "assignBot": "AI 員工",
+    "noBot": "未指定",
+    "steps": "步驟",
+    "noSteps": "暫無步驟",
+    "deliverables": "交付項目",
+    "noDeliverables": "暫無交付項目",
+    "pendingInterventions": "需要操作",
+    "pastInterventions": "歷史介入",
+    "interventionResolved": "已處理",
+    "interventionExpired": "已過期",
+    "interventionPlaceholder": "輸入自訂回覆...",
+    "messageInputPlaceholder": "向此例行工作傳送訊息...",
+    "finishedBanner": {
+      "completed": "例行工作已成功完成",
+      "failed": "例行工作執行失敗",
+      "timeout": "例行工作執行逾時",
+      "stopped": "例行工作已被停止",
+      "in_progress": "",
+      "upcoming": "",
+      "paused": "",
+      "pending_action": ""
+    },
+    "completedAt": "完成於 {{time}}",
+    "duration": "耗時：{{duration}}",
+    "tokenUsage": "消耗 {{tokens}} 個 Token",
+    "tokenCount": "{{count}} 個 Token",
+    "error": "錯誤",
+    "errorWithCode": "錯誤 ({{code}})",
+    "document": {
+      "save": "儲存",
+      "saving": "儲存中...",
+      "unsavedChanges": "有未儲存的變更",
+      "viewingVersion": "正在檢視版本 {{version}}",
+      "backToCurrent": "返回目前版本",
+      "currentLabel": "版本 {{version}}（目前）",
+      "versionLabel": "版本 {{version}} — {{time}}",
+      "discardTitle": "未儲存的變更",
+      "discardMessage": "您有未儲存的變更，確定要捨棄嗎？",
+      "discardConfirm": "捨棄",
+      "discardCancel": "繼續編輯",
+      "saveSummaryPlaceholder": "描述您的變更（選填）...",
+      "placeholder": "開始撰寫...",
+      "createPlaceholder": "開始撰寫以建立文件...",
+      "suggestions": {
+        "title": "AI 建議",
+        "count": "AI 建議 ({{count}})",
+        "view": "檢視",
+        "approve": "採納",
+        "reject": "拒絕",
+        "current": "目前內容",
+        "suggested": "建議內容",
+        "outdated": "此建議基於舊版本",
+        "empty": "暫無待處理建議"
+      },
+      "versionHistory": {
+        "loadError": "載入版本失敗",
+        "noVersions": "暫無版本"
+      }
+    }
+  },
+  "triggers": {
+    "title": "觸發條件",
+    "add": "新增觸發條件",
+    "empty": "尚未設定觸發條件",
+    "edit": "編輯",
+    "delete": "刪除",
+    "types": {
+      "manual": "手動",
+      "interval": "間隔",
+      "schedule": "排程",
+      "channel_message": "頻道訊息"
+    },
+    "enabled": "已啟用",
+    "disabled": "已停用",
+    "nextRun": "下次執行：{{time}}",
+    "countdown": "{{duration}}後",
+    "lastRun": "上次執行：{{time}}",
+    "interval": {
+      "every": "每隔",
+      "units": {
+        "minutes": "分鐘",
+        "hours": "小時",
+        "days": "天",
+        "weeks": "週",
+        "months": "月",
+        "years": "年"
+      }
+    },
+    "schedule": {
+      "frequencies": {
+        "daily": "每天",
+        "weekly": "每週",
+        "monthly": "每月",
+        "yearly": "每年",
+        "weekdays": "工作日"
+      },
+      "time": "時間",
+      "timezone": "時區",
+      "dayOfWeek": "星期",
+      "dayOfMonth": "日期"
+    },
+    "channelMessage": {
+      "channel": "頻道",
+      "selectChannel": "選擇頻道..."
+    },
+    "deleteConfirm": "確定刪除此觸發條件？",
+    "addTitle": "新增觸發條件",
+    "selectType": "選擇觸發類型",
+    "configureTitle": "設定{{type}}",
+    "back": "返回",
+    "create": "建立",
+    "manualNoConfig": "手動觸發不需要設定，建立後可隨時手動觸發。",
+    "typeDesc": {
+      "manual": "依需求手動觸發",
+      "interval": "依固定間隔執行",
+      "schedule": "依排程定時執行",
+      "channel_message": "收到訊息時執行"
+    }
+  },
+  "runs": {
+    "title": "執行記錄",
+    "empty": "暫無執行記錄",
+    "version": "v{{version}}",
+    "triggerType": {
+      "manual": "手動",
+      "interval": "間隔",
+      "schedule": "排程",
+      "channel_message": "訊息",
+      "retry": "重試"
+    },
+    "notes": "備註",
+    "retry": "重試",
+    "retryTitle": "重試執行",
+    "retryNotes": "新增重試備註（選填）",
+    "back": "返回執行列表",
+    "documentVersion": "文件 v{{version}}",
+    "triggeredAt": "觸發時間：{{time}}",
+    "scheduledAt": "排程時間：{{time}}",
+    "triggeredBy": "觸發者：{{user}}",
+    "messageFrom": "訊息來自 {{user}}",
+    "retryOf": "重試 v{{version}}"
+  },
+  "timeline": {
+    "empty": "暫無動態",
+    "statusChange": {
+      "started": "例行工作已開始",
+      "completed": "例行工作已完成",
+      "failed": "例行工作執行失敗",
+      "stopped": "例行工作已停止",
+      "timeout": "例行工作執行逾時",
+      "paused": "例行工作已暫停"
+    }
+  },
+  "chat": {
+    "placeholder": "啟動例行工作後即可與 Bot 對話"
+  },
+  "manualTrigger": {
+    "title": "啟動例行工作",
+    "notesPlaceholder": "新增本次執行的備註或說明（選填）..."
+  },
+  "chatArea": {
+    "viewingHistory": "正在檢視歷史執行",
+    "returnToCurrent": "返回目前執行",
+    "lastRunCompleted": "上次執行已完成",
+    "lastRunFailed": "上次執行失敗",
+    "lastRunStopped": "上次執行已停止",
+    "lastRunTimeout": "上次執行逾時",
+    "rerun": "重新執行",
+    "readOnly": "歷史對話（唯讀）",
+    "finishedReadOnly": "上次執行的對話（唯讀）",
+    "start": "開始",
+    "noRunsYet": "還沒有執行記錄，開始您的第一次執行吧！",
+    "pause": "暫停",
+    "resume": "恢復",
+    "stop": "停止"
+  },
+  "runTab": {
+    "title": "執行詳情",
+    "status": "狀態",
+    "duration": "耗時",
+    "triggerType": "觸發方式",
+    "taskVersion": "例行工作版本",
+    "tokenUsage": "Token 用量",
+    "timeline": "時間軸",
+    "noExecution": "未選擇執行"
+  },
+  "settingsTab": {
+    "title": "設定",
+    "taskTitle": "標題",
+    "taskDescription": "描述",
+    "deleteConfirm": "確定要刪除此例行工作嗎？此操作無法復原。"
+  },
+  "historyTab": {
+    "title": "歷史",
+    "current": "目前",
+    "empty": "暫無執行記錄",
+    "manual": "手動",
+    "interval": "間隔",
+    "schedule": "排程",
+    "channelMessage": "頻道訊息",
+    "retry": "重試"
+  }
+}

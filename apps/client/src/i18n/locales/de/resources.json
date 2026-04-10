@@ -1,0 +1,72 @@
+{
+  "title": "Ressourcen",
+  "tabs": { "all": "Alle", "agent_computer": "Agent-Computer", "api": "API" },
+  "noResources": "Noch keine Ressourcen",
+  "status": {
+    "online": "Online",
+    "offline": "Offline",
+    "error": "Fehler",
+    "configuring": "Wird konfiguriert"
+  },
+  "type": { "agent_computer": "Agent-Computer", "api": "API" },
+  "connectionType": { "ahand": "Ahand", "ssh": "SSH", "cloud": "Cloud" },
+  "create": {
+    "title": "Ressource hinzufügen",
+    "selectType": "Ressourcentyp",
+    "name": "Name",
+    "namePlaceholder": "Ressourcenname eingeben",
+    "description": "Beschreibung",
+    "descriptionPlaceholder": "Optionale Beschreibung",
+    "connectionType": "Verbindungstyp",
+    "host": "Host",
+    "hostPlaceholder": "z.B. 192.168.1.100",
+    "port": "Port",
+    "provider": "Anbieter",
+    "providerPlaceholder": "z.B. openai, google, custom",
+    "apiKey": "API-Schlüssel",
+    "apiKeyPlaceholder": "API-Schlüssel eingeben",
+    "baseUrl": "Basis-URL",
+    "baseUrlPlaceholder": "Optionale benutzerdefinierte Basis-URL",
+    "model": "Modell",
+    "modelPlaceholder": "z.B. gpt-4, claude-3",
+    "submit": "Erstellen",
+    "cancel": "Abbrechen"
+  },
+  "detail": {
+    "title": "Ressourcendetails",
+    "loadError": "Ressource konnte nicht geladen werden",
+    "basicInfo": "Grundinformationen",
+    "authorizations": "Autorisierungen",
+    "noAuthorizations": "Noch keine Autorisierungen",
+    "addAuthorization": "Hinzufügen",
+    "usageLogs": "Nutzungsprotokolle",
+    "noUsageLogs": "Noch keine Nutzungsprotokolle",
+    "delete": "Löschen",
+    "deleteConfirm": "Möchten Sie diese Ressource wirklich löschen?",
+    "lastHeartbeat": "Letzter Heartbeat: {{time}}",
+    "authCount": "{{count}} autorisiert",
+    "maskedKey": "{{prefix}}...{{suffix}}",
+    "granteeType": { "user": "Benutzer", "task": "Aufgabe" },
+    "permissionLevel": { "full": "Vollzugriff", "readonly": "Nur Lesen" }
+  },
+  "auth": {
+    "granteeType": "Berechtigtentyp",
+    "granteeId": "Berechtigten-ID",
+    "granteeIdPlaceholder": "Benutzer- oder Aufgaben-ID eingeben",
+    "permissionLevel": "Berechtigungsstufe",
+    "grant": "Zugriff gewähren"
+  },
+  "edit": { "save": "Speichern", "cancel": "Abbrechen" },
+  "ahand": {
+    "localDeviceSetup": "Lokale Geräteeinrichtung",
+    "connection": "aHand-Verbindung",
+    "browserComponents": "Browser-Komponenten",
+    "activation": "Aktivierung"
+  },
+  "actions": {
+    "connect": "Verbinden",
+    "disconnect": "Trennen",
+    "api_call": "API-Aufruf",
+    "error": "Fehler"
+  }
+}

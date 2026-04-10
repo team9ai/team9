@@ -1,0 +1,92 @@
+{
+  "title": "리소스",
+  "tabs": {
+    "all": "전체",
+    "agent_computer": "에이전트 컴퓨터",
+    "api": "API"
+  },
+  "noResources": "리소스가 없습니다",
+  "status": {
+    "online": "온라인",
+    "offline": "오프라인",
+    "error": "오류",
+    "configuring": "설정 중"
+  },
+  "type": {
+    "agent_computer": "에이전트 컴퓨터",
+    "api": "API"
+  },
+  "connectionType": {
+    "ahand": "Ahand",
+    "ssh": "SSH",
+    "cloud": "Cloud"
+  },
+  "create": {
+    "title": "리소스 추가",
+    "selectType": "리소스 유형",
+    "name": "이름",
+    "namePlaceholder": "리소스 이름 입력",
+    "description": "설명",
+    "descriptionPlaceholder": "선택 설명",
+    "connectionType": "연결 유형",
+    "host": "호스트",
+    "hostPlaceholder": "예: 192.168.1.100",
+    "port": "포트",
+    "provider": "제공자",
+    "providerPlaceholder": "예: openai, google, custom",
+    "apiKey": "API Key",
+    "apiKeyPlaceholder": "API Key 입력",
+    "baseUrl": "Base URL",
+    "baseUrlPlaceholder": "선택 커스텀 Base URL",
+    "model": "모델",
+    "modelPlaceholder": "예: gpt-4, claude-3",
+    "submit": "생성",
+    "cancel": "취소"
+  },
+  "detail": {
+    "title": "리소스 상세",
+    "loadError": "리소스를 불러오지 못했습니다",
+    "basicInfo": "기본 정보",
+    "authorizations": "권한 부여",
+    "noAuthorizations": "권한 부여 내역이 없습니다",
+    "addAuthorization": "추가",
+    "usageLogs": "사용 기록",
+    "noUsageLogs": "사용 기록이 없습니다",
+    "delete": "삭제",
+    "deleteConfirm": "이 리소스를 삭제하시겠습니까?",
+    "lastHeartbeat": "마지막 하트비트: {{time}}",
+    "authCount": "{{count}}개 권한 부여됨",
+    "maskedKey": "{{prefix}}...{{suffix}}",
+    "granteeType": {
+      "user": "사용자",
+      "task": "작업"
+    },
+    "permissionLevel": {
+      "full": "전체 접근",
+      "readonly": "읽기 전용"
+    }
+  },
+  "auth": {
+    "granteeType": "권한 대상 유형",
+    "granteeId": "권한 대상 ID",
+    "granteeIdPlaceholder": "사용자 또는 작업 ID 입력",
+    "permissionLevel": "권한 수준",
+    "grant": "접근 권한 부여"
+  },
+  "edit": {
+    "save": "저장",
+    "cancel": "취소"
+  },
+  "ahand": {
+    "localDeviceSetup": "로컬 디바이스 설정",
+    "connection": "aHand 연결",
+    "browserComponents": "브라우저 컴포넌트",
+    "activation": "활성화"
+  },
+  "actions": {
+    "connect": "연결",
+    "disconnect": "연결 해제",
+    "api_call": "API 호출",
+    "error": "오류"
+  }
+}

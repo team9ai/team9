@@ -1,0 +1,18 @@
+{
+  "title": "スレッド",
+  "loading": "スレッドを読み込み中...",
+  "error": "スレッドの読み込みに失敗しました",
+  "repliesCount": "{{count}} 件の返信",
+  "repliesCount_other": "{{count}} 件の返信",
+  "showMoreReplies": "さらに {{count}} 件の返信を表示",
+  "showMoreReplies_other": "さらに {{count}} 件の返信を表示",
+  "hideReplies": "返信を非表示",
+  "replyingTo": "返信先",
+  "inputPlaceholder": "スレッドで返信...",
+  "loadMore": "さらに返信を読み込む",
+  "loadingMore": "読み込み中...",
+  "newMessages": "{{count}} 件の新しいメッセージ",
+  "newMessages_other": "{{count}} 件の新しいメッセージ",
+  "lastReply": "最終返信 {{time}}",
+  "backToChannel": "チャンネルに戻る"
+}
