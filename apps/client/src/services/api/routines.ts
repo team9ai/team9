@@ -173,6 +173,33 @@ export const routinesApi = {
   retry: async (routineId: string, dto: RetryExecutionDto): Promise<void> => {
     await http.post(`/v1/routines/${routineId}/retry`, dto);
   },
+
+  // Agentic creation
+  createWithCreationTask: async (body: {
+    agentId: string;
+  }): Promise<{
+    routineId: string;
+    creationChannelId: string;
+    creationSessionId: string;
+  }> => {
+    const response = await http.post<{
+      routineId: string;
+      creationChannelId: string;
+      creationSessionId: string;
+    }>("/v1/routines/create-with-creation-task", body);
+    return response.data;
+  },
+
+  completeCreation: async (
+    routineId: string,
+    body?: { notes?: string },
+  ): Promise<Routine> => {
+    const response = await http.post<Routine>(
+      `/v1/routines/${routineId}/complete-creation`,
+      body ?? {},
+    );
+    return response.data;
+  },
 };
 
 export default routinesApi;

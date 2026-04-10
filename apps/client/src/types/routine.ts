@@ -3,6 +3,7 @@
 // ── Enum types (string unions) ──────────────────────────────────────
 
 export type RoutineStatus =
+  | "draft"
   | "upcoming"
   | "in_progress"
   | "paused"
@@ -70,6 +71,9 @@ export interface Routine {
   currentExecutionId: string | null;
   /** Token usage from the current execution (included in list responses) */
   tokenUsage?: number;
+  creationChannelId: string | null;
+  creationSessionId: string | null;
+  sourceRef: string | null;
   createdAt: string;
   updatedAt: string;
 }
