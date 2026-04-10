@@ -186,7 +186,7 @@ export const routinesApi = {
       routineId: string;
       creationChannelId: string;
       creationSessionId: string;
-    }>("/v1/routines/create-with-creation-task", body);
+    }>("/v1/routines/with-creation-task", body);
     return response.data;
   },
 

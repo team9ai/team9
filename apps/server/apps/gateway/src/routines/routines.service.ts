@@ -283,6 +283,32 @@ export class RoutinesService {
     // Drafts can always be deleted directly — no active-status guard needed
     if ((routine.status as string) === 'draft') {
       this.logger.debug(`Deleting draft routine ${routineId}`);
+
+      // Clean up clone agent (non-fatal)
+      const cloneAgentId = `routine-creation-${routineId}`;
+      try {
+        await this.clawHiveService.deleteAgent(cloneAgentId);
+      } catch (err) {
+        this.logger.warn(
+          `delete: failed to delete clone agent ${cloneAgentId}: ${err}`,
+        );
+      }
+
+      // Archive creation channel (non-fatal)
+      const creationChannelId = routine.creationChannelId;
+      if (creationChannelId) {
+        try {
+          await this.channelsService.archiveCreationChannel(
+            creationChannelId,
+            tenantId,
+          );
+        } catch (err) {
+          this.logger.warn(
+            `delete: failed to archive creation channel ${creationChannelId}: ${err}`,
+          );
+        }
+      }
+
       await this.db
         .delete(schema.routines)
         .where(eq(schema.routines.id, routineId));
@@ -502,7 +528,7 @@ export class RoutinesService {
     const routine = await this.getRoutineOrThrow(routineId, tenantId);
     if ((routine.status as string) === 'draft') {
       throw new BadRequestException(
-        'Cannot start a draft routine. Publish the routine first.',
+        'Cannot start routine in draft status. Complete creation first via POST /v1/routines/:id/complete-creation.',
       );
     }
     if (!routine.botId) {
@@ -794,6 +820,13 @@ export class RoutinesService {
 
     if (!routine.botId) {
       errors.push('botId is required');
+    } else {
+      const bot = await this.botsService.getBotById(routine.botId);
+      if (!bot) {
+        errors.push(
+          'The executing agent no longer exists. Please reassign or delete this draft.',
+        );
+      }
     }
 
     // Check document content — documentContent lives on the linked Document,
@@ -997,7 +1030,7 @@ export class RoutinesService {
           timestamp: new Date().toISOString(),
           payload: {
             routineId: draft.id,
-            userId,
+            creatorUserId: userId,
             tenantId,
             title,
           },
