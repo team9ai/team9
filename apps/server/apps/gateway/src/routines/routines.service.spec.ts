@@ -1,12 +1,13 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { RoutinesService } from './routines.service.js';
 import { TaskCastService } from './taskcast.service.js';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { DocumentsService } from '../documents/documents.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { ClawHiveService } from '@team9/claw-hive';
+import { BotService } from '../bot/bot.service.js';
 import { RoutineTriggersService } from './routine-triggers.service.js';
 import {
   AmqpConnection,
@@ -70,8 +71,9 @@ describe('RoutinesService — TaskCast integration', () => {
   let amqpConnection: { publish: MockFn };
   let documentsService: { create: MockFn; update: MockFn; getById: MockFn };
   let routineTriggersService: { createBatch: MockFn; replaceAllForRoutine: MockFn };
-  let channelsService: { archiveCreationChannel: MockFn };
-  let clawHiveService: { deleteAgent: MockFn };
+  let channelsService: { archiveCreationChannel: MockFn; createDirectChannel: MockFn };
+  let clawHiveService: { deleteAgent: MockFn; registerAgent: MockFn; sendInput: MockFn };
+  let botsService: { getBotById: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
@@ -91,9 +93,16 @@ describe('RoutinesService — TaskCast integration', () => {
     };
     channelsService = {
       archiveCreationChannel: jest.fn<any>().mockResolvedValue(undefined),
+      createDirectChannel: jest.fn<any>().mockResolvedValue({ id: 'channel-1' }),
     };
     clawHiveService = {
       deleteAgent: jest.fn<any>().mockResolvedValue(undefined),
+      registerAgent: jest.fn<any>().mockResolvedValue(undefined),
+      sendInput: jest.fn<any>().mockResolvedValue({ messages: [] }),
+      getAgent: jest.fn<any>().mockResolvedValue(null),
+    };
+    botsService = {
+      getBotById: jest.fn<any>().mockResolvedValue(null),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -106,6 +115,7 @@ describe('RoutinesService — TaskCast integration', () => {
         { provide: TaskCastService, useValue: taskCastService },
         { provide: ChannelsService, useValue: channelsService },
         { provide: ClawHiveService, useValue: clawHiveService },
+        { provide: BotService, useValue: botsService },
       ],
     }).compile();
 
@@ -1892,6 +1902,218 @@ describe('RoutinesService — TaskCast integration', () => {
       expect(clawHiveService.deleteAgent).toHaveBeenCalledWith(
         'routine-creation-routine-1',
       );
+    });
+  });
+
+  // ── createWithCreationTask ────────────────────────────────────────
+
+  describe('createWithCreationTask', () => {
+    const SOURCE_BOT = {
+      userId: 'bot-user-1',
+      botId: 'bot-1',
+      username: 'my-bot',
+      displayName: 'My Bot',
+      email: 'bot@team9.local',
+      type: 'custom',
+      ownerId: 'owner-1',
+      mentorId: null,
+      description: null,
+      capabilities: null,
+      extra: null,
+      managedProvider: 'hive',
+      managedMeta: { agentId: 'source-agent-id' },
+      isActive: true,
+    };
+
+    const SOURCE_AGENT = {
+      id: 'source-agent-id',
+      name: 'My Bot Agent',
+      blueprintId: 'blueprint-abc',
+      tenantId: 'tenant-1',
+      model: { provider: 'openrouter', id: 'anthropic/claude-sonnet-4' },
+      componentConfigs: { 'system-prompt': { prompt: 'Hello' } },
+    };
+
+    const DRAFT_NEW_ROUTINE = {
+      id: 'routine-new-1',
+      tenantId: 'tenant-1',
+      botId: 'bot-1',
+      creatorId: 'user-1',
+      title: 'Routine #1',
+      description: null,
+      status: 'draft',
+      scheduleType: 'once',
+      scheduleConfig: null,
+      documentId: 'doc-1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      currentExecutionId: null,
+    };
+
+    /** Set up happy-path mocks for createWithCreationTask */
+    function setupHappyPath(overrides: {
+      botResult?: typeof SOURCE_BOT | null;
+      botTenantRow?: { tenantId: string } | null;
+      agentResult?: typeof SOURCE_AGENT | null;
+      draftRoutine?: typeof DRAFT_NEW_ROUTINE;
+    } = {}) {
+      const {
+        botResult = SOURCE_BOT,
+        botTenantRow = { tenantId: 'tenant-1' },
+        agentResult = SOURCE_AGENT,
+        draftRoutine = DRAFT_NEW_ROUTINE,
+      } = overrides;
+
+      botsService.getBotById.mockResolvedValueOnce(botResult as any);
+
+      // Bot-tenant validation: db.select().from().leftJoin().where().limit()
+      // The first where() call needs to return chain so limit() can be chained
+      db.where.mockReturnValueOnce(db as any);
+      db.limit.mockResolvedValueOnce(botTenantRow ? [botTenantRow] : [] as any);
+
+      // Count query: db.select().from().where() — terminal, must return Promise
+      db.where.mockResolvedValueOnce([{ count: 0 }] as any);
+
+      // getAgent call (via cast to any on clawHiveService)
+      (clawHiveService as any).getAgent.mockResolvedValueOnce(agentResult);
+
+      // create() → documentsService.create() + db.insert().values().returning()
+      documentsService.create.mockResolvedValueOnce({ id: 'doc-1' } as any);
+      db.returning.mockResolvedValueOnce([draftRoutine] as any);
+    }
+
+    it('happy path: creates draft + channel + clone agent + sends kickoff event', async () => {
+      setupHappyPath();
+
+      channelsService.createDirectChannel.mockResolvedValueOnce({ id: 'channel-42' } as any);
+
+      const result = await service.createWithCreationTask(
+        { agentId: 'bot-1' },
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(result).toEqual({
+        routineId: 'routine-new-1',
+        creationChannelId: 'channel-42',
+        creationSessionId: `team9/tenant-1/routine-creation-routine-new-1/dm/channel-42`,
+      });
+
+      expect(channelsService.createDirectChannel).toHaveBeenCalledWith(
+        'user-1',
+        'bot-user-1',
+        'tenant-1',
+      );
+
+      expect(clawHiveService.registerAgent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'routine-creation-routine-new-1',
+          blueprintId: 'blueprint-abc',
+          tenantId: 'tenant-1',
+          model: SOURCE_AGENT.model,
+          componentConfigs: expect.objectContaining({
+            'system-prompt': { prompt: 'Hello' },
+            'team9-routine-creation': {
+              routineId: 'routine-new-1',
+              isCreationChannel: true,
+            },
+          }),
+        }),
+      );
+
+      expect(clawHiveService.sendInput).toHaveBeenCalledWith(
+        `team9/tenant-1/routine-creation-routine-new-1/dm/channel-42`,
+        expect.objectContaining({
+          type: 'team9:routine-creation.start',
+          source: 'team9',
+          payload: expect.objectContaining({
+            routineId: 'routine-new-1',
+            userId: 'user-1',
+            tenantId: 'tenant-1',
+          }),
+        }),
+        'tenant-1',
+      );
+    });
+
+    it('auto-generates title "Routine #N" based on existing routine count', async () => {
+      setupHappyPath();
+
+      // The count query returns an empty result → count = 0 → "Routine #1"
+      // (the mockDb chain.where returns chain which awaits as object, count = 0)
+
+      await service.createWithCreationTask(
+        { agentId: 'bot-1' },
+        'user-1',
+        'tenant-1',
+      );
+
+      // The create() call inserts a doc with title "Routine #1"
+      expect(documentsService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Routine #1' }),
+        expect.any(Object),
+        'tenant-1',
+      );
+    });
+
+    it('throws 404 when bot does not exist', async () => {
+      botsService.getBotById.mockResolvedValueOnce(null as any);
+
+      await expect(
+        service.createWithCreationTask({ agentId: 'missing-bot' }, 'user-1', 'tenant-1'),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(db.insert).not.toHaveBeenCalled();
+      expect(channelsService.createDirectChannel).not.toHaveBeenCalled();
+    });
+
+    it('throws 400 when bot belongs to a different tenant', async () => {
+      botsService.getBotById.mockResolvedValueOnce(SOURCE_BOT as any);
+      // Bot-tenant validation: tenant mismatch
+      db.limit.mockResolvedValueOnce([{ tenantId: 'other-tenant' }] as any);
+
+      await expect(
+        service.createWithCreationTask({ agentId: 'bot-1' }, 'user-1', 'tenant-1'),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(clawHiveService.registerAgent).not.toHaveBeenCalled();
+    });
+
+    it('rolls back draft if channel creation fails', async () => {
+      setupHappyPath();
+
+      channelsService.createDirectChannel.mockRejectedValueOnce(
+        new Error('channel creation failed') as any,
+      );
+
+      await expect(
+        service.createWithCreationTask({ agentId: 'bot-1' }, 'user-1', 'tenant-1'),
+      ).rejects.toThrow('channel creation failed');
+
+      // Clone was not registered → no delete needed
+      expect(clawHiveService.deleteAgent).not.toHaveBeenCalled();
+
+      // Draft routine should be deleted
+      expect(db.delete).toHaveBeenCalled();
+    });
+
+    it('rolls back draft AND clone if sendInput fails after registerAgent', async () => {
+      setupHappyPath();
+
+      channelsService.createDirectChannel.mockResolvedValueOnce({ id: 'channel-42' } as any);
+      clawHiveService.sendInput.mockRejectedValueOnce(new Error('send failed') as any);
+
+      await expect(
+        service.createWithCreationTask({ agentId: 'bot-1' }, 'user-1', 'tenant-1'),
+      ).rejects.toThrow('send failed');
+
+      // Clone was registered → should be deleted
+      expect(clawHiveService.deleteAgent).toHaveBeenCalledWith(
+        'routine-creation-routine-new-1',
+      );
+
+      // Draft routine should be deleted
+      expect(db.delete).toHaveBeenCalled();
     });
   });
 });

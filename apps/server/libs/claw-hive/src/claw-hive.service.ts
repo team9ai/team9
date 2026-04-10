@@ -73,6 +73,38 @@ export class ClawHiveService {
     }
   }
 
+  async getAgent(
+    agentId: string,
+    tenantId?: string,
+  ): Promise<{
+    id: string;
+    name: string;
+    blueprintId: string;
+    tenantId: string;
+    model: { provider: string; id: string };
+    componentConfigs: Record<string, Record<string, unknown>>;
+    metadata?: Record<string, unknown>;
+  } | null> {
+    const res = await fetch(
+      `${this.baseUrl}/api/agents/${encodeURIComponent(agentId)}`,
+      { headers: this.headers(tenantId) },
+    );
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`getAgent failed: ${res.status} ${text}`);
+    }
+    return res.json() as Promise<{
+      id: string;
+      name: string;
+      blueprintId: string;
+      tenantId: string;
+      model: { provider: string; id: string };
+      componentConfigs: Record<string, Record<string, unknown>>;
+      metadata?: Record<string, unknown>;
+    }>;
+  }
+
   async deleteAgent(agentId: string): Promise<void> {
     const res = await fetch(
       `${this.baseUrl}/api/agents/${encodeURIComponent(agentId)}`,

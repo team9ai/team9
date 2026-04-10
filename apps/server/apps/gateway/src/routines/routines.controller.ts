@@ -32,6 +32,7 @@ import {
   RetryExecutionDto,
   RestartRoutineDto,
   CompleteCreationDto,
+  CreateWithCreationTaskDto,
 } from './dto/index.js';
 
 @Controller({
@@ -52,6 +53,15 @@ export class RoutinesController {
     @CurrentTenantId() tenantId: string,
   ) {
     return this.routinesService.create(dto, userId, tenantId);
+  }
+
+  @Post('with-creation-task')
+  async createWithCreationTask(
+    @Body() dto: CreateWithCreationTaskDto,
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    return this.routinesService.createWithCreationTask(dto, userId, tenantId);
   }
 
   @Get()

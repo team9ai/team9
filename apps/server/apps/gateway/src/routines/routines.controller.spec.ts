@@ -76,6 +76,11 @@ describe('RoutinesController', () => {
       }),
       retry: jest.fn<any>().mockResolvedValue({ success: true }),
       completeCreation: jest.fn<any>().mockResolvedValue({ id: routineId, status: 'upcoming' }),
+      createWithCreationTask: jest.fn<any>().mockResolvedValue({
+        routineId,
+        creationChannelId: 'channel-1',
+        creationSessionId: `team9/tenant-1/routine-creation-${routineId}/dm/channel-1`,
+      }),
     };
 
     routineTriggersService = {
@@ -422,6 +427,25 @@ describe('RoutinesController', () => {
         tenantId,
       );
       expect(result).toEqual({ id: routineId, status: 'upcoming' });
+    });
+  });
+
+  describe('createWithCreationTask', () => {
+    it('delegates to routinesService.createWithCreationTask with dto, userId, tenantId', async () => {
+      const dto = { agentId: 'bot-1' } as any;
+
+      const result = await controller.createWithCreationTask(dto, userId, tenantId);
+
+      expect(routinesService.createWithCreationTask).toHaveBeenCalledWith(
+        dto,
+        userId,
+        tenantId,
+      );
+      expect(result).toEqual({
+        routineId,
+        creationChannelId: 'channel-1',
+        creationSessionId: `team9/tenant-1/routine-creation-${routineId}/dm/channel-1`,
+      });
     });
   });
 });

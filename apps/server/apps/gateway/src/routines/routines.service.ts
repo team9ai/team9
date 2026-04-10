@@ -14,6 +14,7 @@ import {
   or,
   and,
   desc,
+  sql,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -30,6 +31,7 @@ import {
 import { DocumentsService } from '../documents/documents.service.js';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { ClawHiveService } from '@team9/claw-hive';
+import { BotService } from '../bot/bot.service.js';
 import { RoutineTriggersService } from './routine-triggers.service.js';
 import type { CreateRoutineDto } from './dto/create-routine.dto.js';
 import type { UpdateRoutineDto } from './dto/update-routine.dto.js';
@@ -40,6 +42,7 @@ import type { StopRoutineDto } from './dto/routine-control.dto.js';
 import type { ResolveInterventionDto } from './dto/resolve-intervention.dto.js';
 import type { RetryExecutionDto } from './dto/trigger.dto.js';
 import type { CompleteCreationDto } from './dto/complete-creation.dto.js';
+import type { CreateWithCreationTaskDto } from './dto/with-creation-task.dto.js';
 import { TaskCastService } from './taskcast.service.js';
 
 // ── Filter types ────────────────────────────────────────────────────
@@ -65,6 +68,7 @@ export class RoutinesService {
     private readonly taskCastService: TaskCastService,
     private readonly channelsService: ChannelsService,
     private readonly clawHiveService: ClawHiveService,
+    private readonly botsService: BotService,
   ) {}
 
   // ── CRUD ────────────────────────────────────────────────────────
@@ -855,6 +859,185 @@ export class RoutinesService {
     );
 
     return updated;
+  }
+
+  // ── Creation Task ───────────────────────────────────────────────
+
+  async createWithCreationTask(
+    dto: CreateWithCreationTaskDto,
+    userId: string,
+    tenantId: string,
+  ): Promise<{
+    routineId: string;
+    creationChannelId: string;
+    creationSessionId: string;
+  }> {
+    // Step 1: Validate source bot exists
+    const sourceBot = await this.botsService.getBotById(dto.agentId);
+    if (!sourceBot) {
+      throw new NotFoundException(`Bot not found: ${dto.agentId}`);
+    }
+
+    // Step 2: Validate bot belongs to tenant via bots JOIN installed_applications
+    const [botTenantRow] = await this.db
+      .select({ tenantId: schema.installedApplications.tenantId })
+      .from(schema.bots)
+      .leftJoin(
+        schema.installedApplications,
+        eq(schema.bots.installedApplicationId, schema.installedApplications.id),
+      )
+      .where(eq(schema.bots.id, dto.agentId))
+      .limit(1);
+
+    if (!botTenantRow || botTenantRow.tenantId !== tenantId) {
+      throw new BadRequestException(
+        'Bot does not belong to the current tenant',
+      );
+    }
+
+    // Step 3: Get source agent from claw-hive
+    const agentId = (sourceBot.managedMeta as Record<string, unknown> | null)
+      ?.agentId as string | undefined;
+    if (!agentId) {
+      throw new BadRequestException(
+        'Bot is not a managed hive agent (no agentId in managedMeta)',
+      );
+    }
+    // Cast to bypass stale type resolution in pnpm workspaces / worktrees environment
+    const sourceAgent = await (
+      this.clawHiveService as unknown as {
+        getAgent: (
+          agentId: string,
+          tenantId?: string,
+        ) => Promise<{
+          id: string;
+          name: string;
+          blueprintId: string;
+          tenantId: string;
+          model: { provider: string; id: string };
+          componentConfigs: Record<string, Record<string, unknown>>;
+          metadata?: Record<string, unknown>;
+        } | null>;
+      }
+    ).getAgent(agentId, tenantId);
+    if (!sourceAgent) {
+      throw new BadRequestException(
+        `Source agent not found in claw-hive: ${agentId}`,
+      );
+    }
+
+    // Step 4: Auto-generate title: count existing routines in tenant.
+    // TODO: This has a race condition — concurrent calls can produce
+    // duplicate titles (e.g., two "Routine #6"). Titles are not unique-
+    // constrained so this is cosmetically annoying but not broken.
+    // Consider using a DB sequence or atomic INSERT...SELECT if it
+    // becomes a problem in practice.
+    const [countRow] = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(schema.routines)
+      .where(eq(schema.routines.tenantId, tenantId));
+    const count = Number(countRow?.count ?? 0);
+    const title = `Routine #${count + 1}`;
+
+    // Step 5: Create draft routine
+    const draft = await this.create(
+      { title, botId: dto.agentId, status: 'draft' },
+      userId,
+      tenantId,
+    );
+
+    // Steps 6-10: with rollback on failure
+    let cloneRegistered = false;
+    const cloneAgentId = `routine-creation-${draft.id}`;
+
+    try {
+      // Step 6: Create/reuse DM channel between user and bot shadow user
+      const channel = await this.channelsService.createDirectChannel(
+        userId,
+        sourceBot.userId,
+        tenantId,
+      );
+
+      // Step 7: Build deterministic session ID
+      const sessionId = `team9/${tenantId}/routine-creation-${draft.id}/dm/${channel.id}`;
+
+      // Step 8: Register clone agent
+      await this.clawHiveService.registerAgent({
+        id: cloneAgentId,
+        name: `Routine Creation - ${title}`,
+        blueprintId: sourceAgent.blueprintId,
+        tenantId,
+        model: sourceAgent.model,
+        componentConfigs: {
+          ...sourceAgent.componentConfigs,
+          'team9-routine-creation': {
+            routineId: draft.id,
+            isCreationChannel: true,
+          },
+        },
+      });
+      cloneRegistered = true;
+
+      // Step 9: Persist creation metadata
+      await this.db
+        .update(schema.routines)
+        .set({
+          creationChannelId: channel.id,
+          creationSessionId: sessionId,
+          updatedAt: new Date(),
+        } as Record<string, unknown>)
+        .where(eq(schema.routines.id, draft.id));
+
+      // Step 10: Send kickoff event
+      await this.clawHiveService.sendInput(
+        sessionId,
+        {
+          type: 'team9:routine-creation.start',
+          source: 'team9',
+          timestamp: new Date().toISOString(),
+          payload: {
+            routineId: draft.id,
+            userId,
+            tenantId,
+            title,
+          },
+        },
+        tenantId,
+      );
+
+      return {
+        routineId: draft.id,
+        creationChannelId: channel.id,
+        creationSessionId: sessionId,
+      };
+    } catch (error) {
+      // Rollback: delete clone agent if registered
+      if (cloneRegistered) {
+        try {
+          await this.clawHiveService.deleteAgent(cloneAgentId);
+        } catch (deleteError) {
+          this.logger.error(
+            `createWithCreationTask: failed to delete clone agent ${cloneAgentId} during rollback: ${deleteError}`,
+          );
+        }
+      }
+
+      // Rollback: delete draft routine row. Note: the document created
+      // by this.create() is intentionally NOT deleted — orphaned documents
+      // are low-risk (not user-visible, can be GC'd by a future cleanup
+      // job) and deleting them here would add complexity for a rare path.
+      try {
+        await this.db
+          .delete(schema.routines)
+          .where(eq(schema.routines.id, draft.id));
+      } catch (deleteError) {
+        this.logger.error(
+          `createWithCreationTask: failed to delete draft routine ${draft.id} during rollback: ${deleteError}`,
+        );
+      }
+
+      throw error;
+    }
   }
 
   // ── Internal helpers ────────────────────────────────────────────
