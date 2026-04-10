@@ -1,6 +1,7 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { RoutineBotService } from './routine-bot.service.js';
+import { RoutinesService } from './routines.service.js';
 import { TaskCastService } from './taskcast.service.js';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
@@ -109,12 +110,20 @@ describe('RoutineBotService — TaskCast integration', () => {
       transitionStatus: jest.fn<any>().mockResolvedValue(undefined),
     };
 
+    // RoutinesService is injected by RoutineBotService — provide a minimal mock
+    const routinesServiceMock = {
+      getById: jest.fn<any>().mockResolvedValue(null),
+      updateByBot: jest.fn<any>().mockResolvedValue(null),
+      create: jest.fn<any>().mockResolvedValue(null),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RoutineBotService,
         { provide: DATABASE_CONNECTION, useValue: db },
         { provide: WEBSOCKET_GATEWAY, useValue: wsGateway },
         { provide: TaskCastService, useValue: taskCastService },
+        { provide: RoutinesService, useValue: routinesServiceMock },
       ],
     }).compile();
 
@@ -530,6 +539,162 @@ describe('RoutineBotService — TaskCast integration', () => {
           ],
         }),
       ).rejects.toThrow('Execution not found for this routine');
+    });
+  });
+});
+
+// ── CRUD proxy methods ────────────────────────────────────────────────
+
+describe('RoutineBotService — CRUD proxy methods', () => {
+  let service: RoutineBotService;
+  let db: ReturnType<typeof mockDb>;
+  let routinesService: {
+    getById: MockFn;
+    updateByBot: MockFn;
+    create: MockFn;
+  };
+  let taskCastService: { publishEvent: MockFn; transitionStatus: MockFn };
+
+  const ROUTINE_ROW = {
+    id: 'routine-1',
+    tenantId: 'tenant-1',
+    botId: 'bot-1',
+    creatorId: 'user-1',
+    title: 'My Routine',
+    documentId: 'doc-1',
+    status: 'draft',
+    currentExecutionId: null,
+  };
+
+  beforeEach(async () => {
+    db = mockDb();
+    routinesService = {
+      getById: jest.fn<any>().mockResolvedValue({
+        ...ROUTINE_ROW,
+        currentExecution: null,
+      }),
+      updateByBot: jest.fn<any>().mockResolvedValue(ROUTINE_ROW),
+      create: jest.fn<any>().mockResolvedValue(ROUTINE_ROW),
+    };
+    taskCastService = {
+      publishEvent: jest.fn<any>().mockResolvedValue(undefined),
+      transitionStatus: jest.fn<any>().mockResolvedValue(undefined),
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        RoutineBotService,
+        { provide: DATABASE_CONNECTION, useValue: db },
+        { provide: WEBSOCKET_GATEWAY, useValue: { broadcastToWorkspace: jest.fn<any>() } },
+        { provide: TaskCastService, useValue: taskCastService },
+        { provide: RoutinesService, useValue: routinesService },
+      ],
+    }).compile();
+
+    service = module.get<RoutineBotService>(RoutineBotService);
+  });
+
+  // ── updateRoutine delegates to updateByBot ────────────────────────
+
+  describe('updateRoutine', () => {
+    it('delegates to routinesService.updateByBot with the correct arguments', async () => {
+      const dto = { title: 'New Title' } as never;
+      routinesService.updateByBot.mockResolvedValueOnce({ ...ROUTINE_ROW, title: 'New Title' } as any);
+
+      const result = await service.updateRoutine('routine-1', dto, 'bot-user-1', 'tenant-1');
+
+      expect(routinesService.updateByBot).toHaveBeenCalledWith(
+        'routine-1',
+        dto,
+        'bot-user-1',
+        'tenant-1',
+      );
+      expect(result).toMatchObject({ title: 'New Title' });
+    });
+
+    it('propagates ForbiddenException from updateByBot when bot is not assigned', async () => {
+      const { ForbiddenException } = await import('@nestjs/common');
+      routinesService.updateByBot.mockRejectedValueOnce(
+        new ForbiddenException('Bot is not the assigned agent for this routine') as any,
+      );
+
+      await expect(
+        service.updateRoutine('routine-1', {} as never, 'wrong-bot-user', 'tenant-1'),
+      ).rejects.toThrow('Bot is not the assigned agent for this routine');
+    });
+  });
+
+  // ── getRoutineById enriches with documentContent ──────────────────
+
+  describe('getRoutineById', () => {
+    it('returns documentContent from the linked document when available', async () => {
+      const doc = { id: 'doc-1', currentVersionId: 'ver-1' };
+      const ver = { content: 'Do the thing every day.' };
+
+      // 1st limit call: document lookup
+      // 2nd limit call: version lookup
+      db.limit
+        .mockResolvedValueOnce([doc] as any)
+        .mockResolvedValueOnce([ver] as any);
+
+      const result = await service.getRoutineById('routine-1', 'tenant-1');
+
+      expect(result.documentContent).toBe('Do the thing every day.');
+    });
+
+    it('returns documentContent as null when the routine has no linked document', async () => {
+      routinesService.getById.mockResolvedValueOnce({
+        ...ROUTINE_ROW,
+        documentId: null,
+        currentExecution: null,
+      } as any);
+
+      const result = await service.getRoutineById('routine-1', 'tenant-1');
+
+      expect(result.documentContent).toBeNull();
+      // No DB calls for document lookup
+      expect(db.limit).not.toHaveBeenCalled();
+    });
+
+    it('returns documentContent as null when the document has no currentVersionId', async () => {
+      const doc = { id: 'doc-1', currentVersionId: null };
+
+      db.limit.mockResolvedValueOnce([doc] as any);
+
+      const result = await service.getRoutineById('routine-1', 'tenant-1');
+
+      expect(result.documentContent).toBeNull();
+    });
+
+    it('returns documentContent as null when the document row is missing', async () => {
+      db.limit.mockResolvedValueOnce([] as any);
+
+      const result = await service.getRoutineById('routine-1', 'tenant-1');
+
+      expect(result.documentContent).toBeNull();
+    });
+
+    it('returns documentContent as null (non-fatal) when DB throws during lookup', async () => {
+      db.limit.mockRejectedValueOnce(new Error('DB error') as any);
+
+      const result = await service.getRoutineById('routine-1', 'tenant-1');
+
+      expect(result.documentContent).toBeNull();
+    });
+
+    it('spreads all routine fields alongside documentContent', async () => {
+      const doc = { id: 'doc-1', currentVersionId: 'ver-1' };
+      db.limit
+        .mockResolvedValueOnce([doc] as any)
+        .mockResolvedValueOnce([{ content: 'instructions' }] as any);
+
+      const result = await service.getRoutineById('routine-1', 'tenant-1');
+
+      expect(result).toMatchObject({
+        id: 'routine-1',
+        title: 'My Routine',
+        documentContent: 'instructions',
+      });
     });
   });
 });

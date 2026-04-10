@@ -272,7 +272,7 @@ describe('Routine Creation Flow — integration', () => {
         source: 'team9',
         payload: expect.objectContaining({
           routineId: ROUTINE_ID,
-          userId: USER_ID,
+          creatorUserId: USER_ID,
           tenantId: TENANT_ID,
         }),
       }),
@@ -344,6 +344,9 @@ describe('Routine Creation Flow — integration', () => {
 
     // Mock: getRoutineOrThrow → updated draft routine with creationChannelId set
     db.limit.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
+
+    // Mock: botsService.getBotById → bot still exists (required by completeCreation validation)
+    botsService.getBotById.mockResolvedValueOnce(SOURCE_BOT as any);
 
     // Mock: documentsService.getById → doc with non-empty content
     documentsService.getById.mockResolvedValueOnce({

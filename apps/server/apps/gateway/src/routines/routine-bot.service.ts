@@ -406,7 +406,33 @@ export class RoutineBotService {
   }
 
   async getRoutineById(routineId: string, tenantId: string) {
-    return this.routinesService.getById(routineId, tenantId);
+    const result = await this.routinesService.getById(routineId, tenantId);
+
+    // Enrich with document content so the agent's getRoutine tool can read instructions
+    let documentContent: string | null = null;
+    if (result.documentId) {
+      try {
+        const [doc] = await this.db
+          .select()
+          .from(schema.documents)
+          .where(eq(schema.documents.id, result.documentId))
+          .limit(1);
+
+        if (doc?.currentVersionId) {
+          const [ver] = await this.db
+            .select({ content: schema.documentVersions.content })
+            .from(schema.documentVersions)
+            .where(eq(schema.documentVersions.id, doc.currentVersionId))
+            .limit(1);
+          documentContent = ver?.content ?? null;
+        }
+      } catch {
+        // Non-fatal: return routine without document content
+        documentContent = null;
+      }
+    }
+
+    return { ...result, documentContent };
   }
 
   async updateRoutine(
@@ -415,7 +441,7 @@ export class RoutineBotService {
     botUserId: string,
     tenantId: string,
   ) {
-    return this.routinesService.update(routineId, dto, botUserId, tenantId);
+    return this.routinesService.updateByBot(routineId, dto, botUserId, tenantId);
   }
 
   // ── Private helpers ──────────────────────────────────────────────

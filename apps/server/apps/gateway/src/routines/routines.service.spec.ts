@@ -583,6 +583,115 @@ describe('RoutinesService — TaskCast integration', () => {
     });
   });
 
+  describe('updateByBot', () => {
+    it('rejects when the routine has no botId', async () => {
+      db.limit.mockResolvedValueOnce([
+        { ...BASE_TASK, botId: null },
+      ] as any);
+
+      await expect(
+        service.updateByBot('task-1', { title: 'New' } as never, 'bot-user-1', 'tenant-1'),
+      ).rejects.toThrow('This routine has no assigned bot');
+
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects when the bot shadow user does not match the assigned bot', async () => {
+      db.limit
+        .mockResolvedValueOnce([{ ...BASE_TASK, botId: 'bot-1' }] as any)
+        // bot lookup returns userId that does NOT match
+        .mockResolvedValueOnce([{ userId: 'other-user' }] as any);
+
+      await expect(
+        service.updateByBot('task-1', { title: 'New' } as never, 'bot-user-1', 'tenant-1'),
+      ).rejects.toThrow('Bot is not the assigned agent for this routine');
+
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects when the bot row does not exist', async () => {
+      db.limit
+        .mockResolvedValueOnce([{ ...BASE_TASK, botId: 'bot-1' }] as any)
+        // bot not found
+        .mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.updateByBot('task-1', { title: 'New' } as never, 'bot-user-1', 'tenant-1'),
+      ).rejects.toThrow('Bot is not the assigned agent for this routine');
+
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('performs the update when the bot is the assigned agent', async () => {
+      const task = { ...BASE_TASK, botId: 'bot-1', creatorId: 'user-1' };
+      const updatedTask = { ...task, title: 'Bot Updated Title' };
+
+      db.limit
+        .mockResolvedValueOnce([task] as any)         // getRoutineOrThrow
+        .mockResolvedValueOnce([{ userId: 'bot-user-1' }] as any); // bot lookup
+      db.returning.mockResolvedValueOnce([updatedTask] as any);
+
+      await expect(
+        service.updateByBot('task-1', { title: 'Bot Updated Title' } as never, 'bot-user-1', 'tenant-1'),
+      ).resolves.toEqual(updatedTask);
+
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Bot Updated Title',
+          updatedAt: expect.any(Date),
+        }),
+      );
+    });
+
+    it('uses the routine creatorId (not botUserId) when writing documentContent', async () => {
+      const task = {
+        ...BASE_TASK,
+        botId: 'bot-1',
+        creatorId: 'human-user-1',
+        documentId: 'doc-1',
+      };
+      const updatedTask = { ...task };
+
+      db.limit
+        .mockResolvedValueOnce([task] as any)
+        .mockResolvedValueOnce([{ userId: 'bot-user-1' }] as any);
+      db.returning.mockResolvedValueOnce([updatedTask] as any);
+
+      await service.updateByBot(
+        'task-1',
+        { documentContent: 'New instructions' } as never,
+        'bot-user-1',
+        'tenant-1',
+      );
+
+      // documentsService.update should be called with the creator's userId, not the bot's
+      expect(documentsService.update).toHaveBeenCalledWith(
+        'doc-1',
+        { content: 'New instructions' },
+        { type: 'user', id: 'human-user-1' },
+      );
+    });
+
+    it('rejects status transitions the same as the human update path', async () => {
+      const task = { ...BASE_TASK, botId: 'bot-1', status: 'draft' as const };
+
+      db.limit
+        .mockResolvedValueOnce([task] as any)
+        .mockResolvedValueOnce([{ userId: 'bot-user-1' }] as any);
+
+      await expect(
+        service.updateByBot(
+          'task-1',
+          { status: 'upcoming' } as never,
+          'bot-user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow("Cannot change routine status from 'draft' to 'upcoming' via update");
+
+      expect(db.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('delete', () => {
     it('rejects deleting active tasks until they are stopped', async () => {
       db.limit.mockResolvedValueOnce([

@@ -224,7 +224,63 @@ export class RoutinesService {
   ) {
     const routine = await this.getRoutineOrThrow(routineId, tenantId);
     this.assertCreatorOwnership(routine, userId);
+    return this.performUpdate(routine, routineId, dto, userId, tenantId);
+  }
 
+  /**
+   * Bot-scoped update: checks that the calling bot (`botUserId`) is the
+   * shadow user of the bot assigned to this routine (`routine.botId`),
+   * then performs the same update logic as `update()`.
+   *
+   * The document identity uses the routine's `creatorId` because the bot
+   * acts on behalf of the human creator.
+   */
+  async updateByBot(
+    routineId: string,
+    dto: UpdateRoutineDto,
+    botUserId: string,
+    tenantId: string,
+  ) {
+    const routine = await this.getRoutineOrThrow(routineId, tenantId);
+
+    if (!routine.botId) {
+      throw new ForbiddenException(
+        'This routine has no assigned bot; bot updates are not allowed.',
+      );
+    }
+
+    // Verify the caller's shadow user ID matches the bot assigned to this routine
+    const [bot] = await this.db
+      .select({ userId: schema.bots.userId })
+      .from(schema.bots)
+      .where(eq(schema.bots.id, routine.botId))
+      .limit(1);
+
+    if (!bot || bot.userId !== botUserId) {
+      throw new ForbiddenException(
+        'Bot is not the assigned agent for this routine',
+      );
+    }
+
+    // Act on behalf of the human creator for document identity
+    return this.performUpdate(
+      routine,
+      routineId,
+      dto,
+      routine.creatorId,
+      tenantId,
+    );
+  }
+
+  // ── Shared update logic ─────────────────────────────────────────
+
+  private async performUpdate(
+    routine: schema.Routine,
+    routineId: string,
+    dto: UpdateRoutineDto,
+    userId: string,
+    tenantId: string,
+  ) {
     // Reject status transitions — status can only be the same value as current
     if (dto.status !== undefined && dto.status !== routine.status) {
       throw new BadRequestException(
