@@ -187,6 +187,24 @@ describe('truncateContent', () => {
     });
   });
 
+  it('handles null input without throwing', () => {
+    const result = truncateContent(null as unknown as string);
+    expect(result).toEqual({
+      content: '',
+      isTruncated: false,
+      fullContentLength: 0,
+    });
+  });
+
+  it('handles undefined input without throwing', () => {
+    const result = truncateContent(undefined as unknown as string);
+    expect(result).toEqual({
+      content: '',
+      isTruncated: false,
+      fullContentLength: 0,
+    });
+  });
+
   // --- Markdown/plain text ---
 
   it('truncates markdown content exceeding 20 lines', () => {

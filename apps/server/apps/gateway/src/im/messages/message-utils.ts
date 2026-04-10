@@ -46,11 +46,11 @@ export interface TruncateResult {
 }
 
 export function truncateContent(content: string): TruncateResult {
-  const fullContentLength = content.length;
-
   if (!content) {
-    return { content, isTruncated: false, fullContentLength };
+    return { content: content ?? '', isTruncated: false, fullContentLength: 0 };
   }
+
+  const fullContentLength = content.length;
 
   const isHtml = /<(?:p|pre|br)\b/i.test(content);
 
