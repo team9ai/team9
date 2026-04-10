@@ -5075,3 +5075,702 @@ EOF
 
 ---
 
+# Phase 1.5 — Onboarding Integration
+
+**Prerequisite:** Phase 1 Tasks 0 (schema with `source_ref` column) and 2 (`RoutinesService.create` accepting `options.sourceRef`).
+
+## Task 12: `OnboardingService.provisionRoutines()` Method
+
+**Spec reference:** §Onboarding Integration → New Service Method (L438–528)
+
+**Goal:** Convert selected onboarding tasks into draft routines so users see actionable drafts in the Routine list after workspace provisioning.
+
+**Files:**
+- Modify: `apps/server/apps/gateway/src/workspace/onboarding.service.ts` — add `provisionRoutines` private method
+- Modify: `apps/server/apps/gateway/src/workspace/workspace.module.ts` — import `RoutinesModule` + `PersonalStaffModule` if not already
+
+**Acceptance Criteria:**
+- [ ] New private method `provisionRoutines(workspaceId, userId, onboardingRecordId, stepData)` on `OnboardingService`
+- [ ] Iterates `stepData.tasks.generatedTasks` filtered by `selectedTaskIds`, plus `stepData.tasks.customTask` (if non-empty)
+- [ ] For each selected task, creates a draft routine via `RoutinesService.create({ title, botId: personalStaffBot.botId, status: 'draft' }, userId, workspaceId, { sourceRef: 'onboarding:{recordId}:{taskId}' })`
+- [ ] Idempotent: checks `routine__routines.source_ref` before inserting — skips if a row with that sourceRef already exists
+- [ ] `customTask` uses sourceRef `'onboarding:{recordId}:custom'`
+- [ ] Resolves the user's personal-staff bot via `PersonalStaffService.findPersonalStaffBot(userId, personalStaffAppId)`. If not found, logs a warning and skips routine provisioning entirely (non-fatal — onboarding still completes)
+- [ ] Does NOT pass triggers (drafts are created without triggers — user configures via "Complete Creation" later)
+- [ ] Does NOT set documentContent (drafts start with empty documents)
+- [ ] Skipped entirely if `stepData.tasks` is undefined or `selectedTaskIds` is empty and `customTask` is empty
+
+**Verify:**
+```bash
+cd apps/server && NODE_OPTIONS='--experimental-vm-modules' pnpm exec jest \
+  --config apps/gateway/jest.config.cjs --no-coverage \
+  apps/gateway/src/workspace/onboarding.service.spec.ts
+```
+
+**Steps:**
+
+- [ ] **Step 1: Write failing tests**
+
+Add to the onboarding service spec (or create a new describe block):
+
+```typescript
+describe('provisionRoutines', () => {
+  const RECORD_ID = 'onboarding-record-1';
+  const PERSONAL_STAFF_BOT_ID = 'ps-bot-1';
+  const PERSONAL_STAFF_APP_ID = 'ps-app-1';
+
+  beforeEach(() => {
+    jest.spyOn(personalStaffService, 'findPersonalStaffBot').mockResolvedValue({
+      botId: PERSONAL_STAFF_BOT_ID,
+      userId: 'ps-user-1',
+      displayName: 'My Assistant',
+      avatarUrl: null,
+      ownerId: USER_ID,
+      mentorId: USER_ID,
+      extra: null,
+      isActive: true,
+    } as any);
+    jest.spyOn(installedApplicationsService, 'findByApplicationId').mockResolvedValue({
+      id: PERSONAL_STAFF_APP_ID,
+    } as any);
+    jest.spyOn(routinesService, 'create').mockResolvedValue({
+      id: 'routine-new',
+      status: 'draft',
+    } as any);
+    // Mock sourceRef lookup — no existing routines by default
+    db.select.mockReturnValue({
+      from: () => ({
+        where: () => ({ limit: jest.fn<any>().mockResolvedValue([]) }),
+      }),
+    });
+  });
+
+  it('creates one draft routine per selected task + customTask', async () => {
+    const stepData = {
+      tasks: {
+        generatedTasks: [
+          { id: 'task-1', emoji: '📋', title: 'Daily standup' },
+          { id: 'task-2', emoji: '📊', title: 'Weekly report' },
+          { id: 'task-3', emoji: '🔍', title: 'Code review' },
+        ],
+        selectedTaskIds: ['task-1', 'task-3'],
+        customTask: 'Deploy staging every Friday',
+      },
+    };
+
+    await (service as any).provisionRoutines(
+      WORKSPACE_ID,
+      USER_ID,
+      RECORD_ID,
+      stepData,
+    );
+
+    expect(routinesService.create).toHaveBeenCalledTimes(3); // 2 selected + 1 custom
+    expect(routinesService.create).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Daily standup', status: 'draft' }),
+      USER_ID,
+      WORKSPACE_ID,
+      { sourceRef: `onboarding:${RECORD_ID}:task-1` },
+    );
+    expect(routinesService.create).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Code review', status: 'draft' }),
+      USER_ID,
+      WORKSPACE_ID,
+      { sourceRef: `onboarding:${RECORD_ID}:task-3` },
+    );
+    expect(routinesService.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Deploy staging every Friday',
+        status: 'draft',
+      }),
+      USER_ID,
+      WORKSPACE_ID,
+      { sourceRef: `onboarding:${RECORD_ID}:custom` },
+    );
+  });
+
+  it('skips tasks that already have a matching sourceRef (idempotent)', async () => {
+    db.select.mockReturnValue({
+      from: () => ({
+        where: () => ({
+          limit: jest.fn<any>().mockResolvedValue([{ id: 'existing-routine' }]),
+        }),
+      }),
+    });
+
+    const stepData = {
+      tasks: {
+        generatedTasks: [{ id: 'task-1', emoji: '📋', title: 'Already done' }],
+        selectedTaskIds: ['task-1'],
+      },
+    };
+
+    await (service as any).provisionRoutines(
+      WORKSPACE_ID,
+      USER_ID,
+      RECORD_ID,
+      stepData,
+    );
+
+    expect(routinesService.create).not.toHaveBeenCalled();
+  });
+
+  it('skips entirely when personal-staff bot is not found', async () => {
+    jest
+      .spyOn(personalStaffService, 'findPersonalStaffBot')
+      .mockResolvedValue(null);
+
+    const stepData = {
+      tasks: {
+        generatedTasks: [{ id: 'task-1', emoji: '📋', title: 'X' }],
+        selectedTaskIds: ['task-1'],
+      },
+    };
+
+    await (service as any).provisionRoutines(
+      WORKSPACE_ID,
+      USER_ID,
+      RECORD_ID,
+      stepData,
+    );
+
+    expect(routinesService.create).not.toHaveBeenCalled();
+  });
+
+  it('skips when tasks selection is empty', async () => {
+    const stepData = {
+      tasks: {
+        generatedTasks: [{ id: 'task-1', emoji: '📋', title: 'X' }],
+        selectedTaskIds: [],
+      },
+    };
+
+    await (service as any).provisionRoutines(
+      WORKSPACE_ID,
+      USER_ID,
+      RECORD_ID,
+      stepData,
+    );
+
+    expect(routinesService.create).not.toHaveBeenCalled();
+  });
+
+  it('handles customTask-only case (no selected generated tasks)', async () => {
+    const stepData = {
+      tasks: {
+        generatedTasks: [],
+        selectedTaskIds: [],
+        customTask: 'My custom task',
+      },
+    };
+
+    await (service as any).provisionRoutines(
+      WORKSPACE_ID,
+      USER_ID,
+      RECORD_ID,
+      stepData,
+    );
+
+    expect(routinesService.create).toHaveBeenCalledTimes(1);
+    expect(routinesService.create).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'My custom task' }),
+      USER_ID,
+      WORKSPACE_ID,
+      { sourceRef: `onboarding:${RECORD_ID}:custom` },
+    );
+  });
+});
+```
+
+Run: FAIL (method does not exist).
+
+- [ ] **Step 2: Implement `provisionRoutines`**
+
+Add to `onboarding.service.ts`:
+
+```typescript
+private async provisionRoutines(
+  workspaceId: string,
+  userId: string,
+  onboardingRecordId: string,
+  stepData: WorkspaceOnboardingStepData,
+): Promise<void> {
+  const tasks = stepData.tasks;
+  if (!tasks) return;
+
+  // Collect intended tasks
+  const selectedGenerated =
+    tasks.generatedTasks?.filter((t) =>
+      tasks.selectedTaskIds?.includes(t.id),
+    ) ?? [];
+
+  interface IntendedTask {
+    sourceChildId: string;
+    title: string;
+  }
+  const intended: IntendedTask[] = [
+    ...selectedGenerated.map((t) => ({
+      sourceChildId: t.id,
+      title: t.title.trim(),
+    })),
+    ...(tasks.customTask?.trim()
+      ? [{ sourceChildId: 'custom', title: tasks.customTask.trim() }]
+      : []),
+  ];
+  if (intended.length === 0) return;
+
+  // Resolve user's personal-staff bot
+  const personalStaffApp =
+    await this.installedApplicationsService.findByApplicationId(
+      workspaceId,
+      'personal-staff',
+    );
+  if (!personalStaffApp) {
+    this.logger.warn(
+      `provisionRoutines: no personal-staff app for workspace ${workspaceId}, skipping`,
+    );
+    return;
+  }
+  const personalBot = await this.personalStaffService.findPersonalStaffBot(
+    userId,
+    personalStaffApp.id,
+  );
+  if (!personalBot) {
+    this.logger.warn(
+      `provisionRoutines: user ${userId} has no personal-staff bot, skipping`,
+    );
+    return;
+  }
+
+  // Idempotently create drafts
+  for (const task of intended) {
+    const sourceRef = `onboarding:${onboardingRecordId}:${task.sourceChildId}`;
+
+    const [existing] = await this.db
+      .select({ id: schema.routines.id })
+      .from(schema.routines)
+      .where(
+        and(
+          eq(schema.routines.tenantId, workspaceId),
+          eq(schema.routines.sourceRef, sourceRef),
+        ),
+      )
+      .limit(1);
+
+    if (existing) {
+      this.logger.debug(
+        `provisionRoutines: routine with sourceRef ${sourceRef} already exists, skipping`,
+      );
+      continue;
+    }
+
+    await this.routinesService.create(
+      {
+        title: task.title,
+        botId: personalBot.botId,
+        status: 'draft',
+      },
+      userId,
+      workspaceId,
+      { sourceRef },
+    );
+  }
+
+  this.logger.log(
+    `provisionRoutines: created ${intended.length} draft routine(s) for workspace ${workspaceId}`,
+  );
+}
+```
+
+Inject `RoutinesService` in the constructor if not already present (add to `workspace.module.ts` imports).
+
+- [ ] **Step 3: Run tests**
+
+Run the onboarding service spec. Expected: all 5 new tests pass + existing tests pass.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add apps/server/apps/gateway/src/workspace/onboarding.service.ts \
+        apps/server/apps/gateway/src/workspace/workspace.module.ts \
+        apps/server/apps/gateway/src/workspace/*.spec.ts
+git commit -m "$(cat <<'EOF'
+feat(onboarding): add provisionRoutines method for draft routine creation
+
+Converts onboarding-selected task titles into draft routines:
+- Iterates selected generatedTasks + customTask
+- Creates draft via RoutinesService.create with sourceRef for idempotency
+- Assigns user's personal-staff bot as the executing agent
+- Gracefully skips if personal-staff bot not found
+
+Not yet wired into the provisioning pipeline (Task 13).
+
+Part of Intelligent Routine Creation Phase 1.5, Task 12.
+EOF
+)"
+```
+
+---
+
+## Task 13: Wire `provisionRoutines` Into Provisioning Pipeline
+
+**Spec reference:** §Implementation Sequence → Phase 1.5 Task 14 (L651)
+
+**Goal:** Call `provisionRoutines` during the existing `provisionOnboardingResources` flow, between `provisionCommonStaff` and `persistPreferences`.
+
+**Files:**
+- Modify: `apps/server/apps/gateway/src/workspace/onboarding.service.ts` — add call in provisioning pipeline
+
+**Acceptance Criteria:**
+- [ ] `provisionRoutines` is called after `provisionCommonStaff` and before `persistPreferences` in the try-block at [onboarding.service.ts:388-405](apps/server/apps/gateway/src/workspace/onboarding.service.ts#L388-L405)
+- [ ] Failure in `provisionRoutines` is non-fatal: logged as warning, provisioning continues to `persistPreferences` and completes normally
+- [ ] The onboarding record ID (`record.id`) is passed so sourceRef can be constructed
+
+**Verify:**
+```bash
+cd apps/server && NODE_OPTIONS='--experimental-vm-modules' pnpm exec jest \
+  --config apps/gateway/jest.config.cjs --no-coverage \
+  apps/gateway/src/workspace/onboarding.service.spec.ts
+```
+
+**Steps:**
+
+- [ ] **Step 1: Write failing test**
+
+```typescript
+it('calls provisionRoutines between provisionCommonStaff and persistPreferences', async () => {
+  const callOrder: string[] = [];
+  jest.spyOn(service as any, 'provisionChannels').mockImplementation(async () => { callOrder.push('channels'); });
+  jest.spyOn(service as any, 'provisionPersonalStaff').mockImplementation(async () => { callOrder.push('personalStaff'); });
+  jest.spyOn(service as any, 'provisionCommonStaff').mockImplementation(async () => { callOrder.push('commonStaff'); });
+  jest.spyOn(service as any, 'provisionRoutines').mockImplementation(async () => { callOrder.push('routines'); });
+  jest.spyOn(service as any, 'persistPreferences').mockImplementation(async () => { callOrder.push('preferences'); });
+
+  await service.provisionOnboardingResources(WORKSPACE_ID, USER_ID, dto);
+
+  expect(callOrder).toEqual([
+    'channels',
+    'personalStaff',
+    'commonStaff',
+    'routines',      // NEW — between commonStaff and preferences
+    'preferences',
+  ]);
+});
+
+it('continues to persistPreferences even if provisionRoutines fails', async () => {
+  jest.spyOn(service as any, 'provisionRoutines').mockRejectedValue(new Error('routine boom'));
+  jest.spyOn(service as any, 'persistPreferences').mockImplementation(async () => {});
+  const logSpy = jest.spyOn((service as any).logger, 'warn');
+
+  // Should NOT throw — provisionRoutines failure is non-fatal
+  await service.provisionOnboardingResources(WORKSPACE_ID, USER_ID, dto);
+
+  expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('routine'), expect.anything());
+});
+```
+
+Run: FAIL (provisionRoutines not in the pipeline).
+
+- [ ] **Step 2: Wire into the pipeline**
+
+Edit `onboarding.service.ts`, in the provisioning try-block (around line 388–405):
+
+```typescript
+try {
+  await this.provisionChannels(workspaceId, userId, record.stepData.channels);
+  await this.provisionPersonalStaff(workspaceId, userId, record.stepData.agents, lang);
+  await this.provisionCommonStaff(workspaceId, userId, record.stepData.agents);
+
+  // NEW: Convert selected onboarding tasks → draft routines
+  try {
+    await this.provisionRoutines(
+      workspaceId,
+      userId,
+      record.id,
+      record.stepData,
+    );
+  } catch (routineErr) {
+    // Non-fatal: log warning, continue to persistPreferences
+    this.logger.warn(
+      `provisionRoutines failed for workspace ${workspaceId}, continuing`,
+      routineErr,
+    );
+  }
+
+  await this.persistPreferences(workspaceId, record.stepData);
+
+  // ... existing update to 'provisioned' status
+```
+
+- [ ] **Step 3: Run tests + commit**
+
+```bash
+git add apps/server/apps/gateway/src/workspace/onboarding.service.ts \
+        apps/server/apps/gateway/src/workspace/*.spec.ts
+git commit -m "$(cat <<'EOF'
+feat(onboarding): wire provisionRoutines into provisioning pipeline
+
+Called after provisionCommonStaff and before persistPreferences.
+Failure is non-fatal: logged as warning, provisioning continues.
+
+Part of Intelligent Routine Creation Phase 1.5, Task 13.
+EOF
+)"
+```
+
+---
+
+## Task 14: Drop `selectedTaskTitles` From `persistPreferences`
+
+**Spec reference:** §Onboarding Integration → Removing The String Persistence (L546–555)
+
+**Goal:** Stop writing `selectedTaskTitles` to `tenant.settings.onboarding.tasks`. The draft routines created by `provisionRoutines` are now the canonical representation.
+
+**Files:**
+- Modify: `apps/server/apps/gateway/src/workspace/onboarding.service.ts` — `persistPreferences` method
+
+**Acceptance Criteria:**
+- [ ] `tenant.settings.onboarding.tasks` no longer contains `selectedTaskTitles`
+- [ ] `selectedTaskIds` and `customTask` are still written (for audit / debug)
+- [ ] Existing test that checks `persistPreferences` output is updated
+
+**Steps:**
+
+- [ ] **Step 1: Update `persistPreferences`**
+
+In `onboarding.service.ts` around line 620-625, change:
+
+```typescript
+// BEFORE:
+tasks: {
+  selectedTaskIds: stepData.tasks?.selectedTaskIds ?? [],
+  selectedTaskTitles: selectedTasks.map((task) => task.title),
+  customTask: stepData.tasks?.customTask ?? null,
+},
+
+// AFTER:
+tasks: {
+  selectedTaskIds: stepData.tasks?.selectedTaskIds ?? [],
+  // selectedTaskTitles removed — draft routines are now the canonical
+  // representation (see provisionRoutines). Task titles can be read
+  // from routine__routines WHERE source_ref LIKE 'onboarding:%'.
+  customTask: stepData.tasks?.customTask ?? null,
+},
+```
+
+- [ ] **Step 2: Update tests + commit**
+
+Update any test that asserts `selectedTaskTitles` in the settings output. Run the full spec. Commit.
+
+```bash
+git add apps/server/apps/gateway/src/workspace/
+git commit -m "$(cat <<'EOF'
+refactor(onboarding): drop selectedTaskTitles from tenant settings
+
+Draft routines (created by provisionRoutines) are now the canonical
+representation of user-selected onboarding tasks. selectedTaskTitles
+was a plain string array that nothing executed — removing it prevents
+the two sources from drifting.
+
+selectedTaskIds and customTask remain for audit/debug.
+
+Part of Intelligent Routine Creation Phase 1.5, Task 14.
+EOF
+)"
+```
+
+---
+
+## Task 15: Migrate `selectedTaskTitles` Readers in Prompt Generation
+
+**Spec reference:** §Implementation Sequence → Phase 1.5 Task 16 (L658)
+
+**Goal:** `onboarding.prompts.ts` reads `selectedTaskTitles` in two places to feed AI prompts for generating channel names and agent personas. Since Task 14 removed `selectedTaskTitles` from settings, these readers need to be updated to query draft routines by `source_ref` instead.
+
+**Files:**
+- Modify: `apps/server/apps/gateway/src/workspace/onboarding.prompts.ts` — update `buildGenerateChannelsPrompt` and `buildGenerateAgentsPrompt` (lines 212–221, 279–288)
+
+**Acceptance Criteria:**
+- [ ] Both prompt builder functions accept a new parameter `routineTitles: string[]` instead of reading from `args.tasks.generatedTasks`
+- [ ] The caller (in `onboarding.service.ts` `generateChannels` / `generateAgents`) queries `routine__routines WHERE source_ref LIKE 'onboarding:{recordId}:%' AND creator_id = userId` to get the titles, then passes them
+- [ ] If no draft routines exist (e.g., first-time generation before provisioning), falls back to the existing `generatedTasks` filtered by `selectedTaskIds` (backward compat)
+- [ ] AI prompt output is unchanged (same format, just different data source)
+
+**Note:** These prompt builders run DURING onboarding (before provisioning), while `provisionRoutines` runs AT provisioning time. So during the generate-channels / generate-agents steps, draft routines don't exist yet. The fallback to `generatedTasks` is therefore critical for the first-run case. The `source_ref` query path is for the **re-provision** case (where provisioning already ran and draft routines exist).
+
+On reflection, this means for first-run, `selectedTaskTitles` was always computed from the DTO's `generatedTasks` directly — not from `tenant.settings`. So removing `selectedTaskTitles` from settings (Task 14) does NOT break the prompt generation flow at all — the prompts were reading from the DTO, not from saved settings.
+
+**Revised approach:** Verify that `onboarding.prompts.ts` reads from `args.tasks.generatedTasks` (the DTO), not from `tenant.settings.onboarding.tasks.selectedTaskTitles`. If so, **no code change is needed** — Task 14's removal of `selectedTaskTitles` from settings has no impact on prompts, and this task becomes a verification-only task.
+
+**Steps:**
+
+- [ ] **Step 1: Verify prompt data source**
+
+```bash
+grep -n "selectedTaskTitles" apps/server/apps/gateway/src/workspace/onboarding.prompts.ts
+```
+
+Check whether the prompt reads from `args.tasks.generatedTasks` (DTO) or from `settings.onboarding.tasks.selectedTaskTitles` (persisted). If from DTO → no change needed, mark task complete.
+
+- [ ] **Step 2: If change IS needed** (reads from settings)
+
+Update the prompt builders to accept `routineTitles` as a parameter, query the DB for draft routine titles, and fall back to DTO data.
+
+- [ ] **Step 3: If no change needed**
+
+Verify by running: `pnpm --filter server test -- onboarding.service.spec`
+
+Expected: all pass (prompts still work because they read from DTO, not settings).
+
+- [ ] **Step 4: Commit**
+
+```bash
+git commit --allow-empty -m "$(cat <<'EOF'
+verify(onboarding): confirm prompt builders are unaffected by selectedTaskTitles removal
+
+onboarding.prompts.ts reads task titles from the DTO (args.tasks),
+not from tenant.settings.onboarding.tasks.selectedTaskTitles. Task 14's
+removal of the settings field has no impact on prompt generation.
+
+No code changes needed. Verification-only task.
+
+Part of Intelligent Routine Creation Phase 1.5, Task 15.
+EOF
+)"
+```
+
+---
+
+## Task 16: Unit Tests for `provisionRoutines`
+
+**Spec reference:** §Implementation Sequence → Phase 1.5 Task 17 (L659)
+
+**Goal:** Comprehensive unit tests for `provisionRoutines` covering happy path + 5 edge cases. Task 12 already wrote core tests inline; this task extends coverage to ensure 100% branch coverage on the method.
+
+**Note:** If Task 12's tests already cover all these cases, this task is a verification-only task — run the tests, confirm coverage, commit the confirmation.
+
+**Files:**
+- Modify: `apps/server/apps/gateway/src/workspace/onboarding.service.spec.ts` (or wherever the tests from Task 12 live)
+
+**Acceptance Criteria:**
+- [ ] Tests exist for: happy path (2 selected + 1 custom → 3 drafts), idempotency (re-run no dupes), no personal-staff bot (graceful skip), empty selection (no-op), skipped onboarding (never called), partial failure mid-loop (first draft created, second fails — first is not rolled back)
+
+**Steps:**
+
+- [ ] **Step 1: Run existing tests with coverage**
+
+```bash
+cd apps/server && NODE_OPTIONS='--experimental-vm-modules' pnpm exec jest \
+  --config apps/gateway/jest.config.cjs \
+  --coverage --collectCoverageFrom='apps/gateway/src/workspace/onboarding.service.ts' \
+  apps/gateway/src/workspace/onboarding.service.spec.ts
+```
+
+Inspect coverage: is `provisionRoutines` at 100% branch coverage?
+
+- [ ] **Step 2: Add missing edge cases if needed**
+
+The one case Task 12 probably missed:
+
+```typescript
+it('creates first draft and continues even if second draft fails', async () => {
+  jest
+    .spyOn(routinesService, 'create')
+    .mockResolvedValueOnce({ id: 'r-1', status: 'draft' } as any)
+    .mockRejectedValueOnce(new Error('db constraint'));
+
+  const stepData = {
+    tasks: {
+      generatedTasks: [
+        { id: 'task-1', emoji: '📋', title: 'OK' },
+        { id: 'task-2', emoji: '📊', title: 'Fail' },
+      ],
+      selectedTaskIds: ['task-1', 'task-2'],
+    },
+  };
+
+  // Should NOT throw — individual draft failures don't abort the loop
+  // NOTE: this depends on provisionRoutines having a try/catch inside
+  // the for loop. If it doesn't, this test reveals a bug in Task 12's
+  // implementation and the method should be fixed to be per-item resilient.
+  await expect(
+    (service as any).provisionRoutines(WORKSPACE_ID, USER_ID, RECORD_ID, stepData),
+  ).resolves.not.toThrow();
+
+  expect(routinesService.create).toHaveBeenCalledTimes(2);
+});
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add apps/server/apps/gateway/src/workspace/*.spec.ts
+git commit -m "$(cat <<'EOF'
+test(onboarding): extend provisionRoutines edge case coverage
+
+Adds per-item failure resilience test (first draft succeeds, second
+fails, no rollback of first). Confirms 100% branch coverage on
+provisionRoutines.
+
+Part of Intelligent Routine Creation Phase 1.5, Task 16.
+EOF
+)"
+```
+
+---
+
+## Task 17: Integration Test — Onboarding → Drafts Visible in Routine List
+
+**Spec reference:** §Implementation Sequence → Phase 1.5 Task 18 (L660)
+
+**Goal:** One integration test that runs the full onboarding provisioning pipeline and verifies the resulting draft routines appear in the Routine list API response.
+
+**Files:**
+- Create: `apps/server/apps/gateway/src/workspace/__tests__/onboarding-routine-integration.spec.ts`
+
+**Acceptance Criteria:**
+- [ ] Flagged with `INTEGRATION_TESTS_ENABLED` env var (same pattern as Task 11)
+- [ ] Seeds a workspace + user + personal-staff bot + onboarding record with 2 selected tasks + 1 customTask
+- [ ] Calls `service.provisionOnboardingResources(workspaceId, userId, dto)`
+- [ ] Asserts: 3 draft routines exist in `routine__routines` with correct `source_ref`, `status = 'draft'`, `bot_id = personalStaff.botId`, `creator_id = userId`
+- [ ] Calls `routinesService.list(workspaceId, {}, userId)` and asserts all 3 drafts are visible
+- [ ] Calls `routinesService.list(workspaceId, {}, otherUserId)` and asserts 0 drafts (creator-only visibility from Task 2)
+- [ ] Re-runs provisioning (idempotency check): no new routines created, still 3 total
+
+**Verify:**
+```bash
+cd apps/server && INTEGRATION_TESTS_ENABLED=1 NODE_OPTIONS='--experimental-vm-modules' \
+  pnpm exec jest --config apps/gateway/jest.config.cjs --no-coverage \
+  apps/gateway/src/workspace/__tests__/onboarding-routine-integration.spec.ts
+# expect: test passes or skips cleanly (if INTEGRATION_TESTS_ENABLED not set)
+```
+
+**Steps:**
+
+- [ ] **Step 1: Write the test** (following the same pattern as Task 11's integration test — stub `ClawHiveService`, use real DB for routines + onboarding tables)
+
+- [ ] **Step 2: Run + iterate until green**
+
+```bash
+cd apps/server && INTEGRATION_TESTS_ENABLED=1 NODE_OPTIONS='--experimental-vm-modules' \
+  pnpm exec jest --config apps/gateway/jest.config.cjs --no-coverage \
+  apps/gateway/src/workspace/__tests__/onboarding-routine-integration.spec.ts
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add apps/server/apps/gateway/src/workspace/__tests__/
+git commit -m "$(cat <<'EOF'
+test(onboarding): add integration test for onboarding → draft routines
+
+Exercises: provision → 3 drafts created → creator sees them in list →
+other user doesn't → re-provision is idempotent (no duplicates).
+
+Part of Intelligent Routine Creation Phase 1.5, Task 17.
+EOF
+)"
+```
+
+---
+
