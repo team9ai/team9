@@ -1478,14 +1478,15 @@ export function useSendMessage(channelId: string) {
   const workspaceId = useSelectedWorkspaceId();
 
   return useMutation({
-    mutationFn: (data: CreateMessageDto) => {
-      if (data.content && data.content.length > 100000) {
-        throw new Error("消息内容过长，请缩减后重试");
-      }
-      return imApi.messages.sendMessage(channelId!, data);
-    },
+    mutationFn: (data: CreateMessageDto) =>
+      imApi.messages.sendMessage(channelId!, data),
 
     onMutate: async (newMessageData) => {
+      // Validate content length before optimistic update
+      if (newMessageData.content && newMessageData.content.length > 100000) {
+        throw new Error("消息内容过长，请缩减后重试");
+      }
+
       // Cancel any outgoing refetches to prevent overwriting optimistic update
       await queryClient.cancelQueries({ queryKey: ["messages", channelId] });
 

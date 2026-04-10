@@ -877,12 +877,12 @@ export class MessagesService {
       message.channelId,
     );
 
-    // Re-determine type only for text-based messages.
-    // File/image messages keep their type (attachments aren't edited).
-    const hasAttachments = message.type === 'file' || message.type === 'image';
-    const newType = hasAttachments
-      ? message.type
-      : determineMessageType(dto.content, false);
+    // Re-determine type only for text-based messages (text / long_text).
+    // File/image/system/tracking messages keep their original type.
+    const isTextBased = message.type === 'text' || message.type === 'long_text';
+    const newType = isTextBased
+      ? determineMessageType(dto.content, false)
+      : message.type;
 
     await this.db
       .update(schema.messages)
