@@ -12,6 +12,7 @@ import { ChatArea } from "./ChatArea";
 import { RightPanel } from "./RightPanel";
 import { CreateRoutineDialog } from "./CreateRoutineDialog";
 import { RoutineSettingsDialog } from "./RoutineSettingsDialog";
+import { AgenticAgentPicker } from "./AgenticAgentPicker";
 import type { Routine, RoutineStatus } from "@/types/routine";
 
 const STATUS_FILTERS: Record<string, RoutineStatus[]> = {
@@ -47,6 +48,7 @@ export function RoutineList({ botId }: RoutineListProps) {
     string | null
   >(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [agenticPickerOpen, setAgenticPickerOpen] = useState(false);
   const [tab, setTab] = useState<TabKey>("all");
 
   // Fetch all tasks
@@ -174,13 +176,23 @@ export function RoutineList({ botId }: RoutineListProps) {
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-border">
           <span className="text-sm font-semibold">{t("title", "Tasks")}</span>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => setShowCreateDialog(true)}
-          >
-            <Plus size={16} />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs h-6 px-2"
+              onClick={() => setAgenticPickerOpen(true)}
+            >
+              {t("agentic.createButton")}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setShowCreateDialog(true)}
+            >
+              <Plus size={16} />
+            </Button>
+          </div>
         </div>
 
         {/* Loading */}
@@ -275,6 +287,11 @@ export function RoutineList({ botId }: RoutineListProps) {
         open={!!showSettingsRoutineId}
         onClose={() => setShowSettingsRoutineId(null)}
         onDeleted={handleSettingsDeleted}
+      />
+
+      <AgenticAgentPicker
+        open={agenticPickerOpen}
+        onClose={() => setAgenticPickerOpen(false)}
       />
     </div>
   );

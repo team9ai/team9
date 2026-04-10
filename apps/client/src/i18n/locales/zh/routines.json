@@ -279,5 +279,15 @@
     "schedule": "计划",
     "channelMessage": "频道消息",
     "retry": "重试"
+  },
+  "agentic": {
+    "createButton": "使用 AI 创建",
+    "pickerTitle": "选择引导创建的智能体",
+    "pickerDescription": "所选智能体将引导你完成日常的创建过程。",
+    "agentLabel": "智能体",
+    "noAgentsAvailable": "暂无可用的活跃智能体。",
+    "confirm": "开始创建",
+    "cancel": "取消",
+    "navigatingToast": "正在创建日常..."
   }
 }

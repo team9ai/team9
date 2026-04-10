@@ -279,5 +279,15 @@
     "schedule": "Schedule",
     "channelMessage": "Channel Message",
     "retry": "Retry"
+  },
+  "agentic": {
+    "createButton": "Create with Agentic",
+    "pickerTitle": "Pick an agent to guide creation",
+    "pickerDescription": "The selected agent will walk you through building this routine.",
+    "agentLabel": "Agent",
+    "noAgentsAvailable": "No active agents available.",
+    "confirm": "Start Creation",
+    "cancel": "Cancel",
+    "navigatingToast": "Creating routine..."
   }
 }
