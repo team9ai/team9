@@ -108,116 +108,24 @@ export function formatMessageTime(date: Date): string {
   return `${date.getFullYear()}/${month}/${day} ${time}`;
 }
 
-/**
- * Format a date as relative time (e.g., "2 hours ago")
- */
-export function formatDistanceToNow(date: Date): string {
-  const now = new Date();
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-  if (diffInSeconds < 60) {
-    return "just now";
-  }
-
-  const diffInMinutes = Math.floor(diffInSeconds / 60);
-  if (diffInMinutes < 60) {
-    return `${diffInMinutes}m ago`;
-  }
-
-  const diffInHours = Math.floor(diffInMinutes / 60);
-  if (diffInHours < 24) {
-    return `${diffInHours}h ago`;
-  }
-
-  const diffInDays = Math.floor(diffInHours / 24);
-  if (diffInDays < 7) {
-    return `${diffInDays}d ago`;
-  }
-
-  const diffInWeeks = Math.floor(diffInDays / 7);
-  if (diffInWeeks < 4) {
-    return `${diffInWeeks}w ago`;
-  }
-
-  const diffInMonths = Math.floor(diffInDays / 30);
-  if (diffInMonths < 12) {
-    return `${diffInMonths}mo ago`;
-  }
-
-  const diffInYears = Math.floor(diffInDays / 365);
-  return `${diffInYears}y ago`;
-}
+import {
+  formatRelative as _formatRelative,
+  formatDateGroup as _formatDateGroup,
+} from "@/lib/date-format";
 
 /**
- * Check if two dates are on the same day
+ * Format a date as relative time (e.g., "2 hours ago").
+ * Delegates to the locale-aware `formatRelative` from `date-format.ts`.
  */
-function isSameDay(date1: Date, date2: Date): boolean {
-  return (
-    date1.getFullYear() === date2.getFullYear() &&
-    date1.getMonth() === date2.getMonth() &&
-    date1.getDate() === date2.getDate()
-  );
-}
-
-const zhDayNames = [
-  "星期日",
-  "星期一",
-  "星期二",
-  "星期三",
-  "星期四",
-  "星期五",
-  "星期六",
-];
-const enDayNames = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
+export const formatDistanceToNow = _formatRelative;
 
 /**
- * Format a date for grouping headers (e.g., "Today", "Yesterday", "Jan 13, Monday")
+ * Format a date for grouping headers (e.g., "Today", "Yesterday", "Jan 13, Monday").
+ * Delegates to the locale-aware `formatDateGroup` from `date-format.ts`.
+ *
+ * @deprecated The `locale` parameter is ignored — the current i18n locale is used instead.
  */
-export function formatDateGroup(date: Date, locale: string = "zh-CN"): string {
-  const now = new Date();
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  if (isSameDay(date, now)) {
-    return locale.startsWith("zh") ? "今天" : "Today";
-  }
-
-  if (isSameDay(date, yesterday)) {
-    return locale.startsWith("zh") ? "昨天" : "Yesterday";
-  }
-
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  const dayOfWeek = date.getDay();
-
-  if (locale.startsWith("zh")) {
-    return `${month}月${day}日${zhDayNames[dayOfWeek]}`;
-  } else {
-    const monthNames = [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "May",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Oct",
-      "Nov",
-      "Dec",
-    ];
-    return `${monthNames[date.getMonth()]} ${day}, ${enDayNames[dayOfWeek]}`;
-  }
-}
+export const formatDateGroup = _formatDateGroup;
 
 /**
  * Get the date key for grouping (YYYY-MM-DD format)
@@ -230,12 +138,15 @@ export function getDateKey(date: Date): string {
 }
 
 /**
- * Group items by date
+ * Group items by date.
+ *
+ * @deprecated The `locale` parameter is accepted for backward compatibility but ignored.
+ * The current i18n locale is used automatically via `formatDateGroup`.
  */
 export function groupByDate<T>(
   items: T[],
   getDate: (item: T) => Date,
-  locale: string = "zh-CN",
+  _locale?: string,
 ): Array<{ dateKey: string; dateLabel: string; items: T[] }> {
   const groups = new Map<string, { dateLabel: string; items: T[] }>();
 
@@ -245,7 +156,7 @@ export function groupByDate<T>(
 
     if (!groups.has(dateKey)) {
       groups.set(dateKey, {
-        dateLabel: formatDateGroup(date, locale),
+        dateLabel: _formatDateGroup(date),
         items: [],
       });
     }
