@@ -516,7 +516,20 @@ function WebLoginView() {
 
   useEffect(() => {
     if (authState === "authenticated" && desktopSessionId) {
-      window.location.href = `team9://auth-complete?sessionId=${desktopSessionId}`;
+      const redirect = () => {
+        window.location.href = `team9://auth-complete?sessionId=${desktopSessionId}`;
+      };
+
+      import("posthog-js")
+        .then(({ default: posthog }) => {
+          if (posthog.__loaded) {
+            return (
+              posthog as unknown as { flush: () => Promise<void> }
+            ).flush();
+          }
+        })
+        .then(redirect)
+        .catch(redirect);
     }
   }, [authState, desktopSessionId]);
 

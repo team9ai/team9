@@ -75,6 +75,16 @@ function VerifyEmail() {
         }
       }
 
+      // Flush pending PostHog events before deep link redirect
+      try {
+        const { default: posthog } = await import("posthog-js");
+        if (posthog.__loaded) {
+          await (posthog as unknown as { flush: () => Promise<void> }).flush();
+        }
+      } catch {
+        // PostHog flush failed, continue anyway
+      }
+
       // Try to wake up the desktop client via deep link.
       try {
         window.location.href = "team9://auth-complete";
