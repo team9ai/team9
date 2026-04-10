@@ -610,6 +610,9 @@ function OnboardingRoute() {
         const invitation = await createInvitation.mutateAsync(
           DEFAULT_INVITATION_OPTIONS,
         );
+        capture("member_invited", {
+          workspace_id: workspaceId,
+        });
         const nextInvite = {
           invitationCode: invitation.code,
           invitationUrl: invitation.url,
@@ -629,6 +632,7 @@ function OnboardingRoute() {
       setPageError(getErrorMessage(error, t("errors.saveFailed")));
     });
   }, [
+    capture,
     createInvitation,
     currentStep,
     invitationsQuery.isFetching,
