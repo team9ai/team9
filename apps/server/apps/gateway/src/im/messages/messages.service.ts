@@ -1069,12 +1069,19 @@ export class MessagesService {
 
   async getFullContent(messageId: string): Promise<{ content: string }> {
     const [message] = await this.db
-      .select({ content: schema.messages.content })
+      .select({
+        content: schema.messages.content,
+        isDeleted: schema.messages.isDeleted,
+      })
       .from(schema.messages)
       .where(eq(schema.messages.id, messageId))
       .limit(1);
 
     if (!message) {
+      throw new NotFoundException('Message not found');
+    }
+
+    if (message.isDeleted) {
       throw new NotFoundException('Message not found');
     }
 

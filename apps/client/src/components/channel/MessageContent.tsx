@@ -407,15 +407,30 @@ export function MessageContent({
     [isHtml, displayContent, className],
   );
 
-  // Wrap in LongTextCollapse for long_text messages
-  const wrappedElement = useMemo(() => {
-    if (message?.type === "long_text") {
-      return (
-        <LongTextCollapse message={message}>{contentElement}</LongTextCollapse>
-      );
-    }
-    return contentElement;
-  }, [message, contentElement]);
+  // Wrap in LongTextCollapse for long_text messages.
+  // Intentionally using stable primitive deps instead of the full `message` object
+  // to avoid re-renders when React Query returns a new object reference.
+  const wrappedElement = useMemo(
+    () => {
+      if (message?.type === "long_text") {
+        return (
+          <LongTextCollapse message={message}>
+            {contentElement}
+          </LongTextCollapse>
+        );
+      }
+      return contentElement;
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      message?.id,
+      message?.type,
+      message?.isTruncated,
+      message?.fullContentLength,
+      message?.content?.length,
+      contentElement,
+    ],
+  );
 
   const handleMouseUp = useCallback(() => {
     // Small delay to let browser finalize selection

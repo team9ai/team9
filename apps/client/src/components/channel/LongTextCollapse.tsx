@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown } from "lucide-react";
 import { useFullContent } from "@/hooks/useMessages";
 import type { Message } from "@/types/im";
@@ -13,6 +14,7 @@ const COLLAPSED_MAX_HEIGHT = "15rem"; // ~10 lines at 1.5rem line-height
 export function LongTextCollapse({ message, children }: LongTextCollapseProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [fetchEnabled, setFetchEnabled] = useState(false);
+  const queryClient = useQueryClient();
 
   const {
     data: fullContentData,
@@ -32,9 +34,10 @@ export function LongTextCollapse({ message, children }: LongTextCollapseProps) {
   }, [message.isTruncated]);
 
   const handleRetry = useCallback(() => {
-    setFetchEnabled(false);
-    setTimeout(() => setFetchEnabled(true), 0);
-  }, []);
+    queryClient.invalidateQueries({
+      queryKey: ["message-full-content", message.id],
+    });
+  }, [queryClient, message.id]);
 
   const isContentReady = !message.isTruncated || !!fullContentData;
   const shouldShowFull = isExpanded && isContentReady;
