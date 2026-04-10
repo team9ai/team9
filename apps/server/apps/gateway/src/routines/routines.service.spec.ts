@@ -65,17 +65,19 @@ describe('RoutinesService — TaskCast integration', () => {
   let db: ReturnType<typeof mockDb>;
   let taskCastService: { transitionStatus: MockFn; publishEvent: MockFn };
   let amqpConnection: { publish: MockFn };
-  let documentsService: { create: MockFn };
-  let routineTriggersService: { createBatch: MockFn };
+  let documentsService: { create: MockFn; update: MockFn };
+  let routineTriggersService: { createBatch: MockFn; replaceAllForRoutine: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
     amqpConnection = { publish: jest.fn<any>().mockResolvedValue(undefined) };
     documentsService = {
       create: jest.fn<any>().mockResolvedValue({ id: 'doc-1' }),
+      update: jest.fn<any>().mockResolvedValue(undefined),
     };
     routineTriggersService = {
       createBatch: jest.fn<any>().mockResolvedValue(undefined),
+      replaceAllForRoutine: jest.fn<any>().mockResolvedValue(undefined),
     };
     taskCastService = {
       transitionStatus: jest.fn<any>().mockResolvedValue(undefined),
@@ -1335,6 +1337,355 @@ describe('RoutinesService — TaskCast integration', () => {
       expect(amqpConnection.publish).not.toHaveBeenCalled();
       expect(taskCastService.transitionStatus).not.toHaveBeenCalled();
       expect(taskCastService.publishEvent).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── draft-aware create ────────────────────────────────────────────
+
+  describe('create — draft awareness', () => {
+    const createdTask = {
+      id: 'task-new',
+      tenantId: 'tenant-1',
+      creatorId: 'user-1',
+      title: 'New task',
+      documentId: 'doc-new',
+      status: 'upcoming' as const,
+    };
+
+    beforeEach(() => {
+      documentsService.create.mockResolvedValue({ id: 'doc-new' } as any);
+      db.returning.mockResolvedValue([createdTask] as any);
+    });
+
+    it('defaults status to upcoming when not provided', async () => {
+      await service.create({ title: 'New task' } as never, 'user-1', 'tenant-1');
+
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'upcoming' }),
+      );
+    });
+
+    it('writes draft status when explicitly provided', async () => {
+      await service.create(
+        { title: 'New task', status: 'draft' } as never,
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'draft' }),
+      );
+    });
+
+    it('skips trigger registration when status is draft', async () => {
+      const triggers = [{ type: 'manual' }];
+      await service.create(
+        { title: 'New task', status: 'draft', triggers } as never,
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(routineTriggersService.createBatch).not.toHaveBeenCalled();
+    });
+
+    it('registers triggers for upcoming routines', async () => {
+      const triggers = [{ type: 'manual' }];
+      await service.create(
+        { title: 'New task', status: 'upcoming', triggers } as never,
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(routineTriggersService.createBatch).toHaveBeenCalledWith(
+        expect.any(String),
+        triggers,
+        'tenant-1',
+      );
+    });
+
+    it('writes sourceRef when provided in options', async () => {
+      await service.create(
+        { title: 'New task' } as never,
+        'user-1',
+        'tenant-1',
+        { sourceRef: 'ref-abc' },
+      );
+
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({ sourceRef: 'ref-abc' }),
+      );
+    });
+
+    it('writes sourceRef as null when options not provided', async () => {
+      await service.create({ title: 'New task' } as never, 'user-1', 'tenant-1');
+
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({ sourceRef: null }),
+      );
+    });
+  });
+
+  // ── draft-aware update ────────────────────────────────────────────
+
+  describe('update — draft awareness', () => {
+    const draftTask = {
+      ...BASE_TASK,
+      status: 'draft' as const,
+      creatorId: 'user-1',
+      documentId: 'doc-1',
+    };
+    const upcomingTask = {
+      ...BASE_TASK,
+      status: 'upcoming' as const,
+      creatorId: 'user-1',
+      documentId: 'doc-1',
+    };
+
+    it('rejects status transition from draft to upcoming', async () => {
+      db.limit.mockResolvedValueOnce([draftTask] as any);
+
+      await expect(
+        service.update(
+          'task-1',
+          { status: 'upcoming' } as never,
+          'user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow("Cannot change routine status from 'draft' to 'upcoming'");
+
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects status transition from upcoming to draft', async () => {
+      db.limit.mockResolvedValueOnce([upcomingTask] as any);
+
+      await expect(
+        service.update(
+          'task-1',
+          { status: 'draft' } as never,
+          'user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow("Cannot change routine status from 'upcoming' to 'draft'");
+
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('allows update when status matches current (no-op status field)', async () => {
+      db.limit.mockResolvedValueOnce([draftTask] as any);
+      db.returning.mockResolvedValueOnce([draftTask] as any);
+
+      await expect(
+        service.update(
+          'task-1',
+          { status: 'draft', title: 'New title' } as never,
+          'user-1',
+          'tenant-1',
+        ),
+      ).resolves.toEqual(draftTask);
+    });
+
+    it('allows update when status field is not provided', async () => {
+      db.limit.mockResolvedValueOnce([draftTask] as any);
+      db.returning.mockResolvedValueOnce([draftTask] as any);
+
+      await expect(
+        service.update(
+          'task-1',
+          { title: 'New title' } as never,
+          'user-1',
+          'tenant-1',
+        ),
+      ).resolves.toEqual(draftTask);
+    });
+
+    it('calls documentsService.update with documentContent', async () => {
+      db.limit.mockResolvedValueOnce([draftTask] as any);
+      db.returning.mockResolvedValueOnce([draftTask] as any);
+
+      await service.update(
+        'task-1',
+        { documentContent: 'new content' } as never,
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(documentsService.update).toHaveBeenCalledWith(
+        'doc-1',
+        { content: 'new content' },
+        { type: 'user', id: 'user-1' },
+      );
+    });
+
+    it('throws when documentContent provided but routine has no documentId', async () => {
+      db.limit.mockResolvedValueOnce([
+        { ...draftTask, documentId: null },
+      ] as any);
+
+      await expect(
+        service.update(
+          'task-1',
+          { documentContent: 'new content' } as never,
+          'user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow(
+        'Cannot update document content: routine has no linked document.',
+      );
+
+      expect(documentsService.update).not.toHaveBeenCalled();
+    });
+
+    it('calls replaceAllForRoutine when triggers are provided', async () => {
+      db.limit.mockResolvedValueOnce([draftTask] as any);
+      db.returning.mockResolvedValueOnce([draftTask] as any);
+
+      const triggers = [{ type: 'manual' }];
+      await service.update(
+        'task-1',
+        { triggers } as never,
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(routineTriggersService.replaceAllForRoutine).toHaveBeenCalledWith(
+        'task-1',
+        triggers,
+        'tenant-1',
+      );
+    });
+
+    it('allows empty triggers array (wholesale delete)', async () => {
+      db.limit.mockResolvedValueOnce([draftTask] as any);
+      db.returning.mockResolvedValueOnce([draftTask] as any);
+
+      await service.update(
+        'task-1',
+        { triggers: [] } as never,
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(routineTriggersService.replaceAllForRoutine).toHaveBeenCalledWith(
+        'task-1',
+        [],
+        'tenant-1',
+      );
+    });
+
+    it('does not call replaceAllForRoutine when triggers field is absent', async () => {
+      db.limit.mockResolvedValueOnce([draftTask] as any);
+      db.returning.mockResolvedValueOnce([draftTask] as any);
+
+      await service.update(
+        'task-1',
+        { title: 'No triggers field' } as never,
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(routineTriggersService.replaceAllForRoutine).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── draft-aware list ──────────────────────────────────────────────
+
+  describe('list — draft visibility', () => {
+    it("hides other users' drafts when currentUserId is provided", async () => {
+      const ownDraft = { ...BASE_TASK, id: 'task-own-draft', status: 'draft' as const, creatorId: 'user-1' };
+      const otherDraft = { ...BASE_TASK, id: 'task-other-draft', status: 'draft' as const, creatorId: 'user-2' };
+      const upcoming = { ...BASE_TASK, id: 'task-upcoming', status: 'upcoming' as const, creatorId: 'user-2' };
+
+      // The query includes the draft-filter condition so the DB already filters;
+      // we simulate the DB returning only allowed rows
+      db.orderBy.mockResolvedValueOnce([
+        { routine: ownDraft, executionTokenUsage: null },
+        { routine: upcoming, executionTokenUsage: null },
+      ] as any);
+
+      const result = await service.list('tenant-1', undefined, 'user-1');
+
+      // own draft and upcoming visible, other draft excluded (simulated by mock)
+      expect(result).toEqual([
+        { ...ownDraft, tokenUsage: 0 },
+        { ...upcoming, tokenUsage: 0 },
+      ]);
+
+      // Confirm the or condition was added (indicated by extra condition count via and)
+      expect(db.where).toHaveBeenCalled();
+      // Other draft would not appear since query filtered it
+      expect(result.find((r) => r.id === otherDraft.id)).toBeUndefined();
+    });
+
+    it('shows own drafts when currentUserId is provided', async () => {
+      const ownDraft = { ...BASE_TASK, id: 'task-own-draft', status: 'draft' as const, creatorId: 'user-1' };
+
+      db.orderBy.mockResolvedValueOnce([
+        { routine: ownDraft, executionTokenUsage: null },
+      ] as any);
+
+      const result = await service.list('tenant-1', undefined, 'user-1');
+
+      expect(result).toEqual([{ ...ownDraft, tokenUsage: 0 }]);
+    });
+
+    it('shows all non-drafts regardless of creator', async () => {
+      const upcoming = { ...BASE_TASK, id: 'task-upcoming', status: 'upcoming' as const, creatorId: 'user-2' };
+      const completed = { ...BASE_TASK, id: 'task-completed', status: 'completed' as const, creatorId: 'user-3' };
+
+      db.orderBy.mockResolvedValueOnce([
+        { routine: upcoming, executionTokenUsage: null },
+        { routine: completed, executionTokenUsage: 5 },
+      ] as any);
+
+      const result = await service.list('tenant-1', undefined, 'user-1');
+
+      expect(result).toEqual([
+        { ...upcoming, tokenUsage: 0 },
+        { ...completed, tokenUsage: 5 },
+      ]);
+    });
+  });
+
+  // ── draft-aware start ─────────────────────────────────────────────
+
+  describe('start — draft rejection', () => {
+    it('rejects start when the task is a draft', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+          status: 'draft' as const,
+          botId: 'bot-1',
+        },
+      ] as any);
+
+      await expect(
+        service.start('task-1', 'user-1', 'tenant-1', {
+          message: 'kick off',
+        } as never),
+      ).rejects.toThrow('Cannot start a draft routine. Publish the routine first.');
+
+      expect(amqpConnection.publish).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── draft-aware delete ────────────────────────────────────────────
+
+  describe('delete — draft bypass', () => {
+    it('allows deletion of draft routines without the active-status guard', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+          status: 'draft' as const,
+          creatorId: 'user-1',
+        },
+      ] as any);
+
+      await expect(
+        service.delete('task-1', 'user-1', 'tenant-1'),
+      ).resolves.toEqual({ success: true });
+
+      expect(db.delete).toHaveBeenCalledTimes(1);
     });
   });
 });

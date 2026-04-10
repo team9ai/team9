@@ -125,6 +125,39 @@ export class RoutineTriggersService {
     return results;
   }
 
+  async replaceAllForRoutine(
+    routineId: string,
+    triggers: CreateTriggerDto[],
+    tenantId: string,
+  ): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await tx
+        .delete(schema.routineTriggers)
+        .where(eq(schema.routineTriggers.routineId, routineId));
+      if (triggers.length > 0) {
+        for (const trigger of triggers) {
+          this.validateConfig(trigger.type, trigger.config);
+          let nextRunAt: Date | null = null;
+          if (trigger.type === 'interval' || trigger.type === 'schedule') {
+            nextRunAt = this.calculateInitialNextRunAt(
+              trigger.type,
+              trigger.config,
+            );
+          }
+          await tx.insert(schema.routineTriggers).values({
+            id: uuidv7(),
+            routineId,
+            tenantId,
+            type: trigger.type,
+            config: (trigger.config ?? {}) as schema.TriggerConfig,
+            enabled: trigger.enabled ?? true,
+            nextRunAt,
+          });
+        }
+      }
+    });
+  }
+
   // ── Internal helpers ────────────────────────────────────────────
 
   private async getRoutineOrThrow(routineId: string, tenantId: string) {

@@ -54,11 +54,12 @@ export class RoutinesController {
   @Get()
   async list(
     @CurrentTenantId() tenantId: string,
+    @CurrentUser('sub') userId: string,
     @Query('botId') botId?: string,
     @Query('status') status?: RoutineStatus,
     @Query('scheduleType') scheduleType?: RoutineScheduleType,
   ) {
-    return this.routinesService.list(tenantId, { botId, status, scheduleType });
+    return this.routinesService.list(tenantId, { botId, status, scheduleType }, userId);
   }
 
   @Get(':id')

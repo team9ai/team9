@@ -10,6 +10,8 @@ import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
   eq,
+  ne,
+  or,
   and,
   desc,
   type PostgresJsDatabase,
@@ -62,8 +64,14 @@ export class RoutinesService {
 
   // ── CRUD ────────────────────────────────────────────────────────
 
-  async create(dto: CreateRoutineDto, userId: string, tenantId: string) {
+  async create(
+    dto: CreateRoutineDto,
+    userId: string,
+    tenantId: string,
+    options?: { sourceRef?: string },
+  ) {
     const routineId = uuidv7();
+    const status = dto.status ?? 'upcoming';
 
     // Always create a linked document for the routine
     const doc = await this.documentsService.create(
@@ -77,22 +85,30 @@ export class RoutinesService {
     );
     const documentId = doc.id;
 
+    const insertValues: schema.NewRoutine = {
+      id: routineId,
+      tenantId,
+      botId: dto.botId ?? null,
+      creatorId: userId,
+      title: dto.title,
+      description: dto.description ?? null,
+      scheduleType: dto.scheduleType ?? 'once',
+      scheduleConfig: (dto.scheduleConfig as ScheduleConfig) ?? null,
+      documentId,
+    };
+    // status and sourceRef are new schema columns added in Task 0 — cast to bypass
+    // stale type resolution in pnpm workspaces / worktrees environment
+    (insertValues as Record<string, unknown>).status = status;
+    (insertValues as Record<string, unknown>).sourceRef =
+      options?.sourceRef ?? null;
+
     const [routine] = await this.db
       .insert(schema.routines)
-      .values({
-        id: routineId,
-        tenantId,
-        botId: dto.botId ?? null,
-        creatorId: userId,
-        title: dto.title,
-        description: dto.description ?? null,
-        scheduleType: dto.scheduleType ?? 'once',
-        scheduleConfig: (dto.scheduleConfig as ScheduleConfig) ?? null,
-        documentId,
-      })
+      .values(insertValues)
       .returning();
 
-    if (dto.triggers?.length) {
+    // Skip trigger registration for drafts
+    if ((status as string) !== 'draft' && dto.triggers?.length) {
       await this.routineTriggersService.createBatch(
         routineId,
         dto.triggers,
@@ -103,7 +119,11 @@ export class RoutinesService {
     return routine;
   }
 
-  async list(tenantId: string, filters?: RoutineListFilters) {
+  async list(
+    tenantId: string,
+    filters?: RoutineListFilters,
+    currentUserId?: string,
+  ) {
     const conditions = [eq(schema.routines.tenantId, tenantId)];
 
     if (filters?.botId) {
@@ -114,6 +134,16 @@ export class RoutinesService {
     }
     if (filters?.scheduleType) {
       conditions.push(eq(schema.routines.scheduleType, filters.scheduleType));
+    }
+
+    // Hide other users' drafts — only show own drafts or non-drafts
+    if (currentUserId) {
+      conditions.push(
+        or(
+          ne(schema.routines.status, 'draft'),
+          eq(schema.routines.creatorId, currentUserId),
+        )!,
+      );
     }
 
     const rows = await this.db
@@ -186,6 +216,36 @@ export class RoutinesService {
     const routine = await this.getRoutineOrThrow(routineId, tenantId);
     this.assertCreatorOwnership(routine, userId);
 
+    // Reject status transitions — status can only be the same value as current
+    if (dto.status !== undefined && dto.status !== routine.status) {
+      throw new BadRequestException(
+        `Cannot change routine status from '${routine.status}' to '${dto.status}' via update. Use the appropriate control endpoint.`,
+      );
+    }
+
+    // Handle documentContent — writes to the linked document, not the routine table
+    if (dto.documentContent !== undefined) {
+      if (!routine.documentId) {
+        throw new BadRequestException(
+          'Cannot update document content: routine has no linked document.',
+        );
+      }
+      await this.documentsService.update(
+        routine.documentId,
+        { content: dto.documentContent },
+        { type: 'user', id: userId },
+      );
+    }
+
+    // Handle triggers — wholesale replace
+    if (dto.triggers !== undefined) {
+      await this.routineTriggersService.replaceAllForRoutine(
+        routineId,
+        dto.triggers,
+        tenantId,
+      );
+    }
+
     const updateData: Record<string, unknown> = {
       updatedAt: new Date(),
     };
@@ -210,6 +270,15 @@ export class RoutinesService {
   async delete(routineId: string, userId: string, tenantId: string) {
     const routine = await this.getRoutineOrThrow(routineId, tenantId);
     this.assertCreatorOwnership(routine, userId);
+
+    // Drafts can always be deleted directly — no active-status guard needed
+    if ((routine.status as string) === 'draft') {
+      this.logger.debug(`Deleting draft routine ${routineId}`);
+      await this.db
+        .delete(schema.routines)
+        .where(eq(schema.routines.id, routineId));
+      return { success: true };
+    }
 
     // Prevent deletion of active routines — must stop first
     const activeStatuses: string[] = [
@@ -422,6 +491,11 @@ export class RoutinesService {
     dto: StartRoutineDto | StartRoutineNewDto,
   ) {
     const routine = await this.getRoutineOrThrow(routineId, tenantId);
+    if ((routine.status as string) === 'draft') {
+      throw new BadRequestException(
+        'Cannot start a draft routine. Publish the routine first.',
+      );
+    }
     if (!routine.botId) {
       throw new BadRequestException(
         'Cannot start routine without an assigned bot',
