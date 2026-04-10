@@ -28,6 +28,7 @@
     "errorGeneric": "创建日常失败"
   },
   "status": {
+    "draft": "草稿",
     "in_progress": "进行中",
     "upcoming": "即将开始",
     "paused": "已暂停",
@@ -289,5 +290,14 @@
     "confirm": "开始创建",
     "cancel": "取消",
     "navigatingToast": "正在创建日常..."
+  },
+  "draft": {
+    "badge": "草稿",
+    "completeCreation": "完成创建",
+    "delete": "删除",
+    "deleteConfirm": "删除此草稿日常？此操作无法撤销。",
+    "bannerMessage": "此日常处于草稿状态，完成创建后方可使用。",
+    "noChannelTooltip": "没有可用的创建对话。",
+    "untitled": "无标题"
   }
 }
