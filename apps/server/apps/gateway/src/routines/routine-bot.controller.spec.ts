@@ -12,6 +12,9 @@ type MockFn = jest.Mock<(...args: any[]) => any>;
 describe('RoutineBotController', () => {
   let controller: RoutineBotController;
   let routineBotService: {
+    createRoutine: MockFn;
+    getRoutineById: MockFn;
+    updateRoutine: MockFn;
     reportSteps: MockFn;
     updateStatus: MockFn;
     createIntervention: MockFn;
@@ -21,6 +24,9 @@ describe('RoutineBotController', () => {
 
   beforeEach(() => {
     routineBotService = {
+      createRoutine: jest.fn<any>().mockResolvedValue({ id: 'routine-1', status: 'draft' }),
+      getRoutineById: jest.fn<any>().mockResolvedValue({ id: 'routine-1', documentContent: '', triggers: [] }),
+      updateRoutine: jest.fn<any>().mockResolvedValue({ id: 'routine-1', title: 'Updated' }),
       reportSteps: jest.fn<any>().mockResolvedValue({ success: true }),
       updateStatus: jest.fn<any>().mockResolvedValue({ success: true }),
       createIntervention: jest.fn<any>().mockResolvedValue({
@@ -33,6 +39,47 @@ describe('RoutineBotController', () => {
     };
 
     controller = new RoutineBotController(routineBotService as never);
+  });
+
+  it('delegates createRoutine with dto, bot user, and tenant', async () => {
+    const dto = { title: 'New Routine', documentContent: 'Do the thing' };
+
+    await expect(
+      controller.create(dto as never, 'bot-user-1', 'tenant-1'),
+    ).resolves.toEqual({ id: 'routine-1', status: 'draft' });
+
+    expect(routineBotService.createRoutine).toHaveBeenCalledWith(
+      dto,
+      'bot-user-1',
+      'tenant-1',
+    );
+  });
+
+  it('delegates getRoutineById with routineId, bot user, and tenant', async () => {
+    await expect(
+      controller.getById('routine-1', 'bot-user-1', 'tenant-1'),
+    ).resolves.toEqual({ id: 'routine-1', documentContent: '', triggers: [] });
+
+    expect(routineBotService.getRoutineById).toHaveBeenCalledWith(
+      'routine-1',
+      'bot-user-1',
+      'tenant-1',
+    );
+  });
+
+  it('delegates updateRoutine with routineId, dto, bot user, and tenant', async () => {
+    const dto = { title: 'Updated' };
+
+    await expect(
+      controller.update('routine-1', dto as never, 'bot-user-1', 'tenant-1'),
+    ).resolves.toEqual({ id: 'routine-1', title: 'Updated' });
+
+    expect(routineBotService.updateRoutine).toHaveBeenCalledWith(
+      'routine-1',
+      dto,
+      'bot-user-1',
+      'tenant-1',
+    );
   });
 
   it('delegates reportSteps with routine, execution, bot user, and dto', async () => {
