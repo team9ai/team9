@@ -404,7 +404,7 @@ export class RoutineBotService {
   ) {
     // Resolve bots.id from the shadow user (botUserId is im_users.id, but
     // routines.bot_id is a FK to im_bots.id — these are different UUIDs).
-    const [botRow] = await this.db
+    const [callerBot] = await this.db
       .select({
         id: schema.bots.id,
         mentorId: schema.bots.mentorId,
@@ -414,22 +414,62 @@ export class RoutineBotService {
       .where(eq(schema.bots.userId, botUserId))
       .limit(1);
 
-    // Auto-set botId to the resolved bots.id if the caller didn't supply one.
-    if (!dto.botId && botRow?.id) {
-      dto.botId = botRow.id;
+    if (!callerBot) {
+      throw new NotFoundException('Bot not found');
+    }
+
+    // Resolve the botId to use for the routine.
+    // If the caller explicitly supplied a botId, validate that it refers to a
+    // real bots.id (not a users.id or any other stray UUID). If omitted,
+    // default to the calling bot's own bots.id.
+    let resolvedBotId: string = callerBot.id;
+    if (dto.botId) {
+      const [targetBot] = await this.db
+        .select({ id: schema.bots.id })
+        .from(schema.bots)
+        .where(eq(schema.bots.id, dto.botId))
+        .limit(1);
+
+      if (!targetBot) {
+        throw new BadRequestException(
+          `Invalid botId: ${dto.botId} is not a valid bot ID`,
+        );
+      }
+      resolvedBotId = targetBot.id;
     }
 
     // In DM mode the routine must be attributed to the human user (mentor/owner)
     // so they can see and manage it. Fall back to botUserId for backward compat
     // (e.g. system bots that have no mentor/owner).
     const effectiveCreatorId =
-      botRow?.mentorId ?? botRow?.ownerId ?? botUserId;
+      callerBot.mentorId ?? callerBot.ownerId ?? botUserId;
 
-    return this.routinesService.create(dto, effectiveCreatorId, tenantId);
+    return this.routinesService.create(
+      { ...dto, botId: resolvedBotId },
+      effectiveCreatorId,
+      tenantId,
+    );
   }
 
-  async getRoutineById(routineId: string, tenantId: string) {
+  async getRoutineById(
+    routineId: string,
+    botUserId: string,
+    tenantId: string,
+  ) {
     const result = await this.routinesService.getById(routineId, tenantId);
+
+    // Verify the calling bot is the routine's assigned bot
+    const [callerBot] = await this.db
+      .select({ id: schema.bots.id })
+      .from(schema.bots)
+      .where(eq(schema.bots.userId, botUserId))
+      .limit(1);
+
+    if (!callerBot || result.botId !== callerBot.id) {
+      throw new ForbiddenException(
+        'Bot is not the assigned agent for this routine',
+      );
+    }
 
     // Enrich with document content so the agent's getRoutine tool can read instructions
     let documentContent: string | null = null;

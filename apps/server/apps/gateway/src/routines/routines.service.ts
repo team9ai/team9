@@ -351,24 +351,22 @@ export class RoutinesService {
       }
 
       // Archive creation channel (non-fatal, only if no other draft shares it
-      // and the channel was created around the same time as the routine)
+      // and the channel is not a direct (DM) channel).
       const creationChannelId = routine.creationChannelId;
       if (creationChannelId) {
-        // Guard: don't archive a pre-existing DM that was merely reused.
+        // Guard: never archive direct (DM) channels. DMs are reusable persistent
+        // conversations — the user may have pre-existing messages that would be
+        // hidden. Only non-direct channels (e.g., future dedicated creation
+        // channels) should be archived.
         const [channelRow] = await this.db
-          .select({ createdAt: schema.channels.createdAt })
+          .select({ type: schema.channels.type })
           .from(schema.channels)
           .where(eq(schema.channels.id, creationChannelId))
           .limit(1);
 
-        const routineCreatedAt = routine.createdAt?.getTime() ?? 0;
-        const channelCreatedAt = channelRow?.createdAt?.getTime() ?? 0;
-        const isCreationChannel =
-          Math.abs(routineCreatedAt - channelCreatedAt) < 60_000;
-
-        if (!isCreationChannel) {
+        if (!channelRow || channelRow.type === 'direct') {
           this.logger.debug(
-            `delete: skipping archive of pre-existing channel ${creationChannelId} (channel predates routine by ${routineCreatedAt - channelCreatedAt}ms)`,
+            `delete: skipping archive of direct channel ${creationChannelId}`,
           );
         } else {
           const [otherDraft] = await this.db
@@ -956,26 +954,21 @@ export class RoutinesService {
       .returning();
 
     // Step 7: Archive creation channel (non-fatal, only if no other draft shares it
-    // and the channel was created around the same time as the routine)
+    // and the channel is not a direct (DM) channel).
     if (routine.creationChannelId) {
-      // Guard: don't archive a pre-existing DM that was merely reused.
-      // A channel created more than 60 s before the routine was not spawned
-      // specifically for this routine — archiving it would destroy the user's
-      // existing conversation history.
+      // Guard: never archive direct (DM) channels. DMs are reusable persistent
+      // conversations — the user may have pre-existing messages that would be
+      // hidden. Only non-direct channels (e.g., future dedicated creation
+      // channels) should be archived.
       const [channelRow] = await this.db
-        .select({ createdAt: schema.channels.createdAt })
+        .select({ type: schema.channels.type })
         .from(schema.channels)
         .where(eq(schema.channels.id, routine.creationChannelId))
         .limit(1);
 
-      const routineCreatedAt = routine.createdAt?.getTime() ?? 0;
-      const channelCreatedAt = channelRow?.createdAt?.getTime() ?? 0;
-      const isCreationChannel =
-        Math.abs(routineCreatedAt - channelCreatedAt) < 60_000;
-
-      if (!isCreationChannel) {
+      if (!channelRow || channelRow.type === 'direct') {
         this.logger.debug(
-          `completeCreation: skipping archive of pre-existing channel ${routine.creationChannelId} (channel predates routine by ${routineCreatedAt - channelCreatedAt}ms)`,
+          `completeCreation: skipping archive of direct channel ${routine.creationChannelId}`,
         );
       } else {
         const [otherDraft] = await this.db

@@ -40,9 +40,10 @@ export class RoutineBotController {
   @Get(':routineId')
   async getById(
     @Param('routineId', ParseUUIDPipe) routineId: string,
+    @CurrentUser('sub') botUserId: string,
     @CurrentTenantId() tenantId: string,
   ) {
-    return this.routineBotService.getRoutineById(routineId, tenantId);
+    return this.routineBotService.getRoutineById(routineId, botUserId, tenantId);
   }
 
   @Patch(':routineId')
