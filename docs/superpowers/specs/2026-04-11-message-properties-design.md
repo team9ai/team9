@@ -1,175 +1,175 @@
-# Message Properties — 消息结构化属性系统
+# Message Properties — Structured Property System for Messages
 
 ## Overview
 
-为 Team9 的群组频道消息添加结构化属性系统，使每条消息除了 reaction 外，还能附加 tags、key-value pairs 等结构化数据。属性在频道层面共享 schema，支持 Table View、Board View、Calendar View 等多种视图。
+Add a structured property system to group channel messages in Team9, allowing each message to carry tags, key-value pairs, and other structured data beyond reactions. Properties share a channel-level schema and power Table View, Board View, and Calendar View.
 
-### 核心愿景
+### Core Vision
 
-**Channel 是 agent 之间的通信总线，结构化属性就是信号协议。**
+**Channels are the communication bus between agents; structured properties are the signal protocol.**
 
-消息的 content 是给人读的（自然语言），properties 是给机器读的（结构化数据）。人类和 agent 共享同一个频道 — 人类通过 table/board/calendar view 看到全局结构化状态，agent 通过 subscribe + query 消费和响应信号。
+Message `content` is for humans (natural language); `properties` are for machines (structured data). Humans and agents share the same channel — humans see the global structured state via table/board/calendar views, agents consume and respond to signals via subscribe + query.
 
 ### Design Philosophy
 
-- **Schema-on-write**：第一次使用时自动建立属性定义，零摩擦创建，事后治理
-- **统一模型**：原生属性（tags/people/tasks/messages）和自定义属性走同一套 EAV 系统
-- **频道即数据库**：Table/Board/Calendar View 让频道从时间线聊天升级为结构化协作空间
-- **Agent-first**：属性系统天然为 agent 信号通讯设计，人类 UI 是可视化层
+- **Schema-on-write**: Property definitions are created automatically on first use — zero friction creation, post-hoc governance
+- **Unified model**: Native properties (tags/people/tasks/messages) and custom properties share the same EAV system
+- **Channel as database**: Table/Board/Calendar Views upgrade channels from timeline chat to structured collaboration spaces
+- **Agent-first**: The property system is designed for agent signal communication; the human UI is the visualization layer
 
 ## Scope
 
-### 支持的频道类型
+### Supported Channel Types
 
-- `public` (群组) ✅
-- `private` (私有群组) ✅
-- `direct` (私聊) ❌
+- `public` (group) ✅
+- `private` (private group) ✅
+- `direct` (DM) ❌
 - `task` ❌
 - `tracking` ❌
 
-### 支持的消息范围
+### Supported Message Scope
 
-- 根消息（非 thread reply）✅
-- Thread reply ❌
-- `text` / `long_text` / `file` / `image` 类型 ✅
-- `system` / `tracking` 类型 ❌
+- Root messages (non-thread replies) ✅
+- Thread replies ❌
+- `text` / `long_text` / `file` / `image` types ✅
+- `system` / `tracking` types ❌
 
 ## Data Model
 
-### Value Types (16 种)
+### Value Types (16 types)
 
-| #   | Type              | 存储列                 | 说明                                      |
-| --- | ----------------- | ---------------------- | ----------------------------------------- |
-| 1   | `text`            | textValue              | 文字                                      |
-| 2   | `number`          | numberValue            | 数字                                      |
-| 3   | `boolean`         | booleanValue           | 真假                                      |
-| 4   | `single_select`   | textValue              | 单选                                      |
-| 5   | `multi_select`    | jsonValue              | 多选                                      |
-| 6   | `person`          | jsonValue              | 人员（单/多人）                           |
-| 7   | `date`            | dateValue              | 仅日期                                    |
-| 8   | `timestamp`       | dateValue              | 日期+时间                                 |
-| 9   | `date_range`      | jsonValue              | 日期段 `{ "start": "...", "end": "..." }` |
-| 10  | `timestamp_range` | jsonValue              | 时间段 `{ "start": "...", "end": "..." }` |
-| 11  | `recurring`       | jsonValue              | 重复规则（iCal RRULE 简化版）             |
-| 12  | `url`             | textValue              | URL 链接                                  |
-| 13  | `message_ref`     | jsonValue              | 链接到别的消息                            |
-| 14  | `file`            | fileKey + fileMetadata | 文件上传                                  |
-| 15  | `image`           | fileKey + fileMetadata | 图片上传                                  |
-| 16  | `tags`            | —                      | 原生 multi_select 语法糖                  |
+| #   | Type              | Storage Column         | Description                                      |
+| --- | ----------------- | ---------------------- | ------------------------------------------------ |
+| 1   | `text`            | textValue              | Plain text                                       |
+| 2   | `number`          | numberValue            | Numeric value                                    |
+| 3   | `boolean`         | booleanValue           | True/false                                       |
+| 4   | `single_select`   | textValue              | Single selection                                 |
+| 5   | `multi_select`    | jsonValue              | Multiple selection                               |
+| 6   | `person`          | jsonValue              | User reference(s)                                |
+| 7   | `date`            | dateValue              | Date only                                        |
+| 8   | `timestamp`       | dateValue              | Date + time                                      |
+| 9   | `date_range`      | jsonValue              | Date span `{ "start": "...", "end": "..." }`     |
+| 10  | `timestamp_range` | jsonValue              | Datetime span `{ "start": "...", "end": "..." }` |
+| 11  | `recurring`       | jsonValue              | Recurring rule (simplified iCal RRULE)           |
+| 12  | `url`             | textValue              | URL link                                         |
+| 13  | `message_ref`     | jsonValue              | Reference to another message                     |
+| 14  | `file`            | fileKey + fileMetadata | File upload                                      |
+| 15  | `image`           | fileKey + fileMetadata | Image upload                                     |
+| 16  | `tags`            | —                      | Native multi_select syntactic sugar              |
 
-### `channel_property_definitions` 表
+### `channel_property_definitions` Table
 
-频道级属性 schema 定义。
+Channel-level property schema definitions.
 
-| 字段               | 类型                  | 说明                                                  |
-| ------------------ | --------------------- | ----------------------------------------------------- |
-| `id`               | UUID PK               | —                                                     |
-| `channelId`        | UUID FK → channels    | —                                                     |
-| `key`              | varchar(100)          | 属性名，频道内唯一。`_` 前缀保留给原生属性            |
-| `description`      | text, nullable        | 属性描述                                              |
-| `valueType`        | enum                  | 上述 16 种类型                                        |
-| `isNative`         | boolean               | 原生属性不可删除、不可改类型                          |
-| `config`           | JSONB                 | 类型专属配置（见下）                                  |
-| `order`            | integer               | 频道内排序（原生属性排最前）                          |
-| `aiAutoFill`       | boolean               | 是否启用 AI 自动填充                                  |
-| `aiAutoFillPrompt` | text, nullable        | AI 填充的自定义 prompt                                |
-| `isRequired`       | boolean               | 是否必填                                              |
-| `defaultValue`     | JSONB, nullable       | 默认值                                                |
-| `showInChatPolicy` | varchar(20)           | `"auto"` / `"show"` / `"hide"`，默认 `"auto"`         |
-| `allowNewOptions`  | boolean, default true | 仅 single_select / multi_select：是否允许添加新选项值 |
-| `createdBy`        | UUID FK → users       | —                                                     |
-| `createdAt`        | timestamp             | —                                                     |
-| `updatedAt`        | timestamp             | —                                                     |
+| Field              | Type                  | Description                                                                   |
+| ------------------ | --------------------- | ----------------------------------------------------------------------------- |
+| `id`               | UUID PK               | —                                                                             |
+| `channelId`        | UUID FK → channels    | —                                                                             |
+| `key`              | varchar(100)          | Property name, unique per channel. `_` prefix reserved for native properties  |
+| `description`      | text, nullable        | Property description                                                          |
+| `valueType`        | enum                  | One of the 16 types above                                                     |
+| `isNative`         | boolean               | Native properties cannot be deleted or have their type changed                |
+| `config`           | JSONB                 | Type-specific configuration (see below)                                       |
+| `order`            | integer               | Sort order within channel (native properties first)                           |
+| `aiAutoFill`       | boolean               | Whether AI auto-fill is enabled                                               |
+| `aiAutoFillPrompt` | text, nullable        | Custom prompt for AI fill                                                     |
+| `isRequired`       | boolean               | Whether the property is required                                              |
+| `defaultValue`     | JSONB, nullable       | Default value                                                                 |
+| `showInChatPolicy` | varchar(20)           | `"auto"` / `"show"` / `"hide"`, default `"auto"`                              |
+| `allowNewOptions`  | boolean, default true | For single_select / multi_select only: whether new option values can be added |
+| `createdBy`        | UUID FK → users       | —                                                                             |
+| `createdAt`        | timestamp             | —                                                                             |
+| `updatedAt`        | timestamp             | —                                                                             |
 
 **Unique constraint:** `(channelId, key)`
 
-**`config` JSONB 结构（按类型）：**
+**`config` JSONB structure (by type):**
 
 - **single_select / multi_select:** `{ "options": [{ "value": "todo", "color": "#ff0000" }, ...] }`
 - **person:** `{ "multiple": true/false }`
 - **number:** `{ "format": "number" | "percent" | "currency" }`
 - **date / timestamp:** `{ "includeTime": false }`
 - **file / image:** `{ "maxSize": 10485760, "allowedMimeTypes": [...] }`
-- 其余类型: `{}`
+- Others: `{}`
 
-**原生属性（频道创建时自动插入）：**
+**Native properties (auto-inserted on channel creation):**
 
-| key         | valueType      | isNative | aiAutoFill 默认 |
-| ----------- | -------------- | -------- | --------------- |
-| `_tags`     | `multi_select` | true     | true            |
-| `_people`   | `person`       | true     | true            |
-| `_tasks`    | `message_ref`  | true     | true            |
-| `_messages` | `message_ref`  | true     | true            |
+| key         | valueType      | isNative | aiAutoFill default |
+| ----------- | -------------- | -------- | ------------------ |
+| `_tags`     | `multi_select` | true     | true               |
+| `_people`   | `person`       | true     | true               |
+| `_tasks`    | `message_ref`  | true     | true               |
+| `_messages` | `message_ref`  | true     | true               |
 
-特殊字段 `title`（非原生，但有特殊显示逻辑，aiAutoFill 默认 false）。
+Special field `title` (not native, but has special display logic; aiAutoFill defaults to false).
 
-### `message_properties` 表
+### `message_properties` Table
 
-消息级属性值，一行一个属性。
+Message-level property values. One row per property per message.
 
-| 字段                   | 类型                                   | 说明                                                                                     |
-| ---------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `id`                   | UUID PK                                | —                                                                                        |
-| `messageId`            | UUID FK → messages (cascade)           | —                                                                                        |
-| `propertyDefinitionId` | UUID FK → channel_property_definitions | —                                                                                        |
-| `textValue`            | text, nullable                         | text / url / single_select                                                               |
-| `numberValue`          | double precision, nullable             | number                                                                                   |
-| `booleanValue`         | boolean, nullable                      | boolean                                                                                  |
-| `dateValue`            | timestamp, nullable                    | date / timestamp                                                                         |
-| `jsonValue`            | JSONB, nullable                        | 数组类型 (multi_select, person[], message_ref[], date_range, timestamp_range, recurring) |
-| `fileKey`              | varchar(500), nullable                 | file / image 的存储 key                                                                  |
-| `fileMetadata`         | JSONB, nullable                        | `{ "fileName", "fileUrl", "fileSize", "mimeType", "width", "height" }`                   |
-| `order`                | integer                                | 属性在该消息上的挂载顺序                                                                 |
-| `createdBy`            | UUID FK → users                        | —                                                                                        |
-| `updatedBy`            | UUID FK → users, nullable              | —                                                                                        |
-| `createdAt`            | timestamp                              | —                                                                                        |
-| `updatedAt`            | timestamp                              | —                                                                                        |
+| Field                  | Type                                   | Description                                                                                     |
+| ---------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `id`                   | UUID PK                                | —                                                                                               |
+| `messageId`            | UUID FK → messages (cascade)           | —                                                                                               |
+| `propertyDefinitionId` | UUID FK → channel_property_definitions | —                                                                                               |
+| `textValue`            | text, nullable                         | For text / url / single_select                                                                  |
+| `numberValue`          | double precision, nullable             | For number                                                                                      |
+| `booleanValue`         | boolean, nullable                      | For boolean                                                                                     |
+| `dateValue`            | timestamp, nullable                    | For date / timestamp                                                                            |
+| `jsonValue`            | JSONB, nullable                        | For array types (multi_select, person[], message_ref[], date_range, timestamp_range, recurring) |
+| `fileKey`              | varchar(500), nullable                 | For file / image storage key                                                                    |
+| `fileMetadata`         | JSONB, nullable                        | `{ "fileName", "fileUrl", "fileSize", "mimeType", "width", "height" }`                          |
+| `order`                | integer                                | Display order of this property on the message                                                   |
+| `createdBy`            | UUID FK → users                        | —                                                                                               |
+| `updatedBy`            | UUID FK → users, nullable              | —                                                                                               |
+| `createdAt`            | timestamp                              | —                                                                                               |
+| `updatedAt`            | timestamp                              | —                                                                                               |
 
 **Unique constraint:** `(messageId, propertyDefinitionId)`
 
-**CHECK constraint:** 同一行只有一个值列非 NULL（根据关联 definition 的 valueType）。
+**CHECK constraint:** Only one value column may be non-NULL per row (determined by the linked definition's valueType).
 
 **Indexes:**
 
-- `(messageId)` — 加载消息属性
-- `(propertyDefinitionId, textValue)` — 文字属性筛选
-- `(propertyDefinitionId, numberValue)` — 数字排序/范围
-- `(propertyDefinitionId, dateValue)` — 日期排序/范围
-- `(propertyDefinitionId, booleanValue)` — 布尔筛选
-- `jsonValue` GIN — 数组包含查询
+- `(messageId)` — load message properties
+- `(propertyDefinitionId, textValue)` — text filtering
+- `(propertyDefinitionId, numberValue)` — numeric sort/range queries
+- `(propertyDefinitionId, dateValue)` — date sort/range queries
+- `(propertyDefinitionId, booleanValue)` — boolean filtering
+- `jsonValue` GIN — array containment queries
 
-### `audit_logs` 表
+### `audit_logs` Table
 
-通用审计日志，覆盖 channel、message 及其属性的所有变更。
+General-purpose audit log covering all changes to channels, messages, and their properties.
 
-| 字段          | 类型                         | 说明                                           |
+| Field         | Type                         | Description                                    |
 | ------------- | ---------------------------- | ---------------------------------------------- |
 | `id`          | UUID PK                      | —                                              |
-| `channelId`   | UUID FK → channels, nullable | 所属频道                                       |
+| `channelId`   | UUID FK → channels, nullable | Owning channel                                 |
 | `entityType`  | varchar(50)                  | `"channel"` / `"message"`                      |
-| `entityId`    | UUID                         | 被修改的实体 ID                                |
-| `action`      | varchar(50)                  | 见下表                                         |
+| `entityId`    | UUID                         | ID of the modified entity                      |
+| `action`      | varchar(50)                  | See table below                                |
 | `changes`     | JSONB                        | `{ "field": { "old": ..., "new": ... }, ... }` |
-| `performedBy` | UUID FK → users, nullable    | 操作人                                         |
-| `metadata`    | JSONB, nullable              | 额外信息（如 AI 填充来源）                     |
+| `performedBy` | UUID FK → users, nullable    | Actor                                          |
+| `metadata`    | JSONB, nullable              | Extra info (e.g., AI fill source)              |
 | `createdAt`   | timestamp                    | —                                              |
 
-**Action 值：**
+**Action values:**
 
-| entityType | action                    | 场景           |
-| ---------- | ------------------------- | -------------- |
-| `channel`  | `updated`                 | 频道设置变更   |
-| `channel`  | `property_defined`        | 新建属性定义   |
-| `channel`  | `property_schema_updated` | 修改属性定义   |
-| `channel`  | `property_deleted`        | 删除属性定义   |
-| `message`  | `created`                 | 消息创建       |
-| `message`  | `updated`                 | 消息内容编辑   |
-| `message`  | `deleted`                 | 消息删除       |
-| `message`  | `property_set`            | 首次设置属性值 |
-| `message`  | `property_updated`        | 修改属性值     |
-| `message`  | `property_removed`        | 移除属性值     |
+| entityType | action                    | Scenario                              |
+| ---------- | ------------------------- | ------------------------------------- |
+| `channel`  | `updated`                 | Channel settings changed              |
+| `channel`  | `property_defined`        | New property definition created       |
+| `channel`  | `property_schema_updated` | Property definition modified          |
+| `channel`  | `property_deleted`        | Property definition deleted           |
+| `message`  | `created`                 | Message created                       |
+| `message`  | `updated`                 | Message content edited                |
+| `message`  | `deleted`                 | Message deleted                       |
+| `message`  | `property_set`            | Property value set for the first time |
+| `message`  | `property_updated`        | Property value modified               |
+| `message`  | `property_removed`        | Property value removed                |
 
-**AI 操作的 metadata 示例：**
+**AI operation metadata example:**
 
 ```json
 {
@@ -181,25 +181,25 @@
 
 **Indexes:**
 
-- `(channelId, createdAt)` — 频道审计查询
-- `(entityType, entityId)` — 实体变更历史
-- `(performedBy, createdAt)` — 用户操作记录
+- `(channelId, createdAt)` — channel audit queries
+- `(entityType, entityId)` — entity change history
+- `(performedBy, createdAt)` — user activity queries
 
-### `channel_views` 表
+### `channel_views` Table
 
-| 字段        | 类型                         | 说明                                 |
-| ----------- | ---------------------------- | ------------------------------------ |
-| `id`        | UUID PK                      | —                                    |
-| `channelId` | UUID FK → channels (cascade) | —                                    |
-| `name`      | varchar(100)                 | 视图名称                             |
-| `type`      | varchar(20)                  | `"table"` / `"board"` / `"calendar"` |
-| `config`    | JSONB                        | 筛选、排序、分组、可见列等（见下）   |
-| `order`     | integer                      | tab 排序                             |
-| `createdBy` | UUID FK → users              | —                                    |
-| `createdAt` | timestamp                    | —                                    |
-| `updatedAt` | timestamp                    | —                                    |
+| Field       | Type                         | Description                                                 |
+| ----------- | ---------------------------- | ----------------------------------------------------------- |
+| `id`        | UUID PK                      | —                                                           |
+| `channelId` | UUID FK → channels (cascade) | —                                                           |
+| `name`      | varchar(100)                 | View name                                                   |
+| `type`      | varchar(20)                  | `"table"` / `"board"` / `"calendar"`                        |
+| `config`    | JSONB                        | Filters, sorts, grouping, visible columns, etc. (see below) |
+| `order`     | integer                      | Tab ordering                                                |
+| `createdBy` | UUID FK → users              | —                                                           |
+| `createdAt` | timestamp                    | —                                                           |
+| `updatedAt` | timestamp                    | —                                                           |
 
-**`config` JSONB：**
+**`config` JSONB:**
 
 ```json
 {
@@ -220,33 +220,33 @@
 
 **Filter operators:** `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `contains`, `not_contains`, `is_empty`, `is_not_empty`, `in`
 
-**Limits:** filter 条件 ≤ 10 个，sort 字段 ≤ 3 个。
+**Limits:** filter conditions ≤ 10, sort fields ≤ 3.
 
-### `channel_tabs` 表
+### `channel_tabs` Table
 
-| 字段        | 类型                              | 说明                                                                           |
+| Field       | Type                              | Description                                                                    |
 | ----------- | --------------------------------- | ------------------------------------------------------------------------------ |
 | `id`        | UUID PK                           | —                                                                              |
 | `channelId` | UUID FK → channels (cascade)      | —                                                                              |
-| `name`      | varchar(100)                      | tab 显示名                                                                     |
+| `name`      | varchar(100)                      | Tab display name                                                               |
 | `type`      | varchar(30)                       | `"messages"` / `"files"` / `"table_view"` / `"board_view"` / `"calendar_view"` |
-| `viewId`    | UUID FK → channel_views, nullable | view 类型时关联具体视图                                                        |
-| `isBuiltin` | boolean                           | 内置 tab 不可删除                                                              |
-| `order`     | integer                           | 排序                                                                           |
+| `viewId`    | UUID FK → channel_views, nullable | Links to view config for view-type tabs                                        |
+| `isBuiltin` | boolean                           | Built-in tabs cannot be deleted                                                |
+| `order`     | integer                           | Sort order                                                                     |
 | `createdBy` | UUID FK → users, nullable         | —                                                                              |
 | `createdAt` | timestamp                         | —                                                                              |
 | `updatedAt` | timestamp                         | —                                                                              |
 
-**频道创建时自动插入：**
+**Auto-inserted on channel creation:**
 
 | name     | type       | isBuiltin | order |
 | -------- | ---------- | --------- | ----- |
 | Messages | `messages` | true      | 0     |
 | Files    | `files`    | true      | 1     |
 
-### 频道设置扩展
+### Channel Settings Extension
 
-`channels` 表新增 `propertySettings` JSONB 列：
+New `propertySettings` JSONB column on the `channels` table:
 
 ```json
 {
@@ -255,53 +255,53 @@
 }
 ```
 
-| 配置项                   | 默认值     | 说明                                                          |
-| ------------------------ | ---------- | ------------------------------------------------------------- |
-| `allowNonAdminCreateKey` | `true`     | 非管理员是否可创建新属性 key                                  |
-| `propertyDisplayOrder`   | `"schema"` | `"schema"`（按 schema 顺序）/ `"chronological"`（按添加顺序） |
+| Setting                  | Default    | Description                                                          |
+| ------------------------ | ---------- | -------------------------------------------------------------------- |
+| `allowNonAdminCreateKey` | `true`     | Whether non-admins can create new property keys                      |
+| `propertyDisplayOrder`   | `"schema"` | `"schema"` (by schema order) / `"chronological"` (by addition order) |
 
 ## Permissions
 
-权限跟随频道角色，核心原则：**能发消息就能操作属性，Schema 管理权限更宽泛。**
+Permissions follow channel roles. Core principle: **if you can send messages, you can operate properties; schema management is available to all writable members.**
 
-| 频道类型                  | 角色        | 发消息 | 挂/删属性 | 管理 Schema |
-| ------------------------- | ----------- | ------ | --------- | ----------- |
-| **Public** (默认)         | 所有成员    | ✅     | ✅        | ✅          |
-| **Public** (仅管理员发送) | 普通成员    | ❌     | ❌        | ❌          |
-| **Public** (仅管理员发送) | admin/owner | ✅     | ✅        | ✅          |
-| **Private**               | 只读成员    | ❌     | ❌        | ❌          |
-| **Private**               | 可写成员    | ✅     | ✅        | ✅          |
-| **Private**               | admin/owner | ✅     | ✅        | ✅          |
+| Channel Type                 | Role              | Send Messages | Set/Remove Properties | Manage Schema |
+| ---------------------------- | ----------------- | ------------- | --------------------- | ------------- |
+| **Public** (default)         | All members       | ✅            | ✅                    | ✅            |
+| **Public** (admin-only send) | Regular members   | ❌            | ❌                    | ❌            |
+| **Public** (admin-only send) | admin/owner       | ✅            | ✅                    | ✅            |
+| **Private**                  | Read-only members | ❌            | ❌                    | ❌            |
+| **Private**                  | Writable members  | ✅            | ✅                    | ✅            |
+| **Private**                  | admin/owner       | ✅            | ✅                    | ✅            |
 
-**Content vs Properties 权限区分：**
+**Content vs Properties permission distinction:**
 
-- 编辑 Content：仅消息发送者本人
-- 删除消息：发送者 + admin/owner
-- 编辑 Properties：有写权限的所有成员（包括给别人的消息挂属性）
+- Edit Content: message sender only
+- Delete message: sender + admin/owner
+- Edit Properties: all members with write permission (including on others' messages)
 
 ## API
 
-### 属性 Schema 管理
+### Property Schema Management
 
-| Method   | Endpoint                                                | 说明                            |
-| -------- | ------------------------------------------------------- | ------------------------------- |
-| `GET`    | `/v1/im/channels/:channelId/property-definitions`       | 列出频道所有属性定义            |
-| `POST`   | `/v1/im/channels/:channelId/property-definitions`       | 创建属性定义                    |
-| `PATCH`  | `/v1/im/channels/:channelId/property-definitions/:id`   | 修改属性定义                    |
-| `DELETE` | `/v1/im/channels/:channelId/property-definitions/:id`   | 删除属性定义（isNative 不可删） |
-| `PATCH`  | `/v1/im/channels/:channelId/property-definitions/order` | 批量调整排序                    |
+| Method   | Endpoint                                                | Description                                               |
+| -------- | ------------------------------------------------------- | --------------------------------------------------------- |
+| `GET`    | `/v1/im/channels/:channelId/property-definitions`       | List all property definitions for a channel               |
+| `POST`   | `/v1/im/channels/:channelId/property-definitions`       | Create a property definition                              |
+| `PATCH`  | `/v1/im/channels/:channelId/property-definitions/:id`   | Update a property definition                              |
+| `DELETE` | `/v1/im/channels/:channelId/property-definitions/:id`   | Delete a property definition (isNative cannot be deleted) |
+| `PATCH`  | `/v1/im/channels/:channelId/property-definitions/order` | Batch reorder definitions                                 |
 
-### 消息属性值
+### Message Property Values
 
-| Method   | Endpoint                                              | 说明                |
-| -------- | ----------------------------------------------------- | ------------------- |
-| `GET`    | `/v1/im/messages/:messageId/properties`               | 获取消息的所有属性  |
-| `PUT`    | `/v1/im/messages/:messageId/properties/:definitionId` | 设置/更新单个属性值 |
-| `DELETE` | `/v1/im/messages/:messageId/properties/:definitionId` | 移除属性值          |
-| `PATCH`  | `/v1/im/messages/:messageId/properties`               | 批量设置属性        |
-| `POST`   | `/v1/im/messages/:messageId/properties/auto-fill`     | 触发 AI 自动填充    |
+| Method   | Endpoint                                              | Description                        |
+| -------- | ----------------------------------------------------- | ---------------------------------- |
+| `GET`    | `/v1/im/messages/:messageId/properties`               | Get all properties for a message   |
+| `PUT`    | `/v1/im/messages/:messageId/properties/:definitionId` | Set/update a single property value |
+| `DELETE` | `/v1/im/messages/:messageId/properties/:definitionId` | Remove a property value            |
+| `PATCH`  | `/v1/im/messages/:messageId/properties`               | Batch set properties               |
+| `POST`   | `/v1/im/messages/:messageId/properties/auto-fill`     | Trigger AI auto-fill               |
 
-**批量设置 body：**
+**Batch set body:**
 
 ```json
 {
@@ -313,7 +313,7 @@
 }
 ```
 
-**AI auto-fill body：**
+**AI auto-fill body:**
 
 ```json
 {
@@ -322,19 +322,19 @@
 }
 ```
 
-`fields` 可选，不传则生成所有 `aiAutoFill=true` 的字段。`preserveExisting` 手动触发时为 true。
+`fields` is optional — omit to generate all `aiAutoFill=true` fields. `preserveExisting` is true for manual triggers.
 
-### 频道视图
+### Channel Views
 
-| Method   | Endpoint                                            | 说明                 |
-| -------- | --------------------------------------------------- | -------------------- |
-| `GET`    | `/v1/im/channels/:channelId/views`                  | 列出频道所有视图     |
-| `POST`   | `/v1/im/channels/:channelId/views`                  | 创建视图             |
-| `PATCH`  | `/v1/im/channels/:channelId/views/:viewId`          | 更新视图配置         |
-| `DELETE` | `/v1/im/channels/:channelId/views/:viewId`          | 删除视图             |
-| `GET`    | `/v1/im/channels/:channelId/views/:viewId/messages` | 查询视图数据（分页） |
+| Method   | Endpoint                                            | Description                  |
+| -------- | --------------------------------------------------- | ---------------------------- |
+| `GET`    | `/v1/im/channels/:channelId/views`                  | List all views for a channel |
+| `POST`   | `/v1/im/channels/:channelId/views`                  | Create a view                |
+| `PATCH`  | `/v1/im/channels/:channelId/views/:viewId`          | Update view config           |
+| `DELETE` | `/v1/im/channels/:channelId/views/:viewId`          | Delete a view                |
+| `GET`    | `/v1/im/channels/:channelId/views/:viewId/messages` | Query view data (paginated)  |
 
-**视图数据查询 — 分组分页 response：**
+**View data query — grouped pagination response:**
 
 ```json
 {
@@ -346,7 +346,7 @@
       "messages": [
         {
           "id": "msg-uuid",
-          "content": "登录页面有 bug...",
+          "content": "Login page has a bug...",
           "sender": { "id": "...", "displayName": "Alice" },
           "createdAt": "2026-04-11T10:00:00Z",
           "properties": {
@@ -362,48 +362,48 @@
 }
 ```
 
-每组独立 cursor + total，前端按组懒加载。
+Each group has independent cursor + total; frontend lazy-loads per group.
 
-### 频道 Tabs
+### Channel Tabs
 
-| Method   | Endpoint                                 | 说明                         |
-| -------- | ---------------------------------------- | ---------------------------- |
-| `GET`    | `/v1/im/channels/:channelId/tabs`        | 列出频道所有 tab             |
-| `POST`   | `/v1/im/channels/:channelId/tabs`        | 创建 tab                     |
-| `PATCH`  | `/v1/im/channels/:channelId/tabs/:tabId` | 更新 tab                     |
-| `DELETE` | `/v1/im/channels/:channelId/tabs/:tabId` | 删除 tab（isBuiltin 不可删） |
-| `PATCH`  | `/v1/im/channels/:channelId/tabs/order`  | 批量调整排序                 |
+| Method   | Endpoint                                 | Description                                |
+| -------- | ---------------------------------------- | ------------------------------------------ |
+| `GET`    | `/v1/im/channels/:channelId/tabs`        | List all tabs for a channel                |
+| `POST`   | `/v1/im/channels/:channelId/tabs`        | Create a tab                               |
+| `PATCH`  | `/v1/im/channels/:channelId/tabs/:tabId` | Update a tab                               |
+| `DELETE` | `/v1/im/channels/:channelId/tabs/:tabId` | Delete a tab (isBuiltin cannot be deleted) |
+| `PATCH`  | `/v1/im/channels/:channelId/tabs/order`  | Batch reorder tabs                         |
 
-### 审计日志
+### Audit Logs
 
-| Method | Endpoint                                | 说明                                                  |
-| ------ | --------------------------------------- | ----------------------------------------------------- |
-| `GET`  | `/v1/im/channels/:channelId/audit-logs` | 查询频道审计日志（分页，可按 entityType/action 过滤） |
+| Method | Endpoint                                | Description                                                           |
+| ------ | --------------------------------------- | --------------------------------------------------------------------- |
+| `GET`  | `/v1/im/channels/:channelId/audit-logs` | Query channel audit logs (paginated, filterable by entityType/action) |
 
-### 现有消息 API 变更
+### Changes to Existing Message API
 
-`GET /v1/im/channels/:channelId/messages` response 每条消息新增 `properties` 字段（只返回 `showInChatPolicy !== "hide"` 的属性）。
+`GET /v1/im/channels/:channelId/messages` — each message in the response gains a `properties` field (only returns properties where `showInChatPolicy !== "hide"`).
 
-`POST /v1/im/channels/:channelId/messages` 扩展 body，可选 `properties` 字段一并设置属性。
+`POST /v1/im/channels/:channelId/messages` — body extended with optional `properties` field to set properties alongside message creation.
 
 ## WebSocket Events
 
-### Server → Client（广播给频道成员）
+### Server → Client (broadcast to channel members)
 
-| 事件                          | Payload                                             | 场景                             |
-| ----------------------------- | --------------------------------------------------- | -------------------------------- |
-| `property_definition_created` | `{ channelId, definition }`                         | 新属性定义（含 schema-on-write） |
-| `property_definition_updated` | `{ channelId, definitionId, changes }`              | 属性 schema 变更                 |
-| `property_definition_deleted` | `{ channelId, definitionId }`                       | 删除属性定义                     |
-| `message_property_changed`    | `{ channelId, messageId, properties, performedBy }` | 消息属性值变更（统一事件）       |
-| `view_created`                | `{ channelId, view }`                               | 新建视图                         |
-| `view_updated`                | `{ channelId, viewId, changes }`                    | 视图配置变更                     |
-| `view_deleted`                | `{ channelId, viewId }`                             | 删除视图                         |
-| `tab_created`                 | `{ channelId, tab }`                                | 新建 tab                         |
-| `tab_updated`                 | `{ channelId, tabId, changes }`                     | tab 变更                         |
-| `tab_deleted`                 | `{ channelId, tabId }`                              | 删除 tab                         |
+| Event                         | Payload                                             | Scenario                                            |
+| ----------------------------- | --------------------------------------------------- | --------------------------------------------------- |
+| `property_definition_created` | `{ channelId, definition }`                         | New property definition (including schema-on-write) |
+| `property_definition_updated` | `{ channelId, definitionId, changes }`              | Property schema changed                             |
+| `property_definition_deleted` | `{ channelId, definitionId }`                       | Property definition deleted                         |
+| `message_property_changed`    | `{ channelId, messageId, properties, performedBy }` | Message property values changed (unified event)     |
+| `view_created`                | `{ channelId, view }`                               | View created                                        |
+| `view_updated`                | `{ channelId, viewId, changes }`                    | View config changed                                 |
+| `view_deleted`                | `{ channelId, viewId }`                             | View deleted                                        |
+| `tab_created`                 | `{ channelId, tab }`                                | Tab created                                         |
+| `tab_updated`                 | `{ channelId, tabId, changes }`                     | Tab changed                                         |
+| `tab_deleted`                 | `{ channelId, tabId }`                              | Tab deleted                                         |
 
-**`message_property_changed` payload：**
+**`message_property_changed` payload:**
 
 ```json
 {
@@ -417,36 +417,36 @@
 }
 ```
 
-用统一的 `message_property_changed` 而非拆成 set/update/remove — 批量操作（AI auto-fill）可能同时 set 多个、remove 一些，单事件更高效。
+Uses a unified `message_property_changed` event rather than separate set/update/remove events — batch operations (AI auto-fill) may set several and remove some simultaneously; a single event is more efficient.
 
 ## AI Auto-Fill
 
-### 触发时机
+### Trigger Conditions
 
-- 消息创建后（自动，如有 `aiAutoFill=true` 的字段）
-- 消息编辑后（自动，带 diff）
-- 手动请求（指定 `fields`，`preserveExisting: true`）
-- Table View 中点击 title 生成按钮
+- After message creation (automatic, if any fields have `aiAutoFill=true`)
+- After message edit (automatic, with diff)
+- Manual request (specify `fields`, `preserveExisting: true`)
+- Click title generation button in Table View
 
-### Prompt 格式（XML）
+### Prompt Format (XML)
 
 ```xml
 <context>
   <channel>
     <name>Frontend Bug Tracker</name>
-    <description>前端相关 bug 追踪与修复</description>
+    <description>Frontend bug tracking and fixes</description>
   </channel>
 
   <message>
-    <content>登录页面在 Safari 下 CSS 错位，用户无法点击提交按钮。</content>
-    <original_content>登录页面有个 bug</original_content>  <!-- 编辑触发时 -->
+    <content>Login page CSS is misaligned on Safari, users cannot click the submit button.</content>
+    <original_content>Login page has a bug</original_content>  <!-- present on edit trigger -->
     <reactions>
       <reaction emoji="👀" count="2" />
       <reaction emoji="👍" count="1" />
     </reactions>
     <thread_replies>
-      <reply sender="Bob">我来看看这个问题</reply>
-      <reply sender="Carol">Safari 的 flexbox gap 属性不支持</reply>
+      <reply sender="Bob">Let me look into this</reply>
+      <reply sender="Carol">Safari doesn't support the flexbox gap property</reply>
     </thread_replies>
   </message>
 
@@ -468,25 +468,26 @@
     <property key="_tags" type="multi_select" ai_fill="true" allow_new_options="true" />
   </channel_schema>
 
-  <generate_fields>  <!-- 手动指定时才有 -->
+  <generate_fields>  <!-- only present for manual/selective generation -->
     <field>title</field>
     <field>status</field>
   </generate_fields>
 </context>
 
 <instructions>
-  根据消息内容、频道上下文、讨论回复和当前属性，为指定字段生成合适的值。
-  - 不需要修改的字段标记 unchanged
-  - allow_new_options="false" 的字段只能使用已有选项，无匹配则返回 null
-  - 只修改 ai_fill="true" 的字段
+  Based on the message content, channel context, thread replies, and current properties,
+  generate appropriate values for the specified fields.
+  - Mark fields that don't need changes as unchanged
+  - For allow_new_options="false" fields, only use existing options; return null if no match
+  - Only modify fields with ai_fill="true"
 </instructions>
 ```
 
-### AI 返回格式（function_call JSON）
+### AI Response Format (function_call JSON)
 
 ```json
 {
-  "title": { "value": "登录页面 CSS 错位" },
+  "title": { "value": "Login page CSS misalignment" },
   "status": { "value": "todo" },
   "priority": { "unchanged": true },
   "_tags": { "value": ["bug", "frontend"] },
@@ -494,35 +495,35 @@
 }
 ```
 
-- `{ "unchanged": true }` — 不更新
-- `{ "value": ... }` — 设置新值
-- `{ "value": null }` — 无法生成/无匹配选项
+- `{ "unchanged": true }` — no update needed
+- `{ "value": ... }` — set new value
+- `{ "value": null }` — cannot generate / no matching option
 
-### 必填/可空规则
+### Required/Nullable Rules
 
-| 条件                                                 | 值是否可空              |
-| ---------------------------------------------------- | ----------------------- |
-| `aiAutoFill=true` 且尚未设值                         | 必须返回（可以是 null） |
-| `allowNewOptions=false` 且无匹配选项                 | 可为 null               |
-| `allowNewOptions=true` 且 `aiAutoFill=true` 且未设值 | 不可为空                |
-| `aiAutoFill=false`                                   | AI 不可修改             |
+| Condition                                                    | Can value be null?        |
+| ------------------------------------------------------------ | ------------------------- |
+| `aiAutoFill=true` and not yet set                            | Must return (can be null) |
+| `allowNewOptions=false` and no matching option               | Can be null               |
+| `allowNewOptions=true` and `aiAutoFill=true` and not yet set | Cannot be null            |
+| `aiAutoFill=false`                                           | AI cannot modify          |
 
-### 原生属性默认 AI 填充配置
+### Native Property Default AI Fill Config
 
-| 属性                 | aiAutoFill 默认 |
-| -------------------- | --------------- |
-| `title`              | false           |
-| `_tags`              | true            |
-| `_people`            | true            |
-| `_tasks`             | true            |
-| `_messages`          | true            |
-| 自定义属性（新建时） | true            |
+| Property                        | aiAutoFill default |
+| ------------------------------- | ------------------ |
+| `title`                         | false              |
+| `_tags`                         | true               |
+| `_people`                       | true               |
+| `_tasks`                        | true               |
+| `_messages`                     | true               |
+| Custom properties (on creation) | true               |
 
-### 错误重试
+### Error Retry
 
-校验返回值（类型匹配、选项存在、必填字段、只修改 `aiAutoFill=true` 的字段）。不通过则返回错误详情给 AI 重试，最多 3 轮。最终失败记录日志。
+Validate return values (type matching, option existence, required fields, only modifying `aiAutoFill=true` fields). On failure, return error details to AI for retry — max 3 rounds. Final failure is logged.
 
-AI 填充结果记入 `audit_logs`，`performedBy=null`，`metadata.source="ai_auto_fill"`。
+AI fill results are recorded in `audit_logs` with `performedBy=null` and `metadata.source="ai_auto_fill"`.
 
 ## Frontend Architecture
 
@@ -530,30 +531,30 @@ AI 填充结果记入 `audit_logs`，`performedBy=null`，`metadata.source="ai_a
 
 ```
 channel/
-├── ChannelHeader.tsx (现有)
-│   └── ChannelTabs.tsx (新增)          ← tab 栏: Messages | Files | Views...
+├── ChannelHeader.tsx (existing)
+│   └── ChannelTabs.tsx (new)              ← tab bar: Messages | Files | Views...
 │
-├── MessageList.tsx (现有，扩展)
-│   └── MessageItem.tsx (现有，扩展)
-│       ├── MessageContent.tsx (现有)
-│       ├── MessageTitle.tsx (新增)      ← title 特殊字段
-│       ├── MessageProperties.tsx (新增) ← 消息下方属性 chips
+├── MessageList.tsx (existing, extended)
+│   └── MessageItem.tsx (existing, extended)
+│       ├── MessageContent.tsx (existing)
+│       ├── MessageTitle.tsx (new)          ← title special field
+│       ├── MessageProperties.tsx (new)     ← property chips below message
 │       │   ├── PropertyTag.tsx
 │       │   ├── PropertyPerson.tsx
 │       │   ├── PropertyValue.tsx
-│       │   └── PropertyMoreButton.tsx   ← [...] 展开更多
-│       ├── MessageReactions.tsx (现有)
-│       └── MessageHoverToolbar.tsx (现有，扩展)
-│           └── + 属性按钮（📎）
+│       │   └── PropertyMoreButton.tsx     ← [...] expand more
+│       ├── MessageReactions.tsx (existing)
+│       └── MessageHoverToolbar.tsx (existing, extended)
+│           └── + property button
 │
-├── views/ (新增)
+├── views/ (new)
 │   ├── TableView.tsx
 │   │   ├── TableHeader.tsx
 │   │   ├── TableRow.tsx
-│   │   ├── TableCell.tsx               ← 按类型渲染编辑器
-│   │   └── TableAddRow.tsx             ← "+" 新增消息行
+│   │   ├── TableCell.tsx                  ← renders editor by type
+│   │   └── TableAddRow.tsx                ← "+" add new message row
 │   ├── BoardView.tsx
-│   │   ├── BoardColumn.tsx             ← 分组列，独立滚动/分页
+│   │   ├── BoardColumn.tsx                ← group column, independent scroll/pagination
 │   │   └── BoardCard.tsx
 │   ├── CalendarView.tsx
 │   │   ├── CalendarMonth.tsx
@@ -562,34 +563,34 @@ channel/
 │   │   └── CalendarEventCard.tsx
 │   └── ViewConfigPanel.tsx
 │
-├── properties/ (新增)
-│   ├── PropertyEditor.tsx              ← 按类型分发
+├── properties/ (new)
+│   ├── PropertyEditor.tsx                 ← dispatches by type
 │   │   ├── TextEditor / NumberEditor / BooleanEditor
-│   │   ├── SelectEditor               ← 单选/多选 + 新建选项
+│   │   ├── SelectEditor                   ← single/multi select + create new option
 │   │   ├── PersonPicker / DatePicker
 │   │   ├── UrlEditor / MessageRefPicker / FileUploader
 │   │   └── RecurringEditor
-│   ├── PropertyPanel.tsx               ← 消息属性侧边栏
-│   ├── PropertySelector.tsx            ← 属性选择器（子菜单模式）
-│   └── PropertySchemaManager.tsx        ← 频道设置中 schema 管理
+│   ├── PropertyPanel.tsx                  ← message property sidebar
+│   ├── PropertySelector.tsx               ← property picker (sub-menu pattern)
+│   └── PropertySchemaManager.tsx          ← schema management in channel settings
 │
-└── settings/ (现有，扩展)
+└── settings/ (existing, extended)
     └── ChannelSettings.tsx → + PropertySchemaManager tab
 ```
 
 ### State Management
 
-**React Query（服务端状态）：**
+**React Query (server state):**
 
-| Query Key                                            | 失效时机                                      |
+| Query Key                                            | Invalidation                                  |
 | ---------------------------------------------------- | --------------------------------------------- |
 | `["channel", channelId, "propertyDefinitions"]`      | WS `property_definition_*`                    |
 | `["channel", channelId, "tabs"]`                     | WS `tab_*`                                    |
 | `["channel", channelId, "view", viewId, "messages"]` | WS `message_property_changed` / `new_message` |
 
-消息属性随消息一起加载（`properties` 字段），不需要额外查询。
+Message properties are loaded alongside messages (via `properties` field) — no extra queries needed.
 
-**Zustand（UI 状态）：**
+**Zustand (UI state):**
 
 ```typescript
 interface PropertyUIState {
@@ -601,119 +602,119 @@ interface PropertyUIState {
 
 ## UI Interaction
 
-### Chat View — 属性显示
+### Chat View — Property Display
 
-**有属性时：**
+**With properties:**
 
 ```
-消息气泡
-├── [Title] 登录页面 CSS 错位
-├── 消息正文...
-├── [🏷 urgent] [🏷 bug] [👤 Alice] [⚡ 3] [📋 todo] [...]  ← [...] 在末尾
+Message bubble
+├── [Title] Login page CSS misalignment
+├── Message body...
+├── [🏷 urgent] [🏷 bug] [👤 Alice] [⚡ 3] [📋 todo] [...]  ← [...] at the end
 └── [👍 2] [❤️ 1]
 ```
 
-**无属性时：**
+**Without properties:**
 
 ```
-消息气泡
-├── 消息正文...
-└── [👍 2] [❤️ 1] [+]  ← [+] 紧跟 reaction 后
+Message bubble
+├── Message body...
+└── [👍 2] [❤️ 1] [+]  ← [+] follows reactions
 ```
 
-**showInChatPolicy 控制：**
+**showInChatPolicy control:**
 
-- `"show"` — 始终显示
-- `"auto"` — 有值时显示
-- `"hide"` — 只在 PropertyPanel 或 Views 中可见
+- `"show"` — always visible
+- `"auto"` — visible when value exists
+- `"hide"` — only visible in PropertyPanel or Views
 
-**Hover toolbar（右上角浮动框）：**
+**Hover toolbar (top-right floating bar):**
 
 ```
 [✅] [👀] [🙌] [😊] [💬] [📎] [🔖] [⋮]
  ↑──────────↑                  ↑
- 最近用过的 emoji           属性按钮
+ Recently used emoji        Property button
 ```
 
-### 属性选择器 — 子菜单模式
+### Property Selector — Sub-menu Pattern
 
 ```
-[...] 或 [+] 点击
+[...] or [+] click
   ↓
 ┌─────────────────────┐
-│ 🔍 搜索...          │
+│ 🔍 Search...        │
 ├─────────────────────┤
 │ 🏷 Tags         ▸  │──→ ┌──────────────────┐
-│ 👤 People       ▸  │    │ 选项子菜单         │
+│ 👤 People       ▸  │    │ Option sub-menu   │
 │ priority        ▸  │    └──────────────────┘
 │ status          ▸  │
 ├─────────────────────┤
-│ [+ 创建新属性]       │  ← allowNonAdminCreateKey 控制
+│ [+ Create property] │  ← controlled by allowNonAdminCreateKey
 └─────────────────────┘
 ```
 
-### 消息详情视图
+### Message Detail View
 
-**普通消息（有 tag/属性）：**
+**Regular message (with tags/properties):**
 
 ```
 ┌─────────────────────────────────────────────┐
-│ [Title] 登录页面 CSS 错位     [✨ AI 生成]   │
+│ [Title] Login page CSS misalignment [✨ AI] │
 ├─────────────────────────────────────────────┤
-│ 🏷 urgent  🏷 bug  🏷 frontend  [+]         │  ← tags 可删(×)
+│ 🏷 urgent  🏷 bug  🏷 frontend  [+]         │  ← tags deletable (×)
 ├─────────────────────────────────────────────┤
-│ 消息正文                                     │
-│ 登录页面在 Safari 下 CSS 错位...             │
+│ Message body                                 │
+│ Login page CSS is misaligned on Safari...    │
 ├─────────────────────────────────────────────┤
-│ 属性 (3/8)                    [展开全部 ▾]   │
-│ ┌──────────┬──────────────────┐              │  ← Notion 风格表格
+│ Properties (3/8)              [Expand all ▾] │
+│ ┌──────────┬──────────────────┐              │  ← Notion-style table
 │ │ Status   │ ● todo          │              │
 │ │ Priority │ 3               │              │
 │ │ Assignee │ 👤 Alice        │              │
 │ └──────────┴──────────────────┘              │
 ├─────────────────────────────────────────────┤
-│ Thread + 属性变更记录混排                     │
-│  👤 Bob: 我来看看                            │
-│  ⚙ Alice 将 status 从 todo 改为 in-progress │
-│  ⚙ AI 将 _tags 添加 css-fix                 │
+│ Thread + property change records interleaved │
+│  👤 Bob: Let me look into this               │
+│  ⚙ Alice changed status from todo → progress│
+│  ⚙ AI added _tags: css-fix                  │
 └─────────────────────────────────────────────┘
 ```
 
-**long_text 消息 — 属性在正文前：**
+**long_text message — properties before body:**
 
 ```
-Title → Tags → 属性表格 → 消息正文（长文本） → Thread
+Title → Tags → Properties table → Message body (long text) → Thread
 ```
 
-**无 tag 无属性时：**
+**No tags, no properties:**
 
-Tag 行和属性表格隐藏，右上角显示 [📎+] 添加入口。
+Tag row and properties table are hidden; top-right shows [📎+] add button.
 
-**属性折叠规则：**
+**Property collapse rules:**
 
-- ≤ 5 行：全部展示
-- \> 5 行：折叠，只显示有值的属性（"有效属性"）
-- 有效属性也超过 5 行：显示前 5 行 + `[展开全部 (N)]`
+- ≤ 5 rows: show all
+- \> 5 rows: collapse, show only properties with values ("effective properties")
+- If effective properties also exceed 5: show first 5 + `[Expand all (N)]`
 
 ### Table View
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ [筛选 ▾] [排序 ▾] [分组 ▾] [属性 ▾]          [⚙ 视图设置]    │
+│ [Filter ▾] [Sort ▾] [Group ▾] [Properties ▾]  [⚙ Settings] │
 ├────────┬──────────┬────────┬──────────┬───────┬─────────────┤
 │ Title  │ Content  │ Status │ Priority │ Tags  │ Assignee    │
 ├────────┼──────────┼────────┼──────────┼───────┼─────────────┤
-│ 登录bug │ 登录页... │ ● todo │    3     │ 🏷bug │ 👤 Alice    │
-│ 新功能  │ 添加暗... │ ● done │    1     │ 🏷feat│ 👤 Bob      │
-│ [+ 新消息]                                                   │
+│ Login  │ Login... │ ● todo │    3     │ 🏷bug │ 👤 Alice    │
+│ Feature│ Add da...│ ● done │    1     │ 🏷feat│ 👤 Bob      │
+│ [+ New message]                                              │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-- 单元格点击 → inline 编辑
-- Content 列：发送者本人可编辑，他人只读
-- Title 列点击 → 进入消息详情
-- 有 groupBy 时：每组单独分页，独立 cursor
-- 列头可拖拽调整宽度和顺序
+- Cell click → inline edit
+- Content column: editable by sender only, read-only for others
+- Title column click → navigate to message detail
+- With groupBy: each group paginates independently with its own cursor
+- Column headers draggable for width and order
 
 ### Board View
 
@@ -722,57 +723,57 @@ Tag 行和属性表格隐藏，右上角显示 [📎+] 添加入口。
 │   📋 Todo   │ 🔄 Progress │  ✅ Done     │
 ├─────────────┼─────────────┼─────────────┤
 │ ┌─────────┐ │ ┌─────────┐ │ ┌─────────┐ │
-│ │ 登录bug  │ │ │ 新功能   │ │ │ 文档更新 │ │
+│ │ Login   │ │ │ Feature │ │ │ Docs    │ │
 │ │ 🏷bug    │ │ │ 🏷feat   │ │ │ 🏷docs  │ │
 │ │ 👤Alice  │ │ │ 👤Bob    │ │ │ 👤Carol │ │
 │ └─────────┘ │ └─────────┘ │ └─────────┘ │
-│ [+ 添加]    │ [+ 添加]    │ [+ 添加]    │
+│ [+ Add]     │ [+ Add]     │ [+ Add]     │
 └─────────────┴─────────────┴─────────────┘
 ```
 
-- 按任意 single_select 属性分组
-- 卡片拖拽 → 修改分组属性值
-- 每列独立滚动/分页
-- `[+ 添加]` → 创建消息并预填分组值
+- Group by any single_select property
+- Drag cards → change group property value
+- Each column scrolls/paginates independently
+- `[+ Add]` → create message with group value pre-filled
 
 ### Calendar View
 
-- `date` / `timestamp` 属性 → 对应日期格显示卡片
-- `date_range` / `timestamp_range` → 跨日期横条
-- `recurring` → 每个匹配日期重复显示
-- 点击日期空白处 → 创建消息预填该日期
-- 拖拽卡片 → 修改日期
-- 月/周/日三种粒度切换
+- `date` / `timestamp` properties → card on corresponding date cell
+- `date_range` / `timestamp_range` → cross-date bar
+- `recurring` → repeated on each matching date
+- Click empty date → create message with date pre-filled
+- Drag card → change date
+- Month/week/day granularity toggle
 
 ### AI Auto-Fill UI
 
 ```
-消息发送后（自动填充）:
-  属性区域显示 shimmer 加载状态 → AI 返回值渐入
-  重试 → "正在重试..." (最多 3 轮) → 失败 → "AI 填充失败" + 手动入口
+After message send (auto-fill):
+  Property area shows shimmer loading → AI values fade in
+  Retry → "Retrying..." (max 3 rounds) → Failure → "AI fill failed" + manual entry
 
-手动触发:
-  属性 chip ✨ 图标 / 右键 "AI 生成"
-  → 指定字段 loading spinner → 完成 highlight 动画
+Manual trigger:
+  Property chip ✨ icon / right-click "AI Generate"
+  → Target field shows loading spinner → highlight animation on completion
 ```
 
 ## Agent Integration
 
-> **TODO:** Agent 集成需要更细致整体的讨论，后续单独设计。以下为概要方向。
+> **TODO:** Agent integration requires more thorough discussion; to be designed separately. Below is a directional overview.
 
-### 交互模式概要
+### Interaction Model Overview
 
-- **Subscribe:** Agent 通过 WebSocket 监听 `message_property_changed` / `new_message` 事件
-- **Query:** Agent 通过 REST API 按属性筛选消息（复用视图查询接口）
-- **Write:** Agent 发送消息时可一并设置属性，也可修改已有消息的属性
-- Agent 权限与普通用户一致，取决于频道成员角色
+- **Subscribe:** Agents listen for `message_property_changed` / `new_message` events via WebSocket
+- **Query:** Agents filter messages by property values via REST API (reusing view query endpoints)
+- **Write:** Agents can set properties when sending messages, or modify properties on existing messages
+- Agent permissions are identical to regular users, determined by channel member role
 
-### Agent 发送带属性的消息
+### Agent Sending Messages with Properties
 
 ```json
 // POST /v1/im/channels/:channelId/messages
 {
-  "content": "已完成代码审查，发现 3 个问题",
+  "content": "Code review complete, found 3 issues",
   "properties": {
     "_tags": ["code-review"],
     "status": "review-done",
@@ -781,31 +782,31 @@ Tag 行和属性表格隐藏，右上角显示 [📎+] 添加入口。
 }
 ```
 
-### 信号模式示例
+### Signal Pattern Examples
 
-- **任务编排:** Agent A 发消息设 `status: pending` → Agent B 监听到 → 处理 → 设 `status: done` → Agent C 汇总
-- **状态机驱动:** 每次 `status` 变更都是 WebSocket 事件，Agent 根据状态转换执行对应逻辑
+- **Task orchestration:** Agent A sends message with `status: pending` → Agent B picks it up → processes → sets `status: done` → Agent C aggregates results
+- **State machine:** Each `status` change is a WebSocket event; agents execute logic based on state transitions
 
 ## Performance
 
-### 查询策略
+### Query Strategy
 
-- **聊天视图:** 两次查询 — 先查消息 IDs，再批量查 `message_properties WHERE messageId IN (...)`，前端合并。与现有 reactions/attachments 加载模式一致。
-- **Table/Board/Calendar View:** cursor-based 分页，每个排序/筛选属性一次 LEFT JOIN。有 groupBy 时每组独立分页。
+- **Chat view:** Two-pass query — first fetch message IDs, then batch-load `message_properties WHERE messageId IN (...)`, merge on frontend. Consistent with existing reactions/attachments loading pattern.
+- **Table/Board/Calendar View:** Cursor-based pagination with one LEFT JOIN per sorted/filtered property. With groupBy, each group paginates independently.
 
-### 限制
+### Limits
 
-| 限制项                        | 上限 |
-| ----------------------------- | ---- |
-| 每频道属性定义数              | 50   |
-| 每条消息属性值数              | 50   |
-| 每个视图 filter 条件数        | 10   |
-| 每个视图 sort 字段数          | 3    |
-| 每个 multi_select/tags 选项数 | 200  |
-| 每个 person 属性人数          | 50   |
-| 每频道视图数                  | 20   |
+| Item                             | Upper Bound |
+| -------------------------------- | ----------- |
+| Property definitions per channel | 50          |
+| Property values per message      | 50          |
+| Filter conditions per view       | 10          |
+| Sort fields per view             | 3           |
+| Options per multi_select/tags    | 200         |
+| People per person property       | 50          |
+| Views per channel                | 20          |
 
-### 索引
+### Indexes
 
 ```sql
 -- message_properties
@@ -826,31 +827,31 @@ jsonValue USING GIN
 (performedBy, createdAt)
 ```
 
-### 缓存
+### Caching
 
-| 缓存项          | 存储        | TTL             | 失效                            |
-| --------------- | ----------- | --------------- | ------------------------------- |
-| 频道属性 schema | Redis       | 10min           | WS `property_definition_*` 清除 |
-| 视图配置        | Redis       | 10min           | WS `view_*` 清除                |
-| 前端属性 schema | React Query | staleTime: 5min | WS 事件 refetch                 |
+| Item                     | Storage     | TTL             | Invalidation                      |
+| ------------------------ | ----------- | --------------- | --------------------------------- |
+| Channel property schema  | Redis       | 10min           | WS `property_definition_*` clears |
+| View config              | Redis       | 10min           | WS `view_*` clears                |
+| Frontend property schema | React Query | staleTime: 5min | WS event triggers refetch         |
 
-消息属性值不单独缓存，跟随消息加载策略。
+Message property values are not cached separately — they follow the message loading/caching strategy.
 
 ## Edge Cases
 
-| 场景                         | 处理方式                                           |
-| ---------------------------- | -------------------------------------------------- |
-| 删除属性定义                 | 确认弹窗 → 删除定义 + 级联删除所有消息上该属性的值 |
-| 修改属性类型                 | 禁止。要改类型只能删除重建                         |
-| 两人同时编辑同一属性         | Last-write-wins，前端 WebSocket 实时同步           |
-| 消息删除                     | 级联删除属性（现有 cascade）                       |
-| 频道归档                     | 视图/属性只读                                      |
-| 删除 select 选项（已使用中） | 确认弹窗，已使用该选项的消息值置为 null            |
-| 原生属性                     | 不可删除、不可改类型                               |
-| key 命名冲突                 | `_` 前缀保留给原生属性，用户 key 不允许 `_` 开头   |
+| Scenario                                       | Handling                                                                             |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Delete property definition                     | Confirmation dialog → delete definition + cascade delete all message property values |
+| Change property type                           | Prohibited. Must delete and recreate to change type                                  |
+| Two users editing same property simultaneously | Last-write-wins; frontend syncs in real-time via WebSocket                           |
+| Message deleted                                | Cascade delete properties (existing cascade mechanism)                               |
+| Channel archived                               | Views/properties become read-only                                                    |
+| Delete select option (in use)                  | Confirmation dialog; messages using that option have their value set to null         |
+| Native properties                              | Cannot be deleted or have type changed                                               |
+| Key naming conflicts                           | `_` prefix reserved for native properties; user-created keys cannot start with `_`   |
 
 ## Known Issues to Fix
 
-- **P1:** Hover toolbar 位置过于靠近右边缘
-- **Bug:** 消息详情（消息列视图）中 reaction 未显示
-- **Note:** 通知频道使用 📢 线框图标
+- **P1:** Hover toolbar position is too close to the right edge
+- **Bug:** Reactions are not displayed in message detail (message list view)
+- **Note:** Announcement channels should use 📢 wireframe icon
