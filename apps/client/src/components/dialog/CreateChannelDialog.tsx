@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { Hash, Lock, AlertCircle, ArrowLeft, Globe } from "lucide-react";
 import {
   Dialog,
@@ -59,6 +60,7 @@ export function CreateChannelDialog({
   onClose,
   sectionId,
 }: CreateChannelDialogProps) {
+  const { t } = useTranslation("channel");
   const navigate = useNavigate();
   const createChannel = useCreateChannel();
   const moveChannel = useMoveChannel();
@@ -144,17 +146,16 @@ export function CreateChannelDialog({
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Hash size={20} />
-                Create a channel
+                {t("createChannel")}
               </DialogTitle>
               <DialogDescription>
-                Channels are where your team communicates. They're best when
-                organized around a topic.
+                {t("createChannelDescription")}
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-2">
               <div className="space-y-2">
-                <Label htmlFor="channel-name">Name</Label>
+                <Label htmlFor="channel-name">{t("channelName")}</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                     <Hash size={16} />
@@ -163,7 +164,7 @@ export function CreateChannelDialog({
                     id="channel-name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. marketing"
+                    placeholder={t("channelNamePlaceholder")}
                     className="pl-10"
                     autoFocus
                     onKeyDown={(e) => {
@@ -192,16 +193,16 @@ export function CreateChannelDialog({
 
               <div className="space-y-2">
                 <Label htmlFor="channel-description">
-                  Description{" "}
+                  {t("channelDescription")}{" "}
                   <span className="text-muted-foreground font-normal">
-                    (optional)
+                    {t("channelDescriptionOptional")}
                   </span>
                 </Label>
                 <Textarea
                   id="channel-description"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="What's this channel about?"
+                  placeholder={t("channelDescriptionPlaceholder")}
                   rows={3}
                   maxLength={1000}
                 />
@@ -210,14 +211,14 @@ export function CreateChannelDialog({
 
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={handleClose}>
-                Cancel
+                {t("common:cancel")}
               </Button>
               <Button
                 onClick={handleNextStep}
                 disabled={!canProceed}
                 className="bg-primary hover:bg-primary/90"
               >
-                Next
+                {t("common:next")}
               </Button>
             </DialogFooter>
           </>
@@ -233,7 +234,7 @@ export function CreateChannelDialog({
                 >
                   <ArrowLeft size={18} />
                 </Button>
-                <span>Choose visibility</span>
+                <span>{t("chooseVisibility")}</span>
               </DialogTitle>
               <DialogDescription>
                 Select who can see and join{" "}
@@ -266,15 +267,15 @@ export function CreateChannelDialog({
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold">Public</span>
+                      <span className="font-semibold">{t("public")}</span>
                       {!isPrivate && (
                         <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
-                          Selected
+                          {t("common:selected")}
                         </span>
                       )}
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Anyone in your workspace can view and join this channel.
+                      {t("publicDescription")}
                     </p>
                   </div>
                 </div>
@@ -304,15 +305,15 @@ export function CreateChannelDialog({
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold">Private</span>
+                      <span className="font-semibold">{t("private")}</span>
                       {isPrivate && (
                         <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
-                          Selected
+                          {t("common:selected")}
                         </span>
                       )}
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Only invited members can see and join this channel.
+                      {t("privateDescription")}
                     </p>
                   </div>
                 </div>
@@ -321,14 +322,14 @@ export function CreateChannelDialog({
 
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={handleBack}>
-                Back
+                {t("common:back")}
               </Button>
               <Button
                 onClick={handleCreate}
                 disabled={createChannel.isPending}
                 className="bg-primary hover:bg-primary/90"
               >
-                {createChannel.isPending ? "Creating..." : "Create Channel"}
+                {createChannel.isPending ? t("creating") : t("createChannel")}
               </Button>
             </DialogFooter>
           </>

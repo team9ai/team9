@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,7 @@ interface NewMessageDialogProps {
 }
 
 export function NewMessageDialog({ isOpen, onClose }: NewMessageDialogProps) {
+  const { t } = useTranslation("message");
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
 
@@ -47,7 +49,9 @@ export function NewMessageDialog({ isOpen, onClose }: NewMessageDialogProps) {
       <div className="bg-background rounded-lg shadow-xl w-full max-w-md mx-4">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-lg font-semibold text-foreground">New Message</h2>
+          <h2 className="text-lg font-semibold text-foreground">
+            {t("newMessage")}
+          </h2>
           <Button
             variant="ghost"
             size="icon"
@@ -67,7 +71,7 @@ export function NewMessageDialog({ isOpen, onClose }: NewMessageDialogProps) {
             />
             <Input
               type="text"
-              placeholder="Search by username or email..."
+              placeholder={t("searchUsers")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -81,15 +85,15 @@ export function NewMessageDialog({ isOpen, onClose }: NewMessageDialogProps) {
           <div className="p-2">
             {isLoading ? (
               <div className="py-8 text-center text-sm text-muted-foreground">
-                Searching...
+                {t("searching")}
               </div>
             ) : searchQuery.length === 0 ? (
               <div className="py-8 text-center text-sm text-muted-foreground">
-                Enter username or email to search
+                {t("enterToSearch")}
               </div>
             ) : users.length === 0 ? (
               <div className="py-8 text-center text-sm text-muted-foreground">
-                No users found
+                {t("noUsersFound")}
               </div>
             ) : (
               <div className="space-y-1">
@@ -127,7 +131,7 @@ export function NewMessageDialog({ isOpen, onClose }: NewMessageDialogProps) {
         {/* Footer */}
         <div className="p-4 border-t bg-muted rounded-b-lg">
           <p className="text-xs text-muted-foreground text-center">
-            Select a user to start a direct conversation
+            {t("selectUserToChat")}
           </p>
         </div>
       </div>

@@ -1,4 +1,8 @@
 {
+  "createWorkspace": "Create a workspace",
+  "createWorkspaceDescription": "Workspaces are where your team collaborates. Create one for your team, project, or organization.",
+  "namePlaceholder": "e.g. Acme Inc",
+  "creating": "Creating...",
   "members": "Members",
   "workspaceSettings": "Workspace Settings",
   "name": "Name",
@@ -39,5 +43,6 @@
   "confirmRemoveMember": "Are you sure you want to remove {{name}} from this workspace?",
   "maxWorkspacesReached": "You can create a maximum of {{max}} workspaces. Please contact the administrator or reach out via our <discordLink>Discord</discordLink> for assistance.",
   "workspaceFull": "This workspace has reached the maximum of {{max}} members",
-  "workspaceFullInvite": "Unable to join — this workspace has reached its member limit. Please contact the workspace administrator or reach out via our <discordLink>Discord</discordLink>."
+  "workspaceFullInvite": "Unable to join — this workspace has reached its member limit. Please contact the workspace administrator or reach out via our <discordLink>Discord</discordLink>.",
+  "expires": "Expires {{date}}"
 }

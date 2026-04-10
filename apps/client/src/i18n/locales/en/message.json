@@ -36,5 +36,6 @@
   "remove": "Remove",
   "botThinking": "Thinking",
   "botAnalyzing": "Analyzing",
+  "selectUserToChat": "Select a user to start a direct conversation",
   "botGenerating": "Generating response"
 }

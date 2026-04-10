@@ -77,6 +77,12 @@
     "save": "保存",
     "cancel": "取消"
   },
+  "ahand": {
+    "localDeviceSetup": "本地设备配置",
+    "connection": "aHand 连接",
+    "browserComponents": "浏览器组件",
+    "activation": "激活"
+  },
   "actions": {
     "connect": "连接",
     "disconnect": "断开",

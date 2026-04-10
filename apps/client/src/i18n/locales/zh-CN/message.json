@@ -36,5 +36,6 @@
   "remove": "删除",
   "botThinking": "思考中",
   "botAnalyzing": "分析中",
+  "selectUserToChat": "选择一个用户开始私聊",
   "botGenerating": "生成回复中"
 }
