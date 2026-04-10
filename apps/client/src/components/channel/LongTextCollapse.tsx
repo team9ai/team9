@@ -74,8 +74,8 @@ export const LongTextCollapse = memo(
           />
         )}
 
-        {/* Expand button — visible when not expanded and not currently fetching */}
-        {!isExpanded && (!fetchEnabled || isError) && (
+        {/* Expand button — visible when not expanded and fetch not initiated */}
+        {!isExpanded && !fetchEnabled && (
           <button
             type="button"
             onClick={handleExpand}
