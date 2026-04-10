@@ -18,6 +18,7 @@ import { WebsocketModule } from '../im/websocket/websocket.module.js';
 import { ChannelsModule } from '../im/channels/channels.module.js';
 import { ApplicationsModule } from '../applications/applications.module.js';
 import { BillingHubModule } from '../billing-hub/billing-hub.module.js';
+import { RoutinesModule } from '../routines/routines.module.js';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { BillingHubModule } from '../billing-hub/billing-hub.module.js';
     forwardRef(() => ChannelsModule),
     forwardRef(() => ApplicationsModule),
     BillingHubModule,
+    forwardRef(() => RoutinesModule),
   ],
   controllers: [
     WorkspaceController,

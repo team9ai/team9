@@ -28,7 +28,8 @@ export interface TenantSettings {
     role?: Record<string, unknown> | null;
     tasks?: {
       selectedTaskIds?: string[];
-      selectedTaskTitles?: string[];
+      // selectedTaskTitles removed — draft routines are now the canonical
+      // representation of user-selected onboarding tasks.
       customTask?: string | null;
     };
   };
