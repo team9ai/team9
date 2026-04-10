@@ -75,6 +75,7 @@ describe('RoutinesController', () => {
         status: 'resolved',
       }),
       retry: jest.fn<any>().mockResolvedValue({ success: true }),
+      completeCreation: jest.fn<any>().mockResolvedValue({ id: routineId, status: 'upcoming' }),
     };
 
     routineTriggersService = {
@@ -107,6 +108,7 @@ describe('RoutinesController', () => {
     it('forwards tenant filters to routinesService.list', async () => {
       const result = await controller.list(
         tenantId,
+        userId,
         'bot-1',
         'in_progress',
         'once',
@@ -116,7 +118,7 @@ describe('RoutinesController', () => {
         botId: 'bot-1',
         status: 'in_progress',
         scheduleType: 'once',
-      });
+      }, userId);
       expect(result).toEqual([{ id: routineId }]);
     });
 
@@ -399,6 +401,27 @@ describe('RoutinesController', () => {
         tenantId,
       );
       expect(result).toEqual({ success: true });
+    });
+  });
+
+  describe('completeCreation', () => {
+    it('delegates to routinesService.completeCreation with correct arguments', async () => {
+      const completeDto = { notes: 'all set' } as any;
+
+      const result = await controller.completeCreation(
+        routineId,
+        completeDto,
+        userId,
+        tenantId,
+      );
+
+      expect(routinesService.completeCreation).toHaveBeenCalledWith(
+        routineId,
+        completeDto,
+        userId,
+        tenantId,
+      );
+      expect(result).toEqual({ id: routineId, status: 'upcoming' });
     });
   });
 });

@@ -28,6 +28,8 @@ import {
   RABBITMQ_ROUTING_KEYS,
 } from '@team9/rabbitmq';
 import { DocumentsService } from '../documents/documents.service.js';
+import { ChannelsService } from '../im/channels/channels.service.js';
+import { ClawHiveService } from '@team9/claw-hive';
 import { RoutineTriggersService } from './routine-triggers.service.js';
 import type { CreateRoutineDto } from './dto/create-routine.dto.js';
 import type { UpdateRoutineDto } from './dto/update-routine.dto.js';
@@ -37,6 +39,7 @@ import type { ResumeRoutineDto } from './dto/routine-control.dto.js';
 import type { StopRoutineDto } from './dto/routine-control.dto.js';
 import type { ResolveInterventionDto } from './dto/resolve-intervention.dto.js';
 import type { RetryExecutionDto } from './dto/trigger.dto.js';
+import type { CompleteCreationDto } from './dto/complete-creation.dto.js';
 import { TaskCastService } from './taskcast.service.js';
 
 // ── Filter types ────────────────────────────────────────────────────
@@ -60,6 +63,8 @@ export class RoutinesService {
     private readonly amqpConnection: AmqpConnection,
     private readonly routineTriggersService: RoutineTriggersService,
     private readonly taskCastService: TaskCastService,
+    private readonly channelsService: ChannelsService,
+    private readonly clawHiveService: ClawHiveService,
   ) {}
 
   // ── CRUD ────────────────────────────────────────────────────────
@@ -746,6 +751,108 @@ export class RoutinesService {
       userId,
       message: `Intervention resolved: ${dto.action}${dto.message ? ` - ${dto.message}` : ''}`,
     });
+
+    return updated;
+  }
+
+  // ── Creation Completion ─────────────────────────────────────────
+
+  async completeCreation(
+    routineId: string,
+    dto: CompleteCreationDto,
+    userId: string,
+    tenantId: string,
+  ) {
+    // Step 1: Fetch routine (404 if missing)
+    const routine = await this.getRoutineOrThrow(routineId, tenantId);
+
+    // Step 2: Assert creator ownership (403 if not creator)
+    this.assertCreatorOwnership(routine, userId);
+
+    // Step 3: Idempotent — if already upcoming, return as-is
+    if (routine.status === 'upcoming') {
+      return routine;
+    }
+
+    // Step 4: Reject if status is not draft
+    if (routine.status !== 'draft') {
+      throw new BadRequestException(
+        `Cannot complete creation of routine in '${routine.status}' status`,
+      );
+    }
+
+    // Step 5: Validate required fields
+    const errors: string[] = [];
+
+    if (!routine.title || routine.title.trim() === '') {
+      errors.push('title is required');
+    }
+
+    if (!routine.botId) {
+      errors.push('botId is required');
+    }
+
+    // Check document content — documentContent lives on the linked Document,
+    // not on the routines row.
+    let documentContentEmpty = true;
+    if (routine.documentId) {
+      try {
+        const doc = await this.documentsService.getById(routine.documentId);
+        const content = (doc as { content?: string | null }).content;
+        if (content && content.trim() !== '') {
+          documentContentEmpty = false;
+        }
+      } catch {
+        // Doc not found — treat as empty content
+        documentContentEmpty = true;
+      }
+    }
+    if (documentContentEmpty) {
+      errors.push('documentContent is required');
+    }
+
+    if (errors.length > 0) {
+      throw new BadRequestException({
+        message: 'Missing required fields',
+        errors,
+      });
+    }
+
+    // Step 6: Update status to upcoming
+    const [updated] = await this.db
+      .update(schema.routines)
+      .set({ status: 'upcoming', updatedAt: new Date() })
+      .where(eq(schema.routines.id, routineId))
+      .returning();
+
+    // Step 7: Archive creation channel (non-fatal)
+    if (routine.creationChannelId) {
+      try {
+        await this.channelsService.archiveCreationChannel(
+          routine.creationChannelId,
+          tenantId,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `completeCreation: failed to archive creation channel ${routine.creationChannelId} for routine ${routineId}: ${error}`,
+        );
+      }
+    }
+
+    // Step 8: Delete clone agent (non-fatal)
+    const cloneAgentId = `routine-creation-${routineId}`;
+    try {
+      await this.clawHiveService.deleteAgent(cloneAgentId);
+    } catch (error) {
+      this.logger.warn(
+        `completeCreation: failed to delete clone agent ${cloneAgentId} for routine ${routineId}: ${error}`,
+      );
+    }
+
+    // Step 9: Log completion
+    this.logger.log(
+      `completeCreation: routine ${routineId} transitioned to upcoming${dto.notes ? ` — notes: ${dto.notes}` : ''}`,
+    );
 
     return updated;
   }

@@ -9,6 +9,8 @@ import {
   Query,
   UseGuards,
   ParseUUIDPipe,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import type {
@@ -29,6 +31,7 @@ import {
   UpdateTriggerDto,
   RetryExecutionDto,
   RestartRoutineDto,
+  CompleteCreationDto,
 } from './dto/index.js';
 
 @Controller({
@@ -198,6 +201,19 @@ export class RoutinesController {
       tenantId,
       dto,
     );
+  }
+
+  // ── Creation Completion ──────────────────────────────────────────
+
+  @Post(':id/complete-creation')
+  @HttpCode(HttpStatus.OK)
+  async completeCreation(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CompleteCreationDto,
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    return this.routinesService.completeCreation(id, dto, userId, tenantId);
   }
 
   // ── Trigger CRUD ──────────────────────────────────────────────
