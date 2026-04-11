@@ -398,6 +398,8 @@ export class CommonStaffService {
     }
 
     yield* this.staffService.generatePersona({
+      tenantId,
+      installedApplicationId: appId,
       displayName: dto.displayName,
       roleTitle: dto.roleTitle,
       existingPersona: dto.existingPersona,
@@ -453,6 +455,6 @@ export class CommonStaffService {
       throw new BadRequestException('Not a common-staff application');
     }
 
-    yield* this.staffService.generateCandidates(dto);
+    yield* this.staffService.generateCandidates(tenantId, appId, dto);
   }
 }

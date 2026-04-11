@@ -422,6 +422,8 @@ export class PersonalStaffService {
     }
 
     yield* this.staffService.generatePersona({
+      tenantId,
+      installedApplicationId: appId,
       displayName: dto.displayName,
       roleTitle: PERSONAL_STAFF_ROLE_TITLE,
       existingPersona: dto.existingPersona,

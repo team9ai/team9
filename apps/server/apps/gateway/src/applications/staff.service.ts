@@ -2,11 +2,13 @@ import { Injectable, Inject, Logger } from '@nestjs/common';
 import {
   DATABASE_CONNECTION,
   eq,
+  and,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import type { BotExtra } from '@team9/database/schemas';
 import { ClawHiveService } from '@team9/claw-hive';
+import { RedisService } from '@team9/redis';
 import { streamText, Output } from 'ai';
 import { z } from 'zod';
 import { createOpenAI } from '@ai-sdk/openai';
@@ -78,6 +80,8 @@ export interface DeleteStaffBotOptions {
 }
 
 export interface GeneratePersonaOptions {
+  tenantId: string;
+  installedApplicationId: string;
   displayName?: string;
   roleTitle?: string;
   existingPersona?: string;
@@ -93,12 +97,11 @@ export interface GenerateAvatarOptions {
   prompt?: string;
 }
 
-// ── OpenRouter setup ─────────────────────────────────────────────────────────
+// ── Constants ────────────────────────────────────────────────────────────────
 
-const openrouter = createOpenAI({
-  baseURL: 'https://openrouter.ai/api/v1',
-  apiKey: process.env.OPENROUTER_API_KEY,
-});
+const PLATFORM_BOT_DISPLAY_NAME = 'Platform LLM Service';
+const PLATFORM_BOT_TOKEN_CACHE_PREFIX = 'platform-llm-token:';
+const PLATFORM_BOT_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
 
 // ── Candidate generation schema ──────────────────────────────────────────────
 
@@ -125,7 +128,94 @@ export class StaffService {
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly botService: BotService,
     private readonly clawHiveService: ClawHiveService,
+    private readonly redisService: RedisService,
   ) {}
+
+  // ── Platform bot token management ───────────────────────────────────────
+
+  /**
+   * Get or create a platform bot for the given tenant, returning a valid
+   * `t9bot_*` token cached in Redis.
+   *
+   * The platform bot is a dedicated system bot whose sole purpose is to
+   * authenticate server-side LLM proxy calls via capability-hub.  Its token
+   * is never shared with claw-hive, so regenerating it is safe.
+   */
+  private async getPlatformBotToken(
+    tenantId: string,
+    installedApplicationId: string,
+  ): Promise<string> {
+    const cacheKey = `${PLATFORM_BOT_TOKEN_CACHE_PREFIX}${tenantId}`;
+
+    const cached = await this.redisService.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    // Look up existing platform bot for this tenant + installed app
+    const rows = await this.db
+      .select({ botId: schema.bots.id })
+      .from(schema.bots)
+      .where(
+        and(
+          eq(schema.bots.installedApplicationId, installedApplicationId),
+          eq(schema.bots.type, 'system'),
+          eq(schema.bots.isActive, true),
+          eq(schema.bots.managedProvider, 'platform-llm'),
+        ),
+      )
+      .limit(1);
+
+    let botId: string;
+
+    if (rows.length > 0) {
+      botId = rows[0].botId;
+    } else {
+      // Create a dedicated platform bot
+      const { bot } = await this.botService.createWorkspaceBot({
+        ownerId: tenantId, // system-level ownership
+        tenantId,
+        displayName: PLATFORM_BOT_DISPLAY_NAME,
+        type: 'system',
+        installedApplicationId,
+        generateToken: false,
+        managedProvider: 'platform-llm',
+      });
+      botId = bot.botId;
+      this.logger.log(
+        `Created platform LLM bot ${botId} for tenant ${tenantId}`,
+      );
+    }
+
+    // Generate a fresh token and cache it
+    const { accessToken } = await this.botService.generateAccessToken(botId);
+
+    await this.redisService.set(
+      cacheKey,
+      accessToken,
+      PLATFORM_BOT_TOKEN_TTL_SECONDS,
+    );
+
+    return accessToken;
+  }
+
+  /**
+   * Create a Vercel AI SDK provider instance authenticated with the
+   * tenant's platform bot token via capability-hub proxy.
+   */
+  private async createLlmProvider(
+    tenantId: string,
+    installedApplicationId: string,
+  ) {
+    const token = await this.getPlatformBotToken(
+      tenantId,
+      installedApplicationId,
+    );
+    return createOpenAI({
+      baseURL: `${process.env.CAPABILITY_HUB_URL}/api/proxy/openrouter`,
+      apiKey: token,
+    });
+  }
 
   /**
    * Create a bot with claw-hive agent registration.
@@ -404,8 +494,13 @@ export class StaffService {
       `Generating persona stream for displayName="${displayName ?? ''}", roleTitle="${roleTitle ?? ''}"`,
     );
 
+    const llm = await this.createLlmProvider(
+      options.tenantId,
+      options.installedApplicationId,
+    );
+
     const result = streamText({
-      model: openrouter('anthropic/claude-sonnet-4-6'),
+      model: llm('anthropic/claude-sonnet-4-6'),
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }],
       temperature: 0.9,
@@ -456,6 +551,8 @@ export class StaffService {
    * stream structured candidate profiles.
    */
   async *generateCandidates(
+    tenantId: string,
+    installedApplicationId: string,
     dto: GenerateCandidatesDto,
   ): AsyncGenerator<{ type: 'partial' | 'complete'; data: unknown }> {
     const promptParts: string[] = [
@@ -469,8 +566,10 @@ export class StaffService {
     if (dto.jobDescription)
       promptParts.push(`Job Description: ${dto.jobDescription}`);
 
+    const llm = await this.createLlmProvider(tenantId, installedApplicationId);
+
     const result = streamText({
-      model: openrouter('anthropic/claude-sonnet-4-6'),
+      model: llm('anthropic/claude-sonnet-4-6'),
       output: Output.object({ schema: candidateSchema }),
       prompt: promptParts.join('\n'),
       temperature: 0.95,
