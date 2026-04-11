@@ -951,35 +951,6 @@ export class RoutinesService {
         } as Record<string, unknown>)
         .where(eq(schema.routines.id, draft.id));
 
-      // Step 9b: Pre-create session with team9Context for recovery durability.
-      // If the worker restarts, the session is rebuilt from persisted session info
-      // which includes team9Context. Without this, the instance-field-based
-      // routineId delivery (set by onEvent) would be lost on recovery.
-      try {
-        await this.clawHiveService.createSession(
-          agentId,
-          {
-            userId,
-            sessionId,
-            team9Context: {
-              source: 'team9' as const,
-              scopeType: 'dm' as const,
-              scopeId: channel.id,
-              routineId: draft.id,
-              isCreationChannel: true,
-            },
-          },
-          tenantId,
-        );
-      } catch (err) {
-        // Session might already exist (user previously messaged this bot).
-        // That's OK — the instance field from the kickoff event will still work
-        // for the current session lifetime. Recovery is degraded but functional.
-        this.logger.debug(
-          `createWithCreationTask: pre-createSession failed (session may exist): ${err}`,
-        );
-      }
-
       // Step 10: Send kickoff event to the original bot's session
       await this.clawHiveService.sendInput(
         sessionId,

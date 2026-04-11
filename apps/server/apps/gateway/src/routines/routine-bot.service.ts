@@ -535,6 +535,21 @@ export class RoutineBotService {
       await this.routineTriggersService.replaceAllForRoutine(routineId, dto.triggers, tenantId);
     }
 
+    // Validate explicit botId belongs to this tenant if provided
+    if (dto.botId) {
+      const [targetBot] = await this.db
+        .select({ id: schema.bots.id, tenantId: schema.installedApplications.tenantId })
+        .from(schema.bots)
+        .leftJoin(
+          schema.installedApplications,
+          eq(schema.bots.installedApplicationId, schema.installedApplications.id),
+        )
+        .where(eq(schema.bots.id, dto.botId))
+        .limit(1);
+      if (!targetBot) throw new BadRequestException('Invalid botId');
+      if (targetBot.tenantId !== tenantId) throw new ForbiddenException('Bot does not belong to tenant');
+    }
+
     const updateData: Record<string, unknown> = { updatedAt: new Date() };
 
     if (dto.title !== undefined) updateData.title = dto.title;
