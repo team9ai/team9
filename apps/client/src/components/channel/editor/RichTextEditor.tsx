@@ -57,6 +57,8 @@ interface RichTextEditorProps {
    * Set to false for edit mode so the content is preserved if the request fails.
    */
   clearOnSubmit?: boolean;
+  /** Label for the submit button (e.g. "Save" in edit mode). Shows text button instead of icon. */
+  submitLabel?: string;
 }
 
 function Placeholder({ text }: { text: string }) {
@@ -181,11 +183,13 @@ function SendButton({
   disabled,
   hasAttachments,
   clearOnSubmit = true,
+  submitLabel,
 }: {
   onSubmit: (content: string) => Promise<void>;
   disabled?: boolean;
   hasAttachments?: boolean;
   clearOnSubmit?: boolean;
+  submitLabel?: string;
 }) {
   const [editor] = useLexicalComposerContext();
   const [editorHasContent, setEditorHasContent] = useState(false);
@@ -233,9 +237,13 @@ function SendButton({
           ? "bg-info hover:bg-info/90 text-primary-foreground"
           : "bg-muted text-muted-foreground cursor-not-allowed",
       )}
-      title="Send message"
+      title={submitLabel ?? "Send message"}
     >
-      <Send size={18} />
+      {submitLabel ? (
+        <span className="text-sm font-medium px-1">{submitLabel}</span>
+      ) : (
+        <Send size={18} />
+      )}
     </button>
   );
 }
@@ -255,6 +263,7 @@ export function RichTextEditor({
   initialHtml,
   onCancel,
   clearOnSubmit = true,
+  submitLabel,
 }: RichTextEditorProps) {
   const editorRef = useRef<LexicalEditor | null>(null);
 
@@ -342,6 +351,7 @@ export function RichTextEditor({
               (f) => f.status === "completed",
             )}
             clearOnSubmit={clearOnSubmit}
+            submitLabel={submitLabel}
           />
         </div>
 

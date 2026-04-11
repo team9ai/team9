@@ -298,6 +298,7 @@ export function MessageItem({
                 initialHtml={editHtml}
                 clearOnSubmit={false}
                 disabled={isEditSaving}
+                submitLabel={t("message:editSave")}
                 onSubmit={async (content) => {
                   await onEditSave?.(content);
                 }}
