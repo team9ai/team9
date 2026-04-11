@@ -173,6 +173,7 @@ export interface Message {
   sender?: IMUser;
   attachments?: MessageAttachment[];
   reactions?: MessageReaction[];
+  properties?: Record<string, unknown>;
   isTruncated?: boolean;
   fullContentLength?: number;
   replyCount?: number;
