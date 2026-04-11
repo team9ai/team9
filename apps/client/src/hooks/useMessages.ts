@@ -5,6 +5,7 @@ import {
   useInfiniteQuery,
   type InfiniteData,
 } from "@tanstack/react-query";
+import { getPostHogBrowserClient } from "@/analytics/posthog/client";
 import { useEffect } from "react";
 import imApi from "@/services/api/im";
 import wsService from "@/services/websocket";
@@ -1587,7 +1588,17 @@ export function useSendMessage(channelId: string) {
       return { previousMessages, tempId };
     },
 
-    onSuccess: (serverMessage, _, context) => {
+    onSuccess: (serverMessage, variables, context) => {
+      // Fire analytics event for sent message
+      void getPostHogBrowserClient().then((posthog) => {
+        posthog?.capture("message_sent", {
+          channel_id: channelId,
+          workspace_id: workspaceId,
+          has_attachment: (variables.attachments?.length ?? 0) > 0,
+          is_thread_reply: !!variables.parentId,
+        });
+      });
+
       // Clean up pending tracking
       if (serverMessage.clientMsgId) {
         pendingByClientMsgId.delete(serverMessage.clientMsgId);

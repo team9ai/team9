@@ -17,3 +17,6 @@ export const posthogBrowserConfig: Team9PostHogBrowserConfig | null = posthogKey
   : null;
 
 export const isPostHogBrowserEnabled = posthogBrowserConfig !== null;
+
+export const TEAM9_APP_VERSION =
+  (import.meta.env.VITE_APP_VERSION as string | undefined) || "0.1.0";

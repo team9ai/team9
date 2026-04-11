@@ -19,6 +19,7 @@ import { DATABASE_CONNECTION } from '@team9/database';
 
 import { BotService } from '../bot/bot.service.js';
 import { ClawHiveService } from '@team9/claw-hive';
+import { RedisService } from '@team9/redis';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { InstalledApplicationsService } from './installed-applications.service.js';
 import type {
@@ -245,6 +246,15 @@ describe('PersonalStaffService', () => {
         { provide: DATABASE_CONNECTION, useValue: db },
         { provide: BotService, useValue: botService },
         { provide: ClawHiveService, useValue: clawHiveService },
+        {
+          provide: RedisService,
+          useValue: {
+            get: jest.fn(),
+            set: jest.fn(),
+            del: jest.fn(),
+            invalidate: jest.fn(),
+          },
+        },
         { provide: ChannelsService, useValue: channelsService },
         {
           provide: InstalledApplicationsService,
