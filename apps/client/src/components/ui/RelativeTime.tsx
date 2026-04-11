@@ -15,9 +15,10 @@ interface RelativeTimeProps {
 export function getUpdateInterval(date: Date): number {
   const diffMs = Date.now() - date.getTime();
   const diffMin = diffMs / 60_000;
-  if (diffMin < 60) return 30_000;
-  if (diffMin < 1440) return 60_000;
-  return 0;
+  if (diffMin < 60) return 30_000; // every 30s for < 1h
+  if (diffMin < 1440) return 60_000; // every 1m for < 24h
+  if (diffMin < 10080) return 3_600_000; // every 1h for < 7d
+  return 0; // no update for >= 7d (shows absolute date)
 }
 
 export function RelativeTime({ date, className }: RelativeTimeProps) {

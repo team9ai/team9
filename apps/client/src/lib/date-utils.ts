@@ -1,3 +1,8 @@
+import {
+  formatRelative as _formatRelative,
+  formatDateGroup as _formatDateGroup,
+} from "@/lib/date-format";
+
 const ISO_DATETIME_WITHOUT_TZ_RE =
   /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/;
 const EXPLICIT_TIMEZONE_SUFFIX_RE = /(?:[zZ]|[+-]\d{2}:\d{2})$/;
@@ -107,11 +112,6 @@ export function formatMessageTime(date: Date): string {
   // Different year, show YYYY/MM/DD HH:mm
   return `${date.getFullYear()}/${month}/${day} ${time}`;
 }
-
-import {
-  formatRelative as _formatRelative,
-  formatDateGroup as _formatDateGroup,
-} from "@/lib/date-format";
 
 /**
  * Format a date as relative time (e.g., "2 hours ago").
