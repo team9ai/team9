@@ -1,0 +1,54 @@
+{
+  "planPath": "docs/superpowers/plans/2026-04-11-long-text-message.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: Database Schema & Shared Types",
+      "status": "pending",
+      "description": "**Goal:** Add `long_text` to the message type enum at DB and TypeScript levels.\n\n**Files:**\n- Modify: `apps/server/libs/database/src/schemas/im/messages.ts:16-22`\n- Create: `apps/server/libs/database/migrations/0033_long_text_message_type.sql`\n- Modify: `apps/server/libs/shared/src/types/message.types.ts:46-55,235-265`\n- Modify: `apps/server/libs/shared/src/events/domains/message.events.ts:12`\n- Modify: `apps/client/src/types/im.ts:4,152-184`\n\n**Verify:** `pnpm db:migrate && pnpm build:server`\n\n```json:metadata\n{\"files\": [\"apps/server/libs/database/src/schemas/im/messages.ts\", \"apps/server/libs/shared/src/types/message.types.ts\", \"apps/server/libs/shared/src/events/domains/message.events.ts\", \"apps/client/src/types/im.ts\", \"apps/server/apps/gateway/src/im/messages/messages.service.ts\"], \"verifyCommand\": \"pnpm db:migrate && pnpm build:server\", \"acceptanceCriteria\": [\"messageTypeEnum includes long_text\", \"Migration SQL adds enum value\", \"All TS type unions include long_text\", \"pnpm db:migrate runs cleanly\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: Server Configuration & Limits",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Raise payload size limits for Express body parser, Socket.io, and gRPC to support 100K char messages.\n\n**Files:**\n- Modify: `apps/server/apps/gateway/src/main.ts:36`\n- Modify: `apps/server/apps/gateway/src/im/websocket/websocket.gateway.ts:66-75`\n- Modify: `apps/server/apps/gateway/src/im/services/im-worker-grpc-client.service.ts:99-110`\n- Modify: `apps/server/apps/im-worker/src/main.ts:24-39`\n\n**Verify:** `pnpm build:server`\n\n```json:metadata\n{\"files\": [\"apps/server/apps/gateway/src/main.ts\", \"apps/server/apps/gateway/src/im/websocket/websocket.gateway.ts\", \"apps/server/apps/gateway/src/im/services/im-worker-grpc-client.service.ts\", \"apps/server/apps/im-worker/src/main.ts\"], \"verifyCommand\": \"pnpm build:server\", \"acceptanceCriteria\": [\"Express JSON body limit 1MB\", \"Socket.io maxHttpBufferSize 1MB\", \"gRPC client/server max message 4MB\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: DTO Validation & Type Detection Logic",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Raise MaxLength to 100000, implement determineMessageType() and countLogicalLines(), wire into creation and edit flows.\n\n**Files:**\n- Modify: `apps/server/apps/gateway/src/im/messages/dto/create-message.dto.ts:36`\n- Modify: `apps/server/apps/gateway/src/im/messages/dto/update-message.dto.ts:5`\n- Create: `apps/server/apps/gateway/src/im/messages/message-utils.ts`\n- Modify: `apps/server/apps/gateway/src/im/messages/messages.controller.ts:147`\n- Modify: `apps/server/apps/gateway/src/im/messages/messages.service.ts`\n- Modify: `apps/server/apps/im-worker/src/message/message.grpc-controller.ts:88,103`\n- Test: `apps/server/apps/gateway/src/im/messages/messages.service.spec.ts`\n\n**Verify:** `cd apps/server && pnpm jest --testPathPattern=messages.service.spec`\n\n```json:metadata\n{\"files\": [\"apps/server/apps/gateway/src/im/messages/message-utils.ts\", \"apps/server/apps/gateway/src/im/messages/dto/create-message.dto.ts\", \"apps/server/apps/gateway/src/im/messages/dto/update-message.dto.ts\", \"apps/server/apps/gateway/src/im/messages/messages.controller.ts\", \"apps/server/apps/gateway/src/im/messages/messages.service.ts\", \"apps/server/apps/im-worker/src/message/message.grpc-controller.ts\"], \"verifyCommand\": \"cd apps/server && pnpm jest --testPathPattern=messages.service.spec\", \"acceptanceCriteria\": [\"MaxLength 100000 on both DTOs\", \"Messages >=20 lines OR >=2000 chars get long_text\", \"Line counting handles HTML and Markdown\", \"Edit re-determines type\", \"IM Worker accepts long_text\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Truncation & Full Content API",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "**Goal:** Implement truncateForPreview() in MessagesService, apply to broadcast/list endpoints, add GET /messages/:id/full-content endpoint.\n\n**Files:**\n- Modify: `apps/server/apps/gateway/src/im/messages/messages.service.ts`\n- Modify: `apps/server/apps/gateway/src/im/messages/messages.controller.ts`\n- Test: `apps/server/apps/gateway/src/im/messages/messages.service.spec.ts`\n\n**Verify:** `cd apps/server && pnpm jest --testPathPattern=messages.service.spec`\n\n```json:metadata\n{\"files\": [\"apps/server/apps/gateway/src/im/messages/message-utils.ts\", \"apps/server/apps/gateway/src/im/messages/messages.service.ts\", \"apps/server/apps/gateway/src/im/messages/messages.controller.ts\"], \"verifyCommand\": \"cd apps/server && pnpm jest --testPathPattern=messages.service.spec\", \"acceptanceCriteria\": [\"truncateForPreview truncates at 20 lines OR 3000 chars\", \"Sets isTruncated and fullContentLength\", \"GET /messages/:id/full-content with auth\", \"Truncation applied to WS broadcast and list endpoints\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Client API & Cache Integration",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Add getFullContent() API call, useFullContent hook, invalidate cache on message_updated, pre-send length validation.\n\n**Files:**\n- Modify: `apps/client/src/services/api/im.ts`\n- Modify: `apps/client/src/hooks/useMessages.ts`\n\n**Verify:** `pnpm build:client`\n\n```json:metadata\n{\"files\": [\"apps/client/src/services/api/im.ts\", \"apps/client/src/hooks/useMessages.ts\"], \"verifyCommand\": \"pnpm build:client\", \"acceptanceCriteria\": [\"getFullContent API method exists\", \"useFullContent hook with staleTime Infinity\", \"Cache invalidated on message_updated\", \"Sends over 100K chars blocked with error\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: LongTextCollapse Component & MessageContent Integration",
+      "status": "pending",
+      "blockedBy": [4],
+      "description": "**Goal:** Create LongTextCollapse component with gradient fade-out, expand button, full-content fetching. Integrate into MessageContent.\n\n**Files:**\n- Create: `apps/client/src/components/channel/LongTextCollapse.tsx`\n- Create: `apps/client/src/components/channel/__tests__/LongTextCollapse.test.tsx`\n- Modify: `apps/client/src/components/channel/MessageContent.tsx`\n- Modify: `apps/client/src/components/channel/MessageItem.tsx`\n\n**Verify:** `cd apps/client && pnpm vitest run --testPathPattern=LongTextCollapse`\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/channel/LongTextCollapse.tsx\", \"apps/client/src/components/channel/__tests__/LongTextCollapse.test.tsx\", \"apps/client/src/components/channel/MessageContent.tsx\", \"apps/client/src/components/channel/MessageItem.tsx\"], \"verifyCommand\": \"cd apps/client && pnpm vitest run --testPathPattern=LongTextCollapse\", \"acceptanceCriteria\": [\"~10 lines with gradient fade-out\", \"展开全文 button with remaining char count\", \"In-place expand with no network if not truncated\", \"Fetch full-content if truncated\", \"Error state with retry\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: End-to-End Verification & Error Feedback",
+      "status": "pending",
+      "blockedBy": [1, 3, 5],
+      "description": "**Goal:** Verify full flow end-to-end, add error toast on send failure, run full build.\n\n**Files:**\n- Modify: `apps/client/src/hooks/useMessages.ts` (onError handler)\n\n**Verify:** `pnpm build`\n\n```json:metadata\n{\"files\": [\"apps/client/src/hooks/useMessages.ts\"], \"verifyCommand\": \"pnpm build\", \"acceptanceCriteria\": [\"5000-char message creates long_text type\", \"Collapsed message with expand button\", \"Expand works without network for moderate messages\", \"Error toast on send failure\", \"Full build passes\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-04-11T00:00:00Z"
+}

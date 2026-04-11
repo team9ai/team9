@@ -1,0 +1,74 @@
+{
+  "planPath": "docs/superpowers/plans/2026-04-11-frontend-i18n-expansion.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: i18n Infrastructure Refactor",
+      "status": "pending",
+      "description": "**Goal:** Migrate zh→zh-CN, refactor i18n/index.ts for 8-language dynamic loading, enable LanguageDetector\n\n**Files:**\n- Rename: `apps/client/src/i18n/locales/zh/` → `apps/client/src/i18n/locales/zh-CN/`\n- Modify: `apps/client/src/i18n/index.ts`\n- Create: `apps/client/src/i18n/loadLanguage.ts`\n- Modify: `apps/client/src/i18n/i18next.d.ts`\n- Test: `apps/client/src/i18n/__tests__/loadLanguage.test.ts`\n\n```json:metadata\n{\"files\": [\"apps/client/src/i18n/index.ts\", \"apps/client/src/i18n/loadLanguage.ts\", \"apps/client/src/i18n/i18next.d.ts\"], \"verifyCommand\": \"cd apps/client && npx vitest run src/i18n\", \"acceptanceCriteria\": [\"zh renamed to zh-CN\", \"8 languages in supportedLanguages\", \"dynamic loading via import.meta.glob\", \"LanguageDetector enabled\", \"zh→zh-CN localStorage compat\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Date/Time Formatting Utilities",
+      "status": "pending",
+      "description": "**Goal:** Create locale-aware date/time formatting functions that follow the current i18n language\n\n**Files:**\n- Create: `apps/client/src/lib/date-format.ts`\n- Modify: `apps/client/src/i18n/locales/en/common.json`\n- Modify: `apps/client/src/i18n/locales/zh-CN/common.json`\n- Test: `apps/client/src/lib/__tests__/date-format.test.ts`\n\n```json:metadata\n{\"files\": [\"apps/client/src/lib/date-format.ts\"], \"verifyCommand\": \"cd apps/client && npx vitest run src/lib/__tests__/date-format\", \"acceptanceCriteria\": [\"formatDate/formatTime/formatDateTime use Intl with current locale\", \"formatRelative returns locale-appropriate strings\", \"justNow key in common namespace\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: RelativeTime Component",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "**Goal:** Create RelativeTime component with hover tooltip and click-to-toggle\n\n**Files:**\n- Create: `apps/client/src/components/ui/RelativeTime.tsx`\n- Test: `apps/client/src/components/ui/__tests__/RelativeTime.test.tsx`\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/ui/RelativeTime.tsx\"], \"verifyCommand\": \"cd apps/client && npx vitest run src/components/ui/__tests__/RelativeTime\", \"acceptanceCriteria\": [\"displays relative time by default\", \"hover shows absolute tooltip\", \"click toggles display\", \"auto-updates interval\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Language Switcher UI Update",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Update language switcher to show all 8 languages with async loading\n\n**Files:**\n- Modify: `apps/client/src/components/LanguageSwitcher.tsx`\n- Modify: `apps/client/src/components/layout/MainSidebar.tsx`\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/LanguageSwitcher.tsx\", \"apps/client/src/components/layout/MainSidebar.tsx\"], \"verifyCommand\": \"cd apps/client && npx vitest run src/components/layout/__tests__/MainSidebar\", \"acceptanceCriteria\": [\"all 8 languages visible\", \"async changeLanguage with loading state\", \"no zh filter\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: P0 Dialog i18n Completion",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Wire up 5 dialog components to use i18n keys\n\n**Files:**\n- Modify: CreateChannelDialog, DeleteChannelDialog, CreateWorkspaceDialog, NewMessageDialog, AHandSetupDialog\n- Modify: en/ and zh-CN/ JSON files\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/dialog/CreateChannelDialog.tsx\", \"apps/client/src/components/dialog/DeleteChannelDialog.tsx\", \"apps/client/src/components/dialog/CreateWorkspaceDialog.tsx\", \"apps/client/src/components/dialog/NewMessageDialog.tsx\", \"apps/client/src/components/dialog/AHandSetupDialog.tsx\"], \"verifyCommand\": \"cd apps/client && npx vitest run\", \"acceptanceCriteria\": [\"all 5 dialogs use useTranslation\", \"no hardcoded user-facing strings\", \"existing keys reused\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: P0 Auth Routes i18n Completion",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Fix remaining hardcoded strings in auth routes\n\n**Files:**\n- Modify: `apps/client/src/routes/login.tsx`\n- Modify: `apps/client/src/routes/confirm-email-change.tsx`\n- Modify: en/ and zh-CN/ auth.json\n\n```json:metadata\n{\"files\": [\"apps/client/src/routes/login.tsx\", \"apps/client/src/routes/confirm-email-change.tsx\"], \"verifyCommand\": \"cd apps/client && npx vitest run src/routes/\", \"acceptanceCriteria\": [\"login.tsx tagline, Gmail, Outlook, Dev Mode use t()\", \"confirm-email-change inline defaults removed\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: P1-P2 Component i18n Completion",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Convert channel, layout, sidebar components to use i18n\n\n**Files:**\n- Modify: SelectionCopyPopup, ChannelView, ThreadReplyIndicator, ChannelDetailsModal, FilesSubSidebar, MoreSubSidebar, MessagesSubSidebar, MainContent, ApplicationMainContent, ApplicationDetailContent\n- Modify: en/ and zh-CN/ JSON files\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/channel/SelectionCopyPopup.tsx\", \"apps/client/src/components/channel/ChannelView.tsx\", \"apps/client/src/components/layout/sidebars/FilesSubSidebar.tsx\", \"apps/client/src/components/layout/sidebars/MoreSubSidebar.tsx\", \"apps/client/src/components/layout/sidebars/MessagesSubSidebar.tsx\"], \"verifyCommand\": \"cd apps/client && npx vitest run\", \"acceptanceCriteria\": [\"all components use useTranslation\", \"ThreadReplyIndicator uses formatRelative\", \"ChannelDetailsModal uses formatDate\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: P3 Component i18n Completion",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Convert AI Staff, subscription components to use i18n\n\n**Files:**\n- Modify: StaffBadgeCard2D, CreateCommonStaffDialog, PersonalStaffDetailSection, CommonStaffDetailSection, SubscriptionContent\n- Modify: en/ and zh-CN/ skills.json, settings.json\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/ai-staff/StaffBadgeCard2D.tsx\", \"apps/client/src/components/ai-staff/CreateCommonStaffDialog.tsx\", \"apps/client/src/components/layout/contents/SubscriptionContent.tsx\"], \"verifyCommand\": \"cd apps/client && npx vitest run\", \"acceptanceCriteria\": [\"all AI Staff components use useTranslation(skills)\", \"SubscriptionContent uses useTranslation(settings)\", \"CreateCommonStaffDialog ~25 strings converted\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: Fix Date Formatting Across Components",
+      "status": "pending",
+      "blockedBy": [2, 5, 6, 7, 8],
+      "description": "**Goal:** Replace all hardcoded locale date formatting with date-format.ts utilities\n\n**Files:**\n- Modify: date-utils.ts, ~15 component files with toLocaleString/toLocaleDateString/toLocaleTimeString\n\n```json:metadata\n{\"files\": [\"apps/client/src/lib/date-utils.ts\"], \"verifyCommand\": \"cd apps/client && grep -rn 'toLocaleString\\\\|toLocaleDateString\\\\|toLocaleTimeString\\\\|DateTimeFormat.*en-US' src/components src/routes --include='*.tsx' --include='*.ts' | grep -v node_modules | grep -v __tests__\", \"acceptanceCriteria\": [\"zero hardcoded Intl.DateTimeFormat en-US calls\", \"zero bare toLocaleString calls\", \"date-utils.ts uses date-format.ts\"]}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: Generate Translation Files",
+      "status": "pending",
+      "blockedBy": [5, 6, 7, 8, 9],
+      "description": "**Goal:** Create 72 translation JSON files (6 languages × 12 namespaces)\n\n**Files:**\n- Create: locales/zh-TW/*, locales/ja/*, locales/ko/*, locales/es/*, locales/fr/*, locales/de/* (72 files)\n\n```json:metadata\n{\"files\": [], \"verifyCommand\": \"cd apps/client/src/i18n/locales && for lang in zh-TW ja ko es fr de; do for ns in common auth navigation channel message settings thread workspace routines resources skills onboarding; do test -f $lang/$ns.json || echo MISSING: $lang/$ns.json; done; done\", \"acceptanceCriteria\": [\"all 72 JSON files exist\", \"zh-TW uses proper Traditional Chinese vocabulary\", \"all keys match en/ structure\", \"valid JSON\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-04-11T00:00:00Z"
+}

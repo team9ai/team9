@@ -1,0 +1,127 @@
+{
+  "eyebrow": "워크스페이스 온보딩",
+  "workspaceBadge": "{{name}}의 초기 설정",
+  "stepLabel": "단계 {{current}} / {{total}}",
+  "workspaceFallback": "새 워크스페이스",
+  "welcome": "Team9이 실제 업무 방식에 맞춰 워크스페이스 초기 버전을 구성합니다.",
+  "actions": {
+    "back": "뒤로",
+    "continue": "계속",
+    "next": "다음",
+    "regenerate": "재생성",
+    "retry": "재시도",
+    "edit": "편집",
+    "copy": "링크 복사",
+    "copied": "복사됨",
+    "startCheckout": "구독",
+    "continueWithoutPlan": "구독 없이 계속",
+    "finish": "워크스페이스 입장",
+    "retryProvision": "설정 재시도",
+    "creating": "생성 중…"
+  },
+  "steps": {
+    "1": {
+      "title": "업무 내용을 알려주세요",
+      "description": "역할을 한 문장으로 설명하거나 가장 가까운 프리셋 역할에서 시작하세요."
+    },
+    "2": {
+      "title": "가장 현실적인 작업을 선택하세요",
+      "description": "먼저 자동화할 가치가 있는 반복 워크플로우를 몇 가지 제안합니다."
+    },
+    "3": {
+      "title": "채널을 준비하겠습니다",
+      "description": "실제 업무 흐름에 맞춰 채널이 생성됩니다."
+    },
+    "4": {
+      "title": "에이전트 설정 확인",
+      "description": "메인 에이전트는 개인 스태프로 고정되며, 전문 헬퍼가 함께 배치됩니다."
+    },
+    "5": {
+      "title": "팀을 초대하여 협업하세요",
+      "description": "초대 링크를 공유하여 모든 사람을 같은 워크스페이스에 초대하세요."
+    },
+    "6": {
+      "title": "워크스페이스 플랜을 선택하세요",
+      "description": "지금 구독하거나 워크스페이스에 들어간 후 나중에 설정할 수도 있습니다."
+    }
+  },
+  "role": {
+    "inputLabel": "업무 내용",
+    "inputPlaceholder": "예: B2B SaaS 영업 후속 조치, 제안서 작성, 거래 검토를 담당합니다.",
+    "customHint": "프리셋을 사용하지 않고 자유 텍스트만 입력할 수도 있습니다.",
+    "or": "또는",
+    "featured": "추천",
+    "suggestions": "역할 제안"
+  },
+  "tasks": {
+    "customLabel": "또는 가장 자동화하고 싶은 워크플로우를 추가하세요",
+    "customDivider": "직접 입력",
+    "customPlaceholder": "예: 매일 고객 후속 조치 메모를 요약하고 다음 단계를 제안합니다.",
+    "empty": "아직 작업 제안이 없습니다.",
+    "loadingTitle": "작업 옵션 생성 중",
+    "loading": "업무에 맞는 작업 제안을 생성하는 중…"
+  },
+  "channels": {
+    "renameHint": "채널 이름을 직접 변경할 수 있습니다",
+    "previewTitle": "채널 미리보기",
+    "placeholder": "#new-channel",
+    "loadingTitle": "초기 채널 준비 중",
+    "loading": "초기 채널 레이아웃 생성 중…",
+    "sidebarTitle": "워크스페이스",
+    "activeThread": "오늘의 포커스",
+    "previewAuthorA": "개인 스태프",
+    "previewAuthorB": "시스템 초안",
+    "previewNow": "방금",
+    "previewToday": "오늘",
+    "previewLine1": "역할별 협업이 여기서 시작됩니다.",
+    "previewLine2": "설정이 완료되면 이 채널과 에이전트가 실제 워크스페이스에 프로비저닝됩니다.",
+    "previewPurpose": "이 채널은 {{topic}}을(를) 보기 쉽고 실행하기 쉽게 유지합니다.",
+    "previewInsight": "{{role}}은(는) 이 공간에서 {{task}}의 맥락을 잃지 않고 진행할 수 있습니다.",
+    "previewThread": "설정이 완료되면 {{task}}의 후속 조치가 {{topic}} 안에 정리됩니다.",
+    "previewChecklistPrimary": "주요 워크플로우: {{task}}",
+    "previewChecklistSecondary": "보조 스레드: {{task}}",
+    "previewChecklistOwner": "기본 담당자: {{role}}"
+  },
+  "agents": {
+    "mainAgent": "메인 에이전트",
+    "childAgents": "지원 에이전트",
+    "mainDescriptionLabel": "메인 에이전트 설명",
+    "mainDescriptionPlaceholder": "개인 스태프가 어떻게 지원해야 하는지 설명하세요.",
+    "loadingTitle": "에이전트 라인업 준비 중",
+    "empty": "사용 가능한 에이전트 설정이 없습니다. 뒤로 가서 다시 시도하세요.",
+    "loading": "에이전트 라인업 생성 중…"
+  },
+  "invite": {
+    "title": "초대 링크",
+    "hint": "이 링크는 기본적으로 멤버로 현재 워크스페이스에 초대합니다.",
+    "loading": "초대 링크 준비 중…"
+  },
+  "plan": {
+    "current": "현재 플랜",
+    "success": "결제가 완료되었습니다. 계속할 수 있습니다.",
+    "cancel": "결제가 취소되었습니다. 언제든 다시 시도할 수 있습니다.",
+    "loadingTitle": "워크스페이스 플랜 로딩 중",
+    "note": "지금 구독하거나 먼저 워크스페이스에 들어간 후 나중에 설정할 수도 있습니다.",
+    "empty": "현재 사용 가능한 구독 플랜이 없습니다.",
+    "perMonth": "/월",
+    "priceHint": "약 {{amount}} 상당의 실제 사용 가치",
+    "credits": "{{count}} 크레딧"
+  },
+  "status": {
+    "provisioningTitle": "워크스페이스 설정 중",
+    "provisioningDescription": "채널 생성, 에이전트 설정, 환경설정 저장 중입니다.",
+    "failedTitle": "설정이 완료되지 않았습니다",
+    "failedDescription": "프로비저닝이 중간에 실패했습니다. 저장된 설정을 잃지 않고 재시도할 수 있습니다."
+  },
+  "errors": {
+    "loadFailed": "온보딩 상태를 불러올 수 없습니다.",
+    "saveFailed": "온보딩 진행 상황을 저장할 수 없습니다.",
+    "roleRequired": "역할 설명을 추가하거나 프리셋 역할을 선택하세요.",
+    "taskRequired": "작업을 하나 이상 선택하거나 사용자 정의 작업을 추가하세요.",
+    "channelRequired": "채널 초안을 하나 이상 유지하세요.",
+    "workspaceRequired": "사용 가능한 워크스페이스가 없습니다.",
+    "checkoutFailed": "결제를 시작할 수 없습니다.",
+    "copyFailed": "초대 링크를 복사할 수 없습니다.",
+    "provisionFailed": "워크스페이스 설정에 실패했습니다. 재시도해 주세요."
+  }
+}

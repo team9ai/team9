@@ -27,6 +27,7 @@ describe('bootstrap', () => {
     const mockApp = {
       listen: jest.fn().mockResolvedValue(),
       useLogger: jest.fn(),
+      use: jest.fn(),
       enableCors: jest.fn(),
       useGlobalPipes: jest.fn(),
       setGlobalPrefix: jest.fn(),

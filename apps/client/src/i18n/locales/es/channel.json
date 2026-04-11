@@ -1,0 +1,184 @@
+{
+  "createChannel": "Crear un canal",
+  "createChannelDescription": "Los canales son donde su equipo se comunica. Funcionan mejor organizados por tema — #proyecto-marte, por ejemplo.",
+  "channelName": "Nombre del canal",
+  "channelNamePlaceholder": "ej. proyecto-marte",
+  "channelNameRequired": "El nombre del canal es obligatorio",
+  "channelNameInvalid": "Debe comenzar con una letra o número",
+  "channelNameHint": "Solo puede contener letras minúsculas, números y guiones",
+  "channelDescription": "Descripción",
+  "channelDescriptionPlaceholder": "¿De qué trata este canal?",
+  "channelDescriptionOptional": "(opcional)",
+  "chooseVisibility": "Elegir visibilidad",
+  "public": "Público",
+  "publicDescription": "Cualquiera puede ver y unirse a este canal",
+  "private": "Privado",
+  "privateDescription": "Solo los miembros invitados pueden ver este canal",
+  "creating": "Creando...",
+  "browseChannels": "Explorar canales",
+  "noChannels": "Sin canales",
+  "noChannelsYet": "Aún no hay canales",
+  "viewChannel": "Ver canal",
+  "leaveChannel": "Salir del canal",
+  "deleteChannel": "Eliminar canal",
+  "channelSettings": "Configuración del canal",
+  "channelMembers": "Miembros del canal",
+  "addMembers": "Agregar miembros",
+  "members": "{{count}} miembros",
+  "unread": "no leído",
+  "searchMember": "Buscar nombre de usuario o apodo...",
+  "noMatchingUsers": "No se encontraron usuarios",
+  "allMembersInChannel": "Todos los miembros ya están en el canal",
+  "selectedCount": "{{count}} seleccionados",
+  "selectMembersToAdd": "Seleccione miembros para agregar",
+  "adding": "Agregando...",
+  "addCount": "Agregar {{count}}",
+  "add": "Agregar",
+  "about": "Acerca de",
+  "settings": "Configuración",
+  "noDescription": "Sin descripción",
+  "type": "Tipo",
+  "privateChannel": "Canal privado",
+  "publicChannel": "Canal público",
+  "createdAt": "Creado el",
+  "findMember": "Buscar miembro",
+  "addPeople": "Agregar personas",
+  "you": "(Usted)",
+  "channelAdmin": "Administrador del canal",
+  "admin": "Administrador",
+  "dangerZone": "Zona de peligro",
+  "deleteChannelWarning": "Después de eliminar el canal, todos los mensajes y archivos se eliminarán permanentemente y no podrán recuperarse.",
+  "deleteThisChannel": "Eliminar este canal",
+  "save": "Guardar",
+  "saving": "Guardando...",
+  "edit": "Editar",
+  "joinChannel": "Unirse al canal",
+  "joining": "Uniéndose...",
+  "leaving": "Saliendo...",
+  "leaveChannelWarning": "Ya no tendrá acceso a los mensajes y archivos de este canal.",
+  "leaveThisChannel": "Salir de este canal",
+  "deleteChannelDescription": "Esta acción no se puede deshacer. Todos los mensajes en este canal se eliminarán permanentemente.",
+  "deleteChannelWarningTitle": "Eliminar este canal:",
+  "deleteWarningMessages": "Eliminará todos los mensajes y archivos",
+  "deleteWarningMembers": "Eliminará todos los miembros del canal",
+  "deleteWarningNoRecovery": "No se puede recuperar",
+  "typeToConfirm": "Escriba {{name}} para confirmar",
+  "enterChannelName": "Ingrese el nombre del canal",
+  "permanentDelete": "Eliminar permanentemente (no se puede recuperar)",
+  "deleting": "Eliminando...",
+  "channelNotFound": "Canal no encontrado",
+  "loadingChannel": "Cargando canal...",
+  "loadingMessages": "Cargando mensajes...",
+  "loadingMoreMessages": "Cargando más mensajes...",
+  "noMessagesYet": "Aún no hay mensajes. ¡Únase al canal para iniciar la conversación!",
+  "botStartupCountdownMessage": "Hola, su OpenClaw Bot se está iniciando. Espere a que termine la cuenta regresiva antes de chatear.",
+  "botStartupSuccessMessage": "Hola, ¡su OpenClaw Bot se ha iniciado correctamente!",
+  "botStartChatting": "Iniciar chat",
+  "noMessagesYetDefault": "Aún no hay mensajes",
+  "emptyPublicChannelTitle": "¡Chatee con el Bot!",
+  "emptyPublicChannelDesc": "Este canal tiene un Bot de IA listo para ayudar. Escriba @ para mencionar al bot en su mensaje e iniciar una conversación.",
+  "emptyPublicChannelHintExample": "pregunte lo que quiera...",
+  "emptyPublicChannelGotIt": "Entendido",
+  "botNotMemberTitle": "{{botName}} no es miembro del canal",
+  "botNotMemberPublicDesc": "{{botName}} no es miembro de este canal y no recibirá su mensaje. ¿Desea agregarlo al canal primero?",
+  "botNotMemberPrivateAdminDesc": "{{botName}} no es miembro de este canal privado y no recibirá su mensaje. ¿Desea agregarlo al canal primero?",
+  "botNotMemberPrivateDesc": "{{botName}} no es miembro de este canal privado y no recibirá su mensaje. Contacte a un administrador del canal para agregar el bot.",
+  "addBotToChannel": "Agregar al canal",
+  "addingBot": "Agregando...",
+  "botInstanceStoppedMessage": "La instancia del bot está detenida actualmente. Iníciela para reanudar el chat.",
+  "botInstanceStoppedMemberMessage": "La instancia del bot está detenida actualmente. Contacte a un administrador del espacio de trabajo para iniciarla.",
+  "botInstanceStart": "Iniciar",
+  "botInstanceStarting": "Iniciando...",
+  "botInstanceStartingMessage": "La instancia del bot se está iniciando, espere un momento...",
+  "botThinking": {
+    "texts": {
+      "thinking": "Pensando",
+      "analyzing": "Analizando",
+      "reasoning": "Razonando",
+      "computing": "Calculando",
+      "parsing": "Procesando",
+      "brewing": "Preparando",
+      "crafting": "Elaborando",
+      "decoding": "Decodificando",
+      "imagining": "Imaginando",
+      "composing": "Componiendo"
+    }
+  },
+  "tracking": {
+    "ops": {
+      "loadTools": {
+        "loading": "Cargando herramientas",
+        "success": "Herramientas cargadas",
+        "error": "Error al cargar herramientas"
+      },
+      "searchTools": {
+        "loading": "Buscando herramientas",
+        "success": "Herramientas encontradas",
+        "error": "Error en la búsqueda de herramientas"
+      },
+      "invokeTool": {
+        "loading": "Llamando herramienta",
+        "success": "Llamada de herramienta completada",
+        "error": "Error en la llamada de herramienta"
+      },
+      "fallback": {
+        "loading": "Cargando {{name}}",
+        "success": "{{name}} completado",
+        "error": "{{name}} falló"
+      }
+    },
+    "tools": {
+      "searchDocs": {
+        "loading": "Buscando documentos",
+        "success": "Documentos encontrados",
+        "error": "Error en la búsqueda de documentos"
+      },
+      "sendMessage": {
+        "loading": "Enviando mensaje",
+        "success": "Mensaje enviado",
+        "error": "Error al enviar mensaje"
+      },
+      "generateReply": {
+        "loading": "Generando respuesta",
+        "success": "Respuesta generada",
+        "error": "Error al generar respuesta"
+      }
+    },
+    "thinking": {
+      "label": "Pensando",
+      "labelWithStats": "Pensando ({{stats}})",
+      "tokens_one": "{{count}} token",
+      "tokens_other": "{{count}} tokens",
+      "seconds": "{{count}}s",
+      "minutesSeconds": "{{minutes}}m {{seconds}}s"
+    },
+    "toolCall": {
+      "argsLabel": "Argumentos",
+      "resultLabel": "Resultado",
+      "unknownTool": "Herramienta desconocida"
+    },
+    "eventLabels": {
+      "thinking": "Pensando",
+      "writing": "Escribiendo",
+      "toolCall": "Llamando",
+      "toolResult": "Resultado",
+      "agentStart": "Iniciado",
+      "agentEnd": "Completado",
+      "error": "Error",
+      "turn": "Turno",
+      "choices": "Opciones",
+      "selected": "Seleccionado"
+    },
+    "round": {
+      "collapseSummary_one": "... Mostrar ejecución ({{count}} paso)",
+      "collapseSummary_other": "... Mostrar ejecución ({{count}} pasos)",
+      "expandAriaLabel_one": "Expandir proceso de ejecución ({{count}} paso)",
+      "expandAriaLabel_other": "Expandir proceso de ejecución ({{count}} pasos)"
+    },
+    "card": {
+      "moreDetails_one": "Ver {{count}} detalle más ›",
+      "moreDetails_other": "Ver {{count}} detalles más ›",
+      "loading": "Cargando..."
+    }
+  }
+}

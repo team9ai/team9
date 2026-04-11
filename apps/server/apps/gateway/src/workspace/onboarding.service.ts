@@ -47,8 +47,8 @@ const openrouter = createOpenAI({
 });
 
 const DEFAULT_STAFF_MODEL = {
-  provider: 'anthropic',
-  id: 'claude-sonnet-4-6',
+  provider: 'openrouter',
+  id: 'anthropic/claude-sonnet-4.6',
 } as const;
 
 const ONBOARDING_CHANNEL_COUNT = 4;

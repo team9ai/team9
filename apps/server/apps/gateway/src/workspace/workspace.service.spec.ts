@@ -554,6 +554,7 @@ describe('WorkspaceService', () => {
     });
 
     it('should return valid info and invitedBy from the creator display name', async () => {
+      const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       db.limit.mockResolvedValueOnce([
         {
           invitation: {
@@ -564,7 +565,7 @@ describe('WorkspaceService', () => {
             role: 'member',
             maxUses: 5,
             usedCount: 1,
-            expiresAt: new Date('2026-04-10T00:00:00.000Z'),
+            expiresAt: futureDate,
             isActive: true,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -584,7 +585,7 @@ describe('WorkspaceService', () => {
         workspaceName: 'Test Workspace',
         workspaceSlug: 'test-workspace',
         invitedBy: 'alice',
-        expiresAt: new Date('2026-04-10T00:00:00.000Z'),
+        expiresAt: futureDate,
         isValid: true,
       });
     });
@@ -791,6 +792,8 @@ describe('WorkspaceService', () => {
   describe('getInvitations', () => {
     it('should shape invitation rows into API responses', async () => {
       process.env.APP_URL = 'https://app.team9.test';
+      // Use a fixed future date to avoid 1ms race between input and assertion
+      const futureExpiry = new Date('2026-04-17T12:00:00.000Z');
       db.orderBy.mockResolvedValueOnce([
         {
           invitation: {
@@ -799,7 +802,7 @@ describe('WorkspaceService', () => {
             role: 'member',
             maxUses: 3,
             usedCount: 1,
-            expiresAt: new Date('2026-04-10T00:00:00.000Z'),
+            expiresAt: futureExpiry,
             isActive: true,
             createdAt: new Date('2026-04-02T00:00:00.000Z'),
           },
@@ -819,7 +822,7 @@ describe('WorkspaceService', () => {
           role: 'member',
           maxUses: 3,
           usedCount: 1,
-          expiresAt: new Date('2026-04-10T00:00:00.000Z'),
+          expiresAt: futureExpiry,
           isActive: true,
           createdAt: new Date('2026-04-02T00:00:00.000Z'),
           createdBy: {

@@ -85,7 +85,10 @@ export class MessageGrpcController {
       });
     }
 
-    if (!request.content && request.type === 'text') {
+    if (
+      !request.content &&
+      (request.type === 'text' || request.type === 'long_text')
+    ) {
       throw new RpcException({
         code: status.INVALID_ARGUMENT,
         message: 'content is required for text messages',
@@ -100,7 +103,7 @@ export class MessageGrpcController {
         senderId: request.sender_id,
         content: request.content,
         parentId: request.parent_id,
-        type: request.type as 'text' | 'file' | 'image',
+        type: request.type as 'text' | 'file' | 'image' | 'long_text',
         workspaceId: request.workspace_id,
         attachments: request.attachments?.map((att) => ({
           fileKey: att.file_key,

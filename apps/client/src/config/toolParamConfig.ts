@@ -73,8 +73,12 @@ function valueToString(value: unknown): string {
 }
 
 /**
- * Truncate a string and add word count indicator
- * If string exceeds truncate limit, shows truncated value with "(N words more)"
+ * Truncate a string and add character count indicator.
+ * If string exceeds truncate limit, shows truncated value with "(N more)".
+ *
+ * The truncation suffix is intentionally kept language-neutral ("N more")
+ * because this function is a pure utility with no React/i18n context.
+ * The suffix is only visible in the tool call parameter summary line.
  */
 function truncateValue(value: string, limit: number): string {
   if (value.length <= limit) {
@@ -82,8 +86,8 @@ function truncateValue(value: string, limit: number): string {
   }
 
   const truncated = value.substring(0, limit);
-  const moreWords = value.length - limit;
-  return `${truncated}...(${moreWords} words more)`;
+  const moreChars = value.length - limit;
+  return `${truncated}...(${moreChars} more)`;
 }
 
 /**

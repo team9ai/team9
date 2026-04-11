@@ -74,6 +74,10 @@ describe('main bootstrap', () => {
         package: 'message',
         protoPath: '/tmp/message.proto',
         url: '[::]:3001',
+        channelOptions: {
+          'grpc.max_receive_message_length': 4 * 1024 * 1024,
+          'grpc.max_send_message_length': 4 * 1024 * 1024,
+        },
         loader: {
           keepCase: true,
           longs: String,

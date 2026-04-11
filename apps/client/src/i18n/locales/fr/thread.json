@@ -1,0 +1,18 @@
+{
+  "title": "Fil de discussion",
+  "loading": "Chargement du fil...",
+  "error": "Échec du chargement du fil",
+  "repliesCount": "{{count}} réponse",
+  "repliesCount_other": "{{count}} réponses",
+  "showMoreReplies": "Afficher {{count}} réponse de plus",
+  "showMoreReplies_other": "Afficher {{count}} réponses de plus",
+  "hideReplies": "Masquer les réponses",
+  "replyingTo": "En réponse à",
+  "inputPlaceholder": "Répondre dans le fil...",
+  "loadMore": "Charger plus de réponses",
+  "loadingMore": "Chargement...",
+  "newMessages": "{{count}} nouveau message",
+  "newMessages_other": "{{count}} nouveaux messages",
+  "lastReply": "Dernière réponse {{time}}",
+  "backToChannel": "Retour au canal"
+}

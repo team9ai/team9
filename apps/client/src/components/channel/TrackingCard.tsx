@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { getAgentEventMetadata } from "@/lib/agent-event-metadata";
 import { parseLikelyPastDate } from "@/lib/date-utils";
@@ -72,6 +73,7 @@ function formatElapsed(startTime: string | number): string {
 }
 
 export function TrackingCard({ message }: TrackingCardProps) {
+  const { t } = useTranslation("channel");
   const metadata = (message.metadata ?? {}) as Record<string, unknown>;
   const trackingChannelId = metadata?.trackingChannelId as string | undefined;
   const {
@@ -187,7 +189,7 @@ export function TrackingCard({ message }: TrackingCardProps) {
             {showFrost && (
               <div className="absolute -top-1 -left-0.5 right-0 h-8 z-10 backdrop-blur-[3px] bg-muted/60 rounded-t flex items-center justify-center">
                 <span className="text-[11px] text-muted-foreground">
-                  View {moreCount} more details ›
+                  {t("tracking.card.moreDetails", { count: moreCount })}
                 </span>
               </div>
             )}
@@ -216,7 +218,9 @@ export function TrackingCard({ message }: TrackingCardProps) {
         )}
 
         {isLoading && (
-          <div className="text-xs text-muted-foreground py-2">Loading...</div>
+          <div className="text-xs text-muted-foreground py-2">
+            {t("tracking.card.loading")}
+          </div>
         )}
       </div>
 

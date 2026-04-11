@@ -57,6 +57,17 @@
   "leaving": "Leaving...",
   "leaveChannelWarning": "You will no longer have access to this channel's messages and files.",
   "leaveThisChannel": "Leave this channel",
+  "deleteChannelDescription": "This action cannot be undone. All messages in this channel will be permanently deleted.",
+  "deleteChannelWarningTitle": "Deleting this channel will:",
+  "deleteWarningMessages": "Remove all messages and files",
+  "deleteWarningMembers": "Remove all members from the channel",
+  "deleteWarningNoRecovery": "This cannot be recovered",
+  "typeToConfirm": "Type {{name}} to confirm",
+  "enterChannelName": "Enter channel name",
+  "permanentDelete": "Permanently delete (cannot be recovered)",
+  "deleting": "Deleting...",
+  "channelNotFound": "Channel not found",
+  "loadingChannel": "Loading channel...",
   "loadingMessages": "Loading messages...",
   "loadingMoreMessages": "Loading more messages...",
   "noMessagesYet": "No messages yet. Join the channel to start the conversation!",
@@ -163,6 +174,11 @@
       "collapseSummary_other": "... Show execution ({{count}} steps)",
       "expandAriaLabel_one": "Expand execution process ({{count}} step)",
       "expandAriaLabel_other": "Expand execution process ({{count}} steps)"
+    },
+    "card": {
+      "moreDetails_one": "View {{count}} more detail ›",
+      "moreDetails_other": "View {{count}} more details ›",
+      "loading": "Loading..."
     }
   }
 }

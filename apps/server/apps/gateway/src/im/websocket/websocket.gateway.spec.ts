@@ -83,6 +83,7 @@ function createDeps() {
     addReaction: jest.fn<any>().mockResolvedValue(undefined),
     removeReaction: jest.fn<any>().mockResolvedValue(undefined),
     getMessageChannelId: jest.fn<any>().mockResolvedValue('channel-1'),
+    truncateForPreview: jest.fn<any>().mockImplementation((msg) => msg),
   };
   const redisService = {
     set: jest.fn<any>().mockResolvedValue(undefined),
@@ -1398,13 +1399,15 @@ describe('WebsocketGateway', () => {
       ).resolves.toEqual({ error: 'Only bot users can stream messages' });
     });
 
-    it('cleans up state and broadcasts the final message on stream end', async () => {
+    it('cleans up state and broadcasts the truncated final message on stream end', async () => {
       const { gateway, deps } = createGateway();
       const { client } = makeClient({ userId: 'bot-1', isBot: true });
       const sendSpy = jest
         .spyOn(gateway, 'sendToChannelMembers')
         .mockResolvedValue(undefined);
       const finalMessage = { id: 'msg-1', content: 'done' };
+      const truncatedMessage = { id: 'msg-1', content: 'done (truncated)' };
+      deps.messagesService.truncateForPreview.mockReturnValue(truncatedMessage);
 
       await expect(
         gateway.handleStreamingEnd(
@@ -1431,10 +1434,13 @@ describe('WebsocketGateway', () => {
           senderId: 'bot-1',
         }),
       );
+      expect(deps.messagesService.truncateForPreview).toHaveBeenCalledWith(
+        finalMessage,
+      );
       expect(sendSpy).toHaveBeenCalledWith(
         'channel-1',
         WS_EVENTS.MESSAGE.NEW,
-        finalMessage,
+        truncatedMessage,
       );
       expect(metricFns.messagesTotalAdd).toHaveBeenCalledWith(1);
     });

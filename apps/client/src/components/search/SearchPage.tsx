@@ -25,6 +25,7 @@ import { useSelectedWorkspaceId } from "@/stores";
 import { SearchFilterFrom } from "./SearchFilterFrom";
 import { SearchFilterIn } from "./SearchFilterIn";
 import type { SearchSearchParams } from "@/routes/_authenticated/search";
+import { formatDate } from "@/lib/date-format";
 
 interface SearchPageProps {
   initialQuery?: string;
@@ -344,7 +345,7 @@ export function SearchPage({
                             #{item.data.channelName}
                           </span>
                           <span className="text-muted-foreground ml-auto text-xs">
-                            {new Date(item.data.createdAt).toLocaleDateString()}
+                            {formatDate(item.data.createdAt)}
                           </span>
                         </div>
                         <div
@@ -460,7 +461,7 @@ export function SearchPage({
                           </span>
                           <span>#{item.data.channelName}</span>
                           <span className="ml-auto text-xs">
-                            {new Date(item.data.createdAt).toLocaleDateString()}
+                            {formatDate(item.data.createdAt)}
                           </span>
                         </div>
                       </div>

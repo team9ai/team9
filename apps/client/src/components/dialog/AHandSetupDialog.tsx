@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,7 @@ function StepIcon({ status }: { status: StepStatus }) {
 
 // Renders a single setup step with icon, label, optional retry button, and error message
 function StepRow({ step }: { step: SetupStep }) {
+  const { t } = useTranslation("resources");
   const retryFrom = useAHandSetupStore((s) => s.retryFrom);
   const botCountdown = useAHandSetupStore((s) => s.botCountdown);
 
@@ -61,7 +63,7 @@ function StepRow({ step }: { step: SetupStep }) {
             className="ml-auto h-6 px-2 text-xs"
             onClick={() => retryFrom(step.id)}
           >
-            Retry
+            {t("common:retry")}
           </Button>
         )}
       </div>
@@ -75,6 +77,7 @@ function StepRow({ step }: { step: SetupStep }) {
 }
 
 export function AHandSetupDialog() {
+  const { t } = useTranslation("resources");
   const dialogOpen = useAHandSetupStore((s) => s.dialogOpen);
   const closeDialog = useAHandSetupStore((s) => s.closeDialog);
   const steps = useAHandSetupStore((s) => s.steps);
@@ -94,14 +97,14 @@ export function AHandSetupDialog() {
         onInteractOutside={isRunning ? (e) => e.preventDefault() : undefined}
       >
         <DialogHeader>
-          <DialogTitle>Local Device Setup</DialogTitle>
+          <DialogTitle>{t("ahand.localDeviceSetup")}</DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col gap-4">
           {/* aHand connection group */}
           <div className="flex flex-col gap-2">
             <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              aHand Connection
+              {t("ahand.connection")}
             </h4>
             {ahandSteps.map((step) => (
               <StepRow key={step.id} step={step} />
@@ -111,7 +114,7 @@ export function AHandSetupDialog() {
           {/* Browser component group */}
           <div className="flex flex-col gap-2">
             <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Browser Components
+              {t("ahand.browserComponents")}
             </h4>
             {browserSteps.map((step) => (
               <StepRow key={step.id} step={step} />
@@ -121,7 +124,7 @@ export function AHandSetupDialog() {
           {/* Activation group */}
           <div className="flex flex-col gap-2">
             <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Activation
+              {t("ahand.activation")}
             </h4>
             {activationSteps.map((step) => (
               <StepRow key={step.id} step={step} />

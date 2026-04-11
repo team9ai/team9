@@ -676,6 +676,9 @@ importers:
       dotenv:
         specifier: ^17.2.3
         version: 17.2.3
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
       google-auth-library:
         specifier: ^10.5.0
         version: 10.5.0
@@ -948,6 +951,9 @@ importers:
         specifier: ^3.4.7
         version: 3.4.7
     devDependencies:
+      "@jest/globals":
+        specifier: ^30.0.0
+        version: 30.2.0
       dotenv-cli:
         specifier: ^8.0.0
         version: 8.0.0
