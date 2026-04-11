@@ -42,6 +42,7 @@ import {
   DEFAULT_STAFF_MODEL,
   type StaffModel,
 } from "@/lib/common-staff-models";
+import { useTranslation } from "react-i18next";
 import { StaffBadgeCard } from "./StaffBadgeCard";
 
 type AgentType = "common-staff" | "openclaw";
@@ -67,6 +68,7 @@ export function CreateCommonStaffDialog({
   open,
   onOpenChange,
 }: CreateCommonStaffDialogProps) {
+  const { t } = useTranslation("skills");
   const workspaceId = useSelectedWorkspaceId();
   const { data: currentUser } = useCurrentUser();
   const queryClient = useQueryClient();
@@ -494,7 +496,7 @@ export function CreateCommonStaffDialog({
           <Input
             value={oclUsername}
             onChange={(e) => setOclUsername(e.target.value.toLowerCase())}
-            placeholder="Leave blank for auto-generated"
+            placeholder={t("createStaff.namePlaceholder")}
             className="pl-7"
             onKeyDown={(e) => {
               if (e.key === "Enter" && oclCanSubmit) oclCreateMutation.mutate();
@@ -565,20 +567,20 @@ export function CreateCommonStaffDialog({
               {
                 key: "form" as const,
                 icon: ClipboardList,
-                title: "Form Mode",
-                desc: "Fill in all information directly",
+                title: t("createStaff.formMode"),
+                desc: t("createStaff.formModeDesc"),
               },
               {
                 key: "agentic" as const,
                 icon: MessageSquare,
-                title: "Agentic Mode",
-                desc: "AI guides setup in private DM",
+                title: t("createStaff.agenticMode"),
+                desc: t("createStaff.agenticModeDesc"),
               },
               {
                 key: "recruitment" as const,
                 icon: Users,
-                title: "Recruitment",
-                desc: "Generate candidates from a JD",
+                title: t("createStaff.recruitment"),
+                desc: t("createStaff.recruitmentDesc"),
               },
             ] as const
           ).map(({ key, icon: Icon, title, desc }) => (
@@ -719,7 +721,7 @@ export function CreateCommonStaffDialog({
           ) : (
             <Sparkles className="mr-1 h-4 w-4" />
           )}
-          {persona ? "Regenerate" : "AI Generate"}
+          {persona ? t("createStaff.regenerate") : t("createStaff.aiGenerate")}
         </Button>
       </div>
     </div>
@@ -800,7 +802,7 @@ export function CreateCommonStaffDialog({
 
       <div className="flex justify-center pt-2">
         <StaffBadgeCard
-          displayName={displayName || "New Staff"}
+          displayName={displayName || t("createStaff.newStaff")}
           roleTitle={roleTitle}
           avatarUrl={avatarUrl || undefined}
           mentorName={
@@ -918,7 +920,9 @@ export function CreateCommonStaffDialog({
         ) : (
           <Sparkles className="mr-1 h-4 w-4" />
         )}
-        {candidates.length > 0 ? "Re-roll" : "Generate Candidates"}
+        {candidates.length > 0
+          ? t("createStaff.reroll")
+          : t("createStaff.generateCandidates")}
       </Button>
     </div>
   );
@@ -1007,21 +1011,21 @@ export function CreateCommonStaffDialog({
 
   const stepTitle = () => {
     if (step === 1) {
-      if (agentType === "openclaw") return "Create OpenClaw Agent";
-      return "Create AI Staff";
+      if (agentType === "openclaw") return t("createStaff.createOpenClawAgent");
+      return t("createStaff.createAIStaff");
     }
     if (mode === "form") {
-      if (step === 2) return "Basic Info";
-      if (step === 3) return "Personality";
-      if (step === 4) return "Avatar & Preview";
+      if (step === 2) return t("createStaff.basicInfo");
+      if (step === 3) return t("createStaff.personality");
+      if (step === 4) return t("createStaff.avatarPreview");
     }
-    if (mode === "agentic") return "Agentic Setup";
+    if (mode === "agentic") return t("createStaff.agenticSetup");
     if (mode === "recruitment") {
-      if (step === 2) return "Job Description";
-      if (step === 3) return "Choose a Candidate";
-      if (step === 4) return "Finalize";
+      if (step === 2) return t("createStaff.jobDescription");
+      if (step === 3) return t("createStaff.chooseCandidate");
+      if (step === 4) return t("createStaff.finalize");
     }
-    return "Create AI Staff";
+    return t("createStaff.createAIStaff");
   };
 
   const isLastStep = step === totalSteps;

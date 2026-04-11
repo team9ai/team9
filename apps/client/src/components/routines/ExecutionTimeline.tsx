@@ -11,6 +11,7 @@ import {
   User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatTime } from "@/lib/date-format";
 import type { ExecutionEntry, RoutineStepStatus } from "@/types/routine";
 import { InterventionCard } from "./InterventionCard";
 
@@ -113,10 +114,7 @@ function EntryTime({ iso }: { iso: string | null | undefined }) {
   if (!iso) return null;
   return (
     <span className="text-xs text-muted-foreground shrink-0">
-      {new Date(iso).toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      })}
+      {formatTime(iso)}
     </span>
   );
 }

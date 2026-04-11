@@ -28,5 +28,13 @@
   "more": "More",
   "less": "Less",
   "optional": "optional",
-  "required": "required"
+  "required": "required",
+  "justNow": "just now",
+  "today": "Today",
+  "yesterday": "Yesterday",
+  "copy": "Copy",
+  "copied": "Copied",
+  "selected": "Selected",
+  "warning": "Warning:",
+  "seconds": "s"
 }

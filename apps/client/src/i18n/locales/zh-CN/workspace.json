@@ -1,4 +1,8 @@
 {
+  "createWorkspace": "创建工作空间",
+  "createWorkspaceDescription": "工作空间是团队协作的地方。为你的团队、项目或组织创建一个吧。",
+  "namePlaceholder": "例如：Acme 公司",
+  "creating": "创建中...",
   "members": "成员",
   "workspaceSettings": "工作空间设置",
   "name": "名称",
@@ -39,5 +43,6 @@
   "confirmRemoveMember": "确定要将 {{name}} 从此工作空间移除吗？",
   "maxWorkspacesReached": "每位用户最多只能创建 {{max}} 个工作空间，请联系管理员或通过 <discordLink>Discord</discordLink> 获取帮助。",
   "workspaceFull": "该工作空间已达到 {{max}} 人的成员上限",
-  "workspaceFullInvite": "无法加入——该工作空间已达到成员上限，请联系工作空间管理员或通过 <discordLink>Discord</discordLink> 联系我们。"
+  "workspaceFullInvite": "无法加入——该工作空间已达到成员上限，请联系工作空间管理员或通过 <discordLink>Discord</discordLink> 联系我们。",
+  "expires": "{{date}} 过期"
 }

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   LayoutGrid,
   Loader2,
@@ -17,6 +18,7 @@ import { api } from "@/services/api";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 
 export function ApplicationMainContent() {
+  const { t } = useTranslation("navigation");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const workspaceId = useSelectedWorkspaceId();
@@ -66,7 +68,9 @@ export function ApplicationMainContent() {
       <header className="h-14 bg-background flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
           <LayoutGrid size={18} className="text-primary" />
-          <h2 className="font-semibold text-lg text-foreground">Apps</h2>
+          <h2 className="font-semibold text-lg text-foreground">
+            {t("appsTitle")}
+          </h2>
         </div>
       </header>
 
@@ -85,7 +89,7 @@ export function ApplicationMainContent() {
             <Card className="p-6 text-center">
               <AlertCircle className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
-                Failed to load applications
+                {t("failedToLoadApps")}
               </p>
             </Card>
           )}
@@ -96,7 +100,7 @@ export function ApplicationMainContent() {
               {installedApps && installedApps.length > 0 && (
                 <div>
                   <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">
-                    Installed Apps
+                    {t("installedApps")}
                   </h3>
                   <div className="space-y-1">
                     {installedApps.map((app) => (
@@ -144,7 +148,7 @@ export function ApplicationMainContent() {
               {availableApps.length > 0 && (
                 <div>
                   <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">
-                    Available Apps
+                    {t("availableApps")}
                   </h3>
                   <div className="space-y-1">
                     {availableApps.map((app) => (
@@ -177,7 +181,7 @@ export function ApplicationMainContent() {
                           ) : (
                             <Plus size={14} className="mr-1" />
                           )}
-                          Install
+                          {t("install")}
                         </Button>
                       </div>
                     ))}
@@ -193,10 +197,10 @@ export function ApplicationMainContent() {
                       <LayoutGrid size={28} className="text-muted-foreground" />
                     </div>
                     <h3 className="font-medium text-foreground mb-1">
-                      No apps available
+                      {t("noAppsAvailable")}
                     </h3>
                     <p className="text-sm text-muted-foreground">
-                      Apps will appear here when available
+                      {t("appsWillAppear")}
                     </p>
                   </Card>
                 )}

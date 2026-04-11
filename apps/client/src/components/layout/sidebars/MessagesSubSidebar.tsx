@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -11,6 +12,7 @@ import { useWorkspaceStore } from "@/stores";
 import { UserListItem } from "@/components/sidebar/UserListItem";
 
 export function MessagesSubSidebar() {
+  const { t } = useTranslation("navigation");
   const navigate = useNavigate();
   const params = useParams({ strict: false });
   const selectedChannelId = (params as { channelId?: string }).channelId;
@@ -86,7 +88,7 @@ export function MessagesSubSidebar() {
           variant="ghost"
           className="w-full justify-between text-nav-foreground hover:bg-nav-hover px-2 h-auto py-1.5"
         >
-          <span className="font-semibold text-lg">Direct Messages</span>
+          <span className="font-semibold text-lg">{t("directMessages")}</span>
           <ChevronDown size={16} className="text-nav-foreground-subtle" />
         </Button>
       </div>
@@ -98,7 +100,7 @@ export function MessagesSubSidebar() {
         <nav className="space-y-0.5 pb-3 pt-2">
           {isLoading ? (
             <p className="text-xs text-nav-foreground-faint px-2 py-2">
-              Loading...
+              {t("common:loading")}
             </p>
           ) : (
             <>
@@ -124,7 +126,7 @@ export function MessagesSubSidebar() {
                 <>
                   {directMessageUsers.length > 0 && (
                     <div className="px-2 py-2 text-xs text-nav-foreground-faint mt-2">
-                      Start a conversation
+                      {t("messagesStartConversation")}
                     </div>
                   )}
                   {filteredMembers.map((member) => {
@@ -150,7 +152,7 @@ export function MessagesSubSidebar() {
               {directMessageUsers.length === 0 &&
                 filteredMembers.length === 0 && (
                   <p className="text-xs text-nav-foreground-faint px-2 py-2">
-                    No messages yet
+                    {t("messagesNoMessages")}
                   </p>
                 )}
             </>

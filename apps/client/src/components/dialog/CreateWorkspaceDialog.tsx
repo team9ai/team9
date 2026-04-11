@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Trans } from "react-i18next";
+import { useTranslation, Trans } from "react-i18next";
 import { Building2, AlertCircle, ShieldAlert } from "lucide-react";
 import {
   Dialog,
@@ -57,6 +57,7 @@ export function CreateWorkspaceDialog({
   isOpen,
   onClose,
 }: CreateWorkspaceDialogProps) {
+  const { t } = useTranslation("workspace");
   const createWorkspace = useCreateWorkspace();
   const queryClient = useQueryClient();
   const { setSelectedWorkspaceId } = useWorkspaceStore();
@@ -140,11 +141,10 @@ export function CreateWorkspaceDialog({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Building2 size={20} />
-              Create a workspace
+              {t("createWorkspace")}
             </DialogTitle>
             <DialogDescription>
-              Workspaces are where your team collaborates. Create one for your
-              team, project, or organization.
+              {t("createWorkspaceDescription")}
             </DialogDescription>
           </DialogHeader>
 
@@ -157,12 +157,12 @@ export function CreateWorkspaceDialog({
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="workspace-name">Name</Label>
+              <Label htmlFor="workspace-name">{t("name")}</Label>
               <Input
                 id="workspace-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Acme Inc"
+                placeholder={t("namePlaceholder")}
                 autoFocus
                 onKeyDown={(e) => {
                   if (
@@ -191,14 +191,14 @@ export function CreateWorkspaceDialog({
 
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={handleClose}>
-              Cancel
+              {t("common:cancel")}
             </Button>
             <Button
               onClick={handleCreate}
               disabled={!canCreate || createWorkspace.isPending}
               className="bg-primary hover:bg-primary/90"
             >
-              {createWorkspace.isPending ? "Creating..." : "Create Workspace"}
+              {createWorkspace.isPending ? t("creating") : t("createWorkspace")}
             </Button>
           </DialogFooter>
         </DialogContent>

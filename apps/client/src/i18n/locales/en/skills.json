@@ -78,6 +78,35 @@
     "prompt_template": "Prompt Template",
     "general": "General"
   },
+  "createStaff": {
+    "createAIStaff": "Create AI Staff",
+    "createOpenClawAgent": "Create OpenClaw Agent",
+    "basicInfo": "Basic Info",
+    "personality": "Personality",
+    "avatarPreview": "Avatar & Preview",
+    "agenticSetup": "Agentic Setup",
+    "jobDescription": "Job Description",
+    "chooseCandidate": "Choose a Candidate",
+    "finalize": "Finalize",
+    "formMode": "Form Mode",
+    "formModeDesc": "Fill in all information directly",
+    "agenticMode": "Agentic Mode",
+    "agenticModeDesc": "AI guides setup in private DM",
+    "recruitment": "Recruitment",
+    "recruitmentDesc": "Generate candidates from a JD",
+    "regenerate": "Regenerate",
+    "aiGenerate": "AI Generate",
+    "newStaff": "New Staff",
+    "reroll": "Re-roll",
+    "generateCandidates": "Generate Candidates",
+    "namePlaceholder": "Leave blank for auto-generated"
+  },
+  "badge": {
+    "about": "About",
+    "persona": "Persona",
+    "noPersona": "No persona description available.",
+    "model": "Model"
+  },
   "template": {
     "selectTemplate": "Select Template",
     "claudeCodeSkill": "Claude Code Skill",
