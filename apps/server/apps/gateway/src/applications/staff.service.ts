@@ -171,9 +171,22 @@ export class StaffService {
     if (rows.length > 0) {
       botId = rows[0].botId;
     } else {
+      // Find any tenant member as owner (platform bot is system-level, owner is just a FK)
+      const [member] = await this.db
+        .select({ userId: schema.tenantMembers.userId })
+        .from(schema.tenantMembers)
+        .where(eq(schema.tenantMembers.tenantId, tenantId))
+        .limit(1);
+
+      if (!member) {
+        throw new Error(
+          `No members found for tenant ${tenantId} — cannot create platform bot`,
+        );
+      }
+
       // Create a dedicated platform bot
       const { bot } = await this.botService.createWorkspaceBot({
-        ownerId: tenantId, // system-level ownership
+        ownerId: member.userId,
         tenantId,
         displayName: PLATFORM_BOT_DISPLAY_NAME,
         type: 'system',
