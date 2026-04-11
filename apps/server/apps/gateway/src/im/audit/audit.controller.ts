@@ -16,14 +16,14 @@ import {
 } from '../../workspace/guards/index.js';
 
 @Controller({
-  path: 'im/channels/:channelId/audit-logs',
+  path: 'im',
   version: '1',
 })
 @UseGuards(AuthGuard, WorkspaceGuard, WorkspaceRoleGuard)
 export class AuditController {
   constructor(private readonly auditService: AuditService) {}
 
-  @Get()
+  @Get('channels/:channelId/audit-logs')
   @WorkspaceRoles('member')
   async getAuditLogs(
     @Param('channelId', ParseUUIDPipe) channelId: string,
@@ -34,6 +34,22 @@ export class AuditController {
       cursor: query.cursor,
       entityType: query.entityType,
       action: query.action,
+    });
+  }
+
+  /**
+   * GET /v1/im/messages/:messageId/audit-logs
+   * Returns audit entries for a specific message.
+   */
+  @Get('messages/:messageId/audit-logs')
+  @WorkspaceRoles('member')
+  async getMessageAuditLogs(
+    @Param('messageId', ParseUUIDPipe) messageId: string,
+    @Query() query: QueryAuditLogsDto,
+  ) {
+    return this.auditService.findByEntity('message', messageId, {
+      limit: query.limit,
+      cursor: query.cursor,
     });
   }
 }

@@ -79,4 +79,41 @@ export class AuditService {
 
     return { logs, nextCursor };
   }
+
+  async findByEntity(
+    entityType: string,
+    entityId: string,
+    opts: {
+      limit?: number;
+      cursor?: string;
+    } = {},
+  ): Promise<{ logs: AuditLog[]; nextCursor: string | null }> {
+    const limit = opts.limit ?? 50;
+
+    const conditions = [
+      eq(schema.auditLogs.entityType, entityType),
+      eq(schema.auditLogs.entityId, entityId),
+    ];
+
+    if (opts.cursor) {
+      conditions.push(lt(schema.auditLogs.createdAt, new Date(opts.cursor)));
+    }
+
+    const logs = await this.db
+      .select()
+      .from(schema.auditLogs)
+      .where(and(...conditions))
+      .orderBy(desc(schema.auditLogs.createdAt), desc(schema.auditLogs.id))
+      .limit(limit + 1);
+
+    let nextCursor: string | null = null;
+
+    if (logs.length > limit) {
+      logs.pop();
+      const lastLog = logs[logs.length - 1];
+      nextCursor = lastLog.createdAt.toISOString();
+    }
+
+    return { logs, nextCursor };
+  }
 }

@@ -73,6 +73,23 @@ export class TabsService {
       throw new BadRequestException('viewId is required for view-type tabs');
     }
 
+    // Verify the view exists AND belongs to the same channel
+    if (dto.viewId) {
+      const [view] = await this.db
+        .select()
+        .from(schema.channelViews)
+        .where(
+          and(
+            eq(schema.channelViews.id, dto.viewId),
+            eq(schema.channelViews.channelId, channelId),
+          ),
+        )
+        .limit(1);
+      if (!view) {
+        throw new BadRequestException('View not found in this channel');
+      }
+    }
+
     const maxOrder = await this.getMaxOrder(channelId);
 
     const [row] = await this.db

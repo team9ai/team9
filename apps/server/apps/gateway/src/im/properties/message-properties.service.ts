@@ -527,13 +527,21 @@ export class MessagePropertiesService {
     if (typeof value === 'string') return 'text';
     if (typeof value === 'number') return 'number';
     if (typeof value === 'boolean') return 'boolean';
-    if (Array.isArray(value)) return 'tags';
-    if (
-      typeof value === 'object' &&
-      value !== null &&
-      'fileKey' in (value as Record<string, unknown>)
-    ) {
-      return 'file';
+    if (Array.isArray(value)) {
+      if (value.length > 0 && typeof value[0] === 'string')
+        return 'multi_select';
+      return 'multi_select'; // default array type
+    }
+    if (value !== null && typeof value === 'object') {
+      const obj = value as Record<string, unknown>;
+      if ('start' in obj && 'end' in obj) {
+        // Check if values look like dates
+        if (typeof obj.start === 'string' && !isNaN(Date.parse(obj.start))) {
+          return 'date_range';
+        }
+      }
+      if ('freq' in obj) return 'recurring';
+      if ('fileKey' in obj) return 'file';
     }
     return 'text';
   }

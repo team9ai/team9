@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsInt, Min, Max } from 'class-validator';
+import { IsOptional, IsString, IsInt, IsIn, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class QueryAuditLogsDto {
@@ -14,10 +14,20 @@ export class QueryAuditLogsDto {
   cursor?: string;
 
   @IsOptional()
-  @IsString()
+  @IsIn(['channel', 'message'])
   entityType?: string;
 
   @IsOptional()
-  @IsString()
+  @IsIn([
+    'created',
+    'updated',
+    'deleted',
+    'property_defined',
+    'property_schema_updated',
+    'property_deleted',
+    'property_set',
+    'property_updated',
+    'property_removed',
+  ])
   action?: string;
 }

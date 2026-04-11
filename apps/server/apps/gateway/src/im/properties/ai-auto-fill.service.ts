@@ -248,7 +248,7 @@ export class AiAutoFillService {
           channelId: message.channelId,
           entityType: 'message',
           entityId: messageId,
-          action: 'ai_auto_fill',
+          action: 'property_set',
           changes: Object.fromEntries(
             toSet.map(({ key, value }) => [
               key,
