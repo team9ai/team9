@@ -1,0 +1,72 @@
+import {
+  IsOptional,
+  IsArray,
+  ArrayMaxSize,
+  ValidateNested,
+  IsString,
+  IsIn,
+  IsUUID,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+import type { ViewFilterOperator, ViewSortDirection } from '@team9/shared';
+
+const FILTER_OPERATORS: ViewFilterOperator[] = [
+  'eq',
+  'neq',
+  'gt',
+  'gte',
+  'lt',
+  'lte',
+  'contains',
+  'not_contains',
+  'is_empty',
+  'is_not_empty',
+  'in',
+  'not_in',
+];
+
+const SORT_DIRECTIONS: ViewSortDirection[] = ['asc', 'desc'];
+
+export class ViewFilterDto {
+  @IsUUID()
+  definitionId: string;
+
+  @IsIn(FILTER_OPERATORS)
+  operator: ViewFilterOperator;
+
+  @IsOptional()
+  value?: unknown;
+}
+
+export class ViewSortDto {
+  @IsUUID()
+  definitionId: string;
+
+  @IsIn(SORT_DIRECTIONS)
+  direction: ViewSortDirection;
+}
+
+export class ViewConfigDto {
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10, { message: 'Maximum 10 filters allowed' })
+  @ValidateNested({ each: true })
+  @Type(() => ViewFilterDto)
+  filters?: ViewFilterDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(3, { message: 'Maximum 3 sorts allowed' })
+  @ValidateNested({ each: true })
+  @Type(() => ViewSortDto)
+  sorts?: ViewSortDto[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  visibleProperties?: string[];
+
+  @IsOptional()
+  @IsString()
+  groupBy?: string;
+}

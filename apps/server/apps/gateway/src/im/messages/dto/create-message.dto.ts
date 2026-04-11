@@ -53,4 +53,8 @@ export class CreateMessageDto {
   @IsBoolean()
   @IsOptional()
   skipBroadcast?: boolean;
+
+  @IsObject()
+  @IsOptional()
+  properties?: Record<string, unknown>;
 }

@@ -40,6 +40,7 @@ import { ChannelsService } from '../channels/channels.service.js';
 import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
 import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
+import { MessagePropertiesService } from '../properties/message-properties.service.js';
 import { determineMessageType } from './message-utils.js';
 
 @Controller({
@@ -56,6 +57,7 @@ export class MessagesController {
     @Inject(forwardRef(() => WebsocketGateway))
     private readonly websocketGateway: WebsocketGateway,
     private readonly imWorkerGrpcClientService: ImWorkerGrpcClientService,
+    private readonly messagePropertiesService: MessagePropertiesService,
     private readonly eventEmitter: EventEmitter2,
     @Optional() private readonly gatewayMQService?: GatewayMQService,
   ) {}
@@ -176,7 +178,21 @@ export class MessagesController {
     );
     const t4 = Date.now();
 
-    const previewMessage = this.messagesService.truncateForPreview(message);
+    // Set properties if provided
+    if (dto.properties && Object.keys(dto.properties).length > 0) {
+      await this.messagePropertiesService.batchSet(
+        result.msgId,
+        Object.entries(dto.properties).map(([key, value]) => ({ key, value })),
+        userId,
+      );
+    }
+
+    // Merge properties into message response
+    const [messageWithProps] = await this.messagesService.mergeProperties([
+      message,
+    ]);
+    const previewMessage =
+      this.messagesService.truncateForPreview(messageWithProps);
 
     // Immediately broadcast to online users via Socket.io Redis Adapter
     // Skip broadcast when the message is part of a streaming session (bot will
