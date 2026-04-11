@@ -6,6 +6,7 @@ import { MessagesModule } from './messages/messages.module.js';
 import { WebsocketModule } from './websocket/websocket.module.js';
 import { SyncModule } from './sync/sync.module.js';
 import { SectionsModule } from './sections/sections.module.js';
+import { AuditModule } from './audit/audit.module.js';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { SectionsModule } from './sections/sections.module.js';
     WebsocketModule,
     SyncModule,
     SectionsModule,
+    AuditModule,
   ],
   exports: [
     AuthModule,
@@ -25,6 +27,7 @@ import { SectionsModule } from './sections/sections.module.js';
     WebsocketModule,
     SyncModule,
     SectionsModule,
+    AuditModule,
   ],
 })
 export class ImModule {}
