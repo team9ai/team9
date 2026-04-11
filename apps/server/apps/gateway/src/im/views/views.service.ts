@@ -327,9 +327,7 @@ export class ViewsService {
       return a === b ? 0 : a ? -1 : 1;
     }
 
-    const aStr = typeof a === 'object' ? JSON.stringify(a) : `${a as string}`;
-    const bStr = typeof b === 'object' ? JSON.stringify(b) : `${b as string}`;
-    return aStr.localeCompare(bStr);
+    return this.toStr(a).localeCompare(this.toStr(b));
   }
 
   private buildGroupedResponse(
@@ -346,9 +344,7 @@ export class ViewsService {
       const propValue = (propsMap[msg.id] ?? {})[groupByKey];
       const groupKey =
         propValue !== undefined && propValue !== null
-          ? typeof propValue === 'object'
-            ? JSON.stringify(propValue)
-            : `${propValue as string}`
+          ? this.toStr(propValue)
           : '__ungrouped__';
 
       if (!groupMap.has(groupKey)) {
