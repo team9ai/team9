@@ -231,14 +231,7 @@ export class ViewsService {
     props: Record<string, unknown>,
     filter: ViewFilter,
   ): boolean {
-    // Use definitionId as key (properties are keyed by definition key, but
-    // filters reference definitionId — for V1 we match on the key stored in
-    // the props map which is already the definition key).
-    // We need to find the value that matches this filter's definitionId.
-    // Since batchGetByMessageIds returns { key: value }, and filter uses
-    // definitionId, we iterate props to find any match.
-    // For V1 simplicity: treat definitionId as the property key.
-    const value = props[filter.definitionId];
+    const value = props[filter.propertyKey];
 
     switch (filter.operator) {
       case 'eq':
@@ -299,8 +292,8 @@ export class ViewsService {
   ): (typeof schema.messages.$inferSelect)[] {
     return [...messages].sort((a, b) => {
       for (const sort of sorts) {
-        const aVal = (propsMap[a.id] ?? {})[sort.definitionId];
-        const bVal = (propsMap[b.id] ?? {})[sort.definitionId];
+        const aVal = (propsMap[a.id] ?? {})[sort.propertyKey];
+        const bVal = (propsMap[b.id] ?? {})[sort.propertyKey];
         const cmp = this.compareValues(aVal, bVal);
         if (cmp !== 0) {
           return sort.direction === 'asc' ? cmp : -cmp;

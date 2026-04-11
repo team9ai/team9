@@ -10,6 +10,7 @@ import {
   Inject,
   forwardRef,
   ParseUUIDPipe,
+  NotFoundException,
 } from '@nestjs/common';
 import {
   PropertyDefinitionsService,
@@ -89,6 +90,12 @@ export class PropertyDefinitionsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdatePropertyDefinitionDto,
   ): Promise<PropertyDefinitionRow> {
+    // Verify the definition belongs to this channel
+    const existing = await this.propertyDefinitionsService.findByIdOrThrow(id);
+    if (existing.channelId !== channelId) {
+      throw new NotFoundException('Property definition not found');
+    }
+
     const definition = await this.propertyDefinitionsService.update(id, dto);
 
     await this.websocketGateway.sendToChannelMembers(
@@ -106,6 +113,12 @@ export class PropertyDefinitionsController {
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<{ success: boolean }> {
+    // Verify the definition belongs to this channel
+    const existing = await this.propertyDefinitionsService.findByIdOrThrow(id);
+    if (existing.channelId !== channelId) {
+      throw new NotFoundException('Property definition not found');
+    }
+
     await this.propertyDefinitionsService.delete(id);
 
     await this.websocketGateway.sendToChannelMembers(

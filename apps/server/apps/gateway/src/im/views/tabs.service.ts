@@ -68,7 +68,8 @@ export class TabsService {
     userId: string,
   ): Promise<ChannelTab> {
     // view-type tabs require a valid viewId
-    if (dto.type === 'view' && !dto.viewId) {
+    const viewTabTypes = new Set(['table_view', 'board_view', 'calendar_view']);
+    if (viewTabTypes.has(dto.type) && !dto.viewId) {
       throw new BadRequestException('viewId is required for view-type tabs');
     }
 

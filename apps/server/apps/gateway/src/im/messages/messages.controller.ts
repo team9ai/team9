@@ -41,6 +41,8 @@ import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
 import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
 import { MessagePropertiesService } from '../properties/message-properties.service.js';
+import { AiAutoFillService } from '../properties/ai-auto-fill.service.js';
+import { PropertyDefinitionsService } from '../properties/property-definitions.service.js';
 import { determineMessageType } from './message-utils.js';
 
 @Controller({
@@ -58,6 +60,8 @@ export class MessagesController {
     private readonly websocketGateway: WebsocketGateway,
     private readonly imWorkerGrpcClientService: ImWorkerGrpcClientService,
     private readonly messagePropertiesService: MessagePropertiesService,
+    private readonly aiAutoFillService: AiAutoFillService,
+    private readonly propertyDefinitionsService: PropertyDefinitionsService,
     private readonly eventEmitter: EventEmitter2,
     @Optional() private readonly gatewayMQService?: GatewayMQService,
   ) {}
@@ -291,6 +295,9 @@ export class MessagesController {
       );
     }
 
+    // Fire-and-forget AI auto-fill for root messages in public/private channels
+    this.triggerAiAutoFill(message, userId);
+
     return previewMessage;
   }
 
@@ -375,6 +382,9 @@ export class MessagesController {
           : undefined,
       });
     }
+
+    // Fire-and-forget AI auto-fill for edited messages
+    this.triggerAiAutoFill(message, userId);
 
     return previewMessage;
   }
@@ -503,5 +513,34 @@ export class MessagesController {
   ): Promise<{ success: boolean }> {
     await this.messagesService.removeReaction(messageId, userId, emoji);
     return { success: true };
+  }
+
+  /**
+   * Fire-and-forget AI auto-fill for root messages in public/private channels
+   * with text/long_text/file/image types that have aiAutoFill definitions.
+   */
+  private triggerAiAutoFill(message: MessageResponse, userId: string): void {
+    const ALLOWED_TYPES = new Set(['text', 'long_text', 'file', 'image']);
+    // Only root messages with allowed types
+    if (message.parentId !== null || !ALLOWED_TYPES.has(message.type)) {
+      return;
+    }
+
+    // Check async whether the channel has any aiAutoFill definitions
+    this.propertyDefinitionsService
+      .findAllByChannel(message.channelId)
+      .then((definitions) => {
+        const hasAutoFill = definitions.some((d) => d.aiAutoFill);
+        if (!hasAutoFill) return;
+
+        return this.aiAutoFillService.autoFill(message.id, userId, {
+          preserveExisting: true,
+        });
+      })
+      .catch((err) => {
+        this.logger.warn(
+          `AI auto-fill failed for message ${message.id}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
   }
 }

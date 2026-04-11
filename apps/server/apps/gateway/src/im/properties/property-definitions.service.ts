@@ -280,10 +280,17 @@ export class PropertyDefinitionsService {
     key: string,
     valueType: PropertyValueType,
     userId: string,
+    allowCreate = true,
   ): Promise<PropertyDefinitionRow> {
     const existing = await this.findByKey(channelId, key);
     if (existing) {
       return existing;
+    }
+
+    if (!allowCreate) {
+      throw new BadRequestException(
+        `Property key "${key}" does not exist and auto-creation is not allowed`,
+      );
     }
 
     const maxOrder = await this.getMaxOrder(channelId);

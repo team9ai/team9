@@ -1,4 +1,10 @@
-import { IsArray, IsString, IsNotEmpty, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsString,
+  IsNotEmpty,
+  IsDefined,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 class PropertyEntry {
@@ -6,7 +12,7 @@ class PropertyEntry {
   @IsNotEmpty()
   key: string;
 
-  @IsNotEmpty({ message: 'value must not be empty' })
+  @IsDefined({ message: 'value must be defined' })
   value: unknown;
 }
 

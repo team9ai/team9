@@ -31,6 +31,8 @@ import {
   resolveAgentType,
   type AgentType,
 } from '../../common/utils/agent-type.util.js';
+import { PropertyDefinitionsService } from '../properties/property-definitions.service.js';
+import { TabsService } from '../views/tabs.service.js';
 
 export interface ChannelResponse {
   id: string;
@@ -101,6 +103,8 @@ export class ChannelsService {
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly redis: RedisService,
     private readonly channelMemberCacheService: ChannelMemberCacheService,
+    private readonly propertyDefinitionsService: PropertyDefinitionsService,
+    private readonly tabsService: TabsService,
   ) {}
 
   /**
@@ -221,6 +225,15 @@ export class ChannelsService {
 
     // Add creator as owner
     await this.addMember(channel.id, creatorId, 'owner');
+
+    // Seed native properties and built-in tabs for public/private channels
+    if (dto.type === 'public' || dto.type === 'private') {
+      await this.propertyDefinitionsService.seedNativeProperties(
+        channel.id,
+        creatorId,
+      );
+      await this.tabsService.seedBuiltinTabs(channel.id);
+    }
 
     return channel;
   }

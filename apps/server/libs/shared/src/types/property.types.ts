@@ -51,22 +51,32 @@ export interface PropertyDefinitionResponse {
   id: string;
   /** Channel this property belongs to */
   channelId: string;
-  /** Property name */
-  name: string;
+  /** Property key (unique within channel) */
+  key: string;
+  /** Human-readable description */
+  description: string | null;
   /** Property value type */
-  type: PropertyValueType;
+  valueType: PropertyValueType;
+  /** Whether this is a native (built-in) property */
+  isNative: boolean;
   /** Whether this property is required */
   isRequired: boolean;
   /** Default value (JSON) */
   defaultValue?: unknown;
-  /** Select options (for single_select / multi_select) */
-  options?: SelectOption[];
-  /** Display order */
-  position: number;
-  /** Additional configuration */
+  /** Additional configuration (e.g. select options) */
   config?: Record<string, unknown>;
+  /** Display order */
+  order: number;
+  /** Whether AI auto-fill is enabled */
+  aiAutoFill: boolean;
+  /** Custom AI auto-fill prompt */
+  aiAutoFillPrompt: string | null;
+  /** Policy for showing in chat: 'show' | 'auto' | 'hide' */
+  showInChatPolicy: string;
+  /** Whether new options can be added (for select types) */
+  allowNewOptions: boolean;
   /** Who created this property */
-  createdBy: string;
+  createdBy: string | null;
   /** Created at */
   createdAt: string;
   /** Updated at */
@@ -113,8 +123,8 @@ export type ViewFilterOperator =
  * A single filter condition in a view
  */
 export interface ViewFilter {
-  /** Property definition ID to filter on */
-  definitionId: string;
+  /** Property key to filter on */
+  propertyKey: string;
   /** Filter operator */
   operator: ViewFilterOperator;
   /** Filter value (type depends on operator) */
@@ -130,8 +140,8 @@ export type ViewSortDirection = 'asc' | 'desc';
  * A single sort rule in a view
  */
 export interface ViewSort {
-  /** Property definition ID to sort by */
-  definitionId: string;
+  /** Property key to sort by */
+  propertyKey: string;
   /** Sort direction */
   direction: ViewSortDirection;
 }

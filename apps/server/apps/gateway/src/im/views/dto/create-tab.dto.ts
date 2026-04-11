@@ -1,6 +1,12 @@
 import { IsString, MaxLength, IsOptional, IsUUID, IsIn } from 'class-validator';
 
-const TAB_TYPES = ['messages', 'files', 'view'] as const;
+const TAB_TYPES = [
+  'messages',
+  'files',
+  'table_view',
+  'board_view',
+  'calendar_view',
+] as const;
 
 export class CreateTabDto {
   @IsString()

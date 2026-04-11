@@ -1,6 +1,6 @@
-import { IsNotEmpty } from 'class-validator';
+import { IsDefined } from 'class-validator';
 
 export class SetPropertyValueDto {
-  @IsNotEmpty({ message: 'value must not be empty' })
+  @IsDefined({ message: 'value must be defined' })
   value: unknown;
 }

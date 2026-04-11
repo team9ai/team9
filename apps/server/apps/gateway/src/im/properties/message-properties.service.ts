@@ -95,7 +95,7 @@ export class MessagePropertiesService {
     const visibleDefs = opts?.excludeHidden
       ? new Map(
           [...definitions.entries()].filter(
-            ([, def]) => def.showInChatPolicy !== 'hidden',
+            ([, def]) => def.showInChatPolicy !== 'hide',
           ),
         )
       : definitions;
@@ -261,6 +261,19 @@ export class MessagePropertiesService {
     const message = await this.getValidatedMessage(messageId);
     const effectiveUserId = userId ?? message.senderId ?? 'system';
 
+    // Check channel's propertySettings to determine if auto-creation is allowed
+    const [channel] = await this.db
+      .select({ propertySettings: schema.channels.propertySettings })
+      .from(schema.channels)
+      .where(eq(schema.channels.id, message.channelId))
+      .limit(1);
+
+    const settings = (channel?.propertySettings ?? {}) as Record<
+      string,
+      unknown
+    >;
+    const allowCreate = settings.allowNonAdminCreateKey !== false;
+
     const setMap: Record<string, unknown> = {};
 
     for (const { key, value } of properties) {
@@ -271,6 +284,7 @@ export class MessagePropertiesService {
         key,
         valueType,
         effectiveUserId,
+        allowCreate,
       );
 
       const mappedValues = this.validateAndMapValue(

@@ -5,7 +5,6 @@ import {
   ValidateNested,
   IsString,
   IsIn,
-  IsUUID,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import type { ViewFilterOperator, ViewSortDirection } from '@team9/shared';
@@ -28,8 +27,8 @@ const FILTER_OPERATORS: ViewFilterOperator[] = [
 const SORT_DIRECTIONS: ViewSortDirection[] = ['asc', 'desc'];
 
 export class ViewFilterDto {
-  @IsUUID()
-  definitionId: string;
+  @IsString()
+  propertyKey: string;
 
   @IsIn(FILTER_OPERATORS)
   operator: ViewFilterOperator;
@@ -39,8 +38,8 @@ export class ViewFilterDto {
 }
 
 export class ViewSortDto {
-  @IsUUID()
-  definitionId: string;
+  @IsString()
+  propertyKey: string;
 
   @IsIn(SORT_DIRECTIONS)
   direction: ViewSortDirection;

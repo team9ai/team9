@@ -10,6 +10,7 @@ import {
   Inject,
   forwardRef,
   ParseUUIDPipe,
+  NotFoundException,
 } from '@nestjs/common';
 import { TabsService } from './tabs.service.js';
 import { CreateTabDto } from './dto/create-tab.dto.js';
@@ -78,6 +79,12 @@ export class TabsController {
     @Param('tabId', ParseUUIDPipe) tabId: string,
     @Body() dto: UpdateTabDto,
   ): Promise<ChannelTab> {
+    // Verify the tab belongs to this channel
+    const existing = await this.tabsService.findByIdOrThrow(tabId);
+    if (existing.channelId !== channelId) {
+      throw new NotFoundException('Tab not found');
+    }
+
     const tab = await this.tabsService.update(tabId, dto);
 
     await this.websocketGateway.sendToChannelMembers(
@@ -95,6 +102,12 @@ export class TabsController {
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Param('tabId', ParseUUIDPipe) tabId: string,
   ): Promise<{ success: boolean }> {
+    // Verify the tab belongs to this channel
+    const existing = await this.tabsService.findByIdOrThrow(tabId);
+    if (existing.channelId !== channelId) {
+      throw new NotFoundException('Tab not found');
+    }
+
     await this.tabsService.delete(tabId);
 
     await this.websocketGateway.sendToChannelMembers(

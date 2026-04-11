@@ -8,7 +8,7 @@ import {
 import { Type } from 'class-transformer';
 import { ViewConfigDto } from './view-config.dto.js';
 
-const VIEW_TYPES = ['table', 'board', 'calendar', 'list'] as const;
+const VIEW_TYPES = ['table', 'board', 'calendar'] as const;
 
 export class CreateViewDto {
   @IsString()

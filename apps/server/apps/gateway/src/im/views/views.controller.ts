@@ -11,6 +11,7 @@ import {
   Inject,
   forwardRef,
   ParseUUIDPipe,
+  NotFoundException,
 } from '@nestjs/common';
 import { ViewsService } from './views.service.js';
 import { CreateViewDto } from './dto/create-view.dto.js';
@@ -70,6 +71,12 @@ export class ViewsController {
     @Param('viewId', ParseUUIDPipe) viewId: string,
     @Body() dto: UpdateViewDto,
   ): Promise<ChannelView> {
+    // Verify the view belongs to this channel
+    const existing = await this.viewsService.findByIdOrThrow(viewId);
+    if (existing.channelId !== channelId) {
+      throw new NotFoundException('View not found');
+    }
+
     const view = await this.viewsService.update(viewId, dto);
 
     await this.websocketGateway.sendToChannelMembers(
@@ -87,6 +94,12 @@ export class ViewsController {
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Param('viewId', ParseUUIDPipe) viewId: string,
   ): Promise<{ success: boolean }> {
+    // Verify the view belongs to this channel
+    const existing = await this.viewsService.findByIdOrThrow(viewId);
+    if (existing.channelId !== channelId) {
+      throw new NotFoundException('View not found');
+    }
+
     await this.viewsService.delete(viewId);
 
     await this.websocketGateway.sendToChannelMembers(
