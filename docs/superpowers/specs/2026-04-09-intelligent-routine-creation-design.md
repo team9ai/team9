@@ -1,17 +1,17 @@
 # Intelligent Routine Creation Design
 
 **Date:** 2026-04-09 (revised 2026-04-10)
-**Status:** Design — Revision 3
+**Status:** Design — Revision 4
 
 ## Overview
 
 Currently, Routine creation only supports a basic form interface. This spec introduces an intelligent creation experience with two complementary paths, plus a bridge that turns existing onboarding flows into the system's first large-scale producer of draft routines:
 
 1. **DM Creation (轻量)** — The user chats with any agent in a DM and asks for a routine. The agent gathers the requirements through conversation and calls a single `createRoutine` tool once it has enough information. One round trip, no temporary state.
-2. **Routine UI Creation (结构化)** — The user clicks "Create with Agentic" from the Routine list, picks an executing agent, and is taken to a dedicated **creation channel**. A purpose-built agent clone walks them through multiple rounds of refinement. A `draft` routine is persisted from the start and refined via `updateRoutine` tool calls until `complete-creation` transitions it to `upcoming`.
+2. **Routine UI Creation (结构化)** — The user clicks "Create with Agentic" from the Routine list, picks an executing agent, and is taken to a dedicated **creation channel**. The bot's existing DM session receives a kickoff event and the `team9-routine-creation` component (included in all staff blueprints) guides the user through multiple rounds of refinement. A `draft` routine is persisted from the start and refined via `updateRoutine` tool calls until `complete-creation` transitions it to `upcoming`.
 3. **Onboarding → Draft Routines (Phase 1.5)** — When a user completes workspace onboarding, each selected task becomes a `draft` routine assigned to their personal-staff bot. The user arrives at the Routine list with N drafts ready for "Complete Creation", turning onboarding intent into a concrete actionable path instead of string-only settings.
 
-Paths 1 and 2 share the same `team9-routine-creation` claw-hive component, which provides the tool suite. The difference between the two paths is **how the component is configured**, not what it does. Path 3 reuses the Path 2 flow for the "Complete Creation" step — users refine onboarding-provisioned drafts via exactly the same creation channel experience.
+Paths 1 and 2 share the same `team9-routine-creation` claw-hive component, which provides the tool suite. The component is included in all Team9 staff blueprints and activates when it receives a `team9:routine-creation.start` event. The difference between the two paths is **how the component is triggered and configured**, not what it does. Path 3 reuses the Path 2 flow for the "Complete Creation" step — users refine onboarding-provisioned drafts via exactly the same creation channel experience.
 
 ## Key Corrections From Initial Review
 
@@ -19,7 +19,7 @@ This spec is Revision 2. Revision 1 (the original 2026-04-09 draft) contained se
 
 1. **`creationTaskId` referenced a nonexistent table.** There is no `creation_tasks` table in team9; "task" is already an overloaded term (task-worker, task channel, TaskCast). This revision removes the `creationTaskId` field and collapses "creation task" into "draft routine + creation channel".
 2. **`team9Context` cannot be set session-scoped from the gateway.** The initial spec assumed `clawHiveService.createSession({ team9Context })` was the delivery vehicle, but the gateway never calls `createSession` (the auto-create-via-sendInput path drops `team9Context` entirely). A parallel bug fix (commit `76294882` in team9, `4d975ba` + `933fe8d` in team9-agent-pi) switched to per-event `team9Context` in the event payload, extracted by `Team9Component.onEvent`. Routine creation cannot rely on session-level `team9Context` either.
-3. **Per-routine agent clone is the correct design.** Since we cannot piggy-back on session-level context, the `routineId` and `isCreationChannel` must be baked into the agent's `extraComponentConfigs` at registration time. Each Routine-UI creation therefore registers a short-lived agent clone of the user's selected executing staff, scoped to one routine.
+3. **The original bot's session is used directly.** Since we cannot piggy-back on session-level context, the `routineId` is delivered via an instance field set by `onEvent` from the kickoff payload. The `team9-routine-creation` component is included in all Team9 staff blueprints and activates when it receives a `team9:routine-creation.start` event. No per-routine clone is registered.
 4. **Draft routines are creator-only.** The initial spec said "all workspace members can see drafts but only creator can edit" — that's harder to reason about and risks polluting the list view with half-built routines from other people. Revised to: drafts appear only in the creator's list view.
 5. **Inline trigger UI is deferred to Phase 2.** Phase 1 uses conversational trigger configuration: the user describes "every morning at 9", the agent parses it and saves via tool call. No A2UI widgets in the first version.
 6. **`ChannelsService.archive()` does not exist yet.** The `channels.isArchived` column exists on the table, but no service method wraps it. Phase 1 adds one.
@@ -35,7 +35,6 @@ This spec is Revision 2. Revision 1 (the original 2026-04-09 draft) contained se
 - Backend endpoints: `POST /v1/routines/with-creation-task`, `POST /v1/routines/:id/complete-creation`
 - Enhanced `create` / `update` / `delete` to handle `draft` state correctly
 - Claw-hive `team9-routine-creation` component + `createRoutine`, `getRoutine`, `updateRoutine` tools
-- Per-routine agent clone lifecycle (register on draft creation, delete on completion or draft deletion)
 - `ChannelsService.archive()` helper
 - Auto-archive creation channels on completion
 - Frontend: "Create with Agentic" button + agent picker + draft badge + "Complete Creation" action
@@ -77,9 +76,10 @@ This spec is Revision 2. Revision 1 (the original 2026-04-09 draft) contained se
 **Routine UI Creation (multi-turn):**
 
 - User clicks "Create with Agentic" in the Routine list, picks an agent to guide creation, clicks Confirm.
-- Backend provisions: draft routine → DM channel with the agent → clones the agent with `extraComponentConfigs['team9-routine-creation'] = { routineId, isCreationChannel: true }` → sends a bootstrap `team9:routine-creation.start` event.
-- The cloned agent has the `team9-routine-creation` component wired to this specific routine and uses `getRoutine` / `updateRoutine` across multiple turns to refine the plan.
-- When the user is satisfied, the agent calls the backend `complete-creation` endpoint (or the user clicks "Complete Creation" in the UI). This transitions the routine from `draft` to `upcoming`, archives the creation channel, and deletes the cloned agent.
+- Backend provisions: draft routine → ensures a DM channel exists with the agent → sends a `team9:routine-creation.start` kickoff event to the agent's existing DM session.
+- The `team9-routine-creation` component (included in all staff blueprints) receives the event, stores `routineId` in an instance field, switches to "creation channel" mode, and uses `getRoutine` / `updateRoutine` across multiple turns to refine the plan.
+- When the user is satisfied, the agent calls the backend `complete-creation` endpoint (or the user clicks "Complete Creation" in the UI). This transitions the routine from `draft` to `upcoming` and archives the creation channel.
+- No clone registration, no clone deletion.
 - Suitable for structured, collaborative design where the user wants to iterate.
 
 ### 2. Plan Representation
@@ -126,17 +126,9 @@ Phase 2 will add inline trigger picker widgets (probably via A2UI).
 - On `complete-creation`: `ChannelsService.archive(channelId)` sets `isArchived = true`. The channel is hidden from the active list but still accessible for audit.
 - If the creator deletes the draft without completing, the channel is also archived (not deleted — we keep the conversation history).
 
-### 6. Agent Clone Lifecycle
+### 6. No Agent Clone
 
-Every Routine UI creation registers a short-lived agent in claw-hive:
-
-- Agent ID: `routine-creation-{routineId}` (deterministic, easy to clean up)
-- Blueprint: same as the user-selected executing staff (so persona/model/SOUL are preserved)
-- `componentConfigs`: merged — all of the source agent's configs + an added `team9-routine-creation` config with `{ routineId, isCreationChannel: true }`
-- Registered at `create-with-creation-task` time
-- Deleted at `complete-creation` time (or at draft deletion time)
-
-After the routine is completed and the clone is deleted, the **user's original executing staff** (NewsBot) is what actually runs the routine — the clone was purely for the creation conversation.
+The original bot's session is used directly. The `team9-routine-creation` component is included in all Team9 staff blueprints and activates when it receives a `team9:routine-creation.start` event. No per-routine agent clone is registered or deleted.
 
 ### 7. Form Strategy (Phase 2)
 
@@ -189,6 +181,8 @@ index('idx_routine__routines_source_ref').on(table.sourceRef),
 
 **`onDelete: 'set null'`** — if the creation channel is hard-deleted for any reason, the routine stays (just loses the backlink). We never want channel deletion to cascade into routine deletion.
 
+**`creationSessionId`** — holds the session ID of the original bot's DM session. Format: `team9/{tenantId}/{bot.managedMeta.agentId}/dm/{channelId}`. Not a clone agent — this is the real bot's session that received the kickoff event.
+
 **`sourceRef`** — optional origin marker used for idempotent provisioning from external flows. Format is `{sourceType}:{sourceId}:{childId?}`. For onboarding-provisioned drafts (Phase 1.5), the value is `onboarding:{workspaceOnboardingId}:{onboardingTaskId}`. Indexed so we can de-dupe efficiently on re-provision. `sourceRef` is nullable because routines created via DM path / Routine UI path / direct API calls have no external source.
 
 ### No `creation_tasks` Table
@@ -203,17 +197,18 @@ Revision 1 referenced a `creationTaskId` FK to a `creation_tasks` table. That ta
 
 Provisions the Routine UI creation path atomically.
 
-- **Request:** `{ agentId: UUID }` — the `bot.id` of the executing staff to clone
+- **Request:** `{ agentId: UUID }` — the `bot.id` of the executing staff to use
 - **Response:** `{ routineId, creationChannelId, creationSessionId }`
 - **Behavior:**
-  1. Look up the source bot via `BotsService.getBotById(agentId, tenantId)`; 404 if missing.
-  2. Count existing routines in the tenant; auto-generate title `"Routine #{N+1}"`.
-  3. Create a `draft` routine (via `RoutinesService.create({ title, botId: agentId, status: 'draft' })`).
-  4. Create a direct channel between the user and the bot's shadow user (`ChannelsService.createDirectChannel`). Channel name prefixed with `routine-creation-`.
-  5. Register a cloned claw-hive agent with ID `routine-creation-{routineId}`, inheriting the source bot's blueprint and component configs, plus `extraComponentConfigs['team9-routine-creation'] = { routineId, isCreationChannel: true }`.
-  6. Persist `{ creationChannelId, creationSessionId }` on the draft routine.
-  7. Send a `team9:routine-creation.start` event via `sendInput` to kick off the first agent turn.
-  8. On any downstream failure, roll back: delete the clone agent, delete the draft routine. Channel may be left (will be archived if the user retries).
+  1. Look up the bot via `BotsService.getBotById(agentId, tenantId)`; 404 if missing.
+  2. Check for an existing `draft` routine with the same `botId` for this user; 409 if found (prevent two drafts with the same bot).
+  3. Count existing routines in the tenant; auto-generate title `"Routine #{N+1}"`.
+  4. Create a `draft` routine (via `RoutinesService.create({ title, botId: agentId, status: 'draft' })`).
+  5. Ensure a direct channel exists between the user and the bot's shadow user (`ChannelsService.createDirectChannel`). Channel name prefixed with `routine-creation-`.
+  6. Derive `creationSessionId` using the bot's own `agentId`: `team9/{tenantId}/{bot.managedMeta.agentId}/dm/{channelId}`.
+  7. Persist `{ creationChannelId, creationSessionId }` on the draft routine.
+  8. Send a `team9:routine-creation.start` event via `sendInput` to the original bot's session to kick off the first agent turn.
+  9. On any downstream failure, roll back: delete the draft routine. Channel may be left (will be archived if the user retries). No clone agent to clean up.
 
 #### `POST /v1/routines/:id/complete-creation`
 
@@ -229,14 +224,13 @@ Transitions a draft routine to `upcoming`.
   5. Validate required fields: `title` non-empty, `botId` set, and the linked document's `content` non-empty. 400 with `{ errors: string[] }` listing what's missing.
   6. `UPDATE routines SET status = 'upcoming', updated_at = now()`.
   7. If `creationChannelId` is set: `ChannelsService.archive(creationChannelId, tenantId)`. Failures are logged but non-fatal.
-  8. If a clone agent exists (agent ID `routine-creation-{routineId}`): `ClawHiveService.deleteAgent(agentId)`. Failures are logged but non-fatal.
-  9. Return the updated routine.
+  8. Return the updated routine.
 
 #### Enhanced Existing Endpoints
 
 - `POST /v1/routines` — accepts optional `status: 'draft' | 'upcoming'` in DTO, defaults to `upcoming`. Draft routines skip trigger registration and skip scheduling. This is the path the DM `createRoutine` tool calls.
 - `PATCH /v1/routines/:id` — can update draft fields but cannot transition status out of draft (returns 400 with hint to use `complete-creation`).
-- `DELETE /v1/routines/:id` — if the target is a draft, also deletes the clone agent and archives the creation channel.
+- `DELETE /v1/routines/:id` — if the target is a draft, also archives the creation channel.
 - `GET /v1/routines` — list filter excludes drafts unless `creator_id = currentUser`.
 - `POST /v1/routines/:id/start` — rejects draft routines with 400 "Complete creation first".
 
@@ -269,24 +263,27 @@ New component in `team9-agent-pi/packages/claw-hive/src/components/team9-routine
 ```typescript
 interface Team9RoutineCreationComponentConfig extends ComponentConfig {
   /**
-   * Draft routine this clone is bound to. When set, the component operates
-   * in "refine an existing draft" mode — getRoutine/updateRoutine are enabled
-   * and the system prompt nudges the agent toward multi-turn refinement.
+   * Not set in static config — populated at runtime via onEvent when a
+   * team9:routine-creation.start event arrives. When set, the component
+   * operates in "refine an existing draft" mode — getRoutine/updateRoutine
+   * are enabled and the system prompt nudges the agent toward multi-turn
+   * refinement.
    *
    * When unset, the component operates in "DM one-shot" mode: only
    * createRoutine is offered.
    */
   routineId?: string;
   /**
-   * True when the agent is running in a dedicated creation channel.
+   * True when the agent is active in a dedicated creation channel.
    * Nudges the system prompt toward "walk the user through creation"
    * rather than "help with general questions".
+   * Set via onEvent from the kickoff payload.
    */
   isCreationChannel?: boolean;
 }
 ```
 
-Both fields are set at agent-registration time via `extraComponentConfigs`. They are **static** per agent instance — exactly what we want for the per-routine clone pattern. The component does **not** use `team9Context.routineId` or any per-event dynamic state.
+`routineId` and `isCreationChannel` are **instance fields** set dynamically by `onEvent` when the `team9:routine-creation.start` event arrives. The component is included in all staff blueprints — no per-routine clone is needed. The component does **not** use `team9Context.routineId` from the event payload for tool scope; it stores the value in its own instance state so it persists across turns.
 
 ### Tools
 
@@ -365,9 +362,10 @@ When the Routine UI path starts, the gateway sends a single event to seed the se
 
 The `team9-routine-creation` component listens for this event via its `subscribedEvents` pattern and:
 
-1. Calls `getRoutine` internally to snapshot the current state.
-2. Injects a system prompt nudge: "You're guiding a user through creating a routine. The current draft is: [narrative]. Ask clarifying questions and use `updateRoutine` to refine it. When the user confirms, tell them to click 'Complete Creation' in the Routine UI."
-3. Returns an assistant message that greets the user: "Hi! I'll help you set up [title]. What would you like this routine to do?"
+1. Stores `routineId` and `isCreationChannel: true` in instance fields (so the state persists across turns in the same session).
+2. Calls `getRoutine` internally to snapshot the current state.
+3. Injects a system prompt nudge: "You're guiding a user through creating a routine. The current draft is: [narrative]. Ask clarifying questions and use `updateRoutine` to refine it. When the user confirms, tell them to click 'Complete Creation' in the Routine UI."
+4. Returns an assistant message that greets the user: "Hi! I'll help you set up [title]. What would you like this routine to do?"
 
 ### System Prompt Injection
 
@@ -396,9 +394,9 @@ Total: 3–5 turns. No draft state. No cleanup needed.
 4. Backend provisions (atomically):
    - Draft routine with title "Routine #42", `botId: newsBot.id`, `status: 'draft'`
    - Direct channel between user and NewsBot (if it doesn't already exist)
-   - Agent clone registered with ID `routine-creation-{routineId}`, based on NewsBot's blueprint, with `team9-routine-creation` config `{ routineId, isCreationChannel: true }`
+   - Derives `creationSessionId` using NewsBot's own `agentId`
    - Persists `creationChannelId`, `creationSessionId` on the draft
-   - Sends `team9:routine-creation.start` event to the session
+   - Sends `team9:routine-creation.start` event to NewsBot's existing session
 5. Frontend navigates to `/messages/{creationChannelId}`.
 6. Agent greets: "Hi! I'll help you set up this routine. What would you like it to do?"
 7. User describes intent. Agent asks 1–2 clarifying questions over several turns.
@@ -408,7 +406,7 @@ Total: 3–5 turns. No draft state. No cleanup needed.
 11. Repeat 10 until the user says it looks good.
 12. Agent: "✅ Looks good. Click **Complete Creation** in the Routine panel to finalize."
 13. User clicks "Complete Creation" in the UI (or the agent calls the endpoint directly if we grant it that permission — deferred decision, Phase 1 has the user click).
-14. Backend: `POST /v1/routines/:id/complete-creation` — validates, transitions to `upcoming`, archives channel, deletes clone agent.
+14. Backend: `POST /v1/routines/:id/complete-creation` — validates, transitions to `upcoming`, archives channel.
 15. UI shows the new routine in the active list.
 
 Total: 6–12 turns, persistent through any interruption (user can close the tab and come back; the draft is still there with the same channel).
@@ -421,7 +419,7 @@ The current onboarding flow has a design gap: users select task titles ("Daily t
 
 The `draft` status introduced by Phase 1 is the exact primitive needed to fix this: onboarding-selected tasks should become draft routines that the user can then refine via the "Complete Creation" flow. This makes onboarding the **first large-scale producer** of draft routines, validates the Phase 1 architecture end-to-end, and delivers a product closed loop (onboarding → draft → creation channel → ready → running) without any new concepts.
 
-Phase 1.5 is a small, focused addition to the same spec rather than a separate project because (a) the core architectural decisions of Phase 1 (creator-only drafts, per-routine clone, `source_ref` field) were specifically chosen to accommodate this integration, and (b) shipping Phase 1 without fixing onboarding would leave the onboarding "task" concept half-working forever.
+Phase 1.5 is a small, focused addition to the same spec rather than a separate project because (a) the core architectural decisions of Phase 1 (creator-only drafts, `source_ref` field) were specifically chosen to accommodate this integration, and (b) shipping Phase 1 without fixing onboarding would leave the onboarding "task" concept half-working forever.
 
 ### Data Flow
 
@@ -582,7 +580,7 @@ All changes live inside the existing Routine UI — no new top-level pages.
 
 - Status groups displayed in order: **Draft** | Upcoming | In Progress | Paused | Completed | Failed
 - Draft group is only rendered if the current user has any drafts (creator-only visibility enforced by the list API).
-- Each draft card shows a "DRAFT" badge and two actions: "Complete Creation" (navigates to the creation channel) and "Delete" (confirms, then hard-deletes draft + clone + archives channel).
+- Each draft card shows a "DRAFT" badge and two actions: "Complete Creation" (navigates to the creation channel) and "Delete" (confirms, then hard-deletes draft + archives channel).
 - At the top of the Draft group: a "+ Create with Agentic" button. Clicking it opens the agent picker modal.
 
 ### Agent Picker Modal
@@ -615,19 +613,18 @@ All changes live inside the existing Routine UI — no new top-level pages.
 
 ### Agent Unavailable
 
-- **Executing agent deleted mid-creation:** the clone agent still has the snapshot of the source agent's configs, so creation can continue. On `complete-creation`, if the source agent is gone, the routine's `botId` becomes a dangling reference — validation on `complete-creation` should check this and 400 with "The executing agent no longer exists. Please reassign or delete this draft."
+- **Executing agent deleted mid-creation:** the creation channel still exists and the conversation history is preserved, but the bot is gone. On `complete-creation`, the routine's `botId` becomes a dangling reference — validation on `complete-creation` should check this and 400 with "The executing agent no longer exists. Please reassign or delete this draft."
 - **User leaves the workspace while a draft is open:** On user removal, cascade-delete their drafts. This mirrors how their personal staff is cleaned up.
 
 ### Concurrency
 
 - **Only the creator can edit/complete/delete.** Enforced via `assertCreatorOwnership` on all mutating endpoints.
-- **Last-write-wins for updates.** The creation channel is single-user (only the creator + the clone agent), so no realistic concurrent-edit scenario.
+- **Last-write-wins for updates.** The creation channel is single-user (only the creator + the bot), so no realistic concurrent-edit scenario.
 - **Double-complete.** Idempotent — returns the current routine without side effects.
 
-### Channel & Agent Cleanup Failures
+### Channel Cleanup Failures
 
 - Channel archive failures are logged as warnings. The routine still transitions to `upcoming`.
-- Clone agent delete failures are also logged as warnings. The agent ID is deterministic (`routine-creation-{routineId}`), so a cleanup cron can catch orphans later if desired.
 
 ## Implementation Sequence
 
@@ -636,15 +633,15 @@ All changes live inside the existing Routine UI — no new top-level pages.
 1. **Database migration.** Add `draft` enum value + `creation_channel_id` + `creation_session_id` + `source_ref` columns. `onDelete: set null` on the channel FK. Index `source_ref`.
 2. **`ChannelsService.archive()`** helper.
 3. **`RoutinesService.create/update/delete` draft handling.** Accept `status` in DTO. Accept optional `options.sourceRef` on `create` (not in HTTP DTO — internal only). Skip trigger registration for drafts. Reject `start` on drafts. List API filters drafts to creator-only.
-4. **`POST /v1/routines/:id/complete-creation` endpoint and service method.** Validates required fields, transitions status, archives channel, deletes clone agent.
-5. **`POST /v1/routines/with-creation-task` endpoint and service method.** Creates draft + channel + clone agent + session + sends bootstrap event. Rollback on partial failure.
-6. **`team9-routine-creation` claw-hive component.** Config schema, `createRoutine`/`getRoutine`/`updateRoutine` tools, bootstrap event handler, system prompt injection.
-7. **Component factory registration + blueprint updates** so the clone agent knows to include the new component.
+4. **`POST /v1/routines/:id/complete-creation` endpoint and service method.** Validates required fields, transitions status, archives channel.
+5. **`POST /v1/routines/with-creation-task` endpoint and service method.** Creates draft + ensures DM channel + derives session ID + sends bootstrap event. Rollback on partial failure (no clone to clean up).
+6. **`team9-routine-creation` claw-hive component.** Config schema, `createRoutine`/`getRoutine`/`updateRoutine` tools, bootstrap event handler (stores `routineId` via `onEvent`), system prompt injection.
+7. **Component factory registration + blueprint updates** so all staff blueprints include the `team9-routine-creation` component.
 8. **Frontend: "Create with Agentic" button.** In the Routine list, above the draft group (or next to the existing "+ New Routine" button).
 9. **Frontend: Agent picker modal.**
 10. **Frontend: Draft cards with badge + actions.** "Complete Creation" + "Delete".
 11. **Frontend: Draft banner on routine detail page.** Links to creation channel.
-12. **Integration tests.** End-to-end: create-with-creation-task → simulate agent calling updateRoutine → complete-creation → verify routine is `upcoming`, channel archived, clone agent deleted.
+12. **Integration tests.** End-to-end: create-with-creation-task → simulate agent calling updateRoutine → complete-creation → verify routine is `upcoming` and channel archived.
 
 ### Phase 1.5 — Onboarding Integration
 
@@ -673,6 +670,18 @@ Depends on Phase 1 Tasks 1 (schema with `source_ref`) and 3 (`create` accepting 
 - **Agent picker default.** Personal staff if available, else the first active common-staff bot. Needs user verification during implementation.
 
 ## Changelog
+
+### Revision 4 (2026-04-10)
+
+- Removed per-routine agent clone architecture. The code was refactored to use the original bot's session directly.
+- `team9-routine-creation` component is now included in all Team9 staff blueprints and activates via `onEvent` when it receives a `team9:routine-creation.start` event. `routineId` and `isCreationChannel` are stored as instance fields, not static config.
+- `POST /v1/routines/with-creation-task`: removed clone registration step; added draft-conflict check (prevent two drafts with same bot); `creationSessionId` now derived from the original bot's `agentId`.
+- `POST /v1/routines/:id/complete-creation`: removed clone deletion step.
+- `DELETE /v1/routines/:id`: removed clone deletion.
+- Updated §6 from "Agent Clone Lifecycle" to "No Agent Clone".
+- Updated Data Model: `creationSessionId` now documents it holds the original bot's session ID.
+- Removed clone-agent cleanup from Error Handling and Implementation Sequence.
+- Updated Overview and all flow descriptions to remove clone references.
 
 ### Revision 3 (2026-04-10, later)
 
