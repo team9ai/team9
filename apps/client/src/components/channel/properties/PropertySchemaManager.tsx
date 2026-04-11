@@ -73,9 +73,9 @@ const VALUE_TYPE_OPTIONS: { value: PropertyValueType; label: string }[] = [
 ];
 
 const SHOW_IN_CHAT_OPTIONS = [
-  { value: "always", label: "Always" },
-  { value: "when_set", label: "When Set" },
-  { value: "never", label: "Never" },
+  { value: "show", label: "Always" },
+  { value: "auto", label: "When Set" },
+  { value: "hide", label: "Never" },
 ];
 
 function getNativeIcon(key: string) {

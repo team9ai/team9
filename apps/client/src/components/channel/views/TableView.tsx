@@ -50,11 +50,15 @@ function CellEditor({
   const handleChange = useCallback(
     (newValue: unknown) => {
       setProperty.mutate(
-        { definitionId: definition.id, value: newValue },
+        {
+          definitionId: definition.id,
+          propertyKey: definition.key,
+          value: newValue,
+        },
         { onSuccess: onClose },
       );
     },
-    [setProperty, definition.id, onClose],
+    [setProperty, definition.id, definition.key, onClose],
   );
 
   return (
@@ -100,7 +104,7 @@ function TableRow({
 
       {/* Property columns */}
       {visibleDefs.map((def) => {
-        const value = message.properties[def.id];
+        const value = message.properties[def.key];
         const isEditing = editingCell === def.id;
         const canEdit =
           def.valueType !== "text" || message.senderId === currentUserId;
@@ -243,10 +247,10 @@ export function TableView({ channelId, view }: TableViewProps) {
 
   // Determine visible property columns
   const visibleDefs = useMemo(() => {
-    const visibleIds = view.config.visibleProperties;
-    if (visibleIds && visibleIds.length > 0) {
+    const visibleKeys = view.config.visibleProperties;
+    if (visibleKeys && visibleKeys.length > 0) {
       return definitions
-        .filter((d) => visibleIds.includes(d.id))
+        .filter((d) => visibleKeys.includes(d.key))
         .sort((a, b) => a.order - b.order);
     }
     return definitions.sort((a, b) => a.order - b.order);

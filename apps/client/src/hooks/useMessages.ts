@@ -29,6 +29,8 @@ import type {
 } from "@/types/ws-events";
 import { useSelectedWorkspaceId } from "@/stores";
 import { useAppStore } from "@/stores/useAppStore";
+import { aiAutoFillApi } from "@/services/api/properties";
+import { propertyDefinitionKeys } from "@/hooks/usePropertyDefinitions";
 import { useStreamingStore } from "@/stores/useStreamingStore";
 import { isTemporaryId } from "@/lib/utils";
 import { useThreadStore } from "./useThread";
@@ -1675,6 +1677,20 @@ export function useSendMessage(channelId: string) {
 
       // Invalidate channels to update unread counts
       queryClient.invalidateQueries({ queryKey: ["channels", workspaceId] });
+
+      // Fire-and-forget AI auto-fill if channel has any aiAutoFill definitions
+      try {
+        const cachedDefs = queryClient.getQueryData<
+          Array<{ aiAutoFill: boolean }>
+        >(propertyDefinitionKeys.all(channelId));
+        if (cachedDefs?.some((d) => d.aiAutoFill)) {
+          aiAutoFillApi
+            .autoFill(serverMessage.id, { preserveExisting: true })
+            .catch(() => {});
+        }
+      } catch {
+        // Silently ignore — auto-fill is best-effort
+      }
     },
 
     onError: (_err, variables, context) => {

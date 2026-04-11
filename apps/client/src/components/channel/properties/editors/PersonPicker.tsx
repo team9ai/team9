@@ -40,7 +40,7 @@ export function PersonPicker({
     if (!search) return members;
     const lower = search.toLowerCase();
     return members.filter((m) => {
-      const name = m.user?.name || m.user?.username || m.userId;
+      const name = m.user?.displayName || m.user?.username || m.userId;
       return name.toLowerCase().includes(lower);
     });
   }, [members, search]);
@@ -88,12 +88,12 @@ export function PersonPicker({
                 >
                   <UserAvatar
                     userId={member.userId}
-                    name={user?.name}
+                    name={user?.displayName}
                     username={user?.username}
                     avatarUrl={user?.avatarUrl}
                     className="h-4 w-4"
                   />
-                  {user?.name || user?.username || member.userId}
+                  {user?.displayName || user?.username || member.userId}
                   {!disabled && (
                     <button
                       type="button"
@@ -149,7 +149,7 @@ export function PersonPicker({
                   className="h-6 w-6"
                 />
                 <span className="truncate">
-                  {user?.name || user?.username || member.userId}
+                  {user?.displayName || user?.username || member.userId}
                 </span>
               </button>
             );

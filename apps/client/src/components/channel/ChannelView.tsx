@@ -225,7 +225,10 @@ export function ChannelView({
   // Determine active tab object
   const activeTab = channelTabs.find((t: ChannelTab) => t.id === activeTabId);
   const isFilesTab = activeTab?.type === "files";
-  const isViewTab = activeTab?.type === "view";
+  const isViewTab =
+    activeTab?.type === "table_view" ||
+    activeTab?.type === "board_view" ||
+    activeTab?.type === "calendar_view";
 
   // Clear thinking state when channel changes
   useEffect(() => {

@@ -365,10 +365,10 @@ function CreatePropertyForm({
 export interface PropertySelectorProps {
   channelId: string;
   messageId: string;
-  /** Currently set property values keyed by definitionId */
+  /** Currently set property values keyed by property key */
   currentProperties?: Record<string, unknown>;
-  /** Called when user sets a property value via sub-menu */
-  onSetProperty: (definitionId: string, value: unknown) => void;
+  /** Called when user sets a property value via sub-menu (key-based) */
+  onSetProperty: (propertyKey: string, value: unknown) => void;
   /** Whether to allow creating new property definitions */
   allowCreate?: boolean;
   /** Optional trigger element; defaults to a + button */
@@ -420,8 +420,8 @@ export function PropertySelector({
   }, []);
 
   const handleSetValue = useCallback(
-    (definitionId: string, value: unknown) => {
-      onSetProperty(definitionId, value);
+    (propertyKey: string, value: unknown) => {
+      onSetProperty(propertyKey, value);
       setActiveDefId(null);
     },
     [onSetProperty],
@@ -482,8 +482,8 @@ export function PropertySelector({
             </button>
             <SubMenuEditor
               definition={activeDef}
-              value={currentProperties[activeDef.id]}
-              onSave={(v) => handleSetValue(activeDef.id, v)}
+              value={currentProperties[activeDef.key]}
+              onSave={(v) => handleSetValue(activeDef.key, v)}
               onClose={() => setActiveDefId(null)}
             />
           </div>
@@ -516,7 +516,7 @@ export function PropertySelector({
               )}
               {filtered.map((def) => {
                 const Icon = getTypeIcon(def.valueType);
-                const hasValue = currentProperties[def.id] !== undefined;
+                const hasValue = currentProperties[def.key] !== undefined;
                 return (
                   <button
                     key={def.id}

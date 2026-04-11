@@ -13,6 +13,7 @@ export interface MessagePropertiesProps {
   definitions: PropertyDefinition[];
   canEdit: boolean;
   aiAutoFillLoading?: boolean;
+  onEditProperties?: () => void;
 }
 
 /** Native property keys that should appear first, in this order */
@@ -35,6 +36,7 @@ export function MessageProperties({
   definitions,
   canEdit,
   aiAutoFillLoading = false,
+  onEditProperties,
 }: MessagePropertiesProps) {
   const properties = message.properties;
 
@@ -136,6 +138,7 @@ export function MessageProperties({
 
       {canEdit && (
         <button
+          onClick={onEditProperties}
           className={cn(
             "inline-flex items-center justify-center",
             "px-1.5 py-0.5 rounded text-xs",

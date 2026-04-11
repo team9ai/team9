@@ -70,7 +70,7 @@ function FilterSection({
     if (definitions.length === 0) return;
     onChange([
       ...filters,
-      { definitionId: definitions[0].id, operator: "eq", value: "" },
+      { propertyKey: definitions[0].key, operator: "eq", value: "" },
     ]);
   }, [filters, definitions, onChange]);
 
@@ -96,15 +96,15 @@ function FilterSection({
       {filters.map((filter, i) => (
         <div key={i} className="flex items-center gap-1.5">
           <Select
-            value={filter.definitionId}
-            onValueChange={(v) => updateFilter(i, { definitionId: v })}
+            value={filter.propertyKey}
+            onValueChange={(v) => updateFilter(i, { propertyKey: v })}
           >
             <SelectTrigger className="h-7 text-xs w-28 flex-shrink-0">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {definitions.map((d) => (
-                <SelectItem key={d.id} value={d.id} className="text-xs">
+                <SelectItem key={d.id} value={d.key} className="text-xs">
                   {d.key}
                 </SelectItem>
               ))}
@@ -174,7 +174,7 @@ function SortSection({
 }) {
   const addSort = useCallback(() => {
     if (definitions.length === 0) return;
-    onChange([...sorts, { definitionId: definitions[0].id, direction: "asc" }]);
+    onChange([...sorts, { propertyKey: definitions[0].key, direction: "asc" }]);
   }, [sorts, definitions, onChange]);
 
   const removeSort = useCallback(
@@ -199,15 +199,15 @@ function SortSection({
       {sorts.map((sort, i) => (
         <div key={i} className="flex items-center gap-1.5">
           <Select
-            value={sort.definitionId}
-            onValueChange={(v) => updateSort(i, { definitionId: v })}
+            value={sort.propertyKey}
+            onValueChange={(v) => updateSort(i, { propertyKey: v })}
           >
             <SelectTrigger className="h-7 text-xs flex-1">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {definitions.map((d) => (
-                <SelectItem key={d.id} value={d.id} className="text-xs">
+                <SelectItem key={d.id} value={d.key} className="text-xs">
                   {d.key}
                 </SelectItem>
               ))}
@@ -289,7 +289,7 @@ function GroupBySection({
             None
           </SelectItem>
           {selectDefs.map((d) => (
-            <SelectItem key={d.id} value={d.id} className="text-xs">
+            <SelectItem key={d.id} value={d.key} className="text-xs">
               {d.key}
             </SelectItem>
           ))}
@@ -311,17 +311,17 @@ function VisiblePropertiesSection({
   onChange: (ids: string[]) => void;
 }) {
   const visibleSet = useMemo(
-    () => new Set(visibleProperties ?? definitions.map((d) => d.id)),
+    () => new Set(visibleProperties ?? definitions.map((d) => d.key)),
     [visibleProperties, definitions],
   );
 
   const toggle = useCallback(
-    (id: string) => {
+    (key: string) => {
       const next = new Set(visibleSet);
-      if (next.has(id)) {
-        next.delete(id);
+      if (next.has(key)) {
+        next.delete(key);
       } else {
-        next.add(id);
+        next.add(key);
       }
       onChange(Array.from(next));
     },
@@ -340,8 +340,8 @@ function VisiblePropertiesSection({
             className="flex items-center gap-2 text-xs cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5"
           >
             <Checkbox
-              checked={visibleSet.has(d.id)}
-              onCheckedChange={() => toggle(d.id)}
+              checked={visibleSet.has(d.key)}
+              onCheckedChange={() => toggle(d.key)}
               className="h-3.5 w-3.5"
             />
             <span className="truncate">{d.key}</span>

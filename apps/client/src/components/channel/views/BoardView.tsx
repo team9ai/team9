@@ -41,7 +41,7 @@ function BoardCard({
   // Show up to 3 property chips on the card
   const chipDefs = useMemo(
     () =>
-      visibleDefs.filter((d) => message.properties[d.id] != null).slice(0, 3),
+      visibleDefs.filter((d) => message.properties[d.key] != null).slice(0, 3),
     [visibleDefs, message.properties],
   );
 
@@ -56,7 +56,7 @@ function BoardCard({
             <PropertyValue
               key={def.id}
               definition={def}
-              value={message.properties[def.id]}
+              value={message.properties[def.key]}
               className="text-[10px]"
             />
           ))}
@@ -212,7 +212,7 @@ function extractGroups(
     groupMap.set("__none__", []);
 
     for (const msg of data.messages) {
-      const val = msg.properties[groupByDef.id];
+      const val = msg.properties[groupByDef.key];
       const key = val != null ? String(val) : "__none__";
       if (!groupMap.has(key)) groupMap.set(key, []);
       groupMap.get(key)!.push(msg);
@@ -253,19 +253,19 @@ export function BoardView({ channelId, view }: BoardViewProps) {
   const groupByDef = useMemo(
     () =>
       view.config.groupBy
-        ? definitions.find((d) => d.id === view.config.groupBy)
+        ? definitions.find((d) => d.key === view.config.groupBy)
         : undefined,
     [view.config.groupBy, definitions],
   );
 
   const visibleDefs = useMemo(() => {
-    const visibleIds = view.config.visibleProperties;
-    const defs = visibleIds?.length
-      ? definitions.filter((d) => visibleIds.includes(d.id))
+    const visibleKeys = view.config.visibleProperties;
+    const defs = visibleKeys?.length
+      ? definitions.filter((d) => visibleKeys.includes(d.key))
       : definitions;
     // Exclude the groupBy property from card chips (already shown as column)
     return defs
-      .filter((d) => d.id !== view.config.groupBy)
+      .filter((d) => d.key !== view.config.groupBy)
       .sort((a, b) => a.order - b.order);
   }, [definitions, view.config.visibleProperties, view.config.groupBy]);
 

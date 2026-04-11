@@ -226,7 +226,7 @@ function DatePropertySelector({
         </SelectTrigger>
         <SelectContent>
           {dateDefs.map((d) => (
-            <SelectItem key={d.id} value={d.id} className="text-xs">
+            <SelectItem key={d.id} value={d.key} className="text-xs">
               {d.key}
             </SelectItem>
           ))}

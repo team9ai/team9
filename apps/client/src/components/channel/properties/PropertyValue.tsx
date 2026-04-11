@@ -182,10 +182,18 @@ export function PropertyValue({
       case "file":
       case "image":
       case "recurring":
-        return <span>{String(value)}</span>;
+        return (
+          <span>
+            {typeof value === "object" ? JSON.stringify(value) : String(value)}
+          </span>
+        );
 
       default:
-        return <span>{String(value)}</span>;
+        return (
+          <span>
+            {typeof value === "object" ? JSON.stringify(value) : String(value)}
+          </span>
+        );
     }
   }, [definition, value]);
 

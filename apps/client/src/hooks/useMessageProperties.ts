@@ -57,9 +57,11 @@ export function useSetProperty(messageId: string, channelId: string) {
       value,
     }: {
       definitionId: string;
+      /** Property key used for optimistic cache (maps are keyed by key, not id) */
+      propertyKey?: string;
       value: unknown;
     }) => messagePropertiesApi.setProperty(messageId, definitionId, value),
-    onMutate: async ({ definitionId, value }) => {
+    onMutate: async ({ definitionId, propertyKey, value }) => {
       await queryClient.cancelQueries({
         queryKey: messagePropertyKeys.all(messageId),
       });
@@ -69,9 +71,10 @@ export function useSetProperty(messageId: string, channelId: string) {
       );
 
       if (previous) {
+        const cacheKey = propertyKey ?? definitionId;
         queryClient.setQueryData<Record<string, unknown>>(
           messagePropertyKeys.all(messageId),
-          { ...previous, [definitionId]: value },
+          { ...previous, [cacheKey]: value },
         );
       }
 
@@ -101,9 +104,14 @@ export function useRemoveProperty(messageId: string, channelId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (definitionId: string) =>
-      messagePropertiesApi.removeProperty(messageId, definitionId),
-    onMutate: async (definitionId) => {
+    mutationFn: ({
+      definitionId,
+    }: {
+      definitionId: string;
+      /** Property key used for optimistic cache removal */
+      propertyKey?: string;
+    }) => messagePropertiesApi.removeProperty(messageId, definitionId),
+    onMutate: async ({ definitionId, propertyKey }) => {
       await queryClient.cancelQueries({
         queryKey: messagePropertyKeys.all(messageId),
       });
@@ -114,7 +122,8 @@ export function useRemoveProperty(messageId: string, channelId: string) {
 
       if (previous) {
         const updated = { ...previous };
-        delete updated[definitionId];
+        const cacheKey = propertyKey ?? definitionId;
+        delete updated[cacheKey];
         queryClient.setQueryData<Record<string, unknown>>(
           messagePropertyKeys.all(messageId),
           updated,

@@ -9,6 +9,8 @@ import { MessageHoverToolbar } from "./MessageHoverToolbar";
 import { MessageReactions } from "./MessageReactions";
 import { MessageTitle } from "./MessageTitle";
 import { MessageProperties } from "./properties/MessageProperties";
+import { PropertySelector } from "./properties/PropertySelector";
+import { useSetProperty } from "@/hooks/useMessageProperties";
 import { ThreadReplyIndicator } from "./ThreadReplyIndicator";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { TrackingCard } from "./TrackingCard";
@@ -84,6 +86,7 @@ export function MessageItem({
   const { t } = useTranslation(["thread", "message"]);
   const thinkingMetadata = getThinkingMetadata(message.metadata);
   const [isHovered, setIsHovered] = useState(false);
+  const [propertySelectorOpen, setPropertySelectorOpen] = useState(false);
   const isSystemMessage = message.type === "system";
   const isOwnMessage = currentUserId === message.senderId;
   const isSending = message.sendStatus === "sending";
@@ -91,6 +94,7 @@ export function MessageItem({
   const { data: propertyDefinitions } = usePropertyDefinitions(
     message.channelId,
   );
+  const setPropertyMutation = useSetProperty(message.id, message.channelId);
 
   // Tracking message display (inline card)
   const isTrackingMessage = message.type === "tracking";
@@ -202,6 +206,11 @@ export function MessageItem({
         <MessageHoverToolbar
           onReaction={handleReactionToggle}
           onReplyInThread={onReplyInThread}
+          onProperties={
+            propertyDefinitions && propertyDefinitions.length > 0
+              ? () => setPropertySelectorOpen(true)
+              : undefined
+          }
         />
       )}
       <UserAvatar
@@ -287,12 +296,36 @@ export function MessageItem({
           </div>
         )}
         {propertyDefinitions && propertyDefinitions.length > 0 && (
-          <MessageProperties
-            message={message}
-            channelId={message.channelId}
-            definitions={propertyDefinitions}
-            canEdit={isOwnMessage}
-          />
+          <>
+            <MessageProperties
+              message={message}
+              channelId={message.channelId}
+              definitions={propertyDefinitions}
+              canEdit={isOwnMessage}
+              onEditProperties={() => setPropertySelectorOpen(true)}
+            />
+            {propertySelectorOpen && (
+              <PropertySelector
+                channelId={message.channelId}
+                messageId={message.id}
+                currentProperties={message.properties ?? {}}
+                onSetProperty={(propertyKey, value) => {
+                  const def = propertyDefinitions.find(
+                    (d) => d.key === propertyKey,
+                  );
+                  if (def) {
+                    setPropertyMutation.mutate({
+                      definitionId: def.id,
+                      propertyKey: def.key,
+                      value,
+                    });
+                  }
+                }}
+                open={propertySelectorOpen}
+                onOpenChange={setPropertySelectorOpen}
+              />
+            )}
+          </>
         )}
         {showReplyCount && (message.replyCount || 0) > 0 && (
           <ThreadReplyIndicator

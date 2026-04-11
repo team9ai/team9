@@ -606,17 +606,14 @@ export interface StreamingAbortEvent {
 /** Property definition created event */
 export interface PropertyDefinitionCreatedEvent {
   channelId: string;
-  definition: {
-    id: string;
-    key: string;
-    valueType: string;
-  };
+  definition: import("@/types/properties").PropertyDefinition;
 }
 
 /** Property definition updated event */
 export interface PropertyDefinitionUpdatedEvent {
   channelId: string;
   definitionId: string;
+  changes: Record<string, unknown>;
 }
 
 /** Property definition deleted event */
@@ -629,7 +626,11 @@ export interface PropertyDefinitionDeletedEvent {
 export interface MessagePropertyChangedEvent {
   channelId: string;
   messageId: string;
-  definitionId: string;
+  properties: {
+    set?: Record<string, unknown>;
+    removed?: string[];
+  };
+  performedBy: string;
 }
 
 // ==================== View Event Types ====================
@@ -637,13 +638,14 @@ export interface MessagePropertyChangedEvent {
 /** View created event */
 export interface ViewCreatedEvent {
   channelId: string;
-  viewId: string;
+  view: Record<string, unknown>;
 }
 
 /** View updated event */
 export interface ViewUpdatedEvent {
   channelId: string;
   viewId: string;
+  changes: Record<string, unknown>;
 }
 
 /** View deleted event */
@@ -657,13 +659,14 @@ export interface ViewDeletedEvent {
 /** Tab created event */
 export interface TabCreatedEvent {
   channelId: string;
-  tabId: string;
+  tab: Record<string, unknown>;
 }
 
 /** Tab updated event */
 export interface TabUpdatedEvent {
   channelId: string;
   tabId: string;
+  changes: Record<string, unknown>;
 }
 
 /** Tab deleted event */

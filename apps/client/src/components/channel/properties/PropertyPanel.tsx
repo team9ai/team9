@@ -231,14 +231,14 @@ export function PropertyPanel({
   const propsWithValues = useMemo(() => {
     if (!properties || !otherDefs.length) return [];
     return otherDefs.filter(
-      (d) => properties[d.id] !== undefined && properties[d.id] !== null,
+      (d) => properties[d.key] !== undefined && properties[d.key] !== null,
     );
   }, [otherDefs, properties]);
 
   // Tags values
   const tagValues = useMemo(() => {
     if (!tagsDef || !properties) return [];
-    const raw = properties[tagsDef.id];
+    const raw = properties[tagsDef.key];
     return Array.isArray(raw) ? (raw as string[]) : [];
   }, [tagsDef, properties]);
 
@@ -264,34 +264,46 @@ export function PropertyPanel({
       : propsWithValues;
 
   const handleSetProperty = useCallback(
-    (definitionId: string, value: unknown) => {
-      setProperty.mutate({ definitionId, value });
+    (propertyKey: string, value: unknown) => {
+      // Resolve definition ID from key for the API call
+      const def = definitions?.find((d) => d.key === propertyKey);
+      if (!def) return;
+      setProperty.mutate({ definitionId: def.id, propertyKey: def.key, value });
     },
-    [setProperty],
+    [setProperty, definitions],
   );
 
   const handleRemoveTag = useCallback(
     (tagValue: string) => {
       if (!tagsDef || !properties) return;
-      const current = Array.isArray(properties[tagsDef.id])
-        ? (properties[tagsDef.id] as string[])
+      const current = Array.isArray(properties[tagsDef.key])
+        ? (properties[tagsDef.key] as string[])
         : [];
       const next = current.filter((t) => t !== tagValue);
       if (next.length === 0) {
-        removeProperty.mutate(tagsDef.id);
+        removeProperty.mutate({
+          definitionId: tagsDef.id,
+          propertyKey: tagsDef.key,
+        });
       } else {
-        setProperty.mutate({ definitionId: tagsDef.id, value: next });
+        setProperty.mutate({
+          definitionId: tagsDef.id,
+          propertyKey: tagsDef.key,
+          value: next,
+        });
       }
     },
     [tagsDef, properties, setProperty, removeProperty],
   );
 
   const handleInlineSave = useCallback(
-    (definitionId: string, value: unknown) => {
-      setProperty.mutate({ definitionId, value });
+    (propertyKey: string, value: unknown) => {
+      const def = definitions?.find((d) => d.key === propertyKey);
+      if (!def) return;
+      setProperty.mutate({ definitionId: def.id, propertyKey: def.key, value });
       setEditingDefId(null);
     },
-    [setProperty],
+    [setProperty, definitions],
   );
 
   if (!hasContent && !definitions?.length) {
@@ -386,14 +398,14 @@ export function PropertyPanel({
                     {editingDefId === def.id ? (
                       <InlineEditor
                         definition={def}
-                        value={properties?.[def.id]}
-                        onSave={(v) => handleInlineSave(def.id, v)}
+                        value={properties?.[def.key]}
+                        onSave={(v) => handleInlineSave(def.key, v)}
                         onCancel={() => setEditingDefId(null)}
                       />
                     ) : (
                       <InlineValue
                         definition={def}
-                        value={properties?.[def.id]}
+                        value={properties?.[def.key]}
                         onClick={() => setEditingDefId(def.id)}
                       />
                     )}

@@ -61,7 +61,7 @@ export type MessagePropertiesMap = Record<string, unknown>;
 
 // ==================== View Types ====================
 
-export type ViewType = "table" | "board" | "calendar" | "list";
+export type ViewType = "table" | "board" | "calendar";
 
 export type ViewFilterOperator =
   | "eq"
@@ -80,13 +80,13 @@ export type ViewFilterOperator =
 export type ViewSortDirection = "asc" | "desc";
 
 export interface ViewFilter {
-  definitionId: string;
+  propertyKey: string;
   operator: ViewFilterOperator;
   value?: unknown;
 }
 
 export interface ViewSort {
-  definitionId: string;
+  propertyKey: string;
   direction: ViewSortDirection;
 }
 
@@ -111,7 +111,12 @@ export interface ChannelView {
 
 // ==================== Tab Types ====================
 
-export type TabType = "messages" | "files" | "view";
+export type TabType =
+  | "messages"
+  | "files"
+  | "table_view"
+  | "board_view"
+  | "calendar_view";
 
 export interface ChannelTab {
   id: string;

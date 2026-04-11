@@ -58,7 +58,9 @@ const VIEW_TYPE_OPTIONS: {
 function getTabIcon(tab: ChannelTab) {
   if (tab.type === "messages") return MessageSquare;
   if (tab.type === "files") return File;
-  // View tabs - try to infer from name or default to Table
+  if (tab.type === "table_view") return Table;
+  if (tab.type === "board_view") return Kanban;
+  if (tab.type === "calendar_view") return Calendar;
   return Table;
 }
 
@@ -191,9 +193,13 @@ function CreateTabPopover({ channelId, onCreated }: CreateTabPopoverProps) {
         name: trimmed,
         type: viewType,
       });
+      const tabType = `${viewType}_view` as
+        | "table_view"
+        | "board_view"
+        | "calendar_view";
       const tab = await createTab.mutateAsync({
         name: trimmed,
-        type: "view",
+        type: tabType,
         viewId: view.id,
       });
       setName("");
