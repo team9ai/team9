@@ -95,6 +95,9 @@ export interface ViewConfig {
   sorts?: ViewSort[];
   visibleProperties?: string[];
   groupBy?: string;
+  columnWidths?: Record<string, number>;
+  datePropertyKey?: string;
+  defaultCalendarView?: "month" | "week" | "day";
 }
 
 export interface ChannelView {
