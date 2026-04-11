@@ -20,6 +20,7 @@ import {
   useRemoveReaction,
   usePinMessage,
   useUnpinMessage,
+  useUpdateMessage,
 } from "@/hooks/useMessages";
 import { useChannelScrollStore } from "@/hooks/useChannelScrollState";
 import { useStreamingStore } from "@/stores/useStreamingStore";
@@ -101,6 +102,27 @@ export function MessageList({
     () => members.find((m) => m.userId === currentUser?.id)?.role,
     [members, currentUser?.id],
   );
+
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const updateMessage = useUpdateMessage();
+
+  const handleEditStart = useCallback((messageId: string) => {
+    setEditingMessageId(messageId);
+  }, []);
+
+  const handleEditSave = useCallback(
+    (messageId: string, content: string) => {
+      updateMessage.mutate(
+        { messageId, data: { content } },
+        { onSuccess: () => setEditingMessageId(null) },
+      );
+    },
+    [updateMessage],
+  );
+
+  const handleEditCancel = useCallback(() => {
+    setEditingMessageId(null);
+  }, []);
 
   const scrollStore = useChannelScrollStore();
   const scrollState = scrollStore.getChannelState(channelId);
@@ -538,6 +560,10 @@ export function MessageList({
             isHighlighted={isHighlighted}
             channelId={channelId}
             isDirect={channelType === "direct"}
+            editingMessageId={editingMessageId}
+            onEditStart={handleEditStart}
+            onEditSave={handleEditSave}
+            onEditCancel={handleEditCancel}
           />
         </div>
       );
@@ -560,6 +586,10 @@ export function MessageList({
       thinkingBotIds,
       toggleRoundExpanded,
       foldMaps,
+      editingMessageId,
+      handleEditStart,
+      handleEditSave,
+      handleEditCancel,
     ],
   );
 
@@ -647,6 +677,10 @@ function ChannelMessageItem({
   isHighlighted,
   channelId,
   isDirect,
+  editingMessageId,
+  onEditStart,
+  onEditSave,
+  onEditCancel,
 }: {
   message: Message;
   prevMessage?: Message;
@@ -657,6 +691,10 @@ function ChannelMessageItem({
   isHighlighted?: boolean;
   channelId: string;
   isDirect: boolean;
+  editingMessageId: string | null;
+  onEditStart: (messageId: string) => void;
+  onEditSave: (messageId: string, content: string) => void;
+  onEditCancel: () => void;
 }) {
   const openThread = useThreadStore((state) => state.openThread);
   const deleteMessage = useDeleteMessage();
@@ -671,6 +709,7 @@ function ChannelMessageItem({
   const isOwnMessage = currentUserId === message.senderId;
   const isAdmin = currentUserRole === "owner" || currentUserRole === "admin";
   const canDelete = isAdmin && !isOwnMessage;
+  const isEditing = editingMessageId === message.id;
 
   // Context menu handlers
   const handleReplyInThread = isDirect
@@ -680,8 +719,7 @@ function ChannelMessageItem({
       };
 
   const handleEdit = () => {
-    console.log("Edit message:", message.id);
-    // TODO: Implement edit functionality
+    onEditStart(message.id);
   };
 
   const handleDelete = () => {
@@ -744,6 +782,9 @@ function ChannelMessageItem({
         onAddReaction={handleAddReaction}
         onRemoveReaction={handleRemoveReaction}
         canDelete={canDelete}
+        isEditing={isEditing}
+        onEditSave={(content) => onEditSave(message.id, content)}
+        onEditCancel={onEditCancel}
       />
       <DeleteMessageDialog
         open={deleteDialogOpen}

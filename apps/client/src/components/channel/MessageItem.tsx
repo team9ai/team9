@@ -12,7 +12,12 @@ import { ThinkingBlock } from "./ThinkingBlock";
 import { TrackingCard } from "./TrackingCard";
 import { TrackingEventItem } from "./TrackingEventItem";
 import { AgentTypeBadge } from "@/components/ui/agent-type-badge";
-import { formatMessageTime } from "@/lib/date-utils";
+import {
+  formatMessageTime,
+  formatEditedTime,
+  parseApiDate,
+} from "@/lib/date-utils";
+import { RichTextEditor } from "./editor";
 import { getAgentMeta } from "@/lib/agent-events";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/types/im";
@@ -47,6 +52,12 @@ export interface MessageItemProps {
   onRetry?: () => void;
   /** Remove a failed message from the list */
   onRemoveFailed?: () => void;
+  /** Whether this message is currently being edited */
+  isEditing?: boolean;
+  /** Callback when edit is saved with new content */
+  onEditSave?: (content: string) => void;
+  /** Callback when edit is cancelled */
+  onEditCancel?: () => void;
   /** Reaction handlers */
   onAddReaction?: (emoji: string) => void;
   onRemoveReaction?: (emoji: string) => void;
@@ -80,6 +91,9 @@ export function MessageItem({
   onRemoveFailed,
   onAddReaction,
   onRemoveReaction,
+  isEditing = false,
+  onEditSave,
+  onEditCancel,
 }: MessageItemProps) {
   const { t } = useTranslation(["thread", "message"]);
   const thinkingMetadata = getThinkingMetadata(message.metadata);
@@ -221,7 +235,11 @@ export function MessageItem({
             {formatMessageTime(new Date(message.createdAt))}
           </span>
           {message.isEdited && (
-            <span className="text-xs text-muted-foreground">(edited)</span>
+            <span className="text-xs text-muted-foreground">
+              {t("message:editedAt", {
+                time: formatEditedTime(parseApiDate(message.updatedAt)),
+              })}
+            </span>
           )}
           {isSending && (
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -242,14 +260,42 @@ export function MessageItem({
             isStreaming={false}
           />
         )}
-        {hasContent && (
-          <div className="channel-message-content">
-            <MessageContent
-              content={message.content}
-              className="text-sm whitespace-pre-wrap break-words"
-              message={message}
+        {isEditing ? (
+          <div className="w-full">
+            <RichTextEditor
+              channelId={message.channelId}
+              compact
+              initialHtml={message.content}
+              onSubmit={async (content) => {
+                onEditSave?.(content);
+              }}
+              onCancel={onEditCancel}
+              placeholder={t("message:edit")}
             />
+            <div className="flex items-center gap-2 mt-1">
+              <button
+                onClick={() => onEditCancel?.()}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                {t("message:editCancel")}
+              </button>
+              <span className="text-xs text-muted-foreground">
+                {t("message:editHint")}
+              </span>
+            </div>
           </div>
+        ) : (
+          <>
+            {hasContent && (
+              <div className="channel-message-content">
+                <MessageContent
+                  content={message.content}
+                  className="text-sm whitespace-pre-wrap break-words"
+                  message={message}
+                />
+              </div>
+            )}
+          </>
         )}
         {hasAttachments && (
           <MessageAttachments

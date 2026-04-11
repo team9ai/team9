@@ -99,6 +99,9 @@ vi.mock("@/hooks/useMessages", () => ({
   useRemoveFailedMessage: () => vi.fn(),
   useAddReaction: () => ({ mutate: vi.fn() }),
   useRemoveReaction: () => ({ mutate: vi.fn() }),
+  usePinMessage: () => ({ mutate: vi.fn() }),
+  useUnpinMessage: () => ({ mutate: vi.fn() }),
+  useUpdateMessage: () => ({ mutate: vi.fn() }),
   useFullContent: () => ({ data: undefined, isLoading: false, isError: false }),
 }));
 

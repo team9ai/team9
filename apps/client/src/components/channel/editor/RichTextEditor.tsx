@@ -16,6 +16,8 @@ import { QuoteNode } from "@lexical/rich-text";
 import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $getRoot, $createParagraphNode, $createTextNode } from "lexical";
+import { KEY_ESCAPE_COMMAND, COMMAND_PRIORITY_HIGH } from "lexical";
+import { $generateNodesFromDOM } from "@lexical/html";
 import type { EditorState, LexicalEditor } from "lexical";
 import type { InitialConfigType } from "@lexical/react/LexicalComposer";
 import { Send } from "lucide-react";
@@ -46,6 +48,10 @@ interface RichTextEditorProps {
   onRetryFile?: (id: string) => void;
   /** Draft text to pre-fill in the editor */
   initialDraft?: string;
+  /** HTML content to pre-fill in the editor (for edit mode) */
+  initialHtml?: string;
+  /** Callback when Escape is pressed (for edit mode) */
+  onCancel?: () => void;
 }
 
 function Placeholder({ text }: { text: string }) {
@@ -109,6 +115,48 @@ function InitialDraftPlugin({ draft }: { draft?: string }) {
       paragraph.selectEnd();
     });
   }, [editor, draft]);
+
+  return null;
+}
+
+function InitialHtmlPlugin({ html }: { html?: string }) {
+  const [editor] = useLexicalComposerContext();
+  const hasApplied = useRef(false);
+
+  useEffect(() => {
+    if (!html || hasApplied.current) return;
+    hasApplied.current = true;
+
+    editor.update(() => {
+      const root = $getRoot();
+      root.clear();
+
+      const parser = new DOMParser();
+      const dom = parser.parseFromString(html, "text/html");
+      const nodes = $generateNodesFromDOM(editor, dom);
+
+      nodes.forEach((node) => root.append(node));
+      root.selectEnd();
+    });
+  }, [editor, html]);
+
+  return null;
+}
+
+function EscapePlugin({ onCancel }: { onCancel?: () => void }) {
+  const [editor] = useLexicalComposerContext();
+
+  useEffect(() => {
+    if (!onCancel) return;
+    return editor.registerCommand(
+      KEY_ESCAPE_COMMAND,
+      () => {
+        onCancel();
+        return true;
+      },
+      COMMAND_PRIORITY_HIGH,
+    );
+  }, [editor, onCancel]);
 
   return null;
 }
@@ -185,6 +233,8 @@ export function RichTextEditor({
   onRemoveFile,
   onRetryFile,
   initialDraft,
+  initialHtml,
+  onCancel,
 }: RichTextEditorProps) {
   const editorRef = useRef<LexicalEditor | null>(null);
 
@@ -246,6 +296,8 @@ export function RichTextEditor({
           <AutoFocusPlugin />
           <EditorRefPlugin editorRef={editorRef} />
           <InitialDraftPlugin draft={initialDraft} />
+          <InitialHtmlPlugin html={initialHtml} />
+          <EscapePlugin onCancel={onCancel} />
         </div>
 
         {/* Mentions dropdown container - must be outside overflow-y-auto to avoid clipping */}

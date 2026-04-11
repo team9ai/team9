@@ -114,6 +114,13 @@ export function formatMessageTime(date: Date): string {
 }
 
 /**
+ * Format the edited timestamp for display.
+ */
+export function formatEditedTime(date: Date): string {
+  return formatMessageTime(date);
+}
+
+/**
  * Format a date as relative time (e.g., "2 hours ago").
  * Delegates to the locale-aware `formatRelative` from `date-format.ts`.
  */
