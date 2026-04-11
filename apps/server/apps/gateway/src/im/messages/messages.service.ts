@@ -898,7 +898,11 @@ export class MessagesService {
     return this.getMessageWithDetails(messageId);
   }
 
-  async delete(messageId: string, userId: string): Promise<void> {
+  async delete(
+    messageId: string,
+    userId: string,
+    channelRole?: string,
+  ): Promise<void> {
     const [message] = await this.db
       .select()
       .from(schema.messages)
@@ -909,7 +913,10 @@ export class MessagesService {
       throw new NotFoundException('Message not found');
     }
 
-    if (message.senderId !== userId) {
+    const isOwner = message.senderId === userId;
+    const isAdminOrOwner =
+      channelRole && ['owner', 'admin'].includes(channelRole);
+    if (!isOwner && !isAdminOrOwner) {
       throw new ForbiddenException('Cannot delete message from another user');
     }
 

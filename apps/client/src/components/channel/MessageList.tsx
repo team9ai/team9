@@ -26,6 +26,7 @@ import { useStreamingStore } from "@/stores/useStreamingStore";
 import type { StreamingMessage } from "@/stores/useStreamingStore";
 import { cn } from "@/lib/utils";
 import { MessageItem } from "./MessageItem";
+import { DeleteMessageDialog } from "./DeleteMessageDialog";
 import { ToolCallBlock } from "./ToolCallBlock";
 import { StreamingMessageItem } from "./StreamingMessageItem";
 import { A2UISurfaceBlock } from "./A2UISurfaceBlock";
@@ -96,6 +97,10 @@ export function MessageList({
   const isAtBottomRef = useRef(false);
   const { data: currentUser } = useCurrentUser();
   const openThread = useThreadStore((state) => state.openThread);
+  const currentUserRole = useMemo(
+    () => members.find((m) => m.userId === currentUser?.id)?.role,
+    [members, currentUser?.id],
+  );
 
   const scrollStore = useChannelScrollStore();
   const scrollState = scrollStore.getChannelState(channelId);
@@ -527,6 +532,7 @@ export function MessageList({
             message={message}
             prevMessage={prevMessage}
             currentUserId={currentUser?.id}
+            currentUserRole={currentUserRole}
             showReplyCount={Boolean(hasReplies)}
             onReplyCountClick={() => openThread(message.id)}
             isHighlighted={isHighlighted}
@@ -544,6 +550,7 @@ export function MessageList({
       highlightMessageId,
       readOnly,
       currentUser?.id,
+      currentUserRole,
       openThread,
       channelId,
       channelType,
@@ -634,6 +641,7 @@ function ChannelMessageItem({
   message,
   prevMessage,
   currentUserId,
+  currentUserRole,
   showReplyCount,
   onReplyCountClick,
   isHighlighted,
@@ -643,6 +651,7 @@ function ChannelMessageItem({
   message: Message;
   prevMessage?: Message;
   currentUserId?: string;
+  currentUserRole?: string;
   showReplyCount?: boolean;
   onReplyCountClick?: () => void;
   isHighlighted?: boolean;
@@ -658,6 +667,11 @@ function ChannelMessageItem({
   const pinMessage = usePinMessage(channelId);
   const unpinMessage = useUnpinMessage(channelId);
 
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const isOwnMessage = currentUserId === message.senderId;
+  const isAdmin = currentUserRole === "owner" || currentUserRole === "admin";
+  const canDelete = isAdmin && !isOwnMessage;
+
   // Context menu handlers
   const handleReplyInThread = isDirect
     ? undefined
@@ -671,7 +685,16 @@ function ChannelMessageItem({
   };
 
   const handleDelete = () => {
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = () => {
     deleteMessage.mutate(message.id);
+    setDeleteDialogOpen(false);
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false);
   };
 
   const handlePin = () => {
@@ -704,22 +727,30 @@ function ChannelMessageItem({
   };
 
   return (
-    <MessageItem
-      message={message}
-      prevMessage={prevMessage}
-      currentUserId={currentUserId}
-      showReplyCount={!isDirect && showReplyCount}
-      onReplyCountClick={isDirect ? undefined : onReplyCountClick}
-      isHighlighted={isHighlighted}
-      onReplyInThread={handleReplyInThread ?? undefined}
-      onEdit={handleEdit}
-      onDelete={handleDelete}
-      onPin={handlePin}
-      onRetry={handleRetry}
-      onRemoveFailed={handleRemoveFailed}
-      onAddReaction={handleAddReaction}
-      onRemoveReaction={handleRemoveReaction}
-    />
+    <>
+      <MessageItem
+        message={message}
+        prevMessage={prevMessage}
+        currentUserId={currentUserId}
+        showReplyCount={!isDirect && showReplyCount}
+        onReplyCountClick={isDirect ? undefined : onReplyCountClick}
+        isHighlighted={isHighlighted}
+        onReplyInThread={handleReplyInThread ?? undefined}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        onPin={handlePin}
+        onRetry={handleRetry}
+        onRemoveFailed={handleRemoveFailed}
+        onAddReaction={handleAddReaction}
+        onRemoveReaction={handleRemoveReaction}
+        canDelete={canDelete}
+      />
+      <DeleteMessageDialog
+        open={deleteDialogOpen}
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+      />
+    </>
   );
 }
 

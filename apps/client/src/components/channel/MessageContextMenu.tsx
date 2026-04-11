@@ -14,6 +14,7 @@ interface MessageContextMenuProps {
   children: React.ReactNode;
   message: Message;
   isOwnMessage: boolean;
+  canDelete?: boolean;
   onReplyInThread?: () => void;
   onCopyMessage?: () => void;
   onCopyLink?: () => void;
@@ -26,6 +27,7 @@ export function MessageContextMenu({
   children,
   message,
   isOwnMessage,
+  canDelete,
   onReplyInThread,
   onCopyMessage,
   onCopyLink,
@@ -86,7 +88,7 @@ export function MessageContextMenu({
           {message.isPinned ? t("unpinMessage") : t("pinMessage")}
         </ContextMenuItem>
 
-        {/* Edit and Delete - only for own messages */}
+        {/* Edit - only for own messages */}
         {isOwnMessage && (
           <>
             <ContextMenuSeparator />
@@ -95,6 +97,12 @@ export function MessageContextMenu({
               {t("edit")}
               <ContextMenuShortcut>E</ContextMenuShortcut>
             </ContextMenuItem>
+          </>
+        )}
+        {/* Delete - for own messages or admins/owners */}
+        {(isOwnMessage || canDelete) && (
+          <>
+            {!isOwnMessage && <ContextMenuSeparator />}
             <ContextMenuItem
               onClick={onDelete}
               className="text-destructive focus:text-destructive focus:bg-destructive/10"

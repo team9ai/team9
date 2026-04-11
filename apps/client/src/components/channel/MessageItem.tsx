@@ -36,6 +36,8 @@ export interface MessageItemProps {
   unreadSubReplyCount?: number;
   /** Highlight this message (e.g., from deep link navigation) */
   isHighlighted?: boolean;
+  /** Whether current user can delete this message (admin/owner) */
+  canDelete?: boolean;
   /** Context menu handlers */
   onReplyInThread?: () => void;
   onEdit?: () => void;
@@ -69,6 +71,7 @@ export function MessageItem({
   onReplyCountClick,
   unreadSubReplyCount,
   isHighlighted = false,
+  canDelete,
   onReplyInThread,
   onEdit,
   onDelete,
@@ -303,9 +306,10 @@ export function MessageItem({
     <MessageContextMenu
       message={message}
       isOwnMessage={isOwnMessage}
+      canDelete={canDelete}
       onReplyInThread={onReplyInThread}
       onEdit={isOwnMessage ? onEdit : undefined}
-      onDelete={isOwnMessage ? onDelete : undefined}
+      onDelete={isOwnMessage || canDelete ? onDelete : undefined}
       onPin={onPin}
     >
       {content}
