@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Post,
   Put,
   Delete,
   Patch,
@@ -10,7 +11,12 @@ import {
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { MessagePropertiesService } from './message-properties.service.js';
-import { SetPropertyValueDto, BatchSetPropertiesDto } from './dto/index.js';
+import { AiAutoFillService } from './ai-auto-fill.service.js';
+import {
+  SetPropertyValueDto,
+  BatchSetPropertiesDto,
+  AutoFillDto,
+} from './dto/index.js';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import {
   WorkspaceGuard,
@@ -26,6 +32,7 @@ import {
 export class MessagePropertiesController {
   constructor(
     private readonly messagePropertiesService: MessagePropertiesService,
+    private readonly aiAutoFillService: AiAutoFillService,
   ) {}
 
   /**
@@ -96,5 +103,24 @@ export class MessagePropertiesController {
       userId,
     );
     return { success: true };
+  }
+
+  /**
+   * POST /v1/im/messages/:messageId/properties/auto-fill
+   * Trigger AI auto-fill for message properties.
+   * This is a background-style operation: it returns immediately with an accepted
+   * status, and the actual fill happens asynchronously (results broadcast via WS).
+   */
+  @Post('auto-fill')
+  @WorkspaceRoles('member')
+  async autoFill(
+    @CurrentUser('sub') userId: string,
+    @Param('messageId', ParseUUIDPipe) messageId: string,
+    @Body() dto: AutoFillDto,
+  ): Promise<{ filled: Record<string, unknown>; skipped: string[] }> {
+    return this.aiAutoFillService.autoFill(messageId, userId, {
+      fields: dto.fields,
+      preserveExisting: dto.preserveExisting,
+    });
   }
 }
