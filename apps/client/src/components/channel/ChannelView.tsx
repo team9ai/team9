@@ -22,7 +22,14 @@ import { BotStartupOverlay } from "./BotStartupOverlay";
 import { BotInstanceStoppedBanner } from "./BotInstanceStoppedBanner";
 import { useOpenClawBotInstanceStatus } from "@/hooks/useOpenClawBotInstanceStatus";
 import { useChannelTabs } from "@/hooks/useChannelTabs";
-import type { ChannelTab } from "@/types/properties";
+import { useChannelViews } from "@/hooks/useChannelViews";
+import { TableView } from "./views/TableView";
+import { BoardView } from "./views/BoardView";
+import { CalendarView } from "./views/CalendarView";
+import type {
+  ChannelTab,
+  ChannelView as ChannelViewType,
+} from "@/types/properties";
 import type {
   AttachmentDto,
   ChannelWithUnread,
@@ -189,6 +196,9 @@ export function ChannelView({
 
   // Channel tabs state
   const { data: channelTabs = [] } = useChannelTabs(
+    isPreviewMode ? undefined : channelId,
+  );
+  const { data: channelViews = [] } = useChannelViews(
     isPreviewMode ? undefined : channelId,
   );
   const [activeTabId, setActiveTabId] = useState<string>("");
@@ -383,14 +393,34 @@ export function ChannelView({
 
         {/* Tab content */}
         {isViewTab ? (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            <div className="text-center space-y-2">
-              <p className="text-lg font-medium">{activeTab?.name}</p>
-              <p className="text-sm">
-                {activeTab?.viewId ? "View" : "Tab"} — Coming Soon
-              </p>
-            </div>
-          </div>
+          (() => {
+            const view = activeTab?.viewId
+              ? channelViews.find(
+                  (v: ChannelViewType) => v.id === activeTab.viewId,
+                )
+              : undefined;
+            if (!view) {
+              return (
+                <div className="flex-1 flex items-center justify-center text-muted-foreground">
+                  <p className="text-sm">View not found</p>
+                </div>
+              );
+            }
+            switch (view.type) {
+              case "table":
+                return <TableView channelId={channelId} view={view} />;
+              case "board":
+                return <BoardView channelId={channelId} view={view} />;
+              case "calendar":
+                return <CalendarView channelId={channelId} view={view} />;
+              default:
+                return (
+                  <div className="flex-1 flex items-center justify-center text-muted-foreground">
+                    <p className="text-sm">Unknown view type: {view.type}</p>
+                  </div>
+                );
+            }
+          })()
         ) : isFilesTab ? (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">
             <div className="text-center space-y-2">
