@@ -1,0 +1,1 @@
+ALTER TYPE "public"."message_type" ADD VALUE 'long_text';

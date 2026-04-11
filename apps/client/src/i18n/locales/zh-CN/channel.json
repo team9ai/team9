@@ -66,7 +66,7 @@
   "enterChannelName": "输入频道名称",
   "permanentDelete": "永久删除（不可恢复）",
   "deleting": "删除中...",
-  "channelNotFound": "频道未找到",
+  "channelNotFound": "找不到频道",
   "loadingChannel": "加载频道中...",
   "loadingMessages": "加载消息中...",
   "loadingMoreMessages": "加载更多消息...",

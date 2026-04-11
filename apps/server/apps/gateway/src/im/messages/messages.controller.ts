@@ -40,6 +40,7 @@ import { ChannelsService } from '../channels/channels.service.js';
 import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
 import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
+import { determineMessageType } from './message-utils.js';
 
 @Controller({
   path: 'im',
@@ -82,11 +83,17 @@ export class MessagesController {
     const parsedLimit = limit ? parseInt(limit, 10) : 50;
     // When after/around is used, return paginated response with hasOlder/hasNewer
     if (after || around) {
-      return this.messagesService.getChannelMessagesPaginated(
+      const paginated = await this.messagesService.getChannelMessagesPaginated(
         channelId,
         parsedLimit,
         { before, after, around },
       );
+      return {
+        ...paginated,
+        messages: paginated.messages.map((m) =>
+          this.messagesService.truncateForPreview(m),
+        ),
+      };
     }
     // Legacy: flat array for backward compatibility (OpenClaw plugin etc.)
     const result = await this.messagesService.getChannelMessages(
@@ -102,7 +109,7 @@ export class MessagesController {
       );
     }
 
-    return result;
+    return result.map((m) => this.messagesService.truncateForPreview(m));
   }
 
   @Post('channels/:channelId/messages')
@@ -143,8 +150,11 @@ export class MessagesController {
       }
     }
 
-    // Determine message type based on attachments
-    const messageType = dto.attachments?.length ? 'file' : 'text';
+    // Determine message type based on attachments and content length
+    const messageType = determineMessageType(
+      dto.content,
+      !!dto.attachments?.length,
+    );
 
     // Create message via gRPC
     const result = await this.imWorkerGrpcClientService.createMessage({
@@ -166,6 +176,8 @@ export class MessagesController {
     );
     const t4 = Date.now();
 
+    const previewMessage = this.messagesService.truncateForPreview(message);
+
     // Immediately broadcast to online users via Socket.io Redis Adapter
     // Skip broadcast when the message is part of a streaming session (bot will
     // emit streaming_end with the persisted message, which handles the broadcast)
@@ -174,7 +186,7 @@ export class MessagesController {
       await this.websocketGateway.sendToChannelMembers(
         channelId,
         WS_EVENTS.MESSAGE.NEW,
-        message,
+        previewMessage,
       );
     }
 
@@ -263,7 +275,7 @@ export class MessagesController {
       );
     }
 
-    return message;
+    return previewMessage;
   }
 
   @Get('channels/:channelId/pinned')
@@ -272,7 +284,8 @@ export class MessagesController {
     @Param('channelId', ParseUUIDPipe) channelId: string,
   ): Promise<MessageResponse[]> {
     await this.channelsService.assertReadAccess(channelId, userId);
-    return this.messagesService.getPinnedMessages(channelId);
+    const pinned = await this.messagesService.getPinnedMessages(channelId);
+    return pinned.map((m) => this.messagesService.truncateForPreview(m));
   }
 
   @Post('channels/:channelId/read')
@@ -293,7 +306,17 @@ export class MessagesController {
   ): Promise<MessageResponse> {
     const message = await this.messagesService.getMessageWithDetails(messageId);
     await this.channelsService.assertReadAccess(message.channelId, userId);
-    return message;
+    return this.messagesService.truncateForPreview(message);
+  }
+
+  @Get('messages/:id/full-content')
+  async getFullContent(
+    @CurrentUser('sub') userId: string,
+    @Param('id', ParseUUIDPipe) messageId: string,
+  ): Promise<{ content: string }> {
+    const channelId = await this.messagesService.getMessageChannelId(messageId);
+    await this.channelsService.assertReadAccess(channelId, userId);
+    return this.messagesService.getFullContent(messageId);
   }
 
   @Patch('messages/:id')
@@ -303,12 +326,13 @@ export class MessagesController {
     @Body() dto: UpdateMessageDto,
   ): Promise<MessageResponse> {
     const message = await this.messagesService.update(messageId, userId, dto);
+    const previewMessage = this.messagesService.truncateForPreview(message);
 
     // Broadcast message update to all channel members via WebSocket
     await this.websocketGateway.sendToChannelMembers(
       message.channelId,
       WS_EVENTS.MESSAGE.UPDATED,
-      message,
+      previewMessage,
     );
 
     // Emit event for search indexing
@@ -336,7 +360,7 @@ export class MessagesController {
       });
     }
 
-    return message;
+    return previewMessage;
   }
 
   @Delete('messages/:id')
@@ -373,11 +397,22 @@ export class MessagesController {
   ): Promise<ThreadResponse> {
     const channelId = await this.messagesService.getMessageChannelId(messageId);
     await this.channelsService.assertReadAccess(channelId, userId);
-    return this.messagesService.getThread(
+    const thread = await this.messagesService.getThread(
       messageId,
       limit ? parseInt(limit, 10) : 20,
       cursor,
     );
+    const tp = (m: MessageResponse) =>
+      this.messagesService.truncateForPreview(m);
+    return {
+      ...thread,
+      rootMessage: tp(thread.rootMessage),
+      replies: thread.replies.map((r) => ({
+        ...tp(r),
+        subReplies: r.subReplies.map(tp),
+        subReplyCount: r.subReplyCount,
+      })),
+    } as ThreadResponse;
   }
 
   /**
@@ -393,11 +428,17 @@ export class MessagesController {
   ): Promise<SubRepliesResponse> {
     const channelId = await this.messagesService.getMessageChannelId(messageId);
     await this.channelsService.assertReadAccess(channelId, userId);
-    return this.messagesService.getSubReplies(
+    const subReplies = await this.messagesService.getSubReplies(
       messageId,
       limit ? parseInt(limit, 10) : 20,
       cursor,
     );
+    return {
+      ...subReplies,
+      replies: subReplies.replies.map((m) =>
+        this.messagesService.truncateForPreview(m),
+      ),
+    };
   }
 
   @Post('messages/:id/pin')

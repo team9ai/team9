@@ -19,6 +19,7 @@ export const messageTypeEnum = pgEnum('message_type', [
   'image',
   'system',
   'tracking',
+  'long_text',
 ]);
 
 export const messages = pgTable(

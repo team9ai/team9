@@ -6,8 +6,28 @@ const mockUseCurrentWorkspaceRole = vi.hoisted(() => vi.fn());
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string, defaultValue?: string) => defaultValue ?? key,
+    t: (key: string, opts?: unknown) => {
+      if (typeof opts === "string") return opts;
+      if (opts && typeof opts === "object") {
+        let result = key;
+        for (const [k, v] of Object.entries(opts as Record<string, unknown>)) {
+          result = result.replace(`{{${k}}}`, String(v));
+        }
+        return result;
+      }
+      return key;
+    },
+    i18n: { language: "en", changeLanguage: vi.fn() },
   }),
+}));
+
+vi.mock("@/i18n", () => ({
+  supportedLanguages: [{ code: "en", name: "English", nativeName: "English" }],
+}));
+
+vi.mock("@/i18n/loadLanguage", () => ({
+  changeLanguage: vi.fn(),
+  useLanguageLoading: () => false,
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -55,7 +75,7 @@ describe("MoreMainContent", () => {
 
     render(<MoreMainContent />);
 
-    expect(screen.queryByText(/workspace settings/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("workspaceSettings")).not.toBeInTheDocument();
   });
 
   it("navigates to workspace settings from the workspace group", () => {
@@ -66,7 +86,7 @@ describe("MoreMainContent", () => {
     });
 
     render(<MoreMainContent />);
-    fireEvent.click(screen.getByText(/workspace settings/i));
+    fireEvent.click(screen.getByText("workspaceSettings"));
 
     expect(mockNavigate).toHaveBeenCalledWith({
       to: "/more/workspace-settings",
@@ -95,8 +115,7 @@ describe("MoreMainContent", () => {
       "80",
     );
     expect(screen.queryByText(/^team9$/i)).not.toBeInTheDocument();
-    expect(
-      screen.getByText(/^© 2026 Team9\. All rights reserved\.$/),
-    ).toBeInTheDocument();
+    // With the t() mock returning keys, copyright renders as "copyright"
+    expect(screen.getByText("copyright")).toBeInTheDocument();
   });
 });

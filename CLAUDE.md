@@ -84,7 +84,8 @@ The backend follows a modular NestJS architecture with two main applications:
 - **Auth Module** ([apps/server/apps/gateway/src/auth](apps/server/apps/gateway/src/auth)): JWT-based authentication with Passport strategy, 7-day token expiry
 - **IM Module** ([apps/server/apps/gateway/src/im](apps/server/apps/gateway/src/im)): Instant messaging functionality
   - Channels: direct, public, private types
-  - Messages: text, file, image, system types with threading support (parentId)
+  - Messages: text, file, image, system, long_text types with threading support (parentId)
+  - Long text: messages >=20 lines or >=2000 chars auto-classified as `long_text`, truncated at API layer, full content via `GET /messages/:id/full-content`
   - Users: profile management, status tracking
   - WebSocket: Socket.io gateway for real-time events
 - **Workspace Module** ([apps/server/apps/gateway/src/workspace](apps/server/apps/gateway/src/workspace)): Multi-tenant workspace management
