@@ -18,6 +18,7 @@ import {
   parseApiDate,
 } from "@/lib/date-utils";
 import { RichTextEditor } from "./editor";
+import { useFullContent } from "@/hooks/useMessages";
 import { getAgentMeta } from "@/lib/agent-events";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/types/im";
@@ -105,6 +106,16 @@ export function MessageItem({
   const isOwnMessage = currentUserId === message.senderId;
   const isSending = message.sendStatus === "sending";
   const isFailed = message.sendStatus === "failed";
+
+  // Fetch full content for long_text messages when entering edit mode
+  const isLongText = message.type === "long_text" || message.isTruncated;
+  const needsFullContent = isEditing && isLongText;
+  const { data: fullContentData, isLoading: isLoadingFullContent } =
+    useFullContent(message.id, needsFullContent);
+  const editHtml =
+    needsFullContent && fullContentData
+      ? fullContentData.content
+      : message.content;
 
   // Tracking message display (inline card)
   const isTrackingMessage = message.type === "tracking";
@@ -265,18 +276,25 @@ export function MessageItem({
         )}
         {isEditing ? (
           <div className="w-full">
-            <RichTextEditor
-              channelId={message.channelId}
-              compact
-              initialHtml={message.content}
-              clearOnSubmit={false}
-              disabled={isEditSaving}
-              onSubmit={async (content) => {
-                await onEditSave?.(content);
-              }}
-              onCancel={onEditCancel}
-              placeholder={t("message:edit")}
-            />
+            {needsFullContent && isLoadingFullContent ? (
+              <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+                <Loader2 size={14} className="animate-spin" />
+                <span>Loading full content...</span>
+              </div>
+            ) : (
+              <RichTextEditor
+                channelId={message.channelId}
+                compact
+                initialHtml={editHtml}
+                clearOnSubmit={false}
+                disabled={isEditSaving}
+                onSubmit={async (content) => {
+                  await onEditSave?.(content);
+                }}
+                onCancel={onEditCancel}
+                placeholder={t("message:edit")}
+              />
+            )}
             <div className="flex items-center gap-2 mt-1">
               <button
                 onClick={() => onEditCancel?.()}
@@ -359,7 +377,7 @@ export function MessageItem({
       isOwnMessage={isOwnMessage}
       canDelete={canDelete}
       onReplyInThread={onReplyInThread}
-      onEdit={isOwnMessage && message.type !== "long_text" ? onEdit : undefined}
+      onEdit={isOwnMessage ? onEdit : undefined}
       onDelete={isOwnMessage || canDelete ? onDelete : undefined}
       onPin={onPin}
     >
