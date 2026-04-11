@@ -1,0 +1,18 @@
+{
+  "title": "Hilo",
+  "loading": "Cargando hilo...",
+  "error": "Error al cargar el hilo",
+  "repliesCount": "{{count}} respuesta",
+  "repliesCount_other": "{{count}} respuestas",
+  "showMoreReplies": "Mostrar {{count}} respuesta más",
+  "showMoreReplies_other": "Mostrar {{count}} respuestas más",
+  "hideReplies": "Ocultar respuestas",
+  "replyingTo": "Respondiendo a",
+  "inputPlaceholder": "Responder en hilo...",
+  "loadMore": "Cargar más respuestas",
+  "loadingMore": "Cargando...",
+  "newMessages": "{{count}} mensaje nuevo",
+  "newMessages_other": "{{count}} mensajes nuevos",
+  "lastReply": "Última respuesta {{time}}",
+  "backToChannel": "Volver al canal"
+}

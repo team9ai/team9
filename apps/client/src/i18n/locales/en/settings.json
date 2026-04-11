@@ -95,5 +95,12 @@
   "pushPermissionDenied": "Permission denied in browser settings",
   "pushPermissionPrompt": "Click the toggle to enable",
   "pushEnabled": "Enabled",
-  "pushUnsupported": "Push notifications are not supported in this environment"
+  "pushUnsupported": "Push notifications are not supported in this environment",
+  "settingsAndMore": "Settings & More",
+  "workspace": "Workspace",
+  "invitations": "Invitations",
+  "members": "Members",
+  "appearance": "Appearance",
+  "version": "Version {{version}}",
+  "copyright": "© {{year}} Team9. All rights reserved."
 }

@@ -19,7 +19,10 @@ import { v7 as uuidv7 } from 'uuid';
 import { AuthService } from '../../auth/auth.service.js';
 import { UsersService } from '../users/users.service.js';
 import { ChannelsService } from '../channels/channels.service.js';
-import { MessagesService } from '../messages/messages.service.js';
+import {
+  MessagesService,
+  MessageResponse,
+} from '../messages/messages.service.js';
 import { RedisService } from '@team9/redis';
 import { env, PingMessage, PongMessage } from '@team9/shared';
 import {
@@ -72,6 +75,7 @@ interface StreamingSessionPayload {
     credentials: true,
   },
   namespace: '/im',
+  maxHttpBufferSize: 1_000_000, // 1 MB — support long text messages up to 100K chars
 })
 export class WebsocketGateway
   implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
@@ -1019,10 +1023,13 @@ export class WebsocketGateway
     // Also broadcast as new_message for clients that missed the stream
     // or joined mid-stream. The message was already persisted via HTTP API.
     if (data.message) {
+      const previewMessage = this.messagesService.truncateForPreview(
+        data.message as unknown as MessageResponse,
+      );
       await this.sendToChannelMembers(
         data.channelId,
         WS_EVENTS.MESSAGE.NEW,
-        data.message,
+        previewMessage,
       );
       appMetrics.messagesTotal.add(1);
     }

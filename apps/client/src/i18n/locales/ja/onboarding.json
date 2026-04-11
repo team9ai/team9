@@ -1,0 +1,127 @@
+{
+  "eyebrow": "ワークスペースオンボーディング",
+  "workspaceBadge": "{{name}} のスターターセットアップ",
+  "stepLabel": "ステップ {{current}} / {{total}}",
+  "workspaceFallback": "新しいワークスペース",
+  "welcome": "Team9 があなたの働き方に合わせてワークスペースの初版を構築します。",
+  "actions": {
+    "back": "戻る",
+    "continue": "続行",
+    "next": "次へ",
+    "regenerate": "再生成",
+    "retry": "再試行",
+    "edit": "編集",
+    "copy": "リンクをコピー",
+    "copied": "コピーしました",
+    "startCheckout": "サブスクリプション",
+    "continueWithoutPlan": "サブスクリプションなしで続行",
+    "finish": "ワークスペースに入る",
+    "retryProvision": "セットアップを再試行",
+    "creating": "作成中…"
+  },
+  "steps": {
+    "1": {
+      "title": "あなたの仕事内容を教えてください",
+      "description": "役割を一文で説明するか、最も近いプリセットロールから始めましょう。"
+    },
+    "2": {
+      "title": "最も現実的なタスクを選んでください",
+      "description": "最初に自動化する価値のあるワークフローをいくつか提案します。"
+    },
+    "3": {
+      "title": "チャンネルを準備しましょう",
+      "description": "あなたの業務フローに合わせてチャンネルを生成します。"
+    },
+    "4": {
+      "title": "エージェントのセットアップを確認",
+      "description": "メインエージェントはパーソナルスタッフに固定され、その下に専門的なヘルパーが配置されます。"
+    },
+    "5": {
+      "title": "チームを招待して協力しましょう",
+      "description": "招待リンクを共有して、全員を同じワークスペースに招待しましょう。"
+    },
+    "6": {
+      "title": "ワークスペースのプランを選択",
+      "description": "今すぐサブスクリプションするか、ワークスペースに入ってから後で設定することもできます。"
+    }
+  },
+  "role": {
+    "inputLabel": "あなたの仕事内容",
+    "inputPlaceholder": "例：B2B SaaS の営業フォローアップ、提案書作成、商談レビューを担当しています。",
+    "customHint": "プリセットを使わず、自由に記述することもできます。",
+    "or": "または",
+    "featured": "おすすめ",
+    "suggestions": "ロールの候補"
+  },
+  "tasks": {
+    "customLabel": "または最も自動化したいワークフローを追加",
+    "customDivider": "自分で入力",
+    "customPlaceholder": "例：毎日のクライアントフォローアップメモを要約し、次のステップを提案する。",
+    "empty": "タスクの候補はまだありません。",
+    "loadingTitle": "タスクの選択肢を生成中",
+    "loading": "あなたの仕事に合わせたタスクの候補を生成中…"
+  },
+  "channels": {
+    "renameHint": "チャンネル名は直接変更できます",
+    "previewTitle": "チャンネルプレビュー",
+    "placeholder": "#new-channel",
+    "loadingTitle": "スターターチャンネルを準備中",
+    "loading": "スターターチャンネルのレイアウトを生成中…",
+    "sidebarTitle": "ワークスペース",
+    "activeThread": "今日のフォーカス",
+    "previewAuthorA": "パーソナルスタッフ",
+    "previewAuthorB": "システムドラフト",
+    "previewNow": "たった今",
+    "previewToday": "今日",
+    "previewLine1": "ここでロール固有のコラボレーションが形作られていきます。",
+    "previewLine2": "セットアップ完了後、これらのチャンネルとエージェントが実際のワークスペースにプロビジョニングされます。",
+    "previewPurpose": "このチャンネルは {{topic}} を見やすく、アクションしやすくする場所です。",
+    "previewInsight": "{{role}} はこのスペースで {{task}} のコンテキストを失わずに進められます。",
+    "previewThread": "セットアップ完了後、{{task}} のフォローアップは {{topic}} 内にまとまります。",
+    "previewChecklistPrimary": "メインワークフロー：{{task}}",
+    "previewChecklistSecondary": "サブスレッド：{{task}}",
+    "previewChecklistOwner": "デフォルト担当者：{{role}}"
+  },
+  "agents": {
+    "mainAgent": "メインエージェント",
+    "childAgents": "サポートエージェント",
+    "mainDescriptionLabel": "メインエージェントの説明",
+    "mainDescriptionPlaceholder": "パーソナルスタッフがどのようにサポートすべきか説明してください。",
+    "loadingTitle": "エージェントのラインナップを準備中",
+    "empty": "利用可能なエージェントのセットアップがありません。戻ってもう一度お試しください。",
+    "loading": "エージェントのラインナップを生成中…"
+  },
+  "invite": {
+    "title": "招待リンク",
+    "hint": "このリンクはデフォルトでメンバーとして現在のワークスペースに招待します。",
+    "loading": "招待リンクを準備中…"
+  },
+  "plan": {
+    "current": "現在のプラン",
+    "success": "チェックアウトが完了しました。続行できます。",
+    "cancel": "チェックアウトがキャンセルされました。いつでも再試行できます。",
+    "loadingTitle": "ワークスペースプランを読み込み中",
+    "note": "今すぐサブスクリプションするか、先にワークスペースに入って後で設定することもできます。",
+    "empty": "利用可能なサブスクリプションプランはありません。",
+    "perMonth": "/月",
+    "priceHint": "約 {{amount}} 相当の利用価値",
+    "credits": "{{count}} クレジット"
+  },
+  "status": {
+    "provisioningTitle": "ワークスペースをセットアップ中",
+    "provisioningDescription": "チャンネルの作成、エージェントの設定、設定の保存を行っています。",
+    "failedTitle": "セットアップが完了しませんでした",
+    "failedDescription": "プロビジョニングが途中で失敗しました。保存済みの設定を失わずに再試行できます。"
+  },
+  "errors": {
+    "loadFailed": "オンボーディングの状態を読み込めませんでした。",
+    "saveFailed": "オンボーディングの進捗を保存できませんでした。",
+    "roleRequired": "先にロールの説明を追加するか、プリセットロールを選択してください。",
+    "taskRequired": "タスクを少なくとも1つ選択するか、カスタムタスクを追加してください。",
+    "channelRequired": "チャンネルのドラフトを少なくとも1つ残してください。",
+    "workspaceRequired": "利用可能なワークスペースがありません。",
+    "checkoutFailed": "チェックアウトを開始できませんでした。",
+    "copyFailed": "招待リンクをコピーできませんでした。",
+    "provisionFailed": "ワークスペースのセットアップに失敗しました。再試行してください。"
+  }
+}

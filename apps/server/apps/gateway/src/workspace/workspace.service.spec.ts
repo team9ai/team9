@@ -800,6 +800,8 @@ describe('WorkspaceService', () => {
   describe('getInvitations', () => {
     it('should shape invitation rows into API responses', async () => {
       process.env.APP_URL = 'https://app.team9.test';
+      // Use a fixed future date to avoid 1ms race between input and assertion
+      const futureExpiry = new Date('2026-04-17T12:00:00.000Z');
       db.orderBy.mockResolvedValueOnce([
         {
           invitation: {
@@ -808,7 +810,7 @@ describe('WorkspaceService', () => {
             role: 'member',
             maxUses: 3,
             usedCount: 1,
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            expiresAt: futureExpiry,
             isActive: true,
             createdAt: new Date('2026-04-02T00:00:00.000Z'),
           },
@@ -828,7 +830,7 @@ describe('WorkspaceService', () => {
           role: 'member',
           maxUses: 3,
           usedCount: 1,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          expiresAt: futureExpiry,
           isActive: true,
           createdAt: new Date('2026-04-02T00:00:00.000Z'),
           createdBy: {

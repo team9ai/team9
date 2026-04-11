@@ -244,6 +244,7 @@ export function MessageItem({
             <MessageContent
               content={message.content}
               className="text-sm whitespace-pre-wrap break-words"
+              message={message}
             />
           </div>
         )}

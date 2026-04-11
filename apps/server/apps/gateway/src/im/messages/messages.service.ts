@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
+import { determineMessageType, truncateContent } from './message-utils.js';
 import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
@@ -63,7 +64,9 @@ export interface MessageResponse {
   parentId: string | null;
   rootId: string | null;
   content: string | null;
-  type: 'text' | 'file' | 'image' | 'system' | 'tracking';
+  type: 'text' | 'file' | 'image' | 'system' | 'tracking' | 'long_text';
+  isTruncated?: boolean;
+  fullContentLength?: number;
   isPinned: boolean;
   isEdited: boolean;
   isDeleted: boolean;
@@ -874,10 +877,18 @@ export class MessagesService {
       message.channelId,
     );
 
+    // Re-determine type only for text-based messages (text / long_text).
+    // File/image/system/tracking messages keep their original type.
+    const isTextBased = message.type === 'text' || message.type === 'long_text';
+    const newType = isTextBased
+      ? determineMessageType(dto.content, false)
+      : message.type;
+
     await this.db
       .update(schema.messages)
       .set({
         content: dto.content,
+        type: newType,
         isEdited: true,
         seqId: newSeqId,
         updatedAt: new Date(),
@@ -1044,5 +1055,36 @@ export class MessagesService {
     }
 
     return message.channelId;
+  }
+
+  truncateForPreview(message: MessageResponse): MessageResponse {
+    if (message.type !== 'long_text' || !message.content) {
+      return message;
+    }
+    const { content, isTruncated, fullContentLength } = truncateContent(
+      message.content,
+    );
+    return { ...message, content, isTruncated, fullContentLength };
+  }
+
+  async getFullContent(messageId: string): Promise<{ content: string }> {
+    const [message] = await this.db
+      .select({
+        content: schema.messages.content,
+        isDeleted: schema.messages.isDeleted,
+      })
+      .from(schema.messages)
+      .where(eq(schema.messages.id, messageId))
+      .limit(1);
+
+    if (!message) {
+      throw new NotFoundException('Message not found');
+    }
+
+    if (message.isDeleted) {
+      throw new NotFoundException('Message not found');
+    }
+
+    return { content: message.content ?? '' };
   }
 }

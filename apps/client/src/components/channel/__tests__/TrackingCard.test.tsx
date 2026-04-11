@@ -614,3 +614,113 @@ describe("TrackingCard", () => {
     expect(screen.getByText(/\d+m \d{2}s/)).toBeInTheDocument();
   });
 });
+
+// --- formatElapsed indirect tests via component rendering ---
+describe("formatElapsed (indirect via TrackingCard)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockUseTrackingChannel.mockReturnValue({
+      isActivated: false,
+      latestMessages: [],
+      totalMessageCount: 0,
+      isLoading: false,
+      activeStream: null,
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('formats a known startTime into "Nm SSs" format', () => {
+    const fixedNow = new Date("2026-04-10T10:05:00.000Z").getTime();
+    vi.setSystemTime(fixedNow);
+
+    // createdAt = 2 minutes and 30 seconds ago
+    const startTime = new Date(fixedNow - 150_000).toISOString();
+
+    render(
+      <TrackingCard
+        message={makeMessage({
+          createdAt: startTime,
+          metadata: { trackingChannelId: "tracking-1" },
+        })}
+      />,
+    );
+
+    expect(screen.getByText("2m 30s")).toBeInTheDocument();
+  });
+
+  it('returns "0m 00s" for an invalid date string (NaN guard)', () => {
+    const fixedNow = new Date("2026-04-10T10:00:00.000Z").getTime();
+    vi.setSystemTime(fixedNow);
+
+    render(
+      <TrackingCard
+        message={makeMessage({
+          createdAt: "not-a-valid-date",
+          metadata: { trackingChannelId: "tracking-1" },
+        })}
+      />,
+    );
+
+    expect(screen.getByText("0m 00s")).toBeInTheDocument();
+  });
+
+  it('clamps to "0m 00s" when startTime is in the future (zero/negative elapsed)', () => {
+    const fixedNow = new Date("2026-04-10T10:00:00.000Z").getTime();
+    vi.setSystemTime(fixedNow);
+
+    // createdAt is 60 seconds in the future
+    const futureTime = new Date(fixedNow + 60_000).toISOString();
+
+    render(
+      <TrackingCard
+        message={makeMessage({
+          createdAt: futureTime,
+          metadata: { trackingChannelId: "tracking-1" },
+        })}
+      />,
+    );
+
+    expect(screen.getByText("0m 00s")).toBeInTheDocument();
+  });
+
+  it("correctly pads single-digit seconds with leading zero", () => {
+    const fixedNow = new Date("2026-04-10T10:00:00.000Z").getTime();
+    vi.setSystemTime(fixedNow);
+
+    // 1 minute and 5 seconds ago
+    const startTime = new Date(fixedNow - 65_000).toISOString();
+
+    render(
+      <TrackingCard
+        message={makeMessage({
+          createdAt: startTime,
+          metadata: { trackingChannelId: "tracking-1" },
+        })}
+      />,
+    );
+
+    expect(screen.getByText("1m 05s")).toBeInTheDocument();
+  });
+
+  it("formats exactly 0 seconds as 0m 00s", () => {
+    const fixedNow = new Date("2026-04-10T10:00:00.000Z").getTime();
+    vi.setSystemTime(fixedNow);
+
+    // createdAt is exactly now
+    const startTime = new Date(fixedNow).toISOString();
+
+    render(
+      <TrackingCard
+        message={makeMessage({
+          createdAt: startTime,
+          metadata: { trackingChannelId: "tracking-1" },
+        })}
+      />,
+    );
+
+    expect(screen.getByText("0m 00s")).toBeInTheDocument();
+  });
+});

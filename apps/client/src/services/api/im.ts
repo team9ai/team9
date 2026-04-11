@@ -210,6 +210,14 @@ export const messagesApi = {
     return normalizeMessage(response.data);
   },
 
+  // Get full content of a long_text message
+  getFullContent: async (messageId: string): Promise<{ content: string }> => {
+    const response = await http.get<{ content: string }>(
+      `/v1/im/messages/${messageId}/full-content`,
+    );
+    return response.data;
+  },
+
   // Update message
   updateMessage: async (
     messageId: string,

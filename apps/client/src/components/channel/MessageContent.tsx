@@ -9,6 +9,7 @@ import {
   type ComponentPropsWithoutRef,
 } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useFullContent } from "@/hooks/useMessages";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import linkifyHtml from "linkify-html";
@@ -16,12 +17,15 @@ import Prism from "@/lib/prism";
 import { UserProfileCard } from "./UserProfileCard";
 import { CodeBlock } from "./CodeBlock";
 import { ImagePreviewDialog } from "./ImagePreviewDialog";
+import { LongTextCollapse } from "./LongTextCollapse";
 import { useCreateDirectChannel } from "@/hooks/useChannels";
 import { SelectionCopyPopup } from "./SelectionCopyPopup";
+import type { Message } from "@/types/im";
 
 interface MessageContentProps {
   content: string;
   className?: string;
+  message?: Message;
 }
 
 interface HoveredMention {
@@ -364,8 +368,25 @@ function MarkdownCodeRenderer({
  * - HTML messages (from Lexical editor): rendered with dangerouslySetInnerHTML + Prism code highlighting
  * - Plain text / Markdown messages (from bots/API): rendered with react-markdown
  */
-export function MessageContent({ content, className }: MessageContentProps) {
-  const isHtml = HTML_TAG_PATTERN.test(content);
+export function MessageContent({
+  content,
+  className,
+  message,
+}: MessageContentProps) {
+  // For long_text messages, reactively subscribe to the full-content cache.
+  // enabled: false means this hook never initiates a fetch — LongTextCollapse
+  // handles that. But it does subscribe to cache updates, so when the full
+  // content arrives, this component re-renders with the complete text.
+  const { data: fullContentData } = useFullContent(
+    message?.id ?? "",
+    false, // never fetch from here — LongTextCollapse controls fetching
+  );
+  const displayContent =
+    message?.type === "long_text" && fullContentData?.content
+      ? fullContentData.content
+      : content;
+
+  const isHtml = HTML_TAG_PATTERN.test(displayContent);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [selectionState, setSelectionState] = useState<{
     rect: DOMRect;
@@ -377,11 +398,39 @@ export function MessageContent({ content, className }: MessageContentProps) {
   const contentElement = useMemo(
     () =>
       isHtml ? (
-        <HtmlMessageContent content={content} className={className} />
+        <HtmlMessageContent content={displayContent} className={className} />
       ) : (
-        <MarkdownMessageContent content={content} className={className} />
+        <MarkdownMessageContent
+          content={displayContent}
+          className={className}
+        />
       ),
-    [isHtml, content, className],
+    [isHtml, displayContent, className],
+  );
+
+  // Wrap in LongTextCollapse for long_text messages.
+  // Intentionally using stable primitive deps instead of the full `message` object
+  // to avoid re-renders when React Query returns a new object reference.
+  const wrappedElement = useMemo(
+    () => {
+      if (message?.type === "long_text") {
+        return (
+          <LongTextCollapse message={message}>
+            {contentElement}
+          </LongTextCollapse>
+        );
+      }
+      return contentElement;
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      message?.id,
+      message?.type,
+      message?.isTruncated,
+      message?.fullContentLength,
+      message?.content?.length,
+      contentElement,
+    ],
   );
 
   const handleMouseUp = useCallback(() => {
@@ -409,7 +458,7 @@ export function MessageContent({ content, className }: MessageContentProps) {
 
   return (
     <div ref={wrapperRef} onMouseUp={handleMouseUp}>
-      {contentElement}
+      {wrappedElement}
       {selectionState && (
         <SelectionCopyPopup
           anchorRect={selectionState.rect}

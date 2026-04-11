@@ -9,7 +9,13 @@
 /**
  * Message type enumeration
  */
-export type WSMessageType = 'text' | 'file' | 'image' | 'system' | 'tracking';
+export type WSMessageType =
+  | 'text'
+  | 'file'
+  | 'image'
+  | 'system'
+  | 'tracking'
+  | 'long_text';
 
 /**
  * Message sender information

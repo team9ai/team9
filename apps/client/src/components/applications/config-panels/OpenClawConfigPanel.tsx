@@ -42,6 +42,7 @@ import type { OpenClawDeviceInfo } from "@/services/api/applications";
 import { useState } from "react";
 import type { AppConfigPanelProps } from "./registry";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
+import { formatDateTime } from "@/lib/date-format";
 
 const PAIRING_HINT_TEXT =
   'For security, each new device or browser must be manually approved before it can access the instance. Visit the Access URL first — you will see a "disconnected (1008): pairing required" message — then come to the Devices tab to approve the request.';
@@ -60,7 +61,7 @@ function statusBadgeVariant(status?: string) {
 }
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleString();
+  return formatDateTime(dateStr);
 }
 
 export function OpenClawInstanceTab({ installedApp }: AppConfigPanelProps) {

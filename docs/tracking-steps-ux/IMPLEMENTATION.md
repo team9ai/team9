@@ -123,7 +123,7 @@ export const toolParamConfig: Record<string, ToolParamConfigItem> = {
 };
 ```
 
-**Display format:** `CreateTask(title="Fix bug", description="Short description here...(52 words more)")`
+**Display format:** `CreateTask(title="Fix bug", description="Short description here...(52 more)")`
 
 **Fallback behavior:** If a tool isn't in the config, `formatParams` falls back to `JSON.stringify(params)` which is verbose but safe.
 

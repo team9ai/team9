@@ -36,6 +36,9 @@ vi.mock("react-i18next", () => ({
     },
   }),
 }));
+vi.mock("@/hooks/useMessages", () => ({
+  useFullContent: () => ({ data: undefined, isLoading: false, isError: false }),
+}));
 
 // Virtuoso: render the list synchronously; ignore scrolling, headers, etc.
 // We honor `firstItemIndex` so that the real MessageList's absolute-index
