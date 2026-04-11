@@ -14,6 +14,7 @@ import type {
   RoutineStatusChangedEvent,
   RoutineExecutionCreatedEvent,
   TrackingDeactivatedEvent,
+  MessagePropertyChangedEvent,
 } from "@/types/ws-events";
 import { useSelectedWorkspaceId, useUser } from "@/stores";
 import {
@@ -306,6 +307,18 @@ export function useWebSocketEvents() {
       });
     };
 
+    // ==================== Property Events ====================
+
+    // When a message property changes, invalidate messages for that channel
+    // so properties are refreshed in the chat view and any active view queries.
+    const handleMessagePropertyChanged = (
+      event: MessagePropertyChangedEvent,
+    ) => {
+      queryClient.invalidateQueries({
+        queryKey: ["messages", event.channelId],
+      });
+    };
+
     // ==================== Register All Listeners ====================
 
     // Channel lifecycle events
@@ -337,6 +350,9 @@ export function useWebSocketEvents() {
 
     // Tracking events
     wsService.onTrackingDeactivated(handleTrackingDeactivated);
+
+    // Property events
+    wsService.onMessagePropertyChanged(handleMessagePropertyChanged);
 
     // ==================== Cleanup ====================
 
@@ -375,6 +391,9 @@ export function useWebSocketEvents() {
 
       // Tracking events
       wsService.offTrackingDeactivated(handleTrackingDeactivated);
+
+      // Property events
+      wsService.offMessagePropertyChanged(handleMessagePropertyChanged);
     };
   }, [queryClient, workspaceId, currentUser?.id]);
 }

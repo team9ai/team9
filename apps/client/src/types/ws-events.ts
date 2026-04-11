@@ -131,6 +131,28 @@ export const WS_EVENTS = {
     DEACTIVATED: "tracking:deactivated",
     ACTIVATED: "tracking:activated",
   },
+
+  // Property system events
+  PROPERTY: {
+    DEFINITION_CREATED: "property_definition_created",
+    DEFINITION_UPDATED: "property_definition_updated",
+    DEFINITION_DELETED: "property_definition_deleted",
+    MESSAGE_CHANGED: "message_property_changed",
+  },
+
+  // View events
+  VIEW: {
+    CREATED: "view_created",
+    UPDATED: "view_updated",
+    DELETED: "view_deleted",
+  },
+
+  // Tab events
+  TAB: {
+    CREATED: "tab_created",
+    UPDATED: "tab_updated",
+    DELETED: "tab_deleted",
+  },
 } as const;
 
 // ==================== Authentication Event Types ====================
@@ -579,6 +601,77 @@ export interface StreamingAbortEvent {
   error?: string;
 }
 
+// ==================== Property System Event Types ====================
+
+/** Property definition created event */
+export interface PropertyDefinitionCreatedEvent {
+  channelId: string;
+  definition: {
+    id: string;
+    key: string;
+    valueType: string;
+  };
+}
+
+/** Property definition updated event */
+export interface PropertyDefinitionUpdatedEvent {
+  channelId: string;
+  definitionId: string;
+}
+
+/** Property definition deleted event */
+export interface PropertyDefinitionDeletedEvent {
+  channelId: string;
+  definitionId: string;
+}
+
+/** Message property changed event */
+export interface MessagePropertyChangedEvent {
+  channelId: string;
+  messageId: string;
+  definitionId: string;
+}
+
+// ==================== View Event Types ====================
+
+/** View created event */
+export interface ViewCreatedEvent {
+  channelId: string;
+  viewId: string;
+}
+
+/** View updated event */
+export interface ViewUpdatedEvent {
+  channelId: string;
+  viewId: string;
+}
+
+/** View deleted event */
+export interface ViewDeletedEvent {
+  channelId: string;
+  viewId: string;
+}
+
+// ==================== Tab Event Types ====================
+
+/** Tab created event */
+export interface TabCreatedEvent {
+  channelId: string;
+  tabId: string;
+}
+
+/** Tab updated event */
+export interface TabUpdatedEvent {
+  channelId: string;
+  tabId: string;
+}
+
+/** Tab deleted event */
+export interface TabDeletedEvent {
+  channelId: string;
+  tabId: string;
+}
+
 // ==================== Type Mappings ====================
 
 /** Client to server events and their payload type mappings */
@@ -639,4 +732,17 @@ export interface ServerToClientEvents {
   streaming_thinking_content: StreamingThinkingContentEvent;
   streaming_end: StreamingEndEvent;
   streaming_abort: StreamingAbortEvent;
+  // Property system
+  property_definition_created: PropertyDefinitionCreatedEvent;
+  property_definition_updated: PropertyDefinitionUpdatedEvent;
+  property_definition_deleted: PropertyDefinitionDeletedEvent;
+  message_property_changed: MessagePropertyChangedEvent;
+  // Views
+  view_created: ViewCreatedEvent;
+  view_updated: ViewUpdatedEvent;
+  view_deleted: ViewDeletedEvent;
+  // Tabs
+  tab_created: TabCreatedEvent;
+  tab_updated: TabUpdatedEvent;
+  tab_deleted: TabDeletedEvent;
 }
