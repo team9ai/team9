@@ -111,11 +111,13 @@ export function MessageList({
   }, []);
 
   const handleEditSave = useCallback(
-    (messageId: string, content: string) => {
-      updateMessage.mutate(
-        { messageId, data: { content } },
-        { onSuccess: () => setEditingMessageId(null) },
-      );
+    async (messageId: string, content: string) => {
+      try {
+        await updateMessage.mutateAsync({ messageId, data: { content } });
+        setEditingMessageId(null);
+      } catch {
+        // Edit mode stays open, content preserved in editor (clearOnSubmit=false)
+      }
     },
     [updateMessage],
   );
@@ -693,7 +695,7 @@ function ChannelMessageItem({
   isDirect: boolean;
   editingMessageId: string | null;
   onEditStart: (messageId: string) => void;
-  onEditSave: (messageId: string, content: string) => void;
+  onEditSave: (messageId: string, content: string) => Promise<void>;
   onEditCancel: () => void;
 }) {
   const openThread = useThreadStore((state) => state.openThread);

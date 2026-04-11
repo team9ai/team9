@@ -1934,7 +1934,10 @@ export function usePinMessage(channelId: string) {
     mutationFn: (messageId: string) => imApi.messages.pinMessage(messageId),
     onMutate: async (messageId: string) => {
       await queryClient.cancelQueries({ queryKey: ["messages", channelId] });
-      const previous = queryClient.getQueryData(["messages", channelId]);
+      // Snapshot ALL matching queries for proper rollback (actual key is ["messages", channelId, "latest"] or anchor ID)
+      const previousQueries = queryClient.getQueriesData<MessagesQueryData>({
+        queryKey: ["messages", channelId],
+      });
       queryClient.setQueriesData(
         { queryKey: ["messages", channelId] },
         (old: MessagesQueryData | undefined) => {
@@ -1952,12 +1955,13 @@ export function usePinMessage(channelId: string) {
           };
         },
       );
-      return { previous };
+      return { previousQueries };
     },
     onError: (_err, _messageId, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(["messages", channelId], context.previous);
-      }
+      // Restore each snapshotted query
+      context?.previousQueries?.forEach(([key, data]) => {
+        if (data) queryClient.setQueryData(key, data);
+      });
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["messages", channelId] });
@@ -1974,7 +1978,10 @@ export function useUnpinMessage(channelId: string) {
     mutationFn: (messageId: string) => imApi.messages.unpinMessage(messageId),
     onMutate: async (messageId: string) => {
       await queryClient.cancelQueries({ queryKey: ["messages", channelId] });
-      const previous = queryClient.getQueryData(["messages", channelId]);
+      // Snapshot ALL matching queries for proper rollback (actual key is ["messages", channelId, "latest"] or anchor ID)
+      const previousQueries = queryClient.getQueriesData<MessagesQueryData>({
+        queryKey: ["messages", channelId],
+      });
       queryClient.setQueriesData(
         { queryKey: ["messages", channelId] },
         (old: MessagesQueryData | undefined) => {
@@ -1992,12 +1999,13 @@ export function useUnpinMessage(channelId: string) {
           };
         },
       );
-      return { previous };
+      return { previousQueries };
     },
     onError: (_err, _messageId, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(["messages", channelId], context.previous);
-      }
+      // Restore each snapshotted query
+      context?.previousQueries?.forEach(([key, data]) => {
+        if (data) queryClient.setQueryData(key, data);
+      });
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["messages", channelId] });

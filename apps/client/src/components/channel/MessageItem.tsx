@@ -55,7 +55,7 @@ export interface MessageItemProps {
   /** Whether this message is currently being edited */
   isEditing?: boolean;
   /** Callback when edit is saved with new content */
-  onEditSave?: (content: string) => void;
+  onEditSave?: (content: string) => Promise<void>;
   /** Callback when edit is cancelled */
   onEditCancel?: () => void;
   /** Reaction handlers */
@@ -266,8 +266,9 @@ export function MessageItem({
               channelId={message.channelId}
               compact
               initialHtml={message.content}
+              clearOnSubmit={false}
               onSubmit={async (content) => {
-                onEditSave?.(content);
+                await onEditSave?.(content);
               }}
               onCancel={onEditCancel}
               placeholder={t("message:edit")}
@@ -354,7 +355,7 @@ export function MessageItem({
       isOwnMessage={isOwnMessage}
       canDelete={canDelete}
       onReplyInThread={onReplyInThread}
-      onEdit={isOwnMessage ? onEdit : undefined}
+      onEdit={isOwnMessage && message.type !== "long_text" ? onEdit : undefined}
       onDelete={isOwnMessage || canDelete ? onDelete : undefined}
       onPin={onPin}
     >

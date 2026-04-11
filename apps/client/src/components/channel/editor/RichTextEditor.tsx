@@ -16,7 +16,7 @@ import { QuoteNode } from "@lexical/rich-text";
 import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $getRoot, $createParagraphNode, $createTextNode } from "lexical";
-import { KEY_ESCAPE_COMMAND, COMMAND_PRIORITY_HIGH } from "lexical";
+import { KEY_ESCAPE_COMMAND, COMMAND_PRIORITY_LOW } from "lexical";
 import { $generateNodesFromDOM } from "@lexical/html";
 import type { EditorState, LexicalEditor } from "lexical";
 import type { InitialConfigType } from "@lexical/react/LexicalComposer";
@@ -52,6 +52,11 @@ interface RichTextEditorProps {
   initialHtml?: string;
   /** Callback when Escape is pressed (for edit mode) */
   onCancel?: () => void;
+  /**
+   * Whether to clear the editor after submit (default: true).
+   * Set to false for edit mode so the content is preserved if the request fails.
+   */
+  clearOnSubmit?: boolean;
 }
 
 function Placeholder({ text }: { text: string }) {
@@ -154,7 +159,7 @@ function EscapePlugin({ onCancel }: { onCancel?: () => void }) {
         onCancel();
         return true;
       },
-      COMMAND_PRIORITY_HIGH,
+      COMMAND_PRIORITY_LOW, // Lower priority so MentionsPlugin gets first chance to handle Escape
     );
   }, [editor, onCancel]);
 
@@ -165,10 +170,12 @@ function SendButton({
   onSubmit,
   disabled,
   hasAttachments,
+  clearOnSubmit = true,
 }: {
   onSubmit: (content: string) => Promise<void>;
   disabled?: boolean;
   hasAttachments?: boolean;
+  clearOnSubmit?: boolean;
 }) {
   const [editor] = useLexicalComposerContext();
   const [editorHasContent, setEditorHasContent] = useState(false);
@@ -188,20 +195,22 @@ function SendButton({
 
     const content = editorHasContent ? exportToHtml(editor) : "";
 
-    // Clear editor immediately for better UX
-    editor.update(() => {
-      const root = $getRoot();
-      root.clear();
-      const paragraph = $createParagraphNode();
-      root.append(paragraph);
-      paragraph.select();
-    });
+    if (clearOnSubmit) {
+      // Clear editor immediately for better UX
+      editor.update(() => {
+        const root = $getRoot();
+        root.clear();
+        const paragraph = $createParagraphNode();
+        root.append(paragraph);
+        paragraph.select();
+      });
+    }
 
     // Send message asynchronously (optimistic update handles UI feedback)
     onSubmit(content).catch((error) => {
       console.error("Failed to send message:", error);
     });
-  }, [editor, onSubmit, canSend, editorHasContent]);
+  }, [editor, onSubmit, canSend, editorHasContent, clearOnSubmit]);
 
   return (
     <button
@@ -235,6 +244,7 @@ export function RichTextEditor({
   initialDraft,
   initialHtml,
   onCancel,
+  clearOnSubmit = true,
 }: RichTextEditorProps) {
   const editorRef = useRef<LexicalEditor | null>(null);
 
@@ -320,6 +330,7 @@ export function RichTextEditor({
             hasAttachments={uploadingFiles.some(
               (f) => f.status === "completed",
             )}
+            clearOnSubmit={clearOnSubmit}
           />
         </div>
 
@@ -327,6 +338,7 @@ export function RichTextEditor({
           onSubmit={onSubmit}
           disabled={disabled}
           hasAttachments={uploadingFiles.some((f) => f.status === "completed")}
+          clearOnSubmit={clearOnSubmit}
         />
       </div>
     </LexicalComposer>
