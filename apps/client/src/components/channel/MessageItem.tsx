@@ -7,6 +7,8 @@ import { MessageAttachments } from "./MessageAttachments";
 import { MessageContextMenu } from "./MessageContextMenu";
 import { MessageHoverToolbar } from "./MessageHoverToolbar";
 import { MessageReactions } from "./MessageReactions";
+import { MessageTitle } from "./MessageTitle";
+import { MessageProperties } from "./properties/MessageProperties";
 import { ThreadReplyIndicator } from "./ThreadReplyIndicator";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { TrackingCard } from "./TrackingCard";
@@ -15,6 +17,7 @@ import { AgentTypeBadge } from "@/components/ui/agent-type-badge";
 import { formatMessageTime } from "@/lib/date-utils";
 import { getAgentMeta } from "@/lib/agent-events";
 import { cn } from "@/lib/utils";
+import { usePropertyDefinitions } from "@/hooks/usePropertyDefinitions";
 import type { Message } from "@/types/im";
 
 export interface MessageItemProps {
@@ -85,6 +88,9 @@ export function MessageItem({
   const isOwnMessage = currentUserId === message.senderId;
   const isSending = message.sendStatus === "sending";
   const isFailed = message.sendStatus === "failed";
+  const { data: propertyDefinitions } = usePropertyDefinitions(
+    message.channelId,
+  );
 
   // Tracking message display (inline card)
   const isTrackingMessage = message.type === "tracking";
@@ -239,6 +245,14 @@ export function MessageItem({
             isStreaming={false}
           />
         )}
+        <MessageTitle
+          title={
+            message.properties?.title != null
+              ? String(message.properties.title)
+              : undefined
+          }
+          messageId={message.id}
+        />
         {hasContent && (
           <div className="channel-message-content">
             <MessageContent
@@ -271,6 +285,14 @@ export function MessageItem({
               {t("message:remove")}
             </button>
           </div>
+        )}
+        {propertyDefinitions && propertyDefinitions.length > 0 && (
+          <MessageProperties
+            message={message}
+            channelId={message.channelId}
+            definitions={propertyDefinitions}
+            canEdit={isOwnMessage}
+          />
         )}
         {showReplyCount && (message.replyCount || 0) > 0 && (
           <ThreadReplyIndicator
