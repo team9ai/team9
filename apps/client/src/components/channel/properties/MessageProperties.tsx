@@ -1,7 +1,8 @@
 import { useMemo } from "react";
-import { MoreHorizontal, Plus } from "lucide-react";
+import { MoreHorizontal, Plus, Loader2 } from "lucide-react";
 import { PropertyTag } from "./PropertyTag";
 import { PropertyValue } from "./PropertyValue";
+import { AiAutoFillButton } from "./AiAutoFillButton";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/types/im";
 import type { PropertyDefinition } from "@/types/properties";
@@ -11,6 +12,7 @@ export interface MessagePropertiesProps {
   channelId: string;
   definitions: PropertyDefinition[];
   canEdit: boolean;
+  aiAutoFillLoading?: boolean;
 }
 
 /** Native property keys that should appear first, in this order */
@@ -29,9 +31,10 @@ function hasValue(value: unknown): boolean {
 
 export function MessageProperties({
   message,
-  channelId: _channelId,
+  channelId,
   definitions,
   canEdit,
+  aiAutoFillLoading = false,
 }: MessagePropertiesProps) {
   const properties = message.properties;
 
@@ -70,8 +73,26 @@ export function MessageProperties({
     return definitions.some((def) => hasValue(properties[def.key]));
   }, [definitions, properties]);
 
+  // Check if any definitions have aiAutoFill enabled
+  const hasAiAutoFillDefs = useMemo(
+    () => definitions.some((d) => d.aiAutoFill),
+    [definitions],
+  );
+
   // Don't render at all if nothing to show and not in edit mode
-  if (visibleDefinitions.length === 0 && !canEdit) return null;
+  if (visibleDefinitions.length === 0 && !canEdit && !aiAutoFillLoading) {
+    return null;
+  }
+
+  // Show shimmer when AI auto-fill is in progress
+  if (aiAutoFillLoading) {
+    return (
+      <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+        <Loader2 size={12} className="animate-spin" />
+        <span className="animate-pulse">Generating properties...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-1 mt-1">
@@ -104,6 +125,14 @@ export function MessageProperties({
 
         return <PropertyValue key={def.id} definition={def} value={value} />;
       })}
+
+      {canEdit && hasAiAutoFillDefs && (
+        <AiAutoFillButton
+          messageId={message.id}
+          channelId={channelId}
+          size="sm"
+        />
+      )}
 
       {canEdit && (
         <button

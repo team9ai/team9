@@ -9,6 +9,7 @@ import {
 } from "@/hooks/useMessageProperties";
 import { PropertyTag } from "./PropertyTag";
 import { PropertySelector } from "./PropertySelector";
+import { AiAutoFillButton } from "./AiAutoFillButton";
 import { TextEditor } from "./editors/TextEditor";
 import { NumberEditor } from "./editors/NumberEditor";
 import { BooleanEditor } from "./editors/BooleanEditor";
@@ -246,6 +247,12 @@ export function PropertyPanel({
     return (tagsDef.config?.options as SelectOption[] | undefined) || [];
   }, [tagsDef]);
 
+  // Check if any definitions have aiAutoFill enabled
+  const hasAiAutoFillDefs = useMemo(
+    () => definitions?.some((d) => d.aiAutoFill) ?? false,
+    [definitions],
+  );
+
   // Visibility: hide entirely if no tags and no properties with values
   const hasContent = tagValues.length > 0 || propsWithValues.length > 0;
 
@@ -321,7 +328,21 @@ export function PropertyPanel({
       {/* Properties table */}
       {(propsWithValues.length > 0 || definitions?.length) && (
         <div className="flex flex-col">
-          {/* Header */}
+          {/* AI Generate header button */}
+          {hasAiAutoFillDefs && (
+            <div className="flex items-center justify-between px-1 py-1">
+              <span className="text-xs text-muted-foreground font-medium">
+                Properties
+              </span>
+              <AiAutoFillButton
+                messageId={messageId}
+                channelId={channelId}
+                size="default"
+              />
+            </div>
+          )}
+
+          {/* Collapse header */}
           {shouldCollapse && (
             <div className="flex items-center justify-between px-1 py-1">
               <span className="text-xs text-muted-foreground">

@@ -77,6 +77,21 @@ export const propertyDefinitionsApi = {
   },
 };
 
+// AI Auto-Fill API
+export const aiAutoFillApi = {
+  // Trigger AI auto-fill for message properties
+  autoFill: async (
+    messageId: string,
+    options?: { fields?: string[]; preserveExisting?: boolean },
+  ): Promise<{ filled: Record<string, unknown>; skipped: string[] }> => {
+    const response = await http.post<{
+      filled: Record<string, unknown>;
+      skipped: string[];
+    }>(`/v1/im/messages/${messageId}/properties/auto-fill`, options ?? {});
+    return response.data;
+  },
+};
+
 // Message Properties API
 export const messagePropertiesApi = {
   // Get all properties for a message
@@ -145,6 +160,7 @@ export const auditLogsApi = {
 export const propertiesApi = {
   definitions: propertyDefinitionsApi,
   messageProperties: messagePropertiesApi,
+  aiAutoFill: aiAutoFillApi,
   auditLogs: auditLogsApi,
 };
 
