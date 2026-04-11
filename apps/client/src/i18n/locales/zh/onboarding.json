@@ -47,9 +47,10 @@
   },
   "role": {
     "inputLabel": "你的工作内容",
-    "inputPlaceholder": "例如：我负责 B2B SaaS 的销售跟进、投标和客户复盘。",
-    "customHint": "也可以只写自由描述，不选预设角色。",
+    "inputPlaceholder": "例如：我是一个 B2B SaaS 的销售经理，日常需要跟进客户线索、写投标方案、做每周的销售复盘、维护 CRM 数据……",
+    "customHint": "描述越详细，我们就能越准确地为你定制 Workspace。",
     "or": "或者",
+    "presetsToggle": "不知道怎么写？浏览预设角色获取灵感",
     "featured": "推荐",
     "suggestions": "角色建议"
   },

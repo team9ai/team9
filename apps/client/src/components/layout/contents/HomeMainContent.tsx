@@ -9,7 +9,6 @@ import {
   Plus,
   Search,
   Sparkles,
-  X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
@@ -44,7 +43,7 @@ import {
   getBaseModelProductKeyFromBotIdentity,
 } from "@/lib/base-model-agent";
 import type { WorkspaceBillingAccount } from "@/types/workspace";
-import { useSelectedWorkspaceId, useUser } from "@/stores";
+import { useSelectedWorkspaceId } from "@/stores";
 import { cn } from "@/lib/utils";
 
 const DASHBOARD_ACTION_CHIPS = [
@@ -354,16 +353,10 @@ export function HomeMainContent() {
     workspaceId ?? undefined,
     billingSummary.data?.managementAllowed ?? false,
   );
-  const user = useUser();
   const [prompt, setPrompt] = useState("");
   const [selectedAgentUserId, setSelectedAgentUserId] = useState<string | null>(
     null,
   );
-  const [isWarmupDismissed, setIsWarmupDismissed] = useState(false);
-
-  const isNewUser =
-    !!user?.createdAt &&
-    Date.now() - new Date(user.createdAt).getTime() < 10 * 60 * 1000;
   const selectedAgent =
     agents.find((agent) => agent.userId === selectedAgentUserId) ??
     agents[0] ??
@@ -460,26 +453,6 @@ export function HomeMainContent() {
 
           <div className="mx-auto flex w-full max-w-[1680px] flex-1 flex-col items-center justify-center gap-5 pb-8 pt-14 sm:gap-6 sm:pb-12 sm:pt-16 lg:pb-[4.5rem] lg:pt-20">
             <DashboardPlanBadge planLabel={currentPlanLabel} />
-
-            {isNewUser && !isWarmupDismissed ? (
-              <div className="dashboard-landing-pill flex w-full max-w-[36rem] items-start gap-2.5 rounded-[1.2rem] px-3.5 py-2.5 text-[0.78rem] text-[#6e655b] sm:items-center">
-                <Loader2
-                  size={14}
-                  className="mt-0.5 shrink-0 animate-spin text-[#7b8dcb] sm:mt-0"
-                />
-                <p className="flex-1">
-                  {t("dashboardWarmupNotice", { name: user?.name })}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setIsWarmupDismissed(true)}
-                  className="rounded-full p-1 text-[#a89c8d] transition-colors hover:bg-white/55 hover:text-[#6e655b]"
-                  aria-label={t("cancel")}
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            ) : null}
 
             <div className="mx-auto flex w-full max-w-[45.5rem] flex-col items-center gap-5">
               <h1 className="dashboard-landing-title max-w-[27.75rem] text-center text-[clamp(2.1rem,4vw,3.35rem)] leading-[0.99] text-[#2d2924]">
