@@ -125,8 +125,14 @@ describe('Routine Creation Flow — integration', () => {
   let taskCastService: { transitionStatus: MockFn; publishEvent: MockFn };
   let amqpConnection: { publish: MockFn };
   let documentsService: { create: MockFn; update: MockFn; getById: MockFn };
-  let routineTriggersService: { createBatch: MockFn; replaceAllForRoutine: MockFn };
-  let channelsService: { archiveCreationChannel: MockFn; createDirectChannel: MockFn };
+  let routineTriggersService: {
+    createBatch: MockFn;
+    replaceAllForRoutine: MockFn;
+  };
+  let channelsService: {
+    archiveCreationChannel: MockFn;
+    createDirectChannel: MockFn;
+  };
   let clawHiveService: {
     deleteAgent: MockFn;
     registerAgent: MockFn;
@@ -140,7 +146,9 @@ describe('Routine Creation Flow — integration', () => {
     documentsService = {
       create: jest.fn<any>().mockResolvedValue({ id: 'doc-flow-1' }),
       update: jest.fn<any>().mockResolvedValue(undefined),
-      getById: jest.fn<any>().mockResolvedValue({ id: 'doc-flow-1', content: 'some content' }),
+      getById: jest
+        .fn<any>()
+        .mockResolvedValue({ id: 'doc-flow-1', content: 'some content' }),
     };
     routineTriggersService = {
       createBatch: jest.fn<any>().mockResolvedValue(undefined),
@@ -206,7 +214,9 @@ describe('Routine Creation Flow — integration', () => {
     db.limit.mockResolvedValueOnce([] as any);
 
     // Mock: channelsService.createDirectChannel
-    channelsService.createDirectChannel.mockResolvedValueOnce({ id: CHANNEL_ID } as any);
+    channelsService.createDirectChannel.mockResolvedValueOnce({
+      id: CHANNEL_ID,
+    } as any);
 
     // Mock: db.update().set().where() — persist creationChannelId + creationSessionId
     // (no .returning() called; chain returns chain by default)
@@ -267,7 +277,9 @@ describe('Routine Creation Flow — integration', () => {
     documentsService.update.mockResolvedValueOnce(undefined as any);
 
     // Mock: routineTriggersService.replaceAllForRoutine (triggers update)
-    routineTriggersService.replaceAllForRoutine.mockResolvedValueOnce(undefined as any);
+    routineTriggersService.replaceAllForRoutine.mockResolvedValueOnce(
+      undefined as any,
+    );
 
     // Mock: db.update().set().where().returning() — returns updated routine
     db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);

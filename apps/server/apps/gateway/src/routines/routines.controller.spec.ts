@@ -75,7 +75,9 @@ describe('RoutinesController', () => {
         status: 'resolved',
       }),
       retry: jest.fn<any>().mockResolvedValue({ success: true }),
-      completeCreation: jest.fn<any>().mockResolvedValue({ id: routineId, status: 'upcoming' }),
+      completeCreation: jest
+        .fn<any>()
+        .mockResolvedValue({ id: routineId, status: 'upcoming' }),
       createWithCreationTask: jest.fn<any>().mockResolvedValue({
         routineId,
         creationChannelId: 'channel-1',
@@ -119,11 +121,15 @@ describe('RoutinesController', () => {
         'once',
       );
 
-      expect(routinesService.list).toHaveBeenCalledWith(tenantId, {
-        botId: 'bot-1',
-        status: 'in_progress',
-        scheduleType: 'once',
-      }, userId);
+      expect(routinesService.list).toHaveBeenCalledWith(
+        tenantId,
+        {
+          botId: 'bot-1',
+          status: 'in_progress',
+          scheduleType: 'once',
+        },
+        userId,
+      );
       expect(result).toEqual([{ id: routineId }]);
     });
 
@@ -434,7 +440,11 @@ describe('RoutinesController', () => {
     it('delegates to routinesService.createWithCreationTask with dto, userId, tenantId', async () => {
       const dto = { agentId: 'bot-1' } as any;
 
-      const result = await controller.createWithCreationTask(dto, userId, tenantId);
+      const result = await controller.createWithCreationTask(
+        dto,
+        userId,
+        tenantId,
+      );
 
       expect(routinesService.createWithCreationTask).toHaveBeenCalledWith(
         dto,

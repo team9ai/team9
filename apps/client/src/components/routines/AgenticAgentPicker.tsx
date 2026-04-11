@@ -64,7 +64,10 @@ export function AgenticAgentPicker({ open, onClose }: AgenticAgentPickerProps) {
       });
     },
     onError: (err) => {
-      setError((err as Error)?.message ?? t("agentic.errorGeneric", "Failed to start creation"));
+      setError(
+        (err as Error)?.message ??
+          t("agentic.errorGeneric", "Failed to start creation"),
+      );
     },
   });
 
@@ -82,7 +85,9 @@ export function AgenticAgentPicker({ open, onClose }: AgenticAgentPickerProps) {
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>{t("agentic.pickerTitle")}</DialogTitle>
-          <DialogDescription>{t("agentic.pickerDescription")}</DialogDescription>
+          <DialogDescription>
+            {t("agentic.pickerDescription")}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="py-2 space-y-4">
@@ -117,13 +122,15 @@ export function AgenticAgentPicker({ open, onClose }: AgenticAgentPickerProps) {
             )}
           </div>
 
-          {error && (
-            <p className="text-sm text-destructive">{error}</p>
-          )}
+          {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={handleClose} disabled={createMutation.isPending}>
+          <Button
+            variant="ghost"
+            onClick={handleClose}
+            disabled={createMutation.isPending}
+          >
             {t("agentic.cancel")}
           </Button>
           <Button

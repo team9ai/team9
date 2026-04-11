@@ -72,7 +72,11 @@ export class RoutinesController {
     @Query('status') status?: RoutineStatus,
     @Query('scheduleType') scheduleType?: RoutineScheduleType,
   ) {
-    return this.routinesService.list(tenantId, { botId, status, scheduleType }, userId);
+    return this.routinesService.list(
+      tenantId,
+      { botId, status, scheduleType },
+      userId,
+    );
   }
 
   @Get(':id')

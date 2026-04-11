@@ -27,13 +27,11 @@ describe('RoutineBotController', () => {
       createRoutine: jest
         .fn<any>()
         .mockResolvedValue({ id: 'routine-1', status: 'draft' }),
-      getRoutineById: jest
-        .fn<any>()
-        .mockResolvedValue({
-          id: 'routine-1',
-          documentContent: '',
-          triggers: [],
-        }),
+      getRoutineById: jest.fn<any>().mockResolvedValue({
+        id: 'routine-1',
+        documentContent: '',
+        triggers: [],
+      }),
       updateRoutine: jest
         .fn<any>()
         .mockResolvedValue({ id: 'routine-1', title: 'Updated' }),

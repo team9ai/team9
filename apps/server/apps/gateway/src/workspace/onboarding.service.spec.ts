@@ -1,5 +1,4 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
-import { NotFoundException } from '@nestjs/common';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -56,8 +55,16 @@ const RECORD_ID = 'record-uuid';
 const BOT_ID = 'bot-uuid';
 const APP_ID = 'app-uuid';
 
-const GENERATED_TASK_1 = { id: 'task-1', emoji: '📋', title: 'Review contracts' };
-const GENERATED_TASK_2 = { id: 'task-2', emoji: '📊', title: 'Analyze reports' };
+const GENERATED_TASK_1 = {
+  id: 'task-1',
+  emoji: '📋',
+  title: 'Review contracts',
+};
+const GENERATED_TASK_2 = {
+  id: 'task-2',
+  emoji: '📊',
+  title: 'Analyze reports',
+};
 
 function makeOnboardingRecord(overrides: Record<string, any> = {}) {
   return {
@@ -258,7 +265,7 @@ describe('OnboardingService — provisionRoutines', () => {
 
     expect(routinesService.create).toHaveBeenCalledTimes(3);
 
-    const calls = routinesService.create.mock.calls as any[][];
+    const calls = routinesService.create.mock.calls;
     const sourceRefs = calls.map((c) => c[3]?.sourceRef);
     expect(sourceRefs).toContain(`onboarding:${RECORD_ID}:task-1`);
     expect(sourceRefs).toContain(`onboarding:${RECORD_ID}:task-2`);
@@ -466,8 +473,10 @@ describe('OnboardingService — persistPreferences (no selectedTaskTitles)', () 
     await service.complete(WORKSPACE_ID, USER_ID, { lang: 'en' });
 
     // The update call chain: update().set().where()
-    const setCalls = (db.set as MockFn).mock.calls as any[][];
-    const settingsCall = setCalls.find((c) => c[0]?.settings?.onboarding?.tasks);
+    const setCalls = (db.set as MockFn).mock.calls;
+    const settingsCall = setCalls.find(
+      (c) => c[0]?.settings?.onboarding?.tasks,
+    );
     expect(settingsCall).toBeDefined();
     const savedTasks = settingsCall![0].settings.onboarding.tasks;
     expect(savedTasks).not.toHaveProperty('selectedTaskTitles');
@@ -507,14 +516,16 @@ describe('OnboardingService — pipeline ordering', () => {
       create: jest.fn<any>().mockResolvedValue({ id: 'channel-id' }),
     };
     installedApplicationsService = {
-      findByApplicationId: jest.fn<any>().mockImplementation(async (_wid: string, appId: string) => {
-        if (appId === 'common-staff') {
-          callOrder.push('provisionCommonStaff:findApp');
-          return null; // no common-staff app
-        }
-        callOrder.push('provisionPersonalStaff:findApp');
-        return { id: APP_ID, applicationId: appId };
-      }),
+      findByApplicationId: jest
+        .fn<any>()
+        .mockImplementation(async (_wid: string, appId: string) => {
+          if (appId === 'common-staff') {
+            callOrder.push('provisionCommonStaff:findApp');
+            return null; // no common-staff app
+          }
+          callOrder.push('provisionPersonalStaff:findApp');
+          return { id: APP_ID, applicationId: appId };
+        }),
       install: jest.fn<any>().mockResolvedValue({ id: APP_ID }),
     };
     personalStaffService = {
@@ -588,7 +599,9 @@ describe('OnboardingService — pipeline ordering', () => {
     expect(routineIdx).toBeGreaterThanOrEqual(0);
 
     // provisionPersonalStaff should have run before provisionRoutines
-    const personalStaffIdx = callOrder.indexOf('provisionPersonalStaff:findBot');
+    const personalStaffIdx = callOrder.indexOf(
+      'provisionPersonalStaff:findBot',
+    );
     expect(personalStaffIdx).toBeLessThan(routineIdx);
   });
 });

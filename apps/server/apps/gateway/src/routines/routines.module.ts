@@ -13,7 +13,13 @@ import { RoutineTriggersService } from './routine-triggers.service.js';
 import { RoutinesStreamController } from './routines-stream.controller.js';
 
 @Module({
-  imports: [AuthModule, DocumentsModule, forwardRef(() => WebsocketModule), ChannelsModule, ClawHiveModule],
+  imports: [
+    AuthModule,
+    DocumentsModule,
+    forwardRef(() => WebsocketModule),
+    ChannelsModule,
+    ClawHiveModule,
+  ],
   controllers: [
     RoutinesController,
     RoutineBotController,
