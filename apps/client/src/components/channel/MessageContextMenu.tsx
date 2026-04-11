@@ -83,10 +83,12 @@ export function MessageContextMenu({
         <ContextMenuSeparator />
 
         {/* Pin action */}
-        <ContextMenuItem onClick={onPin}>
-          <Pin className="mr-2 h-4 w-4" />
-          {message.isPinned ? t("unpinMessage") : t("pinMessage")}
-        </ContextMenuItem>
+        {onPin && (
+          <ContextMenuItem onClick={onPin}>
+            <Pin className="mr-2 h-4 w-4" />
+            {message.isPinned ? t("unpinMessage") : t("pinMessage")}
+          </ContextMenuItem>
+        )}
 
         {/* Edit - only for own messages with edit handler */}
         {isOwnMessage && onEdit && (

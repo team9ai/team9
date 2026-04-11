@@ -12,6 +12,7 @@ import { getAgentMeta, pairToolEvents } from "@/lib/agent-events";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useChannelMembers } from "@/hooks/useChannels";
 import { useThreadStore } from "@/hooks/useThread";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useDeleteMessage,
   useRetryMessage,
@@ -105,6 +106,7 @@ export function MessageList({
 
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const updateMessage = useUpdateMessage();
+  const queryClient = useQueryClient();
 
   const handleEditStart = useCallback((messageId: string) => {
     setEditingMessageId(messageId);
@@ -114,12 +116,16 @@ export function MessageList({
     async (messageId: string, content: string) => {
       try {
         await updateMessage.mutateAsync({ messageId, data: { content } });
+        // Invalidate full-content cache so edited long_text messages refetch
+        queryClient.removeQueries({
+          queryKey: ["message-full-content", messageId],
+        });
         setEditingMessageId((cur) => (cur === messageId ? null : cur));
       } catch {
         // Edit mode stays open, content preserved in editor (clearOnSubmit=false)
       }
     },
-    [updateMessage],
+    [updateMessage, queryClient],
   );
 
   const handleEditCancel = useCallback(() => {

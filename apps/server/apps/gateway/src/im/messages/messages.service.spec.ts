@@ -334,7 +334,6 @@ describe('MessagesService', () => {
 
     expect(db.chains.updateSet).toHaveBeenCalledWith({
       isPinned: true,
-      updatedAt: new Date('2026-04-02T10:30:00.000Z'),
     });
   });
 

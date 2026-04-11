@@ -939,7 +939,7 @@ export class MessagesService {
   async pinMessage(messageId: string, isPinned: boolean): Promise<void> {
     await this.db
       .update(schema.messages)
-      .set({ isPinned, updatedAt: new Date() })
+      .set({ isPinned })
       .where(eq(schema.messages.id, messageId));
   }
 
