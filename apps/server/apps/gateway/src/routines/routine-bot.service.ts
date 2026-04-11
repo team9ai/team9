@@ -675,7 +675,10 @@ export class RoutineBotService {
     }
 
     // 4. Verify bot ownership
-    if (botUserId && routine.botId) {
+    if (!routine.botId) {
+      throw new ForbiddenException('Routine has no assigned bot');
+    }
+    if (botUserId) {
       await this.verifyBotOwnership(routine.botId, botUserId);
     }
 
@@ -713,7 +716,10 @@ export class RoutineBotService {
       throw new NotFoundException('Routine not found');
     }
 
-    if (botUserId && routine.botId) {
+    if (!routine.botId) {
+      throw new ForbiddenException('Routine has no assigned bot');
+    }
+    if (botUserId) {
       await this.verifyBotOwnership(routine.botId, botUserId);
     }
 
