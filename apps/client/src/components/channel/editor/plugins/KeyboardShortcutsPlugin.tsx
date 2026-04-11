@@ -3,14 +3,13 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import {
   COMMAND_PRIORITY_LOW,
   KEY_ENTER_COMMAND,
-  $getRoot,
   $getSelection,
   $isRangeSelection,
-  $createParagraphNode,
 } from "lexical";
 import { CodeNode } from "@lexical/code";
 import { $getNearestNodeOfType } from "@lexical/utils";
-import { exportToHtml, hasContent } from "../utils/exportContent";
+import { hasContent } from "../utils/exportContent";
+import { submitEditorContent } from "../utils/submitEditorContent";
 
 interface KeyboardShortcutsPluginProps {
   onSubmit: (content: string) => Promise<void>;
@@ -38,21 +37,13 @@ export function KeyboardShortcutsPlugin({
     const editorHasContent = hasContent(editor);
     if (!editorHasContent && !hasAttachments) return false;
 
-    const content = editorHasContent ? exportToHtml(editor) : "";
-
-    if (clearOnSubmit) {
-      // Clear editor immediately for better UX
-      editor.update(() => {
-        const root = $getRoot();
-        root.clear();
-        const paragraph = $createParagraphNode();
-        root.append(paragraph);
-        paragraph.select();
-      });
-    }
-
-    // Send message asynchronously (optimistic update handles UI feedback)
-    onSubmit(content).catch((error) => {
+    void submitEditorContent({
+      editor,
+      onSubmit,
+      disabled,
+      hasAttachments,
+      clearOnSubmit,
+    }).catch((error) => {
       console.error("Failed to send message:", error);
     });
 

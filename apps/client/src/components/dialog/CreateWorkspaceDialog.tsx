@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { useCreateWorkspace } from "@/hooks/useWorkspace";
 import { getHttpErrorMessage } from "@/lib/http-error";
 import { useWorkspaceStore } from "@/stores";
+import { usePostHogAnalytics } from "@/analytics/posthog/hooks";
 
 interface CreateWorkspaceDialogProps {
   isOpen: boolean;
@@ -61,6 +62,7 @@ export function CreateWorkspaceDialog({
   const createWorkspace = useCreateWorkspace();
   const queryClient = useQueryClient();
   const { setSelectedWorkspaceId } = useWorkspaceStore();
+  const { capture } = usePostHogAnalytics();
 
   const [name, setName] = useState("");
   const [slugPreview, setSlugPreview] = useState("");
@@ -97,6 +99,9 @@ export function CreateWorkspaceDialog({
       // Only send name, backend will generate unique slug
       const workspace = await createWorkspace.mutateAsync({
         name: name.trim(),
+      });
+      capture("workspace_created", {
+        workspace_id: workspace.id,
       });
 
       // Wait for workspace list to refresh before switching

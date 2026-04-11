@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   X,
   File,
@@ -9,6 +10,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ImagePreviewDialog } from "../ImagePreviewDialog";
 import type { UploadingFile } from "@/hooks/useFileUpload";
 
 interface AttachmentPreviewProps {
@@ -49,23 +51,26 @@ function ImageAttachmentItem({
   onRemove: () => void;
   onRetry?: () => void;
 }) {
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const isError = file.status === "error";
   const isUploading =
     file.status === "uploading" || file.status === "confirming";
+  const objectUrl = URL.createObjectURL(file.file);
 
   return (
     <div className="relative group">
       {/* Image thumbnail */}
       <div
         className={cn(
-          "w-20 h-20 rounded-lg overflow-hidden border-2",
+          "w-20 h-20 rounded-lg overflow-hidden border-2 cursor-pointer",
           isError && "border-destructive/30",
           isUploading && "border-info/30",
           !isError && !isUploading && "border-transparent",
         )}
+        onClick={() => !isUploading && setIsPreviewOpen(true)}
       >
         <img
-          src={URL.createObjectURL(file.file)}
+          src={objectUrl}
           alt={file.file.name}
           className={cn(
             "w-full h-full object-cover",
@@ -114,6 +119,13 @@ function ImageAttachmentItem({
           <RefreshCw className="w-3 h-3 text-destructive" />
         </Button>
       )}
+
+      <ImagePreviewDialog
+        src={objectUrl}
+        alt={file.file.name}
+        open={isPreviewOpen}
+        onOpenChange={setIsPreviewOpen}
+      />
     </div>
   );
 }

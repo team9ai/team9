@@ -1,7 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import * as Sentry from "@sentry/react";
-import TagManager from "react-gtm-module";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { ErrorFallback } from "./components/error-fallback";
 import "./global.css";
@@ -25,12 +24,6 @@ Sentry.init({
   replaysSessionSampleRate: 0,
   replaysOnErrorSampleRate: 1.0,
 });
-
-// Initialize Google Tag Manager
-const gtmId = import.meta.env.VITE_GTM_ID;
-if (gtmId) {
-  TagManager.initialize({ gtmId });
-}
 
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
