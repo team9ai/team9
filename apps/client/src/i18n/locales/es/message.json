@@ -37,5 +37,13 @@
   "botThinking": "Pensando",
   "botAnalyzing": "Analizando",
   "selectUserToChat": "Seleccione un usuario para iniciar una conversación directa",
-  "botGenerating": "Generando respuesta"
+  "botGenerating": "Generando respuesta",
+  "editedAt": "(editado a las {{time}})",
+  "editSave": "Guardar",
+  "editCancel": "Cancelar",
+  "editHint": "Esc cancelar · Enter guardar",
+  "deleteConfirmTitle": "Eliminar mensaje",
+  "deleteConfirmDescription": "¿Estás seguro de que quieres eliminar este mensaje? Esta acción no se puede deshacer.",
+  "deleteConfirm": "Eliminar",
+  "deleteCancel": "Cancelar"
 }

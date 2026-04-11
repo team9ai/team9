@@ -37,5 +37,13 @@
   "botThinking": "생각 중",
   "botAnalyzing": "분석 중",
   "selectUserToChat": "대화를 시작할 사용자를 선택하세요",
-  "botGenerating": "응답 생성 중"
+  "botGenerating": "응답 생성 중",
+  "editedAt": "({{time}}에 수정됨)",
+  "editSave": "저장",
+  "editCancel": "취소",
+  "editHint": "Esc 취소 · Enter 저장",
+  "deleteConfirmTitle": "메시지 삭제",
+  "deleteConfirmDescription": "이 메시지를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+  "deleteConfirm": "삭제",
+  "deleteCancel": "취소"
 }
