@@ -24,9 +24,19 @@ describe('RoutineBotController', () => {
 
   beforeEach(() => {
     routineBotService = {
-      createRoutine: jest.fn<any>().mockResolvedValue({ id: 'routine-1', status: 'draft' }),
-      getRoutineById: jest.fn<any>().mockResolvedValue({ id: 'routine-1', documentContent: '', triggers: [] }),
-      updateRoutine: jest.fn<any>().mockResolvedValue({ id: 'routine-1', title: 'Updated' }),
+      createRoutine: jest
+        .fn<any>()
+        .mockResolvedValue({ id: 'routine-1', status: 'draft' }),
+      getRoutineById: jest
+        .fn<any>()
+        .mockResolvedValue({
+          id: 'routine-1',
+          documentContent: '',
+          triggers: [],
+        }),
+      updateRoutine: jest
+        .fn<any>()
+        .mockResolvedValue({ id: 'routine-1', title: 'Updated' }),
       reportSteps: jest.fn<any>().mockResolvedValue({ success: true }),
       updateStatus: jest.fn<any>().mockResolvedValue({ success: true }),
       createIntervention: jest.fn<any>().mockResolvedValue({

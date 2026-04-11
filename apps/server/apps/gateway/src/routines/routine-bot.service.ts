@@ -406,7 +406,18 @@ export class RoutineBotService {
    * the bot's mentorId (personal staff) or ownerId.
    */
   async createRoutine(
-    dto: { title: string; documentContent?: string; description?: string; botId?: string; status?: 'draft' | 'upcoming'; triggers?: Array<{ type: string; config: Record<string, unknown>; enabled?: boolean }> },
+    dto: {
+      title: string;
+      documentContent?: string;
+      description?: string;
+      botId?: string;
+      status?: 'draft' | 'upcoming';
+      triggers?: Array<{
+        type: string;
+        config: Record<string, unknown>;
+        enabled?: boolean;
+      }>;
+    },
     botUserId: string,
     tenantId: string,
   ) {
@@ -424,7 +435,9 @@ export class RoutineBotService {
     // Use mentorId (personal staff) or ownerId as the human creator
     const creatorId = bot.mentorId ?? bot.ownerId;
     if (!creatorId) {
-      throw new BadRequestException('Bot has no associated human user (no mentorId or ownerId)');
+      throw new BadRequestException(
+        'Bot has no associated human user (no mentorId or ownerId)',
+      );
     }
 
     // Validate explicit botId belongs to this tenant if provided
@@ -435,7 +448,10 @@ export class RoutineBotService {
         .from(schema.bots)
         .leftJoin(
           schema.installedApplications,
-          eq(schema.bots.installedApplicationId, schema.installedApplications.id),
+          eq(
+            schema.bots.installedApplicationId,
+            schema.installedApplications.id,
+          ),
         )
         .where(
           and(
@@ -446,7 +462,9 @@ export class RoutineBotService {
         .limit(1);
 
       if (!targetBot) {
-        throw new BadRequestException('Specified botId does not belong to the current tenant');
+        throw new BadRequestException(
+          'Specified botId does not belong to the current tenant',
+        );
       }
     }
 
@@ -465,11 +483,7 @@ export class RoutineBotService {
    * Fetch a routine by ID, verifying the calling bot is the assigned bot.
    * Returns routine enriched with documentContent and triggers.
    */
-  async getRoutineById(
-    routineId: string,
-    botUserId: string,
-    tenantId: string,
-  ) {
+  async getRoutineById(routineId: string, botUserId: string, tenantId: string) {
     const routine = await this.getRoutineOrThrow(routineId, tenantId);
 
     // Verify calling bot is the assigned bot
@@ -489,7 +503,10 @@ export class RoutineBotService {
     }
 
     // Enrich with triggers
-    const triggers = await this.routineTriggersService.listByRoutine(routineId, tenantId);
+    const triggers = await this.routineTriggersService.listByRoutine(
+      routineId,
+      tenantId,
+    );
 
     return { ...routine, documentContent, triggers };
   }
@@ -521,7 +538,9 @@ export class RoutineBotService {
     // Handle documentContent
     if (dto.documentContent !== undefined) {
       if (!routine.documentId) {
-        throw new BadRequestException('Cannot update document content: routine has no linked document.');
+        throw new BadRequestException(
+          'Cannot update document content: routine has no linked document.',
+        );
       }
       await this.documentsService.update(
         routine.documentId,
@@ -532,22 +551,33 @@ export class RoutineBotService {
 
     // Handle triggers — wholesale replace
     if (dto.triggers !== undefined) {
-      await this.routineTriggersService.replaceAllForRoutine(routineId, dto.triggers, tenantId);
+      await this.routineTriggersService.replaceAllForRoutine(
+        routineId,
+        dto.triggers,
+        tenantId,
+      );
     }
 
     // Validate explicit botId belongs to this tenant if provided
     if (dto.botId) {
       const [targetBot] = await this.db
-        .select({ id: schema.bots.id, tenantId: schema.installedApplications.tenantId })
+        .select({
+          id: schema.bots.id,
+          tenantId: schema.installedApplications.tenantId,
+        })
         .from(schema.bots)
         .leftJoin(
           schema.installedApplications,
-          eq(schema.bots.installedApplicationId, schema.installedApplications.id),
+          eq(
+            schema.bots.installedApplicationId,
+            schema.installedApplications.id,
+          ),
         )
         .where(eq(schema.bots.id, dto.botId))
         .limit(1);
       if (!targetBot) throw new BadRequestException('Invalid botId');
-      if (targetBot.tenantId !== tenantId) throw new ForbiddenException('Bot does not belong to tenant');
+      if (targetBot.tenantId !== tenantId)
+        throw new ForbiddenException('Bot does not belong to tenant');
     }
 
     const updateData: Record<string, unknown> = { updatedAt: new Date() };
@@ -555,8 +585,10 @@ export class RoutineBotService {
     if (dto.title !== undefined) updateData.title = dto.title;
     if (dto.botId !== undefined) updateData.botId = dto.botId;
     if (dto.description !== undefined) updateData.description = dto.description;
-    if (dto.scheduleType !== undefined) updateData.scheduleType = dto.scheduleType;
-    if (dto.scheduleConfig !== undefined) updateData.scheduleConfig = dto.scheduleConfig;
+    if (dto.scheduleType !== undefined)
+      updateData.scheduleType = dto.scheduleType;
+    if (dto.scheduleConfig !== undefined)
+      updateData.scheduleConfig = dto.scheduleConfig;
 
     const [updated] = await this.db
       .update(schema.routines)

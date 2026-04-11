@@ -1,7 +1,10 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
-import { NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { RoutineBotService } from './routine-bot.service.js';
-import { TaskCastService } from './taskcast.service.js';
 
 // ── helpers ───────────────────────────────────────────────────────────
 
@@ -540,10 +543,18 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
   let wsGateway: { broadcastToWorkspace: MockFn };
   let taskCastService: { publishEvent: MockFn; transitionStatus: MockFn };
   let documentsService: { create: MockFn; getById: MockFn; update: MockFn };
-  let routineTriggersService: { listByRoutine: MockFn; replaceAllForRoutine: MockFn };
+  let routineTriggersService: {
+    listByRoutine: MockFn;
+    replaceAllForRoutine: MockFn;
+  };
   let routinesService: { create: MockFn };
 
-  const BOT_ROW = { id: 'bot-1', userId: 'bot-user-1', ownerId: 'owner-user-1', mentorId: null };
+  const BOT_ROW = {
+    id: 'bot-1',
+    userId: 'bot-user-1',
+    ownerId: 'owner-user-1',
+    mentorId: null,
+  };
   const ROUTINE_ROW = {
     id: 'routine-1',
     tenantId: 'tenant-1',
@@ -556,7 +567,9 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
 
   beforeEach(() => {
     db = mockDb();
-    wsGateway = { broadcastToWorkspace: jest.fn<any>().mockResolvedValue(undefined) };
+    wsGateway = {
+      broadcastToWorkspace: jest.fn<any>().mockResolvedValue(undefined),
+    };
     taskCastService = {
       publishEvent: jest.fn<any>().mockResolvedValue(undefined),
       transitionStatus: jest.fn<any>().mockResolvedValue(undefined),
@@ -600,7 +613,11 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
 
       expect(result).toEqual(ROUTINE_ROW);
       expect(routinesService.create).toHaveBeenCalledWith(
-        expect.objectContaining({ title: 'My Routine', botId: 'bot-1', status: 'upcoming' }),
+        expect.objectContaining({
+          title: 'My Routine',
+          botId: 'bot-1',
+          status: 'upcoming',
+        }),
         'owner-user-1',
         'tenant-1',
       );
@@ -609,7 +626,11 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
     it('defaults status to "upcoming" when not provided', async () => {
       db.limit.mockResolvedValueOnce([BOT_ROW] as any);
 
-      await service.createRoutine({ title: 'My Routine' }, 'bot-user-1', 'tenant-1');
+      await service.createRoutine(
+        { title: 'My Routine' },
+        'bot-user-1',
+        'tenant-1',
+      );
 
       expect(routinesService.create).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'upcoming' }),
@@ -621,7 +642,11 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
     it('passes through status="draft" when explicitly provided', async () => {
       db.limit.mockResolvedValueOnce([BOT_ROW] as any);
 
-      await service.createRoutine({ title: 'My Routine', status: 'draft' }, 'bot-user-1', 'tenant-1');
+      await service.createRoutine(
+        { title: 'My Routine', status: 'draft' },
+        'bot-user-1',
+        'tenant-1',
+      );
 
       expect(routinesService.create).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'draft' }),
@@ -632,9 +657,15 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
 
     it('passes through triggers when provided', async () => {
       db.limit.mockResolvedValueOnce([BOT_ROW] as any);
-      const triggers = [{ type: 'schedule', config: { cron: '0 9 * * 1' }, enabled: true }];
+      const triggers = [
+        { type: 'schedule', config: { cron: '0 9 * * 1' }, enabled: true },
+      ];
 
-      await service.createRoutine({ title: 'My Routine', triggers }, 'bot-user-1', 'tenant-1');
+      await service.createRoutine(
+        { title: 'My Routine', triggers },
+        'bot-user-1',
+        'tenant-1',
+      );
 
       expect(routinesService.create).toHaveBeenCalledWith(
         expect.objectContaining({ triggers }),
@@ -647,7 +678,11 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
       const botWithMentor = { ...BOT_ROW, mentorId: 'mentor-user-1' };
       db.limit.mockResolvedValueOnce([botWithMentor] as any);
 
-      await service.createRoutine({ title: 'My Routine' }, 'bot-user-1', 'tenant-1');
+      await service.createRoutine(
+        { title: 'My Routine' },
+        'bot-user-1',
+        'tenant-1',
+      );
 
       expect(routinesService.create).toHaveBeenCalledWith(
         expect.any(Object),
@@ -660,7 +695,11 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
       db.limit.mockResolvedValueOnce([] as any);
 
       await expect(
-        service.createRoutine({ title: 'My Routine' }, 'bot-user-1', 'tenant-1'),
+        service.createRoutine(
+          { title: 'My Routine' },
+          'bot-user-1',
+          'tenant-1',
+        ),
       ).rejects.toThrow(NotFoundException);
 
       expect(routinesService.create).not.toHaveBeenCalled();
@@ -671,7 +710,11 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
       db.limit.mockResolvedValueOnce([orphanBot] as any);
 
       await expect(
-        service.createRoutine({ title: 'My Routine' }, 'bot-user-1', 'tenant-1'),
+        service.createRoutine(
+          { title: 'My Routine' },
+          'bot-user-1',
+          'tenant-1',
+        ),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -686,10 +729,18 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
         // verifyBotOwnership: bot lookup
         .mockResolvedValueOnce([BOT_ROW] as any);
 
-      documentsService.getById.mockResolvedValueOnce({ content: 'my content' } as any);
-      routineTriggersService.listByRoutine.mockResolvedValueOnce([{ id: 'trigger-1' }] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        content: 'my content',
+      } as any);
+      routineTriggersService.listByRoutine.mockResolvedValueOnce([
+        { id: 'trigger-1' },
+      ] as any);
 
-      const result = await service.getRoutineById('routine-1', 'bot-user-1', 'tenant-1');
+      const result = await service.getRoutineById(
+        'routine-1',
+        'bot-user-1',
+        'tenant-1',
+      );
 
       expect(result).toMatchObject({
         id: 'routine-1',
@@ -722,10 +773,16 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
         .mockResolvedValueOnce([ROUTINE_ROW] as any)
         .mockResolvedValueOnce([BOT_ROW] as any);
 
-      documentsService.getById.mockRejectedValueOnce(new Error('not found') as any);
+      documentsService.getById.mockRejectedValueOnce(
+        new Error('not found') as any,
+      );
       routineTriggersService.listByRoutine.mockResolvedValueOnce([] as any);
 
-      const result = await service.getRoutineById('routine-1', 'bot-user-1', 'tenant-1');
+      const result = await service.getRoutineById(
+        'routine-1',
+        'bot-user-1',
+        'tenant-1',
+      );
 
       expect(result.documentContent).toBe('');
     });
@@ -816,7 +873,12 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
         .mockResolvedValueOnce([{ userId: 'different-bot-user' }] as any);
 
       await expect(
-        service.updateRoutine('routine-1', { title: 'New' }, 'bot-user-1', 'tenant-1'),
+        service.updateRoutine(
+          'routine-1',
+          { title: 'New' },
+          'bot-user-1',
+          'tenant-1',
+        ),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -824,7 +886,12 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
       db.limit.mockResolvedValueOnce([] as any);
 
       await expect(
-        service.updateRoutine('nonexistent', { title: 'X' }, 'bot-user-1', 'tenant-1'),
+        service.updateRoutine(
+          'nonexistent',
+          { title: 'X' },
+          'bot-user-1',
+          'tenant-1',
+        ),
       ).rejects.toThrow(NotFoundException);
     });
   });

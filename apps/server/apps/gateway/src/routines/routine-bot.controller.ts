@@ -45,7 +45,11 @@ export class RoutineBotController {
     @CurrentUser('sub') botUserId: string,
     @CurrentTenantId() tenantId: string,
   ) {
-    return this.routineBotService.getRoutineById(routineId, botUserId, tenantId);
+    return this.routineBotService.getRoutineById(
+      routineId,
+      botUserId,
+      tenantId,
+    );
   }
 
   @Patch(':routineId')
@@ -55,7 +59,12 @@ export class RoutineBotController {
     @CurrentUser('sub') botUserId: string,
     @CurrentTenantId() tenantId: string,
   ) {
-    return this.routineBotService.updateRoutine(routineId, dto, botUserId, tenantId);
+    return this.routineBotService.updateRoutine(
+      routineId,
+      dto,
+      botUserId,
+      tenantId,
+    );
   }
 
   // ── Execution reporting ────────────────────────────────────────────

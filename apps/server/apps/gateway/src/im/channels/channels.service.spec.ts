@@ -1473,7 +1473,7 @@ describe('ChannelsService', () => {
       db.limit.mockResolvedValueOnce([
         { id: 'ch-direct', type: 'direct', isArchived: false },
       ] as any);
-      db.where.mockResolvedValueOnce(undefined as any);
+      // UPDATE's .where() doesn't need a specific return — chain default is fine
 
       await service.archiveCreationChannel('ch-direct');
 
@@ -1513,7 +1513,6 @@ describe('ChannelsService', () => {
       db.limit.mockResolvedValueOnce([
         { id: 'ch-1', type: 'direct', isArchived: false },
       ] as any);
-      db.where.mockResolvedValueOnce(undefined as any);
 
       await service.archiveCreationChannel('ch-1', 'tenant-42');
 
