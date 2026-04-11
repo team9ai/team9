@@ -36,3 +36,6 @@ export * from './routine.events.js';
 
 // Streaming events (AI bot)
 export * from './streaming.events.js';
+
+// Property, View, and Tab events
+export * from './property.events.js';
