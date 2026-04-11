@@ -161,7 +161,6 @@ function OnboardingRoute() {
   const [flashMessage, setFlashMessage] = useState("");
   const [copied, setCopied] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
-  const [editingChildAgentId, setEditingChildAgentId] = useState("");
 
   const initializedWorkspaceIdRef = useRef<string | null>(null);
   const taskSignatureRef = useRef("");
@@ -178,7 +177,6 @@ function OnboardingRoute() {
     channelInFlightSignatureRef.current = "";
     agentInFlightSignatureRef.current = "";
     inviteCreationRequestedRef.current = null;
-    setEditingChildAgentId("");
   }, [workspaceId]);
 
   useEffect(() => {
@@ -256,7 +254,6 @@ function OnboardingRoute() {
     setAgentsState(nextAgents);
     setInviteState(nextInvite);
     setPlanState(nextPlan);
-    setEditingChildAgentId("");
 
     taskSignatureRef.current = buildRoleSignature(nextRole, language);
     channelSignatureRef.current = buildTaskSignature(
@@ -519,7 +516,6 @@ function OnboardingRoute() {
       };
 
       setAgentsState(nextAgents);
-      setEditingChildAgentId("");
       agentSignatureRef.current = signature;
 
       await persistProgress({
@@ -1100,18 +1096,12 @@ function OnboardingRoute() {
                     t={t}
                     agents={agentsState}
                     loading={generateAgents.isPending}
-                    editingChildAgentId={editingChildAgentId}
                     onContinue={() => {
                       void handleContinue();
                     }}
                     onRegenerate={() => {
                       void ensureAgents(true);
                     }}
-                    onToggleChildEdit={(agentId) =>
-                      setEditingChildAgentId((current) =>
-                        current === agentId ? "" : agentId,
-                      )
-                    }
                     onChangeMainDescription={(value) =>
                       setAgentsState((current) => ({
                         ...current,
@@ -1581,20 +1571,16 @@ function StepFour({
   t,
   agents,
   loading,
-  editingChildAgentId,
   onContinue,
   onRegenerate,
-  onToggleChildEdit,
   onChangeMainDescription,
   onChangeChildName,
 }: {
   t: TranslateFn;
   agents: OnboardingAgentsSelection;
   loading: boolean;
-  editingChildAgentId: string;
   onContinue: () => void;
   onRegenerate: () => void;
-  onToggleChildEdit: (agentId: string) => void;
   onChangeMainDescription: (value: string) => void;
   onChangeChildName: (agentId: string, name: string) => void;
 }) {
@@ -1616,7 +1602,7 @@ function StepFour({
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-4">
       <ActionHeader
         title={t("steps.4.title")}
         subtitle={t("steps.4.description")}
@@ -1632,69 +1618,49 @@ function StepFour({
         }
       />
 
-      <div className="grid gap-5">
-        <div className="grid justify-items-center gap-4">
-          <div className="w-full max-w-[420px] rounded-[28px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(247,250,255,0.74))] px-6 py-6 text-center shadow-[0_18px_40px_rgba(90,106,133,0.08)] backdrop-blur-[16px]">
+      <div className="grid gap-3">
+        <div className="grid justify-items-center gap-2">
+          <div className="w-full max-w-[420px] rounded-[22px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(247,250,255,0.74))] px-5 py-4 text-center shadow-[0_18px_40px_rgba(90,106,133,0.08)] backdrop-blur-[16px]">
             <span className="inline-flex text-[0.76rem] font-extrabold uppercase tracking-[0.08em] text-[#1a73e8]">
               {t("agents.mainAgent")}
             </span>
-            <div className="mx-auto mt-4 grid h-12 w-12 place-items-center rounded-2xl border border-slate-200 bg-[#1a73e8]/8 text-[1.4rem]">
+            <div className="mx-auto mt-2 grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-[#1a73e8]/8 text-[1.2rem]">
               {agents.main.emoji ?? "🧑‍💼"}
             </div>
-            <strong className="mt-3 block text-[1.08rem] text-slate-900">
+            <strong className="mt-2 block text-base text-slate-900">
               {agents.main.name ?? "Personal Staff"}
             </strong>
             <Textarea
               value={agents.main.description ?? ""}
               onChange={(event) => onChangeMainDescription(event.target.value)}
               placeholder={t("agents.mainDescriptionPlaceholder")}
-              className="mt-4 min-h-[112px] rounded-[18px] border-slate-200 bg-white/90 px-4 py-3 text-sm leading-6 shadow-none focus-visible:border-[#1a73e8]/70 focus-visible:ring-[5px] focus-visible:ring-[#1a73e8]/12"
+              className="mt-3 min-h-[80px] rounded-[14px] border-slate-200 bg-white/90 px-3 py-2 text-sm leading-5 shadow-none focus-visible:border-[#1a73e8]/70 focus-visible:ring-[5px] focus-visible:ring-[#1a73e8]/12"
             />
           </div>
 
-          <div className="h-11 w-0.5 rounded-full bg-[linear-gradient(180deg,rgba(26,115,232,0.22),rgba(26,115,232,0.04))]" />
+          <div className="h-7 w-0.5 rounded-full bg-[linear-gradient(180deg,rgba(26,115,232,0.22),rgba(26,115,232,0.04))]" />
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-3">
-          {(agents.children ?? []).map((agent) => {
-            const editing = editingChildAgentId === agent.id;
-            return (
-              <div
-                key={agent.id}
-                className="relative rounded-[28px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(247,250,255,0.74))] shadow-[0_18px_40px_rgba(90,106,133,0.08)] transition-all hover:-translate-y-0.5 hover:border-[#1a73e8]/32 hover:shadow-[0_16px_34px_rgba(26,115,232,0.12)]"
-              >
-                <button
-                  type="button"
-                  onClick={() => onToggleChildEdit(agent.id)}
-                  className="absolute right-3 top-3 rounded-xl bg-slate-50 px-3 py-2 text-sm font-bold text-slate-600 transition hover:bg-slate-100"
-                >
-                  {t("actions.edit")}
-                </button>
-
-                <div className="grid h-full gap-3 p-5 text-left">
-                  <span className="inline-flex text-[0.76rem] font-extrabold uppercase tracking-[0.08em] text-[#1a73e8]">
-                    {t("agents.childAgents")}
-                  </span>
-                  <div className="grid h-12 w-12 place-items-center rounded-2xl border border-slate-200 bg-[#1a73e8]/8 text-[1.4rem]">
-                    {agent.emoji}
-                  </div>
-                  {editing ? (
-                    <Input
-                      value={agent.name}
-                      onChange={(event) =>
-                        onChangeChildName(agent.id, event.target.value)
-                      }
-                      className="rounded-[14px] border-slate-200 bg-white/90 px-3 py-2 text-base font-bold shadow-none focus-visible:border-[#1a73e8]/70 focus-visible:ring-[5px] focus-visible:ring-[#1a73e8]/12"
-                    />
-                  ) : (
-                    <strong className="block text-[1.08rem] text-slate-900">
-                      {agent.name}
-                    </strong>
-                  )}
+        <div className="grid gap-3 lg:grid-cols-3">
+          {(agents.children ?? []).map((agent) => (
+            <div
+              key={agent.id}
+              className="rounded-[20px] border border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(247,250,255,0.74))] shadow-[0_18px_40px_rgba(90,106,133,0.08)] transition-all hover:-translate-y-0.5 hover:border-[#1a73e8]/32 hover:shadow-[0_16px_34px_rgba(26,115,232,0.12)]"
+            >
+              <div className="grid h-full justify-items-center gap-2 p-4">
+                <div className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-[#1a73e8]/8 text-[1.2rem]">
+                  {agent.emoji}
                 </div>
+                <Input
+                  value={agent.name}
+                  onChange={(event) =>
+                    onChangeChildName(agent.id, event.target.value)
+                  }
+                  className="rounded-[12px] border-transparent bg-transparent px-3 py-1.5 text-center text-sm font-bold shadow-none hover:border-slate-200 hover:bg-white/90 focus-visible:border-[#1a73e8]/70 focus-visible:bg-white/90 focus-visible:ring-[5px] focus-visible:ring-[#1a73e8]/12"
+                />
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       </div>
 
