@@ -2340,10 +2340,7 @@ describe('RoutinesService — TaskCast integration', () => {
         where: jest.fn<any>().mockRejectedValueOnce(deleteError),
       } as any);
 
-      const loggerErrorSpy = jest.spyOn(
-        (service as any).logger,
-        'error',
-      );
+      const loggerErrorSpy = jest.spyOn((service as any).logger, 'error');
 
       await expect(
         service.createWithCreationTask(

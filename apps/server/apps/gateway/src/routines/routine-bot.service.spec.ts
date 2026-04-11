@@ -940,7 +940,9 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
         .mockResolvedValueOnce([ROUTINE_ROW] as any)
         .mockResolvedValueOnce([BOT_ROW] as any)
         // The botId cross-tenant query: returns row with different tenantId
-        .mockResolvedValueOnce([{ id: 'other-bot', tenantId: 'other-tenant' }] as any);
+        .mockResolvedValueOnce([
+          { id: 'other-bot', tenantId: 'other-tenant' },
+        ] as any);
 
       await expect(
         service.updateRoutine(
