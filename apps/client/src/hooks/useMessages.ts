@@ -1926,6 +1926,86 @@ export function useDeleteMessage() {
 }
 
 /**
+ * Hook to pin a message with optimistic update
+ */
+export function usePinMessage(channelId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (messageId: string) => imApi.messages.pinMessage(messageId),
+    onMutate: async (messageId: string) => {
+      await queryClient.cancelQueries({ queryKey: ["messages", channelId] });
+      const previous = queryClient.getQueryData(["messages", channelId]);
+      queryClient.setQueriesData(
+        { queryKey: ["messages", channelId] },
+        (old: MessagesQueryData | undefined) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page) =>
+              setMessages(
+                page,
+                getMessages(page).map((msg) =>
+                  msg.id === messageId ? { ...msg, isPinned: true } : msg,
+                ),
+              ),
+            ),
+          };
+        },
+      );
+      return { previous };
+    },
+    onError: (_err, _messageId, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["messages", channelId], context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["messages", channelId] });
+    },
+  });
+}
+
+/**
+ * Hook to unpin a message with optimistic update
+ */
+export function useUnpinMessage(channelId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (messageId: string) => imApi.messages.unpinMessage(messageId),
+    onMutate: async (messageId: string) => {
+      await queryClient.cancelQueries({ queryKey: ["messages", channelId] });
+      const previous = queryClient.getQueryData(["messages", channelId]);
+      queryClient.setQueriesData(
+        { queryKey: ["messages", channelId] },
+        (old: MessagesQueryData | undefined) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page) =>
+              setMessages(
+                page,
+                getMessages(page).map((msg) =>
+                  msg.id === messageId ? { ...msg, isPinned: false } : msg,
+                ),
+              ),
+            ),
+          };
+        },
+      );
+      return { previous };
+    },
+    onError: (_err, _messageId, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["messages", channelId], context.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["messages", channelId] });
+    },
+  });
+}
+
+/**
  * Hook to add a reaction with optimistic update (via WebSocket for real-time broadcast)
  */
 export function useAddReaction(channelId?: string) {

@@ -18,6 +18,8 @@ import {
   useRemoveFailedMessage,
   useAddReaction,
   useRemoveReaction,
+  usePinMessage,
+  useUnpinMessage,
 } from "@/hooks/useMessages";
 import { useChannelScrollStore } from "@/hooks/useChannelScrollState";
 import { useStreamingStore } from "@/stores/useStreamingStore";
@@ -653,6 +655,8 @@ function ChannelMessageItem({
   const removeFailedMessage = useRemoveFailedMessage(channelId);
   const addReaction = useAddReaction(channelId);
   const removeReaction = useRemoveReaction(channelId);
+  const pinMessage = usePinMessage(channelId);
+  const unpinMessage = useUnpinMessage(channelId);
 
   // Context menu handlers
   const handleReplyInThread = isDirect
@@ -671,8 +675,11 @@ function ChannelMessageItem({
   };
 
   const handlePin = () => {
-    console.log("Pin message:", message.id);
-    // TODO: Implement pin functionality
+    if (message.isPinned) {
+      unpinMessage.mutate(message.id);
+    } else {
+      pinMessage.mutate(message.id);
+    }
   };
 
   const handleRetry = () => {
