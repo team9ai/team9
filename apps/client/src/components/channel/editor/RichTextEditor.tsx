@@ -78,6 +78,16 @@ function AutoFocusPlugin() {
   return null;
 }
 
+function EditablePlugin({ editable }: { editable: boolean }) {
+  const [editor] = useLexicalComposerContext();
+
+  useEffect(() => {
+    editor.setEditable(editable);
+  }, [editor, editable]);
+
+  return null;
+}
+
 function EditorRefPlugin({
   editorRef,
 }: {
@@ -304,6 +314,7 @@ export function RichTextEditor({
           <CodeHighlightPlugin />
           <OnChangePlugin onChange={handleChange} />
           <AutoFocusPlugin />
+          <EditablePlugin editable={!disabled} />
           <EditorRefPlugin editorRef={editorRef} />
           <InitialDraftPlugin draft={initialDraft} />
           <InitialHtmlPlugin html={initialHtml} />

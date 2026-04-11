@@ -27,18 +27,20 @@ describe("DeleteMessageDialog", () => {
     ).toBeInTheDocument();
   });
 
-  it("calls onConfirm when delete button is clicked", () => {
+  it("calls onConfirm when delete button is clicked and does not call onCancel", () => {
     const onConfirm = vi.fn();
+    const onCancel = vi.fn();
     render(
       <DeleteMessageDialog
         open={true}
         onConfirm={onConfirm}
-        onCancel={vi.fn()}
+        onCancel={onCancel}
       />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onCancel).not.toHaveBeenCalled();
   });
 
   it("calls onCancel when cancel button is clicked", () => {

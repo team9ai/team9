@@ -114,7 +114,7 @@ export function MessageList({
     async (messageId: string, content: string) => {
       try {
         await updateMessage.mutateAsync({ messageId, data: { content } });
-        setEditingMessageId(null);
+        setEditingMessageId((cur) => (cur === messageId ? null : cur));
       } catch {
         // Edit mode stays open, content preserved in editor (clearOnSubmit=false)
       }

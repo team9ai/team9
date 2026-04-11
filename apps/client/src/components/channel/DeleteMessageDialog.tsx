@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertDialog,
@@ -23,8 +24,18 @@ export function DeleteMessageDialog({
   onCancel,
 }: DeleteMessageDialogProps) {
   const { t } = useTranslation("message");
+  const confirmedRef = useRef(false);
+
   return (
-    <AlertDialog open={open} onOpenChange={(o) => !o && onCancel()}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o && !confirmedRef.current) {
+          onCancel();
+        }
+        confirmedRef.current = false;
+      }}
+    >
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{t("deleteConfirmTitle")}</AlertDialogTitle>
@@ -35,7 +46,10 @@ export function DeleteMessageDialog({
         <AlertDialogFooter>
           <AlertDialogCancel>{t("deleteCancel")}</AlertDialogCancel>
           <AlertDialogAction
-            onClick={onConfirm}
+            onClick={() => {
+              confirmedRef.current = true;
+              onConfirm();
+            }}
             className={buttonVariants({ variant: "destructive" })}
           >
             {t("deleteConfirm")}
