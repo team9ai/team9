@@ -563,6 +563,7 @@ export function MessageList({
             channelId={channelId}
             isDirect={channelType === "direct"}
             editingMessageId={editingMessageId}
+            isEditSaving={updateMessage.isPending}
             onEditStart={handleEditStart}
             onEditSave={handleEditSave}
             onEditCancel={handleEditCancel}
@@ -589,6 +590,7 @@ export function MessageList({
       toggleRoundExpanded,
       foldMaps,
       editingMessageId,
+      updateMessage.isPending,
       handleEditStart,
       handleEditSave,
       handleEditCancel,
@@ -680,6 +682,7 @@ function ChannelMessageItem({
   channelId,
   isDirect,
   editingMessageId,
+  isEditSaving,
   onEditStart,
   onEditSave,
   onEditCancel,
@@ -694,6 +697,7 @@ function ChannelMessageItem({
   channelId: string;
   isDirect: boolean;
   editingMessageId: string | null;
+  isEditSaving: boolean;
   onEditStart: (messageId: string) => void;
   onEditSave: (messageId: string, content: string) => Promise<void>;
   onEditCancel: () => void;
@@ -785,6 +789,7 @@ function ChannelMessageItem({
         onRemoveReaction={handleRemoveReaction}
         canDelete={canDelete}
         isEditing={isEditing}
+        isEditSaving={isEditing && isEditSaving}
         onEditSave={(content) => onEditSave(message.id, content)}
         onEditCancel={onEditCancel}
       />

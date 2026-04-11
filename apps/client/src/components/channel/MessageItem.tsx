@@ -54,6 +54,8 @@ export interface MessageItemProps {
   onRemoveFailed?: () => void;
   /** Whether this message is currently being edited */
   isEditing?: boolean;
+  /** Whether the edit save is in progress */
+  isEditSaving?: boolean;
   /** Callback when edit is saved with new content */
   onEditSave?: (content: string) => Promise<void>;
   /** Callback when edit is cancelled */
@@ -92,6 +94,7 @@ export function MessageItem({
   onAddReaction,
   onRemoveReaction,
   isEditing = false,
+  isEditSaving = false,
   onEditSave,
   onEditCancel,
 }: MessageItemProps) {
@@ -267,6 +270,7 @@ export function MessageItem({
               compact
               initialHtml={message.content}
               clearOnSubmit={false}
+              disabled={isEditSaving}
               onSubmit={async (content) => {
                 await onEditSave?.(content);
               }}

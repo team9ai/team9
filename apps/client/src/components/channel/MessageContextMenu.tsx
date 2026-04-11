@@ -88,8 +88,8 @@ export function MessageContextMenu({
           {message.isPinned ? t("unpinMessage") : t("pinMessage")}
         </ContextMenuItem>
 
-        {/* Edit - only for own messages */}
-        {isOwnMessage && (
+        {/* Edit - only for own messages with edit handler */}
+        {isOwnMessage && onEdit && (
           <>
             <ContextMenuSeparator />
             <ContextMenuItem onClick={onEdit}>
