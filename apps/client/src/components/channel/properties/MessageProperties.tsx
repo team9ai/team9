@@ -13,6 +13,7 @@ export interface MessagePropertiesProps {
   definitions: PropertyDefinition[];
   canEdit: boolean;
   aiAutoFillLoading?: boolean;
+  propertyDisplayOrder?: "schema" | "chronological";
   onEditProperties?: () => void;
 }
 
@@ -36,6 +37,7 @@ export function MessageProperties({
   definitions,
   canEdit,
   aiAutoFillLoading = false,
+  propertyDisplayOrder = "schema",
   onEditProperties,
 }: MessagePropertiesProps) {
   const properties = message.properties;
@@ -53,7 +55,7 @@ export function MessageProperties({
       return hasValue(val);
     });
 
-    // Sort: native keys first in NATIVE_KEY_ORDER, then custom by definition order
+    // Sort: native keys first in NATIVE_KEY_ORDER, then custom sorted by chosen order
     return filtered.sort((a, b) => {
       const aIsNative = isNativeKey(a.key);
       const bIsNative = isNativeKey(b.key);
@@ -65,9 +67,21 @@ export function MessageProperties({
       }
       if (aIsNative) return -1;
       if (bIsNative) return 1;
+
+      if (propertyDisplayOrder === "chronological") {
+        // Sort by insertion order: use the key position in properties object
+        const keys = properties ? Object.keys(properties) : [];
+        const aIdx = keys.indexOf(a.key);
+        const bIdx = keys.indexOf(b.key);
+        // Keys not present in properties go to the end
+        const aPos = aIdx >= 0 ? aIdx : Number.MAX_SAFE_INTEGER;
+        const bPos = bIdx >= 0 ? bIdx : Number.MAX_SAFE_INTEGER;
+        return aPos - bPos;
+      }
+
       return a.order - b.order;
     });
-  }, [definitions, properties]);
+  }, [definitions, properties, propertyDisplayOrder]);
 
   // Check if any property has a value
   const hasAnyPropertyValue = useMemo(() => {

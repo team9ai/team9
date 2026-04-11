@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import {
   MessageSquare,
   File,
@@ -39,7 +39,7 @@ import {
   useDeleteTab,
   useUpdateTab,
 } from "@/hooks/useChannelTabs";
-import { useCreateView } from "@/hooks/useChannelViews";
+import { useChannelViews, useCreateView } from "@/hooks/useChannelViews";
 import type { ChannelTab } from "@/types/properties";
 import type { ViewType } from "@/types/properties";
 
@@ -55,12 +55,18 @@ const VIEW_TYPE_OPTIONS: {
   { value: "calendar", label: "Calendar", icon: Calendar },
 ];
 
-function getTabIcon(tab: ChannelTab) {
+/** Determine icon from view.type when available, falling back to tab.type */
+function getTabIcon(tab: ChannelTab, viewType?: string) {
+  // Builtin tabs
   if (tab.type === "messages") return MessageSquare;
   if (tab.type === "files") return File;
-  if (tab.type === "table_view") return Table;
-  if (tab.type === "board_view") return Kanban;
-  if (tab.type === "calendar_view") return Calendar;
+
+  // View tabs: prefer actual view.type over the tab.type naming convention
+  const resolvedType = viewType ?? tab.type;
+  if (resolvedType === "table" || resolvedType === "table_view") return Table;
+  if (resolvedType === "board" || resolvedType === "board_view") return Kanban;
+  if (resolvedType === "calendar" || resolvedType === "calendar_view")
+    return Calendar;
   return Table;
 }
 
@@ -77,16 +83,24 @@ interface ChannelTabsProps {
 interface TabItemProps {
   tab: ChannelTab;
   isActive: boolean;
+  viewType?: string;
   onClick: () => void;
   onRename: (name: string) => void;
   onDelete: () => void;
 }
 
-function TabItem({ tab, isActive, onClick, onRename, onDelete }: TabItemProps) {
+function TabItem({
+  tab,
+  isActive,
+  viewType,
+  onClick,
+  onRename,
+  onDelete,
+}: TabItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(tab.name);
   const inputRef = useRef<HTMLInputElement>(null);
-  const Icon = getTabIcon(tab);
+  const Icon = getTabIcon(tab, viewType);
 
   const startEditing = useCallback(() => {
     setEditName(tab.name);
@@ -284,10 +298,20 @@ export function ChannelTabs({
   onTabChange,
 }: ChannelTabsProps) {
   const { data: tabs = [] } = useChannelTabs(channelId);
+  const { data: views = [] } = useChannelViews(channelId);
   const updateTab = useUpdateTab(channelId);
   const deleteTab = useDeleteTab(channelId);
 
   const sortedTabs = [...tabs].sort((a, b) => a.order - b.order);
+
+  // Build a map from viewId to view.type for icon resolution
+  const viewTypeMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const view of views) {
+      map.set(view.id, view.type);
+    }
+    return map;
+  }, [views]);
 
   const handleRename = useCallback(
     (tabId: string, name: string) => {
@@ -315,6 +339,7 @@ export function ChannelTabs({
           key={tab.id}
           tab={tab}
           isActive={tab.id === activeTabId}
+          viewType={tab.viewId ? viewTypeMap.get(tab.viewId) : undefined}
           onClick={() => onTabChange(tab.id)}
           onRename={(name) => handleRename(tab.id, name)}
           onDelete={() => handleDelete(tab.id)}

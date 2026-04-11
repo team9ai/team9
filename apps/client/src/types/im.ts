@@ -96,6 +96,7 @@ export interface Channel {
   isArchived: boolean;
   isActivated: boolean;
   snapshot?: ChannelSnapshot | null;
+  propertySettings?: ChannelPropertySettings | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -230,11 +231,17 @@ export interface CreateChannelDto {
   avatarUrl?: string;
 }
 
+export interface ChannelPropertySettings {
+  allowNonAdminCreateKey?: boolean;
+  propertyDisplayOrder?: "schema" | "chronological";
+}
+
 export interface UpdateChannelDto {
   name?: string;
   description?: string;
   avatarUrl?: string;
   isArchived?: boolean;
+  propertySettings?: ChannelPropertySettings;
 }
 
 export interface DeleteChannelDto {

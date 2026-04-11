@@ -9,6 +9,8 @@ import {
   Param,
   UseGuards,
   ParseUUIDPipe,
+  HttpCode,
+  Logger,
 } from '@nestjs/common';
 import { MessagePropertiesService } from './message-properties.service.js';
 import { AiAutoFillService } from './ai-auto-fill.service.js';
@@ -30,6 +32,8 @@ import {
 })
 @UseGuards(AuthGuard, WorkspaceGuard, WorkspaceRoleGuard)
 export class MessagePropertiesController {
+  private readonly logger = new Logger(MessagePropertiesController.name);
+
   constructor(
     private readonly messagePropertiesService: MessagePropertiesService,
     private readonly aiAutoFillService: AiAutoFillService,
@@ -112,15 +116,22 @@ export class MessagePropertiesController {
    * status, and the actual fill happens asynchronously (results broadcast via WS).
    */
   @Post('auto-fill')
+  @HttpCode(202)
   @WorkspaceRoles('member')
-  async autoFill(
+  autoFill(
     @CurrentUser('sub') userId: string,
     @Param('messageId', ParseUUIDPipe) messageId: string,
     @Body() dto: AutoFillDto,
-  ): Promise<{ filled: Record<string, unknown>; skipped: string[] }> {
-    return this.aiAutoFillService.autoFill(messageId, userId, {
-      fields: dto.fields,
-      preserveExisting: dto.preserveExisting,
-    });
+  ): { status: string } {
+    // Fire and forget — results are broadcast via WebSocket
+    this.aiAutoFillService
+      .autoFill(messageId, userId, {
+        fields: dto.fields,
+        preserveExisting: dto.preserveExisting,
+      })
+      .catch((err: Error) => {
+        this.logger.warn(`AI auto-fill failed: ${err.message}`);
+      });
+    return { status: 'accepted' };
   }
 }

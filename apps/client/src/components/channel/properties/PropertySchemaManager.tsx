@@ -43,6 +43,7 @@ import {
   useUpdatePropertyDefinition,
   useDeletePropertyDefinition,
 } from "@/hooks/usePropertyDefinitions";
+import { useChannel, useUpdateChannel } from "@/hooks/useChannels";
 import type {
   PropertyDefinition,
   PropertyValueType,
@@ -50,6 +51,7 @@ import type {
   CreatePropertyDefinitionDto,
   UpdatePropertyDefinitionDto,
 } from "@/types/properties";
+import type { ChannelPropertySettings } from "@/types/im";
 
 // ==================== Constants ====================
 
@@ -538,16 +540,16 @@ function DefinitionRow({ definition, onEdit, onDelete }: DefinitionRowProps) {
           </div>
         )}
       </div>
-      {!isNative && (
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={onEdit}
-          >
-            <Pencil size={13} />
-          </Button>
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 w-7 p-0"
+          onClick={onEdit}
+        >
+          <Pencil size={13} />
+        </Button>
+        {!isNative && (
           <Button
             variant="ghost"
             size="sm"
@@ -556,9 +558,86 @@ function DefinitionRow({ definition, onEdit, onDelete }: DefinitionRowProps) {
           >
             <Trash2 size={13} />
           </Button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
+  );
+}
+
+// ==================== Channel Property Settings ====================
+
+function ChannelPropertySettingsSection({ channelId }: { channelId: string }) {
+  const { data: channel } = useChannel(channelId);
+  const updateChannel = useUpdateChannel();
+
+  const settings = useMemo<ChannelPropertySettings>(
+    () => channel?.propertySettings ?? {},
+    [channel?.propertySettings],
+  );
+  const allowNonAdminCreateKey = settings.allowNonAdminCreateKey ?? true;
+  const propertyDisplayOrder = settings.propertyDisplayOrder ?? "schema";
+
+  const handleUpdate = useCallback(
+    (patch: Partial<ChannelPropertySettings>) => {
+      // TODO: Backend PATCH /v1/im/channels/:channelId must accept propertySettings.
+      // The UpdateChannelDto on the server side needs to include propertySettings
+      // for this to persist. For now, optimistic UI is sent.
+      updateChannel.mutate({
+        channelId,
+        data: {
+          propertySettings: { ...settings, ...patch },
+        },
+      });
+    },
+    [channelId, settings, updateChannel],
+  );
+
+  return (
+    <>
+      <Separator />
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold">Channel Property Settings</h3>
+
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label className="text-xs">
+              Allow all members to create new properties
+            </Label>
+            <p className="text-[11px] text-muted-foreground">
+              When disabled, only admins can create new property keys
+            </p>
+          </div>
+          <Switch
+            checked={allowNonAdminCreateKey}
+            onCheckedChange={(checked) =>
+              handleUpdate({ allowNonAdminCreateKey: checked })
+            }
+          />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label className="text-xs">Property display order</Label>
+          </div>
+          <Select
+            value={propertyDisplayOrder}
+            onValueChange={(v) =>
+              handleUpdate({
+                propertyDisplayOrder: v as "schema" | "chronological",
+              })
+            }
+          >
+            <SelectTrigger className="h-8 w-40 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="schema">Schema order</SelectItem>
+              <SelectItem value="chronological">Added order</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -702,6 +781,9 @@ export function PropertySchemaManager({
           </p>
         </div>
       )}
+
+      {/* Channel Property Settings */}
+      <ChannelPropertySettingsSection channelId={channelId} />
 
       {/* Delete confirmation dialog */}
       <AlertDialog
