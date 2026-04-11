@@ -317,6 +317,9 @@ export function useWebSocketEvents() {
       queryClient.invalidateQueries({
         queryKey: ["messages", event.channelId],
       });
+      queryClient.invalidateQueries({
+        queryKey: ["channel", event.channelId, "view"],
+      });
     };
 
     // ==================== Register All Listeners ====================

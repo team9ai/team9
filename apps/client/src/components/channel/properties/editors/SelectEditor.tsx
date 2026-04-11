@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { PropertyDefinition, SelectOption } from "@/types/properties";
+import { useUpdatePropertyDefinition } from "@/hooks/usePropertyDefinitions";
 
 interface SelectEditorProps {
   definition: PropertyDefinition;
@@ -83,6 +84,7 @@ function SingleSelectEditor({
 }: SelectEditorProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const updateDef = useUpdatePropertyDefinition(definition.channelId);
 
   const options = useMemo(
     () => (definition.config?.options as SelectOption[]) || [],
@@ -109,10 +111,19 @@ function SingleSelectEditor({
   const handleCreateNew = useCallback(() => {
     if (!search.trim()) return;
     const newValue = search.trim().toLowerCase().replace(/\s+/g, "_");
+    const newOption: SelectOption = { value: newValue, label: search.trim() };
+    const newOptions = [...options, newOption];
+
+    // Persist new option to the property definition schema
+    updateDef.mutate({
+      definitionId: definition.id,
+      data: { config: { ...definition.config, options: newOptions } },
+    });
+
     onChange(newValue);
     setOpen(false);
     setSearch("");
-  }, [search, onChange]);
+  }, [search, onChange, options, updateDef, definition.id, definition.config]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -191,6 +202,7 @@ function MultiSelectEditor({
 }: SelectEditorProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const updateDef = useUpdatePropertyDefinition(definition.channelId);
 
   const options = useMemo(
     () => (definition.config?.options as SelectOption[]) || [],
@@ -228,9 +240,26 @@ function MultiSelectEditor({
   const handleCreateNew = useCallback(() => {
     if (!search.trim()) return;
     const newValue = search.trim().toLowerCase().replace(/\s+/g, "_");
+    const newOption: SelectOption = { value: newValue, label: search.trim() };
+    const newOptions = [...options, newOption];
+
+    // Persist new option to the property definition schema
+    updateDef.mutate({
+      definitionId: definition.id,
+      data: { config: { ...definition.config, options: newOptions } },
+    });
+
     onChange([...selectedValues, newValue]);
     setSearch("");
-  }, [search, selectedValues, onChange]);
+  }, [
+    search,
+    selectedValues,
+    onChange,
+    options,
+    updateDef,
+    definition.id,
+    definition.config,
+  ]);
 
   const selectedOptions = selectedValues
     .map((v) => options.find((o) => o.value === v))
