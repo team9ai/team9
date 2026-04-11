@@ -24,6 +24,7 @@ import type { UpdateRoutineDto } from './dto/update-routine.dto.js';
 import { TaskCastService } from './taskcast.service.js';
 import { DocumentsService } from '../documents/documents.service.js';
 import { RoutineTriggersService } from './routine-triggers.service.js';
+import { RoutinesService } from './routines.service.js';
 
 // ── Service ─────────────────────────────────────────────────────────
 
@@ -37,6 +38,7 @@ export class RoutineBotService {
     private readonly taskCastService: TaskCastService,
     private readonly documentsService: DocumentsService,
     private readonly routineTriggersService: RoutineTriggersService,
+    private readonly routinesService: RoutinesService,
   ) {}
 
   // ── Report step progress ─────────────────────────────────────────
@@ -404,7 +406,7 @@ export class RoutineBotService {
    * the bot's mentorId (personal staff) or ownerId.
    */
   async createRoutine(
-    dto: { title: string; documentContent?: string; description?: string; botId?: string; triggers?: Array<{ type: string; config: Record<string, unknown>; enabled?: boolean }> },
+    dto: { title: string; documentContent?: string; description?: string; botId?: string; status?: 'draft' | 'upcoming'; triggers?: Array<{ type: string; config: Record<string, unknown>; enabled?: boolean }> },
     botUserId: string,
     tenantId: string,
   ) {
@@ -448,36 +450,15 @@ export class RoutineBotService {
       }
     }
 
-    const routineId = uuidv7();
-    const doc = await this.documentsService.create(
+    return this.routinesService.create(
       {
-        documentType: 'task',
-        content: dto.documentContent ?? '',
-        title: dto.title,
+        ...dto,
+        botId,
+        status: dto.status ?? 'upcoming',
       },
-      { type: 'user', id: creatorId },
+      creatorId,
       tenantId,
     );
-
-    const insertValues: schema.NewRoutine = {
-      id: routineId,
-      tenantId,
-      botId,
-      creatorId,
-      title: dto.title,
-      description: dto.description ?? null,
-      scheduleType: 'once',
-      scheduleConfig: null,
-      documentId: doc.id,
-    };
-    (insertValues as Record<string, unknown>).status = 'draft';
-
-    const [routine] = await this.db
-      .insert(schema.routines)
-      .values(insertValues)
-      .returning();
-
-    return routine;
   }
 
   /**

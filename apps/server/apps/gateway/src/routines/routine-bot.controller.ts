@@ -12,6 +12,7 @@ import { AuthGuard, CurrentUser } from '@team9/auth';
 import { CurrentTenantId } from '../common/decorators/current-tenant.decorator.js';
 import { RoutineBotService } from './routine-bot.service.js';
 import {
+  CreateRoutineDto,
   ReportStepsDto,
   CreateInterventionDto,
   UpdateStatusDto,
@@ -31,11 +32,11 @@ export class RoutineBotController {
 
   @Post()
   async create(
-    @Body() dto: UpdateRoutineDto,
+    @Body() dto: CreateRoutineDto,
     @CurrentUser('sub') botUserId: string,
     @CurrentTenantId() tenantId: string,
   ) {
-    return this.routineBotService.createRoutine(dto as never, botUserId, tenantId);
+    return this.routineBotService.createRoutine(dto, botUserId, tenantId);
   }
 
   @Get(':routineId')

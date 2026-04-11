@@ -541,6 +541,7 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
   let taskCastService: { publishEvent: MockFn; transitionStatus: MockFn };
   let documentsService: { create: MockFn; getById: MockFn; update: MockFn };
   let routineTriggersService: { listByRoutine: MockFn; replaceAllForRoutine: MockFn };
+  let routinesService: { create: MockFn };
 
   const BOT_ROW = { id: 'bot-1', userId: 'bot-user-1', ownerId: 'owner-user-1', mentorId: null };
   const ROUTINE_ROW = {
@@ -569,6 +570,9 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
       listByRoutine: jest.fn<any>().mockResolvedValue([]),
       replaceAllForRoutine: jest.fn<any>().mockResolvedValue(undefined),
     };
+    routinesService = {
+      create: jest.fn<any>().mockResolvedValue(ROUTINE_ROW),
+    };
 
     // Directly instantiate to avoid NestJS DI token resolution issues in test
     service = new RoutineBotService(
@@ -577,19 +581,16 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
       taskCastService as never,
       documentsService as never,
       routineTriggersService as never,
+      routinesService as never,
     );
   });
 
   // ── createRoutine ─────────────────────────────────────────────────
 
   describe('createRoutine', () => {
-    it('resolves bot from botUserId, uses ownerId as creatorId, creates routine', async () => {
+    it('resolves bot from botUserId, uses ownerId as creatorId, delegates to routinesService.create', async () => {
       // Bot lookup by shadow userId
       db.limit.mockResolvedValueOnce([BOT_ROW] as any);
-      // Doc creation
-      documentsService.create.mockResolvedValueOnce({ id: 'doc-1' } as any);
-      // Routine insert
-      db.returning.mockResolvedValueOnce([ROUTINE_ROW] as any);
 
       const result = await service.createRoutine(
         { title: 'My Routine' },
@@ -598,9 +599,46 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
       );
 
       expect(result).toEqual(ROUTINE_ROW);
-      expect(documentsService.create).toHaveBeenCalledWith(
-        expect.objectContaining({ title: 'My Routine' }),
-        { type: 'user', id: 'owner-user-1' },
+      expect(routinesService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'My Routine', botId: 'bot-1', status: 'upcoming' }),
+        'owner-user-1',
+        'tenant-1',
+      );
+    });
+
+    it('defaults status to "upcoming" when not provided', async () => {
+      db.limit.mockResolvedValueOnce([BOT_ROW] as any);
+
+      await service.createRoutine({ title: 'My Routine' }, 'bot-user-1', 'tenant-1');
+
+      expect(routinesService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'upcoming' }),
+        expect.any(String),
+        'tenant-1',
+      );
+    });
+
+    it('passes through status="draft" when explicitly provided', async () => {
+      db.limit.mockResolvedValueOnce([BOT_ROW] as any);
+
+      await service.createRoutine({ title: 'My Routine', status: 'draft' }, 'bot-user-1', 'tenant-1');
+
+      expect(routinesService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'draft' }),
+        expect.any(String),
+        'tenant-1',
+      );
+    });
+
+    it('passes through triggers when provided', async () => {
+      db.limit.mockResolvedValueOnce([BOT_ROW] as any);
+      const triggers = [{ type: 'schedule', config: { cron: '0 9 * * 1' }, enabled: true }];
+
+      await service.createRoutine({ title: 'My Routine', triggers }, 'bot-user-1', 'tenant-1');
+
+      expect(routinesService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ triggers }),
+        expect.any(String),
         'tenant-1',
       );
     });
@@ -608,14 +646,12 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
     it('uses mentorId over ownerId when mentorId is set', async () => {
       const botWithMentor = { ...BOT_ROW, mentorId: 'mentor-user-1' };
       db.limit.mockResolvedValueOnce([botWithMentor] as any);
-      documentsService.create.mockResolvedValueOnce({ id: 'doc-1' } as any);
-      db.returning.mockResolvedValueOnce([ROUTINE_ROW] as any);
 
       await service.createRoutine({ title: 'My Routine' }, 'bot-user-1', 'tenant-1');
 
-      expect(documentsService.create).toHaveBeenCalledWith(
+      expect(routinesService.create).toHaveBeenCalledWith(
         expect.any(Object),
-        { type: 'user', id: 'mentor-user-1' },
+        'mentor-user-1',
         'tenant-1',
       );
     });
@@ -627,7 +663,7 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
         service.createRoutine({ title: 'My Routine' }, 'bot-user-1', 'tenant-1'),
       ).rejects.toThrow(NotFoundException);
 
-      expect(documentsService.create).not.toHaveBeenCalled();
+      expect(routinesService.create).not.toHaveBeenCalled();
     });
 
     it('throws BadRequestException when bot has neither mentorId nor ownerId', async () => {

@@ -72,7 +72,7 @@ describe('RoutinesService — TaskCast integration', () => {
   let documentsService: { create: MockFn; update: MockFn; getById: MockFn };
   let routineTriggersService: { createBatch: MockFn; replaceAllForRoutine: MockFn };
   let channelsService: { archiveCreationChannel: MockFn; createDirectChannel: MockFn };
-  let clawHiveService: { deleteAgent: MockFn; registerAgent: MockFn; sendInput: MockFn };
+  let clawHiveService: { deleteAgent: MockFn; registerAgent: MockFn; sendInput: MockFn; createSession: MockFn };
   let botsService: { getBotById: MockFn };
 
   beforeEach(async () => {
@@ -99,6 +99,7 @@ describe('RoutinesService — TaskCast integration', () => {
       deleteAgent: jest.fn<any>().mockResolvedValue(undefined),
       registerAgent: jest.fn<any>().mockResolvedValue(undefined),
       sendInput: jest.fn<any>().mockResolvedValue({ messages: [] }),
+      createSession: jest.fn<any>().mockResolvedValue({ sessionId: 'pre-created-session' }),
     };
     botsService = {
       getBotById: jest.fn<any>().mockResolvedValue(null),
@@ -2009,7 +2010,7 @@ describe('RoutinesService — TaskCast integration', () => {
       db.returning.mockResolvedValueOnce([draftRoutine] as any);
     }
 
-    it('happy path: creates draft + channel + sends kickoff event to original bot session', async () => {
+    it('happy path: creates draft + channel + pre-creates session + sends kickoff event to original bot session', async () => {
       setupHappyPath();
 
       channelsService.createDirectChannel.mockResolvedValueOnce({ id: 'channel-42' } as any);
@@ -2036,6 +2037,20 @@ describe('RoutinesService — TaskCast integration', () => {
       // No clone agent registration
       expect(clawHiveService.registerAgent).not.toHaveBeenCalled();
 
+      // Pre-creates session with team9Context for recovery durability
+      expect(clawHiveService.createSession).toHaveBeenCalledWith(
+        'source-agent-id',
+        expect.objectContaining({
+          userId: 'user-1',
+          sessionId: `team9/tenant-1/source-agent-id/dm/channel-42`,
+          team9Context: expect.objectContaining({
+            routineId: 'routine-new-1',
+            isCreationChannel: true,
+          }),
+        }),
+        'tenant-1',
+      );
+
       // Kickoff event sent to the original bot's session
       expect(clawHiveService.sendInput).toHaveBeenCalledWith(
         `team9/tenant-1/source-agent-id/dm/channel-42`,
@@ -2050,6 +2065,25 @@ describe('RoutinesService — TaskCast integration', () => {
         }),
         'tenant-1',
       );
+    });
+
+    it('still succeeds and sends kickoff if pre-createSession throws (session already exists)', async () => {
+      setupHappyPath();
+
+      channelsService.createDirectChannel.mockResolvedValueOnce({ id: 'channel-42' } as any);
+      clawHiveService.createSession.mockRejectedValueOnce(new Error('Session already exists') as any);
+
+      const result = await service.createWithCreationTask(
+        { agentId: 'bot-1' },
+        'user-1',
+        'tenant-1',
+      );
+
+      // Should succeed despite createSession failure
+      expect(result.routineId).toBe('routine-new-1');
+      expect(clawHiveService.sendInput).toHaveBeenCalled();
+      // Draft should NOT be rolled back
+      expect(db.delete).not.toHaveBeenCalled();
     });
 
     it('auto-generates title "Routine #N" based on existing routine count', async () => {
