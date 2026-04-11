@@ -211,9 +211,9 @@ describe("getUpdateInterval", () => {
     expect(getUpdateInterval(date)).toBe(60_000);
   });
 
-  it("returns 0 for dates more than 24 hours ago", () => {
+  it("returns 3_600_000 for dates more than 24 hours but less than 7 days ago", () => {
     const date = new Date("2026-04-08T14:00:00Z"); // ~2 days ago
-    expect(getUpdateInterval(date)).toBe(0);
+    expect(getUpdateInterval(date)).toBe(3_600_000);
   });
 
   it("returns 30_000 for dates just under 60 minutes ago", () => {
@@ -231,8 +231,13 @@ describe("getUpdateInterval", () => {
     expect(getUpdateInterval(date)).toBe(60_000);
   });
 
-  it("returns 0 for dates exactly 24 hours ago", () => {
+  it("returns 3_600_000 for dates exactly 24 hours ago", () => {
     const date = new Date("2026-04-09T14:35:00Z"); // 24h ago
+    expect(getUpdateInterval(date)).toBe(3_600_000);
+  });
+
+  it("returns 0 for dates more than 7 days ago", () => {
+    const date = new Date("2026-04-02T14:00:00Z"); // ~8 days ago
     expect(getUpdateInterval(date)).toBe(0);
   });
 });
