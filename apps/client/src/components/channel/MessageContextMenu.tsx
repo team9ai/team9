@@ -99,8 +99,8 @@ export function MessageContextMenu({
             </ContextMenuItem>
           </>
         )}
-        {/* Delete - for own messages or admins/owners */}
-        {(isOwnMessage || canDelete) && (
+        {/* Delete - for own messages or admins/owners, only if handler is wired */}
+        {(isOwnMessage || canDelete) && onDelete && (
           <>
             {!isOwnMessage && <ContextMenuSeparator />}
             <ContextMenuItem

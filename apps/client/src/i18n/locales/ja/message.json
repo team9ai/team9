@@ -45,5 +45,7 @@
   "deleteConfirmTitle": "メッセージを削除",
   "deleteConfirmDescription": "このメッセージを削除しますか？この操作は元に戻せません。",
   "deleteConfirm": "削除",
-  "deleteCancel": "キャンセル"
+  "deleteCancel": "キャンセル",
+  "loadingFullContent": "全文を読み込み中...",
+  "loadFullContentFailed": "全文の読み込みに失敗しました。キャンセルして再試行してください。"
 }

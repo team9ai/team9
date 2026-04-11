@@ -110,12 +110,17 @@ export function MessageItem({
   // Fetch full content for long_text messages when entering edit mode
   const isLongText = message.type === "long_text" || message.isTruncated;
   const needsFullContent = isEditing && isLongText;
-  const { data: fullContentData, isLoading: isLoadingFullContent } =
-    useFullContent(message.id, needsFullContent);
+  const {
+    data: fullContentData,
+    isLoading: isLoadingFullContent,
+    isError: isFullContentError,
+  } = useFullContent(message.id, needsFullContent);
   const editHtml =
     needsFullContent && fullContentData
       ? fullContentData.content
-      : message.content;
+      : needsFullContent
+        ? undefined // Don't fall back to truncated content
+        : message.content;
 
   // Tracking message display (inline card)
   const isTrackingMessage = message.type === "tracking";
@@ -279,7 +284,12 @@ export function MessageItem({
             {needsFullContent && isLoadingFullContent ? (
               <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
                 <Loader2 size={14} className="animate-spin" />
-                <span>Loading full content...</span>
+                <span>{t("message:loadingFullContent")}</span>
+              </div>
+            ) : needsFullContent && (isFullContentError || !editHtml) ? (
+              <div className="flex items-center gap-2 py-2 text-sm text-destructive">
+                <AlertCircle size={14} />
+                <span>{t("message:loadFullContentFailed")}</span>
               </div>
             ) : (
               <RichTextEditor
@@ -299,12 +309,15 @@ export function MessageItem({
               <button
                 onClick={() => onEditCancel?.()}
                 className="text-xs text-muted-foreground hover:text-foreground"
+                disabled={isEditSaving}
               >
                 {t("message:editCancel")}
               </button>
-              <span className="text-xs text-muted-foreground">
-                {t("message:editHint")}
-              </span>
+              {!isEditSaving && (
+                <span className="text-xs text-muted-foreground">
+                  {t("message:editHint")}
+                </span>
+              )}
             </div>
           </div>
         ) : (
@@ -371,15 +384,20 @@ export function MessageItem({
     return content;
   }
 
+  // Disable edit/pin/delete for messages still sending or failed (temp IDs)
+  const isPersisted = !isSending && !isFailed;
+
   return (
     <MessageContextMenu
       message={message}
       isOwnMessage={isOwnMessage}
       canDelete={canDelete}
       onReplyInThread={onReplyInThread}
-      onEdit={isOwnMessage ? onEdit : undefined}
-      onDelete={isOwnMessage || canDelete ? onDelete : undefined}
-      onPin={onPin}
+      onEdit={isPersisted && isOwnMessage ? onEdit : undefined}
+      onDelete={
+        isPersisted && (isOwnMessage || canDelete) ? onDelete : undefined
+      }
+      onPin={isPersisted ? onPin : undefined}
     >
       {content}
     </MessageContextMenu>

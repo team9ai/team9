@@ -45,5 +45,7 @@
   "deleteConfirmTitle": "Eliminar mensaje",
   "deleteConfirmDescription": "¿Estás seguro de que quieres eliminar este mensaje? Esta acción no se puede deshacer.",
   "deleteConfirm": "Eliminar",
-  "deleteCancel": "Cancelar"
+  "deleteCancel": "Cancelar",
+  "loadingFullContent": "Cargando contenido completo...",
+  "loadFullContentFailed": "Error al cargar el contenido completo. Cancela e inténtalo de nuevo."
 }

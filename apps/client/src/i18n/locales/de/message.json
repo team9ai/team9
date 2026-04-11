@@ -45,5 +45,7 @@
   "deleteConfirmTitle": "Nachricht löschen",
   "deleteConfirmDescription": "Möchten Sie diese Nachricht wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
   "deleteConfirm": "Löschen",
-  "deleteCancel": "Abbrechen"
+  "deleteCancel": "Abbrechen",
+  "loadingFullContent": "Vollständigen Inhalt laden...",
+  "loadFullContentFailed": "Laden des vollständigen Inhalts fehlgeschlagen. Bitte abbrechen und erneut versuchen."
 }
