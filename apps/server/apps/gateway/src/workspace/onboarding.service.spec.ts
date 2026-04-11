@@ -375,6 +375,36 @@ describe('OnboardingService — provisionRoutines', () => {
       expect.stringContaining('no personal-staff app installed'),
     );
   });
+
+  it('ignores whitespace-only customTask', async () => {
+    const record = makeOnboardingRecord({
+      stepData: {
+        tasks: {
+          generatedTasks: [GENERATED_TASK_1],
+          selectedTaskIds: ['task-1'],
+          customTask: '   ',
+        },
+        agents: {
+          main: { name: 'Secretary', description: 'Helps with everything' },
+          children: [],
+        },
+        channels: { channelDrafts: [] },
+        role: { selectedRoleLabel: 'Lawyer', selectedRoleSlug: 'lawyer' },
+      },
+    });
+
+    // Only one idempotency check for task-1 (no check for the whitespace customTask)
+    setupCompletePipelineEnqueues(record, [[]]);
+
+    await service.complete(WORKSPACE_ID, USER_ID, { lang: 'en' });
+
+    // Only the selected generated task routine should be created, NOT the whitespace custom task
+    expect(routinesService.create).toHaveBeenCalledTimes(1);
+    const calls = routinesService.create.mock.calls;
+    const titles = calls.map((c: any[]) => c[0]?.title);
+    expect(titles).not.toContain('   ');
+    expect(titles).toContain(GENERATED_TASK_1.title);
+  });
 });
 
 // ── persistPreferences tests ──────────────────────────────────────────────────

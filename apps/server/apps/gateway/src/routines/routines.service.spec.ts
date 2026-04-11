@@ -2022,6 +2022,38 @@ describe('RoutinesService — TaskCast integration', () => {
         },
       });
     });
+
+    it('treats missing document as empty content (validation error)', async () => {
+      // documentId is set but documentsService.getById throws (doc deleted)
+      db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+      documentsService.getById.mockRejectedValueOnce(
+        new Error('not found') as any,
+      );
+
+      await expect(
+        service.completeCreation('routine-1', {}, 'user-1', 'tenant-1'),
+      ).rejects.toMatchObject({
+        response: {
+          message: 'Missing required fields',
+          errors: expect.arrayContaining(['documentContent is required']),
+        },
+      });
+    });
+
+    it('returns validation error when routine has no linked document (documentId null)', async () => {
+      db.limit.mockResolvedValueOnce([
+        { ...DRAFT_ROUTINE, documentId: null },
+      ] as any);
+
+      await expect(
+        service.completeCreation('routine-1', {}, 'user-1', 'tenant-1'),
+      ).rejects.toMatchObject({
+        response: {
+          message: 'Missing required fields',
+          errors: expect.arrayContaining(['documentContent is required']),
+        },
+      });
+    });
   });
 
   // ── createWithCreationTask ────────────────────────────────────────
@@ -2290,6 +2322,41 @@ describe('RoutinesService — TaskCast integration', () => {
 
       // Draft routine should be deleted
       expect(db.delete).toHaveBeenCalled();
+    });
+
+    it('logs error but still throws original error when rollback delete fails', async () => {
+      setupHappyPath();
+
+      channelsService.createDirectChannel.mockResolvedValueOnce({
+        id: 'channel-42',
+      } as any);
+
+      const sendError = new Error('send failed');
+      clawHiveService.sendInput.mockRejectedValueOnce(sendError as any);
+
+      // Simulate rollback delete also failing
+      const deleteError = new Error('db unavailable');
+      db.delete.mockReturnValueOnce({
+        where: jest.fn<any>().mockRejectedValueOnce(deleteError),
+      } as any);
+
+      const loggerErrorSpy = jest.spyOn(
+        (service as any).logger,
+        'error',
+      );
+
+      await expect(
+        service.createWithCreationTask(
+          { agentId: 'bot-1' },
+          'user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow('send failed');
+
+      // logger.error must have been called with rollback failure info
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('failed to delete draft routine'),
+      );
     });
   });
 });
