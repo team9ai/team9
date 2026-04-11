@@ -1,5 +1,6 @@
-import { useState, useMemo, useCallback } from "react";
-import { Loader2, Plus } from "lucide-react";
+import { useState, useRef, useMemo, useCallback, useEffect } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Loader2, Plus, ArrowUp, ArrowDown, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -7,22 +8,24 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from "@/components/ui/popover";
-import { useViewMessages } from "@/hooks/useChannelViews";
+import { useViewMessagesInfinite } from "@/hooks/useChannelViews";
 import { usePropertyDefinitions } from "@/hooks/usePropertyDefinitions";
 import { useUpdateView } from "@/hooks/useChannelViews";
 import { useSetProperty } from "@/hooks/useMessageProperties";
 import { useCurrentUser } from "@/hooks/useAuth";
+import { messagesApi } from "@/services/api/im";
 import { PropertyValue } from "@/components/channel/properties/PropertyValue";
 import { PropertyEditor } from "@/components/channel/properties/PropertyEditor";
+import { AiAutoFillButton } from "@/components/channel/properties/AiAutoFillButton";
 import { ViewConfigPanel } from "./ViewConfigPanel";
 import { cn } from "@/lib/utils";
 import type {
   ChannelView,
   PropertyDefinition,
   ViewMessageItem,
-  ViewMessagesFlatResponse,
-  ViewMessagesGroupedResponse,
   ViewConfig,
+  ViewSort,
+  ViewSortDirection,
 } from "@/types/properties";
 
 export interface TableViewProps {
@@ -80,29 +83,34 @@ function TableRow({
   visibleDefs,
   channelId,
   currentUserId,
+  columnWidths,
 }: {
   message: ViewMessageItem;
   visibleDefs: PropertyDefinition[];
   channelId: string;
   currentUserId: string | undefined;
+  columnWidths: Record<string, number>;
 }) {
   const [editingCell, setEditingCell] = useState<string | null>(null);
 
   const contentPreview = useMemo(() => {
     if (!message.content) return "";
-    // Strip HTML tags for table display
     const text = message.content.replace(/<[^>]+>/g, "");
     return text.length > 80 ? text.slice(0, 80) + "..." : text;
   }, [message.content]);
 
   return (
     <tr className="group border-b border-border hover:bg-muted/50 transition-colors">
-      {/* Content column (always first) */}
-      <td className="px-3 py-2 text-sm max-w-xs">
+      <td
+        className="px-3 py-2 text-sm"
+        style={{
+          width: columnWidths["__content"] ?? undefined,
+          maxWidth: columnWidths["__content"] ?? 320,
+        }}
+      >
         <span className="line-clamp-2">{contentPreview || "..."}</span>
       </td>
 
-      {/* Property columns */}
       {visibleDefs.map((def) => {
         const value = message.properties[def.key];
         const isEditing = editingCell === def.id;
@@ -110,7 +118,13 @@ function TableRow({
           def.valueType !== "text" || message.senderId === currentUserId;
 
         return (
-          <td key={def.id} className="px-3 py-2 text-sm">
+          <td
+            key={def.id}
+            className="px-3 py-2 text-sm"
+            style={{
+              width: columnWidths[def.key] ?? undefined,
+            }}
+          >
             <Popover
               open={isEditing}
               onOpenChange={(open) => {
@@ -131,6 +145,17 @@ function TableRow({
                 >
                   {value !== undefined && value !== null ? (
                     <PropertyValue definition={def} value={value} />
+                  ) : def.key === "title" ? (
+                    <span className="inline-flex items-center gap-1 text-muted-foreground/50">
+                      -
+                      <AiAutoFillButton
+                        messageId={message.id}
+                        channelId={channelId}
+                        fields={["title"]}
+                        size="sm"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      />
+                    </span>
                   ) : (
                     <span className="text-muted-foreground/50">-</span>
                   )}
@@ -155,10 +180,10 @@ function TableRow({
   );
 }
 
-// ==================== New Message Row ====================
+// ==================== New Message Row (T23) ====================
 
 function NewMessageRow({
-  channelId: _channelId,
+  channelId,
   colSpan,
 }: {
   channelId: string;
@@ -166,13 +191,36 @@ function NewMessageRow({
 }) {
   const [isAdding, setIsAdding] = useState(false);
   const [text, setText] = useState("");
+  const queryClient = useQueryClient();
+
+  const sendMutation = useMutation({
+    mutationFn: (content: string) =>
+      messagesApi.sendMessage(channelId, { content }),
+    onSuccess: () => {
+      setText("");
+      setIsAdding(false);
+      // Invalidate view messages to show the new message
+      queryClient.invalidateQueries({
+        queryKey: ["channel", channelId, "views"],
+        refetchType: "all",
+      });
+    },
+  });
 
   const handleSubmit = useCallback(() => {
-    if (!text.trim()) return;
-    // TODO: integrate with message sending API
-    setText("");
-    setIsAdding(false);
-  }, [text]);
+    const trimmed = text.trim();
+    if (!trimmed || sendMutation.isPending) return;
+    sendMutation.mutate(trimmed);
+  }, [text, sendMutation]);
+
+  const handleBlur = useCallback(() => {
+    const trimmed = text.trim();
+    if (trimmed && !sendMutation.isPending) {
+      sendMutation.mutate(trimmed);
+    } else if (!trimmed) {
+      setIsAdding(false);
+    }
+  }, [text, sendMutation]);
 
   if (!isAdding) {
     return (
@@ -204,17 +252,35 @@ function NewMessageRow({
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") handleSubmit();
-              if (e.key === "Escape") setIsAdding(false);
+              if (e.key === "Escape") {
+                setText("");
+                setIsAdding(false);
+              }
             }}
+            onBlur={handleBlur}
+            disabled={sendMutation.isPending}
           />
-          <Button size="sm" className="h-7 text-xs" onClick={handleSubmit}>
-            Add
+          <Button
+            size="sm"
+            className="h-7 text-xs"
+            onClick={handleSubmit}
+            disabled={sendMutation.isPending}
+          >
+            {sendMutation.isPending ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              "Add"
+            )}
           </Button>
           <Button
             variant="ghost"
             size="sm"
             className="h-7 text-xs"
-            onClick={() => setIsAdding(false)}
+            onClick={() => {
+              setText("");
+              setIsAdding(false);
+            }}
+            disabled={sendMutation.isPending}
           >
             Cancel
           </Button>
@@ -224,37 +290,269 @@ function NewMessageRow({
   );
 }
 
-// ==================== Helper: extract flat messages ====================
+// ==================== Sort helpers ====================
 
-function extractMessages(
-  data: ViewMessagesFlatResponse | ViewMessagesGroupedResponse | undefined,
-): ViewMessageItem[] {
-  if (!data) return [];
-  if ("messages" in data) return data.messages;
-  if ("groups" in data) return data.groups.flatMap((g) => g.messages);
-  return [];
+function getSortDirection(
+  sorts: ViewSort[] | undefined,
+  key: string,
+): ViewSortDirection | null {
+  const found = sorts?.find((s) => s.propertyKey === key);
+  return found?.direction ?? null;
+}
+
+function cycleSortDirection(
+  current: ViewSortDirection | null,
+): ViewSortDirection | null {
+  if (current === null) return "asc";
+  if (current === "asc") return "desc";
+  return null;
+}
+
+// ==================== Column Header (T24) ====================
+
+function ColumnHeader({
+  columnKey,
+  label,
+  sorts,
+  onSortToggle,
+  onResizeStart,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  width,
+}: {
+  columnKey: string;
+  label: string;
+  sorts: ViewSort[] | undefined;
+  onSortToggle: (key: string) => void;
+  onResizeStart: (key: string, startX: number) => void;
+  onDragStart: (key: string) => void;
+  onDragOver: (e: React.DragEvent, key: string) => void;
+  onDrop: (key: string) => void;
+  width?: number;
+}) {
+  const sortDir = getSortDirection(sorts, columnKey);
+
+  return (
+    <th
+      className="relative px-3 py-2 text-left text-xs font-medium text-muted-foreground whitespace-nowrap select-none group/header"
+      style={{ width: width ?? undefined }}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = "move";
+        onDragStart(columnKey);
+      }}
+      onDragOver={(e) => onDragOver(e, columnKey)}
+      onDrop={() => onDrop(columnKey)}
+    >
+      <button
+        className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+        onClick={() => onSortToggle(columnKey)}
+      >
+        <GripVertical className="h-3 w-3 opacity-0 group-hover/header:opacity-50 cursor-grab" />
+        <span>{label}</span>
+        {sortDir === "asc" && <ArrowUp className="h-3 w-3" />}
+        {sortDir === "desc" && <ArrowDown className="h-3 w-3" />}
+      </button>
+
+      {/* Resize handle */}
+      <div
+        className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/30 active:bg-primary/50"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onResizeStart(columnKey, e.clientX);
+        }}
+      />
+    </th>
+  );
 }
 
 // ==================== Main TableView ====================
 
 export function TableView({ channelId, view }: TableViewProps) {
   const { data: definitions = [] } = usePropertyDefinitions(channelId);
-  const { data: messagesData, isLoading } = useViewMessages(channelId, view.id);
+  const {
+    data: infiniteData,
+    isLoading,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useViewMessagesInfinite(channelId, view.id);
   const updateView = useUpdateView(channelId);
   const { data: currentUser } = useCurrentUser();
 
-  const messages = useMemo(() => extractMessages(messagesData), [messagesData]);
+  // Flatten pages into a single messages array
+  const messages = useMemo<ViewMessageItem[]>(() => {
+    if (!infiniteData?.pages) return [];
+    return infiniteData.pages.flatMap((page) => page.messages);
+  }, [infiniteData]);
 
-  // Determine visible property columns
+  // Column widths from view config (persisted)
+  const columnWidths = useMemo<Record<string, number>>(
+    () => view.config.columnWidths ?? {},
+    [view.config.columnWidths],
+  );
+
+  // Determine visible property columns (ordered by visibleProperties or definition order)
   const visibleDefs = useMemo(() => {
     const visibleKeys = view.config.visibleProperties;
     if (visibleKeys && visibleKeys.length > 0) {
-      return definitions
-        .filter((d) => visibleKeys.includes(d.key))
-        .sort((a, b) => a.order - b.order);
+      // Maintain the order from visibleProperties
+      return visibleKeys
+        .map((key) => definitions.find((d) => d.key === key))
+        .filter((d): d is PropertyDefinition => d !== undefined);
     }
     return definitions.sort((a, b) => a.order - b.order);
   }, [definitions, view.config.visibleProperties]);
+
+  // ---- T24: Sort toggle ----
+  const handleSortToggle = useCallback(
+    (key: string) => {
+      const currentSorts = view.config.sorts ?? [];
+      const currentDir = getSortDirection(currentSorts, key);
+      const nextDir = cycleSortDirection(currentDir);
+
+      let newSorts: ViewSort[];
+      if (nextDir === null) {
+        newSorts = currentSorts.filter((s) => s.propertyKey !== key);
+      } else {
+        const existing = currentSorts.find((s) => s.propertyKey === key);
+        if (existing) {
+          newSorts = currentSorts.map((s) =>
+            s.propertyKey === key ? { ...s, direction: nextDir } : s,
+          );
+        } else {
+          newSorts = [
+            ...currentSorts,
+            { propertyKey: key, direction: nextDir },
+          ];
+        }
+      }
+
+      updateView.mutate({
+        viewId: view.id,
+        data: { config: { ...view.config, sorts: newSorts } },
+      });
+    },
+    [view, updateView],
+  );
+
+  // ---- T24: Column resize ----
+  const resizeRef = useRef<{
+    key: string;
+    startX: number;
+    startWidth: number;
+  } | null>(null);
+  const [localWidths, setLocalWidths] = useState<Record<string, number>>({});
+
+  const effectiveWidths = useMemo(
+    () => ({ ...columnWidths, ...localWidths }),
+    [columnWidths, localWidths],
+  );
+
+  const handleResizeStart = useCallback(
+    (key: string, startX: number) => {
+      const startWidth = effectiveWidths[key] ?? 150;
+      resizeRef.current = { key, startX, startWidth };
+
+      const handleMouseMove = (e: MouseEvent) => {
+        if (!resizeRef.current) return;
+        const delta = e.clientX - resizeRef.current.startX;
+        const newWidth = Math.max(60, resizeRef.current.startWidth + delta);
+        setLocalWidths((prev) => ({
+          ...prev,
+          [resizeRef.current!.key]: newWidth,
+        }));
+      };
+
+      const handleMouseUp = () => {
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
+        if (resizeRef.current) {
+          const finalWidths = {
+            ...columnWidths,
+            ...localWidths,
+            [resizeRef.current.key]:
+              localWidths[resizeRef.current.key] ??
+              resizeRef.current.startWidth,
+          };
+          // Persist to view config
+          updateView.mutate({
+            viewId: view.id,
+            data: {
+              config: { ...view.config, columnWidths: finalWidths },
+            },
+          });
+          resizeRef.current = null;
+        }
+      };
+
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    },
+    [effectiveWidths, columnWidths, localWidths, updateView, view],
+  );
+
+  // ---- T24: Column drag-reorder ----
+  const dragColumnRef = useRef<string | null>(null);
+
+  const handleDragStart = useCallback((key: string) => {
+    dragColumnRef.current = key;
+  }, []);
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent, _targetKey: string) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+    },
+    [],
+  );
+
+  const handleDrop = useCallback(
+    (targetKey: string) => {
+      const sourceKey = dragColumnRef.current;
+      dragColumnRef.current = null;
+      if (!sourceKey || sourceKey === targetKey) return;
+
+      const currentOrder = visibleDefs.map((d) => d.key);
+      const sourceIdx = currentOrder.indexOf(sourceKey);
+      const targetIdx = currentOrder.indexOf(targetKey);
+      if (sourceIdx === -1 || targetIdx === -1) return;
+
+      const newOrder = [...currentOrder];
+      newOrder.splice(sourceIdx, 1);
+      newOrder.splice(targetIdx, 0, sourceKey);
+
+      updateView.mutate({
+        viewId: view.id,
+        data: {
+          config: { ...view.config, visibleProperties: newOrder },
+        },
+      });
+    },
+    [visibleDefs, updateView, view],
+  );
+
+  // ---- T25: Infinite scroll via IntersectionObserver ----
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { threshold: 0.1 },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const handleUpdateConfig = useCallback(
     (config: ViewConfig) => {
@@ -263,7 +561,7 @@ export function TableView({ channelId, view }: TableViewProps) {
     [updateView, view.id],
   );
 
-  const totalColumns = 1 + visibleDefs.length; // content + properties
+  const totalColumns = 1 + visibleDefs.length;
 
   return (
     <div className="flex flex-col h-full">
@@ -282,16 +580,30 @@ export function TableView({ channelId, view }: TableViewProps) {
           <table className="w-full border-collapse text-sm">
             <thead className="sticky top-0 bg-background z-10">
               <tr className="border-b border-border">
-                <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">
-                  Content
-                </th>
+                <ColumnHeader
+                  columnKey="__content"
+                  label="Content"
+                  sorts={view.config.sorts}
+                  onSortToggle={handleSortToggle}
+                  onResizeStart={handleResizeStart}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  width={effectiveWidths["__content"]}
+                />
                 {visibleDefs.map((def) => (
-                  <th
+                  <ColumnHeader
                     key={def.id}
-                    className="px-3 py-2 text-left text-xs font-medium text-muted-foreground whitespace-nowrap"
-                  >
-                    {def.key}
-                  </th>
+                    columnKey={def.key}
+                    label={def.key}
+                    sorts={view.config.sorts}
+                    onSortToggle={handleSortToggle}
+                    onResizeStart={handleResizeStart}
+                    onDragStart={handleDragStart}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
+                    width={effectiveWidths[def.key]}
+                  />
                 ))}
               </tr>
             </thead>
@@ -303,11 +615,20 @@ export function TableView({ channelId, view }: TableViewProps) {
                   visibleDefs={visibleDefs}
                   channelId={channelId}
                   currentUserId={currentUser?.id}
+                  columnWidths={effectiveWidths}
                 />
               ))}
               <NewMessageRow channelId={channelId} colSpan={totalColumns} />
             </tbody>
           </table>
+        )}
+
+        {/* T25: Sentinel for infinite scroll */}
+        <div ref={sentinelRef} className="h-1" />
+        {isFetchingNextPage && (
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
         )}
 
         {!isLoading && messages.length === 0 && (

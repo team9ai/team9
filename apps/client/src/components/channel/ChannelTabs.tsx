@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, type DragEvent } from "react";
 import {
   MessageSquare,
   File,
@@ -38,6 +38,7 @@ import {
   useCreateTab,
   useDeleteTab,
   useUpdateTab,
+  useReorderTabs,
 } from "@/hooks/useChannelTabs";
 import { useChannelViews, useCreateView } from "@/hooks/useChannelViews";
 import type { ChannelTab } from "@/types/properties";
@@ -87,6 +88,12 @@ interface TabItemProps {
   onClick: () => void;
   onRename: (name: string) => void;
   onDelete: () => void;
+  isDraggable: boolean;
+  onDragStart?: (e: DragEvent) => void;
+  onDragOver?: (e: DragEvent) => void;
+  onDragLeave?: (e: DragEvent) => void;
+  onDrop?: (e: DragEvent) => void;
+  onDragEnd?: (e: DragEvent) => void;
 }
 
 function TabItem({
@@ -96,6 +103,12 @@ function TabItem({
   onClick,
   onRename,
   onDelete,
+  isDraggable,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onDragEnd,
 }: TabItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(tab.name);
@@ -122,38 +135,79 @@ function TabItem({
     setIsEditing(false);
   }, [tab.name]);
 
+  const [dragOver, setDragOver] = useState(false);
+
+  const handleDragOver = useCallback(
+    (e: DragEvent) => {
+      onDragOver?.(e);
+      setDragOver(true);
+    },
+    [onDragOver],
+  );
+
+  const handleDragLeave = useCallback(
+    (e: DragEvent) => {
+      onDragLeave?.(e);
+      setDragOver(false);
+    },
+    [onDragLeave],
+  );
+
+  const handleDrop = useCallback(
+    (e: DragEvent) => {
+      onDrop?.(e);
+      setDragOver(false);
+    },
+    [onDrop],
+  );
+
   const tabContent = (
-    <button
-      onClick={isEditing ? undefined : onClick}
+    <div
       className={cn(
-        "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors rounded-t-md border-b-2",
-        isActive
-          ? "border-primary text-primary bg-primary/5"
-          : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50",
+        "relative",
+        dragOver &&
+          "before:absolute before:left-0 before:top-1 before:bottom-1 before:w-0.5 before:bg-primary before:rounded-full",
       )}
+      draggable={isDraggable && !isEditing}
+      onDragStart={onDragStart}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      onDragEnd={onDragEnd}
     >
-      <Icon size={14} />
-      {isEditing ? (
-        <span
-          className="flex items-center gap-1"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Input
-            ref={inputRef}
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") commitRename();
-              if (e.key === "Escape") cancelEditing();
-            }}
-            onBlur={commitRename}
-            className="h-5 w-24 px-1 py-0 text-sm"
-          />
-        </span>
-      ) : (
-        <span>{tab.name}</span>
-      )}
-    </button>
+      <button
+        onClick={isEditing ? undefined : onClick}
+        className={cn(
+          "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors rounded-t-md border-b-2",
+          isActive
+            ? "border-primary text-primary bg-primary/5"
+            : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50",
+          isDraggable && !isEditing && "cursor-grab active:cursor-grabbing",
+        )}
+      >
+        <Icon size={14} />
+        {isEditing ? (
+          <span
+            className="flex items-center gap-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Input
+              ref={inputRef}
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitRename();
+                if (e.key === "Escape") cancelEditing();
+              }}
+              onBlur={commitRename}
+              className="h-5 w-24 px-1 py-0 text-sm"
+            />
+          </span>
+        ) : (
+          <span>{tab.name}</span>
+        )}
+      </button>
+    </div>
   );
 
   // Builtin tabs don't get a context menu
@@ -301,8 +355,56 @@ export function ChannelTabs({
   const { data: views = [] } = useChannelViews(channelId);
   const updateTab = useUpdateTab(channelId);
   const deleteTab = useDeleteTab(channelId);
+  const reorderTabs = useReorderTabs(channelId);
 
   const sortedTabs = [...tabs].sort((a, b) => a.order - b.order);
+
+  // Drag-to-reorder state
+  const dragTabId = useRef<string | null>(null);
+
+  const handleDragStart = useCallback((tabId: string, e: DragEvent) => {
+    dragTabId.current = tabId;
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", tabId);
+  }, []);
+
+  const handleDragOver = useCallback((e: DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  }, []);
+
+  const handleDrop = useCallback(
+    (targetTabId: string, e: DragEvent) => {
+      e.preventDefault();
+      const sourceId = dragTabId.current;
+      if (!sourceId || sourceId === targetTabId) return;
+
+      // Only reorder non-builtin tabs
+      const sourceTab = sortedTabs.find((t) => t.id === sourceId);
+      const targetTab = sortedTabs.find((t) => t.id === targetTabId);
+      if (!sourceTab || sourceTab.isBuiltin) return;
+      if (!targetTab || targetTab.isBuiltin) return;
+
+      // Compute new order: builtin tabs stay, then reorder custom tabs
+      const builtinIds = sortedTabs.filter((t) => t.isBuiltin).map((t) => t.id);
+      const customIds = sortedTabs.filter((t) => !t.isBuiltin).map((t) => t.id);
+
+      const fromIdx = customIds.indexOf(sourceId);
+      const toIdx = customIds.indexOf(targetTabId);
+      if (fromIdx === -1 || toIdx === -1) return;
+
+      customIds.splice(fromIdx, 1);
+      customIds.splice(toIdx, 0, sourceId);
+
+      reorderTabs.mutate([...builtinIds, ...customIds]);
+      dragTabId.current = null;
+    },
+    [sortedTabs, reorderTabs],
+  );
+
+  const handleDragEnd = useCallback(() => {
+    dragTabId.current = null;
+  }, []);
 
   // Build a map from viewId to view.type for icon resolution
   const viewTypeMap = useMemo(() => {
@@ -343,6 +445,11 @@ export function ChannelTabs({
           onClick={() => onTabChange(tab.id)}
           onRename={(name) => handleRename(tab.id, name)}
           onDelete={() => handleDelete(tab.id)}
+          isDraggable={!tab.isBuiltin}
+          onDragStart={(e) => handleDragStart(tab.id, e)}
+          onDragOver={handleDragOver}
+          onDrop={(e) => handleDrop(tab.id, e)}
+          onDragEnd={handleDragEnd}
         />
       ))}
       <CreateTabPopover channelId={channelId} onCreated={onTabChange} />

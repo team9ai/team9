@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, File, Download } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useChannelMessages, useSendMessage } from "@/hooks/useMessages";
 import { useSyncChannel } from "@/hooks/useSyncChannel";
@@ -34,9 +34,122 @@ import type {
   AttachmentDto,
   ChannelWithUnread,
   Message,
+  MessageAttachment,
   PublicChannelPreview,
 } from "@/types/im";
 import { isValidMessageId } from "@/lib/utils";
+import { fileApi } from "@/services/api/file";
+
+// ==================== ChannelFilesList ====================
+
+function ChannelFilesList({
+  channelId: _channelId,
+  messages,
+}: {
+  channelId: string;
+  messages: Message[];
+}) {
+  // Collect all attachments from messages
+  const attachments = useMemo(() => {
+    const result: Array<
+      MessageAttachment & { senderName: string; sentAt: string }
+    > = [];
+    for (const msg of messages) {
+      if (msg.attachments && msg.attachments.length > 0) {
+        for (const att of msg.attachments) {
+          result.push({
+            ...att,
+            senderName:
+              msg.sender?.displayName || msg.sender?.username || "Unknown",
+            sentAt: msg.createdAt,
+          });
+        }
+      }
+    }
+    return result;
+  }, [messages]);
+
+  const handleDownload = useCallback(
+    async (fileKey: string, fileName: string) => {
+      try {
+        const { url } = await fileApi.getDownloadUrl(fileKey);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        a.target = "_blank";
+        a.click();
+      } catch {
+        // Fallback: open the file URL directly
+        window.open(fileKey, "_blank");
+      }
+    },
+    [],
+  );
+
+  if (attachments.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-muted-foreground">
+        <div className="text-center space-y-2">
+          <File className="h-10 w-10 mx-auto opacity-40" />
+          <p className="text-sm">No files shared in this channel yet.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-auto p-4">
+      <div className="grid gap-2">
+        {attachments.map((att) => {
+          const isImage = att.mimeType?.startsWith("image/");
+          const sizeStr = att.fileSize
+            ? att.fileSize < 1024
+              ? `${att.fileSize} B`
+              : att.fileSize < 1048576
+                ? `${(att.fileSize / 1024).toFixed(1)} KB`
+                : `${(att.fileSize / 1048576).toFixed(1)} MB`
+            : "";
+
+          return (
+            <div
+              key={att.id}
+              className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+            >
+              {isImage && att.thumbnailUrl ? (
+                <img
+                  src={att.thumbnailUrl}
+                  alt={att.fileName}
+                  className="h-10 w-10 rounded object-cover shrink-0"
+                />
+              ) : (
+                <div className="h-10 w-10 rounded bg-muted flex items-center justify-center shrink-0">
+                  <File className="h-5 w-5 text-muted-foreground" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{att.fileName}</p>
+                <p className="text-xs text-muted-foreground">
+                  {sizeStr}
+                  {sizeStr && " · "}
+                  {att.senderName}
+                  {" · "}
+                  {new Date(att.sentAt).toLocaleDateString()}
+                </p>
+              </div>
+              <button
+                onClick={() => handleDownload(att.fileKey, att.fileName)}
+                className="shrink-0 p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                title="Download"
+              >
+                <Download className="h-4 w-4" />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 // Extract mentioned bot user IDs directly from message HTML content
 // Uses data-user-type attribute embedded in mention tags by the editor
@@ -425,12 +538,7 @@ export function ChannelView({
             }
           })()
         ) : isFilesTab ? (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            <div className="text-center space-y-2">
-              <p className="text-lg font-medium">Files</p>
-              <p className="text-sm">Files view — Coming Soon</p>
-            </div>
-          </div>
+          <ChannelFilesList channelId={channelId} messages={messages} />
         ) : showOverlay ? (
           <BotStartupOverlay
             phase={phase as "countdown" | "ready"}

@@ -103,9 +103,12 @@ export function MessageProperties({
   // Show shimmer when AI auto-fill is in progress
   if (aiAutoFillLoading) {
     return (
-      <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
-        <Loader2 size={12} className="animate-spin" />
-        <span className="animate-pulse">Generating properties...</span>
+      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+        <Loader2 size={12} className="animate-spin text-muted-foreground" />
+        <div className="h-5 w-16 rounded-full bg-muted animate-pulse" />
+        <div className="h-5 w-24 rounded-full bg-muted animate-pulse" />
+        <div className="h-5 w-12 rounded-full bg-muted animate-pulse" />
+        <div className="h-5 w-20 rounded-full bg-muted animate-pulse" />
       </div>
     );
   }

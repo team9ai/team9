@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef, type DragEvent } from "react";
 import {
   Plus,
   Pencil,
@@ -13,6 +13,7 @@ import {
   ChevronUp,
   X,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +43,7 @@ import {
   useCreatePropertyDefinition,
   useUpdatePropertyDefinition,
   useDeletePropertyDefinition,
+  useReorderPropertyDefinitions,
 } from "@/hooks/usePropertyDefinitions";
 import { useChannel, useUpdateChannel } from "@/hooks/useChannels";
 import type {
@@ -463,9 +465,23 @@ interface DefinitionRowProps {
   definition: PropertyDefinition;
   onEdit: () => void;
   onDelete: () => void;
+  isDraggable?: boolean;
+  onDragStart?: (e: DragEvent) => void;
+  onDragOver?: (e: DragEvent) => void;
+  onDrop?: (e: DragEvent) => void;
+  onDragEnd?: (e: DragEvent) => void;
 }
 
-function DefinitionRow({ definition, onEdit, onDelete }: DefinitionRowProps) {
+function DefinitionRow({
+  definition,
+  onEdit,
+  onDelete,
+  isDraggable,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+}: DefinitionRowProps) {
   const isNative = definition.isNative;
   const NativeIcon = isNative ? getNativeIcon(definition.key) : null;
   const options =
@@ -475,9 +491,49 @@ function DefinitionRow({ definition, onEdit, onDelete }: DefinitionRowProps) {
       definition.valueType === "multi_select") &&
     options.length > 0;
 
+  const [dragOverThis, setDragOverThis] = useState(false);
+
+  const handleDragOver = useCallback(
+    (e: DragEvent) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      onDragOver?.(e);
+      setDragOverThis(true);
+    },
+    [onDragOver],
+  );
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverThis(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: DragEvent) => {
+      onDrop?.(e);
+      setDragOverThis(false);
+    },
+    [onDrop],
+  );
+
   return (
-    <div className="group flex items-start gap-2 py-2 px-1 rounded-md hover:bg-muted/50 transition-colors">
-      <div className="mt-0.5 text-muted-foreground cursor-grab opacity-0 group-hover:opacity-100 transition-opacity">
+    <div
+      className={cn(
+        "group flex items-start gap-2 py-2 px-1 rounded-md hover:bg-muted/50 transition-colors",
+        dragOverThis && "border-t-2 border-primary",
+      )}
+      draggable={isDraggable}
+      onDragStart={onDragStart}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      onDragEnd={onDragEnd}
+    >
+      <div
+        className={cn(
+          "mt-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity",
+          isDraggable ? "cursor-grab" : "cursor-default",
+        )}
+      >
         <GripVertical size={14} />
       </div>
       <div className="flex-1 min-w-0">
@@ -649,6 +705,7 @@ export function PropertySchemaManager({
   const { data: definitions = [], isLoading } =
     usePropertyDefinitions(channelId);
   const deleteDef = useDeletePropertyDefinition(channelId);
+  const reorderDefs = useReorderPropertyDefinitions(channelId);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -656,6 +713,46 @@ export function PropertySchemaManager({
     null,
   );
   const [showNative, setShowNative] = useState(true);
+
+  // Drag-to-reorder state
+  const dragDefId = useRef<string | null>(null);
+
+  const handleDefDragStart = useCallback((defId: string, e: DragEvent) => {
+    dragDefId.current = defId;
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", defId);
+  }, []);
+
+  const handleDefDragOver = useCallback((e: DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  }, []);
+
+  const handleDefDrop = useCallback(
+    (targetDefId: string) => {
+      const sourceId = dragDefId.current;
+      if (!sourceId || sourceId === targetDefId) return;
+
+      const sorted = [...definitions].sort((a, b) => a.order - b.order);
+      const nativeIds = sorted.filter((d) => d.isNative).map((d) => d.id);
+      const customIds = sorted.filter((d) => !d.isNative).map((d) => d.id);
+
+      const fromIdx = customIds.indexOf(sourceId);
+      const toIdx = customIds.indexOf(targetDefId);
+      if (fromIdx === -1 || toIdx === -1) return;
+
+      customIds.splice(fromIdx, 1);
+      customIds.splice(toIdx, 0, sourceId);
+
+      reorderDefs.mutate([...nativeIds, ...customIds]);
+      dragDefId.current = null;
+    },
+    [definitions, reorderDefs],
+  );
+
+  const handleDefDragEnd = useCallback(() => {
+    dragDefId.current = null;
+  }, []);
 
   // Separate native and custom definitions
   const { nativeDefs, customDefs } = useMemo(() => {
@@ -766,6 +863,11 @@ export function PropertySchemaManager({
                 definition={def}
                 onEdit={() => setEditingId(def.id)}
                 onDelete={() => setDeleteTarget(def)}
+                isDraggable
+                onDragStart={(e) => handleDefDragStart(def.id, e)}
+                onDragOver={handleDefDragOver}
+                onDrop={() => handleDefDrop(def.id)}
+                onDragEnd={handleDefDragEnd}
               />
             ),
           )}

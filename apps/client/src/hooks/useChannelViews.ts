@@ -1,5 +1,10 @@
 import { useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import wsService from "@/services/websocket";
 import { viewsApi } from "@/services/api/views";
 import type {
@@ -7,6 +12,7 @@ import type {
   CreateViewDto,
   UpdateViewDto,
   ViewMessageParams,
+  ViewMessagesFlatResponse,
 } from "@/types/properties";
 import type {
   ViewCreatedEvent,
@@ -80,6 +86,39 @@ export function useViewMessages(
   return useQuery({
     queryKey: [...channelViewKeys.messages(channelId!, viewId!), params],
     queryFn: () => viewsApi.getViewMessages(channelId!, viewId!, params),
+    enabled: !!channelId && !!viewId,
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useViewMessagesInfinite(
+  channelId: string | undefined,
+  viewId: string | undefined,
+  params?: Omit<ViewMessageParams, "cursor">,
+) {
+  return useInfiniteQuery<ViewMessagesFlatResponse>({
+    queryKey: [
+      ...channelViewKeys.messages(channelId!, viewId!),
+      "infinite",
+      params,
+    ],
+    queryFn: async ({ pageParam }) => {
+      const result = await viewsApi.getViewMessages(channelId!, viewId!, {
+        ...params,
+        cursor: pageParam as string | undefined,
+      });
+      // Normalize: if grouped response, flatten (infinite scroll uses flat)
+      if ("groups" in result) {
+        return {
+          messages: result.groups.flatMap((g) => g.messages),
+          total: result.total,
+          cursor: null,
+        };
+      }
+      return result;
+    },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.cursor ?? undefined,
     enabled: !!channelId && !!viewId,
     staleTime: 60 * 1000,
   });
