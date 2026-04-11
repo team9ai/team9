@@ -55,6 +55,7 @@ import { getBaseModelProductMeta } from "@/lib/base-model-agent";
 import { useCreateDirectChannel } from "@/hooks/useChannels";
 import { CommonStaffDetailSection } from "@/components/ai-staff/CommonStaffDetailSection";
 import { PersonalStaffDetailSection } from "@/components/ai-staff/PersonalStaffDetailSection";
+import { formatDateTime } from "@/lib/date-format";
 import type {
   BaseModelStaffBotInfo,
   CommonStaffBotInfo,
@@ -76,7 +77,7 @@ function statusBadgeVariant(status?: string) {
 }
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleString();
+  return formatDateTime(dateStr);
 }
 
 // ── Main Component ──────────────────────────────────────────────────

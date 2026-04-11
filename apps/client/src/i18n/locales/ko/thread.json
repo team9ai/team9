@@ -1,0 +1,18 @@
+{
+  "title": "스레드",
+  "loading": "스레드 로딩 중...",
+  "error": "스레드를 불러오지 못했습니다",
+  "repliesCount": "답장 {{count}}개",
+  "repliesCount_other": "답장 {{count}}개",
+  "showMoreReplies": "답장 {{count}}개 더 보기",
+  "showMoreReplies_other": "답장 {{count}}개 더 보기",
+  "hideReplies": "답장 숨기기",
+  "replyingTo": "답장 대상",
+  "inputPlaceholder": "스레드에서 답장...",
+  "loadMore": "답장 더 불러오기",
+  "loadingMore": "로딩 중...",
+  "newMessages": "새 메시지 {{count}}개",
+  "newMessages_other": "새 메시지 {{count}}개",
+  "lastReply": "마지막 답장 {{time}}",
+  "backToChannel": "채널로 돌아가기"
+}

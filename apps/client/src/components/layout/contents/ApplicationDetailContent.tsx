@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   ArrowLeft,
   Bot,
@@ -46,6 +47,7 @@ interface ApplicationDetailContentProps {
 export function ApplicationDetailContent({
   appId,
 }: ApplicationDetailContentProps) {
+  const { t } = useTranslation("navigation");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const workspaceId = useSelectedWorkspaceId();
@@ -125,7 +127,7 @@ export function ApplicationDetailContent({
           </Button>
           <Settings size={18} className="text-primary" />
           <h2 className="font-semibold text-lg text-foreground">
-            App Settings
+            {t("appSettings")}
           </h2>
         </div>
       </header>
@@ -145,7 +147,7 @@ export function ApplicationDetailContent({
             <Card className="p-6 text-center">
               <AlertCircle className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
-                Failed to load application details
+                {t("failedToLoadAppDetails")}
               </p>
             </Card>
           )}
@@ -173,7 +175,7 @@ export function ApplicationDetailContent({
                         </Badge>
                         {installedApp.type === "managed" && (
                           <Badge variant="outline" className="text-xs">
-                            Managed
+                            {t("managed")}
                           </Badge>
                         )}
                       </div>
@@ -196,10 +198,12 @@ export function ApplicationDetailContent({
                     </TabsTrigger>
                   ))}
                   {installedApp.type !== "managed" && (
-                    <TabsTrigger value="settings">Settings</TabsTrigger>
+                    <TabsTrigger value="settings">
+                      {t("moreSettings")}
+                    </TabsTrigger>
                   )}
                   {installedApp.type !== "managed" && (
-                    <TabsTrigger value="danger">Danger Zone</TabsTrigger>
+                    <TabsTrigger value="danger">{t("dangerZone")}</TabsTrigger>
                   )}
                 </TabsList>
 
@@ -219,9 +223,9 @@ export function ApplicationDetailContent({
                       <CardContent className="pt-6 space-y-4">
                         <div className="flex items-center justify-between">
                           <div className="space-y-0.5">
-                            <Label htmlFor="app-active">Enable App</Label>
+                            <Label htmlFor="app-active">{t("enableApp")}</Label>
                             <p className="text-xs text-muted-foreground">
-                              Turn off to temporarily disable this app
+                              {t("enableAppHint")}
                             </p>
                           </div>
                           <Switch
@@ -242,9 +246,11 @@ export function ApplicationDetailContent({
                       <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
                           <div className="space-y-0.5">
-                            <p className="text-sm font-medium">Uninstall App</p>
+                            <p className="text-sm font-medium">
+                              {t("uninstallApp")}
+                            </p>
                             <p className="text-xs text-muted-foreground">
-                              Remove this app from your workspace
+                              {t("uninstallAppHint")}
                             </p>
                           </div>
                           <AlertDialog
@@ -254,21 +260,24 @@ export function ApplicationDetailContent({
                             <AlertDialogTrigger asChild>
                               <Button variant="destructive" size="sm">
                                 <Trash2 size={14} className="mr-1" />
-                                Uninstall
+                                {t("uninstall")}
                               </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
                                 <AlertDialogTitle>
-                                  Uninstall {installedApp.name}?
+                                  {t("uninstallConfirmTitle", {
+                                    name: installedApp.name,
+                                  })}
                                 </AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  This will remove the app from your workspace.
-                                  Any data associated with this app may be lost.
+                                  {t("uninstallConfirmDescription")}
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogCancel>
+                                  {t("common:cancel")}
+                                </AlertDialogCancel>
                                 <AlertDialogAction
                                   onClick={handleUninstall}
                                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -276,7 +285,7 @@ export function ApplicationDetailContent({
                                   {uninstallMutation.isPending ? (
                                     <Loader2 className="w-4 h-4 animate-spin mr-1" />
                                   ) : null}
-                                  Uninstall
+                                  {t("uninstall")}
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>

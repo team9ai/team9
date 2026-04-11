@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 import { Copy, Check } from "lucide-react";
 
 interface SelectionCopyPopupProps {
@@ -13,6 +14,7 @@ export function SelectionCopyPopup({
   selectedText,
   onDismiss,
 }: SelectionCopyPopupProps) {
+  const { t } = useTranslation("common");
   const [copied, setCopied] = useState(false);
   const popupRef = useRef<HTMLDivElement>(null);
 
@@ -71,12 +73,12 @@ export function SelectionCopyPopup({
       {copied ? (
         <>
           <Check size={14} className="text-green-500" />
-          <span>Copied</span>
+          <span>{t("copied")}</span>
         </>
       ) : (
         <>
           <Copy size={14} />
-          <span>Copy</span>
+          <span>{t("copy")}</span>
         </>
       )}
     </div>,

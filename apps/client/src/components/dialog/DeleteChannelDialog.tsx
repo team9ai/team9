@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { AlertTriangle } from "lucide-react";
 import {
   Dialog,
@@ -28,6 +29,7 @@ export function DeleteChannelDialog({
   channel,
   onDeleted,
 }: DeleteChannelDialogProps) {
+  const { t } = useTranslation("channel");
   const navigate = useNavigate();
   const deleteChannel = useDeleteChannel();
   const [confirmationName, setConfirmationName] = useState("");
@@ -68,36 +70,33 @@ export function DeleteChannelDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-destructive">
             <AlertTriangle size={20} />
-            Delete #{channel.name}
+            {t("deleteChannel")} #{channel.name}
           </DialogTitle>
-          <DialogDescription>
-            This action cannot be undone. All messages in this channel will be
-            permanently deleted.
-          </DialogDescription>
+          <DialogDescription>{t("deleteChannelDescription")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
             <p className="text-sm text-destructive">
-              <strong>Warning:</strong> Deleting this channel will:
+              <strong>{t("common:warning")}</strong>{" "}
+              {t("deleteChannelWarningTitle")}
             </p>
             <ul className="text-sm text-destructive list-disc list-inside mt-2">
-              <li>Remove all messages and files</li>
-              <li>Remove all members from the channel</li>
-              <li>This cannot be recovered</li>
+              <li>{t("deleteWarningMessages")}</li>
+              <li>{t("deleteWarningMembers")}</li>
+              <li>{t("deleteWarningNoRecovery")}</li>
             </ul>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="confirm-name">
-              Type <span className="font-mono font-bold">{channel.name}</span>{" "}
-              to confirm
+              {t("typeToConfirm", { name: channel.name })}
             </Label>
             <Input
               id="confirm-name"
               value={confirmationName}
               onChange={(e) => setConfirmationName(e.target.value)}
-              placeholder="Enter channel name"
+              placeholder={t("enterChannelName")}
               autoComplete="off"
             />
           </div>
@@ -111,21 +110,21 @@ export function DeleteChannelDialog({
               className="rounded border-border"
             />
             <Label htmlFor="permanent" className="text-sm font-normal">
-              Permanently delete (cannot be recovered)
+              {t("permanentDelete")}
             </Label>
           </div>
         </div>
 
         <DialogFooter>
           <Button type="button" variant="ghost" onClick={handleClose}>
-            Cancel
+            {t("common:cancel")}
           </Button>
           <Button
             onClick={handleDelete}
             disabled={!canDelete || deleteChannel.isPending}
             variant="destructive"
           >
-            {deleteChannel.isPending ? "Deleting..." : "Delete Channel"}
+            {deleteChannel.isPending ? t("deleting") : t("deleteChannel")}
           </Button>
         </DialogFooter>
       </DialogContent>

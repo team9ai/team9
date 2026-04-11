@@ -148,6 +148,8 @@ describe('WorkspaceService — member lifecycle hooks', () => {
       installedApplicationsService, // InstalledApplicationsService
       { findAutoInstall: jest.fn<any>().mockReturnValue([]) }, // ApplicationsService
       personalStaffService, // PersonalStaffService
+      {} as any, // OnboardingService (not used in lifecycle tests)
+      { capture: jest.fn<any>() }, // PosthogService
     );
   });
 
@@ -245,7 +247,7 @@ describe('WorkspaceService — member lifecycle hooks', () => {
         TENANT_ID,
         USER_ID,
         {
-          model: { provider: 'anthropic', id: 'claude-sonnet-4-6' },
+          model: { provider: 'openrouter', id: 'anthropic/claude-sonnet-4.6' },
           agenticBootstrap: true,
         },
       );

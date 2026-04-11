@@ -1,0 +1,92 @@
+{
+  "title": "Recursos",
+  "tabs": {
+    "all": "Todo",
+    "agent_computer": "Computadora de agente",
+    "api": "API"
+  },
+  "noResources": "Sin recursos aún",
+  "status": {
+    "online": "En línea",
+    "offline": "Desconectado",
+    "error": "Error",
+    "configuring": "Configurando"
+  },
+  "type": {
+    "agent_computer": "Computadora de agente",
+    "api": "API"
+  },
+  "connectionType": {
+    "ahand": "Ahand",
+    "ssh": "SSH",
+    "cloud": "Cloud"
+  },
+  "create": {
+    "title": "Agregar recurso",
+    "selectType": "Tipo de recurso",
+    "name": "Nombre",
+    "namePlaceholder": "Ingrese nombre del recurso",
+    "description": "Descripción",
+    "descriptionPlaceholder": "Descripción opcional",
+    "connectionType": "Tipo de conexión",
+    "host": "Host",
+    "hostPlaceholder": "ej. 192.168.1.100",
+    "port": "Puerto",
+    "provider": "Proveedor",
+    "providerPlaceholder": "ej. openai, google, custom",
+    "apiKey": "API Key",
+    "apiKeyPlaceholder": "Ingrese API Key",
+    "baseUrl": "Base URL",
+    "baseUrlPlaceholder": "Base URL personalizada opcional",
+    "model": "Modelo",
+    "modelPlaceholder": "ej. gpt-4, claude-3",
+    "submit": "Crear",
+    "cancel": "Cancelar"
+  },
+  "detail": {
+    "title": "Detalles del recurso",
+    "loadError": "Error al cargar el recurso",
+    "basicInfo": "Información básica",
+    "authorizations": "Autorizaciones",
+    "noAuthorizations": "Sin autorizaciones aún",
+    "addAuthorization": "Agregar",
+    "usageLogs": "Registros de uso",
+    "noUsageLogs": "Sin registros de uso",
+    "delete": "Eliminar",
+    "deleteConfirm": "¿Está seguro de que desea eliminar este recurso?",
+    "lastHeartbeat": "Último heartbeat: {{time}}",
+    "authCount": "{{count}} autorizados",
+    "maskedKey": "{{prefix}}...{{suffix}}",
+    "granteeType": {
+      "user": "Usuario",
+      "task": "Tarea"
+    },
+    "permissionLevel": {
+      "full": "Acceso completo",
+      "readonly": "Solo lectura"
+    }
+  },
+  "auth": {
+    "granteeType": "Tipo de beneficiario",
+    "granteeId": "ID del beneficiario",
+    "granteeIdPlaceholder": "Ingrese ID de usuario o tarea",
+    "permissionLevel": "Nivel de permiso",
+    "grant": "Otorgar acceso"
+  },
+  "edit": {
+    "save": "Guardar",
+    "cancel": "Cancelar"
+  },
+  "ahand": {
+    "localDeviceSetup": "Configuración de dispositivo local",
+    "connection": "Conexión aHand",
+    "browserComponents": "Componentes del navegador",
+    "activation": "Activación"
+  },
+  "actions": {
+    "connect": "Conectar",
+    "disconnect": "Desconectar",
+    "api_call": "Llamada API",
+    "error": "Error"
+  }
+}

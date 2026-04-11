@@ -1,6 +1,16 @@
 import { useCallback, useState } from "react";
 
 /**
+ * NOTE: This hook is not currently used in production. MessageList.tsx uses a
+ * simpler approach (useState<Set<string>> + message-list-fold.ts pure helpers).
+ *
+ * This hook provides a richer abstraction (Map<roundId, FoldState> with
+ * stepCount tracking and autoFoldPrevious) intended for future use cases such
+ * as TrackingModal round navigation or a standalone fold controller. It is kept
+ * as a tested, ready-to-use building block rather than being removed.
+ */
+
+/**
  * State of a single round's fold/expand UI.
  */
 export interface FoldState {

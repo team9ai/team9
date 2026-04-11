@@ -16,6 +16,7 @@ import { useEffectOncePerKey } from "@/hooks/useEffectOncePerKey";
 import workspaceApi from "@/services/api/workspace";
 import { workspaceActions, appActions } from "@/stores";
 import { useState, useEffect } from "react";
+import { formatDate } from "@/lib/date-format";
 
 export const Route = createFileRoute("/invite/$code")({
   component: InvitePage,
@@ -230,7 +231,7 @@ function InvitePage() {
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Calendar size={16} />
               <span>
-                Expires {new Date(inviteInfo.expiresAt).toLocaleDateString()}
+                {t("expires", { date: formatDate(inviteInfo.expiresAt) })}
               </span>
             </div>
           )}

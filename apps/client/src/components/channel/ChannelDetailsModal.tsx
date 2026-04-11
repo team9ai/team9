@@ -32,6 +32,7 @@ import {
 import { DeleteChannelDialog } from "@/components/dialog/DeleteChannelDialog";
 import { AddMemberDialog } from "./AddMemberDialog";
 import { useUser } from "@/stores";
+import { formatDate } from "@/lib/date-format";
 import type { MemberRole } from "@/types/im";
 
 interface ChannelDetailsModalProps {
@@ -246,9 +247,7 @@ export function ChannelDetailsModal({
                         <h3 className="text-sm font-medium text-muted-foreground">
                           {t("createdAt")}
                         </h3>
-                        <p>
-                          {new Date(channel.createdAt).toLocaleDateString()}
-                        </p>
+                        <p>{formatDate(channel.createdAt)}</p>
                       </div>
                     </>
                   )}

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useChannelMessages, useSendMessage } from "@/hooks/useMessages";
 import { useSyncChannel } from "@/hooks/useSyncChannel";
 import {
@@ -74,6 +76,7 @@ export function ChannelView({
   hideHeader,
   readOnly,
 }: ChannelViewProps) {
+  const { t } = useTranslation("channel");
   const isPreviewMode = !!previewChannel;
   const { data: memberChannel, isLoading: channelLoading } = useChannel(
     isPreviewMode ? undefined : channelId,
@@ -331,8 +334,9 @@ export function ChannelView({
 
   if (channelLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <p className="text-muted-foreground">Loading channel...</p>
+      <div className="flex-1 flex flex-col items-center justify-center gap-3">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">{t("loadingChannel")}</p>
       </div>
     );
   }
@@ -340,7 +344,7 @@ export function ChannelView({
   if (!channel) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <p className="text-muted-foreground">Channel not found</p>
+        <p className="text-sm text-muted-foreground">{t("channelNotFound")}</p>
       </div>
     );
   }
@@ -362,8 +366,11 @@ export function ChannelView({
             onStartChatting={startChatting}
           />
         ) : messagesLoading && messages.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center">
-            <p className="text-muted-foreground">Loading messages...</p>
+          <div className="flex-1 flex flex-col items-center justify-center gap-3">
+            <Loader2 className="size-6 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              {t("loadingMessages")}
+            </p>
           </div>
         ) : (
           <ChannelContent

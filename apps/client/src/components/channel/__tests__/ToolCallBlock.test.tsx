@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { act, render, screen, fireEvent } from "@testing-library/react";
 import i18n from "@/i18n";
+import { changeLanguage } from "@/i18n/loadLanguage";
 import { ToolCallBlock } from "../ToolCallBlock";
 import type { AgentEventMetadata } from "@/types/im";
 
@@ -123,9 +124,9 @@ describe("ToolCallBlock", () => {
       expect(screen.getByText("Failed to send message")).toBeInTheDocument();
     });
 
-    it("renders the zh localized label when the language is set to zh", async () => {
+    it("renders the zh-CN localized label when the language is set to zh-CN", async () => {
       await act(async () => {
-        await i18n.changeLanguage("zh");
+        await changeLanguage("zh-CN");
       });
       try {
         render(
@@ -167,7 +168,7 @@ describe("ToolCallBlock", () => {
       ).toBeInTheDocument();
     });
 
-    it("truncates long params with '(N words more)' hint", () => {
+    it("truncates long params with '(N more)' hint", () => {
       const longMessage = "a".repeat(100);
       render(
         <ToolCallBlock
@@ -180,9 +181,9 @@ describe("ToolCallBlock", () => {
         />,
       );
 
-      // truncate limit for message is 50 → "aaaa...aaa...(50 words more)"
+      // truncate limit for message is 50 → "aaaa...aaa...(50 more)"
       expect(screen.getByText(/channelName="general"/)).toBeInTheDocument();
-      expect(screen.getByText(/\(50 words more\)/)).toBeInTheDocument();
+      expect(screen.getByText(/\(50 more\)/)).toBeInTheDocument();
     });
 
     it("falls back to JSON representation for unknown tools", () => {

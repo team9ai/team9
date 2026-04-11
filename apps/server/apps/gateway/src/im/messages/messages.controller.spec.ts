@@ -70,6 +70,8 @@ describe('MessagesController', () => {
     pinMessage: MockFn;
     addReaction: MockFn;
     removeReaction: MockFn;
+    truncateForPreview: MockFn;
+    getFullContent: MockFn;
   };
   let channelsService: {
     assertReadAccess: MockFn;
@@ -124,6 +126,10 @@ describe('MessagesController', () => {
       pinMessage: jest.fn<any>().mockResolvedValue(undefined),
       addReaction: jest.fn<any>().mockResolvedValue(undefined),
       removeReaction: jest.fn<any>().mockResolvedValue(undefined),
+      truncateForPreview: jest.fn<any>().mockImplementation((msg) => msg),
+      getFullContent: jest
+        .fn<any>()
+        .mockResolvedValue({ content: 'full content' }),
     };
 
     channelsService = {
@@ -640,6 +646,53 @@ describe('MessagesController', () => {
         USER_ID,
         '👍',
       );
+    });
+  });
+
+  describe('getFullContent', () => {
+    it('returns full content when user has read access', async () => {
+      await expect(
+        controller.getFullContent(USER_ID, MESSAGE_ID),
+      ).resolves.toEqual({ content: 'full content' });
+
+      expect(messagesService.getMessageChannelId).toHaveBeenCalledWith(
+        MESSAGE_ID,
+      );
+      expect(channelsService.assertReadAccess).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        USER_ID,
+      );
+      expect(messagesService.getFullContent).toHaveBeenCalledWith(MESSAGE_ID);
+    });
+
+    it('throws ForbiddenException when user lacks read access', async () => {
+      channelsService.assertReadAccess.mockRejectedValueOnce(
+        new ForbiddenException('Access denied'),
+      );
+
+      await expect(
+        controller.getFullContent(USER_ID, MESSAGE_ID),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(messagesService.getMessageChannelId).toHaveBeenCalledWith(
+        MESSAGE_ID,
+      );
+      expect(channelsService.assertReadAccess).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        USER_ID,
+      );
+      expect(messagesService.getFullContent).not.toHaveBeenCalled();
+    });
+
+    it('delegates to messagesService.getFullContent with the message id', async () => {
+      const customContent = { content: 'very long text'.repeat(100) };
+      messagesService.getFullContent.mockResolvedValueOnce(customContent);
+
+      const result = await controller.getFullContent(USER_ID, MESSAGE_ID);
+
+      expect(result).toEqual(customContent);
+      expect(messagesService.getFullContent).toHaveBeenCalledTimes(1);
+      expect(messagesService.getFullContent).toHaveBeenCalledWith(MESSAGE_ID);
     });
   });
 });

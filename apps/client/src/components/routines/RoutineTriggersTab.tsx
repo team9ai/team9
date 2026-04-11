@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { routinesApi } from "@/services/api/routines";
 import type { RoutineTriggerType } from "@/types/routine";
 import { AddTriggerDialog } from "./AddTriggerDialog";
+import { formatDateTime } from "@/lib/date-format";
 
 interface RoutineTriggersTabProps {
   routineId: string;
@@ -199,7 +200,7 @@ export function RoutineTriggersTab({ routineId }: RoutineTriggersTabProps) {
             {trigger.nextRunAt && trigger.enabled && (
               <p className="text-xs text-muted-foreground">
                 {t("triggers.nextRun", {
-                  time: new Date(trigger.nextRunAt).toLocaleString(),
+                  time: formatDateTime(trigger.nextRunAt),
                 })}{" "}
                 (
                 {t("triggers.countdown", {
@@ -213,7 +214,7 @@ export function RoutineTriggersTab({ routineId }: RoutineTriggersTabProps) {
             {trigger.lastRunAt && (
               <p className="text-xs text-muted-foreground">
                 {t("triggers.lastRun", {
-                  time: new Date(trigger.lastRunAt).toLocaleString(),
+                  time: formatDateTime(trigger.lastRunAt),
                 })}
               </p>
             )}

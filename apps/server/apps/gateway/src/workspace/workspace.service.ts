@@ -739,7 +739,10 @@ export class WorkspaceService {
           invitation.tenantId,
           userId,
           {
-            model: { provider: 'anthropic', id: 'claude-sonnet-4-6' },
+            model: {
+              provider: 'openrouter',
+              id: 'anthropic/claude-sonnet-4.6',
+            },
             agenticBootstrap: true,
           },
         );
@@ -1072,7 +1075,10 @@ export class WorkspaceService {
           workspace.id,
           data.ownerId,
           {
-            model: { provider: 'anthropic', id: 'claude-sonnet-4-6' },
+            model: {
+              provider: 'openrouter',
+              id: 'anthropic/claude-sonnet-4.6',
+            },
             agenticBootstrap: true,
           },
         );

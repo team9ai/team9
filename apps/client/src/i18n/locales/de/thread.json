@@ -1,0 +1,18 @@
+{
+  "title": "Thread",
+  "loading": "Thread wird geladen...",
+  "error": "Thread konnte nicht geladen werden",
+  "repliesCount": "{{count}} Antwort",
+  "repliesCount_other": "{{count}} Antworten",
+  "showMoreReplies": "{{count}} weitere Antwort anzeigen",
+  "showMoreReplies_other": "{{count}} weitere Antworten anzeigen",
+  "hideReplies": "Antworten ausblenden",
+  "replyingTo": "Antwort an",
+  "inputPlaceholder": "Im Thread antworten...",
+  "loadMore": "Weitere Antworten laden",
+  "loadingMore": "Laden...",
+  "newMessages": "{{count}} neue Nachricht",
+  "newMessages_other": "{{count}} neue Nachrichten",
+  "lastReply": "Letzte Antwort {{time}}",
+  "backToChannel": "Zurück zum Kanal"
+}

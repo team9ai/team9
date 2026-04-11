@@ -1,0 +1,18 @@
+{
+  "title": "討論串",
+  "loading": "載入討論串中...",
+  "error": "載入失敗",
+  "repliesCount": "{{count}} 則回覆",
+  "repliesCount_other": "{{count}} 則回覆",
+  "showMoreReplies": "顯示更多 {{count}} 則回覆",
+  "showMoreReplies_other": "顯示更多 {{count}} 則回覆",
+  "hideReplies": "收起回覆",
+  "replyingTo": "回覆",
+  "inputPlaceholder": "在討論串中回覆...",
+  "loadMore": "載入更多回覆",
+  "loadingMore": "載入中...",
+  "newMessages": "{{count}} 則新訊息",
+  "newMessages_other": "{{count}} 則新訊息",
+  "lastReply": "最後回覆 {{time}}",
+  "backToChannel": "返回頻道"
+}

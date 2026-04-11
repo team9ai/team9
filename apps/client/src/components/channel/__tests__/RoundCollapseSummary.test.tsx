@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import i18n from "@/i18n";
+import { changeLanguage } from "@/i18n/loadLanguage";
 import { RoundCollapseSummary } from "../RoundCollapseSummary";
 
 beforeEach(async () => {
@@ -126,9 +127,9 @@ describe("RoundCollapseSummary", () => {
   });
 
   describe("i18n integration", () => {
-    it("renders the zh localized summary when the language is set to zh", async () => {
+    it("renders the zh-CN localized summary when the language is set to zh-CN", async () => {
       await act(async () => {
-        await i18n.changeLanguage("zh");
+        await changeLanguage("zh-CN");
       });
       try {
         render(<RoundCollapseSummary stepCount={3} onClick={() => {}} />);
@@ -142,9 +143,9 @@ describe("RoundCollapseSummary", () => {
       }
     });
 
-    it("keeps the aria-label in English for assistive tech even in zh", async () => {
+    it("keeps the aria-label in English for assistive tech even in zh-CN", async () => {
       await act(async () => {
-        await i18n.changeLanguage("zh");
+        await changeLanguage("zh-CN");
       });
       try {
         render(<RoundCollapseSummary stepCount={4} onClick={() => {}} />);

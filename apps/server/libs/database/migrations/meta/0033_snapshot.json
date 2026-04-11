@@ -1,6 +1,6 @@
 {
-  "id": "b717df36-bf46-4e33-9998-12dfca226f78",
-  "prevId": "9244aece-8b57-49dc-a35f-8ffde8da3ca5",
+  "id": "ee340fc1-d946-4e90-980e-5629279d6fee",
+  "prevId": "b717df36-bf46-4e33-9998-12dfca226f78",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -6309,7 +6309,7 @@
     "public.message_type": {
       "name": "message_type",
       "schema": "public",
-      "values": ["text", "file", "image", "system", "tracking"]
+      "values": ["text", "file", "image", "system", "tracking", "long_text"]
     },
     "public.ack_status": {
       "name": "ack_status",
