@@ -15,11 +15,14 @@ import { useEffectOncePerKey } from "@/hooks/useEffectOncePerKey";
 import wsService from "@/services/websocket";
 import { ChannelContent } from "./ChannelContent";
 import { ChannelHeader } from "./ChannelHeader";
+import { ChannelTabs } from "./ChannelTabs";
 import { ThreadPanel } from "./ThreadPanel";
 import { JoinChannelPrompt } from "./JoinChannelPrompt";
 import { BotStartupOverlay } from "./BotStartupOverlay";
 import { BotInstanceStoppedBanner } from "./BotInstanceStoppedBanner";
 import { useOpenClawBotInstanceStatus } from "@/hooks/useOpenClawBotInstanceStatus";
+import { useChannelTabs } from "@/hooks/useChannelTabs";
+import type { ChannelTab } from "@/types/properties";
 import type {
   AttachmentDto,
   ChannelWithUnread,
@@ -184,6 +187,36 @@ export function ChannelView({
   // Bot thinking indicator state (local)
   const [thinkingBotIds, setThinkingBotIds] = useState<string[]>([]);
 
+  // Channel tabs state
+  const { data: channelTabs = [] } = useChannelTabs(
+    isPreviewMode ? undefined : channelId,
+  );
+  const [activeTabId, setActiveTabId] = useState<string>("");
+
+  // Auto-select the first tab (messages) when tabs load, or reset on channel change
+  useEffect(() => {
+    if (channelTabs.length > 0) {
+      // If current activeTabId is not in the list, select the first
+      const exists = channelTabs.some((t: ChannelTab) => t.id === activeTabId);
+      if (!exists) {
+        const sorted = [...channelTabs].sort(
+          (a: ChannelTab, b: ChannelTab) => a.order - b.order,
+        );
+        setActiveTabId(sorted[0].id);
+      }
+    }
+  }, [channelTabs, activeTabId, channelId]);
+
+  // Reset active tab when channel changes
+  useEffect(() => {
+    setActiveTabId("");
+  }, [channelId]);
+
+  // Determine active tab object
+  const activeTab = channelTabs.find((t: ChannelTab) => t.id === activeTabId);
+  const isFilesTab = activeTab?.type === "files";
+  const isViewTab = activeTab?.type === "view";
+
   // Clear thinking state when channel changes
   useEffect(() => {
     setThinkingBotIds([]);
@@ -337,7 +370,35 @@ export function ChannelView({
           <ChannelHeader channel={channel} currentUserRole={currentUserRole} />
         )}
 
-        {showOverlay ? (
+        {/* Channel tabs - only show for non-direct, non-preview channels */}
+        {!isPreviewMode &&
+          channel.type !== "direct" &&
+          channelTabs.length > 0 && (
+            <ChannelTabs
+              channelId={channelId}
+              activeTabId={activeTabId}
+              onTabChange={setActiveTabId}
+            />
+          )}
+
+        {/* Tab content */}
+        {isViewTab ? (
+          <div className="flex-1 flex items-center justify-center text-muted-foreground">
+            <div className="text-center space-y-2">
+              <p className="text-lg font-medium">{activeTab?.name}</p>
+              <p className="text-sm">
+                {activeTab?.viewId ? "View" : "Tab"} — Coming Soon
+              </p>
+            </div>
+          </div>
+        ) : isFilesTab ? (
+          <div className="flex-1 flex items-center justify-center text-muted-foreground">
+            <div className="text-center space-y-2">
+              <p className="text-lg font-medium">Files</p>
+              <p className="text-sm">Files view — Coming Soon</p>
+            </div>
+          </div>
+        ) : showOverlay ? (
           <BotStartupOverlay
             phase={phase as "countdown" | "ready"}
             remainingSeconds={remainingSeconds}
