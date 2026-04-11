@@ -35,8 +35,7 @@ This spec is Revision 2. Revision 1 (the original 2026-04-09 draft) contained se
 - Backend endpoints: `POST /v1/routines/with-creation-task`, `POST /v1/routines/:id/complete-creation`
 - Enhanced `create` / `update` / `delete` to handle `draft` state correctly
 - Claw-hive `team9-routine-creation` component + `createRoutine`, `getRoutine`, `updateRoutine` tools
-- `ChannelsService.archive()` helper
-- Auto-archive creation channels on completion
+- `ChannelsService.archiveCreationChannel()` helper (implemented but not called — reserved for future dedicated creation channels)
 - Frontend: "Create with Agentic" button + agent picker + draft badge + "Complete Creation" action
 - Draft routines are filtered to creator-only in the list API
 - Multi-turn agentic creation flow (DM one-shot + Routine UI multi-turn both work)
@@ -121,10 +120,9 @@ Phase 2 will add inline trigger picker widgets (probably via A2UI).
 
 ### 5. Creation Channel Lifecycle
 
-- Created when user initiates Routine UI creation (via `ChannelsService.createDirectChannel(userId, botUserId)`).
-- Channel name: `routine-creation-{first 8 chars of routineId}` for easy human filtering in the sidebar. (Not used as an identifier — routes are still by channel UUID.)
-- On `complete-creation`: `ChannelsService.archive(channelId)` sets `isArchived = true`. The channel is hidden from the active list but still accessible for audit.
-- If the creator deletes the draft without completing, the channel is also archived (not deleted — we keep the conversation history).
+- The creation conversation happens in the user's existing DM with the selected bot (via `ChannelsService.createDirectChannel`, which reuses any existing DM).
+- **DMs are NOT archived** on completion or deletion. Archiving a reused DM would hide the user's normal conversation history with that bot. The creation conversation remains in the DM as part of the natural chat history.
+- `ChannelsService.archiveCreationChannel()` exists but is not called from routine flows in Phase 1. It is reserved for a future phase when dedicated (non-DM) creation channels may be introduced.
 
 ### 6. No Agent Clone
 

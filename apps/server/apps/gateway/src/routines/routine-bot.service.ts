@@ -487,9 +487,10 @@ export class RoutineBotService {
     const routine = await this.getRoutineOrThrow(routineId, tenantId);
 
     // Verify calling bot is the assigned bot
-    if (routine.botId) {
-      await this.verifyBotOwnership(routine.botId, botUserId);
+    if (!routine.botId) {
+      throw new ForbiddenException('Routine has no assigned bot');
     }
+    await this.verifyBotOwnership(routine.botId, botUserId);
 
     // Enrich with document content
     let documentContent = '';
@@ -524,9 +525,10 @@ export class RoutineBotService {
     const routine = await this.getRoutineOrThrow(routineId, tenantId);
 
     // Verify calling bot is the assigned bot
-    if (routine.botId) {
-      await this.verifyBotOwnership(routine.botId, botUserId);
+    if (!routine.botId) {
+      throw new ForbiddenException('Routine has no assigned bot');
     }
+    await this.verifyBotOwnership(routine.botId, botUserId);
 
     // Reject status transitions — same guard as RoutinesService.update
     if (dto.status !== undefined && dto.status !== routine.status) {
