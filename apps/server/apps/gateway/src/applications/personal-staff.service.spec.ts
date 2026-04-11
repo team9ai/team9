@@ -219,6 +219,9 @@ describe('PersonalStaffService', () => {
       updateBotDisplayName: jest.fn<any>().mockResolvedValue(undefined),
       updateBotMentor: jest.fn<any>().mockResolvedValue(undefined),
       deleteBotAndCleanup: jest.fn<any>().mockResolvedValue(undefined),
+      generateAccessToken: jest
+        .fn<any>()
+        .mockResolvedValue({ accessToken: 'test-token' }),
     };
 
     clawHiveService = {
