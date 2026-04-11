@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { act, render, screen, fireEvent } from "@testing-library/react";
 import i18n from "@/i18n";
+import { changeLanguage } from "@/i18n/loadLanguage";
 import { ToolCallBlock } from "../ToolCallBlock";
 import type { AgentEventMetadata } from "@/types/im";
 
@@ -123,9 +124,9 @@ describe("ToolCallBlock", () => {
       expect(screen.getByText("Failed to send message")).toBeInTheDocument();
     });
 
-    it("renders the zh localized label when the language is set to zh", async () => {
+    it("renders the zh-CN localized label when the language is set to zh-CN", async () => {
       await act(async () => {
-        await i18n.changeLanguage("zh");
+        await changeLanguage("zh-CN");
       });
       try {
         render(

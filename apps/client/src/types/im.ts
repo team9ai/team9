@@ -1,7 +1,13 @@
 // IM Types matching gateway API
 
 export type ChannelType = "direct" | "public" | "private" | "task" | "tracking";
-export type MessageType = "text" | "file" | "image" | "system" | "tracking";
+export type MessageType =
+  | "text"
+  | "file"
+  | "image"
+  | "system"
+  | "tracking"
+  | "long_text";
 export type MemberRole = "owner" | "admin" | "member";
 export type UserStatus = "online" | "offline" | "away" | "busy";
 export type MessageSendStatus = "sending" | "sent" | "failed";
@@ -167,6 +173,8 @@ export interface Message {
   sender?: IMUser;
   attachments?: MessageAttachment[];
   reactions?: MessageReaction[];
+  isTruncated?: boolean;
+  fullContentLength?: number;
   replyCount?: number;
   lastRepliers?: {
     id: string;

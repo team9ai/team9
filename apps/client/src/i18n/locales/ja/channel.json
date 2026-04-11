@@ -1,0 +1,184 @@
+{
+  "createChannel": "チャンネルを作成",
+  "createChannelDescription": "チャンネルはチームがコミュニケーションする場所です。トピックごとに整理するのが効果的です。例：#project-mars",
+  "channelName": "チャンネル名",
+  "channelNamePlaceholder": "例：project-mars",
+  "channelNameRequired": "チャンネル名は必須です",
+  "channelNameInvalid": "英数字で始める必要があります",
+  "channelNameHint": "小文字英数字とハイフンのみ使用できます",
+  "channelDescription": "説明",
+  "channelDescriptionPlaceholder": "このチャンネルの用途は？",
+  "channelDescriptionOptional": "（任意）",
+  "chooseVisibility": "公開設定を選択",
+  "public": "パブリック",
+  "publicDescription": "誰でも閲覧・参加できます",
+  "private": "プライベート",
+  "privateDescription": "招待されたメンバーのみ閲覧できます",
+  "creating": "作成中...",
+  "browseChannels": "チャンネルを閲覧",
+  "noChannels": "チャンネルがありません",
+  "noChannelsYet": "チャンネルはまだありません",
+  "viewChannel": "チャンネルを表示",
+  "leaveChannel": "チャンネルを退出",
+  "deleteChannel": "チャンネルを削除",
+  "channelSettings": "チャンネル設定",
+  "channelMembers": "チャンネルメンバー",
+  "addMembers": "メンバーを追加",
+  "members": "{{count}} 人のメンバー",
+  "unread": "未読",
+  "searchMember": "ユーザー名またはニックネームで検索...",
+  "noMatchingUsers": "該当するユーザーが見つかりません",
+  "allMembersInChannel": "すべてのメンバーがすでにチャンネルに参加しています",
+  "selectedCount": "{{count}} 人選択中",
+  "selectMembersToAdd": "追加するメンバーを選択",
+  "adding": "追加中...",
+  "addCount": "{{count}} 人を追加",
+  "add": "追加",
+  "about": "概要",
+  "settings": "設定",
+  "noDescription": "説明なし",
+  "type": "タイプ",
+  "privateChannel": "プライベートチャンネル",
+  "publicChannel": "パブリックチャンネル",
+  "createdAt": "作成日",
+  "findMember": "メンバーを検索",
+  "addPeople": "メンバーを追加",
+  "you": "（あなた）",
+  "channelAdmin": "チャンネル管理者",
+  "admin": "管理者",
+  "dangerZone": "危険な操作",
+  "deleteChannelWarning": "チャンネルを削除すると、すべてのメッセージとファイルが完全に削除され、復元できません。",
+  "deleteThisChannel": "このチャンネルを削除",
+  "save": "保存",
+  "saving": "保存中...",
+  "edit": "編集",
+  "joinChannel": "チャンネルに参加",
+  "joining": "参加中...",
+  "leaving": "退出中...",
+  "leaveChannelWarning": "退出すると、このチャンネルのメッセージとファイルにアクセスできなくなります。",
+  "leaveThisChannel": "このチャンネルを退出",
+  "deleteChannelDescription": "この操作は取り消せません。このチャンネルのすべてのメッセージが完全に削除されます。",
+  "deleteChannelWarningTitle": "このチャンネルを削除すると：",
+  "deleteWarningMessages": "すべてのメッセージとファイルが削除されます",
+  "deleteWarningMembers": "すべてのメンバーがチャンネルから削除されます",
+  "deleteWarningNoRecovery": "この操作は復元できません",
+  "typeToConfirm": "{{name}} と入力して確認",
+  "enterChannelName": "チャンネル名を入力",
+  "permanentDelete": "完全に削除（復元不可）",
+  "deleting": "削除中...",
+  "channelNotFound": "チャンネルが見つかりません",
+  "loadingChannel": "チャンネルを読み込み中...",
+  "loadingMessages": "メッセージを読み込み中...",
+  "loadingMoreMessages": "さらにメッセージを読み込み中...",
+  "noMessagesYet": "メッセージはまだありません。チャンネルに参加して会話を始めましょう！",
+  "botStartupCountdownMessage": "こんにちは、OpenClaw Bot が起動中です。カウントダウンが終わるまでお待ちください。",
+  "botStartupSuccessMessage": "こんにちは、OpenClaw Bot が正常に起動しました！",
+  "botStartChatting": "チャットを開始",
+  "noMessagesYetDefault": "メッセージはまだありません",
+  "emptyPublicChannelTitle": "ボットとチャットしましょう！",
+  "emptyPublicChannelDesc": "このチャンネルには AI ボットがいます。@ でボットをメンションしてメッセージを送りましょう。",
+  "emptyPublicChannelHintExample": "何でも聞いてください...",
+  "emptyPublicChannelGotIt": "了解",
+  "botNotMemberTitle": "{{botName}} はチャンネルメンバーではありません",
+  "botNotMemberPublicDesc": "{{botName}} はこのチャンネルのメンバーではないため、メッセージを受信できません。先にチャンネルに追加しますか？",
+  "botNotMemberPrivateAdminDesc": "{{botName}} はこのプライベートチャンネルのメンバーではないため、メッセージを受信できません。先にチャンネルに追加しますか？",
+  "botNotMemberPrivateDesc": "{{botName}} はこのプライベートチャンネルのメンバーではないため、メッセージを受信できません。チャンネル管理者にボットの追加を依頼してください。",
+  "addBotToChannel": "チャンネルに追加",
+  "addingBot": "追加中...",
+  "botInstanceStoppedMessage": "ボットのインスタンスは現在停止中です。チャットを再開するにはインスタンスを起動してください。",
+  "botInstanceStoppedMemberMessage": "ボットのインスタンスは現在停止中です。ワークスペース管理者に起動を依頼してください。",
+  "botInstanceStart": "起動",
+  "botInstanceStarting": "起動中...",
+  "botInstanceStartingMessage": "ボットのインスタンスを起動中です。しばらくお待ちください...",
+  "botThinking": {
+    "texts": {
+      "thinking": "考え中",
+      "analyzing": "分析中",
+      "reasoning": "推論中",
+      "computing": "計算中",
+      "parsing": "解析中",
+      "brewing": "醸成中",
+      "crafting": "構築中",
+      "decoding": "デコード中",
+      "imagining": "想像中",
+      "composing": "構成中"
+    }
+  },
+  "tracking": {
+    "ops": {
+      "loadTools": {
+        "loading": "ツールを読み込み中",
+        "success": "ツールの読み込み完了",
+        "error": "ツールの読み込みに失敗"
+      },
+      "searchTools": {
+        "loading": "ツールを検索中",
+        "success": "ツールが見つかりました",
+        "error": "ツールの検索に失敗"
+      },
+      "invokeTool": {
+        "loading": "ツールを呼び出し中",
+        "success": "ツールの呼び出し完了",
+        "error": "ツールの呼び出しに失敗"
+      },
+      "fallback": {
+        "loading": "{{name}} を読み込み中",
+        "success": "{{name}} 完了",
+        "error": "{{name}} 失敗"
+      }
+    },
+    "tools": {
+      "searchDocs": {
+        "loading": "ドキュメントを検索中",
+        "success": "ドキュメントが見つかりました",
+        "error": "ドキュメントの検索に失敗"
+      },
+      "sendMessage": {
+        "loading": "メッセージを送信中",
+        "success": "メッセージを送信しました",
+        "error": "メッセージの送信に失敗"
+      },
+      "generateReply": {
+        "loading": "返信を生成中",
+        "success": "返信を生成しました",
+        "error": "返信の生成に失敗"
+      }
+    },
+    "thinking": {
+      "label": "考え中",
+      "labelWithStats": "考え中（{{stats}}）",
+      "tokens_one": "{{count}} トークン",
+      "tokens_other": "{{count}} トークン",
+      "seconds": "{{count}}秒",
+      "minutesSeconds": "{{minutes}}分{{seconds}}秒"
+    },
+    "toolCall": {
+      "argsLabel": "引数",
+      "resultLabel": "結果",
+      "unknownTool": "不明なツール"
+    },
+    "eventLabels": {
+      "thinking": "思考",
+      "writing": "作成",
+      "toolCall": "呼び出し",
+      "toolResult": "結果",
+      "agentStart": "開始",
+      "agentEnd": "完了",
+      "error": "エラー",
+      "turn": "ターン",
+      "choices": "選択肢",
+      "selected": "選択済み"
+    },
+    "round": {
+      "collapseSummary_one": "... 実行過程を表示（{{count}} ステップ）",
+      "collapseSummary_other": "... 実行過程を表示（{{count}} ステップ）",
+      "expandAriaLabel_one": "実行過程を展開（{{count}} ステップ）",
+      "expandAriaLabel_other": "実行過程を展開（{{count}} ステップ）"
+    },
+    "card": {
+      "moreDetails_one": "{{count}} 件の詳細を表示 ›",
+      "moreDetails_other": "{{count}} 件の詳細を表示 ›",
+      "loading": "読み込み中..."
+    }
+  }
+}

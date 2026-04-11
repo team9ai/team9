@@ -1,0 +1,127 @@
+{
+  "eyebrow": "Configuration de l'espace de travail",
+  "workspaceBadge": "Configuration initiale de {{name}}",
+  "stepLabel": "Étape {{current}} / {{total}}",
+  "workspaceFallback": "Votre nouvel espace de travail",
+  "welcome": "Laissez Team9 créer la première version de votre espace de travail selon votre façon de travailler.",
+  "actions": {
+    "back": "Retour",
+    "continue": "Continuer",
+    "next": "Suivant",
+    "regenerate": "Régénérer",
+    "retry": "Réessayer",
+    "edit": "Modifier",
+    "copy": "Copier le lien",
+    "copied": "Copié",
+    "startCheckout": "S'abonner",
+    "continueWithoutPlan": "Continuer sans abonnement",
+    "finish": "Entrer dans l'espace de travail",
+    "retryProvision": "Réessayer la configuration",
+    "creating": "Création en cours…"
+  },
+  "steps": {
+    "1": {
+      "title": "Décrivez votre type de travail",
+      "description": "Écrivez une phrase sur votre rôle, ou partez du rôle prédéfini le plus proche."
+    },
+    "2": {
+      "title": "Choisissez la tâche la plus réaliste",
+      "description": "Nous vous suggérerons quelques flux de travail récurrents à automatiser en priorité."
+    },
+    "3": {
+      "title": "Préparons quelques canaux pour vous",
+      "description": "Ces canaux sont générés à partir du flux naturel de votre travail."
+    },
+    "4": {
+      "title": "Confirmez la configuration de votre agent",
+      "description": "Votre agent principal est fixé comme Personnel Staff, avec quelques assistants spécialisés."
+    },
+    "5": {
+      "title": "Invitez votre équipe à collaborer",
+      "description": "Partagez un lien d'invitation et réunissez tout le monde dans le même espace de travail."
+    },
+    "6": {
+      "title": "Choisissez un plan pour cet espace de travail",
+      "description": "Vous pouvez vous abonner maintenant, ou entrer dans l'espace de travail et configurer la facturation plus tard."
+    }
+  },
+  "role": {
+    "inputLabel": "Décrivez votre travail",
+    "inputPlaceholder": "Par exemple : Je gère le suivi des ventes B2B SaaS, les propositions et les revues de contrats.",
+    "customHint": "Vous pouvez aussi écrire librement sans choisir de rôle prédéfini.",
+    "or": "Ou",
+    "featured": "Recommandé",
+    "suggestions": "Suggestions de rôles"
+  },
+  "tasks": {
+    "customLabel": "Ou ajoutez le flux de travail que vous souhaitez le plus automatiser",
+    "customDivider": "Écrivez le vôtre",
+    "customPlaceholder": "Par exemple : résumer les notes de suivi client quotidiennes et suggérer la prochaine étape.",
+    "empty": "Aucune suggestion de tâche pour le moment.",
+    "loadingTitle": "Génération des options de tâches",
+    "loading": "Génération de suggestions de tâches adaptées à votre travail…"
+  },
+  "channels": {
+    "renameHint": "Vous pouvez renommer n'importe quel canal directement",
+    "previewTitle": "Aperçu du canal",
+    "placeholder": "#nouveau-canal",
+    "loadingTitle": "Préparation de vos canaux de démarrage",
+    "loading": "Génération de la structure des canaux de démarrage…",
+    "sidebarTitle": "Espace de travail",
+    "activeThread": "Focus du jour",
+    "previewAuthorA": "Personnel Staff",
+    "previewAuthorB": "Brouillon système",
+    "previewNow": "à l'instant",
+    "previewToday": "aujourd'hui",
+    "previewLine1": "C'est ici que la collaboration spécifique à votre rôle commencera à prendre forme.",
+    "previewLine2": "Une fois la configuration terminée, ces canaux et agents seront provisionnés dans l'espace de travail réel.",
+    "previewPurpose": "Ce canal est l'endroit où {{topic}} reste visible et facile à gérer.",
+    "previewInsight": "{{role}} peut utiliser cet espace pour faire avancer {{task}} sans perdre le contexte.",
+    "previewThread": "Une fois la configuration terminée, les suivis de {{task}} resteront dans {{topic}}.",
+    "previewChecklistPrimary": "Flux de travail principal : {{task}}",
+    "previewChecklistSecondary": "Fil secondaire : {{task}}",
+    "previewChecklistOwner": "Responsable par défaut : {{role}}"
+  },
+  "agents": {
+    "mainAgent": "Agent principal",
+    "childAgents": "Agents de support",
+    "mainDescriptionLabel": "Description de l'agent principal",
+    "mainDescriptionPlaceholder": "Décrivez comment votre Personnel Staff devrait vous aider.",
+    "loadingTitle": "Préparation de votre équipe d'agents",
+    "empty": "Aucune configuration d'agent disponible. Revenez en arrière et réessayez.",
+    "loading": "Génération de votre équipe d'agents…"
+  },
+  "invite": {
+    "title": "Lien d'invitation",
+    "hint": "Ce lien invite les collaborateurs dans l'espace de travail actuel en tant que membres par défaut.",
+    "loading": "Préparation de votre lien d'invitation…"
+  },
+  "plan": {
+    "current": "Plan actuel",
+    "success": "Paiement terminé. Vous pouvez continuer.",
+    "cancel": "Paiement annulé. Vous pouvez réessayer à tout moment.",
+    "loadingTitle": "Chargement des plans de l'espace de travail",
+    "note": "Vous pouvez vous abonner maintenant, ou entrer d'abord dans l'espace de travail et ajouter la facturation plus tard.",
+    "empty": "Aucun plan d'abonnement disponible pour le moment.",
+    "perMonth": "/mois",
+    "priceHint": "Environ {{amount}} en valeur d'utilisation réelle",
+    "credits": "{{count}} crédits"
+  },
+  "status": {
+    "provisioningTitle": "Configuration de votre espace de travail",
+    "provisioningDescription": "Nous créons les canaux, configurons les agents et enregistrons vos préférences.",
+    "failedTitle": "La configuration n'est pas entièrement terminée",
+    "failedDescription": "Le provisionnement a échoué en cours de route. Vous pouvez réessayer sans perdre les préférences déjà enregistrées."
+  },
+  "errors": {
+    "loadFailed": "Impossible de charger l'état de configuration.",
+    "saveFailed": "Impossible d'enregistrer la progression de la configuration.",
+    "roleRequired": "Ajoutez une description de rôle ou choisissez un rôle prédéfini d'abord.",
+    "taskRequired": "Sélectionnez au moins une tâche ou ajoutez une tâche personnalisée.",
+    "channelRequired": "Conservez au moins un brouillon de canal.",
+    "workspaceRequired": "Aucun espace de travail disponible pour le moment.",
+    "checkoutFailed": "Impossible de lancer le paiement pour le moment.",
+    "copyFailed": "Impossible de copier le lien d'invitation.",
+    "provisionFailed": "La configuration de l'espace de travail a échoué. Veuillez réessayer."
+  }
+}

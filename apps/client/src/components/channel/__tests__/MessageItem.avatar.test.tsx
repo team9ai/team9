@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { getSeededAvatarGradient } from "@/lib/avatar-colors";
 import type { Message } from "@/types/im";
@@ -9,6 +10,16 @@ import { MessageItem } from "../MessageItem";
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
+
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false } },
+});
+
+function renderWithProviders(ui: React.ReactElement) {
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
+}
 
 function makeMessage(overrides: Partial<Message> = {}): Message {
   return {
@@ -42,7 +53,7 @@ describe("MessageItem avatar fallback", () => {
       },
     });
 
-    render(<MessageItem message={message} />);
+    renderWithProviders(<MessageItem message={message} />);
 
     const fallback = screen.getByText("AS");
     expect(fallback).toHaveClass(getSeededAvatarGradient("user-seeded"));
@@ -65,7 +76,7 @@ describe("MessageItem avatar fallback", () => {
       } as any,
     });
 
-    render(<MessageItem message={message} />);
+    renderWithProviders(<MessageItem message={message} />);
 
     expect(screen.getByText("Model")).toBeInTheDocument();
   });

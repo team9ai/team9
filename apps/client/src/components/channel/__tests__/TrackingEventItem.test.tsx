@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import i18n from "@/i18n";
+import { changeLanguage } from "@/i18n/loadLanguage";
 import {
   TrackingEventItem,
   formatDuration,
@@ -302,9 +303,9 @@ describe("TrackingEventItem", () => {
       expect(screen.queryByText("Tool call completed")).not.toBeInTheDocument();
     });
 
-    it("should honour the active language (zh) for tool_call labels", async () => {
+    it("should honour the active language (zh-CN) for tool_call labels", async () => {
       await act(async () => {
-        await i18n.changeLanguage("zh");
+        await changeLanguage("zh-CN");
       });
       try {
         const meta: AgentEventMetadata = {
@@ -423,8 +424,9 @@ describe("formatDuration helper", () => {
     expect(formatDuration(0, t)).toBe("0s");
   });
 
-  it("honours the zh locale when translating", async () => {
-    const zhT = i18n.getFixedT("zh", "channel");
+  it("honours the zh-CN locale when translating", async () => {
+    await changeLanguage("zh-CN");
+    const zhT = i18n.getFixedT("zh-CN", "channel");
     expect(formatDuration(45_000, zhT)).toBe("45 秒");
     expect(formatDuration(123_000, zhT)).toBe("2 分 3 秒");
   });
@@ -564,8 +566,9 @@ describe("buildThinkingStats helper", () => {
     );
   });
 
-  it("honours the zh locale when rendering stats", () => {
-    const zhT = i18n.getFixedT("zh", "channel");
+  it("honours the zh-CN locale when rendering stats", async () => {
+    await changeLanguage("zh-CN");
+    const zhT = i18n.getFixedT("zh-CN", "channel");
     const meta: AgentEventMetadata = {
       agentEventType: "thinking",
       status: "completed",

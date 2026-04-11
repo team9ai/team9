@@ -1,0 +1,92 @@
+{
+  "title": "資源",
+  "tabs": {
+    "all": "全部",
+    "agent_computer": "Agent 電腦",
+    "api": "API"
+  },
+  "noResources": "暫無資源",
+  "status": {
+    "online": "線上",
+    "offline": "離線",
+    "error": "錯誤",
+    "configuring": "設定中"
+  },
+  "type": {
+    "agent_computer": "Agent 電腦",
+    "api": "API"
+  },
+  "connectionType": {
+    "ahand": "Ahand",
+    "ssh": "SSH",
+    "cloud": "Cloud"
+  },
+  "create": {
+    "title": "新增資源",
+    "selectType": "資源類型",
+    "name": "名稱",
+    "namePlaceholder": "輸入資源名稱",
+    "description": "描述",
+    "descriptionPlaceholder": "選填描述",
+    "connectionType": "連線方式",
+    "host": "主機",
+    "hostPlaceholder": "例如 192.168.1.100",
+    "port": "連接埠",
+    "provider": "供應商",
+    "providerPlaceholder": "例如 openai, google, custom",
+    "apiKey": "API Key",
+    "apiKeyPlaceholder": "輸入 API Key",
+    "baseUrl": "Base URL",
+    "baseUrlPlaceholder": "選填自訂 Base URL",
+    "model": "模型",
+    "modelPlaceholder": "例如 gpt-4, claude-3",
+    "submit": "建立",
+    "cancel": "取消"
+  },
+  "detail": {
+    "title": "資源詳情",
+    "loadError": "載入資源失敗",
+    "basicInfo": "基本資訊",
+    "authorizations": "授權",
+    "noAuthorizations": "暫無授權",
+    "addAuthorization": "新增",
+    "usageLogs": "使用記錄",
+    "noUsageLogs": "暫無使用記錄",
+    "delete": "刪除",
+    "deleteConfirm": "確定要刪除此資源嗎？",
+    "lastHeartbeat": "最後心跳：{{time}}",
+    "authCount": "{{count}} 個授權",
+    "maskedKey": "{{prefix}}...{{suffix}}",
+    "granteeType": {
+      "user": "使用者",
+      "task": "工作"
+    },
+    "permissionLevel": {
+      "full": "完整存取",
+      "readonly": "唯讀"
+    }
+  },
+  "auth": {
+    "granteeType": "授權對象類型",
+    "granteeId": "授權對象 ID",
+    "granteeIdPlaceholder": "輸入使用者或工作 ID",
+    "permissionLevel": "權限等級",
+    "grant": "授予權限"
+  },
+  "edit": {
+    "save": "儲存",
+    "cancel": "取消"
+  },
+  "ahand": {
+    "localDeviceSetup": "本機裝置設定",
+    "connection": "aHand 連線",
+    "browserComponents": "瀏覽器元件",
+    "activation": "啟用"
+  },
+  "actions": {
+    "connect": "連線",
+    "disconnect": "中斷連線",
+    "api_call": "API 呼叫",
+    "error": "錯誤"
+  }
+}

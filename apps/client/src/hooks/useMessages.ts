@@ -1,5 +1,6 @@
 import {
   useMutation,
+  useQuery,
   useQueryClient,
   useInfiniteQuery,
   type InfiniteData,
@@ -349,6 +350,11 @@ export function useMessages(channelId: string | undefined) {
 
     const handleMessageUpdated = (message: Message) => {
       if (message.channelId !== channelId) return;
+
+      // Invalidate full-content cache for edited long_text messages
+      queryClient.invalidateQueries({
+        queryKey: ["message-full-content", message.id],
+      });
 
       queryClient.setQueryData<MessagesQueryData>(
         ["messages", channelId],
@@ -916,6 +922,12 @@ export function useChannelMessages(
 
     const handleMessageUpdated = (message: Message) => {
       if (message.channelId !== channelId) return;
+
+      // Invalidate full-content cache for edited long_text messages
+      queryClient.invalidateQueries({
+        queryKey: ["message-full-content", message.id],
+      });
+
       queryClient.setQueryData<MessagesQueryData>(msgQueryKey, (old) => {
         if (!old) return old;
         return {
@@ -1470,6 +1482,11 @@ export function useSendMessage(channelId: string) {
       imApi.messages.sendMessage(channelId!, data),
 
     onMutate: async (newMessageData) => {
+      // Validate content length before optimistic update
+      if (newMessageData.content && newMessageData.content.length > 100000) {
+        throw new Error("消息内容过长，请缩减后重试");
+      }
+
       // Cancel any outgoing refetches to prevent overwriting optimistic update
       await queryClient.cancelQueries({ queryKey: ["messages", channelId] });
 
@@ -2019,5 +2036,18 @@ export function useRemoveReaction(channelId?: string) {
         },
       );
     },
+  });
+}
+
+/**
+ * Hook to fetch the full content of a long_text message.
+ * Only fetches when enabled (user clicks "expand").
+ */
+export function useFullContent(messageId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["message-full-content", messageId],
+    queryFn: () => imApi.messages.getFullContent(messageId),
+    enabled,
+    staleTime: Infinity,
   });
 }

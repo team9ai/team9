@@ -75,7 +75,7 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("@/i18n", () => ({
   supportedLanguages: [
     { code: "en", nativeName: "English" },
-    { code: "zh", nativeName: "中文" },
+    { code: "zh-CN", nativeName: "简体中文" },
   ],
 }));
 

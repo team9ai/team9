@@ -181,24 +181,24 @@ const enDayNames = [
 /**
  * Format a date for grouping headers (e.g., "Today", "Yesterday", "Jan 13, Monday")
  */
-export function formatDateGroup(date: Date, locale: string = "zh"): string {
+export function formatDateGroup(date: Date, locale: string = "zh-CN"): string {
   const now = new Date();
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
 
   if (isSameDay(date, now)) {
-    return locale === "zh" ? "今天" : "Today";
+    return locale.startsWith("zh") ? "今天" : "Today";
   }
 
   if (isSameDay(date, yesterday)) {
-    return locale === "zh" ? "昨天" : "Yesterday";
+    return locale.startsWith("zh") ? "昨天" : "Yesterday";
   }
 
   const month = date.getMonth() + 1;
   const day = date.getDate();
   const dayOfWeek = date.getDay();
 
-  if (locale === "zh") {
+  if (locale.startsWith("zh")) {
     return `${month}月${day}日${zhDayNames[dayOfWeek]}`;
   } else {
     const monthNames = [
@@ -235,7 +235,7 @@ export function getDateKey(date: Date): string {
 export function groupByDate<T>(
   items: T[],
   getDate: (item: T) => Date,
-  locale: string = "zh",
+  locale: string = "zh-CN",
 ): Array<{ dateKey: string; dateLabel: string; items: T[] }> {
   const groups = new Map<string, { dateLabel: string; items: T[] }>();
 
