@@ -839,10 +839,7 @@ function OnboardingRoute() {
     );
   }
 
-  if (
-    onboarding?.status === "provisioning" ||
-    (isFinishing && completeOnboarding.isPending)
-  ) {
+  if (onboarding?.status === "provisioning" || isFinishing) {
     return (
       <StatusScene
         title={t("status.provisioningTitle")}
