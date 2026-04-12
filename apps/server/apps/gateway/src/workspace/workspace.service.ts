@@ -588,100 +588,104 @@ export class WorkspaceService {
       );
     }
 
-    // Create DM channels between the new user and all existing workspace members (batch)
-    try {
-      const existingMembers = await this.db
-        .select({
-          userId: schema.tenantMembers.userId,
-          userType: schema.users.userType,
-        })
-        .from(schema.tenantMembers)
-        .innerJoin(
-          schema.users,
-          eq(schema.tenantMembers.userId, schema.users.id),
-        )
-        .where(
-          and(
-            eq(schema.tenantMembers.tenantId, invitation.tenantId),
-            isNull(schema.tenantMembers.leftAt),
-            sql`${schema.tenantMembers.userId} != ${userId}`,
-          ),
-        );
+    // Create DM channels only for small workspaces (< 10 members)
+    if (memberCount < 10) {
+      // Create DM channels between the new user and all existing workspace members (batch)
+      try {
+        const existingMembers = await this.db
+          .select({
+            userId: schema.tenantMembers.userId,
+            userType: schema.users.userType,
+          })
+          .from(schema.tenantMembers)
+          .innerJoin(
+            schema.users,
+            eq(schema.tenantMembers.userId, schema.users.id),
+          )
+          .where(
+            and(
+              eq(schema.tenantMembers.tenantId, invitation.tenantId),
+              isNull(schema.tenantMembers.leftAt),
+              sql`${schema.tenantMembers.userId} != ${userId}`,
+            ),
+          );
 
-      if (existingMembers.length > 0) {
-        const memberIds = existingMembers.map((m) => m.userId);
+        if (existingMembers.length > 0) {
+          const memberIds = existingMembers.map((m) => m.userId);
 
-        // Batch create all DM channels (3 queries instead of N*3)
-        const dmChannels = await this.channelsService.createDirectChannelsBatch(
-          userId,
-          memberIds,
-          invitation.tenantId,
-        );
+          // Batch create all DM channels (3 queries instead of N*3)
+          const dmChannels =
+            await this.channelsService.createDirectChannelsBatch(
+              userId,
+              memberIds,
+              invitation.tenantId,
+            );
 
-        // Send system messages for human members and broadcast via WebSocket
-        const onlineUsersHash = await this.redisService.hgetall(
-          REDIS_KEYS.ONLINE_USERS,
-        );
-        const newUserOnline = userId in onlineUsersHash;
-        const displayName = user.displayName || user.username;
+          // Send system messages for human members and broadcast via WebSocket
+          const onlineUsersHash = await this.redisService.hgetall(
+            REDIS_KEYS.ONLINE_USERS,
+          );
+          const newUserOnline = userId in onlineUsersHash;
+          const displayName = user.displayName || user.username;
 
-        await Promise.allSettled(
-          existingMembers.map(async (member) => {
-            const dmChannel = dmChannels.get(member.userId);
-            if (!dmChannel) return;
+          await Promise.allSettled(
+            existingMembers.map(async (member) => {
+              const dmChannel = dmChannels.get(member.userId);
+              if (!dmChannel) return;
 
-            // Send system message only for human members, not bots
-            if (member.userType !== 'bot' && member.userType !== 'system') {
-              const systemMessage =
-                await this.channelsService.sendSystemMessage(
+              // Send system message only for human members, not bots
+              if (member.userType !== 'bot' && member.userType !== 'system') {
+                const systemMessage =
+                  await this.channelsService.sendSystemMessage(
+                    dmChannel.id,
+                    `${displayName} joined ${workspace.name}. Say hello!`,
+                  );
+
+                await this.websocketGateway.sendToChannelMembers(
                   dmChannel.id,
-                  `${displayName} joined ${workspace.name}. Say hello!`,
+                  WS_EVENTS.MESSAGE.NEW,
+                  {
+                    ...systemMessage,
+                    createdAt: systemMessage.createdAt.toISOString(),
+                    updatedAt: systemMessage.updatedAt.toISOString(),
+                    sender: null,
+                    attachments: [],
+                    reactions: [],
+                  },
                 );
+              }
 
-              await this.websocketGateway.sendToChannelMembers(
-                dmChannel.id,
-                WS_EVENTS.MESSAGE.NEW,
-                {
-                  ...systemMessage,
-                  createdAt: systemMessage.createdAt.toISOString(),
-                  updatedAt: systemMessage.updatedAt.toISOString(),
-                  sender: null,
-                  attachments: [],
-                  reactions: [],
-                },
-              );
-            }
+              // Notify existing member via WebSocket if online
+              if (member.userId in onlineUsersHash) {
+                await this.websocketGateway.sendToUser(
+                  member.userId,
+                  WS_EVENTS.CHANNEL.CREATED,
+                  dmChannel,
+                );
+              }
 
-            // Notify existing member via WebSocket if online
-            if (member.userId in onlineUsersHash) {
-              await this.websocketGateway.sendToUser(
-                member.userId,
-                WS_EVENTS.CHANNEL.CREATED,
-                dmChannel,
-              );
-            }
+              // Notify new user via WebSocket if online
+              if (newUserOnline) {
+                await this.websocketGateway.sendToUser(
+                  userId,
+                  WS_EVENTS.CHANNEL.CREATED,
+                  dmChannel,
+                );
+              }
+            }),
+          );
 
-            // Notify new user via WebSocket if online
-            if (newUserOnline) {
-              await this.websocketGateway.sendToUser(
-                userId,
-                WS_EVENTS.CHANNEL.CREATED,
-                dmChannel,
-              );
-            }
-          }),
-        );
-
-        this.logger.log(
-          `Created ${dmChannels.size} DM channels for new member ${userId}`,
+          this.logger.log(
+            `Created ${dmChannels.size} DM channels for new member ${userId}`,
+          );
+        }
+      } catch (error) {
+        // Don't fail the invitation if DM channel creation fails
+        this.logger.warn(
+          `Failed to create DM channels for new member: ${this.getErrorMessage(error)}`,
         );
       }
-    } catch (error) {
-      // Don't fail the invitation if DM channel creation fails
-      this.logger.warn(
-        `Failed to create DM channels for new member: ${this.getErrorMessage(error)}`,
-      );
-    }
+    } // end: memberCount < 10
 
     // Add user to welcome channel and send system message
     try {

@@ -7,6 +7,7 @@ import { InstalledApplicationsService } from '../applications/installed-applicat
 import { ApplicationsService } from '../applications/applications.service.js';
 import { PersonalStaffService } from '../applications/personal-staff.service.js';
 import { OnboardingService } from './onboarding.service.js';
+import { BillingHubService } from '../billing-hub/billing-hub.service.js';
 import { RedisService } from '@team9/redis';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
@@ -165,6 +166,12 @@ describe('WorkspaceService', () => {
           useValue: {
             capture: jest.fn(),
             isEnabled: jest.fn().mockReturnValue(false),
+          },
+        },
+        {
+          provide: BillingHubService,
+          useValue: {
+            grantCredits: jest.fn<any>().mockResolvedValue(undefined),
           },
         },
       ],
@@ -1215,6 +1222,43 @@ describe('WorkspaceService', () => {
       const result = await service.acceptInvitation('abc123', 'user-uuid');
 
       expect(result.workspace.id).toBe('ws-uuid');
+    });
+
+    // ── batch DM: member count threshold ─────────────────────────────
+
+    it('should run batch DM creation when workspace has fewer than 10 members', async () => {
+      // memberCount = 9 → below threshold → DM creation should run
+      (service as any).getWorkspaceMemberCount.mockResolvedValue(9);
+
+      let whereCallCount = 0;
+      db.where.mockImplementation((() => {
+        whereCallCount++;
+        if (whereCallCount === 6)
+          return Promise.resolve([{ userId: 'member-1', userType: 'human' }]);
+        return db;
+      }) as any);
+
+      const dmMap = new Map([
+        ['member-1', { id: 'dm-1', tenantId: 'ws-uuid', type: 'direct' }],
+      ]);
+      channelsService.createDirectChannelsBatch.mockResolvedValue(dmMap);
+
+      await service.acceptInvitation('abc123', 'user-uuid');
+
+      expect(channelsService.createDirectChannelsBatch).toHaveBeenCalledWith(
+        'user-uuid',
+        ['member-1'],
+        'ws-uuid',
+      );
+    });
+
+    it('should skip batch DM creation when workspace has 10 or more members', async () => {
+      // memberCount = 10 → at/above threshold → DM creation should be skipped
+      (service as any).getWorkspaceMemberCount.mockResolvedValue(10);
+
+      await service.acceptInvitation('abc123', 'user-uuid');
+
+      expect(channelsService.createDirectChannelsBatch).not.toHaveBeenCalled();
     });
 
     it('should throw when workspace has reached max member limit (1000)', async () => {
