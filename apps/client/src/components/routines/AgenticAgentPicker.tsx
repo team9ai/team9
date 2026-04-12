@@ -26,9 +26,10 @@ import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 interface AgenticAgentPickerProps {
   open: boolean;
   onClose: () => void;
+  onManualCreate?: () => void;
 }
 
-export function AgenticAgentPicker({ open, onClose }: AgenticAgentPickerProps) {
+export function AgenticAgentPicker({ open, onClose, onManualCreate }: AgenticAgentPickerProps) {
   const { t } = useTranslation("routines");
   const navigate = useNavigate();
   const workspaceId = useSelectedWorkspaceId();
@@ -129,25 +130,36 @@ export function AgenticAgentPicker({ open, onClose }: AgenticAgentPickerProps) {
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
 
-        <DialogFooter>
-          <Button
-            variant="ghost"
-            onClick={handleClose}
-            disabled={createMutation.isPending}
-          >
-            {t("agentic.cancel")}
-          </Button>
-          <Button
-            onClick={() => createMutation.mutate()}
-            disabled={!canConfirm}
-          >
-            {createMutation.isPending && (
-              <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-            )}
-            {createMutation.isPending
-              ? t("agentic.navigatingToast")
-              : t("agentic.confirm")}
-          </Button>
+        <DialogFooter className="flex-col items-stretch gap-3 sm:flex-col">
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="ghost"
+              onClick={handleClose}
+              disabled={createMutation.isPending}
+            >
+              {t("agentic.cancel")}
+            </Button>
+            <Button
+              onClick={() => createMutation.mutate()}
+              disabled={!canConfirm}
+            >
+              {createMutation.isPending && (
+                <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+              )}
+              {createMutation.isPending
+                ? t("agentic.navigatingToast")
+                : t("agentic.confirm")}
+            </Button>
+          </div>
+          {onManualCreate && (
+            <button
+              type="button"
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors text-center"
+              onClick={onManualCreate}
+            >
+              {t("createManually")}
+            </button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -13,6 +13,13 @@
     "history": "歷史"
   },
   "noRoutines": "暫無例行工作",
+  "createManually": "手動建立",
+  "emptyState": {
+    "title": "什麼是例行工作？",
+    "description": "例行工作是 AI 員工自動執行的任務。\n設定觸發條件，讓 AI 代替您完成工作。",
+    "createWithAI": "用 AI 建立",
+    "createManually": "或手動建立"
+  },
   "create": {
     "title": "新增例行工作",
     "description": "建立一個例行工作，交給 AI 員工執行。",

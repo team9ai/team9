@@ -13,6 +13,13 @@
     "history": "历史"
   },
   "noRoutines": "暂无日常",
+  "createManually": "手动创建日常",
+  "emptyState": {
+    "title": "什么是日常？",
+    "description": "日常是交给 AI 员工自动执行的任务。\n你可以设定触发条件，让 AI 员工按需完成工作。",
+    "createWithAI": "使用 AI 创建日常",
+    "createManually": "或 手动创建"
+  },
   "create": {
     "title": "新建日常",
     "description": "创建一个日常，交给 AI 员工执行。",

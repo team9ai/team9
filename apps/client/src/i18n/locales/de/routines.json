@@ -13,6 +13,13 @@
     "history": "Verlauf"
   },
   "noRoutines": "Keine Routinen",
+  "createManually": "Manuell erstellen",
+  "emptyState": {
+    "title": "Was sind Routinen?",
+    "description": "Routinen sind Aufgaben, die KI-Mitarbeiter automatisch ausführen.\nLegen Sie Auslösebedingungen fest und lassen Sie die KI die Arbeit für Sie erledigen.",
+    "createWithAI": "Mit KI erstellen",
+    "createManually": "oder manuell erstellen"
+  },
   "create": {
     "title": "Neue Routine",
     "description": "Erstellen Sie eine Routine, die von einem KI-Personal ausgeführt wird.",

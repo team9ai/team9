@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
-import { Loader2, ListChecks, Plus } from "lucide-react";
+import { Loader2, ListChecks, Sparkles } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -191,23 +191,15 @@ export function RoutineList({ botId }: RoutineListProps) {
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-border">
           <span className="text-sm font-semibold">{t("title", "Tasks")}</span>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs h-6 px-2"
-              onClick={() => setAgenticPickerOpen(true)}
-            >
-              {t("agentic.createButton")}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => setShowCreateDialog(true)}
-            >
-              <Plus size={16} />
-            </Button>
-          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs h-6 px-2"
+            onClick={() => setAgenticPickerOpen(true)}
+          >
+            <Sparkles size={14} className="mr-1" />
+            {t("create.title")}
+          </Button>
         </div>
 
         {/* Loading */}
@@ -219,9 +211,12 @@ export function RoutineList({ botId }: RoutineListProps) {
 
         {/* Empty */}
         {!isLoading && allRoutines.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-8 gap-2">
+          <div className="flex flex-col items-center justify-center py-8 gap-2 px-4">
             <ListChecks size={24} className="text-muted-foreground/50" />
             <p className="text-sm text-muted-foreground">{t("noRoutines")}</p>
+            <p className="text-[11px] text-muted-foreground/70 text-center leading-relaxed">
+              {t("create.description")}
+            </p>
           </div>
         )}
 
@@ -295,7 +290,7 @@ export function RoutineList({ botId }: RoutineListProps) {
       </div>
 
       {/* Center + Right: shown when a run is selected */}
-      {activeRoutineId && selectedRoutine && (
+      {activeRoutineId && selectedRoutine ? (
         <>
           <ChatArea
             routine={selectedRoutine}
@@ -306,6 +301,26 @@ export function RoutineList({ botId }: RoutineListProps) {
           />
           <RightPanel routineId={activeRoutineId} selectedRun={selectedRun} />
         </>
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center">
+          <ListChecks size={40} className="text-muted-foreground/30" />
+          <div className="space-y-2 max-w-sm">
+            <h3 className="text-base font-medium text-foreground">
+              {t("emptyState.title")}
+            </h3>
+            <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+              {t("emptyState.description")}
+            </p>
+          </div>
+          <Button
+            size="sm"
+            className="mt-2"
+            onClick={() => setAgenticPickerOpen(true)}
+          >
+            <Sparkles size={14} className="mr-1.5" />
+            {t("emptyState.createWithAI")}
+          </Button>
+        </div>
       )}
 
       <CreateRoutineDialog
@@ -323,6 +338,10 @@ export function RoutineList({ botId }: RoutineListProps) {
       <AgenticAgentPicker
         open={agenticPickerOpen}
         onClose={() => setAgenticPickerOpen(false)}
+        onManualCreate={() => {
+          setAgenticPickerOpen(false);
+          setShowCreateDialog(true);
+        }}
       />
     </div>
   );

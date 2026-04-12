@@ -13,6 +13,13 @@
     "history": "기록"
   },
   "noRoutines": "루틴이 없습니다",
+  "createManually": "수동으로 생성",
+  "emptyState": {
+    "title": "루틴이란?",
+    "description": "루틴은 AI 스태프가 자동으로 실행하는 작업입니다.\n트리거 조건을 설정하면 AI가 대신 작업을 완료합니다.",
+    "createWithAI": "AI로 생성",
+    "createManually": "또는 수동으로 생성"
+  },
   "create": {
     "title": "새 루틴",
     "description": "AI 스태프가 실행할 루틴을 만듭니다.",

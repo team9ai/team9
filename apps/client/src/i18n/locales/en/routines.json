@@ -13,6 +13,13 @@
     "history": "History"
   },
   "noRoutines": "No routines",
+  "createManually": "Create manually",
+  "emptyState": {
+    "title": "What are Routines?",
+    "description": "Routines are tasks that AI staff members execute automatically.\nSet trigger conditions and let AI complete work on your behalf.",
+    "createWithAI": "Create with AI",
+    "createManually": "or create manually"
+  },
   "create": {
     "title": "New Routine",
     "description": "Create a routine for an AI staff member to execute.",
