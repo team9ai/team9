@@ -255,10 +255,16 @@ export class ViewsService {
           ? value <= filter.value
           : false;
       case 'contains':
+        if (Array.isArray(value)) {
+          return value.includes(filter.value);
+        }
         return typeof value === 'string' && typeof filter.value === 'string'
           ? value.includes(filter.value)
           : false;
       case 'not_contains':
+        if (Array.isArray(value)) {
+          return !value.includes(filter.value);
+        }
         return typeof value === 'string' && typeof filter.value === 'string'
           ? !value.includes(filter.value)
           : true;

@@ -255,9 +255,10 @@ describe('AiAutoFillService', () => {
       }>;
     },
   ) {
-    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue(
-      baseMessage,
-    );
+    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue({
+      message: baseMessage,
+      channel: { type: 'public', propertySettings: null },
+    });
     // Load channel
     db.__state.selectResults.push([baseChannel]);
     // Load definitions
@@ -394,9 +395,10 @@ describe('AiAutoFillService', () => {
 
   it('retries on validation failure (up to 3 rounds)', async () => {
     const defs = [propDef()];
-    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue(
-      baseMessage,
-    );
+    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue({
+      message: baseMessage,
+      channel: { type: 'public', propertySettings: null },
+    });
     db.__state.selectResults.push([baseChannel]); // channel
     mockPropertyDefinitionsService.findAllByChannel.mockResolvedValue(defs);
     mockMessagePropertiesService.getProperties.mockResolvedValue({});
@@ -456,9 +458,10 @@ describe('AiAutoFillService', () => {
       }),
     ];
 
-    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue(
-      baseMessage,
-    );
+    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue({
+      message: baseMessage,
+      channel: { type: 'public', propertySettings: null },
+    });
     db.__state.selectResults.push([baseChannel]);
     mockPropertyDefinitionsService.findAllByChannel.mockResolvedValue(defs);
     // status already has a value
@@ -551,9 +554,10 @@ describe('AiAutoFillService', () => {
 
   it('fails gracefully after 3 failed rounds (AI errors)', async () => {
     const defs = [propDef()];
-    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue(
-      baseMessage,
-    );
+    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue({
+      message: baseMessage,
+      channel: { type: 'public', propertySettings: null },
+    });
     db.__state.selectResults.push([baseChannel]);
     mockPropertyDefinitionsService.findAllByChannel.mockResolvedValue(defs);
     mockMessagePropertiesService.getProperties.mockResolvedValue({});
@@ -573,9 +577,10 @@ describe('AiAutoFillService', () => {
   });
 
   it('returns empty result when no definitions have aiAutoFill=true', async () => {
-    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue(
-      baseMessage,
-    );
+    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue({
+      message: baseMessage,
+      channel: { type: 'public', propertySettings: null },
+    });
     db.__state.selectResults.push([baseChannel]);
     mockPropertyDefinitionsService.findAllByChannel.mockResolvedValue([
       propDef({ aiAutoFill: false }),
@@ -588,9 +593,10 @@ describe('AiAutoFillService', () => {
   });
 
   it('returns empty when all target definitions already have values and preserveExisting is true', async () => {
-    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue(
-      baseMessage,
-    );
+    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue({
+      message: baseMessage,
+      channel: { type: 'public', propertySettings: null },
+    });
     db.__state.selectResults.push([baseChannel]);
     mockPropertyDefinitionsService.findAllByChannel.mockResolvedValue([
       propDef(),
@@ -608,9 +614,10 @@ describe('AiAutoFillService', () => {
   });
 
   it('throws NotFoundException when channel is not found', async () => {
-    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue(
-      baseMessage,
-    );
+    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue({
+      message: baseMessage,
+      channel: { type: 'public', propertySettings: null },
+    });
     db.__state.selectResults.push([]); // channel not found
 
     await expect(service.autoFill('msg-1', 'user-1')).rejects.toThrow(
@@ -619,9 +626,10 @@ describe('AiAutoFillService', () => {
   });
 
   it('filters out non-AI-fillable value types (e.g., date, file)', async () => {
-    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue(
-      baseMessage,
-    );
+    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue({
+      message: baseMessage,
+      channel: { type: 'public', propertySettings: null },
+    });
     db.__state.selectResults.push([baseChannel]);
     mockPropertyDefinitionsService.findAllByChannel.mockResolvedValue([
       propDef({ id: 'def-date', key: 'due_date', valueType: 'date' }),
@@ -754,9 +762,10 @@ describe('AiAutoFillService', () => {
 
   it('rejects invalid single_select value not in options', async () => {
     const defs = [propDef()];
-    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue(
-      baseMessage,
-    );
+    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue({
+      message: baseMessage,
+      channel: { type: 'public', propertySettings: null },
+    });
     db.__state.selectResults.push([baseChannel]);
     mockPropertyDefinitionsService.findAllByChannel.mockResolvedValue(defs);
     mockMessagePropertiesService.getProperties.mockResolvedValue({});
@@ -784,9 +793,10 @@ describe('AiAutoFillService', () => {
         config: { options: [{ value: 'bug' }] },
       }),
     ];
-    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue(
-      baseMessage,
-    );
+    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue({
+      message: baseMessage,
+      channel: { type: 'public', propertySettings: null },
+    });
     db.__state.selectResults.push([baseChannel]);
     mockPropertyDefinitionsService.findAllByChannel.mockResolvedValue(defs);
     mockMessagePropertiesService.getProperties.mockResolvedValue({});
@@ -816,9 +826,10 @@ describe('AiAutoFillService', () => {
       description: 'A "special" channel',
     };
 
-    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue(
-      specialMessage,
-    );
+    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue({
+      message: specialMessage,
+      channel: { type: 'public', propertySettings: null },
+    });
     db.__state.selectResults.push([specialChannel]);
     mockPropertyDefinitionsService.findAllByChannel.mockResolvedValue([
       propDef(),
@@ -847,9 +858,10 @@ describe('AiAutoFillService', () => {
 
   it('includes reactions and thread replies in prompt', async () => {
     const defs = [propDef()];
-    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue(
-      baseMessage,
-    );
+    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue({
+      message: baseMessage,
+      channel: { type: 'public', propertySettings: null },
+    });
     db.__state.selectResults.push([baseChannel]);
     mockPropertyDefinitionsService.findAllByChannel.mockResolvedValue(defs);
     mockMessagePropertiesService.getProperties.mockResolvedValue({});
@@ -895,9 +907,10 @@ describe('AiAutoFillService', () => {
 
   it('includes error context in retry messages', async () => {
     const defs = [propDef()];
-    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue(
-      baseMessage,
-    );
+    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue({
+      message: baseMessage,
+      channel: { type: 'public', propertySettings: null },
+    });
     db.__state.selectResults.push([baseChannel]);
     mockPropertyDefinitionsService.findAllByChannel.mockResolvedValue(defs);
     mockMessagePropertiesService.getProperties.mockResolvedValue({});
@@ -925,9 +938,10 @@ describe('AiAutoFillService', () => {
 
   it('throws when AI does not return a tool_use block', async () => {
     const defs = [propDef()];
-    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue(
-      baseMessage,
-    );
+    mockMessagePropertiesService.getValidatedMessage.mockResolvedValue({
+      message: baseMessage,
+      channel: { type: 'public', propertySettings: null },
+    });
     db.__state.selectResults.push([baseChannel]);
     mockPropertyDefinitionsService.findAllByChannel.mockResolvedValue(defs);
     mockMessagePropertiesService.getProperties.mockResolvedValue({});

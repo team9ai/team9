@@ -6,6 +6,7 @@ import {
   IsObject,
   IsArray,
   IsUUID,
+  IsIn,
 } from 'class-validator';
 
 export class UpdatePropertyDefinitionDto {
@@ -35,8 +36,7 @@ export class UpdatePropertyDefinitionDto {
   defaultValue?: unknown;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(20)
+  @IsIn(['auto', 'show', 'hide'])
   showInChatPolicy?: string;
 
   @IsOptional()

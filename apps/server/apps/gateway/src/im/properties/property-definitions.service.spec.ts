@@ -117,6 +117,10 @@ function mockDb() {
       db.__queries.delete.push(query);
       return query as never;
     }),
+    // transaction: passes the db itself as the tx argument to the callback
+    transaction: jest.fn(async (cb: (tx: unknown) => Promise<unknown>) => {
+      return cb(db);
+    }),
   };
 
   return db;

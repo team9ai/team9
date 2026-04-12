@@ -8,6 +8,18 @@ import type {
   ViewMessageItem,
 } from "@/types/properties";
 
+// Polyfill IntersectionObserver for jsdom
+class MockIntersectionObserver {
+  observe = vi.fn();
+  unobserve = vi.fn();
+  disconnect = vi.fn();
+  constructor() {}
+}
+Object.defineProperty(globalThis, "IntersectionObserver", {
+  writable: true,
+  value: MockIntersectionObserver,
+});
+
 // ==================== Shared test data factories ====================
 
 function makeDefinition(
@@ -378,21 +390,31 @@ describe("BoardView", () => {
     expect(screen.getByText("5")).toBeInTheDocument();
   });
 
-  it("shows prompt to select groupBy when not configured", () => {
-    mockDefinitions = [makeDefinition()];
-    mockViewMessagesFlat = [makeViewMessage()];
-    mockViewMessagesGrouped = null;
+  it("shows empty state when no groups and groupBy is set but no data", () => {
+    mockDefinitions = [
+      makeDefinition({
+        id: "def-status",
+        key: "status",
+        valueType: "single_select",
+        config: {
+          options: [{ value: "open", label: "Open" }],
+        },
+      }),
+    ];
+    mockViewMessagesFlat = [];
+    // Return empty grouped response
+    mockViewMessagesGrouped = { groups: [], total: 0 };
 
     render(
       <BoardView
         channelId="ch-1"
-        view={makeView({ type: "board", config: {} })}
+        view={makeView({ type: "board", config: { groupBy: "status" } })}
       />,
       { wrapper: Wrapper },
     );
 
     expect(
-      screen.getByText("Select a property to group by in the toolbar above."),
+      screen.getByText("No messages match the current view configuration."),
     ).toBeInTheDocument();
   });
 });
@@ -422,7 +444,7 @@ describe("CalendarView", () => {
         channelId="ch-1"
         view={makeView({
           type: "calendar",
-          config: { datePropertyKey: "due_date" },
+          config: { groupBy: "due_date" },
         })}
       />,
       { wrapper: Wrapper },
@@ -449,15 +471,16 @@ describe("CalendarView", () => {
         channelId="ch-1"
         view={makeView({
           type: "calendar",
-          config: { datePropertyKey: "due_date" },
+          config: { groupBy: "due_date" },
         })}
       />,
       { wrapper: Wrapper },
     );
 
-    expect(screen.getByText("Month")).toBeInTheDocument();
-    expect(screen.getByText("Week")).toBeInTheDocument();
-    expect(screen.getByText("Day")).toBeInTheDocument();
+    // ModeToggle renders lowercase text with CSS capitalize
+    expect(screen.getByText("month")).toBeInTheDocument();
+    expect(screen.getByText("week")).toBeInTheDocument();
+    expect(screen.getByText("day")).toBeInTheDocument();
   });
 
   it("renders navigation controls (prev, today, next)", () => {
@@ -474,7 +497,7 @@ describe("CalendarView", () => {
         channelId="ch-1"
         view={makeView({
           type: "calendar",
-          config: { datePropertyKey: "due_date" },
+          config: { groupBy: "due_date" },
         })}
       />,
       { wrapper: Wrapper },

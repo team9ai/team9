@@ -15,6 +15,8 @@ import { messages } from './messages.js';
 import { channelPropertyDefinitions } from './channel-property-definitions.js';
 import { users } from './users.js';
 
+// NOTE: A GIN index on jsonValue exists in migration 0034 but cannot be
+// declared in the Drizzle schema (Drizzle does not support GIN index syntax).
 export const messageProperties = pgTable(
   'im_message_properties',
   {

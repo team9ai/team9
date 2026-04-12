@@ -123,7 +123,7 @@ export class MessagePropertiesService {
     value: unknown,
     userId: string,
   ): Promise<void> {
-    const message = await this.getValidatedMessage(messageId);
+    const { message } = await this.getValidatedMessage(messageId);
     const definition =
       await this.propertyDefinitionsService.findByIdOrThrow(definitionId);
 
@@ -200,7 +200,7 @@ export class MessagePropertiesService {
     definitionId: string,
     userId: string,
   ): Promise<void> {
-    const message = await this.getValidatedMessage(messageId);
+    const { message } = await this.getValidatedMessage(messageId);
     const definition =
       await this.propertyDefinitionsService.findByIdOrThrow(definitionId);
 
@@ -258,26 +258,28 @@ export class MessagePropertiesService {
   ): Promise<void> {
     if (properties.length === 0) return;
 
-    const message = await this.getValidatedMessage(messageId);
+    const { message, channel } = await this.getValidatedMessage(messageId);
     const effectiveUserId = userId ?? message.senderId ?? 'system';
 
-    // Check channel's propertySettings to determine if auto-creation is allowed
-    const [channel] = await this.db
-      .select({ propertySettings: schema.channels.propertySettings })
-      .from(schema.channels)
-      .where(eq(schema.channels.id, message.channelId))
-      .limit(1);
-
-    const settings = (channel?.propertySettings ?? {}) as Record<
+    // Use channel propertySettings from getValidatedMessage (no redundant query)
+    const settings = (channel.propertySettings ?? {}) as Record<
       string,
       unknown
     >;
     const allowCreate = settings.allowNonAdminCreateKey !== false;
 
-    const setMap: Record<string, unknown> = {};
+    // Phase 1: Resolve all definitions outside the transaction
+    // (findOrCreate may create definitions, which is a separate concern)
+    const resolvedDefinitions: {
+      key: string;
+      value: unknown;
+      definition: Awaited<
+        ReturnType<PropertyDefinitionsService['findOrCreate']>
+      >;
+      mappedValues: Partial<NewMessageProperty>;
+    }[] = [];
 
     for (const { key, value } of properties) {
-      // Find or create definition (schema-on-write)
       const valueType = this.inferValueType(value);
       const definition = await this.propertyDefinitionsService.findOrCreate(
         message.channelId,
@@ -286,58 +288,103 @@ export class MessagePropertiesService {
         effectiveUserId,
         allowCreate,
       );
-
       const mappedValues = this.validateAndMapValue(
         definition.valueType,
         value,
       );
-      const existing = await this.findExisting(messageId, definition.id);
-      const oldValue = existing
-        ? this.extractValue(existing, definition.valueType)
-        : undefined;
+      resolvedDefinitions.push({ key, value, definition, mappedValues });
+    }
 
-      const now = new Date();
-      if (existing) {
-        await this.db
-          .update(schema.messageProperties)
-          .set({
+    // Phase 2: Perform all message property writes atomically in a transaction
+    // Collect audit entries to write after the transaction commits
+    const auditEntries: {
+      action: string;
+      key: string;
+      oldValue: unknown;
+      newValue: unknown;
+      definitionId: string;
+      valueType: string;
+    }[] = [];
+    const setMap: Record<string, unknown> = {};
+
+    await this.db.transaction(async (tx) => {
+      for (const {
+        key,
+        value,
+        definition,
+        mappedValues,
+      } of resolvedDefinitions) {
+        // Find existing property within the transaction
+        const [existingRow] = await tx
+          .select()
+          .from(schema.messageProperties)
+          .where(
+            and(
+              eq(schema.messageProperties.messageId, messageId),
+              eq(schema.messageProperties.propertyDefinitionId, definition.id),
+            ),
+          )
+          .limit(1);
+
+        const existing = existingRow ?? null;
+        const oldValue = existing
+          ? this.extractValue(existing, definition.valueType)
+          : undefined;
+
+        const now = new Date();
+        if (existing) {
+          await tx
+            .update(schema.messageProperties)
+            .set({
+              ...mappedValues,
+              updatedBy: effectiveUserId,
+              updatedAt: now,
+            })
+            .where(eq(schema.messageProperties.id, existing.id));
+        } else {
+          await tx.insert(schema.messageProperties).values({
+            id: uuidv7(),
+            messageId,
+            propertyDefinitionId: definition.id,
             ...mappedValues,
+            createdBy: effectiveUserId,
             updatedBy: effectiveUserId,
+            createdAt: now,
             updatedAt: now,
-          })
-          .where(eq(schema.messageProperties.id, existing.id));
-      } else {
-        await this.db.insert(schema.messageProperties).values({
-          id: uuidv7(),
-          messageId,
-          propertyDefinitionId: definition.id,
-          ...mappedValues,
-          createdBy: effectiveUserId,
-          updatedBy: effectiveUserId,
-          createdAt: now,
-          updatedAt: now,
-        });
-      }
+          });
+        }
 
-      // Audit log per property
-      const action = existing ? 'property_updated' : 'property_set';
+        auditEntries.push({
+          action: existing ? 'property_updated' : 'property_set',
+          key,
+          oldValue: oldValue ?? null,
+          newValue: value,
+          definitionId: definition.id,
+          valueType: definition.valueType,
+        });
+
+        setMap[key] = value;
+      }
+    });
+
+    // Phase 3: Write audit logs after the transaction commits
+    // (auditService uses its own DB connection, so we avoid holding the tx open)
+    for (const entry of auditEntries) {
       await this.auditService.log({
         channelId: message.channelId,
         entityType: 'message',
         entityId: messageId,
-        action,
+        action: entry.action,
         changes: {
-          [key]: { old: oldValue ?? null, new: value },
+          [entry.key]: { old: entry.oldValue, new: entry.newValue },
         },
         performedBy: effectiveUserId,
         metadata: {
-          definitionId: definition.id,
-          valueType: definition.valueType,
+          definitionId: entry.definitionId,
+          valueType: entry.valueType,
           batch: true,
         },
       });
-
-      setMap[key] = value;
     }
 
     // Single WebSocket broadcast for the entire batch
@@ -358,6 +405,7 @@ export class MessagePropertiesService {
   /**
    * Validate that the message exists, is a root message, has allowed type,
    * and belongs to an allowed channel type.
+   * Returns the message and channel data (including propertySettings).
    */
   async getValidatedMessage(messageId: string) {
     const [message] = await this.db
@@ -386,9 +434,12 @@ export class MessagePropertiesService {
       );
     }
 
-    // Validate channel type
+    // Validate channel type and fetch channel data (including propertySettings)
     const [channel] = await this.db
-      .select({ type: schema.channels.type })
+      .select({
+        type: schema.channels.type,
+        propertySettings: schema.channels.propertySettings,
+      })
       .from(schema.channels)
       .where(eq(schema.channels.id, message.channelId))
       .limit(1);
@@ -399,7 +450,7 @@ export class MessagePropertiesService {
       );
     }
 
-    return message;
+    return { message, channel };
   }
 
   /**

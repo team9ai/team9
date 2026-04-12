@@ -7,9 +7,15 @@ import { AiAutoFillService } from './ai-auto-fill.service.js';
 import { DatabaseModule } from '@team9/database';
 import { WorkspaceModule } from '../../workspace/workspace.module.js';
 import { WebsocketModule } from '../websocket/websocket.module.js';
+import { AuditModule } from '../audit/audit.module.js';
 
 @Module({
-  imports: [DatabaseModule, WorkspaceModule, forwardRef(() => WebsocketModule)],
+  imports: [
+    DatabaseModule,
+    WorkspaceModule,
+    AuditModule,
+    forwardRef(() => WebsocketModule),
+  ],
   controllers: [PropertyDefinitionsController, MessagePropertiesController],
   providers: [
     PropertyDefinitionsService,

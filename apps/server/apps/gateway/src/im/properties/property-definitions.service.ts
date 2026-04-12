@@ -207,19 +207,19 @@ export class PropertyDefinitionsService {
     channelId: string,
     definitionIds: string[],
   ): Promise<PropertyDefinitionRow[]> {
-    await Promise.all(
-      definitionIds.map((defId, index) =>
-        this.db
+    await this.db.transaction(async (tx) => {
+      for (let i = 0; i < definitionIds.length; i++) {
+        await tx
           .update(schema.channelPropertyDefinitions)
-          .set({ order: index, updatedAt: new Date() })
+          .set({ order: i, updatedAt: new Date() })
           .where(
             and(
-              eq(schema.channelPropertyDefinitions.id, defId),
+              eq(schema.channelPropertyDefinitions.id, definitionIds[i]),
               eq(schema.channelPropertyDefinitions.channelId, channelId),
             ),
-          ),
-      ),
-    );
+          );
+      }
+    });
 
     return this.findAllByChannel(channelId);
   }

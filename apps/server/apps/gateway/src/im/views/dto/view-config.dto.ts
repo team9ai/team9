@@ -5,6 +5,8 @@ import {
   ValidateNested,
   IsString,
   IsIn,
+  IsObject,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import type { ViewFilterOperator, ViewSortDirection } from '@team9/shared';
@@ -66,6 +68,26 @@ export class ViewConfigDto {
   visibleProperties?: string[];
 
   @IsOptional()
+  @IsIn(['blacklist', 'whitelist'])
+  visiblePropertiesMode?: 'blacklist' | 'whitelist';
+
+  @IsOptional()
+  @IsObject()
+  columnWidths?: Record<string, number>;
+
+  @IsOptional()
   @IsString()
   groupBy?: string;
+
+  @IsOptional()
+  @IsString()
+  datePropertyKey?: string;
+
+  @IsOptional()
+  @IsString()
+  defaultCalendarView?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  showRecurring?: boolean;
 }

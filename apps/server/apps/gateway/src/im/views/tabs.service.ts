@@ -142,19 +142,19 @@ export class TabsService {
   }
 
   async reorder(channelId: string, tabIds: string[]): Promise<void> {
-    await Promise.all(
-      tabIds.map((tabId, index) =>
-        this.db
+    await this.db.transaction(async (tx) => {
+      for (let i = 0; i < tabIds.length; i++) {
+        await tx
           .update(schema.channelTabs)
-          .set({ order: index, updatedAt: new Date() })
+          .set({ order: i, updatedAt: new Date() })
           .where(
             and(
-              eq(schema.channelTabs.id, tabId),
+              eq(schema.channelTabs.id, tabIds[i]),
               eq(schema.channelTabs.channelId, channelId),
             ),
-          ),
-      ),
-    );
+          );
+      }
+    });
   }
 
   /**

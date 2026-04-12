@@ -84,11 +84,11 @@ export class AiAutoFillService {
     userId: string,
     opts?: { fields?: string[]; preserveExisting?: boolean },
   ): Promise<{ filled: Record<string, unknown>; skipped: string[] }> {
-    // 1. Load and validate message
-    const message =
+    // 1. Load and validate message (also returns channel data)
+    const { message } =
       await this.messagePropertiesService.getValidatedMessage(messageId);
 
-    // Load channel info
+    // Load full channel info (getValidatedMessage only returns type + propertySettings)
     const [channel] = await this.db
       .select()
       .from(schema.channels)

@@ -156,8 +156,18 @@ export interface ViewConfig {
   sorts?: ViewSort[];
   /** Visible property definition IDs (column order) */
   visibleProperties?: string[];
+  /** Mode for visibleProperties: 'blacklist' hides listed, 'whitelist' shows only listed */
+  visiblePropertiesMode?: 'blacklist' | 'whitelist';
+  /** Column width overrides keyed by property definition ID */
+  columnWidths?: Record<string, number>;
   /** Group by property definition ID */
   groupBy?: string;
+  /** Property key used for date-based views (calendar / timeline) */
+  datePropertyKey?: string;
+  /** Default calendar view granularity */
+  defaultCalendarView?: string;
+  /** Whether to show recurring events in calendar views */
+  showRecurring?: boolean;
 }
 
 /**
@@ -170,14 +180,14 @@ export interface ViewResponse {
   channelId: string;
   /** View name */
   name: string;
+  /** View type (e.g. table, board, calendar) */
+  type: string;
   /** View configuration */
   config: ViewConfig;
-  /** Whether this is the default view */
-  isDefault: boolean;
   /** Display order */
-  position: number;
+  order: number;
   /** Who created this view */
-  createdBy: string;
+  createdBy: string | null;
   /** Created at */
   createdAt: string;
   /** Updated at */
@@ -196,12 +206,16 @@ export interface TabResponse {
   channelId: string;
   /** Tab name */
   name: string;
-  /** Tab icon (optional) */
-  icon?: string;
+  /** Tab type (e.g. chat, view) */
+  type: string;
+  /** Associated view ID (for view-type tabs) */
+  viewId: string | null;
+  /** Whether this is a built-in tab */
+  isBuiltin: boolean;
   /** Display order */
-  position: number;
+  order: number;
   /** Who created this tab */
-  createdBy: string;
+  createdBy: string | null;
   /** Created at */
   createdAt: string;
   /** Updated at */

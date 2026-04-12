@@ -170,6 +170,10 @@ function mockDb() {
       db.__queries.delete.push(query);
       return query as never;
     }),
+    // transaction: passes the db itself as the tx argument to the callback
+    transaction: jest.fn(async (cb: (tx: unknown) => Promise<unknown>) => {
+      return cb(db);
+    }),
   };
 
   return db;
@@ -339,7 +343,7 @@ describe('MessagePropertiesService', () => {
     // getValidatedMessage: message select
     db.__state.selectResults.push([messageRow()]);
     // getValidatedMessage: channel select
-    db.__state.selectResults.push([{ type: 'public' }]);
+    db.__state.selectResults.push([{ type: 'public', propertySettings: null }]);
 
     mockPropertyDefsService.findByIdOrThrow.mockResolvedValue(
       defRow({ id: 'def-1', channelId: 'channel-1', valueType: 'text' }),
@@ -370,7 +374,7 @@ describe('MessagePropertiesService', () => {
     // getValidatedMessage: message select
     db.__state.selectResults.push([messageRow()]);
     // getValidatedMessage: channel select
-    db.__state.selectResults.push([{ type: 'public' }]);
+    db.__state.selectResults.push([{ type: 'public', propertySettings: null }]);
 
     mockPropertyDefsService.findByIdOrThrow.mockResolvedValue(
       defRow({ id: 'def-1', channelId: 'channel-1', valueType: 'text' }),
@@ -395,7 +399,7 @@ describe('MessagePropertiesService', () => {
   it('setProperty() type validation: rejects string for number type', async () => {
     // getValidatedMessage
     db.__state.selectResults.push([messageRow()]);
-    db.__state.selectResults.push([{ type: 'public' }]);
+    db.__state.selectResults.push([{ type: 'public', propertySettings: null }]);
 
     mockPropertyDefsService.findByIdOrThrow.mockResolvedValue(
       defRow({ id: 'def-1', channelId: 'channel-1', valueType: 'number' }),
@@ -408,7 +412,7 @@ describe('MessagePropertiesService', () => {
 
   it('setProperty() type validation: rejects number for boolean type', async () => {
     db.__state.selectResults.push([messageRow()]);
-    db.__state.selectResults.push([{ type: 'public' }]);
+    db.__state.selectResults.push([{ type: 'public', propertySettings: null }]);
 
     mockPropertyDefsService.findByIdOrThrow.mockResolvedValue(
       defRow({ id: 'def-1', channelId: 'channel-1', valueType: 'boolean' }),
@@ -422,7 +426,7 @@ describe('MessagePropertiesService', () => {
   it('setProperty() accepts falsy values: false, 0, empty string', async () => {
     // Test false for boolean
     db.__state.selectResults.push([messageRow()]);
-    db.__state.selectResults.push([{ type: 'public' }]);
+    db.__state.selectResults.push([{ type: 'public', propertySettings: null }]);
     mockPropertyDefsService.findByIdOrThrow.mockResolvedValue(
       defRow({ id: 'def-1', channelId: 'channel-1', valueType: 'boolean' }),
     );
@@ -435,7 +439,7 @@ describe('MessagePropertiesService', () => {
 
     // Test 0 for number
     db.__state.selectResults.push([messageRow()]);
-    db.__state.selectResults.push([{ type: 'public' }]);
+    db.__state.selectResults.push([{ type: 'public', propertySettings: null }]);
     mockPropertyDefsService.findByIdOrThrow.mockResolvedValue(
       defRow({ id: 'def-2', channelId: 'channel-1', valueType: 'number' }),
     );
@@ -448,7 +452,7 @@ describe('MessagePropertiesService', () => {
 
     // Test empty string for text
     db.__state.selectResults.push([messageRow()]);
-    db.__state.selectResults.push([{ type: 'public' }]);
+    db.__state.selectResults.push([{ type: 'public', propertySettings: null }]);
     mockPropertyDefsService.findByIdOrThrow.mockResolvedValue(
       defRow({ id: 'def-3', channelId: 'channel-1', valueType: 'text' }),
     );
@@ -465,7 +469,7 @@ describe('MessagePropertiesService', () => {
   it('removeProperty() deletes property and creates audit log', async () => {
     // getValidatedMessage
     db.__state.selectResults.push([messageRow()]);
-    db.__state.selectResults.push([{ type: 'public' }]);
+    db.__state.selectResults.push([{ type: 'public', propertySettings: null }]);
 
     mockPropertyDefsService.findByIdOrThrow.mockResolvedValue(
       defRow({ id: 'def-1', channelId: 'channel-1', valueType: 'text' }),
@@ -490,27 +494,26 @@ describe('MessagePropertiesService', () => {
   // ==================== batchSet ====================
 
   it('batchSet() sets multiple properties, auto-creates definitions via findOrCreate', async () => {
-    // getValidatedMessage
+    // getValidatedMessage: message select + channel select (now includes propertySettings)
     db.__state.selectResults.push([messageRow()]);
-    db.__state.selectResults.push([{ type: 'public' }]);
+    db.__state.selectResults.push([{ type: 'public', propertySettings: {} }]);
 
-    // channel propertySettings select
-    db.__state.selectResults.push([{ propertySettings: {} }]);
-
-    // For each property in batch (2 properties):
-    // Property 1: findOrCreate returns def, findExisting returns nothing, insert
+    // Phase 1 (outside tx): findOrCreate for each property
     mockPropertyDefsService.findOrCreate.mockResolvedValueOnce(
       defRow({ id: 'def-1', key: 'priority', valueType: 'text' }),
     );
-    db.__state.selectResults.push([]); // findExisting
-    db.__state.insertResults.push([]); // insert
-
-    // Property 2:
     mockPropertyDefsService.findOrCreate.mockResolvedValueOnce(
       defRow({ id: 'def-2', key: 'count', valueType: 'number' }),
     );
-    db.__state.selectResults.push([]); // findExisting
-    db.__state.insertResults.push([]); // insert
+
+    // Phase 2 (inside tx): findExisting + insert for each property
+    // Property 1: findExisting returns nothing, insert
+    db.__state.selectResults.push([]); // findExisting via tx
+    db.__state.insertResults.push([]); // insert via tx
+
+    // Property 2: findExisting returns nothing, insert
+    db.__state.selectResults.push([]); // findExisting via tx
+    db.__state.insertResults.push([]); // insert via tx
 
     await service.batchSet(
       'msg-1',
@@ -522,26 +525,26 @@ describe('MessagePropertiesService', () => {
     );
 
     expect(mockPropertyDefsService.findOrCreate).toHaveBeenCalledTimes(2);
+    expect(db.transaction).toHaveBeenCalledTimes(1);
     expect(mockAuditService.log).toHaveBeenCalledTimes(2);
     expect(mockWsGateway.sendToChannelMembers).toHaveBeenCalledTimes(1);
   });
 
   it('batchSet() respects allowNonAdminCreateKey=false', async () => {
-    // getValidatedMessage
+    // getValidatedMessage: channel select now includes propertySettings
     db.__state.selectResults.push([messageRow()]);
-    db.__state.selectResults.push([{ type: 'public' }]);
-
-    // channel propertySettings with allowNonAdminCreateKey=false
     db.__state.selectResults.push([
-      { propertySettings: { allowNonAdminCreateKey: false } },
+      { type: 'public', propertySettings: { allowNonAdminCreateKey: false } },
     ]);
 
-    // findOrCreate should be called with allowCreate=false
+    // Phase 1 (outside tx): findOrCreate should be called with allowCreate=false
     mockPropertyDefsService.findOrCreate.mockResolvedValueOnce(
       defRow({ id: 'def-1', key: 'existing', valueType: 'text' }),
     );
-    db.__state.selectResults.push([]); // findExisting
-    db.__state.insertResults.push([]); // insert
+
+    // Phase 2 (inside tx): findExisting + insert
+    db.__state.selectResults.push([]); // findExisting via tx
+    db.__state.insertResults.push([]); // insert via tx
 
     await service.batchSet(
       'msg-1',
@@ -580,7 +583,7 @@ describe('MessagePropertiesService', () => {
     // Valid message
     db.__state.selectResults.push([messageRow()]);
     // Channel is 'direct' (not allowed)
-    db.__state.selectResults.push([{ type: 'direct' }]);
+    db.__state.selectResults.push([{ type: 'direct', propertySettings: null }]);
 
     await expect(service.getValidatedMessage('msg-1')).rejects.toThrow(
       ForbiddenException,
@@ -591,7 +594,7 @@ describe('MessagePropertiesService', () => {
 
   it('validateAndMapValue() maps text type to textValue column', async () => {
     db.__state.selectResults.push([messageRow()]);
-    db.__state.selectResults.push([{ type: 'public' }]);
+    db.__state.selectResults.push([{ type: 'public', propertySettings: null }]);
     mockPropertyDefsService.findByIdOrThrow.mockResolvedValue(
       defRow({ id: 'def-1', channelId: 'channel-1', valueType: 'text' }),
     );
@@ -615,7 +618,7 @@ describe('MessagePropertiesService', () => {
 
   it('validateAndMapValue() maps number type to numberValue column', async () => {
     db.__state.selectResults.push([messageRow()]);
-    db.__state.selectResults.push([{ type: 'public' }]);
+    db.__state.selectResults.push([{ type: 'public', propertySettings: null }]);
     mockPropertyDefsService.findByIdOrThrow.mockResolvedValue(
       defRow({ id: 'def-2', channelId: 'channel-1', valueType: 'number' }),
     );
@@ -635,7 +638,7 @@ describe('MessagePropertiesService', () => {
 
   it('validateAndMapValue() maps boolean type to booleanValue column', async () => {
     db.__state.selectResults.push([messageRow()]);
-    db.__state.selectResults.push([{ type: 'public' }]);
+    db.__state.selectResults.push([{ type: 'public', propertySettings: null }]);
     mockPropertyDefsService.findByIdOrThrow.mockResolvedValue(
       defRow({ id: 'def-3', channelId: 'channel-1', valueType: 'boolean' }),
     );
@@ -655,7 +658,7 @@ describe('MessagePropertiesService', () => {
 
   it('validateAndMapValue() maps multi_select type to jsonValue column', async () => {
     db.__state.selectResults.push([messageRow()]);
-    db.__state.selectResults.push([{ type: 'public' }]);
+    db.__state.selectResults.push([{ type: 'public', propertySettings: null }]);
     mockPropertyDefsService.findByIdOrThrow.mockResolvedValue(
       defRow({
         id: 'def-4',

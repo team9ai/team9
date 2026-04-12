@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsBoolean,
   IsObject,
+  IsIn,
   Matches,
 } from 'class-validator';
 import type { PropertyValueType } from '@team9/shared';
@@ -68,8 +69,7 @@ export class CreatePropertyDefinitionDto {
   defaultValue?: unknown;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(20)
+  @IsIn(['auto', 'show', 'hide'])
   showInChatPolicy?: string;
 
   @IsOptional()
