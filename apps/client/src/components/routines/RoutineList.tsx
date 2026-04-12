@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
-import { Loader2, ListChecks, Plus } from "lucide-react";
+import { Loader2, ListChecks, Sparkles } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import { ChatArea } from "./ChatArea";
 import { RightPanel } from "./RightPanel";
 import { CreateRoutineDialog } from "./CreateRoutineDialog";
 import { RoutineSettingsDialog } from "./RoutineSettingsDialog";
+import { AgenticAgentPicker } from "./AgenticAgentPicker";
+import { DraftRoutineCard } from "./DraftRoutineCard";
 import type { Routine, RoutineStatus } from "@/types/routine";
 
 const STATUS_FILTERS: Record<string, RoutineStatus[]> = {
@@ -47,6 +49,7 @@ export function RoutineList({ botId }: RoutineListProps) {
     string | null
   >(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [agenticPickerOpen, setAgenticPickerOpen] = useState(false);
   const [tab, setTab] = useState<TabKey>("all");
 
   // Fetch all tasks
@@ -72,12 +75,26 @@ export function RoutineList({ botId }: RoutineListProps) {
     staleTime: 60_000,
   });
 
-  // Filter tasks by selected tab
+  // Separate draft routines (always shown at top, not affected by tab filter)
+  const draftRoutines = useMemo(
+    () => allRoutines.filter((r) => r.status === "draft"),
+    [allRoutines],
+  );
+
+  // Non-draft routines for tab filtering
+  const nonDraftRoutines = useMemo(
+    () => allRoutines.filter((r) => r.status !== "draft"),
+    [allRoutines],
+  );
+
+  // Filter tasks by selected tab (excluding drafts)
   const filteredRoutines = useMemo(() => {
-    if (tab === "all") return allRoutines;
+    if (tab === "all") return nonDraftRoutines;
     const statuses = STATUS_FILTERS[tab];
-    return allRoutines.filter((routine) => statuses.includes(routine.status));
-  }, [allRoutines, tab]);
+    return nonDraftRoutines.filter((routine) =>
+      statuses.includes(routine.status),
+    );
+  }, [nonDraftRoutines, tab]);
 
   // Fetch selected routine detail (for chat area + right panel)
   const { data: selectedRoutine } = useQuery({
@@ -176,10 +193,12 @@ export function RoutineList({ botId }: RoutineListProps) {
           <span className="text-sm font-semibold">{t("title", "Tasks")}</span>
           <Button
             variant="ghost"
-            size="icon-sm"
-            onClick={() => setShowCreateDialog(true)}
+            size="sm"
+            className="text-xs h-6 px-2"
+            onClick={() => setAgenticPickerOpen(true)}
           >
-            <Plus size={16} />
+            <Sparkles size={14} className="mr-1" />
+            {t("create.title")}
           </Button>
         </div>
 
@@ -192,9 +211,12 @@ export function RoutineList({ botId }: RoutineListProps) {
 
         {/* Empty */}
         {!isLoading && allRoutines.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-8 gap-2">
+          <div className="flex flex-col items-center justify-center py-8 gap-2 px-4">
             <ListChecks size={24} className="text-muted-foreground/50" />
             <p className="text-sm text-muted-foreground">{t("noRoutines")}</p>
+            <p className="text-[11px] text-muted-foreground/70 text-center leading-relaxed">
+              {t("create.description")}
+            </p>
           </div>
         )}
 
@@ -221,15 +243,31 @@ export function RoutineList({ botId }: RoutineListProps) {
 
             {/* Task cards */}
             <div className="flex-1 overflow-y-auto">
-              {filteredRoutines.length === 0 ? (
-                <div className="flex items-center justify-center py-8">
-                  <p className="text-xs text-muted-foreground">
-                    {t("noRoutines")}
-                  </p>
-                </div>
-              ) : (
-                <div className="px-2 py-1 space-y-1">
-                  {filteredRoutines.map((routine) => (
+              <div className="px-2 py-1 space-y-1">
+                {/* Draft group — always shown at top */}
+                {draftRoutines.length > 0 && (
+                  <>
+                    <p className="px-0.5 pt-1 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      {t("draft.badge")}
+                    </p>
+                    {draftRoutines.map((routine) => (
+                      <DraftRoutineCard key={routine.id} routine={routine} />
+                    ))}
+                    {filteredRoutines.length > 0 && (
+                      <div className="border-t border-border my-1" />
+                    )}
+                  </>
+                )}
+
+                {/* Non-draft routines */}
+                {filteredRoutines.length === 0 && draftRoutines.length === 0 ? (
+                  <div className="flex items-center justify-center py-8">
+                    <p className="text-xs text-muted-foreground">
+                      {t("noRoutines")}
+                    </p>
+                  </div>
+                ) : filteredRoutines.length === 0 ? null : (
+                  filteredRoutines.map((routine) => (
                     <ExpandableRoutineCard
                       key={routine.id}
                       routine={routine}
@@ -243,16 +281,16 @@ export function RoutineList({ botId }: RoutineListProps) {
                         setShowSettingsRoutineId(routine.id)
                       }
                     />
-                  ))}
-                </div>
-              )}
+                  ))
+                )}
+              </div>
             </div>
           </>
         )}
       </div>
 
       {/* Center + Right: shown when a run is selected */}
-      {activeRoutineId && selectedRoutine && (
+      {activeRoutineId && selectedRoutine ? (
         <>
           <ChatArea
             routine={selectedRoutine}
@@ -263,6 +301,26 @@ export function RoutineList({ botId }: RoutineListProps) {
           />
           <RightPanel routineId={activeRoutineId} selectedRun={selectedRun} />
         </>
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center">
+          <ListChecks size={40} className="text-muted-foreground/30" />
+          <div className="space-y-2 max-w-sm">
+            <h3 className="text-base font-medium text-foreground">
+              {t("emptyState.title")}
+            </h3>
+            <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+              {t("emptyState.description")}
+            </p>
+          </div>
+          <Button
+            size="sm"
+            className="mt-2"
+            onClick={() => setAgenticPickerOpen(true)}
+          >
+            <Sparkles size={14} className="mr-1.5" />
+            {t("emptyState.createWithAI")}
+          </Button>
+        </div>
       )}
 
       <CreateRoutineDialog
@@ -275,6 +333,15 @@ export function RoutineList({ botId }: RoutineListProps) {
         open={!!showSettingsRoutineId}
         onClose={() => setShowSettingsRoutineId(null)}
         onDeleted={handleSettingsDeleted}
+      />
+
+      <AgenticAgentPicker
+        open={agenticPickerOpen}
+        onClose={() => setAgenticPickerOpen(false)}
+        onManualCreate={() => {
+          setAgenticPickerOpen(false);
+          setShowCreateDialog(true);
+        }}
       />
     </div>
   );

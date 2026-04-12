@@ -8,6 +8,7 @@ import { formatDateTime } from "@/lib/date-format";
 import type { RoutineExecution, RoutineStatus } from "@/types/routine";
 
 const STATUS_COLORS: Record<RoutineStatus, string> = {
+  draft: "bg-yellow-400",
   in_progress: "bg-blue-500",
   upcoming: "bg-gray-400",
   paused: "bg-yellow-500",
