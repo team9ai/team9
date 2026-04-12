@@ -22,7 +22,7 @@ import { useWorkspaceStore } from "@/stores";
 import { UserListItem } from "@/components/sidebar/UserListItem";
 
 export function MessagesSubSidebar() {
-  const { t } = useTranslation("navigation");
+  const { t } = useTranslation(["navigation", "common"]);
   const navigate = useNavigate();
   const params = useParams({ strict: false });
   const selectedChannelId = (params as { channelId?: string }).channelId;
@@ -99,7 +99,11 @@ export function MessagesSubSidebar() {
     }
   };
 
-  const isLoading = isLoadingChannels || isLoadingMembers;
+  // Only show loading when we truly have nothing to display.
+  // When cached data exists, keep showing it during background refetches.
+  const hasAnyContent =
+    directMessageUsers.length > 0 || filteredMembers.length > 0;
+  const isLoading = !hasAnyContent && (isLoadingChannels || isLoadingMembers);
 
   return (
     <aside className="w-64 h-full overflow-hidden bg-nav-sub-bg text-primary-foreground flex flex-col">
