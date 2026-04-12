@@ -1797,7 +1797,14 @@ function StepSix({
         </div>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-3">
+      <div
+        className={cn(
+          "mx-auto grid w-full gap-6",
+          paidGroups.length === 1 && "max-w-md",
+          paidGroups.length === 2 && "max-w-3xl sm:grid-cols-2",
+          paidGroups.length >= 3 && "sm:grid-cols-2 xl:grid-cols-3",
+        )}
+      >
         {paidGroups.map((group, groupIndex) => {
           const selectedPriceId =
             selectedByGroup[group.key] ?? group.products[0].stripePriceId;
