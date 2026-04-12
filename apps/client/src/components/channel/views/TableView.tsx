@@ -403,7 +403,7 @@ export function TableView({ channelId, view }: TableViewProps) {
         .map((key) => definitions.find((d) => d.key === key))
         .filter((d): d is PropertyDefinition => d !== undefined);
     }
-    return definitions.sort((a, b) => a.order - b.order);
+    return [...definitions].sort((a, b) => a.order - b.order);
   }, [definitions, view.config.visibleProperties]);
 
   // ---- T24: Sort toggle ----
@@ -445,6 +445,10 @@ export function TableView({ channelId, view }: TableViewProps) {
     startWidth: number;
   } | null>(null);
   const [localWidths, setLocalWidths] = useState<Record<string, number>>({});
+  const handlersRef = useRef<{
+    move: (e: MouseEvent) => void;
+    up: () => void;
+  } | null>(null);
 
   const effectiveWidths = useMemo(
     () => ({ ...columnWidths, ...localWidths }),
@@ -453,10 +457,16 @@ export function TableView({ channelId, view }: TableViewProps) {
 
   const handleResizeStart = useCallback(
     (key: string, startX: number) => {
+      // Remove any existing handlers first
+      if (handlersRef.current) {
+        document.removeEventListener("mousemove", handlersRef.current.move);
+        document.removeEventListener("mouseup", handlersRef.current.up);
+      }
+
       const startWidth = effectiveWidths[key] ?? 150;
       resizeRef.current = { key, startX, startWidth };
 
-      const handleMouseMove = (e: MouseEvent) => {
+      const move = (e: MouseEvent) => {
         if (!resizeRef.current) return;
         const delta = e.clientX - resizeRef.current.startX;
         const newWidth = Math.max(60, resizeRef.current.startWidth + delta);
@@ -466,9 +476,10 @@ export function TableView({ channelId, view }: TableViewProps) {
         }));
       };
 
-      const handleMouseUp = () => {
-        document.removeEventListener("mousemove", handleMouseMove);
-        document.removeEventListener("mouseup", handleMouseUp);
+      const up = () => {
+        document.removeEventListener("mousemove", move);
+        document.removeEventListener("mouseup", up);
+        handlersRef.current = null;
         if (resizeRef.current) {
           const finalWidths = {
             ...columnWidths,
@@ -488,11 +499,22 @@ export function TableView({ channelId, view }: TableViewProps) {
         }
       };
 
-      document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
+      handlersRef.current = { move, up };
+      document.addEventListener("mousemove", move);
+      document.addEventListener("mouseup", up);
     },
     [effectiveWidths, columnWidths, localWidths, updateView, view],
   );
+
+  // Cleanup resize listeners on unmount
+  useEffect(() => {
+    return () => {
+      if (handlersRef.current) {
+        document.removeEventListener("mousemove", handlersRef.current.move);
+        document.removeEventListener("mouseup", handlersRef.current.up);
+      }
+    };
+  }, []);
 
   // ---- T24: Column drag-reorder ----
   const dragColumnRef = useRef<string | null>(null);

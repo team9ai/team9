@@ -1,9 +1,7 @@
 import { useState, useCallback } from "react";
 import { Sparkles, Loader2, X } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { aiAutoFillApi } from "@/services/api/properties";
-import { messagePropertyKeys } from "@/hooks/useMessageProperties";
 
 export interface AiAutoFillButtonProps {
   messageId: string;
@@ -15,14 +13,13 @@ export interface AiAutoFillButtonProps {
 
 export function AiAutoFillButton({
   messageId,
-  channelId,
+  channelId: _channelId,
   fields,
   size = "sm",
   className,
 }: AiAutoFillButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const queryClient = useQueryClient();
 
   const handleAutoFill = useCallback(async () => {
     setLoading(true);
@@ -32,19 +29,17 @@ export function AiAutoFillButton({
         fields,
         preserveExisting: !!fields,
       });
-      // Invalidate queries to refresh properties
-      queryClient.invalidateQueries({
-        queryKey: messagePropertyKeys.all(messageId),
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["messages", channelId],
-      });
+      // The API returns 202 (accepted) — AI processing happens asynchronously.
+      // Cache invalidation is handled by the WS `message_property_changed` event
+      // when AI finishes, so we intentionally do NOT invalidate queries here.
+      // Loading state will be cleared by `finally` below; the actual property
+      // update will appear when the WebSocket event triggers a cache refresh.
     } catch {
       setError("AI failed");
     } finally {
       setLoading(false);
     }
-  }, [messageId, channelId, fields, queryClient]);
+  }, [messageId, fields]);
 
   const dismissError = useCallback(() => {
     setError(null);

@@ -371,12 +371,15 @@ export function BoardView({ channelId, view }: BoardViewProps) {
       toGroup: string;
     }) => {
       if (!groupByDef) throw new Error("No groupBy definition");
-      const newValue = toGroup === "__none__" ? null : toGroup;
-      await messagePropertiesApi.setProperty(
-        messageId,
-        groupByDef.id,
-        newValue,
-      );
+      if (toGroup === "__none__") {
+        await messagePropertiesApi.removeProperty(messageId, groupByDef.id);
+      } else {
+        await messagePropertiesApi.setProperty(
+          messageId,
+          groupByDef.id,
+          toGroup,
+        );
+      }
     },
     onMutate: async ({ messageId, fromGroup, toGroup }) => {
       // Cancel any outgoing refetches for this view's messages

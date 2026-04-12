@@ -257,9 +257,12 @@ function getDatePropertyValue(
   return { start: d, end: null, hour };
 }
 
-function getRecurringRule(message: ViewMessageItem): RecurringRule | null {
-  // Look for a "recurring" property
-  const val = message.properties["recurring"];
+function getRecurringRule(
+  message: ViewMessageItem,
+  recurringKey: string | undefined,
+): RecurringRule | null {
+  if (!recurringKey) return null;
+  const val = message.properties[recurringKey];
   if (!val || typeof val !== "object") return null;
   const obj = val as Record<string, unknown>;
   if (!obj.freq) return null;
@@ -273,14 +276,17 @@ function buildEvents(
   datePropertyId: string,
   rangeStart: Date,
   rangeEnd: Date,
+  definitions: PropertyDefinition[],
 ): CalendarEvent[] {
+  const recurringDef = definitions.find((d) => d.valueType === "recurring");
+  const recurringKey = recurringDef?.key;
   const events: CalendarEvent[] = [];
 
   for (const msg of messages) {
     const dateInfo = getDatePropertyValue(msg, datePropertyId);
     if (!dateInfo) continue;
 
-    const recurring = getRecurringRule(msg);
+    const recurring = getRecurringRule(msg, recurringKey);
     const baseEvent: CalendarEvent = {
       message: msg,
       startDate: dateInfo.start,
@@ -836,8 +842,14 @@ export function CalendarView({ channelId, view }: CalendarViewProps) {
   // Build calendar events (with recurring expansion and date ranges)
   const calendarEvents = useMemo(() => {
     if (!datePropertyId) return [];
-    return buildEvents(messages, datePropertyId, rangeStart, rangeEnd);
-  }, [messages, datePropertyId, rangeStart, rangeEnd]);
+    return buildEvents(
+      messages,
+      datePropertyId,
+      rangeStart,
+      rangeEnd,
+      definitions,
+    );
+  }, [messages, datePropertyId, rangeStart, rangeEnd, definitions]);
 
   // Group events by date key
   const eventsByDate = useMemo(() => {

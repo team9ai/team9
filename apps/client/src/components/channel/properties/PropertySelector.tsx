@@ -32,12 +32,9 @@ import {
 import type {
   PropertyDefinition,
   PropertyValueType,
-  SelectOption,
   CreatePropertyDefinitionDto,
 } from "@/types/properties";
-import { TextEditor } from "./editors/TextEditor";
-import { NumberEditor } from "./editors/NumberEditor";
-import { BooleanEditor } from "./editors/BooleanEditor";
+import { PropertyEditor } from "./PropertyEditor";
 
 // ==================== Type Icon Map ====================
 
@@ -79,195 +76,24 @@ function SubMenuEditor({
   onSave,
   onClose,
 }: SubMenuEditorProps) {
-  const [localValue, setLocalValue] = useState<unknown>(value);
-
-  const handleSave = useCallback(() => {
-    onSave(localValue);
-    onClose();
-  }, [localValue, onSave, onClose]);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        handleSave();
-      }
+  const handleChange = useCallback(
+    (newValue: unknown) => {
+      onSave(newValue);
+      onClose();
     },
-    [handleSave],
+    [onSave, onClose],
   );
 
-  // Select-based types: show option list
-  if (
-    definition.valueType === "single_select" ||
-    definition.valueType === "multi_select"
-  ) {
-    const options =
-      (definition.config?.options as SelectOption[] | undefined) || [];
-    const currentValues =
-      definition.valueType === "multi_select"
-        ? Array.isArray(localValue)
-          ? (localValue as string[])
-          : []
-        : [];
-    const currentSingle =
-      definition.valueType === "single_select"
-        ? typeof localValue === "string"
-          ? localValue
-          : null
-        : null;
-
-    return (
-      <div className="flex flex-col gap-1 p-2 min-w-[180px]">
-        <p className="text-xs font-medium text-muted-foreground px-1 mb-1">
-          {definition.key}
-        </p>
-        {options.length === 0 && (
-          <p className="text-xs text-muted-foreground px-1">
-            No options defined
-          </p>
-        )}
-        {options.map((opt) => {
-          const isSelected =
-            definition.valueType === "single_select"
-              ? currentSingle === opt.value
-              : currentValues.includes(opt.value);
-
-          return (
-            <button
-              key={opt.value}
-              onClick={() => {
-                if (definition.valueType === "single_select") {
-                  onSave(isSelected ? null : opt.value);
-                  onClose();
-                } else {
-                  const next = isSelected
-                    ? currentValues.filter((v) => v !== opt.value)
-                    : [...currentValues, opt.value];
-                  setLocalValue(next);
-                }
-              }}
-              className={cn(
-                "flex items-center gap-2 px-2 py-1.5 rounded-sm text-sm text-left hover:bg-muted transition-colors",
-                isSelected && "bg-primary/10 text-primary",
-              )}
-            >
-              {opt.color && (
-                <span
-                  className="w-2.5 h-2.5 rounded-full shrink-0"
-                  style={{ backgroundColor: opt.color }}
-                />
-              )}
-              <span className="truncate">{opt.label}</span>
-            </button>
-          );
-        })}
-        {definition.valueType === "multi_select" && (
-          <Button size="sm" className="mt-1" onClick={handleSave}>
-            Done
-          </Button>
-        )}
-      </div>
-    );
-  }
-
-  // Tags type: similar to multi_select
-  if (definition.valueType === "tags") {
-    const options =
-      (definition.config?.options as SelectOption[] | undefined) || [];
-    const currentTags = Array.isArray(localValue)
-      ? (localValue as string[])
-      : [];
-
-    return (
-      <div className="flex flex-col gap-1 p-2 min-w-[180px]">
-        <p className="text-xs font-medium text-muted-foreground px-1 mb-1">
-          {definition.key}
-        </p>
-        {options.map((opt) => {
-          const isSelected = currentTags.includes(opt.value);
-          return (
-            <button
-              key={opt.value}
-              onClick={() => {
-                const next = isSelected
-                  ? currentTags.filter((v) => v !== opt.value)
-                  : [...currentTags, opt.value];
-                setLocalValue(next);
-              }}
-              className={cn(
-                "flex items-center gap-2 px-2 py-1.5 rounded-sm text-sm text-left hover:bg-muted transition-colors",
-                isSelected && "bg-primary/10 text-primary",
-              )}
-            >
-              {opt.color && (
-                <span
-                  className="w-2.5 h-2.5 rounded-full shrink-0"
-                  style={{ backgroundColor: opt.color }}
-                />
-              )}
-              <span className="truncate">{opt.label}</span>
-            </button>
-          );
-        })}
-        <Button size="sm" className="mt-1" onClick={handleSave}>
-          Done
-        </Button>
-      </div>
-    );
-  }
-
-  // Boolean
-  if (definition.valueType === "boolean") {
-    return (
-      <div className="p-2 min-w-[180px]">
-        <p className="text-xs font-medium text-muted-foreground px-1 mb-2">
-          {definition.key}
-        </p>
-        <BooleanEditor
-          definition={definition}
-          value={localValue}
-          onChange={(v) => {
-            onSave(v);
-            onClose();
-          }}
-        />
-      </div>
-    );
-  }
-
-  // Number
-  if (definition.valueType === "number") {
-    return (
-      <div className="p-2 min-w-[180px]" onKeyDown={handleKeyDown}>
-        <p className="text-xs font-medium text-muted-foreground px-1 mb-2">
-          {definition.key}
-        </p>
-        <NumberEditor
-          definition={definition}
-          value={localValue}
-          onChange={setLocalValue}
-        />
-        <Button size="sm" className="mt-2 w-full" onClick={handleSave}>
-          Save
-        </Button>
-      </div>
-    );
-  }
-
-  // Default: text-like editor for text, url, etc.
   return (
-    <div className="p-2 min-w-[180px]" onKeyDown={handleKeyDown}>
+    <div className="p-2 min-w-[180px]">
       <p className="text-xs font-medium text-muted-foreground px-1 mb-2">
         {definition.key}
       </p>
-      <TextEditor
+      <PropertyEditor
         definition={definition}
-        value={localValue}
-        onChange={setLocalValue}
+        value={value}
+        onChange={handleChange}
       />
-      <Button size="sm" className="mt-2 w-full" onClick={handleSave}>
-        Save
-      </Button>
     </div>
   );
 }

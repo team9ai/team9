@@ -424,12 +424,14 @@ export function ChannelTabs({
 
   const handleDelete = useCallback(
     (tabId: string) => {
-      // If deleting the active tab, switch to the first tab
-      if (tabId === activeTabId && sortedTabs.length > 1) {
-        const fallback = sortedTabs.find((t) => t.id !== tabId);
-        if (fallback) onTabChange(fallback.id);
-      }
-      deleteTab.mutate(tabId);
+      deleteTab.mutate(tabId, {
+        onSuccess: () => {
+          if (tabId === activeTabId && sortedTabs.length > 1) {
+            const fallback = sortedTabs.find((t) => t.id !== tabId);
+            if (fallback) onTabChange(fallback.id);
+          }
+        },
+      });
     },
     [activeTabId, sortedTabs, onTabChange, deleteTab],
   );

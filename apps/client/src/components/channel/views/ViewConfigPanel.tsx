@@ -49,6 +49,8 @@ const FILTER_OPERATORS: { value: ViewFilterOperator; label: string }[] = [
   { value: "lte", label: "<=" },
   { value: "contains", label: "contains" },
   { value: "not_contains", label: "not contains" },
+  { value: "in", label: "in" },
+  { value: "not_in", label: "not in" },
   { value: "is_empty", label: "is empty" },
   { value: "is_not_empty", label: "is not empty" },
 ];
