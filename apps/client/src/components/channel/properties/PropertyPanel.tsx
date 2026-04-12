@@ -222,8 +222,11 @@ export function PropertyPanel({
   // Split definitions into tags vs other properties
   const { tagsDef, otherDefs } = useMemo(() => {
     if (!definitions) return { tagsDef: null, otherDefs: [] };
-    const tags = definitions.find((d) => d.valueType === "tags");
-    const others = definitions.filter((d) => d.valueType !== "tags");
+    const isTagsDef = (d: PropertyDefinition) =>
+      d.valueType === "tags" ||
+      (d.key === "_tags" && d.valueType === "multi_select");
+    const tags = definitions.find(isTagsDef);
+    const others = definitions.filter((d) => !isTagsDef(d));
     return { tagsDef: tags, otherDefs: others };
   }, [definitions]);
 

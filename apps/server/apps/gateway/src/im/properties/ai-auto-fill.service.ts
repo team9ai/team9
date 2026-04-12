@@ -195,6 +195,7 @@ export class AiAutoFillService {
       })),
       currentProperties,
       targetDefinitions,
+      allDefinitions,
       requestedFields: opts?.fields,
     });
 
@@ -256,11 +257,11 @@ export class AiAutoFillService {
               { old: currentProperties[key] ?? null, new: value },
             ]),
           ),
-          performedBy: userId,
+          performedBy: undefined,
           metadata: {
             source: 'ai_auto_fill',
             model: AUTO_FILL_MODEL,
-            attempt: attempt + 1,
+            round: attempt + 1,
             skippedFields: skipped,
             requestedFields: opts?.fields ?? null,
             preserveExisting: opts?.preserveExisting ?? false,
@@ -310,6 +311,7 @@ export class AiAutoFillService {
     threadReplies: Array<{ sender: string; content: string }>;
     currentProperties: Record<string, unknown>;
     targetDefinitions: PropertyDefinitionRow[];
+    allDefinitions: PropertyDefinitionRow[];
     requestedFields?: string[];
   }): string {
     const {
@@ -319,6 +321,7 @@ export class AiAutoFillService {
       threadReplies,
       currentProperties,
       targetDefinitions,
+      allDefinitions,
       requestedFields,
     } = params;
 
@@ -363,6 +366,7 @@ export class AiAutoFillService {
     // Current properties
     const currentEntries = Object.entries(currentProperties);
     if (currentEntries.length > 0) {
+      const defByKey = new Map(allDefinitions.map((d) => [d.key, d]));
       parts.push('  <current_properties>');
       for (const [key, value] of currentEntries) {
         const strValue =
@@ -371,8 +375,10 @@ export class AiAutoFillService {
             : typeof value === 'object'
               ? JSON.stringify(value)
               : JSON.stringify(value);
+        const def = defByKey.get(key);
+        const typeAttr = def ? ` type="${def.valueType}"` : '';
         parts.push(
-          `    <property key="${this.escapeXml(key)}">${this.escapeXml(strValue)}</property>`,
+          `    <property key="${this.escapeXml(key)}"${typeAttr}>${this.escapeXml(strValue)}</property>`,
         );
       }
       parts.push('  </current_properties>');

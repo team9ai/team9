@@ -29,6 +29,7 @@ import {
 } from '../../workspace/guards/index.js';
 import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
+import { AuditService } from '../audit/audit.service.js';
 
 @Controller({
   path: 'im/channels/:channelId/property-definitions',
@@ -40,6 +41,7 @@ export class PropertyDefinitionsController {
     private readonly propertyDefinitionsService: PropertyDefinitionsService,
     @Inject(forwardRef(() => WebsocketGateway))
     private readonly websocketGateway: WebsocketGateway,
+    private readonly auditService: AuditService,
   ) {}
 
   @Get()
@@ -61,6 +63,17 @@ export class PropertyDefinitionsController {
       dto,
       userId,
     );
+
+    await this.auditService.log({
+      channelId,
+      entityType: 'channel',
+      entityId: channelId,
+      action: 'property_defined',
+      changes: {
+        [definition.key]: { old: null, new: definition },
+      },
+      performedBy: userId,
+    });
 
     await this.websocketGateway.sendToChannelMembers(
       channelId,
@@ -86,6 +99,7 @@ export class PropertyDefinitionsController {
   @Patch(':id')
   @WorkspaceRoles('member')
   async update(
+    @CurrentUser('sub') userId: string,
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdatePropertyDefinitionDto,
@@ -97,6 +111,25 @@ export class PropertyDefinitionsController {
     }
 
     const definition = await this.propertyDefinitionsService.update(id, dto);
+
+    // Build old/new changes from the DTO fields that were actually provided
+    const changes: Record<string, { old: unknown; new: unknown }> = {};
+    for (const [field, newValue] of Object.entries(dto)) {
+      changes[field] = {
+        old: existing[field as keyof typeof existing] ?? null,
+        new: newValue,
+      };
+    }
+
+    await this.auditService.log({
+      channelId,
+      entityType: 'channel',
+      entityId: channelId,
+      action: 'property_schema_updated',
+      changes,
+      performedBy: userId,
+      metadata: { definitionId: id, key: existing.key },
+    });
 
     await this.websocketGateway.sendToChannelMembers(
       channelId,
@@ -110,6 +143,7 @@ export class PropertyDefinitionsController {
   @Delete(':id')
   @WorkspaceRoles('member')
   async delete(
+    @CurrentUser('sub') userId: string,
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<{ success: boolean }> {
@@ -120,6 +154,18 @@ export class PropertyDefinitionsController {
     }
 
     await this.propertyDefinitionsService.delete(id);
+
+    await this.auditService.log({
+      channelId,
+      entityType: 'channel',
+      entityId: channelId,
+      action: 'property_deleted',
+      changes: {
+        [existing.key]: { old: existing, new: null },
+      },
+      performedBy: userId,
+      metadata: { definitionId: id, key: existing.key },
+    });
 
     await this.websocketGateway.sendToChannelMembers(
       channelId,

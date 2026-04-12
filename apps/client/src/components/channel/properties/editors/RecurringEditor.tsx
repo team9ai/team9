@@ -12,10 +12,11 @@ import { cn } from "@/lib/utils";
 import type { PropertyDefinition } from "@/types/properties";
 
 interface RecurringValue {
-  frequency: "daily" | "weekly" | "monthly";
+  freq: "daily" | "weekly" | "monthly";
   interval: number;
-  daysOfWeek?: number[]; // 0=Sun, 1=Mon, ..., 6=Sat
-  dayOfMonth?: number;
+  byDay?: string[]; // iCal day abbreviations: "SU", "MO", "TU", "WE", "TH", "FR", "SA"
+  byMonthDay?: number[]; // e.g. [1, 15]
+  endDate?: string; // ISO date string (optional)
 }
 
 interface RecurringEditorProps {
@@ -26,23 +27,21 @@ interface RecurringEditorProps {
 }
 
 const DAYS_OF_WEEK = [
-  { value: 0, label: "Sun" },
-  { value: 1, label: "Mon" },
-  { value: 2, label: "Tue" },
-  { value: 3, label: "Wed" },
-  { value: 4, label: "Thu" },
-  { value: 5, label: "Fri" },
-  { value: 6, label: "Sat" },
+  { value: "SU", label: "Sun" },
+  { value: "MO", label: "Mon" },
+  { value: "TU", label: "Tue" },
+  { value: "WE", label: "Wed" },
+  { value: "TH", label: "Thu" },
+  { value: "FR", label: "Fri" },
+  { value: "SA", label: "Sat" },
 ];
 
 function isRecurringValue(v: unknown): v is RecurringValue {
-  return (
-    typeof v === "object" && v !== null && "frequency" in v && "interval" in v
-  );
+  return typeof v === "object" && v !== null && "freq" in v && "interval" in v;
 }
 
 const DEFAULT_RECURRING: RecurringValue = {
-  frequency: "daily",
+  freq: "daily",
   interval: 1,
 };
 
@@ -57,21 +56,21 @@ export function RecurringEditor({
   );
 
   const handleFrequencyChange = useCallback(
-    (freq: string) => {
+    (newFreq: string) => {
       const next: RecurringValue = {
         ...recurringVal,
-        frequency: freq as RecurringValue["frequency"],
+        freq: newFreq as RecurringValue["freq"],
       };
       // Reset sub-fields when frequency changes
-      if (freq === "weekly") {
-        next.daysOfWeek = next.daysOfWeek || [1]; // default Monday
-        delete next.dayOfMonth;
-      } else if (freq === "monthly") {
-        next.dayOfMonth = next.dayOfMonth || 1;
-        delete next.daysOfWeek;
+      if (newFreq === "weekly") {
+        next.byDay = next.byDay || ["MO"]; // default Monday
+        delete next.byMonthDay;
+      } else if (newFreq === "monthly") {
+        next.byMonthDay = next.byMonthDay || [1];
+        delete next.byDay;
       } else {
-        delete next.daysOfWeek;
-        delete next.dayOfMonth;
+        delete next.byDay;
+        delete next.byMonthDay;
       }
       onChange(next);
     },
@@ -89,14 +88,14 @@ export function RecurringEditor({
   );
 
   const handleDayOfWeekToggle = useCallback(
-    (day: number) => {
-      const current = recurringVal.daysOfWeek || [];
+    (day: string) => {
+      const current = recurringVal.byDay || [];
       const next = current.includes(day)
         ? current.filter((d) => d !== day)
-        : [...current, day].sort();
+        : [...current, day];
       // Ensure at least one day is selected
       if (next.length === 0) return;
-      onChange({ ...recurringVal, daysOfWeek: next });
+      onChange({ ...recurringVal, byDay: next });
     },
     [recurringVal, onChange],
   );
@@ -105,7 +104,7 @@ export function RecurringEditor({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const num = parseInt(e.target.value, 10);
       if (!isNaN(num) && num >= 1 && num <= 31) {
-        onChange({ ...recurringVal, dayOfMonth: num });
+        onChange({ ...recurringVal, byMonthDay: [num] });
       }
     },
     [recurringVal, onChange],
@@ -124,7 +123,7 @@ export function RecurringEditor({
           className="w-20"
         />
         <Select
-          value={recurringVal.frequency}
+          value={recurringVal.freq}
           onValueChange={handleFrequencyChange}
           disabled={disabled}
         >
@@ -139,10 +138,10 @@ export function RecurringEditor({
         </Select>
       </div>
 
-      {recurringVal.frequency === "weekly" && (
+      {recurringVal.freq === "weekly" && (
         <div className="flex flex-wrap gap-1">
           {DAYS_OF_WEEK.map((day) => {
-            const isActive = recurringVal.daysOfWeek?.includes(day.value);
+            const isActive = recurringVal.byDay?.includes(day.value);
             return (
               <button
                 key={day.value}
@@ -164,14 +163,14 @@ export function RecurringEditor({
         </div>
       )}
 
-      {recurringVal.frequency === "monthly" && (
+      {recurringVal.freq === "monthly" && (
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">on day</span>
           <Input
             type="number"
             min={1}
             max={31}
-            value={recurringVal.dayOfMonth || 1}
+            value={recurringVal.byMonthDay?.[0] || 1}
             onChange={handleDayOfMonthChange}
             disabled={disabled}
             className="w-20"

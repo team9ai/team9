@@ -301,7 +301,7 @@ export function MessageItem({
               message={message}
               channelId={message.channelId}
               definitions={propertyDefinitions}
-              canEdit={isOwnMessage}
+              canEdit={true}
               onEditProperties={() => setPropertySelectorOpen(true)}
             />
             {propertySelectorOpen && (

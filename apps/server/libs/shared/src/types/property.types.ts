@@ -154,13 +154,13 @@ export interface ViewConfig {
   filters?: ViewFilter[];
   /** Sort rules */
   sorts?: ViewSort[];
-  /** Visible property definition IDs (column order) */
+  /** Visible property keys (column order) */
   visibleProperties?: string[];
   /** Mode for visibleProperties: 'blacklist' hides listed, 'whitelist' shows only listed */
   visiblePropertiesMode?: 'blacklist' | 'whitelist';
-  /** Column width overrides keyed by property definition ID */
+  /** Column width overrides keyed by property key */
   columnWidths?: Record<string, number>;
-  /** Group by property definition ID */
+  /** Group by property key */
   groupBy?: string;
   /** Property key used for date-based views (calendar / timeline) */
   datePropertyKey?: string;

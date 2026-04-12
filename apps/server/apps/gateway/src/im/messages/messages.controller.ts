@@ -526,16 +526,26 @@ export class MessagesController {
       return;
     }
 
-    // Check async whether the channel has any aiAutoFill definitions
-    this.propertyDefinitionsService
-      .findAllByChannel(message.channelId)
-      .then((definitions) => {
-        const hasAutoFill = definitions.some((d) => d.aiAutoFill);
-        if (!hasAutoFill) return;
+    const ALLOWED_CHANNEL_TYPES = new Set(['public', 'private']);
 
-        return this.aiAutoFillService.autoFill(message.id, userId, {
-          preserveExisting: true,
-        });
+    // Load channel to check type, then check for aiAutoFill definitions
+    this.channelsService
+      .findById(message.channelId)
+      .then((channel) => {
+        if (!channel || !ALLOWED_CHANNEL_TYPES.has(channel.type)) {
+          return;
+        }
+
+        return this.propertyDefinitionsService
+          .findAllByChannel(message.channelId)
+          .then((definitions) => {
+            const hasAutoFill = definitions.some((d) => d.aiAutoFill);
+            if (!hasAutoFill) return;
+
+            return this.aiAutoFillService.autoFill(message.id, userId, {
+              preserveExisting: true,
+            });
+          });
       })
       .catch((err) => {
         this.logger.warn(

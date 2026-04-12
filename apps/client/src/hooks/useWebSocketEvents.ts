@@ -318,7 +318,7 @@ export function useWebSocketEvents() {
         queryKey: ["messages", event.channelId],
       });
       queryClient.invalidateQueries({
-        queryKey: ["channel", event.channelId, "view"],
+        queryKey: ["channel", event.channelId, "views"],
       });
     };
 
