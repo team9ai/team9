@@ -1,0 +1,33 @@
+{
+  "planPath": "docs/superpowers/plans/2026-04-11-edit-pin-delete.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: i18n Keys for All Three Features",
+      "status": "pending",
+      "description": "**Goal:** Add all new translation keys upfront so subsequent tasks can reference them.\n\n**Files:**\n- Modify: `apps/client/src/i18n/locales/*/message.json` (8 files)\n\n**Acceptance Criteria:**\n- All 8 locales have keys: editedAt, editSave, editCancel, editHint, deleteConfirmTitle, deleteConfirmDescription, deleteConfirm, deleteCancel\n- Key editedAt uses interpolation: (edited at {{time}})\n\n**Verify:** `pnpm build:client` succeeds\n\n```json:metadata\n{\"files\": [\"apps/client/src/i18n/locales/en/message.json\", \"apps/client/src/i18n/locales/zh-CN/message.json\", \"apps/client/src/i18n/locales/zh-TW/message.json\", \"apps/client/src/i18n/locales/ja/message.json\", \"apps/client/src/i18n/locales/ko/message.json\", \"apps/client/src/i18n/locales/de/message.json\", \"apps/client/src/i18n/locales/es/message.json\", \"apps/client/src/i18n/locales/fr/message.json\"], \"verifyCommand\": \"pnpm build:client\", \"acceptanceCriteria\": [\"All 8 locales have new keys\", \"editedAt uses interpolation\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: Pin/Unpin Hooks with Optimistic Updates",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Create usePinMessage and useUnpinMessage hooks with optimistic cache updates, wire into MessageList.\n\n**Files:**\n- Modify: `apps/client/src/hooks/useMessages.ts`\n- Modify: `apps/client/src/components/channel/MessageList.tsx`\n- Test: `apps/client/src/hooks/__tests__/usePinMessage.test.ts`\n\n**Verify:** `pnpm jest --testPathPattern=usePinMessage`\n\n```json:metadata\n{\"files\": [\"apps/client/src/hooks/useMessages.ts\", \"apps/client/src/components/channel/MessageList.tsx\", \"apps/client/src/hooks/__tests__/usePinMessage.test.ts\"], \"verifyCommand\": \"pnpm jest --testPathPattern=usePinMessage\", \"acceptanceCriteria\": [\"usePinMessage optimistically sets isPinned: true\", \"useUnpinMessage optimistically sets isPinned: false\", \"Error rollback works\", \"handlePin calls correct hook\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Delete Confirmation Dialog + Admin Permissions",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** Add confirmation dialog for all message deletions, allow channel admins/owners to delete others' messages.\n\n**Files:**\n- Create: `apps/client/src/components/channel/DeleteMessageDialog.tsx`\n- Modify: `apps/client/src/components/channel/MessageContextMenu.tsx`\n- Modify: `apps/client/src/components/channel/MessageItem.tsx`\n- Modify: `apps/client/src/components/channel/MessageList.tsx`\n- Modify: `apps/server/apps/gateway/src/im/messages/messages.service.ts`\n- Modify: `apps/server/apps/gateway/src/im/messages/messages.controller.ts`\n- Test: `apps/client/src/components/channel/__tests__/DeleteMessageDialog.test.tsx`\n\n**Verify:** `pnpm jest --testPathPattern=\"DeleteMessageDialog|messages.service\"`\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/channel/DeleteMessageDialog.tsx\", \"apps/client/src/components/channel/MessageContextMenu.tsx\", \"apps/client/src/components/channel/MessageItem.tsx\", \"apps/client/src/components/channel/MessageList.tsx\", \"apps/server/apps/gateway/src/im/messages/messages.service.ts\", \"apps/server/apps/gateway/src/im/messages/messages.controller.ts\"], \"verifyCommand\": \"pnpm jest --testPathPattern=DeleteMessageDialog\", \"acceptanceCriteria\": [\"AlertDialog opens on delete click\", \"Confirm triggers deletion\", \"Cancel closes dialog\", \"Admin sees delete on others messages\", \"Backend allows admin/owner delete\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Inline Message Editing with Lexical Editor",
+      "status": "pending",
+      "blockedBy": [0, 2],
+      "description": "**Goal:** Replace the edit stub with an inline Lexical editor that back-fills original HTML, saves via useUpdateMessage, shows edited timestamp.\n\n**Files:**\n- Modify: `apps/client/src/components/channel/editor/RichTextEditor.tsx`\n- Modify: `apps/client/src/components/channel/MessageItem.tsx`\n- Modify: `apps/client/src/components/channel/MessageList.tsx`\n- Modify: `apps/client/src/lib/date-utils.ts`\n\n**Verify:** Manual test: right-click → Edit → content loads → Enter saves → edited timestamp appears\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/channel/editor/RichTextEditor.tsx\", \"apps/client/src/components/channel/MessageItem.tsx\", \"apps/client/src/components/channel/MessageList.tsx\", \"apps/client/src/lib/date-utils.ts\"], \"verifyCommand\": \"pnpm build:client\", \"acceptanceCriteria\": [\"Edit replaces content with Lexical editor\", \"HTML back-fill preserves mentions and code blocks\", \"Enter saves, Esc cancels\", \"Edited timestamp shows with time\", \"Only one message in edit mode at a time\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-04-11T00:00:00Z"
+}

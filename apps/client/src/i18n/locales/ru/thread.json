@@ -1,0 +1,18 @@
+{
+  "title": "Тред",
+  "loading": "Загрузка треда...",
+  "error": "Не удалось загрузить тред",
+  "repliesCount": "{{count}} ответ",
+  "repliesCount_other": "{{count}} ответов",
+  "showMoreReplies": "Показать ещё {{count}} ответ",
+  "showMoreReplies_other": "Показать ещё {{count}} ответов",
+  "hideReplies": "Скрыть ответы",
+  "replyingTo": "Ответ на",
+  "inputPlaceholder": "Ответить в треде...",
+  "loadMore": "Загрузить больше ответов",
+  "loadingMore": "Загрузка...",
+  "newMessages": "{{count}} новое сообщение",
+  "newMessages_other": "{{count}} новых сообщений",
+  "lastReply": "Последний ответ {{time}}",
+  "backToChannel": "Вернуться в канал"
+}

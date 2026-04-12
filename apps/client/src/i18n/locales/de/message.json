@@ -37,5 +37,17 @@
   "botThinking": "Denkt nach",
   "botAnalyzing": "Analysiert",
   "selectUserToChat": "Wählen Sie einen Benutzer für eine Direktnachricht",
-  "botGenerating": "Antwort wird generiert"
+  "botGenerating": "Antwort wird generiert",
+  "editedAt": "(bearbeitet um {{time}})",
+  "editSave": "Speichern",
+  "editCancel": "Abbrechen",
+  "editHint": "Esc Abbrechen · Enter Speichern",
+  "deleteConfirmTitle": "Nachricht löschen",
+  "deleteConfirmDescription": "Möchten Sie diese Nachricht wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+  "deleteConfirm": "Löschen",
+  "deleteCancel": "Abbrechen",
+  "loadingFullContent": "Vollständigen Inhalt laden...",
+  "loadFullContentFailed": "Laden des vollständigen Inhalts fehlgeschlagen. Bitte abbrechen und erneut versuchen.",
+  "expandFullContent": "Vollständigen Text anzeigen",
+  "remainingChars": "(~{{count}} weitere Zeichen)"
 }

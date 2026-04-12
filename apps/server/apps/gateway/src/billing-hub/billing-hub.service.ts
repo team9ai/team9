@@ -79,6 +79,7 @@ export interface WorkspaceBillingAccount {
   ownerType: 'personal' | 'organization';
   ownerName: string | null;
   balance: number;
+  grantBalance: number;
   quota: number;
   quotaExpiresAt: string | null;
   effectiveQuota: number;
@@ -267,6 +268,25 @@ export class BillingHubService {
           path: returnPath,
           view,
         }),
+      }),
+    });
+  }
+
+  async grantCredits(
+    workspaceId: string,
+    amount: number,
+    referenceType: string,
+    referenceId: string,
+    description?: string,
+  ): Promise<void> {
+    await this.request('/api/billing/grant', {
+      method: 'POST',
+      body: JSON.stringify({
+        ownerExternalId: this.ownerExternalId(workspaceId),
+        amount,
+        referenceType,
+        referenceId,
+        description,
       }),
     });
   }

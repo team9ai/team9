@@ -31,11 +31,14 @@ describe("loadLanguage", () => {
     expect(i18n.hasResourceBundle).not.toHaveBeenCalled();
   });
 
-  it("should skip if language is already loaded (hasResourceBundle returns true)", async () => {
+  it("should skip if all namespaces are already loaded (hasResourceBundle returns true for all)", async () => {
     (i18n.hasResourceBundle as Mock).mockReturnValue(true);
-    const { loadLanguage } = await importModule();
+    const { loadLanguage, NAMESPACES } = await importModule();
     await loadLanguage("zh-CN");
-    expect(i18n.hasResourceBundle).toHaveBeenCalledWith("zh-CN", "common");
+    // hasAllResourceBundles checks every namespace
+    for (const ns of NAMESPACES) {
+      expect(i18n.hasResourceBundle).toHaveBeenCalledWith("zh-CN", ns);
+    }
     expect(i18n.addResourceBundle).not.toHaveBeenCalled();
   });
 

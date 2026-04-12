@@ -74,7 +74,7 @@ export function ActivitySubSidebar() {
 
   // Group notifications by date
   const groupedNotifications = useMemo(() => {
-    return groupByDate(notifications, (n) => new Date(n.createdAt), "zh-CN");
+    return groupByDate(notifications, (n) => new Date(n.createdAt));
   }, [notifications]);
 
   const handleActivityClick = (notification: (typeof notifications)[0]) => {

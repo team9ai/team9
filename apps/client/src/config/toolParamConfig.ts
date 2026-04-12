@@ -114,7 +114,7 @@ function truncateValue(value: string, limit: number): string {
  *   channelName: "general",
  *   message: "a".repeat(100)
  * })
- * // Returns: "channelName=\"general\", message=\"aaaa...aaaa(50 words more)\""
+ * // Returns: "channelName=\"general\", message=\"aaaa...aaaa(50 more)\""
  */
 export function formatParams(
   toolName: string,

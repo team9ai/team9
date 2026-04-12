@@ -37,5 +37,17 @@
   "botThinking": "思考中",
   "botAnalyzing": "分析中",
   "selectUserToChat": "選擇一位使用者開始私訊",
-  "botGenerating": "產生回覆中"
+  "botGenerating": "產生回覆中",
+  "editedAt": "(已編輯於 {{time}})",
+  "editSave": "儲存",
+  "editCancel": "取消",
+  "editHint": "Esc 取消 · Enter 儲存",
+  "deleteConfirmTitle": "刪除訊息",
+  "deleteConfirmDescription": "確定要刪除這則訊息嗎？此操作無法復原。",
+  "deleteConfirm": "刪除",
+  "deleteCancel": "取消",
+  "loadingFullContent": "載入完整內容中...",
+  "loadFullContentFailed": "載入完整內容失敗，請取消後重試。",
+  "expandFullContent": "展開全文",
+  "remainingChars": "（還有約 {{count}} 字）"
 }

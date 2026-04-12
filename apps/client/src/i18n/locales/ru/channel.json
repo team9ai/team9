@@ -1,0 +1,184 @@
+{
+  "createChannel": "Создать канал",
+  "createChannelDescription": "Каналы — это место, где общается ваша команда. Они лучше всего работают, когда организованы вокруг темы — например, #проект-марс.",
+  "channelName": "Название канала",
+  "channelNamePlaceholder": "например, project-mars",
+  "channelNameRequired": "Название канала обязательно",
+  "channelNameInvalid": "Должно начинаться с буквы или цифры",
+  "channelNameHint": "Может содержать только строчные буквы, цифры и дефисы",
+  "channelDescription": "Описание",
+  "channelDescriptionPlaceholder": "О чём этот канал?",
+  "channelDescriptionOptional": "(необязательно)",
+  "chooseVisibility": "Выберите видимость",
+  "public": "Публичный",
+  "publicDescription": "Любой может просматривать и присоединяться к этому каналу",
+  "private": "Приватный",
+  "privateDescription": "Только приглашённые участники могут видеть этот канал",
+  "creating": "Создание...",
+  "browseChannels": "Обзор каналов",
+  "noChannels": "Нет каналов",
+  "noChannelsYet": "Каналов пока нет",
+  "viewChannel": "Просмотр канала",
+  "leaveChannel": "Покинуть канал",
+  "deleteChannel": "Удалить канал",
+  "channelSettings": "Настройки канала",
+  "channelMembers": "Участники канала",
+  "addMembers": "Добавить участников",
+  "members": "{{count}} участников",
+  "unread": "непрочитано",
+  "searchMember": "Поиск по имени пользователя или никнейму...",
+  "noMatchingUsers": "Подходящие пользователи не найдены",
+  "allMembersInChannel": "Все участники уже в канале",
+  "selectedCount": "Выбрано: {{count}}",
+  "selectMembersToAdd": "Выберите участников для добавления",
+  "adding": "Добавление...",
+  "addCount": "Добавить ({{count}})",
+  "add": "Добавить",
+  "about": "О канале",
+  "settings": "Настройки",
+  "noDescription": "Нет описания",
+  "type": "Тип",
+  "privateChannel": "Приватный канал",
+  "publicChannel": "Публичный канал",
+  "createdAt": "Создан",
+  "findMember": "Найти участника",
+  "addPeople": "Добавить людей",
+  "you": "(Вы)",
+  "channelAdmin": "Администратор канала",
+  "admin": "Администратор",
+  "dangerZone": "Опасная зона",
+  "deleteChannelWarning": "После удаления канала все сообщения и файлы будут навсегда удалены и не подлежат восстановлению.",
+  "deleteThisChannel": "Удалить этот канал",
+  "save": "Сохранить",
+  "saving": "Сохранение...",
+  "edit": "Изменить",
+  "joinChannel": "Присоединиться к каналу",
+  "joining": "Присоединение...",
+  "leaving": "Выход...",
+  "leaveChannelWarning": "У вас больше не будет доступа к сообщениям и файлам этого канала.",
+  "leaveThisChannel": "Покинуть этот канал",
+  "deleteChannelDescription": "Это действие нельзя отменить. Все сообщения в этом канале будут навсегда удалены.",
+  "deleteChannelWarningTitle": "Удаление этого канала приведёт к следующему:",
+  "deleteWarningMessages": "Удаление всех сообщений и файлов",
+  "deleteWarningMembers": "Удаление всех участников из канала",
+  "deleteWarningNoRecovery": "Это невозможно восстановить",
+  "typeToConfirm": "Введите {{name}} для подтверждения",
+  "enterChannelName": "Введите название канала",
+  "permanentDelete": "Удалить навсегда (без возможности восстановления)",
+  "deleting": "Удаление...",
+  "channelNotFound": "Канал не найден",
+  "loadingChannel": "Загрузка канала...",
+  "loadingMessages": "Загрузка сообщений...",
+  "loadingMoreMessages": "Загрузка дополнительных сообщений...",
+  "noMessagesYet": "Сообщений пока нет. Присоединяйтесь к каналу, чтобы начать общение!",
+  "botStartupCountdownMessage": "Привет! Ваш бот OpenClaw запускается. Пожалуйста, дождитесь окончания обратного отсчёта перед началом общения.",
+  "botStartupSuccessMessage": "Привет! Ваш бот OpenClaw успешно запущен!",
+  "botStartChatting": "Начать общение",
+  "noMessagesYetDefault": "Сообщений пока нет",
+  "emptyPublicChannelTitle": "Пообщайтесь с ботом!",
+  "emptyPublicChannelDesc": "В этом канале есть ИИ-бот, готовый помочь. Введите @, чтобы упомянуть бота в сообщении, и начните беседу.",
+  "emptyPublicChannelHintExample": "спроси меня о чём угодно...",
+  "emptyPublicChannelGotIt": "Понятно",
+  "botNotMemberTitle": "{{botName}} не является участником канала",
+  "botNotMemberPublicDesc": "{{botName}} не является участником этого канала и не получит ваше сообщение. Хотите сначала добавить его в канал?",
+  "botNotMemberPrivateAdminDesc": "{{botName}} не является участником этого приватного канала и не получит ваше сообщение. Хотите сначала добавить его в канал?",
+  "botNotMemberPrivateDesc": "{{botName}} не является участником этого приватного канала и не получит ваше сообщение. Пожалуйста, свяжитесь с администратором канала, чтобы добавить бота.",
+  "addBotToChannel": "Добавить в канал",
+  "addingBot": "Добавление...",
+  "botInstanceStoppedMessage": "Экземпляр бота в настоящее время остановлен. Запустите его, чтобы возобновить общение.",
+  "botInstanceStoppedMemberMessage": "Экземпляр бота в настоящее время остановлен. Пожалуйста, свяжитесь с администратором рабочего пространства, чтобы запустить его.",
+  "botInstanceStart": "Запустить",
+  "botInstanceStarting": "Запуск...",
+  "botInstanceStartingMessage": "Экземпляр бота запускается, пожалуйста, подождите...",
+  "botThinking": {
+    "texts": {
+      "thinking": "Размышляет",
+      "analyzing": "Анализирует",
+      "reasoning": "Рассуждает",
+      "computing": "Вычисляет",
+      "parsing": "Разбирает",
+      "brewing": "Готовит",
+      "crafting": "Создаёт",
+      "decoding": "Декодирует",
+      "imagining": "Воображает",
+      "composing": "Составляет"
+    }
+  },
+  "tracking": {
+    "ops": {
+      "loadTools": {
+        "loading": "Загрузка инструментов",
+        "success": "Инструменты загружены",
+        "error": "Не удалось загрузить инструменты"
+      },
+      "searchTools": {
+        "loading": "Поиск инструментов",
+        "success": "Инструменты найдены",
+        "error": "Ошибка поиска инструментов"
+      },
+      "invokeTool": {
+        "loading": "Вызов инструмента",
+        "success": "Вызов инструмента завершён",
+        "error": "Ошибка вызова инструмента"
+      },
+      "fallback": {
+        "loading": "Загрузка {{name}}",
+        "success": "{{name}} выполнено",
+        "error": "Ошибка {{name}}"
+      }
+    },
+    "tools": {
+      "searchDocs": {
+        "loading": "Поиск документов",
+        "success": "Документы найдены",
+        "error": "Ошибка поиска документов"
+      },
+      "sendMessage": {
+        "loading": "Отправка сообщения",
+        "success": "Сообщение отправлено",
+        "error": "Не удалось отправить сообщение"
+      },
+      "generateReply": {
+        "loading": "Генерация ответа",
+        "success": "Ответ сгенерирован",
+        "error": "Ошибка генерации ответа"
+      }
+    },
+    "thinking": {
+      "label": "Размышление",
+      "labelWithStats": "Размышление ({{stats}})",
+      "tokens_one": "{{count}} токен",
+      "tokens_other": "{{count}} токенов",
+      "seconds": "{{count}} с",
+      "minutesSeconds": "{{minutes}} мин {{seconds}} с"
+    },
+    "toolCall": {
+      "argsLabel": "Аргументы",
+      "resultLabel": "Результат",
+      "unknownTool": "Неизвестный инструмент"
+    },
+    "eventLabels": {
+      "thinking": "Размышление",
+      "writing": "Пишет",
+      "toolCall": "Вызов",
+      "toolResult": "Результат",
+      "agentStart": "Начато",
+      "agentEnd": "Завершено",
+      "error": "Ошибка",
+      "turn": "Ход",
+      "choices": "Варианты",
+      "selected": "Выбрано"
+    },
+    "round": {
+      "collapseSummary_one": "... Показать выполнение ({{count}} шаг)",
+      "collapseSummary_other": "... Показать выполнение ({{count}} шагов)",
+      "expandAriaLabel_one": "Развернуть процесс выполнения ({{count}} шаг)",
+      "expandAriaLabel_other": "Развернуть процесс выполнения ({{count}} шагов)"
+    },
+    "card": {
+      "moreDetails_one": "Посмотреть ещё {{count}} деталь ›",
+      "moreDetails_other": "Посмотреть ещё {{count}} деталей ›",
+      "loading": "Загрузка..."
+    }
+  }
+}

@@ -27,6 +27,7 @@ import { env } from '@team9/shared';
 import type { CreateInvitationDto } from './dto/index.js';
 import { RedisService } from '@team9/redis';
 import { PosthogService } from '@team9/posthog';
+import { BillingHubService } from '../billing-hub/billing-hub.service.js';
 import { WS_EVENTS } from '../im/websocket/events/events.constants.js';
 import { REDIS_KEYS } from '../im/shared/constants/redis-keys.js';
 import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
@@ -156,6 +157,7 @@ export class WorkspaceService {
     private readonly personalStaffService: PersonalStaffService,
     private readonly onboardingService: OnboardingService,
     private readonly posthogService: PosthogService,
+    private readonly billingHubService: BillingHubService,
   ) {}
 
   private getErrorMessage(error: unknown): string {
@@ -190,6 +192,20 @@ export class WorkspaceService {
         await this.safeDeleteWorkspace(workspace.id);
       }
       throw error;
+    }
+
+    try {
+      await this.billingHubService.grantCredits(
+        workspace.id,
+        4000,
+        'signup_bonus',
+        `signup:${event.userId}`,
+        'New user welcome bonus',
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to grant signup bonus for user ${event.userId}: ${this.getErrorMessage(error)}`,
+      );
     }
 
     this.logger.log(

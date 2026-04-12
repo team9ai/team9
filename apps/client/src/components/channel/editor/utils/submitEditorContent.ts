@@ -20,11 +20,14 @@ export async function submitEditorContent({
   onSubmit,
   disabled,
   hasAttachments,
+  clearOnSubmit = true,
 }: {
   editor: LexicalEditor;
   onSubmit: (content: string) => Promise<void>;
   disabled?: boolean;
   hasAttachments?: boolean;
+  /** Whether to clear the editor after submit (default: true). Set to false for edit mode. */
+  clearOnSubmit?: boolean;
 }) {
   if (disabled) return false;
 
@@ -32,18 +35,24 @@ export async function submitEditorContent({
   if (!editorHasContent && !hasAttachments) return false;
 
   const content = editorHasContent ? exportToHtml(editor) : "";
-  const previousEditorState = editor.getEditorState().clone(null);
 
-  clearEditor(editor);
+  if (clearOnSubmit) {
+    const previousEditorState = editor.getEditorState().clone(null);
 
-  try {
-    await onSubmit(content);
-  } catch (error) {
-    if (!hasContent(editor)) {
-      editor.setEditorState(previousEditorState);
+    clearEditor(editor);
+
+    try {
+      await onSubmit(content);
+    } catch (error) {
+      if (!hasContent(editor)) {
+        editor.setEditorState(previousEditorState);
+      }
+
+      throw error;
     }
-
-    throw error;
+  } else {
+    // In edit mode, don't clear — just submit. Content is preserved if the request fails.
+    await onSubmit(content);
   }
 
   return true;

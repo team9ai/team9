@@ -1,0 +1,92 @@
+{
+  "title": "Risorse",
+  "tabs": {
+    "all": "Tutte",
+    "agent_computer": "Computer agente",
+    "api": "API"
+  },
+  "noResources": "Ancora nessuna risorsa",
+  "status": {
+    "online": "Online",
+    "offline": "Offline",
+    "error": "Errore",
+    "configuring": "Configurazione in corso"
+  },
+  "type": {
+    "agent_computer": "Computer agente",
+    "api": "API"
+  },
+  "connectionType": {
+    "ahand": "Ahand",
+    "ssh": "SSH",
+    "cloud": "Cloud"
+  },
+  "create": {
+    "title": "Aggiungi risorsa",
+    "selectType": "Tipo di risorsa",
+    "name": "Nome",
+    "namePlaceholder": "Inserisci il nome della risorsa",
+    "description": "Descrizione",
+    "descriptionPlaceholder": "Descrizione opzionale",
+    "connectionType": "Tipo di connessione",
+    "host": "Host",
+    "hostPlaceholder": "es. 192.168.1.100",
+    "port": "Porta",
+    "provider": "Provider",
+    "providerPlaceholder": "es. openai, google, custom",
+    "apiKey": "Chiave API",
+    "apiKeyPlaceholder": "Inserisci la chiave API",
+    "baseUrl": "URL di base",
+    "baseUrlPlaceholder": "URL di base personalizzato opzionale",
+    "model": "Modello",
+    "modelPlaceholder": "es. gpt-4, claude-3",
+    "submit": "Crea",
+    "cancel": "Annulla"
+  },
+  "detail": {
+    "title": "Dettagli risorsa",
+    "loadError": "Impossibile caricare la risorsa",
+    "basicInfo": "Informazioni di base",
+    "authorizations": "Autorizzazioni",
+    "noAuthorizations": "Ancora nessuna autorizzazione",
+    "addAuthorization": "Aggiungi",
+    "usageLogs": "Registri di utilizzo",
+    "noUsageLogs": "Ancora nessun registro di utilizzo",
+    "delete": "Elimina",
+    "deleteConfirm": "Sei sicuro di voler eliminare questa risorsa?",
+    "lastHeartbeat": "Ultimo heartbeat: {{time}}",
+    "authCount": "{{count}} autorizzati",
+    "maskedKey": "{{prefix}}...{{suffix}}",
+    "granteeType": {
+      "user": "Utente",
+      "task": "Attività"
+    },
+    "permissionLevel": {
+      "full": "Accesso completo",
+      "readonly": "Sola lettura"
+    }
+  },
+  "auth": {
+    "granteeType": "Tipo di beneficiario",
+    "granteeId": "ID beneficiario",
+    "granteeIdPlaceholder": "Inserisci ID utente o attività",
+    "permissionLevel": "Permesso",
+    "grant": "Concedi accesso"
+  },
+  "edit": {
+    "save": "Salva",
+    "cancel": "Annulla"
+  },
+  "ahand": {
+    "localDeviceSetup": "Configurazione dispositivo locale",
+    "connection": "Connessione aHand",
+    "browserComponents": "Componenti del browser",
+    "activation": "Attivazione"
+  },
+  "actions": {
+    "connect": "Connetti",
+    "disconnect": "Disconnetti",
+    "api_call": "Chiamata API",
+    "error": "Errore"
+  }
+}
