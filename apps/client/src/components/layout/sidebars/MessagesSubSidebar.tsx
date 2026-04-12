@@ -1,12 +1,22 @@
 import { useTranslation } from "react-i18next";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useUserWorkspaces, useWorkspaceMembers } from "@/hooks/useWorkspace";
-import { useChannelsByType, useCreateDirectChannel } from "@/hooks/useChannels";
+import {
+  useChannelsByType,
+  useCreateDirectChannel,
+  useSetSidebarVisibility,
+} from "@/hooks/useChannels";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useWorkspaceStore } from "@/stores";
 import { UserListItem } from "@/components/sidebar/UserListItem";
@@ -20,8 +30,12 @@ export function MessagesSubSidebar() {
   const { data: currentUser } = useCurrentUser();
   const { data: workspaces } = useUserWorkspaces();
   const { selectedWorkspaceId } = useWorkspaceStore();
-  const { directChannels = [], isLoading: isLoadingChannels } =
-    useChannelsByType();
+  const {
+    directChannels = [],
+    allDirectChannels = [],
+    isLoading: isLoadingChannels,
+  } = useChannelsByType();
+  const setSidebarVisibility = useSetSidebarVisibility();
   // Use selected workspace or fallback to first workspace
   const currentWorkspace =
     workspaces?.find((w) => w.id === selectedWorkspaceId) || workspaces?.[0];
@@ -69,6 +83,13 @@ export function MessagesSubSidebar() {
   const handleMemberClick = async (memberId: string) => {
     try {
       const channel = await createDirectChannel.mutateAsync(memberId);
+
+      // If channel was hidden, unhide it
+      const existing = allDirectChannels.find((ch) => ch.id === channel.id);
+      if (existing && existing.showInDmSidebar === false) {
+        setSidebarVisibility.mutate({ channelId: channel.id, show: true });
+      }
+
       navigate({
         to: "/messages/$channelId",
         params: { channelId: channel.id },
@@ -107,18 +128,36 @@ export function MessagesSubSidebar() {
               {/* Existing DM Conversations */}
               {directMessageUsers.length > 0 &&
                 directMessageUsers.map((dm) => (
-                  <UserListItem
-                    key={dm.id}
-                    name={dm.name}
-                    avatarUrl={dm.avatarUrl}
-                    userId={dm.userId}
-                    isSelected={selectedChannelId === dm.channelId}
-                    unreadCount={dm.unreadCount}
-                    channelId={dm.channelId}
-                    linkPrefix="/messages"
-                    isBot={dm.isBot}
-                    agentType={dm.agentType}
-                  />
+                  <ContextMenu key={dm.id}>
+                    <ContextMenuTrigger asChild>
+                      <div>
+                        <UserListItem
+                          name={dm.name}
+                          avatarUrl={dm.avatarUrl}
+                          userId={dm.userId}
+                          isSelected={selectedChannelId === dm.channelId}
+                          unreadCount={dm.unreadCount}
+                          channelId={dm.channelId}
+                          linkPrefix="/messages"
+                          isBot={dm.isBot}
+                          agentType={dm.agentType}
+                        />
+                      </div>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent className="w-48">
+                      <ContextMenuItem
+                        onClick={() =>
+                          setSidebarVisibility.mutate({
+                            channelId: dm.channelId,
+                            show: false,
+                          })
+                        }
+                      >
+                        <EyeOff className="mr-2 h-4 w-4" />
+                        {t("hideConversation")}
+                      </ContextMenuItem>
+                    </ContextMenuContent>
+                  </ContextMenu>
                 ))}
 
               {/* Other Members (no existing DM) */}

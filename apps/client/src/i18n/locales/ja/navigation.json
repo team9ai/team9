@@ -141,5 +141,6 @@
   "uninstall": "アンインストール",
   "uninstallConfirmTitle": "{{name}} をアンインストールしますか？",
   "uninstallConfirmDescription": "このアプリはワークスペースから削除されます。このアプリに関連するデータが失われる可能性があります。",
-  "dangerZone": "危険な操作"
+  "dangerZone": "危険な操作",
+  "hideConversation": "会話を非表示"
 }

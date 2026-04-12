@@ -110,6 +110,7 @@ export interface ChannelWithUnread extends Channel {
   unreadCount: number;
   lastReadMessageId?: string;
   lastReadAt?: string;
+  showInDmSidebar?: boolean;
   otherUser?: {
     id: string;
     username: string;

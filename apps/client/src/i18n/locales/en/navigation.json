@@ -141,5 +141,6 @@
   "uninstall": "Uninstall",
   "uninstallConfirmTitle": "Uninstall {{name}}?",
   "uninstallConfirmDescription": "This will remove the app from your workspace. Any data associated with this app may be lost.",
-  "dangerZone": "Danger Zone"
+  "dangerZone": "Danger Zone",
+  "hideConversation": "Hide Conversation"
 }

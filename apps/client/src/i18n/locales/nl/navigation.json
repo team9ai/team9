@@ -141,5 +141,6 @@
   "uninstall": "Verwijderen",
   "uninstallConfirmTitle": "{{name}} verwijderen?",
   "uninstallConfirmDescription": "Hierdoor wordt de app uit je werkruimte verwijderd. Alle gegevens die bij deze app horen, kunnen verloren gaan.",
-  "dangerZone": "Gevarenzone"
+  "dangerZone": "Gevarenzone",
+  "hideConversation": "Gesprek verbergen"
 }

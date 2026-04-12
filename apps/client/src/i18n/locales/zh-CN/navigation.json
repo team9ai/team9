@@ -141,5 +141,6 @@
   "uninstall": "卸载",
   "uninstallConfirmTitle": "卸载 {{name}}？",
   "uninstallConfirmDescription": "这将从你的工作空间移除此应用。与此应用关联的数据可能会丢失。",
-  "dangerZone": "危险操作"
+  "dangerZone": "危险操作",
+  "hideConversation": "隐藏对话"
 }

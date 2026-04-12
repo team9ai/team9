@@ -96,6 +96,7 @@ export function useWebSocketEvents() {
               return {
                 ...channel,
                 unreadCount: (channel.unreadCount || 0) + 1,
+                showInDmSidebar: true,
               };
             }
             return channel;

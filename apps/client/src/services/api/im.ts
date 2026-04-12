@@ -154,6 +154,16 @@ export const channelsApi = {
   joinChannel: async (channelId: string): Promise<void> => {
     await http.post(`/v1/im/channels/${channelId}/join`);
   },
+
+  // Set sidebar visibility for DM/echo channels
+  setSidebarVisibility: async (
+    channelId: string,
+    show: boolean,
+  ): Promise<void> => {
+    await http.patch(`/v1/im/channels/${channelId}/sidebar-visibility`, {
+      show,
+    });
+  },
 };
 
 // Messages API

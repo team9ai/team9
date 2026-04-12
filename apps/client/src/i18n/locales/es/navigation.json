@@ -141,5 +141,6 @@
   "uninstall": "Desinstalar",
   "uninstallConfirmTitle": "¿Desinstalar {{name}}?",
   "uninstallConfirmDescription": "Esto eliminará la aplicación de su espacio de trabajo. Los datos asociados con esta aplicación podrían perderse.",
-  "dangerZone": "Zona de peligro"
+  "dangerZone": "Zona de peligro",
+  "hideConversation": "Ocultar conversación"
 }

@@ -5,6 +5,7 @@ import type {
   UpdateChannelDto,
   DeleteChannelDto,
   AddMemberDto,
+  ChannelWithUnread,
 } from "@/types/im";
 import { useSelectedWorkspaceId } from "@/stores";
 
@@ -103,8 +104,11 @@ export function useChannelsByType() {
   const privateChannels = channels.filter(
     (ch) => ch.type === "private" && !ch.isArchived,
   );
-  const directChannels = channels.filter(
+  const allDirectChannels = channels.filter(
     (ch) => ch.type === "direct" || ch.type === "echo",
+  );
+  const directChannels = allDirectChannels.filter(
+    (ch) => ch.showInDmSidebar !== false,
   );
   const archivedChannels = channels.filter((ch) => ch.isArchived);
 
@@ -113,6 +117,7 @@ export function useChannelsByType() {
     publicChannels,
     privateChannels,
     directChannels,
+    allDirectChannels,
     archivedChannels,
     ...rest,
   };
@@ -296,4 +301,44 @@ export function useChannelMembership(channelId: string | undefined) {
     isLoading,
     channel,
   };
+}
+
+/**
+ * Hook to toggle DM/echo channel sidebar visibility
+ */
+export function useSetSidebarVisibility() {
+  const queryClient = useQueryClient();
+  const workspaceId = useSelectedWorkspaceId();
+
+  return useMutation({
+    mutationFn: ({ channelId, show }: { channelId: string; show: boolean }) =>
+      imApi.channels.setSidebarVisibility(channelId, show),
+    onMutate: async ({ channelId, show }) => {
+      await queryClient.cancelQueries({
+        queryKey: ["channels", workspaceId],
+      });
+
+      const previous = queryClient.getQueryData<ChannelWithUnread[]>([
+        "channels",
+        workspaceId,
+      ]);
+
+      queryClient.setQueryData(
+        ["channels", workspaceId],
+        (old: ChannelWithUnread[] | undefined) => {
+          if (!old) return old;
+          return old.map((ch) =>
+            ch.id === channelId ? { ...ch, showInDmSidebar: show } : ch,
+          );
+        },
+      );
+
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["channels", workspaceId], context.previous);
+      }
+    },
+  });
 }
