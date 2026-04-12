@@ -467,7 +467,7 @@ export class MessagesService {
 
   /**
    * Batch-load properties for messages and merge into responses.
-   * Only loads properties with showInChatPolicy !== 'hidden'.
+   * Only loads properties with showInChatPolicy !== 'hide'.
    */
   async mergeProperties(
     messages: MessageResponse[],

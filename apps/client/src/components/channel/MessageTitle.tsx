@@ -3,10 +3,15 @@ export interface MessageTitleProps {
   messageId: string;
 }
 
-export function MessageTitle({ title }: MessageTitleProps) {
+export function MessageTitle({ title, messageId }: MessageTitleProps) {
   if (!title) return null;
 
   return (
-    <div className="font-semibold text-base leading-snug mb-0.5">{title}</div>
+    <div
+      data-message-id={messageId}
+      className="font-semibold text-base leading-snug mb-0.5"
+    >
+      {title}
+    </div>
   );
 }

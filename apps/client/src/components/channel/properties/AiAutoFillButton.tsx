@@ -27,7 +27,7 @@ export function AiAutoFillButton({
     try {
       await aiAutoFillApi.autoFill(messageId, {
         fields,
-        preserveExisting: !!fields,
+        preserveExisting: true,
       });
       // The API returns 202 (accepted) — AI processing happens asynchronously.
       // Cache invalidation is handled by the WS `message_property_changed` event

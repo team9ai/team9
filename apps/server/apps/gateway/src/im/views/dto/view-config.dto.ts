@@ -85,6 +85,7 @@ export class ViewConfigDto {
 
   @IsOptional()
   @IsString()
+  @IsIn(['month', 'week', 'day'])
   defaultCalendarView?: string;
 
   @IsOptional()

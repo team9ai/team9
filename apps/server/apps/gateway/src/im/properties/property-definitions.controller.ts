@@ -109,16 +109,18 @@ export class PropertyDefinitionsController {
       dto.definitionIds,
     );
 
-    // Broadcast so clients know to refetch definitions
-    await this.websocketGateway.sendToChannelMembers(
-      channelId,
-      WS_EVENTS.PROPERTY.DEFINITION_UPDATED,
-      {
+    // Broadcast per-definition so each event carries a valid definitionId
+    for (const definition of result) {
+      await this.websocketGateway.sendToChannelMembers(
         channelId,
-        definitionId: null,
-        changes: { order: { old: null, new: 'reordered' } },
-      },
-    );
+        WS_EVENTS.PROPERTY.DEFINITION_UPDATED,
+        {
+          channelId,
+          definitionId: definition.id,
+          changes: { order: { old: null, new: definition.order } },
+        },
+      );
+    }
 
     return result;
   }
