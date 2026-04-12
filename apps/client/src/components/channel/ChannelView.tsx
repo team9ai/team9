@@ -423,6 +423,7 @@ export function ChannelView({
 
       {/* Thread panel sidebars - up to 2 layers (hidden for direct messages) */}
       {channel?.type !== "direct" &&
+        channel?.type !== "echo" &&
         primaryThread.isOpen &&
         primaryThread.rootMessageId && (
           <ThreadPanel
@@ -435,6 +436,7 @@ export function ChannelView({
           />
         )}
       {channel?.type !== "direct" &&
+        channel?.type !== "echo" &&
         secondaryThread.isOpen &&
         secondaryThread.rootMessageId && (
           <ThreadPanel

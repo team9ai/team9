@@ -103,7 +103,9 @@ export function useChannelsByType() {
   const privateChannels = channels.filter(
     (ch) => ch.type === "private" && !ch.isArchived,
   );
-  const directChannels = channels.filter((ch) => ch.type === "direct");
+  const directChannels = channels.filter(
+    (ch) => ch.type === "direct" || ch.type === "echo",
+  );
   const archivedChannels = channels.filter((ch) => ch.isArchived);
 
   return {

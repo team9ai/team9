@@ -265,6 +265,84 @@ describe('ChannelsService', () => {
     });
   });
 
+  describe('createDirectChannel - echo (self-chat)', () => {
+    it('creates an echo channel when userId1 === userId2 and no existing echo channel', async () => {
+      const addMemberSpy = jest
+        .spyOn(service, 'addMember')
+        .mockResolvedValue(undefined);
+
+      // No existing echo channel found
+      db.limit.mockResolvedValueOnce([] as any);
+      // New echo channel creation
+      db.returning.mockResolvedValueOnce([
+        {
+          id: 'echo-1',
+          tenantId: 'tenant-1',
+          type: 'echo',
+          createdBy: 'user-1',
+        },
+      ] as any);
+
+      const result = await service.createDirectChannel(
+        'user-1',
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(result).toEqual(
+        expect.objectContaining({ id: 'echo-1', type: 'echo' }),
+      );
+      expect(addMemberSpy).toHaveBeenCalledTimes(1);
+      expect(addMemberSpy).toHaveBeenCalledWith('echo-1', 'user-1', 'owner');
+
+      addMemberSpy.mockRestore();
+    });
+
+    it('returns existing echo channel when userId1 === userId2', async () => {
+      const existingEcho = {
+        id: 'echo-existing',
+        tenantId: 'tenant-1',
+        type: 'echo',
+        createdBy: 'user-1',
+      };
+      const addMemberSpy = jest.spyOn(service, 'addMember');
+
+      // Existing echo channel found
+      db.limit.mockResolvedValueOnce([{ channelId: 'echo-existing' }] as any);
+      db.limit.mockResolvedValueOnce([existingEcho] as any);
+
+      const result = await service.createDirectChannel(
+        'user-1',
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(result).toEqual(existingEcho);
+      expect(db.insert).not.toHaveBeenCalled();
+      expect(addMemberSpy).not.toHaveBeenCalled();
+    });
+
+    it('does not call assertDirectMessageAllowed for self-chat', async () => {
+      const assertSpy = jest.spyOn(
+        service as any,
+        'assertDirectMessageAllowed',
+      );
+
+      // No existing echo channel
+      db.limit.mockResolvedValueOnce([] as any);
+      db.returning.mockResolvedValueOnce([
+        { id: 'echo-new', type: 'echo', createdBy: 'user-1' },
+      ] as any);
+      jest.spyOn(service, 'addMember').mockResolvedValue(undefined);
+
+      await service.createDirectChannel('user-1', 'user-1');
+
+      expect(assertSpy).not.toHaveBeenCalled();
+
+      assertSpy.mockRestore();
+    });
+  });
+
   describe('assertMentionsAllowed', () => {
     it('does nothing when no user IDs are provided', async () => {
       await expect(

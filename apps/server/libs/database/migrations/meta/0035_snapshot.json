@@ -1,6 +1,6 @@
 {
-  "id": "122c411e-361d-4de0-8717-9090bb6daa6d",
-  "prevId": "ee340fc1-d946-4e90-980e-5629279d6fee",
+  "id": "a022a20a-67ad-41fa-bd6f-8dfc8366620c",
+  "prevId": "122c411e-361d-4de0-8717-9090bb6daa6d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -6341,7 +6341,7 @@
     "public.channel_type": {
       "name": "channel_type",
       "schema": "public",
-      "values": ["direct", "public", "private", "task", "tracking"]
+      "values": ["direct", "public", "private", "task", "tracking", "echo"]
     },
     "public.file_visibility": {
       "name": "file_visibility",
@@ -6366,7 +6366,7 @@
     "public.message_type": {
       "name": "message_type",
       "schema": "public",
-      "values": ["text", "file", "image", "system", "tracking"]
+      "values": ["text", "file", "image", "system", "tracking", "long_text"]
     },
     "public.ack_status": {
       "name": "ack_status",

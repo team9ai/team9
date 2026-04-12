@@ -103,8 +103,8 @@ export function SearchFilterIn({
   };
 
   const getChannelDisplayName = (channel: (typeof channels)[0]) => {
-    if (channel.type === "direct") {
-      // For DMs, show the other user's name
+    if (channel.type === "direct" || channel.type === "echo") {
+      // For DMs/echo, show the other user's name
       return channel.name || t("directMessage", "Direct Message");
     }
     return channel.name;

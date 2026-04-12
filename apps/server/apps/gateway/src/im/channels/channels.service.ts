@@ -38,7 +38,7 @@ export interface ChannelResponse {
   tenantId: string | null;
   name: string | null;
   description: string | null;
-  type: 'direct' | 'public' | 'private' | 'task' | 'tracking';
+  type: 'direct' | 'public' | 'private' | 'task' | 'tracking' | 'echo';
   avatarUrl: string | null;
   createdBy: string | null;
   sectionId: string | null;
@@ -233,6 +233,11 @@ export class ChannelsService {
     userId2: string,
     tenantId?: string,
   ): Promise<ChannelResponse> {
+    // Self-chat: create or return existing echo channel
+    if (userId1 === userId2) {
+      return this.getOrCreateEchoChannel(userId1, tenantId);
+    }
+
     // Permission check: verify the requester can DM the target
     // (blocks DMs to restricted personal staff bots)
     await this.assertDirectMessageAllowed(userId1, userId2);
@@ -281,6 +286,88 @@ export class ChannelsService {
     await this.addMember(channel.id, userId2, 'member');
 
     return channel;
+  }
+
+  /**
+   * Get or create an echo channel (self-chat) for the given user.
+   * Echo channels have a single member and no notifications.
+   */
+  private async getOrCreateEchoChannel(
+    userId: string,
+    tenantId?: string,
+  ): Promise<ChannelResponse> {
+    // Check if echo channel already exists for this user
+    const existing = await this.db
+      .select({ channelId: schema.channelMembers.channelId })
+      .from(schema.channelMembers)
+      .innerJoin(
+        schema.channels,
+        eq(schema.channels.id, schema.channelMembers.channelId),
+      )
+      .where(
+        and(
+          eq(schema.channels.type, 'echo'),
+          eq(schema.channelMembers.userId, userId),
+          isNull(schema.channelMembers.leftAt),
+          tenantId ? eq(schema.channels.tenantId, tenantId) : undefined,
+        ),
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      const [channel] = await this.db
+        .select()
+        .from(schema.channels)
+        .where(eq(schema.channels.id, existing[0].channelId))
+        .limit(1);
+      return channel;
+    }
+
+    // Create new echo channel (with retry on race condition)
+    try {
+      const [channel] = await this.db
+        .insert(schema.channels)
+        .values({
+          id: uuidv7(),
+          tenantId,
+          type: 'echo',
+          createdBy: userId,
+        })
+        .returning();
+
+      await this.addMember(channel.id, userId, 'owner');
+
+      return channel;
+    } catch {
+      // Race condition: another request created the echo channel concurrently.
+      // Re-query to find it.
+      const [retried] = await this.db
+        .select({ channelId: schema.channelMembers.channelId })
+        .from(schema.channelMembers)
+        .innerJoin(
+          schema.channels,
+          eq(schema.channels.id, schema.channelMembers.channelId),
+        )
+        .where(
+          and(
+            eq(schema.channels.type, 'echo'),
+            eq(schema.channelMembers.userId, userId),
+            isNull(schema.channelMembers.leftAt),
+            tenantId ? eq(schema.channels.tenantId, tenantId) : undefined,
+          ),
+        )
+        .limit(1);
+
+      if (retried) {
+        const [channel] = await this.db
+          .select()
+          .from(schema.channels)
+          .where(eq(schema.channels.id, retried.channelId))
+          .limit(1);
+        return channel;
+      }
+      throw new ConflictException('Failed to create echo channel');
+    }
   }
 
   /**
@@ -474,9 +561,12 @@ export class ChannelsService {
       throw new NotFoundException('Channel not found');
     }
 
-    // For direct channels, fetch the other user's information
-    if (channel.type === 'direct' && userId) {
-      const otherUser = await this.getDmOtherUser(id, userId);
+    // For direct/echo channels, fetch the other user's information
+    if ((channel.type === 'direct' || channel.type === 'echo') && userId) {
+      const otherUser =
+        channel.type === 'echo'
+          ? await this.getUserSummary(userId)
+          : await this.getDmOtherUser(id, userId);
 
       return {
         ...channel,
@@ -571,23 +661,24 @@ export class ChannelsService {
         ),
       );
 
-    // For direct channels, batch-fetch all "other user" info in a single query
+    // For direct/echo channels, batch-fetch "other user" info in a single query
     const directChannelIds = result
       .filter((ch) => ch.type === 'direct')
       .map((ch) => ch.id);
+    const echoChannelIds = result
+      .filter((ch) => ch.type === 'echo')
+      .map((ch) => ch.id);
 
-    const otherUserMap = new Map<
-      string,
-      {
-        id: string;
-        username: string;
-        displayName: string | null;
-        avatarUrl: string | null;
-        status: 'online' | 'offline' | 'away' | 'busy';
-        userType: 'human' | 'bot' | 'system';
-        agentType: AgentType | null;
-      }
-    >();
+    type UserSummary = {
+      id: string;
+      username: string;
+      displayName: string | null;
+      avatarUrl: string | null;
+      status: 'online' | 'offline' | 'away' | 'busy';
+      userType: 'human' | 'bot' | 'system';
+      agentType: AgentType | null;
+    };
+    const otherUserMap = new Map<string, UserSummary>();
 
     if (directChannelIds.length > 0) {
       const allMembers = await this.db
@@ -636,8 +727,18 @@ export class ChannelsService {
       }
     }
 
+    // For echo channels, the "other user" is the current user (self)
+    if (echoChannelIds.length > 0) {
+      const selfSummary = await this.getUserSummary(userId);
+      if (selfSummary) {
+        for (const id of echoChannelIds) {
+          otherUserMap.set(id, selfSummary);
+        }
+      }
+    }
+
     return result.map((channel) => {
-      if (channel.type === 'direct') {
+      if (channel.type === 'direct' || channel.type === 'echo') {
         return {
           ...channel,
           otherUser: otherUserMap.get(channel.id),
@@ -645,6 +746,38 @@ export class ChannelsService {
       }
       return channel;
     });
+  }
+
+  /**
+   * Get a user's summary info for echo channel display.
+   */
+  private async getUserSummary(userId: string): Promise<{
+    id: string;
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+    status: 'online' | 'offline' | 'away' | 'busy';
+    userType: 'human' | 'bot' | 'system';
+    agentType: AgentType | null;
+  } | null> {
+    const [user] = await this.db
+      .select({
+        userId: schema.users.id,
+        username: schema.users.username,
+        displayName: schema.users.displayName,
+        avatarUrl: schema.users.avatarUrl,
+        status: schema.users.status,
+        userType: schema.users.userType,
+        applicationId: sql<string | null>`NULL`,
+        managedProvider: sql<string | null>`NULL`,
+        managedMeta: sql<Record<string, unknown> | null>`NULL`,
+      })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+
+    if (!user) return null;
+    return this.mapChannelUserSummary(user);
   }
 
   /**
@@ -971,7 +1104,7 @@ export class ChannelsService {
     if (!channel) {
       throw new NotFoundException('Channel not found');
     }
-    if (channel.type === 'direct') {
+    if (channel.type === 'direct' || channel.type === 'echo') {
       throw new ForbiddenException('Cannot archive direct message channels');
     }
 
@@ -1181,7 +1314,7 @@ export class ChannelsService {
       throw new NotFoundException('Channel not found');
     }
 
-    if (channel.type === 'direct') {
+    if (channel.type === 'direct' || channel.type === 'echo') {
       throw new ForbiddenException('Cannot delete direct message channels');
     }
 

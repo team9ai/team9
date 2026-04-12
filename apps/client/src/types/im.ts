@@ -1,6 +1,12 @@
 // IM Types matching gateway API
 
-export type ChannelType = "direct" | "public" | "private" | "task" | "tracking";
+export type ChannelType =
+  | "direct"
+  | "public"
+  | "private"
+  | "task"
+  | "tracking"
+  | "echo";
 export type MessageType =
   | "text"
   | "file"

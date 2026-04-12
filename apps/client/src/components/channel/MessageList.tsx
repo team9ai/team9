@@ -567,7 +567,7 @@ export function MessageList({
             onReplyCountClick={() => openThread(message.id)}
             isHighlighted={isHighlighted}
             channelId={channelId}
-            isDirect={channelType === "direct"}
+            isDirect={channelType === "direct" || channelType === "echo"}
             editingMessageId={editingMessageId}
             isEditSaving={updateMessage.isPending}
             onEditStart={handleEditStart}
