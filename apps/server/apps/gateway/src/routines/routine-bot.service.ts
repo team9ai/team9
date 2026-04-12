@@ -21,6 +21,7 @@ import type { WebsocketGateway } from '../im/websocket/websocket.gateway.js';
 import type { ReportStepsDto } from './dto/report-steps.dto.js';
 import type { CreateInterventionDto } from './dto/create-intervention.dto.js';
 import type { UpdateRoutineDto } from './dto/update-routine.dto.js';
+import type { CreateRoutineDto } from './dto/create-routine.dto.js';
 import { TaskCastService } from './taskcast.service.js';
 import { DocumentsService } from '../documents/documents.service.js';
 import { RoutineTriggersService } from './routine-triggers.service.js';
@@ -406,18 +407,7 @@ export class RoutineBotService {
    * the bot's mentorId (personal staff) or ownerId.
    */
   async createRoutine(
-    dto: {
-      title: string;
-      documentContent?: string;
-      description?: string;
-      botId?: string;
-      status?: 'draft' | 'upcoming';
-      triggers?: Array<{
-        type: string;
-        config: Record<string, unknown>;
-        enabled?: boolean;
-      }>;
-    },
+    dto: CreateRoutineDto,
     botUserId: string,
     tenantId: string,
   ) {
@@ -468,12 +458,9 @@ export class RoutineBotService {
       }
     }
 
+    const createDto = { ...dto, botId, status: dto.status ?? 'upcoming' };
     return this.routinesService.create(
-      {
-        ...dto,
-        botId,
-        status: dto.status ?? 'upcoming',
-      },
+      createDto as CreateRoutineDto,
       creatorId,
       tenantId,
     );
