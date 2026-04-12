@@ -235,6 +235,7 @@ export class AiAutoFillService {
             messageId,
             toSet,
             userId,
+            { skipAudit: true },
           );
         }
 

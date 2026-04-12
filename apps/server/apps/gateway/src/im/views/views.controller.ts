@@ -113,9 +113,14 @@ export class ViewsController {
 
   @Get(':viewId/messages')
   async queryMessages(
+    @Param('channelId', ParseUUIDPipe) channelId: string,
     @Param('viewId', ParseUUIDPipe) viewId: string,
     @Query() query: QueryViewMessagesDto,
   ) {
+    const view = await this.viewsService.findByIdOrThrow(viewId);
+    if (view.channelId !== channelId) {
+      throw new NotFoundException('View not found');
+    }
     return this.viewsService.queryMessages(viewId, {
       limit: query.limit,
       cursor: query.cursor,

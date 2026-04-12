@@ -255,6 +255,7 @@ export class MessagePropertiesService {
     messageId: string,
     properties: { key: string; value: unknown }[],
     userId: string | null,
+    opts?: { skipAudit?: boolean },
   ): Promise<void> {
     if (properties.length === 0) return;
 
@@ -369,22 +370,25 @@ export class MessagePropertiesService {
 
     // Phase 3: Write audit logs after the transaction commits
     // (auditService uses its own DB connection, so we avoid holding the tx open)
-    for (const entry of auditEntries) {
-      await this.auditService.log({
-        channelId: message.channelId,
-        entityType: 'message',
-        entityId: messageId,
-        action: entry.action,
-        changes: {
-          [entry.key]: { old: entry.oldValue, new: entry.newValue },
-        },
-        performedBy: effectiveUserId,
-        metadata: {
-          definitionId: entry.definitionId,
-          valueType: entry.valueType,
-          batch: true,
-        },
-      });
+    // Skip if caller handles its own audit logging (e.g., AI auto-fill)
+    if (!opts?.skipAudit) {
+      for (const entry of auditEntries) {
+        await this.auditService.log({
+          channelId: message.channelId,
+          entityType: 'message',
+          entityId: messageId,
+          action: entry.action,
+          changes: {
+            [entry.key]: { old: entry.oldValue, new: entry.newValue },
+          },
+          performedBy: effectiveUserId,
+          metadata: {
+            definitionId: entry.definitionId,
+            valueType: entry.valueType,
+            batch: true,
+          },
+        });
+      }
     }
 
     // Single WebSocket broadcast for the entire batch
