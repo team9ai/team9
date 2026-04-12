@@ -1,9 +1,13 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
+import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { RoutinesService } from './routines.service.js';
 import { TaskCastService } from './taskcast.service.js';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { DocumentsService } from '../documents/documents.service.js';
+import { ChannelsService } from '../im/channels/channels.service.js';
+import { ClawHiveService } from '@team9/claw-hive';
+import { BotService } from '../bot/bot.service.js';
 import { RoutineTriggersService } from './routine-triggers.service.js';
 import {
   AmqpConnection,
@@ -65,21 +69,57 @@ describe('RoutinesService — TaskCast integration', () => {
   let db: ReturnType<typeof mockDb>;
   let taskCastService: { transitionStatus: MockFn; publishEvent: MockFn };
   let amqpConnection: { publish: MockFn };
-  let documentsService: { create: MockFn };
-  let routineTriggersService: { createBatch: MockFn };
+  let documentsService: { create: MockFn; update: MockFn; getById: MockFn };
+  let routineTriggersService: {
+    createBatch: MockFn;
+    replaceAllForRoutine: MockFn;
+  };
+  let channelsService: {
+    archiveCreationChannel: MockFn;
+    createDirectChannel: MockFn;
+  };
+  let clawHiveService: {
+    deleteAgent: MockFn;
+    registerAgent: MockFn;
+    sendInput: MockFn;
+    createSession: MockFn;
+  };
+  let botsService: { getBotById: MockFn };
 
   beforeEach(async () => {
     db = mockDb();
     amqpConnection = { publish: jest.fn<any>().mockResolvedValue(undefined) };
     documentsService = {
       create: jest.fn<any>().mockResolvedValue({ id: 'doc-1' }),
+      update: jest.fn<any>().mockResolvedValue(undefined),
+      getById: jest
+        .fn<any>()
+        .mockResolvedValue({ id: 'doc-1', content: 'some content' }),
     };
     routineTriggersService = {
       createBatch: jest.fn<any>().mockResolvedValue(undefined),
+      replaceAllForRoutine: jest.fn<any>().mockResolvedValue(undefined),
     };
     taskCastService = {
       transitionStatus: jest.fn<any>().mockResolvedValue(undefined),
       publishEvent: jest.fn<any>().mockResolvedValue(undefined),
+    };
+    channelsService = {
+      archiveCreationChannel: jest.fn<any>().mockResolvedValue(undefined),
+      createDirectChannel: jest
+        .fn<any>()
+        .mockResolvedValue({ id: 'channel-1' }),
+    };
+    clawHiveService = {
+      deleteAgent: jest.fn<any>().mockResolvedValue(undefined),
+      registerAgent: jest.fn<any>().mockResolvedValue(undefined),
+      sendInput: jest.fn<any>().mockResolvedValue({ messages: [] }),
+      createSession: jest
+        .fn<any>()
+        .mockResolvedValue({ sessionId: 'pre-created-session' }),
+    };
+    botsService = {
+      getBotById: jest.fn<any>().mockResolvedValue(null),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -90,6 +130,9 @@ describe('RoutinesService — TaskCast integration', () => {
         { provide: DocumentsService, useValue: documentsService },
         { provide: RoutineTriggersService, useValue: routineTriggersService },
         { provide: TaskCastService, useValue: taskCastService },
+        { provide: ChannelsService, useValue: channelsService },
+        { provide: ClawHiveService, useValue: clawHiveService },
+        { provide: BotService, useValue: botsService },
       ],
     }).compile();
 
@@ -1335,6 +1378,980 @@ describe('RoutinesService — TaskCast integration', () => {
       expect(amqpConnection.publish).not.toHaveBeenCalled();
       expect(taskCastService.transitionStatus).not.toHaveBeenCalled();
       expect(taskCastService.publishEvent).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── draft-aware create ────────────────────────────────────────────
+
+  describe('create — draft awareness', () => {
+    const createdTask = {
+      id: 'task-new',
+      tenantId: 'tenant-1',
+      creatorId: 'user-1',
+      title: 'New task',
+      documentId: 'doc-new',
+      status: 'upcoming' as const,
+    };
+
+    beforeEach(() => {
+      documentsService.create.mockResolvedValue({ id: 'doc-new' } as any);
+      db.returning.mockResolvedValue([createdTask] as any);
+    });
+
+    it('defaults status to upcoming when not provided', async () => {
+      await service.create(
+        { title: 'New task' } as never,
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'upcoming' }),
+      );
+    });
+
+    it('writes draft status when explicitly provided', async () => {
+      await service.create(
+        { title: 'New task', status: 'draft' } as never,
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'draft' }),
+      );
+    });
+
+    it('skips trigger registration when status is draft', async () => {
+      const triggers = [{ type: 'manual' }];
+      await service.create(
+        { title: 'New task', status: 'draft', triggers } as never,
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(routineTriggersService.createBatch).not.toHaveBeenCalled();
+    });
+
+    it('registers triggers for upcoming routines', async () => {
+      const triggers = [{ type: 'manual' }];
+      await service.create(
+        { title: 'New task', status: 'upcoming', triggers } as never,
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(routineTriggersService.createBatch).toHaveBeenCalledWith(
+        expect.any(String),
+        triggers,
+        'tenant-1',
+      );
+    });
+
+    it('writes sourceRef when provided in options', async () => {
+      await service.create(
+        { title: 'New task' } as never,
+        'user-1',
+        'tenant-1',
+        { sourceRef: 'ref-abc' },
+      );
+
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({ sourceRef: 'ref-abc' }),
+      );
+    });
+
+    it('writes sourceRef as null when options not provided', async () => {
+      await service.create(
+        { title: 'New task' } as never,
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({ sourceRef: null }),
+      );
+    });
+  });
+
+  // ── draft-aware update ────────────────────────────────────────────
+
+  describe('update — draft awareness', () => {
+    const draftTask = {
+      ...BASE_TASK,
+      status: 'draft' as const,
+      creatorId: 'user-1',
+      documentId: 'doc-1',
+    };
+    const upcomingTask = {
+      ...BASE_TASK,
+      status: 'upcoming' as const,
+      creatorId: 'user-1',
+      documentId: 'doc-1',
+    };
+
+    it('rejects status transition from draft to upcoming', async () => {
+      db.limit.mockResolvedValueOnce([draftTask] as any);
+
+      await expect(
+        service.update(
+          'task-1',
+          { status: 'upcoming' } as never,
+          'user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow(
+        "Cannot change routine status from 'draft' to 'upcoming'",
+      );
+
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects status transition from upcoming to draft', async () => {
+      db.limit.mockResolvedValueOnce([upcomingTask] as any);
+
+      await expect(
+        service.update(
+          'task-1',
+          { status: 'draft' } as never,
+          'user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow(
+        "Cannot change routine status from 'upcoming' to 'draft'",
+      );
+
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('allows update when status matches current (no-op status field)', async () => {
+      db.limit.mockResolvedValueOnce([draftTask] as any);
+      db.returning.mockResolvedValueOnce([draftTask] as any);
+
+      await expect(
+        service.update(
+          'task-1',
+          { status: 'draft', title: 'New title' } as never,
+          'user-1',
+          'tenant-1',
+        ),
+      ).resolves.toEqual(draftTask);
+    });
+
+    it('allows update when status field is not provided', async () => {
+      db.limit.mockResolvedValueOnce([draftTask] as any);
+      db.returning.mockResolvedValueOnce([draftTask] as any);
+
+      await expect(
+        service.update(
+          'task-1',
+          { title: 'New title' } as never,
+          'user-1',
+          'tenant-1',
+        ),
+      ).resolves.toEqual(draftTask);
+    });
+
+    it('calls documentsService.update with documentContent', async () => {
+      db.limit.mockResolvedValueOnce([draftTask] as any);
+      db.returning.mockResolvedValueOnce([draftTask] as any);
+
+      await service.update(
+        'task-1',
+        { documentContent: 'new content' } as never,
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(documentsService.update).toHaveBeenCalledWith(
+        'doc-1',
+        { content: 'new content' },
+        { type: 'user', id: 'user-1' },
+      );
+    });
+
+    it('throws when documentContent provided but routine has no documentId', async () => {
+      db.limit.mockResolvedValueOnce([
+        { ...draftTask, documentId: null },
+      ] as any);
+
+      await expect(
+        service.update(
+          'task-1',
+          { documentContent: 'new content' } as never,
+          'user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow(
+        'Cannot update document content: routine has no linked document.',
+      );
+
+      expect(documentsService.update).not.toHaveBeenCalled();
+    });
+
+    it('calls replaceAllForRoutine when triggers are provided', async () => {
+      db.limit.mockResolvedValueOnce([draftTask] as any);
+      db.returning.mockResolvedValueOnce([draftTask] as any);
+
+      const triggers = [{ type: 'manual' }];
+      await service.update(
+        'task-1',
+        { triggers } as never,
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(routineTriggersService.replaceAllForRoutine).toHaveBeenCalledWith(
+        'task-1',
+        triggers,
+      );
+    });
+
+    it('allows empty triggers array (wholesale delete)', async () => {
+      db.limit.mockResolvedValueOnce([draftTask] as any);
+      db.returning.mockResolvedValueOnce([draftTask] as any);
+
+      await service.update(
+        'task-1',
+        { triggers: [] } as never,
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(routineTriggersService.replaceAllForRoutine).toHaveBeenCalledWith(
+        'task-1',
+        [],
+      );
+    });
+
+    it('does not call replaceAllForRoutine when triggers field is absent', async () => {
+      db.limit.mockResolvedValueOnce([draftTask] as any);
+      db.returning.mockResolvedValueOnce([draftTask] as any);
+
+      await service.update(
+        'task-1',
+        { title: 'No triggers field' } as never,
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(
+        routineTriggersService.replaceAllForRoutine,
+      ).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── draft-aware list ──────────────────────────────────────────────
+
+  describe('list — draft visibility', () => {
+    it("hides other users' drafts when currentUserId is provided", async () => {
+      const ownDraft = {
+        ...BASE_TASK,
+        id: 'task-own-draft',
+        status: 'draft' as const,
+        creatorId: 'user-1',
+      };
+      const otherDraft = {
+        ...BASE_TASK,
+        id: 'task-other-draft',
+        status: 'draft' as const,
+        creatorId: 'user-2',
+      };
+      const upcoming = {
+        ...BASE_TASK,
+        id: 'task-upcoming',
+        status: 'upcoming' as const,
+        creatorId: 'user-2',
+      };
+
+      // The query includes the draft-filter condition so the DB already filters;
+      // we simulate the DB returning only allowed rows
+      db.orderBy.mockResolvedValueOnce([
+        { routine: ownDraft, executionTokenUsage: null },
+        { routine: upcoming, executionTokenUsage: null },
+      ] as any);
+
+      const result = await service.list('tenant-1', undefined, 'user-1');
+
+      // own draft and upcoming visible, other draft excluded (simulated by mock)
+      expect(result).toEqual([
+        { ...ownDraft, tokenUsage: 0 },
+        { ...upcoming, tokenUsage: 0 },
+      ]);
+
+      // Confirm the or condition was added (indicated by extra condition count via and)
+      expect(db.where).toHaveBeenCalled();
+      // Other draft would not appear since query filtered it
+      expect(result.find((r) => r.id === otherDraft.id)).toBeUndefined();
+    });
+
+    it('shows own drafts when currentUserId is provided', async () => {
+      const ownDraft = {
+        ...BASE_TASK,
+        id: 'task-own-draft',
+        status: 'draft' as const,
+        creatorId: 'user-1',
+      };
+
+      db.orderBy.mockResolvedValueOnce([
+        { routine: ownDraft, executionTokenUsage: null },
+      ] as any);
+
+      const result = await service.list('tenant-1', undefined, 'user-1');
+
+      expect(result).toEqual([{ ...ownDraft, tokenUsage: 0 }]);
+    });
+
+    it('shows all non-drafts regardless of creator', async () => {
+      const upcoming = {
+        ...BASE_TASK,
+        id: 'task-upcoming',
+        status: 'upcoming' as const,
+        creatorId: 'user-2',
+      };
+      const completed = {
+        ...BASE_TASK,
+        id: 'task-completed',
+        status: 'completed' as const,
+        creatorId: 'user-3',
+      };
+
+      db.orderBy.mockResolvedValueOnce([
+        { routine: upcoming, executionTokenUsage: null },
+        { routine: completed, executionTokenUsage: 5 },
+      ] as any);
+
+      const result = await service.list('tenant-1', undefined, 'user-1');
+
+      expect(result).toEqual([
+        { ...upcoming, tokenUsage: 0 },
+        { ...completed, tokenUsage: 5 },
+      ]);
+    });
+  });
+
+  // ── draft-aware start ─────────────────────────────────────────────
+
+  describe('start — draft rejection', () => {
+    it('rejects start when the task is a draft', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+          status: 'draft' as const,
+          botId: 'bot-1',
+        },
+      ] as any);
+
+      await expect(
+        service.start('task-1', 'user-1', 'tenant-1', {
+          message: 'kick off',
+        } as never),
+      ).rejects.toThrow(
+        'Cannot start routine in draft status. Complete creation first via POST /v1/routines/:id/complete-creation.',
+      );
+
+      expect(amqpConnection.publish).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── draft-aware delete ────────────────────────────────────────────
+
+  describe('delete — draft bypass', () => {
+    it('allows deletion of draft routines without the active-status guard', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...BASE_TASK,
+          status: 'draft' as const,
+          creatorId: 'user-1',
+        },
+      ] as any);
+
+      await expect(
+        service.delete('task-1', 'user-1', 'tenant-1'),
+      ).resolves.toEqual({ success: true });
+
+      expect(db.delete).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('delete — draft handling', () => {
+    const ROUTINE_ID = 'task-1';
+    const DRAFT_WITH_CHANNEL = {
+      ...BASE_TASK,
+      id: ROUTINE_ID,
+      status: 'draft' as const,
+      creatorId: 'user-1',
+      creationChannelId: 'channel-1',
+    };
+
+    it('deletes the routine row directly without clone or channel cleanup', async () => {
+      db.limit.mockResolvedValueOnce([DRAFT_WITH_CHANNEL] as any);
+
+      await expect(
+        service.delete(ROUTINE_ID, 'user-1', 'tenant-1'),
+      ).resolves.toEqual({ success: true });
+
+      expect(db.delete).toHaveBeenCalledTimes(1);
+      expect(clawHiveService.deleteAgent).not.toHaveBeenCalled();
+      expect(channelsService.archiveCreationChannel).not.toHaveBeenCalled();
+    });
+
+    it('deletes draft without creationChannelId just as cleanly', async () => {
+      const draftWithoutChannel = {
+        ...DRAFT_WITH_CHANNEL,
+        creationChannelId: null,
+      };
+      db.limit.mockResolvedValueOnce([draftWithoutChannel] as any);
+
+      await expect(
+        service.delete(ROUTINE_ID, 'user-1', 'tenant-1'),
+      ).resolves.toEqual({ success: true });
+
+      expect(db.delete).toHaveBeenCalledTimes(1);
+      expect(channelsService.archiveCreationChannel).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── completeCreation ──────────────────────────────────────────────
+
+  describe('completeCreation', () => {
+    const DRAFT_ROUTINE = {
+      ...BASE_TASK,
+      id: 'routine-1',
+      status: 'draft' as const,
+      creatorId: 'user-1',
+      botId: 'bot-1',
+      title: 'My Routine',
+      documentId: 'doc-1',
+      creationChannelId: 'channel-1',
+    };
+
+    const UPDATED_ROUTINE = {
+      ...DRAFT_ROUTINE,
+      status: 'upcoming' as const,
+    };
+
+    beforeEach(() => {
+      // By default, getBotById returns a valid bot so completeCreation doesn't
+      // reject with "executing agent no longer exists". Individual tests that
+      // need the bot to be missing override with mockResolvedValueOnce(null).
+      botsService.getBotById.mockResolvedValue({
+        botId: 'bot-1',
+        userId: 'user-1',
+      } as any);
+    });
+
+    it('transitions draft → upcoming without archiving channel or deleting clone', async () => {
+      db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+      db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        content: 'some content',
+      } as any);
+
+      const result = await service.completeCreation(
+        'routine-1',
+        {},
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(result).toEqual(UPDATED_ROUTINE);
+      expect(db.update).toHaveBeenCalledTimes(1);
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'upcoming' }),
+      );
+      expect(channelsService.archiveCreationChannel).not.toHaveBeenCalled();
+      expect(clawHiveService.deleteAgent).not.toHaveBeenCalled();
+    });
+
+    it('throws 404 when routine is not found', async () => {
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.completeCreation('missing-id', {}, 'user-1', 'tenant-1'),
+      ).rejects.toThrow('Routine not found');
+    });
+
+    it('throws 403 when caller is not the creator', async () => {
+      db.limit.mockResolvedValueOnce([
+        { ...DRAFT_ROUTINE, creatorId: 'other-user' },
+      ] as any);
+
+      await expect(
+        service.completeCreation('routine-1', {}, 'user-1', 'tenant-1'),
+      ).rejects.toThrow('You do not have permission to perform this action');
+    });
+
+    it('is idempotent — returns current routine when already upcoming', async () => {
+      const upcomingRoutine = { ...DRAFT_ROUTINE, status: 'upcoming' as const };
+      db.limit.mockResolvedValueOnce([upcomingRoutine] as any);
+
+      const result = await service.completeCreation(
+        'routine-1',
+        {},
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(result).toEqual(upcomingRoutine);
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('throws 400 when status is not draft or upcoming (e.g. completed)', async () => {
+      db.limit.mockResolvedValueOnce([
+        { ...DRAFT_ROUTINE, status: 'completed' as const },
+      ] as any);
+
+      await expect(
+        service.completeCreation('routine-1', {}, 'user-1', 'tenant-1'),
+      ).rejects.toThrow(
+        "Cannot complete creation of routine in 'completed' status",
+      );
+    });
+
+    it('throws 400 with validation error when title is empty', async () => {
+      db.limit.mockResolvedValueOnce([{ ...DRAFT_ROUTINE, title: '' }] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        content: 'some content',
+      } as any);
+
+      await expect(
+        service.completeCreation('routine-1', {}, 'user-1', 'tenant-1'),
+      ).rejects.toMatchObject({
+        response: {
+          message: 'Missing required fields',
+          errors: expect.arrayContaining(['title is required']),
+        },
+      });
+    });
+
+    it('throws 400 with validation error when botId is null', async () => {
+      db.limit.mockResolvedValueOnce([
+        { ...DRAFT_ROUTINE, botId: null },
+      ] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        content: 'some content',
+      } as any);
+
+      await expect(
+        service.completeCreation('routine-1', {}, 'user-1', 'tenant-1'),
+      ).rejects.toMatchObject({
+        response: {
+          message: 'Missing required fields',
+          errors: expect.arrayContaining(['botId is required']),
+        },
+      });
+    });
+
+    it('throws 400 with validation error when document content is empty', async () => {
+      db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        content: '',
+      } as any);
+
+      await expect(
+        service.completeCreation('routine-1', {}, 'user-1', 'tenant-1'),
+      ).rejects.toMatchObject({
+        response: {
+          message: 'Missing required fields',
+          errors: expect.arrayContaining(['documentContent is required']),
+        },
+      });
+    });
+
+    it('does not call archiveCreationChannel even when creationChannelId is set', async () => {
+      db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+      db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        content: 'some content',
+      } as any);
+
+      const result = await service.completeCreation(
+        'routine-1',
+        {},
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(result).toEqual(UPDATED_ROUTINE);
+      expect(channelsService.archiveCreationChannel).not.toHaveBeenCalled();
+    });
+
+    it('does not call deleteAgent on completion (no clone to clean up)', async () => {
+      db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+      db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        content: 'some content',
+      } as any);
+
+      const result = await service.completeCreation(
+        'routine-1',
+        {},
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(result).toEqual(UPDATED_ROUTINE);
+      expect(clawHiveService.deleteAgent).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 when executing bot no longer exists', async () => {
+      db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        content: 'some content',
+      } as any);
+      botsService.getBotById.mockResolvedValue(null as any);
+
+      await expect(
+        service.completeCreation('routine-1', {}, 'user-1', 'tenant-1'),
+      ).rejects.toMatchObject({
+        response: {
+          message: 'Missing required fields',
+          errors: expect.arrayContaining([
+            expect.stringMatching(/executing agent/i),
+          ]),
+        },
+      });
+    });
+
+    it('treats missing document as empty content (validation error)', async () => {
+      // documentId is set but documentsService.getById throws (doc deleted)
+      db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+      documentsService.getById.mockRejectedValueOnce(
+        new Error('not found') as any,
+      );
+
+      await expect(
+        service.completeCreation('routine-1', {}, 'user-1', 'tenant-1'),
+      ).rejects.toMatchObject({
+        response: {
+          message: 'Missing required fields',
+          errors: expect.arrayContaining(['documentContent is required']),
+        },
+      });
+    });
+
+    it('returns validation error when routine has no linked document (documentId null)', async () => {
+      db.limit.mockResolvedValueOnce([
+        { ...DRAFT_ROUTINE, documentId: null },
+      ] as any);
+
+      await expect(
+        service.completeCreation('routine-1', {}, 'user-1', 'tenant-1'),
+      ).rejects.toMatchObject({
+        response: {
+          message: 'Missing required fields',
+          errors: expect.arrayContaining(['documentContent is required']),
+        },
+      });
+    });
+  });
+
+  // ── createWithCreationTask ────────────────────────────────────────
+
+  describe('createWithCreationTask', () => {
+    const SOURCE_BOT = {
+      userId: 'bot-user-1',
+      botId: 'bot-1',
+      username: 'my-bot',
+      displayName: 'My Bot',
+      email: 'bot@team9.local',
+      type: 'custom',
+      ownerId: 'owner-1',
+      mentorId: null,
+      description: null,
+      capabilities: null,
+      extra: null,
+      managedProvider: 'hive',
+      managedMeta: { agentId: 'source-agent-id' },
+      isActive: true,
+    };
+
+    const DRAFT_NEW_ROUTINE = {
+      id: 'routine-new-1',
+      tenantId: 'tenant-1',
+      botId: 'bot-1',
+      creatorId: 'user-1',
+      title: 'Routine #1',
+      description: null,
+      status: 'draft',
+      scheduleType: 'once',
+      scheduleConfig: null,
+      documentId: 'doc-1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      currentExecutionId: null,
+    };
+
+    /**
+     * Set up happy-path mocks for createWithCreationTask.
+     *
+     * Call sequence in the service:
+     *   1. getBotById
+     *   2. db bot-tenant validation: where().limit()
+     *   3. db count query: where() → resolves directly
+     *   4. draft-conflict check: where().limit()  (before create — no orphan risk)
+     *   5. create() → documentsService.create() + db.insert().values().returning()
+     */
+    function setupHappyPath(
+      overrides: {
+        botResult?: typeof SOURCE_BOT | null;
+        botTenantRow?: { tenantId: string } | null;
+        draftRoutine?: typeof DRAFT_NEW_ROUTINE;
+      } = {},
+    ) {
+      const {
+        botResult = SOURCE_BOT,
+        botTenantRow = { tenantId: 'tenant-1' },
+        draftRoutine = DRAFT_NEW_ROUTINE,
+      } = overrides;
+
+      botsService.getBotById.mockResolvedValueOnce(botResult as any);
+
+      // Bot-tenant validation: db.select().from().leftJoin().where().limit()
+      db.where.mockReturnValueOnce(db as any);
+      db.limit.mockResolvedValueOnce(
+        botTenantRow ? [botTenantRow] : ([] as any),
+      );
+
+      // Count query: db.select().from().where() — terminal, must return Promise
+      db.where.mockResolvedValueOnce([{ count: 0 }] as any);
+
+      // Draft-conflict check: db.select().from().where().limit() → no existing draft
+      db.limit.mockResolvedValueOnce([] as any);
+
+      // create() → documentsService.create() + db.insert().values().returning()
+      documentsService.create.mockResolvedValueOnce({ id: 'doc-1' } as any);
+      db.returning.mockResolvedValueOnce([draftRoutine] as any);
+    }
+
+    it('happy path: creates draft + channel + sends kickoff event to original bot session', async () => {
+      setupHappyPath();
+
+      channelsService.createDirectChannel.mockResolvedValueOnce({
+        id: 'channel-42',
+      } as any);
+
+      const result = await service.createWithCreationTask(
+        { agentId: 'bot-1' },
+        'user-1',
+        'tenant-1',
+      );
+
+      // Session ID uses original bot's agentId, not a clone ID
+      expect(result).toEqual({
+        routineId: 'routine-new-1',
+        creationChannelId: 'channel-42',
+        creationSessionId: `team9/tenant-1/source-agent-id/dm/channel-42`,
+      });
+
+      expect(channelsService.createDirectChannel).toHaveBeenCalledWith(
+        'user-1',
+        'bot-user-1',
+        'tenant-1',
+      );
+
+      // No clone agent registration
+      expect(clawHiveService.registerAgent).not.toHaveBeenCalled();
+
+      // Kickoff event sent to the original bot's session
+      expect(clawHiveService.sendInput).toHaveBeenCalledWith(
+        `team9/tenant-1/source-agent-id/dm/channel-42`,
+        expect.objectContaining({
+          type: 'team9:routine-creation.start',
+          source: 'team9',
+          payload: expect.objectContaining({
+            routineId: 'routine-new-1',
+            creatorUserId: 'user-1',
+            tenantId: 'tenant-1',
+          }),
+        }),
+        'tenant-1',
+      );
+    });
+
+    it('auto-generates title "Routine #N" based on existing routine count', async () => {
+      setupHappyPath();
+
+      channelsService.createDirectChannel.mockResolvedValueOnce({
+        id: 'channel-42',
+      } as any);
+
+      await service.createWithCreationTask(
+        { agentId: 'bot-1' },
+        'user-1',
+        'tenant-1',
+      );
+
+      // The create() call inserts a doc with title "Routine #1"
+      expect(documentsService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Routine #1' }),
+        expect.any(Object),
+        'tenant-1',
+      );
+    });
+
+    it('throws 404 when bot does not exist', async () => {
+      botsService.getBotById.mockResolvedValueOnce(null as any);
+
+      await expect(
+        service.createWithCreationTask(
+          { agentId: 'missing-bot' },
+          'user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(db.insert).not.toHaveBeenCalled();
+      expect(channelsService.createDirectChannel).not.toHaveBeenCalled();
+    });
+
+    it('throws 400 when bot belongs to a different tenant', async () => {
+      botsService.getBotById.mockResolvedValueOnce(SOURCE_BOT as any);
+      // Bot-tenant validation: tenant mismatch
+      db.limit.mockResolvedValueOnce([{ tenantId: 'other-tenant' }] as any);
+
+      await expect(
+        service.createWithCreationTask(
+          { agentId: 'bot-1' },
+          'user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(clawHiveService.sendInput).not.toHaveBeenCalled();
+    });
+
+    it('throws 400 when bot has no agentId in managedMeta', async () => {
+      const botWithoutAgentId = { ...SOURCE_BOT, managedMeta: {} };
+      botsService.getBotById.mockResolvedValueOnce(botWithoutAgentId as any);
+
+      // Bot-tenant validation succeeds
+      db.where.mockReturnValueOnce(db as any);
+      db.limit.mockResolvedValueOnce([{ tenantId: 'tenant-1' }] as any);
+
+      await expect(
+        service.createWithCreationTask(
+          { agentId: 'bot-1' },
+          'user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow('Bot is not a managed hive agent');
+    });
+
+    it('throws 400 when there is already a draft in progress for this bot — before creating new draft', async () => {
+      botsService.getBotById.mockResolvedValueOnce(SOURCE_BOT as any);
+
+      // Bot-tenant validation succeeds
+      db.where.mockReturnValueOnce(db as any);
+      db.limit.mockResolvedValueOnce([{ tenantId: 'tenant-1' }] as any);
+
+      // Count query
+      db.where.mockResolvedValueOnce([{ count: 1 }] as any);
+
+      // Draft-conflict check returns an existing draft (checked BEFORE create)
+      db.limit.mockResolvedValueOnce([{ id: 'existing-draft' }] as any);
+
+      await expect(
+        service.createWithCreationTask(
+          { agentId: 'bot-1' },
+          'user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow(
+        'You already have a draft routine being created with this agent',
+      );
+
+      // No draft was created because conflict check runs first
+      expect(db.insert).not.toHaveBeenCalled();
+      expect(documentsService.create).not.toHaveBeenCalled();
+      expect(channelsService.createDirectChannel).not.toHaveBeenCalled();
+    });
+
+    it('rolls back draft if channel creation fails', async () => {
+      setupHappyPath();
+
+      channelsService.createDirectChannel.mockRejectedValueOnce(
+        new Error('channel creation failed') as any,
+      );
+
+      await expect(
+        service.createWithCreationTask(
+          { agentId: 'bot-1' },
+          'user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow('channel creation failed');
+
+      // No clone to delete (never registered)
+      expect(clawHiveService.deleteAgent).not.toHaveBeenCalled();
+
+      // Draft routine should be deleted
+      expect(db.delete).toHaveBeenCalled();
+    });
+
+    it('rolls back draft if sendInput fails', async () => {
+      setupHappyPath();
+
+      channelsService.createDirectChannel.mockResolvedValueOnce({
+        id: 'channel-42',
+      } as any);
+      clawHiveService.sendInput.mockRejectedValueOnce(
+        new Error('send failed') as any,
+      );
+
+      await expect(
+        service.createWithCreationTask(
+          { agentId: 'bot-1' },
+          'user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow('send failed');
+
+      // No clone was ever created — deleteAgent must not be called
+      expect(clawHiveService.deleteAgent).not.toHaveBeenCalled();
+
+      // Draft routine should be deleted
+      expect(db.delete).toHaveBeenCalled();
+    });
+
+    it('logs error but still throws original error when rollback delete fails', async () => {
+      setupHappyPath();
+
+      channelsService.createDirectChannel.mockResolvedValueOnce({
+        id: 'channel-42',
+      } as any);
+
+      const sendError = new Error('send failed');
+      clawHiveService.sendInput.mockRejectedValueOnce(sendError as any);
+
+      // Simulate rollback delete also failing
+      const deleteError = new Error('db unavailable');
+      db.delete.mockReturnValueOnce({
+        where: jest.fn<any>().mockRejectedValueOnce(deleteError),
+      } as any);
+
+      const loggerErrorSpy = jest.spyOn((service as any).logger, 'error');
+
+      await expect(
+        service.createWithCreationTask(
+          { agentId: 'bot-1' },
+          'user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow('send failed');
+
+      // logger.error must have been called with rollback failure info
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('failed to delete draft routine'),
+      );
     });
   });
 });

@@ -20,7 +20,12 @@ import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
 import type { WebsocketGateway } from '../im/websocket/websocket.gateway.js';
 import type { ReportStepsDto } from './dto/report-steps.dto.js';
 import type { CreateInterventionDto } from './dto/create-intervention.dto.js';
+import type { UpdateRoutineDto } from './dto/update-routine.dto.js';
+import type { CreateRoutineDto } from './dto/create-routine.dto.js';
 import { TaskCastService } from './taskcast.service.js';
+import { DocumentsService } from '../documents/documents.service.js';
+import { RoutineTriggersService } from './routine-triggers.service.js';
+import { RoutinesService } from './routines.service.js';
 
 // ── Service ─────────────────────────────────────────────────────────
 
@@ -32,6 +37,9 @@ export class RoutineBotService {
     @Inject(WEBSOCKET_GATEWAY)
     private readonly wsGateway: WebsocketGateway,
     private readonly taskCastService: TaskCastService,
+    private readonly documentsService: DocumentsService,
+    private readonly routineTriggersService: RoutineTriggersService,
+    private readonly routinesService: RoutinesService,
   ) {}
 
   // ── Report step progress ─────────────────────────────────────────
@@ -391,7 +399,214 @@ export class RoutineBotService {
     };
   }
 
+  // ── Routine CRUD (bot-scoped) ─────────────────────────────────────
+
+  /**
+   * Create a routine on behalf of the human user linked to this bot.
+   * The bot token identifies the bot; we derive the human creatorId from
+   * the bot's mentorId (personal staff) or ownerId.
+   */
+  async createRoutine(
+    dto: CreateRoutineDto,
+    botUserId: string,
+    tenantId: string,
+  ) {
+    // Resolve bot record from shadow userId
+    const [bot] = await this.db
+      .select()
+      .from(schema.bots)
+      .where(eq(schema.bots.userId, botUserId))
+      .limit(1);
+
+    if (!bot) {
+      throw new NotFoundException('Bot not found for this user');
+    }
+
+    // Use mentorId (personal staff) or ownerId as the human creator
+    const creatorId = bot.mentorId ?? bot.ownerId;
+    if (!creatorId) {
+      throw new BadRequestException(
+        'Bot has no associated human user (no mentorId or ownerId)',
+      );
+    }
+
+    // Validate explicit botId belongs to this tenant if provided
+    const botId = dto.botId ?? bot.id;
+    if (dto.botId && dto.botId !== bot.id) {
+      const [targetBot] = await this.db
+        .select({ id: schema.bots.id })
+        .from(schema.bots)
+        .leftJoin(
+          schema.installedApplications,
+          eq(
+            schema.bots.installedApplicationId,
+            schema.installedApplications.id,
+          ),
+        )
+        .where(
+          and(
+            eq(schema.bots.id, dto.botId),
+            eq(schema.installedApplications.tenantId, tenantId),
+          ),
+        )
+        .limit(1);
+
+      if (!targetBot) {
+        throw new BadRequestException(
+          'Specified botId does not belong to the current tenant',
+        );
+      }
+    }
+
+    const createDto = { ...dto, botId, status: dto.status ?? 'upcoming' };
+    return this.routinesService.create(
+      createDto as CreateRoutineDto,
+      creatorId,
+      tenantId,
+    );
+  }
+
+  /**
+   * Fetch a routine by ID, verifying the calling bot is the assigned bot.
+   * Returns routine enriched with documentContent and triggers.
+   */
+  async getRoutineById(routineId: string, botUserId: string, tenantId: string) {
+    const routine = await this.getRoutineOrThrow(routineId, tenantId);
+
+    // Verify calling bot is the assigned bot
+    if (!routine.botId) {
+      throw new ForbiddenException('Routine has no assigned bot');
+    }
+    await this.verifyBotOwnership(routine.botId, botUserId);
+
+    // Enrich with document content
+    let documentContent = '';
+    if (routine.documentId) {
+      try {
+        const doc = await this.documentsService.getById(routine.documentId);
+        documentContent = (doc as { content?: string | null }).content ?? '';
+      } catch {
+        documentContent = '';
+      }
+    }
+
+    // Enrich with triggers
+    const triggers = await this.routineTriggersService.listByRoutine(
+      routineId,
+      tenantId,
+    );
+
+    return { ...routine, documentContent, triggers };
+  }
+
+  /**
+   * Partially update a routine, verifying the calling bot is the assigned bot.
+   * Uses routine.creatorId for ownership check in the underlying service logic.
+   */
+  async updateRoutine(
+    routineId: string,
+    dto: UpdateRoutineDto,
+    botUserId: string,
+    tenantId: string,
+  ) {
+    const routine = await this.getRoutineOrThrow(routineId, tenantId);
+
+    // Verify calling bot is the assigned bot
+    if (!routine.botId) {
+      throw new ForbiddenException('Routine has no assigned bot');
+    }
+    await this.verifyBotOwnership(routine.botId, botUserId);
+
+    // Reject status transitions — same guard as RoutinesService.update
+    if (dto.status !== undefined && dto.status !== routine.status) {
+      throw new BadRequestException(
+        `Cannot change routine status from '${routine.status}' to '${dto.status}' via update. Use the appropriate control endpoint.`,
+      );
+    }
+
+    // Handle documentContent
+    if (dto.documentContent !== undefined) {
+      if (!routine.documentId) {
+        throw new BadRequestException(
+          'Cannot update document content: routine has no linked document.',
+        );
+      }
+      await this.documentsService.update(
+        routine.documentId,
+        { content: dto.documentContent },
+        { type: 'user', id: routine.creatorId },
+      );
+    }
+
+    // Handle triggers — wholesale replace
+    if (dto.triggers !== undefined) {
+      await this.routineTriggersService.replaceAllForRoutine(
+        routineId,
+        dto.triggers,
+      );
+    }
+
+    // Validate explicit botId belongs to this tenant if provided
+    if (dto.botId) {
+      const [targetBot] = await this.db
+        .select({
+          id: schema.bots.id,
+          tenantId: schema.installedApplications.tenantId,
+        })
+        .from(schema.bots)
+        .leftJoin(
+          schema.installedApplications,
+          eq(
+            schema.bots.installedApplicationId,
+            schema.installedApplications.id,
+          ),
+        )
+        .where(eq(schema.bots.id, dto.botId))
+        .limit(1);
+      if (!targetBot) throw new BadRequestException('Invalid botId');
+      if (targetBot.tenantId !== tenantId)
+        throw new ForbiddenException('Bot does not belong to tenant');
+    }
+
+    const updateData: Record<string, unknown> = { updatedAt: new Date() };
+
+    if (dto.title !== undefined) updateData.title = dto.title;
+    if (dto.botId !== undefined) updateData.botId = dto.botId;
+    if (dto.description !== undefined) updateData.description = dto.description;
+    if (dto.scheduleType !== undefined)
+      updateData.scheduleType = dto.scheduleType;
+    if (dto.scheduleConfig !== undefined)
+      updateData.scheduleConfig = dto.scheduleConfig;
+
+    const [updated] = await this.db
+      .update(schema.routines)
+      .set(updateData)
+      .where(eq(schema.routines.id, routineId))
+      .returning();
+
+    return updated;
+  }
+
   // ── Private helpers ──────────────────────────────────────────────
+
+  private async getRoutineOrThrow(routineId: string, tenantId: string) {
+    const [routine] = await this.db
+      .select()
+      .from(schema.routines)
+      .where(
+        and(
+          eq(schema.routines.id, routineId),
+          eq(schema.routines.tenantId, tenantId),
+        ),
+      )
+      .limit(1);
+
+    if (!routine) {
+      throw new NotFoundException('Routine not found');
+    }
+
+    return routine;
+  }
 
   private async verifyBotOwnership(botId: string, botUserId: string) {
     const [bot] = await this.db
@@ -446,7 +661,10 @@ export class RoutineBotService {
     }
 
     // 4. Verify bot ownership
-    if (botUserId && routine.botId) {
+    if (!routine.botId) {
+      throw new ForbiddenException('Routine has no assigned bot');
+    }
+    if (botUserId) {
       await this.verifyBotOwnership(routine.botId, botUserId);
     }
 
@@ -484,7 +702,10 @@ export class RoutineBotService {
       throw new NotFoundException('Routine not found');
     }
 
-    if (botUserId && routine.botId) {
+    if (!routine.botId) {
+      throw new ForbiddenException('Routine has no assigned bot');
+    }
+    if (botUserId) {
       await this.verifyBotOwnership(routine.botId, botUserId);
     }
 

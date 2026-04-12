@@ -31,6 +31,10 @@ export const routinesRelations = relations(routines, ({ one, many }) => ({
     fields: [routines.documentId],
     references: [documents.id],
   }),
+  creationChannel: one(channels, {
+    fields: [routines.creationChannelId],
+    references: [channels.id],
+  }),
   currentExecution: one(routineExecutions, {
     fields: [routines.currentExecutionId],
     references: [routineExecutions.id],

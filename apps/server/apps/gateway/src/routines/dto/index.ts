@@ -7,3 +7,5 @@ export * from './resolve-intervention.dto.js';
 export * from './update-status.dto.js';
 export * from './add-deliverable.dto.js';
 export * from './trigger.dto.js';
+export * from './complete-creation.dto.js';
+export * from './with-creation-task.dto.js';

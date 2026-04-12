@@ -340,4 +340,96 @@ describe('RoutineTriggersService', () => {
       'tenant-1',
     );
   });
+
+  // ── replaceAllForRoutine ──────────────────────────────────────────
+
+  describe('replaceAllForRoutine', () => {
+    it('deletes existing triggers then inserts new ones within a transaction', async () => {
+      const txInsertReturning = jest.fn<any>().mockResolvedValue([]);
+      const txInsertValues = jest
+        .fn<any>()
+        .mockReturnValue({ returning: txInsertReturning });
+      const txDeleteWhere = jest.fn<any>().mockResolvedValue(undefined);
+      const tx = {
+        delete: jest.fn<any>().mockReturnValue({ where: txDeleteWhere }),
+        insert: jest.fn<any>().mockReturnValue({ values: txInsertValues }),
+      };
+
+      db.transaction = jest
+        .fn<any>()
+        .mockImplementation((cb: (tx: typeof tx) => Promise<void>) => cb(tx));
+
+      await service.replaceAllForRoutine(
+        'routine-1',
+        [{ type: 'manual' } as never],
+        'tenant-1',
+      );
+
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(tx.delete).toHaveBeenCalledTimes(1);
+      expect(txDeleteWhere).toHaveBeenCalledTimes(1);
+      expect(tx.insert).toHaveBeenCalledTimes(1);
+      expect(txInsertValues).toHaveBeenCalledWith(
+        expect.objectContaining({
+          routineId: 'routine-1',
+          type: 'manual',
+          enabled: true,
+        }),
+      );
+    });
+
+    it('deletes all triggers and inserts nothing when given an empty array', async () => {
+      const txDeleteWhere = jest.fn<any>().mockResolvedValue(undefined);
+      const tx = {
+        delete: jest.fn<any>().mockReturnValue({ where: txDeleteWhere }),
+        insert: jest.fn<any>(),
+      };
+
+      db.transaction = jest
+        .fn<any>()
+        .mockImplementation((cb: (tx: typeof tx) => Promise<void>) => cb(tx));
+
+      await service.replaceAllForRoutine('routine-1', []);
+
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(tx.delete).toHaveBeenCalledTimes(1);
+      expect(txDeleteWhere).toHaveBeenCalledTimes(1);
+      expect(tx.insert).not.toHaveBeenCalled();
+    });
+
+    it('executes all operations inside a transaction (db.transaction was called)', async () => {
+      const tx = {
+        delete: jest.fn<any>().mockReturnValue({
+          where: jest.fn<any>().mockResolvedValue(undefined),
+        }),
+        insert: jest.fn<any>().mockReturnValue({
+          values: jest.fn<any>().mockResolvedValue(undefined),
+        }),
+      };
+
+      db.transaction = jest
+        .fn<any>()
+        .mockImplementation((cb: (tx: typeof tx) => Promise<void>) => cb(tx));
+
+      await service.replaceAllForRoutine(
+        'routine-1',
+        [
+          { type: 'manual' } as never,
+          {
+            type: 'interval',
+            config: { every: 1, unit: 'hours' },
+          } as never,
+        ],
+        'tenant-1',
+      );
+
+      // Verify operations went through the tx object, not the outer db
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(tx.delete).toHaveBeenCalledTimes(1);
+      expect(tx.insert).toHaveBeenCalledTimes(2);
+      // The outer db.delete and db.insert must NOT have been called directly
+      expect(db.delete).not.toHaveBeenCalled();
+      expect(db.insert).not.toHaveBeenCalled();
+    });
+  });
 });

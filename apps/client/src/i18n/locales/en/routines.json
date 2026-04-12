@@ -28,6 +28,7 @@
     "errorGeneric": "Failed to create routine"
   },
   "status": {
+    "draft": "Draft",
     "in_progress": "In progress",
     "upcoming": "Upcoming",
     "paused": "Paused",
@@ -279,5 +280,24 @@
     "schedule": "Schedule",
     "channelMessage": "Channel Message",
     "retry": "Retry"
+  },
+  "agentic": {
+    "createButton": "Create with Agentic",
+    "pickerTitle": "Pick an agent to guide creation",
+    "pickerDescription": "The selected agent will walk you through building this routine.",
+    "agentLabel": "Agent",
+    "noAgentsAvailable": "No active agents available.",
+    "confirm": "Start Creation",
+    "cancel": "Cancel",
+    "navigatingToast": "Creating routine..."
+  },
+  "draft": {
+    "badge": "DRAFT",
+    "completeCreation": "Complete Creation",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this draft routine? This cannot be undone.",
+    "bannerMessage": "This routine is in draft. Complete Creation to start using it.",
+    "noChannelTooltip": "No creation conversation available.",
+    "untitled": "Untitled"
   }
 }

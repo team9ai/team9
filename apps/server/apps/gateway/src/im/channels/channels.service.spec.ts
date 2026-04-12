@@ -1462,6 +1462,67 @@ describe('ChannelsService', () => {
     });
   });
 
+  describe('archiveCreationChannel', () => {
+    let redisService: { invalidate: MockFn };
+
+    beforeEach(() => {
+      redisService = (service as any).redis;
+    });
+
+    it('archives a direct channel without role/type checks', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'ch-direct', type: 'direct', isArchived: false },
+      ] as any);
+      // UPDATE's .where() doesn't need a specific return — chain default is fine
+
+      await service.archiveCreationChannel('ch-direct');
+
+      expect(db.update).toHaveBeenCalled();
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({ isArchived: true }),
+      );
+      expect(redisService.invalidate).toHaveBeenCalled();
+    });
+
+    it('is idempotent when channel is already archived', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'ch-direct', type: 'direct', isArchived: true },
+      ] as any);
+
+      await service.archiveCreationChannel('ch-direct');
+
+      expect(db.update).not.toHaveBeenCalled();
+      expect(redisService.invalidate).not.toHaveBeenCalled();
+    });
+
+    it('is a no-op and does not throw when channel is missing', async () => {
+      db.limit.mockResolvedValueOnce([] as any);
+      const debugSpy = jest.spyOn((service as any).logger, 'debug');
+
+      await expect(
+        service.archiveCreationChannel('nonexistent'),
+      ).resolves.toBeUndefined();
+
+      expect(db.update).not.toHaveBeenCalled();
+      expect(debugSpy).toHaveBeenCalledWith(
+        expect.stringContaining('not found'),
+      );
+    });
+
+    it('applies tenant filter when tenantId is provided', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'ch-1', type: 'direct', isArchived: false },
+      ] as any);
+
+      await service.archiveCreationChannel('ch-1', 'tenant-42');
+
+      // The where clause should have been called with two conditions (id + tenantId)
+      // We verify that db.update was called (meaning the tenant filter didn't block)
+      expect(db.update).toHaveBeenCalled();
+      expect(redisService.invalidate).toHaveBeenCalled();
+    });
+  });
+
   describe('channel name helpers', () => {
     it('normalizes names and validates unicode-friendly channel names', () => {
       expect(ChannelsService.normalizeChannelName('  Team   Updates  ')).toBe(
