@@ -119,6 +119,7 @@ describe('RoutineBotService — TaskCast integration', () => {
       taskCastService as never,
       {} as never, // documentsService — not used in TaskCast tests
       {} as never, // routineTriggersService — not used in TaskCast tests
+      {} as never, // routinesService — not used in TaskCast tests
     );
   });
 
