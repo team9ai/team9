@@ -1105,6 +1105,59 @@ describe('ChannelsService', () => {
       });
       expect(result[1]).not.toHaveProperty('otherUser');
     });
+
+    it('should include showInDmSidebar in result', async () => {
+      const mockChannel = {
+        id: 'ch-1',
+        tenantId: 'tenant-1',
+        name: null,
+        description: null,
+        type: 'direct',
+        avatarUrl: null,
+        createdBy: 'user-1',
+        sectionId: null,
+        order: 0,
+        isArchived: false,
+        isActivated: true,
+        snapshot: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        unreadCount: 0,
+        lastReadMessageId: null,
+        showInDmSidebar: true,
+      };
+      db.where.mockResolvedValueOnce([mockChannel] as any);
+      db.where.mockResolvedValueOnce([] as any);
+      const result = await service.getUserChannels('user-1', 'tenant-1');
+      expect(result[0]).toHaveProperty('showInDmSidebar', true);
+    });
+
+    it('should pass showInDmSidebar=false when field is false', async () => {
+      const mockChannel = {
+        id: 'ch-2',
+        tenantId: 'tenant-1',
+        name: null,
+        description: null,
+        type: 'direct',
+        avatarUrl: null,
+        createdBy: 'user-1',
+        sectionId: null,
+        order: 0,
+        isArchived: false,
+        isActivated: true,
+        snapshot: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        unreadCount: 0,
+        lastReadMessageId: null,
+        showInDmSidebar: false,
+      };
+      db.where.mockResolvedValueOnce([mockChannel] as any);
+      // Second where call: batch member fetch for direct channels
+      db.where.mockResolvedValueOnce([] as any);
+      const result = await service.getUserChannels('user-1', 'tenant-1');
+      expect(result[0]).toHaveProperty('showInDmSidebar', false);
+    });
   });
 
   describe('findByIdOrThrow', () => {

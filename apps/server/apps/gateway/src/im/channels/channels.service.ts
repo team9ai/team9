@@ -53,6 +53,7 @@ export interface ChannelResponse {
 export interface ChannelWithUnread extends ChannelResponse {
   unreadCount: number;
   lastReadMessageId: string | null;
+  showInDmSidebar?: boolean;
   otherUser?: {
     id: string;
     username: string;
@@ -637,6 +638,7 @@ export class ChannelsService {
             'unread_count',
           ),
         lastReadMessageId: schema.userChannelReadStatus.lastReadMessageId,
+        showInDmSidebar: schema.channelMembers.showInDmSidebar,
       })
       .from(schema.channelMembers)
       .innerJoin(
