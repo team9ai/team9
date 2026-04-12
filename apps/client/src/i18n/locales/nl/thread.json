@@ -1,0 +1,18 @@
+{
+  "title": "Thread",
+  "loading": "Thread laden...",
+  "error": "Kan thread niet laden",
+  "repliesCount": "{{count}} antwoord",
+  "repliesCount_other": "{{count}} antwoorden",
+  "showMoreReplies": "{{count}} meer antwoord tonen",
+  "showMoreReplies_other": "{{count}} meer antwoorden tonen",
+  "hideReplies": "Antwoorden verbergen",
+  "replyingTo": "Antwoorden op",
+  "inputPlaceholder": "Antwoorden in thread...",
+  "loadMore": "Meer antwoorden laden",
+  "loadingMore": "Laden...",
+  "newMessages": "{{count}} nieuw bericht",
+  "newMessages_other": "{{count}} nieuwe berichten",
+  "lastReply": "Laatste antwoord {{time}}",
+  "backToChannel": "Terug naar kanaal"
+}

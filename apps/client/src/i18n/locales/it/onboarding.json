@@ -1,0 +1,128 @@
+{
+  "eyebrow": "Onboarding del workspace",
+  "workspaceBadge": "Configurazione iniziale per {{name}}",
+  "stepLabel": "Passaggio {{current}} / {{total}}",
+  "workspaceFallback": "Il tuo nuovo workspace",
+  "welcome": "Lascia che Team9 modelli la prima versione del tuo workspace in base al modo in cui lavori davvero.",
+  "actions": {
+    "back": "Indietro",
+    "continue": "Continua",
+    "next": "Avanti",
+    "regenerate": "Rigenera",
+    "retry": "Riprova",
+    "edit": "Modifica",
+    "copy": "Copia link",
+    "copied": "Copiato",
+    "startCheckout": "Sottoscrivi",
+    "continueWithoutPlan": "Continua senza sottoscrizione",
+    "finish": "Entra nel workspace",
+    "retryProvision": "Riprova configurazione",
+    "creating": "Creazione in corso…"
+  },
+  "steps": {
+    "1": {
+      "title": "Dicci che tipo di lavoro svolgi",
+      "description": "Scrivi una frase sul tuo ruolo, o parti dal ruolo preimpostato più affine."
+    },
+    "2": {
+      "title": "Scegli l'attività che ti sembra più reale",
+      "description": "Ti suggeriremo alcuni flussi di lavoro ricorrenti che vale la pena automatizzare per primi."
+    },
+    "3": {
+      "title": "Prepariamo alcuni canali per te",
+      "description": "Questi canali sono generati dal modo in cui il tuo lavoro fluisce naturalmente."
+    },
+    "4": {
+      "title": "Conferma la configurazione del tuo agente",
+      "description": "Il tuo agente principale è fissato come Staff personale, con alcuni assistenti focalizzati sotto di esso."
+    },
+    "5": {
+      "title": "Invita il tuo team a collaborare",
+      "description": "Condividi un unico link di invito e porta tutti nello stesso workspace."
+    },
+    "6": {
+      "title": "Scegli un piano per questo workspace",
+      "description": "Puoi sottoscrivere ora, oppure continuare nel workspace e impostare la fatturazione più tardi."
+    }
+  },
+  "role": {
+    "inputLabel": "Descrivi il tuo lavoro",
+    "inputPlaceholder": "Ad esempio: sono un sales manager SaaS B2B. La mia routine quotidiana include il follow-up dei lead, la scrittura di proposte, la gestione di revisioni settimanali delle trattative e il mantenimento aggiornato del CRM...",
+    "customHint": "Più descrivi, meglio possiamo personalizzare il tuo workspace.",
+    "or": "Oppure",
+    "presetsToggle": "Non sai cosa scrivere? Sfoglia i ruoli preimpostati per trovare ispirazione",
+    "featured": "Consigliati",
+    "suggestions": "Suggerimenti di ruolo"
+  },
+  "tasks": {
+    "customLabel": "Oppure aggiungi il flusso di lavoro che desideri automatizzare di più",
+    "customDivider": "Scrivi il tuo",
+    "customPlaceholder": "Ad esempio: riassumi le note di follow-up quotidiano dei clienti e suggerisci il passaggio successivo.",
+    "empty": "Ancora nessun suggerimento di attività.",
+    "loadingTitle": "Generazione delle opzioni di attività",
+    "loading": "Generazione di suggerimenti di attività su misura per il tuo lavoro…"
+  },
+  "channels": {
+    "renameHint": "Puoi rinominare qualsiasi canale direttamente",
+    "previewTitle": "Anteprima del canale",
+    "placeholder": "#nuovo-canale",
+    "loadingTitle": "Preparazione dei tuoi canali iniziali",
+    "loading": "Generazione del layout dei tuoi canali iniziali…",
+    "sidebarTitle": "Workspace",
+    "activeThread": "Focus di oggi",
+    "previewAuthorA": "Staff personale",
+    "previewAuthorB": "Bozza di sistema",
+    "previewNow": "proprio ora",
+    "previewToday": "oggi",
+    "previewLine1": "Qui è dove la collaborazione specifica per il ruolo inizierà a prendere forma.",
+    "previewLine2": "Al termine della configurazione, questi canali e agenti saranno creati nel workspace reale.",
+    "previewPurpose": "Questo canale è il luogo dove {{topic}} rimane visibile e facile da gestire.",
+    "previewInsight": "{{role}} può utilizzare questo spazio per mantenere {{task}} in movimento senza perdere il contesto.",
+    "previewThread": "Una volta completata la configurazione, i follow-up per {{task}} possono rimanere all'interno di {{topic}} invece di andare persi altrove.",
+    "previewChecklistPrimary": "Flusso di lavoro principale: {{task}}",
+    "previewChecklistSecondary": "Thread secondario: {{task}}",
+    "previewChecklistOwner": "Responsabile predefinito: {{role}}"
+  },
+  "agents": {
+    "mainAgent": "Agente principale",
+    "childAgents": "Agenti di supporto",
+    "mainDescriptionLabel": "Descrizione dell'agente principale",
+    "mainDescriptionPlaceholder": "Descrivi come il tuo Staff personale dovrebbe supportarti.",
+    "loadingTitle": "Preparazione del tuo team di agenti",
+    "empty": "Non è ancora disponibile alcuna configurazione utilizzabile di agenti. Torna indietro e riprova.",
+    "loading": "Generazione del tuo team di agenti…"
+  },
+  "invite": {
+    "title": "Link di invito",
+    "hint": "Questo link invita i collaboratori nel workspace corrente come membri per impostazione predefinita.",
+    "loading": "Preparazione del tuo link di invito…"
+  },
+  "plan": {
+    "current": "Piano corrente",
+    "success": "Checkout completato. Ora puoi continuare.",
+    "cancel": "Il checkout è stato annullato. Puoi riprovare in qualsiasi momento.",
+    "loadingTitle": "Caricamento dei piani del workspace",
+    "note": "Puoi sottoscrivere ora, oppure entrare prima nel workspace e aggiungere la fatturazione in seguito.",
+    "empty": "Non sono disponibili piani di abbonamento al momento.",
+    "perMonth": "/mese",
+    "priceHint": "Circa {{amount}} in valore di utilizzo reale",
+    "credits": "{{count}} crediti"
+  },
+  "status": {
+    "provisioningTitle": "Configurazione del tuo workspace",
+    "provisioningDescription": "Stiamo creando canali, configurando agenti e salvando le tue preferenze.",
+    "failedTitle": "La configurazione non è stata completata del tutto",
+    "failedDescription": "Il provisioning è fallito a metà strada. Puoi riprovare senza perdere le preferenze che hai già salvato."
+  },
+  "errors": {
+    "loadFailed": "Impossibile caricare lo stato dell'onboarding.",
+    "saveFailed": "Impossibile salvare i progressi dell'onboarding al momento.",
+    "roleRequired": "Aggiungi prima una descrizione del ruolo o scegli un ruolo preimpostato.",
+    "taskRequired": "Seleziona almeno un'attività o aggiungine una personalizzata.",
+    "channelRequired": "Mantieni almeno una bozza di canale.",
+    "workspaceRequired": "Nessun workspace è disponibile al momento.",
+    "checkoutFailed": "Impossibile avviare il checkout al momento.",
+    "copyFailed": "Impossibile copiare il link di invito.",
+    "provisionFailed": "Configurazione del workspace non riuscita. Riprova."
+  }
+}

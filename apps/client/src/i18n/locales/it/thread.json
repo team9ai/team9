@@ -1,0 +1,18 @@
+{
+  "title": "Thread",
+  "loading": "Caricamento del thread...",
+  "error": "Impossibile caricare il thread",
+  "repliesCount": "{{count}} risposta",
+  "repliesCount_other": "{{count}} risposte",
+  "showMoreReplies": "Mostra {{count}} risposta in più",
+  "showMoreReplies_other": "Mostra {{count}} risposte in più",
+  "hideReplies": "Nascondi risposte",
+  "replyingTo": "In risposta a",
+  "inputPlaceholder": "Rispondi nel thread...",
+  "loadMore": "Carica altre risposte",
+  "loadingMore": "Caricamento in corso...",
+  "newMessages": "{{count}} nuovo messaggio",
+  "newMessages_other": "{{count}} nuovi messaggi",
+  "lastReply": "Ultima risposta {{time}}",
+  "backToChannel": "Torna al canale"
+}

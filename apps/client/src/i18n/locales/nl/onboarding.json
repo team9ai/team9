@@ -1,0 +1,128 @@
+{
+  "eyebrow": "Werkruimte-onboarding",
+  "workspaceBadge": "Startersopstelling voor {{name}}",
+  "stepLabel": "Stap {{current}} / {{total}}",
+  "workspaceFallback": "Je nieuwe werkruimte",
+  "welcome": "Laat Team9 de eerste versie van je werkruimte vormgeven op basis van hoe jij echt werkt.",
+  "actions": {
+    "back": "Terug",
+    "continue": "Doorgaan",
+    "next": "Volgende",
+    "regenerate": "Opnieuw genereren",
+    "retry": "Opnieuw proberen",
+    "edit": "Bewerken",
+    "copy": "Link kopiëren",
+    "copied": "Gekopieerd",
+    "startCheckout": "Abonneren",
+    "continueWithoutPlan": "Doorgaan zonder abonnement",
+    "finish": "Werkruimte betreden",
+    "retryProvision": "Setup opnieuw proberen",
+    "creating": "Aanmaken…"
+  },
+  "steps": {
+    "1": {
+      "title": "Vertel ons wat voor soort werk je doet",
+      "description": "Schrijf één zin over je rol, of begin vanuit de dichtstbijzijnde vooraf ingestelde rol."
+    },
+    "2": {
+      "title": "Kies de taak die het meest realistisch aanvoelt",
+      "description": "We stellen een paar terugkerende workflows voor die het meest de moeite waard zijn om eerst te automatiseren."
+    },
+    "3": {
+      "title": "Laten we een paar kanalen voor je voorbereiden",
+      "description": "Deze kanalen worden gegenereerd op basis van hoe je werk natuurlijk verloopt."
+    },
+    "4": {
+      "title": "Bevestig je agent-setup",
+      "description": "Je hoofdagent is vast ingesteld als Personal Staff, met een paar gerichte helpers eronder."
+    },
+    "5": {
+      "title": "Nodig je team uit om samen te werken",
+      "description": "Deel één uitnodigingslink en breng iedereen samen in dezelfde werkruimte."
+    },
+    "6": {
+      "title": "Kies een abonnement voor deze werkruimte",
+      "description": "Je kunt je nu abonneren, of doorgaan naar de werkruimte en de facturering later instellen."
+    }
+  },
+  "role": {
+    "inputLabel": "Beschrijf je werk",
+    "inputPlaceholder": "Bijvoorbeeld: Ik ben een B2B SaaS-salesmanager. Mijn dagelijkse werk omvat het opvolgen van leads, het schrijven van voorstellen, het houden van wekelijkse deal-reviews en het bijhouden van de CRM...",
+    "customHint": "Hoe meer je beschrijft, hoe beter we je werkruimte op maat kunnen maken.",
+    "or": "Of",
+    "presetsToggle": "Weet je niet wat je moet schrijven? Blader door vooraf ingestelde rollen voor inspiratie",
+    "featured": "Aanbevolen",
+    "suggestions": "Rolsuggesties"
+  },
+  "tasks": {
+    "customLabel": "Of voeg de ene workflow toe die je het liefst wilt automatiseren",
+    "customDivider": "Schrijf je eigen",
+    "customPlaceholder": "Bijvoorbeeld: vat dagelijkse follow-upnotities van klanten samen en stel de volgende stap voor.",
+    "empty": "Nog geen taaksuggesties.",
+    "loadingTitle": "Taakopties genereren",
+    "loading": "Op maat gemaakte taaksuggesties genereren voor je werk…"
+  },
+  "channels": {
+    "renameHint": "Je kunt elk kanaal direct hernoemen",
+    "previewTitle": "Kanaalvoorbeeld",
+    "placeholder": "#nieuw-kanaal",
+    "loadingTitle": "Je starterskanalen voorbereiden",
+    "loading": "Je starterskanaal-layout genereren…",
+    "sidebarTitle": "Werkruimte",
+    "activeThread": "Focus van vandaag",
+    "previewAuthorA": "Personal Staff",
+    "previewAuthorB": "Systeemconcept",
+    "previewNow": "zojuist",
+    "previewToday": "vandaag",
+    "previewLine1": "Dit is waar rolspecifieke samenwerking vorm begint te krijgen.",
+    "previewLine2": "Wanneer de setup klaar is, worden deze kanalen en agents geprovisioneerd in de echte werkruimte.",
+    "previewPurpose": "Dit kanaal is waar {{topic}} zichtbaar blijft en makkelijk op te pakken is.",
+    "previewInsight": "{{role}} kan deze ruimte gebruiken om {{task}} in beweging te houden zonder context te verliezen.",
+    "previewThread": "Zodra de setup klaar is, kunnen follow-ups voor {{task}} binnen {{topic}} blijven in plaats van elders verborgen te raken.",
+    "previewChecklistPrimary": "Primaire workflow: {{task}}",
+    "previewChecklistSecondary": "Secundaire thread: {{task}}",
+    "previewChecklistOwner": "Standaardeigenaar: {{role}}"
+  },
+  "agents": {
+    "mainAgent": "Hoofdagent",
+    "childAgents": "Ondersteunende agents",
+    "mainDescriptionLabel": "Beschrijving hoofdagent",
+    "mainDescriptionPlaceholder": "Beschrijf hoe je Personal Staff je moet ondersteunen.",
+    "loadingTitle": "Je agent-line-up voorbereiden",
+    "empty": "Er is nog geen bruikbare agent-setup beschikbaar. Ga terug en probeer het opnieuw.",
+    "loading": "Je agent-line-up genereren…"
+  },
+  "invite": {
+    "title": "Uitnodigingslink",
+    "hint": "Deze link nodigt medewerkers standaard uit als leden in de huidige werkruimte.",
+    "loading": "Je uitnodigingslink voorbereiden…"
+  },
+  "plan": {
+    "current": "Huidig abonnement",
+    "success": "Betaling voltooid. Je kunt nu doorgaan.",
+    "cancel": "Betaling is geannuleerd. Je kunt het altijd opnieuw proberen.",
+    "loadingTitle": "Werkruimte-abonnementen laden",
+    "note": "Je kunt je nu abonneren, of eerst de werkruimte betreden en facturering later toevoegen.",
+    "empty": "Er zijn op dit moment geen abonnementen beschikbaar.",
+    "perMonth": "/maand",
+    "priceHint": "Ongeveer {{amount}} aan echte gebruikswaarde",
+    "credits": "{{count}} credits"
+  },
+  "status": {
+    "provisioningTitle": "Je werkruimte instellen",
+    "provisioningDescription": "We maken kanalen aan, configureren agents en slaan je voorkeuren op.",
+    "failedTitle": "Setup is niet volledig voltooid",
+    "failedDescription": "Provisioning is halverwege mislukt. Je kunt opnieuw proberen zonder de voorkeuren te verliezen die je al hebt opgeslagen."
+  },
+  "errors": {
+    "loadFailed": "Kan de onboarding-status niet laden.",
+    "saveFailed": "Kan de onboarding-voortgang op dit moment niet opslaan.",
+    "roleRequired": "Voeg eerst een rolbeschrijving toe of kies een vooraf ingestelde rol.",
+    "taskRequired": "Selecteer ten minste één taak of voeg een aangepaste taak toe.",
+    "channelRequired": "Houd ten minste één kanaalconcept.",
+    "workspaceRequired": "Er is op dit moment geen werkruimte beschikbaar.",
+    "checkoutFailed": "Kan op dit moment geen betaling starten.",
+    "copyFailed": "Kan de uitnodigingslink niet kopiëren.",
+    "provisionFailed": "Werkruimte-setup is mislukt. Probeer het opnieuw."
+  }
+}
