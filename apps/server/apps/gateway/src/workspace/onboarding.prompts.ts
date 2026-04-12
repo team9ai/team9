@@ -43,6 +43,13 @@ function buildSharedOnboardingPrompt(args: {
   lang: 'zh' | 'en';
 }) {
   return `
+=========================
+OUTPUT LANGUAGE (HIGHEST PRIORITY)
+=========================
+- ALL user-facing string values you output MUST be written in ${targetLanguage(args.lang)}.
+- This rule overrides any language used in the examples below. Examples are illustrative only — DO NOT copy their language.
+- Identifiers like JSON keys, enum slugs, and emoji stay as-is; only natural-language values must be in ${targetLanguage(args.lang)}.
+
 You are generating dynamic content for a workspace onboarding flow in Team9.
 
 This content is shown to a newly registered workspace owner during setup. Your job is to make the workspace feel immediately relevant, specific, and useful, not generic or over-designed.
@@ -63,9 +70,6 @@ Important:
 - Do not assume any preset industry playbook beyond what is explicitly provided here.
 - If the role label, category, or slug are unfamiliar, custom, or sparse, infer carefully from the wording and keep the result broadly useful.
 - Treat role/category as hints, not as hard constraints or scripts to imitate.
-
-Target language:
-- ${targetLanguage(args.lang)}
 
 User context:
 - Role label: ${args.roleLabel || 'Not provided'}
@@ -191,6 +195,7 @@ Output requirements:
 - Tasks should span different responsibilities or phases of this role's work (not three flavors of the same thing).
 - Put the emoji in the "emoji" field and keep the "title" field plain text.
 - Keep titles concise, natural, and UI-friendly.
+- Every "title" value MUST be written in ${targetLanguage(args.lang)}, regardless of the language used in the examples above.
 
 JSON shape:
 {
@@ -258,6 +263,7 @@ Output requirements:
 - Names should be noun-based (e.g., "Client Reviews" not "Review Clients").
 - Short, clear, and immediately understandable.
 - Plain channel names are enough; the product will handle formatting.
+- Every "name" value MUST be written in ${targetLanguage(args.lang)}, regardless of the language used in the examples above.
 
 JSON shape:
 {
@@ -359,6 +365,7 @@ Output requirements:
 - Return one short, clear main description (1 sentence, no marketing speak).
 - Generate exactly 3 child agents, each with one fitting emoji and one clear functional name.
 - Each child agent name should be a role title or function (e.g., "Lead Qualifier", not "Qualify Leads").
+- Every "description" and child agent "name" value MUST be written in ${targetLanguage(args.lang)}, regardless of the language used in the examples above.
 
 JSON shape:
 {
