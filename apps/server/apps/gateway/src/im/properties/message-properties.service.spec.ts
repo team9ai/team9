@@ -14,6 +14,7 @@ const dbModule = {
     col,
     vals,
   })),
+  isNull: jest.fn((col: unknown) => ({ op: 'isNull', col })),
 };
 
 const schemaModule = {
@@ -39,6 +40,12 @@ const schemaModule = {
     channelId: 'cpd.channelId',
     key: 'cpd.key',
     showInChatPolicy: 'cpd.showInChatPolicy',
+  },
+  channelMembers: {
+    role: 'cm.role',
+    channelId: 'cm.channelId',
+    userId: 'cm.userId',
+    leftAt: 'cm.leftAt',
   },
   messages: {
     id: 'messages.id',
@@ -579,11 +586,14 @@ describe('MessagePropertiesService', () => {
   });
 
   it('batchSet() respects allowNonAdminCreateKey=false', async () => {
-    // getValidatedMessage: channel select now includes propertySettings
+    // getValidatedMessage: message select + channel select (with propertySettings)
     db.__state.selectResults.push([messageRow()]);
     db.__state.selectResults.push([
       { type: 'public', propertySettings: { allowNonAdminCreateKey: false } },
     ]);
+
+    // Membership check: user is a regular member (not admin/owner)
+    db.__state.selectResults.push([{ role: 'member' }]);
 
     // Phase 1 (outside tx): findOrCreate should be called with allowCreate=false
     mockPropertyDefsService.findOrCreate.mockResolvedValueOnce(
