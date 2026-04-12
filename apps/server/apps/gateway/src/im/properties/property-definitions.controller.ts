@@ -11,6 +11,7 @@ import {
   forwardRef,
   ParseUUIDPipe,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   PropertyDefinitionsService,
@@ -62,7 +63,10 @@ export class PropertyDefinitionsController {
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Body() dto: CreatePropertyDefinitionDto,
   ): Promise<PropertyDefinitionRow> {
-    await this.channelsService.assertReadAccess(channelId, userId);
+    const isMember = await this.channelsService.isMember(channelId, userId);
+    if (!isMember) {
+      throw new ForbiddenException('Not a member of this channel');
+    }
     const definition = await this.propertyDefinitionsService.create(
       channelId,
       dto,
@@ -96,7 +100,10 @@ export class PropertyDefinitionsController {
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Body() dto: ReorderPropertyDefinitionsDto,
   ): Promise<PropertyDefinitionRow[]> {
-    await this.channelsService.assertReadAccess(channelId, userId);
+    const isMember = await this.channelsService.isMember(channelId, userId);
+    if (!isMember) {
+      throw new ForbiddenException('Not a member of this channel');
+    }
     const result = await this.propertyDefinitionsService.reorder(
       channelId,
       dto.definitionIds,
@@ -124,7 +131,10 @@ export class PropertyDefinitionsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdatePropertyDefinitionDto,
   ): Promise<PropertyDefinitionRow> {
-    await this.channelsService.assertReadAccess(channelId, userId);
+    const isMember = await this.channelsService.isMember(channelId, userId);
+    if (!isMember) {
+      throw new ForbiddenException('Not a member of this channel');
+    }
     // Verify the definition belongs to this channel
     const existing = await this.propertyDefinitionsService.findByIdOrThrow(id);
     if (existing.channelId !== channelId) {
@@ -168,7 +178,10 @@ export class PropertyDefinitionsController {
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<{ success: boolean }> {
-    await this.channelsService.assertReadAccess(channelId, userId);
+    const isMember = await this.channelsService.isMember(channelId, userId);
+    if (!isMember) {
+      throw new ForbiddenException('Not a member of this channel');
+    }
     // Verify the definition belongs to this channel
     const existing = await this.propertyDefinitionsService.findByIdOrThrow(id);
     if (existing.channelId !== channelId) {

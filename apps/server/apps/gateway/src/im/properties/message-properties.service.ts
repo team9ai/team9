@@ -49,10 +49,27 @@ export class MessagePropertiesService {
   // ==================== Public Methods ====================
 
   /**
+   * Get the channelId for a message (lightweight lookup for auth checks).
+   * Throws NotFoundException if the message does not exist.
+   */
+  async getMessageChannelId(messageId: string): Promise<string> {
+    const [msg] = await this.db
+      .select({ channelId: schema.messages.channelId })
+      .from(schema.messages)
+      .where(eq(schema.messages.id, messageId))
+      .limit(1);
+    if (!msg) throw new NotFoundException('Message not found');
+    return msg.channelId;
+  }
+
+  /**
    * Get all properties for a message as a key-value map.
    * Keys are the property definition keys, values are the extracted values.
    */
-  async getProperties(messageId: string): Promise<Record<string, unknown>> {
+  async getProperties(
+    messageId: string,
+    opts?: { excludeHidden?: boolean },
+  ): Promise<Record<string, unknown>> {
     const rows = await this.db
       .select()
       .from(schema.messageProperties)
@@ -67,6 +84,7 @@ export class MessagePropertiesService {
     for (const row of rows) {
       const def = definitions.get(row.propertyDefinitionId);
       if (!def) continue;
+      if (opts?.excludeHidden && def.showInChatPolicy === 'hide') continue;
       result[def.key] = this.extractValue(row, def.valueType);
     }
     return result;

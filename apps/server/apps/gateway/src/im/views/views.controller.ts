@@ -12,6 +12,7 @@ import {
   forwardRef,
   ParseUUIDPipe,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ViewsService } from './views.service.js';
 import { CreateViewDto } from './dto/create-view.dto.js';
@@ -57,7 +58,10 @@ export class ViewsController {
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Body() dto: CreateViewDto,
   ): Promise<ChannelView> {
-    await this.channelsService.assertReadAccess(channelId, userId);
+    const isMember = await this.channelsService.isMember(channelId, userId);
+    if (!isMember) {
+      throw new ForbiddenException('Not a member of this channel');
+    }
     const view = await this.viewsService.create(channelId, dto, userId);
 
     await this.websocketGateway.sendToChannelMembers(
@@ -77,7 +81,10 @@ export class ViewsController {
     @Param('viewId', ParseUUIDPipe) viewId: string,
     @Body() dto: UpdateViewDto,
   ): Promise<ChannelView> {
-    await this.channelsService.assertReadAccess(channelId, userId);
+    const isMember = await this.channelsService.isMember(channelId, userId);
+    if (!isMember) {
+      throw new ForbiddenException('Not a member of this channel');
+    }
     // Verify the view belongs to this channel
     const existing = await this.viewsService.findByIdOrThrow(viewId);
     if (existing.channelId !== channelId) {
@@ -102,7 +109,10 @@ export class ViewsController {
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Param('viewId', ParseUUIDPipe) viewId: string,
   ): Promise<{ success: boolean }> {
-    await this.channelsService.assertReadAccess(channelId, userId);
+    const isMember = await this.channelsService.isMember(channelId, userId);
+    if (!isMember) {
+      throw new ForbiddenException('Not a member of this channel');
+    }
     // Verify the view belongs to this channel
     const existing = await this.viewsService.findByIdOrThrow(viewId);
     if (existing.channelId !== channelId) {

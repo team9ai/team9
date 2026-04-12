@@ -11,6 +11,7 @@ import {
   forwardRef,
   ParseUUIDPipe,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { TabsService } from './tabs.service.js';
 import { CreateTabDto } from './dto/create-tab.dto.js';
@@ -55,7 +56,10 @@ export class TabsController {
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Body() dto: CreateTabDto,
   ): Promise<ChannelTab> {
-    await this.channelsService.assertReadAccess(channelId, userId);
+    const isMember = await this.channelsService.isMember(channelId, userId);
+    if (!isMember) {
+      throw new ForbiddenException('Not a member of this channel');
+    }
     const tab = await this.tabsService.create(channelId, dto, userId);
 
     await this.websocketGateway.sendToChannelMembers(
@@ -74,7 +78,10 @@ export class TabsController {
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Body() dto: ReorderTabsDto,
   ): Promise<ChannelTab[]> {
-    await this.channelsService.assertReadAccess(channelId, userId);
+    const isMember = await this.channelsService.isMember(channelId, userId);
+    if (!isMember) {
+      throw new ForbiddenException('Not a member of this channel');
+    }
     await this.tabsService.reorder(channelId, dto.tabIds);
     return this.tabsService.findAllByChannel(channelId);
   }
@@ -87,7 +94,10 @@ export class TabsController {
     @Param('tabId', ParseUUIDPipe) tabId: string,
     @Body() dto: UpdateTabDto,
   ): Promise<ChannelTab> {
-    await this.channelsService.assertReadAccess(channelId, userId);
+    const isMember = await this.channelsService.isMember(channelId, userId);
+    if (!isMember) {
+      throw new ForbiddenException('Not a member of this channel');
+    }
     // Verify the tab belongs to this channel
     const existing = await this.tabsService.findByIdOrThrow(tabId);
     if (existing.channelId !== channelId) {
@@ -112,7 +122,10 @@ export class TabsController {
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Param('tabId', ParseUUIDPipe) tabId: string,
   ): Promise<{ success: boolean }> {
-    await this.channelsService.assertReadAccess(channelId, userId);
+    const isMember = await this.channelsService.isMember(channelId, userId);
+    if (!isMember) {
+      throw new ForbiddenException('Not a member of this channel');
+    }
     // Verify the tab belongs to this channel
     const existing = await this.tabsService.findByIdOrThrow(tabId);
     if (existing.channelId !== channelId) {

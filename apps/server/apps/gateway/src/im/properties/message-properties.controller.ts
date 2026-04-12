@@ -11,6 +11,7 @@ import {
   ParseUUIDPipe,
   HttpCode,
   Logger,
+  ForbiddenException,
 } from '@nestjs/common';
 import { MessagePropertiesService } from './message-properties.service.js';
 import { AiAutoFillService } from './ai-auto-fill.service.js';
@@ -25,6 +26,7 @@ import {
   WorkspaceRoleGuard,
   WorkspaceRoles,
 } from '../../workspace/guards/index.js';
+import { ChannelsService } from '../channels/channels.service.js';
 
 @Controller({
   path: 'im/messages/:messageId/properties',
@@ -37,6 +39,7 @@ export class MessagePropertiesController {
   constructor(
     private readonly messagePropertiesService: MessagePropertiesService,
     private readonly aiAutoFillService: AiAutoFillService,
+    private readonly channelsService: ChannelsService,
   ) {}
 
   /**
@@ -45,9 +48,15 @@ export class MessagePropertiesController {
    */
   @Get()
   async getAll(
+    @CurrentUser('sub') userId: string,
     @Param('messageId', ParseUUIDPipe) messageId: string,
   ): Promise<Record<string, unknown>> {
-    return this.messagePropertiesService.getProperties(messageId);
+    const channelId =
+      await this.messagePropertiesService.getMessageChannelId(messageId);
+    await this.channelsService.assertReadAccess(channelId, userId);
+    return this.messagePropertiesService.getProperties(messageId, {
+      excludeHidden: true,
+    });
   }
 
   /**
@@ -62,6 +71,12 @@ export class MessagePropertiesController {
     @Param('definitionId', ParseUUIDPipe) definitionId: string,
     @Body() dto: SetPropertyValueDto,
   ): Promise<{ success: boolean }> {
+    const channelId =
+      await this.messagePropertiesService.getMessageChannelId(messageId);
+    const isMember = await this.channelsService.isMember(channelId, userId);
+    if (!isMember) {
+      throw new ForbiddenException('Not a member of this channel');
+    }
     await this.messagePropertiesService.setProperty(
       messageId,
       definitionId,
@@ -82,6 +97,12 @@ export class MessagePropertiesController {
     @Param('messageId', ParseUUIDPipe) messageId: string,
     @Param('definitionId', ParseUUIDPipe) definitionId: string,
   ): Promise<{ success: boolean }> {
+    const channelId =
+      await this.messagePropertiesService.getMessageChannelId(messageId);
+    const isMember = await this.channelsService.isMember(channelId, userId);
+    if (!isMember) {
+      throw new ForbiddenException('Not a member of this channel');
+    }
     await this.messagePropertiesService.removeProperty(
       messageId,
       definitionId,
@@ -101,6 +122,12 @@ export class MessagePropertiesController {
     @Param('messageId', ParseUUIDPipe) messageId: string,
     @Body() dto: BatchSetPropertiesDto,
   ): Promise<{ success: boolean }> {
+    const channelId =
+      await this.messagePropertiesService.getMessageChannelId(messageId);
+    const isMember = await this.channelsService.isMember(channelId, userId);
+    if (!isMember) {
+      throw new ForbiddenException('Not a member of this channel');
+    }
     await this.messagePropertiesService.batchSet(
       messageId,
       dto.properties,
@@ -118,11 +145,17 @@ export class MessagePropertiesController {
   @Post('auto-fill')
   @HttpCode(202)
   @WorkspaceRoles('member')
-  autoFill(
+  async autoFill(
     @CurrentUser('sub') userId: string,
     @Param('messageId', ParseUUIDPipe) messageId: string,
     @Body() dto: AutoFillDto,
-  ): { status: string } {
+  ): Promise<{ status: string }> {
+    const channelId =
+      await this.messagePropertiesService.getMessageChannelId(messageId);
+    const isMember = await this.channelsService.isMember(channelId, userId);
+    if (!isMember) {
+      throw new ForbiddenException('Not a member of this channel');
+    }
     // Fire and forget — results are broadcast via WebSocket
     this.aiAutoFillService
       .autoFill(messageId, userId, {
