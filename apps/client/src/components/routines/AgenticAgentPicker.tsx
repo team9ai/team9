@@ -117,9 +117,9 @@ export function AgenticAgentPicker({ open, onClose, onManualCreate }: AgenticAge
                 <SelectContent>
                   {allBots.map((bot) => (
                     <SelectItem key={bot.botId} value={bot.botId}>
-                      {"displayName" in bot && bot.displayName
-                        ? bot.displayName
-                        : bot.username}
+                      {("displayName" in bot && bot.displayName) ||
+                        ("username" in bot && bot.username) ||
+                        `Bot ${bot.botId.slice(0, 8)}`}
                     </SelectItem>
                   ))}
                 </SelectContent>
