@@ -572,7 +572,8 @@ export function HomeSubSidebar() {
                   </div>
                   {isSectionExpanded && !isSectionEmpty && (
                     <div className="ml-2 mt-1 space-y-0.5">
-                      {isLoading || isLoadingPublic ? (
+                      {sectionChannels.length === 0 &&
+                      (isLoading || isLoadingPublic) ? (
                         <p className="text-xs text-nav-foreground-faint px-2 py-1">
                           {tCommon("loading")}
                         </p>
@@ -643,7 +644,8 @@ export function HomeSubSidebar() {
                     id="unsectioned"
                     className="space-y-0.5 min-h-8 p-1"
                   >
-                    {isLoading || isLoadingPublic ? (
+                    {(channelsBySection.unsectioned?.length ?? 0) === 0 &&
+                    (isLoading || isLoadingPublic) ? (
                       <p className="text-xs text-nav-foreground-faint px-2 py-1">
                         {tCommon("loading")}
                       </p>
@@ -693,7 +695,7 @@ export function HomeSubSidebar() {
             </Button>
             {dmsExpanded && (
               <div className="ml-2 mt-1 space-y-0.5">
-                {isLoading ? (
+                {directMessageUsers.length === 0 && isLoading ? (
                   <p className="text-xs text-nav-foreground-faint px-2 py-1">
                     {tCommon("loading")}
                   </p>
