@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -45,13 +45,17 @@ export function AgenticAgentPicker({ open, onClose }: AgenticAgentPickerProps) {
     enabled: open && !!workspaceId,
   });
 
-  // Default to personal staff if available (first bot with no agentId = personal staff)
-  const defaultBotId =
-    allBots.find((b) => "agentId" in b && b.agentId === null)?.botId ??
-    allBots[0]?.botId ??
-    "";
+  // Auto-select the first bot when data loads (or personal staff if available)
+  useEffect(() => {
+    if (allBots.length > 0 && !selectedAgentId) {
+      const personalStaff = allBots.find(
+        (b) => "agentId" in b && b.agentId === null,
+      );
+      setSelectedAgentId(personalStaff?.botId ?? allBots[0].botId);
+    }
+  }, [allBots, selectedAgentId]);
 
-  const effectiveAgentId = selectedAgentId || defaultBotId;
+  const effectiveAgentId = selectedAgentId;
 
   const createMutation = useMutation({
     mutationFn: () =>
