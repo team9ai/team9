@@ -8,6 +8,7 @@ import { DatabaseModule } from '@team9/database';
 import { WorkspaceModule } from '../../workspace/workspace.module.js';
 import { WebsocketModule } from '../websocket/websocket.module.js';
 import { AuditModule } from '../audit/audit.module.js';
+import { ChannelsModule } from '../channels/channels.module.js';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { AuditModule } from '../audit/audit.module.js';
     WorkspaceModule,
     AuditModule,
     forwardRef(() => WebsocketModule),
+    forwardRef(() => ChannelsModule),
   ],
   controllers: [PropertyDefinitionsController, MessagePropertiesController],
   providers: [

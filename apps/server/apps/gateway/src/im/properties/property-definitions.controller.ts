@@ -30,6 +30,7 @@ import {
 import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
 import { AuditService } from '../audit/audit.service.js';
+import { ChannelsService } from '../channels/channels.service.js';
 
 @Controller({
   path: 'im/channels/:channelId/property-definitions',
@@ -42,12 +43,15 @@ export class PropertyDefinitionsController {
     @Inject(forwardRef(() => WebsocketGateway))
     private readonly websocketGateway: WebsocketGateway,
     private readonly auditService: AuditService,
+    private readonly channelsService: ChannelsService,
   ) {}
 
   @Get()
   async getAll(
+    @CurrentUser('sub') userId: string,
     @Param('channelId', ParseUUIDPipe) channelId: string,
   ): Promise<PropertyDefinitionRow[]> {
+    await this.channelsService.assertReadAccess(channelId, userId);
     return this.propertyDefinitionsService.findAllByChannel(channelId);
   }
 
@@ -58,6 +62,7 @@ export class PropertyDefinitionsController {
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Body() dto: CreatePropertyDefinitionDto,
   ): Promise<PropertyDefinitionRow> {
+    await this.channelsService.assertReadAccess(channelId, userId);
     const definition = await this.propertyDefinitionsService.create(
       channelId,
       dto,
@@ -87,9 +92,11 @@ export class PropertyDefinitionsController {
   @Patch('order')
   @WorkspaceRoles('member')
   async reorder(
+    @CurrentUser('sub') userId: string,
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Body() dto: ReorderPropertyDefinitionsDto,
   ): Promise<PropertyDefinitionRow[]> {
+    await this.channelsService.assertReadAccess(channelId, userId);
     const result = await this.propertyDefinitionsService.reorder(
       channelId,
       dto.definitionIds,
@@ -117,6 +124,7 @@ export class PropertyDefinitionsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdatePropertyDefinitionDto,
   ): Promise<PropertyDefinitionRow> {
+    await this.channelsService.assertReadAccess(channelId, userId);
     // Verify the definition belongs to this channel
     const existing = await this.propertyDefinitionsService.findByIdOrThrow(id);
     if (existing.channelId !== channelId) {
@@ -160,6 +168,7 @@ export class PropertyDefinitionsController {
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<{ success: boolean }> {
+    await this.channelsService.assertReadAccess(channelId, userId);
     // Verify the definition belongs to this channel
     const existing = await this.propertyDefinitionsService.findByIdOrThrow(id);
     if (existing.channelId !== channelId) {
@@ -187,17 +196,5 @@ export class PropertyDefinitionsController {
     );
 
     return { success: true };
-  }
-
-  @Post('seed')
-  @WorkspaceRoles('member')
-  async seedNative(
-    @CurrentUser('sub') userId: string,
-    @Param('channelId', ParseUUIDPipe) channelId: string,
-  ): Promise<PropertyDefinitionRow[]> {
-    return this.propertyDefinitionsService.seedNativeProperties(
-      channelId,
-      userId,
-    );
   }
 }

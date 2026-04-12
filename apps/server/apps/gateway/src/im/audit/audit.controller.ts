@@ -25,6 +25,7 @@ import {
   WorkspaceRoleGuard,
   WorkspaceRoles,
 } from '../../workspace/guards/index.js';
+import { ChannelsService } from '../channels/channels.service.js';
 
 @Controller({
   path: 'im',
@@ -36,14 +37,17 @@ export class AuditController {
     private readonly auditService: AuditService,
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
+    private readonly channelsService: ChannelsService,
   ) {}
 
   @Get('channels/:channelId/audit-logs')
   @WorkspaceRoles('member')
   async getAuditLogs(
+    @CurrentUser('sub') userId: string,
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Query() query: QueryAuditLogsDto,
   ) {
+    await this.channelsService.assertReadAccess(channelId, userId);
     return this.auditService.findByChannel(channelId, {
       limit: query.limit,
       cursor: query.cursor,

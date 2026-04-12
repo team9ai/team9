@@ -7,6 +7,7 @@ import { DatabaseModule } from '@team9/database';
 import { WorkspaceModule } from '../../workspace/workspace.module.js';
 import { WebsocketModule } from '../websocket/websocket.module.js';
 import { PropertiesModule } from '../properties/properties.module.js';
+import { ChannelsModule } from '../channels/channels.module.js';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { PropertiesModule } from '../properties/properties.module.js';
     WorkspaceModule,
     forwardRef(() => WebsocketModule),
     PropertiesModule,
+    forwardRef(() => ChannelsModule),
   ],
   controllers: [TabsController, ViewsController],
   providers: [TabsService, ViewsService],

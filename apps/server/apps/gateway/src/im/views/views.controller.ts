@@ -26,6 +26,7 @@ import {
 import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
 import type { ChannelView } from '@team9/database/schemas';
+import { ChannelsService } from '../channels/channels.service.js';
 
 @Controller({
   path: 'im/channels/:channelId/views',
@@ -37,12 +38,15 @@ export class ViewsController {
     private readonly viewsService: ViewsService,
     @Inject(forwardRef(() => WebsocketGateway))
     private readonly websocketGateway: WebsocketGateway,
+    private readonly channelsService: ChannelsService,
   ) {}
 
   @Get()
   async getAll(
+    @CurrentUser('sub') userId: string,
     @Param('channelId', ParseUUIDPipe) channelId: string,
   ): Promise<ChannelView[]> {
+    await this.channelsService.assertReadAccess(channelId, userId);
     return this.viewsService.findAllByChannel(channelId);
   }
 
@@ -53,6 +57,7 @@ export class ViewsController {
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Body() dto: CreateViewDto,
   ): Promise<ChannelView> {
+    await this.channelsService.assertReadAccess(channelId, userId);
     const view = await this.viewsService.create(channelId, dto, userId);
 
     await this.websocketGateway.sendToChannelMembers(
@@ -67,10 +72,12 @@ export class ViewsController {
   @Patch(':viewId')
   @WorkspaceRoles('member')
   async update(
+    @CurrentUser('sub') userId: string,
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Param('viewId', ParseUUIDPipe) viewId: string,
     @Body() dto: UpdateViewDto,
   ): Promise<ChannelView> {
+    await this.channelsService.assertReadAccess(channelId, userId);
     // Verify the view belongs to this channel
     const existing = await this.viewsService.findByIdOrThrow(viewId);
     if (existing.channelId !== channelId) {
@@ -91,9 +98,11 @@ export class ViewsController {
   @Delete(':viewId')
   @WorkspaceRoles('member')
   async delete(
+    @CurrentUser('sub') userId: string,
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Param('viewId', ParseUUIDPipe) viewId: string,
   ): Promise<{ success: boolean }> {
+    await this.channelsService.assertReadAccess(channelId, userId);
     // Verify the view belongs to this channel
     const existing = await this.viewsService.findByIdOrThrow(viewId);
     if (existing.channelId !== channelId) {
@@ -113,10 +122,12 @@ export class ViewsController {
 
   @Get(':viewId/messages')
   async queryMessages(
+    @CurrentUser('sub') userId: string,
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Param('viewId', ParseUUIDPipe) viewId: string,
     @Query() query: QueryViewMessagesDto,
   ) {
+    await this.channelsService.assertReadAccess(channelId, userId);
     const view = await this.viewsService.findByIdOrThrow(viewId);
     if (view.channelId !== channelId) {
       throw new NotFoundException('View not found');

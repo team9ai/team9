@@ -12,6 +12,7 @@ import {
   eq,
   and,
   inArray,
+  isNull,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -267,7 +268,24 @@ export class MessagePropertiesService {
       string,
       unknown
     >;
-    const allowCreate = settings.allowNonAdminCreateKey !== false;
+    let allowCreate = settings.allowNonAdminCreateKey !== false;
+    if (!allowCreate && effectiveUserId !== 'system') {
+      // Check if user is admin/owner of the channel — they may always create keys
+      const [member] = await this.db
+        .select({ role: schema.channelMembers.role })
+        .from(schema.channelMembers)
+        .where(
+          and(
+            eq(schema.channelMembers.channelId, message.channelId),
+            eq(schema.channelMembers.userId, effectiveUserId),
+            isNull(schema.channelMembers.leftAt),
+          ),
+        )
+        .limit(1);
+      if (member && (member.role === 'admin' || member.role === 'owner')) {
+        allowCreate = true;
+      }
+    }
 
     // Phase 1: Resolve all definitions outside the transaction
     // (findOrCreate may create definitions, which is a separate concern)
