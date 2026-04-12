@@ -95,6 +95,7 @@ describe('ChannelsController', () => {
         snapshot: { totalMessageCount: 3, latestMessages: [] },
       }),
       activateChannel: jest.fn<any>().mockResolvedValue(undefined),
+      setSidebarVisibility: jest.fn<any>().mockResolvedValue(undefined),
     };
 
     websocketGateway = {
@@ -648,5 +649,41 @@ describe('ChannelsController', () => {
       },
     );
     expect(result).toEqual({ success: true });
+  });
+
+  describe('setSidebarVisibility', () => {
+    it('should call service with correct args', async () => {
+      channelsService.setSidebarVisibility = jest
+        .fn<any>()
+        .mockResolvedValue(undefined);
+      const result = await controller.setSidebarVisibility(
+        CHANNEL_ID,
+        { show: false },
+        USER_ID,
+      );
+      expect(channelsService.setSidebarVisibility).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        USER_ID,
+        false,
+      );
+      expect(result).toEqual({ success: true });
+    });
+
+    it('should return success true when show is true', async () => {
+      channelsService.setSidebarVisibility = jest
+        .fn<any>()
+        .mockResolvedValue(undefined);
+      const result = await controller.setSidebarVisibility(
+        CHANNEL_ID,
+        { show: true },
+        USER_ID,
+      );
+      expect(channelsService.setSidebarVisibility).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        USER_ID,
+        true,
+      );
+      expect(result).toEqual({ success: true });
+    });
   });
 });

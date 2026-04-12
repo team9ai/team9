@@ -1501,6 +1501,43 @@ export class ChannelsService {
   }
 
   /**
+   * Toggle the showInDmSidebar flag for the current user's membership
+   * in a direct or echo channel.
+   */
+  async setSidebarVisibility(
+    channelId: string,
+    userId: string,
+    show: boolean,
+  ): Promise<void> {
+    const [channel] = await this.db
+      .select({ id: schema.channels.id, type: schema.channels.type })
+      .from(schema.channels)
+      .where(eq(schema.channels.id, channelId))
+      .limit(1);
+
+    if (!channel) {
+      throw new NotFoundException('Channel not found');
+    }
+
+    if (channel.type !== 'direct' && channel.type !== 'echo') {
+      throw new BadRequestException(
+        'Sidebar visibility can only be changed for direct or echo channels',
+      );
+    }
+
+    await this.db
+      .update(schema.channelMembers)
+      .set({ showInDmSidebar: show })
+      .where(
+        and(
+          eq(schema.channelMembers.channelId, channelId),
+          eq(schema.channelMembers.userId, userId),
+          isNull(schema.channelMembers.leftAt),
+        ),
+      );
+  }
+
+  /**
    * Delete all DM channels that a user participates in.
    * Used during bot cleanup to remove orphaned direct channels.
    */

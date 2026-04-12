@@ -1654,6 +1654,57 @@ describe('ChannelsService', () => {
     });
   });
 
+  describe('setSidebarVisibility', () => {
+    it('should update show_in_dm_sidebar for a direct channel', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'channel-1', type: 'direct' },
+      ] as any);
+
+      await service.setSidebarVisibility('channel-1', 'user-1', false);
+      expect(db.update).toHaveBeenCalled();
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({ showInDmSidebar: false }),
+      );
+    });
+
+    it('should update show_in_dm_sidebar for an echo channel', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'channel-1', type: 'echo' },
+      ] as any);
+
+      await service.setSidebarVisibility('channel-1', 'user-1', true);
+      expect(db.update).toHaveBeenCalled();
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({ showInDmSidebar: true }),
+      );
+    });
+
+    it('should throw BadRequestException for non-DM channel', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'channel-1', type: 'public' },
+      ] as any);
+      await expect(
+        service.setSidebarVisibility('channel-1', 'user-1', false),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException for private channel', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'channel-1', type: 'private' },
+      ] as any);
+      await expect(
+        service.setSidebarVisibility('channel-1', 'user-1', true),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw NotFoundException for missing channel', async () => {
+      db.limit.mockResolvedValueOnce([] as any);
+      await expect(
+        service.setSidebarVisibility('channel-1', 'user-1', false),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe('channel name helpers', () => {
     it('normalizes names and validates unicode-friendly channel names', () => {
       expect(ChannelsService.normalizeChannelName('  Team   Updates  ')).toBe(

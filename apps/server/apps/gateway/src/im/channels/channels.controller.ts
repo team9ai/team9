@@ -397,6 +397,16 @@ export class ChannelsController {
     return channel;
   }
 
+  @Patch(':id/sidebar-visibility')
+  async setSidebarVisibility(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { show: boolean },
+    @CurrentUser('sub') userId: string,
+  ) {
+    await this.channelsService.setSidebarVisibility(id, userId, body.show);
+    return { success: true };
+  }
+
   @Post(':id/deactivate')
   async deactivateChannel(
     @CurrentUser('sub') userId: string,
