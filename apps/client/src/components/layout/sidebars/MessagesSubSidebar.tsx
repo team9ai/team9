@@ -133,20 +133,18 @@ export function MessagesSubSidebar() {
               {directMessageUsers.length > 0 &&
                 directMessageUsers.map((dm) => (
                   <ContextMenu key={dm.id}>
-                    <ContextMenuTrigger asChild>
-                      <div>
-                        <UserListItem
-                          name={dm.name}
-                          avatarUrl={dm.avatarUrl}
-                          userId={dm.userId}
-                          isSelected={selectedChannelId === dm.channelId}
-                          unreadCount={dm.unreadCount}
-                          channelId={dm.channelId}
-                          linkPrefix="/messages"
-                          isBot={dm.isBot}
-                          agentType={dm.agentType}
-                        />
-                      </div>
+                    <ContextMenuTrigger className="block w-full">
+                      <UserListItem
+                        name={dm.name}
+                        avatarUrl={dm.avatarUrl}
+                        userId={dm.userId}
+                        isSelected={selectedChannelId === dm.channelId}
+                        unreadCount={dm.unreadCount}
+                        channelId={dm.channelId}
+                        linkPrefix="/messages"
+                        isBot={dm.isBot}
+                        agentType={dm.agentType}
+                      />
                     </ContextMenuTrigger>
                     <ContextMenuContent className="w-48">
                       <ContextMenuItem

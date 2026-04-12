@@ -10,7 +10,14 @@ import {
   FolderPlus,
   Trash2,
   Download,
+  EyeOff,
 } from "lucide-react";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -35,7 +42,11 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import React, { useState, useEffect, useMemo } from "react";
-import { useChannelsByType, usePublicChannels } from "@/hooks/useChannels";
+import {
+  useChannelsByType,
+  usePublicChannels,
+  useSetSidebarVisibility,
+} from "@/hooks/useChannels";
 import {
   useSections,
   useMoveChannel,
@@ -291,6 +302,7 @@ export function HomeSubSidebar() {
   } = useChannelsByType();
   const { data: allPublicChannels = [], isLoading: isLoadingPublic } =
     usePublicChannels();
+  const setSidebarVisibility = useSetSidebarVisibility();
   const { data: sections = [] } = useSections();
   const moveChannel = useMoveChannel();
   const deleteSection = useDeleteSection();
@@ -705,17 +717,33 @@ export function HomeSubSidebar() {
                   </p>
                 ) : (
                   directMessageUsers.map((dm) => (
-                    <UserListItem
-                      key={dm.id}
-                      name={dm.name}
-                      avatarUrl={dm.avatarUrl}
-                      userId={dm.userId}
-                      isSelected={selectedChannelId === dm.channelId}
-                      unreadCount={dm.unreadCount}
-                      channelId={dm.channelId}
-                      isBot={dm.isBot}
-                      agentType={dm.agentType}
-                    />
+                    <ContextMenu key={dm.id}>
+                      <ContextMenuTrigger className="block w-full">
+                        <UserListItem
+                          name={dm.name}
+                          avatarUrl={dm.avatarUrl}
+                          userId={dm.userId}
+                          isSelected={selectedChannelId === dm.channelId}
+                          unreadCount={dm.unreadCount}
+                          channelId={dm.channelId}
+                          isBot={dm.isBot}
+                          agentType={dm.agentType}
+                        />
+                      </ContextMenuTrigger>
+                      <ContextMenuContent className="w-48">
+                        <ContextMenuItem
+                          onClick={() =>
+                            setSidebarVisibility.mutate({
+                              channelId: dm.channelId,
+                              show: false,
+                            })
+                          }
+                        >
+                          <EyeOff className="mr-2 h-4 w-4" />
+                          {tNav("hideConversation")}
+                        </ContextMenuItem>
+                      </ContextMenuContent>
+                    </ContextMenu>
                   ))
                 )}
               </div>
