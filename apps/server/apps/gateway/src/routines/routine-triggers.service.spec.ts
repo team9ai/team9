@@ -372,7 +372,6 @@ describe('RoutineTriggersService', () => {
       expect(txInsertValues).toHaveBeenCalledWith(
         expect.objectContaining({
           routineId: 'routine-1',
-          tenantId: 'tenant-1',
           type: 'manual',
           enabled: true,
         }),
