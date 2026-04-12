@@ -41,6 +41,10 @@ export class PosthogService implements OnApplicationShutdown {
   private readonly logger = new Logger(PosthogService.name);
   private readonly client: PostHog | null;
 
+  private static readonly DEFAULT_PROPERTIES: Record<string, unknown> = {
+    app_name: 'team9-server',
+  };
+
   constructor() {
     const projectApiKey = env.POSTHOG_PROJECT_API_KEY;
 
@@ -77,7 +81,10 @@ export class PosthogService implements OnApplicationShutdown {
     this.client.capture({
       distinctId: input.distinctId,
       event: input.event,
-      properties: input.properties,
+      properties: {
+        ...PosthogService.DEFAULT_PROPERTIES,
+        ...input.properties,
+      },
       groups: input.groups,
       disableGeoip: input.disableGeoip,
     });

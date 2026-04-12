@@ -533,7 +533,15 @@ describe('MessagesController', () => {
         controller.deleteMessage(USER_ID, MESSAGE_ID),
       ).resolves.toEqual({ success: true });
 
-      expect(messagesService.delete).toHaveBeenCalledWith(MESSAGE_ID, USER_ID);
+      expect(channelsService.getMemberRole).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        USER_ID,
+      );
+      expect(messagesService.delete).toHaveBeenCalledWith(
+        MESSAGE_ID,
+        USER_ID,
+        'owner',
+      );
       expect(websocketGateway.sendToChannelMembers).toHaveBeenCalledWith(
         CHANNEL_ID,
         WS_EVENTS.MESSAGE.DELETED,

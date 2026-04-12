@@ -5,6 +5,7 @@ import { RichTextEditor } from "./editor";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { cn } from "@/lib/utils";
 import type { AttachmentDto } from "@/types/im";
+import type { useBotModelSwitch } from "@/hooks/useBotModelSwitch";
 
 interface MessageInputProps {
   /** Channel ID for file upload context (optional in compact mode) */
@@ -24,6 +25,14 @@ interface MessageInputProps {
   placeholder?: string;
   /** Draft text to pre-fill in the editor */
   initialDraft?: string;
+  /** Automatically send the initial draft once after mount */
+  autoSendInitialDraft?: boolean;
+  /** Called after the initial draft auto-send succeeds */
+  onInitialDraftAutoSent?: () => void;
+  /** Whether this is a bot DM channel - shows AI feature buttons */
+  isBotDm?: boolean;
+  /** Bot model switching info */
+  botModelSwitch?: ReturnType<typeof useBotModelSwitch>;
 }
 
 export function MessageInput({
@@ -35,6 +44,10 @@ export function MessageInput({
   onClearReplyingTo,
   placeholder,
   initialDraft,
+  autoSendInitialDraft,
+  onInitialDraftAutoSent,
+  isBotDm = false,
+  botModelSwitch,
 }: MessageInputProps) {
   const { t } = useTranslation(["message", "thread"]);
   const [isDragging, setIsDragging] = useState(false);
@@ -174,7 +187,7 @@ export function MessageInput({
       <div
         ref={containerRef}
         className={cn(
-          "border-t p-3 bg-background relative transition-colors",
+          "border-t p-3 bg-background relative transition-colors rounded-b-2xl",
           isDragging && "bg-info/10 border-info/30",
         )}
         onDragEnter={handleDragEnter}
@@ -221,6 +234,8 @@ export function MessageInput({
           onRemoveFile={removeFile}
           onRetryFile={retryFile}
           initialDraft={initialDraft}
+          autoSendInitialDraft={autoSendInitialDraft}
+          onInitialDraftAutoSent={onInitialDraftAutoSent}
         />
       </div>
     );
@@ -231,37 +246,47 @@ export function MessageInput({
     <div
       ref={containerRef}
       className={cn(
-        "border-t p-4 bg-background relative transition-colors",
-        isDragging && "bg-info/10 border-info/30",
+        "px-4 pb-4 pt-2 bg-background relative transition-colors w-full max-w-5xl",
       )}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      {/* Drag overlay */}
-      {isDragging && (
-        <div className="absolute inset-0 bg-info/10 border-2 border-dashed border-info/40 rounded-lg flex items-center justify-center z-10 pointer-events-none">
-          <div className="flex flex-col items-center gap-2 text-info">
-            <Upload size={32} />
-            <span className="text-sm font-medium">
-              {t("message:dragToUpload")}
-            </span>
+      <div
+        className={cn(
+          "relative rounded-2xl border border-border bg-card shadow-md transition-shadow focus-within:shadow-lg",
+          isDragging && "bg-info/5 border-info/30 shadow-md",
+        )}
+      >
+        {/* Drag overlay */}
+        {isDragging && (
+          <div className="absolute inset-0 bg-info/10 border-2 border-dashed border-info/40 rounded-2xl flex items-center justify-center z-10 pointer-events-none">
+            <div className="flex flex-col items-center gap-2 text-info">
+              <Upload size={32} />
+              <span className="text-sm font-medium">
+                {t("message:dragToUpload")}
+              </span>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <RichTextEditor
-        channelId={channelId}
-        onSubmit={handleSubmit}
-        disabled={disabled || isUploading}
-        placeholder={placeholder || defaultPlaceholder}
-        onFileSelect={handleFileSelect}
-        uploadingFiles={uploadingFiles}
-        onRemoveFile={removeFile}
-        onRetryFile={retryFile}
-        initialDraft={initialDraft}
-      />
+        <RichTextEditor
+          channelId={channelId}
+          onSubmit={handleSubmit}
+          disabled={disabled || isUploading}
+          placeholder={placeholder || defaultPlaceholder}
+          onFileSelect={handleFileSelect}
+          uploadingFiles={uploadingFiles}
+          onRemoveFile={removeFile}
+          onRetryFile={retryFile}
+          initialDraft={initialDraft}
+          autoSendInitialDraft={autoSendInitialDraft}
+          onInitialDraftAutoSent={onInitialDraftAutoSent}
+          isBotDm={isBotDm}
+          botModelSwitch={botModelSwitch}
+        />
+      </div>
     </div>
   );
 }

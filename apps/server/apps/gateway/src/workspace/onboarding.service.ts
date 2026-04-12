@@ -22,6 +22,7 @@ import { ChannelsService } from '../im/channels/channels.service.js';
 import { CommonStaffService } from '../applications/common-staff.service.js';
 import { InstalledApplicationsService } from '../applications/installed-applications.service.js';
 import { PersonalStaffService } from '../applications/personal-staff.service.js';
+import { RoutinesService } from '../routines/routines.service.js';
 import type {
   OnboardingChildAgentDraft,
   OnboardingGeneratedTask,
@@ -46,8 +47,8 @@ const openrouter = createOpenAI({
 });
 
 const DEFAULT_STAFF_MODEL = {
-  provider: 'anthropic',
-  id: 'claude-sonnet-4-6',
+  provider: 'openrouter',
+  id: 'anthropic/claude-sonnet-4.6',
 } as const;
 
 const ONBOARDING_CHANNEL_COUNT = 4;
@@ -94,6 +95,7 @@ export class OnboardingService {
     private readonly installedApplicationsService: InstalledApplicationsService,
     private readonly personalStaffService: PersonalStaffService,
     private readonly commonStaffService: CommonStaffService,
+    private readonly routinesService: RoutinesService,
   ) {}
 
   async createStarterRecord(workspaceId: string, userId: string) {
@@ -402,6 +404,19 @@ export class OnboardingService {
         userId,
         record.stepData.agents,
       );
+      try {
+        await this.provisionRoutines(
+          workspaceId,
+          userId,
+          record.id,
+          record.stepData,
+        );
+      } catch (routineErr) {
+        this.logger.warn(
+          `provisionRoutines failed for workspace ${workspaceId}, continuing`,
+          routineErr,
+        );
+      }
       await this.persistPreferences(workspaceId, record.stepData);
 
       const [updated] = await this.db
@@ -594,15 +609,106 @@ export class OnboardingService {
     }
   }
 
-  private async persistPreferences(
+  private async provisionRoutines(
     workspaceId: string,
+    userId: string,
+    onboardingRecordId: string,
     stepData: WorkspaceOnboardingStepData,
   ) {
     const selectedTasks =
       stepData.tasks?.generatedTasks?.filter((task) =>
         stepData.tasks?.selectedTaskIds?.includes(task.id),
       ) ?? [];
+    const customTask = stepData.tasks?.customTask?.trim() ?? null;
 
+    if (selectedTasks.length === 0 && !customTask) {
+      return;
+    }
+
+    // Find the personal-staff installed app for this workspace
+    const personalStaffApp =
+      await this.installedApplicationsService.findByApplicationId(
+        workspaceId,
+        'personal-staff',
+      );
+
+    if (!personalStaffApp) {
+      this.logger.warn(
+        `provisionRoutines: no personal-staff app installed for workspace ${workspaceId}, skipping`,
+      );
+      return;
+    }
+
+    const personalBot = await this.personalStaffService.findPersonalStaffBot(
+      userId,
+      personalStaffApp.id,
+    );
+
+    if (!personalBot) {
+      this.logger.warn(
+        `provisionRoutines: no personal-staff bot found for user ${userId} in workspace ${workspaceId}, skipping`,
+      );
+      return;
+    }
+
+    // Create draft routines for each selected generated task
+    for (const task of selectedTasks) {
+      const sourceRef = `onboarding:${onboardingRecordId}:${task.id}`;
+
+      // Idempotency check
+      const existing = await this.db
+        .select({ id: schema.routines.id })
+        .from(schema.routines)
+        .where(
+          and(
+            eq(schema.routines.tenantId, workspaceId),
+            eq(schema.routines.sourceRef, sourceRef),
+          ),
+        )
+        .limit(1);
+
+      if (existing.length > 0) {
+        continue;
+      }
+
+      await this.routinesService.create(
+        { title: task.title, botId: personalBot.botId, status: 'draft' },
+        userId,
+        workspaceId,
+        { sourceRef },
+      );
+    }
+
+    // Create draft routine for the customTask if present
+    if (customTask) {
+      const customSourceRef = `onboarding:${onboardingRecordId}:custom`;
+
+      const existing = await this.db
+        .select({ id: schema.routines.id })
+        .from(schema.routines)
+        .where(
+          and(
+            eq(schema.routines.tenantId, workspaceId),
+            eq(schema.routines.sourceRef, customSourceRef),
+          ),
+        )
+        .limit(1);
+
+      if (existing.length === 0) {
+        await this.routinesService.create(
+          { title: customTask, botId: personalBot.botId, status: 'draft' },
+          userId,
+          workspaceId,
+          { sourceRef: customSourceRef },
+        );
+      }
+    }
+  }
+
+  private async persistPreferences(
+    workspaceId: string,
+    stepData: WorkspaceOnboardingStepData,
+  ) {
     const [workspace] = await this.db
       .select({
         settings: schema.tenants.settings,
@@ -621,7 +727,8 @@ export class OnboardingService {
         role: stepData.role ?? null,
         tasks: {
           selectedTaskIds: stepData.tasks?.selectedTaskIds ?? [],
-          selectedTaskTitles: selectedTasks.map((task) => task.title),
+          // selectedTaskTitles removed — draft routines are now the canonical
+          // representation of user-selected onboarding tasks.
           customTask: stepData.tasks?.customTask ?? null,
         },
       },

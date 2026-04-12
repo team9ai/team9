@@ -16,6 +16,7 @@ import { ChannelView } from "@/components/channel/ChannelView";
 import { ChatPlaceholder } from "./ChatPlaceholder";
 import { ManualTriggerDialog } from "./ManualTriggerDialog";
 import { routinesApi } from "@/services/api/routines";
+import { formatDateTime } from "@/lib/date-format";
 import type {
   RoutineStatus,
   RoutineDetail,
@@ -280,8 +281,7 @@ export function ChatArea({
               {t("chatArea.viewingHistory")}
             </span>
             <span className="text-xs text-muted-foreground">
-              {selectedRun.startedAt &&
-                new Date(selectedRun.startedAt).toLocaleString()}
+              {selectedRun.startedAt && formatDateTime(selectedRun.startedAt)}
               {" · "}
               {t(`status.${selectedRun.status}`)}
               {" · v"}
@@ -306,7 +306,7 @@ export function ChatArea({
             </span>
             <span className="text-xs text-muted-foreground">
               {selectedRun.completedAt &&
-                new Date(selectedRun.completedAt).toLocaleString()}
+                formatDateTime(selectedRun.completedAt)}
               {selectedRun.duration != null &&
                 selectedRun.duration > 0 &&
                 ` · ${selectedRun.duration}s`}

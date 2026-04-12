@@ -30,9 +30,13 @@ export const useLanguageLoading = create<LanguageLoadingState>((set) => ({
   setLoading: (loading) => set({ isLoading: loading }),
 }));
 
+function hasAllResourceBundles(lang: string): boolean {
+  return NAMESPACES.every((ns) => i18n.hasResourceBundle(lang, ns));
+}
+
 export async function loadLanguage(lang: string): Promise<void> {
   if (lang === "en") return;
-  if (i18n.hasResourceBundle(lang, "common")) return;
+  if (hasAllResourceBundles(lang)) return;
 
   useLanguageLoading.getState().setLoading(true);
 

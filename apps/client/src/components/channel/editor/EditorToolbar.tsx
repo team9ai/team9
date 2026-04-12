@@ -1,29 +1,7 @@
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useState, useRef } from "react";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import {
-  $getSelection,
-  $isRangeSelection,
-  FORMAT_TEXT_COMMAND,
-  SELECTION_CHANGE_COMMAND,
-  COMMAND_PRIORITY_CRITICAL,
-} from "lexical";
-import {
-  INSERT_ORDERED_LIST_COMMAND,
-  INSERT_UNORDERED_LIST_COMMAND,
-  REMOVE_LIST_COMMAND,
-  $isListNode,
-  ListNode,
-} from "@lexical/list";
-import { $getNearestNodeOfType, mergeRegister } from "@lexical/utils";
-import {
-  Bold,
-  Italic,
-  List,
-  ListOrdered,
-  Smile,
-  Paperclip,
-  AtSign,
-} from "lucide-react";
+import { $getSelection, $isRangeSelection } from "lexical";
+import { Smile, Plus, AtSign, Search, ImagePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -36,82 +14,16 @@ import { $createTextNode, $insertNodes } from "lexical";
 
 interface EditorToolbarProps {
   onFileSelect?: (files: FileList) => void;
+  isBotDm?: boolean;
 }
 
-export function EditorToolbar({ onFileSelect }: EditorToolbarProps) {
+export function EditorToolbar({
+  onFileSelect,
+  isBotDm = false,
+}: EditorToolbarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editor] = useLexicalComposerContext();
-  const [isBold, setIsBold] = useState(false);
-  const [isItalic, setIsItalic] = useState(false);
-  const [listType, setListType] = useState<"bullet" | "number" | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-
-  const updateToolbar = useCallback(() => {
-    const selection = $getSelection();
-    if ($isRangeSelection(selection)) {
-      setIsBold(selection.hasFormat("bold"));
-      setIsItalic(selection.hasFormat("italic"));
-
-      const anchorNode = selection.anchor.getNode();
-      const element =
-        anchorNode.getKey() === "root"
-          ? anchorNode
-          : anchorNode.getTopLevelElementOrThrow();
-      const elementDOM = editor.getElementByKey(element.getKey());
-
-      if (elementDOM !== null) {
-        const parentList = $getNearestNodeOfType(anchorNode, ListNode);
-        if ($isListNode(parentList)) {
-          const type = parentList.getListType();
-          setListType(type === "number" ? "number" : "bullet");
-        } else {
-          setListType(null);
-        }
-      }
-    }
-  }, [editor]);
-
-  useEffect(() => {
-    return mergeRegister(
-      editor.registerUpdateListener(({ editorState }) => {
-        editorState.read(() => {
-          updateToolbar();
-        });
-      }),
-      editor.registerCommand(
-        SELECTION_CHANGE_COMMAND,
-        () => {
-          updateToolbar();
-          return false;
-        },
-        COMMAND_PRIORITY_CRITICAL,
-      ),
-    );
-  }, [editor, updateToolbar]);
-
-  const formatBold = () => {
-    editor.dispatchCommand(FORMAT_TEXT_COMMAND, "bold");
-  };
-
-  const formatItalic = () => {
-    editor.dispatchCommand(FORMAT_TEXT_COMMAND, "italic");
-  };
-
-  const formatBulletList = () => {
-    if (listType === "bullet") {
-      editor.dispatchCommand(REMOVE_LIST_COMMAND, undefined);
-    } else {
-      editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined);
-    }
-  };
-
-  const formatNumberedList = () => {
-    if (listType === "number") {
-      editor.dispatchCommand(REMOVE_LIST_COMMAND, undefined);
-    } else {
-      editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined);
-    }
-  };
 
   const insertEmoji = (emoji: string) => {
     editor.update(() => {
@@ -153,8 +65,14 @@ export function EditorToolbar({ onFileSelect }: EditorToolbarProps) {
     e.target.value = "";
   };
 
+  const toolbarBtnClass =
+    "h-8 w-8 p-0 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/80";
+
+  const aiBtnClass =
+    "group h-8 w-8 hover:w-auto p-0 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-all duration-200 overflow-hidden";
+
   return (
-    <div className="flex items-center gap-1 mb-2 pb-2 border-b border-border">
+    <div className="flex items-center gap-1">
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -164,59 +82,19 @@ export function EditorToolbar({ onFileSelect }: EditorToolbarProps) {
         className="hidden"
         accept="*/*"
       />
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={formatBold}
-        className={cn("h-8 w-8 p-0", isBold && "bg-primary/10 text-primary")}
-        title="Bold (Ctrl+B)"
-      >
-        <Bold size={16} />
-      </Button>
 
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={formatItalic}
-        className={cn("h-8 w-8 p-0", isItalic && "bg-primary/10 text-primary")}
-        title="Italic (Ctrl+I)"
-      >
-        <Italic size={16} />
-      </Button>
-
-      <div className="w-px h-5 bg-muted mx-1" />
-
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={formatBulletList}
-        className={cn(
-          "h-8 w-8 p-0",
-          listType === "bullet" && "bg-primary/10 text-primary",
-        )}
-        title="Bullet List"
-      >
-        <List size={16} />
-      </Button>
-
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={formatNumberedList}
-        className={cn(
-          "h-8 w-8 p-0",
-          listType === "number" && "bg-primary/10 text-primary",
-        )}
-        title="Numbered List"
-      >
-        <ListOrdered size={16} />
-      </Button>
-
-      <div className="w-px h-5 bg-muted mx-1" />
+      {onFileSelect && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={handleFileClick}
+          className={toolbarBtnClass}
+          title="Attach file"
+        >
+          <Plus size={16} />
+        </Button>
+      )}
 
       <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
         <PopoverTrigger asChild>
@@ -224,7 +102,7 @@ export function EditorToolbar({ onFileSelect }: EditorToolbarProps) {
             type="button"
             variant="ghost"
             size="sm"
-            className="h-8 w-8 p-0"
+            className={toolbarBtnClass}
             title="Emoji"
           >
             <Smile size={16} />
@@ -239,32 +117,46 @@ export function EditorToolbar({ onFileSelect }: EditorToolbarProps) {
         </PopoverContent>
       </Popover>
 
-      {onFileSelect && (
-        <>
-          <div className="w-px h-5 bg-muted mx-1" />
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleFileClick}
-            className="h-8 w-8 p-0"
-            title="Attach file"
-          >
-            <Paperclip size={16} />
-          </Button>
-        </>
-      )}
-
       <Button
         type="button"
         variant="ghost"
         size="sm"
         onClick={insertMention}
-        className="h-8 w-8 p-0"
+        className={toolbarBtnClass}
         title="Mention (@)"
       >
         <AtSign size={16} />
       </Button>
+
+      {isBotDm && (
+        <>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={cn(aiBtnClass, "group/ai")}
+            title="Deep research"
+          >
+            <Search size={16} className="shrink-0" />
+            <span className="max-w-0 opacity-0 group-hover/ai:max-w-32 group-hover/ai:opacity-100 group-hover/ai:ml-1 group-hover/ai:mr-1 transition-all duration-200 text-xs whitespace-nowrap">
+              Deep research
+            </span>
+          </Button>
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={cn(aiBtnClass, "group/ai2")}
+            title="Generate image"
+          >
+            <ImagePlus size={16} className="shrink-0" />
+            <span className="max-w-0 opacity-0 group-hover/ai2:max-w-36 group-hover/ai2:opacity-100 group-hover/ai2:ml-1 group-hover/ai2:mr-1 transition-all duration-200 text-xs whitespace-nowrap">
+              Generate image
+            </span>
+          </Button>
+        </>
+      )}
     </div>
   );
 }

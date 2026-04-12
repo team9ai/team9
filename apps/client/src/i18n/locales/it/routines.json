@@ -1,0 +1,283 @@
+{
+  "tabs": {
+    "all": "Tutte",
+    "active": "In corso",
+    "upcoming": "In arrivo",
+    "finished": "Terminate",
+    "info": "Info",
+    "triggers": "Trigger",
+    "document": "Documento",
+    "runs": "Esecuzioni",
+    "run": "Esecuzione",
+    "settings": "Impostazioni",
+    "history": "Cronologia"
+  },
+  "noRoutines": "Nessuna routine",
+  "create": {
+    "title": "Nuova routine",
+    "description": "Crea una routine da eseguire per un membro dello staff AI.",
+    "taskName": "Titolo",
+    "taskNamePlaceholder": "Cosa deve essere fatto?",
+    "bot": "Staff AI",
+    "botPlaceholder": "Seleziona staff AI...",
+    "noBot": "Nessuno (assegna in seguito)",
+    "document": "Documento (opzionale)",
+    "documentPlaceholder": "Fornisci contesto o istruzioni...",
+    "cancel": "Annulla",
+    "submit": "Crea",
+    "errorGeneric": "Creazione della routine non riuscita"
+  },
+  "status": {
+    "in_progress": "In corso",
+    "upcoming": "In arrivo",
+    "paused": "In pausa",
+    "pending_action": "Azione in sospeso",
+    "completed": "Completata",
+    "failed": "Fallita",
+    "stopped": "Arrestata",
+    "timeout": "Timeout"
+  },
+  "stepStatus": {
+    "pending": "In attesa",
+    "in_progress": "In corso",
+    "completed": "Completato",
+    "failed": "Fallito"
+  },
+  "schedule": {
+    "type": "Pianificazione",
+    "types": {
+      "once": "Una tantum",
+      "recurring": "Ricorrente"
+    },
+    "frequency": "Frequenza",
+    "frequencies": {
+      "daily": "Giornaliera",
+      "weekly": "Settimanale",
+      "monthly": "Mensile"
+    },
+    "time": "Orario",
+    "dayOfWeek": "Giorno della settimana",
+    "dayOfMonth": "Giorno del mese",
+    "days": {
+      "0": "Dom",
+      "1": "Lun",
+      "2": "Mar",
+      "3": "Mer",
+      "4": "Gio",
+      "5": "Ven",
+      "6": "Sab"
+    }
+  },
+  "detail": {
+    "title": "Dettagli routine",
+    "loadError": "Impossibile caricare i dettagli della routine",
+    "start": "Avvia",
+    "pause": "Pausa",
+    "resume": "Riprendi",
+    "stop": "Arresta",
+    "restart": "Riavvia",
+    "delete": "Elimina",
+    "deleteConfirm": "Sei sicuro di voler eliminare questa routine?",
+    "assignBot": "Staff AI",
+    "noBot": "Non assegnato",
+    "steps": "Passaggi",
+    "noSteps": "Ancora nessun passaggio",
+    "deliverables": "Deliverable",
+    "noDeliverables": "Ancora nessun deliverable",
+    "pendingInterventions": "Azione richiesta",
+    "pastInterventions": "Interventi passati",
+    "interventionResolved": "Risolto",
+    "interventionExpired": "Scaduto",
+    "interventionPlaceholder": "Scrivi una risposta personalizzata...",
+    "messageInputPlaceholder": "Invia un messaggio a questa routine...",
+    "finishedBanner": {
+      "completed": "Routine completata con successo",
+      "failed": "Routine fallita",
+      "timeout": "Timeout della routine",
+      "stopped": "La routine è stata arrestata",
+      "in_progress": "",
+      "upcoming": "",
+      "paused": "",
+      "pending_action": ""
+    },
+    "completedAt": "Terminata il {{time}}",
+    "duration": "Durata: {{duration}}",
+    "tokenUsage": "{{tokens}} token utilizzati",
+    "tokenCount": "{{count}} token",
+    "error": "Errore",
+    "errorWithCode": "Errore ({{code}})",
+    "document": {
+      "save": "Salva",
+      "saving": "Salvataggio in corso...",
+      "unsavedChanges": "Modifiche non salvate",
+      "viewingVersion": "Visualizzazione della versione {{version}}",
+      "backToCurrent": "Torna all'attuale",
+      "currentLabel": "Versione {{version}} (attuale)",
+      "versionLabel": "Versione {{version}} — {{time}}",
+      "discardTitle": "Modifiche non salvate",
+      "discardMessage": "Hai modifiche non salvate. Scartarle?",
+      "discardConfirm": "Scarta",
+      "discardCancel": "Continua a modificare",
+      "saveSummaryPlaceholder": "Descrivi le tue modifiche (opzionale)...",
+      "placeholder": "Inizia a scrivere...",
+      "createPlaceholder": "Inizia a scrivere per creare un documento...",
+      "suggestions": {
+        "title": "Suggerimenti AI",
+        "count": "Suggerimenti AI ({{count}})",
+        "view": "Visualizza",
+        "approve": "Approva",
+        "reject": "Rifiuta",
+        "current": "Attuale",
+        "suggested": "Suggerito",
+        "outdated": "Questo suggerimento si basa su una versione precedente",
+        "empty": "Nessun suggerimento in sospeso"
+      },
+      "versionHistory": {
+        "loadError": "Impossibile caricare le versioni",
+        "noVersions": "Ancora nessuna versione"
+      }
+    }
+  },
+  "triggers": {
+    "title": "Trigger",
+    "add": "Aggiungi trigger",
+    "empty": "Nessun trigger configurato",
+    "edit": "Modifica",
+    "delete": "Elimina",
+    "types": {
+      "manual": "Manuale",
+      "interval": "Intervallo",
+      "schedule": "Pianificazione",
+      "channel_message": "Messaggio del canale"
+    },
+    "enabled": "Abilitato",
+    "disabled": "Disabilitato",
+    "nextRun": "Prossima esecuzione: {{time}}",
+    "countdown": "tra {{duration}}",
+    "lastRun": "Ultima esecuzione: {{time}}",
+    "interval": {
+      "every": "Ogni",
+      "units": {
+        "minutes": "minuti",
+        "hours": "ore",
+        "days": "giorni",
+        "weeks": "settimane",
+        "months": "mesi",
+        "years": "anni"
+      }
+    },
+    "schedule": {
+      "frequencies": {
+        "daily": "Giornaliera",
+        "weekly": "Settimanale",
+        "monthly": "Mensile",
+        "yearly": "Annuale",
+        "weekdays": "Giorni feriali"
+      },
+      "time": "Alle",
+      "timezone": "Fuso orario",
+      "dayOfWeek": "Giorno",
+      "dayOfMonth": "Giorno del mese"
+    },
+    "channelMessage": {
+      "channel": "Canale",
+      "selectChannel": "Seleziona canale..."
+    },
+    "deleteConfirm": "Eliminare questo trigger?",
+    "addTitle": "Aggiungi trigger",
+    "selectType": "Seleziona tipo di trigger",
+    "configureTitle": "Configura {{type}}",
+    "back": "Indietro",
+    "create": "Crea",
+    "manualNoConfig": "I trigger manuali non necessitano di configurazione. Basta crearli e attivarli manualmente.",
+    "typeDesc": {
+      "manual": "Attiva su richiesta",
+      "interval": "Esegui a intervalli fissi",
+      "schedule": "Esegui secondo una pianificazione",
+      "channel_message": "Esegui quando viene inviato un messaggio"
+    }
+  },
+  "runs": {
+    "title": "Esecuzioni",
+    "empty": "Ancora nessuna esecuzione",
+    "version": "v{{version}}",
+    "triggerType": {
+      "manual": "Manuale",
+      "interval": "Intervallo",
+      "schedule": "Pianificata",
+      "channel_message": "Messaggio",
+      "retry": "Nuovo tentativo"
+    },
+    "notes": "Note",
+    "retry": "Riprova",
+    "retryTitle": "Riprova esecuzione",
+    "retryNotes": "Aggiungi note per il nuovo tentativo (opzionale)",
+    "back": "Torna alle esecuzioni",
+    "documentVersion": "Documento v{{version}}",
+    "triggeredAt": "Attivata il {{time}}",
+    "scheduledAt": "Pianificata per il {{time}}",
+    "triggeredBy": "Attivata da {{user}}",
+    "messageFrom": "Messaggio da {{user}}",
+    "retryOf": "Nuovo tentativo di v{{version}}"
+  },
+  "timeline": {
+    "empty": "Ancora nessuna attività",
+    "statusChange": {
+      "started": "Routine avviata",
+      "completed": "Routine completata",
+      "failed": "Routine fallita",
+      "stopped": "Routine arrestata",
+      "timeout": "Timeout della routine",
+      "paused": "Routine messa in pausa"
+    }
+  },
+  "chat": {
+    "placeholder": "Avvia la routine per chattare con il bot"
+  },
+  "manualTrigger": {
+    "title": "Avvia routine",
+    "notesPlaceholder": "Aggiungi note o contesto per questa esecuzione (opzionale)..."
+  },
+  "chatArea": {
+    "viewingHistory": "Visualizzazione dell'esecuzione storica",
+    "returnToCurrent": "Torna all'esecuzione corrente",
+    "lastRunCompleted": "Ultima esecuzione completata",
+    "lastRunFailed": "Ultima esecuzione fallita",
+    "lastRunStopped": "Ultima esecuzione arrestata",
+    "lastRunTimeout": "Timeout dell'ultima esecuzione",
+    "rerun": "Riesegui",
+    "readOnly": "Conversazione storica (sola lettura)",
+    "finishedReadOnly": "Conversazione dell'ultima esecuzione (sola lettura)",
+    "start": "Avvia",
+    "noRunsYet": "Ancora nessuna esecuzione. Avvia la tua prima esecuzione!",
+    "pause": "Pausa",
+    "resume": "Riprendi",
+    "stop": "Arresta"
+  },
+  "runTab": {
+    "title": "Dettagli esecuzione",
+    "status": "Stato",
+    "duration": "Durata",
+    "triggerType": "Trigger",
+    "taskVersion": "Versione routine",
+    "tokenUsage": "Utilizzo token",
+    "timeline": "Cronologia",
+    "noExecution": "Nessuna esecuzione selezionata"
+  },
+  "settingsTab": {
+    "title": "Impostazioni",
+    "taskTitle": "Titolo",
+    "taskDescription": "Descrizione",
+    "deleteConfirm": "Sei sicuro di voler eliminare questa routine? Questa azione non può essere annullata."
+  },
+  "historyTab": {
+    "title": "Cronologia",
+    "current": "Attuale",
+    "empty": "Ancora nessuna esecuzione",
+    "manual": "Manuale",
+    "interval": "Intervallo",
+    "schedule": "Pianificazione",
+    "channelMessage": "Messaggio del canale",
+    "retry": "Nuovo tentativo"
+  }
+}

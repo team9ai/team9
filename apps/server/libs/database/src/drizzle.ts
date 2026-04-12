@@ -1,6 +1,7 @@
 // Re-export drizzle-orm types and utilities for use in other packages
 export {
   eq,
+  ne,
   and,
   or,
   lt,

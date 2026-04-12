@@ -13,10 +13,12 @@ import { tenants } from '../tenant/tenants.js';
 import { bots } from '../im/bots.js';
 import { users } from '../im/users.js';
 import { documents } from '../document/documents.js';
+import { channels } from '../im/channels.js';
 
 // ── Enums ───────────────────────────────────────────────────────────
 
 export const routineStatusEnum = pgEnum('routine__status', [
+  'draft',
   'upcoming',
   'in_progress',
   'paused',
@@ -80,6 +82,13 @@ export const routines = pgTable(
     // Forward reference — FK to routine__executions added via relations
     currentExecutionId: uuid('current_execution_id'),
 
+    creationChannelId: uuid('creation_channel_id').references(
+      () => channels.id,
+      { onDelete: 'set null' },
+    ),
+    creationSessionId: varchar('creation_session_id', { length: 255 }),
+    sourceRef: varchar('source_ref', { length: 255 }),
+
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
@@ -93,6 +102,10 @@ export const routines = pgTable(
       table.tenantId,
       table.status,
     ),
+    index('idx_routine__routines_creation_channel_id').on(
+      table.creationChannelId,
+    ),
+    index('idx_routine__routines_source_ref').on(table.sourceRef),
   ],
 );
 

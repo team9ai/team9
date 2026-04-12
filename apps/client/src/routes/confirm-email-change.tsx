@@ -52,10 +52,7 @@ function ConfirmEmailChange() {
       setErrorMessage(
         getHttpErrorMessage(error) ||
           (error instanceof Error ? error.message : "") ||
-          t(
-            "confirmEmailChangeFailed",
-            "We could not confirm your email change.",
-          ),
+          t("confirmEmailChangeFailed"),
       );
     }
   };
@@ -93,7 +90,7 @@ function ConfirmEmailChange() {
           <div className="flex flex-col items-center pt-2 pb-6 border-b border-border/40 mb-6">
             <img
               src="/team9-logo.png"
-              alt="Team9 logo"
+              alt={t("logoAlt")}
               className="w-52 max-w-full h-auto mb-2 transition-transform duration-300 hover:scale-[1.02]"
               style={{
                 filter:
@@ -109,16 +106,10 @@ function ConfirmEmailChange() {
                 <CheckCircle className="w-8 h-8 text-success" />
               </div>
               <h2 className="text-xl font-semibold text-success mb-2">
-                {t(
-                  "confirmEmailChangeSuccess",
-                  "Email address updated successfully.",
-                )}
+                {t("confirmEmailChangeSuccess")}
               </h2>
               <p className="text-muted-foreground mb-6">
-                {t(
-                  "confirmEmailChangeSuccessHint",
-                  "Your login email has been updated. You can return to Team9 now.",
-                )}
+                {t("confirmEmailChangeSuccessHint")}
               </p>
             </>
           ) : isError ? (
@@ -127,15 +118,10 @@ function ConfirmEmailChange() {
                 <XCircle className="w-8 h-8 text-destructive" />
               </div>
               <h2 className="text-xl font-semibold text-destructive mb-2">
-                {t(
-                  "confirmEmailChangeErrorTitle",
-                  "Email change could not be confirmed",
-                )}
+                {t("confirmEmailChangeErrorTitle")}
               </h2>
               <p className="text-muted-foreground mb-6">
-                {isMissingToken
-                  ? t("invalidEmailChangeLink", "Invalid email change link")
-                  : errorMessage}
+                {isMissingToken ? t("invalidEmailChangeLink") : errorMessage}
               </p>
             </>
           ) : (
@@ -148,13 +134,10 @@ function ConfirmEmailChange() {
                 )}
               </div>
               <h2 className="text-xl font-semibold mb-2">
-                {t("confirmEmailChangeTitle", "Confirm your new email address")}
+                {t("confirmEmailChangeTitle")}
               </h2>
               <p className="text-muted-foreground mb-6">
-                {t(
-                  "confirmEmailChangeHint",
-                  "Click the button below to finish changing the email address for your Team9 account.",
-                )}
+                {t("confirmEmailChangeHint")}
               </p>
               <Button
                 className="w-full rounded-xl h-11 font-semibold"
@@ -162,15 +145,15 @@ function ConfirmEmailChange() {
                 disabled={status === "submitting"}
               >
                 {status === "submitting"
-                  ? t("confirmingEmailChange", "Confirming...")
-                  : t("confirmEmailChangeAction", "Confirm email change")}
+                  ? t("confirmingEmailChange")
+                  : t("confirmEmailChangeAction")}
               </Button>
             </>
           )}
 
           <Link to="/login" className="block mt-4">
             <Button variant="ghost" className="w-full rounded-xl h-11">
-              {t("backToLogin", "Back to login")}
+              {t("backToLogin")}
             </Button>
           </Link>
         </div>

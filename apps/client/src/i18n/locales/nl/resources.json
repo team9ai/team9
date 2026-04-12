@@ -1,0 +1,92 @@
+{
+  "title": "Bronnen",
+  "tabs": {
+    "all": "Alle",
+    "agent_computer": "Agent Computer",
+    "api": "API"
+  },
+  "noResources": "Nog geen bronnen",
+  "status": {
+    "online": "Online",
+    "offline": "Offline",
+    "error": "Fout",
+    "configuring": "Configureren"
+  },
+  "type": {
+    "agent_computer": "Agent Computer",
+    "api": "API"
+  },
+  "connectionType": {
+    "ahand": "Ahand",
+    "ssh": "SSH",
+    "cloud": "Cloud"
+  },
+  "create": {
+    "title": "Bron toevoegen",
+    "selectType": "Brontype",
+    "name": "Naam",
+    "namePlaceholder": "Voer bronnaam in",
+    "description": "Beschrijving",
+    "descriptionPlaceholder": "Optionele beschrijving",
+    "connectionType": "Verbindingstype",
+    "host": "Host",
+    "hostPlaceholder": "bijv. 192.168.1.100",
+    "port": "Poort",
+    "provider": "Aanbieder",
+    "providerPlaceholder": "bijv. openai, google, custom",
+    "apiKey": "API-sleutel",
+    "apiKeyPlaceholder": "Voer API-sleutel in",
+    "baseUrl": "Basis-URL",
+    "baseUrlPlaceholder": "Optionele aangepaste basis-URL",
+    "model": "Model",
+    "modelPlaceholder": "bijv. gpt-4, claude-3",
+    "submit": "Aanmaken",
+    "cancel": "Annuleren"
+  },
+  "detail": {
+    "title": "Brondetails",
+    "loadError": "Kan bron niet laden",
+    "basicInfo": "Basisinformatie",
+    "authorizations": "Autorisaties",
+    "noAuthorizations": "Nog geen autorisaties",
+    "addAuthorization": "Toevoegen",
+    "usageLogs": "Gebruikslogs",
+    "noUsageLogs": "Nog geen gebruikslogs",
+    "delete": "Verwijderen",
+    "deleteConfirm": "Weet je zeker dat je deze bron wilt verwijderen?",
+    "lastHeartbeat": "Laatste hartslag: {{time}}",
+    "authCount": "{{count}} geautoriseerd",
+    "maskedKey": "{{prefix}}...{{suffix}}",
+    "granteeType": {
+      "user": "Gebruiker",
+      "task": "Taak"
+    },
+    "permissionLevel": {
+      "full": "Volledige toegang",
+      "readonly": "Alleen-lezen"
+    }
+  },
+  "auth": {
+    "granteeType": "Type begunstigde",
+    "granteeId": "ID begunstigde",
+    "granteeIdPlaceholder": "Voer gebruikers- of taak-ID in",
+    "permissionLevel": "Machtiging",
+    "grant": "Toegang verlenen"
+  },
+  "edit": {
+    "save": "Opslaan",
+    "cancel": "Annuleren"
+  },
+  "ahand": {
+    "localDeviceSetup": "Lokale apparaatinstellingen",
+    "connection": "aHand-verbinding",
+    "browserComponents": "Browsercomponenten",
+    "activation": "Activering"
+  },
+  "actions": {
+    "connect": "Verbinden",
+    "disconnect": "Verbinding verbreken",
+    "api_call": "API-aanroep",
+    "error": "Fout"
+  }
+}

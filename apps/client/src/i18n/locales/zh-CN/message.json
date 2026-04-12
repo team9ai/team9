@@ -36,5 +36,18 @@
   "remove": "删除",
   "botThinking": "思考中",
   "botAnalyzing": "分析中",
-  "botGenerating": "生成回复中"
+  "selectUserToChat": "选择一个用户开始私聊",
+  "botGenerating": "生成回复中",
+  "editedAt": "(已编辑于 {{time}})",
+  "editSave": "保存",
+  "editCancel": "取消",
+  "editHint": "Esc 取消 · Enter 保存",
+  "deleteConfirmTitle": "删除消息",
+  "deleteConfirmDescription": "确定要删除这条消息吗？此操作无法撤销。",
+  "deleteConfirm": "删除",
+  "deleteCancel": "取消",
+  "loadingFullContent": "加载完整内容中...",
+  "loadFullContentFailed": "加载完整内容失败，请取消后重试。",
+  "expandFullContent": "展开全文",
+  "remainingChars": "（还有约 {{count}} 字）"
 }

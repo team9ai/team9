@@ -13,6 +13,13 @@
     "history": "履歴"
   },
   "noRoutines": "ルーティンはありません",
+  "createManually": "手動で作成",
+  "emptyState": {
+    "title": "ルーティンとは？",
+    "description": "ルーティンは AI スタッフが自動的に実行するタスクです。\nトリガー条件を設定すると、AI があなたの代わりに作業を完了します。",
+    "createWithAI": "AI で作成",
+    "createManually": "または手動で作成"
+  },
   "create": {
     "title": "新規ルーティン",
     "description": "AI スタッフに実行させるルーティンを作成します。",

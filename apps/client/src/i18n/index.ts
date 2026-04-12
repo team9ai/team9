@@ -18,9 +18,11 @@ import enOnboarding from "./locales/en/onboarding.json";
 import { loadLanguage, NAMESPACES } from "./loadLanguage";
 
 // Backward compat: remap legacy "zh" to "zh-CN"
-const stored = localStorage.getItem("i18nextLng");
-if (stored === "zh") {
-  localStorage.setItem("i18nextLng", "zh-CN");
+if (typeof window !== "undefined" && window.localStorage) {
+  const stored = localStorage.getItem("i18nextLng");
+  if (stored === "zh") {
+    localStorage.setItem("i18nextLng", "zh-CN");
+  }
 }
 
 export const supportedLanguages = [
@@ -30,8 +32,12 @@ export const supportedLanguages = [
   { code: "ja", name: "Japanese", nativeName: "日本語" },
   { code: "ko", name: "Korean", nativeName: "한국어" },
   { code: "es", name: "Spanish", nativeName: "Español" },
+  { code: "pt", name: "Portuguese", nativeName: "Português" },
   { code: "fr", name: "French", nativeName: "Français" },
   { code: "de", name: "German", nativeName: "Deutsch" },
+  { code: "it", name: "Italian", nativeName: "Italiano" },
+  { code: "nl", name: "Dutch", nativeName: "Nederlands" },
+  { code: "ru", name: "Russian", nativeName: "Русский" },
 ];
 
 const resources = {
@@ -65,13 +71,22 @@ i18n
       order: ["localStorage", "navigator", "htmlTag"],
       caches: ["localStorage"],
       lookupLocalStorage: "i18nextLng",
+      convertDetectedLanguage: (lng: string) => {
+        // Normalize zh variants to zh-CN (e.g., "zh", "zh-Hans", "zh-Hans-CN")
+        if (lng === "zh" || lng.startsWith("zh-Hans")) return "zh-CN";
+        // Normalize zh-Hant to zh-TW
+        if (lng.startsWith("zh-Hant")) return "zh-TW";
+        return lng;
+      },
     },
   });
 
 // Load non-en language after init if needed
 const detectedLng = i18n.language;
 if (detectedLng && detectedLng !== "en") {
-  loadLanguage(detectedLng);
+  loadLanguage(detectedLng).catch((err) => {
+    console.error(`[i18n] Failed to load language "${detectedLng}":`, err);
+  });
 }
 
 export default i18n;

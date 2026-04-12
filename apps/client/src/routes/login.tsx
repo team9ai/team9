@@ -53,11 +53,12 @@ function LoginLayout({ children }: { children: React.ReactNode }) {
 }
 
 function LogoBanner({ subtitle }: { subtitle?: string }) {
+  const { t } = useTranslation("auth");
   return (
     <div className="flex flex-col items-center pt-2 pb-6 border-b border-border/40 mb-6">
       <img
         src="/team9-logo.png"
-        alt="Team9 logo"
+        alt={t("logoAlt")}
         className="w-52 max-w-full h-auto mb-2 transition-transform duration-300 hover:scale-[1.02]"
         style={{
           filter:
@@ -310,7 +311,7 @@ function DesktopLoginView() {
     return (
       <LoginLayout>
         <GlassCard>
-          <LogoBanner subtitle="Team collaboration, reimagined" />
+          <LogoBanner subtitle={t("tagline")} />
           <div className="flex flex-col items-center gap-4 py-4">
             <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
               <Loader2 className="w-7 h-7 text-primary animate-spin" />
@@ -342,7 +343,7 @@ function DesktopLoginView() {
     return (
       <LoginLayout>
         <GlassCard>
-          <LogoBanner subtitle="Team collaboration, reimagined" />
+          <LogoBanner subtitle={t("tagline")} />
           <div className="flex flex-col items-center gap-4 py-4">
             <p className="text-sm text-muted-foreground">
               {t("sessionExpired")}
@@ -369,7 +370,7 @@ function DesktopLoginView() {
   return (
     <LoginLayout>
       <GlassCard>
-        <LogoBanner subtitle="Team collaboration, reimagined" />
+        <LogoBanner subtitle={t("tagline")} />
         <div className="flex flex-col items-center">
           <Button
             onClick={handleOpenBrowser}
@@ -418,6 +419,7 @@ function WebLoginView() {
   const [countdown, setCountdown] = useState(0);
   const authCompletedInSession = useRef(false);
   const lastAutoVerifyAttempt = useRef<string | null>(null);
+  const authMethodRef = useRef<"email" | "google">("email");
 
   const authStart = useAuthStart();
   const verifyCode = useVerifyCode();
@@ -437,6 +439,19 @@ function WebLoginView() {
   const navigateAfterAuth = useCallback(async () => {
     authCompletedInSession.current = true;
 
+    try {
+      const { default: posthog } = await import("posthog-js");
+      if (posthog.__loaded) {
+        posthog.capture("sign_up_completed", {
+          method: authMethodRef.current,
+          has_invite: !!invite,
+          is_desktop_flow: !!desktopSessionId,
+        });
+      }
+    } catch {
+      // Analytics should never block auth flow
+    }
+
     if (desktopSessionId) {
       try {
         await completeDesktop.mutateAsync({
@@ -450,7 +465,12 @@ function WebLoginView() {
     }
 
     navigateToPostAuthDestination();
-  }, [completeDesktop, desktopSessionId, navigateToPostAuthDestination]);
+  }, [
+    completeDesktop,
+    desktopSessionId,
+    invite,
+    navigateToPostAuthDestination,
+  ]);
 
   useEffect(() => {
     if (!currentUser || isLoading || authCompletedInSession.current) return;
@@ -516,7 +536,20 @@ function WebLoginView() {
 
   useEffect(() => {
     if (authState === "authenticated" && desktopSessionId) {
-      window.location.href = `team9://auth-complete?sessionId=${desktopSessionId}`;
+      const redirect = () => {
+        window.location.href = `team9://auth-complete?sessionId=${desktopSessionId}`;
+      };
+
+      import("posthog-js")
+        .then(({ default: posthog }) => {
+          if (posthog.__loaded) {
+            return (
+              posthog as unknown as { flush: () => Promise<void> }
+            ).flush();
+          }
+        })
+        .then(redirect)
+        .catch(redirect);
     }
   }, [authState, desktopSessionId]);
 
@@ -596,6 +629,8 @@ function WebLoginView() {
     if (invite) {
       localStorage.setItem("pending_invite_code", invite);
     }
+
+    authMethodRef.current = "google";
 
     try {
       await googleAuth.mutateAsync({
@@ -687,7 +722,9 @@ function WebLoginView() {
           {/* Dev mode: show code directly */}
           {devCode && (
             <div className="mb-6 p-4 bg-warning/10 border border-warning/30 rounded-xl text-center">
-              <p className="text-sm text-warning font-medium mb-1">Dev Mode</p>
+              <p className="text-sm text-warning font-medium mb-1">
+                {t("devMode")}
+              </p>
               <p className="text-2xl font-mono font-bold tracking-wider">
                 {devCode}
               </p>

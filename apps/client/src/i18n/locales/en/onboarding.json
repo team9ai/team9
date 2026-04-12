@@ -47,9 +47,10 @@
   },
   "role": {
     "inputLabel": "Describe your work",
-    "inputPlaceholder": "For example: I run B2B SaaS sales follow-up, proposals, and deal reviews.",
-    "customHint": "You can also use only free text and skip the presets.",
+    "inputPlaceholder": "For example: I'm a B2B SaaS sales manager. My day-to-day includes following up with leads, writing proposals, running weekly deal reviews, and keeping the CRM up to date...",
+    "customHint": "The more you describe, the better we can tailor your workspace.",
     "or": "Or",
+    "presetsToggle": "Not sure what to write? Browse preset roles for inspiration",
     "featured": "Recommended",
     "suggestions": "Role suggestions"
   },

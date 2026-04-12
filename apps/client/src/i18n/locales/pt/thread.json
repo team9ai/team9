@@ -1,0 +1,18 @@
+{
+  "title": "Tópico",
+  "loading": "Carregando tópico...",
+  "error": "Falha ao carregar tópico",
+  "repliesCount": "{{count}} resposta",
+  "repliesCount_other": "{{count}} respostas",
+  "showMoreReplies": "Mostrar mais {{count}} resposta",
+  "showMoreReplies_other": "Mostrar mais {{count}} respostas",
+  "hideReplies": "Ocultar respostas",
+  "replyingTo": "Respondendo a",
+  "inputPlaceholder": "Responder no tópico...",
+  "loadMore": "Carregar mais respostas",
+  "loadingMore": "Carregando...",
+  "newMessages": "{{count}} nova mensagem",
+  "newMessages_other": "{{count}} novas mensagens",
+  "lastReply": "Última resposta {{time}}",
+  "backToChannel": "Voltar ao canal"
+}

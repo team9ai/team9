@@ -2,6 +2,7 @@ import { Loader2, Clock, User, Bot } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useDocumentVersions } from "@/hooks/useDocuments";
+import { formatDateTime } from "@/lib/date-format";
 import type { DocumentIdentity, VersionResponse } from "@/types/document";
 
 interface VersionHistoryProps {
@@ -24,7 +25,7 @@ function IdentityIcon({ identity }: { identity: DocumentIdentity }) {
 }
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleString();
+  return formatDateTime(dateStr);
 }
 
 function VersionItem({

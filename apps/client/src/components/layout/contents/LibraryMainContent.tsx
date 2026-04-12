@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { useTranslation } from "react-i18next";
 import { useDocuments, useCreateDocument } from "@/hooks/useDocuments";
 import { DocumentViewer } from "@/components/document/DocumentViewer";
+import { formatDateTime } from "@/lib/date-format";
 import type { DocumentIdentity, DocumentListItem } from "@/types/document";
 
 function formatIdentity(identity: DocumentIdentity): string {
@@ -33,7 +34,7 @@ function formatIdentity(identity: DocumentIdentity): string {
 }
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleString();
+  return formatDateTime(dateStr);
 }
 
 // ── Document Card ───────────────────────────────────────────────────

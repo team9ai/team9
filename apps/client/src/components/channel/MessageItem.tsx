@@ -16,7 +16,13 @@ import { ThinkingBlock } from "./ThinkingBlock";
 import { TrackingCard } from "./TrackingCard";
 import { TrackingEventItem } from "./TrackingEventItem";
 import { AgentTypeBadge } from "@/components/ui/agent-type-badge";
-import { formatMessageTime } from "@/lib/date-utils";
+import {
+  formatMessageTime,
+  formatEditedTime,
+  parseApiDate,
+} from "@/lib/date-utils";
+import { RichTextEditor } from "./editor";
+import { useFullContent } from "@/hooks/useMessages";
 import { getAgentMeta } from "@/lib/agent-events";
 import { cn } from "@/lib/utils";
 import { usePropertyDefinitions } from "@/hooks/usePropertyDefinitions";
@@ -41,6 +47,8 @@ export interface MessageItemProps {
   unreadSubReplyCount?: number;
   /** Highlight this message (e.g., from deep link navigation) */
   isHighlighted?: boolean;
+  /** Whether current user can delete this message (admin/owner) */
+  canDelete?: boolean;
   /** Context menu handlers */
   onReplyInThread?: () => void;
   onEdit?: () => void;
@@ -50,6 +58,14 @@ export interface MessageItemProps {
   onRetry?: () => void;
   /** Remove a failed message from the list */
   onRemoveFailed?: () => void;
+  /** Whether this message is currently being edited */
+  isEditing?: boolean;
+  /** Whether the edit save is in progress */
+  isEditSaving?: boolean;
+  /** Callback when edit is saved with new content */
+  onEditSave?: (content: string) => Promise<void>;
+  /** Callback when edit is cancelled */
+  onEditCancel?: () => void;
   /** Reaction handlers */
   onAddReaction?: (emoji: string) => void;
   onRemoveReaction?: (emoji: string) => void;
@@ -74,6 +90,7 @@ export function MessageItem({
   onReplyCountClick,
   unreadSubReplyCount,
   isHighlighted = false,
+  canDelete,
   onReplyInThread,
   onEdit,
   onDelete,
@@ -82,6 +99,10 @@ export function MessageItem({
   onRemoveFailed,
   onAddReaction,
   onRemoveReaction,
+  isEditing = false,
+  isEditSaving = false,
+  onEditSave,
+  onEditCancel,
 }: MessageItemProps) {
   const { t } = useTranslation(["thread", "message"]);
   const thinkingMetadata = getThinkingMetadata(message.metadata);
@@ -95,6 +116,21 @@ export function MessageItem({
     message.channelId,
   );
   const setPropertyMutation = useSetProperty(message.id, message.channelId);
+
+  // Fetch full content for long_text messages when entering edit mode
+  const isLongText = message.type === "long_text" || message.isTruncated;
+  const needsFullContent = isEditing && isLongText;
+  const {
+    data: fullContentData,
+    isLoading: isLoadingFullContent,
+    isError: isFullContentError,
+  } = useFullContent(message.id, needsFullContent);
+  const editHtml =
+    needsFullContent && fullContentData
+      ? fullContentData.content
+      : needsFullContent
+        ? undefined // Don't fall back to truncated content
+        : message.content;
 
   // Tracking message display (inline card)
   const isTrackingMessage = message.type === "tracking";
@@ -233,7 +269,11 @@ export function MessageItem({
             {formatMessageTime(new Date(message.createdAt))}
           </span>
           {message.isEdited && (
-            <span className="text-xs text-muted-foreground">(edited)</span>
+            <span className="text-xs text-muted-foreground">
+              {t("message:editedAt", {
+                time: formatEditedTime(parseApiDate(message.updatedAt)),
+              })}
+            </span>
           )}
           {isSending && (
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -262,14 +302,60 @@ export function MessageItem({
           }
           messageId={message.id}
         />
-        {hasContent && (
-          <div className="channel-message-content">
-            <MessageContent
-              content={message.content}
-              className="text-sm whitespace-pre-wrap break-words"
-              message={message}
-            />
+        {isEditing ? (
+          <div className="w-full">
+            {needsFullContent && isLoadingFullContent ? (
+              <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+                <Loader2 size={14} className="animate-spin" />
+                <span>{t("message:loadingFullContent")}</span>
+              </div>
+            ) : needsFullContent && (isFullContentError || !editHtml) ? (
+              <div className="flex items-center gap-2 py-2 text-sm text-destructive">
+                <AlertCircle size={14} />
+                <span>{t("message:loadFullContentFailed")}</span>
+              </div>
+            ) : (
+              <RichTextEditor
+                channelId={message.channelId}
+                compact
+                initialHtml={editHtml}
+                clearOnSubmit={false}
+                disabled={isEditSaving}
+                submitLabel={t("message:editSave")}
+                onSubmit={async (content) => {
+                  await onEditSave?.(content);
+                }}
+                onCancel={onEditCancel}
+                placeholder={t("message:edit")}
+              />
+            )}
+            <div className="flex items-center gap-2 mt-1">
+              <button
+                onClick={() => onEditCancel?.()}
+                className="text-xs text-muted-foreground hover:text-foreground"
+                disabled={isEditSaving}
+              >
+                {t("message:editCancel")}
+              </button>
+              {!isEditSaving && (
+                <span className="text-xs text-muted-foreground">
+                  {t("message:editHint")}
+                </span>
+              )}
+            </div>
           </div>
+        ) : (
+          <>
+            {hasContent && (
+              <div className="channel-message-content">
+                <MessageContent
+                  content={message.content}
+                  className="text-sm whitespace-pre-wrap break-words"
+                  message={message}
+                />
+              </div>
+            )}
+          </>
         )}
         {hasAttachments && (
           <MessageAttachments
@@ -354,14 +440,20 @@ export function MessageItem({
     return content;
   }
 
+  // Disable edit/pin/delete for messages still sending or failed (temp IDs)
+  const isPersisted = !isSending && !isFailed;
+
   return (
     <MessageContextMenu
       message={message}
       isOwnMessage={isOwnMessage}
+      canDelete={canDelete}
       onReplyInThread={onReplyInThread}
-      onEdit={isOwnMessage ? onEdit : undefined}
-      onDelete={isOwnMessage ? onDelete : undefined}
-      onPin={onPin}
+      onEdit={isPersisted && isOwnMessage ? onEdit : undefined}
+      onDelete={
+        isPersisted && (isOwnMessage || canDelete) ? onDelete : undefined
+      }
+      onPin={isPersisted ? onPin : undefined}
     >
       {content}
     </MessageContextMenu>

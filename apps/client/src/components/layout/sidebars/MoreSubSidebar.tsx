@@ -1,15 +1,15 @@
+import { useTranslation } from "react-i18next";
 import { ChevronDown, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 
 const moreItems = [
-  { id: "settings", label: "Settings", icon: Settings },
-  // { id: "help", label: "Help", icon: HelpCircle },
-  // { id: "about", label: "About", icon: Info },
-];
+  { id: "settings", labelKey: "moreSettings", icon: Settings },
+] as const;
 
 export function MoreSubSidebar() {
+  const { t } = useTranslation("navigation");
   return (
     <aside className="w-64 h-full overflow-hidden bg-nav-sub-bg text-primary-foreground flex flex-col">
       {/* Header */}
@@ -18,7 +18,7 @@ export function MoreSubSidebar() {
           variant="ghost"
           className="w-full justify-between text-nav-foreground hover:bg-nav-hover px-2 h-auto py-1.5"
         >
-          <span className="font-semibold text-lg">More</span>
+          <span className="font-semibold text-lg">{t("more")}</span>
           <ChevronDown size={16} className="text-nav-foreground-subtle" />
         </Button>
       </div>
@@ -37,7 +37,7 @@ export function MoreSubSidebar() {
                 className="w-full justify-start gap-2 px-2 h-auto py-2 text-sm text-nav-foreground-muted hover:bg-nav-hover hover:text-nav-foreground"
               >
                 <Icon size={16} />
-                <span className="truncate">{item.label}</span>
+                <span className="truncate">{t(item.labelKey)}</span>
               </Button>
             );
           })}

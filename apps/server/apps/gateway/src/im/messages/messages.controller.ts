@@ -395,7 +395,8 @@ export class MessagesController {
     @Param('id', ParseUUIDPipe) messageId: string,
   ): Promise<{ success: boolean }> {
     const channelId = await this.messagesService.getMessageChannelId(messageId);
-    await this.messagesService.delete(messageId, userId);
+    const role = await this.channelsService.getMemberRole(channelId, userId);
+    await this.messagesService.delete(messageId, userId, role ?? undefined);
 
     // Broadcast message deletion to all channel members via WebSocket
     await this.websocketGateway.sendToChannelMembers(

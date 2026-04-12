@@ -12,18 +12,23 @@ import { getAgentMeta, pairToolEvents } from "@/lib/agent-events";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useChannelMembers } from "@/hooks/useChannels";
 import { useThreadStore } from "@/hooks/useThread";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useDeleteMessage,
   useRetryMessage,
   useRemoveFailedMessage,
   useAddReaction,
   useRemoveReaction,
+  usePinMessage,
+  useUnpinMessage,
+  useUpdateMessage,
 } from "@/hooks/useMessages";
 import { useChannelScrollStore } from "@/hooks/useChannelScrollState";
 import { useStreamingStore } from "@/stores/useStreamingStore";
 import type { StreamingMessage } from "@/stores/useStreamingStore";
 import { cn } from "@/lib/utils";
 import { MessageItem } from "./MessageItem";
+import { DeleteMessageDialog } from "./DeleteMessageDialog";
 import { ToolCallBlock } from "./ToolCallBlock";
 import { StreamingMessageItem } from "./StreamingMessageItem";
 import { A2UISurfaceBlock } from "./A2UISurfaceBlock";
@@ -94,6 +99,38 @@ export function MessageList({
   const isAtBottomRef = useRef(false);
   const { data: currentUser } = useCurrentUser();
   const openThread = useThreadStore((state) => state.openThread);
+  const currentUserRole = useMemo(
+    () => members.find((m) => m.userId === currentUser?.id)?.role,
+    [members, currentUser?.id],
+  );
+
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const updateMessage = useUpdateMessage();
+  const queryClient = useQueryClient();
+
+  const handleEditStart = useCallback((messageId: string) => {
+    setEditingMessageId(messageId);
+  }, []);
+
+  const handleEditSave = useCallback(
+    async (messageId: string, content: string) => {
+      try {
+        await updateMessage.mutateAsync({ messageId, data: { content } });
+        // Invalidate full-content cache so edited long_text messages refetch
+        queryClient.removeQueries({
+          queryKey: ["message-full-content", messageId],
+        });
+        setEditingMessageId((cur) => (cur === messageId ? null : cur));
+      } catch {
+        // Edit mode stays open, content preserved in editor (clearOnSubmit=false)
+      }
+    },
+    [updateMessage, queryClient],
+  );
+
+  const handleEditCancel = useCallback(() => {
+    setEditingMessageId(null);
+  }, []);
 
   const scrollStore = useChannelScrollStore();
   const scrollState = scrollStore.getChannelState(channelId);
@@ -525,11 +562,17 @@ export function MessageList({
             message={message}
             prevMessage={prevMessage}
             currentUserId={currentUser?.id}
+            currentUserRole={currentUserRole}
             showReplyCount={Boolean(hasReplies)}
             onReplyCountClick={() => openThread(message.id)}
             isHighlighted={isHighlighted}
             channelId={channelId}
             isDirect={channelType === "direct"}
+            editingMessageId={editingMessageId}
+            isEditSaving={updateMessage.isPending}
+            onEditStart={handleEditStart}
+            onEditSave={handleEditSave}
+            onEditCancel={handleEditCancel}
           />
         </div>
       );
@@ -542,6 +585,7 @@ export function MessageList({
       highlightMessageId,
       readOnly,
       currentUser?.id,
+      currentUserRole,
       openThread,
       channelId,
       channelType,
@@ -551,6 +595,11 @@ export function MessageList({
       thinkingBotIds,
       toggleRoundExpanded,
       foldMaps,
+      editingMessageId,
+      updateMessage.isPending,
+      handleEditStart,
+      handleEditSave,
+      handleEditCancel,
     ],
   );
 
@@ -632,20 +681,32 @@ function ChannelMessageItem({
   message,
   prevMessage,
   currentUserId,
+  currentUserRole,
   showReplyCount,
   onReplyCountClick,
   isHighlighted,
   channelId,
   isDirect,
+  editingMessageId,
+  isEditSaving,
+  onEditStart,
+  onEditSave,
+  onEditCancel,
 }: {
   message: Message;
   prevMessage?: Message;
   currentUserId?: string;
+  currentUserRole?: string;
   showReplyCount?: boolean;
   onReplyCountClick?: () => void;
   isHighlighted?: boolean;
   channelId: string;
   isDirect: boolean;
+  editingMessageId: string | null;
+  isEditSaving: boolean;
+  onEditStart: (messageId: string) => void;
+  onEditSave: (messageId: string, content: string) => Promise<void>;
+  onEditCancel: () => void;
 }) {
   const openThread = useThreadStore((state) => state.openThread);
   const deleteMessage = useDeleteMessage();
@@ -653,6 +714,14 @@ function ChannelMessageItem({
   const removeFailedMessage = useRemoveFailedMessage(channelId);
   const addReaction = useAddReaction(channelId);
   const removeReaction = useRemoveReaction(channelId);
+  const pinMessage = usePinMessage(channelId);
+  const unpinMessage = useUnpinMessage(channelId);
+
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const isOwnMessage = currentUserId === message.senderId;
+  const isAdmin = currentUserRole === "owner" || currentUserRole === "admin";
+  const canDelete = isAdmin && !isOwnMessage;
+  const isEditing = editingMessageId === message.id;
 
   // Context menu handlers
   const handleReplyInThread = isDirect
@@ -662,17 +731,28 @@ function ChannelMessageItem({
       };
 
   const handleEdit = () => {
-    console.log("Edit message:", message.id);
-    // TODO: Implement edit functionality
+    onEditStart(message.id);
   };
 
   const handleDelete = () => {
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = () => {
     deleteMessage.mutate(message.id);
+    setDeleteDialogOpen(false);
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false);
   };
 
   const handlePin = () => {
-    console.log("Pin message:", message.id);
-    // TODO: Implement pin functionality
+    if (message.isPinned) {
+      unpinMessage.mutate(message.id);
+    } else {
+      pinMessage.mutate(message.id);
+    }
   };
 
   const handleRetry = () => {
@@ -697,22 +777,34 @@ function ChannelMessageItem({
   };
 
   return (
-    <MessageItem
-      message={message}
-      prevMessage={prevMessage}
-      currentUserId={currentUserId}
-      showReplyCount={!isDirect && showReplyCount}
-      onReplyCountClick={isDirect ? undefined : onReplyCountClick}
-      isHighlighted={isHighlighted}
-      onReplyInThread={handleReplyInThread ?? undefined}
-      onEdit={handleEdit}
-      onDelete={handleDelete}
-      onPin={handlePin}
-      onRetry={handleRetry}
-      onRemoveFailed={handleRemoveFailed}
-      onAddReaction={handleAddReaction}
-      onRemoveReaction={handleRemoveReaction}
-    />
+    <>
+      <MessageItem
+        message={message}
+        prevMessage={prevMessage}
+        currentUserId={currentUserId}
+        showReplyCount={!isDirect && showReplyCount}
+        onReplyCountClick={isDirect ? undefined : onReplyCountClick}
+        isHighlighted={isHighlighted}
+        onReplyInThread={handleReplyInThread ?? undefined}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        onPin={handlePin}
+        onRetry={handleRetry}
+        onRemoveFailed={handleRemoveFailed}
+        onAddReaction={handleAddReaction}
+        onRemoveReaction={handleRemoveReaction}
+        canDelete={canDelete}
+        isEditing={isEditing}
+        isEditSaving={isEditing && isEditSaving}
+        onEditSave={(content) => onEditSave(message.id, content)}
+        onEditCancel={onEditCancel}
+      />
+      <DeleteMessageDialog
+        open={deleteDialogOpen}
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+      />
+    </>
   );
 }
 

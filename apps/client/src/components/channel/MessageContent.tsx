@@ -378,7 +378,7 @@ export function MessageContent({
   // handles that. But it does subscribe to cache updates, so when the full
   // content arrives, this component re-renders with the complete text.
   const { data: fullContentData } = useFullContent(
-    message?.id ?? "",
+    message?.type === "long_text" ? message.id : undefined,
     false, // never fetch from here — LongTextCollapse controls fetching
   );
   const displayContent =

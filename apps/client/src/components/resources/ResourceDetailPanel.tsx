@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { resourcesApi } from "@/services/api/resources";
+import { formatDateTime } from "@/lib/date-format";
 import type {
   ApiResourceConfig,
   AgentComputerConfig,
@@ -439,9 +440,7 @@ export function ResourceDetailPanel({
                       <div className="flex items-center gap-1">
                         <Clock size={12} />
                         {t("detail.lastHeartbeat", {
-                          time: new Date(
-                            resource.lastHeartbeatAt,
-                          ).toLocaleString(),
+                          time: formatDateTime(resource.lastHeartbeatAt),
                         })}
                       </div>
                     )}
@@ -756,7 +755,7 @@ export function ResourceDetailPanel({
                       })}
                     </Badge>
                     <span className="text-muted-foreground">
-                      {new Date(log.createdAt).toLocaleString()}
+                      {formatDateTime(log.createdAt)}
                     </span>
                   </div>
                   <div className="text-muted-foreground">

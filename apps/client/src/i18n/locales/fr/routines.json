@@ -13,6 +13,13 @@
     "history": "Historique"
   },
   "noRoutines": "Aucune routine",
+  "createManually": "Créer manuellement",
+  "emptyState": {
+    "title": "Que sont les Routines ?",
+    "description": "Les routines sont des tâches que les membres du personnel IA exécutent automatiquement.\nDéfinissez des conditions de déclenchement et laissez l'IA accomplir le travail à votre place.",
+    "createWithAI": "Créer avec l'IA",
+    "createManually": "ou créer manuellement"
+  },
   "create": {
     "title": "Nouvelle routine",
     "description": "Créez une routine à faire exécuter par un membre du personnel IA.",

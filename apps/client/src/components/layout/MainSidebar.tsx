@@ -13,10 +13,12 @@ import {
   Library,
   LayoutGrid,
   Sparkles,
+  Loader2,
+  ChevronRight,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { supportedLanguages } from "@/i18n";
-import { changeLanguage } from "@/i18n/loadLanguage";
+import { changeLanguage, useLanguageLoading } from "@/i18n/loadLanguage";
 import { getInitials, getSeededAvatarGradient } from "@/lib/avatar-colors";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -80,6 +82,7 @@ export function MainSidebar() {
   const { t: tNav, i18n } = useTranslation("navigation");
   const { t: tSettings } = useTranslation("settings");
   const { t: tAuth } = useTranslation("auth");
+  const { isLoading: isLanguageLoading } = useLanguageLoading();
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -89,6 +92,7 @@ export function MainSidebar() {
   const prevWorkspaceIdRef = useRef<string | null>(null);
 
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
   const [createWorkspaceOpen, setCreateWorkspaceOpen] = useState(false);
   const [hiddenNavUnlocked, setHiddenNavUnlocked] = useState(() =>
     isHiddenNavUnlocked(),
@@ -569,27 +573,53 @@ export function MainSidebar() {
 
                 {/* Language Switcher */}
                 <div className="py-1">
-                  <div className="px-4 py-1.5 text-xs font-semibold text-muted-foreground">
-                    {tSettings("language")}
-                  </div>
-                  {supportedLanguages.map((lang) => (
-                    <button
-                      key={lang.code}
-                      onClick={() => changeLanguage(lang.code)}
-                      className={cn(
-                        "w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent",
-                        i18n.language === lang.code && "bg-accent",
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setLanguageMenuOpen((v) => !v)}
+                    className="w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-accent"
+                  >
+                    <div className="flex items-center gap-3">
+                      {isLanguageLoading ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
                         <Globe size={16} />
-                        <span>{lang.nativeName}</span>
-                      </div>
-                      {i18n.language === lang.code && (
-                        <span className="text-primary">✓</span>
                       )}
-                    </button>
-                  ))}
+                      <span>{tSettings("language")}</span>
+                      <span className="text-muted-foreground">
+                        {
+                          supportedLanguages.find(
+                            (l) => l.code === i18n.language,
+                          )?.nativeName
+                        }
+                      </span>
+                    </div>
+                    <ChevronRight
+                      size={14}
+                      className={cn(
+                        "text-muted-foreground transition-transform",
+                        languageMenuOpen && "rotate-90",
+                      )}
+                    />
+                  </button>
+                  {languageMenuOpen && (
+                    <div className="py-1">
+                      {supportedLanguages.map((lang) => (
+                        <button
+                          key={lang.code}
+                          onClick={() => changeLanguage(lang.code)}
+                          disabled={isLanguageLoading}
+                          className={cn(
+                            "w-full flex items-center justify-between px-4 py-2 pl-10 text-sm hover:bg-accent disabled:opacity-50 disabled:pointer-events-none",
+                            i18n.language === lang.code && "bg-accent",
+                          )}
+                        >
+                          <span>{lang.nativeName}</span>
+                          {i18n.language === lang.code && (
+                            <span className="text-primary">✓</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <Separator />

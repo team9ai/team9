@@ -81,11 +81,11 @@ describe("LongTextCollapse", () => {
 
       // expand button present
       expect(
-        screen.getByRole("button", { name: /展开全文/ }),
+        screen.getByRole("button", { name: /Expand full content/ }),
       ).toBeInTheDocument();
     });
 
-    it('shows correct "还有约 X 字" count using formatCharCount', () => {
+    it('shows correct "~X more characters" count using formatCharCount', () => {
       mockUseFullContent.mockReturnValue(defaultFullContentReturn());
       // fullContentLength=5000, content length=500 → remaining=4500 → "4.5k"
       const msg = makeMessage({
@@ -99,7 +99,7 @@ describe("LongTextCollapse", () => {
         </LongTextCollapse>,
       );
 
-      expect(screen.getByText(/还有约 4\.5k 字/)).toBeInTheDocument();
+      expect(screen.getByText(/~4\.5k more characters/)).toBeInTheDocument();
     });
   });
 
@@ -118,7 +118,7 @@ describe("LongTextCollapse", () => {
         </LongTextCollapse>,
       );
 
-      expect(screen.getByText(/还有约 700 字/)).toBeInTheDocument();
+      expect(screen.getByText(/~700 more characters/)).toBeInTheDocument();
     });
 
     it("shows 1 decimal k for 1000-9999 range", () => {
@@ -135,7 +135,7 @@ describe("LongTextCollapse", () => {
         </LongTextCollapse>,
       );
 
-      expect(screen.getByText(/还有约 3\.3k 字/)).toBeInTheDocument();
+      expect(screen.getByText(/~3\.3k more characters/)).toBeInTheDocument();
     });
 
     it("shows rounded k for 10000+", () => {
@@ -152,7 +152,7 @@ describe("LongTextCollapse", () => {
         </LongTextCollapse>,
       );
 
-      expect(screen.getByText(/还有约 15k 字/)).toBeInTheDocument();
+      expect(screen.getByText(/~15k more characters/)).toBeInTheDocument();
     });
 
     it("does not show char count when fullContentLength is absent", () => {
@@ -165,8 +165,8 @@ describe("LongTextCollapse", () => {
         </LongTextCollapse>,
       );
 
-      const btn = screen.getByRole("button", { name: /展开全文/ });
-      expect(btn.textContent).toBe("展开全文");
+      const btn = screen.getByRole("button", { name: /Expand full content/ });
+      expect(btn.textContent).toBe("Expand full content");
     });
   });
 
@@ -181,14 +181,16 @@ describe("LongTextCollapse", () => {
         </LongTextCollapse>,
       );
 
-      fireEvent.click(screen.getByRole("button", { name: /展开全文/ }));
+      fireEvent.click(
+        screen.getByRole("button", { name: /Expand full content/ }),
+      );
 
       // useFullContent called with enabled=false (isTruncated is false)
       expect(mockUseFullContent).toHaveBeenCalledWith("msg-1", false);
 
       // expand button should disappear
       expect(
-        screen.queryByRole("button", { name: /展开全文/ }),
+        screen.queryByRole("button", { name: /Expand full content/ }),
       ).not.toBeInTheDocument();
 
       // gradient overlay gone
@@ -210,7 +212,9 @@ describe("LongTextCollapse", () => {
         </LongTextCollapse>,
       );
 
-      fireEvent.click(screen.getByRole("button", { name: /展开全文/ }));
+      fireEvent.click(
+        screen.getByRole("button", { name: /Expand full content/ }),
+      );
 
       // After click, component re-renders — simulate loading state
       mockUseFullContent.mockReturnValue(
@@ -223,10 +227,10 @@ describe("LongTextCollapse", () => {
         </LongTextCollapse>,
       );
 
-      expect(screen.getByText("加载中...")).toBeInTheDocument();
+      expect(screen.getByText("Loading full content...")).toBeInTheDocument();
       // expand button should be gone (fetchEnabled is true now)
       expect(
-        screen.queryByRole("button", { name: /展开全文/ }),
+        screen.queryByRole("button", { name: /Expand full content/ }),
       ).not.toBeInTheDocument();
     });
 
@@ -265,7 +269,9 @@ describe("LongTextCollapse", () => {
         </LongTextCollapse>,
       );
 
-      fireEvent.click(screen.getByRole("button", { name: /展开全文/ }));
+      fireEvent.click(
+        screen.getByRole("button", { name: /Expand full content/ }),
+      );
 
       // Now simulate error state
       mockUseFullContent.mockReturnValue(
@@ -279,12 +285,12 @@ describe("LongTextCollapse", () => {
 
       // Retry button visible
       expect(
-        screen.getByRole("button", { name: /加载失败，点击重试/ }),
+        screen.getByRole("button", { name: /Failed to load full content/ }),
       ).toBeInTheDocument();
 
       // Expand button NOT visible
       expect(
-        screen.queryByRole("button", { name: /展开全文/ }),
+        screen.queryByRole("button", { name: /Expand full content/ }),
       ).not.toBeInTheDocument();
     });
 
@@ -299,7 +305,9 @@ describe("LongTextCollapse", () => {
         </LongTextCollapse>,
       );
 
-      fireEvent.click(screen.getByRole("button", { name: /展开全文/ }));
+      fireEvent.click(
+        screen.getByRole("button", { name: /Expand full content/ }),
+      );
 
       // Now error state
       mockUseFullContent.mockReturnValue(
@@ -312,7 +320,7 @@ describe("LongTextCollapse", () => {
       );
 
       fireEvent.click(
-        screen.getByRole("button", { name: /加载失败，点击重试/ }),
+        screen.getByRole("button", { name: /Failed to load full content/ }),
       );
 
       expect(mockInvalidateQueries).toHaveBeenCalledWith({

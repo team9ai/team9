@@ -77,6 +77,12 @@
     "save": "Save",
     "cancel": "Cancel"
   },
+  "ahand": {
+    "localDeviceSetup": "Local Device Setup",
+    "connection": "aHand Connection",
+    "browserComponents": "Browser Components",
+    "activation": "Activation"
+  },
   "actions": {
     "connect": "Connect",
     "disconnect": "Disconnect",
