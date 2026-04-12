@@ -29,7 +29,11 @@ interface AgenticAgentPickerProps {
   onManualCreate?: () => void;
 }
 
-export function AgenticAgentPicker({ open, onClose, onManualCreate }: AgenticAgentPickerProps) {
+export function AgenticAgentPicker({
+  open,
+  onClose,
+  onManualCreate,
+}: AgenticAgentPickerProps) {
   const { t } = useTranslation("routines");
   const navigate = useNavigate();
   const workspaceId = useSelectedWorkspaceId();
@@ -41,7 +45,10 @@ export function AgenticAgentPicker({ open, onClose, onManualCreate }: AgenticAge
     queryKey: ["installed-applications-with-bots", workspaceId],
     queryFn: async () => {
       const apps = await api.applications.getInstalledApplicationsWithBots();
-      return apps.filter((a) => a.status === "active").flatMap((a) => a.bots);
+      return apps
+        .filter((a) => a.status === "active")
+        .flatMap((a) => a.bots)
+        .filter((b) => !("agentType" in b && b.agentType === "openclaw"));
     },
     enabled: open && !!workspaceId,
   });
@@ -89,10 +96,8 @@ export function AgenticAgentPicker({ open, onClose, onManualCreate }: AgenticAge
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>{t("agentic.pickerTitle")}</DialogTitle>
-          <DialogDescription>
-            {t("agentic.pickerDescription")}
-          </DialogDescription>
+          <DialogTitle>{t("create.title")}</DialogTitle>
+          <DialogDescription>{t("create.description")}</DialogDescription>
         </DialogHeader>
 
         <div className="py-2 space-y-4">
@@ -131,6 +136,15 @@ export function AgenticAgentPicker({ open, onClose, onManualCreate }: AgenticAge
         </div>
 
         <DialogFooter className="flex-col items-stretch gap-3 sm:flex-col">
+          {onManualCreate && (
+            <button
+              type="button"
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors text-center"
+              onClick={onManualCreate}
+            >
+              {t("createManually")}
+            </button>
+          )}
           <div className="flex justify-end gap-2">
             <Button
               variant="ghost"
@@ -151,15 +165,6 @@ export function AgenticAgentPicker({ open, onClose, onManualCreate }: AgenticAge
                 : t("agentic.confirm")}
             </Button>
           </div>
-          {onManualCreate && (
-            <button
-              type="button"
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors text-center"
-              onClick={onManualCreate}
-            >
-              {t("createManually")}
-            </button>
-          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

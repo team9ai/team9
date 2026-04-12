@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
-import { Loader2, ListChecks, Sparkles } from "lucide-react";
+import { Loader2, ListChecks, Sparkles, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -193,12 +193,10 @@ export function RoutineList({ botId }: RoutineListProps) {
           <span className="text-sm font-semibold">{t("title", "Tasks")}</span>
           <Button
             variant="ghost"
-            size="sm"
-            className="text-xs h-6 px-2"
+            size="icon-sm"
             onClick={() => setAgenticPickerOpen(true)}
           >
-            <Sparkles size={14} className="mr-1" />
-            {t("create.title")}
+            <Plus size={16} />
           </Button>
         </div>
 
