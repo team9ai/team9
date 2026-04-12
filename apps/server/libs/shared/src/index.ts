@@ -8,6 +8,7 @@ export * from './proto/index.js';
 // Distributed IM Architecture exports
 export * from './constants/mq.constants.js';
 export * from './types/message.types.js';
+export * from './types/property.types.js';
 
 // WebSocket Events (unified event names and types)
 export * from './events/index.js';

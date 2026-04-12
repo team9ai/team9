@@ -7,6 +7,10 @@ import { MessageAttachments } from "./MessageAttachments";
 import { MessageContextMenu } from "./MessageContextMenu";
 import { MessageHoverToolbar } from "./MessageHoverToolbar";
 import { MessageReactions } from "./MessageReactions";
+import { MessageTitle } from "./MessageTitle";
+import { MessageProperties } from "./properties/MessageProperties";
+import { PropertySelector } from "./properties/PropertySelector";
+import { useSetProperty } from "@/hooks/useMessageProperties";
 import { ThreadReplyIndicator } from "./ThreadReplyIndicator";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { TrackingCard } from "./TrackingCard";
@@ -21,6 +25,7 @@ import { RichTextEditor } from "./editor";
 import { useFullContent } from "@/hooks/useMessages";
 import { getAgentMeta } from "@/lib/agent-events";
 import { cn } from "@/lib/utils";
+import { usePropertyDefinitions } from "@/hooks/usePropertyDefinitions";
 import type { Message } from "@/types/im";
 
 export interface MessageItemProps {
@@ -102,10 +107,15 @@ export function MessageItem({
   const { t } = useTranslation(["thread", "message"]);
   const thinkingMetadata = getThinkingMetadata(message.metadata);
   const [isHovered, setIsHovered] = useState(false);
+  const [propertySelectorOpen, setPropertySelectorOpen] = useState(false);
   const isSystemMessage = message.type === "system";
   const isOwnMessage = currentUserId === message.senderId;
   const isSending = message.sendStatus === "sending";
   const isFailed = message.sendStatus === "failed";
+  const { data: propertyDefinitions } = usePropertyDefinitions(
+    message.channelId,
+  );
+  const setPropertyMutation = useSetProperty(message.id, message.channelId);
 
   // Fetch full content for long_text messages when entering edit mode
   const isLongText = message.type === "long_text" || message.isTruncated;
@@ -232,6 +242,11 @@ export function MessageItem({
         <MessageHoverToolbar
           onReaction={handleReactionToggle}
           onReplyInThread={onReplyInThread}
+          onProperties={
+            propertyDefinitions && propertyDefinitions.length > 0
+              ? () => setPropertySelectorOpen(true)
+              : undefined
+          }
         />
       )}
       <UserAvatar
@@ -279,6 +294,14 @@ export function MessageItem({
             isStreaming={false}
           />
         )}
+        <MessageTitle
+          title={
+            message.properties?.title != null
+              ? String(message.properties.title)
+              : undefined
+          }
+          messageId={message.id}
+        />
         {isEditing ? (
           <div className="w-full">
             {needsFullContent && isLoadingFullContent ? (
@@ -357,6 +380,38 @@ export function MessageItem({
               {t("message:remove")}
             </button>
           </div>
+        )}
+        {propertyDefinitions && propertyDefinitions.length > 0 && (
+          <>
+            <MessageProperties
+              message={message}
+              channelId={message.channelId}
+              definitions={propertyDefinitions}
+              canEdit={true}
+              onEditProperties={() => setPropertySelectorOpen(true)}
+            />
+            {propertySelectorOpen && (
+              <PropertySelector
+                channelId={message.channelId}
+                messageId={message.id}
+                currentProperties={message.properties ?? {}}
+                onSetProperty={(propertyKey, value) => {
+                  const def = propertyDefinitions.find(
+                    (d) => d.key === propertyKey,
+                  );
+                  if (def) {
+                    setPropertyMutation.mutate({
+                      definitionId: def.id,
+                      propertyKey: def.key,
+                      value,
+                    });
+                  }
+                }}
+                open={propertySelectorOpen}
+                onOpenChange={setPropertySelectorOpen}
+              />
+            )}
+          </>
         )}
         {showReplyCount && (message.replyCount || 0) > 0 && (
           <ThreadReplyIndicator

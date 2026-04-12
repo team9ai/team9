@@ -28,6 +28,7 @@ import {
   resolveAgentType,
   type AgentType,
 } from '../../common/utils/agent-type.util.js';
+import { MessagePropertiesService } from '../properties/message-properties.service.js';
 
 export interface MessageSender {
   id: string;
@@ -79,6 +80,7 @@ export interface MessageResponse {
   lastRepliers: MessageSender[];
   lastReplyAt: Date | null;
   metadata?: Record<string, unknown> | null;
+  properties?: Record<string, unknown>;
 }
 
 export interface PaginatedMessagesResponse {
@@ -115,6 +117,7 @@ export class MessagesService {
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly channelSequenceService: ChannelSequenceService,
+    private readonly messagePropertiesService: MessagePropertiesService,
   ) {}
 
   private mapMessageSender(row: {
@@ -462,6 +465,30 @@ export class MessagesService {
     return result;
   }
 
+  /**
+   * Batch-load properties for messages and merge into responses.
+   * Only loads properties with showInChatPolicy !== 'hide'.
+   */
+  async mergeProperties(
+    messages: MessageResponse[],
+  ): Promise<MessageResponse[]> {
+    if (messages.length === 0) return messages;
+
+    const messageIds = messages.map((m) => m.id);
+    const propertiesMap =
+      await this.messagePropertiesService.batchGetByMessageIds(messageIds, {
+        excludeHidden: true,
+      });
+
+    return messages.map((m) => {
+      const props = propertiesMap[m.id];
+      if (props && Object.keys(props).length > 0) {
+        return { ...m, properties: props };
+      }
+      return m;
+    });
+  }
+
   async getChannelMessages(
     channelId: string,
     limit = 50,
@@ -509,9 +536,10 @@ export class MessagesService {
 
     const messageList = await query;
     const detailsMap = await this.getMessagesWithDetailsBatch(messageList);
-    return messageList
+    const messages = messageList
       .map((m) => detailsMap.get(m.id))
       .filter((m): m is MessageResponse => !!m);
+    return this.mergeProperties(messages);
   }
 
   /**
@@ -588,9 +616,11 @@ export class MessagesService {
       );
 
       const detailsMap = await this.getMessagesWithDetailsBatch(combined);
-      const messages = combined
-        .map((m) => detailsMap.get(m.id))
-        .filter((m): m is MessageResponse => !!m);
+      const messages = await this.mergeProperties(
+        combined
+          .map((m) => detailsMap.get(m.id))
+          .filter((m): m is MessageResponse => !!m),
+      );
 
       return { messages, hasOlder, hasNewer };
     }
@@ -615,9 +645,11 @@ export class MessagesService {
       trimmed.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
       const detailsMap = await this.getMessagesWithDetailsBatch(trimmed);
-      const messages = trimmed
-        .map((m) => detailsMap.get(m.id))
-        .filter((m): m is MessageResponse => !!m);
+      const messages = await this.mergeProperties(
+        trimmed
+          .map((m) => detailsMap.get(m.id))
+          .filter((m): m is MessageResponse => !!m),
+      );
 
       return { messages, hasOlder: true, hasNewer };
     }
@@ -648,9 +680,11 @@ export class MessagesService {
     const trimmed = rows.slice(0, limit);
 
     const detailsMap = await this.getMessagesWithDetailsBatch(trimmed);
-    const messages = trimmed
-      .map((m) => detailsMap.get(m.id))
-      .filter((m): m is MessageResponse => !!m);
+    const messages = await this.mergeProperties(
+      trimmed
+        .map((m) => detailsMap.get(m.id))
+        .filter((m): m is MessageResponse => !!m),
+    );
 
     return { messages, hasOlder, hasNewer: hasCursor };
   }

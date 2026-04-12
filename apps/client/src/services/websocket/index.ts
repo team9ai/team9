@@ -47,6 +47,16 @@ import {
   type StreamingAbortEvent,
   type TrackingDeactivatedEvent,
   type TrackingActivatedEvent,
+  type PropertyDefinitionCreatedEvent,
+  type PropertyDefinitionUpdatedEvent,
+  type PropertyDefinitionDeletedEvent,
+  type MessagePropertyChangedEvent,
+  type ViewCreatedEvent,
+  type ViewUpdatedEvent,
+  type ViewDeletedEvent,
+  type TabCreatedEvent,
+  type TabUpdatedEvent,
+  type TabDeletedEvent,
 } from "@/types/ws-events";
 
 type EventCallback<TEvent = unknown> = (event: TEvent) => void;
@@ -693,6 +703,131 @@ class WebSocketService {
     callback: (event: TrackingActivatedEvent) => void,
   ): void {
     this.off<TrackingActivatedEvent>(WS_EVENTS.TRACKING.ACTIVATED, callback);
+  }
+  // ── Property System Events ──────────────────────────
+
+  onPropertyDefinitionCreated(
+    callback: (event: PropertyDefinitionCreatedEvent) => void,
+  ): void {
+    this.on<PropertyDefinitionCreatedEvent>(
+      WS_EVENTS.PROPERTY.DEFINITION_CREATED,
+      callback,
+    );
+  }
+
+  offPropertyDefinitionCreated(
+    callback: (event: PropertyDefinitionCreatedEvent) => void,
+  ): void {
+    this.off<PropertyDefinitionCreatedEvent>(
+      WS_EVENTS.PROPERTY.DEFINITION_CREATED,
+      callback,
+    );
+  }
+
+  onPropertyDefinitionUpdated(
+    callback: (event: PropertyDefinitionUpdatedEvent) => void,
+  ): void {
+    this.on<PropertyDefinitionUpdatedEvent>(
+      WS_EVENTS.PROPERTY.DEFINITION_UPDATED,
+      callback,
+    );
+  }
+
+  offPropertyDefinitionUpdated(
+    callback: (event: PropertyDefinitionUpdatedEvent) => void,
+  ): void {
+    this.off<PropertyDefinitionUpdatedEvent>(
+      WS_EVENTS.PROPERTY.DEFINITION_UPDATED,
+      callback,
+    );
+  }
+
+  onPropertyDefinitionDeleted(
+    callback: (event: PropertyDefinitionDeletedEvent) => void,
+  ): void {
+    this.on<PropertyDefinitionDeletedEvent>(
+      WS_EVENTS.PROPERTY.DEFINITION_DELETED,
+      callback,
+    );
+  }
+
+  offPropertyDefinitionDeleted(
+    callback: (event: PropertyDefinitionDeletedEvent) => void,
+  ): void {
+    this.off<PropertyDefinitionDeletedEvent>(
+      WS_EVENTS.PROPERTY.DEFINITION_DELETED,
+      callback,
+    );
+  }
+
+  onMessagePropertyChanged(
+    callback: (event: MessagePropertyChangedEvent) => void,
+  ): void {
+    this.on<MessagePropertyChangedEvent>(
+      WS_EVENTS.PROPERTY.MESSAGE_CHANGED,
+      callback,
+    );
+  }
+
+  offMessagePropertyChanged(
+    callback: (event: MessagePropertyChangedEvent) => void,
+  ): void {
+    this.off<MessagePropertyChangedEvent>(
+      WS_EVENTS.PROPERTY.MESSAGE_CHANGED,
+      callback,
+    );
+  }
+
+  // ── View Events ──────────────────────────────────────
+
+  onViewCreated(callback: (event: ViewCreatedEvent) => void): void {
+    this.on<ViewCreatedEvent>(WS_EVENTS.VIEW.CREATED, callback);
+  }
+
+  offViewCreated(callback: (event: ViewCreatedEvent) => void): void {
+    this.off<ViewCreatedEvent>(WS_EVENTS.VIEW.CREATED, callback);
+  }
+
+  onViewUpdated(callback: (event: ViewUpdatedEvent) => void): void {
+    this.on<ViewUpdatedEvent>(WS_EVENTS.VIEW.UPDATED, callback);
+  }
+
+  offViewUpdated(callback: (event: ViewUpdatedEvent) => void): void {
+    this.off<ViewUpdatedEvent>(WS_EVENTS.VIEW.UPDATED, callback);
+  }
+
+  onViewDeleted(callback: (event: ViewDeletedEvent) => void): void {
+    this.on<ViewDeletedEvent>(WS_EVENTS.VIEW.DELETED, callback);
+  }
+
+  offViewDeleted(callback: (event: ViewDeletedEvent) => void): void {
+    this.off<ViewDeletedEvent>(WS_EVENTS.VIEW.DELETED, callback);
+  }
+
+  // ── Tab Events ───────────────────────────────────────
+
+  onTabCreated(callback: (event: TabCreatedEvent) => void): void {
+    this.on<TabCreatedEvent>(WS_EVENTS.TAB.CREATED, callback);
+  }
+
+  offTabCreated(callback: (event: TabCreatedEvent) => void): void {
+    this.off<TabCreatedEvent>(WS_EVENTS.TAB.CREATED, callback);
+  }
+
+  onTabUpdated(callback: (event: TabUpdatedEvent) => void): void {
+    this.on<TabUpdatedEvent>(WS_EVENTS.TAB.UPDATED, callback);
+  }
+
+  offTabUpdated(callback: (event: TabUpdatedEvent) => void): void {
+    this.off<TabUpdatedEvent>(WS_EVENTS.TAB.UPDATED, callback);
+  }
+
+  onTabDeleted(callback: (event: TabDeletedEvent) => void): void {
+    this.on<TabDeletedEvent>(WS_EVENTS.TAB.DELETED, callback);
+  }
+
+  offTabDeleted(callback: (event: TabDeletedEvent) => void): void {
+    this.off<TabDeletedEvent>(WS_EVENTS.TAB.DELETED, callback);
   }
 }
 

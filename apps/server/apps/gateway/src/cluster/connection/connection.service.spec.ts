@@ -1,6 +1,20 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { WS_EVENTS } from '../../im/websocket/events/events.constants.js';
-import { ConnectionService } from './connection.service.js';
+
+// Mock modules to break circular dependency:
+// connection.service -> messages.service -> message-properties.service -> websocket.gateway (env + circular)
+jest.unstable_mockModule(
+  '../../im/properties/message-properties.service.js',
+  () => ({
+    MessagePropertiesService: class MessagePropertiesService {},
+  }),
+);
+jest.unstable_mockModule('../../im/websocket/websocket.gateway.js', () => ({
+  WebsocketGateway: class WebsocketGateway {},
+}));
+
+const { WS_EVENTS } =
+  await import('../../im/websocket/events/events.constants.js');
+const { ConnectionService } = await import('./connection.service.js');
 
 describe('ConnectionService', () => {
   let redisService: Record<string, never>;

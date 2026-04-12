@@ -87,6 +87,9 @@ The backend follows a modular NestJS architecture with two main applications:
   - Messages: text, file, image, system, long_text types with threading support (parentId)
   - Long text: messages >=20 lines or >=2000 chars auto-classified as `long_text`, truncated at API layer, full content via `GET /messages/:id/full-content`
   - Users: profile management, status tracking
+  - Properties: channel property definitions, message property values (16 types), AI auto-fill
+  - Views: table/board/calendar views, channel tabs
+  - Audit: change audit logging for channels, messages, and properties
   - WebSocket: Socket.io gateway for real-time events
 - **Workspace Module** ([apps/server/apps/gateway/src/workspace](apps/server/apps/gateway/src/workspace)): Multi-tenant workspace management
 - **Edition Module** ([apps/server/apps/gateway/src/edition](apps/server/apps/gateway/src/edition)): Dynamic feature loading for Community vs Enterprise editions
@@ -98,7 +101,7 @@ The codebase supports Community and Enterprise editions via environment variable
 
 - Uses Drizzle ORM with PostgreSQL
 - Schemas organized by domain in [apps/server/libs/database/schemas](apps/server/libs/database/schemas):
-  - **im/**: users, channels, messages, channel_members, message_attachments, message_reactions, message_acks, mentions, user_channel_read_status
+  - **im/**: users, channels, messages, channel_members, message_attachments, message_reactions, message_acks, mentions, user_channel_read_status, channel_property_definitions, message_properties, audit_logs, channel_views, channel_tabs
   - **tenant/**: tenants, tenant_members, workspace_invitations
 - All migrations managed via `pnpm db:migrate`
 - Schema changes pushed via `pnpm db:push` (dev) or `pnpm db:generate` + `pnpm db:migrate` (prod)
@@ -156,12 +159,23 @@ Channel Management:
 
 - `join_channel`, `leave_channel`: Channel subscription lifecycle
 
+Property System:
+
+- `property_definition_created`, `property_definition_updated`, `property_definition_deleted`: Schema changes
+- `message_property_changed`: Property values set/updated/removed on a message
+
+Views & Tabs:
+
+- `view_created`, `view_updated`, `view_deleted`: View CRUD
+- `tab_created`, `tab_updated`, `tab_deleted`: Tab CRUD
+
 **Message Features:**
 
 - Threading via `parentId` field
 - Mentions: @user, @channel, @everyone (parsed server-side)
 - Attachments: file, image types
 - Reactions: emoji-based reactions per message
+- Properties: structured key-value data per message (16 types), displayed as chips in chat view, powering Table/Board/Calendar views
 - Read status: per-user, per-channel tracking via `user_channel_read_status` table
 
 ### Key Development Patterns

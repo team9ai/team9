@@ -72,6 +72,7 @@ describe('MessagesController', () => {
     removeReaction: MockFn;
     truncateForPreview: MockFn;
     getFullContent: MockFn;
+    mergeProperties: MockFn;
   };
   let channelsService: {
     assertReadAccess: MockFn;
@@ -86,6 +87,13 @@ describe('MessagesController', () => {
   let imWorkerGrpcClientService: {
     createMessage: MockFn;
   };
+  let messagePropertiesService: {
+    batchSet: MockFn;
+  };
+  let aiAutoFillService: {
+    autoFill: MockFn;
+  };
+  let propertyDefinitionsService: Record<string, never>;
   let eventEmitter: {
     emit: MockFn;
   };
@@ -130,6 +138,9 @@ describe('MessagesController', () => {
       getFullContent: jest
         .fn<any>()
         .mockResolvedValue({ content: 'full content' }),
+      mergeProperties: jest
+        .fn<any>()
+        .mockImplementation((msgs) => Promise.resolve(msgs)),
     };
 
     channelsService = {
@@ -158,6 +169,16 @@ describe('MessagesController', () => {
       publishWorkspaceEvent: jest.fn<any>().mockResolvedValue(undefined),
     };
 
+    messagePropertiesService = {
+      batchSet: jest.fn<any>().mockResolvedValue(undefined),
+    };
+
+    aiAutoFillService = {
+      autoFill: jest.fn<any>().mockResolvedValue(undefined),
+    };
+
+    propertyDefinitionsService = {};
+
     dateSpy = jest.spyOn(Date, 'now').mockReturnValue(NOW);
 
     controller = new MessagesController(
@@ -165,6 +186,9 @@ describe('MessagesController', () => {
       channelsService as never,
       websocketGateway as never,
       imWorkerGrpcClientService as never,
+      messagePropertiesService as never,
+      aiAutoFillService as never,
+      propertyDefinitionsService as never,
       eventEmitter as never,
       gatewayMQService as never,
     );
