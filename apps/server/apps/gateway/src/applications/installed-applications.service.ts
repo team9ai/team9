@@ -13,6 +13,7 @@ import {
   and,
   type PostgresJsDatabase,
 } from '@team9/database';
+import { RedisService } from '@team9/redis';
 import * as schema from '@team9/database/schemas';
 import type {
   InstalledApplication,
@@ -64,6 +65,7 @@ export class InstalledApplicationsService {
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly applicationsService: ApplicationsService,
+    private readonly redisService: RedisService,
     @Inject('APPLICATION_HANDLERS')
     handlers: ApplicationHandler[],
   ) {
@@ -113,6 +115,64 @@ export class InstalledApplicationsService {
           );
         }
       }
+    }
+  }
+
+  /**
+   * Ensure all autoInstall apps are installed for a tenant.
+   * Uses a Redis distributed lock to prevent concurrent backfill for the same tenant.
+   */
+  async ensureAutoInstallApps(
+    tenantId: string,
+    installedBy: string,
+  ): Promise<void> {
+    const autoInstallApps = this.applicationsService.findAutoInstall();
+    if (autoInstallApps.length === 0) return;
+
+    // Acquire distributed lock with unique token for safe release
+    const lockKey = `app-backfill:${tenantId}`;
+    const lockToken = uuidv7();
+    const client = this.redisService.getClient();
+    const acquired = await client.set(lockKey, lockToken, 'EX', 30, 'NX');
+    if (!acquired) return; // Another instance is handling it
+
+    try {
+      // Re-check inside the lock to avoid races
+      const installed = await this.findAllByTenant(tenantId);
+      const installedIds = new Set(installed.map((a) => a.applicationId));
+      const missing = autoInstallApps.filter(
+        (app) => !installedIds.has(app.id),
+      );
+      if (missing.length === 0) return;
+
+      for (const app of missing) {
+        try {
+          await this.install(tenantId, installedBy, {
+            applicationId: app.id,
+          });
+          this.logger.log(`Auto-installed ${app.name} for tenant ${tenantId}`);
+        } catch (error) {
+          if (error instanceof ConflictException) {
+            continue;
+          }
+          this.logger.warn(
+            `Failed to auto-install ${app.name} for tenant ${tenantId}`,
+            error,
+          );
+        }
+      }
+    } finally {
+      // Atomic check-and-delete: only release if we still own the lock
+      await client
+        .eval(
+          `if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end`,
+          1,
+          lockKey,
+          lockToken,
+        )
+        .catch((err) =>
+          this.logger.warn('Failed to release auto-install lock', err),
+        );
     }
   }
 

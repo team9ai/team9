@@ -118,10 +118,18 @@ export class InstalledApplicationsController {
    * NOTE: Must be declared before @Get(':id') to avoid route shadowing.
    */
   @Get('with-bots')
-  async findAllWithBots(@CurrentTenantId() tenantId: string) {
+  async findAllWithBots(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser('sub') userId: string,
+  ) {
     if (!tenantId) {
       throw new BadRequestException('Tenant ID is required');
     }
+    await this.installedApplicationsService
+      .ensureAutoInstallApps(tenantId, userId)
+      .catch((err) =>
+        this.logger.warn('ensureAutoInstallApps failed, continuing', err),
+      );
     const apps =
       await this.installedApplicationsService.findAllByTenant(tenantId);
 

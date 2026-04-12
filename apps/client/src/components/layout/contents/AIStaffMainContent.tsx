@@ -391,10 +391,8 @@ export function AIStaffMainContent() {
 
   const humanMembers = useMemo(() => {
     const all = membersData?.pages.flatMap((page) => page.members) ?? [];
-    return all.filter(
-      (m) => m.userType === "human" && m.userId !== currentUser?.id,
-    );
-  }, [membersData, currentUser?.id]);
+    return all.filter((m) => m.userType === "human");
+  }, [membersData]);
 
   // Categorize bots into sections, with AI staff grouped by app
   interface AIStaffBotEntry {
@@ -529,7 +527,7 @@ export function AIStaffMainContent() {
                   onToggle={() => {}}
                   pinned
                 />
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 pl-4">
                   {myPersonalStaff.length === 0 ? (
                     <Card className="p-4 text-center border-dashed col-span-full">
                       <p className="text-sm text-muted-foreground">
@@ -630,7 +628,7 @@ export function AIStaffMainContent() {
                   onToggle={() => setMembersExpanded((p) => !p)}
                 />
                 {membersExpanded && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 pl-4">
                     {membersLoading ? (
                       <div className="flex items-center justify-center py-4 col-span-full">
                         <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
