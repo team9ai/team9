@@ -51,7 +51,10 @@ export class AuditService {
     const conditions = [eq(schema.auditLogs.channelId, channelId)];
 
     if (opts.cursor) {
-      conditions.push(lt(schema.auditLogs.createdAt, new Date(opts.cursor)));
+      const cursorDate = new Date(opts.cursor);
+      if (!isNaN(cursorDate.getTime())) {
+        conditions.push(lt(schema.auditLogs.createdAt, cursorDate));
+      }
     }
 
     if (opts.entityType) {
@@ -96,7 +99,10 @@ export class AuditService {
     ];
 
     if (opts.cursor) {
-      conditions.push(lt(schema.auditLogs.createdAt, new Date(opts.cursor)));
+      const cursorDate = new Date(opts.cursor);
+      if (!isNaN(cursorDate.getTime())) {
+        conditions.push(lt(schema.auditLogs.createdAt, cursorDate));
+      }
     }
 
     const logs = await this.db

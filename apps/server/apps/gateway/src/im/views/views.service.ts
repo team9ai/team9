@@ -144,7 +144,10 @@ export class ViewsService {
     ];
 
     if (params.cursor) {
-      conditions.push(lt(schema.messages.createdAt, new Date(params.cursor)));
+      const cursorDate = new Date(params.cursor);
+      if (!isNaN(cursorDate.getTime())) {
+        conditions.push(lt(schema.messages.createdAt, cursorDate));
+      }
     }
 
     const messages = await this.db

@@ -273,6 +273,37 @@ describe('MessagePropertiesService', () => {
     expect(result).toEqual({ priority: 'high' });
   });
 
+  it('getProperties({ excludeHidden: true }) filters out hide policy', async () => {
+    db.__state.selectResults.push([
+      propRow({ propertyDefinitionId: 'def-1', textValue: 'visible' }),
+      propRow({
+        id: 'prop-2',
+        propertyDefinitionId: 'def-2',
+        numberValue: 42,
+      }),
+    ]);
+    db.__state.selectResults.push([
+      defRow({
+        id: 'def-1',
+        key: 'visible_prop',
+        valueType: 'text',
+        showInChatPolicy: 'auto',
+      }),
+      defRow({
+        id: 'def-2',
+        key: 'hidden_prop',
+        valueType: 'number',
+        showInChatPolicy: 'hide',
+      }),
+    ]);
+
+    const result = await service.getProperties('msg-1', {
+      excludeHidden: true,
+    });
+
+    expect(result).toEqual({ visible_prop: 'visible' });
+  });
+
   // ==================== batchGetByMessageIds ====================
 
   it('batchGetByMessageIds() returns map of messageId to properties', async () => {

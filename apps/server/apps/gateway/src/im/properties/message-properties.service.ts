@@ -54,11 +54,14 @@ export class MessagePropertiesService {
    */
   async getMessageChannelId(messageId: string): Promise<string> {
     const [msg] = await this.db
-      .select({ channelId: schema.messages.channelId })
+      .select({
+        channelId: schema.messages.channelId,
+        isDeleted: schema.messages.isDeleted,
+      })
       .from(schema.messages)
       .where(eq(schema.messages.id, messageId))
       .limit(1);
-    if (!msg) throw new NotFoundException('Message not found');
+    if (!msg || msg.isDeleted) throw new NotFoundException('Message not found');
     return msg.channelId;
   }
 
