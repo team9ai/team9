@@ -307,7 +307,6 @@ describe('Routine Creation Flow — integration', () => {
     expect(routineTriggersService.replaceAllForRoutine).toHaveBeenCalledWith(
       routineId,
       [{ type: 'manual' }],
-      TENANT_ID,
     );
 
     // Verify title and description were persisted

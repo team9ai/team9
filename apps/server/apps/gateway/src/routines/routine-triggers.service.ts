@@ -128,7 +128,6 @@ export class RoutineTriggersService {
   async replaceAllForRoutine(
     routineId: string,
     triggers: CreateTriggerDto[],
-    tenantId: string,
   ): Promise<void> {
     await this.db.transaction(async (tx) => {
       await tx
@@ -147,7 +146,7 @@ export class RoutineTriggersService {
           await tx.insert(schema.routineTriggers).values({
             id: uuidv7(),
             routineId,
-            type: trigger.type as 'manual' | 'interval' | 'schedule' | 'channel_message',
+            type: trigger.type,
             config: (trigger.config ?? {}) as schema.TriggerConfig,
             enabled: trigger.enabled ?? true,
             nextRunAt,

@@ -251,7 +251,6 @@ export class RoutinesService {
       await this.routineTriggersService.replaceAllForRoutine(
         routineId,
         dto.triggers,
-        tenantId,
       );
     }
 

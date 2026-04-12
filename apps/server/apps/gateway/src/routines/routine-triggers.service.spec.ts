@@ -390,7 +390,7 @@ describe('RoutineTriggersService', () => {
         .fn<any>()
         .mockImplementation((cb: (tx: typeof tx) => Promise<void>) => cb(tx));
 
-      await service.replaceAllForRoutine('routine-1', [], 'tenant-1');
+      await service.replaceAllForRoutine('routine-1', []);
 
       expect(db.transaction).toHaveBeenCalledTimes(1);
       expect(tx.delete).toHaveBeenCalledTimes(1);

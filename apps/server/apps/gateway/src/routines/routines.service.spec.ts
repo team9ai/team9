@@ -1604,7 +1604,6 @@ describe('RoutinesService — TaskCast integration', () => {
       expect(routineTriggersService.replaceAllForRoutine).toHaveBeenCalledWith(
         'task-1',
         triggers,
-        'tenant-1',
       );
     });
 
@@ -1622,7 +1621,6 @@ describe('RoutinesService — TaskCast integration', () => {
       expect(routineTriggersService.replaceAllForRoutine).toHaveBeenCalledWith(
         'task-1',
         [],
-        'tenant-1',
       );
     });
 

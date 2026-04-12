@@ -543,7 +543,6 @@ export class RoutineBotService {
       await this.routineTriggersService.replaceAllForRoutine(
         routineId,
         dto.triggers,
-        tenantId,
       );
     }
 

@@ -889,7 +889,6 @@ describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
       expect(routineTriggersService.replaceAllForRoutine).toHaveBeenCalledWith(
         'routine-1',
         triggers,
-        'tenant-1',
       );
     });
 
