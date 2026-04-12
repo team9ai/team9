@@ -7,12 +7,11 @@ import {
   Body,
   Param,
   UseGuards,
-  Inject,
-  forwardRef,
   ParseUUIDPipe,
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import {
   PropertyDefinitionsService,
   PropertyDefinitionRow,
@@ -28,7 +27,8 @@ import {
   WorkspaceRoleGuard,
   WorkspaceRoles,
 } from '../../workspace/guards/index.js';
-import { WebsocketGateway } from '../websocket/websocket.gateway.js';
+import type { WebsocketGateway } from '../websocket/websocket.gateway.js';
+import { WEBSOCKET_GATEWAY } from '../../shared/constants/injection-tokens.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
 import { AuditService } from '../audit/audit.service.js';
 import { ChannelsService } from '../channels/channels.service.js';
@@ -41,11 +41,14 @@ import { ChannelsService } from '../channels/channels.service.js';
 export class PropertyDefinitionsController {
   constructor(
     private readonly propertyDefinitionsService: PropertyDefinitionsService,
-    @Inject(forwardRef(() => WebsocketGateway))
-    private readonly websocketGateway: WebsocketGateway,
+    private readonly moduleRef: ModuleRef,
     private readonly auditService: AuditService,
     private readonly channelsService: ChannelsService,
   ) {}
+
+  private get websocketGateway(): WebsocketGateway {
+    return this.moduleRef.get(WEBSOCKET_GATEWAY, { strict: false });
+  }
 
   @Get()
   async getAll(

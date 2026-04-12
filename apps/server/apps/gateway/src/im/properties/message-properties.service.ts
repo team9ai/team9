@@ -4,8 +4,8 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
-  forwardRef,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
@@ -27,7 +27,8 @@ import {
   type PropertyDefinitionRow,
 } from './property-definitions.service.js';
 import { AuditService } from '../audit/audit.service.js';
-import { WebsocketGateway } from '../websocket/websocket.gateway.js';
+import type { WebsocketGateway } from '../websocket/websocket.gateway.js';
+import { WEBSOCKET_GATEWAY } from '../../shared/constants/injection-tokens.js';
 
 /** Allowed message types for properties */
 const ALLOWED_MESSAGE_TYPES = new Set(['text', 'long_text', 'file', 'image']);
@@ -42,9 +43,13 @@ export class MessagePropertiesService {
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly propertyDefinitionsService: PropertyDefinitionsService,
     private readonly auditService: AuditService,
-    @Inject(forwardRef(() => WebsocketGateway))
-    private readonly wsGateway: WebsocketGateway,
+    private readonly moduleRef: ModuleRef,
   ) {}
+
+  /** Lazily resolve WebsocketGateway to avoid ESM circular dependency at import time */
+  private get wsGateway(): WebsocketGateway {
+    return this.moduleRef.get(WEBSOCKET_GATEWAY, { strict: false });
+  }
 
   // ==================== Public Methods ====================
 

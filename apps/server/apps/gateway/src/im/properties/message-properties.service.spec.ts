@@ -251,11 +251,12 @@ describe('MessagePropertiesService', () => {
 
   beforeEach(() => {
     db = mockDb();
+    const mockModuleRef = { get: jest.fn().mockReturnValue(mockWsGateway) };
     service = new MessagePropertiesService(
       db as any,
       mockPropertyDefsService as any,
       mockAuditService as any,
-      mockWsGateway as any,
+      mockModuleRef as any,
     );
     uuidCounter = 0;
     jest.clearAllMocks();
