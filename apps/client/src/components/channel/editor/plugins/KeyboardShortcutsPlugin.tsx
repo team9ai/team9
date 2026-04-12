@@ -15,12 +15,18 @@ interface KeyboardShortcutsPluginProps {
   onSubmit: (content: string) => Promise<void>;
   disabled?: boolean;
   hasAttachments?: boolean;
+  /**
+   * Whether to clear the editor after submit (default: true).
+   * Set to false for edit mode so content is preserved if the request fails.
+   */
+  clearOnSubmit?: boolean;
 }
 
 export function KeyboardShortcutsPlugin({
   onSubmit,
   disabled,
   hasAttachments = false,
+  clearOnSubmit = true,
 }: KeyboardShortcutsPluginProps) {
   const [editor] = useLexicalComposerContext();
 
@@ -36,12 +42,13 @@ export function KeyboardShortcutsPlugin({
       onSubmit,
       disabled,
       hasAttachments,
+      clearOnSubmit,
     }).catch((error) => {
       console.error("Failed to send message:", error);
     });
 
     return true;
-  }, [editor, onSubmit, disabled, hasAttachments]);
+  }, [editor, onSubmit, disabled, hasAttachments, clearOnSubmit]);
 
   useEffect(() => {
     // Handle Enter key for sending messages

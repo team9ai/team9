@@ -9,6 +9,8 @@ import {
   Query,
   UseGuards,
   ParseUUIDPipe,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import type {
@@ -29,6 +31,8 @@ import {
   UpdateTriggerDto,
   RetryExecutionDto,
   RestartRoutineDto,
+  CompleteCreationDto,
+  CreateWithCreationTaskDto,
 } from './dto/index.js';
 
 @Controller({
@@ -51,14 +55,28 @@ export class RoutinesController {
     return this.routinesService.create(dto, userId, tenantId);
   }
 
+  @Post('with-creation-task')
+  async createWithCreationTask(
+    @Body() dto: CreateWithCreationTaskDto,
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    return this.routinesService.createWithCreationTask(dto, userId, tenantId);
+  }
+
   @Get()
   async list(
     @CurrentTenantId() tenantId: string,
+    @CurrentUser('sub') userId: string,
     @Query('botId') botId?: string,
     @Query('status') status?: RoutineStatus,
     @Query('scheduleType') scheduleType?: RoutineScheduleType,
   ) {
-    return this.routinesService.list(tenantId, { botId, status, scheduleType });
+    return this.routinesService.list(
+      tenantId,
+      { botId, status, scheduleType },
+      userId,
+    );
   }
 
   @Get(':id')
@@ -197,6 +215,19 @@ export class RoutinesController {
       tenantId,
       dto,
     );
+  }
+
+  // ── Creation Completion ──────────────────────────────────────────
+
+  @Post(':id/complete-creation')
+  @HttpCode(HttpStatus.OK)
+  async completeCreation(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CompleteCreationDto,
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    return this.routinesService.completeCreation(id, dto, userId, tenantId);
   }
 
   // ── Trigger CRUD ──────────────────────────────────────────────

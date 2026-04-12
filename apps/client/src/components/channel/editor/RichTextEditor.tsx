@@ -16,6 +16,8 @@ import { QuoteNode } from "@lexical/rich-text";
 import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { $getRoot, $createParagraphNode, $createTextNode } from "lexical";
+import { KEY_ESCAPE_COMMAND, COMMAND_PRIORITY_LOW } from "lexical";
+import { $generateNodesFromDOM } from "@lexical/html";
 import type { EditorState, LexicalEditor } from "lexical";
 import type { InitialConfigType } from "@lexical/react/LexicalComposer";
 import { ArrowUp, Sparkles, ChevronDown, Loader2 } from "lucide-react";
@@ -56,6 +58,17 @@ interface RichTextEditorProps {
   onRetryFile?: (id: string) => void;
   /** Draft text to pre-fill in the editor */
   initialDraft?: string;
+  /** HTML content to pre-fill in the editor (for edit mode) */
+  initialHtml?: string;
+  /** Callback when Escape is pressed (for edit mode) */
+  onCancel?: () => void;
+  /**
+   * Whether to clear the editor after submit (default: true).
+   * Set to false for edit mode so the content is preserved if the request fails.
+   */
+  clearOnSubmit?: boolean;
+  /** Label for the submit button (e.g. "Save" in edit mode). Shows text button instead of icon. */
+  submitLabel?: string;
   /** Automatically send the initial draft once after mount */
   autoSendInitialDraft?: boolean;
   /** Called after the initial draft auto-send succeeds */
@@ -86,6 +99,16 @@ function AutoFocusPlugin() {
     // Focus the editor when mounted
     editor.focus();
   }, [editor]);
+
+  return null;
+}
+
+function EditablePlugin({ editable }: { editable: boolean }) {
+  const [editor] = useLexicalComposerContext();
+
+  useEffect(() => {
+    editor.setEditable(editable);
+  }, [editor, editable]);
 
   return null;
 }
@@ -225,14 +248,60 @@ function AutoSendDraftPlugin({
   return null;
 }
 
+function InitialHtmlPlugin({ html }: { html?: string }) {
+  const [editor] = useLexicalComposerContext();
+  const hasApplied = useRef(false);
+
+  useEffect(() => {
+    if (!html || hasApplied.current) return;
+    hasApplied.current = true;
+
+    editor.update(() => {
+      const root = $getRoot();
+      root.clear();
+
+      const parser = new DOMParser();
+      const dom = parser.parseFromString(html, "text/html");
+      const nodes = $generateNodesFromDOM(editor, dom);
+
+      nodes.forEach((node) => root.append(node));
+      root.selectEnd();
+    });
+  }, [editor, html]);
+
+  return null;
+}
+
+function EscapePlugin({ onCancel }: { onCancel?: () => void }) {
+  const [editor] = useLexicalComposerContext();
+
+  useEffect(() => {
+    if (!onCancel) return;
+    return editor.registerCommand(
+      KEY_ESCAPE_COMMAND,
+      () => {
+        onCancel();
+        return true;
+      },
+      COMMAND_PRIORITY_LOW, // Lower priority so MentionsPlugin gets first chance to handle Escape
+    );
+  }, [editor, onCancel]);
+
+  return null;
+}
+
 function SendButton({
   onSubmit,
   disabled,
   hasAttachments,
+  clearOnSubmit = true,
+  submitLabel,
 }: {
   onSubmit: (content: string) => Promise<void>;
   disabled?: boolean;
   hasAttachments?: boolean;
+  clearOnSubmit?: boolean;
+  submitLabel?: string;
 }) {
   const [editor] = useLexicalComposerContext();
   const [editorHasContent, setEditorHasContent] = useState(false);
@@ -255,10 +324,11 @@ function SendButton({
       onSubmit,
       disabled,
       hasAttachments,
+      clearOnSubmit,
     }).catch((error) => {
       console.error("Failed to send message:", error);
     });
-  }, [editor, onSubmit, canSend, disabled, hasAttachments]);
+  }, [editor, onSubmit, canSend, disabled, hasAttachments, clearOnSubmit]);
 
   return (
     <button
@@ -270,10 +340,15 @@ function SendButton({
         canSend
           ? "bg-foreground hover:bg-foreground/80 text-background"
           : "bg-muted text-muted-foreground cursor-not-allowed",
+        submitLabel && "w-auto px-3",
       )}
-      title="Send message"
+      title={submitLabel ?? "Send message"}
     >
-      <ArrowUp size={16} strokeWidth={2.5} />
+      {submitLabel ? (
+        <span className="text-sm font-medium px-1">{submitLabel}</span>
+      ) : (
+        <ArrowUp size={16} strokeWidth={2.5} />
+      )}
     </button>
   );
 }
@@ -290,6 +365,10 @@ export function RichTextEditor({
   onRemoveFile,
   onRetryFile,
   initialDraft,
+  initialHtml,
+  onCancel,
+  clearOnSubmit = true,
+  submitLabel,
   autoSendInitialDraft,
   onInitialDraftAutoSent,
   isBotDm = false,
@@ -355,8 +434,11 @@ export function RichTextEditor({
           <CodeHighlightPlugin />
           <OnChangePlugin onChange={handleChange} />
           <AutoFocusPlugin />
+          <EditablePlugin editable={!disabled} />
           <EditorRefPlugin editorRef={editorRef} />
           <InitialDraftPlugin channelId={channelId} draft={initialDraft} />
+          <InitialHtmlPlugin html={initialHtml} />
+          <EscapePlugin onCancel={onCancel} />
           <AutoSendDraftPlugin
             channelId={channelId}
             draft={initialDraft}
@@ -452,6 +534,8 @@ export function RichTextEditor({
               onSubmit={onSubmit}
               disabled={disabled}
               hasAttachments={hasAttachments}
+              clearOnSubmit={clearOnSubmit}
+              submitLabel={submitLabel}
             />
           </div>
         </div>
@@ -460,6 +544,7 @@ export function RichTextEditor({
           onSubmit={onSubmit}
           disabled={disabled}
           hasAttachments={hasAttachments}
+          clearOnSubmit={clearOnSubmit}
         />
       </div>
     </LexicalComposer>

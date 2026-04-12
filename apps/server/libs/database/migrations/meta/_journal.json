@@ -239,6 +239,13 @@
       "when": 1775839706046,
       "tag": "0033_abnormal_gunslinger",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1775799580062,
+      "tag": "0034_elite_risque",
+      "breakpoints": true
     }
   ]
 }

@@ -12,6 +12,8 @@ import { ChatArea } from "./ChatArea";
 import { RightPanel } from "./RightPanel";
 import { CreateRoutineDialog } from "./CreateRoutineDialog";
 import { RoutineSettingsDialog } from "./RoutineSettingsDialog";
+import { AgenticAgentPicker } from "./AgenticAgentPicker";
+import { DraftRoutineCard } from "./DraftRoutineCard";
 import type { Routine, RoutineStatus } from "@/types/routine";
 
 const STATUS_FILTERS: Record<string, RoutineStatus[]> = {
@@ -47,6 +49,7 @@ export function RoutineList({ botId }: RoutineListProps) {
     string | null
   >(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [agenticPickerOpen, setAgenticPickerOpen] = useState(false);
   const [tab, setTab] = useState<TabKey>("all");
 
   // Fetch all tasks
@@ -72,12 +75,26 @@ export function RoutineList({ botId }: RoutineListProps) {
     staleTime: 60_000,
   });
 
-  // Filter tasks by selected tab
+  // Separate draft routines (always shown at top, not affected by tab filter)
+  const draftRoutines = useMemo(
+    () => allRoutines.filter((r) => r.status === "draft"),
+    [allRoutines],
+  );
+
+  // Non-draft routines for tab filtering
+  const nonDraftRoutines = useMemo(
+    () => allRoutines.filter((r) => r.status !== "draft"),
+    [allRoutines],
+  );
+
+  // Filter tasks by selected tab (excluding drafts)
   const filteredRoutines = useMemo(() => {
-    if (tab === "all") return allRoutines;
+    if (tab === "all") return nonDraftRoutines;
     const statuses = STATUS_FILTERS[tab];
-    return allRoutines.filter((routine) => statuses.includes(routine.status));
-  }, [allRoutines, tab]);
+    return nonDraftRoutines.filter((routine) =>
+      statuses.includes(routine.status),
+    );
+  }, [nonDraftRoutines, tab]);
 
   // Fetch selected routine detail (for chat area + right panel)
   const { data: selectedRoutine } = useQuery({
@@ -174,13 +191,23 @@ export function RoutineList({ botId }: RoutineListProps) {
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-border">
           <span className="text-sm font-semibold">{t("title", "Tasks")}</span>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => setShowCreateDialog(true)}
-          >
-            <Plus size={16} />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs h-6 px-2"
+              onClick={() => setAgenticPickerOpen(true)}
+            >
+              {t("agentic.createButton")}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setShowCreateDialog(true)}
+            >
+              <Plus size={16} />
+            </Button>
+          </div>
         </div>
 
         {/* Loading */}
@@ -221,15 +248,31 @@ export function RoutineList({ botId }: RoutineListProps) {
 
             {/* Task cards */}
             <div className="flex-1 overflow-y-auto">
-              {filteredRoutines.length === 0 ? (
-                <div className="flex items-center justify-center py-8">
-                  <p className="text-xs text-muted-foreground">
-                    {t("noRoutines")}
-                  </p>
-                </div>
-              ) : (
-                <div className="px-2 py-1 space-y-1">
-                  {filteredRoutines.map((routine) => (
+              <div className="px-2 py-1 space-y-1">
+                {/* Draft group — always shown at top */}
+                {draftRoutines.length > 0 && (
+                  <>
+                    <p className="px-0.5 pt-1 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      {t("draft.badge")}
+                    </p>
+                    {draftRoutines.map((routine) => (
+                      <DraftRoutineCard key={routine.id} routine={routine} />
+                    ))}
+                    {filteredRoutines.length > 0 && (
+                      <div className="border-t border-border my-1" />
+                    )}
+                  </>
+                )}
+
+                {/* Non-draft routines */}
+                {filteredRoutines.length === 0 && draftRoutines.length === 0 ? (
+                  <div className="flex items-center justify-center py-8">
+                    <p className="text-xs text-muted-foreground">
+                      {t("noRoutines")}
+                    </p>
+                  </div>
+                ) : filteredRoutines.length === 0 ? null : (
+                  filteredRoutines.map((routine) => (
                     <ExpandableRoutineCard
                       key={routine.id}
                       routine={routine}
@@ -243,9 +286,9 @@ export function RoutineList({ botId }: RoutineListProps) {
                         setShowSettingsRoutineId(routine.id)
                       }
                     />
-                  ))}
-                </div>
-              )}
+                  ))
+                )}
+              </div>
             </div>
           </>
         )}
@@ -275,6 +318,11 @@ export function RoutineList({ botId }: RoutineListProps) {
         open={!!showSettingsRoutineId}
         onClose={() => setShowSettingsRoutineId(null)}
         onDeleted={handleSettingsDeleted}
+      />
+
+      <AgenticAgentPicker
+        open={agenticPickerOpen}
+        onClose={() => setAgenticPickerOpen(false)}
       />
     </div>
   );

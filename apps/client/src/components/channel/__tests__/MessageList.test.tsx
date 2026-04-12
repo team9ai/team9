@@ -92,6 +92,15 @@ vi.mock("@/hooks/useThread", () => ({
   ) => selector({ openThread: vi.fn() }),
 }));
 
+// React Query client
+vi.mock("@tanstack/react-query", async () => {
+  const actual = await vi.importActual("@tanstack/react-query");
+  return {
+    ...actual,
+    useQueryClient: () => ({ removeQueries: vi.fn() }),
+  };
+});
+
 // Message mutations
 vi.mock("@/hooks/useMessages", () => ({
   useDeleteMessage: () => ({ mutate: vi.fn() }),
@@ -99,6 +108,14 @@ vi.mock("@/hooks/useMessages", () => ({
   useRemoveFailedMessage: () => vi.fn(),
   useAddReaction: () => ({ mutate: vi.fn() }),
   useRemoveReaction: () => ({ mutate: vi.fn() }),
+  usePinMessage: () => ({ mutate: vi.fn() }),
+  useUnpinMessage: () => ({ mutate: vi.fn() }),
+  useUpdateMessage: () => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn().mockResolvedValue({}),
+    isPending: false,
+  }),
+  useFullContent: () => ({ data: undefined, isLoading: false, isError: false }),
 }));
 
 // Channel scroll state machine

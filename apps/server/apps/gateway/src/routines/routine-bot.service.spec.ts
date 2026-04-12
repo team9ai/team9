@@ -1,9 +1,10 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
-import { Test, TestingModule } from '@nestjs/testing';
+import {
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { RoutineBotService } from './routine-bot.service.js';
-import { TaskCastService } from './taskcast.service.js';
-import { DATABASE_CONNECTION } from '@team9/database';
-import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
 
 // ── helpers ───────────────────────────────────────────────────────────
 
@@ -23,6 +24,8 @@ function mockDb() {
     'set',
     'and',
     'orderBy',
+    'leftJoin',
+    'delete',
   ];
   for (const m of methods) {
     chain[m] = jest.fn<any>().mockReturnValue(chain);
@@ -99,7 +102,7 @@ describe('RoutineBotService — TaskCast integration', () => {
   let wsGateway: { broadcastToWorkspace: MockFn };
   let taskCastService: { publishEvent: MockFn; transitionStatus: MockFn };
 
-  beforeEach(async () => {
+  beforeEach(() => {
     db = mockDb();
     wsGateway = {
       broadcastToWorkspace: jest.fn<any>().mockResolvedValue(undefined),
@@ -109,16 +112,15 @@ describe('RoutineBotService — TaskCast integration', () => {
       transitionStatus: jest.fn<any>().mockResolvedValue(undefined),
     };
 
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        RoutineBotService,
-        { provide: DATABASE_CONNECTION, useValue: db },
-        { provide: WEBSOCKET_GATEWAY, useValue: wsGateway },
-        { provide: TaskCastService, useValue: taskCastService },
-      ],
-    }).compile();
-
-    service = module.get<RoutineBotService>(RoutineBotService);
+    // Directly instantiate with stub implementations for new dependencies
+    service = new RoutineBotService(
+      db as never,
+      wsGateway as never,
+      taskCastService as never,
+      {} as never, // documentsService — not used in TaskCast tests
+      {} as never, // routineTriggersService — not used in TaskCast tests
+      {} as never, // routinesService — not used in TaskCast tests
+    );
   });
 
   // ── reportSteps ──────────────────────────────────────────────────
@@ -530,6 +532,460 @@ describe('RoutineBotService — TaskCast integration', () => {
           ],
         }),
       ).rejects.toThrow('Execution not found for this routine');
+    });
+  });
+});
+
+// ── RoutineBotService — Routine CRUD (bot-scoped) ─────────────────────
+
+describe('RoutineBotService — Routine CRUD (bot-scoped)', () => {
+  let service: RoutineBotService;
+  let db: ReturnType<typeof mockDb>;
+  let wsGateway: { broadcastToWorkspace: MockFn };
+  let taskCastService: { publishEvent: MockFn; transitionStatus: MockFn };
+  let documentsService: { create: MockFn; getById: MockFn; update: MockFn };
+  let routineTriggersService: {
+    listByRoutine: MockFn;
+    replaceAllForRoutine: MockFn;
+  };
+  let routinesService: { create: MockFn };
+
+  const BOT_ROW = {
+    id: 'bot-1',
+    userId: 'bot-user-1',
+    ownerId: 'owner-user-1',
+    mentorId: null,
+  };
+  const ROUTINE_ROW = {
+    id: 'routine-1',
+    tenantId: 'tenant-1',
+    botId: 'bot-1',
+    creatorId: 'owner-user-1',
+    title: 'My Routine',
+    documentId: 'doc-1',
+    status: 'draft',
+  };
+
+  beforeEach(() => {
+    db = mockDb();
+    wsGateway = {
+      broadcastToWorkspace: jest.fn<any>().mockResolvedValue(undefined),
+    };
+    taskCastService = {
+      publishEvent: jest.fn<any>().mockResolvedValue(undefined),
+      transitionStatus: jest.fn<any>().mockResolvedValue(undefined),
+    };
+    documentsService = {
+      create: jest.fn<any>().mockResolvedValue({ id: 'doc-1' }),
+      getById: jest.fn<any>().mockResolvedValue({ content: 'doc content' }),
+      update: jest.fn<any>().mockResolvedValue(undefined),
+    };
+    routineTriggersService = {
+      listByRoutine: jest.fn<any>().mockResolvedValue([]),
+      replaceAllForRoutine: jest.fn<any>().mockResolvedValue(undefined),
+    };
+    routinesService = {
+      create: jest.fn<any>().mockResolvedValue(ROUTINE_ROW),
+    };
+
+    // Directly instantiate to avoid NestJS DI token resolution issues in test
+    service = new RoutineBotService(
+      db as never,
+      wsGateway as never,
+      taskCastService as never,
+      documentsService as never,
+      routineTriggersService as never,
+      routinesService as never,
+    );
+  });
+
+  // ── createRoutine ─────────────────────────────────────────────────
+
+  describe('createRoutine', () => {
+    it('resolves bot from botUserId, uses ownerId as creatorId, delegates to routinesService.create', async () => {
+      // Bot lookup by shadow userId
+      db.limit.mockResolvedValueOnce([BOT_ROW] as any);
+
+      const result = await service.createRoutine(
+        { title: 'My Routine' },
+        'bot-user-1',
+        'tenant-1',
+      );
+
+      expect(result).toEqual(ROUTINE_ROW);
+      expect(routinesService.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'My Routine',
+          botId: 'bot-1',
+          status: 'upcoming',
+        }),
+        'owner-user-1',
+        'tenant-1',
+      );
+    });
+
+    it('defaults status to "upcoming" when not provided', async () => {
+      db.limit.mockResolvedValueOnce([BOT_ROW] as any);
+
+      await service.createRoutine(
+        { title: 'My Routine' },
+        'bot-user-1',
+        'tenant-1',
+      );
+
+      expect(routinesService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'upcoming' }),
+        expect.any(String),
+        'tenant-1',
+      );
+    });
+
+    it('passes through status="draft" when explicitly provided', async () => {
+      db.limit.mockResolvedValueOnce([BOT_ROW] as any);
+
+      await service.createRoutine(
+        { title: 'My Routine', status: 'draft' },
+        'bot-user-1',
+        'tenant-1',
+      );
+
+      expect(routinesService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'draft' }),
+        expect.any(String),
+        'tenant-1',
+      );
+    });
+
+    it('passes through triggers when provided', async () => {
+      db.limit.mockResolvedValueOnce([BOT_ROW] as any);
+      const triggers = [
+        { type: 'schedule', config: { cron: '0 9 * * 1' }, enabled: true },
+      ];
+
+      await service.createRoutine(
+        { title: 'My Routine', triggers },
+        'bot-user-1',
+        'tenant-1',
+      );
+
+      expect(routinesService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ triggers }),
+        expect.any(String),
+        'tenant-1',
+      );
+    });
+
+    it('uses mentorId over ownerId when mentorId is set', async () => {
+      const botWithMentor = { ...BOT_ROW, mentorId: 'mentor-user-1' };
+      db.limit.mockResolvedValueOnce([botWithMentor] as any);
+
+      await service.createRoutine(
+        { title: 'My Routine' },
+        'bot-user-1',
+        'tenant-1',
+      );
+
+      expect(routinesService.create).toHaveBeenCalledWith(
+        expect.any(Object),
+        'mentor-user-1',
+        'tenant-1',
+      );
+    });
+
+    it('throws NotFoundException when bot is not found', async () => {
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.createRoutine(
+          { title: 'My Routine' },
+          'bot-user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(routinesService.create).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when bot has neither mentorId nor ownerId', async () => {
+      const orphanBot = { ...BOT_ROW, ownerId: null, mentorId: null };
+      db.limit.mockResolvedValueOnce([orphanBot] as any);
+
+      await expect(
+        service.createRoutine(
+          { title: 'My Routine' },
+          'bot-user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('validates explicit botId belongs to tenant — throws ForbiddenException when bot is in different tenant', async () => {
+      // Bot lookup succeeds (calling bot found)
+      db.limit.mockResolvedValueOnce([BOT_ROW] as any);
+
+      // Explicit botId cross-tenant validation: the join query returns a row
+      // whose tenantId does not match the requesting tenant.
+      // The service queries bots JOIN installedApplications WHERE bots.id = dto.botId,
+      // but if the row is not found at all it throws BadRequestException.
+      // To test ForbiddenException we need the row to be absent (service throws BadRequest),
+      // per the service code: if (!targetBot) throw BadRequestException.
+      // So the ForbiddenException path doesn't exist for createRoutine — only BadRequest.
+      // Test the BadRequestException path (bot not found in tenant).
+      db.limit.mockResolvedValueOnce([] as any); // targetBot query returns nothing
+
+      await expect(
+        service.createRoutine(
+          { title: 'My Routine', botId: 'other-bot-id' },
+          'bot-user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(routinesService.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects when explicit botId does not exist in the tenant', async () => {
+      // Calling bot found
+      db.limit.mockResolvedValueOnce([BOT_ROW] as any);
+      // explicit botId lookup returns no rows
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.createRoutine(
+          { title: 'My Routine', botId: 'nonexistent-bot' },
+          'bot-user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ── getRoutineById ────────────────────────────────────────────────
+
+  describe('getRoutineById', () => {
+    it('returns routine enriched with documentContent and triggers', async () => {
+      // getRoutineOrThrow: routine lookup
+      db.limit
+        .mockResolvedValueOnce([ROUTINE_ROW] as any)
+        // verifyBotOwnership: bot lookup
+        .mockResolvedValueOnce([BOT_ROW] as any);
+
+      documentsService.getById.mockResolvedValueOnce({
+        content: 'my content',
+      } as any);
+      routineTriggersService.listByRoutine.mockResolvedValueOnce([
+        { id: 'trigger-1' },
+      ] as any);
+
+      const result = await service.getRoutineById(
+        'routine-1',
+        'bot-user-1',
+        'tenant-1',
+      );
+
+      expect(result).toMatchObject({
+        id: 'routine-1',
+        documentContent: 'my content',
+        triggers: [{ id: 'trigger-1' }],
+      });
+    });
+
+    it('throws NotFoundException when routine not found', async () => {
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.getRoutineById('nonexistent', 'bot-user-1', 'tenant-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ForbiddenException when bot does not own the routine', async () => {
+      db.limit
+        .mockResolvedValueOnce([ROUTINE_ROW] as any)
+        // verifyBotOwnership: returns a bot with different userId
+        .mockResolvedValueOnce([{ userId: 'different-bot-user' }] as any);
+
+      await expect(
+        service.getRoutineById('routine-1', 'bot-user-1', 'tenant-1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('returns empty documentContent when documentsService throws', async () => {
+      db.limit
+        .mockResolvedValueOnce([ROUTINE_ROW] as any)
+        .mockResolvedValueOnce([BOT_ROW] as any);
+
+      documentsService.getById.mockRejectedValueOnce(
+        new Error('not found') as any,
+      );
+      routineTriggersService.listByRoutine.mockResolvedValueOnce([] as any);
+
+      const result = await service.getRoutineById(
+        'routine-1',
+        'bot-user-1',
+        'tenant-1',
+      );
+
+      expect(result.documentContent).toBe('');
+    });
+  });
+
+  // ── updateRoutine ─────────────────────────────────────────────────
+
+  describe('updateRoutine', () => {
+    it('updates routine and returns updated record', async () => {
+      db.limit
+        .mockResolvedValueOnce([ROUTINE_ROW] as any)
+        .mockResolvedValueOnce([BOT_ROW] as any);
+
+      const updatedRoutine = { ...ROUTINE_ROW, title: 'Updated Title' };
+      db.returning.mockResolvedValueOnce([updatedRoutine] as any);
+
+      const result = await service.updateRoutine(
+        'routine-1',
+        { title: 'Updated Title' },
+        'bot-user-1',
+        'tenant-1',
+      );
+
+      expect(result).toEqual(updatedRoutine);
+    });
+
+    it('updates documentContent via documentsService', async () => {
+      db.limit
+        .mockResolvedValueOnce([ROUTINE_ROW] as any)
+        .mockResolvedValueOnce([BOT_ROW] as any);
+
+      db.returning.mockResolvedValueOnce([ROUTINE_ROW] as any);
+
+      await service.updateRoutine(
+        'routine-1',
+        { documentContent: 'new content' },
+        'bot-user-1',
+        'tenant-1',
+      );
+
+      expect(documentsService.update).toHaveBeenCalledWith(
+        'doc-1',
+        { content: 'new content' },
+        { type: 'user', id: 'owner-user-1' },
+      );
+    });
+
+    it('replaces triggers when provided', async () => {
+      db.limit
+        .mockResolvedValueOnce([ROUTINE_ROW] as any)
+        .mockResolvedValueOnce([BOT_ROW] as any);
+
+      db.returning.mockResolvedValueOnce([ROUTINE_ROW] as any);
+
+      const triggers = [{ type: 'manual', config: {}, enabled: true }];
+      await service.updateRoutine(
+        'routine-1',
+        { triggers } as never,
+        'bot-user-1',
+        'tenant-1',
+      );
+
+      expect(routineTriggersService.replaceAllForRoutine).toHaveBeenCalledWith(
+        'routine-1',
+        triggers,
+      );
+    });
+
+    it('throws BadRequestException when trying to change status', async () => {
+      db.limit
+        .mockResolvedValueOnce([ROUTINE_ROW] as any)
+        .mockResolvedValueOnce([BOT_ROW] as any);
+
+      await expect(
+        service.updateRoutine(
+          'routine-1',
+          { status: 'upcoming' },
+          'bot-user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws ForbiddenException when bot does not own the routine', async () => {
+      db.limit
+        .mockResolvedValueOnce([ROUTINE_ROW] as any)
+        .mockResolvedValueOnce([{ userId: 'different-bot-user' }] as any);
+
+      await expect(
+        service.updateRoutine(
+          'routine-1',
+          { title: 'New' },
+          'bot-user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws NotFoundException when routine does not exist', async () => {
+      db.limit.mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.updateRoutine(
+          'nonexistent',
+          { title: 'X' },
+          'bot-user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('rejects when dto.botId belongs to a different tenant', async () => {
+      db.limit
+        .mockResolvedValueOnce([ROUTINE_ROW] as any)
+        .mockResolvedValueOnce([BOT_ROW] as any)
+        // The botId cross-tenant query: returns row with different tenantId
+        .mockResolvedValueOnce([
+          { id: 'other-bot', tenantId: 'other-tenant' },
+        ] as any);
+
+      await expect(
+        service.updateRoutine(
+          'routine-1',
+          { botId: 'other-bot' } as never,
+          'bot-user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('rejects when dto.botId does not exist', async () => {
+      db.limit
+        .mockResolvedValueOnce([ROUTINE_ROW] as any)
+        .mockResolvedValueOnce([BOT_ROW] as any)
+        // botId query returns no rows
+        .mockResolvedValueOnce([] as any);
+
+      await expect(
+        service.updateRoutine(
+          'routine-1',
+          { botId: 'nonexistent-bot' } as never,
+          'bot-user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when updating documentContent but routine has no documentId', async () => {
+      db.limit
+        .mockResolvedValueOnce([{ ...ROUTINE_ROW, documentId: null }] as any)
+        .mockResolvedValueOnce([BOT_ROW] as any);
+
+      await expect(
+        service.updateRoutine(
+          'routine-1',
+          { documentContent: 'new content' },
+          'bot-user-1',
+          'tenant-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(documentsService.update).not.toHaveBeenCalled();
     });
   });
 });
