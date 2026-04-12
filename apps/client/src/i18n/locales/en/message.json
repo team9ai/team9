@@ -37,5 +37,17 @@
   "botThinking": "Thinking",
   "botAnalyzing": "Analyzing",
   "selectUserToChat": "Select a user to start a direct conversation",
-  "botGenerating": "Generating response"
+  "botGenerating": "Generating response",
+  "editedAt": "(edited at {{time}})",
+  "editSave": "Save",
+  "editCancel": "Cancel",
+  "editHint": "Esc to cancel · Enter to save",
+  "deleteConfirmTitle": "Delete message",
+  "deleteConfirmDescription": "Are you sure you want to delete this message? This action cannot be undone.",
+  "deleteConfirm": "Delete",
+  "deleteCancel": "Cancel",
+  "loadingFullContent": "Loading full content...",
+  "loadFullContentFailed": "Failed to load full content. Please cancel and try again.",
+  "expandFullContent": "Expand full content",
+  "remainingChars": "(~{{count}} more characters)"
 }

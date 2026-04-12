@@ -37,5 +37,17 @@
   "botThinking": "考え中",
   "botAnalyzing": "分析中",
   "selectUserToChat": "ダイレクトメッセージを始めるユーザーを選択",
-  "botGenerating": "回答を生成中"
+  "botGenerating": "回答を生成中",
+  "editedAt": "({{time}}に編集済み)",
+  "editSave": "保存",
+  "editCancel": "キャンセル",
+  "editHint": "Esc キャンセル · Enter 保存",
+  "deleteConfirmTitle": "メッセージを削除",
+  "deleteConfirmDescription": "このメッセージを削除しますか？この操作は元に戻せません。",
+  "deleteConfirm": "削除",
+  "deleteCancel": "キャンセル",
+  "loadingFullContent": "全文を読み込み中...",
+  "loadFullContentFailed": "全文の読み込みに失敗しました。キャンセルして再試行してください。",
+  "expandFullContent": "全文を展開",
+  "remainingChars": "（残り約 {{count}} 文字）"
 }

@@ -37,5 +37,17 @@
   "botThinking": "Réflexion",
   "botAnalyzing": "Analyse",
   "selectUserToChat": "Sélectionnez un utilisateur pour démarrer une conversation directe",
-  "botGenerating": "Génération de la réponse"
+  "botGenerating": "Génération de la réponse",
+  "editedAt": "(modifié à {{time}})",
+  "editSave": "Enregistrer",
+  "editCancel": "Annuler",
+  "editHint": "Esc annuler · Entrée enregistrer",
+  "deleteConfirmTitle": "Supprimer le message",
+  "deleteConfirmDescription": "Êtes-vous sûr de vouloir supprimer ce message ? Cette action est irréversible.",
+  "deleteConfirm": "Supprimer",
+  "deleteCancel": "Annuler",
+  "loadingFullContent": "Chargement du contenu complet...",
+  "loadFullContentFailed": "Échec du chargement du contenu complet. Veuillez annuler et réessayer.",
+  "expandFullContent": "Afficher le texte complet",
+  "remainingChars": "(~{{count}} caractères de plus)"
 }
