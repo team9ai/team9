@@ -543,9 +543,12 @@ export class MessagesController {
             const hasAutoFill = definitions.some((d) => d.aiAutoFill);
             if (!hasAutoFill) return;
 
-            return this.aiAutoFillService.autoFill(message.id, userId, {
-              preserveExisting: true,
-            });
+            return this.aiAutoFillService.autoFill(
+              message.id,
+              userId,
+              channel.tenantId,
+              { preserveExisting: true },
+            );
           });
       })
       .catch((err) => {

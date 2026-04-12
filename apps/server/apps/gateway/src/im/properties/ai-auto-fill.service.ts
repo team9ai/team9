@@ -564,12 +564,12 @@ export class AiAutoFillService {
         set_message_properties: defineTool({
           description:
             'Set property values for the message based on its content and context',
-          parameters: jsonSchema(inputSchema),
+          inputSchema: jsonSchema(inputSchema),
         }),
       },
       toolChoice: { type: 'tool', toolName: 'set_message_properties' },
       temperature: 0.3,
-      maxTokens: 2048,
+      maxOutputTokens: 2048,
     });
 
     const toolCall = result.toolCalls[0];
@@ -578,7 +578,7 @@ export class AiAutoFillService {
       throw new Error('AI did not return a tool call');
     }
 
-    return toolCall.args as AutoFillResult;
+    return toolCall.input as AutoFillResult;
   }
 
   private validateResult(

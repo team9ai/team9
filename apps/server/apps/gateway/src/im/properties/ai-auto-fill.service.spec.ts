@@ -225,13 +225,13 @@ describe('AiAutoFillService', () => {
     };
   }
 
-  function makeAiResponse(args: Record<string, unknown>) {
+  function makeAiResponse(input: Record<string, unknown>) {
     return {
       toolCalls: [
         {
           toolName: 'set_message_properties',
           toolCallId: 'tool-1',
-          args,
+          input,
         },
       ],
     };
@@ -361,18 +361,18 @@ describe('AiAutoFillService', () => {
     expect(toolDef.description).toBe(
       'Set property values for the message based on its content and context',
     );
-    expect(toolDef.parameters.properties.status).toBeDefined();
-    expect(toolDef.parameters.properties.priority).toBeDefined();
-    expect(toolDef.parameters.required).toContain('status');
-    expect(toolDef.parameters.required).toContain('priority');
+    expect(toolDef.inputSchema.properties.status).toBeDefined();
+    expect(toolDef.inputSchema.properties.priority).toBeDefined();
+    expect(toolDef.inputSchema.required).toContain('status');
+    expect(toolDef.inputSchema.required).toContain('priority');
 
     // status should have enum constraint (allowNewOptions=false)
-    const statusValue = toolDef.parameters.properties.status.properties.value;
+    const statusValue = toolDef.inputSchema.properties.status.properties.value;
     expect(statusValue.enum).toEqual(['open', 'in_progress', 'done']);
 
     // priority should be number type
     const priorityValue =
-      toolDef.parameters.properties.priority.properties.value;
+      toolDef.inputSchema.properties.priority.properties.value;
     expect(priorityValue.type).toBe('number');
   });
 
@@ -663,7 +663,7 @@ describe('AiAutoFillService', () => {
 
     const toolDef =
       mockGenerateText.mock.calls[0][0].tools.set_message_properties;
-    const valueSchema = toolDef.parameters.properties.summary.properties.value;
+    const valueSchema = toolDef.inputSchema.properties.summary.properties.value;
     expect(valueSchema.type).toBe('string');
   });
 
@@ -681,7 +681,7 @@ describe('AiAutoFillService', () => {
 
     const toolDef =
       mockGenerateText.mock.calls[0][0].tools.set_message_properties;
-    const valueSchema = toolDef.parameters.properties.urgent.properties.value;
+    const valueSchema = toolDef.inputSchema.properties.urgent.properties.value;
     expect(valueSchema.type).toBe('boolean');
   });
 
@@ -702,7 +702,7 @@ describe('AiAutoFillService', () => {
 
     const toolDef =
       mockGenerateText.mock.calls[0][0].tools.set_message_properties;
-    const valueSchema = toolDef.parameters.properties.labels.properties.value;
+    const valueSchema = toolDef.inputSchema.properties.labels.properties.value;
     expect(valueSchema.type).toBe('array');
     expect(valueSchema.items.enum).toEqual(['bug', 'feature', 'docs']);
   });
@@ -722,7 +722,7 @@ describe('AiAutoFillService', () => {
 
     const toolDef =
       mockGenerateText.mock.calls[0][0].tools.set_message_properties;
-    const valueSchema = toolDef.parameters.properties.tags.properties.value;
+    const valueSchema = toolDef.inputSchema.properties.tags.properties.value;
     expect(valueSchema.type).toBe('array');
     // Should NOT have enum when allowNewOptions=true
     expect(valueSchema.items).toEqual({ type: 'string' });
@@ -744,7 +744,7 @@ describe('AiAutoFillService', () => {
 
     const toolDef =
       mockGenerateText.mock.calls[0][0].tools.set_message_properties;
-    const valueSchema = toolDef.parameters.properties.link.properties.value;
+    const valueSchema = toolDef.inputSchema.properties.link.properties.value;
     expect(valueSchema.type).toBe('string');
   });
 
@@ -765,7 +765,7 @@ describe('AiAutoFillService', () => {
     const toolDef =
       mockGenerateText.mock.calls[0][0].tools.set_message_properties;
     const valueSchema =
-      toolDef.parameters.properties.assignees.properties.value;
+      toolDef.inputSchema.properties.assignees.properties.value;
     expect(valueSchema.type).toBe('array');
     expect(valueSchema.items).toEqual({ type: 'string' });
   });
