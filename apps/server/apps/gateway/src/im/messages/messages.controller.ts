@@ -533,7 +533,11 @@ export class MessagesController {
     this.channelsService
       .findById(message.channelId)
       .then((channel) => {
-        if (!channel || !ALLOWED_CHANNEL_TYPES.has(channel.type)) {
+        if (
+          !channel ||
+          !channel.tenantId ||
+          !ALLOWED_CHANNEL_TYPES.has(channel.type)
+        ) {
           return;
         }
 
