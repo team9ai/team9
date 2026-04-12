@@ -654,6 +654,35 @@ describe('MessagePropertiesService', () => {
     );
   });
 
+  // ==================== getMessageChannelId ====================
+
+  it('getMessageChannelId() returns channelId for non-deleted message', async () => {
+    db.__state.selectResults.push([
+      { channelId: 'channel-1', isDeleted: false },
+    ]);
+
+    const result = await service.getMessageChannelId('msg-1');
+    expect(result).toBe('channel-1');
+  });
+
+  it('getMessageChannelId() throws NotFoundException for soft-deleted message', async () => {
+    db.__state.selectResults.push([
+      { channelId: 'channel-1', isDeleted: true },
+    ]);
+
+    await expect(service.getMessageChannelId('msg-1')).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
+  it('getMessageChannelId() throws NotFoundException for missing message', async () => {
+    db.__state.selectResults.push([]);
+
+    await expect(service.getMessageChannelId('missing')).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
   // ==================== validateAndMapValue ====================
 
   it('validateAndMapValue() maps text type to textValue column', async () => {

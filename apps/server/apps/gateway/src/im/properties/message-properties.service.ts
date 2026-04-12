@@ -536,7 +536,12 @@ export class MessagePropertiesService {
 
       case 'date':
       case 'timestamp': {
-        const d = new Date(value as string);
+        if (value === null || typeof value !== 'string') {
+          throw new BadRequestException(
+            `Expected date/timestamp string for ${valueType}`,
+          );
+        }
+        const d = new Date(value);
         if (isNaN(d.getTime())) {
           throw new BadRequestException(
             `Expected valid date/timestamp string for ${valueType}`,
