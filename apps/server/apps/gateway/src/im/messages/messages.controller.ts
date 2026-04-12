@@ -541,6 +541,8 @@ export class MessagesController {
           return;
         }
 
+        const tenantId = channel.tenantId;
+
         return this.propertyDefinitionsService
           .findAllByChannel(message.channelId)
           .then((definitions) => {
@@ -550,7 +552,7 @@ export class MessagesController {
             return this.aiAutoFillService.autoFill(
               message.id,
               userId,
-              channel.tenantId,
+              tenantId,
               { preserveExisting: true },
             );
           });
