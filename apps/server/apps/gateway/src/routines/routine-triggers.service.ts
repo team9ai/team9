@@ -147,8 +147,7 @@ export class RoutineTriggersService {
           await tx.insert(schema.routineTriggers).values({
             id: uuidv7(),
             routineId,
-            tenantId,
-            type: trigger.type,
+            type: trigger.type as 'manual' | 'interval' | 'schedule' | 'channel_message',
             config: (trigger.config ?? {}) as schema.TriggerConfig,
             enabled: trigger.enabled ?? true,
             nextRunAt,
