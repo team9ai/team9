@@ -746,7 +746,9 @@ export class ChannelsService {
           otherUser: otherUserMap.get(channel.id),
         };
       }
-      return channel;
+      // Strip showInDmSidebar from non-DM channels
+      const { showInDmSidebar: _, ...rest } = channel;
+      return rest;
     });
   }
 
@@ -1501,7 +1503,7 @@ export class ChannelsService {
   }
 
   /**
-   * Toggle the showInDmSidebar flag for the current user's membership
+   * Set the showInDmSidebar flag for the current user's membership
    * in a direct or echo channel.
    */
   async setSidebarVisibility(
@@ -1531,16 +1533,27 @@ export class ChannelsService {
       );
     }
 
-    await this.db
-      .update(schema.channelMembers)
-      .set({ showInDmSidebar: show })
+    // Verify user is an active member of this channel
+    const [member] = await this.db
+      .select({ id: schema.channelMembers.id })
+      .from(schema.channelMembers)
       .where(
         and(
           eq(schema.channelMembers.channelId, channelId),
           eq(schema.channelMembers.userId, userId),
           isNull(schema.channelMembers.leftAt),
         ),
-      );
+      )
+      .limit(1);
+
+    if (!member) {
+      throw new ForbiddenException('Not a member of this channel');
+    }
+
+    await this.db
+      .update(schema.channelMembers)
+      .set({ showInDmSidebar: show })
+      .where(eq(schema.channelMembers.id, member.id));
   }
 
   /**

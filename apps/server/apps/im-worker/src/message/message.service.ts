@@ -532,6 +532,9 @@ export class MessageService {
       };
       await this.cacheRecentMessage(dto.channelId, envelope);
 
+      // Auto-unhide DM/echo channels when new message arrives (HTTP/gRPC path)
+      await this.unhideDmChannelForMembers(dto.channelId);
+
       this.logger.debug(
         `Created message ${msgId} (seq: ${seqId}) via HTTP API for channel ${dto.channelId}`,
       );

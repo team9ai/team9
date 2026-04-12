@@ -511,6 +511,10 @@ describe('MessageService', () => {
     db.transaction.mockImplementationOnce(async (callback: any) =>
       callback(tx),
     );
+    // Mock channel type lookup for unhideDmChannelForMembers
+    const channelQuery = makeSelectChain();
+    db.select.mockReturnValueOnce(channelQuery);
+    channelQuery.limit.mockResolvedValueOnce([{ type: 'public' }]);
 
     await service.createAndPersist({
       clientMsgId: 'client-http-2',
@@ -550,6 +554,10 @@ describe('MessageService', () => {
     db.transaction.mockImplementationOnce(async (callback: any) =>
       callback(tx),
     );
+    // Mock channel type lookup for unhideDmChannelForMembers
+    const channelQuery = makeSelectChain();
+    db.select.mockReturnValueOnce(channelQuery);
+    channelQuery.limit.mockResolvedValueOnce([{ type: 'public' }]);
 
     await service.createAndPersist({
       clientMsgId: 'client-http-3',

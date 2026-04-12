@@ -1656,9 +1656,12 @@ describe('ChannelsService', () => {
 
   describe('setSidebarVisibility', () => {
     it('should update show_in_dm_sidebar for a direct channel', async () => {
+      // Mock channel lookup
       db.limit.mockResolvedValueOnce([
         { id: 'channel-1', type: 'direct' },
       ] as any);
+      // Mock member lookup
+      db.limit.mockResolvedValueOnce([{ id: 'member-1' }] as any);
 
       await service.setSidebarVisibility('channel-1', 'user-1', false);
       expect(db.update).toHaveBeenCalled();
@@ -1671,6 +1674,7 @@ describe('ChannelsService', () => {
       db.limit.mockResolvedValueOnce([
         { id: 'channel-1', type: 'echo' },
       ] as any);
+      db.limit.mockResolvedValueOnce([{ id: 'member-1' }] as any);
 
       await service.setSidebarVisibility('channel-1', 'user-1', true);
       expect(db.update).toHaveBeenCalled();
@@ -1702,6 +1706,17 @@ describe('ChannelsService', () => {
       await expect(
         service.setSidebarVisibility('channel-1', 'user-1', false),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw ForbiddenException for non-member', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'channel-1', type: 'direct' },
+      ] as any);
+      // No member found
+      db.limit.mockResolvedValueOnce([] as any);
+      await expect(
+        service.setSidebarVisibility('channel-1', 'user-1', false),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
