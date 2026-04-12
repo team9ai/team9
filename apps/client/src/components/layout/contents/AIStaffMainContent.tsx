@@ -77,6 +77,7 @@ interface SectionHeaderProps {
   expanded: boolean;
   onToggle: () => void;
   pinned?: boolean;
+  sub?: boolean;
 }
 
 function SectionHeader({
@@ -85,16 +86,20 @@ function SectionHeader({
   expanded,
   onToggle,
   pinned,
+  sub,
 }: SectionHeaderProps) {
   return (
     <button
       onClick={onToggle}
-      className="flex items-center gap-2 w-full py-2 px-1 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
+      className={cn(
+        "flex items-center gap-2 w-full py-2 px-1 text-muted-foreground hover:text-foreground transition-colors",
+        sub ? "pl-4 text-xs font-medium" : "text-sm font-semibold",
+      )}
     >
       {pinned ? null : expanded ? (
-        <ChevronDown size={14} />
+        <ChevronDown size={sub ? 12 : 14} />
       ) : (
-        <ChevronRight size={14} />
+        <ChevronRight size={sub ? 12 : 14} />
       )}
       <span>{title}</span>
       <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-auto">
@@ -363,6 +368,9 @@ export function AIStaffMainContent() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [aiStaffExpanded, setAiStaffExpanded] = useState(true);
   const [membersExpanded, setMembersExpanded] = useState(true);
+  const [appGroupExpanded, setAppGroupExpanded] = useState<
+    Record<string, boolean>
+  >({});
 
   // Fetch installed applications with bots
   const {
@@ -388,58 +396,76 @@ export function AIStaffMainContent() {
     );
   }, [membersData, currentUser?.id]);
 
-  // Categorize bots into sections
-  const { myPersonalStaff, aiStaffBots } = useMemo(() => {
+  // Categorize bots into sections, with AI staff grouped by app
+  interface AIStaffBotEntry {
+    app: InstalledApplicationWithBots;
+    bot: AIStaffBot;
+    isOtherPersonalStaff: boolean;
+  }
+  interface AppGroup {
+    app: InstalledApplicationWithBots;
+    bots: AIStaffBotEntry[];
+  }
+
+  const { myPersonalStaff, aiStaffGroups, aiStaffTotalCount } = useMemo(() => {
     if (!installedApps || !currentUser?.id) {
       return {
         myPersonalStaff: [] as {
           app: InstalledApplicationWithBots;
           bot: AIStaffBot;
         }[],
-        aiStaffBots: [] as {
-          app: InstalledApplicationWithBots;
-          bot: AIStaffBot;
-          isOtherPersonalStaff: boolean;
-        }[],
+        aiStaffGroups: [] as AppGroup[],
+        aiStaffTotalCount: 0,
       };
     }
 
     const myPS: { app: InstalledApplicationWithBots; bot: AIStaffBot }[] = [];
-    const aiStaff: {
-      app: InstalledApplicationWithBots;
-      bot: AIStaffBot;
-      isOtherPersonalStaff: boolean;
-    }[] = [];
+    const groupMap = new Map<string, AppGroup>();
 
     for (const app of installedApps) {
       if (app.status !== "active") continue;
 
       if (app.applicationId === "personal-staff") {
+        const otherPersonalBots: AIStaffBotEntry[] = [];
         for (const bot of app.bots) {
           if (isPersonalStaffBot(bot) && bot.ownerId === currentUser.id) {
-            // Current user's personal staff -> Section 1
             myPS.push({ app, bot });
           } else if (isPersonalStaffBot(bot)) {
-            // Other user's personal staff -> Section 2 (if visible)
             const visible =
               bot.visibility.allowMention || bot.visibility.allowDirectMessage;
             if (visible) {
-              aiStaff.push({ app, bot, isOtherPersonalStaff: true });
+              otherPersonalBots.push({
+                app,
+                bot,
+                isOtherPersonalStaff: true,
+              });
             }
           }
+        }
+        if (otherPersonalBots.length > 0) {
+          groupMap.set(app.id, { app, bots: otherPersonalBots });
         }
         continue;
       }
 
-      // Common staff, openclaw, base-model-staff -> Section 2
-      for (const bot of app.bots) {
-        aiStaff.push({ app, bot, isOtherPersonalStaff: false });
+      // Common staff, openclaw, base-model-staff
+      const bots: AIStaffBotEntry[] = app.bots.map((bot) => ({
+        app,
+        bot,
+        isOtherPersonalStaff: false,
+      }));
+      if (bots.length > 0) {
+        groupMap.set(app.id, { app, bots });
       }
     }
 
+    const groups = Array.from(groupMap.values());
+    const total = groups.reduce((sum, g) => sum + g.bots.length, 0);
+
     return {
       myPersonalStaff: myPS,
-      aiStaffBots: aiStaff,
+      aiStaffGroups: groups,
+      aiStaffTotalCount: total,
     };
   }, [installedApps, currentUser?.id]);
 
@@ -493,7 +519,7 @@ export function AIStaffMainContent() {
           )}
 
           {!isLoading && !error && (
-            <div className="mx-auto max-w-md space-y-4">
+            <div className="mx-auto max-w-5xl space-y-4">
               {/* Section 1: My Personal Staff */}
               <div>
                 <SectionHeader
@@ -503,9 +529,9 @@ export function AIStaffMainContent() {
                   onToggle={() => {}}
                   pinned
                 />
-                <div className="space-y-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                   {myPersonalStaff.length === 0 ? (
-                    <Card className="p-4 text-center border-dashed">
+                    <Card className="p-4 text-center border-dashed col-span-full">
                       <p className="text-sm text-muted-foreground">
                         {t("aiStaffDescription")}
                       </p>
@@ -526,38 +552,68 @@ export function AIStaffMainContent() {
 
               <Separator />
 
-              {/* Section 2: AI Staff */}
+              {/* Section 2: AI Staff (grouped by app) */}
               <div>
                 <SectionHeader
                   title={t("aiStaffSection")}
-                  count={aiStaffBots.length}
+                  count={aiStaffTotalCount}
                   expanded={aiStaffExpanded}
                   onToggle={() => setAiStaffExpanded((p) => !p)}
                 />
                 {aiStaffExpanded && (
-                  <div className="space-y-2">
-                    {aiStaffBots.length === 0 ? (
+                  <div className="space-y-3">
+                    {aiStaffGroups.length === 0 ? (
                       <Card className="p-4 text-center border-dashed">
                         <p className="text-sm text-muted-foreground">
                           No AI staff members yet
                         </p>
                       </Card>
                     ) : (
-                      aiStaffBots.map(({ app, bot, isOtherPersonalStaff }) => (
-                        <AIStaffBotCard
-                          key={bot.botId}
-                          app={app}
-                          bot={bot}
-                          instanceStatus={app.instanceStatus ?? undefined}
-                          showChatButton
-                          isOtherPersonalStaff={isOtherPersonalStaff}
-                          badge={
-                            isOtherPersonalStaff
-                              ? t("personalAssistant")
-                              : undefined
-                          }
-                        />
-                      ))
+                      aiStaffGroups.map((group) => {
+                        const isExpanded =
+                          appGroupExpanded[group.app.id] !== false;
+                        return (
+                          <div key={group.app.id}>
+                            <SectionHeader
+                              title={group.app.name}
+                              count={group.bots.length}
+                              expanded={isExpanded}
+                              onToggle={() =>
+                                setAppGroupExpanded((prev) => ({
+                                  ...prev,
+                                  [group.app.id]: !isExpanded,
+                                }))
+                              }
+                              sub
+                            />
+                            {isExpanded && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 pl-4">
+                                {group.bots.map(
+                                  ({ app, bot, isOtherPersonalStaff }) => (
+                                    <AIStaffBotCard
+                                      key={bot.botId}
+                                      app={app}
+                                      bot={bot}
+                                      instanceStatus={
+                                        app.instanceStatus ?? undefined
+                                      }
+                                      showChatButton
+                                      isOtherPersonalStaff={
+                                        isOtherPersonalStaff
+                                      }
+                                      badge={
+                                        isOtherPersonalStaff
+                                          ? t("personalAssistant")
+                                          : undefined
+                                      }
+                                    />
+                                  ),
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
                     )}
                   </div>
                 )}
@@ -574,13 +630,13 @@ export function AIStaffMainContent() {
                   onToggle={() => setMembersExpanded((p) => !p)}
                 />
                 {membersExpanded && (
-                  <div className="space-y-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                     {membersLoading ? (
-                      <div className="flex items-center justify-center py-4">
+                      <div className="flex items-center justify-center py-4 col-span-full">
                         <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
                       </div>
                     ) : humanMembers.length === 0 ? (
-                      <Card className="p-4 text-center border-dashed">
+                      <Card className="p-4 text-center border-dashed col-span-full">
                         <p className="text-sm text-muted-foreground">
                           No other members
                         </p>
