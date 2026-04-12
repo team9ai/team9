@@ -88,7 +88,7 @@ function makeViewMessage(
 let mockDefinitions: PropertyDefinition[] = [];
 let mockViewMessagesFlat: ViewMessageItem[] = [];
 let mockViewMessagesGrouped: {
-  groups: { groupKey: string; messages: ViewMessageItem[]; total: number }[];
+  groups: { key: string; messages: ViewMessageItem[]; total: number }[];
   total: number;
 } | null = null;
 const mockUpdateView = { mutate: vi.fn(), isPending: false };
@@ -300,7 +300,7 @@ describe("BoardView", () => {
     mockViewMessagesGrouped = {
       groups: [
         {
-          groupKey: "open",
+          key: "open",
           messages: [
             makeViewMessage({
               id: "msg-1",
@@ -311,7 +311,7 @@ describe("BoardView", () => {
           total: 1,
         },
         {
-          groupKey: "closed",
+          key: "closed",
           messages: [
             makeViewMessage({
               id: "msg-2",
@@ -362,7 +362,7 @@ describe("BoardView", () => {
     mockViewMessagesGrouped = {
       groups: [
         {
-          groupKey: "open",
+          key: "open",
           messages: [
             makeViewMessage({
               id: "msg-1",

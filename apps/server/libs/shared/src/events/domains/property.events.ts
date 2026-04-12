@@ -76,9 +76,9 @@ export interface MessagePropertyChangedEvent {
   messageId: string;
   /** Property changes */
   properties: {
-    /** Properties that were set (definitionId -> value) */
+    /** Properties that were set (propertyKey -> value) */
     set?: Record<string, unknown>;
-    /** Property definition IDs that were removed */
+    /** Property keys that were removed */
     removed?: string[];
   };
   /** User ID who performed the change */

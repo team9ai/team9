@@ -93,11 +93,13 @@ export interface ViewSort {
 export interface ViewConfig {
   filters?: ViewFilter[];
   sorts?: ViewSort[];
+  visiblePropertiesMode?: "whitelist" | "blacklist";
   visibleProperties?: string[];
   groupBy?: string;
   columnWidths?: Record<string, number>;
   datePropertyKey?: string;
   defaultCalendarView?: "month" | "week" | "day";
+  showRecurring?: boolean;
 }
 
 export interface ChannelView {
@@ -153,9 +155,10 @@ export interface ViewMessageItem {
 }
 
 export interface ViewMessagesGroup {
-  groupKey: string;
+  key: string;
   messages: ViewMessageItem[];
   total: number;
+  cursor: string | null;
 }
 
 export interface ViewMessagesFlatResponse {

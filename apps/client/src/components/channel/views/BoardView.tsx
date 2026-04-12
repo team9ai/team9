@@ -267,10 +267,10 @@ function extractGroups(
   if ("groups" in data) {
     const options = groupByDef ? getSelectOptions(groupByDef) : [];
     return data.groups.map((g: ViewMessagesGroup) => {
-      const opt = options.find((o) => o.value === g.groupKey);
+      const opt = options.find((o) => o.value === g.key);
       return {
-        groupKey: g.groupKey,
-        label: opt?.label ?? g.groupKey ?? "No value",
+        groupKey: g.key,
+        label: opt?.label ?? g.key ?? "No value",
         color: opt?.color,
         messages: g.messages,
       };
