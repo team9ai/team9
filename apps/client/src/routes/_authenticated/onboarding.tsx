@@ -3,6 +3,7 @@ import {
   type ReactNode,
   useEffect,
   useEffectEvent,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -38,6 +39,16 @@ import {
 } from "@/hooks/useWorkspaceBilling";
 import { workspaceActions, useSelectedWorkspaceId } from "@/stores";
 import { cn } from "@/lib/utils";
+import {
+  PlanCard,
+  buildPlanFeatures,
+  formatInterval,
+  formatMoney,
+  formatPlanOptionLabel,
+  getPlanCardTheme,
+  getPlanDescription,
+  groupPlanProducts,
+} from "@/components/billing/plan-card";
 import type {
   BillingProduct,
   OnboardingAgentsSelection,
@@ -1141,16 +1152,9 @@ function OnboardingRoute() {
                   <StepSix
                     t={t}
                     products={planProducts}
-                    selectedPlanId={planState.selectedPlan ?? null}
                     checkoutCompleted={Boolean(planState.checkoutCompleted)}
                     loading={billingProductsQuery.isLoading}
                     checkoutPending={checkout.isPending || isFinishing}
-                    onSelectPlan={(product) =>
-                      setPlanState((current) => ({
-                        ...current,
-                        selectedPlan: product.stripePriceId,
-                      }))
-                    }
                     onCheckout={(product) => {
                       void handleCheckout(product);
                     }}
@@ -1731,26 +1735,51 @@ function StepFive({
 function StepSix({
   t,
   products,
-  selectedPlanId,
   checkoutCompleted,
   loading,
   checkoutPending,
-  onSelectPlan,
   onCheckout,
   onFinish,
   onContinueWithoutPlan,
 }: {
   t: TranslateFn;
   products: BillingProduct[];
-  selectedPlanId: string | null;
   checkoutCompleted: boolean;
   loading: boolean;
   checkoutPending: boolean;
-  onSelectPlan: (product: BillingProduct) => void;
   onCheckout: (product: BillingProduct) => void;
   onFinish: () => void;
   onContinueWithoutPlan: () => void;
 }) {
+  const paidGroups = useMemo(
+    () =>
+      groupPlanProducts(products).filter(
+        (group) => group.title.trim().toLowerCase() !== "free",
+      ),
+    [products],
+  );
+
+  const [selectedByGroup, setSelectedByGroup] = useState<
+    Record<string, string>
+  >({});
+
+  useEffect(() => {
+    setSelectedByGroup((current) => {
+      const next = { ...current };
+      let changed = false;
+      for (const group of paidGroups) {
+        const exists = group.products.some(
+          (product) => product.stripePriceId === next[group.key],
+        );
+        if (!exists) {
+          next[group.key] = group.products[0]?.stripePriceId ?? "";
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [paidGroups]);
+
   if (loading) {
     return (
       <GenerationState
@@ -1760,10 +1789,6 @@ function StepSix({
     );
   }
 
-  const selectedProduct =
-    products.find((product) => product.stripePriceId === selectedPlanId) ??
-    null;
-
   return (
     <div className="grid gap-6">
       {checkoutCompleted ? (
@@ -1772,93 +1797,49 @@ function StepSix({
         </div>
       ) : null}
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        {products.map((product) => {
-          const selected = product.stripePriceId === selectedPlanId;
+      <div className="grid gap-6 xl:grid-cols-3">
+        {paidGroups.map((group, groupIndex) => {
+          const selectedPriceId =
+            selectedByGroup[group.key] ?? group.products[0].stripePriceId;
+          const selectedProduct =
+            group.products.find(
+              (product) => product.stripePriceId === selectedPriceId,
+            ) ?? group.products[0];
+          const cycle = formatInterval(
+            selectedProduct.interval,
+            selectedProduct.intervalCount,
+          );
+
           return (
-            <div
-              key={product.stripePriceId}
-              role="button"
-              tabIndex={0}
-              onClick={() => onSelectPlan(product)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  onSelectPlan(product);
-                }
-              }}
-              className={cn(
-                "grid gap-[18px] rounded-[28px] border p-6 text-left transition-all",
-                selected
-                  ? "border-[rgba(184,146,49,0.76)] bg-[linear-gradient(180deg,rgba(255,250,239,0.98),rgba(248,236,194,0.84))] text-slate-900 shadow-[0_20px_42px_rgba(171,139,65,0.2)]"
-                  : "border-slate-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,244,232,0.88))] text-slate-900 shadow-[0_16px_38px_rgba(118,126,148,0.12)] hover:-translate-y-0.5 hover:border-[rgba(192,156,66,0.6)]",
-              )}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="inline-flex rounded-full bg-[rgba(247,228,177,0.88)] px-3 py-1 text-xs font-bold text-[rgba(124,89,19,0.9)]">
-                    {product.name}
-                  </div>
-                  <div className="mt-4 text-[30px] font-semibold leading-none tracking-[-0.05em]">
-                    {product.name}
-                  </div>
-                </div>
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    "grid h-6 w-6 place-items-center rounded-lg border bg-white/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]",
-                    selected
-                      ? "border-[#205ecf]/80 bg-[#ebf3ff]"
-                      : "border-slate-300",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "h-2.5 w-2.5 rounded-[4px] transition-all",
-                      selected
-                        ? "scale-100 bg-[#1f6feb]"
-                        : "scale-50 bg-transparent",
-                    )}
-                  />
-                </span>
-              </div>
-
-              <div className="grid gap-2">
-                <div className="text-[30px] font-semibold leading-none">
-                  {formatPrice(product.amountCents)}
-                  <span className="ml-2 text-base font-medium text-slate-500">
-                    {t("plan.perMonth")}
-                  </span>
-                </div>
-                <p className="m-0 text-xl font-bold text-slate-800">
-                  {t("plan.credits", { count: product.credits ?? 0 })}
-                </p>
-                <span className="text-sm leading-6 text-slate-500">
-                  {t("plan.priceHint", {
-                    amount: formatPrice(product.amountCents),
-                  })}
-                </span>
-              </div>
-
-              <div className="grid gap-2.5">
-                {(product.display.features ?? []).map((feature) => (
-                  <div
-                    key={feature}
-                    className="flex items-start gap-3 rounded-[18px] border border-slate-200 bg-slate-50/80 px-3 py-3 text-sm text-slate-700"
-                  >
-                    <span className="mt-0.5 inline-grid h-[18px] w-[18px] place-items-center rounded-full bg-[#1a73e8]/12 text-[12px] font-bold text-[#1f6feb]">
-                      ✓
-                    </span>
-                    <span>{feature}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <PlanCard
+              key={group.key}
+              badge={group.badge}
+              title={group.title}
+              priceAmount={formatMoney(selectedProduct.amountCents)}
+              priceCycle={cycle}
+              description={getPlanDescription(group.title)}
+              features={buildPlanFeatures(selectedProduct)}
+              actionLabel={t("actions.startCheckout")}
+              actionDisabled={checkoutPending || checkoutCompleted}
+              onAction={() => onCheckout(selectedProduct)}
+              theme={getPlanCardTheme(groupIndex, group.title)}
+              optionItems={group.products.map((product) => ({
+                value: product.stripePriceId,
+                label: formatPlanOptionLabel(product),
+              }))}
+              optionValue={selectedProduct.stripePriceId}
+              onOptionChange={(nextValue) =>
+                setSelectedByGroup((current) => ({
+                  ...current,
+                  [group.key]: nextValue,
+                }))
+              }
+            />
           );
         })}
       </div>
 
-      {products.length === 0 ? (
+      {paidGroups.length === 0 ? (
         <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50/70 px-5 py-6 text-sm text-slate-500">
           {t("plan.empty")}
         </div>
@@ -1874,29 +1855,13 @@ function StepSix({
             {t("actions.finish")}
           </ContinueButton>
         ) : (
-          <>
-            <ContinueButton
-              disabled={checkoutPending || !selectedProduct}
-              onClick={() => {
-                if (selectedProduct) {
-                  onCheckout(selectedProduct);
-                }
-              }}
-              className="shadow-[0_18px_36px_rgba(31,111,235,0.22)]"
-            >
-              {checkoutPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : null}
-              {t("actions.startCheckout")}
-            </ContinueButton>
-            <GhostButton
-              onClick={onContinueWithoutPlan}
-              disabled={checkoutPending}
-              className="bg-white/86 text-slate-600"
-            >
-              {t("actions.continueWithoutPlan")}
-            </GhostButton>
-          </>
+          <GhostButton
+            onClick={onContinueWithoutPlan}
+            disabled={checkoutPending}
+            className="bg-white/86 text-slate-600"
+          >
+            {t("actions.continueWithoutPlan")}
+          </GhostButton>
         )}
       </StepActionDock>
     </div>
@@ -2170,14 +2135,6 @@ function findValidInvitation(invitations: WorkspaceInvitation[]) {
     }
     return true;
   });
-}
-
-function formatPrice(amountCents: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(amountCents / 100);
 }
 
 async function _goBackTo(
