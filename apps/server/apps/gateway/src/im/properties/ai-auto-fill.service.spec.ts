@@ -13,7 +13,6 @@ const dbModule = {
     left,
     right,
   })),
-  ConfigService: jest.fn(() => mockConfigService),
 };
 
 const schemaModule = {
@@ -50,21 +49,23 @@ const schemaModule = {
   auditLogs: {},
 };
 
-const mockAnthropicCreate = jest.fn<any>();
-const mockAnthropicConstructor = jest.fn(() => ({
-  messages: { create: mockAnthropicCreate },
-}));
+const mockGenerateText = jest.fn<any>();
 
 jest.unstable_mockModule('@team9/database', () => dbModule);
 jest.unstable_mockModule('@team9/database/schemas', () => schemaModule);
-jest.unstable_mockModule('@anthropic-ai/sdk', () => ({
-  default: mockAnthropicConstructor,
+jest.unstable_mockModule('ai', () => ({
+  generateText: mockGenerateText,
+  tool: (config: any) => config,
+  jsonSchema: (schema: any) => schema,
 }));
 
-// Mocked dependencies
-const mockConfigService = {
-  getAIProviderConfig: jest.fn<any>(() => ({ apiKey: 'test-api-key' })),
+const mockPlatformLlmService = {
+  createProvider: jest.fn<any>(() => (modelId: string) => ({ modelId })),
 };
+
+jest.unstable_mockModule('../../bot/platform-llm.service.js', () => ({
+  PlatformLlmService: jest.fn(() => mockPlatformLlmService),
+}));
 
 const mockPropertyDefinitionsService = {
   findAllByChannel: jest.fn<any>(),
@@ -224,14 +225,13 @@ describe('AiAutoFillService', () => {
     };
   }
 
-  function makeAiResponse(input: Record<string, unknown>) {
+  function makeAiResponse(args: Record<string, unknown>) {
     return {
-      content: [
+      toolCalls: [
         {
-          type: 'tool_use',
-          id: 'tool-1',
-          name: 'set_message_properties',
-          input,
+          toolName: 'set_message_properties',
+          toolCallId: 'tool-1',
+          args,
         },
       ],
     };
@@ -286,7 +286,7 @@ describe('AiAutoFillService', () => {
     }
 
     // AI response
-    mockAnthropicCreate.mockResolvedValue(makeAiResponse(aiInput));
+    mockGenerateText.mockResolvedValue(makeAiResponse(aiInput));
     // batchSet
     mockMessagePropertiesService.batchSet.mockResolvedValue(undefined);
     // auditService.log
@@ -297,13 +297,11 @@ describe('AiAutoFillService', () => {
     db = mockDb();
     service = new AiAutoFillService(
       db as any,
-      mockConfigService as any,
+      mockPlatformLlmService as any,
       mockPropertyDefinitionsService as any,
       mockMessagePropertiesService as any,
       mockAuditService as any,
     );
-    // Reset the cached client so getClient() creates a new one each test
-    (service as any).client = null;
     jest.clearAllMocks();
   });
 
@@ -315,10 +313,10 @@ describe('AiAutoFillService', () => {
       status: { value: 'open' },
     });
 
-    await service.autoFill('msg-1', 'user-1');
+    await service.autoFill('msg-1', 'user-1', 'tenant-1');
 
-    expect(mockAnthropicCreate).toHaveBeenCalledTimes(1);
-    const callArgs = mockAnthropicCreate.mock.calls[0][0];
+    expect(mockGenerateText).toHaveBeenCalledTimes(1);
+    const callArgs = mockGenerateText.mock.calls[0][0];
 
     // Check that the user message contains XML structure
     const userMessage = callArgs.messages[0].content;
@@ -355,24 +353,26 @@ describe('AiAutoFillService', () => {
       priority: { value: 5 },
     });
 
-    await service.autoFill('msg-1', 'user-1');
+    await service.autoFill('msg-1', 'user-1', 'tenant-1');
 
-    const callArgs = mockAnthropicCreate.mock.calls[0][0];
-    const tool = callArgs.tools[0];
+    const callArgs = mockGenerateText.mock.calls[0][0];
+    const toolDef = callArgs.tools.set_message_properties;
 
-    expect(tool.name).toBe('set_message_properties');
-    expect(tool.input_schema.properties.status).toBeDefined();
-    expect(tool.input_schema.properties.priority).toBeDefined();
-    expect(tool.input_schema.required).toContain('status');
-    expect(tool.input_schema.required).toContain('priority');
+    expect(toolDef.description).toBe(
+      'Set property values for the message based on its content and context',
+    );
+    expect(toolDef.parameters.properties.status).toBeDefined();
+    expect(toolDef.parameters.properties.priority).toBeDefined();
+    expect(toolDef.parameters.required).toContain('status');
+    expect(toolDef.parameters.required).toContain('priority');
 
     // status should have enum constraint (allowNewOptions=false)
-    const statusValue = tool.input_schema.properties.status.properties.value;
+    const statusValue = toolDef.parameters.properties.status.properties.value;
     expect(statusValue.enum).toEqual(['open', 'in_progress', 'done']);
 
     // priority should be number type
     const priorityValue =
-      tool.input_schema.properties.priority.properties.value;
+      toolDef.parameters.properties.priority.properties.value;
     expect(priorityValue.type).toBe('number');
   });
 
@@ -382,7 +382,7 @@ describe('AiAutoFillService', () => {
       status: { value: 'in_progress' },
     });
 
-    const result = await service.autoFill('msg-1', 'user-1');
+    const result = await service.autoFill('msg-1', 'user-1', 'tenant-1');
 
     expect(result.filled).toEqual({ status: 'in_progress' });
     expect(result.skipped).toEqual([]);
@@ -409,7 +409,7 @@ describe('AiAutoFillService', () => {
     // First attempt: invalid value (number instead of string for single_select)
     // Second attempt: also invalid
     // Third attempt: valid
-    mockAnthropicCreate
+    mockGenerateText
       .mockResolvedValueOnce(makeAiResponse({ status: { value: 123 } }))
       .mockResolvedValueOnce(makeAiResponse({ status: { value: 456 } }))
       .mockResolvedValueOnce(makeAiResponse({ status: { value: 'open' } }));
@@ -419,9 +419,9 @@ describe('AiAutoFillService', () => {
     mockMessagePropertiesService.batchSet.mockResolvedValue(undefined);
     mockAuditService.log.mockResolvedValue(undefined);
 
-    const result = await service.autoFill('msg-1', 'user-1');
+    const result = await service.autoFill('msg-1', 'user-1', 'tenant-1');
 
-    expect(mockAnthropicCreate).toHaveBeenCalledTimes(3);
+    expect(mockGenerateText).toHaveBeenCalledTimes(3);
     expect(result.filled).toEqual({ status: 'open' });
   });
 
@@ -437,9 +437,11 @@ describe('AiAutoFillService', () => {
     ];
     setupHappyPath(defs, { status: { value: 'done' } });
 
-    await service.autoFill('msg-1', 'user-1', { fields: ['status'] });
+    await service.autoFill('msg-1', 'user-1', 'tenant-1', {
+      fields: ['status'],
+    });
 
-    const callArgs = mockAnthropicCreate.mock.calls[0][0];
+    const callArgs = mockGenerateText.mock.calls[0][0];
     const userMessage = callArgs.messages[0].content;
     // Only status should appear in the schema, not priority
     expect(userMessage).toContain('key="status"');
@@ -472,13 +474,13 @@ describe('AiAutoFillService', () => {
     db.__state.selectResults.push([]); // reactions
     db.__state.selectResults.push([]); // thread replies
 
-    mockAnthropicCreate.mockResolvedValue(
+    mockGenerateText.mockResolvedValue(
       makeAiResponse({ priority: { value: 5 } }),
     );
     mockMessagePropertiesService.batchSet.mockResolvedValue(undefined);
     mockAuditService.log.mockResolvedValue(undefined);
 
-    const result = await service.autoFill('msg-1', 'user-1', {
+    const result = await service.autoFill('msg-1', 'user-1', 'tenant-1', {
       preserveExisting: true,
     });
 
@@ -496,7 +498,7 @@ describe('AiAutoFillService', () => {
     const defs = [propDef()];
     setupHappyPath(defs, { status: { value: 'done' } });
 
-    await service.autoFill('msg-1', 'user-1');
+    await service.autoFill('msg-1', 'user-1', 'tenant-1');
 
     expect(mockAuditService.log).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -529,7 +531,7 @@ describe('AiAutoFillService', () => {
       priority: { value: 3 },
     });
 
-    const result = await service.autoFill('msg-1', 'user-1');
+    const result = await service.autoFill('msg-1', 'user-1', 'tenant-1');
 
     // status should be skipped (unchanged), only priority set
     expect(result.filled).toEqual({ priority: 3 });
@@ -547,7 +549,7 @@ describe('AiAutoFillService', () => {
       status: { value: null },
     });
 
-    const result = await service.autoFill('msg-1', 'user-1');
+    const result = await service.autoFill('msg-1', 'user-1', 'tenant-1');
 
     // null values are allowed but skipped in validateResult
     expect(result.filled).toEqual({});
@@ -567,16 +569,16 @@ describe('AiAutoFillService', () => {
     db.__state.selectResults.push([]); // reactions
     db.__state.selectResults.push([]); // thread replies
 
-    mockAnthropicCreate
+    mockGenerateText
       .mockRejectedValueOnce(new Error('API timeout'))
       .mockRejectedValueOnce(new Error('Rate limited'))
       .mockRejectedValueOnce(new Error('Server error'));
 
-    await expect(service.autoFill('msg-1', 'user-1')).rejects.toThrow(
-      BadRequestException,
-    );
+    await expect(
+      service.autoFill('msg-1', 'user-1', 'tenant-1'),
+    ).rejects.toThrow(BadRequestException);
 
-    expect(mockAnthropicCreate).toHaveBeenCalledTimes(3);
+    expect(mockGenerateText).toHaveBeenCalledTimes(3);
   });
 
   it('returns empty result when no definitions have aiAutoFill=true', async () => {
@@ -589,10 +591,10 @@ describe('AiAutoFillService', () => {
       propDef({ aiAutoFill: false }),
     ]);
 
-    const result = await service.autoFill('msg-1', 'user-1');
+    const result = await service.autoFill('msg-1', 'user-1', 'tenant-1');
 
     expect(result).toEqual({ filled: {}, skipped: [] });
-    expect(mockAnthropicCreate).not.toHaveBeenCalled();
+    expect(mockGenerateText).not.toHaveBeenCalled();
   });
 
   it('returns empty when all target definitions already have values and preserveExisting is true', async () => {
@@ -608,12 +610,12 @@ describe('AiAutoFillService', () => {
       status: 'open',
     });
 
-    const result = await service.autoFill('msg-1', 'user-1', {
+    const result = await service.autoFill('msg-1', 'user-1', 'tenant-1', {
       preserveExisting: true,
     });
 
     expect(result).toEqual({ filled: {}, skipped: [] });
-    expect(mockAnthropicCreate).not.toHaveBeenCalled();
+    expect(mockGenerateText).not.toHaveBeenCalled();
   });
 
   it('throws NotFoundException when channel is not found', async () => {
@@ -623,9 +625,9 @@ describe('AiAutoFillService', () => {
     });
     db.__state.selectResults.push([]); // channel not found
 
-    await expect(service.autoFill('msg-1', 'user-1')).rejects.toThrow(
-      NotFoundException,
-    );
+    await expect(
+      service.autoFill('msg-1', 'user-1', 'tenant-1'),
+    ).rejects.toThrow(NotFoundException);
   });
 
   it('filters out non-AI-fillable value types (e.g., date, file)', async () => {
@@ -639,10 +641,10 @@ describe('AiAutoFillService', () => {
       propDef({ id: 'def-file', key: 'attachment', valueType: 'file' }),
     ]);
 
-    const result = await service.autoFill('msg-1', 'user-1');
+    const result = await service.autoFill('msg-1', 'user-1', 'tenant-1');
 
     expect(result).toEqual({ filled: {}, skipped: [] });
-    expect(mockAnthropicCreate).not.toHaveBeenCalled();
+    expect(mockGenerateText).not.toHaveBeenCalled();
   });
 
   // ==================== Tool schema generation ====================
@@ -657,10 +659,11 @@ describe('AiAutoFillService', () => {
     ];
     setupHappyPath(defs, { summary: { value: 'A bug fix' } });
 
-    await service.autoFill('msg-1', 'user-1');
+    await service.autoFill('msg-1', 'user-1', 'tenant-1');
 
-    const tool = mockAnthropicCreate.mock.calls[0][0].tools[0];
-    const valueSchema = tool.input_schema.properties.summary.properties.value;
+    const toolDef =
+      mockGenerateText.mock.calls[0][0].tools.set_message_properties;
+    const valueSchema = toolDef.parameters.properties.summary.properties.value;
     expect(valueSchema.type).toBe('string');
   });
 
@@ -674,10 +677,11 @@ describe('AiAutoFillService', () => {
     ];
     setupHappyPath(defs, { urgent: { value: true } });
 
-    await service.autoFill('msg-1', 'user-1');
+    await service.autoFill('msg-1', 'user-1', 'tenant-1');
 
-    const tool = mockAnthropicCreate.mock.calls[0][0].tools[0];
-    const valueSchema = tool.input_schema.properties.urgent.properties.value;
+    const toolDef =
+      mockGenerateText.mock.calls[0][0].tools.set_message_properties;
+    const valueSchema = toolDef.parameters.properties.urgent.properties.value;
     expect(valueSchema.type).toBe('boolean');
   });
 
@@ -694,10 +698,11 @@ describe('AiAutoFillService', () => {
     ];
     setupHappyPath(defs, { labels: { value: ['bug'] } });
 
-    await service.autoFill('msg-1', 'user-1');
+    await service.autoFill('msg-1', 'user-1', 'tenant-1');
 
-    const tool = mockAnthropicCreate.mock.calls[0][0].tools[0];
-    const valueSchema = tool.input_schema.properties.labels.properties.value;
+    const toolDef =
+      mockGenerateText.mock.calls[0][0].tools.set_message_properties;
+    const valueSchema = toolDef.parameters.properties.labels.properties.value;
     expect(valueSchema.type).toBe('array');
     expect(valueSchema.items.enum).toEqual(['bug', 'feature', 'docs']);
   });
@@ -713,10 +718,11 @@ describe('AiAutoFillService', () => {
     ];
     setupHappyPath(defs, { tags: { value: ['v1', 'new-tag'] } });
 
-    await service.autoFill('msg-1', 'user-1');
+    await service.autoFill('msg-1', 'user-1', 'tenant-1');
 
-    const tool = mockAnthropicCreate.mock.calls[0][0].tools[0];
-    const valueSchema = tool.input_schema.properties.tags.properties.value;
+    const toolDef =
+      mockGenerateText.mock.calls[0][0].tools.set_message_properties;
+    const valueSchema = toolDef.parameters.properties.tags.properties.value;
     expect(valueSchema.type).toBe('array');
     // Should NOT have enum when allowNewOptions=true
     expect(valueSchema.items).toEqual({ type: 'string' });
@@ -734,10 +740,11 @@ describe('AiAutoFillService', () => {
       link: { value: 'https://example.com' },
     });
 
-    await service.autoFill('msg-1', 'user-1');
+    await service.autoFill('msg-1', 'user-1', 'tenant-1');
 
-    const tool = mockAnthropicCreate.mock.calls[0][0].tools[0];
-    const valueSchema = tool.input_schema.properties.link.properties.value;
+    const toolDef =
+      mockGenerateText.mock.calls[0][0].tools.set_message_properties;
+    const valueSchema = toolDef.parameters.properties.link.properties.value;
     expect(valueSchema.type).toBe('string');
   });
 
@@ -753,10 +760,12 @@ describe('AiAutoFillService', () => {
       assignees: { value: ['user-1'] },
     });
 
-    await service.autoFill('msg-1', 'user-1');
+    await service.autoFill('msg-1', 'user-1', 'tenant-1');
 
-    const tool = mockAnthropicCreate.mock.calls[0][0].tools[0];
-    const valueSchema = tool.input_schema.properties.assignees.properties.value;
+    const toolDef =
+      mockGenerateText.mock.calls[0][0].tools.set_message_properties;
+    const valueSchema =
+      toolDef.parameters.properties.assignees.properties.value;
     expect(valueSchema.type).toBe('array');
     expect(valueSchema.items).toEqual({ type: 'string' });
   });
@@ -776,7 +785,7 @@ describe('AiAutoFillService', () => {
     db.__state.selectResults.push([]); // thread replies
 
     // All 3 attempts return invalid option
-    mockAnthropicCreate.mockResolvedValue(
+    mockGenerateText.mockResolvedValue(
       makeAiResponse({ status: { value: 'invalid_option' } }),
     );
 
@@ -784,7 +793,7 @@ describe('AiAutoFillService', () => {
     mockAuditService.log.mockResolvedValue(undefined);
 
     // After 3 retries, the last attempt's invalid results should be in skipped
-    const result = await service.autoFill('msg-1', 'user-1');
+    const result = await service.autoFill('msg-1', 'user-1', 'tenant-1');
     expect(result.skipped).toContain('status');
   });
 
@@ -806,13 +815,13 @@ describe('AiAutoFillService', () => {
     db.__state.selectResults.push([]);
     db.__state.selectResults.push([]);
 
-    mockAnthropicCreate.mockResolvedValue(
+    mockGenerateText.mockResolvedValue(
       makeAiResponse({ labels: { value: 'not-an-array' } }),
     );
     mockMessagePropertiesService.batchSet.mockResolvedValue(undefined);
     mockAuditService.log.mockResolvedValue(undefined);
 
-    const result = await service.autoFill('msg-1', 'user-1');
+    const result = await service.autoFill('msg-1', 'user-1', 'tenant-1');
     expect(result.skipped).toContain('labels');
   });
 
@@ -840,16 +849,15 @@ describe('AiAutoFillService', () => {
     mockMessagePropertiesService.getProperties.mockResolvedValue({});
     db.__state.selectResults.push([]);
     db.__state.selectResults.push([]);
-    mockAnthropicCreate.mockResolvedValue(
+    mockGenerateText.mockResolvedValue(
       makeAiResponse({ status: { value: 'open' } }),
     );
     mockMessagePropertiesService.batchSet.mockResolvedValue(undefined);
     mockAuditService.log.mockResolvedValue(undefined);
 
-    await service.autoFill('msg-1', 'user-1');
+    await service.autoFill('msg-1', 'user-1', 'tenant-1');
 
-    const userMessage =
-      mockAnthropicCreate.mock.calls[0][0].messages[0].content;
+    const userMessage = mockGenerateText.mock.calls[0][0].messages[0].content;
     expect(userMessage).toContain('&lt;script&gt;');
     expect(userMessage).toContain('&amp;');
     expect(userMessage).toContain('&quot;quotes&quot;');
@@ -888,16 +896,15 @@ describe('AiAutoFillService', () => {
       { id: 'user-3', displayName: null, username: 'bob' },
     ]);
 
-    mockAnthropicCreate.mockResolvedValue(
+    mockGenerateText.mockResolvedValue(
       makeAiResponse({ status: { value: 'open' } }),
     );
     mockMessagePropertiesService.batchSet.mockResolvedValue(undefined);
     mockAuditService.log.mockResolvedValue(undefined);
 
-    await service.autoFill('msg-1', 'user-1');
+    await service.autoFill('msg-1', 'user-1', 'tenant-1');
 
-    const userMessage =
-      mockAnthropicCreate.mock.calls[0][0].messages[0].content;
+    const userMessage = mockGenerateText.mock.calls[0][0].messages[0].content;
     expect(userMessage).toContain('<reactions>');
     expect(userMessage).toMatch(/emoji="👍" count="2"/);
     expect(userMessage).toMatch(/emoji="🎉" count="1"/);
@@ -921,17 +928,17 @@ describe('AiAutoFillService', () => {
     db.__state.selectResults.push([]);
 
     // First: invalid, second: valid
-    mockAnthropicCreate
+    mockGenerateText
       .mockResolvedValueOnce(makeAiResponse({ status: { value: 999 } }))
       .mockResolvedValueOnce(makeAiResponse({ status: { value: 'open' } }));
 
     mockMessagePropertiesService.batchSet.mockResolvedValue(undefined);
     mockAuditService.log.mockResolvedValue(undefined);
 
-    await service.autoFill('msg-1', 'user-1');
+    await service.autoFill('msg-1', 'user-1', 'tenant-1');
 
     // Second call should have error context in messages
-    const secondCallMessages = mockAnthropicCreate.mock.calls[1][0].messages;
+    const secondCallMessages = mockGenerateText.mock.calls[1][0].messages;
     expect(secondCallMessages.length).toBeGreaterThan(1);
     // Should include assistant message mentioning validation errors
     expect(secondCallMessages[1].content).toContain('validation errors');
@@ -951,12 +958,12 @@ describe('AiAutoFillService', () => {
     db.__state.selectResults.push([]);
     db.__state.selectResults.push([]);
 
-    mockAnthropicCreate.mockResolvedValue({
-      content: [{ type: 'text', text: 'I cannot do that' }],
+    mockGenerateText.mockResolvedValue({
+      toolCalls: [],
     });
 
-    await expect(service.autoFill('msg-1', 'user-1')).rejects.toThrow(
-      BadRequestException,
-    );
+    await expect(
+      service.autoFill('msg-1', 'user-1', 'tenant-1'),
+    ).rejects.toThrow(BadRequestException);
   });
 });

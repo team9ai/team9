@@ -26,6 +26,7 @@ import {
   WorkspaceRoleGuard,
   WorkspaceRoles,
 } from '../../workspace/guards/index.js';
+import { CurrentTenantId } from '../../common/decorators/current-tenant.decorator.js';
 import { ChannelsService } from '../channels/channels.service.js';
 
 @Controller({
@@ -147,6 +148,7 @@ export class MessagePropertiesController {
   @WorkspaceRoles('member')
   async autoFill(
     @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
     @Param('messageId', ParseUUIDPipe) messageId: string,
     @Body() dto: AutoFillDto,
   ): Promise<{ status: string }> {
@@ -158,7 +160,7 @@ export class MessagePropertiesController {
     }
     // Fire and forget — results are broadcast via WebSocket
     this.aiAutoFillService
-      .autoFill(messageId, userId, {
+      .autoFill(messageId, userId, tenantId, {
         fields: dto.fields,
         preserveExisting: dto.preserveExisting,
       })

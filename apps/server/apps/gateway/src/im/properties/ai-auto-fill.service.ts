@@ -5,7 +5,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import Anthropic from '@anthropic-ai/sdk';
+import { generateText, tool as defineTool, jsonSchema } from 'ai';
 import {
   DATABASE_CONNECTION,
   eq,
@@ -13,8 +13,8 @@ import {
   asc,
   inArray,
   type PostgresJsDatabase,
-  ConfigService as DbConfigService,
 } from '@team9/database';
+import { PlatformLlmService } from '../../bot/platform-llm.service.js';
 import * as schema from '@team9/database/schemas';
 import type { PropertyValueType } from '@team9/shared';
 import {
@@ -55,12 +55,11 @@ interface SelectConfig {
 @Injectable()
 export class AiAutoFillService {
   private readonly logger = new Logger(AiAutoFillService.name);
-  private client: Anthropic | null = null;
 
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
-    private readonly configService: DbConfigService,
+    private readonly platformLlmService: PlatformLlmService,
     private readonly propertyDefinitionsService: PropertyDefinitionsService,
     private readonly messagePropertiesService: MessagePropertiesService,
     private readonly auditService: AuditService,
@@ -82,6 +81,7 @@ export class AiAutoFillService {
   async autoFill(
     messageId: string,
     userId: string,
+    tenantId: string,
     opts?: { fields?: string[]; preserveExisting?: boolean },
   ): Promise<{ filled: Record<string, unknown>; skipped: string[] }> {
     // 1. Load and validate message (also returns channel data)
@@ -200,15 +200,16 @@ export class AiAutoFillService {
     });
 
     // 5. Build tool schema
-    const toolSchema = this.buildToolSchema(targetDefinitions);
+    const toolInputSchema = this.buildToolInputSchema(targetDefinitions);
 
     // 6. Call AI with retries
     let lastError: string | null = null;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
         const result = await this.callAI(
+          tenantId,
           xmlPrompt,
-          toolSchema,
+          toolInputSchema,
           targetDefinitions,
           lastError,
         );
@@ -288,21 +289,7 @@ export class AiAutoFillService {
 
   // ==================== Private Helpers ====================
 
-  private getClient(): Anthropic {
-    if (!this.client) {
-      const config = this.configService.getAIProviderConfig('claude');
-      const apiKey = config.apiKey;
-
-      if (!apiKey) {
-        throw new BadRequestException(
-          'Claude API key is not configured. Cannot perform AI auto-fill.',
-        );
-      }
-
-      this.client = new Anthropic({ apiKey });
-    }
-    return this.client;
-  }
+  // LLM provider is created per-call via PlatformLlmService (tenant-scoped token)
 
   private buildXmlPrompt(params: {
     channel: schema.Channel;
@@ -454,9 +441,9 @@ export class AiAutoFillService {
     return parts.join('\n');
   }
 
-  private buildToolSchema(
+  private buildToolInputSchema(
     definitions: PropertyDefinitionRow[],
-  ): Anthropic.Tool {
+  ): Record<string, unknown> {
     const properties: Record<string, unknown> = {};
     const required: string[] = [];
 
@@ -480,14 +467,9 @@ export class AiAutoFillService {
     }
 
     return {
-      name: 'set_message_properties',
-      description:
-        'Set property values for the message based on its content and context',
-      input_schema: {
-        type: 'object' as const,
-        properties,
-        required,
-      },
+      type: 'object',
+      properties,
+      required,
     };
   }
 
@@ -549,12 +531,13 @@ export class AiAutoFillService {
   }
 
   private async callAI(
+    tenantId: string,
     xmlPrompt: string,
-    tool: Anthropic.Tool,
+    inputSchema: Record<string, unknown>,
     _definitions: PropertyDefinitionRow[],
     previousError: string | null,
   ): Promise<AutoFillResult> {
-    const messages: Anthropic.MessageParam[] = [
+    const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
       { role: 'user', content: xmlPrompt },
     ];
 
@@ -570,27 +553,32 @@ export class AiAutoFillService {
       });
     }
 
-    const response = await this.getClient().messages.create({
-      model: AUTO_FILL_MODEL,
+    const llm = await this.platformLlmService.createProvider(tenantId);
+
+    const result = await generateText({
+      model: llm(`anthropic/${AUTO_FILL_MODEL}`),
       system:
         'You are a property extraction assistant. Analyze the message content and context to generate appropriate property values. Always use the set_message_properties tool to return your results.',
       messages,
-      tools: [tool],
-      tool_choice: { type: 'tool', name: 'set_message_properties' },
+      tools: {
+        set_message_properties: defineTool({
+          description:
+            'Set property values for the message based on its content and context',
+          parameters: jsonSchema(inputSchema),
+        }),
+      },
+      toolChoice: { type: 'tool', toolName: 'set_message_properties' },
       temperature: 0.3,
-      max_tokens: 2048,
+      maxTokens: 2048,
     });
 
-    // Extract tool_use block
-    const toolUseBlock = response.content.find(
-      (block) => block.type === 'tool_use',
-    );
+    const toolCall = result.toolCalls[0];
 
-    if (!toolUseBlock || toolUseBlock.type !== 'tool_use') {
-      throw new Error('AI did not return a tool_use response');
+    if (!toolCall) {
+      throw new Error('AI did not return a tool call');
     }
 
-    return toolUseBlock.input as AutoFillResult;
+    return toolCall.args as AutoFillResult;
   }
 
   private validateResult(
