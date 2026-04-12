@@ -108,9 +108,9 @@ describe("i18n/index", () => {
     expect(loadLanguage).not.toHaveBeenCalled();
   });
 
-  it("exports supportedLanguages with 8 languages", async () => {
+  it("exports supportedLanguages with 12 languages", async () => {
     const { supportedLanguages } = await import("../index");
-    expect(supportedLanguages).toHaveLength(8);
+    expect(supportedLanguages).toHaveLength(12);
     expect(supportedLanguages.map((l) => l.code)).toEqual([
       "en",
       "zh-CN",
@@ -118,8 +118,12 @@ describe("i18n/index", () => {
       "ja",
       "ko",
       "es",
+      "pt",
       "fr",
       "de",
+      "it",
+      "nl",
+      "ru",
     ]);
   });
 

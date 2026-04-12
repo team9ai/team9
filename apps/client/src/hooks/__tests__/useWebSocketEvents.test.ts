@@ -84,6 +84,10 @@ const mockWsService = vi.hoisted(() => ({
   offRoutineStatusChanged: vi.fn(),
   offRoutineExecutionCreated: vi.fn(),
   offTrackingDeactivated: vi.fn(),
+  onMessagePropertyChanged: vi.fn((callback: (...args: any[]) => void) =>
+    mockWsService.on("message_property_changed", callback),
+  ),
+  offMessagePropertyChanged: vi.fn(),
 }));
 
 const queryCache = vi.hoisted(() => new Map<string, unknown>());
