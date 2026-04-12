@@ -292,7 +292,7 @@
     "createButton": "Create with Agentic",
     "pickerTitle": "Pick an agent to guide creation",
     "pickerDescription": "The selected agent will walk you through building this routine.",
-    "agentLabel": "Agent",
+    "agentLabel": "Pick an agent to guide creation",
     "noAgentsAvailable": "No active agents available.",
     "confirm": "Start Creation",
     "cancel": "Cancel",
