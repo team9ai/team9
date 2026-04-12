@@ -1508,11 +1508,17 @@ export class ChannelsService {
     channelId: string,
     userId: string,
     show: boolean,
+    tenantId?: string,
   ): Promise<void> {
     const [channel] = await this.db
       .select({ id: schema.channels.id, type: schema.channels.type })
       .from(schema.channels)
-      .where(eq(schema.channels.id, channelId))
+      .where(
+        and(
+          eq(schema.channels.id, channelId),
+          tenantId ? eq(schema.channels.tenantId, tenantId) : undefined,
+        ),
+      )
       .limit(1);
 
     if (!channel) {

@@ -652,7 +652,7 @@ describe('ChannelsController', () => {
   });
 
   describe('setSidebarVisibility', () => {
-    it('should call service with correct args', async () => {
+    it('should call service with correct args including tenantId', async () => {
       channelsService.setSidebarVisibility = jest
         .fn<any>()
         .mockResolvedValue(undefined);
@@ -660,11 +660,13 @@ describe('ChannelsController', () => {
         CHANNEL_ID,
         { show: false },
         USER_ID,
+        TENANT_ID,
       );
       expect(channelsService.setSidebarVisibility).toHaveBeenCalledWith(
         CHANNEL_ID,
         USER_ID,
         false,
+        TENANT_ID,
       );
       expect(result).toEqual({ success: true });
     });
@@ -677,11 +679,13 @@ describe('ChannelsController', () => {
         CHANNEL_ID,
         { show: true },
         USER_ID,
+        TENANT_ID,
       );
       expect(channelsService.setSidebarVisibility).toHaveBeenCalledWith(
         CHANNEL_ID,
         USER_ID,
         true,
+        TENANT_ID,
       );
       expect(result).toEqual({ success: true });
     });
