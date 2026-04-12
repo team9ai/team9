@@ -513,7 +513,10 @@ export class MessagePropertiesService {
       case 'date_range':
       case 'timestamp_range':
       case 'recurring':
-        if (!Array.isArray(value) && typeof value !== 'object') {
+        if (
+          value === null ||
+          (!Array.isArray(value) && typeof value !== 'object')
+        ) {
           throw new BadRequestException(
             `Expected array/object for ${valueType}`,
           );

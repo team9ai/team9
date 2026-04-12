@@ -293,27 +293,47 @@ export class PropertyDefinitionsService {
       );
     }
 
+    if (key.startsWith('_')) {
+      throw new BadRequestException(
+        'Property keys starting with "_" are reserved for native properties',
+      );
+    }
+
     const maxOrder = await this.getMaxOrder(channelId);
 
-    const [row] = await this.db
-      .insert(schema.channelPropertyDefinitions)
-      .values({
-        id: uuidv7(),
-        channelId,
-        key,
-        valueType,
-        isNative: key.startsWith('_'),
-        config: {},
-        order: maxOrder + 1,
-        aiAutoFill: true,
-        isRequired: false,
-        showInChatPolicy: 'auto',
-        allowNewOptions: true,
-        createdBy: userId,
-      })
-      .returning();
+    try {
+      const [created] = await this.db
+        .insert(schema.channelPropertyDefinitions)
+        .values({
+          id: uuidv7(),
+          channelId,
+          key,
+          valueType,
+          isNative: false,
+          config: {},
+          order: maxOrder + 1,
+          aiAutoFill: true,
+          isRequired: false,
+          showInChatPolicy: 'auto',
+          allowNewOptions: true,
+          createdBy: userId,
+        })
+        .returning();
 
-    return row as PropertyDefinitionRow;
+      return created as PropertyDefinitionRow;
+    } catch (error: unknown) {
+      // Unique constraint violation — another concurrent call created it
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        (error as { code: string }).code === '23505'
+      ) {
+        const existing = await this.findByKey(channelId, key);
+        if (existing) return existing;
+      }
+      throw error;
+    }
   }
 
   // ==================== Private helpers ====================

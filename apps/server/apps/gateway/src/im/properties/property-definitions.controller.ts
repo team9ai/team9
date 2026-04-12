@@ -90,10 +90,23 @@ export class PropertyDefinitionsController {
     @Param('channelId', ParseUUIDPipe) channelId: string,
     @Body() dto: ReorderPropertyDefinitionsDto,
   ): Promise<PropertyDefinitionRow[]> {
-    return this.propertyDefinitionsService.reorder(
+    const result = await this.propertyDefinitionsService.reorder(
       channelId,
       dto.definitionIds,
     );
+
+    // Broadcast so clients know to refetch definitions
+    await this.websocketGateway.sendToChannelMembers(
+      channelId,
+      WS_EVENTS.PROPERTY.DEFINITION_UPDATED,
+      {
+        channelId,
+        definitionId: null,
+        changes: { order: { old: null, new: 'reordered' } },
+      },
+    );
+
+    return result;
   }
 
   @Patch(':id')

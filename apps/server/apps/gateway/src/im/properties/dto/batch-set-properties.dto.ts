@@ -3,6 +3,7 @@ import {
   IsString,
   IsNotEmpty,
   IsDefined,
+  MaxLength,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -10,6 +11,7 @@ import { Type } from 'class-transformer';
 class PropertyEntry {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(100)
   key: string;
 
   @IsDefined({ message: 'value must be defined' })
