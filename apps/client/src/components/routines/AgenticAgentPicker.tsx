@@ -120,13 +120,15 @@ export function AgenticAgentPicker({
                   <SelectValue />
                 </SelectTriggerUI>
                 <SelectContent>
-                  {allBots.map((bot) => (
-                    <SelectItem key={bot.botId} value={bot.botId}>
-                      {"displayName" in bot && bot.displayName
-                        ? bot.displayName
-                        : bot.username}
-                    </SelectItem>
-                  ))}
+                  {allBots
+                    .filter((bot) => bot.botId)
+                    .map((bot) => (
+                      <SelectItem key={bot.botId} value={bot.botId}>
+                        {("displayName" in bot && bot.displayName) ||
+                          ("username" in bot && bot.username) ||
+                          bot.botId}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             )}
