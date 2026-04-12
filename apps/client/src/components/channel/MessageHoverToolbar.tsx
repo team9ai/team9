@@ -38,7 +38,7 @@ export function MessageHoverToolbar({
     <TooltipProvider>
       <div
         className={cn(
-          "absolute -top-4 right-2 z-10",
+          "absolute -top-3 right-4 z-10",
           "flex items-center gap-0.5 px-1 py-0.5",
           "rounded-md border bg-background shadow-sm",
         )}
