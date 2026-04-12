@@ -31,6 +31,7 @@ export const channelMembers = pgTable(
     notificationsEnabled: boolean('notifications_enabled')
       .default(true)
       .notNull(),
+    showInDmSidebar: boolean('show_in_dm_sidebar').default(true).notNull(),
     joinedAt: timestamp('joined_at').defaultNow().notNull(),
     leftAt: timestamp('left_at'),
   },
