@@ -17,7 +17,7 @@ import { RoutinesStreamController } from './routines-stream.controller.js';
     AuthModule,
     DocumentsModule,
     forwardRef(() => WebsocketModule),
-    ChannelsModule,
+    forwardRef(() => ChannelsModule),
     ClawHiveModule,
   ],
   controllers: [

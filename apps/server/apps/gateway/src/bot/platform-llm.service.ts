@@ -1,4 +1,5 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { createOpenAI } from '@ai-sdk/openai';
 import {
   DATABASE_CONNECTION,
@@ -8,7 +9,7 @@ import {
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
 import { RedisService } from '@team9/redis';
-import { BotService } from './bot.service.js';
+import type { BotService } from './bot.service.js';
 
 const PLATFORM_BOT_DISPLAY_NAME = 'Platform LLM Service';
 const PLATFORM_BOT_TOKEN_CACHE_PREFIX = 'platform-llm-token:';
@@ -26,9 +27,14 @@ export class PlatformLlmService {
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
-    private readonly botService: BotService,
+    private readonly moduleRef: ModuleRef,
     private readonly redisService: RedisService,
   ) {}
+
+  /** Lazily resolve BotService to avoid ESM circular dependency at import time */
+  private get botService(): BotService {
+    return this.moduleRef.get('BotService', { strict: false });
+  }
 
   /**
    * Create a Vercel AI SDK OpenAI-compatible provider for the given tenant.
