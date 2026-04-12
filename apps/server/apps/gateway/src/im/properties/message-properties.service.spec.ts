@@ -466,6 +466,23 @@ describe('MessagePropertiesService', () => {
 
   // ==================== removeProperty ====================
 
+  it('removeProperty() throws NotFoundException when property does not exist', async () => {
+    // getValidatedMessage
+    db.__state.selectResults.push([messageRow()]);
+    db.__state.selectResults.push([{ type: 'public', propertySettings: null }]);
+
+    mockPropertyDefsService.findByIdOrThrow.mockResolvedValue(
+      defRow({ id: 'def-1', channelId: 'channel-1', valueType: 'text' }),
+    );
+
+    // findExisting: no existing property
+    db.__state.selectResults.push([]);
+
+    await expect(
+      service.removeProperty('msg-1', 'def-1', 'user-1'),
+    ).rejects.toThrow(NotFoundException);
+  });
+
   it('removeProperty() deletes property and creates audit log', async () => {
     // getValidatedMessage
     db.__state.selectResults.push([messageRow()]);
@@ -562,6 +579,22 @@ describe('MessagePropertiesService', () => {
   });
 
   // ==================== getValidatedMessage ====================
+
+  it('getValidatedMessage() throws NotFoundException when message not found', async () => {
+    db.__state.selectResults.push([]); // no message found
+
+    await expect(
+      service.getValidatedMessage('msg-nonexistent'),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('getValidatedMessage() throws NotFoundException when message isDeleted', async () => {
+    db.__state.selectResults.push([messageRow({ isDeleted: true })]);
+
+    await expect(service.getValidatedMessage('msg-1')).rejects.toThrow(
+      NotFoundException,
+    );
+  });
 
   it('getValidatedMessage() rejects thread replies (parentId not null)', async () => {
     db.__state.selectResults.push([messageRow({ parentId: 'parent-1' })]);

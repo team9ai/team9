@@ -390,6 +390,7 @@ describe('AiAutoFillService', () => {
       'msg-1',
       [{ key: 'status', value: 'in_progress' }],
       'user-1',
+      { skipAudit: true },
     );
   });
 
@@ -487,6 +488,7 @@ describe('AiAutoFillService', () => {
       'msg-1',
       [{ key: 'priority', value: 5 }],
       'user-1',
+      { skipAudit: true },
     );
   });
 
@@ -502,11 +504,11 @@ describe('AiAutoFillService', () => {
         entityType: 'message',
         entityId: 'msg-1',
         action: 'property_set',
-        performedBy: 'user-1',
+        performedBy: undefined,
         metadata: expect.objectContaining({
           source: 'ai_auto_fill',
           model: 'claude-sonnet-4-20250514',
-          attempt: 1,
+          round: 1,
         }),
       }),
     );
@@ -535,6 +537,7 @@ describe('AiAutoFillService', () => {
       'msg-1',
       [{ key: 'priority', value: 3 }],
       'user-1',
+      { skipAudit: true },
     );
   });
 
