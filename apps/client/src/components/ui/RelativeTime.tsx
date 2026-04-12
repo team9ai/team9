@@ -49,6 +49,7 @@ export function RelativeTime({ date, className }: RelativeTimeProps) {
           onClick={() => setShowAbsolute((v) => !v)}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
               setShowAbsolute((v) => !v);
             }
           }}

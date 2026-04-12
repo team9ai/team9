@@ -1485,7 +1485,7 @@ export function useSendMessage(channelId: string) {
     onMutate: async (newMessageData) => {
       // Validate content length before optimistic update
       if (newMessageData.content && newMessageData.content.length > 100000) {
-        throw new Error("消息内容过长，请缩减后重试");
+        throw new Error("MESSAGE_CONTENT_TOO_LONG");
       }
 
       // Cancel any outgoing refetches to prevent overwriting optimistic update
@@ -2142,11 +2142,14 @@ export function useRemoveReaction(channelId?: string) {
  * Hook to fetch the full content of a long_text message.
  * Only fetches when enabled (user clicks "expand").
  */
-export function useFullContent(messageId: string, enabled: boolean) {
+export function useFullContent(
+  messageId: string | undefined,
+  enabled: boolean,
+) {
   return useQuery({
     queryKey: ["message-full-content", messageId],
-    queryFn: () => imApi.messages.getFullContent(messageId),
-    enabled,
+    queryFn: () => imApi.messages.getFullContent(messageId!),
+    enabled: enabled && !!messageId,
     staleTime: Infinity,
   });
 }

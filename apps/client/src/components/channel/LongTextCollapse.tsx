@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, memo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { ChevronDown } from "lucide-react";
 import { useFullContent } from "@/hooks/useMessages";
 import type { Message } from "@/types/im";
@@ -13,6 +14,7 @@ const COLLAPSED_MAX_HEIGHT = "15rem"; // ~10 lines at 1.5rem line-height
 
 export const LongTextCollapse = memo(
   function LongTextCollapse({ message, children }: LongTextCollapseProps) {
+    const { t } = useTranslation("message");
     const [isExpanded, setIsExpanded] = useState(false);
     const [fetchEnabled, setFetchEnabled] = useState(false);
     const queryClient = useQueryClient();
@@ -83,9 +85,9 @@ export const LongTextCollapse = memo(
           >
             <ChevronDown size={14} />
             <span>
-              展开全文
+              {t("expandFullContent")}
               {remainingChars > 0 &&
-                `（还有约 ${formatCharCount(remainingChars)} 字）`}
+                t("remainingChars", { count: formatCharCount(remainingChars) })}
             </span>
           </button>
         )}
@@ -93,7 +95,7 @@ export const LongTextCollapse = memo(
         {/* Loading state — show while fetching, before expand */}
         {fetchEnabled && isLoading && (
           <div className="mt-1 text-xs text-muted-foreground animate-pulse">
-            加载中...
+            {t("loadingFullContent")}
           </div>
         )}
 
@@ -104,7 +106,7 @@ export const LongTextCollapse = memo(
             onClick={handleRetry}
             className="mt-1 text-xs text-destructive hover:text-destructive/80 transition-colors"
           >
-            加载失败，点击重试
+            {t("loadFullContentFailed")}
           </button>
         )}
       </div>

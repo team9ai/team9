@@ -69,7 +69,7 @@ describe("DeleteMessageDialog", () => {
     expect(screen.queryByText("Delete message")).not.toBeInTheDocument();
   });
 
-  it("calls onCancel when dialog is dismissed via onOpenChange(false)", () => {
+  it("does not render dialog content after external close", () => {
     const onCancel = vi.fn();
     const { rerender } = render(
       <DeleteMessageDialog

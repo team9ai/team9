@@ -47,5 +47,7 @@
   "deleteConfirm": "Löschen",
   "deleteCancel": "Abbrechen",
   "loadingFullContent": "Vollständigen Inhalt laden...",
-  "loadFullContentFailed": "Laden des vollständigen Inhalts fehlgeschlagen. Bitte abbrechen und erneut versuchen."
+  "loadFullContentFailed": "Laden des vollständigen Inhalts fehlgeschlagen. Bitte abbrechen und erneut versuchen.",
+  "expandFullContent": "Vollständigen Text anzeigen",
+  "remainingChars": "(~{{count}} weitere Zeichen)"
 }
