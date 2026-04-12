@@ -1,0 +1,68 @@
+{
+  "planPath": "docs/superpowers/plans/2026-04-13-dm-channel-hide.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Schema — Add show_in_dm_sidebar to channel_members",
+      "status": "pending",
+      "description": "**Goal:** Add the `show_in_dm_sidebar` boolean column to `im_channel_members`.\n\n**Files:**\n- Modify: `apps/server/libs/database/src/schemas/im/channel-members.ts`\n- Create: Migration file via `pnpm db:generate`\n\n**Verify:** `pnpm db:push` succeeds; `pnpm build:server` compiles\n\n```json:metadata\n{\"files\": [\"apps/server/libs/database/src/schemas/im/channel-members.ts\"], \"verifyCommand\": \"pnpm build:server\", \"acceptanceCriteria\": [\"show_in_dm_sidebar column exists with default true\", \"ChannelMember types include new field\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Backend — Expose showInDmSidebar in getUserChannels",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Include `showInDmSidebar` in channel response for DM/echo channels.\n\n**Files:**\n- Modify: `apps/server/apps/gateway/src/im/channels/channels.service.ts`\n- Modify: `apps/server/apps/gateway/src/im/channels/channels.service.spec.ts`\n\n**Verify:** `npx jest --testPathPattern channels.service.spec` passes\n\n```json:metadata\n{\"files\": [\"apps/server/apps/gateway/src/im/channels/channels.service.ts\", \"apps/server/apps/gateway/src/im/channels/channels.service.spec.ts\"], \"verifyCommand\": \"cd apps/server && npx jest --testPathPattern channels.service.spec --passWithNoTests\", \"acceptanceCriteria\": [\"ChannelWithUnread includes showInDmSidebar\", \"getUserChannels returns the field\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Backend — Add sidebar visibility API endpoint",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Create PATCH /v1/im/channels/:id/sidebar-visibility endpoint.\n\n**Files:**\n- Modify: `apps/server/apps/gateway/src/im/channels/channels.service.ts`\n- Modify: `apps/server/apps/gateway/src/im/channels/channels.controller.ts`\n- Modify: `apps/server/apps/gateway/src/im/channels/channels.controller.spec.ts`\n- Modify: `apps/server/apps/gateway/src/im/channels/channels.service.spec.ts`\n\n**Verify:** `cd apps/server && npx jest --testPathPattern \"channels\\.(service|controller)\\.spec\"` passes\n\n```json:metadata\n{\"files\": [\"apps/server/apps/gateway/src/im/channels/channels.service.ts\", \"apps/server/apps/gateway/src/im/channels/channels.controller.ts\"], \"verifyCommand\": \"cd apps/server && npx jest --testPathPattern channels --passWithNoTests\", \"acceptanceCriteria\": [\"PATCH endpoint updates showInDmSidebar\", \"Returns 400 for non-DM channels\", \"Only updates current user record\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: IM Worker — Auto-unhide on new message",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Auto-set showInDmSidebar=true for DM/echo channels on new message.\n\n**Files:**\n- Modify: `apps/server/apps/im-worker/src/message/message.service.ts`\n- Modify: `apps/server/apps/im-worker/src/message/message.service.spec.ts`\n\n**Verify:** `cd apps/server && npx jest --testPathPattern \"im-worker.*message.service.spec\"` passes\n\n```json:metadata\n{\"files\": [\"apps/server/apps/im-worker/src/message/message.service.ts\", \"apps/server/apps/im-worker/src/message/message.service.spec.ts\"], \"verifyCommand\": \"cd apps/server && npx jest --testPathPattern message.service.spec --passWithNoTests\", \"acceptanceCriteria\": [\"DM channels: showInDmSidebar set to true on message\", \"Non-DM channels: no update\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Backend — Conditional batch DM creation on workspace join",
+      "status": "pending",
+      "blockedBy": [],
+      "description": "**Goal:** Skip batch DM creation for workspaces with 10+ members.\n\n**Files:**\n- Modify: `apps/server/apps/gateway/src/workspace/workspace.service.ts`\n- Modify: `apps/server/apps/gateway/src/workspace/workspace.service.spec.ts`\n\n**Verify:** `cd apps/server && npx jest --testPathPattern workspace.service.spec` passes\n\n```json:metadata\n{\"files\": [\"apps/server/apps/gateway/src/workspace/workspace.service.ts\", \"apps/server/apps/gateway/src/workspace/workspace.service.spec.ts\"], \"verifyCommand\": \"cd apps/server && npx jest --testPathPattern workspace.service.spec --passWithNoTests\", \"acceptanceCriteria\": [\"<10 members: batch DM creation runs\", \">=10 members: batch DM creation skipped\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Frontend — Update types and API client",
+      "status": "pending",
+      "blockedBy": [2, 3],
+      "description": "**Goal:** Add showInDmSidebar to frontend types, API, and mutation hook.\n\n**Files:**\n- Modify: `apps/client/src/types/im.ts`\n- Modify: `apps/client/src/services/api/im.ts`\n- Modify: `apps/client/src/hooks/useChannels.ts`\n\n**Verify:** `pnpm build:client` succeeds\n\n```json:metadata\n{\"files\": [\"apps/client/src/types/im.ts\", \"apps/client/src/services/api/im.ts\", \"apps/client/src/hooks/useChannels.ts\"], \"verifyCommand\": \"pnpm build:client\", \"acceptanceCriteria\": [\"ChannelWithUnread includes showInDmSidebar\", \"setSidebarVisibility API function exists\", \"useSetSidebarVisibility hook with optimistic update\"]}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Frontend — Right-click context menu and sidebar filtering",
+      "status": "pending",
+      "blockedBy": [6],
+      "description": "**Goal:** Add right-click hide menu and filter hidden channels.\n\n**Files:**\n- Modify: `apps/client/src/components/layout/sidebars/MessagesSubSidebar.tsx`\n- Modify: `apps/client/src/hooks/useChannels.ts`\n- Modify: all i18n locale files\n\n**Verify:** `pnpm build:client` succeeds\n\n```json:metadata\n{\"files\": [\"apps/client/src/components/layout/sidebars/MessagesSubSidebar.tsx\", \"apps/client/src/hooks/useChannels.ts\"], \"verifyCommand\": \"pnpm build:client\", \"acceptanceCriteria\": [\"Right-click shows Hide Conversation\", \"Hidden channels filtered from sidebar\", \"i18n keys for all locales\"]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: Frontend — Auto-unhide on WebSocket new message",
+      "status": "pending",
+      "blockedBy": [6],
+      "description": "**Goal:** Flip showInDmSidebar to true in cache on new_message event.\n\n**Files:**\n- Modify: `apps/client/src/hooks/useWebSocketEvents.ts`\n\n**Verify:** `pnpm build:client` succeeds\n\n```json:metadata\n{\"files\": [\"apps/client/src/hooks/useWebSocketEvents.ts\"], \"verifyCommand\": \"pnpm build:client\", \"acceptanceCriteria\": [\"Hidden DM channels reappear on new message\", \"Existing unread count logic preserved\"]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: Frontend — Unhide on search/open conversation",
+      "status": "pending",
+      "blockedBy": [7],
+      "description": "**Goal:** Unhide hidden DM when user opens conversation via search or member click.\n\n**Files:**\n- Modify: `apps/client/src/hooks/useChannels.ts`\n- Modify: `apps/client/src/components/layout/sidebars/MessagesSubSidebar.tsx`\n\n**Verify:** `pnpm build:client` succeeds\n\n```json:metadata\n{\"files\": [\"apps/client/src/hooks/useChannels.ts\", \"apps/client/src/components/layout/sidebars/MessagesSubSidebar.tsx\"], \"verifyCommand\": \"pnpm build:client\", \"acceptanceCriteria\": [\"Clicking member with hidden DM unhides it\", \"New DM creation defaults to visible\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-04-13T00:00:00Z"
+}
