@@ -7,7 +7,14 @@ import {
   jest,
 } from '@jest/globals';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import { MessagesService, type MessageResponse } from './messages.service.js';
+
+// Mock modules that create circular dependencies BEFORE dynamic import
+jest.unstable_mockModule('../properties/message-properties.service.js', () => ({
+  MessagePropertiesService: class MessagePropertiesService {},
+}));
+
+const { MessagesService } = await import('./messages.service.js');
+type MessageResponse = import('./messages.service.js').MessageResponse;
 
 function createDbMock() {
   const selectLimit = jest.fn<any>().mockResolvedValue([]);
@@ -95,10 +102,13 @@ function makeMessageResponse(
 }
 
 describe('MessagesService', () => {
-  let service: MessagesService;
+  let service: InstanceType<typeof MessagesService>;
   let db: ReturnType<typeof createDbMock>;
   let channelSequenceService: {
     generateChannelSeq: jest.Mock<any>;
+  };
+  let messagePropertiesService: {
+    batchGetByMessageIds: jest.Mock<any>;
   };
   let logger: {
     warn: jest.Mock<any>;
@@ -112,7 +122,14 @@ describe('MessagesService', () => {
     channelSequenceService = {
       generateChannelSeq: jest.fn<any>().mockResolvedValue(101),
     };
-    service = new MessagesService(db as never, channelSequenceService as never);
+    messagePropertiesService = {
+      batchGetByMessageIds: jest.fn<any>().mockResolvedValue({}),
+    };
+    service = new MessagesService(
+      db as never,
+      channelSequenceService as never,
+      messagePropertiesService as never,
+    );
     logger = {
       warn: jest.fn<any>(),
     };

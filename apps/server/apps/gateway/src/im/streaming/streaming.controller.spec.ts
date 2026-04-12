@@ -18,9 +18,16 @@ jest.unstable_mockModule('../websocket/websocket.gateway.js', () => ({
   WebsocketGateway: class WebsocketGateway {},
 }));
 
+// Mock MessagePropertiesService to break circular dependency:
+// messages.service -> message-properties.service -> websocket.gateway -> connection.service -> messages.service
+jest.unstable_mockModule('../properties/message-properties.service.js', () => ({
+  MessagePropertiesService: class MessagePropertiesService {},
+}));
+
 // Dynamic import AFTER mocking
 const { StreamingController } = await import('./streaming.controller.js');
 const { WebsocketGateway } = await import('../websocket/websocket.gateway.js');
+const { MessagesService } = await import('../messages/messages.service.js');
 const uuid = await import('uuid');
 
 import { Test, TestingModule } from '@nestjs/testing';
@@ -29,7 +36,6 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { RedisService } from '@team9/redis';
 import { GatewayMQService } from '@team9/rabbitmq';
 import { ChannelsService } from '../channels/channels.service.js';
-import { MessagesService } from '../messages/messages.service.js';
 import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
 import { BotService } from '../../bot/bot.service.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';

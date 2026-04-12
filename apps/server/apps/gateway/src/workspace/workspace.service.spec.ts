@@ -11,6 +11,7 @@ import { RedisService } from '@team9/redis';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
 import { PosthogService } from '@team9/posthog';
+import { BillingHubService } from '../billing-hub/billing-hub.service.js';
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -165,6 +166,12 @@ describe('WorkspaceService', () => {
           useValue: {
             capture: jest.fn(),
             isEnabled: jest.fn().mockReturnValue(false),
+          },
+        },
+        {
+          provide: BillingHubService,
+          useValue: {
+            grantCredits: jest.fn<any>().mockResolvedValue(undefined),
           },
         },
       ],

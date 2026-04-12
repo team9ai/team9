@@ -29,7 +29,11 @@ interface AgenticAgentPickerProps {
   onManualCreate?: () => void;
 }
 
-export function AgenticAgentPicker({ open, onClose, onManualCreate }: AgenticAgentPickerProps) {
+export function AgenticAgentPicker({
+  open,
+  onClose,
+  onManualCreate,
+}: AgenticAgentPickerProps) {
   const { t } = useTranslation("routines");
   const navigate = useNavigate();
   const workspaceId = useSelectedWorkspaceId();

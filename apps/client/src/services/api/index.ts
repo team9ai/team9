@@ -277,6 +277,8 @@ import resourcesApi from "./resources";
 import skillsApi from "./skills";
 import * as pushSubscriptionApi from "./push-subscription";
 import * as notificationPreferencesApi from "./notification-preferences";
+import propertiesApi from "./properties";
+import { viewsApi, tabsApi } from "./views";
 
 export const api = {
   auth: authApi,
@@ -293,6 +295,9 @@ export const api = {
   skills: skillsApi,
   pushSubscription: pushSubscriptionApi,
   notificationPreferences: notificationPreferencesApi,
+  properties: propertiesApi,
+  views: viewsApi,
+  tabs: tabsApi,
 };
 
 export default api;

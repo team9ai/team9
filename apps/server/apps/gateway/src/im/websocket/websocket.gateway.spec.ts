@@ -23,6 +23,11 @@ jest.unstable_mockModule('@team9/observability', () => ({
   },
 }));
 
+// Break circular import: websocket.gateway -> messages.service -> message-properties.service -> websocket.gateway
+jest.unstable_mockModule('../properties/message-properties.service.js', () => ({
+  MessagePropertiesService: jest.fn(),
+}));
+
 const { WebsocketGateway } = await import('./websocket.gateway.js');
 const { WS_EVENTS } = await import('./events/events.constants.js');
 const { REDIS_KEYS } = await import('../shared/constants/redis-keys.js');

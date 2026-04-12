@@ -246,6 +246,20 @@
       "when": 1775799580062,
       "tag": "0034_elite_risque",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1775868292942,
+      "tag": "0035_woozy_surge",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1776134400000,
+      "tag": "0036_message_properties_constraints",
+      "breakpoints": true
     }
   ]
 }
