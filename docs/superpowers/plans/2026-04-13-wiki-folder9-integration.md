@@ -7,6 +7,7 @@
 **Architecture:** All browser↔folder9 traffic proxies through the Team9 NestJS gateway (new `WikisModule`) using a pre-shared key. folder9 remains the source of truth for content, git history, and proposals. Team9 keeps a lightweight `workspace_wikis` pointer table and enforces workspace-role permissions (`workspace_human` / `workspace_agent` × `read` / `propose` / `write`) before delegating to folder9.
 
 **Tech Stack:**
+
 - Backend: NestJS 11, Drizzle ORM, PostgreSQL, Socket.io, native `fetch` (no axios), Jest
 - Frontend: React 19 + TanStack Router + TanStack Query + Zustand, Lexical (via existing `DocumentEditor`), Vitest + React Testing Library
 - Integration: folder9 REST API + webhook (HMAC-SHA256 signed)
@@ -132,31 +133,31 @@ apps/client/src/components/layout/contents/__tests__/*Library*
 
 ## Tasks Overview
 
-| #   | Task                                                       | Depends on | Layer    |
-| --- | ---------------------------------------------------------- | ---------- | -------- |
-| 1   | Database schema + env vars                                 |            | Backend  |
-| 2   | Folder9ClientService + shared types                        | 1          | Backend  |
-| 3   | Frontmatter util (gateway) + test fixtures                 |            | Backend  |
-| 4   | Permission helpers + DTOs                                  | 1          | Backend  |
-| 5   | WikisService (CRUD)                                        | 2, 3, 4    | Backend  |
-| 6   | WikisService (tree / page / commit / proposals)            | 5          | Backend  |
-| 7   | WikisController                                            | 6          | Backend  |
-| 8   | Folder9WebhookController + WS broadcast                    | 7          | Backend  |
-| 9   | WikisModule wiring into AppModule                          | 8          | Backend  |
-| 10  | Workspace creation seed hook + backfill script             | 9          | Backend  |
-| 11  | Integration test against real folder9                      | 10         | Backend  |
-| 12  | i18n + MainSidebar rename + delete old Library             |            | Frontend |
-| 13  | Types + API client + React Query hooks + Zustand store     | 12         | Frontend |
-| 14  | Frontmatter util (client) + shared fixtures                | 3          | Frontend |
-| 15  | Wiki routes + WikiMainContent shell                        | 13         | Frontend |
-| 16  | WikiSubSidebar (list + tree)                               | 13         | Frontend |
-| 17  | WikiPageView + draft persistence                           | 14, 15     | Frontend |
-| 18  | WikiPageEditor (DocumentEditor wrapper + frontmatter)      | 17         | Frontend |
-| 19  | Save flow (auto + review mode + proposal banner)           | 18         | Frontend |
-| 20  | Create Wiki + settings + archive dialogs                   | 16         | Frontend |
-| 21  | Review panel (list + diff + approve/reject)                | 19         | Frontend |
-| 22  | Image paste/drop upload                                    | 18         | Frontend |
-| 23  | WebSocket event consumers                                  | 19, 21     | Frontend |
+| #   | Task                                                   | Depends on | Layer    |
+| --- | ------------------------------------------------------ | ---------- | -------- |
+| 1   | Database schema + env vars                             |            | Backend  |
+| 2   | Folder9ClientService + shared types                    | 1          | Backend  |
+| 3   | Frontmatter util (gateway) + test fixtures             |            | Backend  |
+| 4   | Permission helpers + DTOs                              | 1          | Backend  |
+| 5   | WikisService (CRUD)                                    | 2, 3, 4    | Backend  |
+| 6   | WikisService (tree / page / commit / proposals)        | 5          | Backend  |
+| 7   | WikisController                                        | 6          | Backend  |
+| 8   | Folder9WebhookController + WS broadcast                | 7          | Backend  |
+| 9   | WikisModule wiring into AppModule                      | 8          | Backend  |
+| 10  | Workspace creation seed hook + backfill script         | 9          | Backend  |
+| 11  | Integration test against real folder9                  | 10         | Backend  |
+| 12  | i18n + MainSidebar rename + delete old Library         |            | Frontend |
+| 13  | Types + API client + React Query hooks + Zustand store | 12         | Frontend |
+| 14  | Frontmatter util (client) + shared fixtures            | 3          | Frontend |
+| 15  | Wiki routes + WikiMainContent shell                    | 13         | Frontend |
+| 16  | WikiSubSidebar (list + tree)                           | 13         | Frontend |
+| 17  | WikiPageView + draft persistence                       | 14, 15     | Frontend |
+| 18  | WikiPageEditor (DocumentEditor wrapper + frontmatter)  | 17         | Frontend |
+| 19  | Save flow (auto + review mode + proposal banner)       | 18         | Frontend |
+| 20  | Create Wiki + settings + archive dialogs               | 16         | Frontend |
+| 21  | Review panel (list + diff + approve/reject)            | 19         | Frontend |
+| 22  | Image paste/drop upload                                | 18         | Frontend |
+| 23  | WebSocket event consumers                              | 19, 21     | Frontend |
 
 Tasks 1–11 are backend only, 12–23 are frontend only. Within a phase, task order follows dependency; tasks with the same dependencies may run in parallel.
 
@@ -167,6 +168,7 @@ Tasks 1–11 are backend only, 12–23 are frontend only. Within a phase, task o
 **Goal:** Create the `workspace_wikis` Drizzle schema, run the migration, and wire three new environment variables for folder9 in the gateway.
 
 **Files:**
+
 - Create: `apps/server/libs/database/src/schemas/wiki/workspace-wikis.ts`
 - Create: `apps/server/libs/database/src/schemas/wiki/index.ts`
 - Modify: `apps/server/libs/database/src/schemas/index.ts` (export new barrel)
@@ -174,6 +176,7 @@ Tasks 1–11 are backend only, 12–23 are frontend only. Within a phase, task o
 - Generated: `apps/server/libs/database/migrations/XXXX_add_workspace_wikis.sql`
 
 **Acceptance Criteria:**
+
 - [ ] `workspace_wikis` table exists in the DB after `pnpm db:migrate`
 - [ ] Enums `wiki_approval_mode` and `wiki_permission_level` created in the migration
 - [ ] Unique index on `(workspace_id, slug)` and on `folder9_folder_id`
@@ -205,49 +208,49 @@ import {
   pgEnum,
   uniqueIndex,
   index,
-} from 'drizzle-orm/pg-core';
+} from "drizzle-orm/pg-core";
 
-export const wikiApprovalModeEnum = pgEnum('wiki_approval_mode', [
-  'auto',
-  'review',
+export const wikiApprovalModeEnum = pgEnum("wiki_approval_mode", [
+  "auto",
+  "review",
 ]);
 
-export const wikiPermissionLevelEnum = pgEnum('wiki_permission_level', [
-  'read',
-  'propose',
-  'write',
+export const wikiPermissionLevelEnum = pgEnum("wiki_permission_level", [
+  "read",
+  "propose",
+  "write",
 ]);
 
 export const workspaceWikis = pgTable(
-  'workspace_wikis',
+  "workspace_wikis",
   {
-    id: uuid('id').primaryKey().defaultRandom().notNull(),
-    workspaceId: text('workspace_id').notNull(),
-    folder9FolderId: uuid('folder9_folder_id').notNull(),
-    name: varchar('name', { length: 200 }).notNull(),
-    slug: varchar('slug', { length: 100 }).notNull(),
-    approvalMode: wikiApprovalModeEnum('approval_mode').default('auto').notNull(),
-    humanPermission: wikiPermissionLevelEnum('human_permission')
-      .default('write')
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: text("workspace_id").notNull(),
+    folder9FolderId: uuid("folder9_folder_id").notNull(),
+    name: varchar("name", { length: 200 }).notNull(),
+    slug: varchar("slug", { length: 100 }).notNull(),
+    approvalMode: wikiApprovalModeEnum("approval_mode")
+      .default("auto")
       .notNull(),
-    agentPermission: wikiPermissionLevelEnum('agent_permission')
-      .default('read')
+    humanPermission: wikiPermissionLevelEnum("human_permission")
+      .default("write")
       .notNull(),
-    createdBy: text('created_by').notNull(),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at').defaultNow().notNull(),
-    archivedAt: timestamp('archived_at'),
+    agentPermission: wikiPermissionLevelEnum("agent_permission")
+      .default("read")
+      .notNull(),
+    createdBy: text("created_by").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    archivedAt: timestamp("archived_at"),
   },
-  (table) => ({
-    workspaceSlugUnique: uniqueIndex('workspace_wikis_workspace_slug_unique').on(
+  (table) => [
+    uniqueIndex("workspace_wikis_workspace_slug_unique").on(
       table.workspaceId,
       table.slug,
     ),
-    folder9Unique: uniqueIndex('workspace_wikis_folder9_unique').on(
-      table.folder9FolderId,
-    ),
-    workspaceIdx: index('workspace_wikis_workspace_idx').on(table.workspaceId),
-  }),
+    uniqueIndex("workspace_wikis_folder9_unique").on(table.folder9FolderId),
+    index("workspace_wikis_workspace_idx").on(table.workspaceId),
+  ],
 );
 
 export type WorkspaceWiki = typeof workspaceWikis.$inferSelect;
@@ -259,7 +262,7 @@ export type NewWorkspaceWiki = typeof workspaceWikis.$inferInsert;
 Create `apps/server/libs/database/src/schemas/wiki/index.ts`:
 
 ```ts
-export * from './workspace-wikis.js';
+export * from "./workspace-wikis.js";
 ```
 
 - [ ] **Step 3: Re-export from top-level schemas index**
@@ -267,7 +270,7 @@ export * from './workspace-wikis.js';
 Edit `apps/server/libs/database/src/schemas/index.ts` — add:
 
 ```ts
-export * from './wiki/index.js';
+export * from "./wiki/index.js";
 ```
 
 - [ ] **Step 4: Add env var getters**
@@ -319,11 +322,13 @@ git commit -m "feat(wiki): add workspace_wikis schema and folder9 env vars"
 **Goal:** Build a typed `fetch`-based client that the gateway uses to talk to folder9. Every call attaches the PSK header. Unit-tested with a mocked fetch.
 
 **Files:**
+
 - Create: `apps/server/apps/gateway/src/wikis/folder9-client.service.ts`
 - Create: `apps/server/apps/gateway/src/wikis/types/folder9.types.ts`
 - Create: `apps/server/apps/gateway/src/wikis/__tests__/folder9-client.service.spec.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Service has typed methods for every folder9 endpoint the gateway needs (see [spec §Folder9ClientService](../specs/2026-04-13-wiki-folder9-integration-design.md#folder9clientservice))
 - [ ] Every request includes the PSK header (verify against [folder9 `internal/auth/`](../../../folder9/internal/auth/) during step 1)
 - [ ] Non-2xx responses throw a `Folder9ApiError` with `status`, `body`, `endpoint`
@@ -350,20 +355,20 @@ Open [folder9's auth middleware](../../../folder9/internal/auth/) and find which
 Create `apps/server/apps/gateway/src/wikis/types/folder9.types.ts`:
 
 ```ts
-export type Folder9FolderType = 'managed' | 'light';
-export type Folder9ApprovalMode = 'auto' | 'review';
-export type Folder9Permission = 'read' | 'propose' | 'write' | 'admin';
+export type Folder9FolderType = "managed" | "light";
+export type Folder9ApprovalMode = "auto" | "review";
+export type Folder9Permission = "read" | "propose" | "write" | "admin";
 export type Folder9ProposalStatus =
-  | 'pending'
-  | 'changes_requested'
-  | 'approved'
-  | 'rejected';
+  | "pending"
+  | "changes_requested"
+  | "approved"
+  | "rejected";
 
 export interface Folder9Folder {
   id: string;
   name: string;
   type: Folder9FolderType;
-  ownerType: 'agent' | 'workspace';
+  ownerType: "agent" | "workspace";
   ownerId: string;
   workspaceId: string;
   approvalMode: Folder9ApprovalMode;
@@ -374,20 +379,20 @@ export interface Folder9Folder {
 export interface Folder9TreeEntry {
   name: string;
   path: string;
-  type: 'file' | 'dir';
+  type: "file" | "dir";
   size: number;
 }
 
 export interface Folder9BlobResponse {
-  content: string;       // UTF-8 decoded
+  content: string; // UTF-8 decoded
   size: number;
 }
 
 export interface Folder9CommitFile {
   path: string;
   content: string;
-  encoding?: 'text' | 'base64';
-  action: 'create' | 'update' | 'delete';
+  encoding?: "text" | "base64";
+  action: "create" | "update" | "delete";
 }
 
 export interface Folder9CommitRequest {
@@ -410,7 +415,7 @@ export interface Folder9Proposal {
   title: string;
   description: string;
   status: Folder9ProposalStatus;
-  authorType: 'agent' | 'user';
+  authorType: "agent" | "user";
   authorId: string;
   reviewedBy: string | null;
   reviewedAt: string | null;
@@ -424,7 +429,7 @@ export class Folder9ApiError extends Error {
     public readonly body: unknown,
   ) {
     super(`folder9 API ${status} at ${endpoint}`);
-    this.name = 'Folder9ApiError';
+    this.name = "Folder9ApiError";
   }
 }
 
@@ -434,7 +439,7 @@ export class Folder9NetworkError extends Error {
     cause: unknown,
   ) {
     super(`folder9 network error at ${endpoint}`);
-    this.name = 'Folder9NetworkError';
+    this.name = "Folder9NetworkError";
     this.cause = cause;
   }
 }
@@ -445,33 +450,37 @@ export class Folder9NetworkError extends Error {
 Create `apps/server/apps/gateway/src/wikis/__tests__/folder9-client.service.spec.ts`:
 
 ```ts
-import { Test } from '@nestjs/testing';
-import { Folder9ClientService } from '../folder9-client.service.js';
+import { Test } from "@nestjs/testing";
+import { Folder9ClientService } from "../folder9-client.service.js";
 import {
   Folder9ApiError,
   Folder9NetworkError,
-} from '../types/folder9.types.js';
+} from "../types/folder9.types.js";
 
 const ORIGINAL_FETCH = globalThis.fetch;
-const PSK_HEADER = 'X-Folder9-PSK'; // replace with the real header name
+const PSK_HEADER = "X-Folder9-PSK"; // replace with the real header name
 
-function mockEnv(overrides: Partial<{ FOLDER9_API_URL: string; FOLDER9_PSK: string }> = {}) {
-  process.env.FOLDER9_API_URL = overrides.FOLDER9_API_URL ?? 'http://folder9.test';
-  process.env.FOLDER9_PSK = overrides.FOLDER9_PSK ?? 'psk-test';
+function mockEnv(
+  overrides: Partial<{ FOLDER9_API_URL: string; FOLDER9_PSK: string }> = {},
+) {
+  process.env.FOLDER9_API_URL =
+    overrides.FOLDER9_API_URL ?? "http://folder9.test";
+  process.env.FOLDER9_PSK = overrides.FOLDER9_PSK ?? "psk-test";
 }
 
 function mockFetchOnce(response: { status: number; body: unknown }) {
-  const fn = jest.fn(async () =>
-    new Response(JSON.stringify(response.body), {
-      status: response.status,
-      headers: { 'content-type': 'application/json' },
-    }),
+  const fn = jest.fn(
+    async () =>
+      new Response(JSON.stringify(response.body), {
+        status: response.status,
+        headers: { "content-type": "application/json" },
+      }),
   );
   globalThis.fetch = fn as unknown as typeof globalThis.fetch;
   return fn;
 }
 
-describe('Folder9ClientService', () => {
+describe("Folder9ClientService", () => {
   let svc: Folder9ClientService;
 
   beforeEach(async () => {
@@ -488,51 +497,51 @@ describe('Folder9ClientService', () => {
     delete process.env.FOLDER9_PSK;
   });
 
-  it('createFolder POSTs to /api/workspaces/{wsId}/folders with PSK header', async () => {
+  it("createFolder POSTs to /api/workspaces/{wsId}/folders with PSK header", async () => {
     const fetchFn = mockFetchOnce({
       status: 201,
-      body: { id: 'f-1', name: 'wiki', type: 'managed' },
+      body: { id: "f-1", name: "wiki", type: "managed" },
     });
 
-    const result = await svc.createFolder('ws-1', {
-      name: 'wiki',
-      type: 'managed',
-      ownerType: 'workspace',
-      ownerId: 'ws-1',
-      approvalMode: 'auto',
+    const result = await svc.createFolder("ws-1", {
+      name: "wiki",
+      type: "managed",
+      ownerType: "workspace",
+      ownerId: "ws-1",
+      approvalMode: "auto",
     });
 
-    expect(result.id).toBe('f-1');
+    expect(result.id).toBe("f-1");
     expect(fetchFn).toHaveBeenCalledWith(
-      'http://folder9.test/api/workspaces/ws-1/folders',
+      "http://folder9.test/api/workspaces/ws-1/folders",
       expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({ [PSK_HEADER]: 'psk-test' }),
+        method: "POST",
+        headers: expect.objectContaining({ [PSK_HEADER]: "psk-test" }),
       }),
     );
   });
 
-  it('maps 4xx responses to Folder9ApiError', async () => {
-    mockFetchOnce({ status: 403, body: { error: 'FORBIDDEN' } });
-    await expect(
-      svc.getFolder('ws-1', 'f-1'),
-    ).rejects.toBeInstanceOf(Folder9ApiError);
+  it("maps 4xx responses to Folder9ApiError", async () => {
+    mockFetchOnce({ status: 403, body: { error: "FORBIDDEN" } });
+    await expect(svc.getFolder("ws-1", "f-1")).rejects.toBeInstanceOf(
+      Folder9ApiError,
+    );
   });
 
-  it('maps network failures to Folder9NetworkError', async () => {
+  it("maps network failures to Folder9NetworkError", async () => {
     globalThis.fetch = jest.fn(async () => {
-      throw new TypeError('ECONNREFUSED');
+      throw new TypeError("ECONNREFUSED");
     }) as unknown as typeof globalThis.fetch;
-    await expect(
-      svc.getFolder('ws-1', 'f-1'),
-    ).rejects.toBeInstanceOf(Folder9NetworkError);
+    await expect(svc.getFolder("ws-1", "f-1")).rejects.toBeInstanceOf(
+      Folder9NetworkError,
+    );
   });
 
-  it('throws a clear error when FOLDER9_API_URL is missing', async () => {
+  it("throws a clear error when FOLDER9_API_URL is missing", async () => {
     delete process.env.FOLDER9_API_URL;
-    await expect(
-      svc.getFolder('ws-1', 'f-1'),
-    ).rejects.toThrow(/FOLDER9_API_URL/);
+    await expect(svc.getFolder("ws-1", "f-1")).rejects.toThrow(
+      /FOLDER9_API_URL/,
+    );
   });
 
   // ... 一轮 commit (auto), commit (propose), tree, blob, listProposals,
@@ -547,8 +556,8 @@ Run `pnpm --filter @team9/server test -- folder9-client.service.spec` — expect
 Create `apps/server/apps/gateway/src/wikis/folder9-client.service.ts`:
 
 ```ts
-import { Injectable } from '@nestjs/common';
-import { env } from '@team9/shared';
+import { Injectable } from "@nestjs/common";
+import { env } from "@team9/shared";
 import {
   Folder9ApiError,
   Folder9BlobResponse,
@@ -558,34 +567,34 @@ import {
   Folder9NetworkError,
   Folder9Proposal,
   Folder9TreeEntry,
-} from './types/folder9.types.js';
+} from "./types/folder9.types.js";
 
-const PSK_HEADER = 'X-Folder9-PSK'; // replace with real value from step 1
+const PSK_HEADER = "X-Folder9-PSK"; // replace with real value from step 1
 
 interface CreateFolderInput {
   name: string;
-  type: 'managed' | 'light';
-  ownerType: 'workspace' | 'agent';
+  type: "managed" | "light";
+  ownerType: "workspace" | "agent";
   ownerId: string;
-  approvalMode: 'auto' | 'review';
+  approvalMode: "auto" | "review";
 }
 
 @Injectable()
 export class Folder9ClientService {
   private baseUrl(): string {
     const u = env.FOLDER9_API_URL;
-    if (!u) throw new Error('FOLDER9_API_URL is not configured');
-    return u.replace(/\/$/, '');
+    if (!u) throw new Error("FOLDER9_API_URL is not configured");
+    return u.replace(/\/$/, "");
   }
 
   private psk(): string {
     const p = env.FOLDER9_PSK;
-    if (!p) throw new Error('FOLDER9_PSK is not configured');
+    if (!p) throw new Error("FOLDER9_PSK is not configured");
     return p;
   }
 
   private async request<T>(
-    method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+    method: "GET" | "POST" | "PATCH" | "DELETE",
     path: string,
     body?: unknown,
   ): Promise<T> {
@@ -594,7 +603,7 @@ export class Folder9ClientService {
       method,
       headers: {
         [PSK_HEADER]: this.psk(),
-        ...(body !== undefined && { 'Content-Type': 'application/json' }),
+        ...(body !== undefined && { "Content-Type": "application/json" }),
       },
       ...(body !== undefined && { body: JSON.stringify(body) }),
     };
@@ -624,23 +633,30 @@ export class Folder9ClientService {
   }
 
   createFolder(wsId: string, input: CreateFolderInput): Promise<Folder9Folder> {
-    return this.request('POST', `/api/workspaces/${wsId}/folders`, input);
+    return this.request("POST", `/api/workspaces/${wsId}/folders`, input);
   }
 
   getFolder(wsId: string, folderId: string): Promise<Folder9Folder> {
-    return this.request('GET', `/api/workspaces/${wsId}/folders/${folderId}`);
+    return this.request("GET", `/api/workspaces/${wsId}/folders/${folderId}`);
   }
 
   updateFolder(
     wsId: string,
     folderId: string,
-    patch: Partial<Pick<Folder9Folder, 'name' | 'approvalMode'>>,
+    patch: Partial<Pick<Folder9Folder, "name" | "approvalMode">>,
   ): Promise<Folder9Folder> {
-    return this.request('PATCH', `/api/workspaces/${wsId}/folders/${folderId}`, patch);
+    return this.request(
+      "PATCH",
+      `/api/workspaces/${wsId}/folders/${folderId}`,
+      patch,
+    );
   }
 
   deleteFolder(wsId: string, folderId: string): Promise<void> {
-    return this.request('DELETE', `/api/workspaces/${wsId}/folders/${folderId}`);
+    return this.request(
+      "DELETE",
+      `/api/workspaces/${wsId}/folders/${folderId}`,
+    );
   }
 
   getTree(
@@ -649,11 +665,14 @@ export class Folder9ClientService {
     opts: { path?: string; recursive?: boolean; ref?: string } = {},
   ): Promise<Folder9TreeEntry[]> {
     const qs = new URLSearchParams();
-    if (opts.path) qs.set('path', opts.path);
-    if (opts.recursive) qs.set('recursive', 'true');
-    if (opts.ref) qs.set('ref', opts.ref);
-    const suffix = qs.toString() ? `?${qs}` : '';
-    return this.request('GET', `/api/workspaces/${wsId}/folders/${folderId}/tree${suffix}`);
+    if (opts.path) qs.set("path", opts.path);
+    if (opts.recursive) qs.set("recursive", "true");
+    if (opts.ref) qs.set("ref", opts.ref);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return this.request(
+      "GET",
+      `/api/workspaces/${wsId}/folders/${folderId}/tree${suffix}`,
+    );
   }
 
   getBlob(
@@ -663,8 +682,11 @@ export class Folder9ClientService {
     ref?: string,
   ): Promise<Folder9BlobResponse> {
     const qs = new URLSearchParams({ path });
-    if (ref) qs.set('ref', ref);
-    return this.request('GET', `/api/workspaces/${wsId}/folders/${folderId}/blob?${qs}`);
+    if (ref) qs.set("ref", ref);
+    return this.request(
+      "GET",
+      `/api/workspaces/${wsId}/folders/${folderId}/blob?${qs}`,
+    );
   }
 
   commit(
@@ -672,7 +694,11 @@ export class Folder9ClientService {
     folderId: string,
     input: Folder9CommitRequest,
   ): Promise<Folder9CommitResponse> {
-    return this.request('POST', `/api/workspaces/${wsId}/folders/${folderId}/commit`, input);
+    return this.request(
+      "POST",
+      `/api/workspaces/${wsId}/folders/${folderId}/commit`,
+      input,
+    );
   }
 
   listProposals(
@@ -680,12 +706,22 @@ export class Folder9ClientService {
     folderId: string,
     opts: { status?: string } = {},
   ): Promise<Folder9Proposal[]> {
-    const qs = opts.status ? `?status=${encodeURIComponent(opts.status)}` : '';
-    return this.request('GET', `/api/workspaces/${wsId}/folders/${folderId}/proposals${qs}`);
+    const qs = opts.status ? `?status=${encodeURIComponent(opts.status)}` : "";
+    return this.request(
+      "GET",
+      `/api/workspaces/${wsId}/folders/${folderId}/proposals${qs}`,
+    );
   }
 
-  getProposal(wsId: string, folderId: string, pid: string): Promise<Folder9Proposal> {
-    return this.request('GET', `/api/workspaces/${wsId}/folders/${folderId}/proposals/${pid}`);
+  getProposal(
+    wsId: string,
+    folderId: string,
+    pid: string,
+  ): Promise<Folder9Proposal> {
+    return this.request(
+      "GET",
+      `/api/workspaces/${wsId}/folders/${folderId}/proposals/${pid}`,
+    );
   }
 
   approveProposal(
@@ -694,9 +730,13 @@ export class Folder9ClientService {
     pid: string,
     reviewerId: string,
   ): Promise<void> {
-    return this.request('POST', `/api/workspaces/${wsId}/folders/${folderId}/proposals/${pid}/approve`, {
-      reviewerId,
-    });
+    return this.request(
+      "POST",
+      `/api/workspaces/${wsId}/folders/${folderId}/proposals/${pid}/approve`,
+      {
+        reviewerId,
+      },
+    );
   }
 
   rejectProposal(
@@ -706,10 +746,14 @@ export class Folder9ClientService {
     reviewerId: string,
     reason?: string,
   ): Promise<void> {
-    return this.request('POST', `/api/workspaces/${wsId}/folders/${folderId}/proposals/${pid}/reject`, {
-      reviewerId,
-      reason,
-    });
+    return this.request(
+      "POST",
+      `/api/workspaces/${wsId}/folders/${folderId}/proposals/${pid}/reject`,
+      {
+        reviewerId,
+        reason,
+      },
+    );
   }
 }
 ```
@@ -736,6 +780,7 @@ git commit -m "feat(wiki): add Folder9ClientService with 100% unit coverage"
 **Goal:** Parse and serialize YAML frontmatter the same way on both sides (gateway now, client in Task 14). Create the shared fixture files that both unit-test suites reuse.
 
 **Files:**
+
 - Create: `apps/server/apps/gateway/src/wikis/utils/frontmatter.ts`
 - Create: `apps/server/apps/gateway/src/wikis/__tests__/frontmatter.spec.ts`
 - Create: `apps/server/libs/shared/test-fixtures/wiki-frontmatter/basic.md`
@@ -745,6 +790,7 @@ git commit -m "feat(wiki): add Folder9ClientService with 100% unit coverage"
 - Create: `apps/server/libs/shared/test-fixtures/wiki-frontmatter/fixtures.json` (parsed expectations)
 
 **Acceptance Criteria:**
+
 - [ ] `parseFrontmatter(source)` returns `{ frontmatter: Record<string, unknown>, body: string }`
 - [ ] `serializeFrontmatter({ frontmatter, body })` re-emits a round-trip-stable markdown file
 - [ ] Round-trip preserves unknown keys
@@ -814,7 +860,11 @@ Create `apps/server/libs/shared/test-fixtures/wiki-frontmatter/fixtures.json`:
 ```json
 {
   "basic.md": {
-    "frontmatter": { "icon": "📘", "cover": ".team9/covers/hero.jpg", "title": "Welcome" },
+    "frontmatter": {
+      "icon": "📘",
+      "cover": ".team9/covers/hero.jpg",
+      "title": "Welcome"
+    },
     "body": "# Welcome\n\nSome content.\n"
   },
   "no-frontmatter.md": {
@@ -822,7 +872,11 @@ Create `apps/server/libs/shared/test-fixtures/wiki-frontmatter/fixtures.json`:
     "body": "# Just a title\n\nNo frontmatter here.\n"
   },
   "unknown-keys.md": {
-    "frontmatter": { "icon": "🔐", "customField": { "nested": "value" }, "anotherKey": 42 },
+    "frontmatter": {
+      "icon": "🔐",
+      "customField": { "nested": "value" },
+      "anotherKey": 42
+    },
     "body": "Body with unknown frontmatter keys.\n"
   },
   "empty-body.md": {
@@ -837,27 +891,27 @@ Create `apps/server/libs/shared/test-fixtures/wiki-frontmatter/fixtures.json`:
 Create `apps/server/apps/gateway/src/wikis/__tests__/frontmatter.spec.ts`:
 
 ```ts
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   parseFrontmatter,
   serializeFrontmatter,
   FrontmatterParseError,
-} from '../utils/frontmatter.js';
+} from "../utils/frontmatter.js";
 
 const FIXTURE_DIR = join(
   __dirname,
-  '../../../../../libs/shared/test-fixtures/wiki-frontmatter',
+  "../../../../../libs/shared/test-fixtures/wiki-frontmatter",
 );
 const EXPECTED = JSON.parse(
-  readFileSync(join(FIXTURE_DIR, 'fixtures.json'), 'utf8'),
+  readFileSync(join(FIXTURE_DIR, "fixtures.json"), "utf8"),
 ) as Record<string, { frontmatter: Record<string, unknown>; body: string }>;
 
 function loadFixture(name: string): string {
-  return readFileSync(join(FIXTURE_DIR, name), 'utf8');
+  return readFileSync(join(FIXTURE_DIR, name), "utf8");
 }
 
-describe('frontmatter util', () => {
+describe("frontmatter util", () => {
   for (const [file, expected] of Object.entries(EXPECTED)) {
     it(`parses ${file}`, () => {
       const result = parseFrontmatter(loadFixture(file));
@@ -874,20 +928,20 @@ describe('frontmatter util', () => {
     });
   }
 
-  it('throws on malformed YAML', () => {
+  it("throws on malformed YAML", () => {
     const bad = `---\nicon: "📘\n---\n\nbody`;
     expect(() => parseFrontmatter(bad)).toThrow(FrontmatterParseError);
   });
 
-  it('preserves unknown frontmatter keys on serialize', () => {
+  it("preserves unknown frontmatter keys on serialize", () => {
     const parsed = {
-      frontmatter: { custom: 'value', nested: { foo: 'bar' } },
-      body: 'hello',
+      frontmatter: { custom: "value", nested: { foo: "bar" } },
+      body: "hello",
     };
     const out = serializeFrontmatter(parsed);
-    expect(out).toContain('custom: value');
-    expect(out).toContain('nested:');
-    expect(out).toContain('foo: bar');
+    expect(out).toContain("custom: value");
+    expect(out).toContain("nested:");
+    expect(out).toContain("foo: bar");
   });
 });
 ```
@@ -899,12 +953,15 @@ Run `pnpm --filter @team9/server test -- frontmatter.spec` — expect FAIL.
 Create `apps/server/apps/gateway/src/wikis/utils/frontmatter.ts`:
 
 ```ts
-import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
 export class FrontmatterParseError extends Error {
-  constructor(message: string, public readonly cause: unknown) {
+  constructor(
+    message: string,
+    public readonly cause: unknown,
+  ) {
     super(message);
-    this.name = 'FrontmatterParseError';
+    this.name = "FrontmatterParseError";
   }
 }
 
@@ -913,7 +970,7 @@ export interface ParsedPage {
   body: string;
 }
 
-const FENCE = '---';
+const FENCE = "---";
 const FENCE_RE = /^---\r?\n/;
 
 export function parseFrontmatter(source: string): ParsedPage {
@@ -921,7 +978,7 @@ export function parseFrontmatter(source: string): ParsedPage {
     return { frontmatter: {}, body: source };
   }
 
-  const afterOpen = source.replace(FENCE_RE, '');
+  const afterOpen = source.replace(FENCE_RE, "");
   const closeIdx = afterOpen.search(/\r?\n---\r?\n/);
   if (closeIdx === -1) {
     // Open fence with no matching close → treat as no frontmatter
@@ -930,18 +987,18 @@ export function parseFrontmatter(source: string): ParsedPage {
 
   const yamlSource = afterOpen.slice(0, closeIdx);
   const afterCloseIdx = afterOpen.slice(closeIdx).search(/\r?\n/) + 1;
-  const body = afterOpen.slice(closeIdx + afterCloseIdx).replace(/^\r?\n/, '');
+  const body = afterOpen.slice(closeIdx + afterCloseIdx).replace(/^\r?\n/, "");
 
   let fm: unknown;
   try {
     fm = parseYaml(yamlSource);
   } catch (cause) {
-    throw new FrontmatterParseError('Invalid frontmatter YAML', cause);
+    throw new FrontmatterParseError("Invalid frontmatter YAML", cause);
   }
 
   if (fm == null) return { frontmatter: {}, body };
-  if (typeof fm !== 'object' || Array.isArray(fm)) {
-    throw new FrontmatterParseError('Frontmatter must be an object', fm);
+  if (typeof fm !== "object" || Array.isArray(fm)) {
+    throw new FrontmatterParseError("Frontmatter must be an object", fm);
   }
 
   return { frontmatter: fm as Record<string, unknown>, body };
@@ -981,6 +1038,7 @@ git commit -m "feat(wiki): add frontmatter parser/serializer with shared fixture
 **Goal:** Implement `resolveWikiPermission` and `requirePermission` (the guard functions that every WikisService method uses) and all the NestJS DTOs for request/response shapes.
 
 **Files:**
+
 - Create: `apps/server/apps/gateway/src/wikis/utils/permission.ts`
 - Create: `apps/server/apps/gateway/src/wikis/__tests__/permission.spec.ts`
 - Create: `apps/server/apps/gateway/src/wikis/dto/create-wiki.dto.ts`
@@ -992,6 +1050,7 @@ git commit -m "feat(wiki): add frontmatter parser/serializer with shared fixture
 - Create: `apps/server/apps/gateway/src/wikis/dto/proposal.dto.ts`
 
 **Acceptance Criteria:**
+
 - [ ] `resolveWikiPermission(wiki, { isAgent })` returns the correct per-role permission
 - [ ] `requirePermission(wiki, user, required)` throws `ForbiddenException` when the user's perm is below required
 - [ ] `requirePermission` ordering: `read < propose < write` (a user with `write` passes a `read` check)
@@ -1012,67 +1071,67 @@ pnpm --filter @team9/server exec tsc --noEmit
 Create `apps/server/apps/gateway/src/wikis/__tests__/permission.spec.ts`:
 
 ```ts
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException } from "@nestjs/common";
 import {
   resolveWikiPermission,
   requirePermission,
-} from '../utils/permission.js';
+} from "../utils/permission.js";
 
 const baseWiki = {
-  humanPermission: 'write' as const,
-  agentPermission: 'read' as const,
+  humanPermission: "write" as const,
+  agentPermission: "read" as const,
 };
 
-describe('resolveWikiPermission', () => {
-  it('returns humanPermission for a human user', () => {
-    expect(
-      resolveWikiPermission(baseWiki, { id: 'u1', isAgent: false }),
-    ).toBe('write');
+describe("resolveWikiPermission", () => {
+  it("returns humanPermission for a human user", () => {
+    expect(resolveWikiPermission(baseWiki, { id: "u1", isAgent: false })).toBe(
+      "write",
+    );
   });
-  it('returns agentPermission for an agent user', () => {
-    expect(
-      resolveWikiPermission(baseWiki, { id: 'a1', isAgent: true }),
-    ).toBe('read');
+  it("returns agentPermission for an agent user", () => {
+    expect(resolveWikiPermission(baseWiki, { id: "a1", isAgent: true })).toBe(
+      "read",
+    );
   });
 });
 
-describe('requirePermission', () => {
-  it('passes when user has exactly the required perm', () => {
+describe("requirePermission", () => {
+  it("passes when user has exactly the required perm", () => {
     expect(() =>
       requirePermission(
-        { humanPermission: 'propose', agentPermission: 'read' },
-        { id: 'u', isAgent: false },
-        'propose',
+        { humanPermission: "propose", agentPermission: "read" },
+        { id: "u", isAgent: false },
+        "propose",
       ),
     ).not.toThrow();
   });
 
-  it('passes when user has a higher perm', () => {
+  it("passes when user has a higher perm", () => {
     expect(() =>
       requirePermission(
-        { humanPermission: 'write', agentPermission: 'read' },
-        { id: 'u', isAgent: false },
-        'read',
+        { humanPermission: "write", agentPermission: "read" },
+        { id: "u", isAgent: false },
+        "read",
       ),
     ).not.toThrow();
   });
 
-  it('throws Forbidden when user is below required perm', () => {
+  it("throws Forbidden when user is below required perm", () => {
     expect(() =>
       requirePermission(
-        { humanPermission: 'read', agentPermission: 'read' },
-        { id: 'u', isAgent: false },
-        'write',
+        { humanPermission: "read", agentPermission: "read" },
+        { id: "u", isAgent: false },
+        "write",
       ),
     ).toThrow(ForbiddenException);
   });
 
-  it('throws for agent with lower perm than required', () => {
+  it("throws for agent with lower perm than required", () => {
     expect(() =>
       requirePermission(
-        { humanPermission: 'write', agentPermission: 'read' },
-        { id: 'a', isAgent: true },
-        'propose',
+        { humanPermission: "write", agentPermission: "read" },
+        { id: "a", isAgent: true },
+        "propose",
       ),
     ).toThrow(ForbiddenException);
   });
@@ -1086,9 +1145,9 @@ Run — expect FAIL.
 Create `apps/server/apps/gateway/src/wikis/utils/permission.ts`:
 
 ```ts
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException } from "@nestjs/common";
 
-export type WikiPermissionLevel = 'read' | 'propose' | 'write';
+export type WikiPermissionLevel = "read" | "propose" | "write";
 
 const ORDER: Record<WikiPermissionLevel, number> = {
   read: 0,
@@ -1132,7 +1191,7 @@ export function requirePermission(
 Create `apps/server/apps/gateway/src/wikis/dto/create-wiki.dto.ts`:
 
 ```ts
-import { IsIn, IsOptional, IsString, Length, Matches } from 'class-validator';
+import { IsIn, IsOptional, IsString, Length, Matches } from "class-validator";
 
 export class CreateWikiDto {
   @IsString()
@@ -1151,23 +1210,23 @@ export class CreateWikiDto {
   icon?: string;
 
   @IsOptional()
-  @IsIn(['auto', 'review'])
-  approvalMode?: 'auto' | 'review';
+  @IsIn(["auto", "review"])
+  approvalMode?: "auto" | "review";
 
   @IsOptional()
-  @IsIn(['read', 'propose', 'write'])
-  humanPermission?: 'read' | 'propose' | 'write';
+  @IsIn(["read", "propose", "write"])
+  humanPermission?: "read" | "propose" | "write";
 
   @IsOptional()
-  @IsIn(['read', 'propose', 'write'])
-  agentPermission?: 'read' | 'propose' | 'write';
+  @IsIn(["read", "propose", "write"])
+  agentPermission?: "read" | "propose" | "write";
 }
 ```
 
 Create `apps/server/apps/gateway/src/wikis/dto/update-wiki.dto.ts`:
 
 ```ts
-import { IsIn, IsOptional, IsString, Length, Matches } from 'class-validator';
+import { IsIn, IsOptional, IsString, Length, Matches } from "class-validator";
 
 export class UpdateWikiDto {
   @IsOptional()
@@ -1182,24 +1241,31 @@ export class UpdateWikiDto {
   slug?: string;
 
   @IsOptional()
-  @IsIn(['auto', 'review'])
-  approvalMode?: 'auto' | 'review';
+  @IsIn(["auto", "review"])
+  approvalMode?: "auto" | "review";
 
   @IsOptional()
-  @IsIn(['read', 'propose', 'write'])
-  humanPermission?: 'read' | 'propose' | 'write';
+  @IsIn(["read", "propose", "write"])
+  humanPermission?: "read" | "propose" | "write";
 
   @IsOptional()
-  @IsIn(['read', 'propose', 'write'])
-  agentPermission?: 'read' | 'propose' | 'write';
+  @IsIn(["read", "propose", "write"])
+  agentPermission?: "read" | "propose" | "write";
 }
 ```
 
 Create `apps/server/apps/gateway/src/wikis/dto/commit-page.dto.ts`:
 
 ```ts
-import { IsArray, IsIn, IsOptional, IsString, ValidateNested, MaxLength } from 'class-validator';
-import { Type } from 'class-transformer';
+import {
+  IsArray,
+  IsIn,
+  IsOptional,
+  IsString,
+  ValidateNested,
+  MaxLength,
+} from "class-validator";
+import { Type } from "class-transformer";
 
 export class CommitFileDto {
   @IsString()
@@ -1210,11 +1276,11 @@ export class CommitFileDto {
   content!: string;
 
   @IsOptional()
-  @IsIn(['text', 'base64'])
-  encoding?: 'text' | 'base64';
+  @IsIn(["text", "base64"])
+  encoding?: "text" | "base64";
 
-  @IsIn(['create', 'update', 'delete'])
-  action!: 'create' | 'update' | 'delete';
+  @IsIn(["create", "update", "delete"])
+  action!: "create" | "update" | "delete";
 }
 
 export class CommitPageDto {
@@ -1240,9 +1306,9 @@ export interface WikiDto {
   workspaceId: string;
   name: string;
   slug: string;
-  approvalMode: 'auto' | 'review';
-  humanPermission: 'read' | 'propose' | 'write';
-  agentPermission: 'read' | 'propose' | 'write';
+  approvalMode: "auto" | "review";
+  humanPermission: "read" | "propose" | "write";
+  agentPermission: "read" | "propose" | "write";
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -1256,7 +1322,7 @@ Create `apps/server/apps/gateway/src/wikis/dto/tree-entry.dto.ts`:
 export interface TreeEntryDto {
   name: string;
   path: string;
-  type: 'file' | 'dir';
+  type: "file" | "dir";
   size: number;
 }
 ```
@@ -1284,9 +1350,9 @@ export interface ProposalDto {
   wikiId: string;
   title: string;
   description: string;
-  status: 'pending' | 'changes_requested' | 'approved' | 'rejected';
+  status: "pending" | "changes_requested" | "approved" | "rejected";
   authorId: string;
-  authorType: 'user' | 'agent';
+  authorType: "user" | "agent";
   createdAt: string;
   reviewedBy: string | null;
   reviewedAt: string | null;
@@ -1316,10 +1382,12 @@ git commit -m "feat(wiki): add permission helpers and request/response DTOs"
 **Goal:** Implement the service methods for Wiki lifecycle (list, create, get, update settings, archive). Content ops (tree/page/commit/proposals) come in Task 6.
 
 **Files:**
+
 - Create: `apps/server/apps/gateway/src/wikis/wikis.service.ts` (partial — CRUD only)
 - Create: `apps/server/apps/gateway/src/wikis/__tests__/wikis.service.spec.ts` (partial)
 
 **Acceptance Criteria:**
+
 - [ ] `createWiki` inserts into `workspace_wikis` after successfully creating the folder9 folder
 - [ ] On DB failure after folder9 create, the service calls `Folder9ClientService.deleteFolder()` as compensation
 - [ ] `createWiki` rejects agent callers with `ForbiddenException('Agents cannot create Wikis')`
@@ -1344,17 +1412,28 @@ pnpm --filter @team9/server test -- wikis.service.spec --coverage
 Create `apps/server/apps/gateway/src/wikis/__tests__/wikis.service.spec.ts`:
 
 ```ts
-import { Test } from '@nestjs/testing';
-import { ForbiddenException, ConflictException } from '@nestjs/common';
-import { WikisService } from '../wikis.service.js';
-import { Folder9ClientService } from '../folder9-client.service.js';
-import { DATABASE_CONNECTION } from '@team9/database';
+import { Test } from "@nestjs/testing";
+import { ForbiddenException, ConflictException } from "@nestjs/common";
+import { WikisService } from "../wikis.service.js";
+import { Folder9ClientService } from "../folder9-client.service.js";
+import { DATABASE_CONNECTION } from "@team9/database";
 
 function mockDb() {
   const chain: Record<string, jest.Mock> = {};
   const methods = [
-    'select', 'from', 'where', 'and', 'eq', 'insert', 'values',
-    'returning', 'update', 'set', 'delete', 'orderBy', 'limit',
+    "select",
+    "from",
+    "where",
+    "and",
+    "eq",
+    "insert",
+    "values",
+    "returning",
+    "update",
+    "set",
+    "delete",
+    "orderBy",
+    "limit",
   ];
   for (const m of methods) {
     chain[m] = jest.fn().mockReturnValue(chain);
@@ -1378,7 +1457,7 @@ function mockFolder9(): jest.Mocked<Folder9ClientService> {
   } as unknown as jest.Mocked<Folder9ClientService>;
 }
 
-describe('WikisService — createWiki', () => {
+describe("WikisService — createWiki", () => {
   let svc: WikisService;
   let db: ReturnType<typeof mockDb>;
   let f9: jest.Mocked<Folder9ClientService>;
@@ -1396,70 +1475,77 @@ describe('WikisService — createWiki', () => {
     svc = module.get(WikisService);
   });
 
-  it('creates a Wiki end-to-end', async () => {
+  it("creates a Wiki end-to-end", async () => {
     f9.createFolder.mockResolvedValue({
-      id: 'f9-1',
-      name: 'public',
-      type: 'managed',
-      ownerType: 'workspace',
-      ownerId: 'ws-1',
-      workspaceId: 'ws-1',
-      approvalMode: 'auto',
-      createdAt: '2026-04-13T00:00:00Z',
-      updatedAt: '2026-04-13T00:00:00Z',
+      id: "f9-1",
+      name: "public",
+      type: "managed",
+      ownerType: "workspace",
+      ownerId: "ws-1",
+      workspaceId: "ws-1",
+      approvalMode: "auto",
+      createdAt: "2026-04-13T00:00:00Z",
+      updatedAt: "2026-04-13T00:00:00Z",
     });
     (db.returning as jest.Mock).mockResolvedValueOnce([
-      { id: 'wiki-1', workspaceId: 'ws-1', name: 'public', slug: 'public' },
+      { id: "wiki-1", workspaceId: "ws-1", name: "public", slug: "public" },
     ]);
     // simulate "slug not taken" lookup
     (db.limit as jest.Mock).mockResolvedValueOnce([]);
 
     const result = await svc.createWiki(
-      'ws-1',
-      { id: 'user-1', isAgent: false },
-      { name: 'public' },
+      "ws-1",
+      { id: "user-1", isAgent: false },
+      { name: "public" },
     );
 
-    expect(f9.createFolder).toHaveBeenCalledWith('ws-1', expect.objectContaining({
-      name: 'public',
-      type: 'managed',
-      ownerType: 'workspace',
-      ownerId: 'ws-1',
-      approvalMode: 'auto',
-    }));
+    expect(f9.createFolder).toHaveBeenCalledWith(
+      "ws-1",
+      expect.objectContaining({
+        name: "public",
+        type: "managed",
+        ownerType: "workspace",
+        ownerId: "ws-1",
+        approvalMode: "auto",
+      }),
+    );
     expect(db.insert).toHaveBeenCalled();
-    expect(result.id).toBe('wiki-1');
+    expect(result.id).toBe("wiki-1");
   });
 
-  it('rejects agent callers with ForbiddenException', async () => {
+  it("rejects agent callers with ForbiddenException", async () => {
     await expect(
-      svc.createWiki('ws-1', { id: 'a-1', isAgent: true }, { name: 'x' }),
+      svc.createWiki("ws-1", { id: "a-1", isAgent: true }, { name: "x" }),
     ).rejects.toThrow(ForbiddenException);
     expect(f9.createFolder).not.toHaveBeenCalled();
   });
 
-  it('compensates by deleting folder9 folder if DB insert fails', async () => {
-    f9.createFolder.mockResolvedValue({ id: 'f9-ghost' } as never);
+  it("compensates by deleting folder9 folder if DB insert fails", async () => {
+    f9.createFolder.mockResolvedValue({ id: "f9-ghost" } as never);
     (db.limit as jest.Mock).mockResolvedValueOnce([]);
-    (db.returning as jest.Mock).mockRejectedValueOnce(new Error('db down'));
+    (db.returning as jest.Mock).mockRejectedValueOnce(new Error("db down"));
 
     await expect(
-      svc.createWiki('ws-1', { id: 'u-1', isAgent: false }, { name: 'x' }),
+      svc.createWiki("ws-1", { id: "u-1", isAgent: false }, { name: "x" }),
     ).rejects.toThrow(/db down/);
-    expect(f9.deleteFolder).toHaveBeenCalledWith('ws-1', 'f9-ghost');
+    expect(f9.deleteFolder).toHaveBeenCalledWith("ws-1", "f9-ghost");
   });
 
-  it('throws ConflictException when slug already taken', async () => {
-    (db.limit as jest.Mock).mockResolvedValueOnce([{ id: 'existing' }]);
+  it("throws ConflictException when slug already taken", async () => {
+    (db.limit as jest.Mock).mockResolvedValueOnce([{ id: "existing" }]);
     await expect(
-      svc.createWiki('ws-1', { id: 'u-1', isAgent: false }, {
-        name: 'public',
-        slug: 'public',
-      }),
+      svc.createWiki(
+        "ws-1",
+        { id: "u-1", isAgent: false },
+        {
+          name: "public",
+          slug: "public",
+        },
+      ),
     ).rejects.toThrow(ConflictException);
   });
 
-  it('derives slug from name', async () => {
+  it("derives slug from name", async () => {
     // Verify service.createWiki normalizes "Hello World!" → "hello-world"
     // then attempts insert with that slug
   });
@@ -1479,18 +1565,14 @@ import {
   Inject,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
-import { and, desc, eq, isNull } from 'drizzle-orm';
-import {
-  DATABASE_CONNECTION,
-  schema,
-  type Database,
-} from '@team9/database';
-import { Folder9ClientService } from './folder9-client.service.js';
-import { CreateWikiDto } from './dto/create-wiki.dto.js';
-import { UpdateWikiDto } from './dto/update-wiki.dto.js';
-import { WikiDto } from './dto/wiki.dto.js';
-import { requirePermission } from './utils/permission.js';
+} from "@nestjs/common";
+import { and, desc, eq, isNull } from "drizzle-orm";
+import { DATABASE_CONNECTION, schema, type Database } from "@team9/database";
+import { Folder9ClientService } from "./folder9-client.service.js";
+import { CreateWikiDto } from "./dto/create-wiki.dto.js";
+import { UpdateWikiDto } from "./dto/update-wiki.dto.js";
+import { WikiDto } from "./dto/wiki.dto.js";
+import { requirePermission } from "./utils/permission.js";
 
 export interface ActingUser {
   id: string;
@@ -1498,11 +1580,13 @@ export interface ActingUser {
 }
 
 function deriveSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 100) || 'wiki';
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 100) || "wiki"
+  );
 }
 
 function toDto(row: typeof schema.workspaceWikis.$inferSelect): WikiDto {
@@ -1566,7 +1650,7 @@ export class WikisService {
     dto: CreateWikiDto,
   ): Promise<WikiDto> {
     if (user.isAgent) {
-      throw new ForbiddenException('Agents cannot create Wikis');
+      throw new ForbiddenException("Agents cannot create Wikis");
     }
 
     const slug = dto.slug ?? deriveSlug(dto.name);
@@ -1586,10 +1670,10 @@ export class WikisService {
 
     const folder = await this.folder9.createFolder(workspaceId, {
       name: dto.name,
-      type: 'managed',
-      ownerType: 'workspace',
+      type: "managed",
+      ownerType: "workspace",
       ownerId: workspaceId,
-      approvalMode: dto.approvalMode ?? 'auto',
+      approvalMode: dto.approvalMode ?? "auto",
     });
 
     try {
@@ -1600,9 +1684,9 @@ export class WikisService {
           folder9FolderId: folder.id,
           name: dto.name,
           slug,
-          approvalMode: dto.approvalMode ?? 'auto',
-          humanPermission: dto.humanPermission ?? 'write',
-          agentPermission: dto.agentPermission ?? 'read',
+          approvalMode: dto.approvalMode ?? "auto",
+          humanPermission: dto.humanPermission ?? "write",
+          agentPermission: dto.agentPermission ?? "read",
           createdBy: user.id,
         })
         .returning();
@@ -1625,7 +1709,7 @@ export class WikisService {
     dto: UpdateWikiDto,
   ): Promise<WikiDto> {
     const wiki = await this.getWikiOrThrow(workspaceId, wikiId);
-    requirePermission(wiki, user, 'write');
+    requirePermission(wiki, user, "write");
 
     if (dto.slug && dto.slug !== wiki.slug) {
       const [dup] = await this.db
@@ -1646,9 +1730,15 @@ export class WikisService {
       .set({
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.slug !== undefined && { slug: dto.slug }),
-        ...(dto.approvalMode !== undefined && { approvalMode: dto.approvalMode }),
-        ...(dto.humanPermission !== undefined && { humanPermission: dto.humanPermission }),
-        ...(dto.agentPermission !== undefined && { agentPermission: dto.agentPermission }),
+        ...(dto.approvalMode !== undefined && {
+          approvalMode: dto.approvalMode,
+        }),
+        ...(dto.humanPermission !== undefined && {
+          humanPermission: dto.humanPermission,
+        }),
+        ...(dto.agentPermission !== undefined && {
+          agentPermission: dto.agentPermission,
+        }),
         updatedAt: new Date(),
       })
       .where(eq(schema.workspaceWikis.id, wikiId))
@@ -1658,7 +1748,9 @@ export class WikisService {
     if (dto.name !== undefined || dto.approvalMode !== undefined) {
       await this.folder9.updateFolder(workspaceId, wiki.folder9FolderId, {
         ...(dto.name !== undefined && { name: dto.name }),
-        ...(dto.approvalMode !== undefined && { approvalMode: dto.approvalMode }),
+        ...(dto.approvalMode !== undefined && {
+          approvalMode: dto.approvalMode,
+        }),
       });
     }
     return toDto(updated);
@@ -1670,7 +1762,7 @@ export class WikisService {
     user: ActingUser,
   ): Promise<void> {
     const wiki = await this.getWikiOrThrow(workspaceId, wikiId);
-    requirePermission(wiki, user, 'write');
+    requirePermission(wiki, user, "write");
     await this.db
       .update(schema.workspaceWikis)
       .set({ archivedAt: new Date() })
@@ -1683,7 +1775,7 @@ export class WikisService {
     user: ActingUser,
   ): Promise<WikiDto> {
     const wiki = await this.getWikiOrThrow(workspaceId, wikiId);
-    requirePermission(wiki, user, 'read');
+    requirePermission(wiki, user, "read");
     return toDto(wiki);
   }
 }
@@ -1711,10 +1803,12 @@ git commit -m "feat(wiki): add WikisService CRUD with folder9 compensation"
 **Goal:** Extend `WikisService` with the content operations: `getTree`, `getPage`, `commitPage`, `listProposals`, `approveProposal`, `rejectProposal`. All enforce permissions before calling `Folder9ClientService`.
 
 **Files:**
+
 - Modify: `apps/server/apps/gateway/src/wikis/wikis.service.ts` (append methods)
 - Modify: `apps/server/apps/gateway/src/wikis/__tests__/wikis.service.spec.ts` (add describes)
 
 **Acceptance Criteria:**
+
 - [ ] `getTree` requires `read`; returns folder9 tree entries unchanged (including dot-prefixed paths — filtering happens in client)
 - [ ] `getPage` fetches blob via folder9, parses frontmatter, returns `PageDto` with split content + frontmatter
 - [ ] `commitPage` computes effective `propose` flag per the spec §"Commit Handling: auto vs review"
@@ -1737,18 +1831,18 @@ pnpm --filter @team9/server test -- wikis.service.spec --coverage
 Append to `wikis.service.spec.ts`:
 
 ```ts
-describe('WikisService — commitPage', () => {
+describe("WikisService — commitPage", () => {
   // fixtures for wikis in auto and review modes
   const autoWiki = {
-    id: 'w1',
-    workspaceId: 'ws-1',
-    folder9FolderId: 'f9-1',
-    approvalMode: 'auto' as const,
-    humanPermission: 'write' as const,
-    agentPermission: 'read' as const,
+    id: "w1",
+    workspaceId: "ws-1",
+    folder9FolderId: "f9-1",
+    approvalMode: "auto" as const,
+    humanPermission: "write" as const,
+    agentPermission: "read" as const,
   };
 
-  const reviewWiki = { ...autoWiki, id: 'w2', approvalMode: 'review' as const };
+  const reviewWiki = { ...autoWiki, id: "w2", approvalMode: "review" as const };
 
   // ... tests:
   // - auto + write → folder9.commit({ propose: false })
@@ -1759,17 +1853,17 @@ describe('WikisService — commitPage', () => {
   // - commit passes authorName/authorEmail from user profile lookup
 });
 
-describe('WikisService — getTree', () => {
+describe("WikisService — getTree", () => {
   // - read user can list
   // - non-member → not-found (precedes permission check)
 });
 
-describe('WikisService — getPage', () => {
+describe("WikisService — getPage", () => {
   // - returns { content, frontmatter, lastCommit }
   // - malformed frontmatter does NOT throw; returns frontmatter: {}
 });
 
-describe('WikisService — approveProposal / rejectProposal', () => {
+describe("WikisService — approveProposal / rejectProposal", () => {
   // - write user can approve
   // - propose user → Forbidden
   // - folder9 conflict error → re-thrown as ConflictException
@@ -1995,10 +2089,12 @@ git commit -m "feat(wiki): add tree/page/commit/proposal ops to WikisService"
 **Goal:** Expose all `WikisService` methods as REST endpoints under `/api/wikis/*`. Every endpoint authenticates via the existing `AuthGuard`, extracts the acting user via `@CurrentUser()`, and resolves the `workspaceId` from the user's current workspace context (the existing `WorkspaceGuard` / `@CurrentWorkspaceId()` decorator — follow the pattern from `workspace.controller.ts`).
 
 **Files:**
+
 - Create: `apps/server/apps/gateway/src/wikis/wikis.controller.ts`
 - Create: `apps/server/apps/gateway/src/wikis/__tests__/wikis.controller.spec.ts`
 
 **Acceptance Criteria:**
+
 - [ ] All endpoints from [spec §API Contract](../specs/2026-04-13-wiki-folder9-integration-design.md#api-contract-gateway--client) are implemented
 - [ ] Controller applies `@UseGuards(AuthGuard, WorkspaceGuard)`
 - [ ] Controller is a thin pass-through — no business logic
@@ -2023,27 +2119,31 @@ Grep for `isAgent` / `isBot` / `userType` in `apps/server/apps/gateway/src/` to 
 Create `apps/server/apps/gateway/src/wikis/__tests__/wikis.controller.spec.ts`:
 
 ```ts
-import { Test } from '@nestjs/testing';
-import { WikisController } from '../wikis.controller.js';
-import { WikisService } from '../wikis.service.js';
+import { Test } from "@nestjs/testing";
+import { WikisController } from "../wikis.controller.js";
+import { WikisService } from "../wikis.service.js";
 
-describe('WikisController', () => {
+describe("WikisController", () => {
   let ctrl: WikisController;
   let svc: jest.Mocked<WikisService>;
 
   beforeEach(async () => {
     svc = {
       listWikis: jest.fn().mockResolvedValue([]),
-      createWiki: jest.fn().mockResolvedValue({ id: 'w1' }),
-      getWiki: jest.fn().mockResolvedValue({ id: 'w1' }),
-      updateWikiSettings: jest.fn().mockResolvedValue({ id: 'w1' }),
+      createWiki: jest.fn().mockResolvedValue({ id: "w1" }),
+      getWiki: jest.fn().mockResolvedValue({ id: "w1" }),
+      updateWikiSettings: jest.fn().mockResolvedValue({ id: "w1" }),
       archiveWiki: jest.fn().mockResolvedValue(undefined),
       getTree: jest.fn().mockResolvedValue([]),
       getPage: jest.fn().mockResolvedValue({
-        path: 'a.md', content: '', frontmatter: {}, lastCommit: null,
+        path: "a.md",
+        content: "",
+        frontmatter: {},
+        lastCommit: null,
       }),
       commitPage: jest.fn().mockResolvedValue({
-        commit: { sha: 'abc' }, proposal: null,
+        commit: { sha: "abc" },
+        proposal: null,
       }),
       listProposals: jest.fn().mockResolvedValue([]),
       approveProposal: jest.fn().mockResolvedValue(undefined),
@@ -2056,15 +2156,17 @@ describe('WikisController', () => {
     ctrl = module.get(WikisController);
   });
 
-  it('list forwards workspace + user', async () => {
-    await ctrl.list('ws-1');
-    expect(svc.listWikis).toHaveBeenCalledWith('ws-1');
+  it("list forwards workspace + user", async () => {
+    await ctrl.list("ws-1");
+    expect(svc.listWikis).toHaveBeenCalledWith("ws-1");
   });
 
-  it('create forwards DTO + user identity', async () => {
-    const user = { id: 'u1', isAgent: false };
-    await ctrl.create('ws-1', user, { name: 'public' });
-    expect(svc.createWiki).toHaveBeenCalledWith('ws-1', user, { name: 'public' });
+  it("create forwards DTO + user identity", async () => {
+    const user = { id: "u1", isAgent: false };
+    await ctrl.create("ws-1", user, { name: "public" });
+    expect(svc.createWiki).toHaveBeenCalledWith("ws-1", user, {
+      name: "public",
+    });
   });
 
   // ... similar tests for each endpoint
@@ -2088,17 +2190,17 @@ import {
   Post,
   Query,
   UseGuards,
-} from '@nestjs/common';
-import { AuthGuard } from '../auth/guards/auth.guard.js'; // adjust to real path
-import { WorkspaceGuard } from '../workspace/workspace.guard.js'; // adjust
-import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
-import { CurrentWorkspaceId } from '../workspace/decorators/current-workspace-id.decorator.js';
-import { WikisService, ActingUser } from './wikis.service.js';
-import { CreateWikiDto } from './dto/create-wiki.dto.js';
-import { UpdateWikiDto } from './dto/update-wiki.dto.js';
-import { CommitPageDto } from './dto/commit-page.dto.js';
+} from "@nestjs/common";
+import { AuthGuard } from "../auth/guards/auth.guard.js"; // adjust to real path
+import { WorkspaceGuard } from "../workspace/workspace.guard.js"; // adjust
+import { CurrentUser } from "../auth/decorators/current-user.decorator.js";
+import { CurrentWorkspaceId } from "../workspace/decorators/current-workspace-id.decorator.js";
+import { WikisService, ActingUser } from "./wikis.service.js";
+import { CreateWikiDto } from "./dto/create-wiki.dto.js";
+import { UpdateWikiDto } from "./dto/update-wiki.dto.js";
+import { CommitPageDto } from "./dto/commit-page.dto.js";
 
-@Controller('api/wikis')
+@Controller("api/wikis")
 @UseGuards(AuthGuard, WorkspaceGuard)
 export class WikisController {
   constructor(private readonly service: WikisService) {}
@@ -2117,100 +2219,106 @@ export class WikisController {
     return this.service.createWiki(workspaceId, user, dto);
   }
 
-  @Get(':wikiId')
+  @Get(":wikiId")
   get(
     @CurrentWorkspaceId() workspaceId: string,
     @CurrentUser() user: ActingUser,
-    @Param('wikiId') wikiId: string,
+    @Param("wikiId") wikiId: string,
   ) {
     return this.service.getWiki(workspaceId, wikiId, user);
   }
 
-  @Patch(':wikiId')
+  @Patch(":wikiId")
   update(
     @CurrentWorkspaceId() workspaceId: string,
     @CurrentUser() user: ActingUser,
-    @Param('wikiId') wikiId: string,
+    @Param("wikiId") wikiId: string,
     @Body() dto: UpdateWikiDto,
   ) {
     return this.service.updateWikiSettings(workspaceId, wikiId, user, dto);
   }
 
-  @Delete(':wikiId')
+  @Delete(":wikiId")
   @HttpCode(HttpStatus.NO_CONTENT)
   archive(
     @CurrentWorkspaceId() workspaceId: string,
     @CurrentUser() user: ActingUser,
-    @Param('wikiId') wikiId: string,
+    @Param("wikiId") wikiId: string,
   ) {
     return this.service.archiveWiki(workspaceId, wikiId, user);
   }
 
-  @Get(':wikiId/tree')
+  @Get(":wikiId/tree")
   getTree(
     @CurrentWorkspaceId() workspaceId: string,
     @CurrentUser() user: ActingUser,
-    @Param('wikiId') wikiId: string,
-    @Query('path') path?: string,
-    @Query('recursive') recursive?: string,
+    @Param("wikiId") wikiId: string,
+    @Query("path") path?: string,
+    @Query("recursive") recursive?: string,
   ) {
     return this.service.getTree(workspaceId, wikiId, user, {
       path,
-      recursive: recursive === 'true',
+      recursive: recursive === "true",
     });
   }
 
-  @Get(':wikiId/pages')
+  @Get(":wikiId/pages")
   getPage(
     @CurrentWorkspaceId() workspaceId: string,
     @CurrentUser() user: ActingUser,
-    @Param('wikiId') wikiId: string,
-    @Query('path') path: string,
+    @Param("wikiId") wikiId: string,
+    @Query("path") path: string,
   ) {
     return this.service.getPage(workspaceId, wikiId, user, path);
   }
 
-  @Post(':wikiId/commit')
+  @Post(":wikiId/commit")
   commit(
     @CurrentWorkspaceId() workspaceId: string,
     @CurrentUser() user: ActingUser,
-    @Param('wikiId') wikiId: string,
+    @Param("wikiId") wikiId: string,
     @Body() dto: CommitPageDto,
   ) {
     return this.service.commitPage(workspaceId, wikiId, user, dto);
   }
 
-  @Get(':wikiId/proposals')
+  @Get(":wikiId/proposals")
   listProposals(
     @CurrentWorkspaceId() workspaceId: string,
     @CurrentUser() user: ActingUser,
-    @Param('wikiId') wikiId: string,
-    @Query('status') status?: string,
+    @Param("wikiId") wikiId: string,
+    @Query("status") status?: string,
   ) {
     return this.service.listProposals(workspaceId, wikiId, user, { status });
   }
 
-  @Post(':wikiId/proposals/:proposalId/approve')
+  @Post(":wikiId/proposals/:proposalId/approve")
   @HttpCode(HttpStatus.NO_CONTENT)
   approve(
     @CurrentWorkspaceId() workspaceId: string,
     @CurrentUser() user: ActingUser,
-    @Param('wikiId') wikiId: string,
-    @Param('proposalId') proposalId: string,
+    @Param("wikiId") wikiId: string,
+    @Param("proposalId") proposalId: string,
   ) {
     return this.service.approveProposal(workspaceId, wikiId, user, proposalId);
   }
 
-  @Post(':wikiId/proposals/:proposalId/reject')
+  @Post(":wikiId/proposals/:proposalId/reject")
   @HttpCode(HttpStatus.NO_CONTENT)
   reject(
     @CurrentWorkspaceId() workspaceId: string,
     @CurrentUser() user: ActingUser,
-    @Param('wikiId') wikiId: string,
-    @Param('proposalId') proposalId: string,
+    @Param("wikiId") wikiId: string,
+    @Param("proposalId") proposalId: string,
     @Body() body: { reason?: string } = {},
   ) {
-    return this.service.rejectProposal(workspaceId, wikiId, user, proposalId, body.reason);
+    return this.service.rejectProposal(
+      workspaceId,
+      wikiId,
+      user,
+      proposalId,
+      body.reason,
+    );
   }
 }
 ```
@@ -2237,10 +2345,12 @@ git commit -m "feat(wiki): add WikisController REST endpoints"
 **Goal:** Receive folder9 webhook events, verify the HMAC signature, and re-broadcast the relevant ones on the existing Team9 WebSocket gateway scoped to the workspace.
 
 **Files:**
+
 - Create: `apps/server/apps/gateway/src/wikis/folder9-webhook.controller.ts`
 - Create: `apps/server/apps/gateway/src/wikis/__tests__/folder9-webhook.controller.spec.ts`
 
 **Acceptance Criteria:**
+
 - [ ] `POST /api/folder9/webhook` verifies the `X-Folder9-Signature` header using HMAC-SHA256 with `FOLDER9_WEBHOOK_SECRET`
 - [ ] Invalid / missing signature → 401 (no business logic runs)
 - [ ] For `proposal.created`, `proposal.approved`, `proposal.rejected`, `ref.updated` → look up the Wiki by `folder_id`, emit WS event to the workspace room via existing `WebsocketGateway`
@@ -2265,27 +2375,27 @@ Confirm from [apps/server/apps/gateway/src/im/websocket/websocket.gateway.ts](..
 Create `apps/server/apps/gateway/src/wikis/__tests__/folder9-webhook.controller.spec.ts`:
 
 ```ts
-import { createHmac } from 'node:crypto';
-import { Test } from '@nestjs/testing';
-import { Folder9WebhookController } from '../folder9-webhook.controller.js';
-import { WEBSOCKET_GATEWAY } from '../../im/websocket/tokens.js';
-import { DATABASE_CONNECTION } from '@team9/database';
+import { createHmac } from "node:crypto";
+import { Test } from "@nestjs/testing";
+import { Folder9WebhookController } from "../folder9-webhook.controller.js";
+import { WEBSOCKET_GATEWAY } from "../../im/websocket/tokens.js";
+import { DATABASE_CONNECTION } from "@team9/database";
 
 function sign(body: string, secret: string): string {
-  return 'sha256=' + createHmac('sha256', secret).update(body).digest('hex');
+  return "sha256=" + createHmac("sha256", secret).update(body).digest("hex");
 }
 
-describe('Folder9WebhookController', () => {
+describe("Folder9WebhookController", () => {
   let ctrl: Folder9WebhookController;
   let ws: { broadcastToWorkspace: jest.Mock };
   let db: ReturnType<typeof mockDb>;
 
   beforeEach(async () => {
-    process.env.FOLDER9_WEBHOOK_SECRET = 'whsec';
+    process.env.FOLDER9_WEBHOOK_SECRET = "whsec";
     ws = { broadcastToWorkspace: jest.fn() };
     db = mockDb();
     (db.limit as jest.Mock).mockResolvedValue([
-      { id: 'w-1', workspaceId: 'ws-1', folder9FolderId: 'f9-1' },
+      { id: "w-1", workspaceId: "ws-1", folder9FolderId: "f9-1" },
     ]);
     const module = await Test.createTestingModule({
       controllers: [Folder9WebhookController],
@@ -2297,34 +2407,38 @@ describe('Folder9WebhookController', () => {
     ctrl = module.get(Folder9WebhookController);
   });
 
-  it('rejects missing signature', async () => {
+  it("rejects missing signature", async () => {
     await expect(ctrl.receive({}, undefined as never)).rejects.toMatchObject({
       status: 401,
     });
   });
 
-  it('rejects invalid signature', async () => {
-    const body = { event: 'proposal.approved', folderId: 'f9-1' };
-    await expect(
-      ctrl.receive(body, 'sha256=wrong'),
-    ).rejects.toMatchObject({ status: 401 });
+  it("rejects invalid signature", async () => {
+    const body = { event: "proposal.approved", folderId: "f9-1" };
+    await expect(ctrl.receive(body, "sha256=wrong")).rejects.toMatchObject({
+      status: 401,
+    });
   });
 
-  it('broadcasts proposal.approved to workspace', async () => {
-    const body = { event: 'proposal.approved', folderId: 'f9-1', proposalId: 'p1' };
-    const sig = sign(JSON.stringify(body), 'whsec');
+  it("broadcasts proposal.approved to workspace", async () => {
+    const body = {
+      event: "proposal.approved",
+      folderId: "f9-1",
+      proposalId: "p1",
+    };
+    const sig = sign(JSON.stringify(body), "whsec");
     await ctrl.receive(body, sig);
     expect(ws.broadcastToWorkspace).toHaveBeenCalledWith(
-      'ws-1',
-      'wiki_proposal_approved',
-      expect.objectContaining({ wikiId: 'w-1', proposalId: 'p1' }),
+      "ws-1",
+      "wiki_proposal_approved",
+      expect.objectContaining({ wikiId: "w-1", proposalId: "p1" }),
     );
   });
 
-  it('ignores unknown folder9 folder_id with log + 200', async () => {
+  it("ignores unknown folder9 folder_id with log + 200", async () => {
     (db.limit as jest.Mock).mockResolvedValueOnce([]);
-    const body = { event: 'ref.updated', folderId: 'f9-ghost' };
-    const sig = sign(JSON.stringify(body), 'whsec');
+    const body = { event: "ref.updated", folderId: "f9-ghost" };
+    const sig = sign(JSON.stringify(body), "whsec");
     await expect(ctrl.receive(body, sig)).resolves.toBeUndefined();
     expect(ws.broadcastToWorkspace).not.toHaveBeenCalled();
   });
@@ -2336,7 +2450,7 @@ describe('Folder9WebhookController', () => {
 Create `apps/server/apps/gateway/src/wikis/folder9-webhook.controller.ts`:
 
 ```ts
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   Body,
   Controller,
@@ -2347,18 +2461,18 @@ import {
   Inject,
   Logger,
   Post,
-} from '@nestjs/common';
-import { eq } from 'drizzle-orm';
-import { env } from '@team9/shared';
-import {
-  DATABASE_CONNECTION,
-  schema,
-  type Database,
-} from '@team9/database';
-import { WEBSOCKET_GATEWAY } from '../im/websocket/tokens.js'; // confirm path
+} from "@nestjs/common";
+import { eq } from "drizzle-orm";
+import { env } from "@team9/shared";
+import { DATABASE_CONNECTION, schema, type Database } from "@team9/database";
+import { WEBSOCKET_GATEWAY } from "../im/websocket/tokens.js"; // confirm path
 
 interface BroadcastingGateway {
-  broadcastToWorkspace(workspaceId: string, event: string, data: unknown): Promise<void>;
+  broadcastToWorkspace(
+    workspaceId: string,
+    event: string,
+    data: unknown,
+  ): Promise<void>;
 }
 
 interface Folder9WebhookPayload {
@@ -2369,7 +2483,7 @@ interface Folder9WebhookPayload {
   [k: string]: unknown;
 }
 
-@Controller('api/folder9')
+@Controller("api/folder9")
 export class Folder9WebhookController {
   private readonly logger = new Logger(Folder9WebhookController.name);
 
@@ -2378,22 +2492,23 @@ export class Folder9WebhookController {
     @Inject(WEBSOCKET_GATEWAY) private readonly ws: BroadcastingGateway,
   ) {}
 
-  @Post('webhook')
+  @Post("webhook")
   @HttpCode(HttpStatus.OK)
   async receive(
     @Body() body: Folder9WebhookPayload,
-    @Headers('x-folder9-signature') signature: string | undefined,
+    @Headers("x-folder9-signature") signature: string | undefined,
   ): Promise<void> {
     const secret = env.FOLDER9_WEBHOOK_SECRET;
-    if (!secret) throw new HttpException('webhook secret not set', 500);
-    if (!signature) throw new HttpException('missing signature', 401);
+    if (!secret) throw new HttpException("webhook secret not set", 500);
+    if (!signature) throw new HttpException("missing signature", 401);
 
     const expected =
-      'sha256=' + createHmac('sha256', secret).update(JSON.stringify(body)).digest('hex');
+      "sha256=" +
+      createHmac("sha256", secret).update(JSON.stringify(body)).digest("hex");
     const a = Buffer.from(signature);
     const b = Buffer.from(expected);
     if (a.length !== b.length || !timingSafeEqual(a, b)) {
-      throw new HttpException('invalid signature', 401);
+      throw new HttpException("invalid signature", 401);
     }
 
     const [wiki] = await this.db
@@ -2407,30 +2522,46 @@ export class Folder9WebhookController {
     }
 
     switch (body.event) {
-      case 'proposal.created':
-        await this.ws.broadcastToWorkspace(wiki.workspaceId, 'wiki_proposal_created', {
-          wikiId: wiki.id,
-          proposalId: body.proposalId,
-        });
+      case "proposal.created":
+        await this.ws.broadcastToWorkspace(
+          wiki.workspaceId,
+          "wiki_proposal_created",
+          {
+            wikiId: wiki.id,
+            proposalId: body.proposalId,
+          },
+        );
         return;
-      case 'proposal.approved':
-        await this.ws.broadcastToWorkspace(wiki.workspaceId, 'wiki_proposal_approved', {
-          wikiId: wiki.id,
-          proposalId: body.proposalId,
-        });
+      case "proposal.approved":
+        await this.ws.broadcastToWorkspace(
+          wiki.workspaceId,
+          "wiki_proposal_approved",
+          {
+            wikiId: wiki.id,
+            proposalId: body.proposalId,
+          },
+        );
         return;
-      case 'proposal.rejected':
-        await this.ws.broadcastToWorkspace(wiki.workspaceId, 'wiki_proposal_rejected', {
-          wikiId: wiki.id,
-          proposalId: body.proposalId,
-        });
+      case "proposal.rejected":
+        await this.ws.broadcastToWorkspace(
+          wiki.workspaceId,
+          "wiki_proposal_rejected",
+          {
+            wikiId: wiki.id,
+            proposalId: body.proposalId,
+          },
+        );
         return;
-      case 'ref.updated':
-        await this.ws.broadcastToWorkspace(wiki.workspaceId, 'wiki_page_updated', {
-          wikiId: wiki.id,
-          ref: body['ref'],
-          sha: body['sha'],
-        });
+      case "ref.updated":
+        await this.ws.broadcastToWorkspace(
+          wiki.workspaceId,
+          "wiki_page_updated",
+          {
+            wikiId: wiki.id,
+            ref: body["ref"],
+            sha: body["sha"],
+          },
+        );
         return;
       default:
         this.logger.debug(`ignored folder9 event ${body.event}`);
@@ -2459,10 +2590,12 @@ git commit -m "feat(wiki): add folder9 webhook receiver with HMAC verification"
 **Goal:** Register the new module and verify the gateway boots with no runtime errors.
 
 **Files:**
+
 - Create: `apps/server/apps/gateway/src/wikis/wikis.module.ts`
 - Modify: `apps/server/apps/gateway/src/app.module.ts`
 
 **Acceptance Criteria:**
+
 - [ ] `WikisModule` imports `DatabaseModule`, `WebsocketModule` (via `forwardRef`)
 - [ ] Providers: `WikisService`, `Folder9ClientService`
 - [ ] Controllers: `WikisController`, `Folder9WebhookController`
@@ -2476,13 +2609,13 @@ git commit -m "feat(wiki): add folder9 webhook receiver with HMAC verification"
 Create `apps/server/apps/gateway/src/wikis/wikis.module.ts`:
 
 ```ts
-import { forwardRef, Module } from '@nestjs/common';
-import { DatabaseModule } from '@team9/database';
-import { WebsocketModule } from '../im/websocket/websocket.module.js';
-import { WikisController } from './wikis.controller.js';
-import { WikisService } from './wikis.service.js';
-import { Folder9ClientService } from './folder9-client.service.js';
-import { Folder9WebhookController } from './folder9-webhook.controller.js';
+import { forwardRef, Module } from "@nestjs/common";
+import { DatabaseModule } from "@team9/database";
+import { WebsocketModule } from "../im/websocket/websocket.module.js";
+import { WikisController } from "./wikis.controller.js";
+import { WikisService } from "./wikis.service.js";
+import { Folder9ClientService } from "./folder9-client.service.js";
+import { Folder9WebhookController } from "./folder9-webhook.controller.js";
 
 @Module({
   imports: [DatabaseModule, forwardRef(() => WebsocketModule)],
@@ -2519,6 +2652,7 @@ git commit -m "feat(wiki): register WikisModule in gateway"
 **Goal:** Auto-create a `public` Wiki when a new workspace is created, and provide a script to backfill existing workspaces.
 
 **Files:**
+
 - Modify: `apps/server/apps/gateway/src/workspace/workspace.service.ts`
 - Modify: `apps/server/apps/gateway/src/workspace/workspace.module.ts` (import WikisModule)
 - Modify: `apps/server/apps/gateway/src/workspace/workspace.service.spec.ts` (mock WikisService)
@@ -2526,6 +2660,7 @@ git commit -m "feat(wiki): register WikisModule in gateway"
 - Create: `apps/server/apps/gateway/src/wikis/scripts/__tests__/backfill-public-wiki.spec.ts`
 
 **Acceptance Criteria:**
+
 - [ ] `WorkspaceService.create` calls `wikisService.createWiki(ws.id, { id: ownerId, isAgent: false }, { name: 'public', slug: 'public' })` after the workspace row + owner membership are committed
 - [ ] If the Wiki creation fails, workspace creation still succeeds (errors logged only)
 - [ ] Backfill script iterates every workspace, skips those with an existing `public` Wiki, creates one using the workspace's owner as `createdBy`
@@ -2549,7 +2684,7 @@ try {
   await this.wikisService.createWiki(
     workspace.id,
     { id: data.ownerId, isAgent: false },
-    { name: 'public', slug: 'public' },
+    { name: "public", slug: "public" },
   );
 } catch (err) {
   this.logger.warn(
@@ -2567,12 +2702,12 @@ Add a `WikisService` mock to the test module. Assert `wikisService.createWiki` i
 Create `apps/server/apps/gateway/src/wikis/scripts/backfill-public-wiki.ts`:
 
 ```ts
-import 'reflect-metadata';
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from '../../app.module.js';
-import { WikisService } from '../wikis.service.js';
-import { DATABASE_CONNECTION, schema, type Database } from '@team9/database';
-import { and, eq } from 'drizzle-orm';
+import "reflect-metadata";
+import { NestFactory } from "@nestjs/core";
+import { AppModule } from "../../app.module.js";
+import { WikisService } from "../wikis.service.js";
+import { DATABASE_CONNECTION, schema, type Database } from "@team9/database";
+import { and, eq } from "drizzle-orm";
 
 async function main() {
   const app = await NestFactory.createApplicationContext(AppModule);
@@ -2590,7 +2725,7 @@ async function main() {
       .where(
         and(
           eq(schema.workspaceWikis.workspaceId, ws.id),
-          eq(schema.workspaceWikis.slug, 'public'),
+          eq(schema.workspaceWikis.slug, "public"),
         ),
       )
       .limit(1);
@@ -2607,7 +2742,7 @@ async function main() {
       .where(
         and(
           eq(schema.tenantMembers.tenantId, ws.id),
-          eq(schema.tenantMembers.role, 'owner'),
+          eq(schema.tenantMembers.role, "owner"),
         ),
       )
       .limit(1);
@@ -2621,7 +2756,7 @@ async function main() {
       await wikisService.createWiki(
         ws.id,
         { id: owner.userId, isAgent: false },
-        { name: 'public', slug: 'public' },
+        { name: "public", slug: "public" },
       );
       created++;
       console.log(`seeded public wiki for ${ws.id}`);
@@ -2658,10 +2793,12 @@ git commit -m "feat(wiki): seed public wiki on workspace creation + backfill scr
 **Goal:** Run a thin end-to-end test that spins up a real folder9 instance via docker-compose and exercises the critical flows through the gateway.
 
 **Files:**
+
 - Create: `apps/server/apps/gateway/src/wikis/__tests__/integration/wiki-folder9.integration.spec.ts`
 - Create: `apps/server/apps/gateway/src/wikis/__tests__/integration/docker-compose.yml`
 
 **Acceptance Criteria:**
+
 - [ ] Docker-compose starts a folder9 container with a bound postgres
 - [ ] Test boots the NestJS module with real env vars pointing at the container
 - [ ] Flows tested:
@@ -2676,7 +2813,7 @@ git commit -m "feat(wiki): seed public wiki on workspace creation + backfill scr
 - [ ] **Step 1: Write the docker-compose**
 
 ```yaml
-version: '3.8'
+version: "3.8"
 services:
   folder9-postgres:
     image: postgres:16
@@ -2684,9 +2821,9 @@ services:
       POSTGRES_DB: folder9
       POSTGRES_USER: folder9
       POSTGRES_PASSWORD: folder9
-    ports: ['55432:5432']
+    ports: ["55432:5432"]
   folder9:
-    image: team9ai/folder9:latest  # build locally if not in registry
+    image: team9ai/folder9:latest # build locally if not in registry
     environment:
       DATABASE_URL: postgres://folder9:folder9@folder9-postgres:5432/folder9
       PSK: test-psk
@@ -2694,7 +2831,7 @@ services:
       FOLDER9_API_URL: http://folder9:8080
       FOLDER9_GIT_URL: http://folder9:8080
       DATA_ROOT: /data
-    ports: ['58080:8080']
+    ports: ["58080:8080"]
     depends_on: [folder9-postgres]
     volumes: [folder9-data:/data]
 volumes:
@@ -2729,6 +2866,7 @@ git commit -m "test(wiki): add end-to-end integration test against real folder9"
 **Goal:** Rename the `library` nav entry to `wiki` across MainSidebar, unlock list, all locale files, and the DynamicSubSidebar switch. Delete the old LibraryMainContent component and its route.
 
 **Files:**
+
 - Modify: `apps/client/src/components/layout/MainSidebar.tsx`
 - Modify: `apps/client/src/components/layout/mainSidebarUnlock.ts`
 - Modify: `apps/client/src/components/layout/DynamicSubSidebar.tsx`
@@ -2741,6 +2879,7 @@ git commit -m "test(wiki): add end-to-end integration test against real folder9"
 - Create (stubs for now): `apps/client/src/components/layout/sidebars/WikiSubSidebar.tsx`, `apps/client/src/components/layout/contents/WikiMainContent.tsx`
 
 **Acceptance Criteria:**
+
 - [ ] `MainSidebar.tsx` shows the new `wiki` entry with the existing `Library` icon
 - [ ] Tapping "More" 5 times still unlocks the wiki entry (same hidden-nav flow)
 - [ ] `DynamicSubSidebar` routes `wiki` section to `<WikiSubSidebar />` placeholder
@@ -2882,6 +3021,7 @@ git commit -m "feat(wiki): rename library nav to wiki, wire placeholder section"
 **Goal:** Add the frontend-facing types, the typed `apiClient.wikis.*` methods, the React Query hooks for reading and mutating, and a small Zustand store for UI state (selected wiki, selected page, tree-expansion state).
 
 **Files:**
+
 - Create: `apps/client/src/types/wiki.ts`
 - Create: `apps/client/src/services/api/wikis.ts`
 - Modify: `apps/client/src/services/api/index.ts` (export wikis client)
@@ -2893,6 +3033,7 @@ git commit -m "feat(wiki): rename library nav to wiki, wire placeholder section"
 - Create tests alongside each hook/store
 
 **Acceptance Criteria:**
+
 - [ ] `WikiDto`, `TreeEntryDto`, `PageDto`, `ProposalDto` types match the backend shapes exactly
 - [ ] `apiClient.wikis.list / create / update / archive / getTree / getPage / commit / listProposals / approve / reject` methods work against the gateway
 - [ ] Query keys structured as `['wikis']`, `['wikis', wikiId]`, `['wikis', wikiId, 'tree', path]`, `['wikis', wikiId, 'page', path]`, `['wikis', wikiId, 'proposals']`
@@ -2914,8 +3055,8 @@ pnpm --filter @team9/client test -- wiki
 Create `apps/client/src/types/wiki.ts`:
 
 ```ts
-export type WikiApprovalMode = 'auto' | 'review';
-export type WikiPermissionLevel = 'read' | 'propose' | 'write';
+export type WikiApprovalMode = "auto" | "review";
+export type WikiPermissionLevel = "read" | "propose" | "write";
 
 export interface WikiDto {
   id: string;
@@ -2934,7 +3075,7 @@ export interface WikiDto {
 export interface TreeEntryDto {
   name: string;
   path: string;
-  type: 'file' | 'dir';
+  type: "file" | "dir";
   size: number;
 }
 
@@ -2954,9 +3095,9 @@ export interface ProposalDto {
   wikiId: string;
   title: string;
   description: string;
-  status: 'pending' | 'changes_requested' | 'approved' | 'rejected';
+  status: "pending" | "changes_requested" | "approved" | "rejected";
   authorId: string;
-  authorType: 'user' | 'agent';
+  authorType: "user" | "agent";
   createdAt: string;
   reviewedBy: string | null;
   reviewedAt: string | null;
@@ -2965,8 +3106,8 @@ export interface ProposalDto {
 export interface CommitFileInput {
   path: string;
   content: string;
-  encoding?: 'text' | 'base64';
-  action: 'create' | 'update' | 'delete';
+  encoding?: "text" | "base64";
+  action: "create" | "update" | "delete";
 }
 
 export interface CommitPageInput {
@@ -2981,68 +3122,78 @@ export interface CommitPageInput {
 Create `apps/client/src/services/api/wikis.ts`:
 
 ```ts
-import { httpClient } from '../http';
+import { httpClient } from "../http";
 import type {
   WikiDto,
   TreeEntryDto,
   PageDto,
   ProposalDto,
   CommitPageInput,
-} from '@/types/wiki';
+} from "@/types/wiki";
 
 export interface CreateWikiInput {
   name: string;
   slug?: string;
   icon?: string;
-  approvalMode?: 'auto' | 'review';
-  humanPermission?: 'read' | 'propose' | 'write';
-  agentPermission?: 'read' | 'propose' | 'write';
+  approvalMode?: "auto" | "review";
+  humanPermission?: "read" | "propose" | "write";
+  agentPermission?: "read" | "propose" | "write";
 }
 
 export interface UpdateWikiInput {
   name?: string;
   slug?: string;
-  approvalMode?: 'auto' | 'review';
-  humanPermission?: 'read' | 'propose' | 'write';
-  agentPermission?: 'read' | 'propose' | 'write';
+  approvalMode?: "auto" | "review";
+  humanPermission?: "read" | "propose" | "write";
+  agentPermission?: "read" | "propose" | "write";
 }
 
 export const wikisApi = {
-  list: () => httpClient.get<WikiDto[]>('/api/wikis'),
-  create: (dto: CreateWikiInput) => httpClient.post<WikiDto>('/api/wikis', dto),
+  list: () => httpClient.get<WikiDto[]>("/api/wikis"),
+  create: (dto: CreateWikiInput) => httpClient.post<WikiDto>("/api/wikis", dto),
   get: (wikiId: string) => httpClient.get<WikiDto>(`/api/wikis/${wikiId}`),
   update: (wikiId: string, dto: UpdateWikiInput) =>
     httpClient.patch<WikiDto>(`/api/wikis/${wikiId}`, dto),
   archive: (wikiId: string) => httpClient.delete<void>(`/api/wikis/${wikiId}`),
-  getTree: (wikiId: string, opts: { path?: string; recursive?: boolean } = {}) => {
+  getTree: (
+    wikiId: string,
+    opts: { path?: string; recursive?: boolean } = {},
+  ) => {
     const params = new URLSearchParams();
-    if (opts.path) params.set('path', opts.path);
-    if (opts.recursive) params.set('recursive', 'true');
-    const qs = params.toString() ? `?${params}` : '';
+    if (opts.path) params.set("path", opts.path);
+    if (opts.recursive) params.set("recursive", "true");
+    const qs = params.toString() ? `?${params}` : "";
     return httpClient.get<TreeEntryDto[]>(`/api/wikis/${wikiId}/tree${qs}`);
   },
   getPage: (wikiId: string, path: string) =>
-    httpClient.get<PageDto>(`/api/wikis/${wikiId}/pages?path=${encodeURIComponent(path)}`),
-  commit: (wikiId: string, dto: CommitPageInput) =>
-    httpClient.post<{ commit: { sha: string }; proposal: { id: string; status: string } | null }>(
-      `/api/wikis/${wikiId}/commit`,
-      dto,
+    httpClient.get<PageDto>(
+      `/api/wikis/${wikiId}/pages?path=${encodeURIComponent(path)}`,
     ),
+  commit: (wikiId: string, dto: CommitPageInput) =>
+    httpClient.post<{
+      commit: { sha: string };
+      proposal: { id: string; status: string } | null;
+    }>(`/api/wikis/${wikiId}/commit`, dto),
   listProposals: (wikiId: string, status?: string) => {
-    const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+    const qs = status ? `?status=${encodeURIComponent(status)}` : "";
     return httpClient.get<ProposalDto[]>(`/api/wikis/${wikiId}/proposals${qs}`);
   },
   approveProposal: (wikiId: string, proposalId: string) =>
-    httpClient.post<void>(`/api/wikis/${wikiId}/proposals/${proposalId}/approve`),
+    httpClient.post<void>(
+      `/api/wikis/${wikiId}/proposals/${proposalId}/approve`,
+    ),
   rejectProposal: (wikiId: string, proposalId: string, reason?: string) =>
-    httpClient.post<void>(`/api/wikis/${wikiId}/proposals/${proposalId}/reject`, { reason }),
+    httpClient.post<void>(
+      `/api/wikis/${wikiId}/proposals/${proposalId}/reject`,
+      { reason },
+    ),
 };
 ```
 
 Re-export from `apps/client/src/services/api/index.ts`:
 
 ```ts
-export { wikisApi } from './wikis';
+export { wikisApi } from "./wikis";
 ```
 
 - [ ] **Step 3: Write React Query hooks**
@@ -3050,15 +3201,19 @@ export { wikisApi } from './wikis';
 Create `apps/client/src/hooks/useWikis.ts`:
 
 ```ts
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { wikisApi, type CreateWikiInput, type UpdateWikiInput } from '@/services/api/wikis';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  wikisApi,
+  type CreateWikiInput,
+  type UpdateWikiInput,
+} from "@/services/api/wikis";
 
 export const wikiKeys = {
-  all: ['wikis'] as const,
-  detail: (id: string) => ['wikis', id] as const,
-  tree: (id: string, path: string) => ['wikis', id, 'tree', path] as const,
-  page: (id: string, path: string) => ['wikis', id, 'page', path] as const,
-  proposals: (id: string) => ['wikis', id, 'proposals'] as const,
+  all: ["wikis"] as const,
+  detail: (id: string) => ["wikis", id] as const,
+  tree: (id: string, path: string) => ["wikis", id, "tree", path] as const,
+  page: (id: string, path: string) => ["wikis", id, "page", path] as const,
+  proposals: (id: string) => ["wikis", id, "proposals"] as const,
 };
 
 export function useWikis() {
@@ -3096,13 +3251,15 @@ export function useArchiveWiki() {
 Create `apps/client/src/hooks/useWikiTree.ts`:
 
 ```ts
-import { useQuery } from '@tanstack/react-query';
-import { wikisApi } from '@/services/api/wikis';
-import { wikiKeys } from './useWikis';
+import { useQuery } from "@tanstack/react-query";
+import { wikisApi } from "@/services/api/wikis";
+import { wikiKeys } from "./useWikis";
 
-export function useWikiTree(wikiId: string | null, path: string = '/') {
+export function useWikiTree(wikiId: string | null, path: string = "/") {
   return useQuery({
-    queryKey: wikiId ? wikiKeys.tree(wikiId, path) : ['wikis', 'tree', 'disabled'],
+    queryKey: wikiId
+      ? wikiKeys.tree(wikiId, path)
+      : ["wikis", "tree", "disabled"],
     queryFn: () => wikisApi.getTree(wikiId!, { path, recursive: true }),
     enabled: !!wikiId,
   });
@@ -3112,14 +3269,17 @@ export function useWikiTree(wikiId: string | null, path: string = '/') {
 Create `apps/client/src/hooks/useWikiPage.ts`:
 
 ```ts
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { wikisApi } from '@/services/api/wikis';
-import type { CommitPageInput } from '@/types/wiki';
-import { wikiKeys } from './useWikis';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { wikisApi } from "@/services/api/wikis";
+import type { CommitPageInput } from "@/types/wiki";
+import { wikiKeys } from "./useWikis";
 
 export function useWikiPage(wikiId: string | null, path: string | null) {
   return useQuery({
-    queryKey: wikiId && path ? wikiKeys.page(wikiId, path) : ['wikis', 'page', 'disabled'],
+    queryKey:
+      wikiId && path
+        ? wikiKeys.page(wikiId, path)
+        : ["wikis", "page", "disabled"],
     queryFn: () => wikisApi.getPage(wikiId!, path!),
     enabled: !!wikiId && !!path,
   });
@@ -3130,7 +3290,7 @@ export function useCommitWikiPage(wikiId: string) {
   return useMutation({
     mutationFn: (dto: CommitPageInput) => wikisApi.commit(wikiId, dto),
     onSuccess: (_res, variables) => {
-      qc.invalidateQueries({ queryKey: wikiKeys.tree(wikiId, '/') });
+      qc.invalidateQueries({ queryKey: wikiKeys.tree(wikiId, "/") });
       for (const f of variables.files) {
         qc.invalidateQueries({ queryKey: wikiKeys.page(wikiId, f.path) });
       }
@@ -3142,13 +3302,18 @@ export function useCommitWikiPage(wikiId: string) {
 Create `apps/client/src/hooks/useWikiProposals.ts`:
 
 ```ts
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { wikisApi } from '@/services/api/wikis';
-import { wikiKeys } from './useWikis';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { wikisApi } from "@/services/api/wikis";
+import { wikiKeys } from "./useWikis";
 
-export function useWikiProposals(wikiId: string | null, status: string = 'pending') {
+export function useWikiProposals(
+  wikiId: string | null,
+  status: string = "pending",
+) {
   return useQuery({
-    queryKey: wikiId ? [...wikiKeys.proposals(wikiId), status] : ['wikis', 'proposals', 'disabled'],
+    queryKey: wikiId
+      ? [...wikiKeys.proposals(wikiId), status]
+      : ["wikis", "proposals", "disabled"],
     queryFn: () => wikisApi.listProposals(wikiId!, status),
     enabled: !!wikiId,
   });
@@ -3157,8 +3322,10 @@ export function useWikiProposals(wikiId: string | null, status: string = 'pendin
 export function useApproveProposal(wikiId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (proposalId: string) => wikisApi.approveProposal(wikiId, proposalId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: wikiKeys.proposals(wikiId) }),
+    mutationFn: (proposalId: string) =>
+      wikisApi.approveProposal(wikiId, proposalId),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: wikiKeys.proposals(wikiId) }),
   });
 }
 
@@ -3167,7 +3334,8 @@ export function useRejectProposal(wikiId: string) {
   return useMutation({
     mutationFn: (input: { proposalId: string; reason?: string }) =>
       wikisApi.rejectProposal(wikiId, input.proposalId, input.reason),
-    onSuccess: () => qc.invalidateQueries({ queryKey: wikiKeys.proposals(wikiId) }),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: wikiKeys.proposals(wikiId) }),
   });
 }
 ```
@@ -3177,8 +3345,8 @@ export function useRejectProposal(wikiId: string) {
 Create `apps/client/src/stores/wiki.ts`:
 
 ```ts
-import { create } from 'zustand';
-import { devtools } from 'zustand/middleware';
+import { create } from "zustand";
+import { devtools } from "zustand/middleware";
 
 interface WikiState {
   selectedWikiId: string | null;
@@ -3198,9 +3366,13 @@ export const useWikiStore = create<WikiState>()(
       selectedPagePath: null,
       expandedDirectories: new Set(),
       setSelectedWiki: (selectedWikiId) =>
-        set({ selectedWikiId, selectedPagePath: null }, false, 'setSelectedWiki'),
+        set(
+          { selectedWikiId, selectedPagePath: null },
+          false,
+          "setSelectedWiki",
+        ),
       setSelectedPage: (selectedPagePath) =>
-        set({ selectedPagePath }, false, 'setSelectedPage'),
+        set({ selectedPagePath }, false, "setSelectedPage"),
       toggleDirectory: (key) =>
         set(
           (s) => {
@@ -3210,27 +3382,36 @@ export const useWikiStore = create<WikiState>()(
             return { expandedDirectories: next };
           },
           false,
-          'toggleDirectory',
+          "toggleDirectory",
         ),
       reset: () =>
         set(
-          { selectedWikiId: null, selectedPagePath: null, expandedDirectories: new Set() },
+          {
+            selectedWikiId: null,
+            selectedPagePath: null,
+            expandedDirectories: new Set(),
+          },
           false,
-          'reset',
+          "reset",
         ),
     }),
-    { name: 'WikiStore' },
+    { name: "WikiStore" },
   ),
 );
 
 export const useSelectedWikiId = () => useWikiStore((s) => s.selectedWikiId);
-export const useSelectedPagePath = () => useWikiStore((s) => s.selectedPagePath);
-export const useExpandedDirectories = () => useWikiStore((s) => s.expandedDirectories);
+export const useSelectedPagePath = () =>
+  useWikiStore((s) => s.selectedPagePath);
+export const useExpandedDirectories = () =>
+  useWikiStore((s) => s.expandedDirectories);
 
 export const wikiActions = {
-  setSelectedWiki: (id: string | null) => useWikiStore.getState().setSelectedWiki(id),
-  setSelectedPage: (path: string | null) => useWikiStore.getState().setSelectedPage(path),
-  toggleDirectory: (key: string) => useWikiStore.getState().toggleDirectory(key),
+  setSelectedWiki: (id: string | null) =>
+    useWikiStore.getState().setSelectedWiki(id),
+  setSelectedPage: (path: string | null) =>
+    useWikiStore.getState().setSelectedPage(path),
+  toggleDirectory: (key: string) =>
+    useWikiStore.getState().toggleDirectory(key),
   reset: () => useWikiStore.getState().reset(),
 };
 ```
@@ -3238,6 +3419,7 @@ export const wikiActions = {
 - [ ] **Step 5: Write tests for each file**
 
 Follow patterns from existing tests (e.g., `useDocuments.test.tsx`, `home.test.ts`). Test:
+
 - Each query hook: mocks `wikisApi`, asserts `queryKey` and `queryFn` wire up correctly
 - Each mutation hook: fires mutation, verifies invalidation
 - Store: all actions, all selectors, toggle de-dup
@@ -3256,10 +3438,12 @@ git commit -m "feat(wiki): add types, API client, React Query hooks, and Zustand
 **Goal:** Implement the browser-side frontmatter parser/serializer that mirrors the gateway's, and run the same fixture-based round-trip tests against both.
 
 **Files:**
+
 - Create: `apps/client/src/lib/wiki-frontmatter.ts`
 - Create: `apps/client/src/lib/__tests__/wiki-frontmatter.test.ts`
 
 **Acceptance Criteria:**
+
 - [ ] `parseFrontmatter(source)` returns `{ frontmatter, body }` matching the gateway implementation bit-for-bit
 - [ ] `serializeFrontmatter({ frontmatter, body })` is a pure inverse
 - [ ] Unit tests import the same `test-fixtures/wiki-frontmatter/fixtures.json` used by the gateway tests (via relative path)
@@ -3277,23 +3461,23 @@ Create `apps/client/src/lib/wiki-frontmatter.ts` — copy the same logic from th
 Create `apps/client/src/lib/__tests__/wiki-frontmatter.test.ts` — mirror the gateway spec with Vitest (import from `vitest`, use `describe/it/expect`). Load fixtures via `?raw` Vite import:
 
 ```ts
-import { describe, it, expect } from 'vitest';
-import { parseFrontmatter, serializeFrontmatter } from '../wiki-frontmatter';
+import { describe, it, expect } from "vitest";
+import { parseFrontmatter, serializeFrontmatter } from "../wiki-frontmatter";
 
-import basicMd from '../../../../server/libs/shared/test-fixtures/wiki-frontmatter/basic.md?raw';
-import noneMd from '../../../../server/libs/shared/test-fixtures/wiki-frontmatter/no-frontmatter.md?raw';
-import unknownMd from '../../../../server/libs/shared/test-fixtures/wiki-frontmatter/unknown-keys.md?raw';
-import emptyMd from '../../../../server/libs/shared/test-fixtures/wiki-frontmatter/empty-body.md?raw';
-import expected from '../../../../server/libs/shared/test-fixtures/wiki-frontmatter/fixtures.json';
+import basicMd from "../../../../server/libs/shared/test-fixtures/wiki-frontmatter/basic.md?raw";
+import noneMd from "../../../../server/libs/shared/test-fixtures/wiki-frontmatter/no-frontmatter.md?raw";
+import unknownMd from "../../../../server/libs/shared/test-fixtures/wiki-frontmatter/unknown-keys.md?raw";
+import emptyMd from "../../../../server/libs/shared/test-fixtures/wiki-frontmatter/empty-body.md?raw";
+import expected from "../../../../server/libs/shared/test-fixtures/wiki-frontmatter/fixtures.json";
 
 const cases = [
-  ['basic.md', basicMd],
-  ['no-frontmatter.md', noneMd],
-  ['unknown-keys.md', unknownMd],
-  ['empty-body.md', emptyMd],
+  ["basic.md", basicMd],
+  ["no-frontmatter.md", noneMd],
+  ["unknown-keys.md", unknownMd],
+  ["empty-body.md", emptyMd],
 ] as const;
 
-describe('wiki-frontmatter', () => {
+describe("wiki-frontmatter", () => {
   for (const [name, source] of cases) {
     it(`parses ${name}`, () => {
       const result = parseFrontmatter(source);
@@ -3307,7 +3491,7 @@ describe('wiki-frontmatter', () => {
     });
   }
 
-  it('throws on malformed YAML', () => {
+  it("throws on malformed YAML", () => {
     expect(() => parseFrontmatter('---\nicon: "\n---\n')).toThrow();
   });
 });
@@ -3335,6 +3519,7 @@ git commit -m "feat(wiki): add client-side frontmatter util with shared fixtures
 **Goal:** Create the three TanStack Router files that back the Wiki section and replace the placeholder `WikiMainContent.tsx` with one that wires the selected-page state to the page view (page view stub — real impl in Task 17).
 
 **Files:**
+
 - Create: `apps/client/src/routes/_authenticated/wiki/index.tsx`
 - Create: `apps/client/src/routes/_authenticated/wiki/$wikiSlug.tsx`
 - Create: `apps/client/src/routes/_authenticated/wiki/$wikiSlug.$.tsx`
@@ -3342,6 +3527,7 @@ git commit -m "feat(wiki): add client-side frontmatter util with shared fixtures
 - Create: `apps/client/src/components/wiki/WikiEmptyState.tsx`
 
 **Acceptance Criteria:**
+
 - [ ] Navigating to `/wiki` shows the empty state (no wiki selected)
 - [ ] Navigating to `/wiki/public` selects the `public` wiki and shows its `index.md` if one exists (or empty state)
 - [ ] Navigating to `/wiki/public/api/auth.md` selects the page at `api/auth.md`
@@ -3355,10 +3541,10 @@ git commit -m "feat(wiki): add client-side frontmatter util with shared fixtures
 `apps/client/src/routes/_authenticated/wiki/index.tsx`:
 
 ```tsx
-import { createFileRoute } from '@tanstack/react-router';
-import { WikiMainContent } from '@/components/layout/contents/WikiMainContent';
+import { createFileRoute } from "@tanstack/react-router";
+import { WikiMainContent } from "@/components/layout/contents/WikiMainContent";
 
-export const Route = createFileRoute('/_authenticated/wiki/')({
+export const Route = createFileRoute("/_authenticated/wiki/")({
   component: () => <WikiMainContent />,
 });
 ```
@@ -3366,13 +3552,13 @@ export const Route = createFileRoute('/_authenticated/wiki/')({
 `apps/client/src/routes/_authenticated/wiki/$wikiSlug.tsx`:
 
 ```tsx
-import { createFileRoute } from '@tanstack/react-router';
-import { useEffect } from 'react';
-import { WikiMainContent } from '@/components/layout/contents/WikiMainContent';
-import { wikiActions } from '@/stores/wiki';
-import { useWikis } from '@/hooks/useWikis';
+import { createFileRoute } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { WikiMainContent } from "@/components/layout/contents/WikiMainContent";
+import { wikiActions } from "@/stores/wiki";
+import { useWikis } from "@/hooks/useWikis";
 
-export const Route = createFileRoute('/_authenticated/wiki/$wikiSlug')({
+export const Route = createFileRoute("/_authenticated/wiki/$wikiSlug")({
   component: WikiSlugPage,
 });
 
@@ -3384,7 +3570,7 @@ function WikiSlugPage() {
     const wiki = wikis?.find((w) => w.slug === wikiSlug);
     if (wiki) {
       wikiActions.setSelectedWiki(wiki.id);
-      wikiActions.setSelectedPage('index.md');
+      wikiActions.setSelectedPage("index.md");
     }
   }, [wikis, wikiSlug]);
 
@@ -3395,13 +3581,13 @@ function WikiSlugPage() {
 `apps/client/src/routes/_authenticated/wiki/$wikiSlug.$.tsx`:
 
 ```tsx
-import { createFileRoute } from '@tanstack/react-router';
-import { useEffect } from 'react';
-import { WikiMainContent } from '@/components/layout/contents/WikiMainContent';
-import { wikiActions } from '@/stores/wiki';
-import { useWikis } from '@/hooks/useWikis';
+import { createFileRoute } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { WikiMainContent } from "@/components/layout/contents/WikiMainContent";
+import { wikiActions } from "@/stores/wiki";
+import { useWikis } from "@/hooks/useWikis";
 
-export const Route = createFileRoute('/_authenticated/wiki/$wikiSlug/$')({
+export const Route = createFileRoute("/_authenticated/wiki/$wikiSlug/$")({
   component: WikiCatchallPage,
 });
 
@@ -3419,9 +3605,9 @@ function WikiCatchallPage() {
       wikiActions.setSelectedPage(pagePath);
 
       // Auto-expand parent directories
-      const parts = pagePath.split('/');
+      const parts = pagePath.split("/");
       parts.pop();
-      let acc = '';
+      let acc = "";
       for (const p of parts) {
         acc = acc ? `${acc}/${p}` : p;
         wikiActions.toggleDirectory(acc);
@@ -3438,7 +3624,7 @@ function WikiCatchallPage() {
 - [ ] **Step 2: Build WikiEmptyState**
 
 ```tsx
-import { Library } from 'lucide-react';
+import { Library } from "lucide-react";
 
 export function WikiEmptyState() {
   return (
@@ -3446,7 +3632,8 @@ export function WikiEmptyState() {
       <Library size={48} className="text-primary/40" />
       <h2 className="font-semibold text-lg">Select a Wiki page</h2>
       <p className="text-sm text-muted-foreground max-w-sm">
-        Pick a page from the tree on the left, or create a new Wiki with the + button.
+        Pick a page from the tree on the left, or create a new Wiki with the +
+        button.
       </p>
     </main>
   );
@@ -3458,9 +3645,9 @@ export function WikiEmptyState() {
 `apps/client/src/components/layout/contents/WikiMainContent.tsx`:
 
 ```tsx
-import { useSelectedWikiId, useSelectedPagePath } from '@/stores/wiki';
-import { WikiEmptyState } from '@/components/wiki/WikiEmptyState';
-import { WikiPageView } from '@/components/wiki/WikiPageView'; // placeholder — built in Task 17
+import { useSelectedWikiId, useSelectedPagePath } from "@/stores/wiki";
+import { WikiEmptyState } from "@/components/wiki/WikiEmptyState";
+import { WikiPageView } from "@/components/wiki/WikiPageView"; // placeholder — built in Task 17
 
 export function WikiMainContent() {
   const wikiId = useSelectedWikiId();
@@ -3496,6 +3683,7 @@ git commit -m "feat(wiki): add wiki routes and content area scaffolding"
 **Goal:** Replace the placeholder `WikiSubSidebar` with the real one: header + list of wikis + recursive file tree derived from the flat folder9 response.
 
 **Files:**
+
 - Modify: `apps/client/src/components/layout/sidebars/WikiSubSidebar.tsx`
 - Create: `apps/client/src/components/wiki/WikiListItem.tsx`
 - Create: `apps/client/src/components/wiki/WikiTreeNode.tsx`
@@ -3503,6 +3691,7 @@ git commit -m "feat(wiki): add wiki routes and content area scaffolding"
 - Create tests for each
 
 **Acceptance Criteria:**
+
 - [ ] Header shows "Wiki" + a `+` button (opens CreateWikiDialog — stub for now)
 - [ ] Lists all non-archived wikis; each row is a `<WikiListItem>` with chevron, icon, name
 - [ ] Clicking a wiki row expands/collapses it and fetches its tree lazily via `useWikiTree`
@@ -3521,12 +3710,12 @@ git commit -m "feat(wiki): add wiki routes and content area scaffolding"
 Create `apps/client/src/lib/wiki-tree.ts`:
 
 ```ts
-import type { TreeEntryDto } from '@/types/wiki';
+import type { TreeEntryDto } from "@/types/wiki";
 
 export interface WikiTreeNodeData {
   name: string;
-  path: string;            // full path from wiki root
-  type: 'file' | 'dir';
+  path: string; // full path from wiki root
+  type: "file" | "dir";
   children: WikiTreeNodeData[];
 }
 
@@ -3539,15 +3728,15 @@ export function buildTree(entries: TreeEntryDto[]): WikiTreeNodeData[] {
   const rootChildren: Record<string, WikiTreeNodeData> = {};
 
   for (const entry of entries) {
-    if (entry.path.startsWith('.') || entry.path.includes('/.')) {
+    if (entry.path.startsWith(".") || entry.path.includes("/.")) {
       // Skip dot-prefixed paths (.team9/, etc.)
       continue;
     }
-    if (entry.type !== 'file') continue;
+    if (entry.type !== "file") continue;
 
-    const parts = entry.path.split('/');
+    const parts = entry.path.split("/");
     let cursor = rootChildren;
-    let accumulated = '';
+    let accumulated = "";
 
     for (let i = 0; i < parts.length - 1; i++) {
       const segment = parts[i];
@@ -3556,13 +3745,15 @@ export function buildTree(entries: TreeEntryDto[]): WikiTreeNodeData[] {
         cursor[segment] = {
           name: segment,
           path: accumulated,
-          type: 'dir',
+          type: "dir",
           children: [],
         };
       }
       const node = cursor[segment];
       // Re-use the same object's children via a map — store children as map during build, flatten later
-      const childMap = (node as unknown as { _childMap?: Record<string, WikiTreeNodeData> })._childMap ??= {};
+      const childMap = ((
+        node as unknown as { _childMap?: Record<string, WikiTreeNodeData> }
+      )._childMap ??= {});
       cursor = childMap as unknown as Record<string, WikiTreeNodeData>;
     }
 
@@ -3570,7 +3761,7 @@ export function buildTree(entries: TreeEntryDto[]): WikiTreeNodeData[] {
     cursor[fileName] = {
       name: fileName,
       path: entry.path,
-      type: 'file',
+      type: "file",
       children: [],
     };
   }
@@ -3582,7 +3773,9 @@ function flatten(map: Record<string, WikiTreeNodeData>): WikiTreeNodeData[] {
   const result: WikiTreeNodeData[] = [];
   for (const key of Object.keys(map).sort()) {
     const node = map[key];
-    const childMap = (node as unknown as { _childMap?: Record<string, WikiTreeNodeData> })._childMap;
+    const childMap = (
+      node as unknown as { _childMap?: Record<string, WikiTreeNodeData> }
+    )._childMap;
     if (childMap) {
       node.children = flatten(childMap);
       delete (node as unknown as { _childMap?: unknown })._childMap;
@@ -3591,7 +3784,7 @@ function flatten(map: Record<string, WikiTreeNodeData>): WikiTreeNodeData[] {
   }
   // Directories before files
   return result.sort((a, b) => {
-    if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+    if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
     return a.name.localeCompare(b.name);
   });
 }
@@ -3604,15 +3797,15 @@ Test the util thoroughly with fixtures like `[{path: 'a.md'}, {path: 'api/auth.m
 Create `apps/client/src/components/wiki/WikiTreeNode.tsx`:
 
 ```tsx
-import { ChevronDown, ChevronRight, FileText, Folder } from 'lucide-react';
-import { useNavigate } from '@tanstack/react-router';
-import { cn } from '@/lib/utils';
+import { ChevronDown, ChevronRight, FileText, Folder } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { cn } from "@/lib/utils";
 import {
   useExpandedDirectories,
   useSelectedPagePath,
   wikiActions,
-} from '@/stores/wiki';
-import type { WikiTreeNodeData } from '@/lib/wiki-tree';
+} from "@/stores/wiki";
+import type { WikiTreeNodeData } from "@/lib/wiki-tree";
 
 interface Props {
   node: WikiTreeNodeData;
@@ -3625,18 +3818,24 @@ export function WikiTreeNode({ node, wikiSlug, depth }: Props) {
   const expanded = useExpandedDirectories();
   const selectedPath = useSelectedPagePath();
   const isExpanded = expanded.has(node.path);
-  const isActive = node.type === 'file' && selectedPath === node.path;
+  const isActive = node.type === "file" && selectedPath === node.path;
 
   const handleClick = () => {
-    if (node.type === 'dir') {
+    if (node.type === "dir") {
       wikiActions.toggleDirectory(node.path);
       // If the dir has an index.md child, navigate to it
-      const indexChild = node.children.find((c) => c.name === 'index.md');
+      const indexChild = node.children.find((c) => c.name === "index.md");
       if (indexChild) {
-        navigate({ to: '/wiki/$wikiSlug/$', params: { wikiSlug, _splat: indexChild.path } });
+        navigate({
+          to: "/wiki/$wikiSlug/$",
+          params: { wikiSlug, _splat: indexChild.path },
+        });
       }
     } else {
-      navigate({ to: '/wiki/$wikiSlug/$', params: { wikiSlug, _splat: node.path } });
+      navigate({
+        to: "/wiki/$wikiSlug/$",
+        params: { wikiSlug, _splat: node.path },
+      });
     }
   };
 
@@ -3646,19 +3845,23 @@ export function WikiTreeNode({ node, wikiSlug, depth }: Props) {
         onClick={handleClick}
         style={{ paddingLeft: `${8 + depth * 14}px` }}
         className={cn(
-          'flex items-center gap-1 px-2 py-1 text-xs w-full text-left hover:bg-accent',
-          isActive && 'bg-primary/10 text-primary font-medium',
+          "flex items-center gap-1 px-2 py-1 text-xs w-full text-left hover:bg-accent",
+          isActive && "bg-primary/10 text-primary font-medium",
         )}
       >
-        {node.type === 'dir' ? (
-          isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />
+        {node.type === "dir" ? (
+          isExpanded ? (
+            <ChevronDown size={12} />
+          ) : (
+            <ChevronRight size={12} />
+          )
         ) : (
           <span style={{ width: 12 }} />
         )}
-        {node.type === 'dir' ? <Folder size={12} /> : <FileText size={12} />}
+        {node.type === "dir" ? <Folder size={12} /> : <FileText size={12} />}
         <span className="truncate">{node.name}</span>
       </button>
-      {node.type === 'dir' && isExpanded && (
+      {node.type === "dir" && isExpanded && (
         <div>
           {node.children.map((child) => (
             <WikiTreeNode
@@ -3680,12 +3883,16 @@ export function WikiTreeNode({ node, wikiSlug, depth }: Props) {
 `apps/client/src/components/wiki/WikiListItem.tsx`:
 
 ```tsx
-import { ChevronDown, ChevronRight, Library as LibraryIcon } from 'lucide-react';
-import { useWikiTree } from '@/hooks/useWikiTree';
-import { useExpandedDirectories, wikiActions } from '@/stores/wiki';
-import { buildTree } from '@/lib/wiki-tree';
-import { WikiTreeNode } from './WikiTreeNode';
-import type { WikiDto } from '@/types/wiki';
+import {
+  ChevronDown,
+  ChevronRight,
+  Library as LibraryIcon,
+} from "lucide-react";
+import { useWikiTree } from "@/hooks/useWikiTree";
+import { useExpandedDirectories, wikiActions } from "@/stores/wiki";
+import { buildTree } from "@/lib/wiki-tree";
+import { WikiTreeNode } from "./WikiTreeNode";
+import type { WikiDto } from "@/types/wiki";
 
 interface Props {
   wiki: WikiDto;
@@ -3707,9 +3914,15 @@ export function WikiListItem({ wiki }: Props) {
         <LibraryIcon size={14} className="text-primary" />
         <span className="truncate">{wiki.name}</span>
       </button>
-      {isOpen && tree.map((node) => (
-        <WikiTreeNode key={node.path} node={node} wikiSlug={wiki.slug} depth={1} />
-      ))}
+      {isOpen &&
+        tree.map((node) => (
+          <WikiTreeNode
+            key={node.path}
+            node={node}
+            wikiSlug={wiki.slug}
+            depth={1}
+          />
+        ))}
     </div>
   );
 }
@@ -3718,18 +3931,18 @@ export function WikiListItem({ wiki }: Props) {
 `apps/client/src/components/layout/sidebars/WikiSubSidebar.tsx` — replace the stub:
 
 ```tsx
-import { useState } from 'react';
-import { Library, Plus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import { useTranslation } from 'react-i18next';
-import { useWikis } from '@/hooks/useWikis';
-import { WikiListItem } from '@/components/wiki/WikiListItem';
-import { CreateWikiDialog } from '@/components/wiki/CreateWikiDialog'; // Task 20
+import { useState } from "react";
+import { Library, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { useTranslation } from "react-i18next";
+import { useWikis } from "@/hooks/useWikis";
+import { WikiListItem } from "@/components/wiki/WikiListItem";
+import { CreateWikiDialog } from "@/components/wiki/CreateWikiDialog"; // Task 20
 
 export function WikiSubSidebar() {
-  const { t } = useTranslation('navigation');
+  const { t } = useTranslation("navigation");
   const { data: wikis, isLoading } = useWikis();
   const [showCreate, setShowCreate] = useState(false);
 
@@ -3738,7 +3951,7 @@ export function WikiSubSidebar() {
       <header className="h-14 flex items-center justify-between px-4 border-b border-border">
         <div className="flex items-center gap-2">
           <Library size={18} className="text-primary" />
-          <h2 className="font-semibold text-sm">{t('wiki')}</h2>
+          <h2 className="font-semibold text-sm">{t("wiki")}</h2>
         </div>
         <Button size="sm" variant="ghost" onClick={() => setShowCreate(true)}>
           <Plus size={14} />
@@ -3754,7 +3967,9 @@ export function WikiSubSidebar() {
             No wikis yet. Click + to create one.
           </p>
         )}
-        {wikis?.map((wiki) => <WikiListItem key={wiki.id} wiki={wiki} />)}
+        {wikis?.map((wiki) => (
+          <WikiListItem key={wiki.id} wiki={wiki} />
+        ))}
       </ScrollArea>
       <CreateWikiDialog open={showCreate} onOpenChange={setShowCreate} />
     </div>
@@ -3782,6 +3997,7 @@ git commit -m "feat(wiki): add sidebar with wiki list and derived file tree"
 **Goal:** Replace the `WikiPageView` stub with the Notion-style page view (cover band → overlapping icon → breadcrumb → title → status bar). Build the `useWikiDraft` hook that persists edits to localStorage.
 
 **Files:**
+
 - Create: `apps/client/src/components/wiki/WikiPageView.tsx`
 - Create: `apps/client/src/components/wiki/WikiCover.tsx`
 - Create: `apps/client/src/components/wiki/WikiPageHeader.tsx`
@@ -3790,6 +4006,7 @@ git commit -m "feat(wiki): add sidebar with wiki list and derived file tree"
 - Create tests for `useWikiDraft` + `WikiPageView` render
 
 **Acceptance Criteria:**
+
 - [ ] `WikiPageView` takes `wikiId` + `path`, calls `useWikiPage`, shows skeleton → view
 - [ ] `WikiCover` renders either the frontmatter `cover` image (fetched via gateway `getPage` for the image file? OR direct HTTP GET on the blob endpoint) or a gradient fallback
 - [ ] `WikiPageHeader` shows icon (emoji or image), breadcrumb of parent dirs, and the title (frontmatter.title || first H1 || filename)
@@ -3807,9 +4024,9 @@ git commit -m "feat(wiki): add sidebar with wiki list and derived file tree"
 Create `apps/client/src/hooks/useWikiDraft.ts`:
 
 ```ts
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useCurrentUser } from './useAuth';
-import { useWorkspaceStore } from '@/stores';
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useCurrentUser } from "./useAuth";
+import { useWorkspaceStore } from "@/stores";
 
 export interface Draft {
   body: string;
@@ -3817,7 +4034,12 @@ export interface Draft {
   savedAt: number;
 }
 
-function draftKey(userId: string, workspaceId: string, wikiId: string, path: string): string {
+function draftKey(
+  userId: string,
+  workspaceId: string,
+  wikiId: string,
+  path: string,
+): string {
   const pathB64 = btoa(unescape(encodeURIComponent(path)));
   return `team9.wiki.draft.${workspaceId}.${wikiId}.${pathB64}.${userId}`;
 }
@@ -3843,7 +4065,11 @@ function writeDraft(key: string, draft: Draft): void {
 export function useWikiDraft(
   wikiId: string | null,
   path: string | null,
-  serverSnapshot: { body: string; frontmatter: Record<string, unknown>; lastCommitTime: string | null } | null,
+  serverSnapshot: {
+    body: string;
+    frontmatter: Record<string, unknown>;
+    lastCommitTime: string | null;
+  } | null,
 ) {
   const { data: currentUser } = useCurrentUser();
   const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
@@ -3907,7 +4133,14 @@ export function useWikiDraft(
 
   const isDirty = draft != null;
 
-  return { draft, setDraft, clearDraft, isDirty, hasStaleAlert, dismissStaleAlert };
+  return {
+    draft,
+    setDraft,
+    clearDraft,
+    isDirty,
+    hasStaleAlert,
+    dismissStaleAlert,
+  };
 }
 ```
 
@@ -3918,7 +4151,7 @@ Test file covers: debounce write, read on mount, stale alert, cross-user key iso
 `WikiCover.tsx` — shows a cover image or gradient fallback; the cover path is resolved by calling gateway's `GET /api/wikis/:wikiId/pages?path=<cover-path>` and base64-decoding the content — OR, simpler: use a dedicated `GET /api/wikis/:wikiId/raw?path=<cover-path>` endpoint that streams binary. **For MVP, add a new gateway method `getRaw(path)` to `WikisService` that passes through to folder9's `/raw` endpoint (managed folders supports this).** Track that as a mini-addition inside this task.
 
 ```tsx
-import { env } from '@/config/env';
+import { env } from "@/config/env";
 
 interface Props {
   wikiId: string;
@@ -3961,7 +4194,7 @@ Add matching `getRaw` to `WikisService` and `Folder9ClientService`. Include test
 `WikiPageHeader.tsx` — builds the breadcrumb from the path string, renders icon + title:
 
 ```tsx
-import { Link } from '@tanstack/react-router';
+import { Link } from "@tanstack/react-router";
 
 interface Props {
   wikiSlug: string;
@@ -3970,18 +4203,22 @@ interface Props {
   body: string;
 }
 
-function extractTitle(path: string, frontmatter: Record<string, unknown>, body: string): string {
-  if (typeof frontmatter.title === 'string') return frontmatter.title;
+function extractTitle(
+  path: string,
+  frontmatter: Record<string, unknown>,
+  body: string,
+): string {
+  if (typeof frontmatter.title === "string") return frontmatter.title;
   const h1 = body.match(/^#\s+(.+)$/m);
   if (h1) return h1[1].trim();
-  const base = path.split('/').pop() ?? path;
-  return base.replace(/\.md$/, '');
+  const base = path.split("/").pop() ?? path;
+  return base.replace(/\.md$/, "");
 }
 
 export function WikiPageHeader({ wikiSlug, path, frontmatter, body }: Props) {
-  const icon = typeof frontmatter.icon === 'string' ? frontmatter.icon : '📄';
+  const icon = typeof frontmatter.icon === "string" ? frontmatter.icon : "📄";
   const title = extractTitle(path, frontmatter, body);
-  const segments = path.split('/').slice(0, -1);
+  const segments = path.split("/").slice(0, -1);
 
   return (
     <header className="relative px-12 pb-3 pt-8">
@@ -3989,7 +4226,11 @@ export function WikiPageHeader({ wikiSlug, path, frontmatter, body }: Props) {
         {icon}
       </div>
       <nav className="text-xs text-muted-foreground mt-6 mb-2 flex gap-1">
-        <Link to="/wiki/$wikiSlug" params={{ wikiSlug }} className="hover:underline">
+        <Link
+          to="/wiki/$wikiSlug"
+          params={{ wikiSlug }}
+          className="hover:underline"
+        >
           {wikiSlug}
         </Link>
         {segments.map((seg, i) => (
@@ -4013,7 +4254,13 @@ interface Props {
   onSave: () => void;
 }
 
-export function WikiStatusBar({ lastSavedAt, isDirty, isSaving, canSave, onSave }: Props) {
+export function WikiStatusBar({
+  lastSavedAt,
+  isDirty,
+  isSaving,
+  canSave,
+  onSave,
+}: Props) {
   return (
     <div className="flex items-center justify-between px-12 py-2 border-b border-border text-xs text-muted-foreground">
       <div className="flex items-center gap-2">
@@ -4022,14 +4269,16 @@ export function WikiStatusBar({ lastSavedAt, isDirty, isSaving, canSave, onSave 
         ) : (
           <span className="text-green-500">● Synced</span>
         )}
-        {lastSavedAt && <span>· last saved {new Date(lastSavedAt).toLocaleTimeString()}</span>}
+        {lastSavedAt && (
+          <span>· last saved {new Date(lastSavedAt).toLocaleTimeString()}</span>
+        )}
       </div>
       <button
         onClick={onSave}
         disabled={!canSave || isSaving || !isDirty}
         className="px-3 py-1 rounded bg-primary text-primary-foreground disabled:opacity-50 text-xs"
       >
-        {isSaving ? 'Saving…' : 'Save'}
+        {isSaving ? "Saving…" : "Save"}
       </button>
     </div>
   );
@@ -4039,12 +4288,12 @@ export function WikiStatusBar({ lastSavedAt, isDirty, isSaving, canSave, onSave 
 `WikiPageView.tsx` — composes them (editor slot is filled in Task 18):
 
 ```tsx
-import { useWikiPage } from '@/hooks/useWikiPage';
-import { useWikis } from '@/hooks/useWikis';
-import { WikiCover } from './WikiCover';
-import { WikiPageHeader } from './WikiPageHeader';
-import { WikiStatusBar } from './WikiStatusBar';
-import { WikiPageEditor } from './WikiPageEditor'; // Task 18
+import { useWikiPage } from "@/hooks/useWikiPage";
+import { useWikis } from "@/hooks/useWikis";
+import { WikiCover } from "./WikiCover";
+import { WikiPageHeader } from "./WikiPageHeader";
+import { WikiStatusBar } from "./WikiStatusBar";
+import { WikiPageEditor } from "./WikiPageEditor"; // Task 18
 
 interface Props {
   wikiId: string;
@@ -4059,7 +4308,7 @@ export function WikiPageView({ wikiId, path }: Props) {
   if (isLoading || !page || !wiki) return <div className="p-8">Loading…</div>;
 
   const coverPath =
-    typeof page.frontmatter.cover === 'string' ? page.frontmatter.cover : null;
+    typeof page.frontmatter.cover === "string" ? page.frontmatter.cover : null;
 
   return (
     <main className="h-full flex flex-col bg-background overflow-auto">
@@ -4070,7 +4319,12 @@ export function WikiPageView({ wikiId, path }: Props) {
         frontmatter={page.frontmatter}
         body={page.content}
       />
-      <WikiPageEditor wikiId={wikiId} path={path} serverPage={page} wiki={wiki} />
+      <WikiPageEditor
+        wikiId={wikiId}
+        path={path}
+        serverPage={page}
+        wiki={wiki}
+      />
     </main>
   );
 }
@@ -4096,11 +4350,13 @@ git commit -m "feat(wiki): add page view shell, cover/header/status bar, draft p
 **Goal:** Build the editor that ties the existing `DocumentEditor` (Lexical + markdown) together with the frontmatter state (icon/cover picker) and draft persistence.
 
 **Files:**
+
 - Create: `apps/client/src/components/wiki/WikiPageEditor.tsx`
 - Create: `apps/client/src/components/wiki/IconPickerPopover.tsx`
 - Create: `apps/client/src/components/wiki/CoverPickerPopover.tsx`
 
 **Acceptance Criteria:**
+
 - [ ] `WikiPageEditor` receives `{wikiId, path, serverPage, wiki}` props
 - [ ] Internal state: `body: string`, `frontmatter: Record<string, unknown>`
 - [ ] Initialized from `serverPage` (or from draft if draft is newer)
@@ -4118,15 +4374,15 @@ git commit -m "feat(wiki): add page view shell, cover/header/status bar, draft p
 `WikiPageEditor.tsx`:
 
 ```tsx
-import { useEffect, useMemo, useState } from 'react';
-import { DocumentEditor } from '@/components/documents/DocumentEditor';
-import { useWikiDraft } from '@/hooks/useWikiDraft';
-import { useCurrentUser } from '@/hooks/useAuth';
-import { IconPickerPopover } from './IconPickerPopover';
-import { CoverPickerPopover } from './CoverPickerPopover';
-import { WikiStatusBar } from './WikiStatusBar';
-import { resolveClientPermission } from '@/lib/wiki-permission';
-import type { PageDto, WikiDto } from '@/types/wiki';
+import { useEffect, useMemo, useState } from "react";
+import { DocumentEditor } from "@/components/documents/DocumentEditor";
+import { useWikiDraft } from "@/hooks/useWikiDraft";
+import { useCurrentUser } from "@/hooks/useAuth";
+import { IconPickerPopover } from "./IconPickerPopover";
+import { CoverPickerPopover } from "./CoverPickerPopover";
+import { WikiStatusBar } from "./WikiStatusBar";
+import { resolveClientPermission } from "@/lib/wiki-permission";
+import type { PageDto, WikiDto } from "@/types/wiki";
 
 interface Props {
   wikiId: string;
@@ -4138,19 +4394,17 @@ interface Props {
 export function WikiPageEditor({ wikiId, path, serverPage, wiki }: Props) {
   const { data: currentUser } = useCurrentUser();
   const perm = resolveClientPermission(wiki, currentUser);
-  const readOnly = perm === 'read';
+  const readOnly = perm === "read";
 
-  const {
-    draft,
-    setDraft,
-    clearDraft,
-    isDirty,
-    hasStaleAlert,
-  } = useWikiDraft(wikiId, path, {
-    body: serverPage.content,
-    frontmatter: serverPage.frontmatter,
-    lastCommitTime: serverPage.lastCommit?.timestamp ?? null,
-  });
+  const { draft, setDraft, clearDraft, isDirty, hasStaleAlert } = useWikiDraft(
+    wikiId,
+    path,
+    {
+      body: serverPage.content,
+      frontmatter: serverPage.frontmatter,
+      lastCommitTime: serverPage.lastCommit?.timestamp ?? null,
+    },
+  );
 
   // Seed state — draft wins if present (user explicitly accepted it)
   const [body, setBody] = useState(() => draft?.body ?? serverPage.content);
@@ -4188,7 +4442,9 @@ export function WikiPageEditor({ wikiId, path, serverPage, wiki }: Props) {
         <CoverPickerPopover
           wikiId={wikiId}
           value={frontmatter.cover as string | undefined}
-          onChange={(cover) => handleFrontmatterChange({ ...frontmatter, cover })}
+          onChange={(cover) =>
+            handleFrontmatterChange({ ...frontmatter, cover })
+          }
           disabled={readOnly}
         />
       </div>
@@ -4214,14 +4470,14 @@ export function WikiPageEditor({ wikiId, path, serverPage, wiki }: Props) {
 `apps/client/src/lib/wiki-permission.ts`:
 
 ```ts
-import type { WikiDto } from '@/types/wiki';
+import type { WikiDto } from "@/types/wiki";
 
 export function resolveClientPermission(
   wiki: WikiDto,
-  user: { type?: 'human' | 'agent' | 'bot' } | null | undefined,
-): 'read' | 'propose' | 'write' {
-  if (!user) return 'read';
-  const isAgent = user.type === 'agent' || user.type === 'bot';
+  user: { type?: "human" | "agent" | "bot" } | null | undefined,
+): "read" | "propose" | "write" {
+  if (!user) return "read";
+  const isAgent = user.type === "agent" || user.type === "bot";
   return isAgent ? wiki.agentPermission : wiki.humanPermission;
 }
 ```
@@ -4250,12 +4506,14 @@ git commit -m "feat(wiki): add WikiPageEditor wrapping DocumentEditor with front
 **Goal:** Wire the Save button in `WikiStatusBar` to a real save action. Handle both `auto` and `review` modes. On review mode, prompt for commit message + show the pending-proposal banner.
 
 **Files:**
+
 - Create: `apps/client/src/components/wiki/SubmitForReviewDialog.tsx`
 - Create: `apps/client/src/components/wiki/WikiProposalBanner.tsx`
 - Modify: `apps/client/src/components/wiki/WikiPageEditor.tsx` (connect save)
 - Modify: `apps/client/src/components/wiki/WikiPageView.tsx` (show banner when pending)
 
 **Acceptance Criteria:**
+
 - [ ] Cmd+S / Ctrl+S triggers save (when editor focused)
 - [ ] `auto` mode: save calls `wikisApi.commit(...)` with `propose: false`, on success clears draft + shows "Synced"
 - [ ] `review` mode: save opens `<SubmitForReviewDialog>` (title + optional description) → commit with `propose: true`
@@ -4308,19 +4566,22 @@ export function WikiProposalBanner({ proposalId, onView }: Props) {
 Inside `WikiPageEditor`, add:
 
 ```tsx
-import { useCommitWikiPage } from '@/hooks/useWikiPage';
-import { serializeFrontmatter } from '@/lib/wiki-frontmatter';
-import { toast } from '@/components/ui/use-toast';
-import { useWikiStore } from '@/stores/wiki';
+import { useCommitWikiPage } from "@/hooks/useWikiPage";
+import { serializeFrontmatter } from "@/lib/wiki-frontmatter";
+import { toast } from "@/components/ui/use-toast";
+import { useWikiStore } from "@/stores/wiki";
 
 // ... inside the component:
 const commit = useCommitWikiPage(wikiId);
 const setSubmittedProposal = useWikiStore((s) => s.setSubmittedProposal);
 const [showReviewDialog, setShowReviewDialog] = useState(false);
 
-async function handleSave(reviewInput?: { title: string; description?: string }) {
+async function handleSave(reviewInput?: {
+  title: string;
+  description?: string;
+}) {
   const content = serializeFrontmatter({ frontmatter, body });
-  const isReview = wiki.approvalMode === 'review';
+  const isReview = wiki.approvalMode === "review";
   if (isReview && !reviewInput) {
     setShowReviewDialog(true);
     return;
@@ -4328,27 +4589,27 @@ async function handleSave(reviewInput?: { title: string; description?: string })
   try {
     const result = await commit.mutateAsync({
       message: reviewInput?.title ?? `Update ${path}`,
-      files: [{ path, content, action: 'update' }],
+      files: [{ path, content, action: "update" }],
       propose: isReview,
     });
     if (result.proposal) {
       setSubmittedProposal(wikiId, path, result.proposal.id);
-      toast({ title: 'Submitted for review' });
+      toast({ title: "Submitted for review" });
     } else {
       clearDraft();
-      toast({ title: 'Saved' });
+      toast({ title: "Saved" });
     }
   } catch (err) {
     if ((err as { status?: number }).status === 409) {
       toast({
-        title: 'Conflict',
-        description: 'This page changed on the server. Reload and try again.',
-        variant: 'destructive',
+        title: "Conflict",
+        description: "This page changed on the server. Reload and try again.",
+        variant: "destructive",
       });
     } else if ((err as { status?: number }).status === 403) {
-      toast({ title: "You don't have permission", variant: 'destructive' });
+      toast({ title: "You don't have permission", variant: "destructive" });
     } else {
-      toast({ title: 'Save failed', variant: 'destructive' });
+      toast({ title: "Save failed", variant: "destructive" });
     }
   }
 }
@@ -4356,13 +4617,13 @@ async function handleSave(reviewInput?: { title: string; description?: string })
 // Cmd+S binding
 useEffect(() => {
   function onKey(e: KeyboardEvent) {
-    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+    if ((e.metaKey || e.ctrlKey) && e.key === "s") {
       e.preventDefault();
       if (isDirty && !commit.isPending) void handleSave();
     }
   }
-  window.addEventListener('keydown', onKey);
-  return () => window.removeEventListener('keydown', onKey);
+  window.addEventListener("keydown", onKey);
+  return () => window.removeEventListener("keydown", onKey);
 }, [isDirty, commit.isPending]);
 ```
 
@@ -4394,11 +4655,13 @@ git commit -m "feat(wiki): implement save flow for auto + review modes"
 **Goal:** Replace the stubbed `CreateWikiDialog` with a real modal. Add a `WikiSettingsDialog` for renaming, toggling approval_mode, editing permissions, and archiving.
 
 **Files:**
+
 - Modify: `apps/client/src/components/wiki/CreateWikiDialog.tsx`
 - Create: `apps/client/src/components/wiki/WikiSettingsDialog.tsx`
 - Modify: `apps/client/src/components/wiki/WikiListItem.tsx` (add kebab menu → Settings / Archive)
 
 **Acceptance Criteria:**
+
 - [ ] `CreateWikiDialog` has name + slug (auto-derived, editable) + icon picker
 - [ ] Submit calls `useCreateWiki` mutation; on success closes dialog, navigates to new Wiki's root
 - [ ] `WikiSettingsDialog` loads the Wiki by id (via `useWikis().data.find`) and shows editable fields
@@ -4416,6 +4679,7 @@ Use existing Radix Dialog components from `@/components/ui/dialog`. Form fields 
 - [ ] **Step 2: Implement WikiSettingsDialog**
 
 Similar dialog with tabs / sections:
+
 - General (name, slug, icon)
 - Approval mode (radio: auto / review)
 - Permissions (two Select inputs: human, agent)
@@ -4443,6 +4707,7 @@ git commit -m "feat(wiki): add create/settings/archive dialogs for wikis"
 **Goal:** A dedicated review view accessible from a `Review` icon in the Wiki sub-sidebar header (when there are pending proposals) OR from the proposal banner on a page.
 
 **Files:**
+
 - Create: `apps/client/src/components/wiki/ReviewPanel.tsx`
 - Create: `apps/client/src/components/wiki/ProposalDiffView.tsx`
 - Create: `apps/client/src/routes/_authenticated/wiki/$wikiSlug.review.tsx`
@@ -4451,6 +4716,7 @@ git commit -m "feat(wiki): add create/settings/archive dialogs for wikis"
 - Modify gateway: add `GET /api/wikis/:wikiId/proposals/:proposalId/diff` endpoint
 
 **Acceptance Criteria:**
+
 - [ ] Review icon in the sub-sidebar shows a badge with the number of pending proposals (`useWikiProposals` per wiki, aggregated)
 - [ ] Clicking opens the list route: each row = one proposal
 - [ ] Clicking a proposal opens the diff view with Approve / Reject buttons
@@ -4469,7 +4735,7 @@ In `WikisService`, add `getProposalDiff(workspaceId, wikiId, user, proposalId)` 
 - [ ] **Step 2: Build `ProposalDiffView`**
 
 ```tsx
-import DiffMatchPatch from 'diff-match-patch'; // or react-diff-view or similar
+import DiffMatchPatch from "diff-match-patch"; // or react-diff-view or similar
 
 // Iterate files, render unified diff for each.
 ```
@@ -4508,10 +4774,12 @@ git commit -m "feat(wiki): add review panel with diff view and approve/reject"
 **Goal:** When the user pastes or drops an image into the editor, upload it to `.team9/attachments/{uuid}.{ext}` via a commit, then insert the markdown image reference.
 
 **Files:**
+
 - Create: `apps/client/src/hooks/useWikiImageUpload.ts`
 - Modify: `apps/client/src/components/wiki/WikiPageEditor.tsx` (paste/drop handlers)
 
 **Acceptance Criteria:**
+
 - [ ] Paste of an image file OR drag-drop onto the editor triggers upload
 - [ ] Files > 5 MB rejected with a toast "File too large (max 5 MB)"
 - [ ] Uploaded as a separate commit (message: "Upload image <filename>")
@@ -4524,15 +4792,15 @@ git commit -m "feat(wiki): add review panel with diff view and approve/reject"
 - [ ] **Step 1: Build the upload hook**
 
 ```ts
-import { useState } from 'react';
-import { wikisApi } from '@/services/api/wikis';
+import { useState } from "react";
+import { wikisApi } from "@/services/api/wikis";
 
 async function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result as string;
-      resolve(result.split(',')[1] ?? '');
+      resolve(result.split(",")[1] ?? "");
     };
     reader.onerror = reject;
     reader.readAsDataURL(file);
@@ -4544,16 +4812,16 @@ export function useWikiImageUpload(wikiId: string) {
 
   async function upload(file: File, basePath: string): Promise<string> {
     if (file.size > 5 * 1024 * 1024) {
-      throw new Error('File too large (max 5 MB)');
+      throw new Error("File too large (max 5 MB)");
     }
     setUploading(true);
     try {
-      const ext = file.name.split('.').pop() || 'bin';
+      const ext = file.name.split(".").pop() || "bin";
       const path = `${basePath}/${crypto.randomUUID()}.${ext}`;
       const content = await fileToBase64(file);
       await wikisApi.commit(wikiId, {
         message: `Upload ${file.name}`,
-        files: [{ path, content, encoding: 'base64', action: 'create' }],
+        files: [{ path, content, encoding: "base64", action: "create" }],
       });
       return path;
     } finally {
@@ -4578,7 +4846,7 @@ useEffect(() => {
     const items = e.clipboardData?.items;
     if (!items) return;
     for (const item of items) {
-      if (item.type.startsWith('image/')) {
+      if (item.type.startsWith("image/")) {
         e.preventDefault();
         const file = item.getAsFile();
         if (file) void handleUpload(file);
@@ -4590,30 +4858,30 @@ useEffect(() => {
     if (!e.dataTransfer?.files?.length) return;
     e.preventDefault();
     for (const file of e.dataTransfer.files) {
-      if (file.type.startsWith('image/')) void handleUpload(file);
+      if (file.type.startsWith("image/")) void handleUpload(file);
     }
   }
 
-  root.addEventListener('paste', onPaste);
-  root.addEventListener('drop', onDrop);
+  root.addEventListener("paste", onPaste);
+  root.addEventListener("drop", onDrop);
   return () => {
-    root.removeEventListener('paste', onPaste);
-    root.removeEventListener('drop', onDrop);
+    root.removeEventListener("paste", onPaste);
+    root.removeEventListener("drop", onDrop);
   };
 }, []);
 
 async function handleUpload(file: File) {
   try {
-    const path = await imageUpload.upload(file, 'attachments');
+    const path = await imageUpload.upload(file, "attachments");
     // Insert markdown at cursor — use Lexical's $insertText or a custom command
     insertImageMarkdown(`![${file.name}](${path})`);
     // Mark dirty so next save commits the reference
     handleBodyChange(body + `\n\n![${file.name}](${path})\n`);
   } catch (err) {
     toast({
-      title: 'Upload failed',
-      description: err instanceof Error ? err.message : 'unknown',
-      variant: 'destructive',
+      title: "Upload failed",
+      description: err instanceof Error ? err.message : "unknown",
+      variant: "destructive",
     });
   }
 }
@@ -4641,11 +4909,13 @@ git commit -m "feat(wiki): add image paste/drop upload to editor"
 **Goal:** Subscribe to `wiki_*` WebSocket events in the client and invalidate the relevant React Query cache so changes from other users (or from proposal approvals) refresh the UI automatically.
 
 **Files:**
+
 - Create: `apps/client/src/hooks/useWikiWebSocketSync.ts`
 - Modify: `apps/client/src/components/layout/contents/WikiMainContent.tsx` (mount the sync hook)
 - Modify: `apps/client/src/services/websocket/index.ts` (add `wiki_*` event types to the type map if typed)
 
 **Acceptance Criteria:**
+
 - [ ] Hook subscribes to: `wiki_created`, `wiki_updated`, `wiki_archived`, `wiki_page_updated`, `wiki_proposal_created`, `wiki_proposal_approved`, `wiki_proposal_rejected`
 - [ ] `wiki_created` / `wiki_archived` / `wiki_updated` → `queryClient.invalidateQueries({queryKey: wikiKeys.all})`
 - [ ] `wiki_page_updated` → invalidate `wikiKeys.page(wikiId, path)` and `wikiKeys.tree(wikiId, '/')`
@@ -4658,11 +4928,11 @@ git commit -m "feat(wiki): add image paste/drop upload to editor"
 - [ ] **Step 1: Implement the hook**
 
 ```ts
-import { useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { wsService } from '@/services/websocket';
-import { wikiKeys } from './useWikis';
-import { useWikiStore } from '@/stores/wiki';
+import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { wsService } from "@/services/websocket";
+import { wikiKeys } from "./useWikis";
+import { useWikiStore } from "@/stores/wiki";
 
 export function useWikiWebSocketSync() {
   const qc = useQueryClient();
@@ -4670,49 +4940,49 @@ export function useWikiWebSocketSync() {
 
   useEffect(() => {
     const handlers: Array<[string, (data: unknown) => void]> = [
-      ['wiki_created', () => qc.invalidateQueries({ queryKey: wikiKeys.all })],
-      ['wiki_updated', () => qc.invalidateQueries({ queryKey: wikiKeys.all })],
-      ['wiki_archived', () => qc.invalidateQueries({ queryKey: wikiKeys.all })],
+      ["wiki_created", () => qc.invalidateQueries({ queryKey: wikiKeys.all })],
+      ["wiki_updated", () => qc.invalidateQueries({ queryKey: wikiKeys.all })],
+      ["wiki_archived", () => qc.invalidateQueries({ queryKey: wikiKeys.all })],
       [
-        'wiki_page_updated',
+        "wiki_page_updated",
         (data) => {
           const d = data as { wikiId: string };
-          qc.invalidateQueries({ queryKey: wikiKeys.tree(d.wikiId, '/') });
-          qc.invalidateQueries({ queryKey: ['wikis', d.wikiId, 'page'] });
+          qc.invalidateQueries({ queryKey: wikiKeys.tree(d.wikiId, "/") });
+          qc.invalidateQueries({ queryKey: ["wikis", d.wikiId, "page"] });
         },
       ],
       [
-        'wiki_proposal_created',
+        "wiki_proposal_created",
         (data) => {
           const d = data as { wikiId: string };
           qc.invalidateQueries({ queryKey: wikiKeys.proposals(d.wikiId) });
         },
       ],
       [
-        'wiki_proposal_approved',
+        "wiki_proposal_approved",
         (data) => {
           const d = data as { wikiId: string; proposalId: string };
           qc.invalidateQueries({ queryKey: wikiKeys.proposals(d.wikiId) });
-          qc.invalidateQueries({ queryKey: ['wikis', d.wikiId, 'page'] });
+          qc.invalidateQueries({ queryKey: ["wikis", d.wikiId, "page"] });
           // Clear any submitted-proposal entries matching this proposalId
           const map = useWikiStore.getState().submittedProposals;
           for (const [k, v] of Object.entries(map)) {
             if (v === d.proposalId) {
-              const [wikiId, path] = k.split(':');
+              const [wikiId, path] = k.split(":");
               setSubmittedProposal(wikiId, path, null);
             }
           }
         },
       ],
       [
-        'wiki_proposal_rejected',
+        "wiki_proposal_rejected",
         (data) => {
           const d = data as { wikiId: string; proposalId: string };
           qc.invalidateQueries({ queryKey: wikiKeys.proposals(d.wikiId) });
           const map = useWikiStore.getState().submittedProposals;
           for (const [k, v] of Object.entries(map)) {
             if (v === d.proposalId) {
-              const [wikiId, path] = k.split(':');
+              const [wikiId, path] = k.split(":");
               setSubmittedProposal(wikiId, path, null);
             }
           }
@@ -4787,6 +5057,7 @@ Future work items → spec Future Work section (no MVP tasks).
 ## Type / Name Consistency Check
 
 Names used across tasks:
+
 - `WikisService` (Tasks 5, 6, 7, 9, 10)
 - `Folder9ClientService` (Tasks 2, 5, 6, 9, 10, 21)
 - `workspace_wikis` table (Tasks 1, 5, 8, 10)
@@ -4812,11 +5083,3 @@ All consistent across task boundaries.
 - **Don't skip the review gate.** Per the project rules in `CLAUDE.md`, each completed task must be reviewed by an independent agent before the next one starts. Dispatch the `feature-dev:code-reviewer` agent between tasks.
 - **If you hit a folder9 quirk not in the spec**, don't hack around it — stop and ask. folder9 is under active development and the contract may have drifted.
 - **If a route/path differs from the spec** (e.g., the current user extraction uses `@Req() req` instead of `@CurrentUser()`), match existing conventions rather than the spec's illustrative code.
-
-
-
-
-
-
-
-

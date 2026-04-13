@@ -23,7 +23,7 @@ export const wikiPermissionLevelEnum = pgEnum('wiki_permission_level', [
 export const workspaceWikis = pgTable(
   'workspace_wikis',
   {
-    id: uuid('id').primaryKey().defaultRandom().notNull(),
+    id: uuid('id').primaryKey().defaultRandom(),
     workspaceId: text('workspace_id').notNull(),
     folder9FolderId: uuid('folder9_folder_id').notNull(),
     name: varchar('name', { length: 200 }).notNull(),
@@ -42,15 +42,14 @@ export const workspaceWikis = pgTable(
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
     archivedAt: timestamp('archived_at'),
   },
-  (table) => ({
-    workspaceSlugUnique: uniqueIndex(
-      'workspace_wikis_workspace_slug_unique',
-    ).on(table.workspaceId, table.slug),
-    folder9Unique: uniqueIndex('workspace_wikis_folder9_unique').on(
-      table.folder9FolderId,
+  (table) => [
+    uniqueIndex('workspace_wikis_workspace_slug_unique').on(
+      table.workspaceId,
+      table.slug,
     ),
-    workspaceIdx: index('workspace_wikis_workspace_idx').on(table.workspaceId),
-  }),
+    uniqueIndex('workspace_wikis_folder9_unique').on(table.folder9FolderId),
+    index('workspace_wikis_workspace_idx').on(table.workspaceId),
+  ],
 );
 
 export type WorkspaceWiki = typeof workspaceWikis.$inferSelect;
