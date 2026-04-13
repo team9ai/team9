@@ -21,6 +21,11 @@ export function useDeepResearchStream(opts: UseStreamOptions): void {
   const abortRef = useRef<AbortController | null>(null);
   const cancelledRef = useRef(false);
 
+  // Hold getAuth in a ref so token-source churn from parent re-renders
+  // does not tear down and restart the SSE connection on every render.
+  const getAuthRef = useRef(getAuth);
+  getAuthRef.current = getAuth;
+
   useEffect(() => {
     cancelledRef.current = false;
     let attempt = 0;
@@ -31,7 +36,7 @@ export function useDeepResearchStream(opts: UseStreamOptions): void {
         abortRef.current = ac;
         let completed = false;
         try {
-          const { token, tenantId } = await getAuth();
+          const { token, tenantId } = await getAuthRef.current();
           const headers: Record<string, string> = {
             accept: "text/event-stream",
             authorization: `Bearer ${token}`,
@@ -96,5 +101,7 @@ export function useDeepResearchStream(opts: UseStreamOptions): void {
       cancelledRef.current = true;
       abortRef.current?.abort();
     };
-  }, [taskId, getAuth, autoReconnect, ingest, getLastSeq]);
+    // getAuth is intentionally excluded — it's read via getAuthRef to avoid
+    // tearing down the stream when parent re-renders produce a new reference.
+  }, [taskId, autoReconnect, ingest, getLastSeq]);
 }
