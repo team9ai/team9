@@ -1,7 +1,51 @@
 import type { OnboardingTasksContextDto } from './dto/onboarding.dto.js';
 
-function targetLanguage(lang: 'zh' | 'en') {
-  return lang === 'zh' ? 'Simplified Chinese' : 'English';
+export type OnboardingLanguage =
+  | 'en'
+  | 'zh'
+  | 'zh-TW'
+  | 'ja'
+  | 'ko'
+  | 'es'
+  | 'pt'
+  | 'fr'
+  | 'de'
+  | 'it'
+  | 'nl'
+  | 'ru';
+
+const SUPPORTED_ONBOARDING_LANGUAGES: readonly OnboardingLanguage[] = [
+  'en',
+  'zh',
+  'zh-TW',
+  'ja',
+  'ko',
+  'es',
+  'pt',
+  'fr',
+  'de',
+  'it',
+  'nl',
+  'ru',
+];
+
+const LANGUAGE_DISPLAY_NAMES: Record<OnboardingLanguage, string> = {
+  en: 'English',
+  zh: 'Simplified Chinese',
+  'zh-TW': 'Traditional Chinese',
+  ja: 'Japanese',
+  ko: 'Korean',
+  es: 'Spanish',
+  pt: 'Portuguese',
+  fr: 'French',
+  de: 'German',
+  it: 'Italian',
+  nl: 'Dutch',
+  ru: 'Russian',
+};
+
+function targetLanguage(lang: OnboardingLanguage) {
+  return LANGUAGE_DISPLAY_NAMES[lang] ?? 'English';
 }
 
 function buildTaskSelectionContext(tasks?: OnboardingTasksContextDto): string {
@@ -40,7 +84,7 @@ function buildSharedOnboardingPrompt(args: {
   categoryKey?: string | null;
   description?: string | null;
   tasks?: OnboardingTasksContextDto;
-  lang: 'zh' | 'en';
+  lang: OnboardingLanguage;
 }) {
   return `
 =========================
@@ -87,12 +131,41 @@ Output discipline:
 `.trim();
 }
 
-export function normalizeOnboardingLanguage(lang?: string): 'zh' | 'en' {
-  return lang?.toLowerCase().startsWith('en') ? 'en' : 'zh';
+export function normalizeOnboardingLanguage(lang?: string): OnboardingLanguage {
+  if (!lang) return 'en';
+  const lower = lang.toLowerCase().replace('_', '-');
+
+  if (lower === 'zh' || lower.startsWith('zh-hans') || lower === 'zh-cn') {
+    return 'zh';
+  }
+  if (lower.startsWith('zh-hant') || lower === 'zh-tw' || lower === 'zh-hk') {
+    return 'zh-TW';
+  }
+
+  const primary = lower.split('-')[0];
+  const match = SUPPORTED_ONBOARDING_LANGUAGES.find(
+    (code) => code.toLowerCase() === primary,
+  );
+  return match ?? 'en';
 }
 
-export function onboardingMainAgentName(lang: 'zh' | 'en') {
-  return lang === 'zh' ? '私人秘书' : 'Personal Staff';
+const MAIN_AGENT_NAMES: Record<OnboardingLanguage, string> = {
+  en: 'Personal Staff',
+  zh: '私人秘书',
+  'zh-TW': '私人秘書',
+  ja: 'パーソナルスタッフ',
+  ko: '퍼스널 스태프',
+  es: 'Personal Staff',
+  pt: 'Assistente Pessoal',
+  fr: 'Assistant personnel',
+  de: 'Persönlicher Assistent',
+  it: 'Assistente personale',
+  nl: 'Persoonlijke assistent',
+  ru: 'Личный помощник',
+};
+
+export function onboardingMainAgentName(lang: OnboardingLanguage) {
+  return MAIN_AGENT_NAMES[lang] ?? MAIN_AGENT_NAMES.en;
 }
 
 export function buildGenerateTasksPrompt(args: {
@@ -100,7 +173,7 @@ export function buildGenerateTasksPrompt(args: {
   roleSlug?: string | null;
   categoryKey?: string | null;
   description?: string | null;
-  lang: 'zh' | 'en';
+  lang: OnboardingLanguage;
 }) {
   const roleContextMap: Record<string, string> = {
     finance:
@@ -212,7 +285,7 @@ export function buildGenerateChannelsPrompt(args: {
   categoryKey?: string | null;
   description?: string | null;
   tasks?: OnboardingTasksContextDto;
-  lang: 'zh' | 'en';
+  lang: OnboardingLanguage;
 }) {
   const selectedTaskTitles =
     args.tasks?.generatedTasks
@@ -280,7 +353,7 @@ export function buildGenerateAgentsPrompt(args: {
   categoryKey?: string | null;
   description?: string | null;
   tasks?: OnboardingTasksContextDto;
-  lang: 'zh' | 'en';
+  lang: OnboardingLanguage;
 }) {
   const selectedTaskTitles =
     args.tasks?.generatedTasks
