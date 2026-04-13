@@ -17,7 +17,7 @@
     {
       "id": 2,
       "subject": "Task 3: Frontmatter util (gateway) + shared test fixtures",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Parse/serialize YAML frontmatter with round-trip stability; shared fixture files for cross-stack consistency.\n\n**Files:**\n- Create: apps/server/apps/gateway/src/wikis/utils/frontmatter.ts\n- Create: apps/server/apps/gateway/src/wikis/__tests__/frontmatter.spec.ts\n- Create: apps/server/libs/shared/test-fixtures/wiki-frontmatter/*.md + fixtures.json\n\n**Verify:** pnpm --filter @team9/server test -- frontmatter.spec --coverage\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/wikis/utils/frontmatter.ts\",\"apps/server/apps/gateway/src/wikis/__tests__/frontmatter.spec.ts\",\"apps/server/libs/shared/test-fixtures/wiki-frontmatter/\"],\"verifyCommand\":\"pnpm --filter @team9/server test -- frontmatter.spec --coverage\",\"acceptanceCriteria\":[\"parseFrontmatter returns {frontmatter, body}\",\"Round-trip preserves unknown keys\",\"Malformed YAML throws FrontmatterParseError\",\"All 4 fixtures pass\",\"100% coverage\"]}\n```"
     },
     {
