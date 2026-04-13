@@ -16,6 +16,9 @@ import { CapabilityHubClient } from './capability-hub.client.js';
 // Headers that must be forwarded upstream for correct owner attribution.
 const FORWARD_HEADERS = ['authorization', 'x-tenant-id'];
 
+// Interval between SSE heartbeats to keep idle connections alive through proxies.
+const HEARTBEAT_MS = 20_000;
+
 function pickHeaders(req: Request): Record<string, string> {
   const out: Record<string, string> = {};
   for (const h of FORWARD_HEADERS) {
@@ -88,5 +91,57 @@ export class DeepResearchController {
       { headers: pickHeaders(req) },
     );
     await passThrough(res, upstream);
+  }
+
+  @Get(':id/stream')
+  async stream(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Param('id') id: string,
+  ): Promise<void> {
+    const ac = new AbortController();
+    req.on('close', () => ac.abort());
+
+    const headers = pickHeaders(req);
+    const lastEventId = req.headers['last-event-id'];
+    if (typeof lastEventId === 'string') headers['last-event-id'] = lastEventId;
+    headers['accept'] = 'text/event-stream';
+
+    const upstream = await this.hub.request(
+      'GET',
+      `/api/deep-research/tasks/${encodeURIComponent(id)}/stream`,
+      { headers, signal: ac.signal },
+    );
+
+    if (!upstream.ok || !upstream.body) {
+      res.status(upstream.status);
+      const ct = upstream.headers.get('content-type') ?? 'application/json';
+      res.setHeader('content-type', ct);
+      res.send(await upstream.text());
+      return;
+    }
+
+    res.status(200);
+    res.setHeader('content-type', 'text/event-stream');
+    res.setHeader('cache-control', 'no-cache, no-transform');
+    res.setHeader('connection', 'keep-alive');
+    res.setHeader('x-accel-buffering', 'no');
+    res.flushHeaders();
+
+    const heartbeat = setInterval(() => {
+      if (!res.writableEnded) res.write(': ping\n\n');
+    }, HEARTBEAT_MS);
+
+    try {
+      for await (const chunk of upstream.body as unknown as AsyncIterable<Uint8Array>) {
+        if (res.writableEnded) break;
+        res.write(Buffer.from(chunk));
+      }
+    } catch {
+      // Upstream aborted or errored; swallow — status already flushed.
+    } finally {
+      clearInterval(heartbeat);
+      if (!res.writableEnded) res.end();
+    }
   }
 }
