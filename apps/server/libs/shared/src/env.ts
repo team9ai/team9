@@ -215,6 +215,17 @@ export const env = {
     return process.env.FILE_KEEPER_JWT_SECRET;
   },
 
+  // Folder9 Managed Folder Service (optional - required for Wiki feature)
+  get FOLDER9_API_URL() {
+    return process.env.FOLDER9_API_URL;
+  },
+  get FOLDER9_PSK() {
+    return process.env.FOLDER9_PSK;
+  },
+  get FOLDER9_WEBHOOK_SECRET() {
+    return process.env.FOLDER9_WEBHOOK_SECRET;
+  },
+
   // Google OAuth (optional - Google login disabled if not set)
   get GOOGLE_CLIENT_ID() {
     return process.env.GOOGLE_CLIENT_ID;
