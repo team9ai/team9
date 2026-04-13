@@ -4,7 +4,7 @@
     {
       "id": 0,
       "subject": "Task 1: Database schema + env vars",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Create the workspace_wikis Drizzle schema, run the migration, and wire three new env vars for folder9.\n\n**Files:**\n- Create: apps/server/libs/database/src/schemas/wiki/workspace-wikis.ts\n- Create: apps/server/libs/database/src/schemas/wiki/index.ts\n- Modify: apps/server/libs/database/src/schemas/index.ts\n- Modify: apps/server/libs/shared/src/env.ts\n- Generated: apps/server/libs/database/migrations/XXXX_add_workspace_wikis.sql\n\n**Verify:** pnpm --filter @team9/server db:push --dry-run && pnpm --filter @team9/server exec tsc --noEmit\n\n```json:metadata\n{\"files\":[\"apps/server/libs/database/src/schemas/wiki/workspace-wikis.ts\",\"apps/server/libs/database/src/schemas/wiki/index.ts\",\"apps/server/libs/database/src/schemas/index.ts\",\"apps/server/libs/shared/src/env.ts\"],\"verifyCommand\":\"pnpm --filter @team9/server db:push --dry-run && pnpm --filter @team9/server exec tsc --noEmit\",\"acceptanceCriteria\":[\"workspace_wikis table exists after pnpm db:migrate\",\"wiki_approval_mode and wiki_permission_level enums created\",\"unique indexes on (workspace_id, slug) and folder9_folder_id\",\"env.FOLDER9_API_URL/PSK/WEBHOOK_SECRET available\",\"pnpm build:server passes\"]}\n```"
     },
     {
@@ -160,5 +160,5 @@
       "description": "**Goal:** Subscribe to wiki_* events, invalidate React Query cache, clear matching submittedProposals on approve/reject.\n\n**Files:**\n- Create: hooks/useWikiWebSocketSync.ts\n- Modify: WikiMainContent.tsx (mount hook)\n\n**Verify:** pnpm --filter @team9/client test -- useWikiWebSocketSync\n\n```json:metadata\n{\"files\":[\"apps/client/src/hooks/useWikiWebSocketSync.ts\",\"apps/client/src/components/layout/contents/WikiMainContent.tsx\"],\"verifyCommand\":\"pnpm --filter @team9/client test -- WebSocket\",\"acceptanceCriteria\":[\"All 7 wiki_* events subscribed\",\"Correct query invalidations per event\",\"submittedProposals cleared on approve/reject\",\"Unsubscribe on unmount\"]}\n```"
     }
   ],
-  "lastUpdated": "2026-04-13T00:00:00Z"
+  "lastUpdated": "2026-04-13T10:00:00Z"
 }
