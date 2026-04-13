@@ -34,6 +34,7 @@ import {
   buildGenerateTasksPrompt,
   normalizeOnboardingLanguage,
   onboardingMainAgentName,
+  type OnboardingLanguage,
 } from './onboarding.prompts.js';
 import type {
   CompleteWorkspaceOnboardingDto,
@@ -511,7 +512,7 @@ export class OnboardingService {
     workspaceId: string,
     userId: string,
     agents: WorkspaceOnboardingStepData['agents'],
-    lang: 'zh' | 'en',
+    lang: OnboardingLanguage,
   ) {
     const main = agents?.main;
     if (!main) return;

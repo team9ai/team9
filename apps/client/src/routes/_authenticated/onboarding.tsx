@@ -122,9 +122,7 @@ function OnboardingRoute() {
     search.workspaceId ?? selectedWorkspaceId ?? workspaces[0]?.id ?? undefined;
   const workspace =
     workspaces.find((item) => item.id === workspaceId) ?? workspaces[0] ?? null;
-  const language = (i18n.resolvedLanguage ?? i18n.language).startsWith("en")
-    ? "en"
-    : "zh-CN";
+  const language = i18n.language ?? i18n.resolvedLanguage ?? "en";
 
   const onboardingQuery = useWorkspaceOnboarding(workspaceId);
   const rolesQuery = useOnboardingRoles(language);
@@ -839,10 +837,7 @@ function OnboardingRoute() {
     );
   }
 
-  if (
-    onboarding?.status === "provisioning" ||
-    (isFinishing && completeOnboarding.isPending)
-  ) {
+  if (onboarding?.status === "provisioning" || isFinishing) {
     return (
       <StatusScene
         title={t("status.provisioningTitle")}
@@ -1542,9 +1537,6 @@ function StepThree({
                 {preview.purpose}
               </p>
             </div>
-            <span className="rounded-full border border-white/8 bg-white/8 px-3 py-1 text-xs font-semibold text-white/75">
-              {t("channels.activeThread")}
-            </span>
           </header>
 
           <div className="grid gap-3">
