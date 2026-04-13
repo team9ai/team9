@@ -1099,7 +1099,7 @@ export function CreateCommonStaffDialog({
         if (!v) resetForm();
       }}
     >
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>{stepTitle()}</DialogTitle>
           {step > 1 && (
@@ -1109,7 +1109,9 @@ export function CreateCommonStaffDialog({
           )}
         </DialogHeader>
 
-        {renderCurrentStep()}
+        <div className="flex-1 overflow-y-auto -mx-6 px-6">
+          {renderCurrentStep()}
+        </div>
 
         {formError && <p className="text-sm text-destructive">{formError}</p>}
 
