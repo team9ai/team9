@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockNavigate = vi.hoisted(() => vi.fn());
@@ -10,6 +11,8 @@ const mockUseWorkspaceBillingOverview = vi.hoisted(() => vi.fn());
 const mockUseWorkspaceBillingSummary = vi.hoisted(() => vi.fn());
 const mockUseSelectedWorkspaceId = vi.hoisted(() => vi.fn());
 const mockUseUser = vi.hoisted(() => vi.fn());
+const mockDeepResearchCreateTask = vi.hoisted(() => vi.fn());
+const mockDeepResearchStartInChannel = vi.hoisted(() => vi.fn());
 
 const translationMap: Record<
   string,
@@ -20,6 +23,7 @@ const translationMap: Record<
   dashboardModelLabel: "GPT5.4",
   dashboardPromptHint: "Press Enter to send. Use Shift+Enter for a new line.",
   dashboardActionDeepResearch: "Deep research",
+  dashboardDeepResearchPlaceholder: "Describe the topic you want to research…",
   dashboardActionGenerateImage: "Generate image",
   dashboardPlan: "Free plan",
   dashboardUpgrade: "Upgrade",
@@ -74,7 +78,24 @@ vi.mock("@/stores", () => ({
   useUser: mockUseUser,
 }));
 
+vi.mock("@/services/api/deep-research", () => ({
+  deepResearchApi: {
+    createTask: mockDeepResearchCreateTask,
+    startInChannel: mockDeepResearchStartInChannel,
+  },
+}));
+
 import { HomeMainContent } from "../HomeMainContent";
+
+function renderWithProviders(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
+}
 
 describe("HomeMainContent", () => {
   beforeEach(() => {
@@ -144,10 +165,25 @@ describe("HomeMainContent", () => {
       createdAt: "2024-01-01T00:00:00.000Z",
       name: "OpenClaw",
     });
+    mockDeepResearchCreateTask.mockResolvedValue({
+      id: "task-1",
+      status: "running",
+      createdAt: "",
+      updatedAt: "",
+    });
+    mockDeepResearchStartInChannel.mockResolvedValue({
+      task: {
+        id: "task-1",
+        status: "running",
+        createdAt: "",
+        updatedAt: "",
+      },
+      message: { id: "msg-1" },
+    });
   });
 
   it("renders the dashboard with title and prompt input", () => {
-    const { container } = render(<HomeMainContent />);
+    const { container } = renderWithProviders(<HomeMainContent />);
 
     expect(
       screen.getByRole("heading", {
@@ -168,7 +204,7 @@ describe("HomeMainContent", () => {
   });
 
   it("switches to the selected agent and submits to that agent channel", async () => {
-    render(<HomeMainContent />);
+    renderWithProviders(<HomeMainContent />);
 
     fireEvent.pointerDown(screen.getByRole("button", { name: /alpha agent/i }));
     fireEvent.click(
@@ -183,6 +219,29 @@ describe("HomeMainContent", () => {
       to: "/channels/$channelId",
       params: { channelId: "bot-ch-2" },
       search: { draft: "hello beta", autoSend: true },
+    });
+  });
+
+  it("starts deep research in the selected agent channel without auto-send", async () => {
+    renderWithProviders(<HomeMainContent />);
+
+    fireEvent.click(screen.getByRole("button", { name: /deep research/i }));
+    fireEvent.change(screen.getByPlaceholderText(/describe the topic/i), {
+      target: { value: "research this market" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /send message/i }));
+
+    await waitFor(() => {
+      expect(mockDeepResearchStartInChannel).toHaveBeenCalledWith("bot-ch-1", {
+        input: "research this market",
+        origin: "dashboard",
+      });
+    });
+
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/channels/$channelId",
+      params: { channelId: "bot-ch-1" },
+      search: { message: "msg-1" },
     });
   });
 
@@ -208,7 +267,7 @@ describe("HomeMainContent", () => {
       updatingAgentUserId: null,
     });
 
-    render(<HomeMainContent />);
+    renderWithProviders(<HomeMainContent />);
 
     expect(screen.getByText("Claude Sonnet 4.6")).toBeInTheDocument();
     expect(
@@ -217,7 +276,7 @@ describe("HomeMainContent", () => {
   });
 
   it("updates the model when the selected agent supports switching", async () => {
-    render(<HomeMainContent />);
+    renderWithProviders(<HomeMainContent />);
 
     fireEvent.pointerDown(screen.getByRole("button", { name: /gpt-4.1/i }));
     fireEvent.click(await screen.findByRole("menuitemradio", { name: /o3/i }));
@@ -242,7 +301,7 @@ describe("HomeMainContent", () => {
       data: null,
     });
 
-    render(<HomeMainContent />);
+    renderWithProviders(<HomeMainContent />);
 
     expect(screen.getByText("Free plan")).toBeInTheDocument();
     expect(screen.getByText("—")).toBeInTheDocument();

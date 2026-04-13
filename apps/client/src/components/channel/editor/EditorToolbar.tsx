@@ -14,11 +14,13 @@ import { $createTextNode, $insertNodes } from "lexical";
 import { DeepResearchDrawer } from "@/components/deep-research/DeepResearchDrawer";
 
 interface EditorToolbarProps {
+  channelId: string;
   onFileSelect?: (files: FileList) => void;
   isBotDm?: boolean;
 }
 
 export function EditorToolbar({
+  channelId,
   onFileSelect,
   isBotDm = false,
 }: EditorToolbarProps) {
@@ -164,6 +166,7 @@ export function EditorToolbar({
         open={drOpen}
         onOpenChange={setDrOpen}
         editor={editor}
+        channelId={channelId}
       />
     </div>
   );

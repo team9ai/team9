@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +35,7 @@ import {
   useWorkspaceBillingSummary,
 } from "@/hooks/useWorkspaceBilling";
 import { deepResearchApi } from "@/services/api/deep-research";
+import { upsertChannelMessageInCache } from "@/lib/message-query-cache";
 import { getHttpErrorMessage, getHttpErrorStatus } from "@/lib/http-error";
 import {
   COMMON_STAFF_MODELS,
@@ -357,6 +359,7 @@ function formatDashboardCredits(value: number) {
 export function HomeMainContent() {
   const { t } = useTranslation(["navigation", "message"]);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const workspaceId = useSelectedWorkspaceId();
   const { directChannels = [] } = useChannelsByType();
   const createDirectChannel = useCreateDirectChannel();
@@ -408,17 +411,32 @@ export function HomeMainContent() {
     if (!draft) return;
 
     if (isDeepResearch) {
+      if (!selectedAgent) return;
       if (isCreatingResearch) return;
       setIsCreatingResearch(true);
       try {
-        const task = await deepResearchApi.createTask({ input: draft });
+        const channelId =
+          selectedAgent.channelId ??
+          (await createDirectChannel.mutateAsync(selectedAgent.userId)).id;
+        const result = await deepResearchApi.startInChannel(channelId, {
+          input: draft,
+          origin: "dashboard",
+        });
+        upsertChannelMessageInCache(queryClient, channelId, result.message);
+
         setPrompt("");
         setIsDeepResearch(false);
         navigate({
-          to: "/deep-research/$taskId",
-          params: { taskId: task.id },
+          to: "/channels/$channelId",
+          params: { channelId },
+          search: { message: result.message.id },
         });
       } catch (error: unknown) {
+        const status = getHttpErrorStatus(error);
+        if (status === 403) {
+          alert(t("dmPermissionDenied"));
+          return;
+        }
         alert(
           getHttpErrorMessage(error) || t("dashboardDeepResearchCreateFailed"),
         );

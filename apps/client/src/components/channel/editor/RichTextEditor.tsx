@@ -470,7 +470,11 @@ export function RichTextEditor({
           )}
         >
           {!compact ? (
-            <EditorToolbar onFileSelect={onFileSelect} isBotDm={isBotDm} />
+            <EditorToolbar
+              channelId={channelId}
+              onFileSelect={onFileSelect}
+              isBotDm={isBotDm}
+            />
           ) : (
             <div />
           )}

@@ -15,6 +15,7 @@ import { ThreadReplyIndicator } from "./ThreadReplyIndicator";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { TrackingCard } from "./TrackingCard";
 import { TrackingEventItem } from "./TrackingEventItem";
+import { DeepResearchMessageCard } from "./DeepResearchMessageCard";
 import { AgentTypeBadge } from "@/components/ui/agent-type-badge";
 import {
   formatMessageTime,
@@ -351,6 +352,7 @@ export function MessageItem({
                 />
               </div>
             )}
+            {!isEditing && <DeepResearchMessageCard message={message} />}
           </>
         )}
         {hasAttachments && (

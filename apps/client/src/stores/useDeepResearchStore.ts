@@ -86,24 +86,27 @@ function applyEvent(state: TaskStreamState, ev: RawEvent): TaskStreamState {
       return next;
     }
     case "content.delta": {
-      // Google's real payload nests differently than the legacy flat shape:
-      //   { index, delta: { content: { text }, type: "text" }, type: "thought_summary" | "text" }
-      // The OUTER `type` distinguishes a thinking step vs final report content;
-      // the actual text always lives at `delta.content.text` (preferred) or
-      // `delta.text` for older shapes.
+      // Google's real payload:
+      //   { index, delta: { type: "thought_summary" | "text", content?: {text}, text? }, event_type }
+      // The discriminator (`thought_summary` vs `text`) lives on `delta.type`,
+      // not at the top level. Per docs: thought_summary text is at
+      // `delta.content.text`, plain text at `delta.text` — fall back to either.
       let parsed: {
         type?: string;
         text?: string;
-        delta?: { text?: string; content?: { text?: string }; type?: string };
+        delta?: { type?: string; text?: string; content?: { text?: string } };
       } = {};
       try {
         parsed = JSON.parse(ev.data) as typeof parsed;
       } catch {
         // Treat malformed content.delta as unknown to aid debugging.
       }
+      // Tolerate both the nested real shape (`delta.type`) and the legacy
+      // flat shape (`type`) used by older tests/fixtures.
+      const innerType = parsed.delta?.type ?? parsed.type;
       const text =
         parsed.delta?.content?.text ?? parsed.delta?.text ?? parsed.text;
-      if (parsed.type === "thought_summary" && text) {
+      if (innerType === "thought_summary" && text) {
         const appended = [...state.thoughts, { seq: ev.seq, text }];
         if (appended.length > THOUGHT_CAP) {
           const drop = appended.length - THOUGHT_CAP;
@@ -114,7 +117,7 @@ function applyEvent(state: TaskStreamState, ev: RawEvent): TaskStreamState {
         }
         return next;
       }
-      if (parsed.type === "text" && text) {
+      if (innerType === "text" && text) {
         next.markdownAccum = state.markdownAccum + text;
         return next;
       }

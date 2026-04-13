@@ -14,6 +14,9 @@ import {
   Optional,
   Logger,
   ParseUUIDPipe,
+  BadRequestException,
+  BadGatewayException,
+  HttpException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { v7 as uuidv7 } from 'uuid';
@@ -28,6 +31,7 @@ import {
   CreateMessageDto,
   UpdateMessageDto,
   AddReactionDto,
+  StartDeepResearchDto,
 } from './dto/index.js';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import { GatewayMQService, RABBITMQ_ROUTING_KEYS } from '@team9/rabbitmq';
@@ -44,6 +48,10 @@ import { MessagePropertiesService } from '../properties/message-properties.servi
 import { AiAutoFillService } from '../properties/ai-auto-fill.service.js';
 import { PropertyDefinitionsService } from '../properties/property-definitions.service.js';
 import { determineMessageType } from './message-utils.js';
+import { CapabilityHubClient } from '../../deep-research/capability-hub.client.js';
+
+type DeepResearchOrigin = 'dashboard' | 'chat';
+type DeepResearchTaskStatus = 'pending' | 'running' | 'completed' | 'failed';
 
 @Controller({
   path: 'im',
@@ -63,66 +71,144 @@ export class MessagesController {
     private readonly aiAutoFillService: AiAutoFillService,
     private readonly propertyDefinitionsService: PropertyDefinitionsService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly capabilityHubClient: CapabilityHubClient,
     @Optional() private readonly gatewayMQService?: GatewayMQService,
   ) {}
+
+  private isDeepResearchMessage(
+    metadata?: Record<string, unknown> | null,
+  ): boolean {
+    if (!metadata || typeof metadata !== 'object') return false;
+    const deepResearch = metadata.deepResearch;
+    if (!deepResearch || typeof deepResearch !== 'object') return false;
+    return typeof (deepResearch as Record<string, unknown>).taskId === 'string';
+  }
 
   private shouldPublishChannelMessageTrigger(
     message: MessageResponse,
   ): boolean {
     const sender = message.sender;
-    return sender?.userType === 'human' && sender.agentType === null;
+    return (
+      sender?.userType === 'human' &&
+      sender.agentType === null &&
+      !this.isDeepResearchMessage(message.metadata)
+    );
   }
 
-  @Get('channels/:channelId/messages')
-  async getChannelMessages(
-    @CurrentUser('sub') userId: string,
-    @Param('channelId', ParseUUIDPipe) channelId: string,
-    @Query('limit') limit?: string,
-    @Query('before') before?: string,
-    @Query('after') after?: string,
-    @Query('around') around?: string,
-  ): Promise<MessageResponse[] | PaginatedMessagesResponse> {
-    const t0 = Date.now();
+  private buildDeepResearchMessageMetadata(
+    taskId: string,
+    origin: DeepResearchOrigin = 'dashboard',
+  ): Record<string, unknown> {
+    return {
+      deepResearch: {
+        taskId,
+        version: 1,
+        origin,
+      },
+    };
+  }
 
-    await this.channelsService.assertReadAccess(channelId, userId);
-
-    const parsedLimit = limit ? parseInt(limit, 10) : 50;
-    // When after/around is used, return paginated response with hasOlder/hasNewer
-    if (after || around) {
-      const paginated = await this.messagesService.getChannelMessagesPaginated(
-        channelId,
-        parsedLimit,
-        { before, after, around },
-      );
-      return {
-        ...paginated,
-        messages: paginated.messages.map((m) =>
-          this.messagesService.truncateForPreview(m),
-        ),
-      };
+  private unwrapHubEnvelope<T>(body: unknown): T {
+    if (
+      body &&
+      typeof body === 'object' &&
+      'data' in body &&
+      (body as { success?: unknown }).success === true
+    ) {
+      return (body as { data: T }).data;
     }
-    // Legacy: flat array for backward compatibility (OpenClaw plugin etc.)
-    const result = await this.messagesService.getChannelMessages(
-      channelId,
-      parsedLimit,
-      before,
+
+    return body as T;
+  }
+
+  private getHubErrorMessage(body: unknown): string | undefined {
+    if (!body || typeof body !== 'object') return undefined;
+
+    if (
+      'message' in body &&
+      typeof (body as { message?: unknown }).message === 'string'
+    ) {
+      return (body as { message: string }).message;
+    }
+
+    const error = (body as { error?: unknown }).error;
+    if (
+      error &&
+      typeof error === 'object' &&
+      'message' in error &&
+      typeof (error as { message?: unknown }).message === 'string'
+    ) {
+      return (error as { message: string }).message;
+    }
+
+    return undefined;
+  }
+
+  private async createDeepResearchTask(
+    userId: string,
+    tenantId: string,
+    body: {
+      input: string;
+      agentConfig?: { thinkingSummaries?: 'auto' | 'off' };
+    },
+  ): Promise<{ id: string; status: DeepResearchTaskStatus }> {
+    const upstream = await this.capabilityHubClient.request(
+      'POST',
+      '/api/deep-research/tasks',
+      {
+        headers: {
+          ...this.capabilityHubClient.serviceHeaders({ userId, tenantId }),
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      },
     );
 
-    const total = Date.now() - t0;
-    if (total > 1000) {
-      this.logger.warn(
-        `[getChannelMessages] SLOW channel=${channelId} count=${result.length} total=${total}ms`,
+    let payload: unknown = null;
+    try {
+      payload = (await upstream.json()) as unknown;
+    } catch {
+      if (upstream.ok) {
+        throw new BadGatewayException(
+          'Deep research response could not be parsed.',
+        );
+      }
+    }
+
+    if (!upstream.ok) {
+      throw new HttpException(
+        {
+          message:
+            this.getHubErrorMessage(payload) ??
+            `Deep research request failed with status ${upstream.status}.`,
+        },
+        upstream.status,
       );
     }
 
-    return result.map((m) => this.messagesService.truncateForPreview(m));
+    const task = this.unwrapHubEnvelope<{
+      id?: string;
+      taskId?: string;
+      status?: DeepResearchTaskStatus;
+    }>(payload);
+    const taskId = task.id ?? task.taskId;
+
+    if (!taskId) {
+      throw new BadGatewayException(
+        'Deep research response is missing a task id.',
+      );
+    }
+
+    return {
+      id: taskId,
+      status: task.status ?? 'pending',
+    };
   }
 
-  @Post('channels/:channelId/messages')
-  async createMessage(
-    @CurrentUser('sub') userId: string,
-    @Param('channelId', ParseUUIDPipe) channelId: string,
-    @Body() dto: CreateMessageDto,
+  private async createChannelMessage(
+    userId: string,
+    channelId: string,
+    dto: CreateMessageDto,
   ): Promise<MessageResponse> {
     const t0 = Date.now();
 
@@ -299,6 +385,102 @@ export class MessagesController {
     this.triggerAiAutoFill(message, userId);
 
     return previewMessage;
+  }
+
+  @Get('channels/:channelId/messages')
+  async getChannelMessages(
+    @CurrentUser('sub') userId: string,
+    @Param('channelId', ParseUUIDPipe) channelId: string,
+    @Query('limit') limit?: string,
+    @Query('before') before?: string,
+    @Query('after') after?: string,
+    @Query('around') around?: string,
+  ): Promise<MessageResponse[] | PaginatedMessagesResponse> {
+    const t0 = Date.now();
+
+    await this.channelsService.assertReadAccess(channelId, userId);
+
+    const parsedLimit = limit ? parseInt(limit, 10) : 50;
+    // When after/around is used, return paginated response with hasOlder/hasNewer
+    if (after || around) {
+      const paginated = await this.messagesService.getChannelMessagesPaginated(
+        channelId,
+        parsedLimit,
+        { before, after, around },
+      );
+      return {
+        ...paginated,
+        messages: paginated.messages.map((m) =>
+          this.messagesService.truncateForPreview(m),
+        ),
+      };
+    }
+    // Legacy: flat array for backward compatibility (OpenClaw plugin etc.)
+    const result = await this.messagesService.getChannelMessages(
+      channelId,
+      parsedLimit,
+      before,
+    );
+
+    const total = Date.now() - t0;
+    if (total > 1000) {
+      this.logger.warn(
+        `[getChannelMessages] SLOW channel=${channelId} count=${result.length} total=${total}ms`,
+      );
+    }
+
+    return result.map((m) => this.messagesService.truncateForPreview(m));
+  }
+
+  @Post('channels/:channelId/messages')
+  async createMessage(
+    @CurrentUser('sub') userId: string,
+    @Param('channelId', ParseUUIDPipe) channelId: string,
+    @Body() dto: CreateMessageDto,
+  ): Promise<MessageResponse> {
+    return this.createChannelMessage(userId, channelId, dto);
+  }
+
+  @Post('channels/:channelId/deep-research')
+  async startDeepResearch(
+    @CurrentUser('sub') userId: string,
+    @Param('channelId', ParseUUIDPipe) channelId: string,
+    @Body() dto: StartDeepResearchDto,
+  ): Promise<{
+    task: { id: string; status: DeepResearchTaskStatus };
+    message: MessageResponse;
+  }> {
+    await this.channelsService.assertReadAccess(channelId, userId);
+    const channel = await this.channelsService.findByIdOrThrow(
+      channelId,
+      userId,
+    );
+
+    if (channel.type !== 'direct' || channel.otherUser?.userType !== 'bot') {
+      throw new BadRequestException(
+        'Deep research can only be started in a bot direct message.',
+      );
+    }
+
+    if (!channel.tenantId) {
+      throw new BadRequestException(
+        'Deep research channel is missing a workspace context.',
+      );
+    }
+
+    const task = await this.createDeepResearchTask(userId, channel.tenantId, {
+      input: dto.input,
+      agentConfig: dto.agentConfig,
+    });
+    const message = await this.createChannelMessage(userId, channelId, {
+      content: dto.input,
+      metadata: this.buildDeepResearchMessageMetadata(
+        task.id,
+        dto.origin ?? 'dashboard',
+      ),
+    });
+
+    return { task, message };
   }
 
   @Get('channels/:channelId/pinned')

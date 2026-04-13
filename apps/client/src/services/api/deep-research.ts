@@ -1,4 +1,5 @@
 import http from "@/services/http";
+import type { Message } from "@/types/im";
 
 export type TaskStatus = "pending" | "running" | "completed" | "failed";
 
@@ -19,6 +20,12 @@ function unwrapHubEnvelope<T>(body: unknown): T {
 
 export interface CreateTaskInput {
   input: string | Array<Record<string, unknown>>;
+  agentConfig?: { thinkingSummaries?: "auto" | "off" };
+}
+
+export interface StartDeepResearchInChannelInput {
+  input: string;
+  origin?: "dashboard" | "chat";
   agentConfig?: { thinkingSummaries?: "auto" | "off" };
 }
 
@@ -47,6 +54,67 @@ export interface TaskWithReport extends Task {
   reportUrl?: string | null;
 }
 
+export interface StartDeepResearchInChannelResult {
+  task: Task;
+  message: Message;
+}
+
+interface RawTask {
+  id?: string;
+  taskId?: string;
+  status?: TaskStatus;
+  createdAt?: string;
+  updatedAt?: string;
+  startedAt?: string;
+  completedAt?: string;
+  prompt?: string | null;
+  input?: unknown;
+  finalReport?: { url?: string | null } | null;
+  reportUrl?: string | null;
+  error?: { code: string; message: string; details?: unknown } | null;
+}
+
+function extractPrompt(input: unknown): string | null {
+  if (typeof input === "string") {
+    return input;
+  }
+
+  if (Array.isArray(input)) {
+    const textPart = input.find(
+      (part) =>
+        typeof part === "object" &&
+        part !== null &&
+        "text" in part &&
+        typeof (part as { text?: unknown }).text === "string",
+    ) as { text: string } | undefined;
+
+    return textPart?.text ?? null;
+  }
+
+  return null;
+}
+
+function normalizeTask(raw: RawTask): TaskWithReport {
+  const id = raw.id ?? raw.taskId;
+  if (!id) {
+    throw new Error("deep-research task is missing an id");
+  }
+
+  const createdAt = raw.createdAt ?? raw.startedAt ?? new Date().toISOString();
+  const updatedAt =
+    raw.updatedAt ?? raw.completedAt ?? raw.startedAt ?? createdAt;
+
+  return {
+    id,
+    status: raw.status ?? "pending",
+    createdAt,
+    updatedAt,
+    prompt: raw.prompt ?? extractPrompt(raw.input),
+    reportUrl: raw.reportUrl ?? raw.finalReport?.url ?? null,
+    error: raw.error ?? null,
+  };
+}
+
 export const deepResearchApi = {
   /** Create a new deep-research task. */
   createTask: async (body: CreateTaskInput): Promise<Task> => {
@@ -68,12 +136,42 @@ export const deepResearchApi = {
     };
   },
 
+  /** Start deep research inside a specific chat channel. */
+  startInChannel: async (
+    channelId: string,
+    body: StartDeepResearchInChannelInput,
+  ): Promise<StartDeepResearchInChannelResult> => {
+    const res = await http.post<unknown>(
+      `/v1/im/channels/${encodeURIComponent(channelId)}/deep-research`,
+      body,
+    );
+    const raw = unwrapHubEnvelope<{
+      task: {
+        id?: string;
+        taskId?: string;
+        status?: TaskStatus;
+        createdAt?: string;
+        updatedAt?: string;
+      };
+      message: Message;
+    }>(res.data);
+
+    return {
+      task: normalizeTask(raw.task),
+      message: raw.message,
+    };
+  },
+
   /** List tasks with optional filter/pagination params. */
   listTasks: async (params?: ListTasksParams): Promise<ListTasksResponse> => {
     const res = await http.get<unknown>("/v1/deep-research/tasks", {
       params,
     });
-    return unwrapHubEnvelope<ListTasksResponse>(res.data);
+    const raw = unwrapHubEnvelope<ListTasksResponse>(res.data);
+    return {
+      ...raw,
+      items: raw.items.map((item) => normalizeTask(item as RawTask)),
+    };
   },
 
   /** Fetch a single task by id. */
@@ -81,7 +179,7 @@ export const deepResearchApi = {
     const res = await http.get<unknown>(
       `/v1/deep-research/tasks/${encodeURIComponent(id)}`,
     );
-    return unwrapHubEnvelope<TaskWithReport>(res.data);
+    return normalizeTask(unwrapHubEnvelope<RawTask>(res.data));
   },
 };
 

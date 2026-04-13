@@ -12,6 +12,10 @@ import { FinalReportView } from "./FinalReportView";
 
 export interface TaskDetailProps {
   taskId: string;
+  // When rendered inside a container that already shows the prompt + status
+  // (e.g., the channel-side panel that mimics the thread header), skip the
+  // duplicate header here.
+  hideHeader?: boolean;
 }
 
 // Returns a memoized getAuth fn that reads the latest token/tenant on each
@@ -45,7 +49,7 @@ function ErrorLine({
   return <>{(t as any)("error.UNKNOWN", { code, message })}</>;
 }
 
-export function TaskDetail({ taskId }: TaskDetailProps) {
+export function TaskDetail({ taskId, hideHeader = false }: TaskDetailProps) {
   const { t } = useTranslation("deepResearch");
   const getAuth = useAuthTriple();
   const task = useQuery({
@@ -76,12 +80,14 @@ export function TaskDetail({ taskId }: TaskDetailProps) {
 
   return (
     <div className="flex flex-col gap-4 p-4">
-      <header className="flex items-center gap-2">
-        <StatusBadge status={status} />
-        {task.data?.prompt && (
-          <span className="text-sm text-zinc-500">{task.data.prompt}</span>
-        )}
-      </header>
+      {!hideHeader && (
+        <header className="flex items-center gap-2">
+          <StatusBadge status={status} />
+          {task.data?.prompt && (
+            <span className="text-sm text-zinc-500">{task.data.prompt}</span>
+          )}
+        </header>
+      )}
 
       {isHistorical && (
         <div className="rounded bg-amber-50 px-3 py-2 text-xs text-amber-800">

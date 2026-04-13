@@ -168,7 +168,7 @@ interface ChannelViewProps {
   channelId: string;
   // Initial thread ID from URL - opens thread panel when set
   initialThreadId?: string;
-  // Initial message ID from URL - for scrolling/highlighting (future use)
+  // Initial message ID from URL - used as the initial anchor/highlight target
   initialMessageId?: string;
   // Draft text to pre-fill in the message input
   initialDraft?: string;
@@ -251,6 +251,8 @@ export function ChannelView({
     return undefined;
   }, [isPreviewMode, memberChannel]);
 
+  const initialAnchorMessageId = initialMessageId ?? unreadAnchor;
+
   const {
     data: messagesData,
     isLoading: messagesLoading,
@@ -260,7 +262,9 @@ export function ChannelView({
     hasPreviousPage,
     isFetchingPreviousPage,
     fetchPreviousPage,
-  } = useChannelMessages(channelId, { anchorMessageId: unreadAnchor });
+  } = useChannelMessages(channelId, {
+    anchorMessageId: initialAnchorMessageId,
+  });
   const sendMessage = useSendMessage(channelId);
   const markAsRead = useMarkAsRead();
   const dmOtherUser = (memberChannel as ChannelWithUnread | undefined)

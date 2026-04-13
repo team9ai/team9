@@ -25,6 +25,30 @@ describe("deepResearchApi", () => {
     expect(t.id).toBe("t1");
   });
 
+  it("startInChannel posts to the IM deep-research endpoint", async () => {
+    (http.post as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: {
+        task: { id: "t-chat-1", status: "running" },
+        message: { id: "msg-1", content: "research this market" },
+      },
+    });
+
+    const result = await deepResearchApi.startInChannel("channel-1", {
+      input: "research this market",
+      origin: "dashboard",
+    });
+
+    expect(http.post).toHaveBeenCalledWith(
+      "/v1/im/channels/channel-1/deep-research",
+      {
+        input: "research this market",
+        origin: "dashboard",
+      },
+    );
+    expect(result.task.id).toBe("t-chat-1");
+    expect(result.message.id).toBe("msg-1");
+  });
+
   it("listTasks passes params", async () => {
     (http.get as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: { items: [], nextCursor: null },
@@ -37,11 +61,23 @@ describe("deepResearchApi", () => {
 
   it("getTask hits by id", async () => {
     (http.get as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
-      data: { id: "abc", status: "completed", createdAt: "", updatedAt: "" },
+      data: {
+        success: true,
+        data: {
+          id: "abc",
+          status: "completed",
+          createdAt: "2026-04-13T00:00:00.000Z",
+          updatedAt: "2026-04-13T01:00:00.000Z",
+          input: "Research prompt",
+          finalReport: { url: "https://example.com/report.md" },
+        },
+      },
     });
     const t = await deepResearchApi.getTask("abc");
     expect(http.get).toHaveBeenCalledWith("/v1/deep-research/tasks/abc");
     expect(t.id).toBe("abc");
+    expect(t.prompt).toBe("Research prompt");
+    expect(t.reportUrl).toBe("https://example.com/report.md");
   });
 
   it("unwraps capability-hub {success,data} envelope for listTasks", async () => {
