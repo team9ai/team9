@@ -12,7 +12,9 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { MemoryTab } from "@/components/ai-staff/memory/MemoryTab";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -505,206 +507,218 @@ export function CommonStaffDetailSection({
 
       {/* Info Section */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Staff Details</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          {/* Persona */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-foreground">
-                Persona
-              </label>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-xs gap-1"
-                disabled={isGeneratingPersona || savingField === "persona"}
-                onClick={() => {
-                  void handleGeneratePersona();
-                }}
-              >
-                {isGeneratingPersona ? (
-                  <Loader2 size={12} className="animate-spin" />
+        <Tabs defaultValue="details">
+          <CardHeader className="pb-0">
+            <TabsList className="w-full justify-start">
+              <TabsTrigger value="details">Staff Details</TabsTrigger>
+              <TabsTrigger value="memory">Memory</TabsTrigger>
+            </TabsList>
+          </CardHeader>
+          <TabsContent value="details">
+            <CardContent className="space-y-5">
+              {/* Persona */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-foreground">
+                    Persona
+                  </label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs gap-1"
+                    disabled={isGeneratingPersona || savingField === "persona"}
+                    onClick={() => {
+                      void handleGeneratePersona();
+                    }}
+                  >
+                    {isGeneratingPersona ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Wand2 size={12} />
+                    )}
+                    AI Generate
+                  </Button>
+                </div>
+                {editingPersona ? (
+                  <div className="space-y-1.5">
+                    <Textarea
+                      value={personaInput}
+                      onChange={(e) => setPersonaInput(e.target.value)}
+                      className="text-sm min-h-[120px] resize-y"
+                      placeholder="Describe the staff member's persona..."
+                      autoFocus
+                    />
+                    <div className="flex gap-1.5">
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs"
+                        disabled={savingField === "persona"}
+                        onClick={handleSavePersona}
+                      >
+                        {savingField === "persona" ? (
+                          <Loader2 size={12} className="animate-spin mr-1" />
+                        ) : (
+                          <Check size={12} className="mr-1" />
+                        )}
+                        Save
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => setEditingPersona(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
                 ) : (
-                  <Wand2 size={12} />
+                  <div
+                    className="group relative cursor-pointer rounded-md border border-transparent hover:border-border p-2 -mx-2 transition-colors"
+                    onClick={() => {
+                      setPersonaInput(bot.persona ?? "");
+                      setEditingPersona(true);
+                    }}
+                  >
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                      {bot.persona || (
+                        <span className="italic">Click to add persona...</span>
+                      )}
+                    </p>
+                    <Pencil
+                      size={11}
+                      className="absolute top-2 right-2 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                    />
+                  </div>
                 )}
-                AI Generate
-              </Button>
-            </div>
-            {editingPersona ? (
+              </div>
+
+              {/* Model */}
+              <div className="flex items-center justify-between gap-4">
+                <label className="text-sm font-medium text-foreground shrink-0">
+                  Model
+                </label>
+                <Select
+                  value={currentModelValue}
+                  onValueChange={handleModelChange}
+                  disabled={savingField === "model"}
+                >
+                  <SelectTrigger className="w-52 h-8 text-sm">
+                    <SelectValue placeholder="Select model..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COMMON_STAFF_MODELS.map((m) => (
+                      <SelectItem
+                        key={`${m.provider}::${m.id}`}
+                        value={`${m.provider}::${m.id}`}
+                      >
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Mentor */}
+              <div className="flex items-center justify-between gap-4">
+                <label className="text-sm font-medium text-foreground shrink-0">
+                  Mentor
+                </label>
+                <Select
+                  value={bot.mentorId ?? "__none__"}
+                  onValueChange={handleMentorChange}
+                  disabled={savingField === "mentor"}
+                >
+                  <SelectTrigger className="w-52 h-8 text-sm">
+                    <SelectValue placeholder="Select mentor..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None</SelectItem>
+                    {humanMembers.map((member) => (
+                      <SelectItem key={member.userId} value={member.userId}>
+                        {member.displayName || member.username}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Job Description */}
               <div className="space-y-1.5">
-                <Textarea
-                  value={personaInput}
-                  onChange={(e) => setPersonaInput(e.target.value)}
-                  className="text-sm min-h-[120px] resize-y"
-                  placeholder="Describe the staff member's persona..."
-                  autoFocus
-                />
-                <div className="flex gap-1.5">
-                  <Button
-                    size="sm"
-                    className="h-7 text-xs"
-                    disabled={savingField === "persona"}
-                    onClick={handleSavePersona}
+                <label className="text-sm font-medium text-foreground">
+                  Job Description
+                </label>
+                {editingJobDescription ? (
+                  <div className="space-y-1.5">
+                    <Textarea
+                      value={jobDescriptionInput}
+                      onChange={(e) => setJobDescriptionInput(e.target.value)}
+                      className="text-sm min-h-[100px] resize-y"
+                      placeholder="Describe the staff member's responsibilities..."
+                      autoFocus
+                    />
+                    <div className="flex gap-1.5">
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs"
+                        disabled={savingField === "jobDescription"}
+                        onClick={handleSaveJobDescription}
+                      >
+                        {savingField === "jobDescription" ? (
+                          <Loader2 size={12} className="animate-spin mr-1" />
+                        ) : (
+                          <Check size={12} className="mr-1" />
+                        )}
+                        Save
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => setEditingJobDescription(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    className="group relative cursor-pointer rounded-md border border-transparent hover:border-border p-2 -mx-2 transition-colors"
+                    onClick={() => {
+                      setJobDescriptionInput(bot.jobDescription ?? "");
+                      setEditingJobDescription(true);
+                    }}
                   >
-                    {savingField === "persona" ? (
-                      <Loader2 size={12} className="animate-spin mr-1" />
-                    ) : (
-                      <Check size={12} className="mr-1" />
-                    )}
-                    Save
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => setEditingPersona(false)}
-                  >
-                    Cancel
-                  </Button>
-                </div>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                      {bot.jobDescription || (
+                        <span className="italic">
+                          Click to add job description...
+                        </span>
+                      )}
+                    </p>
+                    <Pencil
+                      size={11}
+                      className="absolute top-2 right-2 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                    />
+                  </div>
+                )}
               </div>
-            ) : (
-              <div
-                className="group relative cursor-pointer rounded-md border border-transparent hover:border-border p-2 -mx-2 transition-colors"
-                onClick={() => {
-                  setPersonaInput(bot.persona ?? "");
-                  setEditingPersona(true);
-                }}
-              >
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                  {bot.persona || (
-                    <span className="italic">Click to add persona...</span>
-                  )}
-                </p>
-                <Pencil
-                  size={11}
-                  className="absolute top-2 right-2 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                />
+
+              {/* Created At */}
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-sm text-muted-foreground">Created</span>
+                <span className="text-xs text-muted-foreground">
+                  {formatDate(bot.createdAt)}
+                </span>
               </div>
-            )}
-          </div>
-
-          {/* Model */}
-          <div className="flex items-center justify-between gap-4">
-            <label className="text-sm font-medium text-foreground shrink-0">
-              Model
-            </label>
-            <Select
-              value={currentModelValue}
-              onValueChange={handleModelChange}
-              disabled={savingField === "model"}
-            >
-              <SelectTrigger className="w-52 h-8 text-sm">
-                <SelectValue placeholder="Select model..." />
-              </SelectTrigger>
-              <SelectContent>
-                {COMMON_STAFF_MODELS.map((m) => (
-                  <SelectItem
-                    key={`${m.provider}::${m.id}`}
-                    value={`${m.provider}::${m.id}`}
-                  >
-                    {m.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Mentor */}
-          <div className="flex items-center justify-between gap-4">
-            <label className="text-sm font-medium text-foreground shrink-0">
-              Mentor
-            </label>
-            <Select
-              value={bot.mentorId ?? "__none__"}
-              onValueChange={handleMentorChange}
-              disabled={savingField === "mentor"}
-            >
-              <SelectTrigger className="w-52 h-8 text-sm">
-                <SelectValue placeholder="Select mentor..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">None</SelectItem>
-                {humanMembers.map((member) => (
-                  <SelectItem key={member.userId} value={member.userId}>
-                    {member.displayName || member.username}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Job Description */}
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">
-              Job Description
-            </label>
-            {editingJobDescription ? (
-              <div className="space-y-1.5">
-                <Textarea
-                  value={jobDescriptionInput}
-                  onChange={(e) => setJobDescriptionInput(e.target.value)}
-                  className="text-sm min-h-[100px] resize-y"
-                  placeholder="Describe the staff member's responsibilities..."
-                  autoFocus
-                />
-                <div className="flex gap-1.5">
-                  <Button
-                    size="sm"
-                    className="h-7 text-xs"
-                    disabled={savingField === "jobDescription"}
-                    onClick={handleSaveJobDescription}
-                  >
-                    {savingField === "jobDescription" ? (
-                      <Loader2 size={12} className="animate-spin mr-1" />
-                    ) : (
-                      <Check size={12} className="mr-1" />
-                    )}
-                    Save
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => setEditingJobDescription(false)}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div
-                className="group relative cursor-pointer rounded-md border border-transparent hover:border-border p-2 -mx-2 transition-colors"
-                onClick={() => {
-                  setJobDescriptionInput(bot.jobDescription ?? "");
-                  setEditingJobDescription(true);
-                }}
-              >
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                  {bot.jobDescription || (
-                    <span className="italic">
-                      Click to add job description...
-                    </span>
-                  )}
-                </p>
-                <Pencil
-                  size={11}
-                  className="absolute top-2 right-2 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Created At */}
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-sm text-muted-foreground">Created</span>
-            <span className="text-xs text-muted-foreground">
-              {formatDate(bot.createdAt)}
-            </span>
-          </div>
-        </CardContent>
+            </CardContent>
+          </TabsContent>
+          <TabsContent value="memory">
+            <CardContent>
+              <MemoryTab />
+            </CardContent>
+          </TabsContent>
+        </Tabs>
       </Card>
     </div>
   );
