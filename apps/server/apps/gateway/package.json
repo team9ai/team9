@@ -67,6 +67,7 @@
     "transliteration": "^2.6.0",
     "uuid": "^13.0.0",
     "web-push": "^3.6.7",
+    "yaml": "^2.8.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {
