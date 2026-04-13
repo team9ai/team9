@@ -10,13 +10,37 @@ import {
 } from './deep-research.controller.js';
 import { CapabilityHubClient } from './capability-hub.client.js';
 import { AuthGuard } from '@team9/auth';
+import { WorkspaceGuard } from '../workspace/guards/workspace.guard.js';
+
+// Guard that injects a fake authenticated user + tenant onto the request so
+// the controller's extractIdentity() call succeeds. Mirrors what AuthGuard +
+// TenantMiddleware do in production.
+const fakeAuthGuard = {
+  canActivate: (ctx: {
+    switchToHttp: () => {
+      getRequest: () => { user?: unknown; tenantId?: string };
+    };
+  }) => {
+    const req = ctx.switchToHttp().getRequest();
+    req.user = { sub: 'user-1' };
+    req.tenantId = 'tenant-1';
+    return true;
+  },
+};
 
 describe('DeepResearchController (JSON passthrough)', () => {
   let app: INestApplication;
-  let hub: { request: jest.Mock };
+  let hub: { request: jest.Mock; serviceHeaders: jest.Mock };
 
   beforeAll(async () => {
-    hub = { request: jest.fn() };
+    hub = {
+      request: jest.fn(),
+      serviceHeaders: jest.fn().mockReturnValue({
+        'x-service-key': 'svc',
+        'x-user-id': 'user-1',
+        'x-tenant-id': 'tenant-1',
+      }),
+    };
     const moduleRef = await Test.createTestingModule({
       controllers: [DeepResearchController],
       providers: [
@@ -28,6 +52,8 @@ describe('DeepResearchController (JSON passthrough)', () => {
       ],
     })
       .overrideGuard(AuthGuard)
+      .useValue(fakeAuthGuard)
+      .overrideGuard(WorkspaceGuard)
       .useValue({ canActivate: () => true })
       .compile();
     app = moduleRef.createNestApplication();
@@ -57,11 +83,17 @@ describe('DeepResearchController (JSON passthrough)', () => {
       '/api/deep-research/tasks',
       expect.objectContaining({
         headers: expect.objectContaining({
-          authorization: 'Bearer T',
-          'x-tenant-id': 'tnt',
+          'x-service-key': 'svc',
+          'x-user-id': 'user-1',
+          'x-tenant-id': 'tenant-1',
+          'content-type': 'application/json',
         }),
       }),
     );
+    expect(hub.serviceHeaders).toHaveBeenCalledWith({
+      userId: 'user-1',
+      tenantId: 'tenant-1',
+    });
   });
 
   it('GET /api/v1/deep-research/tasks forwards query string', async () => {
@@ -120,7 +152,7 @@ describe('DeepResearchController (JSON passthrough)', () => {
 
 describe('DeepResearchController (SSE passthrough)', () => {
   let app: INestApplication;
-  let hub: { request: jest.Mock };
+  let hub: { request: jest.Mock; serviceHeaders: jest.Mock };
 
   // Build a WHATWG ReadableStream from an array of timed text chunks.
   function streamFrom(
@@ -139,7 +171,14 @@ describe('DeepResearchController (SSE passthrough)', () => {
   }
 
   beforeAll(async () => {
-    hub = { request: jest.fn() };
+    hub = {
+      request: jest.fn(),
+      serviceHeaders: jest.fn().mockReturnValue({
+        'x-service-key': 'svc',
+        'x-user-id': 'user-1',
+        'x-tenant-id': 'tenant-1',
+      }),
+    };
     const moduleRef = await Test.createTestingModule({
       controllers: [DeepResearchController],
       providers: [
@@ -154,6 +193,8 @@ describe('DeepResearchController (SSE passthrough)', () => {
       ],
     })
       .overrideGuard(AuthGuard)
+      .useValue(fakeAuthGuard)
+      .overrideGuard(WorkspaceGuard)
       .useValue({ canActivate: () => true })
       .compile();
     app = moduleRef.createNestApplication();

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 export interface HubRequestOptions {
@@ -7,12 +7,46 @@ export interface HubRequestOptions {
   signal?: AbortSignal;
 }
 
+export interface ServiceCallerIdentity {
+  userId: string;
+  tenantId: string;
+  botId?: string;
+}
+
 @Injectable()
 export class CapabilityHubClient {
+  private readonly logger = new Logger(CapabilityHubClient.name);
   private readonly baseUrl: string;
+  private readonly serviceKey: string | undefined;
 
   constructor(config: ConfigService) {
     this.baseUrl = config.getOrThrow<string>('CAPABILITY_HUB_URL');
+    this.serviceKey = config.get<string>('CAPABILITY_HUB_API_KEY');
+    if (!this.serviceKey) {
+      this.logger.warn(
+        'CAPABILITY_HUB_API_KEY is not set; service-to-service calls will fail',
+      );
+    }
+  }
+
+  /**
+   * Build the set of headers required for service-to-service calls on
+   * behalf of an end user. The capability hub AuthGuard accepts these
+   * instead of a bot token when the shared service key matches.
+   */
+  serviceHeaders(identity: ServiceCallerIdentity): Record<string, string> {
+    if (!this.serviceKey) {
+      throw new Error(
+        'CAPABILITY_HUB_API_KEY must be configured to call the hub on behalf of a user',
+      );
+    }
+    const headers: Record<string, string> = {
+      'x-service-key': this.serviceKey,
+      'x-user-id': identity.userId,
+      'x-tenant-id': identity.tenantId,
+    };
+    if (identity.botId) headers['x-bot-id'] = identity.botId;
+    return headers;
   }
 
   async request(

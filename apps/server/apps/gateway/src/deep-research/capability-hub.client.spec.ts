@@ -20,6 +20,10 @@ describe('CapabilityHubClient', () => {
         if (k === 'CAPABILITY_HUB_URL') return 'http://hub.test';
         throw new Error('missing');
       },
+      get: (k: string) => {
+        if (k === 'CAPABILITY_HUB_API_KEY') return 'test-service-key';
+        return undefined;
+      },
     } as unknown as ConfigService;
     client = new CapabilityHubClient(config);
     fetchMock = jest.spyOn(globalThis, 'fetch');
@@ -51,5 +55,28 @@ describe('CapabilityHubClient', () => {
     const ac = new AbortController();
     await client.request('GET', '/x', { signal: ac.signal });
     expect((fetchMock.mock.calls[0][1] as RequestInit).signal).toBe(ac.signal);
+  });
+
+  it('serviceHeaders emits shared key + identity headers', () => {
+    const headers = client.serviceHeaders({
+      userId: 'u1',
+      tenantId: 't1',
+    });
+    expect(headers).toEqual({
+      'x-service-key': 'test-service-key',
+      'x-user-id': 'u1',
+      'x-tenant-id': 't1',
+    });
+  });
+
+  it('serviceHeaders throws when API key is not configured', () => {
+    const config = {
+      getOrThrow: () => 'http://hub.test',
+      get: () => undefined,
+    } as unknown as ConfigService;
+    const c = new CapabilityHubClient(config);
+    expect(() => c.serviceHeaders({ userId: 'u', tenantId: 't' })).toThrow(
+      /CAPABILITY_HUB_API_KEY/,
+    );
   });
 });

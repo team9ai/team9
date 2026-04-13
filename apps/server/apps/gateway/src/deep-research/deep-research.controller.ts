@@ -13,23 +13,33 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuthGuard } from '@team9/auth';
+import { WorkspaceGuard } from '../workspace/guards/workspace.guard.js';
 import { CapabilityHubClient } from './capability-hub.client.js';
-
-// Headers that must be forwarded upstream for correct owner attribution.
-const FORWARD_HEADERS = ['authorization', 'x-tenant-id'];
 
 // DI token for the SSE heartbeat interval. Tests override with a small value
 // to exercise heartbeat behavior without real-time waits.
 export const DEEP_RESEARCH_HEARTBEAT_MS = Symbol('DEEP_RESEARCH_HEARTBEAT_MS');
 const DEFAULT_HEARTBEAT_MS = 20_000;
 
-function pickHeaders(req: Request): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const h of FORWARD_HEADERS) {
-    const v = req.headers[h];
-    if (typeof v === 'string') out[h] = v;
+interface AuthenticatedRequest extends Request {
+  user?: { sub: string };
+  tenantId?: string;
+}
+
+function extractIdentity(req: AuthenticatedRequest): {
+  userId: string;
+  tenantId: string;
+} {
+  const userId = req.user?.sub;
+  const tenantId =
+    req.tenantId ??
+    (typeof req.headers['x-tenant-id'] === 'string'
+      ? req.headers['x-tenant-id']
+      : undefined);
+  if (!userId || !tenantId) {
+    throw new Error('Deep-research request missing authenticated user context');
   }
-  return out;
+  return { userId, tenantId };
 }
 
 async function passThrough(
@@ -44,7 +54,7 @@ async function passThrough(
 }
 
 @Controller({ path: 'deep-research/tasks', version: '1' })
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, WorkspaceGuard)
 export class DeepResearchController {
   private readonly heartbeatMs: number;
 
@@ -57,7 +67,7 @@ export class DeepResearchController {
 
   @Post()
   async create(
-    @Req() req: Request,
+    @Req() req: AuthenticatedRequest,
     @Res() res: Response,
     @Body() body: unknown,
   ): Promise<void> {
@@ -66,7 +76,7 @@ export class DeepResearchController {
       '/api/deep-research/tasks',
       {
         headers: {
-          ...pickHeaders(req),
+          ...this.hub.serviceHeaders(extractIdentity(req)),
           'content-type': 'application/json',
         },
         body: JSON.stringify(body),
@@ -77,7 +87,7 @@ export class DeepResearchController {
 
   @Get()
   async list(
-    @Req() req: Request,
+    @Req() req: AuthenticatedRequest,
     @Res() res: Response,
     @Query() _query: Record<string, string>,
   ): Promise<void> {
@@ -85,35 +95,37 @@ export class DeepResearchController {
     const upstream = await this.hub.request(
       'GET',
       `/api/deep-research/tasks${qs}`,
-      { headers: pickHeaders(req) },
+      { headers: this.hub.serviceHeaders(extractIdentity(req)) },
     );
     await passThrough(res, upstream);
   }
 
   @Get(':id')
   async get(
-    @Req() req: Request,
+    @Req() req: AuthenticatedRequest,
     @Res() res: Response,
     @Param('id') id: string,
   ): Promise<void> {
     const upstream = await this.hub.request(
       'GET',
       `/api/deep-research/tasks/${encodeURIComponent(id)}`,
-      { headers: pickHeaders(req) },
+      { headers: this.hub.serviceHeaders(extractIdentity(req)) },
     );
     await passThrough(res, upstream);
   }
 
   @Get(':id/stream')
   async stream(
-    @Req() req: Request,
+    @Req() req: AuthenticatedRequest,
     @Res() res: Response,
     @Param('id') id: string,
   ): Promise<void> {
     const ac = new AbortController();
     req.on('close', () => ac.abort());
 
-    const headers = pickHeaders(req);
+    const headers: Record<string, string> = {
+      ...this.hub.serviceHeaders(extractIdentity(req)),
+    };
     const lastEventId = req.headers['last-event-id'];
     if (typeof lastEventId === 'string') headers['last-event-id'] = lastEventId;
     headers['accept'] = 'text/event-stream';
