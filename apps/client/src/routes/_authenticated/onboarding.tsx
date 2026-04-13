@@ -1537,9 +1537,6 @@ function StepThree({
                 {preview.purpose}
               </p>
             </div>
-            <span className="rounded-full border border-white/8 bg-white/8 px-3 py-1 text-xs font-semibold text-white/75">
-              {t("channels.activeThread")}
-            </span>
           </header>
 
           <div className="grid gap-3">
