@@ -10,7 +10,7 @@
     {
       "id": 1,
       "subject": "Task 2: Folder9ClientService + internal types",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** Typed fetch-based client that the gateway uses to talk to folder9, with PSK header, error mapping, 100% coverage.\n\n**Files:**\n- Create: apps/server/apps/gateway/src/wikis/folder9-client.service.ts\n- Create: apps/server/apps/gateway/src/wikis/types/folder9.types.ts\n- Create: apps/server/apps/gateway/src/wikis/__tests__/folder9-client.service.spec.ts\n\n**Verify:** pnpm --filter @team9/server test -- folder9-client.service.spec --coverage\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/wikis/folder9-client.service.ts\",\"apps/server/apps/gateway/src/wikis/types/folder9.types.ts\",\"apps/server/apps/gateway/src/wikis/__tests__/folder9-client.service.spec.ts\"],\"verifyCommand\":\"pnpm --filter @team9/server test -- folder9-client.service.spec --coverage\",\"acceptanceCriteria\":[\"Typed methods for every folder9 endpoint the gateway needs\",\"Every request includes the PSK header\",\"Non-2xx throws Folder9ApiError; network errors throw Folder9NetworkError\",\"100% unit coverage\"]}\n```"
     },
