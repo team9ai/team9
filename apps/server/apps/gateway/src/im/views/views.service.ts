@@ -199,16 +199,33 @@ export class ViewsService {
         : null;
 
     return {
-      messages: page.map((m) => ({
-        ...m,
-        properties: propsMap[m.id] ?? {},
-      })),
+      messages: page.map((m) =>
+        this.serializeMessageForView(m, propsMap[m.id] ?? {}),
+      ),
       total: filtered.length,
       cursor: nextCursor,
     };
   }
 
   // ==================== Private Helpers ====================
+
+  /**
+   * Serialize a message row for view responses. Drops seq_id because it is
+   * a PostgreSQL bigint that Drizzle returns as a JS BigInt — Express's
+   * JSON.stringify cannot serialize BigInt, and view clients do not consume
+   * the field anyway (ViewMessageItem has no seqId).
+   */
+  private serializeMessageForView(
+    m: typeof schema.messages.$inferSelect,
+    properties: Record<string, unknown>,
+  ) {
+    const { seqId: _seqId, ...rest } = m;
+    void _seqId;
+    return {
+      ...rest,
+      properties,
+    };
+  }
 
   /**
    * Safely convert an unknown value to a string for comparison/grouping.
@@ -368,10 +385,9 @@ export class ViewsService {
         groups: [
           {
             key: params.group,
-            messages: page.map((m) => ({
-              ...m,
-              properties: propsMap[m.id] ?? {},
-            })),
+            messages: page.map((m) =>
+              this.serializeMessageForView(m, propsMap[m.id] ?? {}),
+            ),
             total: groupMessages.length,
             cursor: nextCursor,
           },
@@ -391,10 +407,9 @@ export class ViewsService {
 
         return {
           key,
-          messages: page.map((m) => ({
-            ...m,
-            properties: propsMap[m.id] ?? {},
-          })),
+          messages: page.map((m) =>
+            this.serializeMessageForView(m, propsMap[m.id] ?? {}),
+          ),
           total: groupMessages.length,
           cursor: nextCursor,
         };
