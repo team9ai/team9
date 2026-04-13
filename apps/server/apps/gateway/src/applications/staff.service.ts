@@ -220,12 +220,33 @@ export class StaffService {
     tenantId: string,
     installedApplicationId: string,
   ) {
+    const openrouterKey = process.env.OPENROUTER_API_KEY;
+    if (openrouterKey) {
+      const provider = createOpenAI({
+        baseURL: 'https://openrouter.ai/api/v1',
+        apiKey: openrouterKey,
+        name: 'openrouter',
+      });
+      // OpenRouter only implements Chat Completions; route `llm('model')` → `.chat('model')`.
+      return new Proxy(provider, {
+        apply: (target, _thisArg, args: Parameters<typeof provider.chat>) =>
+          target.chat(...args),
+      });
+    }
+
+    const capabilityHubUrl = process.env.CAPABILITY_HUB_URL;
+    if (!capabilityHubUrl) {
+      throw new Error(
+        'LLM provider not configured: set OPENROUTER_API_KEY or CAPABILITY_HUB_URL',
+      );
+    }
+
     const token = await this.getPlatformBotToken(
       tenantId,
       installedApplicationId,
     );
     return createOpenAI({
-      baseURL: `${process.env.CAPABILITY_HUB_URL}/api/proxy/openrouter`,
+      baseURL: `${capabilityHubUrl}/api/proxy/openrouter`,
       apiKey: token,
     });
   }
