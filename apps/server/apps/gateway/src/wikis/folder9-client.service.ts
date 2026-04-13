@@ -40,6 +40,19 @@ type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 type AuthMode = 'psk' | { token: string };
 
 /**
+ * Default timeout for metadata endpoints (create/get/update/delete/tree/blob/
+ * proposals). Matches OpenclawService's outbound HTTP pattern — a hung TCP
+ * connection must not pin the caller indefinitely.
+ */
+const DEFAULT_TIMEOUT_MS = 15_000;
+
+/**
+ * Default timeout for binary/commit endpoints. Commits and raw file downloads
+ * can legitimately take longer on large payloads, so we give them more budget.
+ */
+const LONG_TIMEOUT_MS = 60_000;
+
+/**
  * Thin typed `fetch` wrapper around folder9's REST API.
  *
  * Every method:
@@ -82,6 +95,31 @@ export class Folder9ClientService {
   }
 
   /**
+   * Map a caught fetch error to a `Folder9NetworkError`. AbortError (thrown
+   * by `AbortSignal.timeout()`) and TimeoutError get a descriptive timeout
+   * message so callers can distinguish them from generic network failures
+   * via the error message, while keeping the existing error hierarchy (no
+   * new class).
+   */
+  private toNetworkError(
+    path: string,
+    timeoutMs: number,
+    cause: unknown,
+  ): Folder9NetworkError {
+    if (
+      (cause instanceof Error || cause instanceof DOMException) &&
+      (cause.name === 'AbortError' || cause.name === 'TimeoutError')
+    ) {
+      return new Folder9NetworkError(
+        path,
+        cause,
+        `folder9 request timed out after ${timeoutMs}ms at ${path}`,
+      );
+    }
+    return new Folder9NetworkError(path, cause);
+  }
+
+  /**
    * Issue a single request to folder9. Resolves to the parsed JSON body
    * (undefined for empty 2xx responses) or throws a typed error.
    *
@@ -91,18 +129,25 @@ export class Folder9ClientService {
    *               the `endpoint` field on thrown errors (stable for logs).
    * @param auth - 'psk' or { token }.
    * @param body - Optional JSON-serializable body for POST/PATCH.
+   * @param timeoutMs - Per-request timeout in ms. Defaults to
+   *                    {@link DEFAULT_TIMEOUT_MS}.
    */
   private async request<T>(
     method: HttpMethod,
     path: string,
     auth: AuthMode,
     body?: unknown,
+    timeoutMs: number = DEFAULT_TIMEOUT_MS,
   ): Promise<T> {
     const url = `${this.baseUrl()}${path}`;
     const headers: Record<string, string> = {
       [AUTH_HEADER]: this.authHeaderValue(auth),
     };
-    const init: RequestInit = { method, headers };
+    const init: RequestInit = {
+      method,
+      headers,
+      signal: AbortSignal.timeout(timeoutMs),
+    };
     if (body !== undefined) {
       headers['Content-Type'] = 'application/json';
       init.body = JSON.stringify(body);
@@ -112,7 +157,7 @@ export class Folder9ClientService {
     try {
       res = await fetch(url, init);
     } catch (cause) {
-      throw new Folder9NetworkError(path, cause);
+      throw this.toNetworkError(path, timeoutMs, cause);
     }
 
     const text = await res.text();
@@ -136,22 +181,28 @@ export class Folder9ClientService {
    * Download a binary resource (e.g. a raw file blob). Uses the same auth
    * and error semantics as {@link request}, but returns an ArrayBuffer
    * instead of parsing JSON.
+   *
+   * @param timeoutMs - Per-request timeout in ms. Required — the only
+   *                    caller (`getRaw`) supplies the appropriate default
+   *                    so this method stays transport-only.
    */
   private async requestBinary(
     path: string,
     auth: AuthMode,
+    timeoutMs: number,
   ): Promise<ArrayBuffer> {
     const url = `${this.baseUrl()}${path}`;
     const init: RequestInit = {
       method: 'GET',
       headers: { [AUTH_HEADER]: this.authHeaderValue(auth) },
+      signal: AbortSignal.timeout(timeoutMs),
     };
 
     let res: Response;
     try {
       res = await fetch(url, init);
     } catch (cause) {
-      throw new Folder9NetworkError(path, cause);
+      throw this.toNetworkError(path, timeoutMs, cause);
     }
 
     if (!res.ok) {
@@ -263,7 +314,9 @@ export class Folder9ClientService {
    * GET /api/workspaces/{wsId}/folders/{folderId}/raw
    *
    * Returns the raw bytes of a file (binary-safe). Useful for images/PDFs
-   * where base64 round-tripping through /blob would add overhead.
+   * where base64 round-tripping through /blob would add overhead. Uses the
+   * longer `LONG_TIMEOUT_MS` default since binary transfers can be slow;
+   * callers can override via `timeoutMs`.
    */
   getRaw(
     wsId: string,
@@ -271,12 +324,14 @@ export class Folder9ClientService {
     token: string,
     path: string,
     ref?: string,
+    timeoutMs: number = LONG_TIMEOUT_MS,
   ): Promise<ArrayBuffer> {
     const qs = new URLSearchParams({ path });
     if (ref) qs.set('ref', ref);
     return this.requestBinary(
       `/api/workspaces/${wsId}/folders/${folderId}/raw?${qs.toString()}`,
       { token },
+      timeoutMs,
     );
   }
 
@@ -284,18 +339,26 @@ export class Folder9ClientService {
   // Commit (token-protected)
   // ---------------------------------------------------------------------
 
-  /** POST /api/workspaces/{wsId}/folders/{folderId}/commit */
+  /**
+   * POST /api/workspaces/{wsId}/folders/{folderId}/commit
+   *
+   * Commits can legitimately take longer than a metadata call (folder9 has to
+   * walk trees, write objects, and fsync), so we default to
+   * `LONG_TIMEOUT_MS` — still bounded, still survives a hung connection.
+   */
   commit(
     wsId: string,
     folderId: string,
     token: string,
     input: Folder9CommitRequest,
+    timeoutMs: number = LONG_TIMEOUT_MS,
   ): Promise<Folder9CommitResponse> {
     return this.request<Folder9CommitResponse>(
       'POST',
       `/api/workspaces/${wsId}/folders/${folderId}/commit`,
       { token },
       input,
+      timeoutMs,
     );
   }
 

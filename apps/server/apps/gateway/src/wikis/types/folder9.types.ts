@@ -114,7 +114,7 @@ export interface Folder9Proposal {
   status: Folder9ProposalStatus;
   author_type: Folder9PrincipalType;
   author_id: string;
-  reviewed_by?: string | null;
+  reviewed_by?: string;
   created_at: string;
 }
 
@@ -138,12 +138,19 @@ export class Folder9ApiError extends Error {
   }
 }
 
-/** Thrown when the underlying fetch call fails (network error, DNS, etc). */
+/**
+ * Thrown when the underlying fetch call fails (network error, DNS, timeout).
+ *
+ * Timeouts (raised by `AbortSignal.timeout()` as `AbortError` /
+ * `TimeoutError`) are mapped to this same class with a descriptive message
+ * rather than a dedicated subclass — callers that care can check the
+ * `cause.name` or the message text.
+ */
 export class Folder9NetworkError extends Error {
   public readonly endpoint: string;
 
-  constructor(endpoint: string, cause: unknown) {
-    super(`folder9 network error at ${endpoint}`);
+  constructor(endpoint: string, cause: unknown, message?: string) {
+    super(message ?? `folder9 network error at ${endpoint}`);
     this.name = 'Folder9NetworkError';
     this.endpoint = endpoint;
     this.cause = cause;
