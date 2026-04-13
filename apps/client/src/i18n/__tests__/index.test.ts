@@ -38,6 +38,7 @@ vi.mock("../loadLanguage", () => ({
     "resources",
     "skills",
     "onboarding",
+    "deepResearch",
   ],
 }));
 

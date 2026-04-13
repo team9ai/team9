@@ -1,0 +1,46 @@
+{
+  "title": "Deep Research",
+  "newTask": "New research",
+  "promptPlaceholder": "Ask anything. The research agent will browse, think, and write a detailed report.",
+  "start": "Start",
+  "status": {
+    "pending": "Queued",
+    "running": "Running",
+    "completed": "Completed",
+    "failed": "Failed"
+  },
+  "event": {
+    "start": "Research started",
+    "thought": "Thought",
+    "complete": "Research completed",
+    "unknown": "Unknown event"
+  },
+  "history": {
+    "banner": "History tasks retain milestones and the final report only.",
+    "empty": "No research tasks yet."
+  },
+  "drawer": {
+    "closedToastTitle": "Task running in background",
+    "closedToastAction": "View",
+    "insertSuccess": "Report inserted into editor",
+    "insertFallback": "Editor unavailable — report copied to clipboard"
+  },
+  "detail": {
+    "notFoundTitle": "Task not found",
+    "notFoundBody": "The task does not exist or you do not have access.",
+    "backToList": "Back to list",
+    "thoughtsTruncated": "Earlier {{count}} thoughts truncated"
+  },
+  "error": {
+    "DEEP_RESEARCH_CONCURRENCY_LIMIT_REACHED": "Concurrency limit reached. Retry in {{retryAfterSeconds}}s.",
+    "PARENT_NOT_FOUND": "Parent task not found or not accessible.",
+    "PARENT_NOT_COMPLETED": "Parent task not completed; follow-up unavailable.",
+    "PARENT_EXPIRED": "Parent task is older than 50 days; follow-up unavailable.",
+    "UPSTREAM_UNAVAILABLE": "Google upstream is unavailable. Please retry later.",
+    "PROCESS_RESTART": "Server restarted mid-stream. Please restart the task.",
+    "UPSTREAM_SSE_UNRECOVERABLE": "Upstream stream unrecoverable. Task failed.",
+    "FINAL_REPORT_FETCH_FAILED": "Final report generation failed. Please retry.",
+    "REPORT_UPLOAD_FAILED": "Final report upload failed. Please retry.",
+    "UNKNOWN": "{{code}}: {{message}}"
+  }
+}
