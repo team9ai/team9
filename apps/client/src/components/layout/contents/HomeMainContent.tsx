@@ -292,21 +292,29 @@ function DashboardActionChip({
   label,
   icon: Icon,
   className,
+  onClick,
 }: {
   label: string;
   icon: LucideIcon;
   className?: string;
+  onClick?: () => void;
 }) {
+  // Use a button when clickable so keyboard and accessibility work correctly;
+  // fall back to a plain div for purely decorative chips.
+  const Component = onClick ? "button" : "div";
   return (
-    <div
+    <Component
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
       className={cn(
         "dashboard-composer-chip inline-flex h-[2.375rem] items-center gap-1.5 rounded-full px-3.5 text-[0.78rem] font-medium",
+        onClick && "cursor-pointer hover:opacity-80",
         className,
       )}
     >
       <Icon size={14} strokeWidth={1.8} />
       <span>{label}</span>
-    </div>
+    </Component>
   );
 }
 
@@ -484,6 +492,11 @@ export function HomeMainContent() {
                         label={t(chip.key)}
                         icon={chip.icon}
                         className={chip.className}
+                        onClick={
+                          chip.key === "dashboardActionDeepResearch"
+                            ? () => navigate({ to: "/deep-research" })
+                            : undefined
+                        }
                       />
                     ))}
                   </div>

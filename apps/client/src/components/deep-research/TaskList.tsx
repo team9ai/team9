@@ -9,10 +9,8 @@ export interface TaskListProps {
   activeId?: string;
 }
 
-// Route /deep-research/$taskId will be registered in Task 13.
-// Until then we need an escape hatch so the TS router doesn't reject the path.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const LinkAny = Link as React.ComponentType<any>;
+// Route /_authenticated/deep-research/$taskId is registered in Task 13.
+// Link is now typed correctly via routeTree.gen.ts.
 
 export function TaskList({ activeId }: TaskListProps) {
   const { t } = useTranslation("deepResearch");
@@ -54,7 +52,7 @@ export function TaskList({ activeId }: TaskListProps) {
     <ul className="flex flex-col">
       {items.map((it) => (
         <li key={it.id}>
-          <LinkAny
+          <Link
             to="/deep-research/$taskId"
             params={{ taskId: it.id }}
             className={`flex items-center justify-between px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 ${
@@ -68,7 +66,7 @@ export function TaskList({ activeId }: TaskListProps) {
               </div>
             </div>
             <StatusBadge status={it.status} />
-          </LinkAny>
+          </Link>
         </li>
       ))}
       <div ref={sentinelRef} className="h-4" />
