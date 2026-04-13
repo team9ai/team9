@@ -29,7 +29,8 @@
     "notFoundTitle": "任务不存在",
     "notFoundBody": "任务不存在或你没有访问权限。",
     "backToList": "返回列表",
-    "thoughtsTruncated": "已省略更早的 {{count}} 条思考"
+    "thoughtsTruncated": "已省略更早的 {{count}} 条思考",
+    "planningNotice": "正在深度研究中，首批内容通常需要几分钟，请耐心等待…"
   },
   "error": {
     "DEEP_RESEARCH_CONCURRENCY_LIMIT_REACHED": "并发上限已达，{{retryAfterSeconds}} 秒后重试。",

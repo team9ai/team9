@@ -51,7 +51,21 @@ export const deepResearchApi = {
   /** Create a new deep-research task. */
   createTask: async (body: CreateTaskInput): Promise<Task> => {
     const res = await http.post<unknown>("/v1/deep-research/tasks", body);
-    return unwrapHubEnvelope<Task>(res.data);
+    // Hub's create endpoint returns { taskId, status, streamUrl } — rename
+    // taskId → id to stay aligned with the get/list shape used elsewhere.
+    const raw = unwrapHubEnvelope<{
+      taskId?: string;
+      id?: string;
+      status?: TaskStatus;
+    }>(res.data);
+    const id = raw.id ?? raw.taskId;
+    if (!id) throw new Error("createTask: missing task id in response");
+    return {
+      id,
+      status: raw.status ?? "pending",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
   },
 
   /** List tasks with optional filter/pagination params. */
@@ -90,8 +104,9 @@ export async function openTaskStream(
     "x-tenant-id": tenantId,
   };
   if (lastEventId) headers["last-event-id"] = lastEventId;
+  const base = import.meta.env.VITE_API_BASE_URL ?? "";
   return fetch(
-    `/api/v1/deep-research/tasks/${encodeURIComponent(taskId)}/stream`,
+    `${base}/v1/deep-research/tasks/${encodeURIComponent(taskId)}/stream`,
     { headers, signal },
   );
 }

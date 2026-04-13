@@ -37,6 +37,13 @@ export function useDeepResearchStream(opts: UseStreamOptions): void {
         let completed = false;
         try {
           const { token, tenantId } = await getAuthRef.current();
+          // Skip connecting until workspace store has hydrated a tenant id.
+          // Otherwise an empty x-tenant-id makes the gateway fall through to
+          // its host-based fallback, resolving the wrong tenant → 404.
+          if (!token || !tenantId) {
+            await new Promise((r) => setTimeout(r, 500));
+            continue;
+          }
           const headers: Record<string, string> = {
             accept: "text/event-stream",
             authorization: `Bearer ${token}`,
@@ -45,8 +52,11 @@ export function useDeepResearchStream(opts: UseStreamOptions): void {
           const lastSeq = getLastSeq(taskId);
           if (lastSeq) headers["last-event-id"] = lastSeq;
 
+          // Raw fetch bypasses the http client, so we can't rely on its
+          // baseURL — build the absolute gateway URL from VITE_API_BASE_URL.
+          const base = import.meta.env.VITE_API_BASE_URL ?? "";
           const res = await fetch(
-            `/api/v1/deep-research/tasks/${encodeURIComponent(taskId)}/stream`,
+            `${base}/v1/deep-research/tasks/${encodeURIComponent(taskId)}/stream`,
             { headers, signal: ac.signal },
           );
           if (res.status === 401) {
@@ -57,6 +67,9 @@ export function useDeepResearchStream(opts: UseStreamOptions): void {
             await new Promise((r) => setTimeout(r, 500));
             continue;
           }
+          // Terminal client-side errors — task missing or access denied.
+          // Retrying can't recover, so stop to avoid request storms.
+          if (res.status === 404 || res.status === 403) return;
           if (!res.ok || !res.body) throw new Error(`upstream ${res.status}`);
 
           const parser = createParser({

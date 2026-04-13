@@ -106,6 +106,8 @@
   "dashboardTitle": "今天能帮你做什么？",
   "dashboardPromptPlaceholder": "Message dashboard...",
   "dashboardActionDeepResearch": "深度研究",
+  "dashboardDeepResearchPlaceholder": "描述你要研究的主题……",
+  "dashboardDeepResearchCreateFailed": "创建深度研究任务失败",
   "dashboardActionGenerateImage": "生成图片",
   "dashboardModelLabel": "GPT5.4",
   "dashboardPromptHint": "按 Enter 发送，Shift+Enter 换行。",

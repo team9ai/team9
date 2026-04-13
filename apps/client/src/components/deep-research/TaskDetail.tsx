@@ -90,6 +90,17 @@ export function TaskDetail({ taskId }: TaskDetailProps) {
       )}
 
       <EventTimeline taskId={taskId} />
+      {isLive &&
+        !stream?.markdownAccum &&
+        (stream?.thoughts?.length ?? 0) === 0 && (
+          <div className="flex items-center gap-2 rounded bg-zinc-50 px-3 py-2 text-xs text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">
+            <span className="relative flex size-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
+              <span className="relative inline-flex size-2 rounded-full bg-blue-500" />
+            </span>
+            <span>{t("detail.planningNotice")}</span>
+          </div>
+        )}
       {isLive && stream?.markdownAccum && (
         <MarkdownDeltaView markdown={stream.markdownAccum} />
       )}

@@ -15,6 +15,10 @@ export interface TaskStreamState {
   reportUrl?: string | null;
   error?: { code: string; message: string; details?: unknown };
   lastSeq: string | null;
+  // Wall-clock ms of the most recent upstream heartbeat (status_update or
+  // content event). UI uses this to reassure the user that work is active
+  // during the several-minute silent planning phase of Deep Research.
+  lastHeartbeatAt?: number;
   unknownCount: number;
   unknownSamples: { event: string; data: string }[];
 }
@@ -54,31 +58,53 @@ function emptyState(): TaskStreamState {
  * Returns a new state object (no mutation).
  */
 function applyEvent(state: TaskStreamState, ev: RawEvent): TaskStreamState {
-  const next: TaskStreamState = { ...state, lastSeq: ev.seq };
+  const next: TaskStreamState = {
+    ...state,
+    lastSeq: ev.seq,
+    lastHeartbeatAt: Date.now(),
+  };
   switch (ev.event) {
     case "interaction.start": {
       try {
-        const d = JSON.parse(ev.data) as { interaction_id?: string };
-        next.startMeta = { interactionId: d.interaction_id };
+        // Google's SSE nests the id under `interaction.id`; tolerate the
+        // legacy flat shape too for forwards compatibility.
+        const d = JSON.parse(ev.data) as {
+          interaction?: { id?: string };
+          interaction_id?: string;
+        };
+        next.startMeta = {
+          interactionId: d.interaction?.id ?? d.interaction_id,
+        };
       } catch {
         // Ignore malformed start payload; still mark as running.
       }
       next.status = "running";
       return next;
     }
+    case "interaction.status_update": {
+      // Heartbeat ping — timestamp already bumped above. No payload to surface.
+      return next;
+    }
     case "content.delta": {
-      let parsed: { type?: string; text?: string } = {};
+      // Google's real payload nests differently than the legacy flat shape:
+      //   { index, delta: { content: { text }, type: "text" }, type: "thought_summary" | "text" }
+      // The OUTER `type` distinguishes a thinking step vs final report content;
+      // the actual text always lives at `delta.content.text` (preferred) or
+      // `delta.text` for older shapes.
+      let parsed: {
+        type?: string;
+        text?: string;
+        delta?: { text?: string; content?: { text?: string }; type?: string };
+      } = {};
       try {
-        parsed = JSON.parse(ev.data) as { type?: string; text?: string };
+        parsed = JSON.parse(ev.data) as typeof parsed;
       } catch {
         // Treat malformed content.delta as unknown to aid debugging.
       }
-      if (parsed.type === "thought_summary" && parsed.text) {
-        // Append thought and enforce cap; excess is counted in truncatedThoughts.
-        const appended = [
-          ...state.thoughts,
-          { seq: ev.seq, text: parsed.text },
-        ];
+      const text =
+        parsed.delta?.content?.text ?? parsed.delta?.text ?? parsed.text;
+      if (parsed.type === "thought_summary" && text) {
+        const appended = [...state.thoughts, { seq: ev.seq, text }];
         if (appended.length > THOUGHT_CAP) {
           const drop = appended.length - THOUGHT_CAP;
           next.thoughts = appended.slice(drop);
@@ -88,9 +114,8 @@ function applyEvent(state: TaskStreamState, ev: RawEvent): TaskStreamState {
         }
         return next;
       }
-      if (parsed.type === "text" && parsed.text) {
-        // Merge incremental text deltas into a single accumulated markdown string.
-        next.markdownAccum = state.markdownAccum + parsed.text;
+      if (parsed.type === "text" && text) {
+        next.markdownAccum = state.markdownAccum + text;
         return next;
       }
       // content.delta with unrecognized shape: record as unknown for debug.
@@ -101,6 +126,10 @@ function applyEvent(state: TaskStreamState, ev: RawEvent): TaskStreamState {
           { event: "content.delta", data: ev.data },
         ];
       }
+      return next;
+    }
+    case "content.start": {
+      // Marks the start of a content block. Heartbeat already updated above.
       return next;
     }
     case "interaction.complete": {

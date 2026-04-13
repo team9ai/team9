@@ -29,7 +29,8 @@
     "notFoundTitle": "Task not found",
     "notFoundBody": "The task does not exist or you do not have access.",
     "backToList": "Back to list",
-    "thoughtsTruncated": "Earlier {{count}} thoughts truncated"
+    "thoughtsTruncated": "Earlier {{count}} thoughts truncated",
+    "planningNotice": "Deep research in progress — initial content usually takes a few minutes…"
   },
   "error": {
     "DEEP_RESEARCH_CONCURRENCY_LIMIT_REACHED": "Concurrency limit reached. Retry in {{retryAfterSeconds}}s.",
