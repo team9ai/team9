@@ -10,7 +10,6 @@ import { ChannelsService } from './channels.service.js';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { RedisService } from '@team9/redis';
 import { ChannelMemberCacheService } from '../shared/channel-member-cache.service.js';
-import { PropertyDefinitionsService } from '../properties/property-definitions.service.js';
 import { TabsService } from '../views/tabs.service.js';
 
 // ── helpers ──────────────────────────────────────────────────────────
@@ -81,12 +80,6 @@ describe('ChannelsService', () => {
         {
           provide: ChannelMemberCacheService,
           useValue: { invalidate: jest.fn<any>().mockResolvedValue(undefined) },
-        },
-        {
-          provide: PropertyDefinitionsService,
-          useValue: {
-            seedDefaultProperties: jest.fn<any>().mockResolvedValue([]),
-          },
         },
         {
           provide: TabsService,
