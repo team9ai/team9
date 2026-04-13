@@ -196,7 +196,7 @@ export function CreateCommonStaffDialog({
   const [candidateGenerationError, setCandidateGenerationError] = useState<
     string | null
   >(null);
-  const [flipHintActive, setFlipHintActive] = useState(false);
+  const [flipHintedIndices, setFlipHintedIndices] = useState<number[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   // Editable candidate fields (keyed by candidateIndex)
   const [editedCandidates, setEditedCandidates] = useState<
@@ -377,8 +377,7 @@ export function CreateCommonStaffDialog({
     setSelectedCandidate(null);
     setEditedCandidates({});
     setCandidateGenerationError(null);
-    setFlipHintActive(false);
-    let finalCount = 0;
+    setFlipHintedIndices([]);
     try {
       const stream = api.applications.generateCandidates(appId!, {
         jobTitle: jobTitle || undefined,
@@ -404,11 +403,13 @@ export function CreateCommonStaffDialog({
               !!c.summary,
           );
           setCandidates(complete);
-          finalCount = complete.length;
+          setFlipHintedIndices((prev) => {
+            const fresh = complete
+              .map((c) => c.candidateIndex)
+              .filter((idx) => !prev.includes(idx));
+            return fresh.length ? [...prev, ...fresh] : prev;
+          });
         }
-      }
-      if (finalCount > 0) {
-        setFlipHintActive(true);
       }
     } catch (error) {
       console.error("Candidate generation failed:", error);
@@ -948,7 +949,7 @@ export function CreateCommonStaffDialog({
         )}
         {(candidates.length > 0 || skeletonCount > 0) && (
           <div className="grid grid-cols-1 justify-items-center gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {candidates.map((c, i) => {
+            {candidates.map((c) => {
               const edited = editedCandidates[c.candidateIndex];
               return (
                 <StaffBadgeCard
@@ -958,7 +959,9 @@ export function CreateCommonStaffDialog({
                   persona={edited?.persona ?? c.persona}
                   selected={selectedCandidate === c.candidateIndex}
                   onClick={() => setSelectedCandidate(c.candidateIndex)}
-                  flipHintDelayMs={flipHintActive ? i * 250 : undefined}
+                  flipHintDelayMs={
+                    flipHintedIndices.includes(c.candidateIndex) ? 0 : undefined
+                  }
                 />
               );
             })}
@@ -1125,7 +1128,7 @@ export function CreateCommonStaffDialog({
           )}
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto -mx-6 px-6">
+        <div className="-mx-6 -my-2 flex-1 overflow-y-auto px-6 py-2">
           {renderCurrentStep()}
         </div>
 

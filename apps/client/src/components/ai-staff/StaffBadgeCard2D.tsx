@@ -56,7 +56,8 @@ export function StaffBadgeCard2D({
     <div
       className={cn(
         "group relative cursor-pointer select-none",
-        "transition-transform duration-200 ease-out hover:-translate-y-1",
+        "transition-transform duration-200 ease-out",
+        "hover:-translate-y-1 hover:scale-[1.03]",
         selected && "ring-2 ring-primary ring-offset-2 rounded-2xl",
       )}
       style={{ width: 280, height: 400, perspective: "1000px" }}
@@ -81,11 +82,13 @@ export function StaffBadgeCard2D({
       >
         {/* Front Face */}
         <div
-          className="absolute inset-0 bg-card border border-border shadow-lg transition-shadow duration-200 group-hover:shadow-xl flex flex-col"
+          className="absolute inset-0 flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-lg transition-shadow duration-200 group-hover:shadow-2xl"
           style={{
             backfaceVisibility: "hidden",
             clipPath: "inset(0 round 1rem)",
+            contain: "paint",
             willChange: "transform",
+            transform: "translateZ(0)",
           }}
         >
           {/* Gradient header strip */}
@@ -150,12 +153,13 @@ export function StaffBadgeCard2D({
 
         {/* Back Face */}
         <div
-          className="absolute inset-0 bg-card border border-border shadow-lg transition-shadow duration-200 group-hover:shadow-xl flex flex-col"
+          className="absolute inset-0 flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-lg transition-shadow duration-200 group-hover:shadow-2xl"
           style={{
             backfaceVisibility: "hidden",
             clipPath: "inset(0 round 1rem)",
+            contain: "paint",
             willChange: "transform",
-            transform: "rotateY(180deg)",
+            transform: "translateZ(0) rotateY(180deg)",
           }}
         >
           {/* Gradient header strip (accent color) */}
