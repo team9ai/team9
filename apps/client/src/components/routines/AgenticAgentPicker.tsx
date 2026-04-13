@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -45,23 +45,27 @@ export function AgenticAgentPicker({
     queryKey: ["installed-applications-with-bots", workspaceId],
     queryFn: async () => {
       const apps = await api.applications.getInstalledApplicationsWithBots();
-      return apps
-        .filter((a) => a.status === "active")
-        .flatMap((a) => a.bots)
-        .filter((b) => !("agentType" in b && b.agentType === "openclaw"));
+      return apps.filter((a) => a.status === "active").flatMap((a) => a.bots);
     },
     enabled: open && !!workspaceId,
   });
 
-  // Auto-select the first bot when data loads (or personal staff if available)
+  // Filter out openclaw bots (not yet supported for routine creation)
+  // and any bots with missing botId (defensive guard against malformed data)
+  const eligibleBots = useMemo(
+    () =>
+      allBots.filter(
+        (b) => b.botId && !("agentType" in b && b.agentType === "openclaw"),
+      ),
+    [allBots],
+  );
+
+  // Auto-select the first eligible bot when data loads
   useEffect(() => {
-    if (allBots.length > 0 && !selectedAgentId) {
-      const personalStaff = allBots.find(
-        (b) => "agentId" in b && b.agentId === null,
-      );
-      setSelectedAgentId(personalStaff?.botId ?? allBots[0].botId);
+    if (eligibleBots.length > 0 && !selectedAgentId) {
+      setSelectedAgentId(eligibleBots[0].botId);
     }
-  }, [allBots, selectedAgentId]);
+  }, [eligibleBots, selectedAgentId]);
 
   const effectiveAgentId = selectedAgentId;
 
@@ -90,7 +94,7 @@ export function AgenticAgentPicker({
     onClose();
   }
 
-  const canConfirm = !createMutation.isPending && allBots.length > 0;
+  const canConfirm = !createMutation.isPending && eligibleBots.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
@@ -107,7 +111,7 @@ export function AgenticAgentPicker({
               <div className="flex items-center gap-2 text-sm text-muted-foreground py-1">
                 <Loader2 className="w-4 h-4 animate-spin" />
               </div>
-            ) : allBots.length === 0 ? (
+            ) : eligibleBots.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 {t("agentic.noAgentsAvailable")}
               </p>
@@ -120,15 +124,13 @@ export function AgenticAgentPicker({
                   <SelectValue />
                 </SelectTriggerUI>
                 <SelectContent>
-                  {allBots
-                    .filter((bot) => bot.botId)
-                    .map((bot) => (
-                      <SelectItem key={bot.botId} value={bot.botId}>
-                        {("displayName" in bot && bot.displayName) ||
-                          ("username" in bot && bot.username) ||
-                          bot.botId}
-                      </SelectItem>
-                    ))}
+                  {eligibleBots.map((bot) => (
+                    <SelectItem key={bot.botId} value={bot.botId}>
+                      {("displayName" in bot && bot.displayName) ||
+                        ("username" in bot && bot.username) ||
+                        bot.botId}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             )}
