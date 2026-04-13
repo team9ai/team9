@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { MemoryTab } from "@/components/ai-staff/memory/MemoryTab";
+import { WorkfileTab } from "@/components/ai-staff/workfile/WorkfileTab";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -512,6 +513,7 @@ export function CommonStaffDetailSection({
             <TabsList className="w-full justify-start">
               <TabsTrigger value="details">Staff Details</TabsTrigger>
               <TabsTrigger value="memory">Memory</TabsTrigger>
+              <TabsTrigger value="workfile">Workfile</TabsTrigger>
             </TabsList>
           </CardHeader>
           <TabsContent value="details">
@@ -716,6 +718,11 @@ export function CommonStaffDetailSection({
           <TabsContent value="memory">
             <CardContent>
               <MemoryTab />
+            </CardContent>
+          </TabsContent>
+          <TabsContent value="workfile">
+            <CardContent>
+              <WorkfileTab />
             </CardContent>
           </TabsContent>
         </Tabs>
