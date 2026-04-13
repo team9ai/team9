@@ -11,6 +11,7 @@ import {
 import { EmojiPicker } from "./EmojiPicker";
 import { cn } from "@/lib/utils";
 import { $createTextNode, $insertNodes } from "lexical";
+import { DeepResearchDrawer } from "@/components/deep-research/DeepResearchDrawer";
 
 interface EditorToolbarProps {
   onFileSelect?: (files: FileList) => void;
@@ -24,6 +25,7 @@ export function EditorToolbar({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editor] = useLexicalComposerContext();
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [drOpen, setDrOpen] = useState(false);
 
   const insertEmoji = (emoji: string) => {
     editor.update(() => {
@@ -136,6 +138,7 @@ export function EditorToolbar({
             size="sm"
             className={cn(aiBtnClass, "group/ai")}
             title="Deep research"
+            onClick={() => setDrOpen(true)}
           >
             <Search size={16} className="shrink-0" />
             <span className="max-w-0 opacity-0 group-hover/ai:max-w-32 group-hover/ai:opacity-100 group-hover/ai:ml-1 group-hover/ai:mr-1 transition-all duration-200 text-xs whitespace-nowrap">
@@ -157,6 +160,11 @@ export function EditorToolbar({
           </Button>
         </>
       )}
+      <DeepResearchDrawer
+        open={drOpen}
+        onOpenChange={setDrOpen}
+        editor={editor}
+      />
     </div>
   );
 }
