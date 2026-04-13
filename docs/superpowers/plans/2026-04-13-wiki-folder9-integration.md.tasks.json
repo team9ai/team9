@@ -30,7 +30,7 @@
     {
       "id": 4,
       "subject": "Task 5: WikisService (CRUD)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1, 2, 3],
       "description": "**Goal:** Service methods for Wiki lifecycle (list, create, get, update, archive) with folder9 compensation rollback.\n\n**Files:**\n- Create: apps/server/apps/gateway/src/wikis/wikis.service.ts\n- Create: apps/server/apps/gateway/src/wikis/__tests__/wikis.service.spec.ts\n\n**Verify:** pnpm --filter @team9/server test -- wikis.service.spec --coverage\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/wikis/wikis.service.ts\",\"apps/server/apps/gateway/src/wikis/__tests__/wikis.service.spec.ts\"],\"verifyCommand\":\"pnpm --filter @team9/server test -- wikis.service.spec --coverage\",\"acceptanceCriteria\":[\"createWiki inserts workspace_wikis row after folder9 create\",\"DB failure rolls back folder9 via deleteFolder\",\"Agent callers rejected with Forbidden\",\"Slug auto-derivation + uniqueness check\",\"listWikis filters archived\",\"updateWikiSettings requires write perm\",\"100% coverage\"]}\n```"
     },
