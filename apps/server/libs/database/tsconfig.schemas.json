@@ -7,5 +7,5 @@
     "skipLibCheck": true
   },
   "include": ["src/schemas/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.test.ts"]
 }

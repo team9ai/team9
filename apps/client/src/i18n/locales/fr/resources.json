@@ -1,0 +1,92 @@
+{
+  "title": "Ressources",
+  "tabs": {
+    "all": "Tout",
+    "agent_computer": "Ordinateur d'agent",
+    "api": "API"
+  },
+  "noResources": "Aucune ressource pour le moment",
+  "status": {
+    "online": "En ligne",
+    "offline": "Hors ligne",
+    "error": "Erreur",
+    "configuring": "Configuration en cours"
+  },
+  "type": {
+    "agent_computer": "Ordinateur d'agent",
+    "api": "API"
+  },
+  "connectionType": {
+    "ahand": "Ahand",
+    "ssh": "SSH",
+    "cloud": "Cloud"
+  },
+  "create": {
+    "title": "Ajouter une ressource",
+    "selectType": "Type de ressource",
+    "name": "Nom",
+    "namePlaceholder": "Entrez le nom de la ressource",
+    "description": "Description",
+    "descriptionPlaceholder": "Description facultative",
+    "connectionType": "Type de connexion",
+    "host": "Hôte",
+    "hostPlaceholder": "ex. 192.168.1.100",
+    "port": "Port",
+    "provider": "Fournisseur",
+    "providerPlaceholder": "ex. openai, google, custom",
+    "apiKey": "Clé API",
+    "apiKeyPlaceholder": "Entrez la clé API",
+    "baseUrl": "URL de base",
+    "baseUrlPlaceholder": "URL de base personnalisée facultative",
+    "model": "Modèle",
+    "modelPlaceholder": "ex. gpt-4, claude-3",
+    "submit": "Créer",
+    "cancel": "Annuler"
+  },
+  "detail": {
+    "title": "Détails de la ressource",
+    "loadError": "Échec du chargement de la ressource",
+    "basicInfo": "Informations de base",
+    "authorizations": "Autorisations",
+    "noAuthorizations": "Aucune autorisation pour le moment",
+    "addAuthorization": "Ajouter",
+    "usageLogs": "Journaux d'utilisation",
+    "noUsageLogs": "Aucun journal d'utilisation",
+    "delete": "Supprimer",
+    "deleteConfirm": "Êtes-vous sûr de vouloir supprimer cette ressource ?",
+    "lastHeartbeat": "Dernier battement : {{time}}",
+    "authCount": "{{count}} autorisés",
+    "maskedKey": "{{prefix}}...{{suffix}}",
+    "granteeType": {
+      "user": "Utilisateur",
+      "task": "Tâche"
+    },
+    "permissionLevel": {
+      "full": "Accès complet",
+      "readonly": "Lecture seule"
+    }
+  },
+  "auth": {
+    "granteeType": "Type de bénéficiaire",
+    "granteeId": "ID du bénéficiaire",
+    "granteeIdPlaceholder": "Entrez l'ID d'utilisateur ou de tâche",
+    "permissionLevel": "Niveau de permission",
+    "grant": "Accorder l'accès"
+  },
+  "edit": {
+    "save": "Enregistrer",
+    "cancel": "Annuler"
+  },
+  "ahand": {
+    "localDeviceSetup": "Configuration du périphérique local",
+    "connection": "Connexion aHand",
+    "browserComponents": "Composants du navigateur",
+    "activation": "Activation"
+  },
+  "actions": {
+    "connect": "Connecter",
+    "disconnect": "Déconnecter",
+    "api_call": "Appel API",
+    "error": "Erreur"
+  }
+}

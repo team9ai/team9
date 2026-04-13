@@ -4,9 +4,11 @@ import {
   isHistoryTriggerType,
 } from "@/lib/routine-trigger-keys";
 import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/date-format";
 import type { RoutineExecution, RoutineStatus } from "@/types/routine";
 
 const STATUS_COLORS: Record<RoutineStatus, string> = {
+  draft: "bg-yellow-400",
   in_progress: "bg-blue-500",
   upcoming: "bg-gray-400",
   paused: "bg-yellow-500",
@@ -54,7 +56,7 @@ export function RunItem({ execution, isSelected, onClick }: RunItemProps) {
         </span>
         {execution.startedAt && (
           <span className="text-[10px] text-muted-foreground ml-auto">
-            {new Date(execution.startedAt).toLocaleString()}
+            {formatDateTime(execution.startedAt)}
           </span>
         )}
       </div>

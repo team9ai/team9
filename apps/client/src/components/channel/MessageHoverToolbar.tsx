@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MessageSquare, SmilePlus } from "lucide-react";
+import { MessageSquare, SmilePlus, Tags } from "lucide-react";
 import {
   Popover,
   PopoverTrigger,
@@ -19,11 +19,13 @@ const QUICK_EMOJIS = ["👀", "👍", "🙌", "✅"];
 interface MessageHoverToolbarProps {
   onReaction: (emoji: string) => void;
   onReplyInThread?: () => void;
+  onProperties?: () => void;
 }
 
 export function MessageHoverToolbar({
   onReaction,
   onReplyInThread,
+  onProperties,
 }: MessageHoverToolbarProps) {
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
 
@@ -36,7 +38,7 @@ export function MessageHoverToolbar({
     <TooltipProvider>
       <div
         className={cn(
-          "absolute -top-4 right-2 z-10",
+          "absolute -top-3 right-8 z-10",
           "flex items-center gap-0.5 px-1 py-0.5",
           "rounded-md border bg-background shadow-sm",
         )}
@@ -79,6 +81,25 @@ export function MessageHoverToolbar({
             <EmojiPicker onSelect={handleEmojiSelect} />
           </PopoverContent>
         </Popover>
+
+        {onProperties && (
+          <>
+            <div className="w-px h-4 bg-border mx-0.5" />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={onProperties}
+                  className="flex items-center justify-center w-7 h-7 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                >
+                  <Tags size={16} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={4}>
+                Properties
+              </TooltipContent>
+            </Tooltip>
+          </>
+        )}
 
         {onReplyInThread && (
           <>

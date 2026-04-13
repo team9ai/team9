@@ -19,6 +19,7 @@ export function useUserWorkspaces() {
   return useQuery({
     queryKey: ["user-workspaces"],
     queryFn: () => workspaceApi.getUserWorkspaces(),
+    staleTime: 30_000,
   });
 }
 

@@ -1,0 +1,184 @@
+{
+  "createChannel": "Een kanaal aanmaken",
+  "createChannelDescription": "Kanalen zijn de plek waar je team communiceert. Ze werken het best als ze rond een onderwerp zijn georganiseerd — bijvoorbeeld #project-mars.",
+  "channelName": "Kanaalnaam",
+  "channelNamePlaceholder": "bijv. project-mars",
+  "channelNameRequired": "Kanaalnaam is verplicht",
+  "channelNameInvalid": "Moet beginnen met een letter of cijfer",
+  "channelNameHint": "Mag alleen kleine letters, cijfers en koppeltekens bevatten",
+  "channelDescription": "Beschrijving",
+  "channelDescriptionPlaceholder": "Waar gaat dit kanaal over?",
+  "channelDescriptionOptional": "(optioneel)",
+  "chooseVisibility": "Kies zichtbaarheid",
+  "public": "Openbaar",
+  "publicDescription": "Iedereen kan dit kanaal bekijken en eraan deelnemen",
+  "private": "Privé",
+  "privateDescription": "Alleen uitgenodigde leden kunnen dit kanaal bekijken",
+  "creating": "Aanmaken...",
+  "browseChannels": "Kanalen bladeren",
+  "noChannels": "Geen kanalen",
+  "noChannelsYet": "Nog geen kanalen",
+  "viewChannel": "Kanaal bekijken",
+  "leaveChannel": "Kanaal verlaten",
+  "deleteChannel": "Kanaal verwijderen",
+  "channelSettings": "Kanaalinstellingen",
+  "channelMembers": "Kanaalleden",
+  "addMembers": "Leden toevoegen",
+  "members": "{{count}} leden",
+  "unread": "ongelezen",
+  "searchMember": "Zoek gebruikersnaam of bijnaam...",
+  "noMatchingUsers": "Geen overeenkomende gebruikers gevonden",
+  "allMembersInChannel": "Alle leden zitten al in het kanaal",
+  "selectedCount": "{{count}} geselecteerd",
+  "selectMembersToAdd": "Selecteer leden om toe te voegen",
+  "adding": "Toevoegen...",
+  "addCount": "{{count}} toevoegen",
+  "add": "Toevoegen",
+  "about": "Over",
+  "settings": "Instellingen",
+  "noDescription": "Geen beschrijving",
+  "type": "Type",
+  "privateChannel": "Privékanaal",
+  "publicChannel": "Openbaar kanaal",
+  "createdAt": "Aangemaakt op",
+  "findMember": "Lid zoeken",
+  "addPeople": "Personen toevoegen",
+  "you": "(Jij)",
+  "channelAdmin": "Kanaalbeheerder",
+  "admin": "Beheerder",
+  "dangerZone": "Gevarenzone",
+  "deleteChannelWarning": "Na het verwijderen van het kanaal worden alle berichten en bestanden permanent verwijderd en kunnen ze niet worden hersteld.",
+  "deleteThisChannel": "Dit kanaal verwijderen",
+  "save": "Opslaan",
+  "saving": "Opslaan...",
+  "edit": "Bewerken",
+  "joinChannel": "Deelnemen aan kanaal",
+  "joining": "Deelnemen...",
+  "leaving": "Verlaten...",
+  "leaveChannelWarning": "Je hebt dan geen toegang meer tot de berichten en bestanden van dit kanaal.",
+  "leaveThisChannel": "Dit kanaal verlaten",
+  "deleteChannelDescription": "Deze actie kan niet ongedaan worden gemaakt. Alle berichten in dit kanaal worden permanent verwijderd.",
+  "deleteChannelWarningTitle": "Het verwijderen van dit kanaal zal:",
+  "deleteWarningMessages": "Alle berichten en bestanden verwijderen",
+  "deleteWarningMembers": "Alle leden uit het kanaal verwijderen",
+  "deleteWarningNoRecovery": "Dit kan niet worden hersteld",
+  "typeToConfirm": "Typ {{name}} om te bevestigen",
+  "enterChannelName": "Voer kanaalnaam in",
+  "permanentDelete": "Permanent verwijderen (kan niet worden hersteld)",
+  "deleting": "Verwijderen...",
+  "channelNotFound": "Kanaal niet gevonden",
+  "loadingChannel": "Kanaal laden...",
+  "loadingMessages": "Berichten laden...",
+  "loadingMoreMessages": "Meer berichten laden...",
+  "noMessagesYet": "Nog geen berichten. Neem deel aan het kanaal om het gesprek te starten!",
+  "botStartupCountdownMessage": "Hoi, je OpenClaw Bot is aan het opstarten. Wacht tot het aftellen is afgelopen voordat je chat.",
+  "botStartupSuccessMessage": "Hoi, je OpenClaw Bot is succesvol gestart!",
+  "botStartChatting": "Begin met chatten",
+  "noMessagesYetDefault": "Nog geen berichten",
+  "emptyPublicChannelTitle": "Chat met de Bot!",
+  "emptyPublicChannelDesc": "Dit kanaal heeft een AI-bot die klaar staat om te helpen. Typ @ om de bot te vermelden in je bericht en start een gesprek.",
+  "emptyPublicChannelHintExample": "vraag me wat dan ook...",
+  "emptyPublicChannelGotIt": "Begrepen",
+  "botNotMemberTitle": "{{botName}} is geen lid van het kanaal",
+  "botNotMemberPublicDesc": "{{botName}} is geen lid van dit kanaal en ontvangt je bericht niet. Wil je het eerst aan het kanaal toevoegen?",
+  "botNotMemberPrivateAdminDesc": "{{botName}} is geen lid van dit privékanaal en ontvangt je bericht niet. Wil je het eerst aan het kanaal toevoegen?",
+  "botNotMemberPrivateDesc": "{{botName}} is geen lid van dit privékanaal en ontvangt je bericht niet. Neem contact op met een kanaalbeheerder om de bot toe te voegen.",
+  "addBotToChannel": "Aan kanaal toevoegen",
+  "addingBot": "Toevoegen...",
+  "botInstanceStoppedMessage": "De instance van de bot is momenteel gestopt. Start deze om verder te chatten.",
+  "botInstanceStoppedMemberMessage": "De instance van de bot is momenteel gestopt. Neem contact op met een werkruimtebeheerder om deze te starten.",
+  "botInstanceStart": "Starten",
+  "botInstanceStarting": "Starten...",
+  "botInstanceStartingMessage": "De instance van de bot wordt gestart, een ogenblik geduld...",
+  "botThinking": {
+    "texts": {
+      "thinking": "Denken",
+      "analyzing": "Analyseren",
+      "reasoning": "Redeneren",
+      "computing": "Berekenen",
+      "parsing": "Parsen",
+      "brewing": "Brouwen",
+      "crafting": "Maken",
+      "decoding": "Decoderen",
+      "imagining": "Verbeelden",
+      "composing": "Componeren"
+    }
+  },
+  "tracking": {
+    "ops": {
+      "loadTools": {
+        "loading": "Tools laden",
+        "success": "Tools geladen",
+        "error": "Kan tools niet laden"
+      },
+      "searchTools": {
+        "loading": "Tools zoeken",
+        "success": "Tools gevonden",
+        "error": "Tool-zoekopdracht mislukt"
+      },
+      "invokeTool": {
+        "loading": "Tool aanroepen",
+        "success": "Tool-aanroep voltooid",
+        "error": "Tool-aanroep mislukt"
+      },
+      "fallback": {
+        "loading": "{{name}} laden",
+        "success": "{{name}} voltooid",
+        "error": "{{name}} mislukt"
+      }
+    },
+    "tools": {
+      "searchDocs": {
+        "loading": "Documenten zoeken",
+        "success": "Documenten gevonden",
+        "error": "Documentzoekopdracht mislukt"
+      },
+      "sendMessage": {
+        "loading": "Bericht verzenden",
+        "success": "Bericht verzonden",
+        "error": "Bericht verzenden mislukt"
+      },
+      "generateReply": {
+        "loading": "Antwoord genereren",
+        "success": "Antwoord gegenereerd",
+        "error": "Antwoord genereren mislukt"
+      }
+    },
+    "thinking": {
+      "label": "Denken",
+      "labelWithStats": "Denken ({{stats}})",
+      "tokens_one": "{{count}} token",
+      "tokens_other": "{{count}} tokens",
+      "seconds": "{{count}}s",
+      "minutesSeconds": "{{minutes}}m {{seconds}}s"
+    },
+    "toolCall": {
+      "argsLabel": "Args",
+      "resultLabel": "Resultaat",
+      "unknownTool": "Onbekende tool"
+    },
+    "eventLabels": {
+      "thinking": "Denken",
+      "writing": "Schrijven",
+      "toolCall": "Aanroepen",
+      "toolResult": "Resultaat",
+      "agentStart": "Gestart",
+      "agentEnd": "Voltooid",
+      "error": "Fout",
+      "turn": "Beurt",
+      "choices": "Keuzes",
+      "selected": "Geselecteerd"
+    },
+    "round": {
+      "collapseSummary_one": "... Uitvoering tonen ({{count}} stap)",
+      "collapseSummary_other": "... Uitvoering tonen ({{count}} stappen)",
+      "expandAriaLabel_one": "Uitvoeringsproces uitvouwen ({{count}} stap)",
+      "expandAriaLabel_other": "Uitvoeringsproces uitvouwen ({{count}} stappen)"
+    },
+    "card": {
+      "moreDetails_one": "Bekijk {{count}} meer detail ›",
+      "moreDetails_other": "Bekijk {{count}} meer details ›",
+      "loading": "Laden..."
+    }
+  }
+}

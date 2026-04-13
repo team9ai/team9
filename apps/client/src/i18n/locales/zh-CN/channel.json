@@ -1,0 +1,181 @@
+{
+  "createChannel": "创建频道",
+  "createChannelDescription": "频道是团队沟通的地方。最好围绕一个主题创建频道，例如 #项目-火星 或 #日常讨论",
+  "channelName": "频道名称",
+  "channelNamePlaceholder": "例如：项目-火星",
+  "channelNameRequired": "频道名称是必填项",
+  "channelNameInvalid": "必须以字母或数字开头",
+  "channelNameHint": "只能包含小写字母、数字和连字符",
+  "channelDescription": "频道描述",
+  "channelDescriptionPlaceholder": "这个频道是关于什么的？",
+  "channelDescriptionOptional": "（可选）",
+  "chooseVisibility": "选择可见性",
+  "public": "公开",
+  "publicDescription": "任何人都可以查看和加入这个频道",
+  "private": "私有",
+  "privateDescription": "只有被邀请的成员可以查看这个频道",
+  "creating": "创建中...",
+  "browseChannels": "浏览频道",
+  "noChannels": "暂无频道",
+  "noChannelsYet": "还没有频道",
+  "viewChannel": "查看频道",
+  "leaveChannel": "离开频道",
+  "deleteChannel": "删除频道",
+  "channelSettings": "频道设置",
+  "channelMembers": "频道成员",
+  "addMembers": "添加成员",
+  "members": "{{count}} 位成员",
+  "unread": "未读",
+  "searchMember": "搜索用户名或昵称...",
+  "noMatchingUsers": "未找到匹配的用户",
+  "allMembersInChannel": "所有成员都已在频道中",
+  "selectedCount": "已选择 {{count}} 人",
+  "selectMembersToAdd": "选择要添加的成员",
+  "adding": "添加中...",
+  "addCount": "添加 {{count}} 人",
+  "add": "添加",
+  "about": "关于",
+  "settings": "设置",
+  "noDescription": "暂无描述",
+  "type": "类型",
+  "privateChannel": "私有频道",
+  "publicChannel": "公开频道",
+  "createdAt": "创建时间",
+  "findMember": "查找成员",
+  "addPeople": "添加人员",
+  "you": "（你）",
+  "channelAdmin": "频道管理者",
+  "admin": "管理员",
+  "dangerZone": "危险操作",
+  "deleteChannelWarning": "删除频道后，所有消息和文件都将被永久删除，无法恢复。",
+  "deleteThisChannel": "删除此频道",
+  "save": "保存",
+  "saving": "保存中...",
+  "edit": "编辑",
+  "joinChannel": "加入频道",
+  "joining": "加入中...",
+  "leaving": "离开中...",
+  "leaveChannelWarning": "离开后，你将无法访问此频道的消息和文件。",
+  "leaveThisChannel": "离开此频道",
+  "deleteChannelDescription": "此操作不可撤销。该频道中的所有消息将被永久删除。",
+  "deleteChannelWarningTitle": "删除此频道将会：",
+  "deleteWarningMessages": "删除所有消息和文件",
+  "deleteWarningMembers": "移除频道中的所有成员",
+  "deleteWarningNoRecovery": "操作不可恢复",
+  "typeToConfirm": "输入 {{name}} 以确认",
+  "enterChannelName": "输入频道名称",
+  "permanentDelete": "永久删除（不可恢复）",
+  "deleting": "删除中...",
+  "channelNotFound": "找不到频道",
+  "loadingChannel": "加载频道中...",
+  "loadingMessages": "加载消息中...",
+  "loadingMoreMessages": "加载更多消息...",
+  "noMessagesYet": "暂无消息。加入频道开始聊天吧！",
+  "botStartupCountdownMessage": "HI，你的专属 OpenClaw Bot 正在启动中，请等待倒计时结束之后正常使用聊天",
+  "botStartupSuccessMessage": "HI，你的专属 OpenClaw Bot 已成功启动!",
+  "botStartChatting": "开始聊天",
+  "noMessagesYetDefault": "暂无消息",
+  "emptyPublicChannelTitle": "和机器人聊天吧！",
+  "emptyPublicChannelDesc": "当前频道内有 AI 机器人，输入 @ 提及机器人即可开始对话。",
+  "emptyPublicChannelHintExample": "随便问点什么...",
+  "emptyPublicChannelGotIt": "知道了",
+  "botNotMemberTitle": "{{botName}} 不是频道成员",
+  "botNotMemberPublicDesc": "{{botName}} 不是当前频道的成员，无法收到你的消息。是否要先将它添加到频道中？",
+  "botNotMemberPrivateAdminDesc": "{{botName}} 不是当前私有频道的成员，无法收到你的消息。是否要先将它添加到频道中？",
+  "botNotMemberPrivateDesc": "{{botName}} 不是当前私有频道的成员，无法收到你的消息。请联系频道管理员将机器人添加到频道中。",
+  "addBotToChannel": "添加到频道",
+  "addingBot": "添加中...",
+  "botInstanceStoppedMessage": "机器人实例当前已停止，请启动实例以恢复聊天。",
+  "botInstanceStoppedMemberMessage": "机器人实例当前已停止，请联系工作区管理员启动实例以恢复聊天。",
+  "botInstanceStart": "启动",
+  "botInstanceStarting": "启动中...",
+  "botInstanceStartingMessage": "机器人实例正在启动中，请稍候...",
+  "botThinking": {
+    "texts": {
+      "thinking": "正在思考",
+      "analyzing": "正在分析",
+      "reasoning": "正在推理",
+      "computing": "正在计算",
+      "parsing": "正在解析",
+      "brewing": "正在酝酿",
+      "crafting": "正在构思",
+      "decoding": "正在解码",
+      "imagining": "正在想象",
+      "composing": "正在组织"
+    }
+  },
+  "tracking": {
+    "ops": {
+      "loadTools": {
+        "loading": "正在加载工具",
+        "success": "工具加载完成",
+        "error": "工具加载失败"
+      },
+      "searchTools": {
+        "loading": "正在搜索工具",
+        "success": "工具搜索完成",
+        "error": "工具搜索失败"
+      },
+      "invokeTool": {
+        "loading": "正在调用工具",
+        "success": "工具调用完成",
+        "error": "工具调用失败"
+      },
+      "fallback": {
+        "loading": "正在加载 {{name}}",
+        "success": "{{name}} 已完成",
+        "error": "{{name}} 失败"
+      }
+    },
+    "tools": {
+      "searchDocs": {
+        "loading": "正在搜索文档",
+        "success": "文档搜索完成",
+        "error": "文档搜索失败"
+      },
+      "sendMessage": {
+        "loading": "正在发送消息",
+        "success": "消息发送完成",
+        "error": "消息发送失败"
+      },
+      "generateReply": {
+        "loading": "正在生成回复",
+        "success": "回复生成完成",
+        "error": "回复生成失败"
+      }
+    },
+    "thinking": {
+      "label": "正在思考",
+      "labelWithStats": "正在思考（{{stats}}）",
+      "tokens_one": "{{count}} token",
+      "tokens_other": "{{count}} tokens",
+      "seconds": "{{count}} 秒",
+      "minutesSeconds": "{{minutes}} 分 {{seconds}} 秒"
+    },
+    "toolCall": {
+      "argsLabel": "参数",
+      "resultLabel": "结果",
+      "unknownTool": "未知工具"
+    },
+    "eventLabels": {
+      "thinking": "思考",
+      "writing": "撰写",
+      "toolCall": "调用",
+      "toolResult": "结果",
+      "agentStart": "开始",
+      "agentEnd": "完成",
+      "error": "错误",
+      "turn": "轮次",
+      "choices": "选项",
+      "selected": "已选"
+    },
+    "round": {
+      "collapseSummary_other": "... 查看执行过程（{{count}} 步）",
+      "expandAriaLabel_other": "Expand execution process ({{count}} steps)"
+    },
+    "card": {
+      "moreDetails_other": "查看 {{count}} 项详细信息 ›",
+      "loading": "加载中..."
+    }
+  }
+}

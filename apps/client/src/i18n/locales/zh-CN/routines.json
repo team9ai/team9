@@ -1,0 +1,310 @@
+{
+  "tabs": {
+    "all": "全部",
+    "active": "进行中",
+    "upcoming": "即将开始",
+    "finished": "已完成",
+    "info": "基本信息",
+    "triggers": "触发器",
+    "document": "文档",
+    "runs": "运行记录",
+    "run": "运行",
+    "settings": "设置",
+    "history": "历史"
+  },
+  "noRoutines": "暂无日常",
+  "createManually": "手动创建日常",
+  "emptyState": {
+    "title": "什么是日常？",
+    "description": "日常是交给 AI 员工自动执行的任务。\n你可以设定触发条件，让 AI 员工按需完成工作。",
+    "createWithAI": "使用 AI 创建日常",
+    "createManually": "或 手动创建"
+  },
+  "create": {
+    "title": "新建日常",
+    "description": "创建一个日常，交给 AI 员工执行。",
+    "taskName": "标题",
+    "taskNamePlaceholder": "需要完成什么？",
+    "bot": "AI 员工",
+    "botPlaceholder": "选择 AI 员工...",
+    "noBot": "暂不指定（稍后分配）",
+    "document": "文档（可选）",
+    "documentPlaceholder": "提供上下文或说明...",
+    "cancel": "取消",
+    "submit": "创建",
+    "errorGeneric": "创建日常失败"
+  },
+  "status": {
+    "draft": "草稿",
+    "in_progress": "进行中",
+    "upcoming": "即将开始",
+    "paused": "已暂停",
+    "pending_action": "待处理",
+    "completed": "已完成",
+    "failed": "失败",
+    "stopped": "已停止",
+    "timeout": "已超时"
+  },
+  "stepStatus": {
+    "pending": "待执行",
+    "in_progress": "执行中",
+    "completed": "已完成",
+    "failed": "失败"
+  },
+  "schedule": {
+    "type": "定时设置",
+    "types": {
+      "once": "单次执行",
+      "recurring": "周期执行"
+    },
+    "frequency": "频率",
+    "frequencies": {
+      "daily": "每天",
+      "weekly": "每周",
+      "monthly": "每月"
+    },
+    "time": "时间",
+    "dayOfWeek": "星期",
+    "dayOfMonth": "日期",
+    "days": {
+      "0": "日",
+      "1": "一",
+      "2": "二",
+      "3": "三",
+      "4": "四",
+      "5": "五",
+      "6": "六"
+    }
+  },
+  "detail": {
+    "title": "日常详情",
+    "loadError": "加载日常详情失败",
+    "start": "开始",
+    "pause": "暂停",
+    "resume": "继续",
+    "stop": "停止",
+    "restart": "重新开始",
+    "delete": "删除",
+    "deleteConfirm": "确定删除此日常吗？",
+    "assignBot": "AI 员工",
+    "noBot": "未指定",
+    "steps": "步骤",
+    "noSteps": "暂无步骤",
+    "deliverables": "交付物",
+    "noDeliverables": "暂无交付物",
+    "pendingInterventions": "需要操作",
+    "pastInterventions": "历史干预",
+    "interventionResolved": "已处理",
+    "interventionExpired": "已过期",
+    "interventionPlaceholder": "输入自定义回复...",
+    "messageInputPlaceholder": "向此日常发送消息...",
+    "finishedBanner": {
+      "completed": "日常已成功完成",
+      "failed": "日常执行失败",
+      "timeout": "日常执行超时",
+      "stopped": "日常已被停止",
+      "in_progress": "",
+      "upcoming": "",
+      "paused": "",
+      "pending_action": ""
+    },
+    "completedAt": "完成于 {{time}}",
+    "duration": "耗时：{{duration}}",
+    "tokenUsage": "消耗 {{tokens}} 个 Token",
+    "tokenCount": "{{count}} 个 Token",
+    "error": "错误",
+    "errorWithCode": "错误 ({{code}})",
+    "document": {
+      "save": "保存",
+      "saving": "保存中...",
+      "unsavedChanges": "有未保存的修改",
+      "viewingVersion": "正在查看版本 {{version}}",
+      "backToCurrent": "返回当前版本",
+      "currentLabel": "版本 {{version}}（当前）",
+      "versionLabel": "版本 {{version}} — {{time}}",
+      "discardTitle": "未保存的修改",
+      "discardMessage": "你有未保存的修改，确定放弃吗？",
+      "discardConfirm": "放弃",
+      "discardCancel": "继续编辑",
+      "saveSummaryPlaceholder": "描述你的修改（可选）...",
+      "placeholder": "开始编写...",
+      "createPlaceholder": "开始编写以创建文档...",
+      "suggestions": {
+        "title": "AI 建议",
+        "count": "AI 建议 ({{count}})",
+        "view": "查看",
+        "approve": "采纳",
+        "reject": "拒绝",
+        "current": "当前内容",
+        "suggested": "建议内容",
+        "outdated": "此建议基于旧版本",
+        "empty": "暂无待处理建议"
+      },
+      "versionHistory": {
+        "loadError": "加载版本失败",
+        "noVersions": "暂无版本"
+      }
+    }
+  },
+  "triggers": {
+    "title": "触发器",
+    "add": "添加触发器",
+    "empty": "暂未配置触发器",
+    "edit": "编辑",
+    "delete": "删除",
+    "types": {
+      "manual": "手动",
+      "interval": "间隔",
+      "schedule": "定时",
+      "channel_message": "频道消息"
+    },
+    "enabled": "已启用",
+    "disabled": "已禁用",
+    "nextRun": "下次运行：{{time}}",
+    "countdown": "{{duration}}后",
+    "lastRun": "上次运行：{{time}}",
+    "interval": {
+      "every": "每隔",
+      "units": {
+        "minutes": "分钟",
+        "hours": "小时",
+        "days": "天",
+        "weeks": "周",
+        "months": "月",
+        "years": "年"
+      }
+    },
+    "schedule": {
+      "frequencies": {
+        "daily": "每天",
+        "weekly": "每周",
+        "monthly": "每月",
+        "yearly": "每年",
+        "weekdays": "工作日"
+      },
+      "time": "时间",
+      "timezone": "时区",
+      "dayOfWeek": "星期",
+      "dayOfMonth": "日期"
+    },
+    "channelMessage": {
+      "channel": "频道",
+      "selectChannel": "选择频道..."
+    },
+    "deleteConfirm": "确定删除此触发器？",
+    "addTitle": "添加触发器",
+    "selectType": "选择触发器类型",
+    "configureTitle": "配置{{type}}",
+    "back": "返回",
+    "create": "创建",
+    "manualNoConfig": "手动触发器无需配置，创建后可随时手动触发。",
+    "typeDesc": {
+      "manual": "按需手动触发",
+      "interval": "按固定间隔运行",
+      "schedule": "按计划定时运行",
+      "channel_message": "收到消息时运行"
+    }
+  },
+  "runs": {
+    "title": "运行记录",
+    "empty": "暂无运行记录",
+    "version": "v{{version}}",
+    "triggerType": {
+      "manual": "手动",
+      "interval": "间隔",
+      "schedule": "定时",
+      "channel_message": "消息",
+      "retry": "重试"
+    },
+    "notes": "备注",
+    "retry": "重试",
+    "retryTitle": "重试运行",
+    "retryNotes": "添加重试备注（可选）",
+    "back": "返回运行列表",
+    "documentVersion": "文档 v{{version}}",
+    "triggeredAt": "触发时间：{{time}}",
+    "scheduledAt": "计划时间：{{time}}",
+    "triggeredBy": "触发者：{{user}}",
+    "messageFrom": "消息来自 {{user}}",
+    "retryOf": "重试 v{{version}}"
+  },
+  "timeline": {
+    "empty": "暂无活动",
+    "statusChange": {
+      "started": "日常已开始",
+      "completed": "日常已完成",
+      "failed": "日常执行失败",
+      "stopped": "日常已停止",
+      "timeout": "日常执行超时",
+      "paused": "日常已暂停"
+    }
+  },
+  "chat": {
+    "placeholder": "启动日常后即可与 Bot 对话"
+  },
+  "manualTrigger": {
+    "title": "启动日常",
+    "notesPlaceholder": "添加本次运行的备注或说明（可选）..."
+  },
+  "chatArea": {
+    "viewingHistory": "正在查看历史运行",
+    "returnToCurrent": "返回当前运行",
+    "lastRunCompleted": "上次运行已完成",
+    "lastRunFailed": "上次运行失败",
+    "lastRunStopped": "上次运行已停止",
+    "lastRunTimeout": "上次运行超时",
+    "rerun": "重新运行",
+    "readOnly": "历史对话（只读）",
+    "finishedReadOnly": "上次运行的对话（只读）",
+    "start": "开始",
+    "noRunsYet": "还没有运行记录，开始你的第一次运行吧！",
+    "pause": "暂停",
+    "resume": "恢复",
+    "stop": "停止"
+  },
+  "runTab": {
+    "title": "运行详情",
+    "status": "状态",
+    "duration": "耗时",
+    "triggerType": "触发方式",
+    "taskVersion": "日常版本",
+    "tokenUsage": "Token 用量",
+    "timeline": "时间线",
+    "noExecution": "未选择执行"
+  },
+  "settingsTab": {
+    "title": "设置",
+    "taskTitle": "标题",
+    "taskDescription": "描述",
+    "deleteConfirm": "确定要删除此日常吗？此操作无法撤销。"
+  },
+  "historyTab": {
+    "title": "历史",
+    "current": "当前",
+    "empty": "暂无运行记录",
+    "manual": "手动",
+    "interval": "定时",
+    "schedule": "计划",
+    "channelMessage": "频道消息",
+    "retry": "重试"
+  },
+  "agentic": {
+    "createButton": "使用 AI 创建",
+    "pickerTitle": "选择引导创建的智能体",
+    "pickerDescription": "所选智能体将引导你完成日常的创建过程。",
+    "agentLabel": "选择引导你进行创建的智能体",
+    "noAgentsAvailable": "暂无可用的活跃智能体。",
+    "confirm": "开始创建",
+    "cancel": "取消",
+    "navigatingToast": "正在创建日常..."
+  },
+  "draft": {
+    "badge": "草稿",
+    "completeCreation": "完成创建",
+    "delete": "删除",
+    "deleteConfirm": "删除此草稿日常？此操作无法撤销。",
+    "bannerMessage": "此日常处于草稿状态，完成创建后方可使用。",
+    "noChannelTooltip": "没有可用的创建对话。",
+    "untitled": "无标题"
+  }
+}

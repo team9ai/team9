@@ -68,6 +68,8 @@ export class WorkspaceBillingController {
       dto.type,
       dto.view,
       dto.amountCents,
+      dto.successPath,
+      dto.cancelPath,
     );
   }
 
@@ -78,7 +80,11 @@ export class WorkspaceBillingController {
     @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
     @Body() dto?: CreateWorkspaceBillingPortalDto,
   ) {
-    return this.billingHubService.createWorkspacePortal(workspaceId, dto?.view);
+    return this.billingHubService.createWorkspacePortal(
+      workspaceId,
+      dto?.view,
+      dto?.returnPath,
+    );
   }
 
   private managementAllowed(role?: string) {

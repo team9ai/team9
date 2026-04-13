@@ -28,41 +28,37 @@ import { NotificationPreferencesDialog } from "@/components/settings/Notificatio
 import { useWorkspaceStore } from "@/stores";
 import { useThemeToggle } from "@/hooks/useTheme";
 import { useCurrentWorkspaceRole } from "@/hooks/useWorkspace";
+import { supportedLanguages } from "@/i18n";
+import { changeLanguage, useLanguageLoading } from "@/i18n/loadLanguage";
+import { cn } from "@/lib/utils";
 
 const settingsGroups = [
   {
-    title: "Workspace",
+    titleKey: "workspace",
     items: [
-      { id: "invitations", label: "Invitations", icon: Link2 },
-      { id: "members", label: "Members", icon: Users },
+      { id: "invitations", labelKey: "invitations", icon: Link2 },
+      { id: "members", labelKey: "members", icon: Users },
     ],
   },
   {
-    title: "Preferences",
+    titleKey: "preferences",
     items: [
-      // { id: "notifications", label: "Notifications", icon: Bell },
-      // { id: "privacy", label: "Privacy", icon: Lock },
-      { id: "appearance", label: "Appearance", icon: Palette },
-      { id: "language", label: "Language", icon: Globe },
+      { id: "appearance", labelKey: "appearance", icon: Palette },
+      { id: "language", labelKey: "language", icon: Globe },
     ],
   },
-  // {
-  //   title: "Support",
-  //   items: [
-  //     { id: "help", label: "Help Center", icon: HelpCircle },
-  //     { id: "about", label: "About", icon: Info },
-  //   ],
-  // },
 ];
 
 export function MoreMainContent() {
-  const { t } = useTranslation("settings");
+  const { t, i18n } = useTranslation("settings");
   const { t: tWorkspace } = useTranslation("workspace");
   const navigate = useNavigate();
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [isAppearanceDialogOpen, setIsAppearanceDialogOpen] = useState(false);
   const [isNotificationDialogOpen, setIsNotificationDialogOpen] =
     useState(false);
+  const [isLanguageDialogOpen, setIsLanguageDialogOpen] = useState(false);
+  const { isLoading: isLanguageLoading } = useLanguageLoading();
   const { theme, setTheme } = useThemeToggle();
   const { isOwnerOrAdmin } = useCurrentWorkspaceRole();
 
@@ -70,7 +66,7 @@ export function MoreMainContent() {
   const { selectedWorkspaceId } = useWorkspaceStore();
 
   const groups = settingsGroups.map((group) => {
-    if (group.title !== "Workspace" || !isOwnerOrAdmin) {
+    if (group.titleKey !== "workspace" || !isOwnerOrAdmin) {
       return group;
     }
 
@@ -80,7 +76,7 @@ export function MoreMainContent() {
         ...group.items,
         {
           id: "workspace-settings",
-          label: tWorkspace("workspaceSettings", "Workspace Settings"),
+          labelKey: "workspaceSettings" as string,
           icon: Building2,
         },
       ],
@@ -98,8 +94,9 @@ export function MoreMainContent() {
       setIsAppearanceDialogOpen(true);
     } else if (id === "notifications") {
       setIsNotificationDialogOpen(true);
+    } else if (id === "language") {
+      setIsLanguageDialogOpen(true);
     }
-    // Handle other settings...
   };
   return (
     <main className="h-full flex flex-col overflow-hidden bg-background">
@@ -108,7 +105,7 @@ export function MoreMainContent() {
         <div className="flex items-center gap-2">
           <Settings size={18} className="text-primary" />
           <h2 className="font-semibold text-lg text-foreground">
-            Settings & More
+            {t("settingsAndMore")}
           </h2>
         </div>
       </header>
@@ -120,13 +117,19 @@ export function MoreMainContent() {
         <div className="p-4">
           <div className="space-y-6">
             {groups.map((group) => (
-              <div key={group.title}>
+              <div key={group.titleKey}>
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">
-                  {group.title}
+                  {group.titleKey === "workspace"
+                    ? t("workspace")
+                    : t("preferences")}
                 </h3>
                 <Card className="p-2 gap-0">
                   {group.items.map((item, index) => {
                     const Icon = item.icon;
+                    const label =
+                      item.id === "workspace-settings"
+                        ? tWorkspace("workspaceSettings")
+                        : t(item.labelKey as never);
                     return (
                       <div key={item.id}>
                         <Button
@@ -140,7 +143,7 @@ export function MoreMainContent() {
                               className="text-muted-foreground shrink-0"
                             />
                             <span className="text-sm font-medium text-foreground">
-                              {item.label}
+                              {label}
                             </span>
                           </div>
                           <ChevronRight
@@ -169,10 +172,10 @@ export function MoreMainContent() {
                 className="w-20 h-20 mx-auto mb-6 object-cover rounded-2xl"
               />
               <p className="text-sm text-muted-foreground mb-2">
-                Version 1.0.0
+                {t("version", { version: "1.0.0" })}
               </p>
               <p className="text-xs text-muted-foreground/70">
-                © 2026 Team9. All rights reserved.
+                {t("copyright", { year: new Date().getFullYear() })}
               </p>
             </Card>
           </div>
@@ -248,6 +251,38 @@ export function MoreMainContent() {
         open={isNotificationDialogOpen}
         onOpenChange={setIsNotificationDialogOpen}
       />
+
+      {/* Language Dialog */}
+      <Dialog
+        open={isLanguageDialogOpen}
+        onOpenChange={setIsLanguageDialogOpen}
+      >
+        <DialogContent className="sm:max-w-sm dark:bg-card">
+          <DialogHeader>
+            <DialogTitle className="dark:text-foreground">
+              {t("selectLanguage")}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-1 py-2">
+            {supportedLanguages.map((lang) => (
+              <button
+                key={lang.code}
+                onClick={() => changeLanguage(lang.code)}
+                disabled={isLanguageLoading}
+                className={cn(
+                  "w-full flex items-center justify-between px-3 py-2.5 text-sm rounded-md hover:bg-accent disabled:opacity-50",
+                  i18n.language === lang.code && "bg-accent",
+                )}
+              >
+                <span className="font-medium">{lang.nativeName}</span>
+                {i18n.language === lang.code && (
+                  <Check className="w-4 h-4 text-primary" />
+                )}
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

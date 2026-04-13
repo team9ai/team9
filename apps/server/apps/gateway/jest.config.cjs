@@ -12,7 +12,11 @@ module.exports = {
       },
     ],
   },
-  collectCoverageFrom: ['src/**/*.(t|j)s'],
+  collectCoverageFrom: [
+    'src/**/*.(t|j)s',
+    '!src/**/*.spec.(t|j)s',
+    '!src/scripts/**',
+  ],
   coverageDirectory: 'coverage',
   testEnvironment: 'node',
   extensionsToTreatAsEsm: ['.ts'],
@@ -31,6 +35,7 @@ module.exports = {
     '^@team9/observability$':
       '<rootDir>/../../libs/observability/src/index.ts',
     '^@team9/claw-hive$': '<rootDir>/../../libs/claw-hive/src/index.ts',
+    '^@team9/posthog$': '<rootDir>/../../libs/posthog/src/index.ts',
   },
   transformIgnorePatterns: [
     'node_modules/(?!(@team9)/)',

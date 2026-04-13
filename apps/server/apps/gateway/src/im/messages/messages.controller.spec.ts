@@ -70,6 +70,9 @@ describe('MessagesController', () => {
     pinMessage: MockFn;
     addReaction: MockFn;
     removeReaction: MockFn;
+    truncateForPreview: MockFn;
+    getFullContent: MockFn;
+    mergeProperties: MockFn;
   };
   let channelsService: {
     assertReadAccess: MockFn;
@@ -84,6 +87,13 @@ describe('MessagesController', () => {
   let imWorkerGrpcClientService: {
     createMessage: MockFn;
   };
+  let messagePropertiesService: {
+    batchSet: MockFn;
+  };
+  let aiAutoFillService: {
+    autoFill: MockFn;
+  };
+  let propertyDefinitionsService: Record<string, never>;
   let eventEmitter: {
     emit: MockFn;
   };
@@ -124,6 +134,13 @@ describe('MessagesController', () => {
       pinMessage: jest.fn<any>().mockResolvedValue(undefined),
       addReaction: jest.fn<any>().mockResolvedValue(undefined),
       removeReaction: jest.fn<any>().mockResolvedValue(undefined),
+      truncateForPreview: jest.fn<any>().mockImplementation((msg) => msg),
+      getFullContent: jest
+        .fn<any>()
+        .mockResolvedValue({ content: 'full content' }),
+      mergeProperties: jest
+        .fn<any>()
+        .mockImplementation((msgs) => Promise.resolve(msgs)),
     };
 
     channelsService = {
@@ -152,6 +169,16 @@ describe('MessagesController', () => {
       publishWorkspaceEvent: jest.fn<any>().mockResolvedValue(undefined),
     };
 
+    messagePropertiesService = {
+      batchSet: jest.fn<any>().mockResolvedValue(undefined),
+    };
+
+    aiAutoFillService = {
+      autoFill: jest.fn<any>().mockResolvedValue(undefined),
+    };
+
+    propertyDefinitionsService = {};
+
     dateSpy = jest.spyOn(Date, 'now').mockReturnValue(NOW);
 
     controller = new MessagesController(
@@ -159,6 +186,9 @@ describe('MessagesController', () => {
       channelsService as never,
       websocketGateway as never,
       imWorkerGrpcClientService as never,
+      messagePropertiesService as never,
+      aiAutoFillService as never,
+      propertyDefinitionsService as never,
       eventEmitter as never,
       gatewayMQService as never,
     );
@@ -527,7 +557,15 @@ describe('MessagesController', () => {
         controller.deleteMessage(USER_ID, MESSAGE_ID),
       ).resolves.toEqual({ success: true });
 
-      expect(messagesService.delete).toHaveBeenCalledWith(MESSAGE_ID, USER_ID);
+      expect(channelsService.getMemberRole).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        USER_ID,
+      );
+      expect(messagesService.delete).toHaveBeenCalledWith(
+        MESSAGE_ID,
+        USER_ID,
+        'owner',
+      );
       expect(websocketGateway.sendToChannelMembers).toHaveBeenCalledWith(
         CHANNEL_ID,
         WS_EVENTS.MESSAGE.DELETED,
@@ -640,6 +678,53 @@ describe('MessagesController', () => {
         USER_ID,
         '👍',
       );
+    });
+  });
+
+  describe('getFullContent', () => {
+    it('returns full content when user has read access', async () => {
+      await expect(
+        controller.getFullContent(USER_ID, MESSAGE_ID),
+      ).resolves.toEqual({ content: 'full content' });
+
+      expect(messagesService.getMessageChannelId).toHaveBeenCalledWith(
+        MESSAGE_ID,
+      );
+      expect(channelsService.assertReadAccess).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        USER_ID,
+      );
+      expect(messagesService.getFullContent).toHaveBeenCalledWith(MESSAGE_ID);
+    });
+
+    it('throws ForbiddenException when user lacks read access', async () => {
+      channelsService.assertReadAccess.mockRejectedValueOnce(
+        new ForbiddenException('Access denied'),
+      );
+
+      await expect(
+        controller.getFullContent(USER_ID, MESSAGE_ID),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(messagesService.getMessageChannelId).toHaveBeenCalledWith(
+        MESSAGE_ID,
+      );
+      expect(channelsService.assertReadAccess).toHaveBeenCalledWith(
+        CHANNEL_ID,
+        USER_ID,
+      );
+      expect(messagesService.getFullContent).not.toHaveBeenCalled();
+    });
+
+    it('delegates to messagesService.getFullContent with the message id', async () => {
+      const customContent = { content: 'very long text'.repeat(100) };
+      messagesService.getFullContent.mockResolvedValueOnce(customContent);
+
+      const result = await controller.getFullContent(USER_ID, MESSAGE_ID);
+
+      expect(result).toEqual(customContent);
+      expect(messagesService.getFullContent).toHaveBeenCalledTimes(1);
+      expect(messagesService.getFullContent).toHaveBeenCalledWith(MESSAGE_ID);
     });
   });
 });

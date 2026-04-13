@@ -25,6 +25,13 @@ function makeInsertChain() {
   return chain;
 }
 
+function makeUpdateChain() {
+  const chain: any = {};
+  chain.set = jest.fn().mockReturnValue(chain);
+  chain.where = jest.fn().mockResolvedValue(undefined);
+  return chain;
+}
+
 function makeHarness() {
   const redisClient = {
     lpush: jest.fn().mockResolvedValue(1),
@@ -34,6 +41,7 @@ function makeHarness() {
   const db = {
     select: jest.fn(),
     insert: jest.fn(),
+    update: jest.fn(),
     transaction: jest.fn(),
   };
 
@@ -135,14 +143,19 @@ describe('MessageService', () => {
       routerService,
     } = makeHarness();
     const memberQuery = makeSelectChain();
+    const channelQuery = makeSelectChain();
     const insertChain = makeInsertChain();
 
     redisService.get.mockResolvedValueOnce('not-json');
-    db.select.mockReturnValueOnce(memberQuery);
+    db.select
+      .mockReturnValueOnce(memberQuery)
+      .mockReturnValueOnce(channelQuery);
     memberQuery.where.mockResolvedValueOnce([
       { userId: 'user-1' },
       { userId: 'user-2' },
     ]);
+    // Return a non-DM channel so unhide short-circuits
+    channelQuery.limit.mockResolvedValueOnce([{ type: 'public' }]);
     db.insert.mockReturnValue(insertChain);
     sequenceService.generateChannelSeq.mockResolvedValueOnce(99n);
 
@@ -206,11 +219,16 @@ describe('MessageService', () => {
   it('skips routing and unread updates when there are no recipients', async () => {
     const { service, db, redisService, routerService } = makeHarness();
     const memberQuery = makeSelectChain();
+    const channelQuery = makeSelectChain();
     const insertChain = makeInsertChain();
 
     redisService.get.mockResolvedValueOnce(null);
-    db.select.mockReturnValueOnce(memberQuery);
+    db.select
+      .mockReturnValueOnce(memberQuery)
+      .mockReturnValueOnce(channelQuery);
     memberQuery.where.mockResolvedValueOnce([{ userId: 'user-1' }]);
+    // Return a non-DM channel so unhide short-circuits
+    channelQuery.limit.mockResolvedValueOnce([{ type: 'public' }]);
     db.insert.mockReturnValue(insertChain);
 
     const response = await service.processUpstreamMessage({
@@ -300,11 +318,16 @@ describe('MessageService', () => {
     async ({ type, payload, expectedContent }) => {
       const { service, db, redisService } = makeHarness();
       const memberQuery = makeSelectChain();
+      const channelQuery = makeSelectChain();
       const messageInsert = makeInsertChain();
 
       redisService.get.mockResolvedValueOnce(null);
-      db.select.mockReturnValueOnce(memberQuery);
+      db.select
+        .mockReturnValueOnce(memberQuery)
+        .mockReturnValueOnce(channelQuery);
       memberQuery.where.mockResolvedValueOnce([{ userId: 'user-1' }]);
+      // Return a non-DM channel so unhide short-circuits
+      channelQuery.limit.mockResolvedValueOnce([{ type: 'public' }]);
       db.insert.mockReturnValue(messageInsert);
 
       const response = await service.processUpstreamMessage({
@@ -362,12 +385,18 @@ describe('MessageService', () => {
     const { service, db, redisService } = makeHarness();
     const memberQuery = makeSelectChain();
     const parentQuery = makeSelectChain();
+    const channelQuery = makeSelectChain();
     const messageInsert = makeInsertChain();
 
     redisService.get.mockResolvedValueOnce(null);
-    db.select.mockReturnValueOnce(parentQuery).mockReturnValueOnce(memberQuery);
+    db.select
+      .mockReturnValueOnce(parentQuery)
+      .mockReturnValueOnce(memberQuery)
+      .mockReturnValueOnce(channelQuery);
     parentQuery.limit.mockResolvedValueOnce(parentRow ? [parentRow] : []);
     memberQuery.where.mockResolvedValueOnce([{ userId: 'user-1' }]);
+    // Return a non-DM channel so unhide short-circuits
+    channelQuery.limit.mockResolvedValueOnce([{ type: 'public' }]);
     db.insert.mockReturnValue(messageInsert);
 
     const response = await service.processUpstreamMessage({
@@ -482,6 +511,10 @@ describe('MessageService', () => {
     db.transaction.mockImplementationOnce(async (callback: any) =>
       callback(tx),
     );
+    // Mock channel type lookup for unhideDmChannelForMembers
+    const channelQuery = makeSelectChain();
+    db.select.mockReturnValueOnce(channelQuery);
+    channelQuery.limit.mockResolvedValueOnce([{ type: 'public' }]);
 
     await service.createAndPersist({
       clientMsgId: 'client-http-2',
@@ -521,6 +554,10 @@ describe('MessageService', () => {
     db.transaction.mockImplementationOnce(async (callback: any) =>
       callback(tx),
     );
+    // Mock channel type lookup for unhideDmChannelForMembers
+    const channelQuery = makeSelectChain();
+    db.select.mockReturnValueOnce(channelQuery);
+    channelQuery.limit.mockResolvedValueOnce([{ type: 'public' }]);
 
     await service.createAndPersist({
       clientMsgId: 'client-http-3',
@@ -626,5 +663,118 @@ describe('MessageService', () => {
       userId: schema.channelMembers.userId,
     });
     expect(query.from).toHaveBeenCalledWith(schema.channelMembers);
+  });
+
+  describe('unhideDmChannelForMembers', () => {
+    it('updates showInDmSidebar to true for all hidden members in a direct channel', async () => {
+      const { service, db } = makeHarness();
+      const channelQuery = makeSelectChain();
+      const updateChain = makeUpdateChain();
+
+      db.select.mockReturnValueOnce(channelQuery);
+      channelQuery.limit.mockResolvedValueOnce([{ type: 'direct' }]);
+      db.update.mockReturnValueOnce(updateChain);
+
+      await (service as any).unhideDmChannelForMembers('dm-channel-1');
+
+      expect(db.select).toHaveBeenCalledWith({ type: schema.channels.type });
+      expect(channelQuery.from).toHaveBeenCalledWith(schema.channels);
+      expect(channelQuery.limit).toHaveBeenCalledWith(1);
+      expect(db.update).toHaveBeenCalledWith(schema.channelMembers);
+      expect(updateChain.set).toHaveBeenCalledWith({ showInDmSidebar: true });
+      expect(updateChain.where).toHaveBeenCalled();
+    });
+
+    it('updates showInDmSidebar to true for all hidden members in an echo channel', async () => {
+      const { service, db } = makeHarness();
+      const channelQuery = makeSelectChain();
+      const updateChain = makeUpdateChain();
+
+      db.select.mockReturnValueOnce(channelQuery);
+      channelQuery.limit.mockResolvedValueOnce([{ type: 'echo' }]);
+      db.update.mockReturnValueOnce(updateChain);
+
+      await (service as any).unhideDmChannelForMembers('echo-channel-1');
+
+      expect(db.update).toHaveBeenCalledWith(schema.channelMembers);
+      expect(updateChain.set).toHaveBeenCalledWith({ showInDmSidebar: true });
+    });
+
+    it('does not update members for non-DM channel types', async () => {
+      const { service, db } = makeHarness();
+      const channelQuery = makeSelectChain();
+
+      db.select.mockReturnValueOnce(channelQuery);
+      channelQuery.limit.mockResolvedValueOnce([{ type: 'public' }]);
+
+      await (service as any).unhideDmChannelForMembers('public-channel-1');
+
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('does not update members for private channel type', async () => {
+      const { service, db } = makeHarness();
+      const channelQuery = makeSelectChain();
+
+      db.select.mockReturnValueOnce(channelQuery);
+      channelQuery.limit.mockResolvedValueOnce([{ type: 'private' }]);
+
+      await (service as any).unhideDmChannelForMembers('private-channel-1');
+
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('does not update members when channel is not found', async () => {
+      const { service, db } = makeHarness();
+      const channelQuery = makeSelectChain();
+
+      db.select.mockReturnValueOnce(channelQuery);
+      channelQuery.limit.mockResolvedValueOnce([]);
+
+      await (service as any).unhideDmChannelForMembers('missing-channel');
+
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('calls unhideDmChannelForMembers after processing a DM message end-to-end', async () => {
+      const { service, db, redisService } = makeHarness();
+      const memberQuery = makeSelectChain();
+      const channelQuery = makeSelectChain();
+      const insertChain = makeInsertChain();
+      const updateChain = makeUpdateChain();
+
+      redisService.get.mockResolvedValueOnce(null);
+      db.select
+        .mockReturnValueOnce(memberQuery)
+        .mockReturnValueOnce(channelQuery);
+      memberQuery.where.mockResolvedValueOnce([
+        { userId: 'user-1' },
+        { userId: 'user-2' },
+      ]);
+      channelQuery.limit.mockResolvedValueOnce([{ type: 'direct' }]);
+      db.insert.mockReturnValue(insertChain);
+      db.update.mockReturnValueOnce(updateChain);
+
+      const response = await service.processUpstreamMessage({
+        gatewayId: 'gateway-1',
+        userId: 'user-1',
+        socketId: 'socket-1',
+        receivedAt: 1710000000000,
+        message: {
+          msgId: 'client-msg-dm',
+          clientMsgId: 'client-msg-dm',
+          senderId: 'user-1',
+          targetType: 'channel',
+          targetId: 'dm-channel-1',
+          type: 'text',
+          payload: { content: 'hey' },
+          timestamp: 1710000000000,
+        },
+      } as never);
+
+      expect(response.status).toBe('ok');
+      expect(db.update).toHaveBeenCalledWith(schema.channelMembers);
+      expect(updateChain.set).toHaveBeenCalledWith({ showInDmSidebar: true });
+    });
   });
 });

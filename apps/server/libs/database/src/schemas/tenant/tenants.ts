@@ -24,6 +24,15 @@ export interface TenantSettings {
     primaryColor?: string;
     logoUrl?: string;
   };
+  onboarding?: {
+    role?: Record<string, unknown> | null;
+    tasks?: {
+      selectedTaskIds?: string[];
+      // selectedTaskTitles removed — draft routines are now the canonical
+      // representation of user-selected onboarding tasks.
+      customTask?: string | null;
+    };
+  };
 }
 
 export const tenants = pgTable('tenants', {

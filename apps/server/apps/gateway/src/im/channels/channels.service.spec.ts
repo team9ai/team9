@@ -10,6 +10,8 @@ import { ChannelsService } from './channels.service.js';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { RedisService } from '@team9/redis';
 import { ChannelMemberCacheService } from '../shared/channel-member-cache.service.js';
+import { PropertyDefinitionsService } from '../properties/property-definitions.service.js';
+import { TabsService } from '../views/tabs.service.js';
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -34,12 +36,21 @@ function mockDb() {
     'groupBy',
     'having',
     'delete',
+    'onConflictDoNothing',
   ];
   for (const m of methods) {
     chain[m] = jest.fn<any>().mockReturnValue(chain);
   }
   chain.limit.mockResolvedValue([]);
   chain.returning.mockResolvedValue([]);
+  chain.onConflictDoNothing.mockResolvedValue(undefined);
+  // Default: pass the same mock as the "tx" argument, so the same chain
+  // assertions work whether a call runs inside or outside a transaction.
+  // Tests that need to verify tx-vs-db distinction can override this via
+  // `db.transaction.mockImplementationOnce(async (cb) => cb(customTx))`.
+  chain.transaction = jest
+    .fn<any>()
+    .mockImplementation(async (cb: any) => cb(chain));
   return chain;
 }
 
@@ -70,6 +81,18 @@ describe('ChannelsService', () => {
         {
           provide: ChannelMemberCacheService,
           useValue: { invalidate: jest.fn<any>().mockResolvedValue(undefined) },
+        },
+        {
+          provide: PropertyDefinitionsService,
+          useValue: {
+            seedDefaultProperties: jest.fn<any>().mockResolvedValue([]),
+          },
+        },
+        {
+          provide: TabsService,
+          useValue: {
+            seedBuiltinTabs: jest.fn<any>().mockResolvedValue(undefined),
+          },
         },
       ],
     }).compile();
@@ -262,6 +285,240 @@ describe('ChannelsService', () => {
       ).resolves.toBeDefined();
 
       addMemberSpy.mockRestore();
+    });
+  });
+
+  describe('createDirectChannel - echo (self-chat)', () => {
+    // Invariants under test (regression for "Failed to create echo channel"):
+    //
+    // 1. Atomicity — channel row + owner member row are created in the same
+    //    db.transaction, so a mid-flight failure cannot leave an orphaned
+    //    channel row behind.
+    //
+    // 2. Self-healing — the existing-channel lookup queries im_channels
+    //    directly by (type='echo', created_by=userId, tenant_id=?), NOT via
+    //    an innerJoin against im_channel_members. Previously, if a prior
+    //    attempt had leaked an orphaned channel (no member row), the
+    //    innerJoin-based lookup would skip it and the next call would keep
+    //    creating duplicates. The new lookup reuses the orphan and repairs
+    //    its membership.
+    //
+    // 3. Post-commit side effects — caches are only invalidated after the
+    //    transaction has committed, to avoid exposing in-flight state.
+
+    it('wraps fresh echo channel creation in a db.transaction and invalidates caches post-commit', async () => {
+      // No existing echo channel in im_channels.
+      db.limit.mockResolvedValueOnce([] as any);
+      // Inside the transaction, the channel INSERT returns the new row.
+      db.returning.mockResolvedValueOnce([
+        {
+          id: 'echo-new',
+          tenantId: 'tenant-1',
+          type: 'echo',
+          createdBy: 'user-1',
+        },
+      ] as any);
+      const memberCacheService = (service as any).channelMemberCacheService;
+      const redisService = (service as any).redis;
+
+      const result = await service.createDirectChannel(
+        'user-1',
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(
+        expect.objectContaining({ id: 'echo-new', type: 'echo' }),
+      );
+      // Both the channel row and the member row must be inserted.
+      expect(db.insert.mock.calls.length).toBeGreaterThanOrEqual(2);
+      // Member row payload references the freshly created channel and owner.
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channelId: 'echo-new',
+          userId: 'user-1',
+          role: 'owner',
+        }),
+      );
+      // Caches must be invalidated exactly once, after the transaction.
+      expect(memberCacheService.invalidate).toHaveBeenCalledTimes(1);
+      expect(memberCacheService.invalidate).toHaveBeenCalledWith('echo-new');
+      expect(redisService.invalidate).toHaveBeenCalledTimes(1);
+      // Ordering — the transaction must complete before cache invalidation.
+      expect(db.transaction.mock.invocationCallOrder[0]).toBeLessThan(
+        memberCacheService.invalidate.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('runs both inserts via the tx callback argument, not via this.db', async () => {
+      // Regression guard for "the mock passes `chain` as tx" weakness: a
+      // future refactor that accidentally calls this.db.insert inside the
+      // transaction body must fail this test, not silently pass.
+      db.limit.mockResolvedValueOnce([] as any); // no existing echo.
+
+      const txReturning = jest
+        .fn<any>()
+        .mockResolvedValue([
+          { id: 'echo-tx', tenantId: 't-1', type: 'echo', createdBy: 'u-1' },
+        ]);
+      const txValues = jest
+        .fn<any>()
+        .mockReturnValue({ returning: txReturning });
+      const txInsert = jest.fn<any>().mockReturnValue({ values: txValues });
+      db.transaction.mockImplementationOnce(async (cb: any) =>
+        cb({ insert: txInsert }),
+      );
+
+      const outerInsertCallsBefore = db.insert.mock.calls.length;
+
+      await service.createDirectChannel('u-1', 'u-1', 't-1');
+
+      // Both the channel row and the member row must have been routed
+      // through the tx.insert argument, not the outer db.insert.
+      expect(txInsert).toHaveBeenCalledTimes(2);
+      expect(db.insert.mock.calls.length).toBe(outerInsertCallsBefore);
+    });
+
+    it('reuses an orphaned echo channel (no member row) and heals membership', async () => {
+      const orphaned = {
+        id: 'echo-orphan',
+        tenantId: 'tenant-1',
+        type: 'echo',
+        createdBy: 'user-1',
+      };
+      // Existing-channel lookup: orphaned echo row found.
+      db.limit.mockResolvedValueOnce([orphaned] as any);
+      // Membership lookup: no member row exists for the owner.
+      db.limit.mockResolvedValueOnce([] as any);
+      const memberCacheService = (service as any).channelMemberCacheService;
+      const redisService = (service as any).redis;
+
+      const result = await service.createDirectChannel(
+        'user-1',
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(result).toEqual(orphaned);
+      // A member row must be inserted to heal the orphan, guarded by
+      // onConflictDoNothing to stay safe under a concurrent self-heal.
+      expect(db.insert).toHaveBeenCalled();
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          channelId: 'echo-orphan',
+          userId: 'user-1',
+          role: 'owner',
+        }),
+      );
+      expect(db.onConflictDoNothing).toHaveBeenCalled();
+      // Self-heal must invalidate the caches so stale reads don't linger.
+      expect(memberCacheService.invalidate).toHaveBeenCalledWith('echo-orphan');
+      expect(redisService.invalidate).toHaveBeenCalled();
+    });
+
+    it('reuses a healthy echo channel without touching inserts, updates, or caches', async () => {
+      const existing = {
+        id: 'echo-existing',
+        tenantId: 'tenant-1',
+        type: 'echo',
+        createdBy: 'user-1',
+      };
+      // Existing-channel lookup: channel row found.
+      db.limit.mockResolvedValueOnce([existing] as any);
+      // Membership lookup: active owner membership already present.
+      db.limit.mockResolvedValueOnce([{ id: 'member-1', leftAt: null }] as any);
+      const memberCacheService = (service as any).channelMemberCacheService;
+      const redisService = (service as any).redis;
+
+      const result = await service.createDirectChannel(
+        'user-1',
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(result).toEqual(existing);
+      expect(db.insert).not.toHaveBeenCalled();
+      expect(db.update).not.toHaveBeenCalled();
+      expect(db.transaction).not.toHaveBeenCalled();
+      // No-op early return must not churn the caches.
+      expect(memberCacheService.invalidate).not.toHaveBeenCalled();
+      expect(redisService.invalidate).not.toHaveBeenCalled();
+    });
+
+    it('rejoins the owner when a previous membership was marked as left', async () => {
+      const existing = {
+        id: 'echo-existing',
+        tenantId: 'tenant-1',
+        type: 'echo',
+        createdBy: 'user-1',
+      };
+      db.limit.mockResolvedValueOnce([existing] as any);
+      // Membership lookup: row exists but the user had left.
+      db.limit.mockResolvedValueOnce([
+        { id: 'member-1', leftAt: new Date('2026-01-01') },
+      ] as any);
+
+      const result = await service.createDirectChannel(
+        'user-1',
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(result).toEqual(existing);
+      // Rejoin should UPDATE the existing member row, not INSERT a new one.
+      expect(db.update).toHaveBeenCalled();
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          leftAt: null,
+          role: 'owner',
+          joinedAt: expect.any(Date),
+        }),
+      );
+      expect(db.insert).not.toHaveBeenCalled();
+    });
+
+    it('propagates a failure raised from inside the transaction callback', async () => {
+      // No existing echo channel — force the create path.
+      db.limit.mockResolvedValueOnce([] as any);
+      // Simulate Drizzle: actually run the callback so that a failure
+      // inside it (not just a pre-callback throw) bubbles up. This is
+      // closer to the real code path than a throw-before-callback.
+      const boom = new Error('db write failed');
+      db.transaction.mockImplementationOnce(async (cb: any) => {
+        const pretendTx = {
+          insert: jest.fn<any>().mockReturnValue({
+            values: jest.fn<any>().mockReturnValue({
+              returning: jest.fn<any>().mockRejectedValue(boom),
+            }),
+          }),
+        };
+        // Drizzle would rethrow on callback rejection; replicate that.
+        return await cb(pretendTx);
+      });
+
+      await expect(
+        service.createDirectChannel('user-1', 'user-1', 'tenant-1'),
+      ).rejects.toThrow('db write failed');
+    });
+
+    it('does not call assertDirectMessageAllowed for self-chat', async () => {
+      const assertSpy = jest.spyOn(
+        service as any,
+        'assertDirectMessageAllowed',
+      );
+
+      // No existing echo channel.
+      db.limit.mockResolvedValueOnce([] as any);
+      db.returning.mockResolvedValueOnce([
+        { id: 'echo-new', type: 'echo', createdBy: 'user-1' },
+      ] as any);
+
+      await service.createDirectChannel('user-1', 'user-1');
+
+      expect(assertSpy).not.toHaveBeenCalled();
+
+      assertSpy.mockRestore();
     });
   });
 
@@ -1027,6 +1284,59 @@ describe('ChannelsService', () => {
       });
       expect(result[1]).not.toHaveProperty('otherUser');
     });
+
+    it('should include showInDmSidebar in result', async () => {
+      const mockChannel = {
+        id: 'ch-1',
+        tenantId: 'tenant-1',
+        name: null,
+        description: null,
+        type: 'direct',
+        avatarUrl: null,
+        createdBy: 'user-1',
+        sectionId: null,
+        order: 0,
+        isArchived: false,
+        isActivated: true,
+        snapshot: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        unreadCount: 0,
+        lastReadMessageId: null,
+        showInDmSidebar: true,
+      };
+      db.where.mockResolvedValueOnce([mockChannel] as any);
+      db.where.mockResolvedValueOnce([] as any);
+      const result = await service.getUserChannels('user-1', 'tenant-1');
+      expect(result[0]).toHaveProperty('showInDmSidebar', true);
+    });
+
+    it('should pass showInDmSidebar=false when field is false', async () => {
+      const mockChannel = {
+        id: 'ch-2',
+        tenantId: 'tenant-1',
+        name: null,
+        description: null,
+        type: 'direct',
+        avatarUrl: null,
+        createdBy: 'user-1',
+        sectionId: null,
+        order: 0,
+        isArchived: false,
+        isActivated: true,
+        snapshot: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        unreadCount: 0,
+        lastReadMessageId: null,
+        showInDmSidebar: false,
+      };
+      db.where.mockResolvedValueOnce([mockChannel] as any);
+      // Second where call: batch member fetch for direct channels
+      db.where.mockResolvedValueOnce([] as any);
+      const result = await service.getUserChannels('user-1', 'tenant-1');
+      expect(result[0]).toHaveProperty('showInDmSidebar', false);
+    });
   });
 
   describe('findByIdOrThrow', () => {
@@ -1459,6 +1769,133 @@ describe('ChannelsService', () => {
 
       expect(db.delete).toHaveBeenCalled();
       expect(redisService.invalidate).toHaveBeenCalled();
+    });
+  });
+
+  describe('archiveCreationChannel', () => {
+    let redisService: { invalidate: MockFn };
+
+    beforeEach(() => {
+      redisService = (service as any).redis;
+    });
+
+    it('archives a direct channel without role/type checks', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'ch-direct', type: 'direct', isArchived: false },
+      ] as any);
+      // UPDATE's .where() doesn't need a specific return — chain default is fine
+
+      await service.archiveCreationChannel('ch-direct');
+
+      expect(db.update).toHaveBeenCalled();
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({ isArchived: true }),
+      );
+      expect(redisService.invalidate).toHaveBeenCalled();
+    });
+
+    it('is idempotent when channel is already archived', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'ch-direct', type: 'direct', isArchived: true },
+      ] as any);
+
+      await service.archiveCreationChannel('ch-direct');
+
+      expect(db.update).not.toHaveBeenCalled();
+      expect(redisService.invalidate).not.toHaveBeenCalled();
+    });
+
+    it('is a no-op and does not throw when channel is missing', async () => {
+      db.limit.mockResolvedValueOnce([] as any);
+      const debugSpy = jest.spyOn((service as any).logger, 'debug');
+
+      await expect(
+        service.archiveCreationChannel('nonexistent'),
+      ).resolves.toBeUndefined();
+
+      expect(db.update).not.toHaveBeenCalled();
+      expect(debugSpy).toHaveBeenCalledWith(
+        expect.stringContaining('not found'),
+      );
+    });
+
+    it('applies tenant filter when tenantId is provided', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'ch-1', type: 'direct', isArchived: false },
+      ] as any);
+
+      await service.archiveCreationChannel('ch-1', 'tenant-42');
+
+      // The where clause should have been called with two conditions (id + tenantId)
+      // We verify that db.update was called (meaning the tenant filter didn't block)
+      expect(db.update).toHaveBeenCalled();
+      expect(redisService.invalidate).toHaveBeenCalled();
+    });
+  });
+
+  describe('setSidebarVisibility', () => {
+    it('should update show_in_dm_sidebar for a direct channel', async () => {
+      // Mock channel lookup
+      db.limit.mockResolvedValueOnce([
+        { id: 'channel-1', type: 'direct' },
+      ] as any);
+      // Mock member lookup
+      db.limit.mockResolvedValueOnce([{ id: 'member-1' }] as any);
+
+      await service.setSidebarVisibility('channel-1', 'user-1', false);
+      expect(db.update).toHaveBeenCalled();
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({ showInDmSidebar: false }),
+      );
+    });
+
+    it('should update show_in_dm_sidebar for an echo channel', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'channel-1', type: 'echo' },
+      ] as any);
+      db.limit.mockResolvedValueOnce([{ id: 'member-1' }] as any);
+
+      await service.setSidebarVisibility('channel-1', 'user-1', true);
+      expect(db.update).toHaveBeenCalled();
+      expect(db.set).toHaveBeenCalledWith(
+        expect.objectContaining({ showInDmSidebar: true }),
+      );
+    });
+
+    it('should throw BadRequestException for non-DM channel', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'channel-1', type: 'public' },
+      ] as any);
+      await expect(
+        service.setSidebarVisibility('channel-1', 'user-1', false),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException for private channel', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'channel-1', type: 'private' },
+      ] as any);
+      await expect(
+        service.setSidebarVisibility('channel-1', 'user-1', true),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw NotFoundException for missing channel', async () => {
+      db.limit.mockResolvedValueOnce([] as any);
+      await expect(
+        service.setSidebarVisibility('channel-1', 'user-1', false),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw ForbiddenException for non-member', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'channel-1', type: 'direct' },
+      ] as any);
+      // No member found
+      db.limit.mockResolvedValueOnce([] as any);
+      await expect(
+        service.setSidebarVisibility('channel-1', 'user-1', false),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 

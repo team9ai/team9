@@ -1,15 +1,65 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import { getAgentEventMetadata } from "@/lib/agent-event-metadata";
 import { parseLikelyPastDate } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import { useTrackingChannel } from "@/hooks/useTrackingChannel";
+import { ToolCallBlock } from "./ToolCallBlock";
 import { TrackingEventItem } from "./TrackingEventItem";
 import { TrackingModal } from "./TrackingModal";
 import type { Message, AgentEventMetadata } from "@/types/im";
 
 interface TrackingCardProps {
   message: Message;
+}
+
+export interface TrackingDisplayItem {
+  id: string;
+  content: string;
+  metadata: AgentEventMetadata;
+  isStreaming: boolean;
+}
+
+export type TrackingRenderItem =
+  | { type: "event"; item: TrackingDisplayItem }
+  | {
+      type: "toolCall";
+      callItem: TrackingDisplayItem;
+      resultItem: TrackingDisplayItem;
+    };
+
+/**
+ * Merge consecutive tool_call + tool_result pairs (matching toolCallId) into a
+ * single "toolCall" render item so the card renders them as one ToolCallBlock
+ * (consistent with MessageList). All other items pass through as "event"
+ * render items rendered by TrackingEventItem.
+ *
+ * Exported for direct unit testing.
+ */
+export function buildRenderItems(
+  items: TrackingDisplayItem[],
+): TrackingRenderItem[] {
+  const result: TrackingRenderItem[] = [];
+  let i = 0;
+  while (i < items.length) {
+    const item = items[i];
+    const next = items[i + 1];
+
+    if (
+      item.metadata.agentEventType === "tool_call" &&
+      item.metadata.toolCallId &&
+      next?.metadata.agentEventType === "tool_result" &&
+      next.metadata.toolCallId === item.metadata.toolCallId
+    ) {
+      result.push({ type: "toolCall", callItem: item, resultItem: next });
+      i += 2;
+    } else {
+      result.push({ type: "event", item });
+      i += 1;
+    }
+  }
+  return result;
 }
 
 function formatElapsed(startTime: string | number): string {
@@ -23,6 +73,7 @@ function formatElapsed(startTime: string | number): string {
 }
 
 export function TrackingCard({ message }: TrackingCardProps) {
+  const { t } = useTranslation("channel");
   const metadata = (message.metadata ?? {}) as Record<string, unknown>;
   const trackingChannelId = metadata?.trackingChannelId as string | undefined;
   const {
@@ -58,12 +109,7 @@ export function TrackingCard({ message }: TrackingCardProps) {
   const showFrost = moreCount > 0;
 
   // Build display items: latest messages + active stream
-  const displayItems: Array<{
-    id: string;
-    content: string;
-    metadata: AgentEventMetadata;
-    isStreaming: boolean;
-  }> = latestMessages.map((msg) => ({
+  const displayItems: TrackingDisplayItem[] = latestMessages.map((msg) => ({
     id: msg.id,
     content: msg.content ?? "",
     metadata: getAgentEventMetadata(msg.metadata, {
@@ -85,8 +131,11 @@ export function TrackingCard({ message }: TrackingCardProps) {
     });
   }
 
-  // Only show last 3
-  const visibleItems = displayItems.slice(-3);
+  // Merge consecutive tool_call + tool_result pairs into a single ToolCallBlock
+  // render item (matching MessageList behaviour). Then only show the latest 3
+  // render items — a merged toolCall counts as 1 slot rather than 2.
+  const renderItems = buildRenderItems(displayItems);
+  const visibleRenderItems = renderItems.slice(-3);
 
   return (
     <>
@@ -134,30 +183,44 @@ export function TrackingCard({ message }: TrackingCardProps) {
         )}
 
         {/* Timeline */}
-        {!isLoading && visibleItems.length > 0 && (
+        {!isLoading && visibleRenderItems.length > 0 && (
           <div className="border-l-2 border-border ml-1 pl-3 relative flex flex-col gap-2.5">
             {/* Frosted glass overlay on first item */}
             {showFrost && (
               <div className="absolute -top-1 -left-0.5 right-0 h-8 z-10 backdrop-blur-[3px] bg-muted/60 rounded-t flex items-center justify-center">
                 <span className="text-[11px] text-muted-foreground">
-                  View {moreCount} more details ›
+                  {t("tracking.card.moreDetails", { count: moreCount })}
                 </span>
               </div>
             )}
-            {visibleItems.map((item) => (
-              <TrackingEventItem
-                key={item.id}
-                metadata={item.metadata}
-                content={item.content}
-                isStreaming={item.isStreaming}
-                compact
-              />
-            ))}
+            {visibleRenderItems.map((ri) => {
+              if (ri.type === "toolCall") {
+                return (
+                  <ToolCallBlock
+                    key={ri.callItem.id}
+                    callMetadata={ri.callItem.metadata}
+                    resultMetadata={ri.resultItem.metadata}
+                    resultContent={ri.resultItem.content}
+                  />
+                );
+              }
+              return (
+                <TrackingEventItem
+                  key={ri.item.id}
+                  metadata={ri.item.metadata}
+                  content={ri.item.content}
+                  isStreaming={ri.item.isStreaming}
+                  compact
+                />
+              );
+            })}
           </div>
         )}
 
         {isLoading && (
-          <div className="text-xs text-muted-foreground py-2">Loading...</div>
+          <div className="text-xs text-muted-foreground py-2">
+            {t("tracking.card.loading")}
+          </div>
         )}
       </div>
 

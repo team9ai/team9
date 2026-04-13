@@ -158,6 +158,76 @@ describe('BillingHubService', () => {
     );
   });
 
+  it('supports custom app-relative return paths for onboarding checkout and portal flows', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: jest.fn<any>().mockResolvedValue(
+        JSON.stringify({
+          success: true,
+          data: {
+            checkoutUrl: 'https://checkout.stripe.com/c/pay/cs_custom',
+            sessionId: 'cs_custom',
+          },
+        }),
+      ),
+    });
+
+    await service.createWorkspaceCheckout(
+      '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+      'price_pro_monthly',
+      'subscription',
+      'plans',
+      undefined,
+      '/onboarding?step=6&result=success',
+      '/onboarding?step=6&result=cancel',
+    );
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://billing.example.com/api/billing/stripe/checkout/subscription',
+      expect.objectContaining({
+        body: JSON.stringify({
+          ownerExternalId: 'tenant:72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+          priceId: 'price_pro_monthly',
+          successUrl:
+            'https://team9.ai/onboarding?step=6&result=success&workspaceId=72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+          cancelUrl:
+            'https://team9.ai/onboarding?step=6&result=cancel&workspaceId=72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+        }),
+      }),
+    );
+
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: jest.fn<any>().mockResolvedValue(
+        JSON.stringify({
+          success: true,
+          data: {
+            portalUrl: 'https://billing.stripe.com/session',
+          },
+        }),
+      ),
+    });
+
+    await service.createWorkspacePortal(
+      '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+      'plans',
+      '/onboarding?step=6',
+    );
+
+    expect(global.fetch).toHaveBeenLastCalledWith(
+      'https://billing.example.com/api/billing/stripe/portal',
+      expect.objectContaining({
+        body: JSON.stringify({
+          ownerExternalId: 'tenant:72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+          returnUrl:
+            'https://team9.ai/onboarding?step=6&workspaceId=72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
+        }),
+      }),
+    );
+  });
+
   it('throws HttpException for upstream 4xx responses', async () => {
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: false,

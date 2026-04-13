@@ -31,7 +31,9 @@ import {
 } from "@/hooks/useChannels";
 import { DeleteChannelDialog } from "@/components/dialog/DeleteChannelDialog";
 import { AddMemberDialog } from "./AddMemberDialog";
+import { PropertySchemaManager } from "./properties/PropertySchemaManager";
 import { useUser } from "@/stores";
+import { formatDate } from "@/lib/date-format";
 import type { MemberRole } from "@/types/im";
 
 interface ChannelDetailsModalProps {
@@ -39,7 +41,7 @@ interface ChannelDetailsModalProps {
   onClose: () => void;
   channelId: string;
   currentUserRole?: MemberRole;
-  defaultTab?: "about" | "members" | "settings";
+  defaultTab?: "about" | "members" | "properties" | "settings";
 }
 
 export function ChannelDetailsModal({
@@ -152,6 +154,7 @@ export function ChannelDetailsModal({
                 <TabsTrigger value="members">
                   {t("members", { count: members.length })}
                 </TabsTrigger>
+                <TabsTrigger value="properties">Properties</TabsTrigger>
                 <TabsTrigger value="settings">{t("settings")}</TabsTrigger>
               </TabsList>
             </div>
@@ -246,9 +249,7 @@ export function ChannelDetailsModal({
                         <h3 className="text-sm font-medium text-muted-foreground">
                           {t("createdAt")}
                         </h3>
-                        <p>
-                          {new Date(channel.createdAt).toLocaleDateString()}
-                        </p>
+                        <p>{formatDate(channel.createdAt)}</p>
                       </div>
                     </>
                   )}
@@ -328,6 +329,13 @@ export function ChannelDetailsModal({
                       );
                     })}
                   </div>
+                </div>
+              </TabsContent>
+
+              {/* Properties Tab */}
+              <TabsContent value="properties" className="px-6 pb-6 mt-0">
+                <div className="pt-4">
+                  <PropertySchemaManager channelId={channelId} />
                 </div>
               </TabsContent>
 

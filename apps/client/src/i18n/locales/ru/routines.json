@@ -1,0 +1,283 @@
+{
+  "tabs": {
+    "all": "Все",
+    "active": "В процессе",
+    "upcoming": "Предстоящие",
+    "finished": "Завершённые",
+    "info": "Информация",
+    "triggers": "Триггеры",
+    "document": "Документ",
+    "runs": "Запуски",
+    "run": "Запуск",
+    "settings": "Настройки",
+    "history": "История"
+  },
+  "noRoutines": "Нет рутин",
+  "create": {
+    "title": "Новая рутина",
+    "description": "Создайте рутину для выполнения ИИ-сотрудником.",
+    "taskName": "Название",
+    "taskNamePlaceholder": "Что нужно сделать?",
+    "bot": "ИИ-сотрудник",
+    "botPlaceholder": "Выберите ИИ-сотрудника...",
+    "noBot": "Нет (назначить позже)",
+    "document": "Документ (необязательно)",
+    "documentPlaceholder": "Предоставьте контекст или инструкции...",
+    "cancel": "Отмена",
+    "submit": "Создать",
+    "errorGeneric": "Не удалось создать рутину"
+  },
+  "status": {
+    "in_progress": "В процессе",
+    "upcoming": "Предстоит",
+    "paused": "Приостановлено",
+    "pending_action": "Ожидает действия",
+    "completed": "Завершено",
+    "failed": "Ошибка",
+    "stopped": "Остановлено",
+    "timeout": "Таймаут"
+  },
+  "stepStatus": {
+    "pending": "Ожидание",
+    "in_progress": "В процессе",
+    "completed": "Завершено",
+    "failed": "Ошибка"
+  },
+  "schedule": {
+    "type": "Расписание",
+    "types": {
+      "once": "Однократно",
+      "recurring": "Повторяющееся"
+    },
+    "frequency": "Частота",
+    "frequencies": {
+      "daily": "Ежедневно",
+      "weekly": "Еженедельно",
+      "monthly": "Ежемесячно"
+    },
+    "time": "Время",
+    "dayOfWeek": "День недели",
+    "dayOfMonth": "День месяца",
+    "days": {
+      "0": "Вс",
+      "1": "Пн",
+      "2": "Вт",
+      "3": "Ср",
+      "4": "Чт",
+      "5": "Пт",
+      "6": "Сб"
+    }
+  },
+  "detail": {
+    "title": "Детали рутины",
+    "loadError": "Не удалось загрузить детали рутины",
+    "start": "Запустить",
+    "pause": "Приостановить",
+    "resume": "Возобновить",
+    "stop": "Остановить",
+    "restart": "Перезапустить",
+    "delete": "Удалить",
+    "deleteConfirm": "Вы уверены, что хотите удалить эту рутину?",
+    "assignBot": "ИИ-сотрудник",
+    "noBot": "Не назначен",
+    "steps": "Шаги",
+    "noSteps": "Шагов пока нет",
+    "deliverables": "Результаты",
+    "noDeliverables": "Результатов пока нет",
+    "pendingInterventions": "Требуется действие",
+    "pastInterventions": "Прошлые вмешательства",
+    "interventionResolved": "Решено",
+    "interventionExpired": "Истекло",
+    "interventionPlaceholder": "Введите пользовательский ответ...",
+    "messageInputPlaceholder": "Отправьте сообщение этой рутине...",
+    "finishedBanner": {
+      "completed": "Рутина успешно завершена",
+      "failed": "Ошибка выполнения рутины",
+      "timeout": "Таймаут рутины",
+      "stopped": "Рутина была остановлена",
+      "in_progress": "",
+      "upcoming": "",
+      "paused": "",
+      "pending_action": ""
+    },
+    "completedAt": "Завершено в {{time}}",
+    "duration": "Длительность: {{duration}}",
+    "tokenUsage": "Использовано токенов: {{tokens}}",
+    "tokenCount": "{{count}} токенов",
+    "error": "Ошибка",
+    "errorWithCode": "Ошибка ({{code}})",
+    "document": {
+      "save": "Сохранить",
+      "saving": "Сохранение...",
+      "unsavedChanges": "Несохранённые изменения",
+      "viewingVersion": "Просмотр версии {{version}}",
+      "backToCurrent": "К текущей",
+      "currentLabel": "Версия {{version}} (текущая)",
+      "versionLabel": "Версия {{version}} — {{time}}",
+      "discardTitle": "Несохранённые изменения",
+      "discardMessage": "У вас есть несохранённые изменения. Отменить их?",
+      "discardConfirm": "Отменить",
+      "discardCancel": "Продолжить редактирование",
+      "saveSummaryPlaceholder": "Опишите ваши изменения (необязательно)...",
+      "placeholder": "Начните писать...",
+      "createPlaceholder": "Начните писать, чтобы создать документ...",
+      "suggestions": {
+        "title": "Предложения ИИ",
+        "count": "Предложения ИИ ({{count}})",
+        "view": "Просмотреть",
+        "approve": "Одобрить",
+        "reject": "Отклонить",
+        "current": "Текущее",
+        "suggested": "Предложенное",
+        "outdated": "Это предложение основано на более старой версии",
+        "empty": "Нет ожидающих предложений"
+      },
+      "versionHistory": {
+        "loadError": "Не удалось загрузить версии",
+        "noVersions": "Версий пока нет"
+      }
+    }
+  },
+  "triggers": {
+    "title": "Триггеры",
+    "add": "Добавить триггер",
+    "empty": "Триггеры не настроены",
+    "edit": "Изменить",
+    "delete": "Удалить",
+    "types": {
+      "manual": "Ручной",
+      "interval": "Интервал",
+      "schedule": "Расписание",
+      "channel_message": "Сообщение в канале"
+    },
+    "enabled": "Включено",
+    "disabled": "Отключено",
+    "nextRun": "Следующий запуск: {{time}}",
+    "countdown": "через {{duration}}",
+    "lastRun": "Последний запуск: {{time}}",
+    "interval": {
+      "every": "Каждые",
+      "units": {
+        "minutes": "минут",
+        "hours": "часов",
+        "days": "дней",
+        "weeks": "недель",
+        "months": "месяцев",
+        "years": "лет"
+      }
+    },
+    "schedule": {
+      "frequencies": {
+        "daily": "Ежедневно",
+        "weekly": "Еженедельно",
+        "monthly": "Ежемесячно",
+        "yearly": "Ежегодно",
+        "weekdays": "По будням"
+      },
+      "time": "В",
+      "timezone": "Часовой пояс",
+      "dayOfWeek": "День",
+      "dayOfMonth": "День месяца"
+    },
+    "channelMessage": {
+      "channel": "Канал",
+      "selectChannel": "Выберите канал..."
+    },
+    "deleteConfirm": "Удалить этот триггер?",
+    "addTitle": "Добавить триггер",
+    "selectType": "Выберите тип триггера",
+    "configureTitle": "Настроить {{type}}",
+    "back": "Назад",
+    "create": "Создать",
+    "manualNoConfig": "Ручные триггеры не требуют настройки. Просто создайте и запускайте вручную.",
+    "typeDesc": {
+      "manual": "Запуск по требованию",
+      "interval": "Запуск через фиксированные интервалы",
+      "schedule": "Запуск по расписанию",
+      "channel_message": "Запуск при отправке сообщения"
+    }
+  },
+  "runs": {
+    "title": "Запуски",
+    "empty": "Запусков пока нет",
+    "version": "v{{version}}",
+    "triggerType": {
+      "manual": "Ручной",
+      "interval": "Интервал",
+      "schedule": "По расписанию",
+      "channel_message": "Сообщение",
+      "retry": "Повтор"
+    },
+    "notes": "Заметки",
+    "retry": "Повторить",
+    "retryTitle": "Повторить запуск",
+    "retryNotes": "Добавьте заметки для повтора (необязательно)",
+    "back": "К запускам",
+    "documentVersion": "Документ v{{version}}",
+    "triggeredAt": "Запущено в {{time}}",
+    "scheduledAt": "Запланировано на {{time}}",
+    "triggeredBy": "Запущено пользователем {{user}}",
+    "messageFrom": "Сообщение от {{user}}",
+    "retryOf": "Повтор v{{version}}"
+  },
+  "timeline": {
+    "empty": "Активности пока нет",
+    "statusChange": {
+      "started": "Рутина запущена",
+      "completed": "Рутина завершена",
+      "failed": "Ошибка рутины",
+      "stopped": "Рутина остановлена",
+      "timeout": "Таймаут рутины",
+      "paused": "Рутина приостановлена"
+    }
+  },
+  "chat": {
+    "placeholder": "Запустите рутину, чтобы пообщаться с ботом"
+  },
+  "manualTrigger": {
+    "title": "Запустить рутину",
+    "notesPlaceholder": "Добавьте заметки или контекст для этого запуска (необязательно)..."
+  },
+  "chatArea": {
+    "viewingHistory": "Просмотр исторического запуска",
+    "returnToCurrent": "Вернуться к текущему запуску",
+    "lastRunCompleted": "Последний запуск завершён",
+    "lastRunFailed": "Последний запуск завершился с ошибкой",
+    "lastRunStopped": "Последний запуск остановлен",
+    "lastRunTimeout": "Таймаут последнего запуска",
+    "rerun": "Перезапустить",
+    "readOnly": "Историческая беседа (только чтение)",
+    "finishedReadOnly": "Беседа последнего запуска (только чтение)",
+    "start": "Запустить",
+    "noRunsYet": "Запусков пока нет. Запустите первый!",
+    "pause": "Приостановить",
+    "resume": "Возобновить",
+    "stop": "Остановить"
+  },
+  "runTab": {
+    "title": "Детали запуска",
+    "status": "Статус",
+    "duration": "Длительность",
+    "triggerType": "Триггер",
+    "taskVersion": "Версия рутины",
+    "tokenUsage": "Использование токенов",
+    "timeline": "Хронология",
+    "noExecution": "Выполнение не выбрано"
+  },
+  "settingsTab": {
+    "title": "Настройки",
+    "taskTitle": "Название",
+    "taskDescription": "Описание",
+    "deleteConfirm": "Вы уверены, что хотите удалить эту рутину? Это действие нельзя отменить."
+  },
+  "historyTab": {
+    "title": "История",
+    "current": "Текущий",
+    "empty": "Запусков пока нет",
+    "manual": "Ручной",
+    "interval": "Интервал",
+    "schedule": "Расписание",
+    "channelMessage": "Сообщение в канале",
+    "retry": "Повтор"
+  }
+}

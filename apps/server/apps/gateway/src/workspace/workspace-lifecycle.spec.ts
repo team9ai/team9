@@ -148,6 +148,8 @@ describe('WorkspaceService — member lifecycle hooks', () => {
       installedApplicationsService, // InstalledApplicationsService
       { findAutoInstall: jest.fn<any>().mockReturnValue([]) }, // ApplicationsService
       personalStaffService, // PersonalStaffService
+      {} as any, // OnboardingService (not used in lifecycle tests)
+      { capture: jest.fn<any>() }, // PosthogService
     );
   });
 

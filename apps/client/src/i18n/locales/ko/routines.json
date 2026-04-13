@@ -1,0 +1,290 @@
+{
+  "tabs": {
+    "all": "전체",
+    "active": "진행 중",
+    "upcoming": "예정됨",
+    "finished": "완료됨",
+    "info": "정보",
+    "triggers": "트리거",
+    "document": "문서",
+    "runs": "실행 기록",
+    "run": "실행",
+    "settings": "설정",
+    "history": "기록"
+  },
+  "noRoutines": "루틴이 없습니다",
+  "createManually": "수동으로 생성",
+  "emptyState": {
+    "title": "루틴이란?",
+    "description": "루틴은 AI 스태프가 자동으로 실행하는 작업입니다.\n트리거 조건을 설정하면 AI가 대신 작업을 완료합니다.",
+    "createWithAI": "AI로 생성",
+    "createManually": "또는 수동으로 생성"
+  },
+  "create": {
+    "title": "새 루틴",
+    "description": "AI 스태프가 실행할 루틴을 만듭니다.",
+    "taskName": "제목",
+    "taskNamePlaceholder": "무엇을 해야 하나요?",
+    "bot": "AI 스태프",
+    "botPlaceholder": "AI 스태프 선택...",
+    "noBot": "없음 (나중에 지정)",
+    "document": "문서 (선택)",
+    "documentPlaceholder": "맥락이나 지침을 제공하세요...",
+    "cancel": "취소",
+    "submit": "생성",
+    "errorGeneric": "루틴 생성에 실패했습니다"
+  },
+  "status": {
+    "in_progress": "진행 중",
+    "upcoming": "예정됨",
+    "paused": "일시 중지됨",
+    "pending_action": "조치 대기",
+    "completed": "완료됨",
+    "failed": "실패",
+    "stopped": "중지됨",
+    "timeout": "시간 초과"
+  },
+  "stepStatus": {
+    "pending": "대기 중",
+    "in_progress": "실행 중",
+    "completed": "완료됨",
+    "failed": "실패"
+  },
+  "schedule": {
+    "type": "스케줄",
+    "types": {
+      "once": "1회",
+      "recurring": "반복"
+    },
+    "frequency": "빈도",
+    "frequencies": {
+      "daily": "매일",
+      "weekly": "매주",
+      "monthly": "매월"
+    },
+    "time": "시간",
+    "dayOfWeek": "요일",
+    "dayOfMonth": "날짜",
+    "days": {
+      "0": "일",
+      "1": "월",
+      "2": "화",
+      "3": "수",
+      "4": "목",
+      "5": "금",
+      "6": "토"
+    }
+  },
+  "detail": {
+    "title": "루틴 상세",
+    "loadError": "루틴 상세를 불러오지 못했습니다",
+    "start": "시작",
+    "pause": "일시 중지",
+    "resume": "재개",
+    "stop": "중지",
+    "restart": "재시작",
+    "delete": "삭제",
+    "deleteConfirm": "이 루틴을 삭제하시겠습니까?",
+    "assignBot": "AI 스태프",
+    "noBot": "미지정",
+    "steps": "단계",
+    "noSteps": "아직 단계가 없습니다",
+    "deliverables": "산출물",
+    "noDeliverables": "아직 산출물이 없습니다",
+    "pendingInterventions": "조치 필요",
+    "pastInterventions": "과거 개입",
+    "interventionResolved": "해결됨",
+    "interventionExpired": "만료됨",
+    "interventionPlaceholder": "사용자 정의 응답 입력...",
+    "messageInputPlaceholder": "이 루틴에 메시지 보내기...",
+    "finishedBanner": {
+      "completed": "루틴이 성공적으로 완료되었습니다",
+      "failed": "루틴이 실패했습니다",
+      "timeout": "루틴이 시간 초과되었습니다",
+      "stopped": "루틴이 중지되었습니다",
+      "in_progress": "",
+      "upcoming": "",
+      "paused": "",
+      "pending_action": ""
+    },
+    "completedAt": "완료: {{time}}",
+    "duration": "소요 시간: {{duration}}",
+    "tokenUsage": "{{tokens}} 토큰 사용",
+    "tokenCount": "{{count}} 토큰",
+    "error": "오류",
+    "errorWithCode": "오류 ({{code}})",
+    "document": {
+      "save": "저장",
+      "saving": "저장 중...",
+      "unsavedChanges": "저장되지 않은 변경사항",
+      "viewingVersion": "버전 {{version}} 보기",
+      "backToCurrent": "현재 버전으로 돌아가기",
+      "currentLabel": "버전 {{version}} (현재)",
+      "versionLabel": "버전 {{version}} — {{time}}",
+      "discardTitle": "저장되지 않은 변경사항",
+      "discardMessage": "저장되지 않은 변경사항이 있습니다. 취소하시겠습니까?",
+      "discardConfirm": "취소",
+      "discardCancel": "편집 계속",
+      "saveSummaryPlaceholder": "변경사항을 설명하세요 (선택)...",
+      "placeholder": "작성 시작...",
+      "createPlaceholder": "작성하여 문서를 생성하세요...",
+      "suggestions": {
+        "title": "AI 제안",
+        "count": "AI 제안 ({{count}})",
+        "view": "보기",
+        "approve": "승인",
+        "reject": "거부",
+        "current": "현재 내용",
+        "suggested": "제안 내용",
+        "outdated": "이 제안은 이전 버전에 기반합니다",
+        "empty": "대기 중인 제안이 없습니다"
+      },
+      "versionHistory": {
+        "loadError": "버전을 불러오지 못했습니다",
+        "noVersions": "아직 버전이 없습니다"
+      }
+    }
+  },
+  "triggers": {
+    "title": "트리거",
+    "add": "트리거 추가",
+    "empty": "설정된 트리거가 없습니다",
+    "edit": "편집",
+    "delete": "삭제",
+    "types": {
+      "manual": "수동",
+      "interval": "인터벌",
+      "schedule": "스케줄",
+      "channel_message": "채널 메시지"
+    },
+    "enabled": "활성화됨",
+    "disabled": "비활성화됨",
+    "nextRun": "다음 실행: {{time}}",
+    "countdown": "{{duration}} 후",
+    "lastRun": "마지막 실행: {{time}}",
+    "interval": {
+      "every": "매",
+      "units": {
+        "minutes": "분",
+        "hours": "시간",
+        "days": "일",
+        "weeks": "주",
+        "months": "개월",
+        "years": "년"
+      }
+    },
+    "schedule": {
+      "frequencies": {
+        "daily": "매일",
+        "weekly": "매주",
+        "monthly": "매월",
+        "yearly": "매년",
+        "weekdays": "평일"
+      },
+      "time": "시간",
+      "timezone": "시간대",
+      "dayOfWeek": "요일",
+      "dayOfMonth": "날짜"
+    },
+    "channelMessage": {
+      "channel": "채널",
+      "selectChannel": "채널 선택..."
+    },
+    "deleteConfirm": "이 트리거를 삭제하시겠습니까?",
+    "addTitle": "트리거 추가",
+    "selectType": "트리거 유형 선택",
+    "configureTitle": "{{type}} 설정",
+    "back": "뒤로",
+    "create": "생성",
+    "manualNoConfig": "수동 트리거는 설정이 필요 없습니다. 생성 후 수동으로 실행하세요.",
+    "typeDesc": {
+      "manual": "필요 시 수동 실행",
+      "interval": "고정 간격으로 실행",
+      "schedule": "스케줄에 따라 실행",
+      "channel_message": "메시지 수신 시 실행"
+    }
+  },
+  "runs": {
+    "title": "실행 기록",
+    "empty": "아직 실행 기록이 없습니다",
+    "version": "v{{version}}",
+    "triggerType": {
+      "manual": "수동",
+      "interval": "인터벌",
+      "schedule": "스케줄",
+      "channel_message": "메시지",
+      "retry": "재시도"
+    },
+    "notes": "메모",
+    "retry": "재시도",
+    "retryTitle": "실행 재시도",
+    "retryNotes": "재시도 메모 추가 (선택)",
+    "back": "실행 목록으로 돌아가기",
+    "documentVersion": "문서 v{{version}}",
+    "triggeredAt": "트리거 시간: {{time}}",
+    "scheduledAt": "예정 시간: {{time}}",
+    "triggeredBy": "트리거 실행자: {{user}}",
+    "messageFrom": "{{user}}의 메시지",
+    "retryOf": "v{{version}} 재시도"
+  },
+  "timeline": {
+    "empty": "아직 활동이 없습니다",
+    "statusChange": {
+      "started": "루틴이 시작되었습니다",
+      "completed": "루틴이 완료되었습니다",
+      "failed": "루틴이 실패했습니다",
+      "stopped": "루틴이 중지되었습니다",
+      "timeout": "루틴이 시간 초과되었습니다",
+      "paused": "루틴이 일시 중지되었습니다"
+    }
+  },
+  "chat": {
+    "placeholder": "루틴을 시작하면 봇과 채팅할 수 있습니다"
+  },
+  "manualTrigger": {
+    "title": "루틴 시작",
+    "notesPlaceholder": "이번 실행에 대한 메모나 맥락을 추가하세요 (선택)..."
+  },
+  "chatArea": {
+    "viewingHistory": "과거 실행 보기",
+    "returnToCurrent": "현재 실행으로 돌아가기",
+    "lastRunCompleted": "마지막 실행 완료",
+    "lastRunFailed": "마지막 실행 실패",
+    "lastRunStopped": "마지막 실행 중지",
+    "lastRunTimeout": "마지막 실행 시간 초과",
+    "rerun": "다시 실행",
+    "readOnly": "과거 대화 (읽기 전용)",
+    "finishedReadOnly": "마지막 실행 대화 (읽기 전용)",
+    "start": "시작",
+    "noRunsYet": "아직 실행 기록이 없습니다. 첫 번째 실행을 시작하세요!",
+    "pause": "일시 중지",
+    "resume": "재개",
+    "stop": "중지"
+  },
+  "runTab": {
+    "title": "실행 상세",
+    "status": "상태",
+    "duration": "소요 시간",
+    "triggerType": "트리거",
+    "taskVersion": "루틴 버전",
+    "tokenUsage": "토큰 사용량",
+    "timeline": "타임라인",
+    "noExecution": "선택된 실행 없음"
+  },
+  "settingsTab": {
+    "title": "설정",
+    "taskTitle": "제목",
+    "taskDescription": "설명",
+    "deleteConfirm": "이 루틴을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다."
+  },
+  "historyTab": {
+    "title": "기록",
+    "current": "현재",
+    "empty": "아직 실행 기록이 없습니다",
+    "manual": "수동",
+    "interval": "인터벌",
+    "schedule": "스케줄",
+    "channelMessage": "채널 메시지",
+    "retry": "재시도"
+  }
+}

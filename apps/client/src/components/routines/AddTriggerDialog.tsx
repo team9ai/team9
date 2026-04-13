@@ -101,7 +101,9 @@ export function AddTriggerDialog({
     enabled: isOpen && selectedType === "channel_message",
   });
 
-  const nonDirectChannels = channels.filter((ch) => ch.type !== "direct");
+  const nonDirectChannels = channels.filter(
+    (ch) => ch.type !== "direct" && ch.type !== "echo",
+  );
 
   const createMutation = useMutation({
     mutationFn: () => {

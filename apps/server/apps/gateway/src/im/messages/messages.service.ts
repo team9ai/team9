@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
+import { determineMessageType, truncateContent } from './message-utils.js';
 import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
@@ -27,6 +28,7 @@ import {
   resolveAgentType,
   type AgentType,
 } from '../../common/utils/agent-type.util.js';
+import { MessagePropertiesService } from '../properties/message-properties.service.js';
 
 export interface MessageSender {
   id: string;
@@ -63,7 +65,9 @@ export interface MessageResponse {
   parentId: string | null;
   rootId: string | null;
   content: string | null;
-  type: 'text' | 'file' | 'image' | 'system' | 'tracking';
+  type: 'text' | 'file' | 'image' | 'system' | 'tracking' | 'long_text';
+  isTruncated?: boolean;
+  fullContentLength?: number;
   isPinned: boolean;
   isEdited: boolean;
   isDeleted: boolean;
@@ -76,6 +80,7 @@ export interface MessageResponse {
   lastRepliers: MessageSender[];
   lastReplyAt: Date | null;
   metadata?: Record<string, unknown> | null;
+  properties?: Record<string, unknown>;
 }
 
 export interface PaginatedMessagesResponse {
@@ -112,6 +117,7 @@ export class MessagesService {
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly channelSequenceService: ChannelSequenceService,
+    private readonly messagePropertiesService: MessagePropertiesService,
   ) {}
 
   private mapMessageSender(row: {
@@ -459,6 +465,30 @@ export class MessagesService {
     return result;
   }
 
+  /**
+   * Batch-load properties for messages and merge into responses.
+   * Only loads properties with showInChatPolicy !== 'hide'.
+   */
+  async mergeProperties(
+    messages: MessageResponse[],
+  ): Promise<MessageResponse[]> {
+    if (messages.length === 0) return messages;
+
+    const messageIds = messages.map((m) => m.id);
+    const propertiesMap =
+      await this.messagePropertiesService.batchGetByMessageIds(messageIds, {
+        excludeHidden: true,
+      });
+
+    return messages.map((m) => {
+      const props = propertiesMap[m.id];
+      if (props && Object.keys(props).length > 0) {
+        return { ...m, properties: props };
+      }
+      return m;
+    });
+  }
+
   async getChannelMessages(
     channelId: string,
     limit = 50,
@@ -506,9 +536,10 @@ export class MessagesService {
 
     const messageList = await query;
     const detailsMap = await this.getMessagesWithDetailsBatch(messageList);
-    return messageList
+    const messages = messageList
       .map((m) => detailsMap.get(m.id))
       .filter((m): m is MessageResponse => !!m);
+    return this.mergeProperties(messages);
   }
 
   /**
@@ -585,9 +616,11 @@ export class MessagesService {
       );
 
       const detailsMap = await this.getMessagesWithDetailsBatch(combined);
-      const messages = combined
-        .map((m) => detailsMap.get(m.id))
-        .filter((m): m is MessageResponse => !!m);
+      const messages = await this.mergeProperties(
+        combined
+          .map((m) => detailsMap.get(m.id))
+          .filter((m): m is MessageResponse => !!m),
+      );
 
       return { messages, hasOlder, hasNewer };
     }
@@ -612,9 +645,11 @@ export class MessagesService {
       trimmed.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
       const detailsMap = await this.getMessagesWithDetailsBatch(trimmed);
-      const messages = trimmed
-        .map((m) => detailsMap.get(m.id))
-        .filter((m): m is MessageResponse => !!m);
+      const messages = await this.mergeProperties(
+        trimmed
+          .map((m) => detailsMap.get(m.id))
+          .filter((m): m is MessageResponse => !!m),
+      );
 
       return { messages, hasOlder: true, hasNewer };
     }
@@ -645,9 +680,11 @@ export class MessagesService {
     const trimmed = rows.slice(0, limit);
 
     const detailsMap = await this.getMessagesWithDetailsBatch(trimmed);
-    const messages = trimmed
-      .map((m) => detailsMap.get(m.id))
-      .filter((m): m is MessageResponse => !!m);
+    const messages = await this.mergeProperties(
+      trimmed
+        .map((m) => detailsMap.get(m.id))
+        .filter((m): m is MessageResponse => !!m),
+    );
 
     return { messages, hasOlder, hasNewer: hasCursor };
   }
@@ -874,10 +911,18 @@ export class MessagesService {
       message.channelId,
     );
 
+    // Re-determine type only for text-based messages (text / long_text).
+    // File/image/system/tracking messages keep their original type.
+    const isTextBased = message.type === 'text' || message.type === 'long_text';
+    const newType = isTextBased
+      ? determineMessageType(dto.content, false)
+      : message.type;
+
     await this.db
       .update(schema.messages)
       .set({
         content: dto.content,
+        type: newType,
         isEdited: true,
         seqId: newSeqId,
         updatedAt: new Date(),
@@ -887,7 +932,11 @@ export class MessagesService {
     return this.getMessageWithDetails(messageId);
   }
 
-  async delete(messageId: string, userId: string): Promise<void> {
+  async delete(
+    messageId: string,
+    userId: string,
+    channelRole?: string,
+  ): Promise<void> {
     const [message] = await this.db
       .select()
       .from(schema.messages)
@@ -898,7 +947,10 @@ export class MessagesService {
       throw new NotFoundException('Message not found');
     }
 
-    if (message.senderId !== userId) {
+    const isOwner = message.senderId === userId;
+    const isAdminOrOwner =
+      channelRole && ['owner', 'admin'].includes(channelRole);
+    if (!isOwner && !isAdminOrOwner) {
       throw new ForbiddenException('Cannot delete message from another user');
     }
 
@@ -921,7 +973,7 @@ export class MessagesService {
   async pinMessage(messageId: string, isPinned: boolean): Promise<void> {
     await this.db
       .update(schema.messages)
-      .set({ isPinned, updatedAt: new Date() })
+      .set({ isPinned })
       .where(eq(schema.messages.id, messageId));
   }
 
@@ -1044,5 +1096,36 @@ export class MessagesService {
     }
 
     return message.channelId;
+  }
+
+  truncateForPreview(message: MessageResponse): MessageResponse {
+    if (message.type !== 'long_text' || !message.content) {
+      return message;
+    }
+    const { content, isTruncated, fullContentLength } = truncateContent(
+      message.content,
+    );
+    return { ...message, content, isTruncated, fullContentLength };
+  }
+
+  async getFullContent(messageId: string): Promise<{ content: string }> {
+    const [message] = await this.db
+      .select({
+        content: schema.messages.content,
+        isDeleted: schema.messages.isDeleted,
+      })
+      .from(schema.messages)
+      .where(eq(schema.messages.id, messageId))
+      .limit(1);
+
+    if (!message) {
+      throw new NotFoundException('Message not found');
+    }
+
+    if (message.isDeleted) {
+      throw new NotFoundException('Message not found');
+    }
+
+    return { content: message.content ?? '' };
   }
 }

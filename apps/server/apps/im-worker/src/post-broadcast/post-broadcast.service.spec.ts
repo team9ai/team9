@@ -100,10 +100,11 @@ const BOT_UUIDS: Record<string, string> = {
   chatgpt: '00000000-0000-0000-0000-000000000003',
 };
 
-const makeHiveBot = (key: string) => ({
+const makeHiveBot = (key: string, opts: { mentorId?: string | null } = {}) => ({
   userId: BOT_UUIDS[key] ?? `00000000-0000-0000-0000-00000000${key}`,
   botId: `bot-id-${key}`,
   managedMeta: { agentId: `base-model-${key}-${TENANT_ID.slice(0, 8)}` },
+  mentorId: opts.mentorId ?? null,
 });
 
 // ── tests ─────────────────────────────────────────────────────────────────────
@@ -521,6 +522,89 @@ describe('PostBroadcastService — pushToHiveBots', () => {
     expect(sessionId).toBe(
       `team9/${TENANT_ID}/${bot.managedMeta.agentId}/dm/${CHANNEL_ID}`,
     );
+  });
+
+  // ── team9Context derivation ──────────────────────────────────────────────
+
+  it('injects team9Context with isMentorDm=true when sender is the bot mentor in a DM', async () => {
+    const bot = makeHiveBot('claude', { mentorId: SENDER_ID });
+    setupDbForHivePush({ bots: [bot], channel: makeChannel('direct') });
+
+    await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
+
+    const [, event] = clawHiveService.sendInput.mock.calls[0] as [
+      string,
+      { payload: { team9Context: Record<string, unknown> } },
+      ...unknown[],
+    ];
+    expect(event.payload.team9Context).toEqual({
+      source: 'team9',
+      scopeType: 'dm',
+      scopeId: CHANNEL_ID,
+      peerUserId: SENDER_ID,
+      isMentorDm: true,
+    });
+  });
+
+  it('injects team9Context with isMentorDm=false when sender is NOT the bot mentor', async () => {
+    // Bot has no mentor — isMentorDm should be false.
+    const bot = makeHiveBot('claude', { mentorId: null });
+    setupDbForHivePush({ bots: [bot], channel: makeChannel('direct') });
+
+    await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
+
+    const [, event] = clawHiveService.sendInput.mock.calls[0] as [
+      string,
+      { payload: { team9Context: { isMentorDm: boolean } } },
+      ...unknown[],
+    ];
+    expect(event.payload.team9Context.isMentorDm).toBe(false);
+  });
+
+  it('injects team9Context with isMentorDm=false in a DM when sender differs from bot mentor (mentor-change scenario)', async () => {
+    // Mentor changed to someone else. Alice (SENDER_ID) is no longer the mentor,
+    // so her messages should no longer carry isMentorDm=true.
+    const bot = makeHiveBot('claude', { mentorId: 'different-user-uuid' });
+    setupDbForHivePush({ bots: [bot], channel: makeChannel('direct') });
+
+    await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
+
+    const [, event] = clawHiveService.sendInput.mock.calls[0] as [
+      string,
+      { payload: { team9Context: { isMentorDm: boolean } } },
+      ...unknown[],
+    ];
+    expect(event.payload.team9Context.isMentorDm).toBe(false);
+  });
+
+  it('injects team9Context with scopeType=channel for non-DM channels', async () => {
+    const bot = makeHiveBot('claude', { mentorId: SENDER_ID });
+    // @mention required so the group-channel trigger fires
+    const msg = makeMessage({
+      content: `<mention data-user-id="${bot.userId}">@Claude</mention> hi`,
+    });
+    setupDbForHivePush({
+      bots: [bot],
+      message: msg,
+      channel: makeChannel('public'),
+    });
+
+    await (service as any).pushToHiveBots(MSG_ID, SENDER_ID, [bot.userId]);
+
+    const [, event] = clawHiveService.sendInput.mock.calls[0] as [
+      string,
+      { payload: { team9Context: Record<string, unknown> } },
+      ...unknown[],
+    ];
+    expect(event.payload.team9Context).toEqual({
+      source: 'team9',
+      scopeType: 'channel',
+      scopeId: CHANNEL_ID,
+      peerUserId: SENDER_ID,
+      // Even when sender.id === bot.mentorId, a non-DM channel must not report
+      // isMentorDm=true — the "mentor DM" concept only applies inside DMs.
+      isMentorDm: false,
+    });
   });
 
   it('builds correct session ID for a group channel (tracking/ scope)', async () => {

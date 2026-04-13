@@ -22,7 +22,7 @@ import {
 @Module({
   imports: [
     forwardRef(() => WorkspaceModule),
-    ChannelsModule,
+    forwardRef(() => ChannelsModule),
     forwardRef(() => WebsocketModule),
     RedisModule,
     ClawHiveModule,
@@ -52,6 +52,7 @@ import {
     ApplicationsService,
     InstalledApplicationsService,
     StaffService,
+    CommonStaffService,
     PersonalStaffService,
   ],
 })

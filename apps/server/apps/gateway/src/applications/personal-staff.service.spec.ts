@@ -19,6 +19,7 @@ import { DATABASE_CONNECTION } from '@team9/database';
 
 import { BotService } from '../bot/bot.service.js';
 import { ClawHiveService } from '@team9/claw-hive';
+import { RedisService } from '@team9/redis';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { InstalledApplicationsService } from './installed-applications.service.js';
 import type {
@@ -218,6 +219,9 @@ describe('PersonalStaffService', () => {
       updateBotDisplayName: jest.fn<any>().mockResolvedValue(undefined),
       updateBotMentor: jest.fn<any>().mockResolvedValue(undefined),
       deleteBotAndCleanup: jest.fn<any>().mockResolvedValue(undefined),
+      generateAccessToken: jest
+        .fn<any>()
+        .mockResolvedValue({ accessToken: 'test-token' }),
     };
 
     clawHiveService = {
@@ -245,6 +249,15 @@ describe('PersonalStaffService', () => {
         { provide: DATABASE_CONNECTION, useValue: db },
         { provide: BotService, useValue: botService },
         { provide: ClawHiveService, useValue: clawHiveService },
+        {
+          provide: RedisService,
+          useValue: {
+            get: jest.fn(),
+            set: jest.fn(),
+            del: jest.fn(),
+            invalidate: jest.fn(),
+          },
+        },
         { provide: ChannelsService, useValue: channelsService },
         {
           provide: InstalledApplicationsService,
@@ -565,14 +578,31 @@ describe('PersonalStaffService', () => {
           expect.objectContaining({
             type: 'team9:bootstrap.start',
             source: 'team9',
-            payload: {
+            payload: expect.objectContaining({
               mentorId: OWNER_ID,
               isMentorDm: true,
               channelId: DM_CHANNEL_ID,
-            },
+            }),
           }),
           TENANT_ID,
         );
+      });
+
+      it('includes a standard team9Context in the bootstrap payload so Team9Component.onEvent can extract it', async () => {
+        const dto = makeCreateDto();
+        await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        const call = clawHiveService.sendInput.mock.calls[0];
+        const event = call[1] as {
+          payload: { team9Context: Record<string, unknown> };
+        };
+        expect(event.payload.team9Context).toEqual({
+          source: 'team9',
+          scopeType: 'dm',
+          scopeId: DM_CHANNEL_ID,
+          peerUserId: OWNER_ID,
+          isMentorDm: true,
+        });
       });
 
       it('triggers bootstrap when agenticBootstrap=true', async () => {

@@ -1,16 +1,28 @@
-import { ChevronDown } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { ChevronDown, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useUserWorkspaces, useWorkspaceMembers } from "@/hooks/useWorkspace";
-import { useChannelsByType, useCreateDirectChannel } from "@/hooks/useChannels";
+import {
+  useChannelsByType,
+  useCreateDirectChannel,
+  useSetSidebarVisibility,
+} from "@/hooks/useChannels";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useWorkspaceStore } from "@/stores";
 import { UserListItem } from "@/components/sidebar/UserListItem";
 
 export function MessagesSubSidebar() {
+  const { t } = useTranslation(["navigation", "common"]);
   const navigate = useNavigate();
   const params = useParams({ strict: false });
   const selectedChannelId = (params as { channelId?: string }).channelId;
@@ -18,8 +30,12 @@ export function MessagesSubSidebar() {
   const { data: currentUser } = useCurrentUser();
   const { data: workspaces } = useUserWorkspaces();
   const { selectedWorkspaceId } = useWorkspaceStore();
-  const { directChannels = [], isLoading: isLoadingChannels } =
-    useChannelsByType();
+  const {
+    directChannels = [],
+    allDirectChannels = [],
+    isLoading: isLoadingChannels,
+  } = useChannelsByType();
+  const setSidebarVisibility = useSetSidebarVisibility();
   // Use selected workspace or fallback to first workspace
   const currentWorkspace =
     workspaces?.find((w) => w.id === selectedWorkspaceId) || workspaces?.[0];
@@ -67,6 +83,13 @@ export function MessagesSubSidebar() {
   const handleMemberClick = async (memberId: string) => {
     try {
       const channel = await createDirectChannel.mutateAsync(memberId);
+
+      // If channel was hidden, unhide it
+      const existing = allDirectChannels.find((ch) => ch.id === channel.id);
+      if (existing && existing.showInDmSidebar === false) {
+        setSidebarVisibility.mutate({ channelId: channel.id, show: true });
+      }
+
       navigate({
         to: "/messages/$channelId",
         params: { channelId: channel.id },
@@ -76,7 +99,11 @@ export function MessagesSubSidebar() {
     }
   };
 
-  const isLoading = isLoadingChannels || isLoadingMembers;
+  // Only show loading when we truly have nothing to display.
+  // When cached data exists, keep showing it during background refetches.
+  const hasAnyContent =
+    directMessageUsers.length > 0 || filteredMembers.length > 0;
+  const isLoading = !hasAnyContent && (isLoadingChannels || isLoadingMembers);
 
   return (
     <aside className="w-64 h-full overflow-hidden bg-nav-sub-bg text-primary-foreground flex flex-col">
@@ -86,7 +113,7 @@ export function MessagesSubSidebar() {
           variant="ghost"
           className="w-full justify-between text-nav-foreground hover:bg-nav-hover px-2 h-auto py-1.5"
         >
-          <span className="font-semibold text-lg">Direct Messages</span>
+          <span className="font-semibold text-lg">{t("directMessages")}</span>
           <ChevronDown size={16} className="text-nav-foreground-subtle" />
         </Button>
       </div>
@@ -98,25 +125,41 @@ export function MessagesSubSidebar() {
         <nav className="space-y-0.5 pb-3 pt-2">
           {isLoading ? (
             <p className="text-xs text-nav-foreground-faint px-2 py-2">
-              Loading...
+              {t("common:loading")}
             </p>
           ) : (
             <>
               {/* Existing DM Conversations */}
               {directMessageUsers.length > 0 &&
                 directMessageUsers.map((dm) => (
-                  <UserListItem
-                    key={dm.id}
-                    name={dm.name}
-                    avatarUrl={dm.avatarUrl}
-                    userId={dm.userId}
-                    isSelected={selectedChannelId === dm.channelId}
-                    unreadCount={dm.unreadCount}
-                    channelId={dm.channelId}
-                    linkPrefix="/messages"
-                    isBot={dm.isBot}
-                    agentType={dm.agentType}
-                  />
+                  <ContextMenu key={dm.id}>
+                    <ContextMenuTrigger className="block w-full">
+                      <UserListItem
+                        name={dm.name}
+                        avatarUrl={dm.avatarUrl}
+                        userId={dm.userId}
+                        isSelected={selectedChannelId === dm.channelId}
+                        unreadCount={dm.unreadCount}
+                        channelId={dm.channelId}
+                        linkPrefix="/messages"
+                        isBot={dm.isBot}
+                        agentType={dm.agentType}
+                      />
+                    </ContextMenuTrigger>
+                    <ContextMenuContent className="w-48">
+                      <ContextMenuItem
+                        onClick={() =>
+                          setSidebarVisibility.mutate({
+                            channelId: dm.channelId,
+                            show: false,
+                          })
+                        }
+                      >
+                        <EyeOff className="mr-2 h-4 w-4" />
+                        {t("hideConversation")}
+                      </ContextMenuItem>
+                    </ContextMenuContent>
+                  </ContextMenu>
                 ))}
 
               {/* Other Members (no existing DM) */}
@@ -124,7 +167,7 @@ export function MessagesSubSidebar() {
                 <>
                   {directMessageUsers.length > 0 && (
                     <div className="px-2 py-2 text-xs text-nav-foreground-faint mt-2">
-                      Start a conversation
+                      {t("messagesStartConversation")}
                     </div>
                   )}
                   {filteredMembers.map((member) => {
@@ -150,7 +193,7 @@ export function MessagesSubSidebar() {
               {directMessageUsers.length === 0 &&
                 filteredMembers.length === 0 && (
                   <p className="text-xs text-nav-foreground-faint px-2 py-2">
-                    No messages yet
+                    {t("messagesNoMessages")}
                   </p>
                 )}
             </>

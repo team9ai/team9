@@ -258,4 +258,15 @@ export const env = {
       getAppEnv() === 'local'
     );
   },
+
+  // Auto-migrate and auto-seed (optional - defaults to false)
+  // Lenient truthy parsing: 1/true/yes/on (case-insensitive)
+  get AUTO_MIGRATE() {
+    const value = process.env.AUTO_MIGRATE?.toLowerCase().trim();
+    return ['1', 'true', 'yes', 'on', 'y', 't'].includes(value ?? '');
+  },
+  get AUTO_SEED() {
+    const value = process.env.AUTO_SEED?.toLowerCase().trim();
+    return ['1', 'true', 'yes', 'on', 'y', 't'].includes(value ?? '');
+  },
 };

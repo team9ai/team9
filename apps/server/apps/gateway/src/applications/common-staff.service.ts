@@ -79,14 +79,24 @@ export class CommonStaffService {
       );
     }
 
-    // 2. Auto-generate temporary display name for agentic bootstrap
-    let effectiveDisplayName: string = dto.displayName ?? 'New Staff';
-    if (dto.agenticBootstrap && !dto.displayName) {
+    // 2. Resolve effective display name.
+    // Priority: explicit displayName → roleTitle → "Candidate #N" (agentic
+    // bootstrap) → "New Staff". Falling through to roleTitle lets callers
+    // (e.g. onboarding) seed staff with a meaningful temporary name while
+    // still leaving the bootstrap flow to ask the mentor for a final name.
+    let effectiveDisplayName: string;
+    if (dto.displayName?.trim()) {
+      effectiveDisplayName = dto.displayName.trim();
+    } else if (dto.roleTitle?.trim()) {
+      effectiveDisplayName = dto.roleTitle.trim();
+    } else if (dto.agenticBootstrap) {
       const existingBots =
         await this.botService.getBotsByInstalledApplicationId(
           installedApplicationId,
         );
       effectiveDisplayName = `Candidate #${existingBots.length + 1}`;
+    } else {
+      effectiveDisplayName = 'New Staff';
     }
 
     // Default mentorId to the creating user if not provided
@@ -173,6 +183,16 @@ export class CommonStaffService {
                 mentorId: effectiveMentorId,
                 isMentorDm: true,
                 channelId: mentorDmChannel.id,
+                // Standard session context consumed by Team9Component.onEvent.
+                // Without this, team9-staff-bootstrap cannot tell it is in the
+                // mentor DM and UpdateStaffProfile stays disabled.
+                team9Context: {
+                  source: 'team9',
+                  scopeType: 'dm',
+                  scopeId: mentorDmChannel.id,
+                  peerUserId: effectiveMentorId,
+                  isMentorDm: true,
+                },
               },
             },
             tenantId,
@@ -388,6 +408,8 @@ export class CommonStaffService {
     }
 
     yield* this.staffService.generatePersona({
+      tenantId,
+      installedApplicationId: appId,
       displayName: dto.displayName,
       roleTitle: dto.roleTitle,
       existingPersona: dto.existingPersona,
@@ -443,6 +465,6 @@ export class CommonStaffService {
       throw new BadRequestException('Not a common-staff application');
     }
 
-    yield* this.staffService.generateCandidates(dto);
+    yield* this.staffService.generateCandidates(tenantId, appId, dto);
   }
 }

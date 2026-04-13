@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { Loader2, File, Download } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useChannelMessages, useSendMessage } from "@/hooks/useMessages";
 import { useSyncChannel } from "@/hooks/useSyncChannel";
 import {
@@ -13,18 +15,142 @@ import { useEffectOncePerKey } from "@/hooks/useEffectOncePerKey";
 import wsService from "@/services/websocket";
 import { ChannelContent } from "./ChannelContent";
 import { ChannelHeader } from "./ChannelHeader";
+import { ChannelTabs } from "./ChannelTabs";
 import { ThreadPanel } from "./ThreadPanel";
 import { JoinChannelPrompt } from "./JoinChannelPrompt";
 import { BotStartupOverlay } from "./BotStartupOverlay";
 import { BotInstanceStoppedBanner } from "./BotInstanceStoppedBanner";
 import { useOpenClawBotInstanceStatus } from "@/hooks/useOpenClawBotInstanceStatus";
+import { useChannelTabs } from "@/hooks/useChannelTabs";
+import { useChannelViews } from "@/hooks/useChannelViews";
+import { TableView } from "./views/TableView";
+import { BoardView } from "./views/BoardView";
+import { CalendarView } from "./views/CalendarView";
+import type {
+  ChannelTab,
+  ChannelView as ChannelViewType,
+} from "@/types/properties";
+import { useBotModelSwitch } from "@/hooks/useBotModelSwitch";
 import type {
   AttachmentDto,
   ChannelWithUnread,
   Message,
+  MessageAttachment,
   PublicChannelPreview,
 } from "@/types/im";
 import { isValidMessageId } from "@/lib/utils";
+import { fileApi } from "@/services/api/file";
+
+// ==================== ChannelFilesList ====================
+
+function ChannelFilesList({
+  channelId: _channelId,
+  messages,
+}: {
+  channelId: string;
+  messages: Message[];
+}) {
+  // Collect all attachments from messages
+  const attachments = useMemo(() => {
+    const result: Array<
+      MessageAttachment & { senderName: string; sentAt: string }
+    > = [];
+    for (const msg of messages) {
+      if (msg.attachments && msg.attachments.length > 0) {
+        for (const att of msg.attachments) {
+          result.push({
+            ...att,
+            senderName:
+              msg.sender?.displayName || msg.sender?.username || "Unknown",
+            sentAt: msg.createdAt,
+          });
+        }
+      }
+    }
+    return result;
+  }, [messages]);
+
+  const handleDownload = useCallback(
+    async (fileKey: string, fileName: string) => {
+      try {
+        const { url } = await fileApi.getDownloadUrl(fileKey);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        a.target = "_blank";
+        a.click();
+      } catch {
+        // Fallback: open the file URL directly
+        window.open(fileKey, "_blank");
+      }
+    },
+    [],
+  );
+
+  if (attachments.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-muted-foreground">
+        <div className="text-center space-y-2">
+          <File className="h-10 w-10 mx-auto opacity-40" />
+          <p className="text-sm">No files shared in this channel yet.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-auto p-4">
+      <div className="grid gap-2">
+        {attachments.map((att) => {
+          const isImage = att.mimeType?.startsWith("image/");
+          const sizeStr = att.fileSize
+            ? att.fileSize < 1024
+              ? `${att.fileSize} B`
+              : att.fileSize < 1048576
+                ? `${(att.fileSize / 1024).toFixed(1)} KB`
+                : `${(att.fileSize / 1048576).toFixed(1)} MB`
+            : "";
+
+          return (
+            <div
+              key={att.id}
+              className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+            >
+              {isImage && att.thumbnailUrl ? (
+                <img
+                  src={att.thumbnailUrl}
+                  alt={att.fileName}
+                  className="h-10 w-10 rounded object-cover shrink-0"
+                />
+              ) : (
+                <div className="h-10 w-10 rounded bg-muted flex items-center justify-center shrink-0">
+                  <File className="h-5 w-5 text-muted-foreground" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{att.fileName}</p>
+                <p className="text-xs text-muted-foreground">
+                  {sizeStr}
+                  {sizeStr && " · "}
+                  {att.senderName}
+                  {" · "}
+                  {new Date(att.sentAt).toLocaleDateString()}
+                </p>
+              </div>
+              <button
+                onClick={() => handleDownload(att.fileKey, att.fileName)}
+                className="shrink-0 p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                title="Download"
+              >
+                <Download className="h-4 w-4" />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 // Extract mentioned bot user IDs directly from message HTML content
 // Uses data-user-type attribute embedded in mention tags by the editor
@@ -46,6 +172,10 @@ interface ChannelViewProps {
   initialMessageId?: string;
   // Draft text to pre-fill in the message input
   initialDraft?: string;
+  // Automatically send the initial draft once after mounting
+  autoSendInitialDraft?: boolean;
+  // Called after the initial draft auto-send succeeds
+  onInitialDraftAutoSent?: () => void;
   // Preview channel data for non-members (public channel preview mode)
   previewChannel?: PublicChannelPreview;
   // Hide the built-in ChannelHeader (e.g. when a parent component provides its own header)
@@ -63,10 +193,13 @@ export function ChannelView({
   initialThreadId,
   initialMessageId,
   initialDraft,
+  autoSendInitialDraft,
+  onInitialDraftAutoSent,
   previewChannel,
   hideHeader,
   readOnly,
 }: ChannelViewProps) {
+  const { t } = useTranslation("channel");
   const isPreviewMode = !!previewChannel;
   const { data: memberChannel, isLoading: channelLoading } = useChannel(
     isPreviewMode ? undefined : channelId,
@@ -144,6 +277,9 @@ export function ChannelView({
     return dmOtherUser?.id ?? null;
   }, [dmOtherUser, isBotDm]);
 
+  // Bot model switching for bot DM channels
+  const botModelSwitch = useBotModelSwitch(isBotDm ? botDmUserId : null);
+
   // OpenClaw instance status for bot DM channels (to detect stopped instances)
   const {
     isInstanceStopped,
@@ -181,10 +317,58 @@ export function ChannelView({
   // Bot thinking indicator state (local)
   const [thinkingBotIds, setThinkingBotIds] = useState<string[]>([]);
 
+  // Channel tabs state
+  const { data: channelTabs = [] } = useChannelTabs(
+    isPreviewMode ? undefined : channelId,
+  );
+  const { data: channelViews = [] } = useChannelViews(
+    isPreviewMode ? undefined : channelId,
+  );
+  const [activeTabId, setActiveTabId] = useState<string>("");
+
+  // Auto-select the first tab (messages) when tabs load, or reset on channel change
+  useEffect(() => {
+    if (channelTabs.length > 0) {
+      // If current activeTabId is not in the list, select the first
+      const exists = channelTabs.some((t: ChannelTab) => t.id === activeTabId);
+      if (!exists) {
+        const sorted = [...channelTabs].sort(
+          (a: ChannelTab, b: ChannelTab) => a.order - b.order,
+        );
+        setActiveTabId(sorted[0].id);
+      }
+    }
+  }, [channelTabs, activeTabId, channelId]);
+
+  // Reset active tab when channel changes
+  useEffect(() => {
+    setActiveTabId("");
+  }, [channelId]);
+
+  // Determine active tab object
+  const activeTab = channelTabs.find((t: ChannelTab) => t.id === activeTabId);
+  const isFilesTab = activeTab?.type === "files";
+  const isViewTab =
+    activeTab?.type === "table_view" ||
+    activeTab?.type === "board_view" ||
+    activeTab?.type === "calendar_view";
+
   // Clear thinking state when channel changes
   useEffect(() => {
     setThinkingBotIds([]);
   }, [channelId]);
+
+  // Dashboard auto-send should surface the bot thinking indicator immediately,
+  // instead of waiting for the send path to resolve bot DM metadata.
+  useEffect(() => {
+    if (!autoSendInitialDraft || !initialDraft || !isBotDm || !botDmUserId) {
+      return;
+    }
+
+    setThinkingBotIds((prev) =>
+      prev.includes(botDmUserId) ? prev : [...prev, botDmUserId],
+    );
+  }, [autoSendInitialDraft, botDmUserId, initialDraft, isBotDm]);
 
   // Listen for bot replies or streaming start via WebSocket to dismiss thinking indicator
   useEffect(() => {
@@ -309,8 +493,9 @@ export function ChannelView({
 
   if (channelLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <p className="text-muted-foreground">Loading channel...</p>
+      <div className="flex-1 flex flex-col items-center justify-center gap-3">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">{t("loadingChannel")}</p>
       </div>
     );
   }
@@ -318,7 +503,7 @@ export function ChannelView({
   if (!channel) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <p className="text-muted-foreground">Channel not found</p>
+        <p className="text-sm text-muted-foreground">{t("channelNotFound")}</p>
       </div>
     );
   }
@@ -333,15 +518,62 @@ export function ChannelView({
           <ChannelHeader channel={channel} currentUserRole={currentUserRole} />
         )}
 
-        {showOverlay ? (
+        {/* Channel tabs - only show for non-direct, non-preview channels.
+            The backend lazily seeds Messages + Files tabs on first read, so
+            the tabs list is only empty for genuinely unsupported channels. */}
+        {!isPreviewMode &&
+          (channel.type === "public" || channel.type === "private") && (
+            <ChannelTabs
+              channelId={channelId}
+              activeTabId={activeTabId}
+              onTabChange={setActiveTabId}
+            />
+          )}
+
+        {/* Tab content */}
+        {isViewTab ? (
+          (() => {
+            const view = activeTab?.viewId
+              ? channelViews.find(
+                  (v: ChannelViewType) => v.id === activeTab.viewId,
+                )
+              : undefined;
+            if (!view) {
+              return (
+                <div className="flex-1 flex items-center justify-center text-muted-foreground">
+                  <p className="text-sm">View not found</p>
+                </div>
+              );
+            }
+            switch (view.type) {
+              case "table":
+                return <TableView channelId={channelId} view={view} />;
+              case "board":
+                return <BoardView channelId={channelId} view={view} />;
+              case "calendar":
+                return <CalendarView channelId={channelId} view={view} />;
+              default:
+                return (
+                  <div className="flex-1 flex items-center justify-center text-muted-foreground">
+                    <p className="text-sm">Unknown view type: {view.type}</p>
+                  </div>
+                );
+            }
+          })()
+        ) : isFilesTab ? (
+          <ChannelFilesList channelId={channelId} messages={messages} />
+        ) : showOverlay ? (
           <BotStartupOverlay
             phase={phase as "countdown" | "ready"}
             remainingSeconds={remainingSeconds}
             onStartChatting={startChatting}
           />
         ) : messagesLoading && messages.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center">
-            <p className="text-muted-foreground">Loading messages...</p>
+          <div className="flex-1 flex flex-col items-center justify-center gap-3">
+            <Loader2 className="size-6 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              {t("loadingMessages")}
+            </p>
           </div>
         ) : (
           <ChannelContent
@@ -366,8 +598,12 @@ export function ChannelView({
             hasMoreUnsynced={hasMoreUnsynced}
             showReadOnlyBar={isPreviewMode || readOnly}
             onSend={isPreviewMode || readOnly ? undefined : handleSendMessage}
-            isSendDisabled={sendMessage.isPending || showOverlay}
+            isSendDisabled={showOverlay}
             initialDraft={initialDraft}
+            autoSendInitialDraft={autoSendInitialDraft}
+            onInitialDraftAutoSent={onInitialDraftAutoSent}
+            isBotDm={isBotDm}
+            botModelSwitch={isBotDm ? botModelSwitch : undefined}
           />
         )}
 
@@ -390,6 +626,7 @@ export function ChannelView({
 
       {/* Thread panel sidebars - up to 2 layers (hidden for direct messages) */}
       {channel?.type !== "direct" &&
+        channel?.type !== "echo" &&
         primaryThread.isOpen &&
         primaryThread.rootMessageId && (
           <ThreadPanel
@@ -402,6 +639,7 @@ export function ChannelView({
           />
         )}
       {channel?.type !== "direct" &&
+        channel?.type !== "echo" &&
         secondaryThread.isOpen &&
         secondaryThread.rootMessageId && (
           <ThreadPanel

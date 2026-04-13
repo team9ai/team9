@@ -118,7 +118,9 @@ export function CreateRoutineDialog({
     queryFn: () => channelsApi.getChannels(),
     enabled: isOpen && addingTrigger && newTriggerType === "channel_message",
   });
-  const nonDirectChannels = channels.filter((ch) => ch.type !== "direct");
+  const nonDirectChannels = channels.filter(
+    (ch) => ch.type !== "direct" && ch.type !== "echo",
+  );
 
   const createMutation = useMutation({
     mutationFn: () =>

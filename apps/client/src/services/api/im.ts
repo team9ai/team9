@@ -154,6 +154,16 @@ export const channelsApi = {
   joinChannel: async (channelId: string): Promise<void> => {
     await http.post(`/v1/im/channels/${channelId}/join`);
   },
+
+  // Set sidebar visibility for DM/echo channels
+  setSidebarVisibility: async (
+    channelId: string,
+    show: boolean,
+  ): Promise<void> => {
+    await http.patch(`/v1/im/channels/${channelId}/sidebar-visibility`, {
+      show,
+    });
+  },
 };
 
 // Messages API
@@ -208,6 +218,14 @@ export const messagesApi = {
   getMessage: async (messageId: string): Promise<Message> => {
     const response = await http.get<Message>(`/v1/im/messages/${messageId}`);
     return normalizeMessage(response.data);
+  },
+
+  // Get full content of a long_text message
+  getFullContent: async (messageId: string): Promise<{ content: string }> => {
+    const response = await http.get<{ content: string }>(
+      `/v1/im/messages/${messageId}/full-content`,
+    );
+    return response.data;
   },
 
   // Update message

@@ -1,6 +1,7 @@
 import {
   Injectable,
   Inject,
+  Logger,
   NotFoundException,
   ForbiddenException,
   BadRequestException,
@@ -31,13 +32,15 @@ import {
   resolveAgentType,
   type AgentType,
 } from '../../common/utils/agent-type.util.js';
+import { PropertyDefinitionsService } from '../properties/property-definitions.service.js';
+import { TabsService } from '../views/tabs.service.js';
 
 export interface ChannelResponse {
   id: string;
   tenantId: string | null;
   name: string | null;
   description: string | null;
-  type: 'direct' | 'public' | 'private' | 'task' | 'tracking';
+  type: 'direct' | 'public' | 'private' | 'task' | 'tracking' | 'echo';
   avatarUrl: string | null;
   createdBy: string | null;
   sectionId: string | null;
@@ -52,6 +55,7 @@ export interface ChannelResponse {
 export interface ChannelWithUnread extends ChannelResponse {
   unreadCount: number;
   lastReadMessageId: string | null;
+  showInDmSidebar?: boolean;
   otherUser?: {
     id: string;
     username: string;
@@ -96,11 +100,15 @@ type ChannelUserSummaryRow = {
 
 @Injectable()
 export class ChannelsService {
+  private readonly logger = new Logger(ChannelsService.name);
+
   constructor(
     @Inject(DATABASE_CONNECTION)
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly redis: RedisService,
     private readonly channelMemberCacheService: ChannelMemberCacheService,
+    private readonly propertyDefinitionsService: PropertyDefinitionsService,
+    private readonly tabsService: TabsService,
   ) {}
 
   /**
@@ -222,6 +230,17 @@ export class ChannelsService {
     // Add creator as owner
     await this.addMember(channel.id, creatorId, 'owner');
 
+    // Seed built-in tabs + default property templates for public/private
+    // channels. Defaults (status, priority) are plain editable definitions —
+    // not native — so users can rename, modify, or delete them at will.
+    if (dto.type === 'public' || dto.type === 'private') {
+      await this.tabsService.seedBuiltinTabs(channel.id);
+      await this.propertyDefinitionsService.seedDefaultProperties(
+        channel.id,
+        creatorId,
+      );
+    }
+
     return channel;
   }
 
@@ -230,6 +249,11 @@ export class ChannelsService {
     userId2: string,
     tenantId?: string,
   ): Promise<ChannelResponse> {
+    // Self-chat: create or return existing echo channel
+    if (userId1 === userId2) {
+      return this.getOrCreateEchoChannel(userId1, tenantId);
+    }
+
     // Permission check: verify the requester can DM the target
     // (blocks DMs to restricted personal staff bots)
     await this.assertDirectMessageAllowed(userId1, userId2);
@@ -278,6 +302,177 @@ export class ChannelsService {
     await this.addMember(channel.id, userId2, 'member');
 
     return channel;
+  }
+
+  /**
+   * Get or create an echo channel (self-chat) for the given user.
+   * Echo channels have a single member (the owner).
+   *
+   * Invariants enforced here:
+   *
+   *   1. Atomicity of creation — when no existing channel is found, the
+   *      channel row and the owner membership row are created inside the
+   *      same db.transaction. A failure in either step rolls both back,
+   *      so a partially-created (orphan) channel cannot leak into
+   *      im_channels. Atomicity applies ONLY to the create-channel
+   *      branch; the self-healing branch performs a single-row
+   *      UPDATE/INSERT and does not need a transaction.
+   *
+   *   2. Self-healing lookup — the existence check queries im_channels
+   *      directly by (type='echo', created_by, tenant_id) instead of
+   *      innerJoin-ing against im_channel_members. If a legacy orphaned
+   *      echo channel (channel row but no member row) is discovered, its
+   *      membership is repaired in-place and the row is reused rather
+   *      than creating a duplicate on every retry.
+   *
+   *   3. Post-commit cache invalidation — caches are invalidated AFTER
+   *      the transaction has committed, so readers never observe
+   *      in-flight state via the cache.
+   *
+   * Known caveat — TOCTOU race: two concurrent requests from the same
+   * user may both miss the existence check, both enter the transaction,
+   * and both INSERT a channel row. Nothing in this method serializes
+   * that race. The intended long-term mitigation is a partial unique
+   * index `(created_by, tenant_id) WHERE type='echo'` added via
+   * migration, which would cause the losing INSERT to fail with a
+   * unique-violation and roll back its transaction. Until that lands,
+   * the worst case is a rare duplicate echo row, which the self-healing
+   * branch above will quietly tolerate on subsequent calls.
+   */
+  private async getOrCreateEchoChannel(
+    userId: string,
+    tenantId?: string,
+  ): Promise<ChannelResponse> {
+    // 1. Self-healing lookup — by channel.created_by, no join against
+    //    channel_members, so orphaned rows are still discoverable.
+    //    When tenantId is undefined (non-tenant context — e.g. Community
+    //    edition without a JWT tenant claim) we match rows with a NULL
+    //    tenant_id. Mixing tenanted and non-tenanted callers for the
+    //    same user is not supported by this method.
+    const [existing] = await this.db
+      .select()
+      .from(schema.channels)
+      .where(
+        and(
+          eq(schema.channels.type, 'echo'),
+          eq(schema.channels.createdBy, userId),
+          tenantId
+            ? eq(schema.channels.tenantId, tenantId)
+            : isNull(schema.channels.tenantId),
+        ),
+      )
+      .limit(1);
+
+    if (existing) {
+      await this.ensureEchoOwnerMembership(existing.id, userId);
+      return existing;
+    }
+
+    // 2. No existing channel — create both rows atomically. If either
+    //    INSERT fails, Drizzle rolls back the transaction and no orphan
+    //    rows are left behind.
+    const channel = await this.db.transaction(async (tx) => {
+      const [inserted] = await tx
+        .insert(schema.channels)
+        .values({
+          id: uuidv7(),
+          tenantId,
+          type: 'echo',
+          createdBy: userId,
+        })
+        .returning();
+
+      await tx.insert(schema.channelMembers).values({
+        id: uuidv7(),
+        channelId: inserted.id,
+        userId,
+        role: 'owner',
+      });
+
+      return inserted;
+    });
+
+    // Post-commit cache invalidation — safe to run outside the transaction,
+    // and must NOT run before commit (or readers could observe in-flight
+    // state via the cache).
+    await this.channelMemberCacheService.invalidate(channel.id);
+    await this.redis.invalidate(
+      REDIS_KEYS.CHANNEL_MEMBER_ROLE(channel.id, userId),
+    );
+
+    return channel;
+  }
+
+  /**
+   * Ensure the given user is an active owner of the given echo channel.
+   *
+   * Handles three cases:
+   *   - active member already present → no-op
+   *   - previously left → UPDATE row to rejoin as owner
+   *   - no row at all (orphaned channel) → INSERT a fresh owner row
+   *
+   * Uses an explicit column projection in the read query so that legacy
+   * databases missing columns like `show_in_dm_sidebar` do not fail the
+   * self-healing path.
+   *
+   * The INSERT branch uses onConflictDoNothing to stay safe under a
+   * race: two concurrent self-heal callers can both observe "no member
+   * row" and both INSERT, and the unique_channel_user constraint on
+   * (channel_id, user_id) lets the second INSERT no-op rather than
+   * throwing a 500 at the user.
+   */
+  private async ensureEchoOwnerMembership(
+    channelId: string,
+    userId: string,
+  ): Promise<void> {
+    const [existingMember] = await this.db
+      .select({
+        id: schema.channelMembers.id,
+        leftAt: schema.channelMembers.leftAt,
+      })
+      .from(schema.channelMembers)
+      .where(
+        and(
+          eq(schema.channelMembers.channelId, channelId),
+          eq(schema.channelMembers.userId, userId),
+        ),
+      )
+      .limit(1);
+
+    if (existingMember && existingMember.leftAt === null) {
+      return; // Already an active owner — nothing to do.
+    }
+
+    if (existingMember) {
+      // Previously left — rejoin as owner.
+      await this.db
+        .update(schema.channelMembers)
+        .set({
+          leftAt: null,
+          joinedAt: new Date(),
+          role: 'owner',
+        })
+        .where(eq(schema.channelMembers.id, existingMember.id));
+    } else {
+      // Orphaned channel — insert the missing owner row.
+      // onConflictDoNothing handles the race where a concurrent
+      // self-heal already inserted the row between our SELECT and this
+      // INSERT (see the doc comment above).
+      await this.db
+        .insert(schema.channelMembers)
+        .values({
+          id: uuidv7(),
+          channelId,
+          userId,
+          role: 'owner',
+        })
+        .onConflictDoNothing();
+    }
+
+    await this.channelMemberCacheService.invalidate(channelId);
+    await this.redis.invalidate(
+      REDIS_KEYS.CHANNEL_MEMBER_ROLE(channelId, userId),
+    );
   }
 
   /**
@@ -471,9 +666,12 @@ export class ChannelsService {
       throw new NotFoundException('Channel not found');
     }
 
-    // For direct channels, fetch the other user's information
-    if (channel.type === 'direct' && userId) {
-      const otherUser = await this.getDmOtherUser(id, userId);
+    // For direct/echo channels, fetch the other user's information
+    if ((channel.type === 'direct' || channel.type === 'echo') && userId) {
+      const otherUser =
+        channel.type === 'echo'
+          ? await this.getUserSummary(userId)
+          : await this.getDmOtherUser(id, userId);
 
       return {
         ...channel,
@@ -544,6 +742,7 @@ export class ChannelsService {
             'unread_count',
           ),
         lastReadMessageId: schema.userChannelReadStatus.lastReadMessageId,
+        showInDmSidebar: schema.channelMembers.showInDmSidebar,
       })
       .from(schema.channelMembers)
       .innerJoin(
@@ -568,23 +767,24 @@ export class ChannelsService {
         ),
       );
 
-    // For direct channels, batch-fetch all "other user" info in a single query
+    // For direct/echo channels, batch-fetch "other user" info in a single query
     const directChannelIds = result
       .filter((ch) => ch.type === 'direct')
       .map((ch) => ch.id);
+    const echoChannelIds = result
+      .filter((ch) => ch.type === 'echo')
+      .map((ch) => ch.id);
 
-    const otherUserMap = new Map<
-      string,
-      {
-        id: string;
-        username: string;
-        displayName: string | null;
-        avatarUrl: string | null;
-        status: 'online' | 'offline' | 'away' | 'busy';
-        userType: 'human' | 'bot' | 'system';
-        agentType: AgentType | null;
-      }
-    >();
+    type UserSummary = {
+      id: string;
+      username: string;
+      displayName: string | null;
+      avatarUrl: string | null;
+      status: 'online' | 'offline' | 'away' | 'busy';
+      userType: 'human' | 'bot' | 'system';
+      agentType: AgentType | null;
+    };
+    const otherUserMap = new Map<string, UserSummary>();
 
     if (directChannelIds.length > 0) {
       const allMembers = await this.db
@@ -633,15 +833,59 @@ export class ChannelsService {
       }
     }
 
+    // For echo channels, the "other user" is the current user (self)
+    if (echoChannelIds.length > 0) {
+      const selfSummary = await this.getUserSummary(userId);
+      if (selfSummary) {
+        for (const id of echoChannelIds) {
+          otherUserMap.set(id, selfSummary);
+        }
+      }
+    }
+
     return result.map((channel) => {
-      if (channel.type === 'direct') {
+      if (channel.type === 'direct' || channel.type === 'echo') {
         return {
           ...channel,
           otherUser: otherUserMap.get(channel.id),
         };
       }
-      return channel;
+      // Strip showInDmSidebar from non-DM channels
+      const { showInDmSidebar: _, ...rest } = channel;
+      return rest;
     });
+  }
+
+  /**
+   * Get a user's summary info for echo channel display.
+   */
+  private async getUserSummary(userId: string): Promise<{
+    id: string;
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+    status: 'online' | 'offline' | 'away' | 'busy';
+    userType: 'human' | 'bot' | 'system';
+    agentType: AgentType | null;
+  } | null> {
+    const [user] = await this.db
+      .select({
+        userId: schema.users.id,
+        username: schema.users.username,
+        displayName: schema.users.displayName,
+        avatarUrl: schema.users.avatarUrl,
+        status: schema.users.status,
+        userType: schema.users.userType,
+        applicationId: sql<string | null>`NULL`,
+        managedProvider: sql<string | null>`NULL`,
+        managedMeta: sql<Record<string, unknown> | null>`NULL`,
+      })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+
+    if (!user) return null;
+    return this.mapChannelUserSummary(user);
   }
 
   /**
@@ -968,7 +1212,7 @@ export class ChannelsService {
     if (!channel) {
       throw new NotFoundException('Channel not found');
     }
-    if (channel.type === 'direct') {
+    if (channel.type === 'direct' || channel.type === 'echo') {
       throw new ForbiddenException('Cannot archive direct message channels');
     }
 
@@ -984,6 +1228,54 @@ export class ChannelsService {
     await this.redis.invalidate(REDIS_KEYS.CHANNEL_CACHE(channelId));
 
     return updated;
+  }
+
+  /**
+   * System helper to archive a routine creation channel.
+   *
+   * Unlike archiveChannel, this method:
+   * - Does NOT enforce owner/admin role (system-initiated)
+   * - ACCEPTS direct channels (creation channels are DMs)
+   * - Is idempotent: no-op if channel missing or already archived
+   */
+  async archiveCreationChannel(
+    channelId: string,
+    tenantId?: string,
+  ): Promise<void> {
+    const conditions = [eq(schema.channels.id, channelId)];
+    if (tenantId) {
+      conditions.push(eq(schema.channels.tenantId, tenantId));
+    }
+
+    const [channel] = await this.db
+      .select({
+        id: schema.channels.id,
+        type: schema.channels.type,
+        isArchived: schema.channels.isArchived,
+      })
+      .from(schema.channels)
+      .where(and(...conditions))
+      .limit(1);
+
+    if (!channel) {
+      this.logger.debug(
+        `archiveCreationChannel: channel ${channelId} not found, skipping`,
+      );
+      return;
+    }
+    if (channel.isArchived) {
+      this.logger.debug(
+        `archiveCreationChannel: channel ${channelId} already archived, skipping`,
+      );
+      return;
+    }
+
+    await this.db
+      .update(schema.channels)
+      .set({ isArchived: true, updatedAt: new Date() })
+      .where(and(...conditions));
+
+    await this.redis.invalidate(REDIS_KEYS.CHANNEL_CACHE(channelId));
   }
 
   /**
@@ -1130,7 +1422,7 @@ export class ChannelsService {
       throw new NotFoundException('Channel not found');
     }
 
-    if (channel.type === 'direct') {
+    if (channel.type === 'direct' || channel.type === 'echo') {
       throw new ForbiddenException('Cannot delete direct message channels');
     }
 
@@ -1312,6 +1604,60 @@ export class ChannelsService {
       )
       .limit(1);
     return result.length > 0;
+  }
+
+  /**
+   * Set the showInDmSidebar flag for the current user's membership
+   * in a direct or echo channel.
+   */
+  async setSidebarVisibility(
+    channelId: string,
+    userId: string,
+    show: boolean,
+    tenantId?: string,
+  ): Promise<void> {
+    const [channel] = await this.db
+      .select({ id: schema.channels.id, type: schema.channels.type })
+      .from(schema.channels)
+      .where(
+        and(
+          eq(schema.channels.id, channelId),
+          tenantId ? eq(schema.channels.tenantId, tenantId) : undefined,
+        ),
+      )
+      .limit(1);
+
+    if (!channel) {
+      throw new NotFoundException('Channel not found');
+    }
+
+    if (channel.type !== 'direct' && channel.type !== 'echo') {
+      throw new BadRequestException(
+        'Sidebar visibility can only be changed for direct or echo channels',
+      );
+    }
+
+    // Verify user is an active member of this channel
+    const [member] = await this.db
+      .select({ id: schema.channelMembers.id })
+      .from(schema.channelMembers)
+      .where(
+        and(
+          eq(schema.channelMembers.channelId, channelId),
+          eq(schema.channelMembers.userId, userId),
+          isNull(schema.channelMembers.leftAt),
+        ),
+      )
+      .limit(1);
+
+    if (!member) {
+      throw new ForbiddenException('Not a member of this channel');
+    }
+
+    await this.db
+      .update(schema.channelMembers)
+      .set({ showInDmSidebar: show })
+      .where(eq(schema.channelMembers.id, member.id));
   }
 
   /**

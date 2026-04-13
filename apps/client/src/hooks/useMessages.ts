@@ -1,9 +1,11 @@
 import {
   useMutation,
+  useQuery,
   useQueryClient,
   useInfiniteQuery,
   type InfiniteData,
 } from "@tanstack/react-query";
+import { getPostHogBrowserClient } from "@/analytics/posthog/client";
 import { useEffect } from "react";
 import imApi from "@/services/api/im";
 import wsService from "@/services/websocket";
@@ -349,6 +351,11 @@ export function useMessages(channelId: string | undefined) {
 
     const handleMessageUpdated = (message: Message) => {
       if (message.channelId !== channelId) return;
+
+      // Invalidate full-content cache for edited long_text messages
+      queryClient.invalidateQueries({
+        queryKey: ["message-full-content", message.id],
+      });
 
       queryClient.setQueryData<MessagesQueryData>(
         ["messages", channelId],
@@ -916,6 +923,12 @@ export function useChannelMessages(
 
     const handleMessageUpdated = (message: Message) => {
       if (message.channelId !== channelId) return;
+
+      // Invalidate full-content cache for edited long_text messages
+      queryClient.invalidateQueries({
+        queryKey: ["message-full-content", message.id],
+      });
+
       queryClient.setQueryData<MessagesQueryData>(msgQueryKey, (old) => {
         if (!old) return old;
         return {
@@ -1470,6 +1483,11 @@ export function useSendMessage(channelId: string) {
       imApi.messages.sendMessage(channelId!, data),
 
     onMutate: async (newMessageData) => {
+      // Validate content length before optimistic update
+      if (newMessageData.content && newMessageData.content.length > 100000) {
+        throw new Error("MESSAGE_CONTENT_TOO_LONG");
+      }
+
       // Cancel any outgoing refetches to prevent overwriting optimistic update
       await queryClient.cancelQueries({ queryKey: ["messages", channelId] });
 
@@ -1570,7 +1588,17 @@ export function useSendMessage(channelId: string) {
       return { previousMessages, tempId };
     },
 
-    onSuccess: (serverMessage, _, context) => {
+    onSuccess: (serverMessage, variables, context) => {
+      // Fire analytics event for sent message
+      void getPostHogBrowserClient().then((posthog) => {
+        posthog?.capture("message_sent", {
+          channel_id: channelId,
+          workspace_id: workspaceId,
+          has_attachment: (variables.attachments?.length ?? 0) > 0,
+          is_thread_reply: !!variables.parentId,
+        });
+      });
+
       // Clean up pending tracking
       if (serverMessage.clientMsgId) {
         pendingByClientMsgId.delete(serverMessage.clientMsgId);
@@ -1909,6 +1937,94 @@ export function useDeleteMessage() {
 }
 
 /**
+ * Hook to pin a message with optimistic update
+ */
+export function usePinMessage(channelId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (messageId: string) => imApi.messages.pinMessage(messageId),
+    onMutate: async (messageId: string) => {
+      await queryClient.cancelQueries({ queryKey: ["messages", channelId] });
+      // Snapshot ALL matching queries for proper rollback (actual key is ["messages", channelId, "latest"] or anchor ID)
+      const previousQueries = queryClient.getQueriesData<MessagesQueryData>({
+        queryKey: ["messages", channelId],
+      });
+      queryClient.setQueriesData(
+        { queryKey: ["messages", channelId] },
+        (old: MessagesQueryData | undefined) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page) =>
+              setMessages(
+                page,
+                getMessages(page).map((msg) =>
+                  msg.id === messageId ? { ...msg, isPinned: true } : msg,
+                ),
+              ),
+            ),
+          };
+        },
+      );
+      return { previousQueries };
+    },
+    onError: (_err, _messageId, context) => {
+      // Restore each snapshotted query
+      context?.previousQueries?.forEach(([key, data]) => {
+        if (data) queryClient.setQueryData(key, data);
+      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["messages", channelId] });
+    },
+  });
+}
+
+/**
+ * Hook to unpin a message with optimistic update
+ */
+export function useUnpinMessage(channelId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (messageId: string) => imApi.messages.unpinMessage(messageId),
+    onMutate: async (messageId: string) => {
+      await queryClient.cancelQueries({ queryKey: ["messages", channelId] });
+      // Snapshot ALL matching queries for proper rollback (actual key is ["messages", channelId, "latest"] or anchor ID)
+      const previousQueries = queryClient.getQueriesData<MessagesQueryData>({
+        queryKey: ["messages", channelId],
+      });
+      queryClient.setQueriesData(
+        { queryKey: ["messages", channelId] },
+        (old: MessagesQueryData | undefined) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page) =>
+              setMessages(
+                page,
+                getMessages(page).map((msg) =>
+                  msg.id === messageId ? { ...msg, isPinned: false } : msg,
+                ),
+              ),
+            ),
+          };
+        },
+      );
+      return { previousQueries };
+    },
+    onError: (_err, _messageId, context) => {
+      // Restore each snapshotted query
+      context?.previousQueries?.forEach(([key, data]) => {
+        if (data) queryClient.setQueryData(key, data);
+      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["messages", channelId] });
+    },
+  });
+}
+
+/**
  * Hook to add a reaction with optimistic update (via WebSocket for real-time broadcast)
  */
 export function useAddReaction(channelId?: string) {
@@ -2019,5 +2135,21 @@ export function useRemoveReaction(channelId?: string) {
         },
       );
     },
+  });
+}
+
+/**
+ * Hook to fetch the full content of a long_text message.
+ * Only fetches when enabled (user clicks "expand").
+ */
+export function useFullContent(
+  messageId: string | undefined,
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: ["message-full-content", messageId],
+    queryFn: () => imApi.messages.getFullContent(messageId!),
+    enabled: enabled && !!messageId,
+    staleTime: Infinity,
   });
 }

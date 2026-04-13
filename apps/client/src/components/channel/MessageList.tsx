@@ -1,4 +1,4 @@
-import { useRef, useMemo, useCallback, useEffect } from "react";
+import { useRef, useMemo, useCallback, useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useTranslation } from "react-i18next";
 import {
@@ -12,25 +12,36 @@ import { getAgentMeta, pairToolEvents } from "@/lib/agent-events";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useChannelMembers } from "@/hooks/useChannels";
 import { useThreadStore } from "@/hooks/useThread";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useDeleteMessage,
   useRetryMessage,
   useRemoveFailedMessage,
   useAddReaction,
   useRemoveReaction,
+  usePinMessage,
+  useUnpinMessage,
+  useUpdateMessage,
 } from "@/hooks/useMessages";
 import { useChannelScrollStore } from "@/hooks/useChannelScrollState";
 import { useStreamingStore } from "@/stores/useStreamingStore";
 import type { StreamingMessage } from "@/stores/useStreamingStore";
 import { cn } from "@/lib/utils";
 import { MessageItem } from "./MessageItem";
+import { DeleteMessageDialog } from "./DeleteMessageDialog";
 import { ToolCallBlock } from "./ToolCallBlock";
 import { StreamingMessageItem } from "./StreamingMessageItem";
 import { A2UISurfaceBlock } from "./A2UISurfaceBlock";
 import { A2UIResponseItem } from "./A2UIResponseItem";
 import { BotThinkingIndicator } from "./BotThinkingIndicator";
 import { NewMessagesIndicator } from "./NewMessagesIndicator";
+import { RoundCollapseSummary } from "./RoundCollapseSummary";
 import { UnreadDivider } from "./UnreadDivider";
+import {
+  computeRoundFoldMaps,
+  decideRoundRender,
+  toggleExpandedRound,
+} from "./message-list-fold";
 
 interface MessageListProps {
   messages: Message[];
@@ -88,6 +99,38 @@ export function MessageList({
   const isAtBottomRef = useRef(false);
   const { data: currentUser } = useCurrentUser();
   const openThread = useThreadStore((state) => state.openThread);
+  const currentUserRole = useMemo(
+    () => members.find((m) => m.userId === currentUser?.id)?.role,
+    [members, currentUser?.id],
+  );
+
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const updateMessage = useUpdateMessage();
+  const queryClient = useQueryClient();
+
+  const handleEditStart = useCallback((messageId: string) => {
+    setEditingMessageId(messageId);
+  }, []);
+
+  const handleEditSave = useCallback(
+    async (messageId: string, content: string) => {
+      try {
+        await updateMessage.mutateAsync({ messageId, data: { content } });
+        // Invalidate full-content cache so edited long_text messages refetch
+        queryClient.removeQueries({
+          queryKey: ["message-full-content", messageId],
+        });
+        setEditingMessageId((cur) => (cur === messageId ? null : cur));
+      } catch {
+        // Edit mode stays open, content preserved in editor (clearOnSubmit=false)
+      }
+    },
+    [updateMessage, queryClient],
+  );
+
+  const handleEditCancel = useCallback(() => {
+    setEditingMessageId(null);
+  }, []);
 
   const scrollStore = useChannelScrollStore();
   const scrollState = scrollStore.getChannelState(channelId);
@@ -156,6 +199,46 @@ export function MessageList({
   // Ref to listData for prevMessage lookup — avoids adding listData to useCallback deps
   const listDataRef = useRef(listData);
   listDataRef.current = listData;
+
+  // Auto-fold state: in DM channels, non-latest agent rounds are collapsed
+  // into a single "view execution process (N steps)" summary row. Users can
+  // explicitly expand a collapsed round by clicking the summary, and we
+  // remember that choice here so subsequent renders keep it expanded.
+  //
+  // Implementation: a Set of roundIds the user has expanded. The set is
+  // reset whenever `channelId` changes (see useEffect below) so it cannot
+  // grow unboundedly across channel switches. Within a single channel the
+  // set only accumulates entries for rounds the user has actively expanded,
+  // which is bounded by the number of rounds they click.
+  const [userExpandedRounds, setUserExpandedRounds] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  // Reset expanded-round state when switching channels. If MessageList is
+  // unmounted+remounted on channel switch this is a harmless no-op; if it
+  // stays mounted (e.g. re-keyed parent) we still clear stale ids that no
+  // longer exist in the new channel's message list.
+  useEffect(() => {
+    setUserExpandedRounds(new Set());
+  }, [channelId]);
+
+  const foldMaps = useMemo(
+    () =>
+      computeRoundFoldMaps({
+        channelType,
+        chronoMessages,
+        userExpandedRounds,
+      }),
+    [channelType, chronoMessages, userExpandedRounds],
+  );
+
+  // Ref to foldMaps for use inside stable itemContent callback.
+  const foldMapsRef = useRef(foldMaps);
+  foldMapsRef.current = foldMaps;
+
+  const toggleRoundExpanded = useCallback((roundId: string) => {
+    setUserExpandedRounds((prev) => toggleExpandedRound(prev, roundId));
+  }, []);
 
   // Stable firstItemIndex: only decreases when older messages are prepended (loaded
   // via infinite scroll at the top), NOT when new messages are appended at the bottom.
@@ -336,6 +419,31 @@ export function MessageList({
       const itemIndex = index - firstItemIndex;
       const agentMeta = getAgentMeta(message);
 
+      // Round auto-fold (DM only): if this message belongs to a folded round,
+      // either render the collapse summary (for the round's first message) or
+      // a 1px placeholder (for the rest). Non-DM channels and latest rounds
+      // fall through to normal rendering.
+      const foldDecision = decideRoundRender(message.id, foldMapsRef.current);
+      if (foldDecision.kind === "summary") {
+        return (
+          <div className="py-0.5" data-round-summary-id={foldDecision.roundId}>
+            <RoundCollapseSummary
+              stepCount={foldDecision.stepCount}
+              onClick={() => toggleRoundExpanded(foldDecision.roundId)}
+            />
+          </div>
+        );
+      }
+      if (foldDecision.kind === "hidden") {
+        return (
+          <div
+            className="min-h-px overflow-hidden"
+            aria-hidden="true"
+            data-round-hidden-id={foldDecision.roundId}
+          />
+        );
+      }
+
       // Combined tool_call + tool_result block: render both in one card,
       // then hide the standalone tool_result item that follows.
       if (agentMeta?.agentEventType === "tool_call" && agentMeta.toolCallId) {
@@ -431,6 +539,9 @@ export function MessageList({
       const prevMessage =
         prevItem?.type === "message" ? prevItem.message : undefined;
 
+      const supportsProperties =
+        channelType === "public" || channelType === "private";
+
       if (readOnly) {
         return (
           <div className="py-0.5">
@@ -441,6 +552,7 @@ export function MessageList({
               prevMessage={prevMessage}
               isRootMessage={true}
               isHighlighted={isHighlighted}
+              supportsProperties={supportsProperties}
             />
           </div>
         );
@@ -454,19 +566,31 @@ export function MessageList({
             message={message}
             prevMessage={prevMessage}
             currentUserId={currentUser?.id}
+            currentUserRole={currentUserRole}
             showReplyCount={Boolean(hasReplies)}
             onReplyCountClick={() => openThread(message.id)}
             isHighlighted={isHighlighted}
             channelId={channelId}
-            isDirect={channelType === "direct"}
+            isDirect={channelType === "direct" || channelType === "echo"}
+            supportsProperties={supportsProperties}
+            editingMessageId={editingMessageId}
+            isEditSaving={updateMessage.isPending}
+            onEditStart={handleEditStart}
+            onEditSave={handleEditSave}
+            onEditCancel={handleEditCancel}
           />
         </div>
       );
     },
+    // foldMaps drives summary/hidden rendering. We read via foldMapsRef but
+    // still list the memoised maps as a dep so Virtuoso sees a fresh
+    // itemContent identity when a user expands/collapses a round.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       highlightMessageId,
       readOnly,
       currentUser?.id,
+      currentUserRole,
       openThread,
       channelId,
       channelType,
@@ -474,6 +598,13 @@ export function MessageList({
       firstItemIndex,
       members,
       thinkingBotIds,
+      toggleRoundExpanded,
+      foldMaps,
+      editingMessageId,
+      updateMessage.isPending,
+      handleEditStart,
+      handleEditSave,
+      handleEditCancel,
     ],
   );
 
@@ -555,20 +686,34 @@ function ChannelMessageItem({
   message,
   prevMessage,
   currentUserId,
+  currentUserRole,
   showReplyCount,
   onReplyCountClick,
   isHighlighted,
   channelId,
   isDirect,
+  supportsProperties,
+  editingMessageId,
+  isEditSaving,
+  onEditStart,
+  onEditSave,
+  onEditCancel,
 }: {
   message: Message;
   prevMessage?: Message;
   currentUserId?: string;
+  currentUserRole?: string;
   showReplyCount?: boolean;
   onReplyCountClick?: () => void;
   isHighlighted?: boolean;
   channelId: string;
   isDirect: boolean;
+  supportsProperties: boolean;
+  editingMessageId: string | null;
+  isEditSaving: boolean;
+  onEditStart: (messageId: string) => void;
+  onEditSave: (messageId: string, content: string) => Promise<void>;
+  onEditCancel: () => void;
 }) {
   const openThread = useThreadStore((state) => state.openThread);
   const deleteMessage = useDeleteMessage();
@@ -576,6 +721,14 @@ function ChannelMessageItem({
   const removeFailedMessage = useRemoveFailedMessage(channelId);
   const addReaction = useAddReaction(channelId);
   const removeReaction = useRemoveReaction(channelId);
+  const pinMessage = usePinMessage(channelId);
+  const unpinMessage = useUnpinMessage(channelId);
+
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const isOwnMessage = currentUserId === message.senderId;
+  const isAdmin = currentUserRole === "owner" || currentUserRole === "admin";
+  const canDelete = isAdmin && !isOwnMessage;
+  const isEditing = editingMessageId === message.id;
 
   // Context menu handlers
   const handleReplyInThread = isDirect
@@ -585,17 +738,28 @@ function ChannelMessageItem({
       };
 
   const handleEdit = () => {
-    console.log("Edit message:", message.id);
-    // TODO: Implement edit functionality
+    onEditStart(message.id);
   };
 
   const handleDelete = () => {
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = () => {
     deleteMessage.mutate(message.id);
+    setDeleteDialogOpen(false);
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false);
   };
 
   const handlePin = () => {
-    console.log("Pin message:", message.id);
-    // TODO: Implement pin functionality
+    if (message.isPinned) {
+      unpinMessage.mutate(message.id);
+    } else {
+      pinMessage.mutate(message.id);
+    }
   };
 
   const handleRetry = () => {
@@ -620,22 +784,35 @@ function ChannelMessageItem({
   };
 
   return (
-    <MessageItem
-      message={message}
-      prevMessage={prevMessage}
-      currentUserId={currentUserId}
-      showReplyCount={!isDirect && showReplyCount}
-      onReplyCountClick={isDirect ? undefined : onReplyCountClick}
-      isHighlighted={isHighlighted}
-      onReplyInThread={handleReplyInThread ?? undefined}
-      onEdit={handleEdit}
-      onDelete={handleDelete}
-      onPin={handlePin}
-      onRetry={handleRetry}
-      onRemoveFailed={handleRemoveFailed}
-      onAddReaction={handleAddReaction}
-      onRemoveReaction={handleRemoveReaction}
-    />
+    <>
+      <MessageItem
+        message={message}
+        prevMessage={prevMessage}
+        currentUserId={currentUserId}
+        showReplyCount={!isDirect && showReplyCount}
+        onReplyCountClick={isDirect ? undefined : onReplyCountClick}
+        isHighlighted={isHighlighted}
+        onReplyInThread={handleReplyInThread ?? undefined}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        onPin={handlePin}
+        onRetry={handleRetry}
+        onRemoveFailed={handleRemoveFailed}
+        onAddReaction={handleAddReaction}
+        onRemoveReaction={handleRemoveReaction}
+        canDelete={canDelete}
+        isEditing={isEditing}
+        isEditSaving={isEditing && isEditSaving}
+        onEditSave={(content) => onEditSave(message.id, content)}
+        onEditCancel={onEditCancel}
+        supportsProperties={supportsProperties}
+      />
+      <DeleteMessageDialog
+        open={deleteDialogOpen}
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+      />
+    </>
   );
 }
 

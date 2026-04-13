@@ -1,0 +1,283 @@
+{
+  "tabs": {
+    "all": "Alle",
+    "active": "Bezig",
+    "upcoming": "Binnenkort",
+    "finished": "Afgerond",
+    "info": "Info",
+    "triggers": "Triggers",
+    "document": "Document",
+    "runs": "Runs",
+    "run": "Uitvoeren",
+    "settings": "Instellingen",
+    "history": "Geschiedenis"
+  },
+  "noRoutines": "Geen routines",
+  "create": {
+    "title": "Nieuwe routine",
+    "description": "Maak een routine aan voor een AI-medewerker om uit te voeren.",
+    "taskName": "Titel",
+    "taskNamePlaceholder": "Wat moet er gebeuren?",
+    "bot": "AI-medewerker",
+    "botPlaceholder": "Selecteer AI-medewerker...",
+    "noBot": "Geen (later toewijzen)",
+    "document": "Document (optioneel)",
+    "documentPlaceholder": "Geef context of instructies...",
+    "cancel": "Annuleren",
+    "submit": "Aanmaken",
+    "errorGeneric": "Kan routine niet aanmaken"
+  },
+  "status": {
+    "in_progress": "Bezig",
+    "upcoming": "Binnenkort",
+    "paused": "Gepauzeerd",
+    "pending_action": "Actie vereist",
+    "completed": "Voltooid",
+    "failed": "Mislukt",
+    "stopped": "Gestopt",
+    "timeout": "Time-out"
+  },
+  "stepStatus": {
+    "pending": "In afwachting",
+    "in_progress": "Bezig",
+    "completed": "Voltooid",
+    "failed": "Mislukt"
+  },
+  "schedule": {
+    "type": "Planning",
+    "types": {
+      "once": "Eenmalig",
+      "recurring": "Terugkerend"
+    },
+    "frequency": "Frequentie",
+    "frequencies": {
+      "daily": "Dagelijks",
+      "weekly": "Wekelijks",
+      "monthly": "Maandelijks"
+    },
+    "time": "Tijd",
+    "dayOfWeek": "Dag van de week",
+    "dayOfMonth": "Dag van de maand",
+    "days": {
+      "0": "Zo",
+      "1": "Ma",
+      "2": "Di",
+      "3": "Wo",
+      "4": "Do",
+      "5": "Vr",
+      "6": "Za"
+    }
+  },
+  "detail": {
+    "title": "Routinedetails",
+    "loadError": "Kan routinedetails niet laden",
+    "start": "Starten",
+    "pause": "Pauzeren",
+    "resume": "Hervatten",
+    "stop": "Stoppen",
+    "restart": "Opnieuw starten",
+    "delete": "Verwijderen",
+    "deleteConfirm": "Weet je zeker dat je deze routine wilt verwijderen?",
+    "assignBot": "AI-medewerker",
+    "noBot": "Niet toegewezen",
+    "steps": "Stappen",
+    "noSteps": "Nog geen stappen",
+    "deliverables": "Opleveringen",
+    "noDeliverables": "Nog geen opleveringen",
+    "pendingInterventions": "Actie vereist",
+    "pastInterventions": "Eerdere interventies",
+    "interventionResolved": "Opgelost",
+    "interventionExpired": "Verlopen",
+    "interventionPlaceholder": "Typ een aangepast antwoord...",
+    "messageInputPlaceholder": "Stuur een bericht naar deze routine...",
+    "finishedBanner": {
+      "completed": "Routine succesvol voltooid",
+      "failed": "Routine mislukt",
+      "timeout": "Routine is verlopen",
+      "stopped": "Routine is gestopt",
+      "in_progress": "",
+      "upcoming": "",
+      "paused": "",
+      "pending_action": ""
+    },
+    "completedAt": "Afgerond op {{time}}",
+    "duration": "Duur: {{duration}}",
+    "tokenUsage": "{{tokens}} tokens gebruikt",
+    "tokenCount": "{{count}} tokens",
+    "error": "Fout",
+    "errorWithCode": "Fout ({{code}})",
+    "document": {
+      "save": "Opslaan",
+      "saving": "Opslaan...",
+      "unsavedChanges": "Niet-opgeslagen wijzigingen",
+      "viewingVersion": "Versie {{version}} bekijken",
+      "backToCurrent": "Terug naar huidige",
+      "currentLabel": "Versie {{version}} (huidig)",
+      "versionLabel": "Versie {{version}} — {{time}}",
+      "discardTitle": "Niet-opgeslagen wijzigingen",
+      "discardMessage": "Je hebt niet-opgeslagen wijzigingen. Verwerpen?",
+      "discardConfirm": "Verwerpen",
+      "discardCancel": "Blijven bewerken",
+      "saveSummaryPlaceholder": "Beschrijf je wijzigingen (optioneel)...",
+      "placeholder": "Begin met schrijven...",
+      "createPlaceholder": "Begin met schrijven om een document aan te maken...",
+      "suggestions": {
+        "title": "AI-suggesties",
+        "count": "AI-suggesties ({{count}})",
+        "view": "Bekijken",
+        "approve": "Goedkeuren",
+        "reject": "Afwijzen",
+        "current": "Huidig",
+        "suggested": "Voorgesteld",
+        "outdated": "Deze suggestie is gebaseerd op een oudere versie",
+        "empty": "Geen openstaande suggesties"
+      },
+      "versionHistory": {
+        "loadError": "Kan versies niet laden",
+        "noVersions": "Nog geen versies"
+      }
+    }
+  },
+  "triggers": {
+    "title": "Triggers",
+    "add": "Trigger toevoegen",
+    "empty": "Geen triggers geconfigureerd",
+    "edit": "Bewerken",
+    "delete": "Verwijderen",
+    "types": {
+      "manual": "Handmatig",
+      "interval": "Interval",
+      "schedule": "Planning",
+      "channel_message": "Kanaalbericht"
+    },
+    "enabled": "Ingeschakeld",
+    "disabled": "Uitgeschakeld",
+    "nextRun": "Volgende run: {{time}}",
+    "countdown": "over {{duration}}",
+    "lastRun": "Laatste run: {{time}}",
+    "interval": {
+      "every": "Elke",
+      "units": {
+        "minutes": "minuten",
+        "hours": "uren",
+        "days": "dagen",
+        "weeks": "weken",
+        "months": "maanden",
+        "years": "jaren"
+      }
+    },
+    "schedule": {
+      "frequencies": {
+        "daily": "Dagelijks",
+        "weekly": "Wekelijks",
+        "monthly": "Maandelijks",
+        "yearly": "Jaarlijks",
+        "weekdays": "Weekdagen"
+      },
+      "time": "Om",
+      "timezone": "Tijdzone",
+      "dayOfWeek": "Dag",
+      "dayOfMonth": "Dag van de maand"
+    },
+    "channelMessage": {
+      "channel": "Kanaal",
+      "selectChannel": "Selecteer kanaal..."
+    },
+    "deleteConfirm": "Deze trigger verwijderen?",
+    "addTitle": "Trigger toevoegen",
+    "selectType": "Selecteer triggertype",
+    "configureTitle": "{{type}} configureren",
+    "back": "Terug",
+    "create": "Aanmaken",
+    "manualNoConfig": "Handmatige triggers hebben geen configuratie nodig. Maak gewoon aan en trigger handmatig.",
+    "typeDesc": {
+      "manual": "Op aanvraag activeren",
+      "interval": "Uitvoeren met vaste intervallen",
+      "schedule": "Uitvoeren volgens een planning",
+      "channel_message": "Uitvoeren wanneer een bericht wordt verzonden"
+    }
+  },
+  "runs": {
+    "title": "Runs",
+    "empty": "Nog geen runs",
+    "version": "v{{version}}",
+    "triggerType": {
+      "manual": "Handmatig",
+      "interval": "Interval",
+      "schedule": "Gepland",
+      "channel_message": "Bericht",
+      "retry": "Opnieuw proberen"
+    },
+    "notes": "Notities",
+    "retry": "Opnieuw proberen",
+    "retryTitle": "Run opnieuw proberen",
+    "retryNotes": "Voeg notities toe voor de nieuwe poging (optioneel)",
+    "back": "Terug naar runs",
+    "documentVersion": "Document v{{version}}",
+    "triggeredAt": "Geactiveerd op {{time}}",
+    "scheduledAt": "Gepland voor {{time}}",
+    "triggeredBy": "Geactiveerd door {{user}}",
+    "messageFrom": "Bericht van {{user}}",
+    "retryOf": "Nieuwe poging van v{{version}}"
+  },
+  "timeline": {
+    "empty": "Nog geen activiteit",
+    "statusChange": {
+      "started": "Routine gestart",
+      "completed": "Routine voltooid",
+      "failed": "Routine mislukt",
+      "stopped": "Routine gestopt",
+      "timeout": "Routine verlopen",
+      "paused": "Routine gepauzeerd"
+    }
+  },
+  "chat": {
+    "placeholder": "Start de routine om met de bot te chatten"
+  },
+  "manualTrigger": {
+    "title": "Routine starten",
+    "notesPlaceholder": "Voeg notities of context toe voor deze run (optioneel)..."
+  },
+  "chatArea": {
+    "viewingHistory": "Historische run bekijken",
+    "returnToCurrent": "Terug naar huidige run",
+    "lastRunCompleted": "Laatste run voltooid",
+    "lastRunFailed": "Laatste run mislukt",
+    "lastRunStopped": "Laatste run gestopt",
+    "lastRunTimeout": "Laatste run verlopen",
+    "rerun": "Opnieuw uitvoeren",
+    "readOnly": "Historisch gesprek (alleen-lezen)",
+    "finishedReadOnly": "Gesprek van laatste run (alleen-lezen)",
+    "start": "Starten",
+    "noRunsYet": "Nog geen runs. Start je eerste run!",
+    "pause": "Pauzeren",
+    "resume": "Hervatten",
+    "stop": "Stoppen"
+  },
+  "runTab": {
+    "title": "Run-details",
+    "status": "Status",
+    "duration": "Duur",
+    "triggerType": "Trigger",
+    "taskVersion": "Routineversie",
+    "tokenUsage": "Tokengebruik",
+    "timeline": "Tijdlijn",
+    "noExecution": "Geen uitvoering geselecteerd"
+  },
+  "settingsTab": {
+    "title": "Instellingen",
+    "taskTitle": "Titel",
+    "taskDescription": "Beschrijving",
+    "deleteConfirm": "Weet je zeker dat je deze routine wilt verwijderen? Deze actie kan niet ongedaan worden gemaakt."
+  },
+  "historyTab": {
+    "title": "Geschiedenis",
+    "current": "Huidig",
+    "empty": "Nog geen runs",
+    "manual": "Handmatig",
+    "interval": "Interval",
+    "schedule": "Planning",
+    "channelMessage": "Kanaalbericht",
+    "retry": "Opnieuw proberen"
+  }
+}

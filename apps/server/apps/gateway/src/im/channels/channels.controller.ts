@@ -25,6 +25,7 @@ import {
   AddMemberDto,
   UpdateMemberDto,
   DeleteChannelDto,
+  SetSidebarVisibilityDto,
 } from './dto/index.js';
 import { AuthGuard, CurrentUser } from '@team9/auth';
 import { CurrentTenantId } from '../../common/decorators/current-tenant.decorator.js';
@@ -395,6 +396,22 @@ export class ChannelsController {
     }
 
     return channel;
+  }
+
+  @Patch(':id/sidebar-visibility')
+  async setSidebarVisibility(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: SetSidebarVisibilityDto,
+    @CurrentUser('sub') userId: string,
+    @CurrentTenantId() tenantId: string,
+  ) {
+    await this.channelsService.setSidebarVisibility(
+      id,
+      userId,
+      body.show,
+      tenantId,
+    );
+    return { success: true };
   }
 
   @Post(':id/deactivate')

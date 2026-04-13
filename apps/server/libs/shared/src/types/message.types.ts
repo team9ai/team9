@@ -49,6 +49,7 @@ export type MessageType =
   | 'image'
   | 'system'
   | 'tracking'
+  | 'long_text'
   | 'ack'
   | 'typing'
   | 'read'
@@ -252,7 +253,7 @@ export interface CreateMessageDto {
   rootId?: string;
 
   // Message type
-  type: 'text' | 'file' | 'image';
+  type: 'text' | 'file' | 'image' | 'long_text';
 
   // File attachments
   attachments?: CreateMessageAttachmentDto[];

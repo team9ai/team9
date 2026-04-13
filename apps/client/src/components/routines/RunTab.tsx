@@ -11,6 +11,7 @@ import { ExecutionTimeline } from "./ExecutionTimeline";
 import { InterventionCard } from "./InterventionCard";
 import { useExecutionStream } from "@/hooks/useExecutionStream";
 import type { RoutineStatus, RoutineExecution } from "@/types/routine";
+import { formatDateTime } from "@/lib/date-format";
 
 const STATUS_BADGE_VARIANT: Record<
   RoutineStatus,
@@ -129,7 +130,7 @@ export function RunTab({ routineId, execution }: RunTabProps) {
           {execution.startedAt && (
             <div>
               <div className="text-muted-foreground">{t("runTab.status")}</div>
-              <div>{new Date(execution.startedAt).toLocaleString()}</div>
+              <div>{formatDateTime(execution.startedAt)}</div>
             </div>
           )}
         </div>

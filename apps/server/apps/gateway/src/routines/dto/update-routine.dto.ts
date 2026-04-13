@@ -9,6 +9,7 @@ import {
 import { Type } from 'class-transformer';
 import type { RoutineScheduleType } from '@team9/database/schemas';
 import { ScheduleConfigDto } from './create-routine.dto.js';
+import { CreateTriggerDto } from './trigger.dto.js';
 
 export class UpdateRoutineDto {
   @IsString()
@@ -34,4 +35,17 @@ export class UpdateRoutineDto {
   @Type(() => ScheduleConfigDto)
   @IsOptional()
   scheduleConfig?: ScheduleConfigDto;
+
+  @IsString()
+  @IsOptional()
+  documentContent?: string;
+
+  @ValidateNested({ each: true })
+  @Type(() => CreateTriggerDto)
+  @IsOptional()
+  triggers?: CreateTriggerDto[];
+
+  @IsIn(['draft', 'upcoming'] as const)
+  @IsOptional()
+  status?: 'draft' | 'upcoming';
 }

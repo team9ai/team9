@@ -248,6 +248,47 @@ export const WS_EVENTS = {
     /** Bot aborts streaming (error/cancel/timeout/disconnect) */
     ABORT: 'streaming_abort',
   },
+
+  // ==================== Property Definitions ====================
+  /**
+   * Channel property definition events
+   */
+  PROPERTY: {
+    /** Property definition created - broadcast by server */
+    DEFINITION_CREATED: 'property_definition_created',
+    /** Property definition updated - broadcast by server */
+    DEFINITION_UPDATED: 'property_definition_updated',
+    /** Property definition deleted - broadcast by server */
+    DEFINITION_DELETED: 'property_definition_deleted',
+    /** Message property values changed - broadcast by server */
+    MESSAGE_CHANGED: 'message_property_changed',
+  },
+
+  // ==================== Views ====================
+  /**
+   * Channel view events
+   */
+  VIEW: {
+    /** View created - broadcast by server */
+    CREATED: 'view_created',
+    /** View updated - broadcast by server */
+    UPDATED: 'view_updated',
+    /** View deleted - broadcast by server */
+    DELETED: 'view_deleted',
+  },
+
+  // ==================== Tabs ====================
+  /**
+   * Channel tab events
+   */
+  TAB: {
+    /** Tab created - broadcast by server */
+    CREATED: 'tab_created',
+    /** Tab updated - broadcast by server */
+    UPDATED: 'tab_updated',
+    /** Tab deleted - broadcast by server */
+    DELETED: 'tab_deleted',
+  },
 } as const;
 
 /**
@@ -269,4 +310,7 @@ export type WsEventName =
   | (typeof WS_EVENTS.SYNC)[keyof typeof WS_EVENTS.SYNC]
   | (typeof WS_EVENTS.ROUTINE)[keyof typeof WS_EVENTS.ROUTINE]
   | (typeof WS_EVENTS.TRACKING)[keyof typeof WS_EVENTS.TRACKING]
-  | (typeof WS_EVENTS.STREAMING)[keyof typeof WS_EVENTS.STREAMING];
+  | (typeof WS_EVENTS.STREAMING)[keyof typeof WS_EVENTS.STREAMING]
+  | (typeof WS_EVENTS.PROPERTY)[keyof typeof WS_EVENTS.PROPERTY]
+  | (typeof WS_EVENTS.VIEW)[keyof typeof WS_EVENTS.VIEW]
+  | (typeof WS_EVENTS.TAB)[keyof typeof WS_EVENTS.TAB];

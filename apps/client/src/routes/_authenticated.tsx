@@ -14,9 +14,12 @@ import { useWebSocketEvents } from "@/hooks/useWebSocketEvents";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
 import { useServiceWorkerMessages } from "@/hooks/useServiceWorkerMessages";
 import { registerServiceWorker } from "@/lib/push-notifications";
+import { queryClient } from "@/lib/query-client";
+import workspaceApi from "@/services/api/workspace";
 // import { useAHandSetupStore } from "@/stores/useAHandSetupStore";
 // import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
 import { useEffect } from "react";
+import { workspaceActions, useWorkspaceStore } from "@/stores";
 // import { invoke } from "@tauri-apps/api/core";
 import {
   appActions,
@@ -26,9 +29,96 @@ import {
   isSidebarSection,
   sanitizeLastVisitedPaths,
 } from "@/stores";
+import type { UserWorkspace, WorkspaceOnboarding } from "@/types/workspace";
+
+const ONBOARDING_ROUTE = "/onboarding";
+const COMPLETED_ONBOARDING_STATUSES = new Set(["provisioned", "skipped"]);
+const WORKSPACE_BOOTSTRAP_RETRY_COUNT = 5;
+const WORKSPACE_BOOTSTRAP_RETRY_DELAY_MS = 300;
+const ONBOARDING_BOOTSTRAP_RETRY_COUNT = 5;
+const ONBOARDING_BOOTSTRAP_RETRY_DELAY_MS = 300;
+
+function wait(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+async function fetchUserWorkspaces() {
+  const workspaces = await workspaceApi.getUserWorkspaces();
+  queryClient.setQueryData(["user-workspaces"], workspaces);
+  return workspaces;
+}
+
+async function fetchOnboardingState(workspaceId: string) {
+  const onboarding = await workspaceApi.getOnboardingState(workspaceId);
+  queryClient.setQueryData(["workspace-onboarding", workspaceId], onboarding);
+  return onboarding;
+}
+
+async function getUserWorkspaces(options?: { forceRefresh?: boolean }) {
+  const cached = queryClient.getQueryData<UserWorkspace[]>(["user-workspaces"]);
+  if (!options?.forceRefresh && cached !== undefined) {
+    return cached;
+  }
+
+  return fetchUserWorkspaces();
+}
+
+async function getUserWorkspacesWithBootstrapRetry() {
+  let workspaces = await getUserWorkspaces();
+
+  for (
+    let attempt = 1;
+    workspaces.length === 0 && attempt < WORKSPACE_BOOTSTRAP_RETRY_COUNT;
+    attempt += 1
+  ) {
+    await wait(WORKSPACE_BOOTSTRAP_RETRY_DELAY_MS);
+    workspaces = await getUserWorkspaces({ forceRefresh: true });
+  }
+
+  return workspaces;
+}
+
+async function getOnboardingState(
+  workspaceId: string,
+  options?: { forceRefresh?: boolean },
+) {
+  const cached = queryClient.getQueryData<WorkspaceOnboarding | null>([
+    "workspace-onboarding",
+    workspaceId,
+  ]);
+  if (!options?.forceRefresh && cached !== undefined) {
+    return cached;
+  }
+
+  return fetchOnboardingState(workspaceId);
+}
+
+async function getOnboardingStateWithBootstrapRetry(workspaceId: string) {
+  let onboarding = await getOnboardingState(workspaceId);
+
+  for (
+    let attempt = 1;
+    onboarding === null && attempt < ONBOARDING_BOOTSTRAP_RETRY_COUNT;
+    attempt += 1
+  ) {
+    await wait(ONBOARDING_BOOTSTRAP_RETRY_DELAY_MS);
+    onboarding = await getOnboardingState(workspaceId, { forceRefresh: true });
+  }
+
+  return onboarding;
+}
+
+function getActiveWorkspaceId(workspaces: UserWorkspace[]) {
+  const selectedWorkspaceId = useWorkspaceStore.getState().selectedWorkspaceId;
+  const currentWorkspace = workspaces.find((w) => w.id === selectedWorkspaceId);
+
+  return currentWorkspace?.id ?? workspaces[0]?.id ?? null;
+}
 
 export const Route = createFileRoute("/_authenticated")({
-  beforeLoad: ({ location }) => {
+  beforeLoad: async ({ location }) => {
     const token = localStorage.getItem("auth_token");
     if (!token) {
       throw redirect({
@@ -39,8 +129,38 @@ export const Route = createFileRoute("/_authenticated")({
       });
     }
 
+    const pathname = location.pathname;
+    const workspaces = await getUserWorkspacesWithBootstrapRetry();
+    const activeWorkspaceId = getActiveWorkspaceId(workspaces);
+
+    if (activeWorkspaceId) {
+      workspaceActions.setSelectedWorkspaceId(activeWorkspaceId);
+
+      const onboarding =
+        await getOnboardingStateWithBootstrapRetry(activeWorkspaceId);
+
+      const onboardingComplete =
+        !onboarding || COMPLETED_ONBOARDING_STATUSES.has(onboarding.status);
+
+      if (!onboardingComplete && pathname !== ONBOARDING_ROUTE) {
+        throw redirect({
+          to: ONBOARDING_ROUTE,
+          search: {
+            workspaceId: activeWorkspaceId,
+            step: onboarding.currentStep,
+          },
+        });
+      }
+
+      if (pathname === ONBOARDING_ROUTE && onboardingComplete) {
+        throw redirect({ to: "/" });
+      }
+    } else if (pathname === ONBOARDING_ROUTE) {
+      throw redirect({ to: "/" });
+    }
+
     // Redirect to last visited path only on initial app load (not on explicit navigation)
-    if (location.pathname === "/") {
+    if (pathname === "/") {
       const hasInitialized = sessionStorage.getItem("app_initialized");
       if (!hasInitialized) {
         sessionStorage.setItem("app_initialized", "true");
@@ -72,15 +192,15 @@ export const Route = createFileRoute("/_authenticated")({
               );
             }
 
+            const normalizedSidebar =
+              activeSidebar as keyof typeof DEFAULT_SECTION_PATHS;
             const lastVisitedPath =
-              lastVisitedPaths?.[activeSidebar] ??
-              DEFAULT_SECTION_PATHS[
-                activeSidebar as keyof typeof DEFAULT_SECTION_PATHS
-              ];
+              lastVisitedPaths[normalizedSidebar] ??
+              DEFAULT_SECTION_PATHS[normalizedSidebar];
 
             if (isRestorableSectionPath(lastVisitedPath)) {
               throw redirect({
-                to: lastVisitedPath,
+                to: lastVisitedPath as never,
               });
             }
           } catch (e) {
@@ -102,6 +222,7 @@ export const Route = createFileRoute("/_authenticated")({
 
 function AuthenticatedLayout() {
   const location = useLocation();
+  const isOnboardingRoute = location.pathname === ONBOARDING_ROUTE;
 
   // [DISABLED] aHand auto-start and Local Device Setup dialog
   // const ahandRun = useAHandSetupStore((s) => s.run);
@@ -146,7 +267,7 @@ function AuthenticatedLayout() {
   // Save current path as last visited for its corresponding section
   useEffect(() => {
     const pathname = location.pathname;
-    if (pathname === "/") return;
+    if (pathname === "/" || pathname === ONBOARDING_ROUTE) return;
 
     // Don't save global or utility pages as a last visited path for any section
     // Search and profile are not part of the main sidebar navigation model.
@@ -160,6 +281,10 @@ function AuthenticatedLayout() {
     const pathSection = getSectionFromPath(pathname);
     appActions.setLastVisitedPath(pathSection, pathname);
   }, [location.pathname]);
+
+  if (isOnboardingRoute) {
+    return <Outlet />;
+  }
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">

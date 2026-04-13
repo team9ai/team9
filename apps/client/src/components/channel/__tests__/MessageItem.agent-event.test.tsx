@@ -1,13 +1,22 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MessageItem } from "../MessageItem";
 import type { Message } from "@/types/im";
 
-// Minimal mock for i18next
-import { vi } from "vitest";
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
+
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false } },
+});
+
+function renderWithProviders(ui: React.ReactElement) {
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
+}
 
 function makeMessage(overrides: Partial<Message> = {}): Message {
   return {
@@ -35,9 +44,15 @@ describe("MessageItem - agent event rendering", () => {
       },
     });
 
-    render(<MessageItem message={msg} />);
+    renderWithProviders(<MessageItem message={msg} />);
 
-    expect(screen.getByText("Calling")).toBeInTheDocument();
+    // tool_call events now use getLabelKey for localized labels; this test
+    // uses the simple `t: (key) => key` mock above, so the label resolves to
+    // the raw i18n key. "SearchFiles" is not registered in toolNameLabelKeys,
+    // so it falls back to the invoke_tool success key.
+    expect(
+      screen.getByText("tracking.ops.invokeTool.success"),
+    ).toBeInTheDocument();
     expect(screen.getByText("SearchFiles")).toBeInTheDocument();
     // Should NOT render avatar/sender
     expect(screen.queryByText("Unknown User")).not.toBeInTheDocument();
@@ -60,7 +75,7 @@ describe("MessageItem - agent event rendering", () => {
       },
     });
 
-    render(<MessageItem message={msg} />);
+    renderWithProviders(<MessageItem message={msg} />);
 
     // Should render normally with sender name
     expect(screen.getByText("Test User")).toBeInTheDocument();
@@ -83,7 +98,7 @@ describe("MessageItem - agent event rendering", () => {
       },
     });
 
-    render(<MessageItem message={msg} />);
+    renderWithProviders(<MessageItem message={msg} />);
 
     expect(screen.getByText("Test User")).toBeInTheDocument();
   });
@@ -101,7 +116,7 @@ describe("MessageItem - agent event rendering", () => {
       },
     });
 
-    const { container } = render(
+    const { container } = renderWithProviders(
       <MessageItem message={msg} prevMessage={prevMsg} />,
     );
 
@@ -120,7 +135,7 @@ describe("MessageItem - agent event rendering", () => {
       },
     });
 
-    const { container } = render(
+    const { container } = renderWithProviders(
       <MessageItem message={msg} prevMessage={prevMsg} />,
     );
 
@@ -135,9 +150,13 @@ describe("MessageItem - agent event rendering", () => {
         '{"results": [1, 2, 3], "count": 42, "more_data": "something extra to make it longer than sixty characters total"}',
     });
 
-    render(<MessageItem message={msg} />);
+    renderWithProviders(<MessageItem message={msg} />);
 
-    expect(screen.getByText("Result")).toBeInTheDocument();
+    // Event-type labels now go through i18n. This test uses the `t: (k) => k`
+    // mock above, so the label resolves to the raw i18n key.
+    expect(
+      screen.getByText("tracking.eventLabels.toolResult"),
+    ).toBeInTheDocument();
     // Should show truncated with ...
     expect(screen.getByText(/\.\.\./)).toBeInTheDocument();
   });
@@ -148,8 +167,12 @@ describe("MessageItem - agent event rendering", () => {
       content: null as unknown as string,
     });
 
-    render(<MessageItem message={msg} />);
+    renderWithProviders(<MessageItem message={msg} />);
 
-    expect(screen.getByText("Started")).toBeInTheDocument();
+    // Event-type labels now go through i18n. This test uses the `t: (k) => k`
+    // mock above, so the label resolves to the raw i18n key.
+    expect(
+      screen.getByText("tracking.eventLabels.agentStart"),
+    ).toBeInTheDocument();
   });
 });

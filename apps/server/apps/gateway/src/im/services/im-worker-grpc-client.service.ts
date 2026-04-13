@@ -100,6 +100,10 @@ export class ImWorkerGrpcClientService
           package: 'message',
           protoPath: MESSAGE_SERVICE_PROTO_PATH,
           url: this.grpcUrl,
+          channelOptions: {
+            'grpc.max_receive_message_length': 4 * 1024 * 1024, // 4 MB
+            'grpc.max_send_message_length': 4 * 1024 * 1024, // 4 MB
+          },
           loader: {
             keepCase: true,
             longs: String,

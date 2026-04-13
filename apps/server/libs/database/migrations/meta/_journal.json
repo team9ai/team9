@@ -225,6 +225,55 @@
       "when": 1775524888996,
       "tag": "0031_task_to_routine_rename",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1775555624701,
+      "tag": "0032_grey_quasimodo",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1775839706046,
+      "tag": "0033_abnormal_gunslinger",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1775799580062,
+      "tag": "0034_elite_risque",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1775868292942,
+      "tag": "0035_woozy_surge",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1776134400000,
+      "tag": "0036_message_properties_constraints",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1776014954978,
+      "tag": "0037_sharp_moon_knight",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1776032168943,
+      "tag": "0038_add_show_in_dm_sidebar",
+      "breakpoints": true
     }
   ]
 }

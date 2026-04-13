@@ -22,6 +22,7 @@ import { MessageInput } from "./MessageInput";
 import { StreamingMessageItem } from "./StreamingMessageItem";
 import { BotThinkingIndicator } from "./BotThinkingIndicator";
 import { ResizeHandle } from "./ResizeHandle";
+import { PropertyPanel } from "./properties/PropertyPanel";
 import type { ThreadReply, AttachmentDto, Message } from "@/types/im";
 
 // Extract mentioned bot user IDs from message HTML content
@@ -414,6 +415,13 @@ export function ThreadPanel({
                       compact
                       isRootMessage
                     />
+                    {channelId && (
+                      <PropertyPanel
+                        channelId={channelId}
+                        messageId={threadData.rootMessage.id}
+                        className="px-2 py-1"
+                      />
+                    )}
                     <div className="mb-2 text-xs text-muted-foreground">
                       {t("repliesCount", {
                         count: threadData.totalReplyCount,

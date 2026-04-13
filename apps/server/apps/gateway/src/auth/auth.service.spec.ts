@@ -17,7 +17,6 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { OAuth2Client } from 'google-auth-library';
 import * as crypto from 'crypto';
 import { AuthService } from './auth.service.js';
-import { USER_EVENTS } from './events/user.events.js';
 import { RedisService } from '@team9/redis';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { EmailService } from '@team9/email';
@@ -98,6 +97,7 @@ describe('AuthService', () => {
     };
     eventEmitter = {
       emit: jest.fn<any>(),
+      emitAsync: jest.fn<any>().mockResolvedValue([]),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -444,7 +444,7 @@ describe('AuthService', () => {
 
       expect(result.user.email).toBe('new@test.com');
       expect(db.insert).toHaveBeenCalled();
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
+      expect(eventEmitter.emitAsync).toHaveBeenCalledWith(
         'user.registered',
         expect.objectContaining({ userId: 'new-user-uuid' }),
       );
@@ -822,17 +822,49 @@ describe('AuthService', () => {
         avatarUrl: insertedUser.avatarUrl,
       });
       expect(db.insert).toHaveBeenCalledTimes(1);
-      expect(eventEmitter.emit).toHaveBeenNthCalledWith(
-        1,
-        USER_EVENTS.REGISTERED,
+      expect(eventEmitter.emitAsync).toHaveBeenCalledWith(
+        'user.registered',
         expect.objectContaining({
           userId: insertedUser.id,
           displayName: insertedUser.displayName,
         }),
       );
-      expect(eventEmitter.emit).toHaveBeenNthCalledWith(2, 'user.created', {
+      expect(eventEmitter.emit).toHaveBeenCalledWith('user.created', {
         user: insertedUser,
       });
+    });
+
+    it('should roll back a newly created user when starter workspace provisioning fails', async () => {
+      const insertedUser = {
+        ...USER_ROW,
+        id: 'google-user-id',
+        email: 'new-google@test.com',
+        username: 'new_google',
+        displayName: 'New Google',
+        avatarUrl: 'https://avatar.test/new-google.png',
+      };
+      db.limit.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      db.returning.mockResolvedValueOnce([insertedUser]);
+      eventEmitter.emitAsync.mockRejectedValueOnce(
+        new Error('provision failed'),
+      );
+      jest
+        .spyOn(OAuth2Client.prototype, 'verifyIdToken')
+        .mockResolvedValueOnce({
+          getPayload: () => ({
+            email: insertedUser.email,
+            name: insertedUser.displayName,
+            picture: insertedUser.avatarUrl,
+          }),
+        } as Awaited<ReturnType<OAuth2Client['verifyIdToken']>>);
+
+      await expect(
+        service.googleLogin({
+          credential: 'google-credential',
+        }),
+      ).rejects.toThrow('provision failed');
+
+      expect(db.delete).toHaveBeenCalled();
     });
 
     it('should reject existing non-human google users', async () => {

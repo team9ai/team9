@@ -40,6 +40,10 @@ import { ChannelsService } from '../channels/channels.service.js';
 import { WebsocketGateway } from '../websocket/websocket.gateway.js';
 import { WS_EVENTS } from '../websocket/events/events.constants.js';
 import { ImWorkerGrpcClientService } from '../services/im-worker-grpc-client.service.js';
+import { MessagePropertiesService } from '../properties/message-properties.service.js';
+import { AiAutoFillService } from '../properties/ai-auto-fill.service.js';
+import { PropertyDefinitionsService } from '../properties/property-definitions.service.js';
+import { determineMessageType } from './message-utils.js';
 
 @Controller({
   path: 'im',
@@ -55,6 +59,9 @@ export class MessagesController {
     @Inject(forwardRef(() => WebsocketGateway))
     private readonly websocketGateway: WebsocketGateway,
     private readonly imWorkerGrpcClientService: ImWorkerGrpcClientService,
+    private readonly messagePropertiesService: MessagePropertiesService,
+    private readonly aiAutoFillService: AiAutoFillService,
+    private readonly propertyDefinitionsService: PropertyDefinitionsService,
     private readonly eventEmitter: EventEmitter2,
     @Optional() private readonly gatewayMQService?: GatewayMQService,
   ) {}
@@ -82,11 +89,17 @@ export class MessagesController {
     const parsedLimit = limit ? parseInt(limit, 10) : 50;
     // When after/around is used, return paginated response with hasOlder/hasNewer
     if (after || around) {
-      return this.messagesService.getChannelMessagesPaginated(
+      const paginated = await this.messagesService.getChannelMessagesPaginated(
         channelId,
         parsedLimit,
         { before, after, around },
       );
+      return {
+        ...paginated,
+        messages: paginated.messages.map((m) =>
+          this.messagesService.truncateForPreview(m),
+        ),
+      };
     }
     // Legacy: flat array for backward compatibility (OpenClaw plugin etc.)
     const result = await this.messagesService.getChannelMessages(
@@ -102,7 +115,7 @@ export class MessagesController {
       );
     }
 
-    return result;
+    return result.map((m) => this.messagesService.truncateForPreview(m));
   }
 
   @Post('channels/:channelId/messages')
@@ -143,8 +156,11 @@ export class MessagesController {
       }
     }
 
-    // Determine message type based on attachments
-    const messageType = dto.attachments?.length ? 'file' : 'text';
+    // Determine message type based on attachments and content length
+    const messageType = determineMessageType(
+      dto.content,
+      !!dto.attachments?.length,
+    );
 
     // Create message via gRPC
     const result = await this.imWorkerGrpcClientService.createMessage({
@@ -166,6 +182,22 @@ export class MessagesController {
     );
     const t4 = Date.now();
 
+    // Set properties if provided
+    if (dto.properties && Object.keys(dto.properties).length > 0) {
+      await this.messagePropertiesService.batchSet(
+        result.msgId,
+        Object.entries(dto.properties).map(([key, value]) => ({ key, value })),
+        userId,
+      );
+    }
+
+    // Merge properties into message response
+    const [messageWithProps] = await this.messagesService.mergeProperties([
+      message,
+    ]);
+    const previewMessage =
+      this.messagesService.truncateForPreview(messageWithProps);
+
     // Immediately broadcast to online users via Socket.io Redis Adapter
     // Skip broadcast when the message is part of a streaming session (bot will
     // emit streaming_end with the persisted message, which handles the broadcast)
@@ -174,7 +206,7 @@ export class MessagesController {
       await this.websocketGateway.sendToChannelMembers(
         channelId,
         WS_EVENTS.MESSAGE.NEW,
-        message,
+        previewMessage,
       );
     }
 
@@ -263,7 +295,10 @@ export class MessagesController {
       );
     }
 
-    return message;
+    // Fire-and-forget AI auto-fill for root messages in public/private channels
+    this.triggerAiAutoFill(message, userId);
+
+    return previewMessage;
   }
 
   @Get('channels/:channelId/pinned')
@@ -272,7 +307,8 @@ export class MessagesController {
     @Param('channelId', ParseUUIDPipe) channelId: string,
   ): Promise<MessageResponse[]> {
     await this.channelsService.assertReadAccess(channelId, userId);
-    return this.messagesService.getPinnedMessages(channelId);
+    const pinned = await this.messagesService.getPinnedMessages(channelId);
+    return pinned.map((m) => this.messagesService.truncateForPreview(m));
   }
 
   @Post('channels/:channelId/read')
@@ -293,7 +329,17 @@ export class MessagesController {
   ): Promise<MessageResponse> {
     const message = await this.messagesService.getMessageWithDetails(messageId);
     await this.channelsService.assertReadAccess(message.channelId, userId);
-    return message;
+    return this.messagesService.truncateForPreview(message);
+  }
+
+  @Get('messages/:id/full-content')
+  async getFullContent(
+    @CurrentUser('sub') userId: string,
+    @Param('id', ParseUUIDPipe) messageId: string,
+  ): Promise<{ content: string }> {
+    const channelId = await this.messagesService.getMessageChannelId(messageId);
+    await this.channelsService.assertReadAccess(channelId, userId);
+    return this.messagesService.getFullContent(messageId);
   }
 
   @Patch('messages/:id')
@@ -303,12 +349,13 @@ export class MessagesController {
     @Body() dto: UpdateMessageDto,
   ): Promise<MessageResponse> {
     const message = await this.messagesService.update(messageId, userId, dto);
+    const previewMessage = this.messagesService.truncateForPreview(message);
 
     // Broadcast message update to all channel members via WebSocket
     await this.websocketGateway.sendToChannelMembers(
       message.channelId,
       WS_EVENTS.MESSAGE.UPDATED,
-      message,
+      previewMessage,
     );
 
     // Emit event for search indexing
@@ -336,7 +383,10 @@ export class MessagesController {
       });
     }
 
-    return message;
+    // Fire-and-forget AI auto-fill for edited messages
+    this.triggerAiAutoFill(message, userId);
+
+    return previewMessage;
   }
 
   @Delete('messages/:id')
@@ -345,7 +395,8 @@ export class MessagesController {
     @Param('id', ParseUUIDPipe) messageId: string,
   ): Promise<{ success: boolean }> {
     const channelId = await this.messagesService.getMessageChannelId(messageId);
-    await this.messagesService.delete(messageId, userId);
+    const role = await this.channelsService.getMemberRole(channelId, userId);
+    await this.messagesService.delete(messageId, userId, role ?? undefined);
 
     // Broadcast message deletion to all channel members via WebSocket
     await this.websocketGateway.sendToChannelMembers(
@@ -373,11 +424,22 @@ export class MessagesController {
   ): Promise<ThreadResponse> {
     const channelId = await this.messagesService.getMessageChannelId(messageId);
     await this.channelsService.assertReadAccess(channelId, userId);
-    return this.messagesService.getThread(
+    const thread = await this.messagesService.getThread(
       messageId,
       limit ? parseInt(limit, 10) : 20,
       cursor,
     );
+    const tp = (m: MessageResponse) =>
+      this.messagesService.truncateForPreview(m);
+    return {
+      ...thread,
+      rootMessage: tp(thread.rootMessage),
+      replies: thread.replies.map((r) => ({
+        ...tp(r),
+        subReplies: r.subReplies.map(tp),
+        subReplyCount: r.subReplyCount,
+      })),
+    } as ThreadResponse;
   }
 
   /**
@@ -393,11 +455,17 @@ export class MessagesController {
   ): Promise<SubRepliesResponse> {
     const channelId = await this.messagesService.getMessageChannelId(messageId);
     await this.channelsService.assertReadAccess(channelId, userId);
-    return this.messagesService.getSubReplies(
+    const subReplies = await this.messagesService.getSubReplies(
       messageId,
       limit ? parseInt(limit, 10) : 20,
       cursor,
     );
+    return {
+      ...subReplies,
+      replies: subReplies.replies.map((m) =>
+        this.messagesService.truncateForPreview(m),
+      ),
+    };
   }
 
   @Post('messages/:id/pin')
@@ -446,5 +514,53 @@ export class MessagesController {
   ): Promise<{ success: boolean }> {
     await this.messagesService.removeReaction(messageId, userId, emoji);
     return { success: true };
+  }
+
+  /**
+   * Fire-and-forget AI auto-fill for root messages in public/private channels
+   * with text/long_text/file/image types that have aiAutoFill definitions.
+   */
+  private triggerAiAutoFill(message: MessageResponse, userId: string): void {
+    const ALLOWED_TYPES = new Set(['text', 'long_text', 'file', 'image']);
+    // Only root messages with allowed types
+    if (message.parentId !== null || !ALLOWED_TYPES.has(message.type)) {
+      return;
+    }
+
+    const ALLOWED_CHANNEL_TYPES = new Set(['public', 'private']);
+
+    // Load channel to check type, then check for aiAutoFill definitions
+    this.channelsService
+      .findById(message.channelId)
+      .then((channel) => {
+        if (
+          !channel ||
+          !channel.tenantId ||
+          !ALLOWED_CHANNEL_TYPES.has(channel.type)
+        ) {
+          return;
+        }
+
+        const tenantId = channel.tenantId;
+
+        return this.propertyDefinitionsService
+          .findAllByChannel(message.channelId)
+          .then((definitions) => {
+            const hasAutoFill = definitions.some((d) => d.aiAutoFill);
+            if (!hasAutoFill) return;
+
+            return this.aiAutoFillService.autoFill(
+              message.id,
+              userId,
+              tenantId,
+              { preserveExisting: true },
+            );
+          });
+      })
+      .catch((err) => {
+        this.logger.warn(
+          `AI auto-fill failed for message ${message.id}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
   }
 }

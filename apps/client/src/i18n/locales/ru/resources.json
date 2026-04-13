@@ -1,0 +1,92 @@
+{
+  "title": "Ресурсы",
+  "tabs": {
+    "all": "Все",
+    "agent_computer": "Компьютер агента",
+    "api": "API"
+  },
+  "noResources": "Ресурсов пока нет",
+  "status": {
+    "online": "В сети",
+    "offline": "Не в сети",
+    "error": "Ошибка",
+    "configuring": "Настройка"
+  },
+  "type": {
+    "agent_computer": "Компьютер агента",
+    "api": "API"
+  },
+  "connectionType": {
+    "ahand": "Ahand",
+    "ssh": "SSH",
+    "cloud": "Облако"
+  },
+  "create": {
+    "title": "Добавить ресурс",
+    "selectType": "Тип ресурса",
+    "name": "Название",
+    "namePlaceholder": "Введите название ресурса",
+    "description": "Описание",
+    "descriptionPlaceholder": "Необязательное описание",
+    "connectionType": "Тип подключения",
+    "host": "Хост",
+    "hostPlaceholder": "например, 192.168.1.100",
+    "port": "Порт",
+    "provider": "Провайдер",
+    "providerPlaceholder": "например, openai, google, custom",
+    "apiKey": "API-ключ",
+    "apiKeyPlaceholder": "Введите API-ключ",
+    "baseUrl": "Базовый URL",
+    "baseUrlPlaceholder": "Необязательный пользовательский базовый URL",
+    "model": "Модель",
+    "modelPlaceholder": "например, gpt-4, claude-3",
+    "submit": "Создать",
+    "cancel": "Отмена"
+  },
+  "detail": {
+    "title": "Детали ресурса",
+    "loadError": "Не удалось загрузить ресурс",
+    "basicInfo": "Основная информация",
+    "authorizations": "Авторизации",
+    "noAuthorizations": "Пока нет авторизаций",
+    "addAuthorization": "Добавить",
+    "usageLogs": "Журналы использования",
+    "noUsageLogs": "Журналов использования пока нет",
+    "delete": "Удалить",
+    "deleteConfirm": "Вы уверены, что хотите удалить этот ресурс?",
+    "lastHeartbeat": "Последний сигнал: {{time}}",
+    "authCount": "Авторизовано: {{count}}",
+    "maskedKey": "{{prefix}}...{{suffix}}",
+    "granteeType": {
+      "user": "Пользователь",
+      "task": "Задача"
+    },
+    "permissionLevel": {
+      "full": "Полный доступ",
+      "readonly": "Только чтение"
+    }
+  },
+  "auth": {
+    "granteeType": "Тип получателя",
+    "granteeId": "ID получателя",
+    "granteeIdPlaceholder": "Введите ID пользователя или задачи",
+    "permissionLevel": "Права",
+    "grant": "Предоставить доступ"
+  },
+  "edit": {
+    "save": "Сохранить",
+    "cancel": "Отмена"
+  },
+  "ahand": {
+    "localDeviceSetup": "Настройка локального устройства",
+    "connection": "Подключение aHand",
+    "browserComponents": "Компоненты браузера",
+    "activation": "Активация"
+  },
+  "actions": {
+    "connect": "Подключить",
+    "disconnect": "Отключить",
+    "api_call": "API-вызов",
+    "error": "Ошибка"
+  }
+}

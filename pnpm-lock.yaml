@@ -217,9 +217,6 @@ importers:
       react-dom:
         specifier: ^19.1.0
         version: 19.2.3(react@19.2.3)
-      react-gtm-module:
-        specifier: ^2.0.11
-        version: 2.0.11
       react-i18next:
         specifier: ^16.0.0
         version: 16.5.3(i18next@25.7.4(typescript@5.8.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.8.3)
@@ -284,9 +281,6 @@ importers:
       "@types/react-dom":
         specifier: ^19.1.6
         version: 19.2.3(@types/react@19.2.7)
-      "@types/react-gtm-module":
-        specifier: ^2.0.4
-        version: 2.0.4
       "@types/three":
         specifier: ^0.183.1
         version: 0.183.1
@@ -676,6 +670,9 @@ importers:
       dotenv:
         specifier: ^17.2.3
         version: 17.2.3
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
       google-auth-library:
         specifier: ^10.5.0
         version: 10.5.0
@@ -948,6 +945,9 @@ importers:
         specifier: ^3.4.7
         version: 3.4.7
     devDependencies:
+      "@jest/globals":
+        specifier: ^30.0.0
+        version: 30.2.0
       dotenv-cli:
         specifier: ^8.0.0
         version: 8.0.0
@@ -8688,12 +8688,6 @@ packages:
     peerDependencies:
       "@types/react": ^19.2.0
 
-  "@types/react-gtm-module@2.0.4":
-    resolution:
-      {
-        integrity: sha512-5wPMWsUE5AI6O0B0K1/zbs0rFHBKu+7NWXQwDXhqvA12ooLD6W1AYiWZqR4UiOd7ixZDV1H5Ys301zEsqyIfNg==,
-      }
-
   "@types/react-reconciler@0.28.9":
     resolution:
       {
@@ -14721,12 +14715,6 @@ packages:
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
-
-  react-gtm-module@2.0.11:
-    resolution:
-      {
-        integrity: sha512-8gyj4TTxeP7eEyc2QKawEuQoAZdjKvMY4pgWfycGmqGByhs17fR+zEBs0JUDq4US/l+vbTl+6zvUIx27iDo/Vw==,
-      }
 
   react-i18next@16.5.3:
     resolution:
@@ -23031,8 +23019,6 @@ snapshots:
     dependencies:
       "@types/react": 19.2.7
 
-  "@types/react-gtm-module@2.0.4": {}
-
   "@types/react-reconciler@0.28.9(@types/react@19.2.7)":
     dependencies:
       "@types/react": 19.2.7
@@ -27007,8 +26993,6 @@ snapshots:
     dependencies:
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
-
-  react-gtm-module@2.0.11: {}
 
   react-i18next@16.5.3(i18next@25.7.4(typescript@5.8.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(typescript@5.8.3):
     dependencies:

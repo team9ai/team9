@@ -1,0 +1,184 @@
+{
+  "createChannel": "Crea un canale",
+  "createChannelDescription": "I canali sono il luogo in cui il tuo team comunica. Funzionano al meglio quando sono organizzati attorno a un argomento, ad esempio #progetto-mars.",
+  "channelName": "Nome del canale",
+  "channelNamePlaceholder": "es. progetto-mars",
+  "channelNameRequired": "Il nome del canale è obbligatorio",
+  "channelNameInvalid": "Deve iniziare con una lettera o un numero",
+  "channelNameHint": "Può contenere solo lettere minuscole, numeri e trattini",
+  "channelDescription": "Descrizione",
+  "channelDescriptionPlaceholder": "Di cosa parla questo canale?",
+  "channelDescriptionOptional": "(opzionale)",
+  "chooseVisibility": "Scegli visibilità",
+  "public": "Pubblico",
+  "publicDescription": "Chiunque può visualizzare e unirsi a questo canale",
+  "private": "Privato",
+  "privateDescription": "Solo i membri invitati possono visualizzare questo canale",
+  "creating": "Creazione in corso...",
+  "browseChannels": "Sfoglia canali",
+  "noChannels": "Nessun canale",
+  "noChannelsYet": "Ancora nessun canale",
+  "viewChannel": "Visualizza canale",
+  "leaveChannel": "Abbandona canale",
+  "deleteChannel": "Elimina canale",
+  "channelSettings": "Impostazioni canale",
+  "channelMembers": "Membri del canale",
+  "addMembers": "Aggiungi membri",
+  "members": "{{count}} membri",
+  "unread": "non letto",
+  "searchMember": "Cerca per nome utente o nickname...",
+  "noMatchingUsers": "Nessun utente corrispondente trovato",
+  "allMembersInChannel": "Tutti i membri sono già nel canale",
+  "selectedCount": "{{count}} selezionati",
+  "selectMembersToAdd": "Seleziona i membri da aggiungere",
+  "adding": "Aggiunta in corso...",
+  "addCount": "Aggiungi {{count}}",
+  "add": "Aggiungi",
+  "about": "Informazioni",
+  "settings": "Impostazioni",
+  "noDescription": "Nessuna descrizione",
+  "type": "Tipo",
+  "privateChannel": "Canale privato",
+  "publicChannel": "Canale pubblico",
+  "createdAt": "Creato il",
+  "findMember": "Trova membro",
+  "addPeople": "Aggiungi persone",
+  "you": "(Tu)",
+  "channelAdmin": "Amministratore del canale",
+  "admin": "Amministratore",
+  "dangerZone": "Zona pericolosa",
+  "deleteChannelWarning": "Dopo aver eliminato il canale, tutti i messaggi e i file saranno eliminati in modo permanente e non potranno essere recuperati.",
+  "deleteThisChannel": "Elimina questo canale",
+  "save": "Salva",
+  "saving": "Salvataggio in corso...",
+  "edit": "Modifica",
+  "joinChannel": "Unisciti al canale",
+  "joining": "Ingresso in corso...",
+  "leaving": "Uscita in corso...",
+  "leaveChannelWarning": "Non avrai più accesso ai messaggi e ai file di questo canale.",
+  "leaveThisChannel": "Abbandona questo canale",
+  "deleteChannelDescription": "Questa azione non può essere annullata. Tutti i messaggi in questo canale saranno eliminati in modo permanente.",
+  "deleteChannelWarningTitle": "L'eliminazione di questo canale comporterà:",
+  "deleteWarningMessages": "Rimozione di tutti i messaggi e file",
+  "deleteWarningMembers": "Rimozione di tutti i membri dal canale",
+  "deleteWarningNoRecovery": "Questo non può essere recuperato",
+  "typeToConfirm": "Digita {{name}} per confermare",
+  "enterChannelName": "Inserisci il nome del canale",
+  "permanentDelete": "Elimina in modo permanente (non recuperabile)",
+  "deleting": "Eliminazione in corso...",
+  "channelNotFound": "Canale non trovato",
+  "loadingChannel": "Caricamento del canale...",
+  "loadingMessages": "Caricamento messaggi...",
+  "loadingMoreMessages": "Caricamento di altri messaggi...",
+  "noMessagesYet": "Ancora nessun messaggio. Unisciti al canale per iniziare la conversazione!",
+  "botStartupCountdownMessage": "Ciao, il tuo bot OpenClaw si sta avviando. Attendi il termine del conto alla rovescia prima di chattare.",
+  "botStartupSuccessMessage": "Ciao, il tuo bot OpenClaw è stato avviato con successo!",
+  "botStartChatting": "Inizia a chattare",
+  "noMessagesYetDefault": "Ancora nessun messaggio",
+  "emptyPublicChannelTitle": "Chatta con il bot!",
+  "emptyPublicChannelDesc": "Questo canale ha un bot AI pronto ad aiutarti. Digita @ per menzionare il bot nel tuo messaggio e avviare una conversazione.",
+  "emptyPublicChannelHintExample": "chiedimi qualsiasi cosa...",
+  "emptyPublicChannelGotIt": "Ho capito",
+  "botNotMemberTitle": "{{botName}} non è un membro del canale",
+  "botNotMemberPublicDesc": "{{botName}} non è un membro di questo canale e non riceverà il tuo messaggio. Vuoi prima aggiungerlo al canale?",
+  "botNotMemberPrivateAdminDesc": "{{botName}} non è un membro di questo canale privato e non riceverà il tuo messaggio. Vuoi prima aggiungerlo al canale?",
+  "botNotMemberPrivateDesc": "{{botName}} non è un membro di questo canale privato e non riceverà il tuo messaggio. Contatta un amministratore del canale per aggiungere il bot.",
+  "addBotToChannel": "Aggiungi al canale",
+  "addingBot": "Aggiunta in corso...",
+  "botInstanceStoppedMessage": "L'istanza del bot è attualmente ferma. Avviala per riprendere la chat.",
+  "botInstanceStoppedMemberMessage": "L'istanza del bot è attualmente ferma. Contatta un amministratore del workspace per avviarla.",
+  "botInstanceStart": "Avvia",
+  "botInstanceStarting": "Avvio in corso...",
+  "botInstanceStartingMessage": "L'istanza del bot si sta avviando, attendi un momento...",
+  "botThinking": {
+    "texts": {
+      "thinking": "Sto pensando",
+      "analyzing": "Sto analizzando",
+      "reasoning": "Sto ragionando",
+      "computing": "Sto elaborando",
+      "parsing": "Sto interpretando",
+      "brewing": "Sto preparando",
+      "crafting": "Sto creando",
+      "decoding": "Sto decodificando",
+      "imagining": "Sto immaginando",
+      "composing": "Sto componendo"
+    }
+  },
+  "tracking": {
+    "ops": {
+      "loadTools": {
+        "loading": "Caricamento strumenti",
+        "success": "Strumenti caricati",
+        "error": "Caricamento degli strumenti non riuscito"
+      },
+      "searchTools": {
+        "loading": "Ricerca strumenti",
+        "success": "Strumenti trovati",
+        "error": "Ricerca strumenti non riuscita"
+      },
+      "invokeTool": {
+        "loading": "Chiamata dello strumento",
+        "success": "Chiamata dello strumento completata",
+        "error": "Chiamata dello strumento non riuscita"
+      },
+      "fallback": {
+        "loading": "Caricamento di {{name}}",
+        "success": "{{name}} completato",
+        "error": "{{name}} non riuscito"
+      }
+    },
+    "tools": {
+      "searchDocs": {
+        "loading": "Ricerca nei documenti",
+        "success": "Documenti trovati",
+        "error": "Ricerca documenti non riuscita"
+      },
+      "sendMessage": {
+        "loading": "Invio del messaggio",
+        "success": "Messaggio inviato",
+        "error": "Invio del messaggio non riuscito"
+      },
+      "generateReply": {
+        "loading": "Generazione della risposta",
+        "success": "Risposta generata",
+        "error": "Generazione della risposta non riuscita"
+      }
+    },
+    "thinking": {
+      "label": "Sto pensando",
+      "labelWithStats": "Sto pensando ({{stats}})",
+      "tokens_one": "{{count}} token",
+      "tokens_other": "{{count}} token",
+      "seconds": "{{count}}s",
+      "minutesSeconds": "{{minutes}}m {{seconds}}s"
+    },
+    "toolCall": {
+      "argsLabel": "Argomenti",
+      "resultLabel": "Risultato",
+      "unknownTool": "Strumento sconosciuto"
+    },
+    "eventLabels": {
+      "thinking": "Sto pensando",
+      "writing": "Sto scrivendo",
+      "toolCall": "Chiamata",
+      "toolResult": "Risultato",
+      "agentStart": "Avviato",
+      "agentEnd": "Completato",
+      "error": "Errore",
+      "turn": "Turno",
+      "choices": "Scelte",
+      "selected": "Selezionato"
+    },
+    "round": {
+      "collapseSummary_one": "... Mostra esecuzione ({{count}} passaggio)",
+      "collapseSummary_other": "... Mostra esecuzione ({{count}} passaggi)",
+      "expandAriaLabel_one": "Espandi processo di esecuzione ({{count}} passaggio)",
+      "expandAriaLabel_other": "Espandi processo di esecuzione ({{count}} passaggi)"
+    },
+    "card": {
+      "moreDetails_one": "Visualizza {{count}} altro dettaglio ›",
+      "moreDetails_other": "Visualizza {{count}} altri dettagli ›",
+      "loading": "Caricamento in corso..."
+    }
+  }
+}

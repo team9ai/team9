@@ -6,9 +6,13 @@ import { ChannelsService } from '../im/channels/channels.service.js';
 import { InstalledApplicationsService } from '../applications/installed-applications.service.js';
 import { ApplicationsService } from '../applications/applications.service.js';
 import { PersonalStaffService } from '../applications/personal-staff.service.js';
+import { OnboardingService } from './onboarding.service.js';
+import { BillingHubService } from '../billing-hub/billing-hub.service.js';
 import { RedisService } from '@team9/redis';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
+import { PosthogService } from '@team9/posthog';
+import { BillingHubService } from '../billing-hub/billing-hub.service.js';
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -82,6 +86,10 @@ describe('WorkspaceService', () => {
     sendToUser: MockFn;
     sendToChannelMembers: MockFn;
   };
+  let onboardingService: {
+    createStarterRecord: MockFn;
+    createSkippedRecord: MockFn;
+  };
   beforeEach(async () => {
     db = mockDb();
     botService = {
@@ -125,6 +133,10 @@ describe('WorkspaceService', () => {
       sendToUser: jest.fn<any>(),
       sendToChannelMembers: jest.fn<any>().mockResolvedValue(true),
     };
+    onboardingService = {
+      createStarterRecord: jest.fn<any>().mockResolvedValue(undefined),
+      createSkippedRecord: jest.fn<any>().mockResolvedValue(undefined),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -147,6 +159,20 @@ describe('WorkspaceService', () => {
           useValue: {
             createStaff: jest.fn<any>().mockResolvedValue(undefined),
             deleteStaff: jest.fn<any>().mockResolvedValue(undefined),
+          },
+        },
+        { provide: OnboardingService, useValue: onboardingService },
+        {
+          provide: PosthogService,
+          useValue: {
+            capture: jest.fn(),
+            isEnabled: jest.fn().mockReturnValue(false),
+          },
+        },
+        {
+          provide: BillingHubService,
+          useValue: {
+            grantCredits: jest.fn<any>().mockResolvedValue(undefined),
           },
         },
       ],
@@ -220,6 +246,16 @@ describe('WorkspaceService', () => {
       await service.create({ name: 'Test Workspace', ownerId: 'owner-1' });
 
       expect(installedApplicationsService.install).not.toHaveBeenCalled();
+    });
+
+    it('should roll back the workspace when critical starter setup fails', async () => {
+      channelsService.create.mockRejectedValueOnce(new Error('channel failed'));
+
+      await expect(
+        service.create({ name: 'Test Workspace', ownerId: 'owner-1' }),
+      ).rejects.toThrow('channel failed');
+
+      expect(db.delete).toHaveBeenCalled();
     });
 
     it('should add system bot alongside auto-install when system bot is enabled', async () => {
@@ -534,6 +570,7 @@ describe('WorkspaceService', () => {
     });
 
     it('should return valid info and invitedBy from the creator display name', async () => {
+      const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
       db.limit.mockResolvedValueOnce([
         {
           invitation: {
@@ -544,7 +581,7 @@ describe('WorkspaceService', () => {
             role: 'member',
             maxUses: 5,
             usedCount: 1,
-            expiresAt: new Date('2026-04-10T00:00:00.000Z'),
+            expiresAt: futureDate,
             isActive: true,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -564,7 +601,7 @@ describe('WorkspaceService', () => {
         workspaceName: 'Test Workspace',
         workspaceSlug: 'test-workspace',
         invitedBy: 'alice',
-        expiresAt: new Date('2026-04-10T00:00:00.000Z'),
+        expiresAt: futureDate,
         isValid: true,
       });
     });
@@ -724,7 +761,7 @@ describe('WorkspaceService', () => {
   });
 
   describe('handleUserRegistered', () => {
-    it('should create a personal workspace for the new user', async () => {
+    it('should create a starter workspace and onboarding record for eligible users', async () => {
       const logger = { log: jest.fn<any>() };
       (service as any).logger = logger;
       jest.spyOn(service, 'create').mockResolvedValue(WORKSPACE_ROW as any);
@@ -740,15 +777,39 @@ describe('WorkspaceService', () => {
         name: "Alice's Workspace",
         ownerId: 'user-uuid',
       });
+      expect(onboardingService.createStarterRecord).toHaveBeenCalledWith(
+        WORKSPACE_ROW.id,
+        'user-uuid',
+      );
       expect(logger.log).toHaveBeenCalledWith(
         "Created personal workspace for user user-uuid: Alice's Workspace",
       );
+    });
+
+    it('should create a skipped onboarding record for invite signups', async () => {
+      jest.spyOn(service, 'create').mockResolvedValue(WORKSPACE_ROW as any);
+
+      await expect(
+        service.handleUserRegistered({
+          userId: 'user-uuid',
+          displayName: 'Alice',
+          onboardingEligible: false,
+        } as any),
+      ).resolves.toBeUndefined();
+
+      expect(onboardingService.createSkippedRecord).toHaveBeenCalledWith(
+        WORKSPACE_ROW.id,
+        'user-uuid',
+      );
+      expect(onboardingService.createStarterRecord).not.toHaveBeenCalled();
     });
   });
 
   describe('getInvitations', () => {
     it('should shape invitation rows into API responses', async () => {
       process.env.APP_URL = 'https://app.team9.test';
+      // Use a fixed future date to avoid 1ms race between input and assertion
+      const futureExpiry = new Date('2026-04-17T12:00:00.000Z');
       db.orderBy.mockResolvedValueOnce([
         {
           invitation: {
@@ -757,7 +818,7 @@ describe('WorkspaceService', () => {
             role: 'member',
             maxUses: 3,
             usedCount: 1,
-            expiresAt: new Date('2026-04-10T00:00:00.000Z'),
+            expiresAt: futureExpiry,
             isActive: true,
             createdAt: new Date('2026-04-02T00:00:00.000Z'),
           },
@@ -777,7 +838,7 @@ describe('WorkspaceService', () => {
           role: 'member',
           maxUses: 3,
           usedCount: 1,
-          expiresAt: new Date('2026-04-10T00:00:00.000Z'),
+          expiresAt: futureExpiry,
           isActive: true,
           createdAt: new Date('2026-04-02T00:00:00.000Z'),
           createdBy: {
@@ -1162,6 +1223,43 @@ describe('WorkspaceService', () => {
       const result = await service.acceptInvitation('abc123', 'user-uuid');
 
       expect(result.workspace.id).toBe('ws-uuid');
+    });
+
+    // ── batch DM: member count threshold ─────────────────────────────
+
+    it('should run batch DM creation when workspace has fewer than 10 members', async () => {
+      // memberCount = 9 → below threshold → DM creation should run
+      (service as any).getWorkspaceMemberCount.mockResolvedValue(9);
+
+      let whereCallCount = 0;
+      db.where.mockImplementation((() => {
+        whereCallCount++;
+        if (whereCallCount === 6)
+          return Promise.resolve([{ userId: 'member-1', userType: 'human' }]);
+        return db;
+      }) as any);
+
+      const dmMap = new Map([
+        ['member-1', { id: 'dm-1', tenantId: 'ws-uuid', type: 'direct' }],
+      ]);
+      channelsService.createDirectChannelsBatch.mockResolvedValue(dmMap);
+
+      await service.acceptInvitation('abc123', 'user-uuid');
+
+      expect(channelsService.createDirectChannelsBatch).toHaveBeenCalledWith(
+        'user-uuid',
+        ['member-1'],
+        'ws-uuid',
+      );
+    });
+
+    it('should skip batch DM creation when workspace has 10 or more members', async () => {
+      // memberCount = 10 → at/above threshold → DM creation should be skipped
+      (service as any).getWorkspaceMemberCount.mockResolvedValue(10);
+
+      await service.acceptInvitation('abc123', 'user-uuid');
+
+      expect(channelsService.createDirectChannelsBatch).not.toHaveBeenCalled();
     });
 
     it('should throw when workspace has reached max member limit (1000)', async () => {

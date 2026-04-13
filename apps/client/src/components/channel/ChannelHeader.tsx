@@ -24,12 +24,14 @@ export function ChannelHeader({
     "about" | "members" | "settings"
   >("about");
   const { data: members = [] } = useChannelMembers(
-    channel.type !== "direct" ? channel.id : undefined,
+    channel.type !== "direct" && channel.type !== "echo"
+      ? channel.id
+      : undefined,
   );
   const ChannelIcon = channel.type === "private" ? Lock : Hash;
 
-  // For direct messages, show the other user's info
-  const isDirect = channel.type === "direct";
+  // For direct/echo messages, show the other user's info
+  const isDirect = channel.type === "direct" || channel.type === "echo";
   const channelWithUnread = channel as ChannelWithUnread;
   const otherUser =
     "otherUser" in channelWithUnread ? channelWithUnread.otherUser : undefined;

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useDocumentSuggestions } from "@/hooks/useDocuments";
+import { formatDateTime } from "@/lib/date-format";
 import type {
   DocumentIdentity,
   DocumentSuggestionStatus,
@@ -43,7 +44,7 @@ function formatIdentity(identity: DocumentIdentity): string {
 }
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleString();
+  return formatDateTime(dateStr);
 }
 
 function SuggestionItem({

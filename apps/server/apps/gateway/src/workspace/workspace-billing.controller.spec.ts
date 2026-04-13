@@ -84,6 +84,8 @@ describe('WorkspaceBillingController', () => {
       'subscription',
       'credits',
       5500,
+      undefined,
+      undefined,
     );
   });
 
@@ -95,6 +97,7 @@ describe('WorkspaceBillingController', () => {
     expect(billingHubService.createWorkspacePortal).toHaveBeenCalledWith(
       '72ecfcd7-d495-43a4-8b8a-8fda2d9cec14',
       'credits',
+      undefined,
     );
   });
 

@@ -1,16 +1,43 @@
 import './load-env.js'; // Load environment variables first
 import './instrument.js'; // Initialize Sentry before any other imports
 import './otel.js'; // Initialize OpenTelemetry
+import { json } from 'express';
 import { NestFactory } from '@nestjs/core';
 import { VersioningType, ValidationPipe, Logger } from '@nestjs/common';
 import { AppModule } from './app.module.js';
 import { SocketRedisAdapterService } from './cluster/adapter/socket-redis-adapter.service.js';
 import { WebsocketGateway } from './im/websocket/websocket.gateway.js';
 import { env } from '@team9/shared';
-async function bootstrap() {
-  const logger = new Logger('Bootstrap');
+import { runMigrations, runSeed } from '@team9/database';
+
+const logger = new Logger('Bootstrap');
+
+/**
+ * Bootstrap the gateway application.
+ *
+ * Optionally runs database migrations and seeding based on environment variables
+ * AUTO_MIGRATE and AUTO_SEED, then starts the NestJS application.
+ *
+ * This function is exported and can be unit-tested. Top-level invocation only
+ * fires when the file is executed directly (not when imported).
+ */
+export async function bootstrap(): Promise<void> {
+  if (env.AUTO_MIGRATE) {
+    logger.log('AUTO_MIGRATE=true, running migrations...');
+    await runMigrations();
+    logger.log('Migrations completed successfully');
+  }
+
+  if (env.AUTO_SEED) {
+    logger.log('AUTO_SEED=true, running seed...');
+    await runSeed();
+    logger.log('Seed completed successfully');
+  }
 
   const app = await NestFactory.create(AppModule);
+
+  // Raise JSON body parser limit to 1 MB to support long text messages (up to 100K chars)
+  app.use(json({ limit: '1mb' }));
 
   // Use OTel logger when observability is enabled
   if (process.env.OTEL_ENABLED === 'true') {
@@ -53,4 +80,23 @@ async function bootstrap() {
   await app.listen(port, '0.0.0.0');
   logger.log(`Application is running on port ${port}`);
 }
-void bootstrap();
+
+// CLI entry — only runs when file is executed directly, not when imported.
+const isDirectRun =
+  import.meta.url === `file://${process.argv[1]}` ||
+  import.meta.url.endsWith(process.argv[1] ?? '');
+
+if (isDirectRun) {
+  bootstrap()
+    .then(() => {
+      logger.log('Bootstrap completed');
+    })
+    .catch((err) => {
+      if (err instanceof Error) {
+        logger.error(`Bootstrap failed: ${err.message}`, err.stack);
+      } else {
+        logger.error(`Bootstrap failed: ${String(err)}`);
+      }
+      process.exit(1);
+    });
+}

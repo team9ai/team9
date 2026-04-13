@@ -1,0 +1,127 @@
+{
+  "eyebrow": "Workspace-Einrichtung",
+  "workspaceBadge": "Startereinrichtung für {{name}}",
+  "stepLabel": "Schritt {{current}} / {{total}}",
+  "workspaceFallback": "Ihr neuer Workspace",
+  "welcome": "Lassen Sie Team9 die erste Version Ihres Workspace basierend auf Ihrer Arbeitsweise gestalten.",
+  "actions": {
+    "back": "Zurück",
+    "continue": "Weiter",
+    "next": "Weiter",
+    "regenerate": "Neu generieren",
+    "retry": "Erneut versuchen",
+    "edit": "Bearbeiten",
+    "copy": "Link kopieren",
+    "copied": "Kopiert",
+    "startCheckout": "Abonnieren",
+    "continueWithoutPlan": "Ohne Abonnement fortfahren",
+    "finish": "Workspace betreten",
+    "retryProvision": "Einrichtung wiederholen",
+    "creating": "Wird erstellt…"
+  },
+  "steps": {
+    "1": {
+      "title": "Beschreiben Sie Ihre Arbeit",
+      "description": "Beschreiben Sie Ihre Rolle in einem Satz oder wählen Sie die nächstgelegene vordefinierte Rolle."
+    },
+    "2": {
+      "title": "Wählen Sie die realistischste Aufgabe",
+      "description": "Wir schlagen einige wiederkehrende Workflows vor, die zuerst automatisiert werden sollten."
+    },
+    "3": {
+      "title": "Bereiten wir einige Kanäle für Sie vor",
+      "description": "Diese Kanäle werden aus dem natürlichen Fluss Ihrer Arbeit generiert."
+    },
+    "4": {
+      "title": "Bestätigen Sie Ihre Agenten-Einrichtung",
+      "description": "Ihr Hauptagent ist als Persönlicher Assistent festgelegt, mit einigen spezialisierten Helfern darunter."
+    },
+    "5": {
+      "title": "Laden Sie Ihr Team zur Zusammenarbeit ein",
+      "description": "Teilen Sie einen Einladungslink und bringen Sie alle in denselben Workspace."
+    },
+    "6": {
+      "title": "Wählen Sie einen Plan für diesen Workspace",
+      "description": "Sie können jetzt abonnieren oder zuerst den Workspace betreten und die Abrechnung später einrichten."
+    }
+  },
+  "role": {
+    "inputLabel": "Beschreiben Sie Ihre Arbeit",
+    "inputPlaceholder": "Zum Beispiel: Ich betreue B2B-SaaS-Vertriebsnachverfolgung, Angebote und Deal-Reviews.",
+    "customHint": "Sie können auch nur Freitext verwenden und die Voreinstellungen überspringen.",
+    "or": "Oder",
+    "featured": "Empfohlen",
+    "suggestions": "Rollenvorschläge"
+  },
+  "tasks": {
+    "customLabel": "Oder fügen Sie den Workflow hinzu, den Sie am meisten automatisieren möchten",
+    "customDivider": "Eigene eingeben",
+    "customPlaceholder": "Zum Beispiel: Tägliche Kundennachverfolgungs-Notizen zusammenfassen und nächsten Schritt vorschlagen.",
+    "empty": "Noch keine Aufgabenvorschläge.",
+    "loadingTitle": "Aufgabenoptionen werden generiert",
+    "loading": "Auf Ihre Arbeit zugeschnittene Aufgabenvorschläge werden generiert…"
+  },
+  "channels": {
+    "renameHint": "Sie können jeden Kanal direkt umbenennen",
+    "previewTitle": "Kanalvorschau",
+    "placeholder": "#neuer-kanal",
+    "loadingTitle": "Starterkanäle werden vorbereitet",
+    "loading": "Starter-Kanallayout wird generiert…",
+    "sidebarTitle": "Workspace",
+    "activeThread": "Heutiger Fokus",
+    "previewAuthorA": "Persönlicher Assistent",
+    "previewAuthorB": "Systementwurf",
+    "previewNow": "gerade eben",
+    "previewToday": "heute",
+    "previewLine1": "Hier wird die rollenspezifische Zusammenarbeit Gestalt annehmen.",
+    "previewLine2": "Nach Abschluss der Einrichtung werden diese Kanäle und Agenten im echten Workspace bereitgestellt.",
+    "previewPurpose": "In diesem Kanal bleibt {{topic}} sichtbar und leicht handhabbar.",
+    "previewInsight": "{{role}} kann diesen Raum nutzen, um {{task}} voranzutreiben, ohne den Kontext zu verlieren.",
+    "previewThread": "Nach der Einrichtung bleiben Nachverfolgungen für {{task}} in {{topic}}.",
+    "previewChecklistPrimary": "Hauptworkflow: {{task}}",
+    "previewChecklistSecondary": "Nebenthread: {{task}}",
+    "previewChecklistOwner": "Standardverantwortlicher: {{role}}"
+  },
+  "agents": {
+    "mainAgent": "Hauptagent",
+    "childAgents": "Unterstützungsagenten",
+    "mainDescriptionLabel": "Beschreibung des Hauptagenten",
+    "mainDescriptionPlaceholder": "Beschreiben Sie, wie Ihr Persönlicher Assistent Sie unterstützen soll.",
+    "loadingTitle": "Agenten-Aufstellung wird vorbereitet",
+    "empty": "Keine verwendbare Agenten-Einrichtung verfügbar. Gehen Sie zurück und versuchen Sie es erneut.",
+    "loading": "Agenten-Aufstellung wird generiert…"
+  },
+  "invite": {
+    "title": "Einladungslink",
+    "hint": "Dieser Link lädt Mitarbeiter standardmäßig als Mitglieder in den aktuellen Workspace ein.",
+    "loading": "Einladungslink wird vorbereitet…"
+  },
+  "plan": {
+    "current": "Aktueller Plan",
+    "success": "Bezahlung abgeschlossen. Sie können jetzt fortfahren.",
+    "cancel": "Bezahlung wurde abgebrochen. Sie können es jederzeit erneut versuchen.",
+    "loadingTitle": "Workspace-Pläne werden geladen",
+    "note": "Sie können jetzt abonnieren oder zuerst den Workspace betreten und die Abrechnung später hinzufügen.",
+    "empty": "Derzeit sind keine Abonnementpläne verfügbar.",
+    "perMonth": "/Monat",
+    "priceHint": "Ungefähr {{amount}} an tatsächlichem Nutzungswert",
+    "credits": "{{count}} Credits"
+  },
+  "status": {
+    "provisioningTitle": "Ihr Workspace wird eingerichtet",
+    "provisioningDescription": "Wir erstellen Kanäle, konfigurieren Agenten und speichern Ihre Einstellungen.",
+    "failedTitle": "Einrichtung nicht vollständig abgeschlossen",
+    "failedDescription": "Die Bereitstellung ist mittendrin fehlgeschlagen. Sie können es erneut versuchen, ohne die bereits gespeicherten Einstellungen zu verlieren."
+  },
+  "errors": {
+    "loadFailed": "Einrichtungsstatus konnte nicht geladen werden.",
+    "saveFailed": "Einrichtungsfortschritt konnte nicht gespeichert werden.",
+    "roleRequired": "Fügen Sie zuerst eine Rollenbeschreibung hinzu oder wählen Sie eine vordefinierte Rolle.",
+    "taskRequired": "Wählen Sie mindestens eine Aufgabe oder fügen Sie eine benutzerdefinierte Aufgabe hinzu.",
+    "channelRequired": "Behalten Sie mindestens einen Kanalentwurf bei.",
+    "workspaceRequired": "Derzeit ist kein Workspace verfügbar.",
+    "checkoutFailed": "Bezahlung konnte derzeit nicht gestartet werden.",
+    "copyFailed": "Einladungslink konnte nicht kopiert werden.",
+    "provisionFailed": "Workspace-Einrichtung fehlgeschlagen. Bitte erneut versuchen."
+  }
+}

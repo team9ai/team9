@@ -1,0 +1,287 @@
+{
+  "tabs": {
+    "all": "Alle",
+    "active": "Laufend",
+    "upcoming": "Geplant",
+    "finished": "Abgeschlossen",
+    "info": "Info",
+    "triggers": "Auslöser",
+    "document": "Dokument",
+    "runs": "Ausführungen",
+    "run": "Ausführung",
+    "settings": "Einstellungen",
+    "history": "Verlauf"
+  },
+  "noRoutines": "Keine Routinen",
+  "createManually": "Manuell erstellen",
+  "emptyState": {
+    "title": "Was sind Routinen?",
+    "description": "Routinen sind Aufgaben, die KI-Mitarbeiter automatisch ausführen.\nLegen Sie Auslösebedingungen fest und lassen Sie die KI die Arbeit für Sie erledigen.",
+    "createWithAI": "Mit KI erstellen",
+    "createManually": "oder manuell erstellen"
+  },
+  "create": {
+    "title": "Neue Routine",
+    "description": "Erstellen Sie eine Routine, die von einem KI-Personal ausgeführt wird.",
+    "taskName": "Titel",
+    "taskNamePlaceholder": "Was soll getan werden?",
+    "bot": "KI-Personal",
+    "botPlaceholder": "KI-Personal auswählen...",
+    "noBot": "Keines (später zuweisen)",
+    "document": "Dokument (optional)",
+    "documentPlaceholder": "Kontext oder Anweisungen bereitstellen...",
+    "cancel": "Abbrechen",
+    "submit": "Erstellen",
+    "errorGeneric": "Routine konnte nicht erstellt werden"
+  },
+  "status": {
+    "in_progress": "Laufend",
+    "upcoming": "Geplant",
+    "paused": "Pausiert",
+    "pending_action": "Aktion erforderlich",
+    "completed": "Abgeschlossen",
+    "failed": "Fehlgeschlagen",
+    "stopped": "Gestoppt",
+    "timeout": "Zeitüberschreitung"
+  },
+  "stepStatus": {
+    "pending": "Ausstehend",
+    "in_progress": "Laufend",
+    "completed": "Abgeschlossen",
+    "failed": "Fehlgeschlagen"
+  },
+  "schedule": {
+    "type": "Zeitplan",
+    "types": { "once": "Einmalig", "recurring": "Wiederkehrend" },
+    "frequency": "Häufigkeit",
+    "frequencies": {
+      "daily": "Täglich",
+      "weekly": "Wöchentlich",
+      "monthly": "Monatlich"
+    },
+    "time": "Uhrzeit",
+    "dayOfWeek": "Wochentag",
+    "dayOfMonth": "Tag im Monat",
+    "days": {
+      "0": "So",
+      "1": "Mo",
+      "2": "Di",
+      "3": "Mi",
+      "4": "Do",
+      "5": "Fr",
+      "6": "Sa"
+    }
+  },
+  "detail": {
+    "title": "Routinendetails",
+    "loadError": "Routinendetails konnten nicht geladen werden",
+    "start": "Starten",
+    "pause": "Pausieren",
+    "resume": "Fortsetzen",
+    "stop": "Stoppen",
+    "restart": "Neu starten",
+    "delete": "Löschen",
+    "deleteConfirm": "Möchten Sie diese Routine wirklich löschen?",
+    "assignBot": "KI-Personal",
+    "noBot": "Nicht zugewiesen",
+    "steps": "Schritte",
+    "noSteps": "Noch keine Schritte",
+    "deliverables": "Ergebnisse",
+    "noDeliverables": "Noch keine Ergebnisse",
+    "pendingInterventions": "Aktion erforderlich",
+    "pastInterventions": "Vergangene Eingriffe",
+    "interventionResolved": "Gelöst",
+    "interventionExpired": "Abgelaufen",
+    "interventionPlaceholder": "Benutzerdefinierte Antwort eingeben...",
+    "messageInputPlaceholder": "Nachricht an diese Routine senden...",
+    "finishedBanner": {
+      "completed": "Routine erfolgreich abgeschlossen",
+      "failed": "Routine fehlgeschlagen",
+      "timeout": "Routinenzeitüberschreitung",
+      "stopped": "Routine wurde gestoppt",
+      "in_progress": "",
+      "upcoming": "",
+      "paused": "",
+      "pending_action": ""
+    },
+    "completedAt": "Abgeschlossen um {{time}}",
+    "duration": "Dauer: {{duration}}",
+    "tokenUsage": "{{tokens}} Token verwendet",
+    "tokenCount": "{{count}} Token",
+    "error": "Fehler",
+    "errorWithCode": "Fehler ({{code}})",
+    "document": {
+      "save": "Speichern",
+      "saving": "Wird gespeichert...",
+      "unsavedChanges": "Ungespeicherte Änderungen",
+      "viewingVersion": "Version {{version}} wird angezeigt",
+      "backToCurrent": "Zurück zur aktuellen Version",
+      "currentLabel": "Version {{version}} (aktuell)",
+      "versionLabel": "Version {{version}} — {{time}}",
+      "discardTitle": "Ungespeicherte Änderungen",
+      "discardMessage": "Sie haben ungespeicherte Änderungen. Verwerfen?",
+      "discardConfirm": "Verwerfen",
+      "discardCancel": "Weiter bearbeiten",
+      "saveSummaryPlaceholder": "Beschreiben Sie Ihre Änderungen (optional)...",
+      "placeholder": "Schreiben beginnen...",
+      "createPlaceholder": "Schreiben beginnen, um ein Dokument zu erstellen...",
+      "suggestions": {
+        "title": "KI-Vorschläge",
+        "count": "KI-Vorschläge ({{count}})",
+        "view": "Anzeigen",
+        "approve": "Genehmigen",
+        "reject": "Ablehnen",
+        "current": "Aktuell",
+        "suggested": "Vorgeschlagen",
+        "outdated": "Dieser Vorschlag basiert auf einer älteren Version",
+        "empty": "Keine ausstehenden Vorschläge"
+      },
+      "versionHistory": {
+        "loadError": "Versionen konnten nicht geladen werden",
+        "noVersions": "Noch keine Versionen"
+      }
+    }
+  },
+  "triggers": {
+    "title": "Auslöser",
+    "add": "Auslöser hinzufügen",
+    "empty": "Keine Auslöser konfiguriert",
+    "edit": "Bearbeiten",
+    "delete": "Löschen",
+    "types": {
+      "manual": "Manuell",
+      "interval": "Intervall",
+      "schedule": "Zeitplan",
+      "channel_message": "Kanalnachricht"
+    },
+    "enabled": "Aktiviert",
+    "disabled": "Deaktiviert",
+    "nextRun": "Nächste Ausführung: {{time}}",
+    "countdown": "in {{duration}}",
+    "lastRun": "Letzte Ausführung: {{time}}",
+    "interval": {
+      "every": "Alle",
+      "units": {
+        "minutes": "Minuten",
+        "hours": "Stunden",
+        "days": "Tage",
+        "weeks": "Wochen",
+        "months": "Monate",
+        "years": "Jahre"
+      }
+    },
+    "schedule": {
+      "frequencies": {
+        "daily": "Täglich",
+        "weekly": "Wöchentlich",
+        "monthly": "Monatlich",
+        "yearly": "Jährlich",
+        "weekdays": "Werktage"
+      },
+      "time": "Uhrzeit",
+      "timezone": "Zeitzone",
+      "dayOfWeek": "Tag",
+      "dayOfMonth": "Tag im Monat"
+    },
+    "channelMessage": {
+      "channel": "Kanal",
+      "selectChannel": "Kanal auswählen..."
+    },
+    "deleteConfirm": "Diesen Auslöser löschen?",
+    "addTitle": "Auslöser hinzufügen",
+    "selectType": "Auslösertyp auswählen",
+    "configureTitle": "{{type}} konfigurieren",
+    "back": "Zurück",
+    "create": "Erstellen",
+    "manualNoConfig": "Manuelle Auslöser benötigen keine Konfiguration. Erstellen und manuell auslösen.",
+    "typeDesc": {
+      "manual": "Auf Abruf auslösen",
+      "interval": "In festen Intervallen ausführen",
+      "schedule": "Nach Zeitplan ausführen",
+      "channel_message": "Bei eingehender Nachricht ausführen"
+    }
+  },
+  "runs": {
+    "title": "Ausführungen",
+    "empty": "Noch keine Ausführungen",
+    "version": "v{{version}}",
+    "triggerType": {
+      "manual": "Manuell",
+      "interval": "Intervall",
+      "schedule": "Geplant",
+      "channel_message": "Nachricht",
+      "retry": "Wiederholung"
+    },
+    "notes": "Notizen",
+    "retry": "Wiederholen",
+    "retryTitle": "Ausführung wiederholen",
+    "retryNotes": "Notizen für die Wiederholung hinzufügen (optional)",
+    "back": "Zurück zu Ausführungen",
+    "documentVersion": "Dokument v{{version}}",
+    "triggeredAt": "Ausgelöst um {{time}}",
+    "scheduledAt": "Geplant für {{time}}",
+    "triggeredBy": "Ausgelöst von {{user}}",
+    "messageFrom": "Nachricht von {{user}}",
+    "retryOf": "Wiederholung von v{{version}}"
+  },
+  "timeline": {
+    "empty": "Noch keine Aktivität",
+    "statusChange": {
+      "started": "Routine gestartet",
+      "completed": "Routine abgeschlossen",
+      "failed": "Routine fehlgeschlagen",
+      "stopped": "Routine gestoppt",
+      "timeout": "Routinenzeitüberschreitung",
+      "paused": "Routine pausiert"
+    }
+  },
+  "chat": {
+    "placeholder": "Starten Sie die Routine, um mit dem Bot zu chatten"
+  },
+  "manualTrigger": {
+    "title": "Routine starten",
+    "notesPlaceholder": "Notizen oder Kontext für diese Ausführung hinzufügen (optional)..."
+  },
+  "chatArea": {
+    "viewingHistory": "Historische Ausführung wird angezeigt",
+    "returnToCurrent": "Zur aktuellen Ausführung zurückkehren",
+    "lastRunCompleted": "Letzte Ausführung abgeschlossen",
+    "lastRunFailed": "Letzte Ausführung fehlgeschlagen",
+    "lastRunStopped": "Letzte Ausführung gestoppt",
+    "lastRunTimeout": "Letzte Ausführung Zeitüberschreitung",
+    "rerun": "Erneut ausführen",
+    "readOnly": "Historische Unterhaltung (schreibgeschützt)",
+    "finishedReadOnly": "Unterhaltung der letzten Ausführung (schreibgeschützt)",
+    "start": "Starten",
+    "noRunsYet": "Noch keine Ausführungen. Starten Sie Ihre erste Ausführung!",
+    "pause": "Pausieren",
+    "resume": "Fortsetzen",
+    "stop": "Stoppen"
+  },
+  "runTab": {
+    "title": "Ausführungsdetails",
+    "status": "Status",
+    "duration": "Dauer",
+    "triggerType": "Auslöser",
+    "taskVersion": "Routinenversion",
+    "tokenUsage": "Token-Verbrauch",
+    "timeline": "Zeitverlauf",
+    "noExecution": "Keine Ausführung ausgewählt"
+  },
+  "settingsTab": {
+    "title": "Einstellungen",
+    "taskTitle": "Titel",
+    "taskDescription": "Beschreibung",
+    "deleteConfirm": "Möchten Sie diese Routine wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden."
+  },
+  "historyTab": {
+    "title": "Verlauf",
+    "current": "Aktuell",
+    "empty": "Noch keine Ausführungen",
+    "manual": "Manuell",
+    "interval": "Intervall",
+    "schedule": "Zeitplan",
+    "channelMessage": "Kanalnachricht",
+    "retry": "Wiederholung"
+  }
+}

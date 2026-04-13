@@ -266,6 +266,16 @@ export class PersonalStaffService {
                 mentorId: ownerId,
                 isMentorDm: true,
                 channelId: ownerDmChannel.id,
+                // Standard session context consumed by Team9Component.onEvent.
+                // Without this, team9-staff-bootstrap cannot tell it is in the
+                // mentor DM and UpdateStaffProfile stays disabled.
+                team9Context: {
+                  source: 'team9',
+                  scopeType: 'dm',
+                  scopeId: ownerDmChannel.id,
+                  peerUserId: ownerId,
+                  isMentorDm: true,
+                },
               },
             },
             tenantId,
@@ -412,6 +422,8 @@ export class PersonalStaffService {
     }
 
     yield* this.staffService.generatePersona({
+      tenantId,
+      installedApplicationId: appId,
       displayName: dto.displayName,
       roleTitle: PERSONAL_STAFF_ROLE_TITLE,
       existingPersona: dto.existingPersona,

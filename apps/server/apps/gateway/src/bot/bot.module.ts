@@ -4,6 +4,7 @@ import { ClawHiveModule } from '@team9/claw-hive';
 import { BotService } from './bot.service.js';
 import { BotTokenValidatorService } from './bot-token-validator.service.js';
 import { BotAuthCacheService } from './bot-auth-cache.service.js';
+import { PlatformLlmService } from './platform-llm.service.js';
 import { BotController } from './bot.controller.js';
 import { ChannelsModule } from '../im/channels/channels.module.js';
 
@@ -22,11 +23,17 @@ import { ChannelsModule } from '../im/channels/channels.module.js';
     BotService,
     BotTokenValidatorService,
     BotAuthCacheService,
+    PlatformLlmService,
     {
       provide: BOT_TOKEN_VALIDATOR,
       useExisting: BotTokenValidatorService,
     },
   ],
-  exports: [BotService, BotAuthCacheService, BOT_TOKEN_VALIDATOR],
+  exports: [
+    BotService,
+    BotAuthCacheService,
+    PlatformLlmService,
+    BOT_TOKEN_VALIDATOR,
+  ],
 })
 export class BotModule {}

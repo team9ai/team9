@@ -112,6 +112,9 @@ export class MessageService {
       // Update unread counts
       await this.updateUnreadCounts(message.targetId, recipientIds);
 
+      // Auto-unhide DM/echo channels when new message arrives
+      await this.unhideDmChannelForMembers(message.targetId);
+
       this.logger.debug(
         `Processed message ${msgId} (seq: ${seqId}) for channel ${message.targetId}`,
       );
@@ -355,6 +358,31 @@ export class MessageService {
   }
 
   /**
+   * For DM/echo channels, ensure all members have the channel visible in sidebar.
+   */
+  private async unhideDmChannelForMembers(channelId: string): Promise<void> {
+    const [channel] = await this.db
+      .select({ type: schema.channels.type })
+      .from(schema.channels)
+      .where(eq(schema.channels.id, channelId))
+      .limit(1);
+
+    if (!channel || (channel.type !== 'direct' && channel.type !== 'echo')) {
+      return;
+    }
+
+    await this.db
+      .update(schema.channelMembers)
+      .set({ showInDmSidebar: true })
+      .where(
+        and(
+          eq(schema.channelMembers.channelId, channelId),
+          eq(schema.channelMembers.showInDmSidebar, false),
+        ),
+      );
+  }
+
+  /**
    * Get messages for sync (after a certain seqId)
    */
   async getMessagesSince(
@@ -503,6 +531,9 @@ export class MessageService {
         timestamp,
       };
       await this.cacheRecentMessage(dto.channelId, envelope);
+
+      // Auto-unhide DM/echo channels when new message arrives (HTTP/gRPC path)
+      await this.unhideDmChannelForMembers(dto.channelId);
 
       this.logger.debug(
         `Created message ${msgId} (seq: ${seqId}) via HTTP API for channel ${dto.channelId}`,

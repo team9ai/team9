@@ -1,0 +1,128 @@
+{
+  "eyebrow": "Workspace Onboarding",
+  "workspaceBadge": "{{name}} 的启动配置",
+  "stepLabel": "Step {{current}} / {{total}}",
+  "workspaceFallback": "你的新 Workspace",
+  "welcome": "让 Team9 先按你的工作方式把第一版空间搭起来。",
+  "actions": {
+    "back": "返回",
+    "continue": "继续",
+    "next": "下一步",
+    "regenerate": "重新生成",
+    "retry": "重试",
+    "edit": "修改",
+    "copy": "复制链接",
+    "copied": "已复制",
+    "startCheckout": "去订阅",
+    "continueWithoutPlan": "先不订阅，直接进入",
+    "finish": "进入 Workspace",
+    "retryProvision": "重新创建",
+    "creating": "正在创建…"
+  },
+  "steps": {
+    "1": {
+      "title": "先告诉我们你的工作",
+      "description": "一句话描述你的岗位，或者先选一个最接近的角色。"
+    },
+    "2": {
+      "title": "选一个最接近真实工作的任务",
+      "description": "我们会根据你的角色，生成几条最值得自动化的日常工作。"
+    },
+    "3": {
+      "title": "我们先帮你准备一些频道",
+      "description": "这些频道会围绕你的真实业务流转来生成。"
+    },
+    "4": {
+      "title": "最后确认你的 Agent 组合",
+      "description": "主 Agent 固定为私人秘书，下面是为你准备的协作 Agent。"
+    },
+    "5": {
+      "title": "邀请你的同伴一起协作",
+      "description": "把邀请链接发出去，对方就能加入同一个 workspace。"
+    },
+    "6": {
+      "title": "为你的 Workspace 选择一个合适的月卡",
+      "description": "你可以现在订阅，也可以先进入 Workspace，之后再补充订阅。"
+    }
+  },
+  "role": {
+    "inputLabel": "你的工作内容",
+    "inputPlaceholder": "例如：我是一个 B2B SaaS 的销售经理，日常需要跟进客户线索、写投标方案、做每周的销售复盘、维护 CRM 数据……",
+    "customHint": "描述越详细，我们就能越准确地为你定制 Workspace。",
+    "or": "或者",
+    "presetsToggle": "不知道怎么写？浏览预设角色获取灵感",
+    "featured": "推荐",
+    "suggestions": "角色建议"
+  },
+  "tasks": {
+    "customLabel": "或者补充一个你最想自动化的任务",
+    "customDivider": "自己填写",
+    "customPlaceholder": "例如：整理每天的客户跟进记录并给出下一步建议。",
+    "empty": "还没有生成任务建议。",
+    "loadingTitle": "正在生成任务选项",
+    "loading": "正在生成贴近你工作的任务…"
+  },
+  "channels": {
+    "renameHint": "频道名可直接修改",
+    "previewTitle": "频道预览",
+    "placeholder": "#新频道",
+    "loadingTitle": "正在为你准备频道",
+    "loading": "正在生成频道结构…",
+    "sidebarTitle": "Workspace",
+    "activeThread": "今日重点",
+    "previewAuthorA": "私人秘书",
+    "previewAuthorB": "系统草稿",
+    "previewNow": "刚刚",
+    "previewToday": "今天",
+    "previewLine1": "这里会承接与你角色最相关的协作消息。",
+    "previewLine2": "后续创建完成后，频道和 Agent 会一起落到真实 Workspace 中。",
+    "previewPurpose": "这个频道会把 {{topic}} 相关协作集中起来，方便持续推进。",
+    "previewInsight": "{{role}} 可以在这里持续跟进「{{task}}」，避免上下文分散。",
+    "previewThread": "创建完成后，和「{{task}}」相关的后续讨论会沉淀在 {{topic}}，不会散落到别处。",
+    "previewChecklistPrimary": "主要流程：{{task}}",
+    "previewChecklistSecondary": "次级协作：{{task}}",
+    "previewChecklistOwner": "默认负责人：{{role}}"
+  },
+  "agents": {
+    "mainAgent": "主 Agent",
+    "childAgents": "协作 Agent",
+    "mainDescriptionLabel": "主 Agent 说明",
+    "mainDescriptionPlaceholder": "描述你的私人秘书应该如何支持你。",
+    "loadingTitle": "正在为你准备 Agent",
+    "empty": "还没有生成可用的 Agent 方案，请返回上一步重试。",
+    "loading": "正在生成 Agent 组合…"
+  },
+  "invite": {
+    "title": "邀请链接",
+    "hint": "这个链接会默认以 member 身份邀请同伴加入当前 workspace。",
+    "loading": "正在准备邀请链接…"
+  },
+  "plan": {
+    "current": "当前方案",
+    "success": "订阅已完成，可以直接继续。",
+    "cancel": "你已取消本次订阅，可以稍后再试。",
+    "loadingTitle": "正在加载订阅方案",
+    "note": "你可以现在订阅，也可以先进入 Workspace，之后再补充 billing。",
+    "empty": "目前还没有可订阅的月卡。",
+    "perMonth": "/月",
+    "priceHint": "约等于 {{amount}} 真实额度",
+    "credits": "{{count}} credits"
+  },
+  "status": {
+    "provisioningTitle": "正在布置你的 Workspace",
+    "provisioningDescription": "我们正在创建频道、配置 Agent 并写入偏好设置。",
+    "failedTitle": "配置没有全部完成",
+    "failedDescription": "资源创建中途失败了。你可以直接重试，已保存的偏好不会丢失。"
+  },
+  "errors": {
+    "loadFailed": "无法加载 onboarding 状态。",
+    "saveFailed": "保存 onboarding 进度失败，请稍后重试。",
+    "roleRequired": "先写下你的工作内容或选择一个角色。",
+    "taskRequired": "至少选择一个任务，或者补充一个自定义任务。",
+    "channelRequired": "至少保留一个频道草稿。",
+    "workspaceRequired": "当前没有可用的 workspace。",
+    "checkoutFailed": "无法发起订阅流程。",
+    "copyFailed": "复制链接失败。",
+    "provisionFailed": "资源创建失败，请重试。"
+  }
+}

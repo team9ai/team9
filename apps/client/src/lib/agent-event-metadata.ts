@@ -110,6 +110,27 @@ export function getAgentEventMetadata(
     ...(typeof value.responderName === "string"
       ? { responderName: value.responderName }
       : {}),
+    // === Thinking event fields ===
+    ...(typeof value.thinking === "string" ? { thinking: value.thinking } : {}),
+    ...(typeof value.inputTokens === "number" &&
+    Number.isFinite(value.inputTokens)
+      ? { inputTokens: value.inputTokens }
+      : {}),
+    ...(typeof value.outputTokens === "number" &&
+    Number.isFinite(value.outputTokens)
+      ? { outputTokens: value.outputTokens }
+      : {}),
+    ...(typeof value.totalTokens === "number" &&
+    Number.isFinite(value.totalTokens)
+      ? { totalTokens: value.totalTokens }
+      : {}),
+    ...(typeof value.durationMs === "number" &&
+    Number.isFinite(value.durationMs)
+      ? { durationMs: value.durationMs }
+      : {}),
+    ...(typeof value.startedAt === "string"
+      ? { startedAt: value.startedAt }
+      : {}),
   };
 }
 

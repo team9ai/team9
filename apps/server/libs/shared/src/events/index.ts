@@ -99,6 +99,19 @@ import type {
   StreamingThinkingContentEvent,
   StreamingEndEvent,
   StreamingAbortEvent,
+  // Property
+  PropertyDefinitionCreatedEvent,
+  PropertyDefinitionUpdatedEvent,
+  PropertyDefinitionDeletedEvent,
+  MessagePropertyChangedEvent,
+  // View
+  ViewCreatedEvent,
+  ViewUpdatedEvent,
+  ViewDeletedEvent,
+  // Tab
+  TabCreatedEvent,
+  TabUpdatedEvent,
+  TabDeletedEvent,
 } from './domains/index.js';
 
 /**
@@ -188,6 +201,19 @@ export interface ServerToClientEvents {
   streaming_thinking_content: StreamingThinkingContentEvent;
   streaming_end: StreamingEndEvent;
   streaming_abort: StreamingAbortEvent;
+  // Property
+  property_definition_created: PropertyDefinitionCreatedEvent;
+  property_definition_updated: PropertyDefinitionUpdatedEvent;
+  property_definition_deleted: PropertyDefinitionDeletedEvent;
+  message_property_changed: MessagePropertyChangedEvent;
+  // View
+  view_created: ViewCreatedEvent;
+  view_updated: ViewUpdatedEvent;
+  view_deleted: ViewDeletedEvent;
+  // Tab
+  tab_created: TabCreatedEvent;
+  tab_updated: TabUpdatedEvent;
+  tab_deleted: TabDeletedEvent;
 }
 
 /**

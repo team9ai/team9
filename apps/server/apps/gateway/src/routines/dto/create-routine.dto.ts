@@ -79,4 +79,8 @@ export class CreateRoutineDto {
   @Type(() => CreateTriggerDto)
   @IsOptional()
   triggers?: CreateTriggerDto[];
+
+  @IsIn(['draft', 'upcoming'] as const)
+  @IsOptional()
+  status?: 'draft' | 'upcoming';
 }

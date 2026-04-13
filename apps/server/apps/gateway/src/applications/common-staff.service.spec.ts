@@ -17,6 +17,7 @@ import { DATABASE_CONNECTION } from '@team9/database';
 
 import { BotService } from '../bot/bot.service.js';
 import { ClawHiveService } from '@team9/claw-hive';
+import { RedisService } from '@team9/redis';
 import { ChannelsService } from '../im/channels/channels.service.js';
 import { InstalledApplicationsService } from './installed-applications.service.js';
 import type {
@@ -257,6 +258,9 @@ describe('CommonStaffService', () => {
       updateBotDisplayName: jest.fn<any>().mockResolvedValue(undefined),
       updateBotMentor: jest.fn<any>().mockResolvedValue(undefined),
       deleteBotAndCleanup: jest.fn<any>().mockResolvedValue(undefined),
+      generateAccessToken: jest
+        .fn<any>()
+        .mockResolvedValue({ accessToken: 'test-token' }),
     };
 
     clawHiveService = {
@@ -291,6 +295,15 @@ describe('CommonStaffService', () => {
         {
           provide: InstalledApplicationsService,
           useValue: installedApplicationsService,
+        },
+        {
+          provide: RedisService,
+          useValue: {
+            get: jest.fn(),
+            set: jest.fn(),
+            del: jest.fn(),
+            invalidate: jest.fn(),
+          },
         },
       ],
     }).compile();
@@ -465,14 +478,34 @@ describe('CommonStaffService', () => {
           expect.objectContaining({
             type: 'team9:bootstrap.start',
             source: 'team9',
-            payload: {
+            payload: expect.objectContaining({
               mentorId: MENTOR_ID,
               isMentorDm: true,
               channelId: DM_CHANNEL_ID,
-            },
+            }),
           }),
           TENANT_ID,
         );
+      });
+
+      it('includes a standard team9Context in the bootstrap payload for Team9Component.onEvent extraction', async () => {
+        const dto = makeCreateDto({
+          agenticBootstrap: true,
+          mentorId: MENTOR_ID,
+        });
+        await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        const call = clawHiveService.sendInput.mock.calls[0];
+        const event = call[1] as {
+          payload: { team9Context: Record<string, unknown> };
+        };
+        expect(event.payload.team9Context).toEqual({
+          source: 'team9',
+          scopeType: 'dm',
+          scopeId: DM_CHANNEL_ID,
+          peerUserId: MENTOR_ID,
+          isMentorDm: true,
+        });
       });
 
       it('does not trigger sendInput when agenticBootstrap=false', async () => {
@@ -506,11 +539,11 @@ describe('CommonStaffService', () => {
           expect.objectContaining({
             type: 'team9:bootstrap.start',
             source: 'team9',
-            payload: {
+            payload: expect.objectContaining({
               mentorId: OWNER_ID,
               isMentorDm: true,
               channelId: DM_CHANNEL_ID,
-            },
+            }),
           }),
           TENANT_ID,
         );
@@ -575,6 +608,58 @@ describe('CommonStaffService', () => {
 
         const dto: CreateCommonStaffDto = {
           displayName: '',
+          model: { provider: 'openrouter', id: 'anthropic/claude-sonnet-4.6' },
+          mentorId: MENTOR_ID,
+          agenticBootstrap: true,
+        };
+
+        await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        expect(botService.createWorkspaceBot).toHaveBeenCalledWith(
+          expect.objectContaining({ displayName: 'Candidate #1' }),
+        );
+      });
+
+      it('uses roleTitle as temporary displayName when displayName is missing but roleTitle is provided', async () => {
+        const dto: CreateCommonStaffDto = {
+          displayName: '',
+          roleTitle: 'Lead Qualifier',
+          model: { provider: 'openrouter', id: 'anthropic/claude-sonnet-4.6' },
+          mentorId: MENTOR_ID,
+          agenticBootstrap: true,
+        };
+
+        await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        // Should not fall through to the "Candidate #N" branch
+        expect(
+          botService.getBotsByInstalledApplicationId,
+        ).not.toHaveBeenCalled();
+        expect(botService.createWorkspaceBot).toHaveBeenCalledWith(
+          expect.objectContaining({ displayName: 'Lead Qualifier' }),
+        );
+      });
+
+      it('trims surrounding whitespace from roleTitle when falling back to it', async () => {
+        const dto: CreateCommonStaffDto = {
+          roleTitle: '  Proposal Generator  ',
+          model: { provider: 'openrouter', id: 'anthropic/claude-sonnet-4.6' },
+          mentorId: MENTOR_ID,
+          agenticBootstrap: true,
+        };
+
+        await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        expect(botService.createWorkspaceBot).toHaveBeenCalledWith(
+          expect.objectContaining({ displayName: 'Proposal Generator' }),
+        );
+      });
+
+      it('falls through to "Candidate #N" only when both displayName and roleTitle are missing', async () => {
+        botService.getBotsByInstalledApplicationId.mockResolvedValueOnce([]);
+
+        const dto: CreateCommonStaffDto = {
+          roleTitle: '   ',
           model: { provider: 'openrouter', id: 'anthropic/claude-sonnet-4.6' },
           mentorId: MENTOR_ID,
           agenticBootstrap: true,

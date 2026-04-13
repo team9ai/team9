@@ -90,6 +90,7 @@ export class ClawHiveService {
     agentId: string,
     params: {
       userId: string;
+      sessionId?: string;
       model?: { provider: string; id: string };
       team9Context?: Record<string, unknown>;
     },

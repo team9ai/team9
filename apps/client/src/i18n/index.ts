@@ -1,17 +1,6 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
-
-import zhCommon from "./locales/zh/common.json";
-import zhAuth from "./locales/zh/auth.json";
-import zhNavigation from "./locales/zh/navigation.json";
-import zhChannel from "./locales/zh/channel.json";
-import zhMessage from "./locales/zh/message.json";
-import zhSettings from "./locales/zh/settings.json";
-import zhThread from "./locales/zh/thread.json";
-import zhWorkspace from "./locales/zh/workspace.json";
-import zhRoutines from "./locales/zh/routines.json";
-import zhResources from "./locales/zh/resources.json";
-import zhSkills from "./locales/zh/skills.json";
+import LanguageDetector from "i18next-browser-languagedetector";
 
 import enCommon from "./locales/en/common.json";
 import enAuth from "./locales/en/auth.json";
@@ -24,21 +13,34 @@ import enWorkspace from "./locales/en/workspace.json";
 import enRoutines from "./locales/en/routines.json";
 import enResources from "./locales/en/resources.json";
 import enSkills from "./locales/en/skills.json";
+import enOnboarding from "./locales/en/onboarding.json";
 
-export const resources = {
-  zh: {
-    common: zhCommon,
-    auth: zhAuth,
-    navigation: zhNavigation,
-    channel: zhChannel,
-    message: zhMessage,
-    settings: zhSettings,
-    thread: zhThread,
-    workspace: zhWorkspace,
-    routines: zhRoutines,
-    resources: zhResources,
-    skills: zhSkills,
-  },
+import { loadLanguage, NAMESPACES } from "./loadLanguage";
+
+// Backward compat: remap legacy "zh" to "zh-CN"
+if (typeof window !== "undefined" && window.localStorage) {
+  const stored = localStorage.getItem("i18nextLng");
+  if (stored === "zh") {
+    localStorage.setItem("i18nextLng", "zh-CN");
+  }
+}
+
+export const supportedLanguages = [
+  { code: "en", name: "English", nativeName: "English" },
+  { code: "zh-CN", name: "Chinese Simplified", nativeName: "简体中文" },
+  { code: "zh-TW", name: "Chinese Traditional", nativeName: "繁體中文" },
+  { code: "ja", name: "Japanese", nativeName: "日本語" },
+  { code: "ko", name: "Korean", nativeName: "한국어" },
+  { code: "es", name: "Spanish", nativeName: "Español" },
+  { code: "pt", name: "Portuguese", nativeName: "Português" },
+  { code: "fr", name: "French", nativeName: "Français" },
+  { code: "de", name: "German", nativeName: "Deutsch" },
+  { code: "it", name: "Italian", nativeName: "Italiano" },
+  { code: "nl", name: "Dutch", nativeName: "Nederlands" },
+  { code: "ru", name: "Russian", nativeName: "Русский" },
+];
+
+const resources = {
   en: {
     common: enCommon,
     auth: enAuth,
@@ -51,45 +53,40 @@ export const resources = {
     routines: enRoutines,
     resources: enResources,
     skills: enSkills,
+    onboarding: enOnboarding,
   },
 };
 
-export const supportedLanguages = [
-  { code: "zh", name: "中文", nativeName: "中文" },
-  { code: "en", name: "English", nativeName: "English" },
-];
-
 i18n
-  // .use(LanguageDetector)
+  .use(LanguageDetector)
   .use(initReactI18next)
   .init({
     resources,
     fallbackLng: "en",
-    supportedLngs: ["zh", "en"],
+    supportedLngs: supportedLanguages.map((l) => l.code),
     defaultNS: "common",
-    ns: [
-      "common",
-      "auth",
-      "navigation",
-      "channel",
-      "message",
-      "settings",
-      "thread",
-      "workspace",
-      "routines",
-      "resources",
-      "skills",
-    ],
-    interpolation: {
-      escapeValue: false,
-    },
+    ns: [...NAMESPACES],
+    interpolation: { escapeValue: false },
     detection: {
-      // Prioritize user-saved language, then browser language
       order: ["localStorage", "navigator", "htmlTag"],
-      // Save to localStorage after user selects language
       caches: ["localStorage"],
       lookupLocalStorage: "i18nextLng",
+      convertDetectedLanguage: (lng: string) => {
+        // Normalize zh variants to zh-CN (e.g., "zh", "zh-Hans", "zh-Hans-CN")
+        if (lng === "zh" || lng.startsWith("zh-Hans")) return "zh-CN";
+        // Normalize zh-Hant to zh-TW
+        if (lng.startsWith("zh-Hant")) return "zh-TW";
+        return lng;
+      },
     },
   });
+
+// Load non-en language after init if needed
+const detectedLng = i18n.language;
+if (detectedLng && detectedLng !== "en") {
+  loadLanguage(detectedLng).catch((err) => {
+    console.error(`[i18n] Failed to load language "${detectedLng}":`, err);
+  });
+}
 
 export default i18n;

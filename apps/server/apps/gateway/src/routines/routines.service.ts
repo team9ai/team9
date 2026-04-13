@@ -10,8 +10,11 @@ import { v7 as uuidv7 } from 'uuid';
 import {
   DATABASE_CONNECTION,
   eq,
+  ne,
+  or,
   and,
   desc,
+  sql,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -26,6 +29,9 @@ import {
   RABBITMQ_ROUTING_KEYS,
 } from '@team9/rabbitmq';
 import { DocumentsService } from '../documents/documents.service.js';
+import { ChannelsService } from '../im/channels/channels.service.js';
+import { ClawHiveService } from '@team9/claw-hive';
+import { BotService } from '../bot/bot.service.js';
 import { RoutineTriggersService } from './routine-triggers.service.js';
 import type { CreateRoutineDto } from './dto/create-routine.dto.js';
 import type { UpdateRoutineDto } from './dto/update-routine.dto.js';
@@ -35,6 +41,8 @@ import type { ResumeRoutineDto } from './dto/routine-control.dto.js';
 import type { StopRoutineDto } from './dto/routine-control.dto.js';
 import type { ResolveInterventionDto } from './dto/resolve-intervention.dto.js';
 import type { RetryExecutionDto } from './dto/trigger.dto.js';
+import type { CompleteCreationDto } from './dto/complete-creation.dto.js';
+import type { CreateWithCreationTaskDto } from './dto/with-creation-task.dto.js';
 import { TaskCastService } from './taskcast.service.js';
 
 // ── Filter types ────────────────────────────────────────────────────
@@ -58,12 +66,21 @@ export class RoutinesService {
     private readonly amqpConnection: AmqpConnection,
     private readonly routineTriggersService: RoutineTriggersService,
     private readonly taskCastService: TaskCastService,
+    private readonly channelsService: ChannelsService,
+    private readonly clawHiveService: ClawHiveService,
+    private readonly botsService: BotService,
   ) {}
 
   // ── CRUD ────────────────────────────────────────────────────────
 
-  async create(dto: CreateRoutineDto, userId: string, tenantId: string) {
+  async create(
+    dto: CreateRoutineDto,
+    userId: string,
+    tenantId: string,
+    options?: { sourceRef?: string },
+  ) {
     const routineId = uuidv7();
+    const status = dto.status ?? 'upcoming';
 
     // Always create a linked document for the routine
     const doc = await this.documentsService.create(
@@ -77,22 +94,30 @@ export class RoutinesService {
     );
     const documentId = doc.id;
 
+    const insertValues: schema.NewRoutine = {
+      id: routineId,
+      tenantId,
+      botId: dto.botId ?? null,
+      creatorId: userId,
+      title: dto.title,
+      description: dto.description ?? null,
+      scheduleType: dto.scheduleType ?? 'once',
+      scheduleConfig: (dto.scheduleConfig as ScheduleConfig) ?? null,
+      documentId,
+    };
+    // status and sourceRef are new schema columns added in Task 0 — cast to bypass
+    // stale type resolution in pnpm workspaces / worktrees environment
+    (insertValues as Record<string, unknown>).status = status;
+    (insertValues as Record<string, unknown>).sourceRef =
+      options?.sourceRef ?? null;
+
     const [routine] = await this.db
       .insert(schema.routines)
-      .values({
-        id: routineId,
-        tenantId,
-        botId: dto.botId ?? null,
-        creatorId: userId,
-        title: dto.title,
-        description: dto.description ?? null,
-        scheduleType: dto.scheduleType ?? 'once',
-        scheduleConfig: (dto.scheduleConfig as ScheduleConfig) ?? null,
-        documentId,
-      })
+      .values(insertValues)
       .returning();
 
-    if (dto.triggers?.length) {
+    // Skip trigger registration for drafts
+    if ((status as string) !== 'draft' && dto.triggers?.length) {
       await this.routineTriggersService.createBatch(
         routineId,
         dto.triggers,
@@ -103,7 +128,11 @@ export class RoutinesService {
     return routine;
   }
 
-  async list(tenantId: string, filters?: RoutineListFilters) {
+  async list(
+    tenantId: string,
+    filters?: RoutineListFilters,
+    currentUserId?: string,
+  ) {
     const conditions = [eq(schema.routines.tenantId, tenantId)];
 
     if (filters?.botId) {
@@ -114,6 +143,16 @@ export class RoutinesService {
     }
     if (filters?.scheduleType) {
       conditions.push(eq(schema.routines.scheduleType, filters.scheduleType));
+    }
+
+    // Hide other users' drafts — only show own drafts or non-drafts
+    if (currentUserId) {
+      conditions.push(
+        or(
+          ne(schema.routines.status, 'draft'),
+          eq(schema.routines.creatorId, currentUserId),
+        )!,
+      );
     }
 
     const rows = await this.db
@@ -186,6 +225,35 @@ export class RoutinesService {
     const routine = await this.getRoutineOrThrow(routineId, tenantId);
     this.assertCreatorOwnership(routine, userId);
 
+    // Reject status transitions — status can only be the same value as current
+    if (dto.status !== undefined && dto.status !== routine.status) {
+      throw new BadRequestException(
+        `Cannot change routine status from '${routine.status}' to '${dto.status}' via update. Use the appropriate control endpoint.`,
+      );
+    }
+
+    // Handle documentContent — writes to the linked document, not the routine table
+    if (dto.documentContent !== undefined) {
+      if (!routine.documentId) {
+        throw new BadRequestException(
+          'Cannot update document content: routine has no linked document.',
+        );
+      }
+      await this.documentsService.update(
+        routine.documentId,
+        { content: dto.documentContent },
+        { type: 'user', id: userId },
+      );
+    }
+
+    // Handle triggers — wholesale replace
+    if (dto.triggers !== undefined) {
+      await this.routineTriggersService.replaceAllForRoutine(
+        routineId,
+        dto.triggers,
+      );
+    }
+
     const updateData: Record<string, unknown> = {
       updatedAt: new Date(),
     };
@@ -210,6 +278,16 @@ export class RoutinesService {
   async delete(routineId: string, userId: string, tenantId: string) {
     const routine = await this.getRoutineOrThrow(routineId, tenantId);
     this.assertCreatorOwnership(routine, userId);
+
+    // Drafts can always be deleted directly — no active-status guard needed
+    if ((routine.status as string) === 'draft') {
+      this.logger.debug(`Deleting draft routine ${routineId}`);
+
+      await this.db
+        .delete(schema.routines)
+        .where(eq(schema.routines.id, routineId));
+      return { success: true };
+    }
 
     // Prevent deletion of active routines — must stop first
     const activeStatuses: string[] = [
@@ -422,6 +500,11 @@ export class RoutinesService {
     dto: StartRoutineDto | StartRoutineNewDto,
   ) {
     const routine = await this.getRoutineOrThrow(routineId, tenantId);
+    if ((routine.status as string) === 'draft') {
+      throw new BadRequestException(
+        'Cannot start routine in draft status. Complete creation first via POST /v1/routines/:id/complete-creation.',
+      );
+    }
     if (!routine.botId) {
       throw new BadRequestException(
         'Cannot start routine without an assigned bot',
@@ -674,6 +757,238 @@ export class RoutinesService {
     });
 
     return updated;
+  }
+
+  // ── Creation Completion ─────────────────────────────────────────
+
+  async completeCreation(
+    routineId: string,
+    dto: CompleteCreationDto,
+    userId: string,
+    tenantId: string,
+  ) {
+    // Step 1: Fetch routine (404 if missing)
+    const routine = await this.getRoutineOrThrow(routineId, tenantId);
+
+    // Step 2: Assert creator ownership (403 if not creator)
+    this.assertCreatorOwnership(routine, userId);
+
+    // Step 3: Idempotent — if already upcoming, return as-is
+    if (routine.status === 'upcoming') {
+      return routine;
+    }
+
+    // Step 4: Reject if status is not draft
+    if (routine.status !== 'draft') {
+      throw new BadRequestException(
+        `Cannot complete creation of routine in '${routine.status}' status`,
+      );
+    }
+
+    // Step 5: Validate required fields
+    const errors: string[] = [];
+
+    if (!routine.title || routine.title.trim() === '') {
+      errors.push('title is required');
+    }
+
+    if (!routine.botId) {
+      errors.push('botId is required');
+    } else {
+      const bot = await this.botsService.getBotById(routine.botId);
+      if (!bot) {
+        errors.push(
+          'The executing agent no longer exists. Please reassign or delete this draft.',
+        );
+      }
+    }
+
+    // Check document content — documentContent lives on the linked Document,
+    // not on the routines row.
+    let documentContentEmpty = true;
+    if (routine.documentId) {
+      try {
+        const doc = await this.documentsService.getById(routine.documentId);
+        const content = (doc as { content?: string | null }).content;
+        if (content && content.trim() !== '') {
+          documentContentEmpty = false;
+        }
+      } catch {
+        // Doc not found — treat as empty content
+        documentContentEmpty = true;
+      }
+    }
+    if (documentContentEmpty) {
+      errors.push('documentContent is required');
+    }
+
+    if (errors.length > 0) {
+      throw new BadRequestException({
+        message: 'Missing required fields',
+        errors,
+      });
+    }
+
+    // Step 6: Update status to upcoming
+    const [updated] = await this.db
+      .update(schema.routines)
+      .set({ status: 'upcoming', updatedAt: new Date() })
+      .where(eq(schema.routines.id, routineId))
+      .returning();
+
+    // Step 7: Log completion
+    this.logger.log(
+      `completeCreation: routine ${routineId} transitioned to upcoming${dto.notes ? ` — notes: ${dto.notes}` : ''}`,
+    );
+
+    return updated;
+  }
+
+  // ── Creation Task ───────────────────────────────────────────────
+
+  async createWithCreationTask(
+    dto: CreateWithCreationTaskDto,
+    userId: string,
+    tenantId: string,
+  ): Promise<{
+    routineId: string;
+    creationChannelId: string;
+    creationSessionId: string;
+  }> {
+    // Step 1: Validate source bot exists
+    const sourceBot = await this.botsService.getBotById(dto.agentId);
+    if (!sourceBot) {
+      throw new NotFoundException(`Bot not found: ${dto.agentId}`);
+    }
+
+    // Step 2: Validate bot belongs to tenant via bots JOIN installed_applications
+    const [botTenantRow] = await this.db
+      .select({ tenantId: schema.installedApplications.tenantId })
+      .from(schema.bots)
+      .leftJoin(
+        schema.installedApplications,
+        eq(schema.bots.installedApplicationId, schema.installedApplications.id),
+      )
+      .where(eq(schema.bots.id, dto.agentId))
+      .limit(1);
+
+    if (!botTenantRow || botTenantRow.tenantId !== tenantId) {
+      throw new BadRequestException(
+        'Bot does not belong to the current tenant',
+      );
+    }
+
+    // Step 3: Extract agentId from managedMeta (used for session ID)
+    const agentId = (sourceBot.managedMeta as Record<string, unknown> | null)
+      ?.agentId as string | undefined;
+    if (!agentId) {
+      throw new BadRequestException(
+        'Bot is not a managed hive agent (no agentId in managedMeta)',
+      );
+    }
+
+    // Step 4: Auto-generate title: count existing routines in tenant.
+    // TODO: This has a race condition — concurrent calls can produce
+    // duplicate titles (e.g., two "Routine #6"). Titles are not unique-
+    // constrained so this is cosmetically annoying but not broken.
+    // Consider using a DB sequence or atomic INSERT...SELECT if it
+    // becomes a problem in practice.
+    const [countRow] = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(schema.routines)
+      .where(eq(schema.routines.tenantId, tenantId));
+    const count = Number(countRow?.count ?? 0);
+    const title = `Routine #${count + 1}`;
+
+    // Step 5: Check for existing in-progress draft with same bot (before creating)
+    const [existingDraft] = await this.db
+      .select({ id: schema.routines.id })
+      .from(schema.routines)
+      .where(
+        and(
+          eq(schema.routines.botId, dto.agentId),
+          eq(schema.routines.creatorId, userId),
+          eq(schema.routines.status, 'draft'),
+          sql`${schema.routines.creationSessionId} IS NOT NULL`,
+        ),
+      )
+      .limit(1);
+
+    if (existingDraft) {
+      throw new BadRequestException(
+        'You already have a draft routine being created with this agent. Complete or delete it first.',
+      );
+    }
+
+    // Step 6: Create draft routine
+    const draft = await this.create(
+      { title, botId: dto.agentId, status: 'draft' },
+      userId,
+      tenantId,
+    );
+
+    // Steps 7-10: with rollback on failure
+    try {
+      // Step 7: Create/reuse DM channel between user and bot shadow user
+      const channel = await this.channelsService.createDirectChannel(
+        userId,
+        sourceBot.userId,
+        tenantId,
+      );
+
+      // Step 8: Build deterministic session ID using the original bot's agentId
+      // so it matches what post-broadcast derives from the bot member's managedMeta.agentId
+      const sessionId = `team9/${tenantId}/${agentId}/dm/${channel.id}`;
+
+      // Step 9: Persist creation metadata
+      await this.db
+        .update(schema.routines)
+        .set({
+          creationChannelId: channel.id,
+          creationSessionId: sessionId,
+          updatedAt: new Date(),
+        } as Record<string, unknown>)
+        .where(eq(schema.routines.id, draft.id));
+
+      // Step 10: Send kickoff event to the original bot's session
+      await this.clawHiveService.sendInput(
+        sessionId,
+        {
+          type: 'team9:routine-creation.start',
+          source: 'team9',
+          timestamp: new Date().toISOString(),
+          payload: {
+            routineId: draft.id,
+            creatorUserId: userId,
+            tenantId,
+            title,
+          },
+        },
+        tenantId,
+      );
+
+      return {
+        routineId: draft.id,
+        creationChannelId: channel.id,
+        creationSessionId: sessionId,
+      };
+    } catch (error) {
+      // Rollback: delete draft routine row. Note: the document created
+      // by this.create() is intentionally NOT deleted — orphaned documents
+      // are low-risk (not user-visible, can be GC'd by a future cleanup
+      // job) and deleting them here would add complexity for a rare path.
+      try {
+        await this.db
+          .delete(schema.routines)
+          .where(eq(schema.routines.id, draft.id));
+      } catch (deleteError) {
+        this.logger.error(
+          `createWithCreationTask: failed to delete draft routine ${draft.id} during rollback: ${deleteError}`,
+        );
+      }
+
+      throw error;
+    }
   }
 
   // ── Internal helpers ────────────────────────────────────────────

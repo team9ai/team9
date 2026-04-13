@@ -26,6 +26,8 @@ import { randomBytes } from 'crypto';
 import { env } from '@team9/shared';
 import type { CreateInvitationDto } from './dto/index.js';
 import { RedisService } from '@team9/redis';
+import { PosthogService } from '@team9/posthog';
+import { BillingHubService } from '../billing-hub/billing-hub.service.js';
 import { WS_EVENTS } from '../im/websocket/events/events.constants.js';
 import { REDIS_KEYS } from '../im/shared/constants/redis-keys.js';
 import { WEBSOCKET_GATEWAY } from '../shared/constants/injection-tokens.js';
@@ -34,6 +36,7 @@ import { BotService } from '../bot/bot.service.js';
 import { InstalledApplicationsService } from '../applications/installed-applications.service.js';
 import { ApplicationsService } from '../applications/applications.service.js';
 import { PersonalStaffService } from '../applications/personal-staff.service.js';
+import { OnboardingService } from './onboarding.service.js';
 
 const MAX_WORKSPACES_PER_USER = 3;
 const MAX_MEMBERS_PER_WORKSPACE = 1000;
@@ -152,22 +155,67 @@ export class WorkspaceService {
     private readonly installedApplicationsService: InstalledApplicationsService,
     private readonly applicationsService: ApplicationsService,
     private readonly personalStaffService: PersonalStaffService,
+    private readonly onboardingService: OnboardingService,
+    private readonly posthogService: PosthogService,
+    private readonly billingHubService: BillingHubService,
   ) {}
 
   private getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
   }
 
-  @OnEvent(USER_EVENTS.REGISTERED)
-  async handleUserRegistered(event: UserRegisteredEvent): Promise<void> {
+  async provisionStarterWorkspaceForRegisteredUser(
+    event: UserRegisteredEvent,
+  ): Promise<void> {
     const workspaceName = `${event.displayName}'s Workspace`;
-    await this.create({
-      name: workspaceName,
-      ownerId: event.userId,
-    });
+    let workspace: WorkspaceResponse | null = null;
+
+    try {
+      workspace = await this.create({
+        name: workspaceName,
+        ownerId: event.userId,
+      });
+
+      if (event.onboardingEligible === false) {
+        await this.onboardingService.createSkippedRecord(
+          workspace.id,
+          event.userId,
+        );
+      } else {
+        await this.onboardingService.createStarterRecord(
+          workspace.id,
+          event.userId,
+        );
+      }
+    } catch (error) {
+      if (workspace) {
+        await this.safeDeleteWorkspace(workspace.id);
+      }
+      throw error;
+    }
+
+    try {
+      await this.billingHubService.grantCredits(
+        workspace.id,
+        4000,
+        'signup_bonus',
+        `signup:${event.userId}`,
+        'New user welcome bonus',
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to grant signup bonus for user ${event.userId}: ${this.getErrorMessage(error)}`,
+      );
+    }
+
     this.logger.log(
       `Created personal workspace for user ${event.userId}: ${workspaceName}`,
     );
+  }
+
+  @OnEvent(USER_EVENTS.REGISTERED)
+  async handleUserRegistered(event: UserRegisteredEvent): Promise<void> {
+    await this.provisionStarterWorkspaceForRegisteredUser(event);
   }
 
   private generateInviteCode(): string {
@@ -540,100 +588,104 @@ export class WorkspaceService {
       );
     }
 
-    // Create DM channels between the new user and all existing workspace members (batch)
-    try {
-      const existingMembers = await this.db
-        .select({
-          userId: schema.tenantMembers.userId,
-          userType: schema.users.userType,
-        })
-        .from(schema.tenantMembers)
-        .innerJoin(
-          schema.users,
-          eq(schema.tenantMembers.userId, schema.users.id),
-        )
-        .where(
-          and(
-            eq(schema.tenantMembers.tenantId, invitation.tenantId),
-            isNull(schema.tenantMembers.leftAt),
-            sql`${schema.tenantMembers.userId} != ${userId}`,
-          ),
-        );
+    // Create DM channels only for small workspaces (< 10 members)
+    if (memberCount < 10) {
+      // Create DM channels between the new user and all existing workspace members (batch)
+      try {
+        const existingMembers = await this.db
+          .select({
+            userId: schema.tenantMembers.userId,
+            userType: schema.users.userType,
+          })
+          .from(schema.tenantMembers)
+          .innerJoin(
+            schema.users,
+            eq(schema.tenantMembers.userId, schema.users.id),
+          )
+          .where(
+            and(
+              eq(schema.tenantMembers.tenantId, invitation.tenantId),
+              isNull(schema.tenantMembers.leftAt),
+              sql`${schema.tenantMembers.userId} != ${userId}`,
+            ),
+          );
 
-      if (existingMembers.length > 0) {
-        const memberIds = existingMembers.map((m) => m.userId);
+        if (existingMembers.length > 0) {
+          const memberIds = existingMembers.map((m) => m.userId);
 
-        // Batch create all DM channels (3 queries instead of N*3)
-        const dmChannels = await this.channelsService.createDirectChannelsBatch(
-          userId,
-          memberIds,
-          invitation.tenantId,
-        );
+          // Batch create all DM channels (3 queries instead of N*3)
+          const dmChannels =
+            await this.channelsService.createDirectChannelsBatch(
+              userId,
+              memberIds,
+              invitation.tenantId,
+            );
 
-        // Send system messages for human members and broadcast via WebSocket
-        const onlineUsersHash = await this.redisService.hgetall(
-          REDIS_KEYS.ONLINE_USERS,
-        );
-        const newUserOnline = userId in onlineUsersHash;
-        const displayName = user.displayName || user.username;
+          // Send system messages for human members and broadcast via WebSocket
+          const onlineUsersHash = await this.redisService.hgetall(
+            REDIS_KEYS.ONLINE_USERS,
+          );
+          const newUserOnline = userId in onlineUsersHash;
+          const displayName = user.displayName || user.username;
 
-        await Promise.allSettled(
-          existingMembers.map(async (member) => {
-            const dmChannel = dmChannels.get(member.userId);
-            if (!dmChannel) return;
+          await Promise.allSettled(
+            existingMembers.map(async (member) => {
+              const dmChannel = dmChannels.get(member.userId);
+              if (!dmChannel) return;
 
-            // Send system message only for human members, not bots
-            if (member.userType !== 'bot' && member.userType !== 'system') {
-              const systemMessage =
-                await this.channelsService.sendSystemMessage(
+              // Send system message only for human members, not bots
+              if (member.userType !== 'bot' && member.userType !== 'system') {
+                const systemMessage =
+                  await this.channelsService.sendSystemMessage(
+                    dmChannel.id,
+                    `${displayName} joined ${workspace.name}. Say hello!`,
+                  );
+
+                await this.websocketGateway.sendToChannelMembers(
                   dmChannel.id,
-                  `${displayName} joined ${workspace.name}. Say hello!`,
+                  WS_EVENTS.MESSAGE.NEW,
+                  {
+                    ...systemMessage,
+                    createdAt: systemMessage.createdAt.toISOString(),
+                    updatedAt: systemMessage.updatedAt.toISOString(),
+                    sender: null,
+                    attachments: [],
+                    reactions: [],
+                  },
                 );
+              }
 
-              await this.websocketGateway.sendToChannelMembers(
-                dmChannel.id,
-                WS_EVENTS.MESSAGE.NEW,
-                {
-                  ...systemMessage,
-                  createdAt: systemMessage.createdAt.toISOString(),
-                  updatedAt: systemMessage.updatedAt.toISOString(),
-                  sender: null,
-                  attachments: [],
-                  reactions: [],
-                },
-              );
-            }
+              // Notify existing member via WebSocket if online
+              if (member.userId in onlineUsersHash) {
+                await this.websocketGateway.sendToUser(
+                  member.userId,
+                  WS_EVENTS.CHANNEL.CREATED,
+                  dmChannel,
+                );
+              }
 
-            // Notify existing member via WebSocket if online
-            if (member.userId in onlineUsersHash) {
-              await this.websocketGateway.sendToUser(
-                member.userId,
-                WS_EVENTS.CHANNEL.CREATED,
-                dmChannel,
-              );
-            }
+              // Notify new user via WebSocket if online
+              if (newUserOnline) {
+                await this.websocketGateway.sendToUser(
+                  userId,
+                  WS_EVENTS.CHANNEL.CREATED,
+                  dmChannel,
+                );
+              }
+            }),
+          );
 
-            // Notify new user via WebSocket if online
-            if (newUserOnline) {
-              await this.websocketGateway.sendToUser(
-                userId,
-                WS_EVENTS.CHANNEL.CREATED,
-                dmChannel,
-              );
-            }
-          }),
-        );
-
-        this.logger.log(
-          `Created ${dmChannels.size} DM channels for new member ${userId}`,
+          this.logger.log(
+            `Created ${dmChannels.size} DM channels for new member ${userId}`,
+          );
+        }
+      } catch (error) {
+        // Don't fail the invitation if DM channel creation fails
+        this.logger.warn(
+          `Failed to create DM channels for new member: ${this.getErrorMessage(error)}`,
         );
       }
-    } catch (error) {
-      // Don't fail the invitation if DM channel creation fails
-      this.logger.warn(
-        `Failed to create DM channels for new member: ${this.getErrorMessage(error)}`,
-      );
-    }
+    } // end: memberCount < 10
 
     // Add user to welcome channel and send system message
     try {
@@ -707,6 +759,27 @@ export class WorkspaceService {
         `Failed to auto-create personal staff for user ${userId}: ${this.getErrorMessage(error)}`,
       );
     }
+
+    this.posthogService.capture({
+      distinctId: userId,
+      event: 'invite_accepted',
+      properties: {
+        workspace_id: invitation.tenantId,
+        invited_by: invitation.createdBy,
+      },
+      groups: { workspace: invitation.tenantId },
+    });
+
+    this.posthogService.capture({
+      distinctId: userId,
+      event: 'workspace_member_joined',
+      properties: {
+        workspace_id: invitation.tenantId,
+        role: member.role,
+        invite_method: 'invitation_link',
+      },
+      groups: { workspace: invitation.tenantId },
+    });
 
     return {
       workspace: {
@@ -934,19 +1007,24 @@ export class WorkspaceService {
       })
       .returning();
 
-    // Add owner as member
-    await this.addMember(workspace.id, data.ownerId, 'owner');
+    try {
+      // Add owner as member
+      await this.addMember(workspace.id, data.ownerId, 'owner');
 
-    // Create default welcome channel
-    await this.channelsService.create(
-      {
-        name: 'welcome',
-        description: 'Welcome to the workspace! Say hello to your teammates.',
-        type: 'public',
-      },
-      data.ownerId,
-      workspace.id,
-    );
+      // Create default welcome channel
+      await this.channelsService.create(
+        {
+          name: 'welcome',
+          description: 'Welcome to the workspace! Say hello to your teammates.',
+          type: 'public',
+        },
+        data.ownerId,
+        workspace.id,
+      );
+    } catch (error) {
+      await this.safeDeleteWorkspace(workspace.id);
+      throw error;
+    }
 
     // Add system bot to workspace if enabled
     const botUserId = this.botService.getBotUserId();
@@ -1112,6 +1190,16 @@ export class WorkspaceService {
 
   async delete(id: string): Promise<void> {
     await this.db.delete(schema.tenants).where(eq(schema.tenants.id, id));
+  }
+
+  private async safeDeleteWorkspace(id: string): Promise<void> {
+    try {
+      await this.delete(id);
+    } catch (error) {
+      this.logger.error(
+        `Failed to roll back workspace ${id}: ${this.getErrorMessage(error)}`,
+      );
+    }
   }
 
   // ===== Member Management =====
