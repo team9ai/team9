@@ -65,16 +65,6 @@ export const propertyDefinitionsApi = {
     );
     return response.data;
   },
-
-  // Seed native properties for a channel
-  seedNativeProperties: async (
-    channelId: string,
-  ): Promise<PropertyDefinition[]> => {
-    const response = await http.post<PropertyDefinition[]>(
-      `/v1/im/channels/${channelId}/property-definitions/seed`,
-    );
-    return response.data;
-  },
 };
 
 // AI Auto-Fill API

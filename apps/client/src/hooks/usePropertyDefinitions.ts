@@ -187,16 +187,3 @@ export function useReorderPropertyDefinitions(channelId: string) {
     },
   });
 }
-
-export function useSeedNativeProperties(channelId: string) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: () => propertyDefinitionsApi.seedNativeProperties(channelId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: propertyDefinitionKeys.all(channelId),
-      });
-    },
-  });
-}

@@ -3,7 +3,6 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
-  ForbiddenException,
 } from '@nestjs/common';
 
 const dbModule = {
@@ -253,21 +252,13 @@ describe('PropertyDefinitionsService', () => {
 
   // ==================== delete ====================
 
-  it('delete() deletes non-native definition', async () => {
+  it('delete() deletes the definition', async () => {
     // findByIdOrThrow -> findById select
     db.__state.selectResults.push([defRow({ isNative: false })]);
 
     await service.delete('def-1');
 
     expect(db.__queries.delete).toHaveLength(1);
-  });
-
-  it('delete() rejects native definition (throws ForbiddenException)', async () => {
-    // findByIdOrThrow -> findById select
-    db.__state.selectResults.push([defRow({ isNative: true })]);
-
-    await expect(service.delete('def-1')).rejects.toThrow(ForbiddenException);
-    expect(db.__queries.delete).toHaveLength(0);
   });
 
   // ==================== reorder ====================
@@ -294,48 +285,6 @@ describe('PropertyDefinitionsService', () => {
     expect(db.__queries.update[1].set).toHaveBeenCalledWith(
       expect.objectContaining({ order: 1, updatedAt: expect.any(Date) }),
     );
-  });
-
-  // ==================== seedNativeProperties ====================
-
-  it('seedNativeProperties() inserts 4 native definitions', async () => {
-    // findAllByChannel: no existing
-    db.__state.selectResults.push([]);
-    // insert returning
-    db.__state.insertResults.push([
-      defRow({ key: '_tags', isNative: true, order: 0 }),
-      defRow({ key: '_people', isNative: true, order: 1 }),
-      defRow({ key: '_tasks', isNative: true, order: 2 }),
-      defRow({ key: '_messages', isNative: true, order: 3 }),
-    ]);
-
-    const result = await service.seedNativeProperties('channel-1', 'user-1');
-
-    expect(result).toHaveLength(4);
-    expect(db.__queries.insert[0].values).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({ key: '_tags', isNative: true }),
-        expect.objectContaining({ key: '_people', isNative: true }),
-        expect.objectContaining({ key: '_tasks', isNative: true }),
-        expect.objectContaining({ key: '_messages', isNative: true }),
-      ]),
-    );
-  });
-
-  it('seedNativeProperties() is idempotent (no duplicates on second call)', async () => {
-    // findAllByChannel: all 4 already exist
-    db.__state.selectResults.push([
-      defRow({ key: '_tags', isNative: true }),
-      defRow({ key: '_people', isNative: true }),
-      defRow({ key: '_tasks', isNative: true }),
-      defRow({ key: '_messages', isNative: true }),
-    ]);
-
-    const result = await service.seedNativeProperties('channel-1');
-
-    // Returns existing native defs, no inserts
-    expect(result).toHaveLength(4);
-    expect(db.__queries.insert).toHaveLength(0);
   });
 
   // ==================== findOrCreate ====================

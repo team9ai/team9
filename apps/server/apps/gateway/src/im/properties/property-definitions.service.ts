@@ -4,7 +4,6 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
-  ForbiddenException,
 } from '@nestjs/common';
 import { v7 as uuidv7 } from 'uuid';
 import {
@@ -40,40 +39,6 @@ export interface PropertyDefinitionRow {
   createdAt: Date;
   updatedAt: Date;
 }
-
-interface NativePropertySeed {
-  key: string;
-  valueType: PropertyValueType;
-  aiAutoFill: boolean;
-  description: string;
-}
-
-const NATIVE_PROPERTIES: NativePropertySeed[] = [
-  {
-    key: '_tags',
-    valueType: 'multi_select',
-    aiAutoFill: true,
-    description: 'Tags',
-  },
-  {
-    key: '_people',
-    valueType: 'person',
-    aiAutoFill: true,
-    description: 'People',
-  },
-  {
-    key: '_tasks',
-    valueType: 'message_ref',
-    aiAutoFill: true,
-    description: 'Tasks',
-  },
-  {
-    key: '_messages',
-    valueType: 'message_ref',
-    aiAutoFill: true,
-    description: 'Messages',
-  },
-];
 
 @Injectable()
 export class PropertyDefinitionsService {
@@ -192,11 +157,7 @@ export class PropertyDefinitionsService {
   }
 
   async delete(id: string): Promise<void> {
-    const existing = await this.findByIdOrThrow(id);
-
-    if (existing.isNative) {
-      throw new ForbiddenException('Cannot delete native property definitions');
-    }
+    await this.findByIdOrThrow(id);
 
     await this.db
       .delete(schema.channelPropertyDefinitions)
@@ -222,52 +183,6 @@ export class PropertyDefinitionsService {
     });
 
     return this.findAllByChannel(channelId);
-  }
-
-  /**
-   * Seed native property definitions for a channel.
-   * Skips any that already exist (idempotent).
-   */
-  async seedNativeProperties(
-    channelId: string,
-    creatorId?: string,
-  ): Promise<PropertyDefinitionRow[]> {
-    const existing = await this.findAllByChannel(channelId);
-    const existingKeys = new Set(existing.map((d) => d.key));
-
-    const toInsert = NATIVE_PROPERTIES.filter(
-      (np) => !existingKeys.has(np.key),
-    );
-
-    if (toInsert.length === 0) {
-      return existing.filter((d) => d.isNative);
-    }
-
-    const maxOrder =
-      existing.length > 0 ? Math.max(...existing.map((d) => d.order)) : -1;
-
-    const values = toInsert.map((np, idx) => ({
-      id: uuidv7(),
-      channelId,
-      key: np.key,
-      description: np.description,
-      valueType: np.valueType,
-      isNative: true,
-      config: {},
-      order: maxOrder + 1 + idx,
-      aiAutoFill: np.aiAutoFill,
-      isRequired: false,
-      showInChatPolicy: 'auto' as const,
-      allowNewOptions: true,
-      createdBy: creatorId,
-    }));
-
-    const inserted = await this.db
-      .insert(schema.channelPropertyDefinitions)
-      .values(values)
-      .returning();
-
-    return inserted as PropertyDefinitionRow[];
   }
 
   /**

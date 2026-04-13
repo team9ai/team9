@@ -1,5 +1,13 @@
 # Message Properties — Structured Property System for Messages
 
+> **Revision 2026-04-13**: The native property seed mechanism described in the
+> "Native properties" section below has been **removed** in favor of pure
+> schema-on-write. Channels no longer auto-insert `_tags` / `_people` / `_tasks`
+> / `_messages` on creation; users create properties on demand from the message
+> hover toolbar. The `isNative` DB column and the `_` prefix reservation are
+> retained for future use. The original section is preserved as historical
+> context.
+
 ## Overview
 
 Add a structured property system to group channel messages in Team9, allowing each message to carry tags, key-value pairs, and other structured data beyond reactions. Properties share a channel-level schema and power Table View, Board View, and Calendar View.
@@ -92,7 +100,7 @@ Channel-level property schema definitions.
 - **file / image:** `{ "maxSize": 10485760, "allowedMimeTypes": [...] }`
 - Others: `{}`
 
-**Native properties (auto-inserted on channel creation):**
+**Native properties (auto-inserted on channel creation):** _(superseded 2026-04-13 — no longer auto-inserted; all properties are created on demand via schema-on-write)_
 
 | key         | valueType      | isNative | aiAutoFill default |
 | ----------- | -------------- | -------- | ------------------ |

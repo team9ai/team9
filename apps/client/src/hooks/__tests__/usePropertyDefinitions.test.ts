@@ -37,7 +37,6 @@ const mockPropertyDefinitionsApi = vi.hoisted(() => ({
   updateDefinition: vi.fn(),
   deleteDefinition: vi.fn(),
   reorderDefinitions: vi.fn(),
-  seedNativeProperties: vi.fn(),
 }));
 
 const mockMessagePropertiesApi = vi.hoisted(() => ({

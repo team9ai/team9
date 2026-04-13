@@ -242,11 +242,7 @@ export function MessageItem({
         <MessageHoverToolbar
           onReaction={handleReactionToggle}
           onReplyInThread={onReplyInThread}
-          onProperties={
-            propertyDefinitions && propertyDefinitions.length > 0
-              ? () => setPropertySelectorOpen(true)
-              : undefined
-          }
+          onProperties={() => setPropertySelectorOpen(true)}
         />
       )}
       <UserAvatar
@@ -382,36 +378,34 @@ export function MessageItem({
           </div>
         )}
         {propertyDefinitions && propertyDefinitions.length > 0 && (
-          <>
-            <MessageProperties
-              message={message}
-              channelId={message.channelId}
-              definitions={propertyDefinitions}
-              canEdit={true}
-              onEditProperties={() => setPropertySelectorOpen(true)}
-            />
-            {propertySelectorOpen && (
-              <PropertySelector
-                channelId={message.channelId}
-                messageId={message.id}
-                currentProperties={message.properties ?? {}}
-                onSetProperty={(propertyKey, value) => {
-                  const def = propertyDefinitions.find(
-                    (d) => d.key === propertyKey,
-                  );
-                  if (def) {
-                    setPropertyMutation.mutate({
-                      definitionId: def.id,
-                      propertyKey: def.key,
-                      value,
-                    });
-                  }
-                }}
-                open={propertySelectorOpen}
-                onOpenChange={setPropertySelectorOpen}
-              />
-            )}
-          </>
+          <MessageProperties
+            message={message}
+            channelId={message.channelId}
+            definitions={propertyDefinitions}
+            canEdit={true}
+            onEditProperties={() => setPropertySelectorOpen(true)}
+          />
+        )}
+        {propertySelectorOpen && (
+          <PropertySelector
+            channelId={message.channelId}
+            messageId={message.id}
+            currentProperties={message.properties ?? {}}
+            onSetProperty={(propertyKey, value) => {
+              const def = propertyDefinitions?.find(
+                (d) => d.key === propertyKey,
+              );
+              if (def) {
+                setPropertyMutation.mutate({
+                  definitionId: def.id,
+                  propertyKey: def.key,
+                  value,
+                });
+              }
+            }}
+            open={propertySelectorOpen}
+            onOpenChange={setPropertySelectorOpen}
+          />
         )}
         {showReplyCount && (message.replyCount || 0) > 0 && (
           <ThreadReplyIndicator
