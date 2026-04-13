@@ -578,34 +578,34 @@ export class OnboardingService {
 
     const existingBots = await this.db
       .select({
-        displayName: schema.users.displayName,
+        extra: schema.bots.extra,
       })
       .from(schema.bots)
-      .innerJoin(schema.users, eq(schema.bots.userId, schema.users.id))
       .where(eq(schema.bots.installedApplicationId, app.id));
 
-    const existingNames = new Set(
+    const existingRoleTitles = new Set(
       existingBots
-        .map((bot) => bot.displayName?.trim().toLowerCase())
-        .filter((name): name is string => Boolean(name)),
+        .map((bot) => bot.extra?.commonStaff?.roleTitle?.trim().toLowerCase())
+        .filter((title): title is string => Boolean(title)),
     );
 
     for (const child of children) {
-      const normalizedName = child.name.trim().toLowerCase();
-      if (!normalizedName || existingNames.has(normalizedName)) {
+      const normalizedRoleTitle = child.name.trim().toLowerCase();
+      if (!normalizedRoleTitle || existingRoleTitles.has(normalizedRoleTitle)) {
         continue;
       }
 
+      // Leave displayName unset so the agentic bootstrap flow asks the mentor
+      // to name the agent during its intro DM. child.name is a role title
+      // (e.g. "Lead Qualifier"), not a person name — see onboarding.prompts.ts.
       await this.commonStaffService.createStaff(app.id, workspaceId, userId, {
-        displayName: child.name.trim(),
         roleTitle: child.name.trim(),
-        jobDescription: child.name.trim(),
         mentorId: userId,
         model: DEFAULT_STAFF_MODEL,
         agenticBootstrap: true,
       });
 
-      existingNames.add(normalizedName);
+      existingRoleTitles.add(normalizedRoleTitle);
     }
   }
 

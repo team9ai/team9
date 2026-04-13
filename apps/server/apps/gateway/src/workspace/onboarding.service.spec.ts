@@ -407,6 +407,206 @@ describe('OnboardingService — provisionRoutines', () => {
   });
 });
 
+// ── provisionCommonStaff tests ────────────────────────────────────────────────
+
+describe('OnboardingService — provisionCommonStaff', () => {
+  let service: any;
+  let db: ReturnType<typeof createDbMock>['db'];
+  let enqueue: ReturnType<typeof createDbMock>['enqueue'];
+  let channelsService: Record<string, MockFn>;
+  let installedApplicationsService: {
+    findByApplicationId: MockFn;
+    install: MockFn;
+  };
+  let personalStaffService: {
+    findPersonalStaffBot: MockFn;
+    createStaff: MockFn;
+    updateStaff: MockFn;
+  };
+  let commonStaffService: { createStaff: MockFn };
+  let routinesService: { create: MockFn };
+
+  beforeEach(() => {
+    const mock = createDbMock();
+    db = mock.db;
+    enqueue = mock.enqueue;
+
+    channelsService = {
+      findByNameAndTenant: jest.fn<any>().mockResolvedValue(null),
+      create: jest.fn<any>().mockResolvedValue({ id: 'channel-id' }),
+    };
+
+    installedApplicationsService = {
+      // Return the requested application type for both personal-staff and
+      // common-staff lookups so the pipeline reaches provisionCommonStaff.
+      findByApplicationId: jest
+        .fn<any>()
+        .mockImplementation(async (_wid: string, appId: string) => ({
+          id: APP_ID,
+          applicationId: appId,
+          tenantId: WORKSPACE_ID,
+        })),
+      install: jest.fn<any>().mockResolvedValue({ id: APP_ID }),
+    };
+
+    personalStaffService = {
+      findPersonalStaffBot: jest.fn<any>().mockResolvedValue({
+        botId: BOT_ID,
+        userId: 'bot-user-uuid',
+        displayName: 'Secretary',
+        avatarUrl: null,
+        ownerId: USER_ID,
+        mentorId: null,
+        extra: null,
+        isActive: true,
+      }),
+      createStaff: jest.fn<any>().mockResolvedValue({ botId: BOT_ID }),
+      updateStaff: jest.fn<any>().mockResolvedValue(undefined),
+    };
+
+    commonStaffService = {
+      createStaff: jest.fn<any>().mockResolvedValue({ botId: 'common-bot' }),
+    };
+
+    routinesService = {
+      create: jest.fn<any>().mockResolvedValue({ id: 'routine-id' }),
+    };
+
+    service = new OnboardingService(
+      db,
+      channelsService,
+      installedApplicationsService,
+      personalStaffService,
+      commonStaffService,
+      routinesService,
+    );
+  });
+
+  /**
+   * DB call sequence for complete() with child agents but no selected tasks:
+   * 1. findRecord (select workspaceOnboarding)
+   * 2. update workspaceOnboarding → 'provisioning'
+   * 3. provisionChannels — no DB calls (empty drafts)
+   * 4. provisionPersonalStaff — service mocks only
+   * 5. provisionCommonStaff — select bots.extra
+   * 6. provisionRoutines — returns early (no selected tasks, no customTask)
+   * 7. persistPreferences — select tenants
+   * 8. persistPreferences — update tenants
+   * 9. Final update to 'provisioned'
+   */
+  function enqueueCommonStaffPipeline(record: any, existingBotRows: any[]) {
+    enqueue([record]); // findRecord
+    enqueue([{ ...record, status: 'provisioning' }]); // update → provisioning
+    enqueue(existingBotRows); // provisionCommonStaff: select bots.extra
+    enqueue([{ settings: {} }]); // persistPreferences: select tenants
+    enqueue([]); // persistPreferences: update tenants
+    enqueue([{ ...record, status: 'provisioned' }]); // final update
+  }
+
+  function makeChildRecord(children: any[]) {
+    return makeOnboardingRecord({
+      stepData: {
+        tasks: { generatedTasks: [], selectedTaskIds: [], customTask: null },
+        agents: {
+          main: { name: 'Secretary', description: 'Helps' },
+          children,
+        },
+        channels: { channelDrafts: [] },
+        role: { selectedRoleLabel: 'Sales', selectedRoleSlug: 'sales' },
+      },
+    });
+  }
+
+  it('creates common staff without displayName or jobDescription so bootstrap prompts the mentor to name the agent', async () => {
+    const record = makeChildRecord([
+      { id: 'child-1', emoji: '🔍', name: 'Lead Qualifier' },
+      { id: 'child-2', emoji: '📝', name: 'Proposal Generator' },
+    ]);
+
+    enqueueCommonStaffPipeline(record, []);
+
+    await service.complete(WORKSPACE_ID, USER_ID, { lang: 'en' });
+
+    expect(commonStaffService.createStaff).toHaveBeenCalledTimes(2);
+
+    const firstDto = commonStaffService.createStaff.mock.calls[0][3];
+    expect(firstDto).not.toHaveProperty('displayName');
+    expect(firstDto).not.toHaveProperty('jobDescription');
+    expect(firstDto.roleTitle).toBe('Lead Qualifier');
+    expect(firstDto.agenticBootstrap).toBe(true);
+    expect(firstDto.mentorId).toBe(USER_ID);
+
+    const secondDto = commonStaffService.createStaff.mock.calls[1][3];
+    expect(secondDto).not.toHaveProperty('displayName');
+    expect(secondDto).not.toHaveProperty('jobDescription');
+    expect(secondDto.roleTitle).toBe('Proposal Generator');
+  });
+
+  it('skips children whose roleTitle already matches an existing common-staff bot', async () => {
+    const record = makeChildRecord([
+      { id: 'child-1', emoji: '🔍', name: 'Lead Qualifier' },
+      { id: 'child-2', emoji: '📝', name: 'Proposal Generator' },
+    ]);
+
+    enqueueCommonStaffPipeline(record, [
+      { extra: { commonStaff: { roleTitle: 'lead qualifier' } } },
+    ]);
+
+    await service.complete(WORKSPACE_ID, USER_ID, { lang: 'en' });
+
+    expect(commonStaffService.createStaff).toHaveBeenCalledTimes(1);
+    const dto = commonStaffService.createStaff.mock.calls[0][3];
+    expect(dto.roleTitle).toBe('Proposal Generator');
+  });
+
+  it('skips whitespace-only child names', async () => {
+    const record = makeChildRecord([
+      { id: 'child-1', emoji: '🔍', name: '   ' },
+      { id: 'child-2', emoji: '📝', name: 'Proposal Generator' },
+    ]);
+
+    enqueueCommonStaffPipeline(record, []);
+
+    await service.complete(WORKSPACE_ID, USER_ID, { lang: 'en' });
+
+    expect(commonStaffService.createStaff).toHaveBeenCalledTimes(1);
+    expect(commonStaffService.createStaff.mock.calls[0][3].roleTitle).toBe(
+      'Proposal Generator',
+    );
+  });
+
+  it('deduplicates within a single run to avoid creating two staff for duplicate roleTitles', async () => {
+    const record = makeChildRecord([
+      { id: 'child-1', emoji: '🔍', name: 'Lead Qualifier' },
+      { id: 'child-2', emoji: '🔎', name: 'Lead Qualifier' },
+    ]);
+
+    enqueueCommonStaffPipeline(record, []);
+
+    await service.complete(WORKSPACE_ID, USER_ID, { lang: 'en' });
+
+    expect(commonStaffService.createStaff).toHaveBeenCalledTimes(1);
+    expect(commonStaffService.createStaff.mock.calls[0][3].roleTitle).toBe(
+      'Lead Qualifier',
+    );
+  });
+
+  it('returns early without querying bots when there are no child agents', async () => {
+    const record = makeChildRecord([]);
+
+    enqueue([record]); // findRecord
+    enqueue([{ ...record, status: 'provisioning' }]); // update → provisioning
+    // no bots.extra query because children are empty
+    enqueue([{ settings: {} }]); // persistPreferences: select tenants
+    enqueue([]); // persistPreferences: update tenants
+    enqueue([{ ...record, status: 'provisioned' }]); // final update
+
+    await service.complete(WORKSPACE_ID, USER_ID, { lang: 'en' });
+
+    expect(commonStaffService.createStaff).not.toHaveBeenCalled();
+  });
+});
+
 // ── persistPreferences tests ──────────────────────────────────────────────────
 
 describe('OnboardingService — persistPreferences (no selectedTaskTitles)', () => {

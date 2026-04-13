@@ -620,6 +620,58 @@ describe('CommonStaffService', () => {
         );
       });
 
+      it('uses roleTitle as temporary displayName when displayName is missing but roleTitle is provided', async () => {
+        const dto: CreateCommonStaffDto = {
+          displayName: '',
+          roleTitle: 'Lead Qualifier',
+          model: { provider: 'openrouter', id: 'anthropic/claude-sonnet-4.6' },
+          mentorId: MENTOR_ID,
+          agenticBootstrap: true,
+        };
+
+        await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        // Should not fall through to the "Candidate #N" branch
+        expect(
+          botService.getBotsByInstalledApplicationId,
+        ).not.toHaveBeenCalled();
+        expect(botService.createWorkspaceBot).toHaveBeenCalledWith(
+          expect.objectContaining({ displayName: 'Lead Qualifier' }),
+        );
+      });
+
+      it('trims surrounding whitespace from roleTitle when falling back to it', async () => {
+        const dto: CreateCommonStaffDto = {
+          roleTitle: '  Proposal Generator  ',
+          model: { provider: 'openrouter', id: 'anthropic/claude-sonnet-4.6' },
+          mentorId: MENTOR_ID,
+          agenticBootstrap: true,
+        };
+
+        await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        expect(botService.createWorkspaceBot).toHaveBeenCalledWith(
+          expect.objectContaining({ displayName: 'Proposal Generator' }),
+        );
+      });
+
+      it('falls through to "Candidate #N" only when both displayName and roleTitle are missing', async () => {
+        botService.getBotsByInstalledApplicationId.mockResolvedValueOnce([]);
+
+        const dto: CreateCommonStaffDto = {
+          roleTitle: '   ',
+          model: { provider: 'openrouter', id: 'anthropic/claude-sonnet-4.6' },
+          mentorId: MENTOR_ID,
+          agenticBootstrap: true,
+        };
+
+        await service.createStaff(INSTALLED_APP_ID, TENANT_ID, OWNER_ID, dto);
+
+        expect(botService.createWorkspaceBot).toHaveBeenCalledWith(
+          expect.objectContaining({ displayName: 'Candidate #1' }),
+        );
+      });
+
       it('preserves provided displayName even when agenticBootstrap=true', async () => {
         const dto = makeCreateDto({
           agenticBootstrap: true,

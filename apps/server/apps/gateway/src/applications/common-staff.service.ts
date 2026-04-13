@@ -79,14 +79,24 @@ export class CommonStaffService {
       );
     }
 
-    // 2. Auto-generate temporary display name for agentic bootstrap
-    let effectiveDisplayName: string = dto.displayName ?? 'New Staff';
-    if (dto.agenticBootstrap && !dto.displayName) {
+    // 2. Resolve effective display name.
+    // Priority: explicit displayName → roleTitle → "Candidate #N" (agentic
+    // bootstrap) → "New Staff". Falling through to roleTitle lets callers
+    // (e.g. onboarding) seed staff with a meaningful temporary name while
+    // still leaving the bootstrap flow to ask the mentor for a final name.
+    let effectiveDisplayName: string;
+    if (dto.displayName?.trim()) {
+      effectiveDisplayName = dto.displayName.trim();
+    } else if (dto.roleTitle?.trim()) {
+      effectiveDisplayName = dto.roleTitle.trim();
+    } else if (dto.agenticBootstrap) {
       const existingBots =
         await this.botService.getBotsByInstalledApplicationId(
           installedApplicationId,
         );
       effectiveDisplayName = `Candidate #${existingBots.length + 1}`;
+    } else {
+      effectiveDisplayName = 'New Staff';
     }
 
     // Default mentorId to the creating user if not provided
