@@ -68,7 +68,7 @@ export function CreateCommonStaffDialog({
   open,
   onOpenChange,
 }: CreateCommonStaffDialogProps) {
-  const { t } = useTranslation("skills");
+  const { t } = useTranslation(["skills", "common"]);
   const workspaceId = useSelectedWorkspaceId();
   const { data: currentUser } = useCurrentUser();
   const queryClient = useQueryClient();
@@ -157,7 +157,8 @@ export function CreateCommonStaffDialog({
       resetForm();
     },
     onError: (error: unknown) => {
-      const message = getHttpErrorMessage(error) || "Failed to create agent";
+      const message =
+        getHttpErrorMessage(error) || t("createStaff.errorFailedToCreateAgent");
       setOclCreateError(message);
     },
   });
@@ -265,12 +266,20 @@ export function CreateCommonStaffDialog({
         setPersona(accumulated);
       }
     } catch (error) {
-      setFormError("Failed to generate persona. Please try again.");
+      setFormError(t("createStaff.errorFailedToGeneratePersona"));
       console.error("Persona generation failed:", error);
     } finally {
       setIsGeneratingPersona(false);
     }
-  }, [appId, displayName, roleTitle, jobDescription, persona, personaPrompt]);
+  }, [
+    appId,
+    displayName,
+    roleTitle,
+    jobDescription,
+    persona,
+    personaPrompt,
+    t,
+  ]);
 
   // Avatar AI generation
   const handleGenerateAvatar = useCallback(async () => {
@@ -285,12 +294,12 @@ export function CreateCommonStaffDialog({
       });
       setAvatarUrl(result.avatarUrl);
     } catch (error) {
-      setFormError("Failed to generate avatar. Please try again.");
+      setFormError(t("createStaff.errorFailedToGenerateAvatar"));
       console.error("Avatar generation failed:", error);
     } finally {
       setIsGeneratingAvatar(false);
     }
-  }, [appId, avatarStyle, displayName, roleTitle, persona]);
+  }, [appId, avatarStyle, displayName, roleTitle, persona, t]);
 
   // Submit mutation
   const createMutation = useMutation({
@@ -314,7 +323,9 @@ export function CreateCommonStaffDialog({
     },
     onError: (error) => {
       setFormError(
-        error instanceof Error ? error.message : "Failed to create staff",
+        error instanceof Error
+          ? error.message
+          : t("createStaff.errorFailedToCreateStaff"),
       );
     },
   });
@@ -350,7 +361,9 @@ export function CreateCommonStaffDialog({
     },
     onError: (error) => {
       setFormError(
-        error instanceof Error ? error.message : "Failed to create staff",
+        error instanceof Error
+          ? error.message
+          : t("createStaff.errorFailedToCreateStaff"),
       );
     },
   });
@@ -394,7 +407,7 @@ export function CreateCommonStaffDialog({
       setCandidateGenerationError(
         error instanceof Error
           ? error.message
-          : "Failed to generate candidates",
+          : t("createStaff.errorFailedToGenerateCandidates"),
       );
     } finally {
       setIsGeneratingCandidates(false);
@@ -407,7 +420,8 @@ export function CreateCommonStaffDialog({
       const candidate = candidates.find(
         (c) => c.candidateIndex === selectedCandidate,
       );
-      if (!candidate) throw new Error("No candidate selected");
+      if (!candidate)
+        throw new Error(t("createStaff.errorNoCandidateSelected"));
       const edited =
         selectedCandidate != null
           ? editedCandidates[selectedCandidate]
@@ -430,7 +444,9 @@ export function CreateCommonStaffDialog({
     },
     onError: (error) => {
       setFormError(
-        error instanceof Error ? error.message : "Failed to create staff",
+        error instanceof Error
+          ? error.message
+          : t("createStaff.errorFailedToCreateStaff"),
       );
     },
   });
@@ -452,10 +468,12 @@ export function CreateCommonStaffDialog({
   const renderOpenClawForm = () => (
     <div className="space-y-4 py-2">
       <div className="space-y-2">
-        <label className="text-sm font-medium">OpenClaw Instance</label>
+        <label className="text-sm font-medium">
+          {t("createStaff.openClawInstance")}
+        </label>
         <Select value={oclSelectedAppId} onValueChange={setOclSelectedAppId}>
           <SelectTrigger className="h-9 text-sm">
-            <SelectValue placeholder="Select instance..." />
+            <SelectValue placeholder={t("createStaff.selectInstance")} />
           </SelectTrigger>
           <SelectContent>
             {openClawApps.map((app) => (
@@ -467,11 +485,13 @@ export function CreateCommonStaffDialog({
         </Select>
       </div>
       <div className="space-y-2">
-        <label className="text-sm font-medium">Name</label>
+        <label className="text-sm font-medium">
+          {t("createStaff.agentNameLabel")}
+        </label>
         <Input
           value={oclDisplayName}
           onChange={(e) => setOclDisplayName(e.target.value)}
-          placeholder="Agent name..."
+          placeholder={t("createStaff.agentNamePlaceholder")}
           autoFocus
           onKeyDown={(e) => {
             if (e.key === "Enter" && oclCanSubmit) oclCreateMutation.mutate();
@@ -480,14 +500,16 @@ export function CreateCommonStaffDialog({
         {oclAgentSlugPreview &&
           oclAgentSlugPreview !== oclDisplayName.trim().toLowerCase() && (
             <p className="text-xs text-muted-foreground">
-              Agent ID: {oclAgentSlugPreview}
+              {t("createStaff.agentIdPreview")}: {oclAgentSlugPreview}
             </p>
           )}
       </div>
       <div className="space-y-2">
         <label className="text-sm font-medium">
-          Username{" "}
-          <span className="text-muted-foreground font-normal">(optional)</span>
+          {t("createStaff.usernameLabel")}{" "}
+          <span className="text-muted-foreground font-normal">
+            ({t("common:optional")})
+          </span>
         </label>
         <div className="relative">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
@@ -511,27 +533,31 @@ export function CreateCommonStaffDialog({
         </div>
         {oclUsernameStatus === "invalid" && (
           <p className="text-xs text-destructive">
-            Lowercase letters, numbers, and underscores only (3-100 chars)
+            {t("createStaff.usernameInvalid")}
           </p>
         )}
         {oclUsernameStatus === "taken" && (
           <p className="text-xs text-destructive">
-            This username is already taken
+            {t("createStaff.usernameTaken")}
           </p>
         )}
         {oclUsernameStatus === "available" && (
-          <p className="text-xs text-success">Username is available</p>
+          <p className="text-xs text-success">
+            {t("createStaff.usernameAvailable")}
+          </p>
         )}
       </div>
       <div className="space-y-2">
         <label className="text-sm font-medium">
-          Description{" "}
-          <span className="text-muted-foreground font-normal">(optional)</span>
+          {t("createStaff.descriptionLabel")}{" "}
+          <span className="text-muted-foreground font-normal">
+            ({t("common:optional")})
+          </span>
         </label>
         <Input
           value={oclDescription}
           onChange={(e) => setOclDescription(e.target.value)}
-          placeholder="What does this agent do..."
+          placeholder={t("createStaff.descriptionPlaceholder")}
         />
       </div>
       {oclCreateError && (
@@ -553,8 +579,12 @@ export function CreateCommonStaffDialog({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="common-staff">Common Staff</SelectItem>
-            <SelectItem value="openclaw">OpenClaw Agent</SelectItem>
+            <SelectItem value="common-staff">
+              {t("createStaff.agentTypeCommonStaff")}
+            </SelectItem>
+            <SelectItem value="openclaw">
+              {t("createStaff.agentTypeOpenClaw")}
+            </SelectItem>
           </SelectContent>
         </Select>
       )}
@@ -611,45 +641,47 @@ export function CreateCommonStaffDialog({
     <div className="space-y-4">
       <div>
         <label className="text-sm font-medium" htmlFor="displayName">
-          Display Name *
+          {t("createStaff.displayNameLabel")} *
         </label>
         <Input
           id="displayName"
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
-          placeholder="e.g. Alice"
+          placeholder={t("createStaff.displayNamePlaceholder")}
         />
       </div>
       <div>
         <label className="text-sm font-medium" htmlFor="roleTitle">
-          Role Title *
+          {t("createStaff.roleTitleLabel")} *
         </label>
         <Input
           id="roleTitle"
           value={roleTitle}
           onChange={(e) => setRoleTitle(e.target.value)}
-          placeholder="e.g. Senior Engineer"
+          placeholder={t("createStaff.roleTitlePlaceholder")}
         />
       </div>
       <div>
         <label className="text-sm font-medium" htmlFor="jobDesc">
-          Job Description
+          {t("createStaff.jobDescription")}
         </label>
         <textarea
           className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           id="jobDesc"
           value={jobDescription}
           onChange={(e) => setJobDescription(e.target.value)}
-          placeholder="Optional description of responsibilities..."
+          placeholder={t("createStaff.jobDescPlaceholder")}
           rows={3}
         />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-sm font-medium">Mentor</label>
+          <label className="text-sm font-medium">
+            {t("createStaff.mentorLabel")}
+          </label>
           <Select value={mentorId} onValueChange={setMentorId}>
             <SelectTrigger>
-              <SelectValue placeholder="Select mentor..." />
+              <SelectValue placeholder={t("createStaff.selectMentor")} />
             </SelectTrigger>
             <SelectContent>
               {humanMembers.map((m) => (
@@ -661,7 +693,9 @@ export function CreateCommonStaffDialog({
           </Select>
         </div>
         <div>
-          <label className="text-sm font-medium">Model</label>
+          <label className="text-sm font-medium">
+            {t("createStaff.modelLabel")}
+          </label>
           <Select
             value={model.id}
             onValueChange={(id) => {
@@ -689,26 +723,30 @@ export function CreateCommonStaffDialog({
   const renderFormStep3 = () => (
     <div className="space-y-4">
       <div>
-        <label className="text-sm font-medium">Persona</label>
+        <label className="text-sm font-medium">
+          {t("createStaff.personaLabel")}
+        </label>
         <textarea
           className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           value={persona}
           onChange={(e) => setPersona(e.target.value)}
-          placeholder="Describe the personality, communication style, quirks..."
+          placeholder={t("createStaff.personaPlaceholder")}
           rows={8}
           disabled={isGeneratingPersona}
         />
         <p className="mt-1 text-xs text-muted-foreground">
-          {persona.length} characters
+          {t("createStaff.personaCharCount", { count: persona.length })}
         </p>
       </div>
       <div className="flex items-end gap-2">
         <div className="flex-1">
-          <label className="text-sm font-medium">Guidance (optional)</label>
+          <label className="text-sm font-medium">
+            {t("createStaff.guidanceLabel")}
+          </label>
           <Input
             value={personaPrompt}
             onChange={(e) => setPersonaPrompt(e.target.value)}
-            placeholder='e.g. "make it more fun", "add coffee obsession"'
+            placeholder={t("createStaff.guidancePlaceholder")}
           />
         </div>
         <Button
@@ -739,7 +777,7 @@ export function CreateCommonStaffDialog({
           className="flex-1"
           onClick={() => setAvatarTab("presets")}
         >
-          Presets
+          {t("createStaff.avatarPresets")}
         </Button>
         <Button
           size="sm"
@@ -747,7 +785,7 @@ export function CreateCommonStaffDialog({
           className="flex-1"
           onClick={() => setAvatarTab("ai")}
         >
-          <Wand2 className="mr-1 h-3 w-3" /> AI Generate
+          <Wand2 className="mr-1 h-3 w-3" /> {t("createStaff.aiGenerate")}
         </Button>
       </div>
 
@@ -772,16 +810,26 @@ export function CreateCommonStaffDialog({
       {avatarTab === "ai" && (
         <div className="flex items-end gap-2">
           <div className="flex-1">
-            <label className="text-sm font-medium">Style</label>
+            <label className="text-sm font-medium">
+              {t("createStaff.avatarStyleLabel")}
+            </label>
             <Select value={avatarStyle} onValueChange={setAvatarStyle}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="realistic">Realistic</SelectItem>
-                <SelectItem value="cartoon">Cartoon</SelectItem>
-                <SelectItem value="anime">Anime</SelectItem>
-                <SelectItem value="notion-lineart">Notion Line Art</SelectItem>
+                <SelectItem value="realistic">
+                  {t("createStaff.avatarStyleRealistic")}
+                </SelectItem>
+                <SelectItem value="cartoon">
+                  {t("createStaff.avatarStyleCartoon")}
+                </SelectItem>
+                <SelectItem value="anime">
+                  {t("createStaff.avatarStyleAnime")}
+                </SelectItem>
+                <SelectItem value="notion-lineart">
+                  {t("createStaff.avatarStyleNotionLineArt")}
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -795,7 +843,7 @@ export function CreateCommonStaffDialog({
             ) : (
               <Wand2 className="mr-1 h-4 w-4" />
             )}
-            Generate
+            {t("createStaff.generate")}
           </Button>
         </div>
       )}
@@ -820,7 +868,9 @@ export function CreateCommonStaffDialog({
   const renderAgenticStep2 = () => (
     <div className="space-y-4">
       <div>
-        <label className="text-sm font-medium">Model</label>
+        <label className="text-sm font-medium">
+          {t("createStaff.modelLabel")}
+        </label>
         <Select
           value={model.id}
           onValueChange={(id) => {
@@ -841,8 +891,7 @@ export function CreateCommonStaffDialog({
         </Select>
       </div>
       <p className="text-sm text-muted-foreground">
-        A new AI staff member will be created and will guide the setup process
-        in a private DM with you.
+        {t("createStaff.agenticBootstrapHint")}
       </p>
     </div>
   );
@@ -852,25 +901,25 @@ export function CreateCommonStaffDialog({
     <div className="space-y-4">
       <div>
         <label className="text-sm font-medium" htmlFor="recruitJobTitle">
-          Job Title
+          {t("createStaff.jobTitleLabel")}
         </label>
         <Input
           id="recruitJobTitle"
           value={jobTitle}
           onChange={(e) => setJobTitle(e.target.value)}
-          placeholder="e.g. Frontend Engineer"
+          placeholder={t("createStaff.jobTitlePlaceholder")}
         />
       </div>
       <div>
         <label className="text-sm font-medium" htmlFor="recruitJd">
-          Job Description
+          {t("createStaff.jobDescription")}
         </label>
         <textarea
           className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           id="recruitJd"
           value={jd}
           onChange={(e) => setJd(e.target.value)}
-          placeholder="Optional — describe the role, responsibilities, and requirements..."
+          placeholder={t("createStaff.jobDescriptionPlaceholder")}
           rows={5}
         />
       </div>
@@ -883,7 +932,7 @@ export function CreateCommonStaffDialog({
       {isGeneratingCandidates && candidates.length === 0 && (
         <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Generating candidates…
+          {t("createStaff.generatingCandidates")}
         </div>
       )}
       {candidateGenerationError && (
@@ -952,10 +1001,12 @@ export function CreateCommonStaffDialog({
         )}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-sm font-medium">Mentor</label>
+            <label className="text-sm font-medium">
+              {t("createStaff.mentorLabel")}
+            </label>
             <Select value={mentorId} onValueChange={setMentorId}>
               <SelectTrigger>
-                <SelectValue placeholder="Select mentor..." />
+                <SelectValue placeholder={t("createStaff.selectMentor")} />
               </SelectTrigger>
               <SelectContent>
                 {humanMembers.map((m) => (
@@ -967,7 +1018,9 @@ export function CreateCommonStaffDialog({
             </Select>
           </div>
           <div>
-            <label className="text-sm font-medium">Model</label>
+            <label className="text-sm font-medium">
+              {t("createStaff.modelLabel")}
+            </label>
             <Select
               value={model.id}
               onValueChange={(id) => {
@@ -1051,7 +1104,7 @@ export function CreateCommonStaffDialog({
           <DialogTitle>{stepTitle()}</DialogTitle>
           {step > 1 && (
             <p className="text-xs text-muted-foreground">
-              Step {step} of {totalSteps}
+              {t("createStaff.stepOfTotal", { step, total: totalSteps })}
             </p>
           )}
         </DialogHeader>
@@ -1072,7 +1125,7 @@ export function CreateCommonStaffDialog({
               ) : (
                 <Plus size={14} className="mr-1" />
               )}
-              Create
+              {t("createStaff.create")}
             </Button>
           </DialogFooter>
         )}
@@ -1091,7 +1144,7 @@ export function CreateCommonStaffDialog({
                 }
               }}
             >
-              <ArrowLeft className="mr-1 h-4 w-4" /> Back
+              <ArrowLeft className="mr-1 h-4 w-4" /> {t("common:back")}
             </Button>
 
             {isLastStep ? (
@@ -1103,7 +1156,7 @@ export function CreateCommonStaffDialog({
                   {agenticMutation.isPending && (
                     <Loader2 className="mr-1 h-4 w-4 animate-spin" />
                   )}
-                  Create &amp; Start Bootstrap
+                  {t("createStaff.createAndBootstrap")}
                 </Button>
               ) : mode === "recruitment" ? (
                 <Button
@@ -1113,7 +1166,7 @@ export function CreateCommonStaffDialog({
                   {recruitmentMutation.isPending && (
                     <Loader2 className="mr-1 h-4 w-4 animate-spin" />
                   )}
-                  Create
+                  {t("createStaff.create")}
                 </Button>
               ) : (
                 <Button
@@ -1123,7 +1176,7 @@ export function CreateCommonStaffDialog({
                   {createMutation.isPending && (
                     <Loader2 className="mr-1 h-4 w-4 animate-spin" />
                   )}
-                  Create
+                  {t("createStaff.create")}
                 </Button>
               )
             ) : (
@@ -1150,11 +1203,12 @@ export function CreateCommonStaffDialog({
               >
                 {mode === "recruitment" && step === 2 ? (
                   <>
-                    Generate Candidates <ArrowRight className="ml-1 h-4 w-4" />
+                    {t("createStaff.generateCandidates")}{" "}
+                    <ArrowRight className="ml-1 h-4 w-4" />
                   </>
                 ) : (
                   <>
-                    Next <ArrowRight className="ml-1 h-4 w-4" />
+                    {t("common:next")} <ArrowRight className="ml-1 h-4 w-4" />
                   </>
                 )}
               </Button>
