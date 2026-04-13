@@ -78,7 +78,15 @@ export function useCreatePropertyDefinition(channelId: string) {
   return useMutation({
     mutationFn: (data: CreatePropertyDefinitionDto) =>
       propertyDefinitionsApi.createDefinition(channelId, data),
-    onSuccess: () => {
+    onSuccess: (newDef) => {
+      // Write the new definition into the query cache synchronously so that
+      // consumers relying on `usePropertyDefinitions` (e.g. inline selection
+      // after quick-create in PropertySelector) see it immediately, without
+      // waiting for the invalidation refetch to round-trip.
+      queryClient.setQueryData<PropertyDefinition[]>(
+        propertyDefinitionKeys.all(channelId),
+        (old) => (old ? [...old, newDef] : [newDef]),
+      );
       queryClient.invalidateQueries({
         queryKey: propertyDefinitionKeys.all(channelId),
       });

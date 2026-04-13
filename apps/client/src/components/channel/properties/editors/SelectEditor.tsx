@@ -16,6 +16,11 @@ interface SelectEditorProps {
   value: unknown;
   onChange: (value: unknown) => void;
   disabled?: boolean;
+  /**
+   * When true, render the search + list directly without a button trigger
+   * and outer Popover. Used by PropertySelector's horizontal sub-menu.
+   */
+  inline?: boolean;
 }
 
 const OPTION_COLORS: Record<string, string> = {
@@ -81,6 +86,7 @@ function SingleSelectEditor({
   value,
   onChange,
   disabled,
+  inline = false,
 }: SelectEditorProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -102,10 +108,10 @@ function SingleSelectEditor({
   const handleSelect = useCallback(
     (optionValue: string) => {
       onChange(optionValue === value ? null : optionValue);
-      setOpen(false);
+      if (!inline) setOpen(false);
       setSearch("");
     },
-    [onChange, value],
+    [onChange, value, inline],
   );
 
   const handleCreateNew = useCallback(() => {
@@ -121,9 +127,98 @@ function SingleSelectEditor({
     });
 
     onChange(newValue);
-    setOpen(false);
+    if (!inline) setOpen(false);
     setSearch("");
-  }, [search, onChange, options, updateDef, definition.id, definition.config]);
+  }, [
+    search,
+    onChange,
+    options,
+    updateDef,
+    definition.id,
+    definition.config,
+    inline,
+  ]);
+
+  // Enter: pick exact label match, otherwise create new (when allowed).
+  const handleSearchKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      const trimmed = search.trim();
+      if (!trimmed) return;
+      const exact = options.find(
+        (o) => o.label.toLowerCase() === trimmed.toLowerCase(),
+      );
+      if (exact) {
+        handleSelect(exact.value);
+      } else if (definition.allowNewOptions) {
+        handleCreateNew();
+      }
+    },
+    [
+      search,
+      options,
+      definition.allowNewOptions,
+      handleSelect,
+      handleCreateNew,
+    ],
+  );
+
+  const body = (
+    <>
+      <div className="p-2">
+        <Input
+          type="text"
+          placeholder="Search or type to add..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={handleSearchKeyDown}
+          className="h-8"
+          autoFocus={inline}
+        />
+      </div>
+      <div className="max-h-60 overflow-y-auto p-1">
+        {filteredOptions.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => handleSelect(option.value)}
+            className={cn(
+              "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm",
+              "hover:bg-accent hover:text-accent-foreground",
+            )}
+          >
+            <span className="flex h-4 w-4 items-center justify-center">
+              {option.value === value && <Check className="h-3.5 w-3.5" />}
+            </span>
+            <OptionChip option={option} />
+          </button>
+        ))}
+        {filteredOptions.length === 0 && !definition.allowNewOptions && (
+          <p className="px-2 py-4 text-center text-sm text-muted-foreground">
+            No options found
+          </p>
+        )}
+        {definition.allowNewOptions && search.trim() && (
+          <button
+            type="button"
+            onClick={handleCreateNew}
+            className={cn(
+              "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm",
+              "hover:bg-accent hover:text-accent-foreground",
+            )}
+          >
+            <Plus className="h-4 w-4" />
+            <span>Create &quot;{search.trim()}&quot;</span>
+          </button>
+        )}
+      </div>
+    </>
+  );
+
+  if (inline) {
+    return <div className="flex flex-col">{body}</div>;
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -144,51 +239,7 @@ function SingleSelectEditor({
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-56 p-0" align="start">
-        <div className="p-2">
-          <Input
-            type="text"
-            placeholder="Search..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-8"
-          />
-        </div>
-        <div className="max-h-60 overflow-y-auto p-1">
-          {filteredOptions.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => handleSelect(option.value)}
-              className={cn(
-                "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm",
-                "hover:bg-accent hover:text-accent-foreground",
-              )}
-            >
-              <span className="flex h-4 w-4 items-center justify-center">
-                {option.value === value && <Check className="h-3.5 w-3.5" />}
-              </span>
-              <OptionChip option={option} />
-            </button>
-          ))}
-          {filteredOptions.length === 0 && !definition.allowNewOptions && (
-            <p className="px-2 py-4 text-center text-sm text-muted-foreground">
-              No options found
-            </p>
-          )}
-          {definition.allowNewOptions && search.trim() && (
-            <button
-              type="button"
-              onClick={handleCreateNew}
-              className={cn(
-                "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm",
-                "hover:bg-accent hover:text-accent-foreground",
-              )}
-            >
-              <Plus className="h-4 w-4" />
-              <span>Create &quot;{search.trim()}&quot;</span>
-            </button>
-          )}
-        </div>
+        {body}
       </PopoverContent>
     </Popover>
   );
@@ -199,6 +250,7 @@ function MultiSelectEditor({
   value,
   onChange,
   disabled,
+  inline = false,
 }: SelectEditorProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -261,9 +313,110 @@ function MultiSelectEditor({
     definition.config,
   ]);
 
+  // Enter: toggle exact label match, otherwise create new (when allowed).
+  const handleSearchKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      const trimmed = search.trim();
+      if (!trimmed) return;
+      const exact = options.find(
+        (o) => o.label.toLowerCase() === trimmed.toLowerCase(),
+      );
+      if (exact) {
+        handleToggle(exact.value);
+        setSearch("");
+      } else if (definition.allowNewOptions) {
+        handleCreateNew();
+      }
+    },
+    [
+      search,
+      options,
+      definition.allowNewOptions,
+      handleToggle,
+      handleCreateNew,
+    ],
+  );
+
   const selectedOptions = selectedValues
     .map((v) => options.find((o) => o.value === v))
     .filter(Boolean) as SelectOption[];
+
+  const body = (
+    <>
+      <div className="p-2">
+        <Input
+          type="text"
+          placeholder="Search or type to add..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={handleSearchKeyDown}
+          className="h-8"
+          autoFocus={inline}
+        />
+      </div>
+      <div className="max-h-60 overflow-y-auto p-1">
+        {filteredOptions.map((option) => {
+          const isSelected = selectedValues.includes(option.value);
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => handleToggle(option.value)}
+              className={cn(
+                "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm",
+                "hover:bg-accent hover:text-accent-foreground",
+              )}
+            >
+              <span className="flex h-4 w-4 items-center justify-center">
+                {isSelected && <Check className="h-3.5 w-3.5" />}
+              </span>
+              <OptionChip option={option} />
+            </button>
+          );
+        })}
+        {filteredOptions.length === 0 && !definition.allowNewOptions && (
+          <p className="px-2 py-4 text-center text-sm text-muted-foreground">
+            No options found
+          </p>
+        )}
+        {definition.allowNewOptions && search.trim() && (
+          <button
+            type="button"
+            onClick={handleCreateNew}
+            className={cn(
+              "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm",
+              "hover:bg-accent hover:text-accent-foreground",
+            )}
+          >
+            <Plus className="h-4 w-4" />
+            <span>Create &quot;{search.trim()}&quot;</span>
+          </button>
+        )}
+      </div>
+    </>
+  );
+
+  if (inline) {
+    return (
+      <div className="flex flex-col">
+        {selectedOptions.length > 0 && (
+          <div className="flex flex-wrap gap-1 border-b border-border p-2">
+            {selectedOptions.map((opt) => (
+              <OptionChip
+                key={opt.value}
+                option={opt}
+                onRemove={() => handleRemove(opt.value)}
+                disabled={disabled}
+              />
+            ))}
+          </div>
+        )}
+        {body}
+      </div>
+    );
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -291,54 +444,7 @@ function MultiSelectEditor({
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-56 p-0" align="start">
-        <div className="p-2">
-          <Input
-            type="text"
-            placeholder="Search..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-8"
-          />
-        </div>
-        <div className="max-h-60 overflow-y-auto p-1">
-          {filteredOptions.map((option) => {
-            const isSelected = selectedValues.includes(option.value);
-            return (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => handleToggle(option.value)}
-                className={cn(
-                  "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm",
-                  "hover:bg-accent hover:text-accent-foreground",
-                )}
-              >
-                <span className="flex h-4 w-4 items-center justify-center">
-                  {isSelected && <Check className="h-3.5 w-3.5" />}
-                </span>
-                <OptionChip option={option} />
-              </button>
-            );
-          })}
-          {filteredOptions.length === 0 && !definition.allowNewOptions && (
-            <p className="px-2 py-4 text-center text-sm text-muted-foreground">
-              No options found
-            </p>
-          )}
-          {definition.allowNewOptions && search.trim() && (
-            <button
-              type="button"
-              onClick={handleCreateNew}
-              className={cn(
-                "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm",
-                "hover:bg-accent hover:text-accent-foreground",
-              )}
-            >
-              <Plus className="h-4 w-4" />
-              <span>Create &quot;{search.trim()}&quot;</span>
-            </button>
-          )}
-        </div>
+        {body}
       </PopoverContent>
     </Popover>
   );

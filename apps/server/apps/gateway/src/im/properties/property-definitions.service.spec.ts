@@ -287,6 +287,76 @@ describe('PropertyDefinitionsService', () => {
     );
   });
 
+  // ==================== seedDefaultProperties ====================
+
+  it('seedDefaultProperties() inserts status + priority on fresh channel', async () => {
+    // findAllByChannel: no existing
+    db.__state.selectResults.push([]);
+    db.__state.insertResults.push([
+      defRow({ key: 'status', id: 'uuid-1', order: 0 }),
+      defRow({ key: 'priority', id: 'uuid-2', order: 1 }),
+    ]);
+
+    const result = await service.seedDefaultProperties('channel-1', 'user-1');
+
+    expect(result).toHaveLength(2);
+    expect(db.__queries.insert[0].values).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: 'status',
+          valueType: 'single_select',
+          isNative: false,
+          config: expect.objectContaining({
+            options: expect.arrayContaining([
+              expect.objectContaining({ value: 'todo' }),
+              expect.objectContaining({ value: 'in_progress' }),
+              expect.objectContaining({ value: 'done' }),
+            ]),
+          }),
+        }),
+        expect.objectContaining({
+          key: 'priority',
+          valueType: 'single_select',
+          isNative: false,
+          config: expect.objectContaining({
+            options: expect.arrayContaining([
+              expect.objectContaining({ value: 'low' }),
+              expect.objectContaining({ value: 'medium' }),
+              expect.objectContaining({ value: 'high' }),
+            ]),
+          }),
+        }),
+      ]),
+    );
+  });
+
+  it('seedDefaultProperties() skips keys that already exist (idempotent)', async () => {
+    // findAllByChannel: status already exists
+    db.__state.selectResults.push([defRow({ key: 'status' })]);
+    db.__state.insertResults.push([
+      defRow({ key: 'priority', id: 'uuid-1', order: 1 }),
+    ]);
+
+    const result = await service.seedDefaultProperties('channel-1', 'user-1');
+
+    expect(result).toHaveLength(1);
+    expect(db.__queries.insert[0].values).toHaveBeenCalledWith([
+      expect.objectContaining({ key: 'priority' }),
+    ]);
+  });
+
+  it('seedDefaultProperties() is a no-op when both defaults already exist', async () => {
+    db.__state.selectResults.push([
+      defRow({ key: 'status' }),
+      defRow({ key: 'priority' }),
+    ]);
+
+    const result = await service.seedDefaultProperties('channel-1', 'user-1');
+
+    expect(result).toEqual([]);
+    expect(db.__queries.insert).toHaveLength(0);
+  });
+
   // ==================== findOrCreate ====================
 
   it('findOrCreate() returns existing definition if key exists', async () => {

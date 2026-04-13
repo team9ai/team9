@@ -30,7 +30,6 @@ import {
   useCreatePropertyDefinition,
 } from "@/hooks/usePropertyDefinitions";
 import type {
-  PropertyDefinition,
   PropertyValueType,
   CreatePropertyDefinitionDto,
 } from "@/types/properties";
@@ -61,42 +60,50 @@ function getTypeIcon(type: PropertyValueType): React.ElementType {
   return TYPE_ICONS[type] || Type;
 }
 
-// ==================== Sub-Menu Editor ====================
+// ==================== Suggested Quick-Create Presets ====================
 
-interface SubMenuEditorProps {
-  definition: PropertyDefinition;
-  value: unknown;
-  onSave: (value: unknown) => void;
-  onClose: () => void;
+interface DatetimeSubOption {
+  keySuggest: string;
+  label: string;
+  valueType: PropertyValueType;
 }
 
-function SubMenuEditor({
-  definition,
-  value,
-  onSave,
-  onClose,
-}: SubMenuEditorProps) {
-  const handleChange = useCallback(
-    (newValue: unknown) => {
-      onSave(newValue);
-      onClose();
-    },
-    [onSave, onClose],
-  );
-
-  return (
-    <div className="p-2 min-w-[180px]">
-      <p className="text-xs font-medium text-muted-foreground px-1 mb-2">
-        {definition.key}
-      </p>
-      <PropertyEditor
-        definition={definition}
-        value={value}
-        onChange={handleChange}
-      />
-    </div>
-  );
+interface SuggestedPreset {
+  key: string;
+  label: string;
+  icon: React.ElementType;
+  /** Direct quick-create with this valueType. */
+  valueType?: PropertyValueType;
+  /**
+   * Cluster preset: clicking this expands a sub-list of valueType variants
+   * (e.g. Datetime → date / timestamp / date_range / timestamp_range).
+   */
+  subOptions?: DatetimeSubOption[];
 }
+
+const SUGGESTED_PRESETS: SuggestedPreset[] = [
+  { key: "tags", label: "Tags", icon: Tag, valueType: "tags" },
+  { key: "people", label: "People", icon: User, valueType: "person" },
+  {
+    key: "datetime",
+    label: "Datetime",
+    icon: Calendar,
+    subOptions: [
+      { keySuggest: "date", label: "Date", valueType: "date" },
+      { keySuggest: "datetime", label: "Date & time", valueType: "timestamp" },
+      {
+        keySuggest: "date_range",
+        label: "Date range",
+        valueType: "date_range",
+      },
+      {
+        keySuggest: "datetime_range",
+        label: "Date & time range",
+        valueType: "timestamp_range",
+      },
+    ],
+  },
+];
 
 // ==================== Create Property Form ====================
 
@@ -204,6 +211,14 @@ export interface PropertySelectorProps {
   onOpenChange?: (open: boolean) => void;
 }
 
+// ==================== Right Pane State ====================
+
+type RightPane =
+  | { type: "empty" }
+  | { type: "def"; defId: string }
+  | { type: "create" }
+  | { type: "datetime-sub" };
+
 export function PropertySelector({
   channelId,
   currentProperties = {},
@@ -218,8 +233,7 @@ export function PropertySelector({
   const setOpen = controlledOnOpenChange ?? setInternalOpen;
 
   const [search, setSearch] = useState("");
-  const [activeDefId, setActiveDefId] = useState<string | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
+  const [rightPane, setRightPane] = useState<RightPane>({ type: "empty" });
 
   const { data: definitions } = usePropertyDefinitions(channelId);
   const createMutation = useCreatePropertyDefinition(channelId);
@@ -236,32 +250,79 @@ export function PropertySelector({
     );
   }, [definitions, search]);
 
-  const activeDef = useMemo(
-    () => filtered.find((d) => d.id === activeDefId) ?? null,
-    [filtered, activeDefId],
+  // Suggested presets: hide any whose key already has a definition, then
+  // apply the same search filter so search spans both lists.
+  const filteredSuggested = useMemo(() => {
+    const existingKeys = new Set((definitions ?? []).map((d) => d.key));
+    const remaining = SUGGESTED_PRESETS.filter((p) => !existingKeys.has(p.key));
+    const q = search.toLowerCase().trim();
+    if (!q) return remaining;
+    return remaining.filter(
+      (p) =>
+        p.key.toLowerCase().includes(q) || p.label.toLowerCase().includes(q),
+    );
+  }, [definitions, search]);
+
+  const activeDef = useMemo(() => {
+    if (rightPane.type !== "def") return null;
+    return (definitions ?? []).find((d) => d.id === rightPane.defId) ?? null;
+  }, [definitions, rightPane]);
+
+  const datetimePreset = useMemo(
+    () => SUGGESTED_PRESETS.find((p) => p.key === "datetime"),
+    [],
   );
 
-  const handlePropertySelect = useCallback((defId: string) => {
-    setActiveDefId((prev) => (prev === defId ? null : defId));
+  // ---------- handlers ----------
+
+  const handleSelectDef = useCallback((defId: string) => {
+    setRightPane({ type: "def", defId });
   }, []);
 
-  const handleSetValue = useCallback(
-    (propertyKey: string, value: unknown) => {
-      onSetProperty(propertyKey, value);
-      setActiveDefId(null);
+  const handleQuickCreate = useCallback(
+    (key: string, valueType: PropertyValueType) => {
+      createMutation.mutate(
+        { key, valueType },
+        {
+          onSuccess: (newDef) => {
+            setSearch("");
+            setRightPane({ type: "def", defId: newDef.id });
+          },
+        },
+      );
     },
-    [onSetProperty],
+    [createMutation],
   );
 
-  const handleCreate = useCallback(
+  const handleClickPreset = useCallback(
+    (preset: SuggestedPreset) => {
+      if (preset.subOptions) {
+        setRightPane({ type: "datetime-sub" });
+      } else if (preset.valueType) {
+        handleQuickCreate(preset.key, preset.valueType);
+      }
+    },
+    [handleQuickCreate],
+  );
+
+  const handleCreateFormSubmit = useCallback(
     (dto: CreatePropertyDefinitionDto) => {
       createMutation.mutate(dto, {
-        onSuccess: () => {
-          setShowCreate(false);
+        onSuccess: (newDef) => {
+          setRightPane({ type: "def", defId: newDef.id });
         },
       });
     },
     [createMutation],
+  );
+
+  const handleValueChange = useCallback(
+    (value: unknown) => {
+      if (activeDef) {
+        onSetProperty(activeDef.key, value);
+      }
+    },
+    [activeDef, onSetProperty],
   );
 
   const handleOpenChange = useCallback(
@@ -269,12 +330,21 @@ export function PropertySelector({
       setOpen(nextOpen);
       if (!nextOpen) {
         setSearch("");
-        setActiveDefId(null);
-        setShowCreate(false);
+        setRightPane({ type: "empty" });
       }
     },
     [setOpen],
   );
+
+  // ---------- helpers for highlight state ----------
+
+  const isDefActive = (defId: string) =>
+    rightPane.type === "def" && rightPane.defId === defId;
+
+  const isPresetActive = (preset: SuggestedPreset) =>
+    preset.subOptions ? rightPane.type === "datetime-sub" : false; // single-shot presets have no persistent active state
+
+  const isCreateActive = rightPane.type === "create";
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
@@ -289,32 +359,11 @@ export function PropertySelector({
         side="bottom"
         align="start"
         sideOffset={4}
-        className="w-[280px] p-0"
+        className="w-[560px] p-0"
       >
-        {showCreate ? (
-          <CreatePropertyForm
-            onSubmit={handleCreate}
-            onCancel={() => setShowCreate(false)}
-            isPending={createMutation.isPending}
-          />
-        ) : activeDefId && activeDef ? (
-          <div>
-            <button
-              onClick={() => setActiveDefId(null)}
-              className="flex items-center gap-1 px-3 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full border-b border-border"
-            >
-              <ChevronRight size={12} className="rotate-180" />
-              Back
-            </button>
-            <SubMenuEditor
-              definition={activeDef}
-              value={currentProperties[activeDef.key]}
-              onSave={(v) => handleSetValue(activeDef.key, v)}
-              onClose={() => setActiveDefId(null)}
-            />
-          </div>
-        ) : (
-          <div className="flex flex-col">
+        <div className="flex">
+          {/* ============ Left column: main menu ============ */}
+          <div className="w-[240px] border-r border-border flex flex-col">
             {/* Search */}
             <div className="p-2 border-b border-border">
               <div className="relative">
@@ -334,8 +383,8 @@ export function PropertySelector({
             </div>
 
             {/* Property List */}
-            <div className="max-h-[240px] overflow-y-auto py-1">
-              {filtered.length === 0 && (
+            <div className="max-h-[280px] overflow-y-auto py-1">
+              {filtered.length === 0 && filteredSuggested.length === 0 && (
                 <p className="text-xs text-muted-foreground text-center py-3">
                   No properties found
                 </p>
@@ -343,13 +392,17 @@ export function PropertySelector({
               {filtered.map((def) => {
                 const Icon = getTypeIcon(def.valueType);
                 const hasValue = currentProperties[def.key] !== undefined;
+                const active = isDefActive(def.id);
                 return (
                   <button
                     key={def.id}
-                    onClick={() => handlePropertySelect(def.id)}
+                    onClick={() => handleSelectDef(def.id)}
                     className={cn(
-                      "flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left hover:bg-muted transition-colors",
-                      hasValue && "text-primary",
+                      "flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left transition-colors",
+                      active
+                        ? "bg-accent text-accent-foreground"
+                        : "hover:bg-muted",
+                      hasValue && !active && "text-primary",
                     )}
                   >
                     <Icon
@@ -369,12 +422,60 @@ export function PropertySelector({
               })}
             </div>
 
+            {/* Suggested quick-create presets */}
+            {allowCreate && filteredSuggested.length > 0 && (
+              <div className="border-t border-border py-1">
+                <div className="px-3 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Suggested
+                </div>
+                {filteredSuggested.map((preset) => {
+                  const Icon = preset.icon;
+                  const active = isPresetActive(preset);
+                  return (
+                    <button
+                      key={preset.key}
+                      onClick={() => handleClickPreset(preset)}
+                      disabled={createMutation.isPending && !preset.subOptions}
+                      className={cn(
+                        "flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+                        active
+                          ? "bg-accent text-accent-foreground"
+                          : "hover:bg-muted",
+                      )}
+                    >
+                      <Icon
+                        size={14}
+                        className="shrink-0 text-muted-foreground"
+                      />
+                      <span className="truncate flex-1">{preset.label}</span>
+                      {preset.subOptions ? (
+                        <ChevronRight
+                          size={14}
+                          className="shrink-0 text-muted-foreground"
+                        />
+                      ) : (
+                        <Plus
+                          size={14}
+                          className="shrink-0 text-muted-foreground"
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             {/* Create */}
             {allowCreate && (
               <div className="border-t border-border p-1">
                 <button
-                  onClick={() => setShowCreate(true)}
-                  className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left text-muted-foreground hover:bg-muted hover:text-foreground transition-colors rounded-sm"
+                  onClick={() => setRightPane({ type: "create" })}
+                  className={cn(
+                    "flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left transition-colors rounded-sm",
+                    isCreateActive
+                      ? "bg-accent text-accent-foreground"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
                 >
                   <Plus size={14} />
                   <span>Create property</span>
@@ -382,7 +483,97 @@ export function PropertySelector({
               </div>
             )}
           </div>
-        )}
+
+          {/* ============ Right column: detail pane ============ */}
+          <div className="w-[320px] flex flex-col min-h-[200px]">
+            {rightPane.type === "empty" && (
+              <div className="flex-1 flex items-center justify-center px-4 py-8 text-xs text-muted-foreground text-center">
+                Select a property on the left
+                <br />
+                to view or edit its value
+              </div>
+            )}
+
+            {rightPane.type === "def" && activeDef && (
+              <>
+                <div className="px-3 py-2 border-b border-border flex items-center gap-2">
+                  {(() => {
+                    const Icon = getTypeIcon(activeDef.valueType);
+                    return (
+                      <Icon
+                        size={14}
+                        className="shrink-0 text-muted-foreground"
+                      />
+                    );
+                  })()}
+                  <span className="text-sm font-medium truncate">
+                    {activeDef.key}
+                  </span>
+                </div>
+                <div className="flex-1">
+                  <PropertyEditor
+                    definition={activeDef}
+                    value={currentProperties[activeDef.key]}
+                    onChange={handleValueChange}
+                    inline
+                  />
+                </div>
+              </>
+            )}
+
+            {rightPane.type === "def" && !activeDef && (
+              <div className="flex-1 flex items-center justify-center px-4 py-8 text-xs text-muted-foreground">
+                Loading...
+              </div>
+            )}
+
+            {rightPane.type === "create" && (
+              <CreatePropertyForm
+                onSubmit={handleCreateFormSubmit}
+                onCancel={() => setRightPane({ type: "empty" })}
+                isPending={createMutation.isPending}
+              />
+            )}
+
+            {rightPane.type === "datetime-sub" &&
+              datetimePreset?.subOptions && (
+                <>
+                  <div className="px-3 py-2 border-b border-border flex items-center gap-2">
+                    <Calendar
+                      size={14}
+                      className="shrink-0 text-muted-foreground"
+                    />
+                    <span className="text-sm font-medium">Datetime type</span>
+                  </div>
+                  <div className="py-1">
+                    {datetimePreset.subOptions.map((sub) => {
+                      const Icon = getTypeIcon(sub.valueType);
+                      return (
+                        <button
+                          key={sub.keySuggest}
+                          onClick={() =>
+                            handleQuickCreate(sub.keySuggest, sub.valueType)
+                          }
+                          disabled={createMutation.isPending}
+                          className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Icon
+                            size={14}
+                            className="shrink-0 text-muted-foreground"
+                          />
+                          <span className="truncate flex-1">{sub.label}</span>
+                          <Plus
+                            size={14}
+                            className="shrink-0 text-muted-foreground"
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+          </div>
+        </div>
       </PopoverContent>
     </Popover>
   );
