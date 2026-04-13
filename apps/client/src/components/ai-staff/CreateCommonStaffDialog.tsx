@@ -44,7 +44,7 @@ import {
   type StaffModel,
 } from "@/lib/common-staff-models";
 import { useTranslation } from "react-i18next";
-import { StaffBadgeCard } from "./StaffBadgeCard";
+import { StaffBadgeCard, StaffBadgeCardSkeleton } from "./StaffBadgeCard";
 
 type AgentType = "common-staff" | "openclaw";
 type CreationMode = "form" | "agentic" | "recruitment";
@@ -196,6 +196,7 @@ export function CreateCommonStaffDialog({
   const [candidateGenerationError, setCandidateGenerationError] = useState<
     string | null
   >(null);
+  const [flipHintActive, setFlipHintActive] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   // Editable candidate fields (keyed by candidateIndex)
   const [editedCandidates, setEditedCandidates] = useState<
@@ -376,6 +377,8 @@ export function CreateCommonStaffDialog({
     setSelectedCandidate(null);
     setEditedCandidates({});
     setCandidateGenerationError(null);
+    setFlipHintActive(false);
+    let finalCount = 0;
     try {
       const stream = api.applications.generateCandidates(appId!, {
         jobTitle: jobTitle || undefined,
@@ -401,7 +404,11 @@ export function CreateCommonStaffDialog({
               !!c.summary,
           );
           setCandidates(complete);
+          finalCount = complete.length;
         }
+      }
+      if (finalCount > 0) {
+        setFlipHintActive(true);
       }
     } catch (error) {
       console.error("Candidate generation failed:", error);
@@ -928,54 +935,57 @@ export function CreateCommonStaffDialog({
   );
 
   // ── Recruitment Step 3: Candidate cards ─────────────────────────────
-  const renderRecruitmentStep3 = () => (
-    <div className="space-y-4">
-      {isGeneratingCandidates && candidates.length === 0 && (
-        <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          {t("createStaff.generatingCandidates")}
-        </div>
-      )}
-      {candidateGenerationError && (
-        <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {candidateGenerationError}
-        </div>
-      )}
-      {candidates.length > 0 && (
-        <div className="grid grid-cols-1 justify-items-center gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {candidates.map((c) => {
-            const edited = editedCandidates[c.candidateIndex];
-            return (
-              <StaffBadgeCard
-                key={c.candidateIndex}
-                displayName={edited?.displayName ?? c.displayName}
-                roleTitle={edited?.roleTitle ?? c.roleTitle}
-                persona={edited?.persona ?? c.persona}
-                selected={selectedCandidate === c.candidateIndex}
-                onClick={() => setSelectedCandidate(c.candidateIndex)}
-              />
-            );
-          })}
-        </div>
-      )}
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={handleGenerateCandidates}
-        disabled={isGeneratingCandidates}
-        className="w-full"
-      >
-        {isGeneratingCandidates ? (
-          <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-        ) : (
-          <Sparkles className="mr-1 h-4 w-4" />
+  const renderRecruitmentStep3 = () => {
+    const skeletonCount = isGeneratingCandidates
+      ? Math.max(0, 3 - candidates.length)
+      : 0;
+    return (
+      <div className="space-y-4">
+        {candidateGenerationError && (
+          <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {candidateGenerationError}
+          </div>
         )}
-        {candidates.length > 0
-          ? t("createStaff.reroll")
-          : t("createStaff.generateCandidates")}
-      </Button>
-    </div>
-  );
+        {(candidates.length > 0 || skeletonCount > 0) && (
+          <div className="grid grid-cols-1 justify-items-center gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {candidates.map((c, i) => {
+              const edited = editedCandidates[c.candidateIndex];
+              return (
+                <StaffBadgeCard
+                  key={c.candidateIndex}
+                  displayName={edited?.displayName ?? c.displayName}
+                  roleTitle={edited?.roleTitle ?? c.roleTitle}
+                  persona={edited?.persona ?? c.persona}
+                  selected={selectedCandidate === c.candidateIndex}
+                  onClick={() => setSelectedCandidate(c.candidateIndex)}
+                  flipHintDelayMs={flipHintActive ? i * 250 : undefined}
+                />
+              );
+            })}
+            {Array.from({ length: skeletonCount }).map((_, i) => (
+              <StaffBadgeCardSkeleton key={`skel-${i}`} />
+            ))}
+          </div>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleGenerateCandidates}
+          disabled={isGeneratingCandidates}
+          className="w-full"
+        >
+          {isGeneratingCandidates ? (
+            <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+          ) : (
+            <Sparkles className="mr-1 h-4 w-4" />
+          )}
+          {candidates.length > 0
+            ? t("createStaff.reroll")
+            : t("createStaff.generateCandidates")}
+        </Button>
+      </div>
+    );
+  };
 
   // ── Recruitment Step 4: Model + Mentor ──────────────────────────────
   const renderRecruitmentStep4 = () => {

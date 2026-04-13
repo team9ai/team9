@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import type { StaffBadgeCardProps } from "./StaffBadgeCard";
+
+const FLIP_HINT_HOLD_MS = 900;
 
 function getInitials(name: string): string {
   return name
@@ -23,11 +25,27 @@ export function StaffBadgeCard2D({
   modelLabel,
   selected,
   onClick,
+  flipHintDelayMs,
 }: StaffBadgeCardProps) {
   const { t } = useTranslation("skills");
   const [flipped, setFlipped] = useState(false);
   const initials = getInitials(displayName);
   const mentorInitials = mentorName ? getInitials(mentorName) : "?";
+
+  useEffect(() => {
+    if (flipHintDelayMs === undefined) return;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    timers.push(
+      setTimeout(() => {
+        setFlipped(true);
+        timers.push(setTimeout(() => setFlipped(false), FLIP_HINT_HOLD_MS));
+      }, flipHintDelayMs),
+    );
+    return () => {
+      timers.forEach(clearTimeout);
+      setFlipped(false);
+    };
+  }, [flipHintDelayMs]);
 
   const handleClick = () => {
     setFlipped((prev) => !prev);
