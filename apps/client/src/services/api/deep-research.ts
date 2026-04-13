@@ -2,6 +2,21 @@ import http from "@/services/http";
 
 export type TaskStatus = "pending" | "running" | "completed" | "failed";
 
+// Capability hub wraps successful JSON responses in `{success: true, data: ...}`.
+// The gateway is a thin passthrough so the envelope reaches the client
+// unchanged. Unwrap here so callers always see the plain payload shape.
+function unwrapHubEnvelope<T>(body: unknown): T {
+  if (
+    body !== null &&
+    typeof body === "object" &&
+    "data" in body &&
+    (body as { success?: unknown }).success === true
+  ) {
+    return (body as { data: T }).data;
+  }
+  return body as T;
+}
+
 export interface CreateTaskInput {
   input: string | Array<Record<string, unknown>>;
   agentConfig?: { thinkingSummaries?: "auto" | "off" };
@@ -35,24 +50,24 @@ export interface TaskWithReport extends Task {
 export const deepResearchApi = {
   /** Create a new deep-research task. */
   createTask: async (body: CreateTaskInput): Promise<Task> => {
-    const res = await http.post<Task>("/v1/deep-research/tasks", body);
-    return res.data;
+    const res = await http.post<unknown>("/v1/deep-research/tasks", body);
+    return unwrapHubEnvelope<Task>(res.data);
   },
 
   /** List tasks with optional filter/pagination params. */
   listTasks: async (params?: ListTasksParams): Promise<ListTasksResponse> => {
-    const res = await http.get<ListTasksResponse>("/v1/deep-research/tasks", {
+    const res = await http.get<unknown>("/v1/deep-research/tasks", {
       params,
     });
-    return res.data;
+    return unwrapHubEnvelope<ListTasksResponse>(res.data);
   },
 
   /** Fetch a single task by id. */
   getTask: async (id: string): Promise<TaskWithReport> => {
-    const res = await http.get<TaskWithReport>(
+    const res = await http.get<unknown>(
       `/v1/deep-research/tasks/${encodeURIComponent(id)}`,
     );
-    return res.data;
+    return unwrapHubEnvelope<TaskWithReport>(res.data);
   },
 };
 

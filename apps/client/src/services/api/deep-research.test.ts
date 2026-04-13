@@ -43,4 +43,22 @@ describe("deepResearchApi", () => {
     expect(http.get).toHaveBeenCalledWith("/v1/deep-research/tasks/abc");
     expect(t.id).toBe("abc");
   });
+
+  it("unwraps capability-hub {success,data} envelope for listTasks", async () => {
+    (http.get as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          items: [
+            { id: "x1", status: "pending", createdAt: "", updatedAt: "" },
+          ],
+          nextCursor: null,
+        },
+      },
+    });
+    const r = await deepResearchApi.listTasks();
+    expect(r.items).toHaveLength(1);
+    expect(r.items[0].id).toBe("x1");
+    expect(r.nextCursor).toBeNull();
+  });
 });
