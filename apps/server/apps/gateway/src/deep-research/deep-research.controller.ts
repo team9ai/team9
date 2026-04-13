@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  Inject,
+  Optional,
   Param,
   Post,
   Query,
@@ -16,8 +18,10 @@ import { CapabilityHubClient } from './capability-hub.client.js';
 // Headers that must be forwarded upstream for correct owner attribution.
 const FORWARD_HEADERS = ['authorization', 'x-tenant-id'];
 
-// Interval between SSE heartbeats to keep idle connections alive through proxies.
-const HEARTBEAT_MS = 20_000;
+// DI token for the SSE heartbeat interval. Tests override with a small value
+// to exercise heartbeat behavior without real-time waits.
+export const DEEP_RESEARCH_HEARTBEAT_MS = Symbol('DEEP_RESEARCH_HEARTBEAT_MS');
+const DEFAULT_HEARTBEAT_MS = 20_000;
 
 function pickHeaders(req: Request): Record<string, string> {
   const out: Record<string, string> = {};
@@ -42,7 +46,14 @@ async function passThrough(
 @Controller({ path: 'deep-research/tasks', version: '1' })
 @UseGuards(AuthGuard)
 export class DeepResearchController {
-  constructor(private readonly hub: CapabilityHubClient) {}
+  private readonly heartbeatMs: number;
+
+  constructor(
+    private readonly hub: CapabilityHubClient,
+    @Optional() @Inject(DEEP_RESEARCH_HEARTBEAT_MS) heartbeatMs?: number,
+  ) {
+    this.heartbeatMs = heartbeatMs ?? DEFAULT_HEARTBEAT_MS;
+  }
 
   @Post()
   async create(
@@ -130,7 +141,7 @@ export class DeepResearchController {
 
     const heartbeat = setInterval(() => {
       if (!res.writableEnded) res.write(': ping\n\n');
-    }, HEARTBEAT_MS);
+    }, this.heartbeatMs);
 
     try {
       for await (const chunk of upstream.body as unknown as AsyncIterable<Uint8Array>) {

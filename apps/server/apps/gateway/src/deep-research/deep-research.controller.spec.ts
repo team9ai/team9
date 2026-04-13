@@ -4,7 +4,10 @@ import { ConfigService } from '@nestjs/config';
 import request from 'supertest';
 import http from 'http';
 import { INestApplication, VersioningType } from '@nestjs/common';
-import { DeepResearchController } from './deep-research.controller.js';
+import {
+  DeepResearchController,
+  DEEP_RESEARCH_HEARTBEAT_MS,
+} from './deep-research.controller.js';
 import { CapabilityHubClient } from './capability-hub.client.js';
 import { AuthGuard } from '@team9/auth';
 
@@ -145,6 +148,9 @@ describe('DeepResearchController (SSE passthrough)', () => {
           provide: ConfigService,
           useValue: { getOrThrow: () => 'http://hub.test' },
         },
+        // Short heartbeat so the idle test completes quickly instead of
+        // waiting the production-default 20 seconds.
+        { provide: DEEP_RESEARCH_HEARTBEAT_MS, useValue: 100 },
       ],
     })
       .overrideGuard(AuthGuard)
@@ -208,10 +214,12 @@ describe('DeepResearchController (SSE passthrough)', () => {
     expect(callHeaders['last-event-id']).toBe('0');
   });
 
-  it('writes a heartbeat within 25s when upstream is idle', async () => {
+  it('writes heartbeat comments while upstream is idle', async () => {
+    // Heartbeat interval is overridden to 100ms via DI (see beforeAll).
+    // Keep upstream idle for longer than a couple of heartbeats.
     hub.request.mockResolvedValue(
       new Response(
-        streamFrom([{ delayMs: 25_000, text: 'event: done\ndata: {}\n\n' }]),
+        streamFrom([{ delayMs: 2_000, text: 'event: done\ndata: {}\n\n' }]),
         {
           status: 200,
           headers: { 'content-type': 'text/event-stream' },
@@ -220,7 +228,6 @@ describe('DeepResearchController (SSE passthrough)', () => {
     );
 
     const server = app.getHttpServer() as http.Server;
-    // Ensure the server is bound to a port we can connect to.
     await new Promise<void>((resolve) => {
       if (server.listening) {
         resolve();
@@ -240,7 +247,6 @@ describe('DeepResearchController (SSE passthrough)', () => {
     });
     clientReq.end();
 
-    // Collect chunks as they arrive via the live response stream.
     await new Promise<void>((resolve) => {
       clientReq.on('response', (res) => {
         res.on('data', (chunk: Buffer) => {
@@ -251,14 +257,14 @@ describe('DeepResearchController (SSE passthrough)', () => {
       });
       clientReq.on('error', resolve);
 
-      // After 22s assert heartbeat received, then destroy the connection.
+      // Allow several 100ms heartbeats to land, then assert + teardown.
       setTimeout(() => {
         expect(accumulated).toContain(': ping');
         clientReq.destroy();
         resolve();
-      }, 22_000);
+      }, 500);
     });
-  }, 30_000);
+  });
 
   it('aborts upstream when client disconnects', async () => {
     const upstreamAbort = jest.fn();
