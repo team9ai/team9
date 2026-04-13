@@ -34,6 +34,7 @@ import { slugify } from "transliteration";
 import { api } from "@/services/api";
 import type { InstalledApplicationWithBots } from "@/services/api/applications";
 import { getHttpErrorMessage } from "@/lib/http-error";
+import { cn } from "@/lib/utils";
 import { useSelectedWorkspaceId } from "@/stores/useWorkspaceStore";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useCreateDirectChannel } from "@/hooks/useChannels";
@@ -941,7 +942,7 @@ export function CreateCommonStaffDialog({
         </div>
       )}
       {candidates.length > 0 && (
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 justify-items-center gap-4 md:grid-cols-2 lg:grid-cols-3">
           {candidates.map((c) => {
             const edited = editedCandidates[c.candidateIndex];
             return (
@@ -1099,7 +1100,12 @@ export function CreateCommonStaffDialog({
         if (!v) resetForm();
       }}
     >
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent
+        className={cn(
+          "max-h-[90vh] overflow-hidden flex flex-col",
+          mode === "recruitment" && step === 3 ? "sm:max-w-5xl" : "sm:max-w-lg",
+        )}
+      >
         <DialogHeader>
           <DialogTitle>{stepTitle()}</DialogTitle>
           {step > 1 && (
