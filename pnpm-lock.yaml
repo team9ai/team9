@@ -148,6 +148,9 @@ importers:
       "@tanstack/react-router":
         specifier: ^1.141.6
         version: 1.143.11(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      "@tanstack/react-virtual":
+        specifier: ^3.13.23
+        version: 3.13.23(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       "@tanstack/router-devtools":
         specifier: ^1.141.6
         version: 1.143.11(@tanstack/react-router@1.143.11(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(@tanstack/router-core@1.143.6)(csstype@3.2.3)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(solid-js@1.9.10)
@@ -184,6 +187,12 @@ importers:
       diff:
         specifier: ^8.0.3
         version: 8.0.3
+      eventsource-parser:
+        specifier: ^3.0.6
+        version: 3.0.6(patch_hash=b3e18a4c67a62d1645fbe93860f8f0f79b821715cfcb370f79e3244e348fb979)
+      highlight.js:
+        specifier: ^11.11.1
+        version: 11.11.1
       i18next:
         specifier: ^25.0.1
         version: 25.7.4(typescript@5.8.3)
@@ -226,6 +235,9 @@ importers:
       react-virtuoso:
         specifier: ^4.18.1
         version: 4.18.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      rehype-highlight:
+        specifier: ^7.0.2
+        version: 7.0.2
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
@@ -11879,10 +11891,22 @@ packages:
       }
     engines: { node: ">= 0.4" }
 
+  hast-util-is-element@3.0.0:
+    resolution:
+      {
+        integrity: sha512-Val9mnv2IWpLbNPqc/pUem+a7Ipj2aHacCwgNfTiK0vJKl0LF+4Ba4+v1oPHFpf3bLYmreq0/l3Gud9S5OH42g==,
+      }
+
   hast-util-to-jsx-runtime@2.3.6:
     resolution:
       {
         integrity: sha512-zl6s8LwNyo1P9uw+XJGvZtdFF1GdAkOg8ujOw+4Pyb76874fLps4ueHXDhXWdk6YHQ6OgUtinliG7RsYvCbbBg==,
+      }
+
+  hast-util-to-text@4.0.2:
+    resolution:
+      {
+        integrity: sha512-KK6y/BN8lbaq654j7JgBydev7wuNMcID54lkRav1P0CaE1e47P72AWWPiGKXTJU271ooYzcvTAn/Zt0REnvc7A==,
       }
 
   hast-util-whitespace@3.0.0:
@@ -11890,6 +11914,13 @@ packages:
       {
         integrity: sha512-88JUN06ipLwsnv+dVn+OIYOvAuvBMy/Qoi6O7mQHxdPXpjy+Cd6xRkWwux7DKO+4sYILtLBRIKgsdpS2gQc7qw==,
       }
+
+  highlight.js@11.11.1:
+    resolution:
+      {
+        integrity: sha512-Xwwo44whKBVCYoliBQwaPvtd/2tYFkRQtXDWj1nackaV2JPXx3L0+Jvd8/qCJ2p+ML0/XVkJ2q+Mr+UVdpJK5w==,
+      }
+    engines: { node: ">=12.0.0" }
 
   hls.js@1.6.15:
     resolution:
@@ -13262,6 +13293,12 @@ packages:
     resolution:
       {
         integrity: sha512-9Ri+o0JYgehTaVBBDoMqIl8GXtbWg711O3srftcHhZ0dqnETqLaoIK0x17fUw9rFSlK/0NlsKe0Ahhyl5pXE2g==,
+      }
+
+  lowlight@3.3.0:
+    resolution:
+      {
+        integrity: sha512-0JNhgFoPvP6U6lE/UdVsSq99tn6DhjjpAj5MxG49ewd2mOBVtwWYIT8ClyABhq198aXXODMU6Ox8DrGy/CpTZQ==,
       }
 
   lru-cache@10.4.3:
@@ -14958,6 +14995,12 @@ packages:
       }
     hasBin: true
 
+  rehype-highlight@7.0.2:
+    resolution:
+      {
+        integrity: sha512-k158pK7wdC2qL3M5NcZROZ2tR/l7zOzjxXd5VGdcfIyoijjQqpHd3JKtYSBDpDZ38UI2WJWuFAtkMDxmx5kstA==,
+      }
+
   remark-gfm@4.0.1:
     resolution:
       {
@@ -16436,6 +16479,12 @@ packages:
         integrity: sha512-uNaeirEPvpZWSgzwsPGtU2zVSTrn/8L5q/IexZmH0eH6SA73CmAA5U4GwORTxQAZs95TAXLNqeLoPPNO5gZfWg==,
       }
     engines: { node: ">=8" }
+
+  unist-util-find-after@5.0.0:
+    resolution:
+      {
+        integrity: sha512-amQa0Ep2m6hE2g72AugUItjbuM8X8cGQnFoHk0pGfrFeT9GZhzN5SW8nRsiGKK7Aif4CrACPENkA6P/Lw6fHGQ==,
+      }
 
   unist-util-is@6.0.1:
     resolution:
@@ -25051,6 +25100,10 @@ snapshots:
     dependencies:
       function-bind: 1.1.2
 
+  hast-util-is-element@3.0.0:
+    dependencies:
+      "@types/hast": 3.0.4
+
   hast-util-to-jsx-runtime@2.3.6:
     dependencies:
       "@types/estree": 1.0.8
@@ -25071,9 +25124,18 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  hast-util-to-text@4.0.2:
+    dependencies:
+      "@types/hast": 3.0.4
+      "@types/unist": 3.0.3
+      hast-util-is-element: 3.0.0
+      unist-util-find-after: 5.0.0
+
   hast-util-whitespace@3.0.0:
     dependencies:
       "@types/hast": 3.0.4
+
+  highlight.js@11.11.1: {}
 
   hls.js@1.6.15: {}
 
@@ -26036,6 +26098,12 @@ snapshots:
   long@5.3.2: {}
 
   longest-streak@3.1.0: {}
+
+  lowlight@3.3.0:
+    dependencies:
+      "@types/hast": 3.0.4
+      devlop: 1.1.0
+      highlight.js: 11.11.1
 
   lru-cache@10.4.3: {}
 
@@ -27168,6 +27236,14 @@ snapshots:
     dependencies:
       jsesc: 3.1.0
 
+  rehype-highlight@7.0.2:
+    dependencies:
+      "@types/hast": 3.0.4
+      hast-util-to-text: 4.0.2
+      lowlight: 3.3.0
+      unist-util-visit: 5.1.0
+      vfile: 6.0.3
+
   remark-gfm@4.0.1:
     dependencies:
       "@types/mdast": 4.0.4
@@ -28179,6 +28255,11 @@ snapshots:
   unique-string@2.0.0:
     dependencies:
       crypto-random-string: 2.0.0
+
+  unist-util-find-after@5.0.0:
+    dependencies:
+      "@types/unist": 3.0.3
+      unist-util-is: 6.0.1
 
   unist-util-is@6.0.1:
     dependencies:
