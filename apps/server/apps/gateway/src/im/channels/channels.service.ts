@@ -32,6 +32,7 @@ import {
   resolveAgentType,
   type AgentType,
 } from '../../common/utils/agent-type.util.js';
+import { PropertyDefinitionsService } from '../properties/property-definitions.service.js';
 import { TabsService } from '../views/tabs.service.js';
 
 export interface ChannelResponse {
@@ -106,6 +107,7 @@ export class ChannelsService {
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly redis: RedisService,
     private readonly channelMemberCacheService: ChannelMemberCacheService,
+    private readonly propertyDefinitionsService: PropertyDefinitionsService,
     private readonly tabsService: TabsService,
   ) {}
 
@@ -228,10 +230,15 @@ export class ChannelsService {
     // Add creator as owner
     await this.addMember(channel.id, creatorId, 'owner');
 
-    // Seed built-in tabs for public/private channels.
-    // Properties are created on demand via schema-on-write — no seed.
+    // Seed built-in tabs + default property templates for public/private
+    // channels. Defaults (status, priority) are plain editable definitions —
+    // not native — so users can rename, modify, or delete them at will.
     if (dto.type === 'public' || dto.type === 'private') {
       await this.tabsService.seedBuiltinTabs(channel.id);
+      await this.propertyDefinitionsService.seedDefaultProperties(
+        channel.id,
+        creatorId,
+      );
     }
 
     return channel;
@@ -299,42 +306,73 @@ export class ChannelsService {
 
   /**
    * Get or create an echo channel (self-chat) for the given user.
-   * Echo channels have a single member and no notifications.
+   * Echo channels have a single member (the owner).
+   *
+   * Invariants enforced here:
+   *
+   *   1. Atomicity of creation — when no existing channel is found, the
+   *      channel row and the owner membership row are created inside the
+   *      same db.transaction. A failure in either step rolls both back,
+   *      so a partially-created (orphan) channel cannot leak into
+   *      im_channels. Atomicity applies ONLY to the create-channel
+   *      branch; the self-healing branch performs a single-row
+   *      UPDATE/INSERT and does not need a transaction.
+   *
+   *   2. Self-healing lookup — the existence check queries im_channels
+   *      directly by (type='echo', created_by, tenant_id) instead of
+   *      innerJoin-ing against im_channel_members. If a legacy orphaned
+   *      echo channel (channel row but no member row) is discovered, its
+   *      membership is repaired in-place and the row is reused rather
+   *      than creating a duplicate on every retry.
+   *
+   *   3. Post-commit cache invalidation — caches are invalidated AFTER
+   *      the transaction has committed, so readers never observe
+   *      in-flight state via the cache.
+   *
+   * Known caveat — TOCTOU race: two concurrent requests from the same
+   * user may both miss the existence check, both enter the transaction,
+   * and both INSERT a channel row. Nothing in this method serializes
+   * that race. The intended long-term mitigation is a partial unique
+   * index `(created_by, tenant_id) WHERE type='echo'` added via
+   * migration, which would cause the losing INSERT to fail with a
+   * unique-violation and roll back its transaction. Until that lands,
+   * the worst case is a rare duplicate echo row, which the self-healing
+   * branch above will quietly tolerate on subsequent calls.
    */
   private async getOrCreateEchoChannel(
     userId: string,
     tenantId?: string,
   ): Promise<ChannelResponse> {
-    // Check if echo channel already exists for this user
-    const existing = await this.db
-      .select({ channelId: schema.channelMembers.channelId })
-      .from(schema.channelMembers)
-      .innerJoin(
-        schema.channels,
-        eq(schema.channels.id, schema.channelMembers.channelId),
-      )
+    // 1. Self-healing lookup — by channel.created_by, no join against
+    //    channel_members, so orphaned rows are still discoverable.
+    //    When tenantId is undefined (non-tenant context — e.g. Community
+    //    edition without a JWT tenant claim) we match rows with a NULL
+    //    tenant_id. Mixing tenanted and non-tenanted callers for the
+    //    same user is not supported by this method.
+    const [existing] = await this.db
+      .select()
+      .from(schema.channels)
       .where(
         and(
           eq(schema.channels.type, 'echo'),
-          eq(schema.channelMembers.userId, userId),
-          isNull(schema.channelMembers.leftAt),
-          tenantId ? eq(schema.channels.tenantId, tenantId) : undefined,
+          eq(schema.channels.createdBy, userId),
+          tenantId
+            ? eq(schema.channels.tenantId, tenantId)
+            : isNull(schema.channels.tenantId),
         ),
       )
       .limit(1);
 
-    if (existing.length > 0) {
-      const [channel] = await this.db
-        .select()
-        .from(schema.channels)
-        .where(eq(schema.channels.id, existing[0].channelId))
-        .limit(1);
-      return channel;
+    if (existing) {
+      await this.ensureEchoOwnerMembership(existing.id, userId);
+      return existing;
     }
 
-    // Create new echo channel (with retry on race condition)
-    try {
-      const [channel] = await this.db
+    // 2. No existing channel — create both rows atomically. If either
+    //    INSERT fails, Drizzle rolls back the transaction and no orphan
+    //    rows are left behind.
+    const channel = await this.db.transaction(async (tx) => {
+      const [inserted] = await tx
         .insert(schema.channels)
         .values({
           id: uuidv7(),
@@ -344,39 +382,97 @@ export class ChannelsService {
         })
         .returning();
 
-      await this.addMember(channel.id, userId, 'owner');
+      await tx.insert(schema.channelMembers).values({
+        id: uuidv7(),
+        channelId: inserted.id,
+        userId,
+        role: 'owner',
+      });
 
-      return channel;
-    } catch {
-      // Race condition: another request created the echo channel concurrently.
-      // Re-query to find it.
-      const [retried] = await this.db
-        .select({ channelId: schema.channelMembers.channelId })
-        .from(schema.channelMembers)
-        .innerJoin(
-          schema.channels,
-          eq(schema.channels.id, schema.channelMembers.channelId),
-        )
-        .where(
-          and(
-            eq(schema.channels.type, 'echo'),
-            eq(schema.channelMembers.userId, userId),
-            isNull(schema.channelMembers.leftAt),
-            tenantId ? eq(schema.channels.tenantId, tenantId) : undefined,
-          ),
-        )
-        .limit(1);
+      return inserted;
+    });
 
-      if (retried) {
-        const [channel] = await this.db
-          .select()
-          .from(schema.channels)
-          .where(eq(schema.channels.id, retried.channelId))
-          .limit(1);
-        return channel;
-      }
-      throw new ConflictException('Failed to create echo channel');
+    // Post-commit cache invalidation — safe to run outside the transaction,
+    // and must NOT run before commit (or readers could observe in-flight
+    // state via the cache).
+    await this.channelMemberCacheService.invalidate(channel.id);
+    await this.redis.invalidate(
+      REDIS_KEYS.CHANNEL_MEMBER_ROLE(channel.id, userId),
+    );
+
+    return channel;
+  }
+
+  /**
+   * Ensure the given user is an active owner of the given echo channel.
+   *
+   * Handles three cases:
+   *   - active member already present → no-op
+   *   - previously left → UPDATE row to rejoin as owner
+   *   - no row at all (orphaned channel) → INSERT a fresh owner row
+   *
+   * Uses an explicit column projection in the read query so that legacy
+   * databases missing columns like `show_in_dm_sidebar` do not fail the
+   * self-healing path.
+   *
+   * The INSERT branch uses onConflictDoNothing to stay safe under a
+   * race: two concurrent self-heal callers can both observe "no member
+   * row" and both INSERT, and the unique_channel_user constraint on
+   * (channel_id, user_id) lets the second INSERT no-op rather than
+   * throwing a 500 at the user.
+   */
+  private async ensureEchoOwnerMembership(
+    channelId: string,
+    userId: string,
+  ): Promise<void> {
+    const [existingMember] = await this.db
+      .select({
+        id: schema.channelMembers.id,
+        leftAt: schema.channelMembers.leftAt,
+      })
+      .from(schema.channelMembers)
+      .where(
+        and(
+          eq(schema.channelMembers.channelId, channelId),
+          eq(schema.channelMembers.userId, userId),
+        ),
+      )
+      .limit(1);
+
+    if (existingMember && existingMember.leftAt === null) {
+      return; // Already an active owner — nothing to do.
     }
+
+    if (existingMember) {
+      // Previously left — rejoin as owner.
+      await this.db
+        .update(schema.channelMembers)
+        .set({
+          leftAt: null,
+          joinedAt: new Date(),
+          role: 'owner',
+        })
+        .where(eq(schema.channelMembers.id, existingMember.id));
+    } else {
+      // Orphaned channel — insert the missing owner row.
+      // onConflictDoNothing handles the race where a concurrent
+      // self-heal already inserted the row between our SELECT and this
+      // INSERT (see the doc comment above).
+      await this.db
+        .insert(schema.channelMembers)
+        .values({
+          id: uuidv7(),
+          channelId,
+          userId,
+          role: 'owner',
+        })
+        .onConflictDoNothing();
+    }
+
+    await this.channelMemberCacheService.invalidate(channelId);
+    await this.redis.invalidate(
+      REDIS_KEYS.CHANNEL_MEMBER_ROLE(channelId, userId),
+    );
   }
 
   /**
