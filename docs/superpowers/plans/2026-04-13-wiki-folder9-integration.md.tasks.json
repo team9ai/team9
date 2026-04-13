@@ -23,7 +23,7 @@
     {
       "id": 3,
       "subject": "Task 4: Permission helpers + DTOs",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** resolveWikiPermission + requirePermission guards, plus all NestJS DTOs.\n\n**Files:**\n- Create: apps/server/apps/gateway/src/wikis/utils/permission.ts + spec\n- Create: apps/server/apps/gateway/src/wikis/dto/*.ts\n\n**Verify:** pnpm --filter @team9/server test -- permission.spec --coverage && pnpm exec tsc --noEmit\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/wikis/utils/permission.ts\",\"apps/server/apps/gateway/src/wikis/__tests__/permission.spec.ts\",\"apps/server/apps/gateway/src/wikis/dto/\"],\"verifyCommand\":\"pnpm --filter @team9/server test -- permission.spec --coverage\",\"acceptanceCriteria\":[\"resolveWikiPermission returns correct per-role perm\",\"requirePermission throws ForbiddenException when below required\",\"Ordering read<propose<write\",\"All DTOs have class-validator decorators\",\"100% coverage on permission.ts\"]}\n```"
     },
