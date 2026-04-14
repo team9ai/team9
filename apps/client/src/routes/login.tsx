@@ -420,6 +420,7 @@ function WebLoginView() {
   const authCompletedInSession = useRef(false);
   const lastAutoVerifyAttempt = useRef<string | null>(null);
   const authMethodRef = useRef<"email" | "google">("email");
+  const postAuthRedirectMode = useRef<"default" | "home">("default");
 
   const authStart = useAuthStart();
   const verifyCode = useVerifyCode();
@@ -428,15 +429,30 @@ function WebLoginView() {
   const { data: currentUser, isLoading } = useCurrentUser();
   const { data: invitationInfo } = useInvitationInfo(invite);
 
-  const navigateToPostAuthDestination = useCallback(() => {
-    if (invite) {
-      navigate({ to: "/invite/$code", params: { code: invite } });
-    } else {
-      navigate({ to: redirect || "/" });
-    }
-  }, [invite, navigate, redirect]);
+  const navigateToPostAuthDestination = useCallback(
+    (options?: { preferHome?: boolean }) => {
+      if (invite) {
+        navigate({
+          to: "/invite/$code",
+          params: { code: invite },
+          replace: true,
+        });
+        return;
+      }
+
+      navigate({
+        to: (options?.preferHome ? "/channels" : redirect || "/") as never,
+        replace: true,
+      });
+    },
+    [invite, navigate, redirect],
+  );
 
   const navigateAfterAuth = useCallback(async () => {
+    if (authCompletedInSession.current) {
+      return;
+    }
+
     authCompletedInSession.current = true;
 
     try {
@@ -464,18 +480,27 @@ function WebLoginView() {
       return;
     }
 
-    navigateToPostAuthDestination();
-  }, [
-    completeDesktop,
-    desktopSessionId,
-    invite,
-    navigateToPostAuthDestination,
-  ]);
+    setAuthState("authenticated");
+  }, [completeDesktop, desktopSessionId, invite]);
 
   useEffect(() => {
     if (!currentUser || isLoading || authCompletedInSession.current) return;
     void navigateAfterAuth();
   }, [currentUser, isLoading, navigateAfterAuth]);
+
+  useEffect(() => {
+    if (authState !== "authenticated" || desktopSessionId) return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      navigateToPostAuthDestination({
+        preferHome: postAuthRedirectMode.current === "home",
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [authState, desktopSessionId, navigateToPostAuthDestination]);
 
   useEffect(() => {
     if (countdown > 0) {
@@ -504,13 +529,13 @@ function WebLoginView() {
     const doVerify = async () => {
       setError("");
       try {
+        postAuthRedirectMode.current = "home";
         setAuthState("verifying_code");
         await verifyCode.mutateAsync({
           email,
           challengeId: currentChallengeId,
           code,
         });
-        setAuthState("authenticated");
         await navigateAfterAuth();
       } catch (err: unknown) {
         setAuthState("code_sent");
@@ -531,7 +556,9 @@ function WebLoginView() {
   ]);
 
   const handleContinueInBrowser = () => {
-    navigateToPostAuthDestination();
+    navigateToPostAuthDestination({
+      preferHome: postAuthRedirectMode.current === "home",
+    });
   };
 
   useEffect(() => {
@@ -588,13 +615,13 @@ function WebLoginView() {
     if (!challengeId) return;
 
     try {
+      postAuthRedirectMode.current = "home";
       setAuthState("verifying_code");
       await verifyCode.mutateAsync({
         email,
         challengeId,
         code,
       });
-      setAuthState("authenticated");
       await navigateAfterAuth();
     } catch (err: unknown) {
       setAuthState("code_sent");
@@ -631,6 +658,7 @@ function WebLoginView() {
     }
 
     authMethodRef.current = "google";
+    postAuthRedirectMode.current = "default";
 
     try {
       await googleAuth.mutateAsync({
@@ -650,6 +678,7 @@ function WebLoginView() {
     setDevCode(undefined);
     setError("");
     setDisplayName("");
+    postAuthRedirectMode.current = "default";
   };
 
   // Loading state
@@ -690,6 +719,26 @@ function WebLoginView() {
               {t("useInBrowser")}
             </button>
           </p>
+        </GlassCard>
+      </LoginLayout>
+    );
+  }
+
+  if (authState === "authenticated") {
+    return (
+      <LoginLayout>
+        <GlassCard>
+          <LogoBanner />
+          <div className="flex flex-col items-center gap-4 py-4">
+            <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+              <Loader2 className="w-7 h-7 text-primary animate-spin" />
+            </div>
+            <p className="text-muted-foreground text-base font-medium">
+              {postAuthRedirectMode.current === "home" && !invite
+                ? t("redirectingHome")
+                : t("signingIn")}
+            </p>
+          </div>
         </GlassCard>
       </LoginLayout>
     );
