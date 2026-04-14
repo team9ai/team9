@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import {
   Dialog,
@@ -27,15 +27,18 @@ interface AgenticAgentPickerProps {
   open: boolean;
   onClose: () => void;
   onManualCreate?: () => void;
+  onOpenCreationSession: (routineId: string) => void;
 }
 
 export function AgenticAgentPicker({
   open,
   onClose,
   onManualCreate,
+  onOpenCreationSession,
 }: AgenticAgentPickerProps) {
   const { t } = useTranslation("routines");
-  const navigate = useNavigate();
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const workspaceId = useSelectedWorkspaceId();
 
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
@@ -70,12 +73,10 @@ export function AgenticAgentPicker({
   const createMutation = useMutation({
     mutationFn: () =>
       api.routines.createWithCreationTask({ agentId: effectiveAgentId }),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       handleClose();
-      void navigate({
-        to: "/messages/$channelId",
-        params: { channelId: data.creationChannelId },
-      });
+      await queryClient.invalidateQueries({ queryKey: ["routines"] });
+      onOpenCreationSession(data.routineId);
     },
     onError: (err) => {
       setError(
@@ -94,7 +95,7 @@ export function AgenticAgentPicker({
 
   function handleGoToAgents() {
     handleClose();
-    void navigate({ to: "/ai-staff" });
+    void router.navigate({ to: "/ai-staff" });
   }
 
   const showEmptyState = !botsLoading && eligibleBots.length === 0;

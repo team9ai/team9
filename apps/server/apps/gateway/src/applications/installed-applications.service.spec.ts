@@ -6,8 +6,19 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '@team9/database';
+import { RedisService } from '@team9/redis';
 import { InstalledApplicationsService } from './installed-applications.service.js';
 import { ApplicationsService } from './applications.service.js';
+
+const makeRedisMock = () =>
+  ({
+    get: jest.fn<any>().mockResolvedValue(null),
+    set: jest.fn<any>().mockResolvedValue(undefined),
+    del: jest.fn<any>().mockResolvedValue(undefined),
+    invalidate: jest.fn<any>().mockResolvedValue(undefined),
+    acquireLock: jest.fn<any>().mockResolvedValue('lock-token'),
+    releaseLock: jest.fn<any>().mockResolvedValue(undefined),
+  }) as unknown as RedisService;
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -95,6 +106,7 @@ describe('InstalledApplicationsService — install', () => {
         InstalledApplicationsService,
         { provide: DATABASE_CONNECTION, useValue: db },
         { provide: ApplicationsService, useValue: applicationsService },
+        { provide: RedisService, useValue: makeRedisMock() },
         { provide: 'APPLICATION_HANDLERS', useValue: [handler] },
       ],
     }).compile();
@@ -215,6 +227,7 @@ describe('InstalledApplicationsService — uninstall', () => {
         InstalledApplicationsService,
         { provide: DATABASE_CONNECTION, useValue: db },
         { provide: ApplicationsService, useValue: applicationsService },
+        { provide: RedisService, useValue: makeRedisMock() },
         { provide: 'APPLICATION_HANDLERS', useValue: [handler] },
       ],
     }).compile();

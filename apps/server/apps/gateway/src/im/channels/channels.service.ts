@@ -39,7 +39,14 @@ export interface ChannelResponse {
   tenantId: string | null;
   name: string | null;
   description: string | null;
-  type: 'direct' | 'public' | 'private' | 'task' | 'tracking' | 'echo';
+  type:
+    | 'direct'
+    | 'public'
+    | 'private'
+    | 'task'
+    | 'tracking'
+    | 'echo'
+    | 'routine-session';
   avatarUrl: string | null;
   createdBy: string | null;
   sectionId: string | null;
@@ -308,6 +315,76 @@ export class ChannelsService {
     // Add both users
     await this.addMember(channel.id, userId1, 'member');
     await this.addMember(channel.id, userId2, 'member');
+
+    return channel;
+  }
+
+  /**
+   * Create a dedicated routine-session channel for a routine-bound agent
+   * conversation (currently: creation; future: reflection / retrospective).
+   *
+   * Membership: creator + bot shadow user, both as 'member'.
+   *
+   * Atomicity: the channel row and both member rows are inserted inside a
+   * single db.transaction so that a partial failure cannot leave an orphan
+   * channel behind. We inline the member inserts (instead of calling
+   * addMember()) because addMember() uses `this.db` directly and can't
+   * accept a tx, and we need all three inserts on the same tx.
+   *
+   * No auto-unhide in im-worker — routine-session channels aren't routed
+   * through DM visibility logic because their type isn't 'direct' / 'echo'.
+   */
+  async createRoutineSessionChannel(params: {
+    creatorId: string;
+    botUserId: string;
+    tenantId: string;
+    routineId: string;
+    purpose: 'creation';
+  }): Promise<ChannelResponse> {
+    const { creatorId, botUserId, tenantId, routineId, purpose } = params;
+
+    const propertySettings: unknown = {
+      routineSession: { purpose, routineId },
+    };
+
+    const channel = await this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(schema.channels)
+        .values({
+          id: uuidv7(),
+          tenantId,
+          type: 'routine-session',
+          name: null,
+          createdBy: creatorId,
+          propertySettings,
+        })
+        .returning();
+
+      await tx.insert(schema.channelMembers).values([
+        {
+          id: uuidv7(),
+          channelId: row.id,
+          userId: creatorId,
+          role: 'member' as const,
+        },
+        {
+          id: uuidv7(),
+          channelId: row.id,
+          userId: botUserId,
+          role: 'member' as const,
+        },
+      ]);
+
+      return row;
+    });
+
+    await this.channelMemberCacheService.invalidate(channel.id);
+    await this.redis.invalidate(
+      REDIS_KEYS.CHANNEL_MEMBER_ROLE(channel.id, creatorId),
+    );
+    await this.redis.invalidate(
+      REDIS_KEYS.CHANNEL_MEMBER_ROLE(channel.id, botUserId),
+    );
 
     return channel;
   }
@@ -1282,11 +1359,14 @@ export class ChannelsService {
   }
 
   /**
-   * System helper to archive a routine creation channel.
+   * System helper to archive a routine-session channel (purpose: creation,
+   * reflection, retrospective, etc.).
    *
    * Unlike archiveChannel, this method:
    * - Does NOT enforce owner/admin role (system-initiated)
-   * - ACCEPTS direct channels (creation channels are DMs)
+   * - Only ACCEPTS channels with type='routine-session'. Other types throw
+   *   ForbiddenException — the Phase 1 DM-reuse path is gone and the
+   *   helper must not silently archive arbitrary channels.
    * - Is idempotent: no-op if channel missing or already archived
    */
   async archiveCreationChannel(
@@ -1314,6 +1394,11 @@ export class ChannelsService {
       );
       return;
     }
+    if (channel.type !== 'routine-session') {
+      throw new ForbiddenException(
+        `archiveCreationChannel only allowed on routine-session channels (got ${channel.type})`,
+      );
+    }
     if (channel.isArchived) {
       this.logger.debug(
         `archiveCreationChannel: channel ${channelId} already archived, skipping`,
@@ -1325,6 +1410,54 @@ export class ChannelsService {
       .update(schema.channels)
       .set({ isArchived: true, updatedAt: new Date() })
       .where(and(...conditions));
+
+    await this.redis.invalidate(REDIS_KEYS.CHANNEL_CACHE(channelId));
+  }
+
+  /**
+   * Hard delete a routine-session channel.
+   *
+   * Cleans up audit log rows first (their FK has no cascade — see migration
+   * notes on im_audit_logs.channel_id), then deletes the channel inside a
+   * single transaction. The other FKs (members, messages, search index,
+   * property definitions, views, etc.) all use onDelete: 'cascade' and are
+   * removed automatically by the channel delete. im_files.channel_id is
+   * set to NULL via its own ON DELETE SET NULL, also safe.
+   */
+  async hardDeleteRoutineSessionChannel(
+    channelId: string,
+    tenantId?: string,
+  ): Promise<void> {
+    const [channel] = await this.db
+      .select({
+        id: schema.channels.id,
+        type: schema.channels.type,
+        tenantId: schema.channels.tenantId,
+      })
+      .from(schema.channels)
+      .where(eq(schema.channels.id, channelId))
+      .limit(1);
+
+    if (!channel) {
+      throw new NotFoundException(`Channel ${channelId} not found`);
+    }
+    if (tenantId && channel.tenantId !== tenantId) {
+      throw new NotFoundException(
+        `Channel ${channelId} not found in tenant ${tenantId}`,
+      );
+    }
+    if (channel.type !== 'routine-session') {
+      throw new ForbiddenException(
+        `hardDeleteRoutineSessionChannel only allowed on routine-session channels (got ${channel.type})`,
+      );
+    }
+
+    await this.db.transaction(async (tx) => {
+      await tx
+        .delete(schema.auditLogs)
+        .where(eq(schema.auditLogs.channelId, channelId));
+      await tx.delete(schema.channels).where(eq(schema.channels.id, channelId));
+    });
 
     await this.redis.invalidate(REDIS_KEYS.CHANNEL_CACHE(channelId));
   }

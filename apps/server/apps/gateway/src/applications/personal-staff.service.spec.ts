@@ -1,5 +1,11 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 
+// StaffService.createLlmProvider() is called even when streamText is
+// mocked, and it throws when neither OPENROUTER_API_KEY nor
+// CAPABILITY_HUB_URL is set. Provide a stub value up-front so tests
+// don't crash in minimal CI environments.
+process.env.OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || 'test-key';
+
 const mockStreamText = jest.fn<any>();
 
 jest.unstable_mockModule('ai', () => ({

@@ -1,9 +1,5 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
-import {
-  NotFoundException,
-  ConflictException,
-  BadRequestException,
-} from '@nestjs/common';
+import { ConflictException, BadRequestException } from '@nestjs/common';
 
 const dbModule = {
   DATABASE_CONNECTION: Symbol('DATABASE_CONNECTION'),

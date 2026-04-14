@@ -191,10 +191,12 @@ export class PostBroadcastService {
         return;
       }
 
-      // Suppress noisy activity notifications for tracking channels and bot-authored DMs.
-      if (channel.type === 'tracking') {
+      // Suppress noisy activity notifications for tracking channels,
+      // routine-session channels (creation/reflection meta-chats), and
+      // bot-authored DMs.
+      if (channel.type === 'tracking' || channel.type === 'routine-session') {
         this.logger.debug(
-          `Skipping notification tasks for tracking channel message ${msgId}`,
+          `Skipping notification tasks for ${channel.type} channel message ${msgId}`,
         );
         return;
       }
@@ -650,7 +652,14 @@ export class PostBroadcastService {
 
       const isDm = channel.type === 'direct';
       const isTracking = channel.type === 'tracking';
-      const alwaysForward = isDm || isTracking;
+      // routine-session channels are DM-like for agent fanout: the gateway
+      // derives the session id as `team9/{tenant}/{agent}/dm/{channelId}`
+      // on the kickoff event, and the bot expects every follow-up message
+      // to land on that same session without requiring @mention. Routing
+      // them as 'channel' (the default) would fork a new tracking session
+      // per reply and break the creation conversation entirely.
+      const isRoutineSession = channel.type === 'routine-session';
+      const alwaysForward = isDm || isTracking || isRoutineSession;
       const mentionedUserIds = alwaysForward
         ? null
         : extractMentionedUserIds(mentions);
@@ -688,9 +697,12 @@ export class PostBroadcastService {
         }
       }
 
-      // Build the recursive MessageLocation for the event payload
+      // Build the recursive MessageLocation for the event payload.
+      // routine-session channels report as 'dm' so bot context mirrors
+      // the kickoff-event location (which uses the `dm/` session scope).
       const channelLocation: Record<string, unknown> = {
-        type: isDm ? 'dm' : isTracking ? 'tracking' : 'channel',
+        type:
+          isDm || isRoutineSession ? 'dm' : isTracking ? 'tracking' : 'channel',
         id: channel.id,
         ...(channel.name ? { name: channel.name } : {}),
       };
@@ -724,9 +736,12 @@ export class PostBroadcastService {
         }
 
         // Create new tracking channel for each group interaction
-        // (fresh @mention or follow-up thread reply)
+        // (fresh @mention or follow-up thread reply). routine-session
+        // channels are DM-like and must NOT create a tracking channel —
+        // the bot already has an active session keyed off the original
+        // channel id from the kickoff event.
         let trackingChannelId: string | undefined;
-        if (!isDm && !isTracking) {
+        if (!isDm && !isTracking && !isRoutineSession) {
           trackingChannelId = await this.createTrackingChannel(
             tenantId || null,
             bot.userId,
@@ -738,11 +753,14 @@ export class PostBroadcastService {
         }
 
         // Session ID:
-        //   DM: team9/{tenant}/{agent}/dm/{channelId}
+        //   DM / routine-session: team9/{tenant}/{agent}/dm/{channelId}
         //   Group @mention: team9/{tenant}/{agent}/tracking/{newTrackingChannelId}
         //   Tracking guidance: team9/{tenant}/{agent}/tracking/{existingChannelId}
-        const scope = isDm ? 'dm' : 'tracking';
-        const scopeId = isDm ? channel.id : (trackingChannelId ?? channel.id);
+        const scope = isDm || isRoutineSession ? 'dm' : 'tracking';
+        const scopeId =
+          isDm || isRoutineSession
+            ? channel.id
+            : (trackingChannelId ?? channel.id);
         const sessionId = `team9/${tenantId}/${agentId}/${scope}/${scopeId}`;
 
         // Derive session-level team9Context for this event.
@@ -899,12 +917,17 @@ export class PostBroadcastService {
     isMentorDm: boolean;
   } {
     const { channel, bot, sender } = params;
-    const isDm = channel.type === 'direct';
+    // routine-session channels report as 'dm' for bot context because
+    // their session id uses the dm/ scope. isMentorDm only fires for
+    // real direct channels — creation sessions are not mentor-directed.
+    const isDirect = channel.type === 'direct';
+    const isRoutineSession = channel.type === 'routine-session';
+    const isDmLike = isDirect || isRoutineSession;
     const isMentorDm =
-      isDm && bot.mentorId !== null && sender.id === bot.mentorId;
+      isDirect && bot.mentorId !== null && sender.id === bot.mentorId;
     return {
       source: 'team9',
-      scopeType: isDm ? 'dm' : 'channel',
+      scopeType: isDmLike ? 'dm' : 'channel',
       scopeId: channel.id,
       peerUserId: sender.id,
       isMentorDm,

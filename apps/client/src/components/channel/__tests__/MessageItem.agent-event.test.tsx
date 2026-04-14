@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { MessageItem } from "../MessageItem";
 import type { Message } from "@/types/im";
 
@@ -14,7 +15,9 @@ const queryClient = new QueryClient({
 
 function renderWithProviders(ui: React.ReactElement) {
   return render(
-    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>{ui}</TooltipProvider>
+    </QueryClientProvider>,
   );
 }
 

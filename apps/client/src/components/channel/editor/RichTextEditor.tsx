@@ -22,6 +22,7 @@ import type { EditorState, LexicalEditor } from "lexical";
 import type { InitialConfigType } from "@lexical/react/LexicalComposer";
 import { ArrowUp, Sparkles, ChevronDown, Loader2 } from "lucide-react";
 import type { useBotModelSwitch } from "@/hooks/useBotModelSwitch";
+import { SHOW_COMPOSER_MODEL_CONTROL } from "@/lib/composer-flags";
 import { COMMON_STAFF_MODELS } from "@/lib/common-staff-models";
 import {
   DropdownMenu,
@@ -468,7 +469,7 @@ export function RichTextEditor({
           />
         )}
 
-        {/* Bottom row: tools on left, model selector + send on right */}
+        {/* Bottom row: tools on left, send on right */}
         <div
           className={cn(
             "flex items-center justify-between",
@@ -487,7 +488,8 @@ export function RichTextEditor({
             <div />
           )}
           <div className="flex items-center gap-1.5">
-            {!isDeepResearch &&
+            {SHOW_COMPOSER_MODEL_CONTROL &&
+              !isDeepResearch &&
               isBotDm &&
               botModelSwitch &&
               botModelSwitch.canSwitchModel && (
@@ -536,7 +538,8 @@ export function RichTextEditor({
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
-            {!isDeepResearch &&
+            {SHOW_COMPOSER_MODEL_CONTROL &&
+              !isDeepResearch &&
               isBotDm &&
               botModelSwitch &&
               !botModelSwitch.canSwitchModel &&

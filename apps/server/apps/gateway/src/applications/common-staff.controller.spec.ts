@@ -683,7 +683,7 @@ describe('CommonStaffController', () => {
       );
 
       expect(res._written).toContain(
-        `data: ${JSON.stringify({ error: 'Stream error' })}\n\n`,
+        `data: ${JSON.stringify({ error: 'Candidates stream error' })}\n\n`,
       );
       expect(res.end).toHaveBeenCalledTimes(1);
     });

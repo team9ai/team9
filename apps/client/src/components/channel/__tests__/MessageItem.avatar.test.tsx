@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { getSeededAvatarGradient } from "@/lib/avatar-colors";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import type { Message } from "@/types/im";
 
 import { MessageItem } from "../MessageItem";
@@ -17,7 +18,9 @@ const queryClient = new QueryClient({
 
 function renderWithProviders(ui: React.ReactElement) {
   return render(
-    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>{ui}</TooltipProvider>
+    </QueryClientProvider>,
   );
 }
 

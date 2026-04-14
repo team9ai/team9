@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -193,8 +193,10 @@ describe("HomeMainContent", () => {
     expect(
       screen.getByPlaceholderText(/message dashboard/i),
     ).toBeInTheDocument();
-    expect(screen.getByText(/deep research/i)).toBeInTheDocument();
-    expect(screen.getByText(/generate image/i)).toBeInTheDocument();
+    // Deep research / Generate image chips are temporarily hidden in
+    // production (DASHBOARD_ACTION_CHIPS is an empty array).
+    expect(screen.queryByText(/deep research/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/generate image/i)).not.toBeInTheDocument();
     expect(screen.getByText("Starter")).toBeInTheDocument();
     expect(screen.getByText("4,876")).toBeInTheDocument();
     const trigger = screen.getByRole("button", { name: /alpha agent/i });
@@ -222,30 +224,16 @@ describe("HomeMainContent", () => {
     });
   });
 
-  it("starts deep research in the selected agent channel without auto-send", async () => {
+  it("keeps deep research actions hidden on the dashboard", () => {
     renderWithProviders(<HomeMainContent />);
 
-    fireEvent.click(screen.getByRole("button", { name: /deep research/i }));
-    fireEvent.change(screen.getByPlaceholderText(/describe the topic/i), {
-      target: { value: "research this market" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /send message/i }));
-
-    await waitFor(() => {
-      expect(mockDeepResearchStartInChannel).toHaveBeenCalledWith("bot-ch-1", {
-        input: "research this market",
-        origin: "dashboard",
-      });
-    });
-
-    expect(mockNavigate).toHaveBeenCalledWith({
-      to: "/channels/$channelId",
-      params: { channelId: "bot-ch-1" },
-      search: { message: "msg-1" },
-    });
+    expect(
+      screen.queryByRole("button", { name: /deep research/i }),
+    ).not.toBeInTheDocument();
+    expect(mockDeepResearchStartInChannel).not.toHaveBeenCalled();
   });
 
-  it("renders a fixed model pill for base-model agents", () => {
+  it("hides the model control for base-model agents", () => {
     mockUseDashboardAgents.mockReturnValue({
       agents: [
         {
@@ -269,25 +257,15 @@ describe("HomeMainContent", () => {
 
     renderWithProviders(<HomeMainContent />);
 
-    expect(screen.getByText("Claude Sonnet 4.6")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /claude sonnet 4.6/i }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Claude Sonnet 4.6")).not.toBeInTheDocument();
   });
 
-  it("updates the model when the selected agent supports switching", async () => {
+  it("hides the model control for switchable agents", () => {
     renderWithProviders(<HomeMainContent />);
 
-    fireEvent.pointerDown(screen.getByRole("button", { name: /gpt-4.1/i }));
-    fireEvent.click(await screen.findByRole("menuitemradio", { name: /o3/i }));
-
-    expect(mockUpdateAgentModel).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: "agent-1" }),
-      {
-        provider: "openrouter",
-        id: "openai/o3",
-      },
-    );
+    expect(
+      screen.queryByRole("button", { name: /gpt-4.1/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("defaults to the personal-staff agent when one exists", () => {
@@ -326,7 +304,7 @@ describe("HomeMainContent", () => {
       updatingAgentUserId: null,
     });
 
-    render(<HomeMainContent />);
+    renderWithProviders(<HomeMainContent />);
 
     expect(
       screen.getByRole("button", { name: /私人秘书/ }),

@@ -27,6 +27,7 @@ const STATUS_BADGE_VARIANT: Record<
   RoutineStatus,
   "default" | "secondary" | "destructive" | "outline"
 > = {
+  draft: "outline",
   in_progress: "default",
   upcoming: "secondary",
   paused: "outline",
@@ -79,6 +80,7 @@ interface ChatAreaProps {
   activeExecution: RoutineExecution | null;
   isViewingHistory: boolean;
   onReturnToCurrent: () => void;
+  creationChannelId?: string | null;
 }
 
 export function ChatArea({
@@ -87,6 +89,7 @@ export function ChatArea({
   activeExecution,
   isViewingHistory,
   onReturnToCurrent,
+  creationChannelId,
 }: ChatAreaProps) {
   const { t } = useTranslation("routines");
   const queryClient = useQueryClient();
@@ -94,8 +97,13 @@ export function ChatArea({
     null,
   );
 
-  const isReadOnly = !activeExecution || isViewingHistory;
-  const channelId = selectedRun?.channelId ?? null;
+  const isCreationMode = !!creationChannelId;
+  const channelId = isCreationMode
+    ? creationChannelId!
+    : (selectedRun?.channelId ?? null);
+  const isReadOnly = isCreationMode
+    ? false
+    : !activeExecution || isViewingHistory;
   const displayStatus = selectedRun?.status ?? routine.status;
 
   // Control mutations
@@ -173,12 +181,20 @@ export function ChatArea({
             {routine.title}
           </span>
           <Badge
-            variant={STATUS_BADGE_VARIANT[displayStatus]}
-            className="text-xs shrink-0"
+            variant={
+              isCreationMode ? "outline" : STATUS_BADGE_VARIANT[displayStatus]
+            }
+            className={
+              isCreationMode
+                ? "text-xs shrink-0 border-yellow-300 bg-yellow-100 text-yellow-800 dark:border-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-200"
+                : "text-xs shrink-0"
+            }
           >
-            {t(`status.${displayStatus}`)}
+            {isCreationMode
+              ? t("creation.bannerStatus", "In Creation")
+              : t(`status.${displayStatus}`)}
           </Badge>
-          {selectedRun && (
+          {!isCreationMode && selectedRun && (
             <span className="text-xs text-muted-foreground shrink-0">
               v{selectedRun.routineVersion}
               {selectedRun.tokenUsage > 0 &&
@@ -189,18 +205,53 @@ export function ChatArea({
             </span>
           )}
         </div>
-        <div className="flex gap-1 shrink-0">
-          {routine.status === "in_progress" && !isViewingHistory && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={isMutating}
-                onClick={() => pauseMutation.mutate()}
-              >
-                <Pause size={14} />
-                {t("chatArea.pause")}
-              </Button>
+        {!isCreationMode && (
+          <div className="flex gap-1 shrink-0">
+            {routine.status === "in_progress" && !isViewingHistory && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isMutating}
+                  onClick={() => pauseMutation.mutate()}
+                >
+                  <Pause size={14} />
+                  {t("chatArea.pause")}
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={isMutating}
+                  onClick={() => stopMutation.mutate()}
+                >
+                  <Square size={14} />
+                  {t("chatArea.stop")}
+                </Button>
+              </>
+            )}
+            {routine.status === "paused" && !isViewingHistory && (
+              <>
+                <Button
+                  variant="default"
+                  size="sm"
+                  disabled={isMutating}
+                  onClick={() => resumeMutation.mutate()}
+                >
+                  <PlayCircle size={14} />
+                  {t("chatArea.resume")}
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={isMutating}
+                  onClick={() => stopMutation.mutate()}
+                >
+                  <Square size={14} />
+                  {t("chatArea.stop")}
+                </Button>
+              </>
+            )}
+            {routine.status === "pending_action" && !isViewingHistory && (
               <Button
                 variant="destructive"
                 size="sm"
@@ -210,70 +261,37 @@ export function ChatArea({
                 <Square size={14} />
                 {t("chatArea.stop")}
               </Button>
-            </>
-          )}
-          {routine.status === "paused" && !isViewingHistory && (
-            <>
+            )}
+            {routine.status === "upcoming" && !isViewingHistory && (
               <Button
                 variant="default"
                 size="sm"
                 disabled={isMutating}
-                onClick={() => resumeMutation.mutate()}
+                onClick={() => setDialogMode("start")}
               >
-                <PlayCircle size={14} />
-                {t("chatArea.resume")}
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                disabled={isMutating}
-                onClick={() => stopMutation.mutate()}
-              >
-                <Square size={14} />
-                {t("chatArea.stop")}
-              </Button>
-            </>
-          )}
-          {routine.status === "pending_action" && !isViewingHistory && (
-            <Button
-              variant="destructive"
-              size="sm"
-              disabled={isMutating}
-              onClick={() => stopMutation.mutate()}
-            >
-              <Square size={14} />
-              {t("chatArea.stop")}
-            </Button>
-          )}
-          {routine.status === "upcoming" && !isViewingHistory && (
-            <Button
-              variant="default"
-              size="sm"
-              disabled={isMutating}
-              onClick={() => setDialogMode("start")}
-            >
-              <Play size={14} />
-              {t("chatArea.start")}
-            </Button>
-          )}
-          {["completed", "failed", "stopped", "timeout"].includes(
-            routine.status,
-          ) &&
-            !isViewingHistory && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setDialogMode("restart")}
-              >
-                <RotateCcw size={14} />
-                {t("chatArea.rerun")}
+                <Play size={14} />
+                {t("chatArea.start")}
               </Button>
             )}
-        </div>
+            {["completed", "failed", "stopped", "timeout"].includes(
+              routine.status,
+            ) &&
+              !isViewingHistory && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDialogMode("restart")}
+                >
+                  <RotateCcw size={14} />
+                  {t("chatArea.rerun")}
+                </Button>
+              )}
+          </div>
+        )}
       </div>
 
       {/* History viewing banner */}
-      {isViewingHistory && selectedRun && (
+      {!isCreationMode && isViewingHistory && selectedRun && (
         <div className="px-4 py-2 bg-blue-500/10 border-b border-blue-500/20 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 text-sm">
             <History size={14} className="text-blue-500" />
@@ -296,7 +314,7 @@ export function ChatArea({
       )}
 
       {/* Finished state banner */}
-      {finishedConfig && selectedRun && (
+      {!isCreationMode && finishedConfig && selectedRun && (
         <div
           className={`px-4 py-2 border-b flex items-center justify-between shrink-0 ${finishedConfig.bgClass}`}
         >
