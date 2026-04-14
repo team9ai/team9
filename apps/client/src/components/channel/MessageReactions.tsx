@@ -29,6 +29,8 @@ interface MessageReactionsProps {
   channelId?: string;
   onAddReaction: (emoji: string) => void;
   onRemoveReaction: (emoji: string) => void;
+  /** Extra element rendered inside the reactions row, after the reaction chips and emoji-picker +. */
+  trailingSlot?: React.ReactNode;
 }
 
 export function MessageReactions({
@@ -37,6 +39,7 @@ export function MessageReactions({
   channelId,
   onAddReaction,
   onRemoveReaction,
+  trailingSlot,
 }: MessageReactionsProps) {
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const { data: members } = useChannelMembers(channelId);
@@ -136,6 +139,8 @@ export function MessageReactions({
             <EmojiPicker onSelect={handlePickerSelect} />
           </PopoverContent>
         </Popover>
+
+        {trailingSlot}
       </div>
     </TooltipProvider>
   );
