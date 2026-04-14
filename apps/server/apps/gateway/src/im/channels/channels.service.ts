@@ -1276,11 +1276,14 @@ export class ChannelsService {
   }
 
   /**
-   * System helper to archive a routine creation channel.
+   * System helper to archive a routine-session channel (purpose: creation,
+   * reflection, retrospective, etc.).
    *
    * Unlike archiveChannel, this method:
    * - Does NOT enforce owner/admin role (system-initiated)
-   * - ACCEPTS direct channels (creation channels are DMs)
+   * - Only ACCEPTS channels with type='routine-session'. Other types throw
+   *   ForbiddenException — the Phase 1 DM-reuse path is gone and the
+   *   helper must not silently archive arbitrary channels.
    * - Is idempotent: no-op if channel missing or already archived
    */
   async archiveCreationChannel(
@@ -1307,6 +1310,11 @@ export class ChannelsService {
         `archiveCreationChannel: channel ${channelId} not found, skipping`,
       );
       return;
+    }
+    if (channel.type !== 'routine-session') {
+      throw new ForbiddenException(
+        `archiveCreationChannel only allowed on routine-session channels (got ${channel.type})`,
+      );
     }
     if (channel.isArchived) {
       this.logger.debug(

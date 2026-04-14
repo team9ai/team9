@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { InstalledApplicationWithBots } from "@/services/api/applications";
 
@@ -25,9 +25,14 @@ vi.mock("@tanstack/react-router", () => ({
   useRouter: () => ({ navigate: mockRouterNavigate }),
 }));
 
+const mockInvalidateQueries = vi.hoisted(() =>
+  vi.fn().mockResolvedValue(undefined),
+);
+
 vi.mock("@tanstack/react-query", () => ({
   useQuery: mockUseQuery,
   useMutation: mockUseMutation,
+  useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
 }));
 
 vi.mock("@/stores/useWorkspaceStore", () => ({
@@ -207,14 +212,19 @@ describe("AgenticAgentPicker", () => {
     expect(screen.getByText("agentic.noAgentsAvailable")).toBeInTheDocument();
   });
 
-  it("calls onOpenCreationSession with new routine id after successful create, does not navigate", () => {
+  it("calls onOpenCreationSession with new routine id after successful create, does not navigate", async () => {
     const onOpen = vi.fn();
     const onClose = vi.fn();
 
-    // Capture the mutation options so we can invoke onSuccess manually
-    let capturedOptions: { onSuccess?: (data: unknown) => void } | undefined;
-    const triggerMutate = vi.fn(() => {
-      capturedOptions?.onSuccess?.({
+    // Capture the mutation options so we can invoke onSuccess manually.
+    // The production onSuccess is async (awaits queryClient.invalidateQueries
+    // before calling onOpenCreationSession), so the mock's mutate must also
+    // await the onSuccess promise.
+    let capturedOptions:
+      | { onSuccess?: (data: unknown) => Promise<void> | void }
+      | undefined;
+    const triggerMutate = vi.fn(async () => {
+      await capturedOptions?.onSuccess?.({
         routineId: "new-routine",
         creationChannelId: "ch-1",
         creationSessionId: "team9/t/a/dm/ch-1",
@@ -266,8 +276,11 @@ describe("AgenticAgentPicker", () => {
     // The "agentic.confirm" button triggers the mutation
     fireEvent.click(screen.getByText("agentic.confirm"));
 
-    expect(onClose).toHaveBeenCalled();
-    expect(onOpen).toHaveBeenCalledWith("new-routine");
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    await waitFor(() => expect(onOpen).toHaveBeenCalledWith("new-routine"));
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["routines"],
+    });
     expect(mockNavigate).not.toHaveBeenCalled();
     expect(mockRouterNavigate).not.toHaveBeenCalled();
   });

@@ -1,1 +1,1 @@
-ALTER TYPE "public"."channel_type" ADD VALUE 'routine-session';
+ALTER TYPE "public"."channel_type" ADD VALUE IF NOT EXISTS 'routine-session';

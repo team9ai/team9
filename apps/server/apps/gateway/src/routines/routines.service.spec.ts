@@ -80,7 +80,6 @@ describe('RoutinesService — TaskCast integration', () => {
   };
   let channelsService: {
     archiveCreationChannel: MockFn;
-    createDirectChannel: MockFn;
     createRoutineSessionChannel: MockFn;
     hardDeleteRoutineSessionChannel: MockFn;
   };
@@ -112,9 +111,6 @@ describe('RoutinesService — TaskCast integration', () => {
     };
     channelsService = {
       archiveCreationChannel: jest.fn<any>().mockResolvedValue(undefined),
-      createDirectChannel: jest
-        .fn<any>()
-        .mockResolvedValue({ id: 'channel-1' }),
       createRoutineSessionChannel: jest
         .fn<any>()
         .mockResolvedValue({ id: 'channel-1' }),
@@ -2589,6 +2585,15 @@ describe('RoutinesService — TaskCast integration', () => {
       await expect(
         service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('rejects drafts with null botId', async () => {
+      mockGetRoutine({ botId: null });
+
+      await expect(
+        service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
+      ).rejects.toThrow(BadRequestException);
+      expect(botsService.getBotById).not.toHaveBeenCalled();
     });
 
     it('rejects bots without managedMeta.agentId', async () => {

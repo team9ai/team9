@@ -77,4 +77,28 @@ describe("DraftRoutineCard", () => {
     );
     await waitFor(() => expect(onOpen).toHaveBeenCalledWith("r-1"));
   });
+
+  it("when startCreationSession rejects, does not call onOpen and leaves the button usable", async () => {
+    startCreationSession.mockRejectedValueOnce(new Error("boom"));
+    const { onOpen } = renderCard({ creationChannelId: null });
+
+    const btn = screen.getByRole("button", {
+      name: /draft\.completeCreation/,
+    });
+    fireEvent.click(btn);
+
+    await waitFor(() =>
+      expect(startCreationSession).toHaveBeenCalledWith("r-1"),
+    );
+    // onOpen must not be called when the mutation rejects
+    expect(onOpen).not.toHaveBeenCalled();
+    // Button remains in the DOM and is not stuck in pending state after the
+    // mutation settles — clicking it again should trigger another API call.
+    await waitFor(() => {
+      const btnAfter = screen.getByRole("button", {
+        name: /draft\.completeCreation/,
+      });
+      expect((btnAfter as HTMLButtonElement).disabled).toBe(false);
+    });
+  });
 });

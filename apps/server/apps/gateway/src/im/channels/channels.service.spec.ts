@@ -1779,13 +1779,12 @@ describe('ChannelsService', () => {
       redisService = (service as any).redis;
     });
 
-    it('archives a direct channel without role/type checks', async () => {
+    it('archives a routine-session channel without role check', async () => {
       db.limit.mockResolvedValueOnce([
-        { id: 'ch-direct', type: 'direct', isArchived: false },
+        { id: 'ch-rs', type: 'routine-session', isArchived: false },
       ] as any);
-      // UPDATE's .where() doesn't need a specific return — chain default is fine
 
-      await service.archiveCreationChannel('ch-direct');
+      await service.archiveCreationChannel('ch-rs');
 
       expect(db.update).toHaveBeenCalled();
       expect(db.set).toHaveBeenCalledWith(
@@ -1794,12 +1793,23 @@ describe('ChannelsService', () => {
       expect(redisService.invalidate).toHaveBeenCalled();
     });
 
-    it('is idempotent when channel is already archived', async () => {
+    it('rejects non-routine-session channels with ForbiddenException', async () => {
       db.limit.mockResolvedValueOnce([
-        { id: 'ch-direct', type: 'direct', isArchived: true },
+        { id: 'ch-direct', type: 'direct', isArchived: false },
       ] as any);
 
-      await service.archiveCreationChannel('ch-direct');
+      await expect(service.archiveCreationChannel('ch-direct')).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(db.update).not.toHaveBeenCalled();
+    });
+
+    it('is idempotent when channel is already archived', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'ch-rs', type: 'routine-session', isArchived: true },
+      ] as any);
+
+      await service.archiveCreationChannel('ch-rs');
 
       expect(db.update).not.toHaveBeenCalled();
       expect(redisService.invalidate).not.toHaveBeenCalled();
@@ -1821,13 +1831,11 @@ describe('ChannelsService', () => {
 
     it('applies tenant filter when tenantId is provided', async () => {
       db.limit.mockResolvedValueOnce([
-        { id: 'ch-1', type: 'direct', isArchived: false },
+        { id: 'ch-1', type: 'routine-session', isArchived: false },
       ] as any);
 
       await service.archiveCreationChannel('ch-1', 'tenant-42');
 
-      // The where clause should have been called with two conditions (id + tenantId)
-      // We verify that db.update was called (meaning the tenant filter didn't block)
       expect(db.update).toHaveBeenCalled();
       expect(redisService.invalidate).toHaveBeenCalled();
     });

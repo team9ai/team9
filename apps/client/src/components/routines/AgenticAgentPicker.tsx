@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import {
@@ -38,6 +38,7 @@ export function AgenticAgentPicker({
 }: AgenticAgentPickerProps) {
   const { t } = useTranslation("routines");
   const router = useRouter();
+  const queryClient = useQueryClient();
   const workspaceId = useSelectedWorkspaceId();
 
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
@@ -72,8 +73,9 @@ export function AgenticAgentPicker({
   const createMutation = useMutation({
     mutationFn: () =>
       api.routines.createWithCreationTask({ agentId: effectiveAgentId }),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       handleClose();
+      await queryClient.invalidateQueries({ queryKey: ["routines"] });
       onOpenCreationSession(data.routineId);
     },
     onError: (err) => {

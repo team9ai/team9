@@ -131,7 +131,6 @@ describe('Routine Creation Flow — integration', () => {
   };
   let channelsService: {
     archiveCreationChannel: MockFn;
-    createDirectChannel: MockFn;
     createRoutineSessionChannel: MockFn;
     hardDeleteRoutineSessionChannel: MockFn;
   };
@@ -162,7 +161,6 @@ describe('Routine Creation Flow — integration', () => {
     };
     channelsService = {
       archiveCreationChannel: jest.fn<any>().mockResolvedValue(undefined),
-      createDirectChannel: jest.fn<any>().mockResolvedValue({ id: CHANNEL_ID }),
       createRoutineSessionChannel: jest
         .fn<any>()
         .mockResolvedValue({ id: CHANNEL_ID }),
