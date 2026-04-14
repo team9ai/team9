@@ -164,7 +164,7 @@ function TabItem({
   const tabContent = (
     <div
       className={cn(
-        "relative",
+        "relative pt-1",
         dragOver &&
           "before:absolute before:left-0 before:top-1 before:bottom-1 before:w-0.5 before:bg-primary before:rounded-full",
       )}
@@ -178,14 +178,14 @@ function TabItem({
       <button
         onClick={isEditing ? undefined : onClick}
         className={cn(
-          "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors rounded-t-md border-b-2",
+          "flex items-center gap-1.5 px-2.5 py-1 text-[13px] font-medium whitespace-nowrap transition-colors rounded-t-md hover:bg-foreground/5",
           isActive
-            ? "border-primary text-primary bg-primary/5"
-            : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50",
+            ? "text-foreground"
+            : "text-muted-foreground hover:text-foreground",
           isDraggable && !isEditing && "cursor-grab active:cursor-grabbing",
         )}
       >
-        <Icon size={14} />
+        <Icon size={13} />
         {isEditing ? (
           <span
             className="flex items-center gap-1"
@@ -207,6 +207,9 @@ function TabItem({
           <span>{tab.name}</span>
         )}
       </button>
+      {isActive && (
+        <span className="pointer-events-none absolute left-0 right-0 -bottom-px h-[3px] bg-primary" />
+      )}
     </div>
   );
 
@@ -283,10 +286,10 @@ function CreateTabPopover({ channelId, onCreated }: CreateTabPopoverProps) {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
-          className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+          className="flex items-center justify-center w-6 h-6 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors ml-0.5"
           title="Add view tab"
         >
-          <Plus size={16} />
+          <Plus size={14} />
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-64 p-3">
@@ -437,7 +440,7 @@ export function ChannelTabs({
   );
 
   return (
-    <div className="flex items-center gap-0.5 px-3 border-b overflow-x-auto scrollbar-none">
+    <div className="flex items-center gap-1 px-3 border-b overflow-x-auto scrollbar-none">
       {sortedTabs.map((tab) => (
         <TabItem
           key={tab.id}
