@@ -25,6 +25,11 @@ const STATUS_FILTERS: Record<string, RoutineStatus[]> = {
 const TAB_KEYS = ["all", "active", "upcoming", "finished"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
 
+export type SelectedRun =
+  | { kind: "execution"; routineId: string; executionId: string }
+  | { kind: "creation"; routineId: string }
+  | null;
+
 const ACTIVE_STATUSES: RoutineStatus[] = [
   "in_progress",
   "pending_action",
@@ -38,9 +43,9 @@ interface RoutineListProps {
 export function RoutineList({ botId }: RoutineListProps) {
   const { t } = useTranslation("routines");
   const workspaceId = useSelectedWorkspaceId();
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [selectedRun, setSelectedRun] = useState<SelectedRun>(null);
   // activeRoutineId tracks which routine owns the selected run
-  // (set alongside selectedRunId to avoid needing cross-routine execution lookups)
+  // (set alongside selectedRun to avoid needing cross-routine execution lookups)
   const [activeRoutineId, setActiveRoutineId] = useState<string | null>(null);
   const [expandedRoutineIds, setExpandedRoutineIds] = useState<Set<string>>(
     new Set(),
@@ -118,14 +123,26 @@ export function RoutineList({ botId }: RoutineListProps) {
     refetchInterval: 5000,
   });
 
-  const selectedRun = useMemo(() => {
-    if (!selectedRunId) return null;
-    if (activeExecution?.id === selectedRunId) return activeExecution;
-    return activeRoutineExecutions.find((e) => e.id === selectedRunId) ?? null;
-  }, [selectedRunId, activeExecution, activeRoutineExecutions]);
+  const selectedRunExecution = useMemo(() => {
+    if (!selectedRun || selectedRun.kind !== "execution") return null;
+    if (activeExecution?.id === selectedRun.executionId) return activeExecution;
+    return (
+      activeRoutineExecutions.find((e) => e.id === selectedRun.executionId) ??
+      null
+    );
+  }, [selectedRun, activeExecution, activeRoutineExecutions]);
+
+  const isCreationMode = selectedRun?.kind === "creation";
+
+  const creationChannelOverride =
+    isCreationMode && selectedRoutine
+      ? (selectedRoutine.creationChannelId ?? null)
+      : null;
 
   const isViewingHistory =
-    !!selectedRun && !!activeExecution && selectedRunId !== activeExecution.id;
+    !!selectedRunExecution &&
+    !!activeExecution &&
+    selectedRunExecution.id !== activeExecution.id;
 
   // Handle expanding a routine
   const handleToggleExpand = useCallback(
@@ -136,7 +153,7 @@ export function RoutineList({ botId }: RoutineListProps) {
           next.delete(routineId);
           // If collapsing the routine that owns the selected run, deselect
           if (activeRoutineId === routineId) {
-            setSelectedRunId(null);
+            setSelectedRun(null);
             setActiveRoutineId(null);
           }
         } else {
@@ -144,7 +161,7 @@ export function RoutineList({ botId }: RoutineListProps) {
           // Set activeRoutineId immediately so the center panel renders
           // (tasks with no runs still need to show the Start button)
           setActiveRoutineId(routineId);
-          setSelectedRunId(null);
+          setSelectedRun(null);
           // Auto-select run will happen via ExpandableRoutineCard's useEffect
         }
         return next;
@@ -154,25 +171,47 @@ export function RoutineList({ botId }: RoutineListProps) {
   );
 
   // Handle run selection — stable ref to avoid re-triggering effects
-  const handleSelectRun = useCallback((routineId: string, runId: string) => {
-    setSelectedRunId(runId);
+  const handleSelectRun = useCallback(
+    (routineId: string, executionId: string) => {
+      setSelectedRun({ kind: "execution", routineId, executionId });
+      setActiveRoutineId(routineId);
+    },
+    [],
+  );
+
+  const handleOpenCreationSession = useCallback((routineId: string) => {
+    setExpandedRoutineIds((prev) => {
+      const next = new Set(prev);
+      next.add(routineId);
+      return next;
+    });
     setActiveRoutineId(routineId);
+    setSelectedRun({ kind: "creation", routineId });
   }, []);
 
   const handleReturnToCurrent = useCallback(() => {
+    if (!activeRoutineId) return;
     if (activeExecution) {
-      setSelectedRunId(activeExecution.id);
+      setSelectedRun({
+        kind: "execution",
+        routineId: activeRoutineId,
+        executionId: activeExecution.id,
+      });
     } else if (activeRoutineExecutions.length > 0) {
-      setSelectedRunId(activeRoutineExecutions[0].id);
+      setSelectedRun({
+        kind: "execution",
+        routineId: activeRoutineId,
+        executionId: activeRoutineExecutions[0].id,
+      });
     }
-  }, [activeExecution, activeRoutineExecutions]);
+  }, [activeExecution, activeRoutineExecutions, activeRoutineId]);
 
   const handleSettingsDeleted = useCallback(() => {
     const deletedRoutineId = showSettingsRoutineId;
     setShowSettingsRoutineId(null);
     // If the deleted routine was the active one, clear selection
     if (activeRoutineId === deletedRoutineId) {
-      setSelectedRunId(null);
+      setSelectedRun(null);
       setActiveRoutineId(null);
     }
   }, [activeRoutineId, showSettingsRoutineId]);
@@ -249,7 +288,11 @@ export function RoutineList({ botId }: RoutineListProps) {
                       {t("draft.badge")}
                     </p>
                     {draftRoutines.map((routine) => (
-                      <DraftRoutineCard key={routine.id} routine={routine} />
+                      <DraftRoutineCard
+                        key={routine.id}
+                        routine={routine}
+                        onOpenCreationSession={handleOpenCreationSession}
+                      />
                     ))}
                     {filteredRoutines.length > 0 && (
                       <div className="border-t border-border my-1" />
@@ -271,10 +314,11 @@ export function RoutineList({ botId }: RoutineListProps) {
                       routine={routine}
                       isExpanded={expandedRoutineIds.has(routine.id)}
                       isActive={activeRoutineId === routine.id}
-                      selectedRunId={selectedRunId}
+                      selectedRun={selectedRun}
                       botNameMap={botNameMap}
                       onToggleExpand={() => handleToggleExpand(routine.id)}
                       onSelectRun={handleSelectRun}
+                      onOpenCreationSession={handleOpenCreationSession}
                       onOpenSettings={() =>
                         setShowSettingsRoutineId(routine.id)
                       }
@@ -292,12 +336,16 @@ export function RoutineList({ botId }: RoutineListProps) {
         <>
           <ChatArea
             routine={selectedRoutine}
-            selectedRun={selectedRun}
+            selectedRun={selectedRunExecution}
             activeExecution={activeExecution}
             isViewingHistory={isViewingHistory}
             onReturnToCurrent={handleReturnToCurrent}
+            creationChannelId={creationChannelOverride}
           />
-          <RightPanel routineId={activeRoutineId} selectedRun={selectedRun} />
+          <RightPanel
+            routineId={activeRoutineId}
+            selectedRun={selectedRunExecution}
+          />
         </>
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center">
@@ -340,6 +388,7 @@ export function RoutineList({ botId }: RoutineListProps) {
           setAgenticPickerOpen(false);
           setShowCreateDialog(true);
         }}
+        onOpenCreationSession={handleOpenCreationSession}
       />
     </div>
   );
@@ -351,10 +400,11 @@ interface ExpandableRoutineCardProps {
   routine: Routine;
   isExpanded: boolean;
   isActive: boolean;
-  selectedRunId: string | null;
+  selectedRun: SelectedRun;
   botNameMap: Map<string, string>;
   onToggleExpand: () => void;
   onSelectRun: (routineId: string, runId: string) => void;
+  onOpenCreationSession: (routineId: string) => void;
   onOpenSettings: () => void;
 }
 
@@ -362,10 +412,11 @@ function ExpandableRoutineCard({
   routine,
   isExpanded,
   isActive,
-  selectedRunId,
+  selectedRun,
   botNameMap,
   onToggleExpand,
   onSelectRun,
+  onOpenCreationSession,
   onOpenSettings,
 }: ExpandableRoutineCardProps) {
   // Fetch executions only when expanded
@@ -407,11 +458,12 @@ function ExpandableRoutineCard({
       routine={routine}
       isExpanded={isExpanded}
       isActive={isActive}
-      selectedRunId={selectedRunId}
+      selectedRun={selectedRun}
       executions={executions}
       botName={routine.botId ? botNameMap.get(routine.botId) : null}
       onToggleExpand={onToggleExpand}
       onSelectRun={handleSelectRun}
+      onOpenCreationSession={onOpenCreationSession}
       onOpenSettings={onOpenSettings}
     />
   );
