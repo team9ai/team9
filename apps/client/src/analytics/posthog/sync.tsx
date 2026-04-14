@@ -27,7 +27,7 @@ export function Team9PostHogIdentitySync() {
 
     if (!hasAuthToken || !user) {
       if (lastIdentifiedUserId !== null || lastGroupedWorkspaceId !== null) {
-        client.reset(true);
+        client.reset();
         clearIdentitySyncState();
       }
       return;
