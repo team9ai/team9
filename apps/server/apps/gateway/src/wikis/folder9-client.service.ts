@@ -7,6 +7,8 @@ import {
   Folder9CommitRequest,
   Folder9CommitResponse,
   Folder9CreateFolderInput,
+  Folder9CreateTokenRequest,
+  Folder9CreateTokenResponse,
   Folder9DiffEntry,
   Folder9Folder,
   Folder9NetworkError,
@@ -267,6 +269,31 @@ export class Folder9ClientService {
       'DELETE',
       `/api/workspaces/${wsId}/folders/${folderId}`,
       'psk',
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // Token minting (PSK-protected)
+  // ---------------------------------------------------------------------
+
+  /**
+   * POST /api/tokens
+   *
+   * Mints an opaque folder-scoped token. folder9 treats this as a management
+   * endpoint: the PSK is required. The returned `token` string is then used
+   * as the Bearer value for file/proposal operations on the specified folder.
+   *
+   * Callers (WikisService) are responsible for caching tokens and re-minting
+   * before expiry — this method is a bare HTTP wrapper.
+   */
+  createToken(
+    input: Folder9CreateTokenRequest,
+  ): Promise<Folder9CreateTokenResponse> {
+    return this.request<Folder9CreateTokenResponse>(
+      'POST',
+      `/api/tokens`,
+      'psk',
+      input,
     );
   }
 

@@ -195,6 +195,94 @@ describe('Folder9ClientService', () => {
   });
 
   // ---------------------------------------------------------------------
+  // Token minting (PSK-protected)
+  // ---------------------------------------------------------------------
+
+  describe('createToken', () => {
+    it('POSTs to /api/tokens with Authorization: Bearer <psk> and the full body', async () => {
+      const body = {
+        id: 'tok-id-1',
+        token: 'opaque-bearer-value',
+        folder_id: 'f-1',
+        permission: 'read',
+        name: 'wiki-read',
+        created_by: 'wiki:ws-1',
+        created_at: '2026-04-13T10:00:00Z',
+        expires_at: '2026-04-13T10:16:00Z',
+      };
+      const fetchFn = jest
+        .fn<typeof fetch>()
+        .mockResolvedValue(jsonResponse(body, 201));
+      globalThis.fetch = fetchFn;
+
+      const result = await service.createToken({
+        folder_id: 'f-1',
+        permission: 'read',
+        name: 'wiki-read',
+        created_by: 'wiki:ws-1',
+        expires_at: '2026-04-13T10:16:00Z',
+      });
+
+      expect(result).toEqual(body);
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchFn.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe('http://folder9.test/api/tokens');
+      expect(init.method).toBe('POST');
+      expect((init.headers as Record<string, string>)[AUTH_HEADER]).toBe(
+        'Bearer psk-test',
+      );
+      expect((init.headers as Record<string, string>)['Content-Type']).toBe(
+        'application/json',
+      );
+      expect(JSON.parse(init.body as string)).toEqual({
+        folder_id: 'f-1',
+        permission: 'read',
+        name: 'wiki-read',
+        created_by: 'wiki:ws-1',
+        expires_at: '2026-04-13T10:16:00Z',
+      });
+    });
+
+    it('throws a clear error when FOLDER9_PSK is missing', async () => {
+      mockEnv.FOLDER9_PSK = undefined;
+      globalThis.fetch = jest.fn<typeof fetch>();
+
+      await expect(
+        service.createToken({
+          folder_id: 'f-1',
+          permission: 'read',
+          name: 'x',
+          created_by: 'x',
+        }),
+      ).rejects.toThrow(/FOLDER9_PSK/);
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+    });
+
+    it('maps non-2xx responses to Folder9ApiError', async () => {
+      globalThis.fetch = jest
+        .fn<typeof fetch>()
+        .mockResolvedValue(jsonResponse({ error: 'CREATE_TOKEN_FAILED' }, 422));
+
+      let err: unknown;
+      try {
+        await service.createToken({
+          folder_id: 'f-bogus',
+          permission: 'read',
+          name: 'x',
+          created_by: 'x',
+        });
+      } catch (e) {
+        err = e;
+      }
+      expect(err).toBeInstanceOf(Folder9ApiError);
+      const apiErr = err as InstanceType<typeof Folder9ApiError>;
+      expect(apiErr.status).toBe(422);
+      expect(apiErr.endpoint).toBe('/api/tokens');
+      expect(apiErr.body).toEqual({ error: 'CREATE_TOKEN_FAILED' });
+    });
+  });
+
+  // ---------------------------------------------------------------------
   // File read operations (token-protected)
   // ---------------------------------------------------------------------
 

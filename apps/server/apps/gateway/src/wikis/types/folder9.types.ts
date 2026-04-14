@@ -123,6 +123,41 @@ export interface Folder9ProposalWithDiff extends Folder9Proposal {
   diff_summary?: Folder9DiffEntry[];
 }
 
+/**
+ * Request body for POST /api/tokens.
+ *
+ * Mirrors folder9's `createTokenRequest` struct in
+ * internal/api/handlers_tokens.go. `expires_at` is RFC3339 (e.g.
+ * "2026-04-13T10:15:00Z"). folder9 enforces a max 24h TTL server-side —
+ * callers typically request much shorter windows and re-mint on demand.
+ */
+export interface Folder9CreateTokenRequest {
+  folder_id: string;
+  permission: Folder9Permission;
+  name: string;
+  created_by: string;
+  expires_at?: string;
+}
+
+/**
+ * Response body for POST /api/tokens.
+ *
+ * Mirrors folder9's `tokenResponse` struct in handlers_tokens.go. The opaque
+ * bearer value is the `token` field; callers send it back as
+ * `Authorization: Bearer {token}` on file/proposal endpoints.
+ */
+export interface Folder9CreateTokenResponse {
+  id: string;
+  token: string;
+  folder_id: string;
+  permission: Folder9Permission;
+  name: string;
+  expires_at?: string;
+  revoked_at?: string;
+  created_by: string;
+  created_at: string;
+}
+
 /** Thrown when folder9 responds with a non-2xx status. */
 export class Folder9ApiError extends Error {
   public readonly status: number;
