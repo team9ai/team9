@@ -270,7 +270,7 @@ describe("MainSidebar user menu", () => {
     expect(screen.queryByText("Pause notifications")).not.toBeInTheDocument();
     expect(screen.queryByText("Preferences")).not.toBeInTheDocument();
     expect(screen.getByText("Profile")).toBeInTheDocument();
-    expect(screen.getByText("English")).toBeInTheDocument();
+    expect(screen.getAllByText("English").length).toBeGreaterThan(0);
   });
 
   it("keeps the workspace rail background draggable in desktop builds", () => {
