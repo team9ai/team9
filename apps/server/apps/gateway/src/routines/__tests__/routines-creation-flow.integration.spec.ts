@@ -2,10 +2,10 @@
  * End-to-end integration test for the Routine creation flow.
  *
  * Exercises the full Routine UI path in sequence:
- *   1. createWithCreationTask — creates draft routine + DM channel, sends kickoff
- *      to the ORIGINAL bot's session (no clone agent)
+ *   1. createWithCreationTask — creates draft routine + routine-session channel,
+ *      sends kickoff to the ORIGINAL bot's session (no clone agent)
  *   2. update — simulates agent refinement (title, documentContent, triggers)
- *   3. completeCreation — transitions to upcoming (no channel archival, no clone)
+ *   3. completeCreation — transitions to upcoming, archives the creation channel
  *
  * This is a mock-based test (no real DB). The key thing it verifies that
  * individual unit tests don't: the routineId returned from createWithCreationTask
@@ -132,6 +132,8 @@ describe('Routine Creation Flow — integration', () => {
   let channelsService: {
     archiveCreationChannel: MockFn;
     createDirectChannel: MockFn;
+    createRoutineSessionChannel: MockFn;
+    hardDeleteRoutineSessionChannel: MockFn;
   };
   let clawHiveService: {
     deleteAgent: MockFn;
@@ -161,6 +163,12 @@ describe('Routine Creation Flow — integration', () => {
     channelsService = {
       archiveCreationChannel: jest.fn<any>().mockResolvedValue(undefined),
       createDirectChannel: jest.fn<any>().mockResolvedValue({ id: CHANNEL_ID }),
+      createRoutineSessionChannel: jest
+        .fn<any>()
+        .mockResolvedValue({ id: CHANNEL_ID }),
+      hardDeleteRoutineSessionChannel: jest
+        .fn<any>()
+        .mockResolvedValue(undefined),
     };
     clawHiveService = {
       deleteAgent: jest.fn<any>().mockResolvedValue(undefined),
@@ -213,8 +221,17 @@ describe('Routine Creation Flow — integration', () => {
     // Mock: draft-conflict check — no existing draft
     db.limit.mockResolvedValueOnce([] as any);
 
-    // Mock: channelsService.createDirectChannel
-    channelsService.createDirectChannel.mockResolvedValueOnce({
+    // Mock: getRoutineOrThrow inside startCreationSession — returns the newly created draft
+    // Note: no creationChannelId/creationSessionId yet (the channel hasn't been materialized)
+    db.limit.mockResolvedValueOnce([
+      { ...DRAFT_ROUTINE, creationChannelId: null, creationSessionId: null },
+    ] as any);
+
+    // Mock: getBotById inside startCreationSession (second call; first was outer validation)
+    botsService.getBotById.mockResolvedValueOnce(SOURCE_BOT as any);
+
+    // Mock: channelsService.createRoutineSessionChannel
+    channelsService.createRoutineSessionChannel.mockResolvedValueOnce({
       id: CHANNEL_ID,
     } as any);
 
@@ -237,12 +254,14 @@ describe('Routine Creation Flow — integration', () => {
       creationSessionId: SESSION_ID,
     });
 
-    // Verify DM channel was created for the right user + bot shadow user
-    expect(channelsService.createDirectChannel).toHaveBeenCalledWith(
-      USER_ID,
-      SOURCE_BOT.userId,
-      TENANT_ID,
-    );
+    // Verify routine-session channel was created with the correct params
+    expect(channelsService.createRoutineSessionChannel).toHaveBeenCalledWith({
+      creatorId: USER_ID,
+      botUserId: SOURCE_BOT.userId,
+      tenantId: TENANT_ID,
+      routineId: ROUTINE_ID,
+      purpose: 'creation',
+    });
 
     // Verify NO clone agent was registered
     expect(clawHiveService.registerAgent).not.toHaveBeenCalled();
@@ -356,10 +375,80 @@ describe('Routine Creation Flow — integration', () => {
     expect(completeResult).toEqual(UPCOMING_ROUTINE);
     expect(completeResult.status).toBe('upcoming');
 
-    // Verify DM channel was NOT archived (DMs are persistent, never archived)
-    expect(channelsService.archiveCreationChannel).not.toHaveBeenCalled();
+    // Verify creation channel was archived on completion
+    expect(channelsService.archiveCreationChannel).toHaveBeenCalledWith(
+      CHANNEL_ID,
+      TENANT_ID,
+    );
 
     // Verify no clone agent was deleted (there is no clone in the new architecture)
     expect(clawHiveService.deleteAgent).not.toHaveBeenCalled();
+  });
+
+  it('materializes a routine-session channel for an existing draft via startCreationSession', async () => {
+    // Mock getRoutineOrThrow → a draft with creationChannelId=null (onboarding-provisioned style)
+    const draftWithoutChannel = {
+      ...DRAFT_ROUTINE,
+      creationChannelId: null,
+      creationSessionId: null,
+    };
+    db.limit.mockResolvedValueOnce([draftWithoutChannel] as any);
+
+    botsService.getBotById.mockResolvedValueOnce(SOURCE_BOT as any);
+
+    channelsService.createRoutineSessionChannel.mockResolvedValueOnce({
+      id: CHANNEL_ID,
+    } as any);
+
+    clawHiveService.sendInput.mockResolvedValueOnce({ messages: [] } as any);
+
+    const result = await service.startCreationSession(
+      ROUTINE_ID,
+      USER_ID,
+      TENANT_ID,
+    );
+
+    expect(result).toEqual({
+      creationChannelId: CHANNEL_ID,
+      creationSessionId: SESSION_ID,
+    });
+
+    expect(channelsService.createRoutineSessionChannel).toHaveBeenCalledWith({
+      creatorId: USER_ID,
+      botUserId: SOURCE_BOT.userId,
+      tenantId: TENANT_ID,
+      routineId: ROUTINE_ID,
+      purpose: 'creation',
+    });
+
+    expect(clawHiveService.sendInput).toHaveBeenCalledWith(
+      SESSION_ID,
+      expect.objectContaining({
+        type: 'team9:routine-creation.start',
+        payload: expect.objectContaining({
+          routineId: ROUTINE_ID,
+          creatorUserId: USER_ID,
+          tenantId: TENANT_ID,
+        }),
+      }),
+      TENANT_ID,
+    );
+  });
+
+  it('hard-deletes the creation channel when deleting a draft', async () => {
+    // Mock getRoutineOrThrow → a draft with creationChannelId set
+    db.limit.mockResolvedValueOnce([
+      {
+        ...DRAFT_ROUTINE,
+        creationChannelId: CHANNEL_ID,
+      },
+    ] as any);
+
+    await service.delete(ROUTINE_ID, USER_ID, TENANT_ID);
+
+    expect(
+      channelsService.hardDeleteRoutineSessionChannel,
+    ).toHaveBeenCalledWith(CHANNEL_ID, TENANT_ID);
+    expect(db.delete).toHaveBeenCalled();
   });
 });
