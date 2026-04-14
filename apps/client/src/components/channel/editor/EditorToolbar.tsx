@@ -11,23 +11,24 @@ import {
 import { EmojiPicker } from "./EmojiPicker";
 import { cn } from "@/lib/utils";
 import { $createTextNode, $insertNodes } from "lexical";
-import { DeepResearchDrawer } from "@/components/deep-research/DeepResearchDrawer";
 
 interface EditorToolbarProps {
-  channelId: string;
+  channelId?: string;
   onFileSelect?: (files: FileList) => void;
   isBotDm?: boolean;
+  isDeepResearch?: boolean;
+  onToggleDeepResearch?: () => void;
 }
 
 export function EditorToolbar({
-  channelId,
   onFileSelect,
   isBotDm = false,
+  isDeepResearch = false,
+  onToggleDeepResearch,
 }: EditorToolbarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editor] = useLexicalComposerContext();
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [drOpen, setDrOpen] = useState(false);
 
   const insertEmoji = (emoji: string) => {
     editor.update(() => {
@@ -138,12 +139,24 @@ export function EditorToolbar({
             type="button"
             variant="ghost"
             size="sm"
-            className={cn(aiBtnClass, "group/ai")}
+            aria-pressed={isDeepResearch}
+            className={cn(
+              isDeepResearch
+                ? "h-8 px-3 rounded-full bg-[#2f67ff] text-white hover:bg-[#2f67ff]/90 hover:text-white shadow-[0_6px_16px_rgba(47,103,255,0.28)]"
+                : cn(aiBtnClass, "group/ai"),
+            )}
             title="Deep research"
-            onClick={() => setDrOpen(true)}
+            onClick={onToggleDeepResearch}
           >
             <Search size={16} className="shrink-0" />
-            <span className="max-w-0 opacity-0 group-hover/ai:max-w-32 group-hover/ai:opacity-100 group-hover/ai:ml-1 group-hover/ai:mr-1 transition-all duration-200 text-xs whitespace-nowrap">
+            <span
+              className={cn(
+                "text-xs whitespace-nowrap",
+                isDeepResearch
+                  ? "ml-1.5"
+                  : "max-w-0 opacity-0 group-hover/ai:max-w-32 group-hover/ai:opacity-100 group-hover/ai:ml-1 group-hover/ai:mr-1 transition-all duration-200",
+              )}
+            >
               Deep research
             </span>
           </Button>
@@ -162,12 +175,6 @@ export function EditorToolbar({
           </Button>
         </>
       )}
-      <DeepResearchDrawer
-        open={drOpen}
-        onOpenChange={setDrOpen}
-        editor={editor}
-        channelId={channelId}
-      />
     </div>
   );
 }
