@@ -63,7 +63,7 @@ const VALUE_TYPE_OPTIONS: { value: PropertyValueType; label: string }[] = [
   { value: "boolean", label: "Boolean" },
   { value: "single_select", label: "Single Select" },
   { value: "multi_select", label: "Multi Select" },
-  { value: "person", label: "Person" },
+  { value: "person", label: "People" },
   { value: "date", label: "Date" },
   { value: "timestamp", label: "Timestamp" },
   { value: "date_range", label: "Date Range" },
