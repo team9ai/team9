@@ -991,6 +991,107 @@ export class RoutinesService {
     }
   }
 
+  async startCreationSession(
+    routineId: string,
+    userId: string,
+    tenantId: string,
+  ): Promise<{ creationChannelId: string; creationSessionId: string }> {
+    // Validate routine + ownership + status
+    const routine = await this.getRoutineOrThrow(routineId, tenantId);
+    this.assertCreatorOwnership(routine, userId);
+
+    if (routine.status !== 'draft') {
+      throw new BadRequestException(
+        `Cannot start creation session for routine in '${routine.status}' status`,
+      );
+    }
+
+    // Idempotent short-circuit
+    if (routine.creationChannelId && routine.creationSessionId) {
+      return {
+        creationChannelId: routine.creationChannelId,
+        creationSessionId: routine.creationSessionId,
+      };
+    }
+
+    // Validate bot + extract managed agent id
+    if (!routine.botId) {
+      throw new BadRequestException(
+        'Draft routine has no botId — cannot start creation session',
+      );
+    }
+    const bot = await this.botsService.getBotById(routine.botId);
+    if (!bot) {
+      throw new BadRequestException(
+        'The executing agent no longer exists. Reassign or delete this draft.',
+      );
+    }
+    const agentId = (bot.managedMeta as Record<string, unknown> | null)
+      ?.agentId as string | undefined;
+    if (!agentId) {
+      throw new BadRequestException(
+        'Bot is not a managed hive agent (no agentId in managedMeta)',
+      );
+    }
+
+    // Build channel first; everything after this point must roll back on failure
+    const channel = await this.channelsService.createRoutineSessionChannel({
+      creatorId: userId,
+      botUserId: bot.userId,
+      tenantId,
+      routineId,
+      purpose: 'creation',
+    });
+
+    try {
+      const sessionId = `team9/${tenantId}/${agentId}/dm/${channel.id}`;
+
+      await this.db
+        .update(schema.routines)
+        .set({
+          creationChannelId: channel.id,
+          creationSessionId: sessionId,
+          updatedAt: new Date(),
+        } as Record<string, unknown>)
+        .where(eq(schema.routines.id, routineId));
+
+      await this.clawHiveService.sendInput(
+        sessionId,
+        {
+          type: 'team9:routine-creation.start',
+          source: 'team9',
+          timestamp: new Date().toISOString(),
+          payload: {
+            routineId,
+            creatorUserId: userId,
+            tenantId,
+            title: routine.title,
+          },
+        },
+        tenantId,
+      );
+
+      return { creationChannelId: channel.id, creationSessionId: sessionId };
+    } catch (error) {
+      // Roll back the channel. The routine stays in draft with
+      // creationChannelId=null (unless the db.update above completed before
+      // a later step threw — in that case the row points at a now-deleted
+      // channel, but the FK is onDelete: 'set null' so it will null itself
+      // out on next query / on a subsequent retry's successful idempotent path).
+      try {
+        await this.channelsService.hardDeleteRoutineSessionChannel(
+          channel.id,
+          tenantId,
+        );
+      } catch (cleanupError) {
+        this.logger.error(
+          `startCreationSession: failed to roll back channel ${channel.id}: ${cleanupError}`,
+        );
+      }
+      throw error;
+    }
+  }
+
   // ── Internal helpers ────────────────────────────────────────────
 
   private async getRoutineOrThrow(

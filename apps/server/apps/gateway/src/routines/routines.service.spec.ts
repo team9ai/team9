@@ -1,6 +1,10 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { RoutinesService } from './routines.service.js';
 import { TaskCastService } from './taskcast.service.js';
 import { DATABASE_CONNECTION } from '@team9/database';
@@ -77,6 +81,8 @@ describe('RoutinesService — TaskCast integration', () => {
   let channelsService: {
     archiveCreationChannel: MockFn;
     createDirectChannel: MockFn;
+    createRoutineSessionChannel: MockFn;
+    hardDeleteRoutineSessionChannel: MockFn;
   };
   let clawHiveService: {
     deleteAgent: MockFn;
@@ -109,6 +115,12 @@ describe('RoutinesService — TaskCast integration', () => {
       createDirectChannel: jest
         .fn<any>()
         .mockResolvedValue({ id: 'channel-1' }),
+      createRoutineSessionChannel: jest
+        .fn<any>()
+        .mockResolvedValue({ id: 'channel-1' }),
+      hardDeleteRoutineSessionChannel: jest
+        .fn<any>()
+        .mockResolvedValue(undefined),
     };
     clawHiveService = {
       deleteAgent: jest.fn<any>().mockResolvedValue(undefined),
@@ -2352,6 +2364,146 @@ describe('RoutinesService — TaskCast integration', () => {
       expect(loggerErrorSpy).toHaveBeenCalledWith(
         expect.stringContaining('failed to delete draft routine'),
       );
+    });
+  });
+
+  describe('startCreationSession', () => {
+    const ROUTINE_ID = 'routine-1';
+    const USER_ID = 'user-1';
+    const TENANT_ID = 'tenant-1';
+    const BOT_ID = 'bot-1';
+    const BOT_USER_ID = 'bot-user-1';
+    const AGENT_ID = 'agent-1';
+    const CHANNEL_ID = 'channel-1';
+
+    function mockGetRoutine(overrides: Record<string, unknown> = {}) {
+      const routine = {
+        id: ROUTINE_ID,
+        tenantId: TENANT_ID,
+        creatorId: USER_ID,
+        botId: BOT_ID,
+        status: 'draft',
+        title: 'Test Draft',
+        creationChannelId: null,
+        creationSessionId: null,
+        ...overrides,
+      };
+      // getRoutineOrThrow() does: db.select().from().where().limit(1) — first return wins
+      db.limit.mockResolvedValueOnce([routine]);
+      return routine;
+    }
+
+    beforeEach(() => {
+      botsService.getBotById.mockResolvedValue({
+        id: BOT_ID,
+        userId: BOT_USER_ID,
+        managedMeta: { agentId: AGENT_ID },
+      });
+      channelsService.createRoutineSessionChannel.mockResolvedValue({
+        id: CHANNEL_ID,
+      });
+      channelsService.hardDeleteRoutineSessionChannel.mockResolvedValue(
+        undefined,
+      );
+      clawHiveService.sendInput.mockResolvedValue({ messages: [] });
+    });
+
+    it('creates channel, derives session id, persists, and sends kickoff event', async () => {
+      mockGetRoutine();
+
+      const result = await service.startCreationSession(
+        ROUTINE_ID,
+        USER_ID,
+        TENANT_ID,
+      );
+
+      expect(channelsService.createRoutineSessionChannel).toHaveBeenCalledWith({
+        creatorId: USER_ID,
+        botUserId: BOT_USER_ID,
+        tenantId: TENANT_ID,
+        routineId: ROUTINE_ID,
+        purpose: 'creation',
+      });
+      expect(result.creationChannelId).toBe(CHANNEL_ID);
+      expect(result.creationSessionId).toBe(
+        `team9/${TENANT_ID}/${AGENT_ID}/dm/${CHANNEL_ID}`,
+      );
+      expect(clawHiveService.sendInput).toHaveBeenCalledWith(
+        result.creationSessionId,
+        expect.objectContaining({
+          type: 'team9:routine-creation.start',
+          payload: expect.objectContaining({
+            routineId: ROUTINE_ID,
+            creatorUserId: USER_ID,
+            tenantId: TENANT_ID,
+          }),
+        }),
+        TENANT_ID,
+      );
+    });
+
+    it('is idempotent when creationChannelId already set', async () => {
+      mockGetRoutine({
+        creationChannelId: 'existing-channel',
+        creationSessionId: 'existing-session',
+      });
+
+      const result = await service.startCreationSession(
+        ROUTINE_ID,
+        USER_ID,
+        TENANT_ID,
+      );
+
+      expect(
+        channelsService.createRoutineSessionChannel,
+      ).not.toHaveBeenCalled();
+      expect(clawHiveService.sendInput).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        creationChannelId: 'existing-channel',
+        creationSessionId: 'existing-session',
+      });
+    });
+
+    it('rejects non-draft routines with BadRequestException', async () => {
+      mockGetRoutine({ status: 'upcoming' });
+
+      await expect(
+        service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects non-creator with ForbiddenException', async () => {
+      mockGetRoutine({ creatorId: 'someone-else' });
+
+      await expect(
+        service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('rejects bots without managedMeta.agentId', async () => {
+      mockGetRoutine();
+      botsService.getBotById.mockResolvedValue({
+        id: BOT_ID,
+        userId: BOT_USER_ID,
+        managedMeta: null,
+      });
+
+      await expect(
+        service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rolls back the channel when sendInput fails', async () => {
+      mockGetRoutine();
+      clawHiveService.sendInput.mockRejectedValue(new Error('hive down'));
+
+      await expect(
+        service.startCreationSession(ROUTINE_ID, USER_ID, TENANT_ID),
+      ).rejects.toThrow('hive down');
+
+      expect(
+        channelsService.hardDeleteRoutineSessionChannel,
+      ).toHaveBeenCalledWith(CHANNEL_ID, TENANT_ID);
     });
   });
 });
