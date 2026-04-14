@@ -2106,11 +2106,13 @@ describe('RoutinesService — TaskCast integration', () => {
      * Set up happy-path mocks for createWithCreationTask.
      *
      * Call sequence in the service:
-     *   1. getBotById
+     *   1. getBotById (wrapper pre-flight)
      *   2. db bot-tenant validation: where().limit()
      *   3. db count query: where() → resolves directly
      *   4. draft-conflict check: where().limit()  (before create — no orphan risk)
      *   5. create() → documentsService.create() + db.insert().values().returning()
+     *   6. startCreationSession → getRoutineOrThrow: db.select().from().where().limit()
+     *   7. startCreationSession → getBotById (inner re-validation)
      */
     function setupHappyPath(
       overrides: {
@@ -2142,12 +2144,18 @@ describe('RoutinesService — TaskCast integration', () => {
       // create() → documentsService.create() + db.insert().values().returning()
       documentsService.create.mockResolvedValueOnce({ id: 'doc-1' } as any);
       db.returning.mockResolvedValueOnce([draftRoutine] as any);
+
+      // startCreationSession's inner getRoutineOrThrow: returns the same draft
+      db.limit.mockResolvedValueOnce([draftRoutine] as any);
+
+      // startCreationSession's inner getBotById re-validation
+      botsService.getBotById.mockResolvedValueOnce(botResult as any);
     }
 
     it('happy path: creates draft + channel + sends kickoff event to original bot session', async () => {
       setupHappyPath();
 
-      channelsService.createDirectChannel.mockResolvedValueOnce({
+      channelsService.createRoutineSessionChannel.mockResolvedValueOnce({
         id: 'channel-42',
       } as any);
 
@@ -2164,11 +2172,13 @@ describe('RoutinesService — TaskCast integration', () => {
         creationSessionId: `team9/tenant-1/source-agent-id/dm/channel-42`,
       });
 
-      expect(channelsService.createDirectChannel).toHaveBeenCalledWith(
-        'user-1',
-        'bot-user-1',
-        'tenant-1',
-      );
+      expect(channelsService.createRoutineSessionChannel).toHaveBeenCalledWith({
+        creatorId: 'user-1',
+        botUserId: 'bot-user-1',
+        tenantId: 'tenant-1',
+        routineId: 'routine-new-1',
+        purpose: 'creation',
+      });
 
       // No clone agent registration
       expect(clawHiveService.registerAgent).not.toHaveBeenCalled();
@@ -2192,7 +2202,7 @@ describe('RoutinesService — TaskCast integration', () => {
     it('auto-generates title "Routine #N" based on existing routine count', async () => {
       setupHappyPath();
 
-      channelsService.createDirectChannel.mockResolvedValueOnce({
+      channelsService.createRoutineSessionChannel.mockResolvedValueOnce({
         id: 'channel-42',
       } as any);
 
@@ -2222,7 +2232,9 @@ describe('RoutinesService — TaskCast integration', () => {
       ).rejects.toThrow(NotFoundException);
 
       expect(db.insert).not.toHaveBeenCalled();
-      expect(channelsService.createDirectChannel).not.toHaveBeenCalled();
+      expect(
+        channelsService.createRoutineSessionChannel,
+      ).not.toHaveBeenCalled();
     });
 
     it('throws 400 when bot belongs to a different tenant', async () => {
@@ -2284,13 +2296,15 @@ describe('RoutinesService — TaskCast integration', () => {
       // No draft was created because conflict check runs first
       expect(db.insert).not.toHaveBeenCalled();
       expect(documentsService.create).not.toHaveBeenCalled();
-      expect(channelsService.createDirectChannel).not.toHaveBeenCalled();
+      expect(
+        channelsService.createRoutineSessionChannel,
+      ).not.toHaveBeenCalled();
     });
 
-    it('rolls back draft if channel creation fails', async () => {
+    it('rolls back draft if startCreationSession fails during channel creation', async () => {
       setupHappyPath();
 
-      channelsService.createDirectChannel.mockRejectedValueOnce(
+      channelsService.createRoutineSessionChannel.mockRejectedValueOnce(
         new Error('channel creation failed') as any,
       );
 
@@ -2305,14 +2319,14 @@ describe('RoutinesService — TaskCast integration', () => {
       // No clone to delete (never registered)
       expect(clawHiveService.deleteAgent).not.toHaveBeenCalled();
 
-      // Draft routine should be deleted
+      // Draft routine should be deleted by outer rollback
       expect(db.delete).toHaveBeenCalled();
     });
 
     it('rolls back draft if sendInput fails', async () => {
       setupHappyPath();
 
-      channelsService.createDirectChannel.mockResolvedValueOnce({
+      channelsService.createRoutineSessionChannel.mockResolvedValueOnce({
         id: 'channel-42',
       } as any);
       clawHiveService.sendInput.mockRejectedValueOnce(
@@ -2330,21 +2344,26 @@ describe('RoutinesService — TaskCast integration', () => {
       // No clone was ever created — deleteAgent must not be called
       expect(clawHiveService.deleteAgent).not.toHaveBeenCalled();
 
-      // Draft routine should be deleted
+      // Inner rollback: startCreationSession deletes the channel
+      expect(
+        channelsService.hardDeleteRoutineSessionChannel,
+      ).toHaveBeenCalledWith('channel-42', 'tenant-1');
+
+      // Outer rollback: createWithCreationTask deletes the draft routine row
       expect(db.delete).toHaveBeenCalled();
     });
 
     it('logs error but still throws original error when rollback delete fails', async () => {
       setupHappyPath();
 
-      channelsService.createDirectChannel.mockResolvedValueOnce({
+      channelsService.createRoutineSessionChannel.mockResolvedValueOnce({
         id: 'channel-42',
       } as any);
 
       const sendError = new Error('send failed');
       clawHiveService.sendInput.mockRejectedValueOnce(sendError as any);
 
-      // Simulate rollback delete also failing
+      // Simulate outer rollback draft-delete also failing
       const deleteError = new Error('db unavailable');
       db.delete.mockReturnValueOnce({
         where: jest.fn<any>().mockRejectedValueOnce(deleteError),
