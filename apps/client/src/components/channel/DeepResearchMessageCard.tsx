@@ -17,7 +17,7 @@ export function DeepResearchMessageCard({ message }: { message: Message }) {
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
       >
         <ChevronRight
           size={14}
