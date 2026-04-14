@@ -118,7 +118,7 @@ describe("useServiceWorkerMessages", () => {
     );
 
     // Delete serviceWorker so that `"serviceWorker" in navigator` returns false
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     delete (navigator as any).serviceWorker;
 
     // Reset spy call counts since we deleted the mock
