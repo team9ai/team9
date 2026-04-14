@@ -419,7 +419,7 @@ export function PropertySelector({
         side="bottom"
         align="start"
         sideOffset={4}
-        className={cn("p-0", compact ? "w-[320px]" : "w-[560px]")}
+        className={cn("p-0", compact ? "w-[240px]" : "w-[560px]")}
       >
         <div className="flex">
           {/* ============ Left column: main menu ============ */}
@@ -596,7 +596,12 @@ export function PropertySelector({
           )}
 
           {/* ============ Right column: detail pane ============ */}
-          <div className="w-[320px] flex flex-col min-h-[200px]">
+          <div
+            className={cn(
+              "flex flex-col min-h-[200px]",
+              compact ? "w-full" : "w-[320px]",
+            )}
+          >
             {rightPane.type === "empty" && (
               <div className="flex-1 flex items-center justify-center px-4 py-8 text-xs text-muted-foreground text-center">
                 Select a property on the left

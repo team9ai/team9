@@ -4,12 +4,23 @@ import { PropertyTag } from "./PropertyTag";
 import { PropertyValue } from "./PropertyValue";
 import { PropertySelector } from "./PropertySelector";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   useRemoveProperty,
   useSetProperty,
 } from "@/hooks/useMessageProperties";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/types/im";
 import type { PropertyDefinition } from "@/types/properties";
+
+function getDefDisplayName(def: PropertyDefinition): string {
+  const key = def.key.startsWith("_") ? def.key.slice(1) : def.key;
+  const normalized = key.replace(/_/g, " ");
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
 
 export interface MessagePropertiesProps {
   message: Message;
@@ -167,52 +178,102 @@ export function MessageProperties({
 
           return values.map((v, i) => {
             const opt = options.find((o) => o.value === v);
+            const label = opt?.label ?? String(v);
+            const displayName = getDefDisplayName(def);
             return (
-              <PropertySelector
-                key={`${def.id}-${String(v)}-${i}`}
-                channelId={channelId}
-                messageId={message.id}
-                currentProperties={properties ?? {}}
-                initialDefId={def.id}
-                allowCreate={false}
-                onSetProperty={handleSetProperty}
-                trigger={
-                  <PropertyTag
-                    label={opt?.label ?? String(v)}
-                    color={opt?.color}
-                    canDelete={canEdit}
-                    onDelete={
-                      canEdit ? () => handleRemoveTagValue(def, v) : undefined
-                    }
-                    className={canEdit ? "cursor-pointer" : undefined}
-                  />
-                }
-              />
+              <Tooltip key={`${def.id}-${String(v)}-${i}`}>
+                <PropertySelector
+                  channelId={channelId}
+                  messageId={message.id}
+                  currentProperties={properties ?? {}}
+                  initialDefId={def.id}
+                  allowCreate={false}
+                  onSetProperty={handleSetProperty}
+                  trigger={
+                    <TooltipTrigger asChild>
+                      <PropertyTag
+                        label={label}
+                        color={opt?.color}
+                        canDelete={canEdit}
+                        onDelete={
+                          canEdit
+                            ? () => handleRemoveTagValue(def, v)
+                            : undefined
+                        }
+                        className={canEdit ? "cursor-pointer" : undefined}
+                      />
+                    </TooltipTrigger>
+                  }
+                />
+                <TooltipContent side="top" className="max-w-[240px]">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs font-medium">
+                      {displayName}: {label}
+                    </span>
+                    {def.description &&
+                      def.description.trim().toLowerCase() !==
+                        displayName.toLowerCase() && (
+                        <span className="text-[11px] text-muted-foreground">
+                          {def.description}
+                        </span>
+                      )}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
             );
           });
         }
 
         const valueChip = (
-          <PropertyValue key={def.id} definition={def} value={value} />
+          <PropertyValue definition={def} value={value} channelId={channelId} />
+        );
+        const displayName = getDefDisplayName(def);
+
+        const tooltipContent = (
+          <TooltipContent side="top" className="max-w-[240px]">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs font-medium">{displayName}</span>
+              {def.description &&
+                def.description.trim().toLowerCase() !==
+                  displayName.toLowerCase() && (
+                  <span className="text-[11px] text-muted-foreground">
+                    {def.description}
+                  </span>
+                )}
+            </div>
+          </TooltipContent>
         );
 
-        if (!canEdit) return valueChip;
+        if (!canEdit) {
+          return (
+            <Tooltip key={def.id}>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">{valueChip}</span>
+              </TooltipTrigger>
+              {tooltipContent}
+            </Tooltip>
+          );
+        }
 
         return (
-          <PropertySelector
-            key={def.id}
-            channelId={channelId}
-            messageId={message.id}
-            currentProperties={properties ?? {}}
-            initialDefId={def.id}
-            allowCreate={false}
-            onSetProperty={handleSetProperty}
-            trigger={
-              <span className="inline-flex cursor-pointer hover:opacity-80 transition-opacity">
-                {valueChip}
-              </span>
-            }
-          />
+          <Tooltip key={def.id}>
+            <PropertySelector
+              channelId={channelId}
+              messageId={message.id}
+              currentProperties={properties ?? {}}
+              initialDefId={def.id}
+              allowCreate={false}
+              onSetProperty={handleSetProperty}
+              trigger={
+                <TooltipTrigger asChild>
+                  <span className="inline-flex cursor-pointer hover:opacity-80 transition-opacity">
+                    {valueChip}
+                  </span>
+                </TooltipTrigger>
+              }
+            />
+            {tooltipContent}
+          </Tooltip>
         );
       })}
 

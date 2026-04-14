@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Check, X as XIcon, ExternalLink } from "lucide-react";
 import { UserAvatar } from "@/components/ui/user-avatar";
+import { useChannelMembers } from "@/hooks/useChannels";
 import { PropertyTag } from "./PropertyTag";
 import { cn } from "@/lib/utils";
 import type { PropertyDefinition, SelectOption } from "@/types/properties";
@@ -8,6 +9,7 @@ import type { PropertyDefinition, SelectOption } from "@/types/properties";
 export interface PropertyValueProps {
   definition: PropertyDefinition;
   value: unknown;
+  channelId?: string;
   className?: string;
 }
 
@@ -69,8 +71,12 @@ function truncateUrl(url: string, maxLen = 30): string {
 export function PropertyValue({
   definition,
   value,
+  channelId,
   className,
 }: PropertyValueProps) {
+  const { data: members } = useChannelMembers(
+    definition.valueType === "person" ? channelId : undefined,
+  );
   const label = definition.key.startsWith("_")
     ? definition.key.slice(1).replace(/_/g, " ")
     : definition.key;
@@ -147,14 +153,21 @@ export function PropertyValue({
         const ids = Array.isArray(value) ? value : [value];
         return (
           <span className="inline-flex items-center gap-0.5">
-            {ids.slice(0, 3).map((id) => (
-              <UserAvatar
-                key={String(id)}
-                userId={String(id)}
-                className="w-4 h-4"
-                fallbackClassName="text-[8px]"
-              />
-            ))}
+            {ids.slice(0, 3).map((id) => {
+              const member = members?.find((m) => m.userId === String(id));
+              const user = member?.user;
+              return (
+                <UserAvatar
+                  key={String(id)}
+                  userId={String(id)}
+                  name={user?.displayName}
+                  username={user?.username}
+                  avatarUrl={user?.avatarUrl}
+                  className="w-4 h-4"
+                  fallbackClassName="text-[8px]"
+                />
+              );
+            })}
             {ids.length > 3 && (
               <span className="text-muted-foreground">+{ids.length - 3}</span>
             )}
@@ -195,7 +208,7 @@ export function PropertyValue({
           </span>
         );
     }
-  }, [definition, value]);
+  }, [definition, value, members]);
 
   if (rendered === null) return null;
 
