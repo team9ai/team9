@@ -1,25 +1,23 @@
+// apps/client/src/components/routines/DraftRoutineCard.tsx
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { Trash2, MessageSquare } from "lucide-react";
+import { Trash2, MessageSquare, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { api } from "@/services/api";
 import type { Routine } from "@/types/routine";
 
 interface DraftRoutineCardProps {
   routine: Routine;
+  onOpenCreationSession: (routineId: string) => void;
 }
 
-export function DraftRoutineCard({ routine }: DraftRoutineCardProps) {
+export function DraftRoutineCard({
+  routine,
+  onOpenCreationSession,
+}: DraftRoutineCardProps) {
   const { t } = useTranslation("routines");
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
@@ -30,12 +28,20 @@ export function DraftRoutineCard({ routine }: DraftRoutineCardProps) {
     },
   });
 
+  const startMutation = useMutation({
+    mutationFn: () => api.routines.startCreationSession(routine.id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["routines"] });
+      onOpenCreationSession(routine.id);
+    },
+  });
+
   function handleCompleteCreation() {
-    if (!routine.creationChannelId) return;
-    void navigate({
-      to: "/messages/$channelId",
-      params: { channelId: routine.creationChannelId },
-    });
+    if (routine.creationChannelId) {
+      onOpenCreationSession(routine.id);
+      return;
+    }
+    startMutation.mutate();
   }
 
   function handleDeleteClick() {
@@ -47,8 +53,6 @@ export function DraftRoutineCard({ routine }: DraftRoutineCardProps) {
     }
   }
 
-  const hasChannel = !!routine.creationChannelId;
-
   return (
     <div
       className={cn(
@@ -56,49 +60,29 @@ export function DraftRoutineCard({ routine }: DraftRoutineCardProps) {
         "bg-muted/30",
       )}
     >
-      {/* Draft badge */}
       <span className="shrink-0 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800">
         {t("draft.badge")}
       </span>
 
-      {/* Title */}
       <span className="flex-1 truncate text-foreground font-medium">
         {routine.title || t("draft.untitled", "Untitled")}
       </span>
 
-      {/* Complete Creation button */}
-      {hasChannel ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 px-2 text-xs shrink-0"
-          onClick={handleCompleteCreation}
-        >
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-6 px-2 text-xs shrink-0"
+        onClick={handleCompleteCreation}
+        disabled={startMutation.isPending}
+      >
+        {startMutation.isPending ? (
+          <Loader2 size={12} className="mr-1 animate-spin" />
+        ) : (
           <MessageSquare size={12} className="mr-1" />
-          {t("draft.completeCreation")}
-        </Button>
-      ) : (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="inline-flex">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 px-2 text-xs shrink-0 opacity-50 cursor-not-allowed"
-                disabled
-              >
-                <MessageSquare size={12} className="mr-1" />
-                {t("draft.completeCreation")}
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>{t("draft.noChannelTooltip")}</p>
-          </TooltipContent>
-        </Tooltip>
-      )}
+        )}
+        {t("draft.completeCreation")}
+      </Button>
 
-      {/* Delete button */}
       {confirmingDelete ? (
         <div className="flex items-center gap-1 shrink-0">
           <span className="text-xs text-destructive">
