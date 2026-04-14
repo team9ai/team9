@@ -40,6 +40,8 @@ function renderCard(
     title: "Test Draft",
     status: "draft" as const,
     creationChannelId: null,
+    // Drafts without a bot are tested separately; default to having one.
+    botId: "bot-1",
     ...routineOverrides,
   } as Routine;
   const removeSpy = vi.spyOn(qc, "removeQueries");
@@ -137,5 +139,22 @@ describe("DraftRoutineCard", () => {
     await waitFor(() => expect(deleteMutationFn).toHaveBeenCalled());
     await waitFor(() => expect(onDeleted).toHaveBeenCalledWith("r-1"));
     expect(removeSpy).toHaveBeenCalledWith({ queryKey: ["routine", "r-1"] });
+  });
+
+  it("disables Complete Creation button when draft has no botId", () => {
+    // Botless drafts (e.g. saved via CreateRoutineDialog with no agent
+    // picked) would otherwise hit `Draft routine has no botId` on the
+    // server. The button should be disabled up front so users can
+    // reassign the bot instead of hitting a dead-end error.
+    const onOpen = vi.fn();
+    renderCard({ creationChannelId: null, botId: null }, onOpen);
+
+    const btn = screen.getByRole("button", {
+      name: /draft\.completeCreation/,
+    });
+    expect((btn as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(btn);
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(startCreationSession).not.toHaveBeenCalled();
   });
 });

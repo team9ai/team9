@@ -31,12 +31,16 @@ export function DraftRoutineCard({
 
   const deleteMutation = useMutation({
     mutationFn: () => api.routines.delete(routine.id),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["routines"] });
-      // Drop the detail query cache for the now-deleted routine so the
-      // center pane stops polling it.
+    onSuccess: () => {
+      // IMPORTANT: do local cleanup FIRST, before awaiting the list
+      // invalidation. If the refetch is slow or errors, we still need
+      // the parent to have cleared `activeRoutineId`/`selectedRun` and
+      // the `['routine', id]` detail query to have been removed — we
+      // cannot let the deleted draft keep polling.
       queryClient.removeQueries({ queryKey: ["routine", routine.id] });
       onDeleted?.(routine.id);
+      // Fire-and-forget the list refetch.
+      void queryClient.invalidateQueries({ queryKey: ["routines"] });
     },
   });
 
@@ -85,7 +89,15 @@ export function DraftRoutineCard({
         size="sm"
         className="h-6 px-2 text-xs shrink-0"
         onClick={handleCompleteCreation}
-        disabled={startMutation.isPending}
+        disabled={startMutation.isPending || !routine.botId}
+        title={
+          !routine.botId
+            ? t(
+                "draft.noBotTooltip",
+                "Assign an agent to this draft before starting creation",
+              )
+            : undefined
+        }
       >
         {startMutation.isPending ? (
           <Loader2 size={12} className="mr-1 animate-spin" />
