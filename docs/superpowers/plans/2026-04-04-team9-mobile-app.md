@@ -120,6 +120,7 @@ team9-mobile/
 **Goal:** Initialize Expo project with all dependencies, TypeScript config, Jest setup, and shared type definitions.
 
 **Files:**
+
 - Create: `team9-mobile/package.json`
 - Create: `team9-mobile/app.json`
 - Create: `team9-mobile/tsconfig.json`
@@ -131,6 +132,7 @@ team9-mobile/
 - Create: `team9-mobile/src/types/notification.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Expo project builds and runs on iOS simulator and Android emulator
 - [ ] TypeScript strict mode enabled, compiles cleanly
 - [ ] Jest runs with React Native Testing Library
@@ -176,15 +178,15 @@ npm install -D jest @testing-library/react-native @testing-library/jest-native j
 
 ```javascript
 module.exports = {
-  preset: 'jest-expo',
-  setupFilesAfterSetup: ['@testing-library/jest-native/extend-expect'],
+  preset: "jest-expo",
+  setupFilesAfterSetup: ["@testing-library/jest-native/extend-expect"],
   transformIgnorePatterns: [
-    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|@tanstack/.*)'
+    "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|@tanstack/.*)",
   ],
   moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/src/$1'
-  }
-}
+    "^@/(.*)$": "<rootDir>/src/$1",
+  },
+};
 ```
 
 - [ ] **Step 5: Configure Babel (`babel.config.js`)**
@@ -193,10 +195,8 @@ module.exports = {
 module.exports = function (api) {
   api.cache(true);
   return {
-    presets: ['babel-preset-expo'],
-    plugins: [
-      'react-native-reanimated/plugin',
-    ],
+    presets: ["babel-preset-expo"],
+    plugins: ["react-native-reanimated/plugin"],
   };
 };
 ```
@@ -222,10 +222,10 @@ module.exports = function (api) {
 - [ ] **Step 7: Create shared types (`src/types/im.ts`)**
 
 ```typescript
-export type MessageType = 'text' | 'file' | 'image' | 'system' | 'tracking';
-export type ChannelType = 'direct' | 'public' | 'private';
-export type UserStatus = 'online' | 'offline' | 'away' | 'busy';
-export type MessageSendStatus = 'sending' | 'sent' | 'failed';
+export type MessageType = "text" | "file" | "image" | "system" | "tracking";
+export type ChannelType = "direct" | "public" | "private";
+export type UserStatus = "online" | "offline" | "away" | "busy";
+export type MessageSendStatus = "sending" | "sent" | "failed";
 
 export interface IMUser {
   id: string;
@@ -236,7 +236,7 @@ export interface IMUser {
   status: UserStatus;
   lastSeenAt?: string;
   isActive: boolean;
-  userType?: 'human' | 'bot' | 'system';
+  userType?: "human" | "bot" | "system";
   createdAt: string;
   updatedAt: string;
 }
@@ -307,7 +307,7 @@ export interface ChannelWithUnread extends Channel {
     displayName?: string;
     avatarUrl?: string;
     status: UserStatus;
-    userType?: 'human' | 'bot' | 'system';
+    userType?: "human" | "bot" | "system";
   };
 }
 
@@ -357,7 +357,7 @@ export interface AuthResponse {
 }
 
 export interface AuthStartResponse {
-  action: 'code_sent' | 'need_display_name';
+  action: "code_sent" | "need_display_name";
   email: string;
   challengeId?: string;
   expiresInSeconds?: number;
@@ -369,64 +369,64 @@ export interface AuthStartResponse {
 ```typescript
 export const WS_EVENTS = {
   // Connection
-  AUTHENTICATED: 'authenticated',
-  AUTH_ERROR: 'auth_error',
+  AUTHENTICATED: "authenticated",
+  AUTH_ERROR: "auth_error",
   // Messages
   MESSAGE: {
-    NEW: 'new_message',
-    UPDATED: 'message_updated',
-    DELETED: 'message_deleted',
+    NEW: "new_message",
+    UPDATED: "message_updated",
+    DELETED: "message_deleted",
   },
   // Read Status
   READ_STATUS: {
-    MARK: 'mark_as_read',
-    UPDATED: 'read_status_updated',
+    MARK: "mark_as_read",
+    UPDATED: "read_status_updated",
   },
   // Typing
   TYPING: {
-    START: 'typing_start',
-    STOP: 'typing_stop',
-    USER: 'user_typing',
+    START: "typing_start",
+    STOP: "typing_stop",
+    USER: "user_typing",
   },
   // Reactions
   REACTION: {
-    ADD: 'add_reaction',
-    REMOVE: 'remove_reaction',
-    ADDED: 'reaction_added',
-    REMOVED: 'reaction_removed',
+    ADD: "add_reaction",
+    REMOVE: "remove_reaction",
+    ADDED: "reaction_added",
+    REMOVED: "reaction_removed",
   },
   // Channels
   CHANNEL: {
-    CREATED: 'channel_created',
-    UPDATED: 'channel_updated',
-    DELETED: 'channel_deleted',
-    JOINED: 'channel_joined',
-    LEFT: 'channel_left',
-    OBSERVE: 'channel:observe',
-    UNOBSERVE: 'channel:unobserve',
+    CREATED: "channel_created",
+    UPDATED: "channel_updated",
+    DELETED: "channel_deleted",
+    JOINED: "channel_joined",
+    LEFT: "channel_left",
+    OBSERVE: "channel:observe",
+    UNOBSERVE: "channel:unobserve",
   },
   // Users
   USER: {
-    ONLINE: 'user_online',
-    OFFLINE: 'user_offline',
-    STATUS_CHANGED: 'user_status_changed',
+    ONLINE: "user_online",
+    OFFLINE: "user_offline",
+    STATUS_CHANGED: "user_status_changed",
   },
   // Notifications
   NOTIFICATION: {
-    NEW: 'notification_new',
-    COUNTS_UPDATED: 'notification_counts_updated',
-    READ: 'notification_read',
+    NEW: "notification_new",
+    COUNTS_UPDATED: "notification_counts_updated",
+    READ: "notification_read",
   },
   // Streaming (AI Bot)
   STREAMING: {
-    START: 'streaming_start',
-    CONTENT: 'streaming_content',
-    END: 'streaming_end',
-    ABORT: 'streaming_abort',
+    START: "streaming_start",
+    CONTENT: "streaming_content",
+    END: "streaming_end",
+    ABORT: "streaming_abort",
   },
   // System
-  PING: 'ping',
-  PONG: 'pong',
+  PING: "ping",
+  PONG: "pong",
 } as const;
 
 export interface NewMessageEvent {
@@ -443,9 +443,27 @@ export interface NewMessageEvent {
   isDeleted: boolean;
   createdAt: string;
   updatedAt: string;
-  sender?: { id: string; username: string; displayName?: string; avatarUrl?: string };
-  attachments?: Array<{ id: string; fileKey: string; fileName: string; fileUrl: string; fileSize: number; mimeType: string; thumbnailUrl?: string }>;
-  reactions?: Array<{ id: string; userId: string; emoji: string; createdAt: string }>;
+  sender?: {
+    id: string;
+    username: string;
+    displayName?: string;
+    avatarUrl?: string;
+  };
+  attachments?: Array<{
+    id: string;
+    fileKey: string;
+    fileName: string;
+    fileUrl: string;
+    fileSize: number;
+    mimeType: string;
+    thumbnailUrl?: string;
+  }>;
+  reactions?: Array<{
+    id: string;
+    userId: string;
+    emoji: string;
+    createdAt: string;
+  }>;
   replyCount?: number;
 }
 
@@ -493,7 +511,12 @@ export interface NotificationNewEvent {
   priority: string;
   title: string;
   body: string | null;
-  actor: { id: string; username: string; displayName?: string; avatarUrl?: string } | null;
+  actor: {
+    id: string;
+    username: string;
+    displayName?: string;
+    avatarUrl?: string;
+  } | null;
   channelId: string | null;
   messageId: string | null;
   createdAt: string;
@@ -508,14 +531,19 @@ export interface NotificationCountsEvent {
 - [ ] **Step 9: Create notification types (`src/types/notification.ts`)**
 
 ```typescript
-export type NotificationCategory = 'message' | 'system' | 'workspace';
-export type NotificationType = 'mention' | 'reply' | 'dm_received' | 'channel_invite' | 'system_announcement';
+export type NotificationCategory = "message" | "system" | "workspace";
+export type NotificationType =
+  | "mention"
+  | "reply"
+  | "dm_received"
+  | "channel_invite"
+  | "system_announcement";
 
 export interface Notification {
   id: string;
   category: NotificationCategory;
   type: NotificationType;
-  priority: 'high' | 'medium' | 'low';
+  priority: "high" | "medium" | "low";
   title: string;
   body: string | null;
   actor: {
@@ -573,12 +601,14 @@ git commit -m "feat(mobile): initialize Expo project with types and config"
 **Goal:** Build the HTTP client with auth interceptor and token refresh, plus secure token storage using expo-secure-store.
 
 **Files:**
+
 - Create: `team9-mobile/src/services/token.ts`
 - Create: `team9-mobile/src/services/http.ts`
 - Create: `team9-mobile/__tests__/services/token.test.ts`
 - Create: `team9-mobile/__tests__/services/http.test.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Tokens stored/retrieved from expo-secure-store
 - [ ] HTTP client attaches Bearer token to all requests
 - [ ] 401 responses trigger token refresh automatically
@@ -593,57 +623,72 @@ git commit -m "feat(mobile): initialize Expo project with types and config"
 
 ```typescript
 // __tests__/services/token.test.ts
-import { tokenService } from '@/services/token';
-import * as SecureStore from 'expo-secure-store';
+import { tokenService } from "@/services/token";
+import * as SecureStore from "expo-secure-store";
 
-jest.mock('expo-secure-store');
+jest.mock("expo-secure-store");
 
-describe('tokenService', () => {
+describe("tokenService", () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('stores and retrieves access token', async () => {
-    await tokenService.setTokens('access123', 'refresh456');
-    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('auth_token', 'access123');
-    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('refresh_token', 'refresh456');
+  it("stores and retrieves access token", async () => {
+    await tokenService.setTokens("access123", "refresh456");
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+      "auth_token",
+      "access123",
+    );
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+      "refresh_token",
+      "refresh456",
+    );
   });
 
-  it('clears tokens', async () => {
+  it("clears tokens", async () => {
     await tokenService.clearTokens();
-    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('auth_token');
-    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('refresh_token');
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith("auth_token");
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith("refresh_token");
   });
 
-  it('returns null when no token stored', async () => {
+  it("returns null when no token stored", async () => {
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
     const token = await tokenService.getAccessToken();
     expect(token).toBeNull();
   });
 
-  it('refreshes token and stores new pair', async () => {
-    (SecureStore.getItemAsync as jest.Mock).mockResolvedValueOnce('old_refresh');
+  it("refreshes token and stores new pair", async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValueOnce(
+      "old_refresh",
+    );
     global.fetch = jest.fn().mockResolvedValueOnce({
       ok: true,
-      json: () => Promise.resolve({ accessToken: 'new_access', refreshToken: 'new_refresh' }),
+      json: () =>
+        Promise.resolve({
+          accessToken: "new_access",
+          refreshToken: "new_refresh",
+        }),
     });
     const result = await tokenService.refreshAccessToken();
-    expect(result).toBe('new_access');
+    expect(result).toBe("new_access");
   });
 
-  it('deduplicates concurrent refresh calls', async () => {
-    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('refresh_tok');
+  it("deduplicates concurrent refresh calls", async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue("refresh_tok");
     let resolveRefresh: (v: unknown) => void;
     global.fetch = jest.fn().mockReturnValue(
-      new Promise((r) => { resolveRefresh = r; })
+      new Promise((r) => {
+        resolveRefresh = r;
+      }),
     );
     const p1 = tokenService.refreshAccessToken();
     const p2 = tokenService.refreshAccessToken();
     resolveRefresh!({
       ok: true,
-      json: () => Promise.resolve({ accessToken: 'new', refreshToken: 'new_r' }),
+      json: () =>
+        Promise.resolve({ accessToken: "new", refreshToken: "new_r" }),
     });
     const [r1, r2] = await Promise.all([p1, p2]);
-    expect(r1).toBe('new');
-    expect(r2).toBe('new');
+    expect(r1).toBe("new");
+    expect(r2).toBe("new");
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 });
@@ -653,15 +698,17 @@ describe('tokenService', () => {
 
 ```typescript
 // src/services/token.ts
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from "expo-secure-store";
 
-const KEYS = { ACCESS: 'auth_token', REFRESH: 'refresh_token' } as const;
+const KEYS = { ACCESS: "auth_token", REFRESH: "refresh_token" } as const;
 
 let refreshPromise: Promise<string | null> | null = null;
 let onLogout: (() => void) | null = null;
 
 export const tokenService = {
-  setOnLogout(cb: () => void) { onLogout = cb; },
+  setOnLogout(cb: () => void) {
+    onLogout = cb;
+  },
 
   async getAccessToken(): Promise<string | null> {
     return SecureStore.getItemAsync(KEYS.ACCESS);
@@ -691,16 +738,24 @@ export const tokenService = {
     refreshPromise = (async () => {
       try {
         const refreshToken = await SecureStore.getItemAsync(KEYS.REFRESH);
-        if (!refreshToken) { onLogout?.(); return null; }
+        if (!refreshToken) {
+          onLogout?.();
+          return null;
+        }
 
-        const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api';
+        const baseUrl =
+          process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3000/api";
         const res = await fetch(`${baseUrl}/v1/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ refreshToken }),
         });
 
-        if (!res.ok) { await tokenService.clearTokens(); onLogout?.(); return null; }
+        if (!res.ok) {
+          await tokenService.clearTokens();
+          onLogout?.();
+          return null;
+        }
 
         const data = await res.json();
         await tokenService.setTokens(data.accessToken, data.refreshToken);
@@ -723,51 +778,57 @@ export const tokenService = {
 
 ```typescript
 // __tests__/services/http.test.ts
-import { httpClient } from '@/services/http';
-import { tokenService } from '@/services/token';
+import { httpClient } from "@/services/http";
+import { tokenService } from "@/services/token";
 
-jest.mock('@/services/token');
+jest.mock("@/services/token");
 
-describe('httpClient', () => {
+describe("httpClient", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     global.fetch = jest.fn();
   });
 
-  it('attaches auth header to requests', async () => {
-    (tokenService.getAccessToken as jest.Mock).mockResolvedValue('my_token');
+  it("attaches auth header to requests", async () => {
+    (tokenService.getAccessToken as jest.Mock).mockResolvedValue("my_token");
     (global.fetch as jest.Mock).mockResolvedValue({
-      ok: true, json: () => Promise.resolve({ data: 'result' }),
+      ok: true,
+      json: () => Promise.resolve({ data: "result" }),
     });
-    await httpClient.get('/v1/test');
+    await httpClient.get("/v1/test");
     expect(global.fetch).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
-        headers: expect.objectContaining({ Authorization: 'Bearer my_token' }),
+        headers: expect.objectContaining({ Authorization: "Bearer my_token" }),
       }),
     );
   });
 
-  it('retries with refreshed token on 401', async () => {
+  it("retries with refreshed token on 401", async () => {
     (tokenService.getAccessToken as jest.Mock)
-      .mockResolvedValueOnce('expired_tok')
-      .mockResolvedValueOnce('new_tok');
-    (tokenService.refreshAccessToken as jest.Mock).mockResolvedValue('new_tok');
+      .mockResolvedValueOnce("expired_tok")
+      .mockResolvedValueOnce("new_tok");
+    (tokenService.refreshAccessToken as jest.Mock).mockResolvedValue("new_tok");
     (global.fetch as jest.Mock)
       .mockResolvedValueOnce({ ok: false, status: 401 })
-      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ id: 1 }) });
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ id: 1 }),
+      });
 
-    const result = await httpClient.get('/v1/test');
+    const result = await httpClient.get("/v1/test");
     expect(tokenService.refreshAccessToken).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ id: 1 });
   });
 
-  it('throws on non-401 errors', async () => {
-    (tokenService.getAccessToken as jest.Mock).mockResolvedValue('tok');
+  it("throws on non-401 errors", async () => {
+    (tokenService.getAccessToken as jest.Mock).mockResolvedValue("tok");
     (global.fetch as jest.Mock).mockResolvedValue({
-      ok: false, status: 500, json: () => Promise.resolve({ message: 'Server Error' }),
+      ok: false,
+      status: 500,
+      json: () => Promise.resolve({ message: "Server Error" }),
     });
-    await expect(httpClient.get('/v1/fail')).rejects.toThrow();
+    await expect(httpClient.get("/v1/fail")).rejects.toThrow();
   });
 });
 ```
@@ -776,22 +837,27 @@ describe('httpClient', () => {
 
 ```typescript
 // src/services/http.ts
-import { tokenService } from './token';
+import { tokenService } from "./token";
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api';
+const BASE_URL =
+  process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3000/api";
 const TIMEOUT = 30_000;
 
 class ApiError extends Error {
-  constructor(public status: number, message: string, public data?: unknown) {
+  constructor(
+    public status: number,
+    message: string,
+    public data?: unknown,
+  ) {
     super(message);
-    this.name = 'ApiError';
+    this.name = "ApiError";
   }
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = await tokenService.getAccessToken();
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
     ...((options.headers as Record<string, string>) ?? {}),
   };
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -806,20 +872,24 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       signal: controller.signal,
     });
 
-    if (res.status === 401 && !path.includes('/auth/refresh')) {
+    if (res.status === 401 && !path.includes("/auth/refresh")) {
       const newToken = await tokenService.refreshAccessToken();
       if (newToken) {
         headers.Authorization = `Bearer ${newToken}`;
-        const retry = await fetch(`${BASE_URL}${path}`, { ...options, headers });
-        if (!retry.ok) throw new ApiError(retry.status, 'Request failed after refresh');
+        const retry = await fetch(`${BASE_URL}${path}`, {
+          ...options,
+          headers,
+        });
+        if (!retry.ok)
+          throw new ApiError(retry.status, "Request failed after refresh");
         return retry.json();
       }
-      throw new ApiError(401, 'Authentication failed');
+      throw new ApiError(401, "Authentication failed");
     }
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      throw new ApiError(res.status, body.message ?? 'Request failed', body);
+      throw new ApiError(res.status, body.message ?? "Request failed", body);
     }
 
     const text = await res.text();
@@ -830,16 +900,25 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const httpClient = {
-  get: <T>(path: string) => request<T>(path, { method: 'GET' }),
+  get: <T>(path: string) => request<T>(path, { method: "GET" }),
   post: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
+    request<T>(path, {
+      method: "POST",
+      body: body ? JSON.stringify(body) : undefined,
+    }),
   patch: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
+    request<T>(path, {
+      method: "PATCH",
+      body: body ? JSON.stringify(body) : undefined,
+    }),
   delete: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: 'DELETE', body: body ? JSON.stringify(body) : undefined }),
+    request<T>(path, {
+      method: "DELETE",
+      body: body ? JSON.stringify(body) : undefined,
+    }),
   upload: <T>(path: string, formData: FormData) =>
     request<T>(path, {
-      method: 'POST',
+      method: "POST",
       body: formData,
       headers: {}, // Let browser set Content-Type with boundary
     }),
@@ -862,6 +941,7 @@ git add -A && git commit -m "feat(mobile): add HTTP client with token refresh an
 **Goal:** Implement Zustand auth store, API service for auth endpoints, and login/verify screens with email verification code flow.
 
 **Files:**
+
 - Create: `team9-mobile/src/services/api/auth.ts`
 - Create: `team9-mobile/src/stores/auth.ts`
 - Create: `team9-mobile/src/hooks/useAuth.ts`
@@ -874,6 +954,7 @@ git add -A && git commit -m "feat(mobile): add HTTP client with token refresh an
 - Create: `team9-mobile/__tests__/hooks/useAuth.test.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Auth store tracks user, isAuthenticated, isLoading states
 - [ ] Login screen sends email to `/v1/auth/start`, navigates to verify on success
 - [ ] Verify screen submits 6-digit code to `/v1/auth/verify-code`, stores tokens on success
@@ -888,29 +969,41 @@ git add -A && git commit -m "feat(mobile): add HTTP client with token refresh an
 
 ```typescript
 // __tests__/stores/auth.test.ts
-import { useAuthStore } from '@/stores/auth';
-import { tokenService } from '@/services/token';
+import { useAuthStore } from "@/stores/auth";
+import { tokenService } from "@/services/token";
 
-jest.mock('@/services/token');
+jest.mock("@/services/token");
 
-describe('useAuthStore', () => {
+describe("useAuthStore", () => {
   beforeEach(() => useAuthStore.getState().reset());
 
-  it('initializes as not authenticated', () => {
+  it("initializes as not authenticated", () => {
     const state = useAuthStore.getState();
     expect(state.isAuthenticated).toBe(false);
     expect(state.user).toBeNull();
   });
 
-  it('sets user on login', () => {
-    const user = { id: '1', email: 'a@b.com', username: 'test', displayName: 'Test', avatarUrl: null };
+  it("sets user on login", () => {
+    const user = {
+      id: "1",
+      email: "a@b.com",
+      username: "test",
+      displayName: "Test",
+      avatarUrl: null,
+    };
     useAuthStore.getState().setUser(user);
     expect(useAuthStore.getState().isAuthenticated).toBe(true);
     expect(useAuthStore.getState().user).toEqual(user);
   });
 
-  it('clears state on logout', async () => {
-    useAuthStore.getState().setUser({ id: '1', email: 'a@b.com', username: 'test', displayName: null, avatarUrl: null });
+  it("clears state on logout", async () => {
+    useAuthStore.getState().setUser({
+      id: "1",
+      email: "a@b.com",
+      username: "test",
+      displayName: null,
+      avatarUrl: null,
+    });
     await useAuthStore.getState().logout();
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
     expect(useAuthStore.getState().user).toBeNull();
@@ -923,8 +1016,8 @@ describe('useAuthStore', () => {
 
 ```typescript
 // src/stores/auth.ts
-import { create } from 'zustand';
-import { tokenService } from '@/services/token';
+import { create } from "zustand";
+import { tokenService } from "@/services/token";
 
 interface AuthUser {
   id: string;
@@ -962,28 +1055,39 @@ export const useAuthStore = create<AuthState>((set) => ({
 
 ```typescript
 // src/services/api/auth.ts
-import { httpClient } from '../http';
-import type { AuthResponse, AuthStartResponse } from '@/types/im';
+import { httpClient } from "../http";
+import type { AuthResponse, AuthStartResponse } from "@/types/im";
 
 export const authApi = {
   start(email: string, displayName?: string): Promise<AuthStartResponse> {
-    return httpClient.post('/v1/auth/start', { email, displayName });
+    return httpClient.post("/v1/auth/start", { email, displayName });
   },
 
-  verifyCode(email: string, challengeId: string, code: string): Promise<AuthResponse> {
-    return httpClient.post('/v1/auth/verify-code', { email, challengeId, code });
+  verifyCode(
+    email: string,
+    challengeId: string,
+    code: string,
+  ): Promise<AuthResponse> {
+    return httpClient.post("/v1/auth/verify-code", {
+      email,
+      challengeId,
+      code,
+    });
   },
 
   googleLogin(credential: string): Promise<AuthResponse> {
-    return httpClient.post('/v1/auth/google', { credential });
+    return httpClient.post("/v1/auth/google", { credential });
   },
 
-  getMe(): Promise<AuthResponse['user']> {
-    return httpClient.get('/v1/auth/me');
+  getMe(): Promise<AuthResponse["user"]> {
+    return httpClient.get("/v1/auth/me");
   },
 
   logout(refreshToken?: string): Promise<void> {
-    return httpClient.post('/v1/auth/logout', refreshToken ? { refreshToken } : undefined);
+    return httpClient.post(
+      "/v1/auth/logout",
+      refreshToken ? { refreshToken } : undefined,
+    );
   },
 };
 ```
@@ -992,12 +1096,12 @@ export const authApi = {
 
 ```typescript
 // src/hooks/useAuth.ts
-import { useState } from 'react';
-import { useRouter } from 'expo-router';
-import { authApi } from '@/services/api/auth';
-import { tokenService } from '@/services/token';
-import { useAuthStore } from '@/stores/auth';
-import type { AuthStartResponse } from '@/types/im';
+import { useState } from "react";
+import { useRouter } from "expo-router";
+import { authApi } from "@/services/api/auth";
+import { tokenService } from "@/services/token";
+import { useAuthStore } from "@/stores/auth";
+import type { AuthStartResponse } from "@/types/im";
 
 export function useLogin() {
   const [isLoading, setIsLoading] = useState(false);
@@ -1009,12 +1113,15 @@ export function useLogin() {
     setError(null);
     try {
       const result = await authApi.start(email);
-      if (result.action === 'code_sent') {
-        router.push({ pathname: '/(auth)/verify', params: { email, challengeId: result.challengeId! } });
+      if (result.action === "code_sent") {
+        router.push({
+          pathname: "/(auth)/verify",
+          params: { email, challengeId: result.challengeId! },
+        });
       }
       return result;
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Login failed');
+      setError(e instanceof Error ? e.message : "Login failed");
       return null;
     } finally {
       setIsLoading(false);
@@ -1037,9 +1144,9 @@ export function useVerifyCode() {
       const result = await authApi.verifyCode(email, challengeId, code);
       await tokenService.setTokens(result.accessToken, result.refreshToken);
       setUser(result.user);
-      router.replace('/(main)/channels');
+      router.replace("/(main)/channels");
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Verification failed');
+      setError(e instanceof Error ? e.message : "Verification failed");
     } finally {
       setIsLoading(false);
     }
@@ -1054,9 +1161,13 @@ export function useLogout() {
 
   return async () => {
     const refreshToken = await tokenService.getRefreshToken();
-    try { await authApi.logout(refreshToken ?? undefined); } catch { /* best effort */ }
+    try {
+      await authApi.logout(refreshToken ?? undefined);
+    } catch {
+      /* best effort */
+    }
     await logout();
-    router.replace('/(auth)/login');
+    router.replace("/(auth)/login");
   };
 }
 ```
@@ -1237,12 +1348,14 @@ git add -A && git commit -m "feat(mobile): add auth flow with login and verify s
 **Goal:** Build Socket.io-client wrapper with auth, auto-reconnection, event typing, and React Query cache integration.
 
 **Files:**
+
 - Create: `team9-mobile/src/services/websocket.ts`
 - Create: `team9-mobile/src/stores/app.ts`
 - Create: `team9-mobile/src/hooks/useWebSocketEvents.ts`
 - Create: `team9-mobile/__tests__/services/websocket.test.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Connects to `/im` namespace with JWT auth in handshake
 - [ ] Auto-reconnects with exponential backoff (1s → 30s)
 - [ ] Emits typed events: markAsRead, startTyping, stopTyping, addReaction, removeReaction
@@ -1257,9 +1370,9 @@ git add -A && git commit -m "feat(mobile): add auth flow with login and verify s
 
 ```typescript
 // src/stores/app.ts
-import { create } from 'zustand';
+import { create } from "zustand";
 
-type ConnectionStatus = 'connected' | 'disconnected' | 'reconnecting';
+type ConnectionStatus = "connected" | "disconnected" | "reconnecting";
 
 interface AppState {
   connectionStatus: ConnectionStatus;
@@ -1271,9 +1384,9 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set) => ({
-  connectionStatus: 'disconnected',
+  connectionStatus: "disconnected",
   activeChannelId: null,
-  locale: 'en',
+  locale: "en",
   setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
   setActiveChannelId: (activeChannelId) => set({ activeChannelId }),
   setLocale: (locale) => set({ locale }),
@@ -1284,7 +1397,7 @@ export const useAppStore = create<AppState>((set) => ({
 
 ```typescript
 // __tests__/services/websocket.test.ts
-import { wsService } from '@/services/websocket';
+import { wsService } from "@/services/websocket";
 
 // Mock socket.io-client
 const mockSocket = {
@@ -1298,30 +1411,38 @@ const mockSocket = {
   auth: {},
 };
 
-jest.mock('socket.io-client', () => ({
+jest.mock("socket.io-client", () => ({
   io: jest.fn(() => mockSocket),
 }));
 
-jest.mock('@/services/token', () => ({
-  tokenService: { getAccessToken: jest.fn().mockResolvedValue('test_token') },
+jest.mock("@/services/token", () => ({
+  tokenService: { getAccessToken: jest.fn().mockResolvedValue("test_token") },
 }));
 
-describe('wsService', () => {
+describe("wsService", () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('emits typing_start with channelId', () => {
-    wsService.startTyping('ch-1');
-    expect(mockSocket.emit).toHaveBeenCalledWith('typing_start', { channelId: 'ch-1' });
+  it("emits typing_start with channelId", () => {
+    wsService.startTyping("ch-1");
+    expect(mockSocket.emit).toHaveBeenCalledWith("typing_start", {
+      channelId: "ch-1",
+    });
   });
 
-  it('emits mark_as_read with channelId and messageId', () => {
-    wsService.markAsRead('ch-1', 'msg-1');
-    expect(mockSocket.emit).toHaveBeenCalledWith('mark_as_read', { channelId: 'ch-1', messageId: 'msg-1' });
+  it("emits mark_as_read with channelId and messageId", () => {
+    wsService.markAsRead("ch-1", "msg-1");
+    expect(mockSocket.emit).toHaveBeenCalledWith("mark_as_read", {
+      channelId: "ch-1",
+      messageId: "msg-1",
+    });
   });
 
-  it('emits add_reaction', () => {
-    wsService.addReaction('msg-1', '👍');
-    expect(mockSocket.emit).toHaveBeenCalledWith('add_reaction', { messageId: 'msg-1', emoji: '👍' });
+  it("emits add_reaction", () => {
+    wsService.addReaction("msg-1", "👍");
+    expect(mockSocket.emit).toHaveBeenCalledWith("add_reaction", {
+      messageId: "msg-1",
+      emoji: "👍",
+    });
   });
 });
 ```
@@ -1330,12 +1451,14 @@ describe('wsService', () => {
 
 ```typescript
 // src/services/websocket.ts
-import { io, Socket } from 'socket.io-client';
-import { tokenService } from './token';
-import { useAppStore } from '@/stores/app';
-import { WS_EVENTS } from '@/types/ws-events';
+import { io, Socket } from "socket.io-client";
+import { tokenService } from "./token";
+import { useAppStore } from "@/stores/app";
+import { WS_EVENTS } from "@/types/ws-events";
 
-const BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api').replace(/\/api$/, '');
+const BASE_URL = (
+  process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3000/api"
+).replace(/\/api$/, "");
 
 let socket: Socket | null = null;
 
@@ -1343,7 +1466,7 @@ function getSocket(): Socket {
   if (socket) return socket;
 
   socket = io(`${BASE_URL}/im`, {
-    transports: ['websocket', 'polling'],
+    transports: ["websocket", "polling"],
     autoConnect: false,
     reconnection: true,
     reconnectionAttempts: Infinity,
@@ -1355,16 +1478,16 @@ function getSocket(): Socket {
     },
   });
 
-  socket.on('connect', () => {
-    useAppStore.getState().setConnectionStatus('connected');
+  socket.on("connect", () => {
+    useAppStore.getState().setConnectionStatus("connected");
   });
 
-  socket.on('disconnect', () => {
-    useAppStore.getState().setConnectionStatus('disconnected');
+  socket.on("disconnect", () => {
+    useAppStore.getState().setConnectionStatus("disconnected");
   });
 
-  socket.io.on('reconnect_attempt', () => {
-    useAppStore.getState().setConnectionStatus('reconnecting');
+  socket.io.on("reconnect_attempt", () => {
+    useAppStore.getState().setConnectionStatus("reconnecting");
   });
 
   socket.on(WS_EVENTS.AUTH_ERROR, async () => {
@@ -1384,7 +1507,7 @@ export const wsService = {
   disconnect() {
     socket?.disconnect();
     socket = null;
-    useAppStore.getState().setConnectionStatus('disconnected');
+    useAppStore.getState().setConnectionStatus("disconnected");
   },
 
   on<T = unknown>(event: string, handler: (data: T) => void) {
@@ -1430,14 +1553,19 @@ export const wsService = {
 
 ```typescript
 // src/hooks/useWebSocketEvents.ts
-import { useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { wsService } from '@/services/websocket';
-import { useAuthStore } from '@/stores/auth';
-import { useNotificationStore } from '@/stores/notifications';
-import { WS_EVENTS } from '@/types/ws-events';
-import type { NewMessageEvent, ReadStatusUpdatedEvent, ReactionEvent, NotificationCountsEvent } from '@/types/ws-events';
-import type { Message, ChannelWithUnread } from '@/types/im';
+import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { wsService } from "@/services/websocket";
+import { useAuthStore } from "@/stores/auth";
+import { useNotificationStore } from "@/stores/notifications";
+import { WS_EVENTS } from "@/types/ws-events";
+import type {
+  NewMessageEvent,
+  ReadStatusUpdatedEvent,
+  ReactionEvent,
+  NotificationCountsEvent,
+} from "@/types/ws-events";
+import type { Message, ChannelWithUnread } from "@/types/im";
 
 export function useWebSocketEvents() {
   const queryClient = useQueryClient();
@@ -1451,27 +1579,38 @@ export function useWebSocketEvents() {
     // New message → prepend to message list, update channel list
     wsService.on<NewMessageEvent>(WS_EVENTS.MESSAGE.NEW, (msg) => {
       queryClient.setQueryData<{ pages: { messages: Message[] }[] }>(
-        ['messages', msg.channelId],
+        ["messages", msg.channelId],
         (old) => {
           if (!old) return old;
           const firstPage = old.pages[0];
-          return { ...old, pages: [{ ...firstPage, messages: [msg as Message, ...firstPage.messages] }, ...old.pages.slice(1)] };
+          return {
+            ...old,
+            pages: [
+              {
+                ...firstPage,
+                messages: [msg as Message, ...firstPage.messages],
+              },
+              ...old.pages.slice(1),
+            ],
+          };
         },
       );
-      queryClient.invalidateQueries({ queryKey: ['channels'] });
+      queryClient.invalidateQueries({ queryKey: ["channels"] });
     });
 
     // Message updated
     wsService.on<NewMessageEvent>(WS_EVENTS.MESSAGE.UPDATED, (msg) => {
       queryClient.setQueryData<{ pages: { messages: Message[] }[] }>(
-        ['messages', msg.channelId],
+        ["messages", msg.channelId],
         (old) => {
           if (!old) return old;
           return {
             ...old,
             pages: old.pages.map((page) => ({
               ...page,
-              messages: page.messages.map((m) => (m.id === msg.id ? (msg as Message) : m)),
+              messages: page.messages.map((m) =>
+                m.id === msg.id ? (msg as Message) : m,
+              ),
             })),
           };
         },
@@ -1479,50 +1618,71 @@ export function useWebSocketEvents() {
     });
 
     // Message deleted
-    wsService.on<{ messageId: string; channelId?: string }>(WS_EVENTS.MESSAGE.DELETED, (data) => {
-      if (!data.channelId) return;
-      queryClient.setQueryData<{ pages: { messages: Message[] }[] }>(
-        ['messages', data.channelId],
-        (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            pages: old.pages.map((page) => ({
-              ...page,
-              messages: page.messages.filter((m) => m.id !== data.messageId),
-            })),
-          };
-        },
-      );
-    });
+    wsService.on<{ messageId: string; channelId?: string }>(
+      WS_EVENTS.MESSAGE.DELETED,
+      (data) => {
+        if (!data.channelId) return;
+        queryClient.setQueryData<{ pages: { messages: Message[] }[] }>(
+          ["messages", data.channelId],
+          (old) => {
+            if (!old) return old;
+            return {
+              ...old,
+              pages: old.pages.map((page) => ({
+                ...page,
+                messages: page.messages.filter((m) => m.id !== data.messageId),
+              })),
+            };
+          },
+        );
+      },
+    );
 
     // Read status
-    wsService.on<ReadStatusUpdatedEvent>(WS_EVENTS.READ_STATUS.UPDATED, (data) => {
-      queryClient.setQueryData<ChannelWithUnread[]>(['channels'], (old) =>
-        old?.map((ch) =>
-          ch.id === data.channelId ? { ...ch, lastReadMessageId: data.lastReadMessageId, unreadCount: 0 } : ch,
-        ),
-      );
-    });
+    wsService.on<ReadStatusUpdatedEvent>(
+      WS_EVENTS.READ_STATUS.UPDATED,
+      (data) => {
+        queryClient.setQueryData<ChannelWithUnread[]>(["channels"], (old) =>
+          old?.map((ch) =>
+            ch.id === data.channelId
+              ? {
+                  ...ch,
+                  lastReadMessageId: data.lastReadMessageId,
+                  unreadCount: 0,
+                }
+              : ch,
+          ),
+        );
+      },
+    );
 
     // Reactions
     wsService.on<ReactionEvent>(WS_EVENTS.REACTION.ADDED, () => {
       // Simplified: invalidate to refetch
-      queryClient.invalidateQueries({ queryKey: ['messages'] });
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
     });
     wsService.on<ReactionEvent>(WS_EVENTS.REACTION.REMOVED, () => {
-      queryClient.invalidateQueries({ queryKey: ['messages'] });
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
     });
 
     // Notification counts
-    wsService.on<NotificationCountsEvent>(WS_EVENTS.NOTIFICATION.COUNTS_UPDATED, (data) => {
-      useNotificationStore.getState().setCounts(data);
-    });
+    wsService.on<NotificationCountsEvent>(
+      WS_EVENTS.NOTIFICATION.COUNTS_UPDATED,
+      (data) => {
+        useNotificationStore.getState().setCounts(data);
+      },
+    );
 
     // Channel changes
-    wsService.on(WS_EVENTS.CHANNEL.CREATED, () => queryClient.invalidateQueries({ queryKey: ['channels'] }));
-    wsService.on(WS_EVENTS.CHANNEL.UPDATED, () => queryClient.invalidateQueries({ queryKey: ['channels'] }));
-    wsService.on(WS_EVENTS.CHANNEL.DELETED, () => queryClient.invalidateQueries({ queryKey: ['channels'] }));
+    wsService.on(WS_EVENTS.CHANNEL.CREATED, () =>
+      queryClient.invalidateQueries({ queryKey: ["channels"] }),
+    );
+    wsService.on(WS_EVENTS.CHANNEL.UPDATED, () =>
+      queryClient.invalidateQueries({ queryKey: ["channels"] }),
+    );
+    wsService.on(WS_EVENTS.CHANNEL.DELETED, () =>
+      queryClient.invalidateQueries({ queryKey: ["channels"] }),
+    );
 
     return () => {
       wsService.disconnect();
@@ -1535,8 +1695,8 @@ export function useWebSocketEvents() {
 
 ```typescript
 // src/stores/notifications.ts
-import { create } from 'zustand';
-import type { NotificationCounts } from '@/types/notification';
+import { create } from "zustand";
+import type { NotificationCounts } from "@/types/notification";
 
 interface NotificationState {
   counts: NotificationCounts;
@@ -1567,6 +1727,7 @@ git add -A && git commit -m "feat(mobile): add WebSocket service with React Quer
 **Goal:** Build the Messages tab showing all channels/DMs with unread counts, last message preview, sorted by recent activity.
 
 **Files:**
+
 - Create: `team9-mobile/src/services/api/channels.ts`
 - Create: `team9-mobile/src/hooks/useChannels.ts`
 - Create: `team9-mobile/src/components/channel/ChannelListItem.tsx`
@@ -1577,6 +1738,7 @@ git add -A && git commit -m "feat(mobile): add WebSocket service with React Quer
 - Create: `team9-mobile/__tests__/components/ChannelListItem.test.tsx`
 
 **Acceptance Criteria:**
+
 - [ ] Fetches channel list via `GET /v1/im/channels`
 - [ ] Shows channel name, last message preview, timestamp, unread badge
 - [ ] DM channels show other user's avatar and online status
@@ -1592,12 +1754,12 @@ git add -A && git commit -m "feat(mobile): add WebSocket service with React Quer
 
 ```typescript
 // src/services/api/channels.ts
-import { httpClient } from '../http';
-import type { ChannelWithUnread } from '@/types/im';
+import { httpClient } from "../http";
+import type { ChannelWithUnread } from "@/types/im";
 
 export const channelsApi = {
   getChannels(): Promise<ChannelWithUnread[]> {
-    return httpClient.get('/v1/im/channels');
+    return httpClient.get("/v1/im/channels");
   },
   getChannel(id: string): Promise<ChannelWithUnread> {
     return httpClient.get(`/v1/im/channels/${id}`);
@@ -1612,12 +1774,12 @@ export const channelsApi = {
 
 ```typescript
 // src/hooks/useChannels.ts
-import { useQuery } from '@tanstack/react-query';
-import { channelsApi } from '@/services/api/channels';
+import { useQuery } from "@tanstack/react-query";
+import { channelsApi } from "@/services/api/channels";
 
 export function useChannels() {
   return useQuery({
-    queryKey: ['channels'],
+    queryKey: ["channels"],
     queryFn: channelsApi.getChannels,
     staleTime: 30_000,
   });
@@ -1840,6 +2002,7 @@ git add -A && git commit -m "feat(mobile): add channel list screen with tab navi
 **Goal:** Build the chat screen with inverted message list, message bubbles, text input, and real-time message sending/receiving.
 
 **Files:**
+
 - Create: `team9-mobile/src/services/api/messages.ts`
 - Create: `team9-mobile/src/hooks/useMessages.ts`
 - Create: `team9-mobile/src/components/chat/MessageBubble.tsx`
@@ -1851,6 +2014,7 @@ git add -A && git commit -m "feat(mobile): add channel list screen with tab navi
 - Create: `team9-mobile/__tests__/hooks/useMessages.test.ts`
 
 **Acceptance Criteria:**
+
 - [ ] Fetches message history with cursor-based pagination (`before` param)
 - [ ] Inverted FlatList shows newest messages at bottom
 - [ ] Message bubbles show avatar, sender name, content, timestamp
@@ -1867,29 +2031,45 @@ git add -A && git commit -m "feat(mobile): add channel list screen with tab navi
 
 ```typescript
 // src/services/api/messages.ts
-import { httpClient } from '../http';
-import type { Message, CreateMessageDto, GetMessagesParams, PaginatedMessagesResponse, ThreadResponse } from '@/types/im';
+import { httpClient } from "../http";
+import type {
+  Message,
+  CreateMessageDto,
+  GetMessagesParams,
+  PaginatedMessagesResponse,
+  ThreadResponse,
+} from "@/types/im";
 
 export const messagesApi = {
-  getMessages(channelId: string, params?: GetMessagesParams): Promise<Message[]> {
+  getMessages(
+    channelId: string,
+    params?: GetMessagesParams,
+  ): Promise<Message[]> {
     const qs = new URLSearchParams();
-    if (params?.limit) qs.set('limit', String(params.limit));
-    if (params?.before) qs.set('before', params.before);
-    if (params?.after) qs.set('after', params.after);
+    if (params?.limit) qs.set("limit", String(params.limit));
+    if (params?.before) qs.set("before", params.before);
+    if (params?.after) qs.set("after", params.after);
     const query = qs.toString();
-    return httpClient.get(`/v1/im/channels/${channelId}/messages${query ? `?${query}` : ''}`);
+    return httpClient.get(
+      `/v1/im/channels/${channelId}/messages${query ? `?${query}` : ""}`,
+    );
   },
 
   sendMessage(channelId: string, data: CreateMessageDto): Promise<Message> {
     return httpClient.post(`/v1/im/channels/${channelId}/messages`, data);
   },
 
-  getThread(messageId: string, params?: { limit?: number; cursor?: string }): Promise<ThreadResponse> {
+  getThread(
+    messageId: string,
+    params?: { limit?: number; cursor?: string },
+  ): Promise<ThreadResponse> {
     const qs = new URLSearchParams();
-    if (params?.limit) qs.set('limit', String(params.limit));
-    if (params?.cursor) qs.set('cursor', params.cursor);
+    if (params?.limit) qs.set("limit", String(params.limit));
+    if (params?.cursor) qs.set("cursor", params.cursor);
     const query = qs.toString();
-    return httpClient.get(`/v1/im/messages/${messageId}/thread${query ? `?${query}` : ''}`);
+    return httpClient.get(
+      `/v1/im/messages/${messageId}/thread${query ? `?${query}` : ""}`,
+    );
   },
 
   addReaction(messageId: string, emoji: string): Promise<void> {
@@ -1897,7 +2077,9 @@ export const messagesApi = {
   },
 
   removeReaction(messageId: string, emoji: string): Promise<void> {
-    return httpClient.delete(`/v1/im/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`);
+    return httpClient.delete(
+      `/v1/im/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`,
+    );
   },
 };
 ```
@@ -1906,13 +2088,17 @@ export const messagesApi = {
 
 ```typescript
 // src/hooks/useMessages.ts
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { messagesApi } from '@/services/api/messages';
-import type { Message, CreateMessageDto } from '@/types/im';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { messagesApi } from "@/services/api/messages";
+import type { Message, CreateMessageDto } from "@/types/im";
 
 export function useMessages(channelId: string) {
   return useInfiniteQuery({
-    queryKey: ['messages', channelId],
+    queryKey: ["messages", channelId],
     queryFn: ({ pageParam }) =>
       messagesApi.getMessages(channelId, { limit: 50, before: pageParam }),
     getNextPageParam: (lastPage) => {
@@ -1932,16 +2118,20 @@ export function useSendMessage(channelId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: CreateMessageDto) => messagesApi.sendMessage(channelId, data),
+    mutationFn: (data: CreateMessageDto) =>
+      messagesApi.sendMessage(channelId, data),
     onSuccess: (newMessage) => {
       queryClient.setQueryData<{ pages: Message[][] }>(
-        ['messages', channelId],
+        ["messages", channelId],
         (old) => {
           if (!old) return old;
-          return { ...old, pages: [[newMessage, ...old.pages[0]], ...old.pages.slice(1)] };
+          return {
+            ...old,
+            pages: [[newMessage, ...old.pages[0]], ...old.pages.slice(1)],
+          };
         },
       );
-      queryClient.invalidateQueries({ queryKey: ['channels'] });
+      queryClient.invalidateQueries({ queryKey: ["channels"] });
     },
   });
 }
@@ -2190,11 +2380,13 @@ git add -A && git commit -m "feat(mobile): add chat detail screen with messages 
 **Goal:** Mark messages as read on view, show typing indicators below message list.
 
 **Files:**
+
 - Create: `team9-mobile/src/components/chat/TypingIndicator.tsx`
 - Modify: `team9-mobile/app/chat/[id].tsx` (add TypingIndicator)
 - Modify: `team9-mobile/src/hooks/useWebSocketEvents.ts` (add typing event handling)
 
 **Acceptance Criteria:**
+
 - [ ] Entering a channel marks latest message as read via WS `mark_as_read`
 - [ ] New messages auto-marked as read when channel is active
 - [ ] Typing indicator shows "Alice is typing..." when receiving `user_typing` events
@@ -2267,10 +2459,12 @@ git add -A && git commit -m "feat(mobile): add read status and typing indicators
 **Goal:** Render @mentions as highlighted text in messages. Add long-press reaction picker to message bubbles.
 
 **Files:**
+
 - Create: `team9-mobile/src/components/chat/ReactionPicker.tsx`
 - Modify: `team9-mobile/src/components/chat/MessageBubble.tsx` (mention parsing + reaction display)
 
 **Acceptance Criteria:**
+
 - [ ] `@username` in message content rendered with highlight color
 - [ ] Long-press on message shows emoji reaction picker overlay
 - [ ] Tapping emoji calls `wsService.addReaction()`
@@ -2298,11 +2492,13 @@ git add -A && git commit -m "feat(mobile): add @mention rendering and emoji reac
 **Goal:** Build the Notifications tab with notification list, mark-as-read, and real-time updates.
 
 **Files:**
+
 - Create: `team9-mobile/src/services/api/notifications.ts`
 - Create: `team9-mobile/src/hooks/useNotifications.ts`
 - Create: `team9-mobile/app/(main)/notifications.tsx`
 
 **Acceptance Criteria:**
+
 - [ ] Fetches notifications via `GET /v1/notifications` with cursor pagination
 - [ ] Infinite scroll loads older notifications
 - [ ] Unread notifications visually highlighted with accent border
@@ -2319,27 +2515,35 @@ git add -A && git commit -m "feat(mobile): add @mention rendering and emoji reac
 
 ```typescript
 // src/services/api/notifications.ts
-import { httpClient } from '../http';
-import type { GetNotificationsParams, GetNotificationsResponse, NotificationCounts } from '@/types/notification';
+import { httpClient } from "../http";
+import type {
+  GetNotificationsParams,
+  GetNotificationsResponse,
+  NotificationCounts,
+} from "@/types/notification";
 
 export const notificationsApi = {
-  getNotifications(params?: GetNotificationsParams): Promise<GetNotificationsResponse> {
+  getNotifications(
+    params?: GetNotificationsParams,
+  ): Promise<GetNotificationsResponse> {
     const qs = new URLSearchParams();
-    if (params?.limit) qs.set('limit', String(params.limit));
-    if (params?.cursor) qs.set('cursor', params.cursor);
-    if (params?.category) qs.set('category', params.category);
-    if (params?.isRead !== undefined) qs.set('isRead', String(params.isRead));
+    if (params?.limit) qs.set("limit", String(params.limit));
+    if (params?.cursor) qs.set("cursor", params.cursor);
+    if (params?.category) qs.set("category", params.category);
+    if (params?.isRead !== undefined) qs.set("isRead", String(params.isRead));
     const query = qs.toString();
-    return httpClient.get(`/v1/notifications${query ? `?${query}` : ''}`);
+    return httpClient.get(`/v1/notifications${query ? `?${query}` : ""}`);
   },
   getCounts(): Promise<NotificationCounts> {
-    return httpClient.get('/v1/notifications/counts');
+    return httpClient.get("/v1/notifications/counts");
   },
   markAsRead(ids: string[]): Promise<void> {
-    return httpClient.post('/v1/notifications/mark-read', { notificationIds: ids });
+    return httpClient.post("/v1/notifications/mark-read", {
+      notificationIds: ids,
+    });
   },
   markAllAsRead(category?: string): Promise<void> {
-    const qs = category ? `?category=${category}` : '';
+    const qs = category ? `?category=${category}` : "";
     return httpClient.post(`/v1/notifications/mark-all-read${qs}`);
   },
 };
@@ -2361,6 +2565,7 @@ git add -A && git commit -m "feat(mobile): add notification list screen with rea
 **Goal:** Add push token storage and push sending logic to the existing Team9 backend.
 
 **Files:**
+
 - Create: `apps/server/libs/database/schemas/im/user-push-tokens.ts`
 - Modify: `apps/server/libs/database/schemas/im/index.ts` (export new table)
 - Create: `apps/server/apps/gateway/src/push/push.module.ts`
@@ -2370,6 +2575,7 @@ git add -A && git commit -m "feat(mobile): add notification list screen with rea
 - Modify: `apps/server/apps/im-worker/src/` (add push trigger on new message)
 
 **Acceptance Criteria:**
+
 - [ ] New `user_push_tokens` table with `(user_id, token)` unique constraint
 - [ ] `POST /v1/push/register` upserts push token for authenticated user
 - [ ] `DELETE /v1/push/register` removes push token (on logout)
@@ -2386,21 +2592,37 @@ git add -A && git commit -m "feat(mobile): add notification list screen with rea
 
 ```typescript
 // apps/server/libs/database/schemas/im/user-push-tokens.ts
-import { pgTable, uuid, varchar, pgEnum, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
-import { users } from './users';
+import {
+  pgTable,
+  uuid,
+  varchar,
+  pgEnum,
+  timestamp,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
+import { users } from "./users";
 
-export const platformEnum = pgEnum('push_platform', ['ios', 'android']);
+export const platformEnum = pgEnum("push_platform", ["ios", "android"]);
 
-export const userPushTokens = pgTable('user_push_tokens', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  token: varchar('token', { length: 512 }).notNull(),
-  platform: platformEnum('platform').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
-}, (table) => ({
-  uniqueUserToken: uniqueIndex('uq_user_push_token').on(table.userId, table.token),
-}));
+export const userPushTokens = pgTable(
+  "user_push_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    token: varchar("token", { length: 512 }).notNull(),
+    platform: platformEnum("platform").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    uniqueUserToken: uniqueIndex("uq_user_push_token").on(
+      table.userId,
+      table.token,
+    ),
+  }),
+);
 ```
 
 - [ ] **Step 2: Export from schemas index, run `pnpm db:generate` and `pnpm db:migrate`**
@@ -2426,11 +2648,13 @@ git add -A && git commit -m "feat(server): add push notification token managemen
 **Goal:** Register push token on app launch, handle incoming notifications (foreground toast + background navigation).
 
 **Files:**
+
 - Create: `team9-mobile/src/services/push.ts`
 - Create: `team9-mobile/src/hooks/usePushNotifications.ts`
 - Modify: `team9-mobile/app/_layout.tsx` (add push init)
 
 **Acceptance Criteria:**
+
 - [ ] Requests notification permission on first launch
 - [ ] Registers Expo Push Token via `POST /v1/push/register` after login
 - [ ] Unregisters token via `DELETE /v1/push/register` on logout
@@ -2446,10 +2670,10 @@ git add -A && git commit -m "feat(server): add push notification token managemen
 
 ```typescript
 // src/services/push.ts
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
-import { Platform } from 'react-native';
-import { httpClient } from './http';
+import * as Notifications from "expo-notifications";
+import * as Device from "expo-device";
+import { Platform } from "react-native";
+import { httpClient } from "./http";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -2463,25 +2687,25 @@ export const pushService = {
   async registerForPush(): Promise<string | null> {
     if (!Device.isDevice) return null;
     const { status } = await Notifications.requestPermissionsAsync();
-    if (status !== 'granted') return null;
+    if (status !== "granted") return null;
 
-    if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('default', {
-        name: 'default',
+    if (Platform.OS === "android") {
+      await Notifications.setNotificationChannelAsync("default", {
+        name: "default",
         importance: Notifications.AndroidImportance.MAX,
       });
     }
 
     const token = (await Notifications.getExpoPushTokenAsync()).data;
-    await httpClient.post('/v1/push/register', {
+    await httpClient.post("/v1/push/register", {
       token,
-      platform: Platform.OS as 'ios' | 'android',
+      platform: Platform.OS as "ios" | "android",
     });
     return token;
   },
 
   async unregister(token: string): Promise<void> {
-    await httpClient.delete('/v1/push/register', { token });
+    await httpClient.delete("/v1/push/register", { token });
   },
 };
 ```
@@ -2502,9 +2726,11 @@ git add -A && git commit -m "feat(mobile): add push notification registration an
 **Goal:** Build the Me tab with user profile display, notification preferences, and logout button.
 
 **Files:**
+
 - Create: `team9-mobile/app/(main)/settings.tsx`
 
 **Acceptance Criteria:**
+
 - [ ] Shows current user avatar, display name, email
 - [ ] Logout button clears tokens, disconnects WS, navigates to login
 - [ ] Notification toggle for enabling/disabling push
@@ -2530,11 +2756,13 @@ git add -A && git commit -m "feat(mobile): add settings screen with logout"
 **Goal:** Add Google OAuth login button to login screen using expo-auth-session.
 
 **Files:**
+
 - Modify: `team9-mobile/app/(auth)/login.tsx` (add Google button)
 - Modify: `team9-mobile/src/hooks/useAuth.ts` (add useGoogleLogin)
 - Modify: `team9-mobile/app.json` (add Google OAuth scheme)
 
 **Acceptance Criteria:**
+
 - [ ] Google sign-in button triggers OAuth flow via `expo-auth-session`
 - [ ] Receives Google ID token, sends to `POST /v1/auth/google`
 - [ ] On success, stores tokens and navigates to main
@@ -2549,8 +2777,8 @@ git add -A && git commit -m "feat(mobile): add settings screen with logout"
 
 ```typescript
 // Addition to src/hooks/useAuth.ts
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
+import * as Google from "expo-auth-session/providers/google";
+import * as WebBrowser from "expo-web-browser";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -2563,15 +2791,15 @@ export function useGoogleLogin() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (response?.type === 'success') {
+    if (response?.type === "success") {
       (async () => {
         try {
           const result = await authApi.googleLogin(response.params.id_token);
           await tokenService.setTokens(result.accessToken, result.refreshToken);
           setUser(result.user);
-          router.replace('/(main)/channels');
+          router.replace("/(main)/channels");
         } catch (e) {
-          setError(e instanceof Error ? e.message : 'Google login failed');
+          setError(e instanceof Error ? e.message : "Google login failed");
         }
       })();
     }
@@ -2595,11 +2823,13 @@ git add -A && git commit -m "feat(mobile): add Google OAuth login"
 **Goal:** Build a right-sliding drawer that shows thread (parent message + replies) when tapping a message's reply count.
 
 **Files:**
+
 - Create: `team9-mobile/src/components/chat/ThreadDrawer.tsx`
 - Create: `team9-mobile/src/hooks/useThread.ts`
 - Modify: `team9-mobile/app/chat/[id].tsx` (add ThreadDrawer state)
 
 **Acceptance Criteria:**
+
 - [ ] Tap "N replies" on message opens drawer from right (75% screen width)
 - [ ] Left side shows dimmed overlay (tap to dismiss)
 - [ ] Drawer shows parent message with accent border, then reply list
@@ -2616,12 +2846,12 @@ git add -A && git commit -m "feat(mobile): add Google OAuth login"
 
 ```typescript
 // src/hooks/useThread.ts
-import { useQuery } from '@tanstack/react-query';
-import { messagesApi } from '@/services/api/messages';
+import { useQuery } from "@tanstack/react-query";
+import { messagesApi } from "@/services/api/messages";
 
 export function useThread(messageId: string | null) {
   return useQuery({
-    queryKey: ['thread', messageId],
+    queryKey: ["thread", messageId],
     queryFn: () => messagesApi.getThread(messageId!),
     enabled: !!messageId,
   });
@@ -2647,11 +2877,13 @@ git add -A && git commit -m "feat(mobile): add thread drawer with slide animatio
 **Goal:** Add file/image attachment support to the message input.
 
 **Files:**
+
 - Create: `team9-mobile/src/components/chat/AttachmentPreview.tsx`
 - Modify: `team9-mobile/src/components/chat/MessageInput.tsx` (add 📎 📷 buttons)
 - Modify: `team9-mobile/src/components/chat/MessageBubble.tsx` (render attachments)
 
 **Acceptance Criteria:**
+
 - [ ] 📷 button opens camera/gallery via `expo-image-picker`
 - [ ] 📎 button opens file picker via `expo-document-picker`
 - [ ] Selected files shown as thumbnails above input with remove button
@@ -2669,29 +2901,37 @@ git add -A && git commit -m "feat(mobile): add thread drawer with slide animatio
 
 ```typescript
 // Addition to MessageInput.tsx
-import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 
 const pickImage = async () => {
   const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ['images'],
+    mediaTypes: ["images"],
     quality: 0.8,
   });
   if (!result.canceled) {
-    onAttach(result.assets.map(a => ({
-      uri: a.uri, name: a.fileName ?? 'image.jpg',
-      type: a.mimeType ?? 'image/jpeg', size: a.fileSize ?? 0,
-    })));
+    onAttach(
+      result.assets.map((a) => ({
+        uri: a.uri,
+        name: a.fileName ?? "image.jpg",
+        type: a.mimeType ?? "image/jpeg",
+        size: a.fileSize ?? 0,
+      })),
+    );
   }
 };
 
 const pickFile = async () => {
-  const result = await DocumentPicker.getDocumentAsync({ type: '*/*' });
+  const result = await DocumentPicker.getDocumentAsync({ type: "*/*" });
   if (!result.canceled) {
-    onAttach(result.assets.map(a => ({
-      uri: a.uri, name: a.name,
-      type: a.mimeType ?? 'application/octet-stream', size: a.size ?? 0,
-    })));
+    onAttach(
+      result.assets.map((a) => ({
+        uri: a.uri,
+        name: a.name,
+        type: a.mimeType ?? "application/octet-stream",
+        size: a.size ?? 0,
+      })),
+    );
   }
 };
 ```
@@ -2711,6 +2951,7 @@ git add -A && git commit -m "feat(mobile): add file and image upload in chat"
 **Goal:** Build the Search tab with debounced search across messages, channels, and users.
 
 **Files:**
+
 - Create: `team9-mobile/src/services/api/search.ts`
 - Create: `team9-mobile/src/hooks/useSearch.ts`
 - Create: `team9-mobile/src/components/search/SearchBar.tsx`
@@ -2719,6 +2960,7 @@ git add -A && git commit -m "feat(mobile): add file and image upload in chat"
 - Create: `team9-mobile/app/(main)/search.tsx`
 
 **Acceptance Criteria:**
+
 - [ ] Search input at top with 300ms debounce
 - [ ] Filter tabs: All / Messages / Channels / Users
 - [ ] Message results show channel context, sender, timestamp, content with keyword highlight
@@ -2735,16 +2977,20 @@ git add -A && git commit -m "feat(mobile): add file and image upload in chat"
 
 ```typescript
 // src/services/api/search.ts
-import { httpClient } from '../http';
+import { httpClient } from "../http";
 
-interface SearchOptions { limit?: number; offset?: number; type?: string }
+interface SearchOptions {
+  limit?: number;
+  offset?: number;
+  type?: string;
+}
 
 export const searchApi = {
   search(q: string, options?: SearchOptions) {
     const qs = new URLSearchParams({ q });
-    if (options?.limit) qs.set('limit', String(options.limit));
-    if (options?.offset) qs.set('offset', String(options.offset));
-    if (options?.type) qs.set('type', options.type);
+    if (options?.limit) qs.set("limit", String(options.limit));
+    if (options?.offset) qs.set("offset", String(options.offset));
+    if (options?.type) qs.set("type", options.type);
     return httpClient.get(`/v1/search?${qs}`);
   },
 };
@@ -2768,6 +3014,7 @@ git add -A && git commit -m "feat(mobile): add global search screen"
 **Goal:** Add i18next with zh-Hans, zh-Hant, en support. All user-facing strings via translation keys.
 
 **Files:**
+
 - Create: `team9-mobile/src/i18n/index.ts`
 - Create: `team9-mobile/src/i18n/en.json`
 - Create: `team9-mobile/src/i18n/zh-Hans.json`
@@ -2777,6 +3024,7 @@ git add -A && git commit -m "feat(mobile): add global search screen"
 - Modify: all screen files (replace hardcoded strings with `t()` calls)
 
 **Acceptance Criteria:**
+
 - [ ] i18next initialized with device locale detection
 - [ ] User can switch language in Settings (saved to expo-secure-store)
 - [ ] Language change applies instantly without app restart
@@ -2791,27 +3039,34 @@ git add -A && git commit -m "feat(mobile): add global search screen"
 
 ```typescript
 // src/i18n/index.ts
-import i18n from 'i18next';
-import { initReactI18next } from 'react-i18next';
-import * as Localization from 'expo-localization';
-import * as SecureStore from 'expo-secure-store';
-import en from './en.json';
-import zhHans from './zh-Hans.json';
-import zhHant from './zh-Hant.json';
+import i18n from "i18next";
+import { initReactI18next } from "react-i18next";
+import * as Localization from "expo-localization";
+import * as SecureStore from "expo-secure-store";
+import en from "./en.json";
+import zhHans from "./zh-Hans.json";
+import zhHant from "./zh-Hant.json";
 
-const resources = { en: { translation: en }, 'zh-Hans': { translation: zhHans }, 'zh-Hant': { translation: zhHant } };
+const resources = {
+  en: { translation: en },
+  "zh-Hans": { translation: zhHans },
+  "zh-Hant": { translation: zhHant },
+};
 
 export async function initI18n() {
-  const saved = await SecureStore.getItemAsync('locale');
-  const deviceLocale = Localization.getLocales()[0]?.languageTag ?? 'en';
+  const saved = await SecureStore.getItemAsync("locale");
+  const deviceLocale = Localization.getLocales()[0]?.languageTag ?? "en";
   // Map device locale to our supported keys
-  const mapped = deviceLocale.startsWith('zh-Hant') ? 'zh-Hant'
-    : deviceLocale.startsWith('zh') ? 'zh-Hans' : 'en';
+  const mapped = deviceLocale.startsWith("zh-Hant")
+    ? "zh-Hant"
+    : deviceLocale.startsWith("zh")
+      ? "zh-Hans"
+      : "en";
 
   await i18n.use(initReactI18next).init({
     resources,
     lng: saved ?? mapped,
-    fallbackLng: 'en',
+    fallbackLng: "en",
     interpolation: { escapeValue: false },
   });
 }
@@ -2838,11 +3093,11 @@ Create after all API modules are done:
 
 ```typescript
 // src/services/api/index.ts
-export { authApi } from './auth';
-export { channelsApi } from './channels';
-export { messagesApi } from './messages';
-export { notificationsApi } from './notifications';
-export { searchApi } from './search';
+export { authApi } from "./auth";
+export { channelsApi } from "./channels";
+export { messagesApi } from "./messages";
+export { notificationsApi } from "./notifications";
+export { searchApi } from "./search";
 ```
 
 ---

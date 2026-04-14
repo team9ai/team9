@@ -32,7 +32,6 @@ import {
   resolveAgentType,
   type AgentType,
 } from '../../common/utils/agent-type.util.js';
-import { PropertyDefinitionsService } from '../properties/property-definitions.service.js';
 import { TabsService } from '../views/tabs.service.js';
 
 export interface ChannelResponse {
@@ -122,7 +121,6 @@ export class ChannelsService {
     private readonly db: PostgresJsDatabase<typeof schema>,
     private readonly redis: RedisService,
     private readonly channelMemberCacheService: ChannelMemberCacheService,
-    private readonly propertyDefinitionsService: PropertyDefinitionsService,
     private readonly tabsService: TabsService,
   ) {}
 
@@ -245,15 +243,10 @@ export class ChannelsService {
     // Add creator as owner
     await this.addMember(channel.id, creatorId, 'owner');
 
-    // Seed built-in tabs + default property templates for public/private
-    // channels. Defaults (status, priority) are plain editable definitions —
-    // not native — so users can rename, modify, or delete them at will.
+    // Seed built-in tabs for public/private channels. Properties are
+    // created on demand via schema-on-write — no seed.
     if (dto.type === 'public' || dto.type === 'private') {
       await this.tabsService.seedBuiltinTabs(channel.id);
-      await this.propertyDefinitionsService.seedDefaultProperties(
-        channel.id,
-        creatorId,
-      );
     }
 
     return channel;
@@ -344,7 +337,7 @@ export class ChannelsService {
    *      the transaction has committed, so readers never observe
    *      in-flight state via the cache.
    *
-   *   4. TOCTOU race recovery — migration 0039 adds a partial unique
+   *   4. TOCTOU race recovery — migration 0040 adds a partial unique
    *      index `(created_by, tenant_id) WHERE type='echo' AND
    *      is_archived = false`, so two concurrent requests can no
    *      longer both INSERT a duplicate channel: the loser hits a
@@ -434,9 +427,9 @@ export class ChannelsService {
   /**
    * Look up the single active (non-archived) echo channel for
    * (userId, tenantId) without joining against im_channel_members, so
-   * orphaned rows from before migration 0039's cleanup remain
+   * orphaned rows from before migration 0040's cleanup remain
    * discoverable. The `is_archived = false` filter mirrors the partial
-   * unique index added in migration 0039 so this lookup can never
+   * unique index added in migration 0040 so this lookup can never
    * resurrect an archived channel and silently override the user's
    * intent to start fresh.
    */
@@ -1389,7 +1382,7 @@ export class ChannelsService {
       totalMessageCount: countResult[0]?.count ?? 0,
       latestMessages: latestMessages.reverse().map((m) => ({
         ...m,
-        metadata: m.metadata as Record<string, unknown> | null,
+        metadata: m.metadata,
       })),
     };
 

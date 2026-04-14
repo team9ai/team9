@@ -98,7 +98,7 @@ export function MainSidebar() {
     isHiddenNavUnlocked(),
   );
   const { data: currentUser } = useCurrentUser();
-  const { mutate: logout } = useLogout();
+  const { mutateAsync: logout, isPending: isLoggingOut } = useLogout();
   const { data: onlineUsers = {} } = useOnlineUsers();
   const { data: notificationCounts } = useNotificationCounts();
   const { directChannels = [] } = useChannelsByType();
@@ -122,10 +122,13 @@ export function MainSidebar() {
       ? (onlineUsers[currentUser.id] as UserStatus)
       : "online";
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setUserMenuOpen(false);
-    logout();
-    navigate({ to: "/login" });
+    try {
+      await logout();
+    } finally {
+      navigate({ to: "/login", replace: true });
+    }
   };
 
   const getStatusColor = (status: UserStatus) => {
@@ -632,9 +635,14 @@ export function MainSidebar() {
                 <div className="py-1">
                   <button
                     onClick={handleLogout}
-                    className="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-accent text-destructive"
+                    disabled={isLoggingOut}
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-accent text-destructive disabled:opacity-60 disabled:pointer-events-none"
                   >
-                    <LogOut size={16} />
+                    {isLoggingOut ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <LogOut size={16} />
+                    )}
                     <span>
                       {tAuth("signOutFrom", {
                         workspace: currentWorkspaceName,

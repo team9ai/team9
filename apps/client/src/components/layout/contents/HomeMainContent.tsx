@@ -4,7 +4,6 @@ import {
   ArrowUp,
   ChevronDown,
   ChevronRight,
-  ImagePlus,
   Loader2,
   Plus,
   Search,
@@ -12,6 +11,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,6 +33,8 @@ import {
   useWorkspaceBillingOverview,
   useWorkspaceBillingSummary,
 } from "@/hooks/useWorkspaceBilling";
+import { deepResearchApi } from "@/services/api/deep-research";
+import { upsertChannelMessageInCache } from "@/lib/message-query-cache";
 import { getHttpErrorMessage, getHttpErrorStatus } from "@/lib/http-error";
 import {
   COMMON_STAFF_MODELS,
@@ -46,18 +48,12 @@ import type { WorkspaceBillingAccount } from "@/types/workspace";
 import { useSelectedWorkspaceId } from "@/stores";
 import { cn } from "@/lib/utils";
 
-const DASHBOARD_ACTION_CHIPS = [
-  {
-    key: "dashboardActionDeepResearch",
-    icon: Search,
-    className: "text-[#675f56]",
-  },
-  {
-    key: "dashboardActionGenerateImage",
-    icon: ImagePlus,
-    className: "text-[#675f56]",
-  },
-] as const;
+// Deep research / generate image entries temporarily hidden
+const DASHBOARD_ACTION_CHIPS: ReadonlyArray<{
+  key: string;
+  icon: typeof Search;
+  className: string;
+}> = [];
 
 function pickDefaultAgent(agents: DashboardAgent[]): DashboardAgent | null {
   return (
@@ -300,21 +296,34 @@ function DashboardActionChip({
   label,
   icon: Icon,
   className,
+  onClick,
+  isActive,
 }: {
   label: string;
   icon: LucideIcon;
   className?: string;
+  onClick?: () => void;
+  isActive?: boolean;
 }) {
+  // Use a button when clickable so keyboard and accessibility work correctly;
+  // fall back to a plain div for purely decorative chips.
+  const Component = onClick ? "button" : "div";
   return (
-    <div
+    <Component
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      aria-pressed={onClick ? isActive : undefined}
       className={cn(
-        "dashboard-composer-chip inline-flex h-[2.375rem] items-center gap-1.5 rounded-full px-3.5 text-[0.78rem] font-medium",
-        className,
+        "dashboard-composer-chip inline-flex h-[2.375rem] items-center gap-1.5 rounded-full px-3.5 text-[0.78rem] font-medium transition-colors",
+        onClick && "cursor-pointer hover:opacity-80",
+        isActive &&
+          "bg-[#2f67ff] text-white shadow-[0_6px_16px_rgba(47,103,255,0.28)] hover:opacity-90",
+        !isActive && className,
       )}
     >
       <Icon size={14} strokeWidth={1.8} />
       <span>{label}</span>
-    </div>
+    </Component>
   );
 }
 
@@ -352,6 +361,7 @@ function formatDashboardCredits(value: number) {
 export function HomeMainContent() {
   const { t } = useTranslation(["navigation", "message"]);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const workspaceId = useSelectedWorkspaceId();
   const { directChannels = [] } = useChannelsByType();
   const createDirectChannel = useCreateDirectChannel();
@@ -366,13 +376,16 @@ export function HomeMainContent() {
   const [selectedAgentUserId, setSelectedAgentUserId] = useState<string | null>(
     null,
   );
+  const [isDeepResearch, setIsDeepResearch] = useState(false);
+  const [isCreatingResearch, setIsCreatingResearch] = useState(false);
   const selectedAgent =
     agents.find((agent) => agent.userId === selectedAgentUserId) ??
     pickDefaultAgent(agents);
   const canSubmit =
-    !!selectedAgent &&
     prompt.trim().length > 0 &&
-    !createDirectChannel.isPending;
+    !createDirectChannel.isPending &&
+    !isCreatingResearch &&
+    (isDeepResearch || !!selectedAgent);
   const isUpdatingSelectedAgentModel =
     !!selectedAgent && updatingAgentUserId === selectedAgent.userId;
   const currentPlanLabel =
@@ -395,9 +408,46 @@ export function HomeMainContent() {
   }, [agents]);
 
   const handleSubmit = async () => {
-    if (!selectedAgent) return;
     const draft = prompt.trim();
     if (!draft) return;
+
+    if (isDeepResearch) {
+      if (!selectedAgent) return;
+      if (isCreatingResearch) return;
+      setIsCreatingResearch(true);
+      try {
+        const channelId =
+          selectedAgent.channelId ??
+          (await createDirectChannel.mutateAsync(selectedAgent.userId)).id;
+        const result = await deepResearchApi.startInChannel(channelId, {
+          input: draft,
+          origin: "dashboard",
+        });
+        upsertChannelMessageInCache(queryClient, channelId, result.message);
+
+        setPrompt("");
+        setIsDeepResearch(false);
+        navigate({
+          to: "/channels/$channelId",
+          params: { channelId },
+          search: { message: result.message.id },
+        });
+      } catch (error: unknown) {
+        const status = getHttpErrorStatus(error);
+        if (status === 403) {
+          alert(t("dmPermissionDenied"));
+          return;
+        }
+        alert(
+          getHttpErrorMessage(error) || t("dashboardDeepResearchCreateFailed"),
+        );
+      } finally {
+        setIsCreatingResearch(false);
+      }
+      return;
+    }
+
+    if (!selectedAgent) return;
 
     try {
       const channelId =
@@ -473,7 +523,11 @@ export function HomeMainContent() {
                   onChange={(event) => setPrompt(event.target.value)}
                   onKeyDown={handlePromptKeyDown}
                   rows={3}
-                  placeholder={t("dashboardPromptPlaceholder")}
+                  placeholder={t(
+                    isDeepResearch
+                      ? "dashboardDeepResearchPlaceholder"
+                      : "dashboardPromptPlaceholder",
+                  )}
                   className="min-h-[4rem] resize-none border-0 bg-transparent px-2.5 py-1.5 text-[0.82rem] leading-[1.2rem] text-[#3f3a35] shadow-none placeholder:text-[#c8d5e6] focus-visible:border-transparent focus-visible:ring-0 md:text-[0.82rem]"
                 />
 
@@ -486,23 +540,35 @@ export function HomeMainContent() {
                       <Plus size={17} strokeWidth={2} />
                     </button>
 
-                    {DASHBOARD_ACTION_CHIPS.map((chip) => (
-                      <DashboardActionChip
-                        key={chip.key}
-                        label={t(chip.key)}
-                        icon={chip.icon}
-                        className={chip.className}
-                      />
-                    ))}
+                    {DASHBOARD_ACTION_CHIPS.map((chip) => {
+                      const isDeepResearchChip =
+                        chip.key === "dashboardActionDeepResearch";
+                      return (
+                        <DashboardActionChip
+                          key={chip.key}
+                          label={t(chip.key)}
+                          icon={chip.icon}
+                          className={chip.className}
+                          isActive={isDeepResearchChip && isDeepResearch}
+                          onClick={
+                            isDeepResearchChip
+                              ? () => setIsDeepResearch((prev) => !prev)
+                              : undefined
+                          }
+                        />
+                      );
+                    })}
                   </div>
 
                   <div className="flex items-center justify-between gap-1.5 sm:justify-end">
-                    <DashboardModelControl
-                      agent={selectedAgent}
-                      fallbackLabel={t("dashboardModelLabel")}
-                      isUpdating={isUpdatingSelectedAgentModel}
-                      onSelectModel={handleModelChange}
-                    />
+                    {isDeepResearch ? null : (
+                      <DashboardModelControl
+                        agent={selectedAgent}
+                        fallbackLabel={t("dashboardModelLabel")}
+                        isUpdating={isUpdatingSelectedAgentModel}
+                        onSelectModel={handleModelChange}
+                      />
+                    )}
 
                     <Button
                       type="button"
@@ -512,7 +578,7 @@ export function HomeMainContent() {
                       aria-label={t("sendMessage", { ns: "message" })}
                       className="dashboard-composer-send h-[2.375rem] w-[2.375rem] rounded-full bg-[#818894] text-white shadow-none hover:bg-[#727885] disabled:bg-[#ddd7cf] disabled:text-[#a2998d]"
                     >
-                      {createDirectChannel.isPending ? (
+                      {createDirectChannel.isPending || isCreatingResearch ? (
                         <Loader2 size={16} className="animate-spin" />
                       ) : (
                         <ArrowUp size={16} strokeWidth={2.2} />

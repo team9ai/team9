@@ -12,6 +12,7 @@ import enRoutines from "./locales/en/routines.json";
 import enResources from "./locales/en/resources.json";
 import enSkills from "./locales/en/skills.json";
 import enOnboarding from "./locales/en/onboarding.json";
+import enDeepResearch from "./locales/en/deepResearch.json";
 
 declare module "i18next" {
   interface CustomTypeOptions {
@@ -29,6 +30,7 @@ declare module "i18next" {
       resources: typeof enResources;
       skills: typeof enSkills;
       onboarding: typeof enOnboarding;
+      deepResearch: typeof enDeepResearch;
     };
   }
 }

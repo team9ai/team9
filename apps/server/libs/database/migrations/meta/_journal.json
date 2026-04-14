@@ -278,8 +278,15 @@
     {
       "idx": 39,
       "version": "7",
-      "when": 1776135374943,
-      "tag": "0039_echo_channel_unique_index",
+      "when": 1776211200000,
+      "tag": "0039_replace_onboarding_roles",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1776300000000,
+      "tag": "0040_echo_channel_unique_index",
       "breakpoints": true
     }
   ]

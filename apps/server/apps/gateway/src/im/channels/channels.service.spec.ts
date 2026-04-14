@@ -10,7 +10,6 @@ import { ChannelsService } from './channels.service.js';
 import { DATABASE_CONNECTION } from '@team9/database';
 import { RedisService } from '@team9/redis';
 import { ChannelMemberCacheService } from '../shared/channel-member-cache.service.js';
-import { PropertyDefinitionsService } from '../properties/property-definitions.service.js';
 import { TabsService } from '../views/tabs.service.js';
 
 // ── helpers ──────────────────────────────────────────────────────────
@@ -81,12 +80,6 @@ describe('ChannelsService', () => {
         {
           provide: ChannelMemberCacheService,
           useValue: { invalidate: jest.fn<any>().mockResolvedValue(undefined) },
-        },
-        {
-          provide: PropertyDefinitionsService,
-          useValue: {
-            seedDefaultProperties: jest.fn<any>().mockResolvedValue([]),
-          },
         },
         {
           provide: TabsService,
@@ -503,7 +496,7 @@ describe('ChannelsService', () => {
     });
 
     it('recovers from a TOCTOU race by re-reading the winner row when the unique index rejects the second INSERT', async () => {
-      // Race scenario, after migration 0039 added a partial unique index
+      // Race scenario, after migration 0040 added a partial unique index
       // on (created_by, tenant_id) WHERE type='echo' AND is_archived=false.
       // Two concurrent requests both miss the existence check, both enter
       // the transaction. The first INSERT wins; the second hits a Postgres

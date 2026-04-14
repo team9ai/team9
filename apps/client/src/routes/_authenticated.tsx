@@ -16,6 +16,11 @@ import { useHeartbeat } from "@/hooks/useHeartbeat";
 import { useServiceWorkerMessages } from "@/hooks/useServiceWorkerMessages";
 import { registerServiceWorker } from "@/lib/push-notifications";
 import { queryClient } from "@/lib/query-client";
+import {
+  getEarliestOwnedWorkspace,
+  getSessionWorkspaceId,
+  isOnboardingRequired,
+} from "@/lib/onboarding-gate";
 import workspaceApi from "@/services/api/workspace";
 // import { useAHandSetupStore } from "@/stores/useAHandSetupStore";
 // import { useWorkspaceStore } from "@/stores/useWorkspaceStore";
@@ -33,7 +38,6 @@ import {
 import type { UserWorkspace, WorkspaceOnboarding } from "@/types/workspace";
 
 const ONBOARDING_ROUTE = "/onboarding";
-const COMPLETED_ONBOARDING_STATUSES = new Set(["provisioned", "skipped"]);
 const WORKSPACE_BOOTSTRAP_RETRY_COUNT = 5;
 const WORKSPACE_BOOTSTRAP_RETRY_DELAY_MS = 300;
 const ONBOARDING_BOOTSTRAP_RETRY_COUNT = 5;
@@ -133,27 +137,35 @@ export const Route = createFileRoute("/_authenticated")({
     const pathname = location.pathname;
     const workspaces = await getUserWorkspacesWithBootstrapRetry();
     const activeWorkspaceId = getActiveWorkspaceId(workspaces);
+    const onboardingWorkspace = getEarliestOwnedWorkspace(workspaces);
+    const onboarding = onboardingWorkspace
+      ? await getOnboardingStateWithBootstrapRetry(onboardingWorkspace.id)
+      : null;
+    const onboardingRequired = isOnboardingRequired(onboarding);
+    const sessionWorkspaceId = getSessionWorkspaceId({
+      activeWorkspaceId,
+      onboardingWorkspaceId: onboardingWorkspace?.id ?? null,
+      onboardingRequired,
+    });
 
-    if (activeWorkspaceId) {
-      workspaceActions.setSelectedWorkspaceId(activeWorkspaceId);
+    if (sessionWorkspaceId) {
+      workspaceActions.setSelectedWorkspaceId(sessionWorkspaceId);
 
-      const onboarding =
-        await getOnboardingStateWithBootstrapRetry(activeWorkspaceId);
-
-      const onboardingComplete =
-        !onboarding || COMPLETED_ONBOARDING_STATUSES.has(onboarding.status);
-
-      if (!onboardingComplete && pathname !== ONBOARDING_ROUTE) {
+      if (
+        onboardingRequired &&
+        onboardingWorkspace &&
+        pathname !== ONBOARDING_ROUTE
+      ) {
         throw redirect({
           to: ONBOARDING_ROUTE,
           search: {
-            workspaceId: activeWorkspaceId,
+            workspaceId: onboardingWorkspace.id,
             step: onboarding.currentStep,
           },
         });
       }
 
-      if (pathname === ONBOARDING_ROUTE && onboardingComplete) {
+      if (pathname === ONBOARDING_ROUTE && !onboardingRequired) {
         throw redirect({ to: "/" });
       }
     } else if (pathname === ONBOARDING_ROUTE) {

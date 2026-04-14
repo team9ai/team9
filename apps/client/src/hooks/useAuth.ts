@@ -24,6 +24,21 @@ import {
 } from "@/stores";
 import { setAuthTokens } from "@/services/auth-session";
 
+function clearPrefixedLocalStorage(prefix: string) {
+  const keysToRemove: string[] = [];
+
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (key?.startsWith(prefix)) {
+      keysToRemove.push(key);
+    }
+  }
+
+  for (const key of keysToRemove) {
+    localStorage.removeItem(key);
+  }
+}
+
 // Sync user data to Zustand store and Sentry context
 export const syncCurrentUser = (
   user: User | null,
@@ -179,12 +194,17 @@ export const useLogout = () => {
 
   return useMutation({
     mutationFn: () => api.auth.logout(),
-    onSuccess: () => {
+    onSettled: () => {
       // Tokens are already removed in api.auth.logout
       queryClient.clear();
 
       // Clear Sentry user context
       Sentry.setUser(null);
+
+      // Clear transient auth-flow state that should not survive logout.
+      localStorage.removeItem("pending_invite_code");
+      localStorage.removeItem("pending_desktop_session_id");
+      clearPrefixedLocalStorage("doc-draft-");
 
       // Reset all Zustand stores to prevent stale data on next login
       appActions.reset();
