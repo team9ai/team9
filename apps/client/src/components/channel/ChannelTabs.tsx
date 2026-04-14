@@ -161,8 +161,45 @@ function TabItem({
     [onDrop],
   );
 
-  const tabContent = (
+  const buttonEl = (
+    <button
+      onClick={isEditing ? undefined : onClick}
+      className={cn(
+        "flex items-center gap-1.5 px-2.5 py-1 text-[13px] font-medium whitespace-nowrap transition-colors rounded-t-md hover:bg-foreground/5",
+        isActive
+          ? "text-foreground"
+          : "text-muted-foreground hover:text-foreground",
+        isDraggable && !isEditing && "cursor-grab active:cursor-grabbing",
+      )}
+    >
+      <Icon size={13} />
+      {isEditing ? (
+        <span
+          className="flex items-center gap-1"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Input
+            ref={inputRef}
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitRename();
+              if (e.key === "Escape") cancelEditing();
+            }}
+            onBlur={commitRename}
+            className="h-5 w-24 px-1 py-0 text-sm"
+          />
+        </span>
+      ) : (
+        <span>{tab.name}</span>
+      )}
+    </button>
+  );
+
+  return (
     <div
+      data-tab-id={tab.id}
+      data-tab-active={isActive ? "true" : "false"}
       className={cn(
         "relative pt-1",
         dragOver &&
@@ -175,67 +212,31 @@ function TabItem({
       onDrop={handleDrop}
       onDragEnd={onDragEnd}
     >
-      <button
-        onClick={isEditing ? undefined : onClick}
-        className={cn(
-          "flex items-center gap-1.5 px-2.5 py-1 text-[13px] font-medium whitespace-nowrap transition-colors rounded-t-md hover:bg-foreground/5",
-          isActive
-            ? "text-foreground"
-            : "text-muted-foreground hover:text-foreground",
-          isDraggable && !isEditing && "cursor-grab active:cursor-grabbing",
-        )}
-      >
-        <Icon size={13} />
-        {isEditing ? (
-          <span
-            className="flex items-center gap-1"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Input
-              ref={inputRef}
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") commitRename();
-                if (e.key === "Escape") cancelEditing();
-              }}
-              onBlur={commitRename}
-              className="h-5 w-24 px-1 py-0 text-sm"
-            />
-          </span>
-        ) : (
-          <span>{tab.name}</span>
-        )}
-      </button>
+      {tab.isBuiltin ? (
+        buttonEl
+      ) : (
+        <ContextMenu>
+          <ContextMenuTrigger asChild>{buttonEl}</ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem onClick={startEditing}>
+              <Pencil size={14} className="mr-2" />
+              Rename
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              onClick={onDelete}
+              className="text-destructive focus:text-destructive"
+            >
+              <Trash2 size={14} className="mr-2" />
+              Delete
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
+      )}
       {isActive && (
         <span className="pointer-events-none absolute left-0 right-0 -bottom-px h-[3px] bg-primary" />
       )}
     </div>
-  );
-
-  // Builtin tabs don't get a context menu
-  if (tab.isBuiltin) {
-    return tabContent;
-  }
-
-  return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>{tabContent}</ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem onClick={startEditing}>
-          <Pencil size={14} className="mr-2" />
-          Rename
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem
-          onClick={onDelete}
-          className="text-destructive focus:text-destructive"
-        >
-          <Trash2 size={14} className="mr-2" />
-          Delete
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
   );
 }
 
