@@ -1,5 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import i18n from "@/i18n";
+import { changeLanguage } from "@/i18n/loadLanguage";
 
 const mockNavigate = vi.hoisted(() => vi.fn());
 const mockWorkspaceStore = vi.hoisted(() => vi.fn());
@@ -36,8 +38,12 @@ vi.mock("@/lib/open-external-url", () => ({
 import { SubscriptionContent } from "../SubscriptionContent";
 
 describe("SubscriptionContent", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+
+    if (i18n.language !== "en") {
+      await changeLanguage("en");
+    }
 
     mockWorkspaceStore.mockReturnValue({
       selectedWorkspaceId: "ws-1",
@@ -300,6 +306,62 @@ describe("SubscriptionContent", () => {
       plusLabel.compareDocumentPosition(proLabel) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("renders the updated plan copy in Chinese", async () => {
+    await changeLanguage("zh-CN");
+
+    mockUseWorkspaceBillingOverview.mockReturnValue({
+      data: {
+        account: {
+          id: "acct_1",
+          ownerExternalId: "tenant:ws-1",
+          ownerType: "organization",
+          ownerName: "Alpha",
+          balance: 3000,
+          quota: 0,
+          quotaExpiresAt: null,
+          effectiveQuota: 0,
+          available: 3000,
+          creditLimit: 0,
+          status: "active",
+          metadata: null,
+          createdAt: "2026-04-01T00:00:00.000Z",
+          updatedAt: "2026-04-01T00:00:00.000Z",
+        },
+        subscription: null,
+        subscriptionProducts: [
+          {
+            stripePriceId: "price_plus",
+            name: "Plus Plan",
+            type: "subscription",
+            credits: 40000,
+            amountCents: 4000,
+            interval: "month",
+            intervalCount: 1,
+            active: true,
+            metadata: null,
+            display: {
+              badge: "Plus Plan",
+              description: "Best for flexible usage.",
+              features: ["Shared billing"],
+              sortOrder: 1,
+            },
+          },
+        ],
+        creditProducts: [],
+        recentTransactions: [],
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    render(<SubscriptionContent />);
+
+    expect(await screen.findByText("选择你的方案")).toBeInTheDocument();
+    expect(screen.getByText("免费版")).toBeInTheDocument();
+    expect(screen.getByText("4,000 一次性点数")).toBeInTheDocument();
+    expect(screen.getByText("每月 40,000 点数")).toBeInTheDocument();
   });
 
   it("renders custom amount top-up and sends amountCents to checkout", async () => {

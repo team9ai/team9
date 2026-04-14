@@ -113,7 +113,7 @@ export const Route = createFileRoute("/_authenticated/onboarding")({
 function OnboardingRoute() {
   const navigate = useNavigate();
   const search = Route.useSearch();
-  const { t: rawT, i18n } = useTranslation("onboarding");
+  const { t: rawT, i18n } = useTranslation(["onboarding", "workspace"]);
   const t = rawT as unknown as TranslateFn;
   const selectedWorkspaceId = useSelectedWorkspaceId();
   const { data: workspaces = [] } = useUserWorkspaces();

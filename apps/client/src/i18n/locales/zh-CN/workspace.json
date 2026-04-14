@@ -44,5 +44,90 @@
   "maxWorkspacesReached": "每位用户最多只能创建 {{max}} 个工作空间，请联系管理员或通过 <discordLink>Discord</discordLink> 获取帮助。",
   "workspaceFull": "该工作空间已达到 {{max}} 人的成员上限",
   "workspaceFullInvite": "无法加入——该工作空间已达到成员上限，请联系工作空间管理员或通过 <discordLink>Discord</discordLink> 联系我们。",
-  "expires": "{{date}} 过期"
+  "expires": "{{date}} 过期",
+  "billing": {
+    "interval": {
+      "day_one": "天",
+      "day_other": "{{count}} 天",
+      "week_one": "周",
+      "week_other": "{{count}} 周",
+      "month_one": "月",
+      "month_other": "{{count}} 个月",
+      "year_one": "年",
+      "year_other": "{{count}} 年"
+    },
+    "plans": {
+      "creditsLabel": "{{credits}} 点数",
+      "monthlyCredits": "每月 {{credits}} 点数",
+      "planCreditsWithCycle": "{{credits}} 点数 / {{cycle}}",
+      "creditsConfiguredInBillingHub": "点数额度在 Billing Hub 中配置",
+      "free": {
+        "title": "免费版",
+        "description": "提供核心模型、研究和智能体工作流的基础能力。",
+        "features": {
+          "oneTimeCredits": "4,000 一次性点数",
+          "coreModels": "访问核心模型",
+          "basicResearch": "基础研究",
+          "fileMemory": "智能文件与记忆管理",
+          "agentTools": "20+ 个智能体工具",
+          "multiAgent": "多智能体任务",
+          "beta": "抢先体验精选 Beta 功能"
+        }
+      },
+      "plus": {
+        "description": "适合日常使用，提供高级模型与付费智能体工具。",
+        "features": {
+          "modelAccess": "可访问顶级前沿模型，包括 GPT-5.4、Claude Opus 4.6 和 Gemini 3.1 Pro",
+          "nanoBanana": "包含 Nano Banana 2",
+          "fileMemory": "智能文件与记忆管理",
+          "premiumTools": "可使用全部高级智能体工具",
+          "multiAgent": "支持并发多智能体任务",
+          "beta": "抢先体验 Beta 功能",
+          "support": "专属客户支持"
+        }
+      },
+      "pro": {
+        "description": "适合高负载场景，提供更高额度和更高并发能力。",
+        "features": {
+          "modelAccess": "可访问顶级前沿模型，包括 GPT-5.4、Claude Opus 4.6 和 Gemini 3.1 Pro",
+          "nanoBanana": "包含 Nano Banana 2",
+          "fileMemory": "全面智能管理所有文件与记忆",
+          "premiumTools": "可使用全部高级智能体工具",
+          "multiAgent": "高并发多智能体任务",
+          "beta": "抢先体验 Beta 功能",
+          "support": "专属客户支持"
+        }
+      },
+      "generic": {
+        "description": "为成长中的团队提供更灵活的计费方案。",
+        "features": {
+          "sharedBilling": "为所有者和管理员提供共享工作空间计费控制",
+          "managedThroughBillingHub": "通过 Billing Hub 结账和门户统一管理"
+        }
+      }
+    },
+    "page": {
+      "workspaceBilling": "{{workspace}} 工作空间计费",
+      "heading": "选择你的方案",
+      "subheading": "选择最适合你当前工作负载的套餐。",
+      "exchangeRate": "所有套餐均为 1 美元 = 1,000 点数。",
+      "subscriptionEnds": "当前订阅将于 {{date}} 结束。",
+      "emptyPaidPlans": {
+        "title": "暂未配置付费方案",
+        "description": "Billing Hub 当前还没有暴露任何可订阅的付费产品。"
+      },
+      "actions": {
+        "manageBilling": "管理计费",
+        "chooseFree": "选择免费版",
+        "currentPlan": "当前方案",
+        "choosePlan": "选择 {{plan}}"
+      },
+      "subscriptionRequired": {
+        "title": "需要订阅",
+        "description": "购买点数前需要先开通一个有效订阅，请先选择并订阅套餐。",
+        "cancel": "取消",
+        "viewPlans": "查看方案"
+      }
+    }
+  }
 }
