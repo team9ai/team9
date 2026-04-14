@@ -150,26 +150,62 @@ export function PropertyValue({
       }
 
       case "person": {
-        const ids = Array.isArray(value) ? value : [value];
+        const rawIds = Array.isArray(value) ? value : [value];
+        const ids = rawIds
+          .map((id) => (id == null ? "" : String(id)))
+          .filter((id) => id.length > 0);
+        if (ids.length === 0) return null;
+
+        const isNative = definition.key.startsWith("_");
+        const keyPrefix = !isNative ? (
+          <span className="text-muted-foreground mr-1">{displayLabel}:</span>
+        ) : null;
+
+        if (ids.length === 1) {
+          const id = ids[0];
+          const member = members?.find((m) => m.userId === id);
+          const user = member?.user;
+          const name = user?.displayName || user?.username || "Unknown User";
+          return (
+            <span className="inline-flex items-center gap-1 text-xs">
+              {keyPrefix}
+              <UserAvatar
+                userId={id}
+                name={user?.displayName}
+                username={user?.username}
+                avatarUrl={user?.avatarUrl}
+                isBot={user?.userType === "bot"}
+                className="w-4 h-4"
+                fallbackClassName="text-[8px]"
+              />
+              <span className="truncate max-w-[120px]">{name}</span>
+            </span>
+          );
+        }
+
         return (
-          <span className="inline-flex items-center gap-0.5">
-            {ids.slice(0, 3).map((id) => {
-              const member = members?.find((m) => m.userId === String(id));
-              const user = member?.user;
-              return (
-                <UserAvatar
-                  key={String(id)}
-                  userId={String(id)}
-                  name={user?.displayName}
-                  username={user?.username}
-                  avatarUrl={user?.avatarUrl}
-                  className="w-4 h-4"
-                  fallbackClassName="text-[8px]"
-                />
-              );
-            })}
-            {ids.length > 3 && (
-              <span className="text-muted-foreground">+{ids.length - 3}</span>
+          <span className="inline-flex items-center gap-1 text-xs">
+            {keyPrefix}
+            <span className="inline-flex items-center -space-x-1.5">
+              {ids.slice(0, 5).map((id) => {
+                const member = members?.find((m) => m.userId === id);
+                const user = member?.user;
+                return (
+                  <UserAvatar
+                    key={id}
+                    userId={id}
+                    name={user?.displayName}
+                    username={user?.username}
+                    avatarUrl={user?.avatarUrl}
+                    isBot={user?.userType === "bot"}
+                    className="w-5 h-5 ring-2 ring-background"
+                    fallbackClassName="text-[8px]"
+                  />
+                );
+              })}
+            </span>
+            {ids.length > 5 && (
+              <span className="text-muted-foreground">+{ids.length - 5}</span>
             )}
           </span>
         );
@@ -208,7 +244,7 @@ export function PropertyValue({
           </span>
         );
     }
-  }, [definition, value, members]);
+  }, [definition, value, members, displayLabel]);
 
   if (rendered === null) return null;
 
@@ -222,6 +258,12 @@ export function PropertyValue({
 
   // For single_select already rendered as PropertyTag
   if (definition.valueType === "single_select") {
+    return rendered;
+  }
+
+  // Person renders inline — avatar(s) + name (single) or stacked avatars (many).
+  // It handles its own key label internally (native -> no prefix, custom -> key prefix).
+  if (definition.valueType === "person") {
     return rendered;
   }
 
