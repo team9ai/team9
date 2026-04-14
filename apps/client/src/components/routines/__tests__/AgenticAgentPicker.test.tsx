@@ -1,8 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { InstalledApplicationWithBots } from "@/services/api/applications";
 
 const mockNavigate = vi.hoisted(() => vi.fn());
+const mockRouterNavigate = vi.hoisted(() => vi.fn());
 const mockUseQuery = vi.hoisted(() => vi.fn());
 const mockUseMutation = vi.hoisted(() =>
   vi.fn((_opts?: unknown) => ({
@@ -21,11 +22,17 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
+  useRouter: () => ({ navigate: mockRouterNavigate }),
 }));
+
+const mockInvalidateQueries = vi.hoisted(() =>
+  vi.fn().mockResolvedValue(undefined),
+);
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: mockUseQuery,
   useMutation: mockUseMutation,
+  useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
 }));
 
 vi.mock("@/stores/useWorkspaceStore", () => ({
@@ -116,7 +123,13 @@ describe("AgenticAgentPicker", () => {
       }),
     ]);
 
-    render(<AgenticAgentPicker open onClose={vi.fn()} />);
+    render(
+      <AgenticAgentPicker
+        open
+        onClose={vi.fn()}
+        onOpenCreationSession={vi.fn()}
+      />,
+    );
 
     expect(
       screen.queryByText("agentic.noAgentsAvailable"),
@@ -172,7 +185,13 @@ describe("AgenticAgentPicker", () => {
       }),
     ]);
 
-    render(<AgenticAgentPicker open onClose={vi.fn()} />);
+    render(
+      <AgenticAgentPicker
+        open
+        onClose={vi.fn()}
+        onOpenCreationSession={vi.fn()}
+      />,
+    );
 
     expect(screen.getByText("agentic.noAgentsAvailable")).toBeInTheDocument();
     expect(screen.queryByText("Hydra")).not.toBeInTheDocument();
@@ -182,19 +201,30 @@ describe("AgenticAgentPicker", () => {
   it("shows empty state when cache has no installed apps", () => {
     mockCacheWithApps([]);
 
-    render(<AgenticAgentPicker open onClose={vi.fn()} />);
+    render(
+      <AgenticAgentPicker
+        open
+        onClose={vi.fn()}
+        onOpenCreationSession={vi.fn()}
+      />,
+    );
 
     expect(screen.getByText("agentic.noAgentsAvailable")).toBeInTheDocument();
   });
 
-  it("calls onOpenCreationSession with new routine id after successful create, does not navigate", () => {
+  it("calls onOpenCreationSession with new routine id after successful create, does not navigate", async () => {
     const onOpen = vi.fn();
     const onClose = vi.fn();
 
-    // Capture the mutation options so we can invoke onSuccess manually
-    let capturedOptions: { onSuccess?: (data: unknown) => void } | undefined;
-    const triggerMutate = vi.fn(() => {
-      capturedOptions?.onSuccess?.({
+    // Capture the mutation options so we can invoke onSuccess manually.
+    // The production onSuccess is async (awaits queryClient.invalidateQueries
+    // before calling onOpenCreationSession), so the mock's mutate must also
+    // await the onSuccess promise.
+    let capturedOptions:
+      | { onSuccess?: (data: unknown) => Promise<void> | void }
+      | undefined;
+    const triggerMutate = vi.fn(async () => {
+      await capturedOptions?.onSuccess?.({
         routineId: "new-routine",
         creationChannelId: "ch-1",
         creationSessionId: "team9/t/a/dm/ch-1",
@@ -246,8 +276,11 @@ describe("AgenticAgentPicker", () => {
     // The "agentic.confirm" button triggers the mutation
     fireEvent.click(screen.getByText("agentic.confirm"));
 
-    expect(onClose).toHaveBeenCalled();
-    expect(onOpen).toHaveBeenCalledWith("new-routine");
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    await waitFor(() => expect(onOpen).toHaveBeenCalledWith("new-routine"));
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["routines"],
+    });
     expect(mockNavigate).not.toHaveBeenCalled();
     expect(mockRouterNavigate).not.toHaveBeenCalled();
   });

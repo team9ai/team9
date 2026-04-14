@@ -15,6 +15,7 @@ import {
   and,
   desc,
   sql,
+  isNull,
   type PostgresJsDatabase,
 } from '@team9/database';
 import * as schema from '@team9/database/schemas';
@@ -279,26 +280,42 @@ export class RoutinesService {
     const routine = await this.getRoutineOrThrow(routineId, tenantId);
     this.assertCreatorOwnership(routine, userId);
 
-    // Drafts can always be deleted directly — no active-status guard needed
-    if ((routine.status as string) === 'draft') {
-      this.logger.debug(`Deleting draft routine ${routineId}`);
-
-      await this.db
-        .delete(schema.routines)
-        .where(eq(schema.routines.id, routineId));
-      return { success: true };
+    // Prevent deletion of active routines — must stop first.
+    // Drafts bypass this guard (they have no execution state).
+    if ((routine.status as string) !== 'draft') {
+      const activeStatuses: string[] = [
+        'in_progress',
+        'paused',
+        'pending_action',
+      ];
+      if (activeStatuses.includes(routine.status)) {
+        throw new BadRequestException(
+          `Cannot delete routine in ${routine.status} status. Stop the routine first.`,
+        );
+      }
     }
 
-    // Prevent deletion of active routines — must stop first
-    const activeStatuses: string[] = [
-      'in_progress',
-      'paused',
-      'pending_action',
-    ];
-    if (activeStatuses.includes(routine.status)) {
-      throw new BadRequestException(
-        `Cannot delete routine in ${routine.status} status. Stop the routine first.`,
-      );
+    // Hard-delete the linked routine-session channel, regardless of whether
+    // the routine is a draft, upcoming, completed, failed, etc. The FK on
+    // routine.creation_channel_id only clears the routine's column on
+    // channel deletion — it does NOT cascade the other way. Without an
+    // explicit hard-delete here, archived creation channels from completed
+    // routines would accumulate with no remaining back-reference.
+    //
+    // Non-fatal on failure: the routine row is still deleted even if
+    // channel cleanup fails. Orphaned channels can be reaped by a later
+    // maintenance job.
+    if (routine.creationChannelId) {
+      try {
+        await this.channelsService.hardDeleteRoutineSessionChannel(
+          routine.creationChannelId,
+          tenantId,
+        );
+      } catch (e) {
+        this.logger.warn(
+          `delete: failed to hard-delete creation channel ${routine.creationChannelId} for routine ${routineId}: ${e}`,
+        );
+      }
     }
 
     await this.db
@@ -773,8 +790,24 @@ export class RoutinesService {
     // Step 2: Assert creator ownership (403 if not creator)
     this.assertCreatorOwnership(routine, userId);
 
-    // Step 3: Idempotent — if already upcoming, return as-is
+    // Step 3: Idempotent — if already upcoming, return as-is.
+    // BUT first retry channel archival if it still looks unarchived.
+    // An earlier completeCreation call may have transitioned status to
+    // upcoming and then failed to archive (non-fatal), leaving the
+    // creation channel permanently unarchived. This heals on retry.
     if (routine.status === 'upcoming') {
+      if (routine.creationChannelId) {
+        try {
+          await this.channelsService.archiveCreationChannel(
+            routine.creationChannelId,
+            tenantId,
+          );
+        } catch (e) {
+          this.logger.warn(
+            `completeCreation (idempotent): failed to archive creation channel ${routine.creationChannelId} for routine ${routineId}: ${e}`,
+          );
+        }
+      }
       return routine;
     }
 
@@ -836,6 +869,20 @@ export class RoutinesService {
       .where(eq(schema.routines.id, routineId))
       .returning();
 
+    // Step 7a: archive the creation channel (best-effort, non-fatal)
+    if (routine.creationChannelId) {
+      try {
+        await this.channelsService.archiveCreationChannel(
+          routine.creationChannelId,
+          tenantId,
+        );
+      } catch (e) {
+        this.logger.warn(
+          `completeCreation: failed to archive creation channel ${routine.creationChannelId} for routine ${routineId}: ${e}`,
+        );
+      }
+    }
+
     // Step 7: Log completion
     this.logger.log(
       `completeCreation: routine ${routineId} transitioned to upcoming${dto.notes ? ` — notes: ${dto.notes}` : ''}`,
@@ -855,13 +902,13 @@ export class RoutinesService {
     creationChannelId: string;
     creationSessionId: string;
   }> {
-    // Step 1: Validate source bot exists
+    // Step 1: validate source bot exists
     const sourceBot = await this.botsService.getBotById(dto.agentId);
     if (!sourceBot) {
       throw new NotFoundException(`Bot not found: ${dto.agentId}`);
     }
 
-    // Step 2: Validate bot belongs to tenant via bots JOIN installed_applications
+    // Step 2: validate bot belongs to tenant via bots JOIN installed_applications
     const [botTenantRow] = await this.db
       .select({ tenantId: schema.installedApplications.tenantId })
       .from(schema.bots)
@@ -871,14 +918,15 @@ export class RoutinesService {
       )
       .where(eq(schema.bots.id, dto.agentId))
       .limit(1);
-
     if (!botTenantRow || botTenantRow.tenantId !== tenantId) {
       throw new BadRequestException(
         'Bot does not belong to the current tenant',
       );
     }
 
-    // Step 3: Extract agentId from managedMeta (used for session ID)
+    // Step 3: fast-fail if managedMeta.agentId is missing (startCreationSession
+    // will re-check this, but failing early avoids creating a draft row that
+    // can't materialize a channel)
     const agentId = (sourceBot.managedMeta as Record<string, unknown> | null)
       ?.agentId as string | undefined;
     if (!agentId) {
@@ -887,7 +935,7 @@ export class RoutinesService {
       );
     }
 
-    // Step 4: Auto-generate title: count existing routines in tenant.
+    // Step 4: auto title (count existing routines)
     // TODO: This has a race condition — concurrent calls can produce
     // duplicate titles (e.g., two "Routine #6"). Titles are not unique-
     // constrained so this is cosmetically annoying but not broken.
@@ -900,12 +948,13 @@ export class RoutinesService {
     const count = Number(countRow?.count ?? 0);
     const title = `Routine #${count + 1}`;
 
-    // Step 5: Check for existing in-progress draft with same bot (before creating)
+    // Step 5: prevent two in-progress drafts with the same bot (tenant-scoped)
     const [existingDraft] = await this.db
       .select({ id: schema.routines.id })
       .from(schema.routines)
       .where(
         and(
+          eq(schema.routines.tenantId, tenantId),
           eq(schema.routines.botId, dto.agentId),
           eq(schema.routines.creatorId, userId),
           eq(schema.routines.status, 'draft'),
@@ -913,44 +962,213 @@ export class RoutinesService {
         ),
       )
       .limit(1);
-
     if (existingDraft) {
       throw new BadRequestException(
         'You already have a draft routine being created with this agent. Complete or delete it first.',
       );
     }
 
-    // Step 6: Create draft routine
+    // Step 6: create draft routine
     const draft = await this.create(
       { title, botId: dto.agentId, status: 'draft' },
       userId,
       tenantId,
     );
 
-    // Steps 7-10: with rollback on failure
+    // Step 7: materialize creation session (channel + event + persist ids)
     try {
-      // Step 7: Create/reuse DM channel between user and bot shadow user
-      const channel = await this.channelsService.createDirectChannel(
+      const session = await this.startCreationSession(
+        draft.id,
         userId,
-        sourceBot.userId,
         tenantId,
       );
+      return {
+        routineId: draft.id,
+        creationChannelId: session.creationChannelId,
+        creationSessionId: session.creationSessionId,
+      };
+    } catch (error) {
+      // Rollback the draft row. The draft document is intentionally not deleted —
+      // orphaned documents are low-risk (not user-visible, can be GC'd by a
+      // future cleanup job) and deleting them here would add complexity for a
+      // rare path.
+      try {
+        await this.db
+          .delete(schema.routines)
+          .where(eq(schema.routines.id, draft.id));
+      } catch (rollbackErr) {
+        this.logger.error(
+          `createWithCreationTask: failed to delete draft routine ${draft.id} during rollback: ${rollbackErr}`,
+        );
+      }
+      throw error;
+    }
+  }
 
-      // Step 8: Build deterministic session ID using the original bot's agentId
-      // so it matches what post-broadcast derives from the bot member's managedMeta.agentId
-      const sessionId = `team9/${tenantId}/${agentId}/dm/${channel.id}`;
+  async startCreationSession(
+    routineId: string,
+    userId: string,
+    tenantId: string,
+  ): Promise<{ creationChannelId: string; creationSessionId: string }> {
+    // Validate routine + ownership + status
+    const routine = await this.getRoutineOrThrow(routineId, tenantId);
+    this.assertCreatorOwnership(routine, userId);
 
-      // Step 9: Persist creation metadata
+    if (routine.status !== 'draft') {
+      throw new BadRequestException(
+        `Cannot start creation session for routine in '${routine.status}' status`,
+      );
+    }
+
+    // Fast idempotent path (optimistic — revalidated atomically below).
+    // BUT only trust the persisted ids if the channel is actually a
+    // routine-session. Legacy Phase 1 drafts could point at a 'direct'
+    // DM channel; returning those would make the user land on their
+    // regular DM with the bot instead of a dedicated session. In that
+    // case we clear the legacy ids and fall through to materialize a
+    // fresh routine-session channel.
+    if (routine.creationChannelId && routine.creationSessionId) {
+      const [existingChannel] = await this.db
+        .select({ type: schema.channels.type })
+        .from(schema.channels)
+        .where(eq(schema.channels.id, routine.creationChannelId))
+        .limit(1);
+
+      if (existingChannel?.type === 'routine-session') {
+        return {
+          creationChannelId: routine.creationChannelId,
+          creationSessionId: routine.creationSessionId,
+        };
+      }
+
+      // Legacy or missing channel — clear the stale back-reference so
+      // the atomic claim below matches (we now only predicate on
+      // creation_channel_id IS NULL, so we need to null it first).
       await this.db
+        .update(schema.routines)
+        .set({
+          creationChannelId: null,
+          creationSessionId: null,
+          updatedAt: new Date(),
+        } as Record<string, unknown>)
+        .where(eq(schema.routines.id, routineId));
+    }
+
+    if (!routine.botId) {
+      throw new BadRequestException(
+        'Draft routine has no botId — cannot start creation session',
+      );
+    }
+
+    // Validate bot + tenant ownership + managed agent id.
+    // The compound path (createWithCreationTask) does this check as
+    // pre-flight; the lazy path (DraftRoutineCard) must repeat it because
+    // the bot.botId on an existing draft row may point at a bot that has
+    // since been reassigned or moved to another tenant.
+    const [botTenantRow] = await this.db
+      .select({ tenantId: schema.installedApplications.tenantId })
+      .from(schema.bots)
+      .leftJoin(
+        schema.installedApplications,
+        eq(schema.bots.installedApplicationId, schema.installedApplications.id),
+      )
+      .where(eq(schema.bots.id, routine.botId))
+      .limit(1);
+
+    if (!botTenantRow || botTenantRow.tenantId !== tenantId) {
+      throw new BadRequestException(
+        'Draft bot does not belong to the current tenant',
+      );
+    }
+
+    const bot = await this.botsService.getBotById(routine.botId);
+    if (!bot) {
+      throw new BadRequestException(
+        'The executing agent no longer exists. Reassign or delete this draft.',
+      );
+    }
+    const agentId = (bot.managedMeta as Record<string, unknown> | null)
+      ?.agentId as string | undefined;
+    if (!agentId) {
+      throw new BadRequestException(
+        'Bot is not a managed hive agent (no agentId in managedMeta)',
+      );
+    }
+
+    // Build channel speculatively. The conditional UPDATE below is the
+    // race gate — if two concurrent callers both reach this point, both
+    // create channels, and the loser hard-deletes its own.
+    const channel = await this.channelsService.createRoutineSessionChannel({
+      creatorId: userId,
+      botUserId: bot.userId,
+      tenantId,
+      routineId,
+      purpose: 'creation',
+    });
+
+    const sessionId = `team9/${tenantId}/${agentId}/dm/${channel.id}`;
+    let claimed = false;
+
+    try {
+      // ATOMIC CLAIM: only succeed if creation_channel_id is still null.
+      // We deliberately do NOT predicate on creation_session_id being
+      // null — a half-populated row (channel null, session set) is a
+      // rollback residue from an older bug, and this UPDATE heals it by
+      // overwriting both fields. Drizzle returns the updated rows; an
+      // empty array means we lost the race for this routine.
+      const claimResult = await this.db
         .update(schema.routines)
         .set({
           creationChannelId: channel.id,
           creationSessionId: sessionId,
           updatedAt: new Date(),
         } as Record<string, unknown>)
-        .where(eq(schema.routines.id, draft.id));
+        .where(
+          and(
+            eq(schema.routines.id, routineId),
+            isNull(schema.routines.creationChannelId),
+          ),
+        )
+        .returning({ id: schema.routines.id });
 
-      // Step 10: Send kickoff event to the original bot's session
+      if (claimResult.length === 0) {
+        // Lost the race: a concurrent caller already claimed this draft.
+        // Hard-delete our speculative channel and return the winner's ids.
+        await this.channelsService
+          .hardDeleteRoutineSessionChannel(channel.id, tenantId)
+          .catch((cleanupError) => {
+            this.logger.error(
+              `startCreationSession: race-loss channel cleanup failed for ${channel.id}: ${cleanupError}`,
+            );
+          });
+
+        const winner = await this.getRoutineOrThrow(routineId, tenantId);
+        if (winner.creationChannelId && winner.creationSessionId) {
+          // KNOWN LIMITATION (rare²): we return the winner's ids before
+          // the winner's sendInput() has committed. If the winner's
+          // kickoff then fails, its catch-block clears these columns and
+          // hard-deletes the channel. By that point we have already
+          // returned stale ids to our caller. The caller will then try
+          // to open a channel that no longer exists and hit a 404 — user
+          // retry reliably recovers. Acceptable for P0 because it
+          // requires concurrent callers AND transient Hive failure on
+          // the winner. A proper fix would serialize on a pg advisory
+          // lock or add an `is_ready` marker that the winner sets
+          // after sendInput succeeds.
+          return {
+            creationChannelId: winner.creationChannelId,
+            creationSessionId: winner.creationSessionId,
+          };
+        }
+        // Winner exists but its state got rolled back between claim and
+        // read — caller should retry.
+        throw new BadRequestException(
+          'Concurrent creation session in unstable state; retry',
+        );
+      }
+
+      claimed = true;
+
       await this.clawHiveService.sendInput(
         sessionId,
         {
@@ -958,33 +1176,56 @@ export class RoutinesService {
           source: 'team9',
           timestamp: new Date().toISOString(),
           payload: {
-            routineId: draft.id,
+            routineId,
             creatorUserId: userId,
             tenantId,
-            title,
+            title: routine.title,
           },
         },
         tenantId,
       );
 
-      return {
-        routineId: draft.id,
-        creationChannelId: channel.id,
-        creationSessionId: sessionId,
-      };
+      return { creationChannelId: channel.id, creationSessionId: sessionId };
     } catch (error) {
-      // Rollback: delete draft routine row. Note: the document created
-      // by this.create() is intentionally NOT deleted — orphaned documents
-      // are low-risk (not user-visible, can be GC'd by a future cleanup
-      // job) and deleting them here would add complexity for a rare path.
+      // Rollback path. Two sub-cases:
+      //   a) We never claimed the row (pre-claim failure) → just delete
+      //      the speculative channel. The routine row is untouched.
+      //   b) We claimed the row (sendInput failed) → delete the channel
+      //      AND explicitly null BOTH columns on the routine. We cannot
+      //      rely on FK ON DELETE SET NULL to clear creation_session_id
+      //      because that FK only covers creation_channel_id.
       try {
-        await this.db
-          .delete(schema.routines)
-          .where(eq(schema.routines.id, draft.id));
-      } catch (deleteError) {
-        this.logger.error(
-          `createWithCreationTask: failed to delete draft routine ${draft.id} during rollback: ${deleteError}`,
+        await this.channelsService.hardDeleteRoutineSessionChannel(
+          channel.id,
+          tenantId,
         );
+      } catch (cleanupError) {
+        this.logger.error(
+          `startCreationSession: failed to roll back channel ${channel.id}: ${cleanupError}`,
+        );
+      }
+
+      if (claimed) {
+        try {
+          await this.db
+            .update(schema.routines)
+            .set({
+              creationChannelId: null,
+              creationSessionId: null,
+              updatedAt: new Date(),
+            } as Record<string, unknown>)
+            .where(
+              and(
+                eq(schema.routines.id, routineId),
+                // Defensive: only clear if we still own the claim.
+                eq(schema.routines.creationSessionId, sessionId),
+              ),
+            );
+        } catch (clearError) {
+          this.logger.error(
+            `startCreationSession: failed to clear creation_channel_id/creation_session_id on routine ${routineId}: ${clearError}`,
+          );
+        }
       }
 
       throw error;

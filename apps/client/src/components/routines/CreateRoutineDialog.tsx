@@ -124,7 +124,10 @@ export function CreateRoutineDialog({
     enabled: isOpen && addingTrigger && newTriggerType === "channel_message",
   });
   const nonDirectChannels = channels.filter(
-    (ch) => ch.type !== "direct" && ch.type !== "echo",
+    (ch) =>
+      ch.type !== "direct" &&
+      ch.type !== "echo" &&
+      ch.type !== "routine-session",
   );
 
   const createMutation = useMutation({

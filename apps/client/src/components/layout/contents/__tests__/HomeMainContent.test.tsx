@@ -193,6 +193,8 @@ describe("HomeMainContent", () => {
     expect(
       screen.getByPlaceholderText(/message dashboard/i),
     ).toBeInTheDocument();
+    // Deep research / Generate image chips are temporarily hidden in
+    // production (DASHBOARD_ACTION_CHIPS is an empty array).
     expect(screen.queryByText(/deep research/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/generate image/i)).not.toBeInTheDocument();
     expect(screen.getByText("Starter")).toBeInTheDocument();
@@ -302,7 +304,7 @@ describe("HomeMainContent", () => {
       updatingAgentUserId: null,
     });
 
-    render(<HomeMainContent />);
+    renderWithProviders(<HomeMainContent />);
 
     expect(
       screen.getByRole("button", { name: /私人秘书/ }),

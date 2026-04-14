@@ -1,5 +1,11 @@
 import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 
+// StaffService.createLlmProvider() is called even when streamText is
+// mocked, and it throws when neither OPENROUTER_API_KEY nor
+// CAPABILITY_HUB_URL is set. Provide a stub value up-front so tests
+// don't crash in minimal CI environments.
+process.env.OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || 'test-key';
+
 const mockStreamText = jest.fn<any>();
 
 const mockOutputObject = jest.fn<any>().mockReturnValue('mock-output-spec');
@@ -1671,11 +1677,15 @@ describe('CommonStaffService', () => {
     });
 
     it('propagates errors from result.output when stream completes but output rejects', async () => {
+      // Attach a no-op catch to prevent the rejection from firing an
+      // unhandled-rejection crash before the test consumer awaits it.
+      const outputRejection = Promise.reject(new Error('Validation failed'));
+      outputRejection.catch(() => {});
       mockStreamText.mockReturnValueOnce({
         partialOutputStream: makeAsyncIterable([
           { candidates: [{ candidateIndex: 1, displayName: 'A' }] },
         ]),
-        output: Promise.reject(new Error('Validation failed')),
+        output: outputRejection,
       });
 
       const gen = service.generateCandidates(

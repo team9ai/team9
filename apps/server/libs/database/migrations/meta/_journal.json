@@ -288,6 +288,13 @@
       "when": 1776300000000,
       "tag": "0040_echo_channel_unique_index",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1776400000000,
+      "tag": "0041_routine_session_channel_type",
+      "breakpoints": true
     }
   ]
 }
