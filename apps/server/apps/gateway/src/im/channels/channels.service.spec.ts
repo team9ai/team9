@@ -1899,6 +1899,58 @@ describe('ChannelsService', () => {
     });
   });
 
+  describe('createRoutineSessionChannel', () => {
+    it('inserts a routine-session channel with purpose metadata and adds both members', async () => {
+      // Arrange: insert() returns a new channel row from returning()
+      db.returning.mockResolvedValueOnce([
+        {
+          id: 'ch-1',
+          type: 'routine-session',
+          tenantId: 'tenant-1',
+          createdBy: 'user-1',
+          propertySettings: {
+            routineSession: { purpose: 'creation', routineId: 'routine-1' },
+          },
+        },
+      ]);
+
+      // Spy addMember so we don't actually go through the DB chain for memberships
+      const addMemberSpy = jest
+        .spyOn(service as any, 'addMember')
+        .mockResolvedValue(undefined as any);
+
+      const result = await service.createRoutineSessionChannel({
+        creatorId: 'user-1',
+        botUserId: 'bot-user-1',
+        tenantId: 'tenant-1',
+        routineId: 'routine-1',
+        purpose: 'creation',
+      });
+
+      // The insert chain was called with the expected values
+      expect(db.insert).toHaveBeenCalled();
+      expect(db.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'routine-session',
+          tenantId: 'tenant-1',
+          createdBy: 'user-1',
+          name: null,
+          propertySettings: {
+            routineSession: { purpose: 'creation', routineId: 'routine-1' },
+          },
+        }),
+      );
+
+      // Both members added in order: creator first, bot second
+      expect(addMemberSpy).toHaveBeenCalledWith('ch-1', 'user-1', 'member');
+      expect(addMemberSpy).toHaveBeenCalledWith('ch-1', 'bot-user-1', 'member');
+      expect(addMemberSpy).toHaveBeenCalledTimes(2);
+
+      expect(result.id).toBe('ch-1');
+      expect(result.type).toBe('routine-session');
+    });
+  });
+
   describe('channel name helpers', () => {
     it('normalizes names and validates unicode-friendly channel names', () => {
       expect(ChannelsService.normalizeChannelName('  Team   Updates  ')).toBe(

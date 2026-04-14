@@ -40,7 +40,14 @@ export interface ChannelResponse {
   tenantId: string | null;
   name: string | null;
   description: string | null;
-  type: 'direct' | 'public' | 'private' | 'task' | 'tracking' | 'echo';
+  type:
+    | 'direct'
+    | 'public'
+    | 'private'
+    | 'task'
+    | 'tracking'
+    | 'echo'
+    | 'routine-session';
   avatarUrl: string | null;
   createdBy: string | null;
   sectionId: string | null;
@@ -300,6 +307,44 @@ export class ChannelsService {
     // Add both users
     await this.addMember(channel.id, userId1, 'member');
     await this.addMember(channel.id, userId2, 'member');
+
+    return channel;
+  }
+
+  /**
+   * Create a dedicated routine-session channel for a routine-bound agent
+   * conversation (currently: creation; future: reflection / retrospective).
+   *
+   * Membership: creator + bot shadow user, both as 'member'.
+   * No auto-unhide in im-worker — routine-session channels aren't routed
+   * through DM visibility logic because their type isn't 'direct' / 'echo'.
+   */
+  async createRoutineSessionChannel(params: {
+    creatorId: string;
+    botUserId: string;
+    tenantId: string;
+    routineId: string;
+    purpose: 'creation';
+  }): Promise<ChannelResponse> {
+    const { creatorId, botUserId, tenantId, routineId, purpose } = params;
+
+    const propertySettings: unknown = {
+      routineSession: { purpose, routineId },
+    };
+    const [channel] = await this.db
+      .insert(schema.channels)
+      .values({
+        id: uuidv7(),
+        tenantId,
+        type: 'routine-session',
+        name: null,
+        createdBy: creatorId,
+        propertySettings,
+      })
+      .returning();
+
+    await this.addMember(channel.id, creatorId, 'member');
+    await this.addMember(channel.id, botUserId, 'member');
 
     return channel;
   }
