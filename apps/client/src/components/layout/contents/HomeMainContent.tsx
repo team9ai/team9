@@ -4,7 +4,6 @@ import {
   ArrowUp,
   ChevronDown,
   ChevronRight,
-  ImagePlus,
   Loader2,
   Plus,
   Search,
@@ -49,18 +48,12 @@ import type { WorkspaceBillingAccount } from "@/types/workspace";
 import { useSelectedWorkspaceId } from "@/stores";
 import { cn } from "@/lib/utils";
 
-const DASHBOARD_ACTION_CHIPS = [
-  {
-    key: "dashboardActionDeepResearch",
-    icon: Search,
-    className: "text-[#675f56]",
-  },
-  {
-    key: "dashboardActionGenerateImage",
-    icon: ImagePlus,
-    className: "text-[#675f56]",
-  },
-] as const;
+// Deep research / generate image entries temporarily hidden
+const DASHBOARD_ACTION_CHIPS: ReadonlyArray<{
+  key: string;
+  icon: typeof Search;
+  className: string;
+}> = [];
 
 const FIXED_BASE_MODEL_LABELS = {
   claude: "Claude Sonnet 4.6",
