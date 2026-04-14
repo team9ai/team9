@@ -59,6 +59,14 @@ const DASHBOARD_ACTION_CHIPS = [
   },
 ] as const;
 
+function pickDefaultAgent(agents: DashboardAgent[]): DashboardAgent | null {
+  return (
+    agents.find((agent) => agent.applicationId === "personal-staff") ??
+    agents[0] ??
+    null
+  );
+}
+
 const FIXED_BASE_MODEL_LABELS = {
   claude: "Claude Sonnet 4.6",
   chatgpt: "GPT-5.4 Mini",
@@ -359,8 +367,7 @@ export function HomeMainContent() {
   );
   const selectedAgent =
     agents.find((agent) => agent.userId === selectedAgentUserId) ??
-    agents[0] ??
-    null;
+    pickDefaultAgent(agents);
   const canSubmit =
     !!selectedAgent &&
     prompt.trim().length > 0 &&
@@ -382,7 +389,7 @@ export function HomeMainContent() {
         return current;
       }
 
-      return agents[0]?.userId ?? null;
+      return pickDefaultAgent(agents)?.userId ?? null;
     });
   }, [agents]);
 

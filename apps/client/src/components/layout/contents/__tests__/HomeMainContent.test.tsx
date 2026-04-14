@@ -231,6 +231,49 @@ describe("HomeMainContent", () => {
     );
   });
 
+  it("defaults to the personal-staff agent when one exists", () => {
+    mockUseDashboardAgents.mockReturnValue({
+      agents: [
+        {
+          userId: "agent-claude",
+          botId: "claude-bot",
+          channelId: "bot-ch-claude",
+          label: "Claude",
+          username: "claude_bot",
+          applicationId: "base-model-staff",
+          installedApplicationId: "app-base",
+          agentType: "base_model",
+          hasExistingChannel: true,
+          model: null,
+          managedAgentId: "base-model-claude-ws-1",
+          canSwitchModel: false,
+        },
+        {
+          userId: "agent-personal",
+          botId: "personal-bot",
+          channelId: "bot-ch-personal",
+          label: "私人秘书",
+          username: "personal_secretary",
+          applicationId: "personal-staff",
+          installedApplicationId: "app-personal",
+          agentType: null,
+          hasExistingChannel: true,
+          model: { provider: "openrouter", id: "openai/gpt-4.1" },
+          managedAgentId: null,
+          canSwitchModel: true,
+        },
+      ],
+      updateAgentModel: mockUpdateAgentModel,
+      updatingAgentUserId: null,
+    });
+
+    render(<HomeMainContent />);
+
+    expect(
+      screen.getByRole("button", { name: /私人秘书/ }),
+    ).toBeInTheDocument();
+  });
+
   it("falls back to the free plan label when no subscription exists", () => {
     mockUseWorkspaceBillingSummary.mockReturnValue({
       data: {
