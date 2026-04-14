@@ -588,6 +588,7 @@ describe('MessagesController', () => {
       expect(capabilityHubClient.serviceHeaders).toHaveBeenCalledWith({
         userId: USER_ID,
         tenantId: WORKSPACE_ID,
+        botId: 'bot-user-1',
       });
       expect(capabilityHubClient.request).toHaveBeenCalledWith(
         'POST',
@@ -606,6 +607,42 @@ describe('MessagesController', () => {
       );
       expect(gatewayMQService?.publishWorkspaceEvent).not.toHaveBeenCalled();
       expect(gatewayMQService?.publishPostBroadcast).toHaveBeenCalled();
+    });
+
+    it('preserves structured hub errors for chat deep-research starts', async () => {
+      capabilityHubClient.request.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: false,
+            error: {
+              code: 'DEEP_RESEARCH_CONCURRENCY_LIMIT_REACHED',
+              message: 'Concurrency limit reached.',
+              details: { retryAfterSeconds: 42 },
+            },
+          }),
+          {
+            status: 429,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
+      );
+
+      await expect(
+        controller.startDeepResearch(USER_ID, CHANNEL_ID, {
+          input: 'research this market',
+          origin: 'dashboard',
+        } as never),
+      ).rejects.toMatchObject({
+        status: 429,
+        response: {
+          success: false,
+          error: {
+            code: 'DEEP_RESEARCH_CONCURRENCY_LIMIT_REACHED',
+            message: 'Concurrency limit reached.',
+            details: { retryAfterSeconds: 42 },
+          },
+        },
+      });
     });
 
     it('rejects deep research outside bot DMs', async () => {

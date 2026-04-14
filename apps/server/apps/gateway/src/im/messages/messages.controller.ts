@@ -145,8 +145,7 @@ export class MessagesController {
   }
 
   private async createDeepResearchTask(
-    userId: string,
-    tenantId: string,
+    identity: { userId: string; tenantId: string; botId: string },
     body: {
       input: string;
       agentConfig?: { thinkingSummaries?: 'auto' | 'off' };
@@ -157,7 +156,7 @@ export class MessagesController {
       '/api/deep-research/tasks',
       {
         headers: {
-          ...this.capabilityHubClient.serviceHeaders({ userId, tenantId }),
+          ...this.capabilityHubClient.serviceHeaders(identity),
           'content-type': 'application/json',
         },
         body: JSON.stringify(body),
@@ -177,7 +176,7 @@ export class MessagesController {
 
     if (!upstream.ok) {
       throw new HttpException(
-        {
+        payload ?? {
           message:
             this.getHubErrorMessage(payload) ??
             `Deep research request failed with status ${upstream.status}.`,
@@ -468,10 +467,17 @@ export class MessagesController {
       );
     }
 
-    const task = await this.createDeepResearchTask(userId, channel.tenantId, {
-      input: dto.input,
-      agentConfig: dto.agentConfig,
-    });
+    const task = await this.createDeepResearchTask(
+      {
+        userId,
+        tenantId: channel.tenantId,
+        botId: channel.otherUser.id,
+      },
+      {
+        input: dto.input,
+        agentConfig: dto.agentConfig,
+      },
+    );
     const message = await this.createChannelMessage(userId, channelId, {
       content: dto.input,
       metadata: this.buildDeepResearchMessageMetadata(

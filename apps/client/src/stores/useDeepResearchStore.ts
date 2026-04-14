@@ -184,6 +184,19 @@ export const useDeepResearchStore = create<State>()(
       byTaskId: {},
       ingest: (taskId, ev) => {
         const cur = get().byTaskId[taskId] ?? emptyState();
+        // Drop replays/duplicates: events whose seq is not strictly greater
+        // than the last applied seq would otherwise re-append text deltas
+        // and thought summaries (e.g. under StrictMode double-mount or
+        // concurrent SSE connections for the same taskId).
+        if (cur.lastSeq != null) {
+          const prev = Number(cur.lastSeq);
+          const incoming = Number(ev.seq);
+          if (Number.isFinite(prev) && Number.isFinite(incoming)) {
+            if (incoming <= prev) return;
+          } else if (ev.seq === cur.lastSeq) {
+            return;
+          }
+        }
         set(
           { byTaskId: { ...get().byTaskId, [taskId]: applyEvent(cur, ev) } },
           false,

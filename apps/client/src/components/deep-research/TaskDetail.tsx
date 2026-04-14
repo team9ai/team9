@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { deepResearchApi } from "@/services/api/deep-research";
 import { useDeepResearchStream } from "@/hooks/useDeepResearchStream";
@@ -52,6 +53,7 @@ function ErrorLine({
 export function TaskDetail({ taskId, hideHeader = false }: TaskDetailProps) {
   const { t } = useTranslation("deepResearch");
   const getAuth = useAuthTriple();
+  const queryClient = useQueryClient();
   const task = useQuery({
     queryKey: ["deep-research", "task", taskId],
     queryFn: () => deepResearchApi.getTask(taskId),
@@ -64,6 +66,18 @@ export function TaskDetail({ taskId, hideHeader = false }: TaskDetailProps) {
   // tasks just won't produce new events.
   useDeepResearchStream({ taskId, getAuth, autoReconnect: true });
 
+  useEffect(() => {
+    if (stream?.status !== "completed" && stream?.status !== "failed") {
+      return;
+    }
+    void queryClient.invalidateQueries({
+      queryKey: ["deep-research", "task", taskId],
+    });
+    void queryClient.invalidateQueries({
+      queryKey: ["deep-research", "tasks"],
+    });
+  }, [queryClient, stream?.status, taskId]);
+
   if (task.isError) {
     return (
       <div className="p-6 text-center">
@@ -73,7 +87,10 @@ export function TaskDetail({ taskId, hideHeader = false }: TaskDetailProps) {
     );
   }
 
-  const status = task.data?.status ?? "pending";
+  const status =
+    stream?.status && stream.status !== "idle"
+      ? stream.status
+      : (task.data?.status ?? "pending");
   const reportUrl = stream?.reportUrl ?? task.data?.reportUrl ?? null;
   const isHistorical = status === "completed" || status === "failed";
   const isLive = !isHistorical;
