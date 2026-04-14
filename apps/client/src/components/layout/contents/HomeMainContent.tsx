@@ -352,7 +352,11 @@ export function DashboardTaskPill() {
 function getWorkspaceCredits(
   account: WorkspaceBillingAccount | null | undefined,
 ) {
-  return (account?.balance ?? 0) + (account?.effectiveQuota ?? 0);
+  return (
+    (account?.balance ?? 0) +
+    (account?.effectiveQuota ?? 0) +
+    (account?.grantBalance ?? 0)
+  );
 }
 
 function formatDashboardCredits(value: number) {

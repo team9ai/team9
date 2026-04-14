@@ -172,7 +172,11 @@ function getErrorMessage(error: unknown, fallback: string) {
 }
 
 function getWorkspaceCredits(account: WorkspaceBillingAccount | null) {
-  return (account?.balance ?? 0) + (account?.effectiveQuota ?? 0);
+  return (
+    (account?.balance ?? 0) +
+    (account?.effectiveQuota ?? 0) +
+    (account?.grantBalance ?? 0)
+  );
 }
 
 function getTransactionAmountLabel(transaction: WorkspaceBillingTransaction) {
@@ -479,10 +483,14 @@ export function SubscriptionContent({
                   </div>
                   <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                     <span className="rounded-full border border-[#d5dfef] bg-[#f0f4fb] px-3.5 py-1.5 text-xs font-medium text-[#4a6489]">
-                      Prepaid: {formatCredits(account?.balance ?? 0)}
+                      Top-up: {formatCredits(account?.balance ?? 0)}
                     </span>
                     <span className="rounded-full border border-[#d5dfef] bg-[#f0f4fb] px-3.5 py-1.5 text-xs font-medium text-[#4a6489]">
-                      Quota: {formatCredits(account?.effectiveQuota ?? 0)}
+                      Subscription:{" "}
+                      {formatCredits(account?.effectiveQuota ?? 0)}
+                    </span>
+                    <span className="rounded-full border border-[#d5dfef] bg-[#f0f4fb] px-3.5 py-1.5 text-xs font-medium text-[#4a6489]">
+                      Grant: {formatCredits(account?.grantBalance ?? 0)}
                     </span>
                   </div>
                 </CardContent>
