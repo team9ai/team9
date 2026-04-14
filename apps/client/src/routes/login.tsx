@@ -484,6 +484,7 @@ function WebLoginView() {
   }, [completeDesktop, desktopSessionId, invite]);
 
   useEffect(() => {
+    if (!localStorage.getItem("auth_token")) return;
     if (!currentUser || isLoading || authCompletedInSession.current) return;
     void navigateAfterAuth();
   }, [currentUser, isLoading, navigateAfterAuth]);

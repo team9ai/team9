@@ -179,7 +179,7 @@ export const useLogout = () => {
 
   return useMutation({
     mutationFn: () => api.auth.logout(),
-    onSuccess: () => {
+    onSettled: () => {
       // Tokens are already removed in api.auth.logout
       queryClient.clear();
 
