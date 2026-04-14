@@ -6,7 +6,7 @@ const mockNavigate = vi.hoisted(() => vi.fn());
 const mockRouterNavigate = vi.hoisted(() => vi.fn());
 const mockUseQuery = vi.hoisted(() => vi.fn());
 const mockUseMutation = vi.hoisted(() =>
-  vi.fn(() => ({
+  vi.fn((_opts?: unknown) => ({
     mutate: vi.fn(),
     reset: vi.fn(),
     isPending: false,
@@ -213,16 +213,17 @@ describe("AgenticAgentPicker", () => {
 
     // Capture the mutation options so we can invoke onSuccess manually
     let capturedOptions: { onSuccess?: (data: unknown) => void } | undefined;
-    mockUseMutation.mockImplementation((opts: unknown) => {
+    const triggerMutate = vi.fn(() => {
+      capturedOptions?.onSuccess?.({
+        routineId: "new-routine",
+        creationChannelId: "ch-1",
+        creationSessionId: "team9/t/a/dm/ch-1",
+      });
+    });
+    mockUseMutation.mockImplementation((opts?: unknown) => {
       capturedOptions = opts as typeof capturedOptions;
       return {
-        mutate: () => {
-          capturedOptions?.onSuccess?.({
-            routineId: "new-routine",
-            creationChannelId: "ch-1",
-            creationSessionId: "team9/t/a/dm/ch-1",
-          });
-        },
+        mutate: triggerMutate,
         reset: vi.fn(),
         isPending: false,
       };
