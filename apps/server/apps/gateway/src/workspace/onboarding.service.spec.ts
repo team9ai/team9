@@ -407,6 +407,100 @@ describe('OnboardingService — provisionRoutines', () => {
   });
 });
 
+describe('OnboardingService — getState', () => {
+  let service: any;
+  let db: ReturnType<typeof createDbMock>['db'];
+  let enqueue: ReturnType<typeof createDbMock>['enqueue'];
+
+  beforeEach(() => {
+    const mock = createDbMock();
+    db = mock.db;
+    enqueue = mock.enqueue;
+
+    service = new OnboardingService(
+      db,
+      {
+        findByNameAndTenant: jest.fn<any>().mockResolvedValue(null),
+        create: jest.fn<any>().mockResolvedValue({ id: 'channel-id' }),
+      },
+      {
+        findByApplicationId: jest.fn<any>().mockResolvedValue(null),
+        install: jest.fn<any>().mockResolvedValue({ id: APP_ID }),
+      },
+      {
+        findPersonalStaffBot: jest.fn<any>().mockResolvedValue(null),
+        createStaff: jest.fn<any>().mockResolvedValue({ botId: BOT_ID }),
+        updateStaff: jest.fn<any>().mockResolvedValue(undefined),
+      },
+      {
+        createStaff: jest.fn<any>().mockResolvedValue({ botId: 'common-bot' }),
+      },
+      {
+        create: jest.fn<any>().mockResolvedValue({ id: 'routine-id' }),
+      },
+    );
+  });
+
+  it('returns the existing onboarding record when present', async () => {
+    const record = makeOnboardingRecord({
+      status: 'in_progress',
+      currentStep: 2,
+    });
+    enqueue([record]);
+
+    await expect(service.getState(WORKSPACE_ID, USER_ID)).resolves.toEqual(
+      record,
+    );
+  });
+
+  it('self-heals the earliest owned workspace even if the user also belongs to other workspaces', async () => {
+    const createdRecord = makeOnboardingRecord({
+      status: 'in_progress',
+      currentStep: 1,
+      stepData: {},
+      completedAt: null,
+    });
+
+    enqueue([]);
+    enqueue([
+      {
+        tenantId: 'member-workspace',
+        role: 'member',
+        joinedAt: new Date('2026-04-01T00:00:00.000Z'),
+      },
+      {
+        tenantId: WORKSPACE_ID,
+        role: 'owner',
+        joinedAt: new Date('2026-04-02T00:00:00.000Z'),
+      },
+    ]);
+    enqueue([]);
+    enqueue([createdRecord]);
+
+    await expect(service.getState(WORKSPACE_ID, USER_ID)).resolves.toEqual(
+      createdRecord,
+    );
+  });
+
+  it('does not self-heal a later owned workspace when an earlier owner workspace exists', async () => {
+    enqueue([]);
+    enqueue([
+      {
+        tenantId: 'workspace-older-owner',
+        role: 'owner',
+        joinedAt: new Date('2026-04-01T00:00:00.000Z'),
+      },
+      {
+        tenantId: WORKSPACE_ID,
+        role: 'owner',
+        joinedAt: new Date('2026-04-02T00:00:00.000Z'),
+      },
+    ]);
+
+    await expect(service.getState(WORKSPACE_ID, USER_ID)).resolves.toBeNull();
+  });
+});
+
 // ── provisionCommonStaff tests ────────────────────────────────────────────────
 
 describe('OnboardingService — provisionCommonStaff', () => {
