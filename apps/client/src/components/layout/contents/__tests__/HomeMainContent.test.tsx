@@ -193,8 +193,9 @@ describe("HomeMainContent", () => {
     expect(
       screen.getByPlaceholderText(/message dashboard/i),
     ).toBeInTheDocument();
-    expect(screen.getByText(/deep research/i)).toBeInTheDocument();
-    expect(screen.getByText(/generate image/i)).toBeInTheDocument();
+    // Deep research / Generate image chips are temporarily hidden in
+    // production (DASHBOARD_ACTION_CHIPS is an empty array). Don't
+    // assert their presence until the feature is re-enabled.
     expect(screen.getByText("Starter")).toBeInTheDocument();
     expect(screen.getByText("4,876")).toBeInTheDocument();
     const trigger = screen.getByRole("button", { name: /alpha agent/i });
@@ -222,7 +223,10 @@ describe("HomeMainContent", () => {
     });
   });
 
-  it("starts deep research in the selected agent channel without auto-send", async () => {
+  // Deep research chip is temporarily hidden in HomeMainContent
+  // (DASHBOARD_ACTION_CHIPS = []). Skip the interaction test until it
+  // comes back.
+  it.skip("starts deep research in the selected agent channel without auto-send", async () => {
     renderWithProviders(<HomeMainContent />);
 
     fireEvent.click(screen.getByRole("button", { name: /deep research/i }));
@@ -326,7 +330,7 @@ describe("HomeMainContent", () => {
       updatingAgentUserId: null,
     });
 
-    render(<HomeMainContent />);
+    renderWithProviders(<HomeMainContent />);
 
     expect(
       screen.getByRole("button", { name: /私人秘书/ }),
