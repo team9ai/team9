@@ -1,115 +1,131 @@
 {
   "planPath": "docs/superpowers/plans/2026-04-14-dedicated-routine-creation-channel.md",
-  "lastUpdated": "2026-04-14T00:00:00Z",
+  "lastUpdated": "2026-04-14T12:30:00Z",
   "tasks": [
     {
       "id": 1,
       "subject": "Task 1: Add routine-session to channel type enum + migration",
-      "status": "pending",
+      "status": "completed",
+      "commitSha": "c6eae9c2",
       "description": "**Goal:** Land the schema change. Database, drizzle metadata, and TypeScript schema all carry the new enum value.\n\n**Files:**\n- Modify: apps/server/libs/database/src/schemas/im/channels.ts:29-36\n- Create: apps/server/libs/database/migrations/0040_routine_session_channel_type.sql\n- Modify: apps/server/libs/database/migrations/meta/_journal.json\n- Create: apps/server/libs/database/migrations/meta/0040_snapshot.json\n\n**Verify:** pnpm --filter @team9/database db:migrate && psql output includes routine-session\n\n```json:metadata\n{\"files\":[\"apps/server/libs/database/src/schemas/im/channels.ts\",\"apps/server/libs/database/migrations/0040_routine_session_channel_type.sql\"],\"verifyCommand\":\"pnpm --filter @team9/database db:migrate\",\"acceptanceCriteria\":[\"channelTypeEnum contains routine-session\",\"migration applies cleanly\",\"psql enum_range includes routine-session\"]}\n```"
     },
     {
       "id": 2,
       "subject": "Task 2: ChannelsService.createRoutineSessionChannel",
-      "status": "pending",
+      "status": "completed",
+      "commitSha": "4d7f7a6c",
       "blockedBy": [1],
       "description": "**Goal:** Implement the channel-creation primitive used by every routine-session purpose.\n\n**Files:**\n- Modify: apps/server/apps/gateway/src/im/channels/channels.service.ts (extend type union + new method)\n- Modify: apps/server/apps/gateway/src/im/channels/channels.service.spec.ts\n\n**Verify:** pnpm --filter gateway test channels.service.spec.ts -t createRoutineSessionChannel\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/channels/channels.service.ts\",\"apps/server/apps/gateway/src/im/channels/channels.service.spec.ts\"],\"verifyCommand\":\"pnpm --filter gateway test channels.service.spec.ts -t createRoutineSessionChannel\",\"acceptanceCriteria\":[\"insert with type routine-session\",\"propertySettings carries purpose+routineId\",\"two members added\"]}\n```"
     },
     {
       "id": 3,
       "subject": "Task 3: ChannelsService.hardDeleteRoutineSessionChannel with audit cleanup",
-      "status": "pending",
+      "status": "completed",
+      "commitSha": "90dea117",
       "blockedBy": [1],
       "description": "**Goal:** Hard delete a routine-session channel safely; pre-cleans im_audit_logs inside a single transaction.\n\n**Files:**\n- Modify: apps/server/apps/gateway/src/im/channels/channels.service.ts\n- Modify: apps/server/apps/gateway/src/im/channels/channels.service.spec.ts\n\n**Verify:** pnpm --filter gateway test channels.service.spec.ts -t hardDeleteRoutineSessionChannel\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/im/channels/channels.service.ts\",\"apps/server/apps/gateway/src/im/channels/channels.service.spec.ts\"],\"verifyCommand\":\"pnpm --filter gateway test channels.service.spec.ts -t hardDeleteRoutineSessionChannel\",\"acceptanceCriteria\":[\"NotFoundException when missing\",\"ForbiddenException when type wrong\",\"audit logs deleted before channel inside transaction\",\"redis cache invalidated\"]}\n```"
     },
     {
       "id": 4,
       "subject": "Task 4: RoutinesService.startCreationSession (lazy materialization)",
-      "status": "pending",
+      "status": "completed",
+      "commitSha": "060cc02f",
       "blockedBy": [2],
       "description": "**Goal:** New service method materializes a creation channel + sends kickoff event for an existing draft. Idempotent.\n\n**Files:**\n- Modify: apps/server/apps/gateway/src/routines/routines.service.ts\n- Modify: apps/server/apps/gateway/src/routines/routines.service.spec.ts\n\n**Verify:** pnpm --filter gateway test routines.service.spec.ts -t startCreationSession\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/routines/routines.service.ts\",\"apps/server/apps/gateway/src/routines/routines.service.spec.ts\"],\"verifyCommand\":\"pnpm --filter gateway test routines.service.spec.ts -t startCreationSession\",\"acceptanceCriteria\":[\"validates draft+creator+bot agentId\",\"idempotent when channel already set\",\"creates channel+session+event\",\"rolls back channel on failure\"]}\n```"
     },
     {
       "id": 5,
       "subject": "Task 5: Refactor createWithCreationTask to compose create + startCreationSession",
-      "status": "pending",
+      "status": "completed",
+      "commitSha": "6b6e70b2",
       "blockedBy": [4],
       "description": "**Goal:** Single source of truth. createWithCreationTask becomes thin wrapper.\n\n**Files:**\n- Modify: apps/server/apps/gateway/src/routines/routines.service.ts:849-992\n- Modify: apps/server/apps/gateway/src/routines/routines.service.spec.ts\n\n**Verify:** pnpm --filter gateway test routines.service.spec.ts -t createWithCreationTask\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/routines/routines.service.ts\",\"apps/server/apps/gateway/src/routines/routines.service.spec.ts\"],\"verifyCommand\":\"pnpm --filter gateway test routines.service.spec.ts -t createWithCreationTask\",\"acceptanceCriteria\":[\"no createDirectChannel reference\",\"calls create then startCreationSession\",\"rollback deletes draft on session failure\",\"response shape unchanged\"]}\n```"
     },
     {
       "id": 6,
       "subject": "Task 6: Wire completeCreation to archive + delete to hard-delete",
-      "status": "pending",
+      "status": "completed",
+      "commitSha": "474a4e3c",
       "blockedBy": [3, 4],
       "description": "**Goal:** Reverse Phase 1 negation. Archive on complete, hard-delete on draft delete.\n\n**Files:**\n- Modify: apps/server/apps/gateway/src/routines/routines.service.ts:278-309 (delete) and :764-845 (completeCreation)\n- Modify: apps/server/apps/gateway/src/routines/routines.service.spec.ts\n\n**Verify:** pnpm --filter gateway test routines.service.spec.ts -t completeCreation routines.service.spec.ts -t delete\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/routines/routines.service.ts\",\"apps/server/apps/gateway/src/routines/routines.service.spec.ts\"],\"verifyCommand\":\"pnpm --filter gateway test routines.service.spec.ts -t completeCreation\",\"acceptanceCriteria\":[\"completeCreation calls archiveCreationChannel\",\"archive failure non-fatal\",\"delete draft calls hardDeleteRoutineSessionChannel\",\"non-draft delete unchanged\"]}\n```"
     },
     {
       "id": 7,
       "subject": "Task 7: POST /v1/routines/:id/start-creation-session controller endpoint",
-      "status": "pending",
+      "status": "completed",
+      "commitSha": "f0fc00dd",
       "blockedBy": [4],
       "description": "**Goal:** Expose startCreationSession over HTTP.\n\n**Files:**\n- Modify: apps/server/apps/gateway/src/routines/routines.controller.ts\n- Modify: apps/server/apps/gateway/src/routines/routines.controller.spec.ts\n\n**Verify:** pnpm --filter gateway test routines.controller.spec.ts -t start-creation-session\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/routines/routines.controller.ts\",\"apps/server/apps/gateway/src/routines/routines.controller.spec.ts\"],\"verifyCommand\":\"pnpm --filter gateway test routines.controller.spec.ts -t start-creation-session\",\"acceptanceCriteria\":[\"endpoint declared before wildcard routes\",\"ParseUUIDPipe on id\",\"delegates to service\"]}\n```"
     },
     {
       "id": 8,
       "subject": "Task 8: Backend integration tests",
-      "status": "pending",
+      "status": "completed",
+      "commitSha": "1a92e201",
       "blockedBy": [5, 6, 7],
       "description": "**Goal:** End-to-end coverage for the new flows.\n\n**Files:**\n- Modify: apps/server/apps/gateway/src/routines/__tests__/routines-creation-flow.integration.spec.ts\n\n**Verify:** pnpm --filter gateway test routines-creation-flow.integration.spec.ts\n\n```json:metadata\n{\"files\":[\"apps/server/apps/gateway/src/routines/__tests__/routines-creation-flow.integration.spec.ts\"],\"verifyCommand\":\"pnpm --filter gateway test routines-creation-flow.integration.spec.ts\",\"acceptanceCriteria\":[\"with-creation-task creates routine-session channel\",\"start-creation-session integration test\",\"complete-creation archives channel\",\"delete hard-deletes channel\"]}\n```"
     },
     {
       "id": 9,
       "subject": "Task 9: Frontend ChannelType union + startCreationSession API client",
-      "status": "pending",
+      "status": "completed",
+      "commitSha": "7f94cd56",
       "blockedBy": [8],
       "description": "**Goal:** Wire types and API method.\n\n**Files:**\n- Modify: apps/client/src/types/im.ts:3-9\n- Modify: apps/client/src/services/api/routines.ts\n- Create or modify: apps/client/src/hooks/__tests__/useChannels.test.ts\n\n**Verify:** pnpm --filter client test src/hooks/__tests__/useChannels.test.ts -t routine-session\n\n```json:metadata\n{\"files\":[\"apps/client/src/types/im.ts\",\"apps/client/src/services/api/routines.ts\",\"apps/client/src/hooks/__tests__/useChannels.test.ts\"],\"verifyCommand\":\"pnpm --filter client test src/hooks/__tests__/useChannels.test.ts -t routine-session\",\"acceptanceCriteria\":[\"ChannelType includes routine-session\",\"startCreationSession client posts to endpoint\",\"useChannelsByType excludes routine-session\"]}\n```"
     },
     {
       "id": 10,
       "subject": "Task 10: CreationSessionRunItem component + tests",
-      "status": "pending",
+      "status": "completed",
+      "commitSha": "efd5719a",
       "blockedBy": [9],
       "description": "**Goal:** Visual pseudo-run entry for routine card runs list.\n\n**Files:**\n- Create: apps/client/src/components/routines/CreationSessionRunItem.tsx\n- Create: apps/client/src/components/routines/__tests__/CreationSessionRunItem.test.tsx\n\n**Verify:** pnpm --filter client test src/components/routines/__tests__/CreationSessionRunItem.test.tsx\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/routines/CreationSessionRunItem.tsx\",\"apps/client/src/components/routines/__tests__/CreationSessionRunItem.test.tsx\"],\"verifyCommand\":\"pnpm --filter client test src/components/routines/__tests__/CreationSessionRunItem.test.tsx\",\"acceptanceCriteria\":[\"renders Routine Creation label\",\"yellow accent style\",\"selected state\",\"onClick invoked\"]}\n```"
     },
     {
       "id": 11,
       "subject": "Task 11: RoutineList discriminated selectedRun + onOpenCreationSession handler",
-      "status": "pending",
+      "status": "completed",
+      "commitSha": "3c1d924f",
       "blockedBy": [10],
       "description": "**Goal:** Extend RoutineList state to support creation-run selection sentinel.\n\n**Files:**\n- Modify: apps/client/src/components/routines/RoutineList.tsx\n\n**Verify:** cd apps/client && pnpm exec tsc --noEmit | grep RoutineList || echo clean\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/routines/RoutineList.tsx\"],\"verifyCommand\":\"cd apps/client && pnpm exec tsc --noEmit\",\"acceptanceCriteria\":[\"discriminated SelectedRun union\",\"handleOpenCreationSession exists\",\"props threaded down\",\"creationChannelOverride passed to ChatArea\"]}\n```"
     },
     {
       "id": 12,
       "subject": "Task 12: RoutineCard renders CreationSessionRunItem at bottom of runs list",
-      "status": "pending",
+      "status": "completed",
+      "commitSha": "6d09ec37",
       "blockedBy": [11],
       "description": "**Goal:** Inject special run entry conditionally and forward selection.\n\n**Files:**\n- Modify: apps/client/src/components/routines/RoutineCard.tsx\n- Modify: apps/client/src/components/routines/RoutineList.tsx (ExpandableRoutineCard wiring)\n\n**Verify:** cd apps/client && pnpm exec tsc --noEmit | grep RoutineCard || echo clean\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/routines/RoutineCard.tsx\",\"apps/client/src/components/routines/RoutineList.tsx\"],\"verifyCommand\":\"cd apps/client && pnpm exec tsc --noEmit\",\"acceptanceCriteria\":[\"creation run rendered when status=draft and channelId set\",\"highlighted when selected\",\"onOpenCreationSession invoked on click\",\"hidden when status not draft\"]}\n```"
     },
     {
       "id": 13,
       "subject": "Task 13: ChatArea creation mode",
-      "status": "pending",
+      "status": "completed",
+      "commitSha": "a5a7da85",
       "blockedBy": [11],
       "description": "**Goal:** Render routine.creationChannelId when prop provided, hide execution controls.\n\n**Files:**\n- Modify: apps/client/src/components/routines/ChatArea.tsx\n\n**Verify:** cd apps/client && pnpm exec tsc --noEmit | grep ChatArea || echo clean\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/routines/ChatArea.tsx\"],\"verifyCommand\":\"cd apps/client && pnpm exec tsc --noEmit\",\"acceptanceCriteria\":[\"creationChannelId prop accepted\",\"channel id override in creation mode\",\"run controls hidden\",\"draft banner shown\"]}\n```"
     },
     {
       "id": 14,
       "subject": "Task 14: DraftRoutineCard lazy startCreationSession + open creation run",
-      "status": "pending",
+      "status": "completed",
+      "commitSha": "65c70c7c",
       "blockedBy": [11],
       "description": "**Goal:** Replace router navigation with lazy-create-then-select flow.\n\n**Files:**\n- Modify: apps/client/src/components/routines/DraftRoutineCard.tsx\n- Create: apps/client/src/components/routines/__tests__/DraftRoutineCard.test.tsx\n\n**Verify:** pnpm --filter client test src/components/routines/__tests__/DraftRoutineCard.test.tsx\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/routines/DraftRoutineCard.tsx\",\"apps/client/src/components/routines/__tests__/DraftRoutineCard.test.tsx\"],\"verifyCommand\":\"pnpm --filter client test src/components/routines/__tests__/DraftRoutineCard.test.tsx\",\"acceptanceCriteria\":[\"onOpenCreationSession prop\",\"existing channel skip API\",\"null channel calls API then opens\",\"button always enabled\"]}\n```"
     },
     {
       "id": 15,
       "subject": "Task 15: DraftRoutineBanner same lazy-flow update",
-      "status": "pending",
+      "status": "completed",
+      "commitSha": "6aa75afa",
       "blockedBy": [14],
       "description": "**Goal:** Stop banner navigation. Use onOpenCreationSession callback prop or hide button when not provided.\n\n**Files:**\n- Modify: apps/client/src/components/routines/DraftRoutineBanner.tsx\n- Modify: any callers passing the new prop\n\n**Verify:** cd apps/client && pnpm exec tsc --noEmit | grep DraftRoutineBanner || echo clean\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/routines/DraftRoutineBanner.tsx\"],\"verifyCommand\":\"cd apps/client && pnpm exec tsc --noEmit\",\"acceptanceCriteria\":[\"optional onOpenCreationSession prop\",\"no useNavigate import\",\"button hidden when callback missing\",\"lazy API call when channelId null\"]}\n```"
     },
     {
       "id": 16,
       "subject": "Task 16: AgenticAgentPicker stops navigating, calls onOpenCreationSession",
-      "status": "pending",
+      "status": "completed",
+      "commitSha": "c92f8449",
       "blockedBy": [11],
       "description": "**Goal:** After createWithCreationTask resolves, close modal and ask RoutineList to open the new creation session.\n\n**Files:**\n- Modify: apps/client/src/components/routines/AgenticAgentPicker.tsx\n- Modify: apps/client/src/components/routines/__tests__/AgenticAgentPicker.test.tsx\n\n**Verify:** pnpm --filter client test src/components/routines/__tests__/AgenticAgentPicker.test.tsx\n\n```json:metadata\n{\"files\":[\"apps/client/src/components/routines/AgenticAgentPicker.tsx\",\"apps/client/src/components/routines/__tests__/AgenticAgentPicker.test.tsx\"],\"verifyCommand\":\"pnpm --filter client test src/components/routines/__tests__/AgenticAgentPicker.test.tsx\",\"acceptanceCriteria\":[\"onOpenCreationSession prop\",\"no useNavigate\",\"calls callback with new routine id on success\",\"existing tests pass\"]}\n```"
     }
