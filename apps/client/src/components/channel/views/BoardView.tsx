@@ -34,10 +34,12 @@ function BoardCard({
   message,
   groupKey,
   visibleDefs,
+  channelId,
 }: {
   message: ViewMessageItem;
   groupKey: string;
   visibleDefs: PropertyDefinition[];
+  channelId: string;
 }) {
   const contentPreview = useMemo(() => {
     if (!message.content) return "";
@@ -77,6 +79,7 @@ function BoardCard({
               key={def.id}
               definition={def}
               value={message.properties[def.key]}
+              channelId={channelId}
               className="text-[10px]"
             />
           ))}
@@ -94,7 +97,7 @@ function BoardColumn({
   color,
   messages,
   visibleDefs,
-  channelId: _channelId,
+  channelId,
   onDropCard,
   onAddCard,
   isAddingCard,
@@ -178,6 +181,7 @@ function BoardColumn({
             message={msg}
             groupKey={groupKey}
             visibleDefs={visibleDefs}
+            channelId={channelId}
           />
         ))}
       </div>

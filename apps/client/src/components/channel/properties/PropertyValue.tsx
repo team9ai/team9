@@ -11,6 +11,13 @@ export interface PropertyValueProps {
   value: unknown;
   channelId?: string;
   className?: string;
+  /**
+   * For `person` properties: whether to render the property key as a prefix
+   * inside the pill (e.g. `Assignee:`). Defaults to false — callers should
+   * set it true only when disambiguation is needed (e.g. schema has multiple
+   * person-type definitions and the definition is custom, non-native).
+   */
+  showKeyPrefix?: boolean;
 }
 
 function getSelectOptions(definition: PropertyDefinition): SelectOption[] {
@@ -73,6 +80,7 @@ export function PropertyValue({
   value,
   channelId,
   className,
+  showKeyPrefix = false,
 }: PropertyValueProps) {
   const { data: members } = useChannelMembers(
     definition.valueType === "person" ? channelId : undefined,
@@ -156,19 +164,13 @@ export function PropertyValue({
           .filter((id) => id.length > 0);
         if (ids.length === 0) return null;
 
-        const isNative = definition.key.startsWith("_");
-        const keyPrefix = !isNative ? (
-          <span className="text-muted-foreground mr-1">{displayLabel}:</span>
-        ) : null;
-
         if (ids.length === 1) {
           const id = ids[0];
           const member = members?.find((m) => m.userId === id);
           const user = member?.user;
           const name = user?.displayName || user?.username || "Unknown User";
           return (
-            <span className="inline-flex items-center gap-1 text-xs">
-              {keyPrefix}
+            <span className="inline-flex items-center gap-1">
               <UserAvatar
                 userId={id}
                 name={user?.displayName}
@@ -184,8 +186,7 @@ export function PropertyValue({
         }
 
         return (
-          <span className="inline-flex items-center gap-1 text-xs">
-            {keyPrefix}
+          <span className="inline-flex items-center gap-1">
             <span className="inline-flex items-center -space-x-1.5">
               {ids.slice(0, 5).map((id) => {
                 const member = members?.find((m) => m.userId === id);
@@ -244,7 +245,7 @@ export function PropertyValue({
           </span>
         );
     }
-  }, [definition, value, members, displayLabel]);
+  }, [definition, value, members]);
 
   if (rendered === null) return null;
 
@@ -261,11 +262,9 @@ export function PropertyValue({
     return rendered;
   }
 
-  // Person renders inline — avatar(s) + name (single) or stacked avatars (many).
-  // It handles its own key label internally (native -> no prefix, custom -> key prefix).
-  if (definition.valueType === "person") {
-    return rendered;
-  }
+  // Person shares the default pill wrapper, but the key prefix is opt-in via
+  // `showKeyPrefix` (callers decide based on schema disambiguation rules).
+  const hideLabel = definition.valueType === "person" && !showKeyPrefix;
 
   return (
     <span
@@ -274,7 +273,9 @@ export function PropertyValue({
         className,
       )}
     >
-      <span className="text-muted-foreground">{displayLabel}:</span>
+      {!hideLabel && (
+        <span className="text-muted-foreground">{displayLabel}:</span>
+      )}
       {rendered}
     </span>
   );

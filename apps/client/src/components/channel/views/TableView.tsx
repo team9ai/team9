@@ -154,7 +154,11 @@ function TableRow({
                   disabled={!canEdit}
                 >
                   {value !== undefined && value !== null ? (
-                    <PropertyValue definition={def} value={value} />
+                    <PropertyValue
+                      definition={def}
+                      value={value}
+                      channelId={channelId}
+                    />
                   ) : def.key === "title" ? (
                     <span className="inline-flex items-center gap-1 text-muted-foreground/50">
                       -

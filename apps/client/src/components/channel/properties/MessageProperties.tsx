@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { MoreHorizontal, Plus, Loader2 } from "lucide-react";
+import { MoreHorizontal, Loader2 } from "lucide-react";
 import { PropertyTag } from "./PropertyTag";
 import { PropertyValue } from "./PropertyValue";
 import { PropertySelector } from "./PropertySelector";
@@ -8,10 +8,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import {
   useRemoveProperty,
   useSetProperty,
 } from "@/hooks/useMessageProperties";
+import { useChannelMembers } from "@/hooks/useChannels";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/types/im";
 import type { PropertyDefinition } from "@/types/properties";
@@ -22,6 +24,62 @@ function getDefDisplayName(def: PropertyDefinition): string {
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
+function PersonTooltipBody({
+  def,
+  value,
+  channelId,
+}: {
+  def: PropertyDefinition;
+  value: unknown;
+  channelId: string;
+}) {
+  const { data: members } = useChannelMembers(channelId);
+  const rawIds = Array.isArray(value) ? value : [value];
+  const ids = rawIds
+    .map((id) => (id == null ? "" : String(id)))
+    .filter((id) => id.length > 0);
+  const displayName = getDefDisplayName(def);
+
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs font-medium">
+        {displayName}
+        <span className="ml-1 text-[11px] text-muted-foreground">
+          ({def.key})
+        </span>
+      </span>
+      {ids.length === 0 ? (
+        <span className="text-[11px] text-muted-foreground">—</span>
+      ) : (
+        ids.map((id) => {
+          const member = members?.find((m) => m.userId === id);
+          const user = member?.user;
+          const name = user?.displayName || user?.username || "Unknown User";
+          return (
+            <div key={id} className="flex items-center gap-1.5">
+              <UserAvatar
+                userId={id}
+                name={user?.displayName}
+                username={user?.username}
+                avatarUrl={user?.avatarUrl}
+                isBot={user?.userType === "bot"}
+                className="w-4 h-4"
+                fallbackClassName="text-[8px]"
+              />
+              <span className="text-xs">{name}</span>
+              {user?.username && user.username !== name && (
+                <span className="text-[11px] text-muted-foreground">
+                  @{user.username}
+                </span>
+              )}
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
 export interface MessagePropertiesProps {
   message: Message;
   channelId: string;
@@ -29,9 +87,6 @@ export interface MessagePropertiesProps {
   canEdit: boolean;
   aiAutoFillLoading?: boolean;
   propertyDisplayOrder?: "schema" | "chronological";
-  /** Optional controlled open state for the property selector popover. */
-  selectorOpen?: boolean;
-  onSelectorOpenChange?: (open: boolean) => void;
 }
 
 /** Native property keys that should appear first, in this order */
@@ -55,8 +110,6 @@ export function MessageProperties({
   canEdit,
   aiAutoFillLoading = false,
   propertyDisplayOrder = "schema",
-  selectorOpen,
-  onSelectorOpenChange,
 }: MessagePropertiesProps) {
   const properties = message.properties;
   const setProperty = useSetProperty(message.id, channelId);
@@ -140,8 +193,26 @@ export function MessageProperties({
     return definitions.some((def) => hasValue(properties[def.key]));
   }, [definitions, properties]);
 
-  // Don't render at all if nothing to show and not in edit mode
-  if (visibleDefinitions.length === 0 && !canEdit && !aiAutoFillLoading) {
+  // When the schema has multiple person-type properties, custom (non-native)
+  // ones need their key prefix shown inside the pill so a reader can tell
+  // which slot is which (e.g. "Assignee:" vs "Reviewer:"). Native `_people`
+  // never shows the prefix — it's the default People slot.
+  const hasMultiplePersonDefs = useMemo(
+    () =>
+      (definitions?.filter((d) => d.valueType === "person").length ?? 0) > 1,
+    [definitions],
+  );
+
+  // Don't render at all if there are no chips AND no edit affordance.
+  // (The edit affordance is now only the "..." trigger, which requires
+  // existing values; empty-state adds happen via the hover toolbar or the
+  // trailing "+" next to reactions, not inside this row.)
+  const showEditButton = canEdit && hasAnyPropertyValue;
+  if (
+    visibleDefinitions.length === 0 &&
+    !showEditButton &&
+    !aiAutoFillLoading
+  ) {
     return null;
   }
 
@@ -224,25 +295,43 @@ export function MessageProperties({
           });
         }
 
+        const showPersonKeyPrefix =
+          def.valueType === "person" &&
+          !def.key.startsWith("_") &&
+          hasMultiplePersonDefs;
         const valueChip = (
-          <PropertyValue definition={def} value={value} channelId={channelId} />
+          <PropertyValue
+            definition={def}
+            value={value}
+            channelId={channelId}
+            showKeyPrefix={showPersonKeyPrefix}
+          />
         );
         const displayName = getDefDisplayName(def);
 
-        const tooltipContent = (
-          <TooltipContent side="top" className="max-w-[240px]">
-            <div className="flex flex-col gap-0.5">
-              <span className="text-xs font-medium">{displayName}</span>
-              {def.description &&
-                def.description.trim().toLowerCase() !==
-                  displayName.toLowerCase() && (
-                  <span className="text-[11px] text-muted-foreground">
-                    {def.description}
-                  </span>
-                )}
-            </div>
-          </TooltipContent>
-        );
+        const tooltipContent =
+          def.valueType === "person" ? (
+            <TooltipContent side="top" className="max-w-[280px]">
+              <PersonTooltipBody
+                def={def}
+                value={value}
+                channelId={channelId}
+              />
+            </TooltipContent>
+          ) : (
+            <TooltipContent side="top" className="max-w-[240px]">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs font-medium">{displayName}</span>
+                {def.description &&
+                  def.description.trim().toLowerCase() !==
+                    displayName.toLowerCase() && (
+                    <span className="text-[11px] text-muted-foreground">
+                      {def.description}
+                    </span>
+                  )}
+              </div>
+            </TooltipContent>
+          );
 
         if (!canEdit) {
           return (
@@ -277,13 +366,11 @@ export function MessageProperties({
         );
       })}
 
-      {canEdit && (
+      {showEditButton && (
         <PropertySelector
           channelId={channelId}
           messageId={message.id}
           currentProperties={properties ?? {}}
-          open={selectorOpen}
-          onOpenChange={onSelectorOpenChange}
           onSetProperty={handleSetProperty}
           trigger={
             <button
@@ -295,13 +382,9 @@ export function MessageProperties({
                 "text-muted-foreground hover:bg-muted hover:text-foreground",
                 "transition-colors",
               )}
-              title={hasAnyPropertyValue ? "Edit properties" : "Add properties"}
+              title="Edit properties"
             >
-              {hasAnyPropertyValue ? (
-                <MoreHorizontal size={12} />
-              ) : (
-                <Plus size={12} />
-              )}
+              <MoreHorizontal size={12} />
             </button>
           }
         />
