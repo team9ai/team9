@@ -3,7 +3,15 @@
   "tabs": {
     "all": "All",
     "agent_computer": "Agent Computer",
-    "api": "API"
+    "llm": "LLM",
+    "api": "API",
+    "mcp": "MCP Server",
+    "database": "Database",
+    "browser": "Browser",
+    "knowledge_base": "Knowledge Base",
+    "sandbox": "Sandbox",
+    "webhook": "Webhook",
+    "mail_calendar": "Mail & Calendar"
   },
   "noResources": "No resources yet",
   "status": {
@@ -14,7 +22,15 @@
   },
   "type": {
     "agent_computer": "Agent Computer",
-    "api": "API"
+    "api": "API",
+    "llm": "LLM",
+    "mcp": "MCP",
+    "database": "Database",
+    "browser": "Browser",
+    "knowledge_base": "Knowledge Base",
+    "sandbox": "Sandbox",
+    "webhook": "Webhook",
+    "mail_calendar": "Mail/Calendar"
   },
   "connectionType": {
     "ahand": "Ahand",

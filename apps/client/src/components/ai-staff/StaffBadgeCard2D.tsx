@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import type { StaffBadgeCardProps } from "./StaffBadgeCard";
+
+const FLIP_HINT_HOLD_MS = 900;
 
 function getInitials(name: string): string {
   return name
@@ -23,11 +25,27 @@ export function StaffBadgeCard2D({
   modelLabel,
   selected,
   onClick,
+  flipHintDelayMs,
 }: StaffBadgeCardProps) {
   const { t } = useTranslation("skills");
   const [flipped, setFlipped] = useState(false);
   const initials = getInitials(displayName);
   const mentorInitials = mentorName ? getInitials(mentorName) : "?";
+
+  useEffect(() => {
+    if (flipHintDelayMs === undefined) return;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    timers.push(
+      setTimeout(() => {
+        setFlipped(true);
+        timers.push(setTimeout(() => setFlipped(false), FLIP_HINT_HOLD_MS));
+      }, flipHintDelayMs),
+    );
+    return () => {
+      timers.forEach(clearTimeout);
+      setFlipped(false);
+    };
+  }, [flipHintDelayMs]);
 
   const handleClick = () => {
     setFlipped((prev) => !prev);
@@ -37,7 +55,9 @@ export function StaffBadgeCard2D({
   return (
     <div
       className={cn(
-        "relative cursor-pointer select-none",
+        "group relative cursor-pointer select-none",
+        "transition-transform duration-200 ease-out",
+        "hover:-translate-y-1 hover:scale-[1.03]",
         selected && "ring-2 ring-primary ring-offset-2 rounded-2xl",
       )}
       style={{ width: 280, height: 400, perspective: "1000px" }}
@@ -62,8 +82,14 @@ export function StaffBadgeCard2D({
       >
         {/* Front Face */}
         <div
-          className="absolute inset-0 rounded-2xl bg-card border border-border shadow-lg overflow-hidden flex flex-col"
-          style={{ backfaceVisibility: "hidden" }}
+          className="absolute inset-0 flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-lg transition-shadow duration-200 group-hover:shadow-2xl"
+          style={{
+            backfaceVisibility: "hidden",
+            clipPath: "inset(0 round 1rem)",
+            contain: "paint",
+            willChange: "transform",
+            transform: "translateZ(0)",
+          }}
         >
           {/* Gradient header strip */}
           <div className="h-24 bg-gradient-to-br from-primary/20 via-primary/10 to-secondary flex-shrink-0" />
@@ -127,10 +153,13 @@ export function StaffBadgeCard2D({
 
         {/* Back Face */}
         <div
-          className="absolute inset-0 rounded-2xl bg-card border border-border shadow-lg overflow-hidden flex flex-col"
+          className="absolute inset-0 flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-lg transition-shadow duration-200 group-hover:shadow-2xl"
           style={{
             backfaceVisibility: "hidden",
-            transform: "rotateY(180deg)",
+            clipPath: "inset(0 round 1rem)",
+            contain: "paint",
+            willChange: "transform",
+            transform: "translateZ(0) rotateY(180deg)",
           }}
         >
           {/* Gradient header strip (accent color) */}

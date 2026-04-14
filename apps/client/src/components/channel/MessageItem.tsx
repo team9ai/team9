@@ -70,6 +70,12 @@ export interface MessageItemProps {
   /** Reaction handlers */
   onAddReaction?: (emoji: string) => void;
   onRemoveReaction?: (emoji: string) => void;
+  /**
+   * Whether this channel supports structured message properties.
+   * Only `public` and `private` channels do (spec 2026-04-11). When false,
+   * the hover toolbar's Properties button is hidden.
+   */
+  supportsProperties?: boolean;
 }
 
 function getThinkingMetadata(
@@ -104,6 +110,7 @@ export function MessageItem({
   isEditSaving = false,
   onEditSave,
   onEditCancel,
+  supportsProperties = false,
 }: MessageItemProps) {
   const { t } = useTranslation(["thread", "message"]);
   const thinkingMetadata = getThinkingMetadata(message.metadata);
@@ -243,7 +250,9 @@ export function MessageItem({
         <MessageHoverToolbar
           onReaction={handleReactionToggle}
           onReplyInThread={onReplyInThread}
-          onProperties={() => setPropertySelectorOpen(true)}
+          onProperties={
+            supportsProperties ? () => setPropertySelectorOpen(true) : undefined
+          }
         />
       )}
       <UserAvatar
@@ -379,16 +388,18 @@ export function MessageItem({
             </button>
           </div>
         )}
-        {propertyDefinitions && propertyDefinitions.length > 0 && (
-          <MessageProperties
-            message={message}
-            channelId={message.channelId}
-            definitions={propertyDefinitions}
-            canEdit={true}
-            onEditProperties={() => setPropertySelectorOpen(true)}
-          />
-        )}
-        {propertySelectorOpen && (
+        {supportsProperties &&
+          propertyDefinitions &&
+          propertyDefinitions.length > 0 && (
+            <MessageProperties
+              message={message}
+              channelId={message.channelId}
+              definitions={propertyDefinitions}
+              canEdit={true}
+              onEditProperties={() => setPropertySelectorOpen(true)}
+            />
+          )}
+        {supportsProperties && propertySelectorOpen && (
           <PropertySelector
             channelId={message.channelId}
             messageId={message.id}

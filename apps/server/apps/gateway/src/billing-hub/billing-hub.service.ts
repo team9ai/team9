@@ -123,11 +123,16 @@ type BillingView = 'plans' | 'credits';
 export class BillingHubService {
   private readonly logger = new Logger(BillingHubService.name);
 
+  private get enabled(): boolean {
+    return Boolean(env.BILLING_HUB_BASE_URL && env.BILLING_HUB_SERVICE_KEY);
+  }
+
   private ownerExternalId(workspaceId: string) {
     return `tenant:${workspaceId}`;
   }
 
   async listProducts(type?: BillingProductType): Promise<BillingProduct[]> {
+    if (!this.enabled) return [];
     const query = type ? `?type=${type}` : '';
 
     return this.request<BillingProduct[]>(
@@ -147,6 +152,7 @@ export class BillingHubService {
   async getWorkspaceSubscription(
     workspaceId: string,
   ): Promise<WorkspaceSubscription | null> {
+    if (!this.enabled) return null;
     const ownerExternalId = encodeURIComponent(
       this.ownerExternalId(workspaceId),
     );
@@ -162,6 +168,7 @@ export class BillingHubService {
   async getWorkspaceAccount(
     workspaceId: string,
   ): Promise<WorkspaceBillingAccount | null> {
+    if (!this.enabled) return null;
     const ownerExternalId = encodeURIComponent(
       this.ownerExternalId(workspaceId),
     );
@@ -179,6 +186,7 @@ export class BillingHubService {
     workspaceId: string,
     limit = 10,
   ): Promise<WorkspaceBillingTransaction[]> {
+    if (!this.enabled) return [];
     const ownerExternalId = encodeURIComponent(
       this.ownerExternalId(workspaceId),
     );
@@ -230,6 +238,9 @@ export class BillingHubService {
     successPath?: string,
     cancelPath?: string,
   ): Promise<CheckoutSessionResponse> {
+    if (!this.enabled) {
+      throw new ServiceUnavailableException('Billing Hub is not configured');
+    }
     const checkoutPath =
       type === 'one_time'
         ? '/api/billing/stripe/checkout/one-time'
@@ -260,6 +271,9 @@ export class BillingHubService {
     view: BillingView = 'plans',
     returnPath?: string,
   ): Promise<BillingPortalResponse> {
+    if (!this.enabled) {
+      throw new ServiceUnavailableException('Billing Hub is not configured');
+    }
     return this.request<BillingPortalResponse>('/api/billing/stripe/portal', {
       method: 'POST',
       body: JSON.stringify({
@@ -279,6 +293,12 @@ export class BillingHubService {
     referenceId: string,
     description?: string,
   ): Promise<void> {
+    if (!this.enabled) {
+      this.logger.debug(
+        `Billing Hub disabled: skipping grantCredits(${workspaceId}, ${amount})`,
+      );
+      return;
+    }
     await this.request('/api/billing/grant', {
       method: 'POST',
       body: JSON.stringify({
@@ -325,7 +345,12 @@ export class BillingHubService {
     init: RequestInit,
     timeoutMs = 10000,
   ): Promise<T> {
-    const url = new URL(path, env.BILLING_HUB_BASE_URL).toString();
+    const baseUrl = env.BILLING_HUB_BASE_URL;
+    const serviceKey = env.BILLING_HUB_SERVICE_KEY;
+    if (!baseUrl || !serviceKey) {
+      throw new ServiceUnavailableException('Billing Hub is not configured');
+    }
+    const url = new URL(path, baseUrl).toString();
     const startTime = Date.now();
 
     try {
@@ -333,7 +358,7 @@ export class BillingHubService {
         ...init,
         headers: {
           'Content-Type': 'application/json',
-          'X-Service-Key': env.BILLING_HUB_SERVICE_KEY,
+          'X-Service-Key': serviceKey,
           ...(init.headers ?? {}),
         },
         signal: AbortSignal.timeout(timeoutMs),

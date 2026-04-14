@@ -539,6 +539,9 @@ export function MessageList({
       const prevMessage =
         prevItem?.type === "message" ? prevItem.message : undefined;
 
+      const supportsProperties =
+        channelType === "public" || channelType === "private";
+
       if (readOnly) {
         return (
           <div className="py-0.5">
@@ -549,6 +552,7 @@ export function MessageList({
               prevMessage={prevMessage}
               isRootMessage={true}
               isHighlighted={isHighlighted}
+              supportsProperties={supportsProperties}
             />
           </div>
         );
@@ -568,6 +572,7 @@ export function MessageList({
             isHighlighted={isHighlighted}
             channelId={channelId}
             isDirect={channelType === "direct" || channelType === "echo"}
+            supportsProperties={supportsProperties}
             editingMessageId={editingMessageId}
             isEditSaving={updateMessage.isPending}
             onEditStart={handleEditStart}
@@ -687,6 +692,7 @@ function ChannelMessageItem({
   isHighlighted,
   channelId,
   isDirect,
+  supportsProperties,
   editingMessageId,
   isEditSaving,
   onEditStart,
@@ -702,6 +708,7 @@ function ChannelMessageItem({
   isHighlighted?: boolean;
   channelId: string;
   isDirect: boolean;
+  supportsProperties: boolean;
   editingMessageId: string | null;
   isEditSaving: boolean;
   onEditStart: (messageId: string) => void;
@@ -798,6 +805,7 @@ function ChannelMessageItem({
         isEditSaving={isEditing && isEditSaving}
         onEditSave={(content) => onEditSave(message.id, content)}
         onEditCancel={onEditCancel}
+        supportsProperties={supportsProperties}
       />
       <DeleteMessageDialog
         open={deleteDialogOpen}

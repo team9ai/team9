@@ -18,10 +18,16 @@ export interface PropertyEditorProps {
   value: unknown;
   onChange: (value: unknown) => void;
   disabled?: boolean;
+  /**
+   * When true, editors that normally wrap themselves in a button trigger +
+   * Popover (SelectEditor, PersonPicker) render their content directly so
+   * they can be embedded inside an outer popover without nesting.
+   */
+  inline?: boolean;
 }
 
 export function PropertyEditor(props: PropertyEditorProps) {
-  const { definition } = props;
+  const { definition, inline } = props;
 
   switch (definition.valueType) {
     case "text":
@@ -36,10 +42,10 @@ export function PropertyEditor(props: PropertyEditorProps) {
     case "single_select":
     case "multi_select":
     case "tags":
-      return <SelectEditor {...props} />;
+      return <SelectEditor {...props} inline={inline} />;
 
     case "person":
-      return <PersonPicker {...props} />;
+      return <PersonPicker {...props} inline={inline} />;
 
     case "date":
     case "timestamp":

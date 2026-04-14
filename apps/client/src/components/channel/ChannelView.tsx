@@ -522,10 +522,11 @@ export function ChannelView({
           <ChannelHeader channel={channel} currentUserRole={currentUserRole} />
         )}
 
-        {/* Channel tabs - only show for non-direct, non-preview channels */}
+        {/* Channel tabs - only show for non-direct, non-preview channels.
+            The backend lazily seeds Messages + Files tabs on first read, so
+            the tabs list is only empty for genuinely unsupported channels. */}
         {!isPreviewMode &&
-          channel.type !== "direct" &&
-          channelTabs.length > 0 && (
+          (channel.type === "public" || channel.type === "private") && (
             <ChannelTabs
               channelId={channelId}
               activeTabId={activeTabId}

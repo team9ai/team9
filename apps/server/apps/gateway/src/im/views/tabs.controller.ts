@@ -46,7 +46,24 @@ export class TabsController {
     @Param('channelId', ParseUUIDPipe) channelId: string,
   ): Promise<ChannelTab[]> {
     await this.channelsService.assertReadAccess(channelId, userId);
-    return this.tabsService.findAllByChannel(channelId);
+
+    const tabs = await this.tabsService.findAllByChannel(channelId);
+
+    // Lazy backfill: public/private channels created before the tabs feature
+    // shipped have no built-in tabs. Seed Messages + Files on first read so
+    // that existing channels heal silently without needing a data migration.
+    if (tabs.length === 0) {
+      const channel = await this.channelsService.findById(channelId);
+      if (
+        channel &&
+        (channel.type === 'public' || channel.type === 'private')
+      ) {
+        await this.tabsService.seedBuiltinTabs(channelId);
+        return this.tabsService.findAllByChannel(channelId);
+      }
+    }
+
+    return tabs;
   }
 
   @Post()

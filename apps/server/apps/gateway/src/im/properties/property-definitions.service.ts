@@ -40,6 +40,46 @@ export interface PropertyDefinitionRow {
   updatedAt: Date;
 }
 
+interface DefaultPropertyTemplate {
+  key: string;
+  description: string;
+  valueType: PropertyValueType;
+  config: Record<string, unknown>;
+}
+
+/**
+ * Default property templates seeded into new public/private channels.
+ * These are ordinary (non-native) definitions — users can rename, edit
+ * options, or delete them. They exist purely to save users from cold-start
+ * friction on commonly-needed fields.
+ */
+const DEFAULT_PROPERTIES: DefaultPropertyTemplate[] = [
+  {
+    key: 'status',
+    description: 'Status',
+    valueType: 'single_select',
+    config: {
+      options: [
+        { value: 'todo', label: 'Todo', color: '#94a3b8' },
+        { value: 'in_progress', label: 'In Progress', color: '#3b82f6' },
+        { value: 'done', label: 'Done', color: '#10b981' },
+      ],
+    },
+  },
+  {
+    key: 'priority',
+    description: 'Priority',
+    valueType: 'single_select',
+    config: {
+      options: [
+        { value: 'low', label: 'Low', color: '#94a3b8' },
+        { value: 'medium', label: 'Medium', color: '#f59e0b' },
+        { value: 'high', label: 'High', color: '#ef4444' },
+      ],
+    },
+  },
+];
+
 @Injectable()
 export class PropertyDefinitionsService {
   constructor(
@@ -183,6 +223,52 @@ export class PropertyDefinitionsService {
     });
 
     return this.findAllByChannel(channelId);
+  }
+
+  /**
+   * Seed default property templates (status, priority) into a new channel.
+   * Skips any key that already exists so it is safe to call on an existing
+   * channel. The created rows are plain non-native definitions that users
+   * may freely rename, edit, or delete.
+   */
+  async seedDefaultProperties(
+    channelId: string,
+    creatorId: string,
+  ): Promise<PropertyDefinitionRow[]> {
+    const existing = await this.findAllByChannel(channelId);
+    const existingKeys = new Set(existing.map((d) => d.key));
+
+    const toInsert = DEFAULT_PROPERTIES.filter((p) => !existingKeys.has(p.key));
+
+    if (toInsert.length === 0) {
+      return [];
+    }
+
+    const maxOrder =
+      existing.length > 0 ? Math.max(...existing.map((d) => d.order)) : -1;
+
+    const values = toInsert.map((template, idx) => ({
+      id: uuidv7(),
+      channelId,
+      key: template.key,
+      description: template.description,
+      valueType: template.valueType,
+      isNative: false,
+      config: template.config,
+      order: maxOrder + 1 + idx,
+      aiAutoFill: true,
+      isRequired: false,
+      showInChatPolicy: 'auto' as const,
+      allowNewOptions: true,
+      createdBy: creatorId,
+    }));
+
+    const inserted = await this.db
+      .insert(schema.channelPropertyDefinitions)
+      .values(values)
+      .returning();
+
+    return inserted as PropertyDefinitionRow[];
   }
 
   /**

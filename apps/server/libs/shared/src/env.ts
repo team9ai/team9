@@ -143,12 +143,12 @@ export const env = {
     return getRequiredEnv('API_URL');
   },
 
-  // Billing Hub (required for subscription management)
-  get BILLING_HUB_BASE_URL() {
-    return getRequiredEnv('BILLING_HUB_BASE_URL');
+  // Billing Hub (optional — when unset, BillingHubService operates in bypass mode)
+  get BILLING_HUB_BASE_URL(): string | undefined {
+    return process.env.BILLING_HUB_BASE_URL || undefined;
   },
-  get BILLING_HUB_SERVICE_KEY() {
-    return getRequiredEnv('BILLING_HUB_SERVICE_KEY');
+  get BILLING_HUB_SERVICE_KEY(): string | undefined {
+    return process.env.BILLING_HUB_SERVICE_KEY || undefined;
   },
 
   // Application Environment

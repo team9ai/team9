@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { resourcesApi } from "@/services/api/resources";
+import { getMockResource, getMockUsageLogs } from "./mockResources";
 import { formatDateTime } from "@/lib/date-format";
 import type {
   ApiResourceConfig,
@@ -127,12 +128,16 @@ export function ResourceDetailPanel({
     isError,
   } = useQuery({
     queryKey: ["resource", resourceId],
-    queryFn: () => resourcesApi.getById(resourceId),
+    queryFn: async () => {
+      const r = getMockResource(resourceId);
+      if (!r) throw new Error("Resource not found");
+      return r;
+    },
   });
 
   const { data: usageLogs = [] } = useQuery({
     queryKey: ["resource-usage-logs", resourceId],
-    queryFn: () => resourcesApi.getUsageLogs(resourceId, { limit: 20 }),
+    queryFn: () => Promise.resolve(getMockUsageLogs(resourceId)),
     enabled: !!resource,
   });
 
@@ -521,6 +526,27 @@ export function ResourceDetailPanel({
                     )}
                   </div>
                 ))}
+
+              {/* Generic config display for other resource types (demo) */}
+              {resource.type !== "agent_computer" &&
+                resource.type !== "api" && (
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    {Object.entries(
+                      resource.config as unknown as Record<string, unknown>,
+                    ).map(([key, value]) => (
+                      <div key={key} className="flex gap-2">
+                        <span className="capitalize shrink-0">
+                          {key.replace(/([A-Z])/g, " $1").trim()}:
+                        </span>
+                        <code className="text-xs truncate">
+                          {typeof value === "string"
+                            ? value
+                            : JSON.stringify(value)}
+                        </code>
+                      </div>
+                    ))}
+                  </div>
+                )}
             </div>
 
             {/* Edit actions or Delete */}
