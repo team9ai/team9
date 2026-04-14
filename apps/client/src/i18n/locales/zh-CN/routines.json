@@ -310,6 +310,7 @@
     "untitled": "无标题"
   },
   "creation": {
-    "runLabel": "创建日常任务会话"
+    "runLabel": "创建日常任务会话",
+    "bannerStatus": "创建中"
   }
 }
