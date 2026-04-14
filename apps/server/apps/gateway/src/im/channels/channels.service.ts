@@ -1324,6 +1324,54 @@ export class ChannelsService {
   }
 
   /**
+   * Hard delete a routine-session channel.
+   *
+   * Cleans up audit log rows first (their FK has no cascade — see migration
+   * notes on im_audit_logs.channel_id), then deletes the channel inside a
+   * single transaction. The other FKs (members, messages, search index,
+   * property definitions, views, etc.) all use onDelete: 'cascade' and are
+   * removed automatically by the channel delete. im_files.channel_id is
+   * set to NULL via its own ON DELETE SET NULL, also safe.
+   */
+  async hardDeleteRoutineSessionChannel(
+    channelId: string,
+    tenantId?: string,
+  ): Promise<void> {
+    const [channel] = await this.db
+      .select({
+        id: schema.channels.id,
+        type: schema.channels.type,
+        tenantId: schema.channels.tenantId,
+      })
+      .from(schema.channels)
+      .where(eq(schema.channels.id, channelId))
+      .limit(1);
+
+    if (!channel) {
+      throw new NotFoundException(`Channel ${channelId} not found`);
+    }
+    if (tenantId && channel.tenantId !== tenantId) {
+      throw new NotFoundException(
+        `Channel ${channelId} not found in tenant ${tenantId}`,
+      );
+    }
+    if (channel.type !== 'routine-session') {
+      throw new ForbiddenException(
+        `hardDeleteRoutineSessionChannel only allowed on routine-session channels (got ${channel.type})`,
+      );
+    }
+
+    await this.db.transaction(async (tx) => {
+      await tx
+        .delete(schema.auditLogs)
+        .where(eq(schema.auditLogs.channelId, channelId));
+      await tx.delete(schema.channels).where(eq(schema.channels.id, channelId));
+    });
+
+    await this.redis.invalidate(REDIS_KEYS.CHANNEL_CACHE(channelId));
+  }
+
+  /**
    * Deactivate a channel — sets isActivated=false, preventing further messages.
    * Used when agent execution ends to make the tracking channel read-only.
    * Also applicable to task channels when execution completes.

@@ -1969,4 +1969,58 @@ describe('ChannelsService', () => {
       });
     });
   });
+
+  describe('hardDeleteRoutineSessionChannel', () => {
+    it('throws NotFoundException when channel missing', async () => {
+      db.limit.mockResolvedValueOnce([]);
+
+      await expect(
+        service.hardDeleteRoutineSessionChannel('missing-id'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ForbiddenException when channel is not routine-session', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'ch-1', type: 'direct', tenantId: 't-1' },
+      ]);
+
+      await expect(
+        service.hardDeleteRoutineSessionChannel('ch-1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws NotFoundException when tenantId provided does not match', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'ch-1', type: 'routine-session', tenantId: 'other-tenant' },
+      ]);
+
+      await expect(
+        service.hardDeleteRoutineSessionChannel('ch-1', 't-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('deletes audit logs and channel inside a transaction, then invalidates cache', async () => {
+      db.limit.mockResolvedValueOnce([
+        { id: 'ch-1', type: 'routine-session', tenantId: 't-1' },
+      ]);
+
+      await service.hardDeleteRoutineSessionChannel('ch-1', 't-1');
+
+      // transaction was used
+      expect(db.transaction).toHaveBeenCalledTimes(1);
+
+      // Both deletes ran inside the transaction body — the mockDb helper
+      // passes the chain itself as the tx argument, so we assert on chain.delete.
+      // Expect at least 2 delete() invocations (auditLogs + channels).
+      expect(db.delete).toHaveBeenCalledTimes(2);
+
+      // Redis invalidation ran after the transaction
+      const redisService = (service as any).redis as {
+        invalidate: jest.Mock;
+      };
+      expect(redisService.invalidate).toHaveBeenCalledWith(
+        expect.stringContaining('ch-1'),
+      );
+    });
+  });
 });
