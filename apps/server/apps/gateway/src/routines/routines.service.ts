@@ -1020,12 +1020,38 @@ export class RoutinesService {
       );
     }
 
-    // Fast idempotent path (optimistic — revalidated atomically below)
+    // Fast idempotent path (optimistic — revalidated atomically below).
+    // BUT only trust the persisted ids if the channel is actually a
+    // routine-session. Legacy Phase 1 drafts could point at a 'direct'
+    // DM channel; returning those would make the user land on their
+    // regular DM with the bot instead of a dedicated session. In that
+    // case we clear the legacy ids and fall through to materialize a
+    // fresh routine-session channel.
     if (routine.creationChannelId && routine.creationSessionId) {
-      return {
-        creationChannelId: routine.creationChannelId,
-        creationSessionId: routine.creationSessionId,
-      };
+      const [existingChannel] = await this.db
+        .select({ type: schema.channels.type })
+        .from(schema.channels)
+        .where(eq(schema.channels.id, routine.creationChannelId))
+        .limit(1);
+
+      if (existingChannel?.type === 'routine-session') {
+        return {
+          creationChannelId: routine.creationChannelId,
+          creationSessionId: routine.creationSessionId,
+        };
+      }
+
+      // Legacy or missing channel — clear the stale back-reference so
+      // the atomic claim below matches (we now only predicate on
+      // creation_channel_id IS NULL, so we need to null it first).
+      await this.db
+        .update(schema.routines)
+        .set({
+          creationChannelId: null,
+          creationSessionId: null,
+          updatedAt: new Date(),
+        } as Record<string, unknown>)
+        .where(eq(schema.routines.id, routineId));
     }
 
     if (!routine.botId) {

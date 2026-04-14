@@ -54,7 +54,15 @@ export function DraftRoutineBanner({
           size="sm"
           className="h-7 text-xs shrink-0 border-yellow-300 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 dark:border-yellow-700 dark:bg-yellow-900/40 dark:hover:bg-yellow-900/60 dark:text-yellow-200"
           onClick={handleClick}
-          disabled={startMutation.isPending}
+          disabled={startMutation.isPending || !routine.botId}
+          title={
+            !routine.botId
+              ? t(
+                  "draft.noBotTooltip",
+                  "Assign an agent to this draft before starting creation",
+                )
+              : undefined
+          }
         >
           {startMutation.isPending ? (
             <Loader2 size={12} className="mr-1.5 animate-spin" />

@@ -2672,8 +2672,8 @@ describe('RoutinesService — TaskCast integration', () => {
       );
     });
 
-    it('is idempotent when creationChannelId already set', async () => {
-      // Short-circuit: no bot-tenant query or atomic claim is reached
+    it('is idempotent when creationChannelId already set AND channel is routine-session', async () => {
+      // Step 1: getRoutineOrThrow returns a draft with both fields set
       db.limit.mockResolvedValueOnce([
         {
           id: ROUTINE_ID,
@@ -2686,6 +2686,10 @@ describe('RoutinesService — TaskCast integration', () => {
           creationSessionId: 'existing-session',
         },
       ]);
+
+      // Step 2: channel type lookup returns 'routine-session' → trust the
+      // persisted ids and short-circuit before bot-tenant query / claim.
+      db.limit.mockResolvedValueOnce([{ type: 'routine-session' }]);
 
       const result = await service.startCreationSession(
         ROUTINE_ID,
@@ -2701,6 +2705,53 @@ describe('RoutinesService — TaskCast integration', () => {
         creationChannelId: 'existing-channel',
         creationSessionId: 'existing-session',
       });
+    });
+
+    it('clears legacy direct-channel ids and materializes a fresh routine-session', async () => {
+      // Step 1: getRoutineOrThrow returns a draft pointing at a legacy
+      // Phase 1 'direct' DM channel (stale back-reference)
+      db.limit.mockResolvedValueOnce([
+        {
+          id: ROUTINE_ID,
+          tenantId: TENANT_ID,
+          creatorId: USER_ID,
+          botId: BOT_ID,
+          status: 'draft',
+          title: 'Legacy draft',
+          creationChannelId: 'legacy-direct-channel',
+          creationSessionId: 'legacy-session',
+        },
+      ]);
+
+      // Step 2: channel type lookup returns 'direct' → clear ids + fall through
+      db.limit.mockResolvedValueOnce([{ type: 'direct' }]);
+
+      // Step 3: after the null-clearing UPDATE, fall through to the
+      // bot-tenant validation leftJoin query (returns draft-tenant match)
+      db.where.mockReturnValueOnce(db as any);
+      db.limit.mockResolvedValueOnce([{ tenantId: TENANT_ID }]);
+
+      // Step 4: atomic claim UPDATE returning 1 row = won
+      db.returning.mockResolvedValueOnce([{ id: ROUTINE_ID }]);
+
+      const result = await service.startCreationSession(
+        ROUTINE_ID,
+        USER_ID,
+        TENANT_ID,
+      );
+
+      // Materialized a fresh channel
+      expect(channelsService.createRoutineSessionChannel).toHaveBeenCalledWith({
+        creatorId: USER_ID,
+        botUserId: BOT_USER_ID,
+        tenantId: TENANT_ID,
+        routineId: ROUTINE_ID,
+        purpose: 'creation',
+      });
+      expect(result.creationChannelId).toBe(CHANNEL_ID);
+      expect(result.creationSessionId).toBe(
+        `team9/${TENANT_ID}/${AGENT_ID}/dm/${CHANNEL_ID}`,
+      );
     });
 
     it('rejects non-draft routines with BadRequestException', async () => {
