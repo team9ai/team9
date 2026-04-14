@@ -1796,7 +1796,7 @@ describe('RoutinesService — TaskCast integration', () => {
       creationChannelId: 'channel-1',
     };
 
-    it('deletes the routine row directly without clone or channel cleanup', async () => {
+    it('hard-deletes the creation channel when deleting a draft with creationChannelId set', async () => {
       db.limit.mockResolvedValueOnce([DRAFT_WITH_CHANNEL] as any);
 
       await expect(
@@ -1805,10 +1805,12 @@ describe('RoutinesService — TaskCast integration', () => {
 
       expect(db.delete).toHaveBeenCalledTimes(1);
       expect(clawHiveService.deleteAgent).not.toHaveBeenCalled();
-      expect(channelsService.archiveCreationChannel).not.toHaveBeenCalled();
+      expect(
+        channelsService.hardDeleteRoutineSessionChannel,
+      ).toHaveBeenCalledWith('channel-1', 'tenant-1');
     });
 
-    it('deletes draft without creationChannelId just as cleanly', async () => {
+    it('does not call hardDeleteRoutineSessionChannel when draft has no creationChannelId', async () => {
       const draftWithoutChannel = {
         ...DRAFT_WITH_CHANNEL,
         creationChannelId: null,
@@ -1820,7 +1822,45 @@ describe('RoutinesService — TaskCast integration', () => {
       ).resolves.toEqual({ success: true });
 
       expect(db.delete).toHaveBeenCalledTimes(1);
-      expect(channelsService.archiveCreationChannel).not.toHaveBeenCalled();
+      expect(
+        channelsService.hardDeleteRoutineSessionChannel,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('still deletes the routine row when hardDeleteRoutineSessionChannel throws', async () => {
+      db.limit.mockResolvedValueOnce([DRAFT_WITH_CHANNEL] as any);
+
+      channelsService.hardDeleteRoutineSessionChannel.mockRejectedValueOnce(
+        new Error('cascade failed'),
+      );
+
+      const loggerWarnSpy = jest.spyOn((service as any).logger, 'warn');
+
+      const result = await service.delete(ROUTINE_ID, 'user-1', 'tenant-1');
+
+      expect(result).toEqual({ success: true });
+      expect(db.delete).toHaveBeenCalled();
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('failed to hard-delete creation channel'),
+      );
+    });
+
+    it('does not call hardDeleteRoutineSessionChannel for non-draft routines', async () => {
+      db.limit.mockResolvedValueOnce([
+        {
+          ...DRAFT_WITH_CHANNEL,
+          status: 'upcoming' as const,
+        },
+      ] as any);
+
+      await expect(
+        service.delete(ROUTINE_ID, 'user-1', 'tenant-1'),
+      ).resolves.toEqual({ success: true });
+
+      expect(
+        channelsService.hardDeleteRoutineSessionChannel,
+      ).not.toHaveBeenCalled();
+      expect(db.delete).toHaveBeenCalled();
     });
   });
 
@@ -1853,7 +1893,7 @@ describe('RoutinesService — TaskCast integration', () => {
       } as any);
     });
 
-    it('transitions draft → upcoming without archiving channel or deleting clone', async () => {
+    it('transitions draft → upcoming and archives the creation channel', async () => {
       db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
       db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
       documentsService.getById.mockResolvedValueOnce({
@@ -1873,7 +1913,10 @@ describe('RoutinesService — TaskCast integration', () => {
       expect(db.set).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'upcoming' }),
       );
-      expect(channelsService.archiveCreationChannel).not.toHaveBeenCalled();
+      expect(channelsService.archiveCreationChannel).toHaveBeenCalledWith(
+        'channel-1',
+        'tenant-1',
+      );
       expect(clawHiveService.deleteAgent).not.toHaveBeenCalled();
     });
 
@@ -1975,7 +2018,7 @@ describe('RoutinesService — TaskCast integration', () => {
       });
     });
 
-    it('does not call archiveCreationChannel even when creationChannelId is set', async () => {
+    it('calls archiveCreationChannel with the correct channel and tenant when creationChannelId is set', async () => {
       db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
       db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
       documentsService.getById.mockResolvedValueOnce({
@@ -1991,6 +2034,55 @@ describe('RoutinesService — TaskCast integration', () => {
       );
 
       expect(result).toEqual(UPDATED_ROUTINE);
+      expect(channelsService.archiveCreationChannel).toHaveBeenCalledWith(
+        'channel-1',
+        'tenant-1',
+      );
+    });
+
+    it('logs a warning but still returns the updated routine when archiveCreationChannel fails', async () => {
+      db.limit.mockResolvedValueOnce([DRAFT_ROUTINE] as any);
+      db.returning.mockResolvedValueOnce([UPDATED_ROUTINE] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        content: 'some content',
+      } as any);
+
+      channelsService.archiveCreationChannel.mockRejectedValueOnce(
+        new Error('disk full'),
+      );
+
+      const loggerWarnSpy = jest.spyOn((service as any).logger, 'warn');
+
+      const result = await service.completeCreation(
+        'routine-1',
+        { notes: undefined },
+        'user-1',
+        'tenant-1',
+      );
+
+      expect(result.status).toBe('upcoming');
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('failed to archive creation channel'),
+      );
+    });
+
+    it('does not call archiveCreationChannel when creationChannelId is null', async () => {
+      const draftWithoutChannel = {
+        ...DRAFT_ROUTINE,
+        creationChannelId: null,
+      };
+      db.limit.mockResolvedValueOnce([draftWithoutChannel] as any);
+      db.returning.mockResolvedValueOnce([
+        { ...UPDATED_ROUTINE, creationChannelId: null },
+      ] as any);
+      documentsService.getById.mockResolvedValueOnce({
+        id: 'doc-1',
+        content: 'some content',
+      } as any);
+
+      await service.completeCreation('routine-1', {}, 'user-1', 'tenant-1');
+
       expect(channelsService.archiveCreationChannel).not.toHaveBeenCalled();
     });
 

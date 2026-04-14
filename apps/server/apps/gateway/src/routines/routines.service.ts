@@ -279,10 +279,23 @@ export class RoutinesService {
     const routine = await this.getRoutineOrThrow(routineId, tenantId);
     this.assertCreatorOwnership(routine, userId);
 
-    // Drafts can always be deleted directly — no active-status guard needed
+    // Drafts can always be deleted directly
     if ((routine.status as string) === 'draft') {
       this.logger.debug(`Deleting draft routine ${routineId}`);
-
+      // Hard-delete the creation channel first (if any). Non-fatal on
+      // failure — we still want the routine row to be deleted.
+      if (routine.creationChannelId) {
+        try {
+          await this.channelsService.hardDeleteRoutineSessionChannel(
+            routine.creationChannelId,
+            tenantId,
+          );
+        } catch (e) {
+          this.logger.warn(
+            `delete: failed to hard-delete creation channel ${routine.creationChannelId} for routine ${routineId}: ${e}`,
+          );
+        }
+      }
       await this.db
         .delete(schema.routines)
         .where(eq(schema.routines.id, routineId));
@@ -301,6 +314,10 @@ export class RoutinesService {
       );
     }
 
+    // Non-draft routine: we do NOT hard-delete the creation channel even if
+    // it's still linked. Once a routine is upcoming/completed/etc., the
+    // creation channel is either archived (set by completeCreation) or has
+    // already been set to null by FK (creation_channel_id ON DELETE SET NULL).
     await this.db
       .delete(schema.routines)
       .where(eq(schema.routines.id, routineId));
@@ -835,6 +852,20 @@ export class RoutinesService {
       .set({ status: 'upcoming', updatedAt: new Date() })
       .where(eq(schema.routines.id, routineId))
       .returning();
+
+    // Step 7a: archive the creation channel (best-effort, non-fatal)
+    if (routine.creationChannelId) {
+      try {
+        await this.channelsService.archiveCreationChannel(
+          routine.creationChannelId,
+          tenantId,
+        );
+      } catch (e) {
+        this.logger.warn(
+          `completeCreation: failed to archive creation channel ${routine.creationChannelId} for routine ${routineId}: ${e}`,
+        );
+      }
+    }
 
     // Step 7: Log completion
     this.logger.log(
