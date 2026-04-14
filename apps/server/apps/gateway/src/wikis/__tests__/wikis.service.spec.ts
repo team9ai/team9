@@ -1,4 +1,11 @@
-import { jest, describe, it, expect, beforeEach } from '@jest/globals';
+import {
+  jest,
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+} from '@jest/globals';
 import { Test } from '@nestjs/testing';
 import {
   ConflictException,
@@ -9,6 +16,7 @@ import {
 import { DATABASE_CONNECTION } from '@team9/database';
 import { WikisService } from '../wikis.service.js';
 import { Folder9ClientService } from '../folder9-client.service.js';
+import { Folder9ApiError } from '../types/folder9.types.js';
 
 // ── helpers ──────────────────────────────────────────────────────────
 
@@ -53,6 +61,7 @@ function mockFolder9() {
     getFolder: jest.fn<any>(),
     updateFolder: jest.fn<any>(),
     deleteFolder: jest.fn<any>(),
+    createToken: jest.fn<any>(),
     getTree: jest.fn<any>(),
     getBlob: jest.fn<any>(),
     commit: jest.fn<any>(),
@@ -64,6 +73,32 @@ function mockFolder9() {
     createFolder: MockFn;
     deleteFolder: MockFn;
     updateFolder: MockFn;
+    createToken: MockFn;
+    getTree: MockFn;
+    getBlob: MockFn;
+    commit: MockFn;
+    listProposals: MockFn;
+    approveProposal: MockFn;
+    rejectProposal: MockFn;
+  };
+}
+
+/**
+ * Default factory for a fresh-token response. Tests can pass overrides to
+ * simulate stable tokens across mint calls (for cache tests) or permission
+ * variants.
+ */
+function makeToken(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'tok-id',
+    token: 'tok-read-1',
+    folder_id: 'f9-1',
+    permission: 'read' as const,
+    name: 'wiki-read',
+    created_by: 'wiki:f9-1',
+    created_at: '2026-04-13T10:00:00.000Z',
+    expires_at: '2026-04-13T10:16:00.000Z',
+    ...overrides,
   };
 }
 
@@ -656,6 +691,792 @@ describe('WikisService', () => {
       await expect(
         svc.archiveWiki('ws-1', 'missing', { id: 'user-1', isAgent: false }),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ── getTree ─────────────────────────────────────────────────────────
+  describe('getTree', () => {
+    const user = { id: 'user-1', isAgent: false };
+
+    it('returns folder9 tree entries for a read user', async () => {
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]); // getWikiOrThrow
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-read' }));
+      const entries = [
+        { name: 'readme.md', path: 'readme.md', type: 'file', size: 10 },
+        { name: 'docs', path: 'docs', type: 'dir', size: 0 },
+      ];
+      f9.getTree.mockResolvedValue(entries);
+
+      const result = await svc.getTree('ws-1', 'wiki-1', user, {
+        path: '/docs',
+        recursive: true,
+      });
+
+      expect(result).toEqual(entries);
+      expect(f9.createToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          folder_id: 'f9-1',
+          permission: 'read',
+          name: 'wiki-read',
+          created_by: 'wiki:f9-1',
+          expires_at: expect.stringMatching(/\d{4}-\d{2}-\d{2}T/),
+        }),
+      );
+      expect(f9.getTree).toHaveBeenCalledWith('ws-1', 'f9-1', 'tok-read', {
+        path: '/docs',
+        recursive: true,
+      });
+    });
+
+    it('defaults to path=/ and recursive=false when opts omitted', async () => {
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-read' }));
+      f9.getTree.mockResolvedValue([]);
+
+      await svc.getTree('ws-1', 'wiki-1', user);
+
+      expect(f9.getTree).toHaveBeenCalledWith('ws-1', 'f9-1', 'tok-read', {
+        path: '/',
+        recursive: false,
+      });
+    });
+
+    it('throws NotFoundException before minting a token when wiki missing', async () => {
+      db.limit.mockResolvedValueOnce([]);
+      await expect(svc.getTree('ws-1', 'missing', user)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(f9.createToken).not.toHaveBeenCalled();
+      expect(f9.getTree).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── getPage ─────────────────────────────────────────────────────────
+  describe('getPage', () => {
+    const user = { id: 'user-1', isAgent: false };
+
+    it('parses YAML frontmatter and splits body from blob content', async () => {
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-read' }));
+      f9.getBlob.mockResolvedValue({
+        path: 'guide.md',
+        size: 10,
+        content: '---\ntitle: Hi\ntags:\n  - wiki\n---\n\nBody here.',
+        encoding: 'text',
+      });
+
+      const result = await svc.getPage('ws-1', 'wiki-1', user, 'guide.md');
+
+      expect(result.path).toBe('guide.md');
+      expect(result.content).toBe('Body here.');
+      expect(result.frontmatter).toEqual({ title: 'Hi', tags: ['wiki'] });
+      expect(result.lastCommit).toBeNull();
+      expect(f9.getBlob).toHaveBeenCalledWith(
+        'ws-1',
+        'f9-1',
+        'tok-read',
+        'guide.md',
+      );
+    });
+
+    it('returns empty frontmatter + full body when blob has no frontmatter', async () => {
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-read' }));
+      f9.getBlob.mockResolvedValue({
+        path: 'plain.md',
+        size: 5,
+        content: '# Plain markdown, no fences',
+        encoding: 'text',
+      });
+
+      const result = await svc.getPage('ws-1', 'wiki-1', user, 'plain.md');
+
+      expect(result.frontmatter).toEqual({});
+      expect(result.content).toBe('# Plain markdown, no fences');
+    });
+
+    it('logs a warning and returns raw body when frontmatter is malformed', async () => {
+      const warnSpy = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => {});
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-read' }));
+      const bad = '---\n- just\n- a\n- list\n---\n\nbody';
+      f9.getBlob.mockResolvedValue({
+        path: 'bad.md',
+        size: 10,
+        content: bad,
+        encoding: 'text',
+      });
+
+      const result = await svc.getPage('ws-1', 'wiki-1', user, 'bad.md');
+
+      expect(result.frontmatter).toEqual({});
+      // Full raw content preserved — the UI must still be able to show it.
+      expect(result.content).toBe(bad);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Malformed frontmatter'),
+      );
+      warnSpy.mockRestore();
+    });
+  });
+
+  // ── commitPage ──────────────────────────────────────────────────────
+  describe('commitPage', () => {
+    const writeUser = { id: 'user-1', isAgent: false };
+    const commitDto = {
+      message: 'add page',
+      files: [{ path: 'a.md', content: 'hi', action: 'create' as const }],
+    };
+
+    beforeEach(() => {
+      // Default: user row has a display name
+      db.limit.mockResolvedValue([]);
+    });
+
+    it('auto + write → direct commit with propose=false', async () => {
+      const row = makeWikiRow({
+        approvalMode: 'auto',
+        humanPermission: 'write',
+      });
+      db.limit
+        .mockResolvedValueOnce([row]) // getWikiOrThrow
+        .mockResolvedValueOnce([
+          { displayName: 'Alice', email: 'alice@example.com' },
+        ]); // loadUserProfile
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-write' }));
+      f9.commit.mockResolvedValue({ commit: 'sha-1', branch: 'main' });
+
+      const result = await svc.commitPage(
+        'ws-1',
+        'wiki-1',
+        writeUser,
+        commitDto,
+      );
+
+      expect(result).toEqual({
+        commit: { sha: 'sha-1' },
+        proposal: null,
+      });
+      expect(f9.createToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          folder_id: 'f9-1',
+          permission: 'write',
+          created_by: 'Alice',
+        }),
+      );
+      expect(f9.commit).toHaveBeenCalledWith('ws-1', 'f9-1', 'tok-write', {
+        message: 'add page',
+        files: commitDto.files,
+        propose: false,
+      });
+    });
+
+    it('auto + propose user → forced propose=true', async () => {
+      const row = makeWikiRow({
+        approvalMode: 'auto',
+        humanPermission: 'propose',
+      });
+      db.limit
+        .mockResolvedValueOnce([row])
+        .mockResolvedValueOnce([
+          { displayName: 'Alice', email: 'alice@example.com' },
+        ]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-propose' }));
+      f9.commit.mockResolvedValue({
+        commit: 'sha-1',
+        branch: 'proposal/x',
+        proposal_id: 'prop-1',
+      });
+
+      const result = await svc.commitPage(
+        'ws-1',
+        'wiki-1',
+        writeUser,
+        commitDto,
+      );
+
+      expect(result).toEqual({
+        commit: { sha: 'sha-1' },
+        proposal: { id: 'prop-1', status: 'pending' },
+      });
+      expect(f9.createToken).toHaveBeenCalledWith(
+        expect.objectContaining({ permission: 'propose' }),
+      );
+      expect(f9.commit).toHaveBeenCalledWith(
+        'ws-1',
+        'f9-1',
+        'tok-propose',
+        expect.objectContaining({ propose: true }),
+      );
+    });
+
+    it('auto + write user with dto.propose=true → forced propose=true', async () => {
+      const row = makeWikiRow({
+        approvalMode: 'auto',
+        humanPermission: 'write',
+      });
+      db.limit
+        .mockResolvedValueOnce([row])
+        .mockResolvedValueOnce([
+          { displayName: 'Alice', email: 'alice@example.com' },
+        ]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-propose' }));
+      f9.commit.mockResolvedValue({
+        commit: 'sha-1',
+        branch: 'proposal/x',
+        proposal_id: 'prop-2',
+      });
+
+      const result = await svc.commitPage('ws-1', 'wiki-1', writeUser, {
+        ...commitDto,
+        propose: true,
+      });
+
+      expect(result.proposal).toEqual({ id: 'prop-2', status: 'pending' });
+      expect(f9.commit).toHaveBeenCalledWith(
+        'ws-1',
+        'f9-1',
+        'tok-propose',
+        expect.objectContaining({ propose: true }),
+      );
+    });
+
+    it('review + write → forced propose=true (write does NOT bypass)', async () => {
+      const row = makeWikiRow({
+        approvalMode: 'review',
+        humanPermission: 'write',
+      });
+      db.limit
+        .mockResolvedValueOnce([row])
+        .mockResolvedValueOnce([
+          { displayName: 'Alice', email: 'alice@example.com' },
+        ]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-propose' }));
+      f9.commit.mockResolvedValue({
+        commit: 'sha-1',
+        branch: 'proposal/x',
+        proposal_id: 'prop-1',
+      });
+
+      await svc.commitPage('ws-1', 'wiki-1', writeUser, commitDto);
+
+      expect(f9.commit).toHaveBeenCalledWith(
+        'ws-1',
+        'f9-1',
+        'tok-propose',
+        expect.objectContaining({ propose: true }),
+      );
+    });
+
+    it('review + propose → forced propose=true', async () => {
+      const row = makeWikiRow({
+        approvalMode: 'review',
+        humanPermission: 'propose',
+      });
+      db.limit
+        .mockResolvedValueOnce([row])
+        .mockResolvedValueOnce([
+          { displayName: 'Alice', email: 'alice@example.com' },
+        ]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-propose' }));
+      f9.commit.mockResolvedValue({
+        commit: 'sha-1',
+        branch: 'proposal/x',
+        proposal_id: 'prop-1',
+      });
+
+      await svc.commitPage('ws-1', 'wiki-1', writeUser, commitDto);
+
+      expect(f9.commit).toHaveBeenCalledWith(
+        'ws-1',
+        'f9-1',
+        'tok-propose',
+        expect.objectContaining({ propose: true }),
+      );
+    });
+
+    it('read-only user → ForbiddenException, folder9 NOT called', async () => {
+      const row = makeWikiRow({ humanPermission: 'read' });
+      db.limit.mockResolvedValueOnce([row]);
+
+      await expect(
+        svc.commitPage('ws-1', 'wiki-1', writeUser, commitDto),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(f9.createToken).not.toHaveBeenCalled();
+      expect(f9.commit).not.toHaveBeenCalled();
+    });
+
+    it('passes displayName/email from loadUserProfile into token attribution', async () => {
+      const row = makeWikiRow();
+      db.limit
+        .mockResolvedValueOnce([row])
+        .mockResolvedValueOnce([
+          { displayName: 'Bob', email: 'bob@example.com' },
+        ]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-write' }));
+      f9.commit.mockResolvedValue({ commit: 'sha-1', branch: 'main' });
+
+      await svc.commitPage('ws-1', 'wiki-1', writeUser, commitDto);
+
+      expect(f9.createToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          created_by: 'Bob',
+          permission: 'write',
+        }),
+      );
+    });
+
+    it('falls back to synthetic identity when users row is missing', async () => {
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]).mockResolvedValueOnce([]); // no user row
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-write' }));
+      f9.commit.mockResolvedValue({ commit: 'sha-1', branch: 'main' });
+
+      await svc.commitPage('ws-1', 'wiki-1', writeUser, commitDto);
+
+      // Fallback: user.id as display name
+      expect(f9.createToken).toHaveBeenCalledWith(
+        expect.objectContaining({ created_by: 'user-1' }),
+      );
+    });
+
+    it('falls back to synthetic email when users row has null displayName', async () => {
+      const row = makeWikiRow();
+      db.limit
+        .mockResolvedValueOnce([row])
+        .mockResolvedValueOnce([
+          { displayName: null, email: 'bob@example.com' },
+        ]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-write' }));
+      f9.commit.mockResolvedValue({ commit: 'sha-1', branch: 'main' });
+
+      await svc.commitPage('ws-1', 'wiki-1', writeUser, commitDto);
+
+      // displayName null → fall back to user.id
+      expect(f9.createToken).toHaveBeenCalledWith(
+        expect.objectContaining({ created_by: 'user-1' }),
+      );
+    });
+
+    it('maps folder9 409 to NestJS ConflictException', async () => {
+      const row = makeWikiRow();
+      db.limit
+        .mockResolvedValueOnce([row])
+        .mockResolvedValueOnce([
+          { displayName: 'Alice', email: 'alice@example.com' },
+        ]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-write' }));
+      f9.commit.mockRejectedValue(
+        new Folder9ApiError(409, '/api/commit', { error: 'CONFLICT' }),
+      );
+
+      await expect(
+        svc.commitPage('ws-1', 'wiki-1', writeUser, commitDto),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('re-throws non-409 folder9 errors unchanged', async () => {
+      const row = makeWikiRow();
+      db.limit
+        .mockResolvedValueOnce([row])
+        .mockResolvedValueOnce([
+          { displayName: 'Alice', email: 'alice@example.com' },
+        ]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-write' }));
+      const netErr = new Error('boom');
+      f9.commit.mockRejectedValue(netErr);
+
+      await expect(
+        svc.commitPage('ws-1', 'wiki-1', writeUser, commitDto),
+      ).rejects.toThrow(/boom/);
+    });
+
+    it('re-throws non-409 Folder9ApiError unchanged (covers the err-instanceof branch)', async () => {
+      const row = makeWikiRow();
+      db.limit
+        .mockResolvedValueOnce([row])
+        .mockResolvedValueOnce([
+          { displayName: 'Alice', email: 'alice@example.com' },
+        ]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-write' }));
+      const apiErr = new Folder9ApiError(500, '/api/commit', {
+        error: 'INTERNAL',
+      });
+      f9.commit.mockRejectedValue(apiErr);
+
+      let caught: unknown;
+      try {
+        await svc.commitPage('ws-1', 'wiki-1', writeUser, commitDto);
+      } catch (e) {
+        caught = e;
+      }
+      expect(caught).toBe(apiErr);
+    });
+  });
+
+  // ── listProposals ───────────────────────────────────────────────────
+  describe('listProposals', () => {
+    const user = { id: 'user-1', isAgent: false };
+
+    it('maps folder9 proposals to camelCase ProposalDto shape', async () => {
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-read' }));
+      f9.listProposals.mockResolvedValue([
+        {
+          id: 'p-1',
+          folder_id: 'f9-1',
+          branch_name: 'proposal/x',
+          title: 'Add docs',
+          description: 'desc',
+          status: 'pending',
+          author_type: 'agent',
+          author_id: 'agent-1',
+          reviewed_by: null,
+          created_at: '2026-04-13T10:00:00Z',
+        },
+        {
+          id: 'p-2',
+          folder_id: 'f9-1',
+          branch_name: 'proposal/y',
+          title: 'Update',
+          description: '',
+          status: 'merged',
+          author_type: 'user',
+          author_id: 'user-2',
+          reviewed_by: 'user-3',
+          created_at: '2026-04-13T11:00:00Z',
+        },
+      ]);
+
+      const result = await svc.listProposals('ws-1', 'wiki-1', user, {
+        status: 'pending',
+      });
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({
+        id: 'p-1',
+        wikiId: 'wiki-1',
+        title: 'Add docs',
+        description: 'desc',
+        status: 'pending',
+        authorId: 'agent-1',
+        authorType: 'agent',
+        createdAt: '2026-04-13T10:00:00Z',
+        reviewedBy: null,
+        reviewedAt: null,
+      });
+      // "merged" normalizes to "approved" for the ProposalDto status union
+      expect(result[1].status).toBe('approved');
+      expect(result[1].authorType).toBe('user');
+      expect(result[1].reviewedBy).toBe('user-3');
+      expect(f9.listProposals).toHaveBeenCalledWith(
+        'ws-1',
+        'f9-1',
+        'tok-read',
+        { status: 'pending' },
+      );
+    });
+
+    it('passes empty opts when none given', async () => {
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-read' }));
+      f9.listProposals.mockResolvedValue([]);
+
+      await svc.listProposals('ws-1', 'wiki-1', user);
+
+      expect(f9.listProposals).toHaveBeenCalledWith(
+        'ws-1',
+        'f9-1',
+        'tok-read',
+        {},
+      );
+    });
+
+    it('throws NotFoundException for missing wiki before calling folder9', async () => {
+      db.limit.mockResolvedValueOnce([]);
+      await expect(svc.listProposals('ws-1', 'missing', user)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(f9.createToken).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── approveProposal / rejectProposal ────────────────────────────────
+  describe('approveProposal', () => {
+    const writeUser = { id: 'user-1', isAgent: false };
+
+    it('approves a proposal using a write-scoped token', async () => {
+      const row = makeWikiRow();
+      db.limit
+        .mockResolvedValueOnce([row])
+        .mockResolvedValueOnce([
+          { displayName: 'Alice', email: 'alice@example.com' },
+        ]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-write' }));
+      f9.approveProposal.mockResolvedValue(undefined);
+
+      await svc.approveProposal('ws-1', 'wiki-1', writeUser, 'p-1');
+
+      expect(f9.createToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          permission: 'write',
+          created_by: 'Alice',
+        }),
+      );
+      expect(f9.approveProposal).toHaveBeenCalledWith(
+        'ws-1',
+        'f9-1',
+        'p-1',
+        'tok-write',
+        'user-1',
+      );
+    });
+
+    it('throws ForbiddenException for propose-only user', async () => {
+      const row = makeWikiRow({ humanPermission: 'propose' });
+      db.limit.mockResolvedValueOnce([row]);
+
+      await expect(
+        svc.approveProposal('ws-1', 'wiki-1', writeUser, 'p-1'),
+      ).rejects.toThrow(ForbiddenException);
+      expect(f9.createToken).not.toHaveBeenCalled();
+      expect(f9.approveProposal).not.toHaveBeenCalled();
+    });
+
+    it('maps folder9 409 to ConflictException', async () => {
+      const row = makeWikiRow();
+      db.limit
+        .mockResolvedValueOnce([row])
+        .mockResolvedValueOnce([
+          { displayName: 'Alice', email: 'alice@example.com' },
+        ]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-write' }));
+      f9.approveProposal.mockRejectedValue(
+        new Folder9ApiError(409, '/approve', { error: 'CONFLICT' }),
+      );
+
+      await expect(
+        svc.approveProposal('ws-1', 'wiki-1', writeUser, 'p-1'),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('re-throws non-409 folder9 errors unchanged', async () => {
+      const row = makeWikiRow();
+      db.limit
+        .mockResolvedValueOnce([row])
+        .mockResolvedValueOnce([
+          { displayName: 'Alice', email: 'alice@example.com' },
+        ]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-write' }));
+      f9.approveProposal.mockRejectedValue(new Error('boom'));
+
+      await expect(
+        svc.approveProposal('ws-1', 'wiki-1', writeUser, 'p-1'),
+      ).rejects.toThrow(/boom/);
+    });
+
+    it('re-throws non-409 Folder9ApiError unchanged', async () => {
+      const row = makeWikiRow();
+      db.limit
+        .mockResolvedValueOnce([row])
+        .mockResolvedValueOnce([
+          { displayName: 'Alice', email: 'alice@example.com' },
+        ]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-write' }));
+      const apiErr = new Folder9ApiError(500, '/approve', { error: 'BOOM' });
+      f9.approveProposal.mockRejectedValue(apiErr);
+
+      let caught: unknown;
+      try {
+        await svc.approveProposal('ws-1', 'wiki-1', writeUser, 'p-1');
+      } catch (e) {
+        caught = e;
+      }
+      expect(caught).toBe(apiErr);
+    });
+  });
+
+  describe('rejectProposal', () => {
+    const writeUser = { id: 'user-1', isAgent: false };
+
+    it('rejects a proposal with a reason', async () => {
+      const row = makeWikiRow();
+      db.limit
+        .mockResolvedValueOnce([row])
+        .mockResolvedValueOnce([
+          { displayName: 'Alice', email: 'alice@example.com' },
+        ]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-write' }));
+      f9.rejectProposal.mockResolvedValue(undefined);
+
+      await svc.rejectProposal('ws-1', 'wiki-1', writeUser, 'p-1', 'off-topic');
+
+      expect(f9.rejectProposal).toHaveBeenCalledWith(
+        'ws-1',
+        'f9-1',
+        'p-1',
+        'tok-write',
+        'user-1',
+        'off-topic',
+      );
+    });
+
+    it('rejects a proposal without a reason', async () => {
+      const row = makeWikiRow();
+      db.limit
+        .mockResolvedValueOnce([row])
+        .mockResolvedValueOnce([
+          { displayName: 'Alice', email: 'alice@example.com' },
+        ]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-write' }));
+      f9.rejectProposal.mockResolvedValue(undefined);
+
+      await svc.rejectProposal('ws-1', 'wiki-1', writeUser, 'p-1');
+
+      expect(f9.rejectProposal).toHaveBeenCalledWith(
+        'ws-1',
+        'f9-1',
+        'p-1',
+        'tok-write',
+        'user-1',
+        undefined,
+      );
+    });
+
+    it('throws ForbiddenException for propose-only user', async () => {
+      const row = makeWikiRow({ humanPermission: 'propose' });
+      db.limit.mockResolvedValueOnce([row]);
+
+      await expect(
+        svc.rejectProposal('ws-1', 'wiki-1', writeUser, 'p-1'),
+      ).rejects.toThrow(ForbiddenException);
+      expect(f9.rejectProposal).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── token cache ─────────────────────────────────────────────────────
+  describe('token cache', () => {
+    const user = { id: 'user-1', isAgent: false };
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('reuses a cached token across two getTree calls on the same wiki', async () => {
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]).mockResolvedValueOnce([row]);
+      f9.createToken.mockResolvedValue(makeToken({ token: 'tok-read' }));
+      f9.getTree.mockResolvedValue([]);
+
+      await svc.getTree('ws-1', 'wiki-1', user);
+      await svc.getTree('ws-1', 'wiki-1', user);
+
+      expect(f9.createToken).toHaveBeenCalledTimes(1);
+      expect(f9.getTree).toHaveBeenCalledTimes(2);
+    });
+
+    it('mints a fresh token after the local TTL expires', async () => {
+      // 15 min local TTL; jump the clock 16 min between the two calls so the
+      // cache entry is past its deadline.
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-04-13T10:00:00.000Z'));
+
+      const row = makeWikiRow();
+      db.limit.mockResolvedValueOnce([row]).mockResolvedValueOnce([row]);
+      f9.createToken
+        .mockResolvedValueOnce(makeToken({ token: 'tok-old' }))
+        .mockResolvedValueOnce(makeToken({ token: 'tok-new' }));
+      f9.getTree.mockResolvedValue([]);
+
+      await svc.getTree('ws-1', 'wiki-1', user);
+
+      jest.setSystemTime(new Date('2026-04-13T10:16:00.000Z'));
+
+      await svc.getTree('ws-1', 'wiki-1', user);
+
+      expect(f9.createToken).toHaveBeenCalledTimes(2);
+      // Second getTree used the freshly-minted token
+      const calls = f9.getTree.mock.calls as Array<
+        [string, string, string, unknown]
+      >;
+      expect(calls[0][2]).toBe('tok-old');
+      expect(calls[1][2]).toBe('tok-new');
+    });
+
+    it('caches separately per (folderId, permission, createdBy) tuple', async () => {
+      // Same wiki, same user, two different permissions → two mints.
+      const row = makeWikiRow({ humanPermission: 'write' });
+      db.limit
+        .mockResolvedValueOnce([row]) // getWikiOrThrow (getTree)
+        .mockResolvedValueOnce([row]) // getWikiOrThrow (commitPage)
+        .mockResolvedValueOnce([
+          { displayName: 'Alice', email: 'alice@example.com' },
+        ]); // loadUserProfile inside commitPage
+      f9.createToken
+        .mockResolvedValueOnce(makeToken({ token: 'tok-read' }))
+        .mockResolvedValueOnce(makeToken({ token: 'tok-write' }));
+      f9.getTree.mockResolvedValue([]);
+      f9.commit.mockResolvedValue({ commit: 'sha-1', branch: 'main' });
+
+      await svc.getTree('ws-1', 'wiki-1', user);
+      await svc.commitPage('ws-1', 'wiki-1', user, {
+        message: 'm',
+        files: [{ path: 'a.md', content: 'c', action: 'create' }],
+      });
+
+      expect(f9.createToken).toHaveBeenCalledTimes(2);
+      const mintCalls = f9.createToken.mock.calls as Array<
+        [Record<string, unknown>]
+      >;
+      expect(mintCalls[0][0]).toMatchObject({ permission: 'read' });
+      expect(mintCalls[1][0]).toMatchObject({ permission: 'write' });
+    });
+
+    it('mints separate tokens for two different commit users (createdBy)', async () => {
+      const row = makeWikiRow({ humanPermission: 'write' });
+      db.limit
+        .mockResolvedValueOnce([row])
+        .mockResolvedValueOnce([
+          { displayName: 'Alice', email: 'alice@example.com' },
+        ])
+        .mockResolvedValueOnce([row])
+        .mockResolvedValueOnce([
+          { displayName: 'Bob', email: 'bob@example.com' },
+        ]);
+      f9.createToken
+        .mockResolvedValueOnce(makeToken({ token: 'tok-alice' }))
+        .mockResolvedValueOnce(makeToken({ token: 'tok-bob' }));
+      f9.commit.mockResolvedValue({ commit: 'sha', branch: 'main' });
+
+      await svc.commitPage(
+        'ws-1',
+        'wiki-1',
+        { id: 'u1', isAgent: false },
+        {
+          message: 'm',
+          files: [{ path: 'a', content: 'c', action: 'create' }],
+        },
+      );
+      await svc.commitPage(
+        'ws-1',
+        'wiki-1',
+        { id: 'u2', isAgent: false },
+        {
+          message: 'm',
+          files: [{ path: 'a', content: 'c', action: 'create' }],
+        },
+      );
+
+      expect(f9.createToken).toHaveBeenCalledTimes(2);
     });
   });
 });
