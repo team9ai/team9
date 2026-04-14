@@ -36,6 +36,7 @@ import {
 import { deepResearchApi } from "@/services/api/deep-research";
 import { upsertChannelMessageInCache } from "@/lib/message-query-cache";
 import { getHttpErrorMessage, getHttpErrorStatus } from "@/lib/http-error";
+import { SHOW_COMPOSER_MODEL_CONTROL } from "@/lib/composer-flags";
 import {
   COMMON_STAFF_MODELS,
   DEFAULT_STAFF_MODEL,
@@ -561,14 +562,14 @@ export function HomeMainContent() {
                   </div>
 
                   <div className="flex items-center justify-between gap-1.5 sm:justify-end">
-                    {isDeepResearch ? null : (
+                    {!isDeepResearch && SHOW_COMPOSER_MODEL_CONTROL ? (
                       <DashboardModelControl
                         agent={selectedAgent}
                         fallbackLabel={t("dashboardModelLabel")}
                         isUpdating={isUpdatingSelectedAgentModel}
                         onSelectModel={handleModelChange}
                       />
-                    )}
+                    ) : null}
 
                     <Button
                       type="button"
