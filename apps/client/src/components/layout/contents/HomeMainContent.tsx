@@ -318,7 +318,8 @@ function DashboardActionChip({
   );
 }
 
-function DashboardTaskPill() {
+// Temporarily hidden from landing — keep for reintroduction
+export function DashboardTaskPill() {
   const { t } = useTranslation("navigation");
 
   return (
@@ -522,7 +523,7 @@ export function HomeMainContent() {
               </div>
             </div>
 
-            <DashboardTaskPill />
+            {/* <DashboardTaskPill /> */}
           </div>
         </div>
       </div>
