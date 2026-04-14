@@ -19,6 +19,12 @@ import {
   formatEditedTime,
   parseApiDate,
 } from "@/lib/date-utils";
+import { formatAbsoluteTooltip } from "@/lib/date-format";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { RichTextEditor } from "./editor";
 import { useFullContent } from "@/hooks/useMessages";
 import { getAgentMeta } from "@/lib/agent-events";
@@ -267,15 +273,35 @@ export function MessageItem({
             <span className="font-semibold text-sm">{senderName}</span>
             <AgentTypeBadge agentType={message.sender?.agentType} />
           </div>
-          <span className="text-xs text-muted-foreground">
-            {formatMessageTime(new Date(message.createdAt))}
-          </span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="text-xs text-muted-foreground cursor-default">
+                {formatMessageTime(parseApiDate(message.createdAt))}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent
+              side="top"
+              className="bg-foreground text-background border-foreground text-xs font-medium"
+            >
+              {formatAbsoluteTooltip(parseApiDate(message.createdAt))}
+            </TooltipContent>
+          </Tooltip>
           {message.isEdited && (
-            <span className="text-xs text-muted-foreground">
-              {t("message:editedAt", {
-                time: formatEditedTime(parseApiDate(message.updatedAt)),
-              })}
-            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-xs text-muted-foreground cursor-default">
+                  {t("message:editedAt", {
+                    time: formatEditedTime(parseApiDate(message.updatedAt)),
+                  })}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent
+                side="top"
+                className="bg-foreground text-background border-foreground text-xs font-medium"
+              >
+                {formatAbsoluteTooltip(parseApiDate(message.updatedAt))}
+              </TooltipContent>
+            </Tooltip>
           )}
           {isSending && (
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
