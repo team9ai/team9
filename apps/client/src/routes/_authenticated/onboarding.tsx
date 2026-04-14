@@ -906,20 +906,6 @@ function OnboardingRoute() {
               </p>
             </div>
 
-            {currentStep === 6 && (
-              <div className="mt-2 grid max-w-[320px] gap-2 rounded-[24px] border border-slate-200/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(243,247,253,0.84))] p-5 text-slate-700 shadow-[0_18px_42px_rgba(100,116,139,0.1)]">
-                <strong className="text-base text-slate-800">
-                  {workspace?.name ?? t("workspaceFallback")}
-                </strong>
-                <p className="text-sm leading-6 text-slate-600/85">
-                  {t("plan.note")}
-                </p>
-                <span className="text-sm leading-6 text-slate-500">
-                  {t("welcome")}
-                </span>
-              </div>
-            )}
-
             {currentStep > 1 && (
               <div className="mt-auto hidden lg:flex">
                 <GhostButton
@@ -1783,6 +1769,18 @@ function StepSix({
 
   return (
     <div className="grid gap-6">
+      {!checkoutCompleted ? (
+        <div className="flex w-full justify-end">
+          <GhostButton
+            onClick={onContinueWithoutPlan}
+            disabled={checkoutPending}
+            className="bg-white/86 text-slate-600"
+          >
+            {t("actions.continueWithoutPlan")}
+          </GhostButton>
+        </div>
+      ) : null}
+
       {checkoutCompleted ? (
         <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-700">
           {t("plan.success")}
@@ -1844,8 +1842,8 @@ function StepSix({
         </div>
       ) : null}
 
-      <StepActionDock>
-        {checkoutCompleted ? (
+      {checkoutCompleted ? (
+        <StepActionDock>
           <ContinueButton
             onClick={onFinish}
             disabled={checkoutPending}
@@ -1853,16 +1851,8 @@ function StepSix({
           >
             {t("actions.finish")}
           </ContinueButton>
-        ) : (
-          <GhostButton
-            onClick={onContinueWithoutPlan}
-            disabled={checkoutPending}
-            className="bg-white/86 text-slate-600"
-          >
-            {t("actions.continueWithoutPlan")}
-          </GhostButton>
-        )}
-      </StepActionDock>
+        </StepActionDock>
+      ) : null}
     </div>
   );
 }
