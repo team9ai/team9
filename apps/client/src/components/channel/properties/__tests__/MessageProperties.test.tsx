@@ -33,6 +33,24 @@ vi.mock("../PropertySelector", () => ({
 
 vi.mock("@/hooks/useMessageProperties", () => ({
   useSetProperty: () => ({ mutate: vi.fn(), isPending: false }),
+  useRemoveProperty: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+
+vi.mock("@/hooks/useChannels", () => ({
+  useChannelMembers: () => ({ data: [] }),
+}));
+
+vi.mock("@/components/ui/tooltip", () => ({
+  TooltipProvider: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  TooltipTrigger: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+  TooltipContent: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
 }));
 
 // ==================== Helpers ====================

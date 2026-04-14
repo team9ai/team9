@@ -148,7 +148,7 @@ export function MessageProperties({
   // Show shimmer when AI auto-fill is in progress
   if (aiAutoFillLoading) {
     return (
-      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+      <div className="flex flex-wrap items-center gap-1.5 mt-1 -ml-2">
         <Loader2 size={12} className="animate-spin text-muted-foreground" />
         <div className="h-5 w-16 rounded-full bg-muted animate-pulse" />
         <div className="h-5 w-24 rounded-full bg-muted animate-pulse" />
@@ -159,7 +159,7 @@ export function MessageProperties({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-1 mt-1">
+    <div className="flex flex-wrap items-center gap-1 mt-1 -ml-2">
       {visibleDefinitions.map((def) => {
         const value = properties?.[def.key];
         if (!hasValue(value) && def.showInChatPolicy !== "show") return null;

@@ -33,7 +33,7 @@ export function ThreadReplyIndicator({
   const hasUnread = unreadCount != null && unreadCount > 0;
 
   return (
-    <div className="flex items-center gap-1 mt-1">
+    <div className="flex items-center gap-1 mt-1 -ml-2">
       <button
         onClick={onClick}
         className={cn(

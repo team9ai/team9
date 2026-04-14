@@ -98,7 +98,7 @@ export function MessageReactions({
 
   return (
     <TooltipProvider>
-      <div className="flex flex-wrap items-center gap-1 mt-1">
+      <div className="flex flex-wrap items-center gap-1 mt-1 -ml-1.5">
         {grouped.map((g) => (
           <Tooltip key={g.emoji}>
             <TooltipTrigger asChild>
