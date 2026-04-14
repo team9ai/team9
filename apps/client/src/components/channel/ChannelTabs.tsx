@@ -198,8 +198,6 @@ function TabItem({
 
   return (
     <div
-      data-tab-id={tab.id}
-      data-tab-active={isActive ? "true" : "false"}
       className={cn(
         "relative pt-1",
         dragOver &&
@@ -441,7 +439,7 @@ export function ChannelTabs({
   );
 
   return (
-    <div className="flex items-center gap-1 px-3 border-b overflow-x-auto scrollbar-none">
+    <div className="flex items-center gap-1 px-3 border-b overflow-x-auto scrollbar-none shrink-0">
       {sortedTabs.map((tab) => (
         <TabItem
           key={tab.id}
