@@ -308,5 +308,8 @@
     "bannerMessage": "此日常处于草稿状态，完成创建后方可使用。",
     "noChannelTooltip": "没有可用的创建对话。",
     "untitled": "无标题"
+  },
+  "creation": {
+    "runLabel": "创建日常任务会话"
   }
 }

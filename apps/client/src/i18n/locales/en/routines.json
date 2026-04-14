@@ -308,5 +308,8 @@
     "bannerMessage": "This routine is in draft. Complete Creation to start using it.",
     "noChannelTooltip": "No creation conversation available.",
     "untitled": "Untitled"
+  },
+  "creation": {
+    "runLabel": "Routine Creation"
   }
 }
