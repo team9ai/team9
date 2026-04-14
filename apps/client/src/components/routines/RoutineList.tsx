@@ -132,12 +132,30 @@ export function RoutineList({ botId }: RoutineListProps) {
     );
   }, [selectedRun, activeExecution, activeRoutineExecutions]);
 
-  const isCreationMode = selectedRun?.kind === "creation";
+  // isCreationMode requires BOTH the local selection AND the fetched
+  // routine still being a draft. Without the status guard, ChatArea stays
+  // stuck on the archived creation channel after completeCreation flips
+  // the routine to upcoming.
+  const isCreationMode =
+    selectedRun?.kind === "creation" && selectedRoutine?.status === "draft";
 
   const creationChannelOverride =
     isCreationMode && selectedRoutine
       ? (selectedRoutine.creationChannelId ?? null)
       : null;
+
+  // When the draft leaves 'draft' (completeCreation or other transition)
+  // while we're still viewing its creation run, clear the creation
+  // selection so ChatArea shows the normal upcoming/start UI.
+  useEffect(() => {
+    if (
+      selectedRun?.kind === "creation" &&
+      selectedRoutine &&
+      selectedRoutine.status !== "draft"
+    ) {
+      setSelectedRun(null);
+    }
+  }, [selectedRun, selectedRoutine]);
 
   const isViewingHistory =
     !!selectedRunExecution &&
@@ -216,6 +234,25 @@ export function RoutineList({ botId }: RoutineListProps) {
     }
   }, [activeRoutineId, showSettingsRoutineId]);
 
+  // Shared handler for any draft deletion path (draft card delete button,
+  // future batch delete, etc.). Clears active selection if the deleted
+  // routine was currently open so the center pane stops rendering it.
+  const handleDraftDeleted = useCallback(
+    (deletedRoutineId: string) => {
+      setExpandedRoutineIds((prev) => {
+        if (!prev.has(deletedRoutineId)) return prev;
+        const next = new Set(prev);
+        next.delete(deletedRoutineId);
+        return next;
+      });
+      if (activeRoutineId === deletedRoutineId) {
+        setSelectedRun(null);
+        setActiveRoutineId(null);
+      }
+    },
+    [activeRoutineId],
+  );
+
   // Fetch routine detail for settings dialog (needs RoutineDetail)
   const { data: settingsRoutineDetail } = useQuery({
     queryKey: ["routine", showSettingsRoutineId],
@@ -292,6 +329,7 @@ export function RoutineList({ botId }: RoutineListProps) {
                         key={routine.id}
                         routine={routine}
                         onOpenCreationSession={handleOpenCreationSession}
+                        onDeleted={handleDraftDeleted}
                       />
                     ))}
                     {filteredRoutines.length > 0 && (

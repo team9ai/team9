@@ -11,11 +11,19 @@ import type { Routine } from "@/types/routine";
 interface DraftRoutineCardProps {
   routine: Routine;
   onOpenCreationSession: (routineId: string) => void;
+  /**
+   * Invoked after the draft is successfully deleted. Lets the parent
+   * reset any selection/polling state tied to this routine (the `['routine', id]`
+   * detail query, active run, etc.) so a deleted draft doesn't keep
+   * rendering in the center pane.
+   */
+  onDeleted?: (routineId: string) => void;
 }
 
 export function DraftRoutineCard({
   routine,
   onOpenCreationSession,
+  onDeleted,
 }: DraftRoutineCardProps) {
   const { t } = useTranslation("routines");
   const queryClient = useQueryClient();
@@ -23,8 +31,12 @@ export function DraftRoutineCard({
 
   const deleteMutation = useMutation({
     mutationFn: () => api.routines.delete(routine.id),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["routines"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["routines"] });
+      // Drop the detail query cache for the now-deleted routine so the
+      // center pane stops polling it.
+      queryClient.removeQueries({ queryKey: ["routine", routine.id] });
+      onDeleted?.(routine.id);
     },
   });
 

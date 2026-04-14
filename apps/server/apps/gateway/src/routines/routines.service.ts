@@ -1084,8 +1084,12 @@ export class RoutinesService {
     let claimed = false;
 
     try {
-      // ATOMIC CLAIM: only succeed if both fields are still null. Drizzle
-      // returns the updated rows; an empty array means we lost the race.
+      // ATOMIC CLAIM: only succeed if creation_channel_id is still null.
+      // We deliberately do NOT predicate on creation_session_id being
+      // null — a half-populated row (channel null, session set) is a
+      // rollback residue from an older bug, and this UPDATE heals it by
+      // overwriting both fields. Drizzle returns the updated rows; an
+      // empty array means we lost the race for this routine.
       const claimResult = await this.db
         .update(schema.routines)
         .set({
@@ -1097,7 +1101,6 @@ export class RoutinesService {
           and(
             eq(schema.routines.id, routineId),
             isNull(schema.routines.creationChannelId),
-            isNull(schema.routines.creationSessionId),
           ),
         )
         .returning({ id: schema.routines.id });
@@ -1115,6 +1118,17 @@ export class RoutinesService {
 
         const winner = await this.getRoutineOrThrow(routineId, tenantId);
         if (winner.creationChannelId && winner.creationSessionId) {
+          // KNOWN LIMITATION (rare²): we return the winner's ids before
+          // the winner's sendInput() has committed. If the winner's
+          // kickoff then fails, its catch-block clears these columns and
+          // hard-deletes the channel. By that point we have already
+          // returned stale ids to our caller. The caller will then try
+          // to open a channel that no longer exists and hit a 404 — user
+          // retry reliably recovers. Acceptable for P0 because it
+          // requires concurrent callers AND transient Hive failure on
+          // the winner. A proper fix would serialize on a pg advisory
+          // lock or add an `is_ready` marker that the winner sets
+          // after sendInput succeeds.
           return {
             creationChannelId: winner.creationChannelId,
             creationSessionId: winner.creationSessionId,

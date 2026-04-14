@@ -24,7 +24,11 @@ vi.mock("@/services/api", () => ({
 
 import { DraftRoutineCard } from "../DraftRoutineCard";
 
-function renderCard(routineOverrides: Partial<Routine>, onOpen = vi.fn()) {
+function renderCard(
+  routineOverrides: Partial<Routine>,
+  onOpen = vi.fn(),
+  onDeleted?: (id: string) => void,
+) {
   const qc = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -38,12 +42,17 @@ function renderCard(routineOverrides: Partial<Routine>, onOpen = vi.fn()) {
     creationChannelId: null,
     ...routineOverrides,
   } as Routine;
+  const removeSpy = vi.spyOn(qc, "removeQueries");
   render(
     <QueryClientProvider client={qc}>
-      <DraftRoutineCard routine={routine} onOpenCreationSession={onOpen} />
+      <DraftRoutineCard
+        routine={routine}
+        onOpenCreationSession={onOpen}
+        onDeleted={onDeleted}
+      />
     </QueryClientProvider>,
   );
-  return { onOpen };
+  return { onOpen, removeSpy };
 }
 
 describe("DraftRoutineCard", () => {
@@ -100,5 +109,33 @@ describe("DraftRoutineCard", () => {
       });
       expect((btnAfter as HTMLButtonElement).disabled).toBe(false);
     });
+  });
+
+  it("delete mutation success invokes onDeleted and removes routine detail query", async () => {
+    deleteMutationFn.mockResolvedValueOnce({ success: true });
+    const onDeleted = vi.fn();
+    const { removeSpy } = renderCard(
+      { creationChannelId: null },
+      vi.fn(),
+      onDeleted,
+    );
+
+    // Click delete once (arms confirmation), then click again to fire
+    const deleteBtn = screen.getAllByRole("button").find((b) => {
+      const svg = b.querySelector("svg");
+      return svg?.classList.contains("lucide-trash-2");
+    });
+    expect(deleteBtn).toBeDefined();
+    fireEvent.click(deleteBtn!);
+
+    // Now the confirm button exists
+    const confirmBtn = screen.getByRole("button", {
+      name: /draft\.delete/,
+    });
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => expect(deleteMutationFn).toHaveBeenCalled());
+    await waitFor(() => expect(onDeleted).toHaveBeenCalledWith("r-1"));
+    expect(removeSpy).toHaveBeenCalledWith({ queryKey: ["routine", "r-1"] });
   });
 });
